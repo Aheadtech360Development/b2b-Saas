@@ -1,0 +1,98 @@
+# ─── Python ───────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+dist/
+develop-eggs/
+eggs/
+.eggs/
+lib/
+lib64/
+# Don't ignore frontend source lib (Python venv pattern above would match it)
+!frontend/src/lib/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual envs
+.venv/
+venv/
+ENV/
+env/
+.env.venv
+
+# mypy / ruff / coverage
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+htmlcov/
+.coverage
+coverage.xml
+*.cover
+
+# ─── Node.js / Next.js ────────────────────────────────────────────────────────
+node_modules/
+.next/
+out/
+.turbo/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.pnpm-store/
+.cache/
+.nyc_output/
+
+# ─── Environment files ────────────────────────────────────────────────────────
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env.staging
+.env.production
+# Keep .env.example in version control
+
+# ─── Database / migration artefacts ──────────────────────────────────────────
+*.db
+*.sqlite3
+
+# ─── Generated files ──────────────────────────────────────────────────────────
+uploads/
+generated/
+*.pdf
+*.xlsx
+*.zip
+
+# ─── OS ───────────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+Desktop.ini
+*.swp
+*.swo
+*~
+
+# ─── IDE ──────────────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+
+# ─── Logs ─────────────────────────────────────────────────────────────────────
+*.log
+logs/
+celery*.pid
+
+# ─── Docker ───────────────────────────────────────────────────────────────────
+# (docker-compose.override.yml may contain local secrets)
+docker-compose.override.yml

@@ -1,0 +1,1524 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AF Apparels — B2B Wholesale Wireframe v4 | AheadTech360</title>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@400;500;600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --navy:#1B3A5C;--red:#E8242A;--blue:#1E90FF;--white:#fff;
+  --off:#F4F6F9;--body:#0F172A;--muted:#64748B;--border:#E2E8F0;
+  --dark:#0A0A0A;--mid:#111827;--dk-border:#1E293B;
+  --green:#059669;--gold:#D4A843;--wrap:1140px;
+  --note-bg:#fffbe6;--note-border:#f0c040;
+}
+body{font-family:'Inter',sans-serif;background:#F4F6F9;color:var(--body);font-size:14px;-webkit-font-smoothing:antialiased}
+h1,h2,h3,h4,h5{font-family:'Barlow Semi Condensed',sans-serif;letter-spacing:.01em}
+
+/* TOOLBAR */
+.tool-bar{background:#0F172A;color:#64748B;font-size:11px;padding:7px 20px;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;position:sticky;top:0;z-index:1000}
+.tool-bar strong{color:#fff;font-family:'Barlow Semi Condensed',sans-serif;font-size:13px;letter-spacing:.04em}
+.tool-bar .tags{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.tool-bar .tag{padding:2px 8px;border-radius:3px;font-size:10px;font-weight:700}
+.tag-blue{background:#1E90FF;color:#fff}
+.tag-orange{background:#D97706;color:#fff}
+.tag-green{background:#059669;color:#fff}
+.toggle-btn{background:#f0c040;color:#222;border:none;padding:5px 14px;border-radius:4px;cursor:pointer;font-size:11px;font-weight:700}
+
+/* TAB NAV */
+.tab-nav{background:#0F172A;display:flex;overflow-x:auto;position:sticky;top:37px;z-index:999;border-bottom:2px solid #1E90FF}
+.tab-nav::-webkit-scrollbar{height:3px}.tab-nav::-webkit-scrollbar-thumb{background:#334155}
+.tab-nav button{background:none;border:none;color:#64748B;padding:10px 15px;font-family:'Inter',sans-serif;font-size:11.5px;font-weight:600;cursor:pointer;white-space:nowrap;border-bottom:2px solid transparent;margin-bottom:-2px;transition:all .15s}
+.tab-nav button:hover{color:#fff;background:#1E293B}
+.tab-nav button.active{color:#fff;background:#1E293B;border-bottom-color:#E8242A}
+
+/* PAGE */
+.page{display:none;background:#fff}
+.page.active{display:block}
+.wrap{max-width:var(--wrap);margin:0 auto;padding:0 24px}
+
+/* CRO NOTES */
+.cro-note{background:var(--note-bg);border-left:4px solid #E8242A;padding:10px 16px;font-size:11.5px;line-height:1.6;color:#555}
+.cro-note b{color:#92400E}
+.cro-note.hidden{display:none!important}
+.sec-badge{display:inline-flex;align-items:center;gap:5px;background:#1E90FF;color:#fff;font-family:'Barlow Semi Condensed',sans-serif;font-size:9px;font-weight:700;padding:3px 9px;letter-spacing:.08em}
+
+/* ANNOUNCE */
+.announce{padding:7px 24px;text-align:center;font-size:12px;font-weight:600;letter-spacing:.02em}
+.announce.red-bar{background:var(--red);color:#fff}
+.announce.navy-bar{background:var(--navy);color:#fff}
+
+/* HEADER */
+.site-header{background:var(--navy);padding:0 24px;border-bottom:3px solid var(--red)}
+.hdr-inner{max-width:var(--wrap);margin:0 auto;display:flex;align-items:center;justify-content:space-between;padding:12px 0;gap:16px}
+.af-logo{display:flex;align-items:center;gap:10px}
+.af-mono{font-family:'Barlow Semi Condensed',sans-serif;font-size:32px;font-weight:800;line-height:1}
+.af-mono .a{color:#1E90FF}
+.af-mono .f{color:#E8242A}
+.af-brand{font-family:'Barlow Semi Condensed',sans-serif;font-size:11px;color:rgba(255,255,255,.55);line-height:1.25;letter-spacing:.12em;font-weight:600}
+.site-nav{display:flex;gap:4px;align-items:center}
+.site-nav a{color:rgba(255,255,255,.8);font-size:13px;font-weight:500;text-decoration:none;padding:5px 10px;border-radius:3px;white-space:nowrap}
+.site-nav a:hover{color:#fff;background:rgba(255,255,255,.08)}
+.hdr-actions{display:flex;gap:8px;align-items:center}
+.hdr-search{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.15);color:#fff;padding:6px 12px;border-radius:4px;font-size:12px;font-family:'Inter',sans-serif;width:180px}
+.hdr-search::placeholder{color:rgba(255,255,255,.4)}
+
+/* SUB NAV */
+.sub-nav{background:#F4F6F9;border-bottom:1px solid var(--border);padding:0 24px}
+.sub-nav-inner{max-width:var(--wrap);margin:0 auto;display:flex;align-items:center;gap:24px;padding:8px 0;font-size:12px;overflow-x:auto}
+.sub-nav a{color:var(--muted);text-decoration:none;font-weight:500;white-space:nowrap}
+.sub-nav a:hover{color:var(--navy)}
+.sub-nav .cat-link{font-weight:700;color:var(--navy)}
+
+/* BUTTONS */
+.btn{display:inline-flex;align-items:center;justify-content:center;font-family:'Barlow Semi Condensed',sans-serif;font-weight:700;letter-spacing:.04em;cursor:default;border:none;border-radius:3px;transition:opacity .15s}
+.btn:hover{opacity:.88}
+.btn-red{background:var(--red);color:#fff;padding:9px 20px;font-size:14px}
+.btn-navy{background:var(--navy);color:#fff;padding:9px 20px;font-size:14px}
+.btn-blue-ol{background:none;color:var(--blue);padding:8px 18px;font-size:13px;border:1.5px solid var(--blue)}
+.btn-navy-ol{background:none;color:var(--navy);padding:8px 18px;font-size:13px;border:1.5px solid var(--navy)}
+.btn-white-ol{background:none;color:rgba(255,255,255,.8);padding:8px 18px;font-size:13px;border:1.5px solid rgba(255,255,255,.3)}
+.btn-green-ol{background:none;color:var(--green);padding:8px 18px;font-size:13px;border:1.5px solid var(--green)}
+.btn-sm{padding:5px 12px!important;font-size:12px!important}
+.btn-lg{padding:13px 30px!important;font-size:16px!important}
+.btn-full{width:100%;justify-content:center}
+
+/* BADGES */
+.badge{display:inline-block;padding:2px 8px;border-radius:3px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;margin-right:3px}
+.b-red{background:#ffe0e0;color:var(--red);border:1px solid #f8a8a8}
+.b-blue{background:#E0F0FF;color:var(--blue);border:1px solid #BAD9FF}
+.b-green{background:#d1fae5;color:var(--green);border:1px solid #6ee7b7}
+.b-gold{background:#fdf6e3;color:#92400E;border:1px solid #f0c040}
+.b-navy{background:#EEF4FF;color:var(--navy);border:1px solid #C7D9F0}
+.b-grey{background:#F4F6F9;color:#475569;border:1px solid var(--border)}
+
+/* SECTIONS */
+.section{padding:60px 0}
+.section.bg-white{background:#fff}
+.section.bg-off{background:var(--off)}
+.section.bg-navy{background:var(--navy)}
+.section.bg-dark{background:var(--dark)}
+.section.compact{padding:32px 0}
+.section-hd{margin-bottom:36px}
+.section-hd h2{font-size:28px;font-weight:800;color:var(--body);margin-bottom:8px}
+.section-hd p{font-size:14px;color:var(--muted);max-width:560px;line-height:1.6}
+.section-hd.center{text-align:center}
+.section-hd.center p{margin:0 auto}
+.section-hd.light h2{color:#fff}
+.section-hd.light p{color:#94A3B8}
+
+/* HERO */
+.hero-section{background:var(--navy);padding:0}
+.hero-inner{max-width:var(--wrap);margin:0 auto;padding:48px 24px 44px;display:flex;gap:48px;align-items:center;flex-wrap:wrap}
+.hero-copy{flex:1.3;min-width:280px}
+.hero-visual{flex:1;min-width:240px}
+.hero-eyebrow{display:inline-flex;align-items:center;gap:8px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);color:rgba(255,255,255,.7);font-size:11px;font-weight:600;padding:5px 14px;border-radius:2px;letter-spacing:.08em;margin-bottom:18px;text-transform:uppercase}
+.hero-h1{font-size:clamp(28px,4vw,46px);color:#fff;line-height:1.05;margin-bottom:14px;font-weight:800}
+.hero-h1 .accent-blue{color:#1E90FF}
+.hero-h1 .accent-red{color:#E8242A}
+.hero-sub{font-size:14px;color:rgba(255,255,255,.6);line-height:1.7;margin-bottom:24px;max-width:460px}
+.hero-btns{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:32px}
+.hero-stats{display:flex;gap:0;border-top:1px solid rgba(255,255,255,.1);padding-top:20px;flex-wrap:wrap}
+.hero-stat{flex:1;min-width:80px;padding:0 16px 0 0}
+.hero-stat .n{font-family:'Barlow Semi Condensed',sans-serif;font-size:26px;font-weight:800;color:#fff;line-height:1}
+.hero-stat .l{font-size:10px;color:rgba(255,255,255,.4);text-transform:uppercase;letter-spacing:.08em;margin-top:3px}
+.hero-stat+.hero-stat{border-left:1px solid rgba(255,255,255,.1);padding-left:16px}
+.img-ph{background:#1E293B;border:1px dashed #334155;border-radius:4px;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#475569;font-size:11px;font-weight:600;text-align:center;gap:6px}
+.img-ph .ph-icon{font-size:28px;opacity:.5}
+
+/* TRUST STRIP */
+.trust-strip{background:#fff;border-top:none;border-bottom:1px solid var(--border);padding:18px 0}
+.trust-grid{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px}
+.trust-item{display:flex;align-items:center;gap:8px;flex:1;min-width:130px;justify-content:center}
+.ti-icon{font-size:18px}
+.ti-text .ti-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--body)}
+.ti-text .ti-sub{font-size:10px;color:var(--muted)}
+
+/* CERT STRIP */
+.cert-strip{background:var(--off);border-top:1px solid var(--border);border-bottom:1px solid var(--border);padding:18px 0}
+.cert-row{display:flex;justify-content:center;align-items:center;gap:32px;flex-wrap:wrap}
+.cert-item{display:flex;align-items:center;gap:8px}
+.cert-badge{background:#fff;border:1px solid var(--border);border-radius:4px;padding:6px 12px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--navy)}
+
+/* LOGO BAR */
+.logo-bar{background:#fff;border-bottom:1px solid var(--border);padding:20px 0}
+.logo-bar-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:#94A3B8;margin-bottom:14px;text-align:center}
+.logo-row{display:flex;justify-content:center;gap:12px;flex-wrap:wrap}
+.logo-ph{background:var(--off);border:1px solid var(--border);border-radius:3px;height:34px;width:100px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;color:#94A3B8;text-transform:uppercase;letter-spacing:.04em}
+
+/* CATEGORY TILES */
+.cat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.cat-card{background:#fff;border:1px solid var(--border);border-radius:4px;overflow:hidden;transition:box-shadow .2s,border-color .2s}
+.cat-card:hover{box-shadow:0 4px 16px rgba(0,0,0,.07);border-color:#C7D9F0}
+.cat-img{background:var(--off);height:130px;display:flex;align-items:center;justify-content:center;font-size:11px;color:#94A3B8;font-weight:600;border-bottom:1px solid var(--border)}
+.cat-body{padding:12px 14px}
+.cat-body h4{font-family:'Barlow Semi Condensed',sans-serif;font-size:15px;font-weight:700;color:var(--body);margin-bottom:3px}
+.cat-body p{font-size:12px;color:var(--muted);margin-bottom:7px}
+.cat-link{font-size:12px;font-weight:700;color:var(--blue)}
+
+/* PRODUCT GRID */
+.prod-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(195px,1fr));gap:12px}
+.prod-card{background:#fff;border:1px solid var(--border);border-radius:4px;overflow:hidden;transition:box-shadow .2s,border-color .2s}
+.prod-card:hover{box-shadow:0 4px 16px rgba(0,0,0,.07);border-color:#C7D9F0}
+.prod-img{background:var(--off);height:165px;display:flex;align-items:center;justify-content:center;color:#94A3B8;font-size:11px;font-weight:600;position:relative;border-bottom:1px solid var(--border)}
+.prod-img .overlay-badge{position:absolute;top:8px;left:8px}
+.prod-body{padding:12px}
+.prod-sku{font-size:10px;color:#94A3B8;text-transform:uppercase;letter-spacing:.06em;margin-bottom:3px}
+.prod-name{font-family:'Barlow Semi Condensed',sans-serif;font-size:15px;font-weight:700;margin-bottom:5px;color:var(--body)}
+.prod-dots{display:flex;gap:3px;margin-bottom:7px;flex-wrap:wrap;align-items:center}
+.pdot{width:13px;height:13px;border-radius:50%;border:1.5px solid rgba(0,0,0,.12);flex-shrink:0}
+.dot-more{font-size:9px;color:#94A3B8;margin-left:2px}
+.prod-price{font-family:'Barlow Semi Condensed',sans-serif;font-size:16px;font-weight:800;color:var(--body)}
+.prod-price.gated{font-size:12px;color:var(--blue);font-family:'Inter',sans-serif;font-weight:600}
+.prod-stock{font-size:10px;margin-top:4px}
+.in-stock{color:var(--green)}
+.low-stock{color:#D97706}
+
+/* HOW IT WORKS */
+.steps-grid{display:grid;grid-template-columns:repeat(4,1fr)}
+.step-item{padding:28px 20px;border-right:1px solid var(--border);position:relative}
+.step-item:last-child{border-right:none}
+.step-num{font-family:'Barlow Semi Condensed',sans-serif;font-size:42px;font-weight:800;color:var(--border);line-height:1;margin-bottom:4px}
+.step-icon{font-size:24px;margin-bottom:10px;display:block}
+.step-item h4{font-family:'Barlow Semi Condensed',sans-serif;font-size:15px;font-weight:700;margin-bottom:6px;color:var(--body)}
+.step-item p{font-size:12px;color:var(--muted);line-height:1.6}
+
+/* WHO WE SERVE */
+.serve-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.serve-card{background:#fff;border:1px solid var(--border);border-top:3px solid var(--navy);border-radius:4px;padding:22px 16px;transition:border-top-color .2s}
+.serve-card:hover{border-top-color:var(--blue)}
+.serve-icon{font-size:26px;margin-bottom:10px}
+.serve-card h4{font-family:'Barlow Semi Condensed',sans-serif;font-size:15px;font-weight:700;color:var(--body);margin-bottom:6px}
+.serve-card p{font-size:12px;color:var(--muted);line-height:1.6}
+
+/* WHY ROWS */
+.why-layout{display:flex;gap:48px;align-items:center;flex-wrap:wrap}
+.why-copy{flex:1.2;min-width:260px}
+.why-img{flex:1;min-width:240px}
+.why-row{display:flex;gap:14px;margin-bottom:18px;align-items:flex-start}
+.why-num{font-family:'Barlow Semi Condensed',sans-serif;font-size:22px;font-weight:800;color:var(--red);min-width:28px;line-height:1;margin-top:1px}
+.why-text h4{font-family:'Barlow Semi Condensed',sans-serif;font-size:15px;font-weight:700;margin-bottom:3px;color:var(--body)}
+.why-text p{font-size:12px;color:var(--muted);line-height:1.55}
+
+/* CERT CARDS */
+.cert-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.cert-card{background:#fff;border:1px solid var(--border);border-radius:4px;padding:20px 14px;text-align:center}
+.cert-icon{font-size:28px;margin-bottom:10px}
+.cert-card h5{font-family:'Barlow Semi Condensed',sans-serif;font-size:13px;font-weight:700;letter-spacing:.03em;margin-bottom:4px;color:var(--navy)}
+.cert-card p{font-size:11px;color:var(--muted);line-height:1.5}
+
+/* FAQ */
+.faq-list{max-width:780px;margin:0 auto}
+details{border:1px solid var(--border);border-radius:4px;margin-bottom:8px;background:#fff}
+details[open]{border-color:#C7D9F0}
+details summary{padding:13px 16px;font-size:13px;font-weight:600;cursor:pointer;list-style:none;display:flex;justify-content:space-between;align-items:center;color:var(--body)}
+details summary::-webkit-details-marker{display:none}
+details summary::after{content:'+';font-size:18px;font-weight:400;color:var(--muted);flex-shrink:0}
+details[open] summary::after{content:'−'}
+details[open] summary{color:var(--blue)}
+.faq-body{padding:0 16px 14px;font-size:13px;color:var(--muted);line-height:1.65}
+
+/* CTA SECTION */
+.cta-section{background:var(--navy);padding:52px 0;text-align:center}
+.cta-section h2{font-size:32px;font-weight:800;color:#fff;margin-bottom:10px}
+.cta-section p{font-size:14px;color:rgba(255,255,255,.55);margin-bottom:24px;max-width:480px;margin-left:auto;margin-right:auto}
+.cta-btns{display:flex;gap:12px;justify-content:center;flex-wrap:wrap}
+
+/* FOOTER */
+.site-footer{background:var(--dark);padding:52px 0 0}
+.footer-grid{display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:40px;margin-bottom:40px}
+.footer-col h5{font-family:'Barlow Semi Condensed',sans-serif;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:#64748B;margin-bottom:14px}
+.footer-col a{display:block;color:#475569;font-size:13px;text-decoration:none;margin-bottom:8px}
+.footer-col a:hover{color:#94A3B8}
+.footer-brand p{font-size:13px;color:#475569;line-height:1.6;margin-top:10px}
+.footer-bottom{border-top:1px solid #1E293B;padding:20px 0;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px}
+.copy{font-size:12px;color:#334155}
+.pay-badges{display:flex;gap:6px;flex-wrap:wrap}
+.pay-badge{background:#1E293B;border:1px solid #1E293B;color:#475569;padding:4px 10px;border-radius:3px;font-size:10px;font-weight:700;letter-spacing:.04em}
+
+/* COLLECTION PAGE */
+.coll-banner{background:var(--navy);border-bottom:3px solid var(--red);padding:28px 0}
+.coll-banner h2{font-family:'Barlow Semi Condensed',sans-serif;font-size:28px;font-weight:800;color:#fff}
+.coll-banner p{font-size:13px;color:rgba(255,255,255,.55);margin-top:4px}
+.coll-layout{display:flex;gap:24px;align-items:flex-start}
+.coll-sidebar{width:210px;flex-shrink:0}
+.coll-main{flex:1}
+.filter-section{margin-bottom:20px}
+.filter-section h5{font-family:'Barlow Semi Condensed',sans-serif;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:10px}
+.filter-item{display:flex;align-items:center;gap:8px;margin-bottom:7px;font-size:13px;color:var(--body);cursor:default}
+.filter-item input{accent-color:var(--navy)}
+.filter-item.active{color:var(--navy);font-weight:600}
+.f-pill{display:inline-block;background:#fff;border:1.5px solid var(--border);border-radius:2px;padding:3px 10px;font-size:11px;font-weight:600;color:var(--muted);cursor:default;margin:3px}
+.f-pill.sel{background:var(--navy);border-color:var(--navy);color:#fff}
+
+/* PRODUCT PAGE */
+.pdp-layout{display:flex;gap:40px;align-items:flex-start;padding:32px 0;flex-wrap:wrap}
+.pdp-gallery{flex:1;min-width:280px}
+.pdp-info{flex:1.1;min-width:280px}
+.pdp-gallery-main{background:var(--off);border:1px solid var(--border);border-radius:4px;height:340px;display:flex;align-items:center;justify-content:center;color:#94A3B8;font-size:12px;font-weight:600;margin-bottom:8px}
+.pdp-thumbs{display:flex;gap:6px;flex-wrap:wrap}
+.pdp-thumb{width:56px;height:56px;background:var(--off);border:1.5px solid var(--border);border-radius:3px;display:flex;align-items:center;justify-content:center;font-size:9px;color:#94A3B8;cursor:default}
+.pdp-thumb.active{border-color:var(--navy)}
+.pdp-sku{font-size:11px;color:#94A3B8;text-transform:uppercase;letter-spacing:.08em;margin-bottom:5px}
+.pdp-name{font-family:'Barlow Semi Condensed',sans-serif;font-size:26px;font-weight:800;color:var(--body);margin-bottom:8px}
+.pdp-meta{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:16px}
+.pdp-divider{border:none;border-top:1px solid var(--border);margin:16px 0}
+.pdp-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:8px}
+.pdp-swatches{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px}
+.pdp-swatch{width:24px;height:24px;border-radius:50%;border:2px solid rgba(0,0,0,.1);cursor:default}
+.pdp-swatch.sel{box-shadow:0 0 0 2px #fff,0 0 0 4px var(--navy)}
+.size-grid{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px}
+.size-btn{padding:6px 12px;border:1.5px solid var(--border);border-radius:3px;font-size:12px;font-weight:600;cursor:default;color:var(--body)}
+.size-btn.sel{background:var(--navy);border-color:var(--navy);color:#fff}
+.size-btn.oos{color:#94A3B8;text-decoration:line-through}
+
+/* BULK ORDER GRID */
+.bulk-grid-wrap{border:1px solid var(--border);border-radius:4px;overflow:hidden;margin-bottom:16px}
+.bulk-table{width:100%;border-collapse:collapse;font-size:12px}
+.bulk-table th{background:var(--off);padding:8px 12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;font-size:10px;border-bottom:1px solid var(--border);text-align:left}
+.bulk-table td{padding:8px 12px;border-bottom:1px solid var(--border);color:var(--body)}
+.bulk-table td:first-child{font-weight:600;color:var(--navy)}
+.bulk-table tr:last-child td{border-bottom:none}
+.bulk-table tr:hover td{background:#FAFBFC}
+.qty-cell{display:flex;align-items:center;gap:6px}
+.qty-inp{width:52px;border:1px solid var(--border);border-radius:3px;padding:4px 6px;font-size:12px;text-align:center}
+.atc-box{background:var(--off);border:1px solid var(--border);border-radius:4px;padding:16px;margin-bottom:14px}
+.atc-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+.atc-total-label{font-size:12px;color:var(--muted)}
+.atc-total-val{font-family:'Barlow Semi Condensed',sans-serif;font-size:22px;font-weight:800;color:var(--body)}
+.blue-val{color:var(--blue)!important}
+.pdp-callout{background:#EEF6FF;border-left:3px solid var(--blue);padding:10px 14px;border-radius:0 4px 4px 0;font-size:12px;color:var(--body);margin-bottom:14px}
+.trust-badges-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.trust-badge-sm{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--muted)}
+
+/* TABS */
+.tab-bar{border-bottom:1.5px solid var(--border);display:flex;gap:0;margin-bottom:24px}
+.t-tab{padding:10px 16px;font-size:13px;font-weight:600;color:var(--muted);cursor:default;border-bottom:2px solid transparent;margin-bottom:-1.5px}
+.t-tab.active{color:var(--body);border-bottom-color:var(--red)}
+.t-tab:hover{color:var(--body)}
+
+/* LOGIN GATE */
+.login-gate{background:#EEF6FF;border:1.5px solid var(--blue);border-radius:4px;padding:24px;text-align:center}
+.gate-h3{font-family:'Barlow Semi Condensed',sans-serif;font-size:20px;font-weight:800;color:var(--navy);margin-bottom:6px}
+.gate-p{font-size:13px;color:var(--muted);margin-bottom:18px}
+.gate-feats{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-bottom:18px}
+.gate-feat{background:#fff;border:1px solid var(--border);border-radius:3px;padding:5px 12px;font-size:11px;font-weight:600;color:var(--navy)}
+
+/* SIGNUP PAGE */
+.signup-layout{display:flex;gap:32px;align-items:flex-start;flex-wrap:wrap;padding:36px 0}
+.signup-form-card{flex:1.3;min-width:280px;background:#fff;border:1px solid var(--border);border-radius:4px;padding:28px}
+.signup-benefits{flex:1;min-width:240px}
+.form-group{margin-bottom:14px}
+.form-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:5px;display:block}
+.form-inp{width:100%;border:1px solid var(--border);border-radius:3px;padding:8px 12px;font-size:13px;font-family:'Inter',sans-serif;color:var(--body)}
+.form-inp:focus{border-color:var(--navy);outline:none}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.form-select{width:100%;border:1px solid var(--border);border-radius:3px;padding:8px 12px;font-size:13px;font-family:'Inter',sans-serif;color:var(--body);background:#fff}
+.benefit-card{background:#fff;border:1px solid var(--border);border-top:3px solid var(--navy);border-radius:4px;padding:18px;margin-bottom:12px}
+.brow{display:flex;align-items:flex-start;gap:10px}
+.brow-icon{font-size:20px;flex-shrink:0}
+.brow h4{font-family:'Barlow Semi Condensed',sans-serif;font-size:15px;font-weight:700;color:var(--body);margin-bottom:3px}
+.brow p{font-size:12px;color:var(--muted);line-height:1.5}
+.form-note{font-size:11px;color:#94A3B8;margin-top:10px;line-height:1.5}
+
+/* CART */
+.cart-layout{display:flex;gap:24px;align-items:flex-start;flex-wrap:wrap;padding:32px 0}
+.cart-items{flex:1.5;min-width:280px}
+.cart-summary{flex:1;min-width:240px}
+.cart-item-card{background:#fff;border:1px solid var(--border);border-radius:4px;padding:16px;margin-bottom:10px}
+.cart-item-row{display:flex;gap:14px;align-items:flex-start}
+.cart-img{width:70px;height:70px;background:var(--off);border:1px solid var(--border);border-radius:3px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:9px;color:#94A3B8}
+.cart-meta h4{font-family:'Barlow Semi Condensed',sans-serif;font-size:15px;font-weight:700;margin-bottom:3px;color:var(--body)}
+.cart-meta p{font-size:12px;color:var(--muted);margin-bottom:6px}
+.cart-qty-row{display:flex;gap:8px;align-items:center}
+.order-summary-card{background:#fff;border:1px solid var(--border);border-radius:4px;padding:20px}
+.order-summary-card h3{font-family:'Barlow Semi Condensed',sans-serif;font-size:18px;font-weight:700;margin-bottom:16px;color:var(--body)}
+.summary-row{display:flex;justify-content:space-between;font-size:13px;margin-bottom:10px;color:var(--muted)}
+.summary-row.total{font-weight:700;font-size:15px;color:var(--body);border-top:1px solid var(--border);padding-top:10px;margin-top:4px}
+.net-note{background:var(--off);border:1px solid var(--border);border-radius:3px;padding:10px 12px;font-size:11px;color:var(--muted);margin-bottom:14px;line-height:1.5}
+
+/* CHECKOUT */
+.ck-layout{display:flex;gap:24px;align-items:flex-start;flex-wrap:wrap;padding:32px 0}
+.ck-form{flex:1.4;min-width:280px}
+.ck-sidebar{flex:1;min-width:240px}
+.ck-steps{display:flex;gap:0;border-bottom:1.5px solid var(--border);margin-bottom:24px}
+.ck-step{padding:8px 16px;font-size:12px;font-weight:600;color:#94A3B8;border-bottom:2px solid transparent;margin-bottom:-1.5px}
+.ck-step.active{color:var(--body);border-bottom-color:var(--blue)}
+.ck-step.done{color:var(--green);border-bottom-color:var(--green)}
+.ck-card{background:#fff;border:1px solid var(--border);border-radius:4px;padding:20px;margin-bottom:16px}
+.ck-card h3{font-family:'Barlow Semi Condensed',sans-serif;font-size:16px;font-weight:700;margin-bottom:16px;color:var(--body)}
+
+/* PAGE HERO (About / Contact) */
+.page-hero{background:var(--navy);padding:36px 0;border-bottom:3px solid var(--red)}
+.page-hero h1{font-family:'Barlow Semi Condensed',sans-serif;font-size:32px;font-weight:800;color:#fff;margin-bottom:6px}
+.page-hero p{font-size:14px;color:rgba(255,255,255,.55);max-width:500px}
+
+/* ABOUT */
+.about-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:32px}
+.about-stat{background:var(--off);border:1px solid var(--border);border-radius:4px;padding:20px;text-align:center}
+.about-stat .n{font-family:'Barlow Semi Condensed',sans-serif;font-size:32px;font-weight:800;color:var(--navy);line-height:1}
+.about-stat .l{font-size:11px;color:var(--muted);margin-top:4px;text-transform:uppercase;letter-spacing:.05em}
+.timeline{position:relative;padding-left:24px;border-left:2px solid var(--border)}
+.tl-item{margin-bottom:24px;position:relative}
+.tl-dot{position:absolute;left:-31px;top:3px;width:14px;height:14px;background:var(--red);border:3px solid #fff;border-radius:50%;box-shadow:0 0 0 2px var(--red)}
+.tl-year{font-size:11px;font-weight:700;color:var(--blue);letter-spacing:.06em;text-transform:uppercase;margin-bottom:3px}
+.tl-item h4{font-family:'Barlow Semi Condensed',sans-serif;font-size:15px;font-weight:700;color:var(--body);margin-bottom:4px}
+.tl-item p{font-size:12px;color:var(--muted);line-height:1.6}
+
+/* CONTACT */
+.contact-layout{display:flex;gap:32px;flex-wrap:wrap;padding:40px 0}
+.contact-form-card{flex:1.3;min-width:280px;background:#fff;border:1px solid var(--border);border-radius:4px;padding:28px}
+.contact-info{flex:1;min-width:240px}
+.info-block{display:flex;gap:12px;align-items:flex-start;margin-bottom:20px}
+.info-icon{font-size:22px;flex-shrink:0;margin-top:1px}
+.info-block h4{font-family:'Barlow Semi Condensed',sans-serif;font-size:14px;font-weight:700;margin-bottom:3px;color:var(--body)}
+.info-block p{font-size:13px;color:var(--muted);line-height:1.5}
+
+/* PRIVATE LABEL */
+.pl-steps{display:grid;grid-template-columns:repeat(5,1fr);gap:0}
+.pl-step{padding:20px 14px;text-align:center;border-right:1px solid var(--border)}
+.pl-step:last-child{border-right:none}
+.pl-step .num{width:32px;height:32px;background:var(--red);color:#fff;border-radius:50%;font-family:'Barlow Semi Condensed',sans-serif;font-size:16px;font-weight:800;display:flex;align-items:center;justify-content:center;margin:0 auto 10px}
+.pl-step h4{font-family:'Barlow Semi Condensed',sans-serif;font-size:13px;font-weight:700;color:var(--body);margin-bottom:4px}
+.pl-step p{font-size:11px;color:var(--muted);line-height:1.5}
+.pl-quote-box{background:var(--navy);border-radius:4px;padding:32px;margin-top:32px;display:flex;gap:32px;align-items:center;flex-wrap:wrap}
+.pl-quote-box h3{font-family:'Barlow Semi Condensed',sans-serif;font-size:22px;font-weight:800;color:#fff;margin-bottom:6px}
+.pl-quote-box p{font-size:13px;color:rgba(255,255,255,.55);line-height:1.6}
+.pl-reqs{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:24px 0}
+.pl-req{background:#fff;border:1px solid var(--border);border-radius:4px;padding:16px}
+.pl-req .r-val{font-family:'Barlow Semi Condensed',sans-serif;font-size:24px;font-weight:800;color:var(--navy)}
+.pl-req .r-label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+.pl-req .r-note{font-size:12px;color:var(--muted);margin-top:4px}
+
+/* PRINT GUIDE */
+.method-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:32px}
+.method-card{background:#fff;border:1px solid var(--border);border-top:3px solid var(--navy);border-radius:4px;padding:20px}
+.method-card h4{font-family:'Barlow Semi Condensed',sans-serif;font-size:16px;font-weight:700;color:var(--body);margin-bottom:4px}
+.method-card p{font-size:12px;color:var(--muted);line-height:1.6;margin-bottom:12px}
+.method-meta{font-size:11px;color:var(--muted)}
+.method-meta span{font-weight:700;color:var(--body)}
+.compat-table{width:100%;border-collapse:collapse;font-size:12px}
+.compat-table th{background:var(--off);padding:9px 12px;text-align:left;font-weight:700;text-transform:uppercase;letter-spacing:.05em;font-size:10px;color:var(--muted);border-bottom:1px solid var(--border)}
+.compat-table td{padding:9px 12px;border-bottom:1px solid var(--border);color:var(--body)}
+.compat-table tr:last-child td{border-bottom:none}
+.compat-best{background:#D1FAE5;color:#065F46;padding:2px 8px;border-radius:3px;font-size:10px;font-weight:700}
+.compat-good{background:#EEF6FF;color:var(--blue);padding:2px 8px;border-radius:3px;font-size:10px;font-weight:700}
+.compat-na{background:var(--off);color:#94A3B8;padding:2px 8px;border-radius:3px;font-size:10px;font-weight:700}
+
+/* POLICIES */
+.policy-layout{display:flex;gap:32px;align-items:flex-start;padding:40px 0;flex-wrap:wrap}
+.policy-nav{width:190px;flex-shrink:0}
+.policy-nav h5{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:10px}
+.policy-nav a{display:block;padding:8px 12px;font-size:13px;font-weight:500;color:var(--muted);text-decoration:none;border-left:3px solid transparent;margin-bottom:3px;cursor:default}
+.policy-nav a:hover,.policy-nav a.active{color:var(--body);border-left-color:var(--red);background:var(--off)}
+.policy-content{flex:1;min-width:260px}
+.policy-section{display:none}
+.policy-section.active{display:block}
+.policy-section h2{font-family:'Barlow Semi Condensed',sans-serif;font-size:24px;font-weight:800;color:var(--body);margin-bottom:16px}
+.policy-section h3{font-family:'Barlow Semi Condensed',sans-serif;font-size:17px;font-weight:700;color:var(--body);margin:20px 0 8px}
+.policy-section p,.policy-section li{font-size:13px;color:var(--muted);line-height:1.7;margin-bottom:8px}
+.policy-section ul{padding-left:18px}
+.policy-highlight{background:#EEF6FF;border-left:3px solid var(--blue);padding:12px 16px;border-radius:0 4px 4px 0;margin:16px 0;font-size:13px;color:var(--body)}
+
+/* DEV NOTES */
+.notes-section{margin-bottom:32px}
+.notes-section h3{font-family:'Barlow Semi Condensed',sans-serif;font-size:18px;font-weight:700;color:var(--body);margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid var(--border)}
+.note-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.note-card{background:#fff;border:1px solid var(--border);border-radius:4px;padding:16px}
+.note-card h4{font-family:'Barlow Semi Condensed',sans-serif;font-size:14px;font-weight:700;color:var(--navy);margin-bottom:8px}
+.note-card p,.note-card li{font-size:12px;color:var(--muted);line-height:1.6;margin-bottom:4px}
+.note-card ul{padding-left:14px}
+.spec-table{width:100%;border-collapse:collapse;font-size:12px;margin-bottom:8px}
+.spec-table td{padding:7px 12px;border-bottom:1px solid var(--border);color:var(--muted)}
+.spec-table td:first-child{font-weight:600;color:var(--body);width:40%}
+.spec-table tr:last-child td{border-bottom:none}
+.dont-list{list-style:none;padding:0}
+.dont-list li{padding:7px 0;border-bottom:1px solid var(--border);font-size:12px;color:var(--muted);display:flex;gap:8px;align-items:flex-start}
+.dont-list li::before{content:'✗';color:var(--red);font-weight:700;flex-shrink:0}
+</style>
+</head>
+<body>
+
+<!-- TOOLBAR -->
+<div class="tool-bar">
+  <div><strong>AF APPARELS — B2B WHOLESALE WIREFRAME</strong> &nbsp;|&nbsp; AheadTech360</div>
+  <div class="tags">
+    <span class="tag tag-blue">v4.0 — Trade Catalog Rebuild</span>
+    <span class="tag tag-orange">Ref: SanMar + Smartex</span>
+    <span class="tag tag-green">13 Pages</span>
+    <span style="color:#64748B">Barlow SC + Inter</span>
+  </div>
+  <button class="toggle-btn" onclick="toggleNotes()">Hide Notes</button>
+</div>
+
+<!-- PAGE TABS -->
+<div class="tab-nav">
+  <button class="active" onclick="showPage('home',this)">🏠 Home</button>
+  <button onclick="showPage('collection',this)">📦 Collection</button>
+  <button onclick="showPage('product-guest',this)">👤 Product (Guest)</button>
+  <button onclick="showPage('signup',this)">✍️ Apply for Account</button>
+  <button onclick="showPage('product-logged',this)">🔓 Product (Member)</button>
+  <button onclick="showPage('cart',this)">🛒 Cart</button>
+  <button onclick="showPage('checkout',this)">💳 Checkout</button>
+  <button onclick="showPage('about',this)">🏭 About Us</button>
+  <button onclick="showPage('contact',this)">📞 Contact</button>
+  <button onclick="showPage('private-label',this)">🏷️ Private Label</button>
+  <button onclick="showPage('print-guide',this)">🖨️ Print Guide</button>
+  <button onclick="showPage('policies',this)">📋 Policies</button>
+  <button onclick="showPage('notes',this)">⚙️ Dev Notes</button>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════ PAGE: HOME -->
+<div class="page active" id="page-home">
+
+<div class="cro-note"><b>Page: Homepage</b> — Trade catalog structure. Ref: SanMar rhythm. Lead with credentials before products. White-dominant body. Navy header matches logo background. Red CTAs only.</div>
+
+<!-- S1: ANNOUNCE -->
+<div class="sec-badge">S1 · ANNOUNCE</div>
+<div class="cro-note"><b>CRO: Urgency + Trust.</b> Operational specificity ("before 2PM CT") beats vague "fast shipping." Same-day shipping in the first line of every page sets expectation before the hero.</div>
+<div class="announce red-bar">🚚 Same-Day Shipping on Orders Placed Before 2PM CT &nbsp;|&nbsp; Factory-Direct Pricing — No Middlemen &nbsp;|&nbsp; Free Returns on Defective Products</div>
+
+<!-- S2: HEADER -->
+<div class="sec-badge">S2 · HEADER</div>
+<div class="cro-note"><b>CRO: Navigation + Trust.</b> Navy header derived directly from logo background. Red bottom border = flag stripe echo. Search bar = B2B catalog behavior. "Apply for Account" in red = only CTA that matters. No cart in guest view — B2B is account-gated.</div>
+<div class="site-header">
+  <div class="hdr-inner">
+    <div class="af-logo">
+      <div class="af-mono"><span class="a">A</span><span class="f">F</span></div>
+      <div class="af-brand">AMERICAN<br>FASHION</div>
+    </div>
+    <nav class="site-nav">
+      <a href="#">Products</a>
+      <a href="#">New Arrivals</a>
+      <a href="#">Private Label</a>
+      <a href="#">Print Guide</a>
+      <a href="#">About</a>
+      <a href="#">Contact</a>
+    </nav>
+    <div class="hdr-actions">
+      <input class="hdr-search" type="text" placeholder="Search by SKU or style name…">
+      <button class="btn btn-white-ol btn-sm">Sign In</button>
+      <button class="btn btn-red btn-sm">Apply for Account</button>
+    </div>
+  </div>
+</div>
+
+<!-- S3: SUB-NAV -->
+<div class="sec-badge">S3 · CATEGORY NAV</div>
+<div class="cro-note"><b>CRO: Navigation.</b> SanMar-style sub-nav puts every category one click away. B2B buyers navigate by product type, not by brand story. This is the navigation they expect.</div>
+<div class="sub-nav">
+  <div class="sub-nav-inner">
+    <span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#94A3B8">Browse:</span>
+    <a href="#" class="cat-link">T-Shirts</a>
+    <a href="#">Hoodies &amp; Sweatshirts</a>
+    <a href="#">Polos</a>
+    <a href="#">Long Sleeve</a>
+    <a href="#">Crop Tops</a>
+    <a href="#">Youth</a>
+    <a href="#">Packs &amp; Bundles</a>
+    <a href="#">New Arrivals</a>
+    <a href="#">All Products</a>
+    <span style="margin-left:auto;font-size:11px;color:#059669;font-weight:700">✓ 50+ Colors · XS–3XL · No MOQ on In-Stock</span>
+  </div>
+</div>
+
+<!-- S4: HERO -->
+<div class="sec-badge">S4 · HERO</div>
+<div class="cro-note"><b>CRO: Clarity + Trust.</b> Navy background = logo background. Buyer knows immediately this is the same brand they saw on the business card or email. Hero is 2-column: left = credentials + CTA, right = product image. NOT a full-screen lifestyle banner. B2B buyers don't need inspiration — they need confidence. Stats below headline = immediate social proof before scrolling.</div>
+<div class="hero-section">
+  <div class="hero-inner">
+    <div class="hero-copy">
+      <div class="hero-eyebrow">🇺🇸 Factory-Direct · Dallas, TX · Est. 2010</div>
+      <h1 class="hero-h1">Premium Blank Apparel.<br><span class="accent-blue">Wholesale Pricing.</span><br><span class="accent-red">Zero Middlemen.</span></h1>
+      <p class="hero-sub">AF Apparels supplies 2,000+ print shops, brands, and corporate buyers nationwide with print-optimized blanks straight from our Dallas warehouse. ISO 9000 certified. Same-day shipping. No MOQ on in-stock styles.</p>
+      <div class="hero-btns">
+        <button class="btn btn-red btn-lg">Apply for Wholesale Account</button>
+        <button class="btn btn-white-ol">Browse Products →</button>
+      </div>
+      <div class="hero-stats">
+        <div class="hero-stat"><div class="n">2,000+</div><div class="l">Wholesale Accounts</div></div>
+        <div class="hero-stat"><div class="n">50+</div><div class="l">Colors Per Style</div></div>
+        <div class="hero-stat"><div class="n">10</div><div class="l">Core SKUs</div></div>
+        <div class="hero-stat"><div class="n">Same Day</div><div class="l">Shipping by 2PM CT</div></div>
+      </div>
+    </div>
+    <div class="hero-visual">
+      <div class="img-ph" style="height:300px"><div class="ph-icon">👕</div><div>[Ghost Mannequin<br>Hero Product Shot<br>Clean White BG]</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- S5: CERT STRIP -->
+<div class="sec-badge">S5 · CERTIFICATION STRIP</div>
+<div class="cro-note"><b>CRO: Trust — immediately after hero.</b> Certifications are the B2B buyer's primary trust filter — especially corporate and institutional buyers. These must appear before products. SanMar puts them high. We do the same. Never bury these at the bottom.</div>
+<div class="cert-strip">
+  <div class="wrap">
+    <div class="cert-row">
+      <span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:#94A3B8">Certified &amp; Compliant:</span>
+      <div class="cert-item"><span class="cert-badge">🏆 ISO 9000</span></div>
+      <div class="cert-item"><span class="cert-badge">🌿 Oeko-Tex Standard 100</span></div>
+      <div class="cert-item"><span class="cert-badge">🍃 GOTS Certified</span></div>
+      <div class="cert-item"><span class="cert-badge">🤝 WRAP Certified</span></div>
+      <div class="cert-item"><span class="cert-badge">🇺🇸 Dallas Warehouse</span></div>
+      <div class="cert-item"><span class="cert-badge">📦 No MOQ In-Stock</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- S6: TRUST STRIP -->
+<div class="sec-badge">S6 · OPERATIONAL TRUST</div>
+<div class="cro-note"><b>CRO: Trust.</b> Operational specifics — not marketing fluff. "Before 2PM CT" is more credible than "fast shipping." Each item addresses a real B2B buying concern: speed, minimums, defects, exclusivity.</div>
+<div class="trust-strip">
+  <div class="wrap">
+    <div class="trust-grid">
+      <div class="trust-item"><div class="ti-icon">🚚</div><div class="ti-text"><div class="ti-label">Same-Day Shipping</div><div class="ti-sub">Orders before 2PM CT, Mon–Fri</div></div></div>
+      <div class="trust-item"><div class="ti-icon">📦</div><div class="ti-text"><div class="ti-label">No Minimum Order</div><div class="ti-sub">On all in-stock styles</div></div></div>
+      <div class="trust-item"><div class="ti-icon">🏭</div><div class="ti-text"><div class="ti-label">Factory-Direct Pricing</div><div class="ti-sub">No distributor markup</div></div></div>
+      <div class="trust-item"><div class="ti-icon">🎨</div><div class="ti-text"><div class="ti-label">Print-Optimized Fabrics</div><div class="ti-sub">High-density stitch, smooth surface</div></div></div>
+      <div class="trust-item"><div class="ti-icon">🔄</div><div class="ti-text"><div class="ti-label">Free Returns</div><div class="ti-sub">On defective products only</div></div></div>
+      <div class="trust-item"><div class="ti-icon">💳</div><div class="ti-text"><div class="ti-label">NET 30 Available</div><div class="ti-sub">For approved wholesale accounts</div></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- S7: CATEGORY TILES -->
+<div class="sec-badge">S7 · PRODUCT CATEGORIES</div>
+<div class="cro-note"><b>CRO: Navigation + Momentum.</b> B2B buyers shop by category, not by "trending." 6 clean tiles. Ghost mannequin photography required — not lifestyle. Each tile leads directly to a filtered collection. This is the SanMar pattern that works.</div>
+<div class="section bg-white compact" style="padding:36px 0">
+  <div class="wrap">
+    <div class="section-hd"><h2>Shop by Category</h2><p>10 core styles across 6 categories. All print-optimized, all in-stock.</p></div>
+    <div class="cat-grid" style="grid-template-columns:repeat(6,1fr)">
+      <div class="cat-card"><div class="cat-img">[Ghost Mannequin Tee]</div><div class="cat-body"><h4>T-Shirts</h4><p>3 styles · 25–47 colors</p><div class="cat-link">Shop →</div></div></div>
+      <div class="cat-card"><div class="cat-img">[Ghost Mannequin Hoodie]</div><div class="cat-body"><h4>Hoodies</h4><p>2 styles · 10+ colors</p><div class="cat-link">Shop →</div></div></div>
+      <div class="cat-card"><div class="cat-img">[Ghost Mannequin Crewneck]</div><div class="cat-body"><h4>Sweatshirts</h4><p>1 style · 10 colors</p><div class="cat-link">Shop →</div></div></div>
+      <div class="cat-card"><div class="cat-img">[Ghost Mannequin Polo]</div><div class="cat-body"><h4>Polos</h4><p>1 style · 8 colors</p><div class="cat-link">Shop →</div></div></div>
+      <div class="cat-card"><div class="cat-img">[Ghost Mannequin LS Tee]</div><div class="cat-body"><h4>Long Sleeve</h4><p>1 style · 12 colors</p><div class="cat-link">Shop →</div></div></div>
+      <div class="cat-card"><div class="cat-img">[Ghost Mannequin Crop]</div><div class="cat-body"><h4>Crops &amp; Youth</h4><p>2 styles · 15 colors</p><div class="cat-link">Shop →</div></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- S8: BEST SELLERS GRID -->
+<div class="sec-badge">S8 · BEST SELLERS</div>
+<div class="cro-note"><b>CRO: Momentum.</b> Product grid — NOT a carousel. Smartex and SanMar both use static grids. Price visible to logged-in accounts only; guests see "Sign in to view pricing." This creates account application urgency. 4 products per row max. SKU visible — B2B buyers order by SKU.</div>
+<div class="section bg-off compact" style="padding:36px 0">
+  <div class="wrap">
+    <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:24px">
+      <div class="section-hd" style="margin:0"><h2>Best Sellers</h2><p style="margin-top:4px">Most ordered styles among our wholesale accounts.</p></div>
+      <a href="#" class="cat-link" style="font-size:13px;font-weight:700">View All Products →</a>
+    </div>
+    <div class="prod-grid">
+      <div class="prod-card"><div class="prod-img">[Ghost Mannequin #1001]<div class="overlay-badge"><span class="badge b-navy">BEST SELLER</span></div></div><div class="prod-body"><div class="prod-sku">SKU #1001</div><div class="prod-name">Premium Unisex Tee</div><div class="prod-dots"><div class="pdot" style="background:#fff;border-color:#ccc"></div><div class="pdot" style="background:#1a1a1a"></div><div class="pdot" style="background:#1B3A5C"></div><div class="pdot" style="background:#E8242A"></div><div class="pdot" style="background:#2d6a4f"></div><span class="dot-more">+20</span></div><div class="prod-price">From $5.52 / unit</div><div class="prod-stock in-stock">✓ In Stock · XS–3XL</div></div></div>
+      <div class="prod-card"><div class="prod-img">[Ghost Mannequin #1000]<div class="overlay-badge"><span class="badge b-blue">NEW COLORS</span></div></div><div class="prod-body"><div class="prod-sku">SKU #1000</div><div class="prod-name">Unisex Max Tee</div><div class="prod-dots"><div class="pdot" style="background:#fff;border-color:#ccc"></div><div class="pdot" style="background:#555"></div><div class="pdot" style="background:#c0392b"></div><div class="pdot" style="background:#2980b9"></div><span class="dot-more">+18</span></div><div class="prod-price">From $5.52 / unit</div><div class="prod-stock in-stock">✓ In Stock · XS–3XL</div></div></div>
+      <div class="prod-card"><div class="prod-img">[Ghost Mannequin #3001]</div><div class="prod-body"><div class="prod-sku">SKU #3001</div><div class="prod-name">Classic Pullover Hoodie</div><div class="prod-dots"><div class="pdot" style="background:#fff;border-color:#ccc"></div><div class="pdot" style="background:#1a1a1a"></div><div class="pdot" style="background:#555"></div><div class="pdot" style="background:#1B3A5C"></div><span class="dot-more">+6</span></div><div class="prod-price">From $21.86 / unit</div><div class="prod-stock in-stock">✓ In Stock · S–2XL</div></div></div>
+      <div class="prod-card"><div class="prod-img">[Ghost Mannequin #4001]</div><div class="prod-body"><div class="prod-sku">SKU #4001</div><div class="prod-name">Crewneck Sweatshirt</div><div class="prod-dots"><div class="pdot" style="background:#fff;border-color:#ccc"></div><div class="pdot" style="background:#1a1a1a"></div><div class="pdot" style="background:#888"></div><div class="pdot" style="background:#E8242A"></div><span class="dot-more">+6</span></div><div class="prod-price">From $16.96 / unit</div><div class="prod-stock in-stock">✓ In Stock · XS–2XL</div></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- S9: WHO WE SERVE -->
+<div class="sec-badge">S9 · WHO WE SERVE</div>
+<div class="cro-note"><b>CRO: Value Communication + Clarity.</b> White background, navy top-border cards — institutional, not dramatic. B2B buyer needs to see themselves in the list. 4 buyer types. No dark backgrounds — this is daytime catalog energy.</div>
+<div class="section bg-white compact" style="padding:40px 0">
+  <div class="wrap">
+    <div class="section-hd center"><h2>Built for the Print Industry</h2><p>From one-man screen print shops to 200-person corporate apparel programs — AF is stocked for your volume.</p></div>
+    <div class="serve-grid">
+      <div class="serve-card"><div class="serve-icon">🖨️</div><h4>Screen Print &amp; DTF Shops</h4><p>High-density stitch for crisp prints. Pre-shrunk. Consistent weight run to run.</p></div>
+      <div class="serve-card"><div class="serve-icon">🏷️</div><h4>Apparel Brands</h4><p>Start your label with our blanks. Private label available from 2,500 pcs/style/color.</p></div>
+      <div class="serve-card"><div class="serve-icon">🏢</div><h4>Corporate Programs</h4><p>Uniform programs, branded merch, employee kits. ISO 9000 documentation available.</p></div>
+      <div class="serve-card"><div class="serve-icon">🛍️</div><h4>Promotional Distributors</h4><p>Fast turn, no minimums on stock. NET 30 for approved accounts. Real-time inventory.</p></div>
+    </div>
+  </div>
+</div>
+
+<!-- S10: WHY AF -->
+<div class="sec-badge">S10 · WHY CHOOSE AF</div>
+<div class="cro-note"><b>CRO: Objection Handling.</b> Numbered list of specific advantages. Warehouse image right side = proof of physical infrastructure. Smartex uses this layout. Numbers add visual interest without dark drama.</div>
+<div class="section bg-off">
+  <div class="wrap">
+    <div class="why-layout">
+      <div class="why-copy">
+        <div class="section-hd"><h2>Why 2,000+ Businesses Choose AF Apparels</h2><p>Factory-direct isn't just a price story. It's a reliability story.</p></div>
+        <div class="why-row"><div class="why-num">01</div><div class="why-text"><h4>No Distributor Markup</h4><p>We ship direct from our Dallas facility. No intermediaries means 15–30% lower unit cost vs. traditional wholesale.</p></div></div>
+        <div class="why-row"><div class="why-num">02</div><div class="why-text"><h4>Print-Optimized Fabrics</h4><p>High-density stitch, pre-shrunk ring-spun cotton. Designed for screen print, DTF, embroidery, and sublimation.</p></div></div>
+        <div class="why-row"><div class="why-num">03</div><div class="why-text"><h4>Same-Day Fulfillment</h4><p>Cut-off 2PM Central. Every item on this site is in our Dallas warehouse, ready to ship.</p></div></div>
+        <div class="why-row"><div class="why-num">04</div><div class="why-text"><h4>Consistent Run-to-Run Quality</h4><p>ISO 9000 production process. Same weight, same shrink rate, same color accuracy every order.</p></div></div>
+        <div class="why-row"><div class="why-num">05</div><div class="why-text"><h4>Scale With Your Business</h4><p>1 unit to 10,000 units. No minimum on in-stock. Private label from 2,500 pcs/style/color for your own brand.</p></div></div>
+      </div>
+      <div class="why-img">
+        <div class="img-ph" style="height:360px"><div class="ph-icon">🏭</div><div>[Warehouse / Fulfillment Center<br>Photo — Dallas Facility<br>Racks of folded blanks,<br>forklift, team working]</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- S11: LOGO BAR -->
+<div class="sec-badge">S11 · CLIENT LOGOS</div>
+<div class="cro-note"><b>CRO: Trust — Social Proof.</b> "Trusted by" logos from known print shops, brands, or retailers give B2B buyers confidence that peers use this supplier. Collect 6–8 real customer logos. If not available at launch, use industry/expo logos (PRINTING United, ASI, etc.).</div>
+<div class="logo-bar">
+  <div class="wrap">
+    <div class="logo-bar-label">Trusted by 2,000+ businesses across the US</div>
+    <div class="logo-row">
+      <div class="logo-ph">[Client Logo]</div>
+      <div class="logo-ph">[Client Logo]</div>
+      <div class="logo-ph">[Client Logo]</div>
+      <div class="logo-ph">[Client Logo]</div>
+      <div class="logo-ph">[Client Logo]</div>
+      <div class="logo-ph">[Client Logo]</div>
+      <div class="logo-ph">[Client Logo]</div>
+      <div class="logo-ph">[Client Logo]</div>
+    </div>
+  </div>
+</div>
+
+<!-- S12: FAQ -->
+<div class="sec-badge">S12 · FAQ</div>
+<div class="cro-note"><b>CRO: Objection Handling.</b> FAQs answer the questions a buyer has before calling. Reduces friction. Answers here should reduce sales calls and speed up account applications.</div>
+<div class="section bg-white compact" style="padding:40px 0">
+  <div class="wrap">
+    <div class="section-hd center"><h2>Frequently Asked Questions</h2></div>
+    <div class="faq-list">
+      <details open><summary>How do I open a wholesale account?</summary><div class="faq-body">Click "Apply for Wholesale Account," fill out the form with your business details and tax ID, and we'll approve your account within 1 business day. Once approved, you'll see wholesale pricing and can place orders immediately.</div></details>
+      <details><summary>Is there a minimum order quantity?</summary><div class="faq-body">No minimum on any in-stock style. Order 1 unit or 10,000 — same-day fulfillment applies to both. Private label programs require a minimum of 2,500 pcs per style per color.</div></details>
+      <details><summary>Do you offer NET 30 payment terms?</summary><div class="faq-body">Yes. NET 30 is available for approved wholesale accounts with 90+ days of order history. We accept Visa, Mastercard, Amex, ACH, and Wire on all accounts from day one.</div></details>
+      <details><summary>What's the cut-off for same-day shipping?</summary><div class="faq-body">Orders placed before 2:00 PM Central Time, Monday through Friday, ship same day from our Dallas warehouse. Orders placed after 2PM or on weekends ship the next business day.</div></details>
+      <details><summary>Are your fabrics suitable for DTF and screen printing?</summary><div class="faq-body">Yes. All AF blanks are print-optimized — high-density stitch count for a smooth printing surface, pre-shrunk ring-spun cotton, and consistent weight run-to-run. Check our Print Guide for full compatibility by decoration method.</div></details>
+      <details><summary>Can I get samples before placing a bulk order?</summary><div class="faq-body">Yes. Wholesale account holders can order sample units at standard per-unit pricing (no sample surcharge). Samples ship same day with your regular account terms.</div></details>
+    </div>
+  </div>
+</div>
+
+<!-- S13: CTA SECTION -->
+<div class="sec-badge">S13 · FINAL CTA</div>
+<div class="cro-note"><b>CRO: Conversion.</b> Single clear action. Navy background = logo background = brand consistency. Two CTAs: primary (apply) and secondary (browse). No three or four competing CTAs.</div>
+<div class="cta-section">
+  <div class="wrap">
+    <h2>Ready to Order at Factory-Direct Prices?</h2>
+    <p>Join 2,000+ print shops and brands already stocking with AF Apparels. Apply takes 2 minutes. Approval within 1 business day.</p>
+    <div class="cta-btns">
+      <button class="btn btn-red btn-lg">Apply for Wholesale Account</button>
+      <button class="btn btn-white-ol">Browse Products First</button>
+    </div>
+  </div>
+</div>
+
+<!-- S14: FOOTER -->
+<div class="sec-badge">S14 · FOOTER</div>
+<div class="cro-note"><b>CRO: Navigation.</b> Dark footer. Four columns. Phone number prominent — B2B buyers call. Payment badges visible. Certifications repeated in footer for buyers who scrolled past the cert strip.</div>
+<div class="site-footer">
+  <div class="wrap">
+    <div class="footer-grid">
+      <div class="footer-col">
+        <div class="af-mono" style="font-size:26px;margin-bottom:6px"><span class="a">A</span><span class="f">F</span></div>
+        <div class="af-brand" style="margin-bottom:8px">AMERICAN FASHION</div>
+        <p class="footer-brand" style="margin-top:0">Factory-direct blank apparel supplier serving 2,000+ wholesale accounts across the US. Dallas, TX warehouse. ISO 9000 certified.</p>
+        <div style="margin-top:14px;font-size:12px;color:#475569">📞 (214) 272-7213<br>✉ info.afapparel@gmail.com<br>📍 Dallas, TX Warehouse</div>
+      </div>
+      <div class="footer-col"><h5>Products</h5><a href="#">T-Shirts</a><a href="#">Hoodies</a><a href="#">Sweatshirts</a><a href="#">Polos</a><a href="#">Long Sleeve</a><a href="#">Crop Tops</a><a href="#">All Products</a></div>
+      <div class="footer-col"><h5>Account</h5><a href="#">Apply for Account</a><a href="#">Sign In</a><a href="#">Order History</a><a href="#">Saved Lists</a><a href="#">NET 30 Terms</a><a href="#">Bulk Pricing Tiers</a></div>
+      <div class="footer-col"><h5>Resources</h5><a href="#">Print Guide</a><a href="#">Size Charts</a><a href="#">Private Label</a><a href="#">About AF Apparels</a><a href="#">Contact Us</a><a href="#">Shipping Policy</a><a href="#">Returns Policy</a></div>
+    </div>
+    <div class="footer-bottom">
+      <div class="copy">© 2025 American Fashion LLC · Dallas, TX · PSEB Partner: AheadTech360</div>
+      <div class="pay-badges">
+        <span class="pay-badge">VISA</span><span class="pay-badge">MC</span><span class="pay-badge">AMEX</span><span class="pay-badge">ACH</span><span class="pay-badge">WIRE</span><span class="pay-badge">NET30</span>
+        <span class="pay-badge" style="background:#1B3A5C;color:#94A3B8">ISO 9000</span><span class="pay-badge" style="background:#1B3A5C;color:#94A3B8">GOTS</span><span class="pay-badge" style="background:#1B3A5C;color:#94A3B8">WRAP</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+</div><!-- end page-home -->
+
+<!-- ═══════════════════════════════════════════════════════ PAGE: COLLECTION -->
+<div class="page" id="page-collection">
+<div class="cro-note"><b>Page: Collection / Category.</b> Left sidebar filters + right product grid. SanMar pattern. White dominant. Sort bar at top. Filter by color, size, weight. Grid shows SKU, name, color dots, and price (if logged in).</div>
+
+<div class="announce navy-bar">Logged in as: [Wholesale Account] &nbsp;|&nbsp; Your Price Tier: <strong>1–49 units</strong> &nbsp;|&nbsp; <a href="#" style="color:#1E90FF">View Tier Pricing →</a></div>
+<div class="site-header"><div class="hdr-inner"><div class="af-logo"><div class="af-mono"><span class="a">A</span><span class="f">F</span></div><div class="af-brand">AMERICAN<br>FASHION</div></div><nav class="site-nav"><a href="#">Products</a><a href="#">New Arrivals</a><a href="#">Private Label</a><a href="#">Print Guide</a><a href="#">About</a><a href="#">Contact</a></nav><div class="hdr-actions"><input class="hdr-search" type="text" placeholder="Search by SKU or style…"><button class="btn btn-white-ol btn-sm">My Account ▾</button><button class="btn btn-red btn-sm">🛒 Cart (0)</button></div></div></div>
+<div class="sub-nav"><div class="sub-nav-inner"><span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#94A3B8">Browse:</span><a href="#" class="cat-link">T-Shirts</a><a href="#">Hoodies</a><a href="#">Sweatshirts</a><a href="#">Polos</a><a href="#">Long Sleeve</a><a href="#">Crops &amp; Youth</a><a href="#">All Products</a></div></div>
+
+<div class="coll-banner">
+  <div class="wrap">
+    <h2>T-Shirts</h2>
+    <p>3 styles · 47 colors · XS–3XL · Same-day shipping on all in-stock</p>
+  </div>
+</div>
+
+<div class="cro-note"><b>CRO: Navigation + Momentum.</b> Sidebar filters = B2B catalog behavior. Buyers filter by size availability, color, weight, fabric. Sort by "Best Seller" default. Price visible to logged-in accounts. Grid = 4 columns desktop.</div>
+
+<div class="section bg-white compact" style="padding:28px 0">
+  <div class="wrap">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+      <div style="font-size:13px;color:var(--muted)">Showing <strong style="color:var(--body)">3 styles</strong> in T-Shirts</div>
+      <div style="display:flex;gap:10px;align-items:center">
+        <span style="font-size:12px;color:var(--muted)">Sort by:</span>
+        <select style="border:1px solid var(--border);border-radius:3px;padding:5px 10px;font-size:12px;font-family:'Inter',sans-serif">
+          <option>Best Seller</option><option>Price: Low–High</option><option>Newest</option><option>Name A–Z</option>
+        </select>
+        <span style="font-size:12px;color:var(--muted)">Filter: </span>
+        <span class="f-pill sel">All Sizes</span><span class="f-pill">XS–XL</span><span class="f-pill">2XL–3XL</span>
+      </div>
+    </div>
+    <div class="coll-layout">
+      <div class="coll-sidebar">
+        <div class="filter-section">
+          <h5>Style</h5>
+          <div class="filter-item active"><input type="checkbox" checked> Premium Unisex Tee #1001</div>
+          <div class="filter-item"><input type="checkbox"> Unisex Max Tee #1000</div>
+          <div class="filter-item"><input type="checkbox"> Drop Shoulder Tee #1002</div>
+        </div>
+        <div class="filter-section">
+          <h5>Color Family</h5>
+          <div class="filter-item"><input type="checkbox"> White / Off-White (8)</div>
+          <div class="filter-item"><input type="checkbox"> Black / Charcoal (6)</div>
+          <div class="filter-item"><input type="checkbox"> Navy / Blue (7)</div>
+          <div class="filter-item"><input type="checkbox"> Red / Cardinal (5)</div>
+          <div class="filter-item"><input type="checkbox"> Green / Forest (6)</div>
+          <div class="filter-item"><input type="checkbox"> Grey (5)</div>
+          <div class="filter-item"><input type="checkbox"> Other (10+)</div>
+        </div>
+        <div class="filter-section">
+          <h5>Size Availability</h5>
+          <div style="display:flex;flex-wrap:wrap;gap:4px">
+            <span class="f-pill sel">XS</span><span class="f-pill sel">S</span><span class="f-pill sel">M</span><span class="f-pill sel">L</span><span class="f-pill sel">XL</span><span class="f-pill">2XL</span><span class="f-pill">3XL</span>
+          </div>
+        </div>
+        <div class="filter-section">
+          <h5>Fabric Weight</h5>
+          <div class="filter-item"><input type="checkbox"> 4.2–4.5 oz (lightweight)</div>
+          <div class="filter-item"><input type="checkbox"> 5.0–5.5 oz (midweight)</div>
+          <div class="filter-item"><input type="checkbox"> 6.0+ oz (heavyweight)</div>
+        </div>
+        <div class="filter-section">
+          <h5>Fabric Type</h5>
+          <div class="filter-item"><input type="checkbox"> 100% Ring-Spun Cotton</div>
+          <div class="filter-item"><input type="checkbox"> CVC 60/40</div>
+          <div class="filter-item"><input type="checkbox"> Tri-Blend</div>
+        </div>
+        <div class="filter-section">
+          <h5>Certifications</h5>
+          <div class="filter-item"><input type="checkbox"> GOTS Certified</div>
+          <div class="filter-item"><input type="checkbox"> Oeko-Tex</div>
+        </div>
+      </div>
+      <div class="coll-main">
+        <div class="prod-grid">
+          <div class="prod-card"><div class="prod-img">[Ghost Mannequin #1001]<div class="overlay-badge"><span class="badge b-navy">BEST SELLER</span></div></div><div class="prod-body"><div class="prod-sku">SKU #1001</div><div class="prod-name">Premium Unisex Tee</div><div style="font-size:11px;color:var(--muted);margin-bottom:6px">4.3 oz · Ring-Spun Cotton · 25 colors</div><div class="prod-dots"><div class="pdot" style="background:#fff;border-color:#ccc"></div><div class="pdot" style="background:#1a1a1a"></div><div class="pdot" style="background:#E8242A"></div><div class="pdot" style="background:#1B3A5C"></div><span class="dot-more">+21</span></div><div class="prod-price">$5.52 / unit</div><div style="font-size:10px;color:var(--muted);margin-top:2px">50+ units: $4.99 · 250+: $4.49</div><div class="prod-stock in-stock">✓ In Stock</div></div></div>
+          <div class="prod-card"><div class="prod-img">[Ghost Mannequin #1000]</div><div class="prod-body"><div class="prod-sku">SKU #1000</div><div class="prod-name">Unisex Max Tee</div><div style="font-size:11px;color:var(--muted);margin-bottom:6px">4.3 oz · CVC 60/40 · 22 colors</div><div class="prod-dots"><div class="pdot" style="background:#fff;border-color:#ccc"></div><div class="pdot" style="background:#555"></div><div class="pdot" style="background:#2980b9"></div><div class="pdot" style="background:#27ae60"></div><span class="dot-more">+18</span></div><div class="prod-price">$5.52 / unit</div><div style="font-size:10px;color:var(--muted);margin-top:2px">50+ units: $4.99 · 250+: $4.49</div><div class="prod-stock in-stock">✓ In Stock</div></div></div>
+          <div class="prod-card"><div class="prod-img">[Ghost Mannequin #1002]<div class="overlay-badge"><span class="badge b-green">NEW</span></div></div><div class="prod-body"><div class="prod-sku">SKU #1002</div><div class="prod-name">Drop Shoulder Tee</div><div style="font-size:11px;color:var(--muted);margin-bottom:6px">5.5 oz · Ring-Spun Cotton · 12 colors</div><div class="prod-dots"><div class="pdot" style="background:#fff;border-color:#ccc"></div><div class="pdot" style="background:#1a1a1a"></div><div class="pdot" style="background:#8B4513"></div><div class="pdot" style="background:#556B2F"></div><span class="dot-more">+8</span></div><div class="prod-price">$6.80 / unit</div><div style="font-size:10px;color:var(--muted);margin-top:2px">50+ units: $6.10 · 250+: $5.50</div><div class="prod-stock low-stock">⚠ Low Stock on Some Colors</div></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</div><!-- end collection -->
+
+<!-- ═══════════════════════════════════════════════════════ PAGE: PRODUCT (GUEST) -->
+<div class="page" id="page-product-guest">
+<div class="cro-note"><b>Page: Product — Guest View.</b> Guest can see product details, specs, and photos. Pricing is gated — triggers account application. This is the Smartex model: useful enough to browse, price-gated to drive account creation.</div>
+
+<div class="announce red-bar">📋 Pricing visible to approved wholesale accounts only. <strong><a href="#" style="color:#fff;text-decoration:underline">Apply for your free account →</a></strong></div>
+<div class="site-header"><div class="hdr-inner"><div class="af-logo"><div class="af-mono"><span class="a">A</span><span class="f">F</span></div><div class="af-brand">AMERICAN<br>FASHION</div></div><nav class="site-nav"><a href="#">Products</a><a href="#">Private Label</a><a href="#">Print Guide</a><a href="#">About</a><a href="#">Contact</a></nav><div class="hdr-actions"><input class="hdr-search" type="text" placeholder="Search by SKU…"><button class="btn btn-white-ol btn-sm">Sign In</button><button class="btn btn-red btn-sm">Apply for Account</button></div></div></div>
+
+<div class="section bg-white compact" style="padding:20px 0 0">
+  <div class="wrap">
+    <div style="font-size:12px;color:var(--muted);margin-bottom:16px"><a href="#" style="color:var(--blue)">Home</a> › <a href="#" style="color:var(--blue)">T-Shirts</a> › Premium Unisex Tee #1001</div>
+    <div class="pdp-layout">
+      <div class="pdp-gallery">
+        <div class="pdp-gallery-main">[Ghost Mannequin Front View — White]</div>
+        <div class="pdp-thumbs">
+          <div class="pdp-thumb active">[Front]</div>
+          <div class="pdp-thumb">[Back]</div>
+          <div class="pdp-thumb">[Side]</div>
+          <div class="pdp-thumb">[Detail]</div>
+          <div class="pdp-thumb">[Flat]</div>
+        </div>
+      </div>
+      <div class="pdp-info">
+        <div class="pdp-sku">SKU #1001 · Ring-Spun Cotton · 4.3 oz</div>
+        <h1 class="pdp-name">Premium Unisex Tee</h1>
+        <div class="pdp-meta">
+          <span class="badge b-navy">BEST SELLER</span>
+          <span class="badge b-green">✓ IN STOCK</span>
+          <span class="badge b-blue">ISO 9000</span>
+          <span class="badge b-blue">OEKO-TEX</span>
+        </div>
+        <hr class="pdp-divider">
+        <div class="pdp-label">Available Colors (25)</div>
+        <div class="pdp-swatches">
+          <div class="pdp-swatch sel" style="background:#fff;border-color:#ccc" title="White"></div>
+          <div class="pdp-swatch" style="background:#1a1a1a" title="Black"></div>
+          <div class="pdp-swatch" style="background:#555" title="Charcoal"></div>
+          <div class="pdp-swatch" style="background:#E8242A" title="Red"></div>
+          <div class="pdp-swatch" style="background:#1B3A5C" title="Navy"></div>
+          <div class="pdot" style="background:#1E90FF;width:24px;height:24px;border-radius:50%;" title="Royal Blue"></div>
+          <div class="pdot" style="background:#2d6a4f;width:24px;height:24px;border-radius:50%;" title="Forest"></div>
+          <div class="pdot" style="background:#c77dff;width:24px;height:24px;border-radius:50%;" title="Lavender"></div>
+          <div class="pdot" style="background:#f4a261;width:24px;height:24px;border-radius:50%;" title="Peach"></div>
+          <span class="dot-more" style="font-size:12px">+16 more colors</span>
+        </div>
+        <div class="pdp-label" style="margin-top:14px">Size</div>
+        <div class="size-grid">
+          <div class="size-btn">XS</div><div class="size-btn sel">S</div><div class="size-btn">M</div><div class="size-btn">L</div><div class="size-btn">XL</div><div class="size-btn">2XL</div><div class="size-btn">3XL</div>
+        </div>
+        <div class="login-gate">
+          <div class="gate-h3">Wholesale Pricing Available to Approved Accounts</div>
+          <p class="gate-p">Create your free wholesale account to view pricing, place orders, and access bulk tier discounts.</p>
+          <div class="gate-feats">
+            <span class="gate-feat">✓ Factory-direct pricing</span>
+            <span class="gate-feat">✓ Tier discounts 50–1,000+ units</span>
+            <span class="gate-feat">✓ NET 30 available</span>
+            <span class="gate-feat">✓ Same-day shipping</span>
+          </div>
+          <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+            <button class="btn btn-red">Apply for Free Account</button>
+            <button class="btn btn-navy-ol">Sign In to Existing Account</button>
+          </div>
+        </div>
+        <div class="trust-badges-row" style="margin-top:16px">
+          <div class="trust-badge-sm">🚚 Same-day shipping before 2PM CT</div>
+          <div class="trust-badge-sm">📦 No minimum order</div>
+          <div class="trust-badge-sm">🔄 Free returns on defects</div>
+        </div>
+      </div>
+    </div>
+    <div class="tab-bar" style="margin-top:32px">
+      <div class="t-tab active">Product Specs</div>
+      <div class="t-tab">Fabric &amp; Care</div>
+      <div class="t-tab">Size Chart</div>
+      <div class="t-tab">Print Guide</div>
+      <div class="t-tab">Color Chart</div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;padding-bottom:32px">
+      <div><h4 style="font-family:'Barlow Semi Condensed',sans-serif;font-size:15px;font-weight:700;margin-bottom:12px;color:var(--body)">Specifications</h4><table class="spec-table"><tr><td>Fabric</td><td>100% Ring-Spun Cotton</td></tr><tr><td>Weight</td><td>4.3 oz/yd²</td></tr><tr><td>Construction</td><td>Single jersey, tubular</td></tr><tr><td>Neck</td><td>1×1 rib with lycra</td></tr><tr><td>Pre-shrunk</td><td>Yes — preshrunk for consistency</td></tr><tr><td>Sizes</td><td>XS, S, M, L, XL, 2XL, 3XL</td></tr><tr><td>Colors</td><td>25 standard colors</td></tr><tr><td>MOQ</td><td>No minimum (in-stock)</td></tr></table></div>
+      <div><h4 style="font-family:'Barlow Semi Condensed',sans-serif;font-size:15px;font-weight:700;margin-bottom:12px;color:var(--body)">Certifications</h4><table class="spec-table"><tr><td>ISO 9000</td><td>✓ Production quality certified</td></tr><tr><td>Oeko-Tex 100</td><td>✓ No harmful substances</td></tr><tr><td>GOTS</td><td>✓ Organic cotton certified</td></tr><tr><td>WRAP</td><td>✓ Ethical production</td></tr></table><div class="pdp-callout" style="margin-top:16px">📋 Documentation available for all certifications upon request for corporate and institutional accounts.</div></div>
+    </div>
+  </div>
+</div>
+</div><!-- end product-guest -->
+
+
+<!-- ═══════════════════════════════════════════════════════ PAGE: APPLY FOR ACCOUNT -->
+<div class="page" id="page-signup">
+<div class="cro-note"><b>Page: Apply for Wholesale Account.</b> Smartex-style: simple, fast, business-focused. Left = form. Right = benefit cards. No fluff. Approval in 1 business day messaging = reduces abandonment.</div>
+
+<div class="page-hero"><div class="wrap"><h1>Apply for a Wholesale Account</h1><p>Free to apply. Approved accounts get factory-direct pricing, tier discounts, and NET 30 terms.</p></div></div>
+
+<div class="section bg-off compact" style="padding:32px 0">
+  <div class="wrap">
+    <div class="signup-layout">
+      <div class="signup-form-card">
+        <h2 style="font-family:'Barlow Semi Condensed',sans-serif;font-size:22px;font-weight:800;margin-bottom:6px;color:var(--body)">Business Information</h2>
+        <p style="font-size:13px;color:var(--muted);margin-bottom:20px">Takes 2 minutes. We'll review and approve within 1 business day.</p>
+        <div class="form-row">
+          <div class="form-group"><label class="form-label">First Name *</label><input class="form-inp" type="text" placeholder="John"></div>
+          <div class="form-group"><label class="form-label">Last Name *</label><input class="form-inp" type="text" placeholder="Smith"></div>
+        </div>
+        <div class="form-group"><label class="form-label">Business Name *</label><input class="form-inp" type="text" placeholder="Smith Print Co."></div>
+        <div class="form-group"><label class="form-label">Business Email *</label><input class="form-inp" type="email" placeholder="john@smithprint.com"></div>
+        <div class="form-row">
+          <div class="form-group"><label class="form-label">Phone *</label><input class="form-inp" type="tel" placeholder="(555) 000-0000"></div>
+          <div class="form-group"><label class="form-label">Website</label><input class="form-inp" type="url" placeholder="smithprint.com"></div>
+        </div>
+        <div class="form-group"><label class="form-label">Business Type *</label><select class="form-select"><option value="">Select your business type…</option><option>Screen Print / DTF Shop</option><option>Embroidery Shop</option><option>Apparel Brand</option><option>Corporate Promo Distributor</option><option>Retailer / Reseller</option><option>Other</option></select></div>
+        <div class="form-row">
+          <div class="form-group"><label class="form-label">State *</label><select class="form-select"><option>Texas</option><option>California</option><option>Florida</option><option>New York</option><option>Illinois</option><option>Other</option></select></div>
+          <div class="form-group"><label class="form-label">Est. Monthly Volume</label><select class="form-select"><option>Under 100 units</option><option>100–500 units</option><option>500–2,000 units</option><option>2,000+ units</option></select></div>
+        </div>
+        <div class="form-group"><label class="form-label">Tax ID / Reseller Certificate *</label><input class="form-inp" type="text" placeholder="Enter your EIN or reseller certificate number"></div>
+        <button class="btn btn-red btn-full" style="margin-top:8px;padding:12px 0;font-size:15px">Submit Application →</button>
+        <p class="form-note">By applying you agree to our <a href="#" style="color:var(--blue)">Terms &amp; Conditions</a>. We do not share your information with third parties. Approval typically within 1 business day, Monday–Friday.</p>
+      </div>
+      <div class="signup-benefits">
+        <div class="benefit-card"><div class="brow"><div class="brow-icon">🏭</div><div><h4>Factory-Direct Pricing</h4><p>No distributor markup. Prices are 15–30% lower than traditional wholesale channels.</p></div></div></div>
+        <div class="benefit-card"><div class="brow"><div class="brow-icon">📊</div><div><h4>Volume Tier Discounts</h4><p>1–49 units standard. 50–249: save 10%. 250–999: save 18%. 1,000+: save 28%.</p></div></div></div>
+        <div class="benefit-card"><div class="brow"><div class="brow-icon">💳</div><div><h4>NET 30 Terms Available</h4><p>For accounts with 90+ days of history. All major cards, ACH, and wire accepted from day one.</p></div></div></div>
+        <div class="benefit-card"><div class="brow"><div class="brow-icon">🚚</div><div><h4>Same-Day Fulfillment</h4><p>Orders before 2PM CT ship the same day. Every in-stock item ships from Dallas, TX.</p></div></div></div>
+        <div class="benefit-card"><div class="brow"><div class="brow-icon">📋</div><div><h4>Order History &amp; Reorder</h4><p>Full order management portal. Save lists, reorder in one click, track shipments.</p></div></div></div>
+        <div style="background:#F4F6F9;border:1px solid var(--border);border-radius:4px;padding:14px;text-align:center;margin-top:4px">
+          <div style="font-size:12px;color:var(--muted)">Questions? Call us directly:</div>
+          <div style="font-family:'Barlow Semi Condensed',sans-serif;font-size:20px;font-weight:800;color:var(--navy);margin-top:4px">(214) 272-7213</div>
+          <div style="font-size:11px;color:var(--muted)">Mon–Fri, 8AM–5PM CT</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</div><!-- end signup -->
+
+<!-- ═══════════════════════════════════════════════════════ PAGE: PRODUCT (LOGGED IN) -->
+<div class="page" id="page-product-logged">
+<div class="cro-note"><b>Page: Product — Member View.</b> Full pricing visible. Bulk order grid with qty inputs per size. ATC with running total. This is the core B2B ordering experience — Smartex WAM-style grid ordering.</div>
+
+<div class="announce navy-bar">Account: Smith Print Co. &nbsp;|&nbsp; Tier: 50–249 units (10% off) &nbsp;|&nbsp; 📞 Rep: (214) 272-7213</div>
+<div class="site-header"><div class="hdr-inner"><div class="af-logo"><div class="af-mono"><span class="a">A</span><span class="f">F</span></div><div class="af-brand">AMERICAN<br>FASHION</div></div><nav class="site-nav"><a href="#">Products</a><a href="#">Private Label</a><a href="#">Print Guide</a><a href="#">My Account</a></nav><div class="hdr-actions"><input class="hdr-search" type="text" placeholder="Search by SKU…"><button class="btn btn-white-ol btn-sm">Smith Print Co. ▾</button><button class="btn btn-red btn-sm">🛒 Cart (12)</button></div></div></div>
+
+<div class="section bg-white compact" style="padding:16px 0 0">
+  <div class="wrap">
+    <div style="font-size:12px;color:var(--muted);margin-bottom:16px"><a href="#" style="color:var(--blue)">Home</a> › <a href="#" style="color:var(--blue)">T-Shirts</a> › Premium Unisex Tee #1001</div>
+    <div class="pdp-layout">
+      <div class="pdp-gallery">
+        <div class="pdp-gallery-main">[Ghost Mannequin — White #1001]</div>
+        <div class="pdp-thumbs"><div class="pdp-thumb active">[Front]</div><div class="pdp-thumb">[Back]</div><div class="pdp-thumb">[Side]</div><div class="pdp-thumb">[Detail]</div><div class="pdp-thumb">[Flat Lay]</div></div>
+      </div>
+      <div class="pdp-info">
+        <div class="pdp-sku">SKU #1001 · 4.3 oz Ring-Spun Cotton</div>
+        <h1 class="pdp-name">Premium Unisex Tee</h1>
+        <div class="pdp-meta"><span class="badge b-navy">BEST SELLER</span><span class="badge b-green">✓ IN STOCK</span><span class="badge b-gold">Your Tier: 10% Off</span></div>
+        <hr class="pdp-divider">
+
+        <div style="background:var(--off);border:1px solid var(--border);border-radius:4px;padding:12px 14px;margin-bottom:16px">
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:8px">Your Pricing Tiers</div>
+          <div style="display:flex;gap:0">
+            <div style="flex:1;text-align:center;padding:6px;border-right:1px solid var(--border)"><div style="font-family:'Barlow Semi Condensed',sans-serif;font-size:18px;font-weight:800;color:var(--body)">$5.52</div><div style="font-size:10px;color:var(--muted)">1–49 units</div></div>
+            <div style="flex:1;text-align:center;padding:6px;background:#EEF6FF;border-right:1px solid var(--border)"><div style="font-family:'Barlow Semi Condensed',sans-serif;font-size:18px;font-weight:800;color:var(--blue)">$4.99 ★</div><div style="font-size:10px;color:var(--blue);font-weight:600">50–249 (Your Tier)</div></div>
+            <div style="flex:1;text-align:center;padding:6px;border-right:1px solid var(--border)"><div style="font-family:'Barlow Semi Condensed',sans-serif;font-size:18px;font-weight:800;color:var(--body)">$4.49</div><div style="font-size:10px;color:var(--muted)">250–999 units</div></div>
+            <div style="flex:1;text-align:center;padding:6px"><div style="font-family:'Barlow Semi Condensed',sans-serif;font-size:18px;font-weight:800;color:var(--body)">$3.99</div><div style="font-size:10px;color:var(--muted)">1,000+ units</div></div>
+          </div>
+        </div>
+
+        <div class="pdp-label">Select Color</div>
+        <div class="pdp-swatches">
+          <div class="pdp-swatch sel" style="background:#fff;border-color:#ccc" title="White"></div>
+          <div class="pdp-swatch" style="background:#1a1a1a" title="Black"></div>
+          <div class="pdp-swatch" style="background:#555" title="Charcoal"></div>
+          <div class="pdp-swatch" style="background:#E8242A" title="Red"></div>
+          <div class="pdp-swatch" style="background:#1B3A5C" title="Navy"></div>
+          <div class="pdp-swatch" style="background:#1E90FF" title="Royal Blue"></div>
+          <div class="pdp-swatch" style="background:#2d6a4f" title="Forest"></div>
+          <span class="dot-more" style="font-size:12px">+18 colors</span>
+        </div>
+
+        <div class="pdp-label" style="margin-top:16px">Enter Quantities by Size — White</div>
+        <div class="bulk-grid-wrap">
+          <table class="bulk-table">
+            <thead><tr><th>Size</th><th>In Stock</th><th>Unit Price</th><th>Qty</th><th>Subtotal</th></tr></thead>
+            <tbody>
+              <tr><td>XS</td><td><span class="in-stock">847</span></td><td>$4.99</td><td class="qty-cell"><input type="number" class="qty-inp" value="0" min="0"></td><td>—</td></tr>
+              <tr><td>S</td><td><span class="in-stock">1,243</span></td><td>$4.99</td><td class="qty-cell"><input type="number" class="qty-inp" value="24" min="0"></td><td style="font-weight:600;color:var(--body)">$119.76</td></tr>
+              <tr><td>M</td><td><span class="in-stock">2,100</span></td><td>$4.99</td><td class="qty-cell"><input type="number" class="qty-inp" value="36" min="0"></td><td style="font-weight:600;color:var(--body)">$179.64</td></tr>
+              <tr><td>L</td><td><span class="in-stock">1,876</span></td><td>$4.99</td><td class="qty-cell"><input type="number" class="qty-inp" value="36" min="0"></td><td style="font-weight:600;color:var(--body)">$179.64</td></tr>
+              <tr><td>XL</td><td><span class="in-stock">943</span></td><td>$4.99</td><td class="qty-cell"><input type="number" class="qty-inp" value="24" min="0"></td><td style="font-weight:600;color:var(--body)">$119.76</td></tr>
+              <tr><td>2XL</td><td><span class="in-stock">412</span></td><td>$4.99</td><td class="qty-cell"><input type="number" class="qty-inp" value="12" min="0"></td><td style="font-weight:600;color:var(--body)">$59.88</td></tr>
+              <tr><td>3XL</td><td><span class="low-stock">⚠ 87</span></td><td>$4.99</td><td class="qty-cell"><input type="number" class="qty-inp" value="0" min="0"></td><td>—</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="atc-box">
+          <div class="atc-row"><div><div class="atc-total-label">Total Units</div><div class="atc-total-val blue-val">132 units</div></div><div><div class="atc-total-label">Order Total</div><div class="atc-total-val">$658.68</div></div><div><div class="atc-total-label">You Save</div><div class="atc-total-val" style="color:var(--green)">$69.96</div></div></div>
+          <button class="btn btn-red btn-full" style="padding:11px 0;font-size:15px">Add to Cart — 132 units · $658.68</button>
+        </div>
+        <div class="pdp-callout">💡 Ordering 250+ units? You'll qualify for $4.49/unit. <a href="#" style="color:var(--blue);font-weight:700">Add more colors or styles →</a></div>
+        <div class="trust-badges-row">
+          <div class="trust-badge-sm">🚚 Ships today if ordered before 2PM CT</div>
+          <div class="trust-badge-sm">💳 NET 30 available on this order</div>
+          <div class="trust-badge-sm">📋 Download style sheet</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="tab-bar" style="margin-top:32px"><div class="t-tab active">Product Specs</div><div class="t-tab">Fabric &amp; Care</div><div class="t-tab">Size Chart</div><div class="t-tab">Print Guide</div><div class="t-tab">Order Notes</div></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;padding-bottom:32px"><div><table class="spec-table"><tr><td>Fabric</td><td>100% Ring-Spun Cotton</td></tr><tr><td>Weight</td><td>4.3 oz/yd²</td></tr><tr><td>Construction</td><td>Single jersey, tubular</td></tr><tr><td>Pre-shrunk</td><td>Yes</td></tr><tr><td>Sizes</td><td>XS, S, M, L, XL, 2XL, 3XL</td></tr><tr><td>Colors</td><td>25 standard colors</td></tr></table></div><div><table class="spec-table"><tr><td>ISO 9000</td><td>✓ Certified</td></tr><tr><td>Oeko-Tex 100</td><td>✓ Certified</td></tr><tr><td>GOTS</td><td>✓ Certified</td></tr><tr><td>WRAP</td><td>✓ Certified</td></tr><tr><td>Print Surfaces</td><td>DTF, Screen, Embroidery, Sub</td></tr></table></div></div>
+  </div>
+</div>
+</div><!-- end product-logged -->
+
+
+<!-- ═══════════════════════════════════════════════════════ PAGE: CART -->
+<div class="page" id="page-cart">
+<div class="cro-note"><b>Page: Cart.</b> Clean, functional. Summary card right side. NET 30 toggle prominent. No upsell drama — B2B buyers just want a clean checkout. Shipping estimate shown.</div>
+
+<div class="site-header"><div class="hdr-inner"><div class="af-logo"><div class="af-mono"><span class="a">A</span><span class="f">F</span></div><div class="af-brand">AMERICAN<br>FASHION</div></div><nav class="site-nav"><a href="#">Products</a><a href="#">My Account</a></nav><div class="hdr-actions"><button class="btn btn-white-ol btn-sm">Smith Print Co.</button><button class="btn btn-red btn-sm">🛒 Cart (3 items)</button></div></div></div>
+
+<div class="section bg-off compact" style="padding:28px 0">
+  <div class="wrap">
+    <h1 style="font-family:'Barlow Semi Condensed',sans-serif;font-size:28px;font-weight:800;margin-bottom:20px;color:var(--body)">Your Cart</h1>
+    <div class="cart-layout">
+      <div class="cart-items">
+        <div class="cart-item-card">
+          <div class="cart-item-row">
+            <div class="cart-img">[#1001 White]</div>
+            <div class="cart-meta" style="flex:1">
+              <div style="font-size:10px;color:#94A3B8;text-transform:uppercase;letter-spacing:.05em">SKU #1001</div>
+              <h4>Premium Unisex Tee — White</h4>
+              <p>S(24) M(36) L(36) XL(24) 2XL(12) · 132 units · $4.99/unit</p>
+              <div class="cart-qty-row"><span style="font-size:12px;color:var(--muted)">Total:</span><strong style="font-family:'Barlow Semi Condensed',sans-serif;font-size:16px;color:var(--body)">$658.68</strong><button class="btn btn-sm" style="background:none;color:var(--muted);border:1px solid var(--border);font-family:'Inter',sans-serif;font-weight:500;font-size:11px">Edit Qtys</button><button class="btn btn-sm" style="background:none;color:var(--red);border:none;font-family:'Inter',sans-serif;font-size:11px">Remove</button></div>
+            </div>
+          </div>
+        </div>
+        <div class="cart-item-card">
+          <div class="cart-item-row">
+            <div class="cart-img">[#1001 Navy]</div>
+            <div class="cart-meta" style="flex:1">
+              <div style="font-size:10px;color:#94A3B8;text-transform:uppercase;letter-spacing:.05em">SKU #1001</div>
+              <h4>Premium Unisex Tee — Navy</h4>
+              <p>S(12) M(24) L(24) XL(12) · 72 units · $4.99/unit</p>
+              <div class="cart-qty-row"><span style="font-size:12px;color:var(--muted)">Total:</span><strong style="font-family:'Barlow Semi Condensed',sans-serif;font-size:16px;color:var(--body)">$359.28</strong><button class="btn btn-sm" style="background:none;color:var(--muted);border:1px solid var(--border);font-family:'Inter',sans-serif;font-weight:500;font-size:11px">Edit Qtys</button><button class="btn btn-sm" style="background:none;color:var(--red);border:none;font-family:'Inter',sans-serif;font-size:11px">Remove</button></div>
+            </div>
+          </div>
+        </div>
+        <div class="cart-item-card">
+          <div class="cart-item-row">
+            <div class="cart-img">[#3001 Black]</div>
+            <div class="cart-meta" style="flex:1">
+              <div style="font-size:10px;color:#94A3B8;text-transform:uppercase;letter-spacing:.05em">SKU #3001</div>
+              <h4>Classic Pullover Hoodie — Black</h4>
+              <p>M(12) L(12) XL(12) · 36 units · $21.86/unit</p>
+              <div class="cart-qty-row"><span style="font-size:12px;color:var(--muted)">Total:</span><strong style="font-family:'Barlow Semi Condensed',sans-serif;font-size:16px;color:var(--body)">$786.96</strong><button class="btn btn-sm" style="background:none;color:var(--muted);border:1px solid var(--border);font-family:'Inter',sans-serif;font-weight:500;font-size:11px">Edit Qtys</button><button class="btn btn-sm" style="background:none;color:var(--red);border:none;font-family:'Inter',sans-serif;font-size:11px">Remove</button></div>
+            </div>
+          </div>
+        </div>
+        <div style="margin-top:16px"><a href="#" style="font-size:13px;color:var(--blue);font-weight:700">← Continue Shopping</a></div>
+      </div>
+      <div class="cart-summary">
+        <div class="order-summary-card">
+          <h3>Order Summary</h3>
+          <div class="summary-row"><span>Items (240 units)</span><span>$1,804.92</span></div>
+          <div class="summary-row"><span>Tier Discount Applied</span><span style="color:var(--green)">−$190.80</span></div>
+          <div class="summary-row"><span>Shipping (UPS Ground)</span><span>$42.00</span></div>
+          <div class="summary-row total"><span>Order Total</span><span>$1,656.12</span></div>
+          <div class="net-note">💳 NET 30 available for this order amount. <strong>Terms will be confirmed at checkout.</strong></div>
+          <button class="btn btn-red btn-full" style="padding:12px 0;font-size:15px;margin-bottom:10px">Proceed to Checkout →</button>
+          <div style="font-size:11px;color:var(--muted);text-align:center">🚚 Ships today if checked out before 2PM CT</div>
+          <hr style="border:none;border-top:1px solid var(--border);margin:14px 0">
+          <div style="font-size:11px;color:#94A3B8;text-align:center">Secure checkout · All major cards · ACH · Wire</div>
+        </div>
+        <div style="background:var(--off);border:1px solid var(--border);border-radius:4px;padding:14px;margin-top:12px">
+          <div style="font-size:12px;font-weight:700;color:var(--body);margin-bottom:6px">💡 Add 60 more units to hit the $4.49/unit tier</div>
+          <div style="font-size:11px;color:var(--muted)">You're at 240 units. Add 10 more to reach 250 and save an additional $0.50/unit across your entire tee order.</div>
+          <a href="#" style="font-size:12px;color:var(--blue);font-weight:700;display:block;margin-top:8px">Browse T-Shirts →</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</div><!-- end cart -->
+
+<!-- ═══════════════════════════════════════════════════════ PAGE: CHECKOUT -->
+<div class="page" id="page-checkout">
+<div class="cro-note"><b>Page: Checkout.</b> 3-step linear checkout. Shipping → Payment → Confirm. No distractions. Order summary visible right side throughout. NET 30 payment option as a dedicated step.</div>
+
+<div class="site-header"><div class="hdr-inner"><div class="af-logo"><div class="af-mono"><span class="a">A</span><span class="f">F</span></div><div class="af-brand">AMERICAN<br>FASHION</div></div><div style="font-size:13px;color:rgba(255,255,255,.5)">Secure Checkout</div><div style="font-size:12px;color:rgba(255,255,255,.4)">Questions? (214) 272-7213</div></div></div>
+
+<div class="section bg-off compact" style="padding:28px 0">
+  <div class="wrap">
+    <div class="ck-layout">
+      <div class="ck-form">
+        <div class="ck-steps">
+          <div class="ck-step done">✓ 1. Shipping</div>
+          <div class="ck-step active">2. Payment</div>
+          <div class="ck-step">3. Confirm</div>
+        </div>
+        <div class="ck-card">
+          <h3>Payment Method</h3>
+          <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap">
+            <label style="flex:1;min-width:100px;border:1.5px solid var(--blue);border-radius:3px;padding:10px;display:flex;align-items:center;gap:8px;cursor:pointer;background:#EEF6FF"><input type="radio" name="pm" checked><span style="font-size:13px;font-weight:600;color:var(--navy)">Credit Card</span></label>
+            <label style="flex:1;min-width:100px;border:1.5px solid var(--border);border-radius:3px;padding:10px;display:flex;align-items:center;gap:8px;cursor:pointer"><input type="radio" name="pm"><span style="font-size:13px;font-weight:600">ACH / Bank</span></label>
+            <label style="flex:1;min-width:100px;border:1.5px solid var(--border);border-radius:3px;padding:10px;display:flex;align-items:center;gap:8px;cursor:pointer"><input type="radio" name="pm"><span style="font-size:13px;font-weight:600">Wire Transfer</span></label>
+            <label style="flex:1;min-width:100px;border:2px solid var(--gold);border-radius:3px;padding:10px;display:flex;align-items:center;gap:8px;cursor:pointer;background:#FFFBEB"><input type="radio" name="pm"><span style="font-size:13px;font-weight:600;color:#92400E">NET 30 Terms</span></label>
+          </div>
+          <div class="form-group"><label class="form-label">Card Number</label><input class="form-inp" placeholder="1234 5678 9012 3456"></div>
+          <div class="form-row"><div class="form-group"><label class="form-label">Expiry</label><input class="form-inp" placeholder="MM / YY"></div><div class="form-group"><label class="form-label">CVV</label><input class="form-inp" placeholder="123"></div></div>
+          <div class="form-group"><label class="form-label">Name on Card</label><input class="form-inp" placeholder="John Smith"></div>
+        </div>
+        <div class="ck-card">
+          <h3>Shipping Address</h3>
+          <div style="background:var(--off);border:1px solid var(--border);border-radius:3px;padding:12px;font-size:13px;color:var(--body)">
+            <strong>Smith Print Co.</strong><br>1234 Industrial Blvd, Suite 100<br>Austin, TX 78701<br>John Smith · (512) 555-0100
+            <a href="#" style="color:var(--blue);font-size:12px;display:block;margin-top:6px">Edit address</a>
+          </div>
+        </div>
+        <div class="ck-card">
+          <h3>Order Notes (Optional)</h3>
+          <textarea class="form-inp" style="height:70px;resize:none" placeholder="Special instructions, PO number, or notes for our team…"></textarea>
+        </div>
+        <button class="btn btn-red btn-full" style="padding:13px 0;font-size:15px">Place Order — $1,656.12 →</button>
+        <div style="font-size:11px;color:#94A3B8;text-align:center;margin-top:8px">🔒 SSL encrypted · Order confirmation sent to john@smithprint.com</div>
+      </div>
+      <div class="ck-sidebar">
+        <div class="order-summary-card">
+          <h3>Your Order</h3>
+          <div style="margin-bottom:14px">
+            <div style="display:flex;gap:10px;margin-bottom:10px;align-items:center"><div class="cart-img" style="width:44px;height:44px;flex-shrink:0">[Tee W]</div><div><div style="font-size:12px;font-weight:600">#1001 White · 132 units</div><div style="font-size:11px;color:var(--muted)">$658.68</div></div></div>
+            <div style="display:flex;gap:10px;margin-bottom:10px;align-items:center"><div class="cart-img" style="width:44px;height:44px;flex-shrink:0">[Tee N]</div><div><div style="font-size:12px;font-weight:600">#1001 Navy · 72 units</div><div style="font-size:11px;color:var(--muted)">$359.28</div></div></div>
+            <div style="display:flex;gap:10px;align-items:center"><div class="cart-img" style="width:44px;height:44px;flex-shrink:0">[Hood]</div><div><div style="font-size:12px;font-weight:600">#3001 Black · 36 units</div><div style="font-size:11px;color:var(--muted)">$786.96</div></div></div>
+          </div>
+          <hr style="border:none;border-top:1px solid var(--border);margin:12px 0">
+          <div class="summary-row"><span>Subtotal</span><span>$1,804.92</span></div>
+          <div class="summary-row"><span>Tier Discount</span><span style="color:var(--green)">−$190.80</span></div>
+          <div class="summary-row"><span>Shipping</span><span>$42.00</span></div>
+          <div class="summary-row total"><span>Total</span><span>$1,656.12</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</div><!-- end checkout -->
+
+
+<!-- ═══════════════════════════════════════════════════════ PAGE: ABOUT -->
+<div class="page" id="page-about">
+<div class="cro-note"><b>Page: About Us.</b> Not a brand story — a supplier credentials page. Factory history, certifications, team, warehouse. B2B buyers need to trust the operational infrastructure, not the marketing narrative.</div>
+
+<div class="site-header"><div class="hdr-inner"><div class="af-logo"><div class="af-mono"><span class="a">A</span><span class="f">F</span></div><div class="af-brand">AMERICAN<br>FASHION</div></div><nav class="site-nav"><a href="#">Products</a><a href="#">Private Label</a><a href="#">Print Guide</a><a href="#">About</a><a href="#">Contact</a></nav><div class="hdr-actions"><button class="btn btn-white-ol btn-sm">Sign In</button><button class="btn btn-red btn-sm">Apply for Account</button></div></div></div>
+
+<div class="page-hero"><div class="wrap"><h1>About AF Apparels</h1><p>Factory-direct wholesale blank apparel. Dallas, TX. Serving the US print industry since 2010.</p></div></div>
+
+<div class="section bg-white compact" style="padding:40px 0">
+  <div class="wrap">
+    <div class="about-grid">
+      <div class="about-stat"><div class="n">2,000+</div><div class="l">Wholesale Accounts</div></div>
+      <div class="about-stat"><div class="n">15 yrs</div><div class="l">Industry Experience</div></div>
+      <div class="about-stat"><div class="n">Dallas, TX</div><div class="l">Warehouse &amp; HQ</div></div>
+      <div class="about-stat"><div class="n">Same Day</div><div class="l">Fulfillment by 2PM CT</div></div>
+    </div>
+    <div class="why-layout">
+      <div class="why-copy">
+        <div class="section-hd"><h2>Our Story</h2></div>
+        <p style="font-size:14px;color:var(--muted);line-height:1.8;margin-bottom:16px">American Fashion was founded with a single purpose: remove the middlemen that drive up blank apparel costs for the US print industry. For too long, screen printers, DTF shops, and apparel brands were paying distributor markups of 20–35% on every blank they ordered.</p>
+        <p style="font-size:14px;color:var(--muted);line-height:1.8;margin-bottom:24px">We established direct factory relationships and a purpose-built Dallas fulfillment center to change that. Today, 2,000+ print businesses across the US stock with AF — paying factory-direct prices and receiving same-day fulfillment from our centrally-located warehouse.</p>
+        <div class="timeline">
+          <div class="tl-item"><div class="tl-dot"></div><div class="tl-year">2010</div><h4>Founded in Dallas</h4><p>First warehouse opened. Initial focus on ring-spun cotton tees for the Texas print market.</p></div>
+          <div class="tl-item"><div class="tl-dot"></div><div class="tl-year">2015</div><h4>ISO 9000 Certification</h4><p>Full quality management system certified. GOTS and Oeko-Tex certifications followed.</p></div>
+          <div class="tl-item"><div class="tl-dot"></div><div class="tl-year">2019</div><h4>500+ Active Accounts</h4><p>Expanded to full apparel line: hoodies, sweatshirts, polos. National shipping program launched.</p></div>
+          <div class="tl-item"><div class="tl-dot"></div><div class="tl-year">2023</div><h4>Private Label Program</h4><p>Launched turnkey private label manufacturing for apparel brands. Min 2,500 pcs/style/color.</p></div>
+          <div class="tl-item"><div class="tl-dot"></div><div class="tl-year">2025</div><h4>2,000+ Accounts Nationwide</h4><p>Serving screen printers, DTF shops, brands, and corporate buyers across all 50 states.</p></div>
+        </div>
+      </div>
+      <div class="why-img">
+        <div class="img-ph" style="height:300px;margin-bottom:12px"><div class="ph-icon">🏭</div><div>[Exterior: Dallas Warehouse Facility<br>American flag, loading docks,<br>branded signage visible]</div></div>
+        <div class="img-ph" style="height:180px"><div class="ph-icon">📦</div><div>[Interior: Rack system,<br>folded blanks by color,<br>fulfillment team working]</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section bg-off compact" style="padding:36px 0">
+  <div class="wrap">
+    <div class="section-hd center"><h2>Certifications &amp; Compliance</h2><p>Every AF product meets international production, environmental, and ethical standards.</p></div>
+    <div class="cert-grid">
+      <div class="cert-card"><div class="cert-icon">🏆</div><h5>ISO 9000</h5><p>Full quality management system. Consistent production standards, run-to-run.</p></div>
+      <div class="cert-card"><div class="cert-icon">🌿</div><h5>Oeko-Tex Standard 100</h5><p>Every component tested for harmful substances. Safe for sensitive skin.</p></div>
+      <div class="cert-card"><div class="cert-icon">🍃</div><h5>GOTS Certified</h5><p>Global Organic Textile Standard. Organic cotton sourced and verified from field to finished product.</p></div>
+      <div class="cert-card"><div class="cert-icon">🤝</h5>WRAP Certified</h5><p>Worldwide Responsible Accredited Production. Ethical labor, legal compliance, safe working conditions.</p></div>
+    </div>
+    <div style="text-align:center;margin-top:24px"><div class="pdp-callout" style="display:inline-block;text-align:left;max-width:560px">📋 <strong>Corporate &amp; Institutional Buyers:</strong> Full certification documentation available on request. Contact us at info.afapparel@gmail.com or (214) 272-7213.</div></div>
+  </div>
+</div>
+</div><!-- end about -->
+
+<!-- ═══════════════════════════════════════════════════════ PAGE: CONTACT -->
+<div class="page" id="page-contact">
+<div class="cro-note"><b>Page: Contact.</b> Phone number the primary CTA — B2B buyers call. Form for non-urgent inquiries. Business hours, warehouse address, and response time promise visible immediately.</div>
+
+<div class="site-header"><div class="hdr-inner"><div class="af-logo"><div class="af-mono"><span class="a">A</span><span class="f">F</span></div><div class="af-brand">AMERICAN<br>FASHION</div></div><nav class="site-nav"><a href="#">Products</a><a href="#">About</a><a href="#">Contact</a></nav><div class="hdr-actions"><button class="btn btn-white-ol btn-sm">Sign In</button><button class="btn btn-red btn-sm">Apply for Account</button></div></div></div>
+
+<div class="page-hero"><div class="wrap"><h1>Contact Us</h1><p>Questions about an order, account, or product? We're here Mon–Fri, 8AM–5PM Central.</p></div></div>
+
+<div class="section bg-off compact" style="padding:32px 0">
+  <div class="wrap">
+    <div class="contact-layout">
+      <div class="contact-form-card">
+        <h2 style="font-family:'Barlow Semi Condensed',sans-serif;font-size:22px;font-weight:800;margin-bottom:6px;color:var(--body)">Send Us a Message</h2>
+        <p style="font-size:13px;color:var(--muted);margin-bottom:20px">We respond to all inquiries within 4 business hours.</p>
+        <div class="form-row"><div class="form-group"><label class="form-label">First Name</label><input class="form-inp" placeholder="John"></div><div class="form-group"><label class="form-label">Last Name</label><input class="form-inp" placeholder="Smith"></div></div>
+        <div class="form-group"><label class="form-label">Business Email</label><input class="form-inp" type="email" placeholder="john@smithprint.com"></div>
+        <div class="form-group"><label class="form-label">Subject</label><select class="form-select"><option>General Inquiry</option><option>Order Status</option><option>Account Application</option><option>Product Question</option><option>Private Label Inquiry</option><option>Billing / Payment</option><option>Returns &amp; Defects</option></select></div>
+        <div class="form-group"><label class="form-label">Order Number (if applicable)</label><input class="form-inp" placeholder="AF-00000"></div>
+        <div class="form-group"><label class="form-label">Message</label><textarea class="form-inp" style="height:110px;resize:none" placeholder="Describe your question or issue…"></textarea></div>
+        <button class="btn btn-red btn-full" style="padding:11px 0;font-size:14px">Send Message →</button>
+      </div>
+      <div class="contact-info">
+        <div style="background:var(--navy);border-radius:4px;padding:24px;margin-bottom:16px;text-align:center">
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:rgba(255,255,255,.5);margin-bottom:6px">Call Us Directly</div>
+          <div style="font-family:'Barlow Semi Condensed',sans-serif;font-size:32px;font-weight:800;color:#fff">(214) 272-7213</div>
+          <div style="font-size:12px;color:rgba(255,255,255,.5);margin-top:4px">Mon–Fri · 8:00AM–5:00PM Central</div>
+        </div>
+        <div class="info-block"><div class="info-icon">✉️</div><div><h4>Email</h4><p>info.afapparel@gmail.com<br><span style="font-size:11px;color:#94A3B8">Response within 4 business hours</span></p></div></div>
+        <div class="info-block"><div class="info-icon">📍</div><div><h4>Warehouse &amp; Showroom</h4><p>Dallas, TX<br><span style="font-size:11px;color:#94A3B8">Showroom visits by appointment only</span></p></div></div>
+        <div class="info-block"><div class="info-icon">🕐</div><div><h4>Business Hours</h4><p>Monday–Friday: 8:00AM–5:00PM CT<br>Saturday–Sunday: Closed<br><span style="font-size:11px;color:#94A3B8">Orders placed after 2PM CT ship next business day</span></p></div></div>
+        <div class="info-block"><div class="info-icon">🚚</div><div><h4>Order Inquiries</h4><p>For urgent order issues, call directly. For non-urgent, use the form and reference your order number.</p></div></div>
+        <div style="background:var(--off);border:1px solid var(--border);border-radius:4px;padding:14px;margin-top:4px">
+          <div style="font-size:12px;font-weight:700;color:var(--body);margin-bottom:4px">Need a wholesale account?</div>
+          <div style="font-size:12px;color:var(--muted);margin-bottom:10px">Apply online in 2 minutes. Approved within 1 business day.</div>
+          <button class="btn btn-red btn-full btn-sm">Apply for Free Account</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</div><!-- end contact -->
+
+
+<!-- ═══════════════════════════════════════════════════════ PAGE: PRIVATE LABEL -->
+<div class="page" id="page-private-label">
+<div class="cro-note"><b>Page: Private Label.</b> Separate from the wholesale product pages. 5-step process. MOQ, timeline, pricing model. Navy quote box for inquiry CTA. Target: apparel brands wanting own label on AF-quality blanks.</div>
+
+<div class="site-header"><div class="hdr-inner"><div class="af-logo"><div class="af-mono"><span class="a">A</span><span class="f">F</span></div><div class="af-brand">AMERICAN<br>FASHION</div></div><nav class="site-nav"><a href="#">Products</a><a href="#">Private Label</a><a href="#">Print Guide</a><a href="#">About</a><a href="#">Contact</a></nav><div class="hdr-actions"><button class="btn btn-white-ol btn-sm">Sign In</button><button class="btn btn-red btn-sm">Apply for Account</button></div></div></div>
+
+<div class="page-hero"><div class="wrap"><h1>Private Label Manufacturing</h1><p>Launch your own apparel brand on AF-quality blanks. Your label. Your colors. Our factory infrastructure.</p></div></div>
+
+<div class="section bg-white compact" style="padding:40px 0">
+  <div class="wrap">
+    <div class="section-hd"><h2>Program Requirements</h2><p>Factory-direct private label with full customization — neck label, woven labels, custom colorways, and packaging.</p></div>
+    <div class="pl-reqs">
+      <div class="pl-req"><div class="r-val">2,500</div><div class="r-label">Min. Units</div><div class="r-note">Per style, per color. Mix styles to meet total MOQ.</div></div>
+      <div class="pl-req"><div class="r-val">90–120</div><div class="r-label">Day Production</div><div class="r-note">From approved samples to delivered goods.</div></div>
+      <div class="pl-req"><div class="r-val">50%</div><div class="r-label">Deposit Required</div><div class="r-note">50% at order confirmation. Balance before shipment.</div></div>
+    </div>
+
+    <div class="section-hd" style="margin-top:36px"><h2>How It Works — 5 Steps</h2></div>
+    <div class="section bg-off" style="border:1px solid var(--border);border-radius:4px;padding:0;margin-bottom:32px">
+      <div class="pl-steps">
+        <div class="pl-step"><div class="num">1</div><h4>Inquiry &amp; Brief</h4><p>Submit your brief: style references, color targets, label details, target units.</p></div>
+        <div class="pl-step"><div class="num">2</div><h4>Quote &amp; Spec</h4><p>We provide unit pricing, total cost, and a production spec sheet within 48 hours.</p></div>
+        <div class="pl-step"><div class="num">3</div><h4>Sample Production</h4><p>Physical samples produced to your spec. Approval required before production run.</p></div>
+        <div class="pl-step"><div class="num">4</div><h4>Production Run</h4><p>Full production on approved sample. ISO 9000 QC throughout the run.</p></div>
+        <div class="pl-step"><div class="num">5</div><h4>Delivery</h4><p>Packed to your spec. Shipped to your US address or freight forwarder.</p></div>
+      </div>
+    </div>
+
+    <div class="section-hd"><h2>What's Included</h2></div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:32px">
+      <div class="serve-card"><div class="serve-icon">🏷️</div><h4>Custom Neck Labels</h4><p>Woven or printed neck labels with your brand name, care instructions, and origin.</p></div>
+      <div class="serve-card"><div class="serve-icon">🎨</div><h4>Custom Colorways</h4><p>Pantone-matched colorways beyond our standard 50+ colors. Min applies per color.</p></div>
+      <div class="serve-card"><div class="serve-icon">📦</div><h4>Custom Packaging</h4><p>Polybag, retail hangtags, or custom box packaging options available.</p></div>
+      <div class="serve-card"><div class="serve-icon">📋</div><h4>Compliance Docs</h4><p>Full ISO 9000, Oeko-Tex, and GOTS documentation. Suitable for retail buyers.</p></div>
+      <div class="serve-card"><div class="serve-icon">🔍</div><h4>QC Inspection</h4><p>Third-party inspection available at additional cost before shipment.</p></div>
+      <div class="serve-card"><div class="serve-icon">🚢</div><h4>Freight Coordination</h4><p>We coordinate with your freight forwarder or can arrange domestic delivery.</p></div>
+    </div>
+
+    <div class="pl-quote-box">
+      <div style="flex:1.3;min-width:240px">
+        <h3>Ready to Launch Your Label?</h3>
+        <p>Tell us your vision and volume. We'll turn around a quote within 48 hours with full spec sheet and per-unit pricing.</p>
+      </div>
+      <div>
+        <button class="btn btn-red btn-lg" style="margin-bottom:10px;display:block;white-space:nowrap">Request Private Label Quote</button>
+        <div style="font-size:12px;color:rgba(255,255,255,.4);text-align:center">Or call: (214) 272-7213</div>
+      </div>
+    </div>
+  </div>
+</div>
+</div><!-- end private-label -->
+
+<!-- ═══════════════════════════════════════════════════════ PAGE: PRINT GUIDE -->
+<div class="page" id="page-print-guide">
+<div class="cro-note"><b>Page: Print Guide.</b> Critical B2B resource. Reduces pre-sale calls. Tells decorators exactly how each AF fabric performs with each print method. Compatibility matrix at bottom. This page increases account conversion from decorators who need technical confidence before ordering.</div>
+
+<div class="site-header"><div class="hdr-inner"><div class="af-logo"><div class="af-mono"><span class="a">A</span><span class="f">F</span></div><div class="af-brand">AMERICAN<br>FASHION</div></div><nav class="site-nav"><a href="#">Products</a><a href="#">Private Label</a><a href="#">Print Guide</a><a href="#">About</a><a href="#">Contact</a></nav><div class="hdr-actions"><button class="btn btn-white-ol btn-sm">Sign In</button><button class="btn btn-red btn-sm">Apply for Account</button></div></div></div>
+
+<div class="page-hero"><div class="wrap"><h1>AF Apparels Print Guide</h1><p>Decoration compatibility, fabric specs, and print recommendations for all AF blank styles.</p></div></div>
+
+<div class="section bg-white compact" style="padding:36px 0">
+  <div class="wrap">
+    <div class="section-hd"><h2>Decoration Methods — AF Compatibility</h2><p>All AF blanks are designed with decoration in mind. Here's what works best on each style.</p></div>
+    <div class="method-grid">
+      <div class="method-card"><h4>🖨️ Screen Printing</h4><p>Our most popular print method among wholesale accounts. High-density stitch count and pre-shrunk cotton ensures excellent ink adhesion and vibrant results.</p><div class="method-meta">Best fabrics: <span>100% Ring-Spun Cotton</span><br>Temp: <span>320°F cure / flash at 250°F</span><br>Works on: <span>#1001, #1000, #1002, #4001</span></div></div>
+      <div class="method-card"><h4>🎨 DTF Transfer</h4><p>Direct-to-film transfers adhere exceptionally well to our ring-spun cotton styles. Smooth surface texture minimizes grain-through. Full-color, no minimums on transfers.</p><div class="method-meta">Best fabrics: <span>100% Cotton or CVC 60/40</span><br>Temp: <span>300–315°F · 10–15 seconds</span><br>Works on: <span>All AF styles</span></div></div>
+      <div class="method-card"><h4>🪡 Embroidery</h4><p>All AF blanks are embroidery-ready. Polo (#5001) and crewneck (#4001) are particularly well-suited for logo and chest embroidery.</p><div class="method-meta">Best fabrics: <span>All AF styles</span><br>Backing: <span>Cutaway for stability</span><br>Best on: <span>#5001 Polo, #4001 Crewneck</span></div></div>
+      <div class="method-card"><h4>🌈 Sublimation</h4><p>Polyester-blend styles only. Our CVC 60/40 (#1000) supports sublimation with moderate color vibrancy. 100% polyester not currently in AF lineup.</p><div class="method-meta">Compatible fabrics: <span>CVC 60/40 only</span><br>Note: <span>Colors less vibrant on 60/40 vs 100% poly</span><br>Works on: <span>#1000 Max Tee only</span></div></div>
+      <div class="method-card"><h4>🔥 HTV / Vinyl</h4><p>Heat transfer vinyl works on all AF blanks. Cotton styles perform best with standard HTV pressure and temp settings. Pre-shrunk fabric prevents peel at seams.</p><div class="method-meta">Best fabrics: <span>100% Ring-Spun Cotton</span><br>Temp: <span>305°F · 10–15 seconds · medium pressure</span><br>Works on: <span>All AF styles</span></div></div>
+      <div class="method-card"><h4>💧 Water-Based / Discharge</h4><p>Our 100% ring-spun cotton styles are ideal for water-based and discharge printing. High-quality cotton construction ensures soft hand feel after wash-down.</p><div class="method-meta">Best fabrics: <span>100% Ring-Spun Cotton only</span><br>Note: <span>Avoid on CVC blends — poly content resists discharge</span><br>Best on: <span>#1001, #1002</span></div></div>
+    </div>
+
+    <div class="section-hd" style="margin-top:8px"><h2>Product x Method Compatibility Matrix</h2><p>Quick reference for decorators. ✓ Best · ◎ Compatible · — Not recommended</p></div>
+    <div style="overflow-x:auto;border:1px solid var(--border);border-radius:4px">
+      <table class="compat-table" style="min-width:600px">
+        <thead><tr><th>Style / SKU</th><th>Screen Print</th><th>DTF</th><th>Embroidery</th><th>Sublimation</th><th>HTV</th><th>Discharge</th></tr></thead>
+        <tbody>
+          <tr><td><strong>#1001</strong> Premium Unisex Tee</td><td><span class="compat-best">✓ BEST</span></td><td><span class="compat-best">✓ BEST</span></td><td><span class="compat-good">◎ GOOD</span></td><td><span class="compat-na">— N/A</span></td><td><span class="compat-best">✓ BEST</span></td><td><span class="compat-best">✓ BEST</span></td></tr>
+          <tr><td><strong>#1000</strong> Unisex Max Tee (CVC)</td><td><span class="compat-good">◎ GOOD</span></td><td><span class="compat-best">✓ BEST</span></td><td><span class="compat-good">◎ GOOD</span></td><td><span class="compat-good">◎ GOOD</span></td><td><span class="compat-good">◎ GOOD</span></td><td><span class="compat-na">— N/A</span></td></tr>
+          <tr><td><strong>#1002</strong> Drop Shoulder Tee</td><td><span class="compat-best">✓ BEST</span></td><td><span class="compat-best">✓ BEST</span></td><td><span class="compat-good">◎ GOOD</span></td><td><span class="compat-na">— N/A</span></td><td><span class="compat-best">✓ BEST</span></td><td><span class="compat-best">✓ BEST</span></td></tr>
+          <tr><td><strong>#3001</strong> Classic Pullover Hoodie</td><td><span class="compat-good">◎ GOOD</span></td><td><span class="compat-best">✓ BEST</span></td><td><span class="compat-best">✓ BEST</span></td><td><span class="compat-na">— N/A</span></td><td><span class="compat-good">◎ GOOD</span></td><td><span class="compat-na">— N/A</span></td></tr>
+          <tr><td><strong>#4001</strong> Crewneck Sweatshirt</td><td><span class="compat-good">◎ GOOD</span></td><td><span class="compat-best">✓ BEST</span></td><td><span class="compat-best">✓ BEST</span></td><td><span class="compat-na">— N/A</span></td><td><span class="compat-good">◎ GOOD</span></td><td><span class="compat-na">— N/A</span></td></tr>
+          <tr><td><strong>#5001</strong> Performance Polo (CVC)</td><td><span class="compat-good">◎ GOOD</span></td><td><span class="compat-good">◎ GOOD</span></td><td><span class="compat-best">✓ BEST</span></td><td><span class="compat-good">◎ GOOD</span></td><td><span class="compat-good">◎ GOOD</span></td><td><span class="compat-na">— N/A</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div style="margin-top:24px;display:flex;gap:12px;flex-wrap:wrap">
+      <button class="btn btn-navy">Download Full Print Guide PDF</button>
+      <button class="btn btn-blue-ol">Download Size Charts</button>
+      <button class="btn btn-navy-ol">Request Sample Kit</button>
+    </div>
+  </div>
+</div>
+</div><!-- end print-guide -->
+
+
+<!-- ═══════════════════════════════════════════════════════ PAGE: POLICIES -->
+<div class="page" id="page-policies">
+<div class="cro-note"><b>Page: Policies.</b> Left nav, right content. 4 policy sections. B2B buyers read policies carefully before applying. Clear, specific language builds trust. No legal jargon — plain English with specifics (dollar amounts, timeframes, exact conditions).</div>
+
+<div class="site-header"><div class="hdr-inner"><div class="af-logo"><div class="af-mono"><span class="a">A</span><span class="f">F</span></div><div class="af-brand">AMERICAN<br>FASHION</div></div><nav class="site-nav"><a href="#">Products</a><a href="#">About</a><a href="#">Contact</a></nav><div class="hdr-actions"><button class="btn btn-white-ol btn-sm">Sign In</button><button class="btn btn-red btn-sm">Apply for Account</button></div></div></div>
+
+<div class="page-hero"><div class="wrap"><h1>Policies &amp; Terms</h1><p>Shipping, returns, ordering, and account terms. Plain language, no surprises.</p></div></div>
+
+<div class="section bg-off compact" style="padding:28px 0">
+  <div class="wrap">
+    <div class="policy-layout">
+      <div class="policy-nav">
+        <h5>Sections</h5>
+        <a href="#" class="active" onclick="showPolicy('shipping',this)">Shipping &amp; Returns</a>
+        <a href="#" onclick="showPolicy('ordering',this)">Ordering &amp; Account</a>
+        <a href="#" onclick="showPolicy('terms',this)">Terms &amp; Conditions</a>
+        <a href="#" onclick="showPolicy('privacy',this)">Privacy Policy</a>
+      </div>
+      <div class="policy-content">
+
+        <div class="policy-section active" id="pol-shipping">
+          <h2>Shipping &amp; Returns</h2>
+          <div class="policy-highlight">📦 All in-stock orders placed before 2:00 PM Central Time, Monday–Friday, ship same day from our Dallas, TX warehouse.</div>
+          <h3>Shipping Carriers &amp; Timelines</h3>
+          <p>We ship via UPS and FedEx Ground as default. Expedited options (2-day, overnight) are available at checkout. Carrier selection at our discretion for ground orders — contact us if you require a specific carrier or account number.</p>
+          <ul><li>UPS/FedEx Ground: 2–7 business days depending on destination</li><li>2-Day Air: 2 business days from ship date</li><li>Overnight: Next business day by 10:30AM or 3PM (specify at checkout)</li><li>International: Freight coordination available — contact us before ordering</li></ul>
+          <h3>Shipping Costs</h3>
+          <p>Shipping is calculated at checkout based on order weight and destination ZIP. No handling surcharges. Free shipping is not currently offered — our factory-direct pricing model keeps product costs low in lieu of free shipping incentives.</p>
+          <h3>Returns Policy</h3>
+          <p>AF Apparels accepts returns on <strong>defective products only.</strong> We do not accept returns on correctly fulfilled orders due to buyer's change of order, sizing errors, or decoration errors made by the buyer's team.</p>
+          <ul><li>Defective products must be reported within <strong>14 days of delivery</strong></li><li>Contact us at info.afapparel@gmail.com with order number, SKU, and photos of the defect</li><li>We will issue a full replacement or store credit — no restocking fee on defective returns</li><li>Return shipping for defective items is covered by AF Apparels</li></ul>
+          <h3>Damaged in Transit</h3>
+          <p>If your order arrives visibly damaged, document with photos before opening and contact us within 48 hours of delivery. We will file the carrier claim and arrange replacement at no charge.</p>
+        </div>
+
+        <div class="policy-section" id="pol-ordering">
+          <h2>Ordering &amp; Account Terms</h2>
+          <div class="policy-highlight">💳 Wholesale accounts are required to place orders. Application is free and takes 2 minutes. Approval within 1 business day.</div>
+          <h3>Account Application</h3>
+          <p>All buyers must apply for a wholesale account. We require a valid business name, business email, and Tax ID or Reseller Certificate. Personal orders are not accepted. Account approval is at our discretion.</p>
+          <h3>Pricing &amp; Volume Tiers</h3>
+          <p>Pricing is tiered by total units per order (not per SKU or per color):</p>
+          <ul><li>1–49 units: Standard wholesale price</li><li>50–249 units: ~10% discount</li><li>250–999 units: ~18% discount</li><li>1,000+ units: ~28% discount — contact for custom quote</li></ul>
+          <h3>Payment Terms</h3>
+          <p>We accept Visa, Mastercard, American Express, ACH bank transfer, and Wire transfer. NET 30 terms are available for accounts with 90+ days of order history and good payment standing. NET 30 applications are reviewed quarterly.</p>
+          <h3>Order Minimums</h3>
+          <p>No minimum order quantity on in-stock styles. Private label orders require a minimum of 2,500 units per style per color.</p>
+          <h3>Order Cancellations</h3>
+          <p>Orders may be cancelled before they enter fulfillment (typically within 1–2 hours of placement). Once fulfilled and labeled for shipment, cancellations are not possible. Contact us immediately if a cancellation is needed.</p>
+        </div>
+
+        <div class="policy-section" id="pol-terms">
+          <h2>Terms &amp; Conditions</h2>
+          <p>By creating a wholesale account or placing an order with AF Apparels (American Fashion LLC), you agree to the following terms.</p>
+          <h3>Account Eligibility</h3>
+          <p>Wholesale accounts are available to registered businesses only. Resale of AF products is permitted. Use of AF products for any illegal purpose is grounds for immediate account termination.</p>
+          <h3>Pricing Changes</h3>
+          <p>AF Apparels reserves the right to update pricing at any time. Prices at time of order confirmation are the binding price for that order.</p>
+          <h3>Product Availability</h3>
+          <p>All products are subject to availability. We make every effort to maintain real-time inventory on our platform. In rare cases of stock discrepancy, we will notify you and offer substitution, partial fulfillment, or full refund.</p>
+          <h3>Liability Limitation</h3>
+          <p>AF Apparels' liability is limited to the value of the order in question. We are not liable for indirect damages, including lost profits from delayed orders or decoration errors.</p>
+          <h3>Governing Law</h3>
+          <p>These terms are governed by the laws of the State of Texas. Any disputes will be resolved in Dallas County, Texas.</p>
+        </div>
+
+        <div class="policy-section" id="pol-privacy">
+          <h2>Privacy Policy</h2>
+          <p>AF Apparels (American Fashion LLC) collects business information necessary to operate wholesale accounts. We do not sell or share your business information with third parties for marketing purposes.</p>
+          <h3>Information We Collect</h3>
+          <ul><li>Business name, contact name, email, phone</li><li>Billing and shipping addresses</li><li>Tax ID and reseller certificate (for account verification only)</li><li>Order history and account activity</li></ul>
+          <h3>How We Use It</h3>
+          <ul><li>Process and fulfill orders</li><li>Communicate about your account and orders</li><li>Send product updates and pricing changes (you may opt out)</li><li>Comply with tax and legal requirements</li></ul>
+          <h3>Data Security</h3>
+          <p>All payment information is processed through PCI-compliant payment processors. We do not store card numbers on our servers. Account data is stored securely and access is restricted to authorized AF staff.</p>
+          <h3>Contact for Privacy Issues</h3>
+          <p>Email info.afapparel@gmail.com with subject "Privacy Inquiry" for any questions about your data.</p>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+</div><!-- end policies -->
+
+<!-- ═══════════════════════════════════════════════════════ PAGE: DEV NOTES -->
+<div class="page" id="page-notes">
+<div class="cro-note"><b>Page: Implementation Notes.</b> Developer and client handoff. Tech stack, photography brief, success metrics, don't-do list.</div>
+
+<div class="page-hero" style="padding:24px 0"><div class="wrap"><h1>Implementation Notes</h1><p>Developer handoff guide. Photography brief. Success metrics. Toggle CRO notes off for clean client preview.</p></div></div>
+
+<div class="section bg-off compact" style="padding:28px 0">
+  <div class="wrap">
+
+    <div class="notes-section">
+      <h3>Design System</h3>
+      <div class="note-grid">
+        <div class="note-card"><h4>Typography</h4><ul><li><strong>Headings:</strong> Barlow Semi Condensed 700–800wt — institutional, trade catalog energy</li><li><strong>Body:</strong> Inter 400/500 — clean, modern, readable</li><li><strong>Never use:</strong> Oswald (fashion-coded), Roboto (generic), Impact (screaming)</li></ul></div>
+        <div class="note-card"><h4>Color Palette</h4><table class="spec-table"><tr><td>Navy #1B3A5C</td><td>Header, hero, CTA sections</td></tr><tr><td>Red #E8242A</td><td>CTAs, badges, accent only</td></tr><tr><td>Blue #1E90FF</td><td>Links, info, accents</td></tr><tr><td>White #FFFFFF</td><td>Body sections (dominant)</td></tr><tr><td>Off-white #F4F6F9</td><td>Alt sections, inputs</td></tr><tr><td>Dark #0A0A0A</td><td>Footer only</td></tr></table></div>
+        <div class="note-card"><h4>Section Rhythm Rule</h4><p>White → Off-white → White → Off-white. No dark sections in body. Dark = header, hero, CTA section, footer only. This is the SanMar pattern that reads as "reliable supplier" not "fashion brand."</p></div>
+      </div>
+    </div>
+
+    <div class="notes-section">
+      <h3>Photography Brief</h3>
+      <div class="note-grid">
+        <div class="note-card"><h4>Product Photography</h4><ul><li><strong>Primary:</strong> Ghost mannequin, pure white background, consistent lighting</li><li><strong>Secondary:</strong> Flat lay on light grey surface — for color swatches</li><li><strong>No lifestyle:</strong> No models in outdoor/lifestyle settings for catalog images</li><li><strong>Color shots:</strong> Each color needs its own ghost mannequin or flat lay</li><li><strong>Angles:</strong> Front, back, side, detail (fabric closeup), label/tag</li></ul></div>
+        <div class="note-card"><h4>Facility Photography</h4><ul><li>Exterior: Warehouse building, loading docks, Dallas location signage</li><li>Interior: Shelving racks with folded blanks organized by color, fulfillment team in action</li><li>Detail: Fabric closeup (texture), label/certification tags on garments</li><li>Team: Professional headshots if applicable — builds trust for B2B buyers</li></ul></div>
+        <div class="note-card"><h4>Photography Don'ts</h4><ul class="dont-list"><li>No streetwear lifestyle shots in the catalog</li><li>No influencer-style imagery anywhere in product pages</li><li>No black backgrounds on product photos</li><li>No inconsistent lighting across colors of the same style</li><li>No watermarks on product images</li></ul></div>
+      </div>
+    </div>
+
+    <div class="notes-section">
+      <h3>Technical Implementation</h3>
+      <div class="note-grid">
+        <div class="note-card"><h4>Recommended Platform</h4><ul><li>B2B-specific: Shopify B2B (Shopify Plus) or BigCommerce B2B Edition</li><li>WAM-style: Custom build on WooCommerce + B2B plugin</li><li>Smartex uses WAM platform — functional but dated UI</li><li>Recommendation: Shopify B2B for easiest account gating, tier pricing, NET 30 management</li></ul></div>
+        <div class="note-card"><h4>Key B2B Features Needed</h4><ul><li>Account application + approval workflow</li><li>Price tier logic (1–49, 50–249, 250–999, 1,000+) per account</li><li>Bulk order grid (qty input per size/color on one screen)</li><li>NET 30 payment option with eligibility check</li><li>Saved order lists / reorder functionality</li><li>Real-time inventory by size and color</li></ul></div>
+        <div class="note-card"><h4>QuickBooks Integration</h4><ul><li>QuickBooks Payments: credit card + ACH processing integrated</li><li>QuickBooks Accounting: auto-invoice on order confirmation</li><li>NET 30 tracking: invoice aging, automatic dunning</li><li>Confirm with Faisal: QB Payments vs. QB Accounting API priority</li></ul></div>
+      </div>
+    </div>
+
+    <div class="notes-section">
+      <h3>Success Metrics (Post-Launch)</h3>
+      <div class="note-grid">
+        <div class="note-card"><h4>Conversion KPIs</h4><table class="spec-table"><tr><td>Account Application Rate</td><td>Target: 3–6% of visitors</td></tr><tr><td>Application → Approval</td><td>Track drop-off (should be 80%+)</td></tr><tr><td>First Order within 30 days</td><td>Target: 60%+ of approved accounts</td></tr><tr><td>Repeat Order Rate</td><td>Target: 70%+ within 90 days</td></tr></table></div>
+        <div class="note-card"><h4>UX Health Metrics</h4><table class="spec-table"><tr><td>Bounce Rate</td><td>Target under 45%</td></tr><tr><td>Pages per Session</td><td>Target 4+ (catalog behavior)</td></tr><tr><td>Search Usage</td><td>Track top search terms → fix gaps</td></tr><tr><td>Mobile vs Desktop</td><td>B2B skews desktop — expect 60%+ desktop</td></tr></table></div>
+        <div class="note-card"><h4>Section Priority (Build Order)</h4><ul><li>1. Homepage (launch blocker)</li><li>2. Account application + approval flow</li><li>3. Product pages with bulk grid</li><li>4. Collection + filters</li><li>5. Cart + checkout</li><li>6. About + Contact</li><li>7. Print Guide + Private Label</li><li>8. Policies</li></ul></div>
+      </div>
+    </div>
+
+    <div class="notes-section">
+      <h3>Section Order Rules — What Cannot Move</h3>
+      <div class="note-grid" style="grid-template-columns:1fr 1fr">
+        <div class="note-card"><h4>Fixed Order (Homepage)</h4><ul><li>Announce bar → Header → Sub-nav → Hero → Cert strip → Trust strip → Categories → Products → Who We Serve → Why AF → Logos → FAQ → CTA → Footer</li><li>Cert strip MUST come before products — certifications build the trust that makes price believable</li><li>Trust strip MUST be white background directly after the navy hero — jarring if skipped</li></ul></div>
+        <div class="note-card"><h4>What Not To Do</h4><ul class="dont-list"><li>Don't move certs to the footer — nobody sees them there</li><li>Don't use dark/black section backgrounds in the body of any page</li><li>Don't add a "lifestyle" hero banner replacing the 2-col product hero</li><li>Don't use Oswald font — it will immediately feel like a streetwear brand</li><li>Don't price-gate the homepage — products should be visible, pricing gated only</li><li>Don't add a chat widget that blocks the ATC on mobile product pages</li></ul></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+</div><!-- end notes -->
+
+<!-- ═══════════════════════════════════════════════════════ JAVASCRIPT -->
+<script>
+function showPage(id, btn) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-nav button').forEach(b => b.classList.remove('active'));
+  const pg = document.getElementById('page-' + id);
+  if (pg) pg.classList.add('active');
+  if (btn) btn.classList.add('active');
+}
+
+function toggleNotes() {
+  const notes = document.querySelectorAll('.cro-note, .sec-badge');
+  const btn = document.querySelector('.toggle-btn');
+  const hidden = notes[0] && notes[0].classList.contains('hidden');
+  notes.forEach(n => n.classList.toggle('hidden', !hidden));
+  btn.textContent = hidden ? 'Hide Notes' : 'Show Notes';
+}
+
+function showPolicy(id, link) {
+  document.querySelectorAll('.policy-section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.policy-nav a').forEach(a => a.classList.remove('active'));
+  const pol = document.getElementById('pol-' + id);
+  if (pol) pol.classList.add('active');
+  if (link) { link.classList.add('active'); link.blur(); }
+  return false;
+}
+</script>
+</body>
+</html>

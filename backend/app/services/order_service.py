@@ -1,0 +1,675 @@
+# backend/app/services/order_service.py
+"""OrderService — create orders with server-side validation + price snapshots."""
+import logging
+from decimal import Decimal
+from uuid import UUID
+
+from app.models.user import User  # ← yeh add karo
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.config import get_settings
+from app.core.exceptions import NotFoundError, ValidationError, InsufficientStockError
+from app.models.company import Company, UserAddress
+from app.models.inventory import InventoryRecord
+from app.models.order import CartItem, Order, OrderItem, OrderTemplate
+from app.models.product import Product, ProductVariant
+from app.models.pricing import PricingTier
+from app.models.shipping import ShippingTier
+from app.schemas.order import AddressIn, CheckoutConfirmRequest, OrderListItem, OrderOut
+
+logger = logging.getLogger(__name__)
+
+_ORDER_COUNTER_KEY = "order:counter"
+
+
+class OrderService:
+    def __init__(self, db: AsyncSession):
+        self.db = db
+
+    # ------------------------------------------------------------------
+    # Price snapshot helper
+    # ------------------------------------------------------------------
+
+    async def _snapshot_price(
+        self,
+        variant: "ProductVariant",
+        discount_percent: Decimal,
+        group_id: str | None,
+    ) -> Decimal:
+        """Return unit price: VariantLevelPricingOverride > product-level VariantPricingOverride > tier discount."""
+        from decimal import ROUND_HALF_UP
+        if group_id:
+            from app.models.discount_group import VariantLevelPricingOverride, VariantPricingOverride
+
+            # Step 1: per-variant override (highest priority)
+            vlp_result = await self.db.execute(
+                select(VariantLevelPricingOverride).where(
+                    VariantLevelPricingOverride.variant_id == str(variant.id),
+                    VariantLevelPricingOverride.group_id == group_id,
+                )
+            )
+            vlp = vlp_result.scalar_one_or_none()
+            if vlp and vlp.price is not None:
+                return Decimal(str(vlp.price)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+            # Step 2: product-level override (tier_id stores group_id per existing convention)
+            ov_result = await self.db.execute(
+                select(VariantPricingOverride).where(
+                    VariantPricingOverride.product_id == str(variant.product_id),
+                    VariantPricingOverride.tier_id == group_id,
+                )
+            )
+            ov = ov_result.scalar_one_or_none()
+            if ov is not None and ov.price is not None:
+                return Decimal(str(ov.price)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+            if ov is not None and ov.discount_percent is not None:
+                multiplier = Decimal("1") - (Decimal(str(ov.discount_percent)) / Decimal("100"))
+                return (variant.retail_price * multiplier).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+        from app.services.pricing_service import PricingService
+        return PricingService(self.db).calculate_effective_price(variant.retail_price, discount_percent)
+
+    # ------------------------------------------------------------------
+    # Create order (US-6)
+    # ------------------------------------------------------------------
+
+    async def create_order(
+        self,
+        company_id: UUID,
+        user_id: UUID,
+        confirm: CheckoutConfirmRequest,
+        discount_percent: Decimal = Decimal("0"),
+        qb_charge_id: str | None = None,
+        qb_payment_status: str | None = None,
+        coupon_discount_amount: Decimal = Decimal("0"),
+        group_id: str | None = None,
+        is_wholesale: bool = True,
+    ) -> Order:
+        settings = get_settings()
+
+        # 1. Load cart items
+        cart_result = await self.db.execute(
+            select(CartItem).where(CartItem.company_id == company_id)
+        )
+        cart_items = cart_result.scalars().all()
+        if not cart_items:
+            raise ValidationError("Cart is empty")
+
+        # 2. Load company + shipping tier
+        company_result = await self.db.execute(
+            select(Company).where(Company.id == company_id)
+        )
+        company = company_result.scalar_one_or_none()
+        if not company:
+            raise NotFoundError(f"Company {company_id} not found")
+
+        # 3. Validate + snapshot each item
+        order_items_data = []
+        subtotal = Decimal("0")
+        total_units = 0
+        ordered_product_slugs: set[str] = set()
+
+        for cart_item in cart_items:
+            variant_result = await self.db.execute(
+                select(ProductVariant, Product)
+                .join(Product, ProductVariant.product_id == Product.id)
+                .where(ProductVariant.id == cart_item.variant_id)
+                .with_for_update(skip_locked=False)
+            )
+            row = variant_result.first()
+            if not row:
+                raise NotFoundError(f"Variant {cart_item.variant_id} not found")
+            variant, product = row
+            if product.slug:
+                ordered_product_slugs.add(product.slug)
+
+            # Stock check — only enforce when inventory records exist.
+            # COALESCE returns 0 when no records found; treat 0 as unlimited.
+            stock_result = await self.db.execute(
+                select(func.coalesce(func.sum(InventoryRecord.quantity), 0)).where(
+                    InventoryRecord.variant_id == variant.id
+                )
+            )
+            available = stock_result.scalar_one()
+            if available > 0 and available < cart_item.quantity:
+                raise InsufficientStockError(
+                    f"Insufficient stock for {variant.sku}: {available} available"
+                )
+            # available == 0 means no inventory records → unlimited stock, skip check
+
+            # Price snapshot — check VariantLevelPricingOverride first
+            unit_price = await self._snapshot_price(variant, discount_percent, group_id)
+            line_total = unit_price * cart_item.quantity
+            subtotal += line_total
+            total_units += cart_item.quantity
+
+            order_items_data.append({
+                "variant_id": variant.id,
+                "product_name": product.name,
+                "sku": variant.sku,
+                "color": variant.color,
+                "size": variant.size,
+                "quantity": cart_item.quantity,
+                "unit_price": unit_price,
+                "line_total": line_total,
+            })
+
+        # 5. Calculate shipping
+        shipping_method = confirm.shipping_method or "standard"
+        shipping_cost = Decimal("0")
+
+        if shipping_method == "will_call":
+            shipping_cost = Decimal("0.00")
+        else:
+            from app.models.discount_group import DiscountGroup as _DiscountGroup
+            from app.services.shipping_service import ShippingService
+            from sqlalchemy.orm import selectinload
+
+            def _override_val(c: Company) -> Decimal | None:
+                val = c.shipping_override_amount
+                if val is None:
+                    return None
+                d = Decimal(str(val))
+                return d if d > Decimal("0") else None
+
+            shipping_svc = ShippingService(self.db)
+            _dg_applied = False
+
+            if company.tags:
+                dg_result = await self.db.execute(
+                    select(_DiscountGroup)
+                    .where(
+                        _DiscountGroup.customer_tag.in_(company.tags),
+                        _DiscountGroup.status == "enabled",
+                    )
+                    .limit(1)
+                )
+                dg = dg_result.scalar_one_or_none()
+                if dg and dg.shipping_type != "store_default":
+                    _dg_applied = True
+                    shipping_cost = shipping_svc.calculate_dg_shipping_cost(
+                        total_units,
+                        dg.shipping_type,
+                        dg.shipping_amount,
+                        dg.shipping_calc_type,
+                        dg.shipping_brackets_json,
+                        _override_val(company),
+                        order_subtotal=subtotal,
+                    )
+
+            if not _dg_applied and company.shipping_tier_id:
+                shipping_tier_result = await self.db.execute(
+                    select(ShippingTier)
+                    .options(selectinload(ShippingTier.brackets))
+                    .where(ShippingTier.id == company.shipping_tier_id)
+                )
+                shipping_tier = shipping_tier_result.scalar_one_or_none()
+                if shipping_tier:
+                    shipping_cost = shipping_svc.calculate_shipping_cost(
+                        total_units, shipping_tier,
+                        _override_val(company),
+                        order_subtotal=subtotal,
+                    )
+
+            if shipping_method == "expedited":
+                shipping_cost += Decimal("45.00")
+
+        # Client-provided shipping_cost is authoritative — single source of truth with display
+        if confirm.shipping_cost and confirm.shipping_cost > 0:
+            shipping_cost = Decimal(str(confirm.shipping_cost))
+
+        tax_amount_val = Decimal(str(confirm.tax_amount or 0))
+
+        # 3% convenience fee for wholesale card payments only
+        _payment_method_for_fee = getattr(confirm, "payment_method", None) or ""
+        if is_wholesale and _payment_method_for_fee in ("card", "credit_card", "qb_payments"):
+            convenience_fee = (subtotal * Decimal("0.03")).quantize(Decimal("0.01"))
+        else:
+            convenience_fee = Decimal("0.00")
+
+        total = subtotal + shipping_cost + tax_amount_val - coupon_discount_amount + convenience_fee
+
+        # 6. Resolve shipping address
+        shipping_address = await self._resolve_address(confirm, company_id)
+
+        # 7. Generate order number
+        order_number = await self._generate_order_number()
+
+        # 8. Create Order record
+        import json as _json
+        # Determine payment_status based on payment method:
+        # Net 30 = unpaid (pay later via invoice), all other methods (card/ach/bank) = paid immediately.
+        _pm = getattr(confirm, "payment_method", None) or ""
+        if _pm == "net_30":
+            _payment_status = "unpaid"
+        else:
+            _payment_status = "paid"
+
+        order = Order(
+            company_id=company_id,
+            placed_by_id=user_id,
+            order_number=order_number,
+            status="pending",
+            payment_status=_payment_status,
+            po_number=confirm.po_number,
+            notes=confirm.order_notes,
+            stripe_payment_intent_id=confirm.payment_intent_id,
+            qb_payment_charge_id=qb_charge_id,
+            qb_payment_status=qb_payment_status,
+            subtotal=subtotal,
+            shipping_cost=shipping_cost,
+            tax_amount=tax_amount_val,
+            total=total,
+            shipping_method=shipping_method,
+            shipping_address_id=confirm.address_id if confirm.address_id else None,
+            shipping_address_snapshot=_json.dumps(shipping_address) if shipping_address else None,
+        )
+        self.db.add(order)
+        await self.db.flush()
+
+        # Save tax_rate / tax_region via raw SQL — columns may not exist in older deployments.
+        # This is a best-effort update; failure does not block order creation.
+        _tax_rate_val = confirm.tax_rate
+        _tax_region_val = getattr(confirm, "tax_region", None)
+        if _tax_rate_val is not None or _tax_region_val is not None:
+            try:
+                from sqlalchemy import text as _text
+                await self.db.execute(
+                    _text(
+                        "UPDATE orders SET tax_rate = :tr, tax_region = :trg WHERE id = :oid"
+                    ),
+                    {"tr": _tax_rate_val, "trg": _tax_region_val, "oid": str(order.id)},
+                )
+            except Exception as _tax_exc:
+                logger.warning("Could not save tax_rate/tax_region on order %s (columns may be missing): %s", order.id, _tax_exc)
+
+        # Save payment_method + ACH details via raw SQL (columns added after initial deploy)
+        _pm = getattr(confirm, "payment_method", None)
+        _ach_bank = getattr(confirm, "ach_bank_name", None)
+        _ach_holder = getattr(confirm, "ach_account_holder", None)
+        _ach_routing = getattr(confirm, "ach_routing_number", None)
+        _ach_last4 = getattr(confirm, "ach_account_last4", None)
+        _ach_type = getattr(confirm, "ach_account_type", None)
+        if _pm or _ach_bank:
+            try:
+                from sqlalchemy import text as _text2
+                await self.db.execute(
+                    _text2(
+                        "UPDATE orders SET payment_method=:pm, ach_bank_name=:ab, "
+                        "ach_account_holder=:ah, ach_routing_number=:ar, "
+                        "ach_account_last4=:al, ach_account_type=:at WHERE id=:oid"
+                    ),
+                    {"pm": _pm, "ab": _ach_bank, "ah": _ach_holder,
+                     "ar": _ach_routing, "al": _ach_last4, "at": _ach_type, "oid": str(order.id)},
+                )
+            except Exception as _ach_exc:
+                logger.warning("Could not save payment_method/ACH on order %s: %s", order.id, _ach_exc)
+
+        # Save convenience_fee via raw SQL (column added post-deploy)
+        if convenience_fee > 0:
+            try:
+                from sqlalchemy import text as _cftext
+                await self.db.execute(
+                    _cftext("UPDATE orders SET convenience_fee=:cf WHERE id=:oid"),
+                    {"cf": float(convenience_fee), "oid": str(order.id)},
+                )
+            except Exception as _cf_exc:
+                logger.warning("Could not save convenience_fee on order %s: %s", order.id, _cf_exc)
+
+        # Save shipping_rate_id + carrier from customer's selected live Shippo rate
+        logger.info(
+            "Order create - shipping_rate_id: %s, carrier: %s, service: %s",
+            getattr(confirm, "shipping_rate_id", "NOT IN DATA"),
+            getattr(confirm, "shipping_carrier", "NOT IN DATA"),
+            getattr(confirm, "shipping_service", "NOT IN DATA"),
+        )
+        _rate_id = getattr(confirm, "shipping_rate_id", None)
+        _s_carrier = getattr(confirm, "shipping_carrier", None)
+        _s_service = getattr(confirm, "shipping_service", None)
+        if _rate_id:
+            try:
+                from sqlalchemy import text as _stext
+                await self.db.execute(
+                    _stext(
+                        "UPDATE orders SET shipping_rate_id=:rid, carrier=:car, courier_service=:cs WHERE id=:oid"
+                    ),
+                    {"rid": _rate_id, "car": _s_carrier, "cs": _s_service, "oid": str(order.id)},
+                )
+            except Exception as _rate_exc:
+                logger.warning("Could not save shipping_rate_id on order %s: %s", order.id, _rate_exc)
+
+        # 9. Create OrderItem records
+        for item_data in order_items_data:
+            order_item = OrderItem(
+                order_id=order.id,
+                **item_data,
+            )
+            self.db.add(order_item)
+
+        # 9.5. Deduct inventory for each ordered variant using explicit SQL UPDATE
+        from sqlalchemy import update as _update
+        for item_data in order_items_data:
+            variant_id = item_data["variant_id"]
+            qty_to_deduct = int(item_data["quantity"])
+
+            inv_result = await self.db.execute(
+                select(InventoryRecord)
+                .where(InventoryRecord.variant_id == variant_id)
+                .order_by(InventoryRecord.quantity.desc())
+            )
+            inv_records = inv_result.scalars().all()
+
+            for record in inv_records:
+                if qty_to_deduct <= 0:
+                    break
+                current_qty = int(record.quantity)
+                deduct = min(current_qty, qty_to_deduct)
+                if deduct > 0:
+                    await self.db.execute(
+                        _update(InventoryRecord)
+                        .where(InventoryRecord.id == record.id)
+                        .values(quantity=current_qty - deduct)
+                    )
+                    qty_to_deduct -= deduct
+
+            # Sync updated stock to QB after each variant deduction
+            try:
+                from app.tasks.quickbooks_tasks import sync_inventory_to_qb as _siqb
+                _siqb.apply_async(args=[str(variant_id)], countdown=15)
+            except Exception as _exc:
+                logger.warning("QB inventory sync dispatch failed for variant %s: %s", variant_id, _exc)
+
+        # 9.6. Invalidate product detail cache so stock shows immediately
+        try:
+            from app.core.redis import redis_delete_pattern as _rdp
+            for _slug in ordered_product_slugs:
+                await _rdp(f"products:detail:{_slug}:*")
+        except Exception:
+            pass
+
+        # 10. Clear cart
+        from sqlalchemy import delete
+        await self.db.execute(
+            delete(CartItem).where(CartItem.company_id == company_id)
+        )
+
+        await self.db.flush()
+
+        # Auto-save new shipping address to company address book (if new address, not from book)
+        if not confirm.address_id and confirm.shipping_address and company_id:
+            try:
+                addr = confirm.shipping_address
+                existing_addr = await self.db.execute(
+                    select(UserAddress).where(
+                        UserAddress.company_id == company_id,
+                        UserAddress.address_line1 == addr.line1,
+                        UserAddress.postal_code == addr.postal_code,
+                    )
+                )
+                if not existing_addr.scalar_one_or_none():
+                    self.db.add(UserAddress(
+                        company_id=company_id,
+                        label="Shipping Address",
+                        address_line1=addr.line1,
+                        address_line2=addr.line2,
+                        city=addr.city,
+                        state=addr.state,
+                        postal_code=addr.postal_code,
+                        country=addr.country or "US",
+                        is_default=False,
+                    ))
+                    await self.db.flush()
+            except Exception as _e:
+                import logging as _lg
+                _lg.getLogger(__name__).warning("Auto-save address failed: %s", _e)
+
+        # Reload order with items eager-loaded (async ORM cannot lazy-load during response serialization)
+        from sqlalchemy.orm import selectinload
+        result = await self.db.execute(
+            select(Order).options(selectinload(Order.items)).where(Order.id == order.id)
+        )
+        order = result.scalar_one()
+
+        # Step 11 — Admin notification only (customer confirmation sent by checkout.py)
+        try:
+            from app.services.email_service import EmailService
+            email_svc = EmailService(self.db)
+
+            if settings.ADMIN_NOTIFICATION_EMAIL:
+                email_svc.send_raw(
+                    to_email=settings.ADMIN_NOTIFICATION_EMAIL,
+                    subject=f"New Order — {order.order_number} (${float(order.total):.2f})",
+                    body_html=f"""
+                        <h2>New Order Received</h2>
+                        <p><b>Order:</b> {order.order_number}</p>
+                        <p><b>Total:</b> ${float(order.total):.2f}</p>
+                        <p><b>Items:</b> {len(order.items)}</p>
+                        <a href="{settings.FRONTEND_URL}/admin/orders/{order.id}">View Order →</a>
+                    """,
+                )
+        except Exception as e:
+            logger.warning("Admin notification email failed: %s", e)
+
+        # 12. Auto-create statement charge transaction
+        try:
+            from app.models.statement import StatementTransaction
+            txn = StatementTransaction(
+                company_id=company_id,
+                transaction_date=order.created_at.strftime("%Y-%m-%d"),
+                description=f"Order #{order.order_number}",
+                transaction_type="charge",
+                amount=float(order.total),
+                reference_number=order.order_number,
+                order_id=order.id,
+            )
+            self.db.add(txn)
+            await self.db.flush()
+        except Exception:
+            pass
+
+        return order
+
+    # ------------------------------------------------------------------
+    # Get / list orders
+    # ------------------------------------------------------------------
+
+    async def get_order(self, order_id: UUID, company_id) -> Order:
+        from sqlalchemy.orm import selectinload
+        import uuid as _uuid
+
+        company_uuid = _uuid.UUID(str(company_id)) if not isinstance(company_id, _uuid.UUID) else company_id
+        result = await self.db.execute(
+            select(Order)
+            .options(selectinload(Order.items))
+            .where(Order.id == order_id, Order.company_id == company_uuid)
+        )
+        order = result.scalar_one_or_none()
+        if not order:
+            raise NotFoundError(f"Order {order_id} not found")
+        return order
+
+    async def list_orders_for_company(
+        self,
+        company_id: UUID,
+        page: int = 1,
+        page_size: int = 20,
+        q: str | None = None,
+        status: str | None = None,
+    ) -> tuple[list[Order], int]:
+        from sqlalchemy.orm import selectinload
+
+        base = select(Order).where(Order.company_id == company_id)
+        if q:
+            base = base.where(
+                (Order.order_number.ilike(f"%{q}%")) | (Order.po_number.ilike(f"%{q}%"))
+            )
+        if status:
+            base = base.where(Order.status == status)
+
+        count_result = await self.db.execute(
+            select(func.count()).select_from(base.subquery())
+        )
+        total = count_result.scalar_one()
+
+        result = await self.db.execute(
+            base
+            .options(selectinload(Order.items))
+            .order_by(Order.created_at.desc())
+            .offset((page - 1) * page_size)
+            .limit(page_size)
+        )
+        orders = result.scalars().all()
+        return list(orders), total
+
+    # ------------------------------------------------------------------
+    # Retail customer order listing (linked via placed_by_id)
+    # ------------------------------------------------------------------
+
+    async def list_orders_for_retail_user(
+        self,
+        user_id: str,
+        page: int = 1,
+        page_size: int = 20,
+        q: str | None = None,
+        status: str | None = None,
+    ) -> tuple[list[Order], int]:
+        from sqlalchemy.orm import selectinload
+
+        import uuid as _uuid
+        base = select(Order).where(Order.placed_by_id == _uuid.UUID(user_id))
+        if q:
+            base = base.where(Order.order_number.ilike(f"%{q}%"))
+        if status:
+            base = base.where(Order.status == status)
+
+        count_result = await self.db.execute(
+            select(func.count()).select_from(base.subquery())
+        )
+        total = count_result.scalar_one()
+
+        result = await self.db.execute(
+            base
+            .options(selectinload(Order.items))
+            .order_by(Order.created_at.desc())
+            .offset((page - 1) * page_size)
+            .limit(page_size)
+        )
+        return list(result.scalars().all()), total
+
+    async def get_order_for_retail_user(self, order_id: UUID, user_id: str) -> Order:
+        from sqlalchemy.orm import selectinload
+        from app.core.exceptions import NotFoundError
+        import uuid as _uuid
+
+        result = await self.db.execute(
+            select(Order)
+            .options(selectinload(Order.items))
+            .where(Order.id == order_id, Order.placed_by_id == _uuid.UUID(user_id))
+        )
+        order = result.scalar_one_or_none()
+        if not order:
+            raise NotFoundError(f"Order {order_id} not found")
+        return order
+
+    # ------------------------------------------------------------------
+    # Reorder (T150 — Phase 15)
+    # ------------------------------------------------------------------
+
+    async def reorder(
+        self, order_id: UUID, company_id: UUID, discount_percent: Decimal = Decimal("0")
+    ) -> list[dict]:
+        """Copy a past order's items into the cart with current pricing + stock check."""
+        order = await self.get_order(order_id, company_id)
+        from app.services.pricing_service import PricingService
+        pricing_svc = PricingService(self.db)
+
+        added = []
+        skipped = []
+
+        for order_item in order.items:
+            stock_result = await self.db.execute(
+                select(func.coalesce(func.sum(InventoryRecord.quantity), 0)).where(
+                    InventoryRecord.variant_id == order_item.variant_id
+                )
+            )
+            available = stock_result.scalar_one()
+
+            if available < order_item.quantity:
+                skipped.append({"sku": order_item.sku, "reason": "insufficient_stock"})
+                continue
+
+            variant_result = await self.db.execute(
+                select(ProductVariant).where(ProductVariant.id == order_item.variant_id)
+            )
+            variant = variant_result.scalar_one_or_none()
+            if not variant or variant.status != "active":
+                skipped.append({"sku": order_item.sku, "reason": "discontinued"})
+                continue
+
+            effective_price = pricing_svc.calculate_effective_price(
+                variant.retail_price, discount_percent
+            )
+
+            cart_item = CartItem(
+                company_id=company_id,
+                variant_id=order_item.variant_id,
+                quantity=order_item.quantity,
+                unit_price=effective_price,
+            )
+            self.db.add(cart_item)
+            added.append({"sku": order_item.sku})
+
+        await self.db.flush()
+        return {"added": added, "skipped": skipped}
+
+    # ------------------------------------------------------------------
+    # Helpers
+    # ------------------------------------------------------------------
+
+    async def _resolve_address(self, confirm: CheckoutConfirmRequest, company_id: UUID) -> dict:
+        if confirm.address_id:
+            result = await self.db.execute(
+                select(UserAddress).where(
+                    UserAddress.id == confirm.address_id,
+                    UserAddress.company_id == company_id,
+                )
+            )
+            addr = result.scalar_one_or_none()
+            if addr:
+                return {
+                    "line1": addr.address_line1,
+                    "line2": addr.address_line2,
+                    "city": addr.city,
+                    "state": addr.state,
+                    "postal_code": addr.postal_code,
+                    "country": addr.country,
+                }
+        if confirm.shipping_address:
+            return confirm.shipping_address.model_dump()
+        return {}
+
+    async def _generate_order_number(self) -> str:
+        from sqlalchemy import text as _text
+        from app.core.tenant_context import get_current_tenant_id
+        _tid = get_current_tenant_id()
+        try:
+            # Highest numeric order number for THIS tenant — each brand numbers
+            # its orders independently (Shopify-style), starting at #1001.
+            result = await self.db.execute(_text(
+                "SELECT order_number FROM orders "
+                "WHERE order_number ~ '^[0-9]+$' "
+                "AND (CAST(:tid AS uuid) IS NULL OR tenant_id = CAST(:tid AS uuid)) "
+                "ORDER BY order_number::INTEGER DESC "
+                "LIMIT 1"
+            ), {"tid": str(_tid) if _tid else None})
+            row = result.fetchone()
+            if row and row[0]:
+                next_num = int(row[0]) + 1
+            else:
+                next_num = 1001
+        except Exception as _exc:
+            logger.warning("order number DB query failed, using random fallback: %s", _exc)
+            import random
+            next_num = random.randint(1001, 9999)
+        return str(next_num)

@@ -1,0 +1,617 @@
+Read the complete wireframe file at: C:\Users\RT\Desktop\AF Apparel\afblanks-wireframe.html
+Use it as the EXACT reference for ALL UI changes below.
+
+═══════════════════════════════════════
+ABSOLUTE RULES — READ FIRST, NEVER BREAK
+═══════════════════════════════════════
+1. DO NOT touch /admin/* routes or any admin component — not one line
+2. DO NOT touch customer dashboard pages — not one line
+3. DO NOT change ANY functionality: API calls, auth logic, cart state, payment logic, form submissions, routing, business logic
+4. ONLY change visual UI — layout, colors, fonts, spacing, HTML structure of components
+5. Keep max-width at 1500px (same as wireframe: --max: 1500px)
+6. Every page MUST be mobile responsive — hamburger menu, stacked layout on mobile
+7. After EACH task below: run `cd frontend && npm run build` and fix ALL TypeScript errors before moving to next task
+8. Where wireframe has exact text — copy it A to Z exactly
+
+═══════════════════════════════════════
+DESIGN SYSTEM — APPLY GLOBALLY FIRST
+═══════════════════════════════════════
+Before touching any page, update these files:
+
+## globals.css — add these CSS variables:
+:root {
+  --bg: #F8F8F6;
+  --white: #FFFFFF;
+  --text: #1A1A1A;
+  --text-sec: #6B6B6B;
+  --accent: #1C3557;
+  --divider: #E2E2DE;
+  --max: 1500px;
+}
+
+## tailwind.config.ts — add to colors:
+accent: '#1C3557',
+'text-sec': '#6B6B6B',
+bg: '#F8F8F6',
+divider: '#E2E2DE',
+
+## layout.tsx or globals.css — add Google Fonts import:
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,600;0,9..144,700;1,9..144,300&family=DM+Sans:wght@300;400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap');
+
+Then add utility classes:
+.font-fraunces { font-family: 'Fraunces', serif; }
+.font-dm { font-family: 'DM Sans', sans-serif; }
+.font-mono-ibm { font-family: 'IBM Plex Mono', monospace; }
+
+body default font: DM Sans
+
+═══════════════════════════════════════
+SHARED COMPONENTS — BUILD ONCE, USE EVERYWHERE
+═══════════════════════════════════════
+These components appear on every page. Build them first, then use in all pages:
+
+## 1. Announcement Bar component:
+- Background: #1C3557 (accent)
+- White text, centered, font-size 12px, DM Sans
+- Text: "Wholesale Blank Apparel · Serving 2,000+ US Businesses · Same-Day Shipping from Dallas, TX · (214) 272-7213"
+
+## 2. Navigation component (update existing):
+- White background, border-bottom: 1px solid #E2E2DE
+- Sticky, z-index 100
+- Logo: "AF Blanks" in Fraunces serif, accent color (#1C3557), font-size 22px
+- Nav links: Shop All, T-Shirts, Hoodies, New, Resources▾ (dropdown with: About Us, Style Sheets, Product Specs, Print Guide, Customer Reviews, Private Label, Blog, Contact Us)
+- Right side: search icon, Log In link, cart icon
+- When logged in: "My Account" replaces "Log In" in accent color, font-weight 600
+- Mobile: hamburger menu that opens full overlay nav
+
+## 3. Footer component (update existing):
+- White background, border-top: 1px solid #E2E2DE
+- 4 columns: Shop | Resources | Account | Support
+  Shop: Shop All Products, T-Shirts, Hoodies, Sweatshirts, Polos
+  Resources: Blog, Product Specs, Style Sheets, About Us
+  Account: Apply for Wholesale, Log In, Order History
+  Support: Contact Us, Track Order, Privacy Policy
+- Bottom: "© 2026 AF Apparels. All rights reserved."
+- Mobile: 2 columns stacked
+
+## 4. Button styles (update globally):
+btn-primary: background #1C3557, white text, no border-radius (square), padding 12px 24px, DM Sans 14px font-weight 500
+btn-outline: transparent bg, #1C3557 text, 1px solid #1C3557, same padding — hover fills with #1C3557 and white text
+btn-white: white bg, #1C3557 text, used on dark backgrounds
+
+═══════════════════════════════════════
+TASK 1 — HOME PAGE
+═══════════════════════════════════════
+File: frontend/src/app/page.tsx (and sub-components)
+
+Implement exactly as wireframe page 1 "Homepage":
+
+Section 1 — HERO (white background, padding 72px 24px):
+- 2-column grid: left = text, right = product image
+- Headline (Fraunces, 52px, weight 600): "Premium Blank Apparel. Wholesale Prices. Ships Same Day."
+- Sub (DM Sans, 17px, #6B6B6B): "No minimums. No markups. Delivered fast from Dallas, TX."
+- 2 CTAs: "Shop All →" (btn-primary) + "Apply for Wholesale Account" (btn-outline)
+- Right: product hero image (existing image component from current site)
+- Mobile: single column, text first then image
+
+Section 2 — TRUST STATS (#F0F0EE background, padding 40px 24px, border top+bottom 1px solid #E2E2DE):
+- 4 stats in a row: "2,000+ / Wholesale Accounts", "22 / Years in Business", "Same-Day / Fulfillment by 2PM CT", "No Min. / Order Quantity"
+- Each stat: number in Fraunces 22px bold, label in DM Sans 13px #6B6B6B
+- Dividers between stats (1px solid #E2E2DE)
+- Below stats: "Create a wholesale account to get better prices on everything." + "Apply for Wholesale Account →" btn-outline-sm
+- Mobile: 2x2 grid, no dividers
+
+Section 3 — CATEGORIES (background #F8F8F6, padding 72px 24px):
+- Label: "Shop by Category" (DM Sans 11px, uppercase, letter-spacing 0.12em, #6B6B6B)
+- 4-column grid of category cards (2 col on tablet, 1 col mobile)
+- Each card: image (existing category images from current site), name below — "T-Shirts", "Sweatshirts", "Hoodies", "New Arrivals"
+- Card hover: border-bottom-color changes to accent
+- Clicking navigates to that category (keep existing routing)
+
+Section 4 — CERTIFICATIONS (white background, padding 56px 24px, border-top):
+- Label: "Certifications & Compliance"
+- 4-column grid: ISO 9000, Oeko-Tex Standard 100, GOTS Certified, WRAP Certified
+- Each: h4 DM Sans 14px bold, p 13px #6B6B6B
+- Text exactly as wireframe
+
+Section 5 — WHOLESALE CTA BAND (#1C3557 background, padding 64px 24px, text-center):
+- h2 Fraunces 38px white: "Better Prices. One Application."
+- p 16px rgba(255,255,255,0.8): "Apply for a wholesale account and get lower prices on everything we carry."
+- btn-white: "Apply for Wholesale Account →"
+- Below: "Already have an account? Sign in →" (small, white 60% opacity)
+
+Footer as defined in shared components.
+
+═══════════════════════════════════════
+TASK 2 — COLLECTION / PRODUCTS PAGE
+═══════════════════════════════════════
+File: frontend/src/app/(customer)/products/ProductListClient.tsx (or page.tsx)
+
+Header (white bg, padding 40px 24px 24px, border-bottom):
+- h1 Fraunces 36px: "All Products" (or current dynamic collection name)
+
+Active filters pills row (below header, inside max-width container):
+- Each active filter shows as pill: light blue background (#e8edf3), accent text, × remove button
+- "Clear All" text button in accent color
+- Keep all existing filter logic — only UI change
+
+Layout: 220px sidebar + 1fr product grid (sidebar hidden on mobile, slide-in drawer)
+
+FILTER SIDEBAR (border-right 1px solid #E2E2DE, padding 28px 20px 28px 0):
+Keep ALL existing filter functionality. Only update visual style:
+- Section headers: DM Sans 11px, uppercase, letter-spacing 0.1em, font-weight 600
+- Checkboxes: accent-color #1C3557
+- Color swatches: 20px circles with border (existing swatch logic stays)
+- Size chips: square (no border-radius), border 1px solid #E2E2DE, 12px DM Sans — active = accent bg white text
+- Price range: accent-color slider
+- All filter logic/API calls: UNTOUCHED
+
+SORT BAR (border-bottom #E2E2DE, padding-bottom 12px, margin-bottom 20px):
+- "Sort:" label + sort options as text buttons — active in accent color, font-weight 600
+- Keep existing sort logic
+
+PRODUCT GRID (3 columns desktop, 2 tablet, 1 mobile, gap 20px):
+Each product card shows ONLY:
+1. Product image (height 220px, border 1px solid #E2E2DE, hover border-color changes to accent)
+2. Product name (DM Sans 14px font-weight 500, margin-top 10px)
+3. Product Code (IBM Plex Mono 11px, #6B6B6B, margin-top 3px) — use the product's code field, NOT SKU label
+
+Remove ALL other info from product cards (price, color count, etc.)
+Keep click-to-navigate functionality.
+
+MOBILE FILTER:
+- "Filter" button appears on mobile
+- Tapping opens slide-in drawer from left
+- Drawer has working close button (X) and overlay click closes it
+- Fix the existing close button bug — ensure onClick handler sets showFilters to false
+
+═══════════════════════════════════════
+TASK 3 — PRODUCT DETAIL PAGE (PDP)
+═══════════════════════════════════════
+Files: frontend/src/app/(customer)/products/[slug]/ProductDetailClient.tsx and related
+
+Read the current file carefully before making ANY changes.
+
+LAYOUT: 2-column grid (1fr 1fr), gap 56px, max-width 1500px, padding 0 24px 64px
+- Left: image gallery
+- Right: product info
+
+BREADCRUMB (above pdp-wrap, DM Sans 12px #6B6B6B):
+Home › Collections › [Category] › [Product Name]
+Keep existing breadcrumb data/routing
+
+LEFT — IMAGE GALLERY:
+- Main image: height 480px, border 1px solid #E2E2DE
+- Thumbnails row below: 80px × 80px each, border 1px solid #E2E2DE, active thumbnail = outline 1px solid accent + border accent
+- Below thumbs: 2 links (DM Sans 13px accent color):
+  "↓ Download Style Sheet" (keep existing style sheet download logic)
+  "View Image Library →" (opens image library modal — keep existing logic)
+
+IMAGE COLOR BEHAVIOR (new — do not remove existing functionality, ADD this behavior):
+Currently: all product images show regardless of color selected.
+New behavior:
+- Read how images are stored in the API response — check if images have a color_id or variant_id field
+- When a color swatch is selected, show ONLY images that belong to that color/variant
+- Thumbnails also filter to that color's images
+- Main image updates to first image of selected color
+- If a color has no images assigned, show existing product images as fallback
+- Do NOT break the existing image display for products that don't have per-color images
+
+IMAGE LIBRARY MODAL CHANGES:
+Read existing image library modal code first.
+New behavior — group by color:
+- Each color gets ONE card (not individual images)
+- Card shows: color swatch dot + color name + thumbnail of first image
+- Below color name: small text showing image count e.g. "3 images"
+- "Download All" button on each color card — downloads all images for that color
+  Use fetch + blob + anchor.click() method to force download (not window.open which opens blank page)
+- Clicking the color card itself (not the button) expands it to show all images for that color with individual download buttons
+- FIX DOWNLOAD BUG: for ALL download buttons (individual and "download all"), use this pattern:
+  const response = await fetch(imageUrl);
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+
+RIGHT — PRODUCT INFO:
+- Product code: IBM Plex Mono 12px #6B6B6B, margin-bottom 8px
+- Product title: Fraunces 36px font-weight 600, line-height 1.15, margin-bottom 10px
+- Meta (fabric, weight, colors): DM Sans 14px #6B6B6B, margin-bottom 20px
+
+GUEST STATE (not logged in):
+- Show: "Create a wholesale account to get lower prices. Create Account · Log In"
+  DM Sans 13px #6B6B6B. "Create Account" and "Log In" in accent color.
+- DO NOT show pricing
+- Show bulk grid with quantities but no "wholesale price" label
+- Keep all existing guest state logic
+
+WHOLESALE STATE (logged in):
+- DO NOT show wholesale prompt
+- Show pricing in accent color with "WS" suffix for wholesale prices
+- If customer has a discount group applied → existing discounted price shows (DO NOT change this logic, it works)
+- Keep all existing wholesale state logic
+
+COLOR SWATCHES:
+- 24px circles, border 1px solid #E2E2DE
+- Active: outline 2px solid accent, outline-offset 2px
+- Hover tooltip: show color name above swatch
+- Keep existing swatch selection logic
+
+BULK ORDER GRID:
+- Table with Color | sizes... | Total | Action columns
+- Each color row: color dot + name on left
+- Each size cell: stock info (11px #6B6B6B) + price (11px) + qty input (52px wide, border 1px solid #E2E2DE, text-center)
+- Row total column: "Qty: X" and "$X.XX"
+- "Add to Cart" button (btn-outline-sm) per row
+- Grand total row + "Add to Cart — All Selections" full-width btn-primary
+- "No minimum order quantity" centered below
+- Keep ALL existing cart add logic untouched
+
+PDP TABS (below pdp-wrap):
+- Tab nav: DM Sans 14px font-weight 500, border-bottom 2px solid transparent — active tab: accent color, border-bottom accent
+- Tabs: Description | Specifications | Size Chart | Reviews
+- Keep all existing tab content and data
+
+═══════════════════════════════════════
+TASK 4 — ABOUT PAGE
+═══════════════════════════════════════
+File: frontend/src/app/(customer)/about/page.tsx
+
+REPLACE entire current page content with wireframe About page (page 5) exactly:
+
+HERO (white bg, padding 72px 24px 56px, border-bottom):
+- h1 Fraunces 48px font-weight 600 max-width 660px: "Premium Blank Apparel, Direct from Us."
+- p DM Sans 16px #6B6B6B: "Dallas, TX. Supplying print shops and decorators across the US since 2010."
+
+STATS BAR (#F0F0EE bg, padding 28px 24px, border-bottom):
+- 4 stats: "2,000+ / Wholesale Accounts", "22 / Years in Business", "Dallas, TX / Warehouse & HQ", "Same-Day / Fulfillment by 2PM CT"
+
+OUR STORY (background #F8F8F6, padding 72px 24px, 2-col grid):
+- Left col: label "Our Story" (11px uppercase letter-spacing) + h2 Fraunces 36px: "Lower prices, direct from us."
+- Right col: p DM Sans 15px #6B6B6B line-height 1.7:
+  "American Fashion was founded with a single purpose: remove the middlemen that drive up blank apparel costs for print shops and decorators across the US. For too long, businesses were paying markups of 20–35% on every blank they ordered. We built direct relationships with manufacturers and opened our own Dallas warehouse to fix that. Today, 2,000+ businesses across the US order with AF — getting lower prices and same-day shipping every time."
+
+TIMELINE (white bg, padding 64px 24px, border-top):
+- Label: "History"
+- Timeline items (left border with dot, Fraunces year in accent):
+  2010 / Founded in Dallas — "First warehouse opened. Started with cotton tees for the Texas print market."
+  2015 / ISO 9000 Certified — "Quality standards locked in. GOTS and Oeko-Tex certifications followed."
+  2019 / 500+ Active Accounts — "Expanded to hoodies, sweatshirts, and polos. Started shipping nationwide."
+  2023 / Private Label Program — "Started making custom-label apparel for brands. Min 2,500 pcs/style/color."
+  2025 / 2,000+ Accounts Nationwide — "Serving print shops, decorators, brands, and corporate buyers in all 50 states."
+
+CERTIFICATIONS (white bg, padding 56px 24px, border-top):
+- Label: "Certifications & Compliance"
+- Sub: "Every AF product is tested and certified."
+- 4 items: ISO 9000, Oeko-Tex Standard 100, GOTS Certified, WRAP Certified — same text as wireframe
+
+CORPORATE BAND (#1C3557 bg, padding 56px 24px, text-center):
+- h2 Fraunces 32px white: "Corporate & Institutional Buyers"
+- p 15px rgba(255,255,255,0.8): "Need compliance documents for your procurement team? We have everything ready."
+- contact: DM Sans 15px white 90%: "info@afblanks.com · +1 (469) 367-9753"
+
+═══════════════════════════════════════
+TASK 5 — BLOG / RESOURCES PAGE
+═══════════════════════════════════════
+File: frontend/src/app/(customer)/blog/page.tsx or resources/page.tsx
+
+HEADER (white bg, padding 48px 24px 32px, border-bottom):
+- h1 Fraunces 40px font-weight 600: "Resources" (NOT "AF Apparels Blog")
+- p DM Sans 15px #6B6B6B: "Printing guides, product updates, and useful references."
+
+BLOG GRID (padding 48px 24px):
+- 3-column grid desktop, 1 column mobile, gap 28px
+- Each blog card: white bg, border 1px solid #E2E2DE
+- Card structure:
+  - Cover image: height 200px
+  - Card body (padding 20px):
+    - Tag pill: 11px uppercase DM Sans, accent color text, border 1px solid accent, padding 3px 8px
+    - h3 Fraunces 20px: article title
+    - Date: 12px DM Sans #6B6B6B
+    - Excerpt: 13px DM Sans #6B6B6B line-height 1.55
+    - "Read More →" link: 13px accent color font-weight 500
+- Keep all existing API fetching for blog data — only card UI changes
+
+═══════════════════════════════════════
+TASK 6 — CONTACT US PAGE
+═══════════════════════════════════════
+File: frontend/src/app/(customer)/contact/page.tsx
+
+REPLACE current page with wireframe Contact page (page 7) EXACTLY:
+
+Layout: 2-column grid gap 56px, max-width 1500px, padding 64px 24px
+
+LEFT — FORM:
+- h2 Fraunces 32px: "Get in Touch"
+- Form fields (DM Sans labels 12px uppercase letter-spacing, inputs border 1px solid #E2E2DE):
+  Row 1: Full Name + Company Name
+  Row 2: Email + Phone
+  Subject (select): General Inquiry, Order Support, Wholesale Application, Private Label, Press
+  Message (textarea min-height 120px)
+  "Send Message →" btn-primary
+- Keep existing form submission logic
+
+RIGHT — CONTACT INFO:
+- h2 Fraunces 28px: "Contact Info"
+- Details (each with small uppercase label + value):
+  Phone: (214) 272-7213
+  Email: info@afblanks.com
+  Hours: Mon–Fri, 8AM–5PM CT
+  Location: Dallas, TX
+- Map placeholder (height 220px, border 1px dashed #ccc, bg #F8F8F6, text "[Map Placeholder]") — if existing map component exists, keep it instead
+- Links below: "Apply for Wholesale Account →" and "Track Your Order →" in accent color
+
+Mobile: single column, form first then contact info
+
+═══════════════════════════════════════
+TASK 7 — WHOLESALE APPLICATION FORM
+═══════════════════════════════════════
+File: frontend/src/app/(auth)/wholesale/register/page.tsx (or wherever it lives)
+
+UI: Match wireframe page 8 exactly.
+FIELDS: DO NOT CHANGE — existing fields stay. Only visual update.
+FORM LOGIC: DO NOT CHANGE — all existing submission/validation logic stays.
+
+Title area (max-width 760px, margin 0 auto, padding 56px 24px):
+- h1 Fraunces 38px: "Apply for a Wholesale Account"
+- p DM Sans 15px #6B6B6B: "Apply once. Get lower prices, better terms, and faster fulfillment."
+
+Section labels (DM Sans 11px uppercase, letter-spacing 0.1em, accent color, padding 12px 0 10px, border-bottom accent):
+Company Information | Contact Information | Business Information | Web Account | Communication Preferences | Terms & Conditions
+
+Form grid patterns:
+- 2-column: form-grid-2
+- 3-column: form-grid-3
+- All inputs: border 1px solid #E2E2DE, padding 11px 14px, focus border-color accent
+- Labels: 12px DM Sans uppercase letter-spacing
+
+Terms box: border 1px solid #E2E2DE, height 100px, overflow-y auto, 12px DM Sans #6B6B6B, bg #F8F8F6
+
+Submit: full-width btn-primary, padding 16px, font-size 15px: "Submit Application →"
+Below: "Already have an account? Sign in →"
+
+═══════════════════════════════════════
+TASK 8 — PRINT GUIDE PAGE
+═══════════════════════════════════════
+File: wherever current print guide page lives (search for it)
+
+REPLACE entire current page with wireframe Print Guide (page 9) EXACTLY:
+
+HEADER (white bg, padding 48px 24px 32px, border-bottom):
+- h1 Fraunces 40px: "Print Guide"
+- p DM Sans 15px #6B6B6B: "What works on what. Simple reference for decorators and print shops."
+
+DECORATION METHODS (#F8F8F6 bg, padding 56px 24px, border-bottom):
+- Label: "Decoration Methods"
+- 4-column grid (2 col on tablet, 1 on mobile):
+  DTF (Direct-to-Film) — "Works on almost all fabrics. Great for detailed, full-color artwork."
+  Screen Print — "Best for large runs on 100% cotton. Sharp, durable results."
+  Embroidery — "Works on everything. Best for polos, caps, and structured garments."
+  Sublimation — "Polyester only. Full color with no feel on the fabric."
+
+COMPATIBILITY TABLE (white bg, padding 56px 24px, border-bottom):
+- Label: "Fabric Compatibility"
+- Full table exactly as wireframe with color-coded cells:
+  works-great: #2d6a4f color, font-weight 500
+  works-well: normal text
+  test-first: #8a6000 color
+  not-rec: #9b2335 color
+- Table headers: 11px uppercase, bg #F8F8F6
+- Alternating row bg
+
+TIPS (bg #F8F8F6, padding 56px 24px):
+- Label: "A Few Things Worth Knowing"
+- Numbered list (counter, Fraunces numbers in accent) — exactly as wireframe:
+  1. Wash and dry garments before decorating...
+  2. Pre-press for 3–5 seconds...
+  3. Always run a test...
+  4. Follow your ink or transfer supplier's cure temps...
+  5. For a softer feel on heavier fabrics...
+- Contact line: "Questions? Email us at info@afblanks.com"
+
+═══════════════════════════════════════
+TASK 9 — PRIVATE LABEL PAGE
+═══════════════════════════════════════
+File: wherever current private label page lives (search for it)
+
+REPLACE entire current page with wireframe Private Label (page 10) EXACTLY:
+
+HEADER (white bg, padding 48px 24px 32px, border-bottom):
+- h1 Fraunces 40px: "Private Label"
+- p DM Sans 15px #6B6B6B: "Your label. Your specs. Made in the same facilities as our wholesale line."
+
+INTRO (bg #F8F8F6, padding 64px 24px, border-bottom, 2-col grid):
+- Left: image placeholder (height 360px)
+- Right: h2 Fraunces 32px: "Built for Brands Ready to Own Their Product" + p 15px #6B6B6B: "Our private label program lets apparel brands, print shops, and retailers get custom-made garments under their own brand — your labels, your tags, your packaging. Same factories we use for everything else. No middlemen."
+
+HOW IT WORKS (white bg, padding 64px 24px, border-bottom):
+- Label: "How It Works"
+- 4-step grid (4 col desktop, 2 tablet, 1 mobile):
+  Each step: border 1px solid #E2E2DE, padding 24px, step number in Fraunces 28px accent
+  1 — Send Us Your Brief: "Share your fabric, fit, colors, sizing, and label requirements."
+  2 — Sample First: "We make a sample for your approval before any bulk production starts."
+  3 — Production: "Minimum 2,500 pieces per style per color. Takes 45–60 days."
+  4 — Delivered to You: "Shipped direct to your warehouse or fulfillment center."
+
+WHAT'S INCLUDED (bg #F8F8F6, padding 56px 24px, border-bottom, 2-col):
+- Label: "What's Included"
+- Two lists — left: Custom woven or printed labels, Custom hang tags, Custom packaging, Multiple fabric options
+  Right: Full size range XS–5XL, Oeko-Tex and GOTS certified fabrics available, Full compliance paperwork, One dedicated contact for your account
+
+THE NUMBERS (white bg, padding 56px 24px, border-bottom):
+- Label: "The Numbers"
+- 2x2 grid (dt/dd pairs):
+  Minimum: 2,500 pieces per style per color
+  Lead Time: 45–60 days from sample approval
+  Samples: Available before you commit to production
+  Certifications: ISO 9000, Oeko-Tex, GOTS, WRAP — available on request
+- Contact line: "Ready to start? Contact us. info@afblanks.com · (214) 272-7213"
+
+═══════════════════════════════════════
+TASK 10 — POLICIES PAGE
+═══════════════════════════════════════
+File: wherever current policies page lives (search for it)
+
+REPLACE entire current page with wireframe Policies (page 11) EXACTLY:
+
+HEADER (white bg, padding 48px 24px 0):
+- h1 Fraunces 40px: "Policies"
+- Tab nav below (DM Sans 14px font-weight 500, border-bottom 2px for active tab in accent):
+  Shipping & Returns | Ordering Info | Terms & Conditions | Privacy Policy
+
+BODY (bg #F8F8F6, padding 48px 24px 64px):
+Max-width 760px content area.
+
+Each tab content — copy ALL text EXACTLY from wireframe:
+
+TAB 1 — Shipping & Returns:
+Sections: Shipping | Will Call (Local Pickup) | Returns & Claims
+[Copy all policy text exactly from wireframe pages 11 — Shipping & Returns tab]
+
+TAB 2 — Ordering Info:
+Sections: Placing an Order | Order Confirmation | Changes & Cancellations | Stock & Availability | Payment | Sales Tax
+[Copy all policy text exactly from wireframe]
+
+TAB 3 — Terms & Conditions:
+Sections: Payment Methods | No Minimums | Order Processing | Wholesale Accounts | Pricing | Claims & Returns | Cancellations | Liability
+[Copy all policy text exactly from wireframe]
+
+TAB 4 — Privacy Policy:
+"Last updated: January 30, 2025"
+Sections: What We Collect | How We Use It | Who We Share It With | Cookies | Your Rights | Children | Contact
+[Copy all policy text exactly from wireframe]
+
+Section headers: DM Sans 13px uppercase letter-spacing, border-bottom 1px solid #E2E2DE, padding-bottom 10px
+Body text: 14px DM Sans #6B6B6B line-height 1.75
+
+═══════════════════════════════════════
+TASK 11 — LOGIN PAGE
+═══════════════════════════════════════
+File: frontend/src/app/(auth)/login/page.tsx
+
+Keep ALL existing auth logic, form submission, error handling — ONLY UI update.
+
+Layout: centered, min-height 70vh, bg #F8F8F6
+
+Login box (max-width 400px, centered):
+- h1 Fraunces 34px: "Log In"
+- Email field (label: "Email *", input type email, placeholder "you@company.com")
+- Password field (label: "Password *", input type password, placeholder "Your password")
+- Below password field: "Forgot your password?" link (12px accent color)
+- Full-width btn-primary (padding 14px, font-size 15px, margin-top 8px): "Log In →"
+- Divider with "or" text (lines on each side)
+- Full-width btn-outline (padding 14px, font-size 15px, text-center, display block): "Create a Wholesale Account →"
+- Note centered: "No account needed to place an order. Guests pay standard pricing." (13px #6B6B6B)
+
+All input styles: border 1px solid #E2E2DE, padding 11px 14px, focus border-color accent
+
+═══════════════════════════════════════
+TASK 12 — CART PAGE
+═══════════════════════════════════════
+File: frontend/src/app/(customer)/cart/page.tsx or CartClient.tsx
+
+Keep ALL existing cart logic (add, remove, update, totals, API calls) — ONLY UI update.
+
+Layout: max-width 1500px, padding 40px 24px 64px
+2-column: 1fr left (cart items) + 360px right (order summary)
+
+Title: h1 Fraunces 36px: "Your Cart" (spans both columns)
+
+CART TABLE (left column):
+Table headers: 11px uppercase DM Sans letter-spacing, #6B6B6B — Product | Color | Size | Qty | Price | Total | (remove)
+
+Each cart row (separate row per color+size combination — NOT grouped):
+- Product cell: 64px thumbnail image + product name (14px DM Sans font-weight 500) + product code (IBM Plex Mono 11px #6B6B6B)
+- Color: text
+- Size: text
+- Qty: input field 56px wide, border 1px solid #E2E2DE, text-center — onchange calls existing cart update API
+- Price: unit price
+- Total: line total
+- Remove: × button (18px #6B6B6B, hover text color #1A1A1A)
+
+Empty state: "Your cart is empty. Shop All →" (15px DM Sans #6B6B6B)
+
+ORDER SUMMARY (right column, padding 28px 0, border-top 1px solid #E2E2DE):
+- Subtotal row + "Shipping: Calculated at checkout" + "Tax: Calculated at checkout"
+- Total row (bold, larger font)
+- "Proceed to Checkout →" full-width btn-primary, padding 14px
+- "Need a wholesale account? Apply here →" (12px #6B6B6B, accent link)
+
+Mobile: single column (table first, summary below)
+
+═══════════════════════════════════════
+TASK 13 — CHECKOUT PAGES
+═══════════════════════════════════════
+Files: frontend/src/app/(customer)/checkout/ pages
+
+Keep ALL existing payment logic, form validation, shipping method logic, API calls — ONLY UI update.
+
+PROGRESS BAR (white bg, padding 20px 24px, border-bottom):
+DM Sans 13px: "Shipping → Payment → Confirmed"
+Active step: accent color, font-weight 600, text-decoration underline
+
+CHECKOUT LAYOUT: 2-column (1fr left form + 380px right summary), gap 48px
+Mobile: single column (form first, summary below — summary gets border-top not border-left)
+
+ORDER SUMMARY (right column, border-left 1px solid #E2E2DE, padding-left 40px):
+- "ORDER SUMMARY" label (11px uppercase DM Sans)
+- Each item: 52px thumbnail + name (13px DM Sans) + detail "Color / Size × qty" (11px #6B6B6B) + price
+- Sum rows: Subtotal | Shipping | Tax | Total (bold 15px)
+
+STEP 1 — SHIPPING:
+Form sections labeled with checkout-form-label (11px uppercase DM Sans, border-bottom):
+- "Contact": Email field
+- "Shipping Address": First Name + Last Name | Address | City + State + ZIP | Country
+- "Shipping Method": Use EXISTING shipping method options from current website — show them in wireframe style:
+  Each option: border 1px solid #E2E2DE, padding 14px 16px, radio + name (font-weight 500) + description (12px #6B6B6B)
+  Selected option: border-color accent
+- Continue to Payment btn-primary + "← Return to Cart" text link
+
+STEP 2 — PAYMENT:
+- "Payment" section: Card Number | Expiration + CVV | Name on Card
+- "Billing Address": checkbox "Same as shipping address" (accent-color) + collapsible fields
+- Place Order btn-primary + "← Return to Shipping" text link
+
+STEP 3 — CONFIRMED:
+- h1 Fraunces 44px: "Order Confirmed"
+- Sub: "Your order has been placed. You will receive a confirmation email shortly."
+- Details box (border 1px solid #E2E2DE, white bg, padding 24px):
+  Order Number (IBM Plex Mono), Email, Estimated delivery
+- "Track Your Order →" btn-outline + "Continue Shopping →" btn-primary
+
+═══════════════════════════════════════
+MOBILE RESPONSIVE — ALL PAGES
+═══════════════════════════════════════
+Apply to every page above:
+- Breakpoint: 900px (tablet), 600px (mobile)
+- Navigation: hamburger menu on mobile (3 lines icon), clicking opens full-screen overlay nav with all links
+- Hero grids → single column on mobile
+- 4-col grids → 2-col on tablet, 1-col on mobile
+- 2-col grids → 1-col on mobile
+- Forms: all form-row/form-grid-2/form-grid-3 → single column on mobile
+- Cart/Checkout 2-column → single column (cart table scrollable horizontally on mobile)
+- Announcement bar: shorter text on mobile or hide middle items
+- Footer: 2-col on tablet, 1-col on mobile
+- PDP: single column on mobile (gallery first, info below)
+- Filter sidebar: hidden on mobile, replaced by slide-in drawer with working close
+
+═══════════════════════════════════════
+EXECUTION ORDER
+═══════════════════════════════════════
+1. Design system (globals.css, tailwind.config.ts, fonts)
+2. Shared components (announcement bar, nav, footer, buttons)
+3. Task 1: Home Page
+4. `npm run build` — fix errors
+5. Task 2: Collection Page
+6. `npm run build` — fix errors
+7. Task 3: PDP
+8. `npm run build` — fix errors
+9. Tasks 4–13 one by one with build check after each
+
+After ALL tasks done:
+git add frontend/
+git commit -m "feat: complete UI overhaul - wireframe implementation"
+git push

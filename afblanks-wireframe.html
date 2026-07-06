@@ -1,0 +1,2937 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AF Blanks — Website Wireframe</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,600;0,9..144,700;1,9..144,300&family=DM+Sans:wght@300;400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #F8F8F6;
+  --white: #FFFFFF;
+  --text: #1A1A1A;
+  --text-sec: #6B6B6B;
+  --accent: #1C3557;
+  --divider: #E2E2DE;
+  --max: 1160px;
+  --font-h: 'Fraunces', serif;
+  --font-b: 'DM Sans', sans-serif;
+  --font-m: 'IBM Plex Mono', monospace;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-size: 16px; scroll-behavior: smooth; }
+body { background: var(--bg); color: var(--text); font-family: var(--font-b); -webkit-font-smoothing: antialiased; }
+
+/* ── TAB SWITCHER ── */
+#page-tabs {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 1000;
+  background: #111; display: flex; overflow-x: auto; gap: 0;
+  border-bottom: 1px solid #333; scrollbar-width: none;
+}
+#page-tabs::-webkit-scrollbar { display: none; }
+#page-tabs button {
+  flex-shrink: 0; background: transparent; border: none; border-right: 1px solid #333;
+  color: #888; font-family: var(--font-m); font-size: 11px; padding: 10px 16px;
+  cursor: pointer; white-space: nowrap; transition: all 0.15s;
+}
+#page-tabs button:hover { background: #1a1a1a; color: #ccc; }
+#page-tabs button.active { background: #1C3557; color: #fff; }
+
+.page { display: none; padding-top: 36px; }
+.page.active { display: block; }
+
+/* ── ANNOUNCEMENT BAR ── */
+.ann-bar {
+  background: var(--accent); color: #fff;
+  text-align: center; padding: 8px 16px;
+  font-family: var(--font-b); font-size: 12px; letter-spacing: 0.02em;
+}
+
+/* ── NAVIGATION ── */
+.nav-wrap {
+  background: var(--white); border-bottom: 1px solid var(--divider);
+  position: sticky; top: 36px; z-index: 100;
+}
+.nav {
+  max-width: var(--max); margin: 0 auto; padding: 0 24px;
+  display: flex; align-items: center; justify-content: space-between; height: 64px;
+}
+.nav-logo { font-family: var(--font-h); font-size: 22px; font-weight: 600; color: var(--accent); letter-spacing: -0.02em; text-decoration: none; }
+.nav-center { display: flex; align-items: center; gap: 28px; }
+.nav-center a { font-family: var(--font-b); font-size: 14px; color: var(--text); text-decoration: none; font-weight: 500; }
+.nav-center a:hover { color: var(--accent); }
+.nav-dropdown { position: relative; }
+.nav-dropdown > span { font-family: var(--font-b); font-size: 14px; color: var(--text); cursor: pointer; font-weight: 500; }
+.nav-dropdown:hover .dropdown-menu { display: block; }
+.dropdown-menu {
+  display: none; position: absolute; top: 100%; left: 0; background: var(--white);
+  border: 1px solid var(--divider); min-width: 220px; z-index: 200; padding: 8px 0;
+}
+.dropdown-menu a {
+  display: block; padding: 9px 18px; font-size: 13px; color: var(--text);
+  text-decoration: none; font-family: var(--font-b);
+}
+.dropdown-menu a:hover { background: var(--bg); }
+.nav-right { display: flex; align-items: center; gap: 20px; }
+.nav-right a { font-family: var(--font-b); font-size: 14px; color: var(--text); text-decoration: none; font-weight: 500; }
+.nav-icon { width: 20px; height: 20px; cursor: pointer; opacity: 0.7; }
+.nav-icon:hover { opacity: 1; }
+/* SVG icons inline */
+
+/* ── FOOTER ── */
+.footer {
+  background: var(--white); border-top: 1px solid var(--divider);
+  padding: 56px 24px 32px;
+}
+.footer-inner { max-width: var(--max); margin: 0 auto; display: grid; grid-template-columns: repeat(4,1fr); gap: 40px; }
+.footer-col h4 { font-family: var(--font-b); font-size: 12px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text); margin-bottom: 16px; }
+.footer-col a { display: block; font-size: 14px; color: var(--text-sec); text-decoration: none; margin-bottom: 10px; }
+.footer-col a:hover { color: var(--accent); }
+.footer-bottom { max-width: var(--max); margin: 32px auto 0; padding: 20px 24px 0; border-top: 1px solid var(--divider); font-size: 13px; color: var(--text-sec); }
+
+/* ── SHARED COMPONENTS ── */
+.container { max-width: var(--max); margin: 0 auto; padding: 0 24px; }
+.section-label { font-family: var(--font-b); font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-sec); margin-bottom: 24px; }
+.btn-primary {
+  display: inline-block; background: var(--accent); color: #fff;
+  font-family: var(--font-b); font-size: 14px; font-weight: 500;
+  padding: 12px 24px; border: 1px solid var(--accent); cursor: pointer; text-decoration: none;
+  transition: opacity 0.15s;
+}
+.btn-primary:hover { opacity: 0.88; }
+.btn-outline {
+  display: inline-block; background: transparent; color: var(--accent);
+  font-family: var(--font-b); font-size: 14px; font-weight: 500;
+  padding: 12px 24px; border: 1px solid var(--accent); cursor: pointer; text-decoration: none;
+  transition: all 0.15s;
+}
+.btn-outline:hover { background: var(--accent); color: #fff; }
+.btn-outline-sm {
+  display: inline-block; background: transparent; color: var(--accent);
+  font-family: var(--font-b); font-size: 13px; font-weight: 500;
+  padding: 7px 14px; border: 1px solid var(--accent); cursor: pointer; text-decoration: none;
+  transition: all 0.15s;
+}
+.btn-outline-sm:hover { background: var(--accent); color: #fff; }
+.photo-placeholder {
+  background: var(--divider); display: flex; align-items: center; justify-content: center;
+  font-family: var(--font-m); font-size: 12px; color: var(--text-sec);
+  border: 1px dashed #ccc; min-height: 200px;
+}
+
+/* ── PAGE 1: HOMEPAGE ── */
+.hero-section { background: var(--white); padding: 72px 24px; }
+.hero-inner { max-width: var(--max); margin: 0 auto; display: grid; grid-template-columns: 1fr 1fr; gap: 64px; align-items: center; }
+.hero-headline { font-family: var(--font-h); font-size: 52px; line-height: 1.1; font-weight: 600; color: var(--text); margin-bottom: 16px; letter-spacing: -0.02em; }
+.hero-sub { font-family: var(--font-b); font-size: 17px; color: var(--text-sec); margin-bottom: 32px; line-height: 1.5; }
+.hero-ctas { display: flex; gap: 12px; flex-wrap: wrap; }
+.hero-image { height: 400px; }
+
+.trust-section { background: #F0F0EE; padding: 40px 24px; border-top: 1px solid var(--divider); border-bottom: 1px solid var(--divider); }
+.trust-stats { display: flex; gap: 0; justify-content: center; flex-wrap: wrap; }
+.trust-stat { display: flex; align-items: center; gap: 8px; padding: 0 32px; }
+.trust-stat + .trust-stat { border-left: 1px solid var(--divider); }
+.trust-stat .num { font-family: var(--font-h); font-size: 22px; font-weight: 700; color: var(--text); }
+.trust-stat .lbl { font-family: var(--font-b); font-size: 13px; color: var(--text-sec); }
+.trust-wholesale-row { text-align: center; margin-top: 20px; padding-top: 18px; border-top: 1px solid var(--divider); font-size: 14px; color: var(--text-sec); }
+.trust-wholesale-row a { color: var(--accent); font-weight: 500; text-decoration: none; border: 1px solid var(--accent); padding: 5px 12px; margin-left: 12px; font-size: 13px; }
+
+.cat-section { padding: 72px 24px; background: var(--bg); }
+.cat-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 20px; margin-top: 32px; }
+.cat-card { cursor: pointer; }
+.cat-card .cat-img { height: 260px; border: 1px solid var(--divider); transition: border-color 0.15s; }
+.cat-card:hover .cat-img { border-bottom-color: var(--accent); border-bottom-width: 2px; }
+.cat-card .cat-name { font-family: var(--font-b); font-size: 14px; font-weight: 500; margin-top: 10px; color: var(--text); }
+
+.cert-section { padding: 56px 24px; background: var(--white); border-top: 1px solid var(--divider); }
+.cert-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 32px; margin-top: 28px; }
+.cert-item h4 { font-family: var(--font-b); font-size: 14px; font-weight: 600; margin-bottom: 6px; color: var(--text); }
+.cert-item p { font-size: 13px; color: var(--text-sec); line-height: 1.5; }
+
+.cta-band { background: var(--accent); padding: 64px 24px; text-align: center; }
+.cta-band h2 { font-family: var(--font-h); font-size: 38px; font-weight: 600; color: #fff; margin-bottom: 12px; }
+.cta-band p { font-size: 16px; color: rgba(255,255,255,0.8); margin-bottom: 28px; }
+.btn-white { display: inline-block; background: #fff; color: var(--accent); font-family: var(--font-b); font-size: 14px; font-weight: 600; padding: 12px 28px; border: 1px solid #fff; cursor: pointer; text-decoration: none; }
+.cta-band .signin-link { display: block; margin-top: 16px; font-size: 13px; color: rgba(255,255,255,0.6); }
+.cta-band .signin-link a { color: rgba(255,255,255,0.8); }
+
+/* ── PAGE 2: COLLECTION ── */
+.coll-header { padding: 40px 24px 24px; background: var(--white); border-bottom: 1px solid var(--divider); }
+.coll-header h1 { font-family: var(--font-h); font-size: 36px; font-weight: 600; color: var(--text); }
+
+.coll-body { display: grid; grid-template-columns: 220px 1fr; gap: 0; max-width: var(--max); margin: 0 auto; padding: 0 24px; }
+.filter-sidebar { padding: 28px 20px 28px 0; border-right: 1px solid var(--divider); }
+.filter-group { margin-bottom: 28px; }
+.filter-group h4 { font-family: var(--font-b); font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text); margin-bottom: 12px; font-weight: 600; }
+.filter-group label { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text); margin-bottom: 8px; cursor: pointer; }
+.filter-group label input[type=checkbox] { accent-color: var(--accent); }
+
+.color-swatches { display: flex; flex-wrap: wrap; gap: 8px; }
+.swatch-dot { width: 20px; height: 20px; border-radius: 50%; border: 1px solid var(--divider); cursor: pointer; position: relative; }
+.swatch-dot:hover::after { content: attr(data-color); position: absolute; bottom: 26px; left: 50%; transform: translateX(-50%); background: var(--text); color: #fff; font-size: 11px; padding: 3px 7px; white-space: nowrap; font-family: var(--font-b); pointer-events: none; }
+
+.size-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.size-chip { font-family: var(--font-b); font-size: 12px; padding: 5px 10px; border: 1px solid var(--divider); cursor: pointer; color: var(--text); transition: all 0.12s; }
+.size-chip.active, .size-chip:hover { border-color: var(--accent); background: var(--accent); color: #fff; }
+
+.price-range-wrap { display: flex; gap: 8px; align-items: center; margin-top: 8px; }
+.price-range-wrap input[type=text] { width: 70px; border: 1px solid var(--divider); padding: 6px 8px; font-size: 12px; font-family: var(--font-b); }
+
+.filter-btn { background: var(--accent); color: #fff; border: none; padding: 7px 14px; font-size: 12px; font-family: var(--font-b); cursor: pointer; }
+
+.code-input-row { display: flex; gap: 6px; }
+.code-input-row input { flex: 1; border: 1px solid var(--divider); padding: 7px 10px; font-family: var(--font-m); font-size: 12px; }
+
+.active-filters { display: flex; flex-wrap: wrap; gap: 6px; padding: 16px 0 0 20px; align-items: center; }
+.filter-pill { background: #e8edf3; border: 1px solid #c5d0dc; font-size: 12px; padding: 4px 10px; display: flex; align-items: center; gap: 6px; font-family: var(--font-b); color: var(--accent); }
+.filter-pill button { background: none; border: none; cursor: pointer; font-size: 14px; color: var(--accent); line-height: 1; }
+.clear-all { font-size: 12px; color: var(--accent); cursor: pointer; text-decoration: underline; font-family: var(--font-b); background: none; border: none; }
+
+.product-grid-area { padding: 28px 0 28px 28px; }
+.sort-bar { display: flex; align-items: center; gap: 0; margin-bottom: 20px; border-bottom: 1px solid var(--divider); padding-bottom: 12px; }
+.sort-bar span { font-size: 12px; color: var(--text-sec); margin-right: 12px; font-family: var(--font-b); }
+.sort-opt { font-size: 13px; font-family: var(--font-b); color: var(--text-sec); padding: 0 12px 0 0; cursor: pointer; border: none; background: none; }
+.sort-opt.active { color: var(--accent); font-weight: 600; }
+
+.prod-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 20px; }
+.prod-card { cursor: pointer; }
+.prod-card .prod-img { height: 220px; border: 1px solid var(--divider); transition: border-color 0.15s; }
+.prod-card:hover .prod-img { border-color: var(--accent); }
+.prod-card .prod-name { font-family: var(--font-b); font-size: 14px; font-weight: 500; margin-top: 10px; }
+.prod-card .prod-code { font-family: var(--font-m); font-size: 11px; color: var(--text-sec); margin-top: 3px; }
+
+/* ── PAGE 3 & 4: PDP ── */
+.breadcrumb { padding: 16px 24px; max-width: var(--max); margin: 0 auto; font-size: 12px; color: var(--text-sec); font-family: var(--font-b); }
+.breadcrumb a { color: var(--text-sec); text-decoration: none; }
+.breadcrumb a:hover { color: var(--accent); }
+
+.pdp-wrap { max-width: var(--max); margin: 0 auto; padding: 0 24px 64px; display: grid; grid-template-columns: 1fr 1fr; gap: 56px; }
+
+.pdp-gallery { }
+.pdp-hero-img { height: 480px; margin-bottom: 12px; }
+.pdp-thumbs { display: flex; gap: 8px; }
+.pdp-thumb { width: 80px; height: 80px; border: 1px solid var(--divider); cursor: pointer; display: flex; align-items: center; justify-content: center; font-family: var(--font-m); font-size: 9px; color: var(--text-sec); }
+.pdp-thumb.active { border-color: var(--accent); border-width: 1px; outline: 1px solid var(--accent); }
+.pdp-gallery-links { margin-top: 14px; display: flex; flex-direction: column; gap: 6px; }
+.pdp-gallery-links a { font-size: 13px; color: var(--accent); text-decoration: none; font-family: var(--font-b); }
+.pdp-gallery-links a:hover { text-decoration: underline; }
+
+.pdp-info { }
+.pdp-code { font-family: var(--font-m); font-size: 12px; color: var(--text-sec); margin-bottom: 8px; }
+.pdp-title { font-family: var(--font-h); font-size: 36px; font-weight: 600; line-height: 1.15; margin-bottom: 10px; color: var(--text); }
+.pdp-meta { font-family: var(--font-b); font-size: 14px; color: var(--text-sec); margin-bottom: 20px; }
+.pdp-wholesale-prompt { font-size: 13px; color: var(--text-sec); margin-bottom: 22px; font-family: var(--font-b); padding: 0; border: none; background: none; }
+.pdp-wholesale-prompt a { color: var(--accent); text-decoration: none; font-weight: 500; }
+.pdp-wholesale-prompt a:hover { text-decoration: underline; }
+
+.pdp-swatches-label { font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-sec); margin-bottom: 10px; font-family: var(--font-b); font-weight: 600; }
+.pdp-swatches { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 28px; }
+.pdp-swatch { width: 24px; height: 24px; border-radius: 50%; border: 1px solid var(--divider); cursor: pointer; position: relative; }
+.pdp-swatch.active { outline: 2px solid var(--accent); outline-offset: 2px; }
+.pdp-swatch:hover::after { content: attr(data-name); position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%); background: var(--text); color: #fff; font-size: 11px; padding: 3px 8px; white-space: nowrap; font-family: var(--font-b); pointer-events: none; z-index: 10; }
+
+.bulk-grid-label { font-size: 13px; font-weight: 600; font-family: var(--font-b); color: var(--text); margin-bottom: 14px; }
+.bulk-grid { width: 100%; border-collapse: collapse; font-family: var(--font-b); font-size: 13px; }
+.bulk-grid th { font-size: 11px; color: var(--text-sec); font-weight: 500; padding: 6px 8px; text-align: center; border-bottom: 1px solid var(--divider); }
+.bulk-grid th:first-child { text-align: left; }
+.bulk-grid td { padding: 10px 8px; vertical-align: top; border-bottom: 1px solid var(--divider); text-align: center; }
+.bulk-grid td:first-child { text-align: left; }
+.color-row-head { display: flex; align-items: center; gap: 8px; }
+.color-dot-sm { width: 14px; height: 14px; border-radius: 50%; border: 1px solid var(--divider); display: inline-block; }
+.stock-info { font-size: 11px; color: var(--text-sec); font-family: var(--font-b); display: block; margin-bottom: 2px; }
+.price-info { font-size: 11px; color: var(--text-sec); font-family: var(--font-b); display: block; margin-bottom: 4px; }
+.qty-input { width: 52px; border: 1px solid var(--divider); padding: 5px 6px; text-align: center; font-family: var(--font-b); font-size: 13px; }
+.qty-input:focus { outline: 1px solid var(--accent); }
+.row-total { font-size: 12px; color: var(--text-sec); white-space: nowrap; }
+.row-atc { margin-top: 4px; font-size: 11px; padding: 5px 10px; }
+.grand-total-row { display: flex; align-items: center; gap: 24px; padding: 16px 0 12px; border-top: 1px solid var(--divider); margin-top: 8px; font-size: 14px; font-family: var(--font-b); }
+.grand-total-row strong { color: var(--text); }
+.grand-total-row span { color: var(--text-sec); font-size: 13px; }
+.atc-all { width: 100%; margin-top: 12px; padding: 14px; font-size: 15px; }
+.no-moq { text-align: center; margin-top: 10px; font-size: 12px; color: var(--text-sec); font-family: var(--font-b); }
+
+/* PDP TABS */
+.pdp-tabs-wrap { max-width: var(--max); margin: 0 auto; padding: 0 24px 56px; }
+.pdp-tab-nav { display: flex; border-bottom: 1px solid var(--divider); }
+.pdp-tab-btn { font-family: var(--font-b); font-size: 14px; font-weight: 500; padding: 12px 20px; background: none; border: none; border-bottom: 2px solid transparent; cursor: pointer; color: var(--text-sec); }
+.pdp-tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+.pdp-tab-content { padding: 28px 0; display: none; }
+.pdp-tab-content.active { display: block; }
+.spec-table { width: 100%; border-collapse: collapse; font-size: 14px; font-family: var(--font-b); }
+.spec-table tr { border-bottom: 1px solid var(--divider); }
+.spec-table td { padding: 10px 0; }
+.spec-table td:first-child { color: var(--text-sec); width: 200px; }
+.size-table { width: 100%; border-collapse: collapse; font-size: 13px; font-family: var(--font-b); }
+.size-table th { background: var(--bg); padding: 10px 14px; text-align: center; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; border: 1px solid var(--divider); }
+.size-table td { padding: 10px 14px; text-align: center; border: 1px solid var(--divider); }
+.size-table tr:first-child td { background: var(--bg); font-weight: 600; }
+.review-summary { display: flex; align-items: center; gap: 20px; margin-bottom: 24px; }
+.review-stars { font-size: 22px; color: #c8a63c; }
+.review-num { font-family: var(--font-h); font-size: 36px; font-weight: 600; }
+.review-count { font-size: 13px; color: var(--text-sec); font-family: var(--font-b); }
+.review-card { border: 1px solid var(--divider); padding: 18px; margin-bottom: 14px; }
+.review-card .rev-stars { font-size: 14px; color: #c8a63c; }
+.review-card .rev-author { font-size: 13px; font-weight: 600; margin: 6px 0 2px; font-family: var(--font-b); }
+.review-card .rev-date { font-size: 12px; color: var(--text-sec); font-family: var(--font-b); margin-bottom: 8px; }
+.review-card .rev-body { font-size: 14px; color: var(--text); font-family: var(--font-b); line-height: 1.55; }
+
+/* ── PAGE 5: ABOUT ── */
+.about-hero { padding: 72px 24px 56px; background: var(--white); border-bottom: 1px solid var(--divider); }
+.about-hero h1 { font-family: var(--font-h); font-size: 48px; font-weight: 600; max-width: 660px; line-height: 1.1; margin-bottom: 14px; }
+.about-hero p { font-size: 16px; color: var(--text-sec); font-family: var(--font-b); }
+
+.stats-bar { background: #F0F0EE; padding: 28px 24px; border-bottom: 1px solid var(--divider); }
+.stats-bar .container { display: flex; flex-wrap: wrap; justify-content: center; gap: 0; }
+
+.story-section { padding: 72px 24px; background: var(--bg); }
+.story-inner { max-width: var(--max); margin: 0 auto; display: grid; grid-template-columns: 1fr 1fr; gap: 64px; }
+.story-left .story-sm { font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-sec); font-family: var(--font-b); font-weight: 600; margin-bottom: 14px; }
+.story-left h2 { font-family: var(--font-h); font-size: 36px; font-weight: 600; line-height: 1.15; color: var(--text); }
+.story-right p { font-size: 15px; color: var(--text-sec); line-height: 1.7; font-family: var(--font-b); }
+
+.timeline-section { padding: 64px 24px; background: var(--white); border-top: 1px solid var(--divider); }
+.timeline { max-width: 680px; margin: 32px auto 0; }
+.timeline-item { display: flex; gap: 28px; padding-bottom: 32px; border-left: 1px solid var(--divider); margin-left: 20px; padding-left: 28px; position: relative; }
+.timeline-item::before { content: ''; position: absolute; left: -5px; top: 4px; width: 9px; height: 9px; border-radius: 50%; background: var(--accent); }
+.timeline-item:last-child { border-left-color: transparent; }
+.timeline-year { font-family: var(--font-h); font-size: 18px; font-weight: 700; color: var(--accent); min-width: 52px; }
+.timeline-text h4 { font-family: var(--font-b); font-size: 14px; font-weight: 600; margin-bottom: 4px; }
+.timeline-text p { font-size: 13px; color: var(--text-sec); font-family: var(--font-b); line-height: 1.55; }
+
+.corp-band { background: var(--accent); padding: 56px 24px; text-align: center; }
+.corp-band h2 { font-family: var(--font-h); font-size: 32px; color: #fff; margin-bottom: 10px; }
+.corp-band p { font-size: 15px; color: rgba(255,255,255,0.8); margin-bottom: 12px; font-family: var(--font-b); }
+.corp-band .corp-contact { font-size: 15px; color: rgba(255,255,255,0.9); font-family: var(--font-b); font-weight: 500; }
+
+/* ── PAGE 6: BLOG ── */
+.blog-header { padding: 48px 24px 32px; background: var(--white); border-bottom: 1px solid var(--divider); }
+.blog-header h1 { font-family: var(--font-h); font-size: 40px; font-weight: 600; margin-bottom: 8px; }
+.blog-header p { font-size: 15px; color: var(--text-sec); font-family: var(--font-b); }
+
+.blog-grid-section { padding: 48px 24px; }
+.blog-grid { max-width: var(--max); margin: 0 auto; display: grid; grid-template-columns: repeat(3,1fr); gap: 28px; }
+.blog-card { background: var(--white); border: 1px solid var(--divider); }
+.blog-card .blog-img { height: 200px; }
+.blog-card-body { padding: 20px; }
+.tag-pill { display: inline-block; font-size: 11px; font-family: var(--font-b); letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); border: 1px solid var(--accent); padding: 3px 8px; margin-bottom: 10px; }
+.blog-card h3 { font-family: var(--font-h); font-size: 20px; font-weight: 600; line-height: 1.25; margin-bottom: 8px; color: var(--text); }
+.blog-card .blog-meta { font-size: 12px; color: var(--text-sec); font-family: var(--font-b); margin-bottom: 10px; }
+.blog-card .blog-excerpt { font-size: 13px; color: var(--text-sec); font-family: var(--font-b); line-height: 1.55; margin-bottom: 14px; }
+.blog-card .read-more { font-size: 13px; color: var(--accent); text-decoration: none; font-family: var(--font-b); font-weight: 500; }
+
+/* ── PAGE 7: CONTACT ── */
+.contact-section { padding: 64px 24px; }
+.contact-inner { max-width: var(--max); margin: 0 auto; display: grid; grid-template-columns: 1fr 1fr; gap: 56px; }
+.contact-form-title { font-family: var(--font-h); font-size: 32px; font-weight: 600; margin-bottom: 28px; }
+.form-group { margin-bottom: 18px; }
+.form-group label { display: block; font-size: 12px; font-family: var(--font-b); font-weight: 600; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text); margin-bottom: 7px; }
+.form-group input, .form-group select, .form-group textarea {
+  width: 100%; border: 1px solid var(--divider); padding: 11px 14px;
+  font-family: var(--font-b); font-size: 14px; background: var(--white);
+  color: var(--text); outline: none;
+}
+.form-group input:focus, .form-group select:focus, .form-group textarea:focus { border-color: var(--accent); }
+.form-group textarea { min-height: 120px; resize: vertical; }
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+
+.contact-info h2 { font-family: var(--font-h); font-size: 28px; font-weight: 600; margin-bottom: 24px; }
+.contact-detail { font-family: var(--font-b); font-size: 15px; margin-bottom: 14px; color: var(--text); line-height: 1.5; }
+.contact-detail strong { display: block; font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-sec); font-weight: 600; margin-bottom: 3px; }
+.map-placeholder { height: 220px; border: 1px dashed #ccc; background: var(--bg); display: flex; align-items: center; justify-content: center; font-family: var(--font-m); font-size: 12px; color: var(--text-sec); margin-top: 24px; }
+.contact-links { margin-top: 20px; display: flex; flex-direction: column; gap: 8px; }
+.contact-links a { font-size: 14px; color: var(--accent); font-family: var(--font-b); text-decoration: none; font-weight: 500; }
+
+/* ── PAGE 8: WHOLESALE FORM ── */
+.ws-form-section { padding: 56px 24px; }
+.ws-form-wrap { max-width: 760px; margin: 0 auto; }
+.ws-form-title { font-family: var(--font-h); font-size: 38px; font-weight: 600; margin-bottom: 8px; }
+.ws-form-sub { font-size: 15px; color: var(--text-sec); margin-bottom: 40px; font-family: var(--font-b); }
+.ws-section-label { font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; font-weight: 700; font-family: var(--font-b); color: var(--accent); padding: 12px 0 10px; border-bottom: 1px solid var(--divider); margin-bottom: 22px; }
+.form-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 0; }
+.form-grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+.ws-terms-box { border: 1px solid var(--divider); padding: 16px; height: 100px; overflow-y: auto; font-size: 12px; color: var(--text-sec); font-family: var(--font-b); line-height: 1.6; background: var(--bg); margin-bottom: 12px; }
+.ws-check-row { display: flex; align-items: flex-start; gap: 10px; font-size: 13px; font-family: var(--font-b); color: var(--text); margin-bottom: 14px; }
+.recaptcha-placeholder { border: 1px solid var(--divider); background: var(--bg); height: 76px; display: flex; align-items: center; justify-content: center; font-family: var(--font-m); font-size: 12px; color: var(--text-sec); margin-bottom: 16px; }
+.btn-submit { width: 100%; padding: 16px; font-size: 15px; }
+
+/* ── LIGHTBOX ── */
+.lightbox { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 5000; align-items: center; justify-content: center; }
+.lightbox.open { display: flex; }
+.lightbox-inner { background: var(--white); max-width: 800px; width: 90%; padding: 32px; position: relative; max-height: 80vh; overflow-y: auto; }
+.lightbox-close { position: absolute; top: 16px; right: 20px; font-size: 24px; cursor: pointer; background: none; border: none; color: var(--text); line-height: 1; }
+.lightbox-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 12px; margin-top: 16px; }
+.lb-item { border: 1px solid var(--divider); padding: 8px; }
+.lb-item .lb-img { height: 120px; }
+.lb-item p { font-size: 11px; font-family: var(--font-b); color: var(--text-sec); margin-top: 6px; }
+.lb-item a { font-size: 11px; color: var(--accent); font-family: var(--font-b); text-decoration: none; }
+
+/* ── RESPONSIVE (basic) ── */
+@media(max-width: 900px){
+  .hero-inner, .story-inner, .contact-inner, .coll-body { grid-template-columns: 1fr; }
+  .cat-grid { grid-template-columns: repeat(2,1fr); }
+  .cert-grid { grid-template-columns: repeat(2,1fr); }
+  .prod-grid { grid-template-columns: repeat(2,1fr); }
+  .footer-inner { grid-template-columns: repeat(2,1fr); }
+  .filter-sidebar { display: none; }
+  .nav-center { display: none; }
+  .trust-stats { gap: 16px; }
+  .trust-stat + .trust-stat { border-left: none; }
+  .blog-grid { grid-template-columns: 1fr; }
+  .pdp-wrap { grid-template-columns: 1fr; }
+}
+@media(max-width: 600px){
+  .hero-headline { font-size: 34px; }
+  .cat-grid { grid-template-columns: 1fr; }
+  .form-row, .form-grid-2, .form-grid-3 { grid-template-columns: 1fr; }
+}
+
+/* ── MISC UTILITIES ── */
+.mt-8 { margin-top: 8px; }
+.mt-16 { margin-top: 16px; }
+.mt-24 { margin-top: 24px; }
+.mt-32 { margin-top: 32px; }
+.mb-16 { margin-bottom: 16px; }
+.mb-24 { margin-bottom: 24px; }
+.sep { border: none; border-top: 1px solid var(--divider); margin: 28px 0; }
+.inline-link { color: var(--accent); text-decoration: none; font-weight: 500; }
+.inline-link:hover { text-decoration: underline; }
+a { color: inherit; }
+
+/* ── PAGE 9: PRINT GUIDE ── */
+.pg-header { padding: 48px 24px 32px; background: var(--white); border-bottom: 1px solid var(--divider); }
+.pg-header h1 { font-family: var(--font-h); font-size: 40px; font-weight: 600; margin-bottom: 8px; color: var(--text); }
+.pg-header p { font-size: 15px; color: var(--text-sec); font-family: var(--font-b); }
+
+.pg-methods { padding: 56px 24px; background: var(--bg); border-bottom: 1px solid var(--divider); }
+.pg-methods-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 32px; margin-top: 28px; }
+.pg-method h4 { font-family: var(--font-b); font-size: 14px; font-weight: 600; margin-bottom: 8px; color: var(--text); }
+.pg-method p { font-size: 13px; color: var(--text-sec); font-family: var(--font-b); line-height: 1.6; }
+
+.pg-table-section { padding: 56px 24px; background: var(--white); border-bottom: 1px solid var(--divider); }
+.compat-table { width: 100%; border-collapse: collapse; font-family: var(--font-b); font-size: 13px; margin-top: 24px; }
+.compat-table th { background: var(--bg); padding: 11px 16px; text-align: left; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; border: 1px solid var(--divider); font-weight: 600; color: var(--text); }
+.compat-table th:first-child { width: 240px; }
+.compat-table td { padding: 11px 16px; border: 1px solid var(--divider); vertical-align: middle; color: var(--text); }
+.compat-table td:first-child { color: var(--text); font-weight: 500; }
+.compat-table tr:nth-child(even) td { background: var(--bg); }
+.works-great { color: #2d6a4f; font-weight: 500; }
+.works-well { color: var(--text); }
+.test-first { color: #8a6000; }
+.not-rec { color: #9b2335; }
+
+.pg-tips { padding: 56px 24px; background: var(--bg); }
+.pg-tips ol { list-style: none; counter-reset: tip; margin-top: 24px; max-width: 680px; }
+.pg-tips ol li { counter-increment: tip; display: flex; gap: 16px; padding: 14px 0; border-bottom: 1px solid var(--divider); font-size: 14px; color: var(--text-sec); font-family: var(--font-b); line-height: 1.65; }
+.pg-tips ol li::before { content: counter(tip); font-family: var(--font-h); font-size: 20px; font-weight: 700; color: var(--accent); min-width: 24px; }
+.pg-contact-line { font-size: 14px; color: var(--text-sec); font-family: var(--font-b); margin-top: 28px; }
+.pg-contact-line a { color: var(--accent); text-decoration: none; font-weight: 500; }
+
+/* ── PAGE 10: PRIVATE LABEL ── */
+.pl-header { padding: 48px 24px 32px; background: var(--white); border-bottom: 1px solid var(--divider); }
+.pl-header h1 { font-family: var(--font-h); font-size: 40px; font-weight: 600; margin-bottom: 8px; }
+.pl-header p { font-size: 15px; color: var(--text-sec); font-family: var(--font-b); }
+
+.pl-intro { padding: 64px 24px; background: var(--bg); border-bottom: 1px solid var(--divider); }
+.pl-intro-inner { max-width: var(--max); margin: 0 auto; display: grid; grid-template-columns: 1fr 1fr; gap: 64px; align-items: center; }
+.pl-intro-img { height: 360px; }
+.pl-intro-text h2 { font-family: var(--font-h); font-size: 32px; font-weight: 600; margin-bottom: 16px; line-height: 1.15; }
+.pl-intro-text p { font-size: 15px; color: var(--text-sec); font-family: var(--font-b); line-height: 1.7; }
+
+.pl-steps { padding: 64px 24px; background: var(--white); border-bottom: 1px solid var(--divider); }
+.pl-steps-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 32px; margin-top: 28px; }
+.pl-step { padding: 24px; border: 1px solid var(--divider); }
+.pl-step .step-num { font-family: var(--font-h); font-size: 28px; font-weight: 700; color: var(--accent); margin-bottom: 10px; }
+.pl-step h4 { font-family: var(--font-b); font-size: 14px; font-weight: 600; margin-bottom: 8px; color: var(--text); }
+.pl-step p { font-size: 13px; color: var(--text-sec); font-family: var(--font-b); line-height: 1.6; }
+
+.pl-features { padding: 56px 24px; background: var(--bg); border-bottom: 1px solid var(--divider); }
+.pl-features-inner { max-width: var(--max); margin: 0 auto; display: grid; grid-template-columns: 1fr 1fr; gap: 64px; }
+.pl-features ul { list-style: none; padding: 0; margin-top: 16px; }
+.pl-features ul li { font-size: 14px; color: var(--text-sec); font-family: var(--font-b); padding: 9px 0; border-bottom: 1px solid var(--divider); line-height: 1.5; }
+.pl-features ul li:last-child { border-bottom: none; }
+
+.pl-numbers { padding: 56px 24px; background: var(--white); border-bottom: 1px solid var(--divider); }
+.pl-numbers-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-top: 24px; max-width: 680px; }
+.pl-number-item dt { font-family: var(--font-b); font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-sec); margin-bottom: 4px; }
+.pl-number-item dd { font-family: var(--font-b); font-size: 15px; color: var(--text); margin: 0; }
+
+.pl-cta-line { padding: 32px 24px 0; background: var(--white); font-family: var(--font-b); font-size: 14px; color: var(--text-sec); }
+.pl-cta-line a { color: var(--accent); text-decoration: none; font-weight: 500; }
+
+/* ── PAGE 11: POLICIES ── */
+.pol-header { padding: 48px 24px 0; background: var(--white); }
+.pol-header h1 { font-family: var(--font-h); font-size: 40px; font-weight: 600; margin-bottom: 24px; }
+.pol-tab-nav { display: flex; border-bottom: 1px solid var(--divider); }
+.pol-tab-btn { font-family: var(--font-b); font-size: 14px; font-weight: 500; padding: 12px 20px; background: none; border: none; border-bottom: 2px solid transparent; cursor: pointer; color: var(--text-sec); white-space: nowrap; }
+.pol-tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+.pol-body { padding: 48px 24px 64px; background: var(--bg); }
+.pol-content { max-width: 760px; display: none; }
+.pol-content.active { display: block; }
+.pol-section { margin-bottom: 40px; }
+.pol-section h3 { font-family: var(--font-b); font-size: 13px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text); margin-bottom: 16px; padding-bottom: 10px; border-bottom: 1px solid var(--divider); }
+.pol-section p { font-size: 14px; color: var(--text-sec); font-family: var(--font-b); line-height: 1.75; margin-bottom: 10px; }
+.pol-section p:last-child { margin-bottom: 0; }
+
+/* ── PAGE 12: LOGIN ── */
+.login-page { min-height: 70vh; display: flex; align-items: center; justify-content: center; padding: 48px 24px; background: var(--bg); }
+.login-box { width: 100%; max-width: 400px; }
+.login-box h1 { font-family: var(--font-h); font-size: 34px; font-weight: 600; margin-bottom: 28px; color: var(--text); }
+.login-divider { display: flex; align-items: center; gap: 12px; margin: 20px 0; }
+.login-divider::before, .login-divider::after { content: ''; flex: 1; height: 1px; background: var(--divider); }
+.login-divider span { font-size: 12px; color: var(--text-sec); font-family: var(--font-b); }
+.login-guest-note { margin-top: 16px; font-size: 13px; color: var(--text-sec); font-family: var(--font-b); text-align: center; }
+.forgot-link { font-size: 12px; color: var(--accent); text-decoration: none; font-family: var(--font-b); margin-top: 6px; display: inline-block; }
+.forgot-link:hover { text-decoration: underline; }
+
+/* ── PAGE 13: CART ── */
+.cart-page { padding: 40px 24px 64px; }
+.cart-inner { max-width: var(--max); margin: 0 auto; display: grid; grid-template-columns: 1fr 360px; gap: 48px; }
+.cart-title { font-family: var(--font-h); font-size: 36px; font-weight: 600; margin-bottom: 28px; color: var(--text); grid-column: 1/-1; }
+.cart-table { width: 100%; border-collapse: collapse; font-family: var(--font-b); font-size: 14px; }
+.cart-table th { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-sec); font-weight: 600; padding: 0 12px 12px; border-bottom: 1px solid var(--divider); text-align: left; }
+.cart-table th:last-child, .cart-table th:nth-child(4), .cart-table th:nth-child(5), .cart-table th:nth-child(6) { text-align: right; }
+.cart-table td { padding: 18px 12px; border-bottom: 1px solid var(--divider); vertical-align: middle; color: var(--text); }
+.cart-table td:nth-child(4), .cart-table td:nth-child(5), .cart-table td:nth-child(6) { text-align: right; }
+.cart-table td:last-child { text-align: right; }
+.cart-prod-cell { display: flex; align-items: center; gap: 14px; }
+.cart-prod-img { width: 64px; height: 64px; border: 1px solid var(--divider); display: flex; align-items: center; justify-content: center; font-family: var(--font-m); font-size: 9px; color: var(--text-sec); flex-shrink: 0; }
+.cart-prod-name { font-size: 14px; font-weight: 500; }
+.cart-prod-code { font-family: var(--font-m); font-size: 11px; color: var(--text-sec); margin-top: 3px; }
+.cart-qty { width: 56px; border: 1px solid var(--divider); padding: 6px 8px; text-align: center; font-family: var(--font-b); font-size: 13px; }
+.cart-qty:focus { outline: 1px solid var(--accent); }
+.cart-remove { color: var(--text-sec); font-size: 18px; text-decoration: none; background: none; border: none; cursor: pointer; line-height: 1; padding: 0; }
+.cart-remove:hover { color: var(--text); }
+.cart-empty { padding: 48px 0; font-size: 15px; color: var(--text-sec); font-family: var(--font-b); }
+.cart-empty a { color: var(--accent); text-decoration: none; font-weight: 500; }
+.cart-summary { align-self: start; padding: 28px 0; border-top: 1px solid var(--divider); }
+.cart-summary-row { display: flex; justify-content: space-between; font-size: 14px; font-family: var(--font-b); color: var(--text-sec); margin-bottom: 12px; }
+.cart-summary-row.total { font-size: 16px; font-weight: 600; color: var(--text); padding-top: 14px; border-top: 1px solid var(--divider); margin-top: 14px; }
+.cart-ws-note { margin-top: 14px; font-size: 12px; color: var(--text-sec); font-family: var(--font-b); }
+.cart-ws-note a { color: var(--accent); text-decoration: none; font-weight: 500; }
+
+/* ── CHECKOUT PAGES ── */
+.checkout-progress { padding: 20px 24px; background: var(--white); border-bottom: 1px solid var(--divider); }
+.checkout-progress-inner { max-width: var(--max); margin: 0 auto; display: flex; align-items: center; gap: 8px; font-family: var(--font-b); font-size: 13px; color: var(--text-sec); }
+.checkout-progress-inner span { padding: 0 4px; }
+.progress-step { color: var(--text-sec); }
+.progress-step.active { color: var(--accent); font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
+.progress-sep { color: var(--divider); font-size: 16px; }
+
+.checkout-body { padding: 40px 24px 64px; }
+.checkout-inner { max-width: var(--max); margin: 0 auto; display: grid; grid-template-columns: 1fr 380px; gap: 48px; }
+.checkout-form-label { font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; font-weight: 700; font-family: var(--font-b); color: var(--text); margin: 28px 0 14px; padding-bottom: 10px; border-bottom: 1px solid var(--divider); }
+.checkout-form-label:first-child { margin-top: 0; }
+.shipping-opts { display: flex; flex-direction: column; gap: 10px; margin-bottom: 4px; }
+.shipping-opt { display: flex; align-items: flex-start; gap: 12px; padding: 14px 16px; border: 1px solid var(--divider); cursor: pointer; font-family: var(--font-b); font-size: 14px; }
+.shipping-opt input[type=radio] { accent-color: var(--accent); margin-top: 2px; flex-shrink: 0; }
+.shipping-opt-text { }
+.shipping-opt-name { font-weight: 500; color: var(--text); }
+.shipping-opt-desc { font-size: 12px; color: var(--text-sec); margin-top: 2px; }
+.shipping-opt.selected { border-color: var(--accent); }
+.checkout-return-link { display: inline-block; font-size: 13px; color: var(--text-sec); text-decoration: none; margin-top: 14px; font-family: var(--font-b); }
+.checkout-return-link:hover { color: var(--accent); }
+
+.checkout-summary { align-self: start; border-left: 1px solid var(--divider); padding-left: 40px; }
+.checkout-summary-title { font-family: var(--font-b); font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; font-weight: 700; color: var(--text); margin-bottom: 18px; }
+.checkout-item { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 16px; padding-bottom: 16px; border-bottom: 1px solid var(--divider); }
+.checkout-item-img { width: 52px; height: 52px; border: 1px solid var(--divider); display: flex; align-items: center; justify-content: center; font-family: var(--font-m); font-size: 8px; color: var(--text-sec); flex-shrink: 0; }
+.checkout-item-info { flex: 1; }
+.checkout-item-name { font-size: 13px; font-weight: 500; font-family: var(--font-b); }
+.checkout-item-detail { font-size: 11px; color: var(--text-sec); font-family: var(--font-b); margin-top: 2px; }
+.checkout-item-price { font-size: 13px; font-family: var(--font-b); font-weight: 500; }
+.checkout-sum-rows { margin-top: 4px; }
+.checkout-sum-row { display: flex; justify-content: space-between; font-size: 13px; font-family: var(--font-b); color: var(--text-sec); padding: 8px 0; border-bottom: 1px solid var(--divider); }
+.checkout-sum-row.total { font-size: 15px; font-weight: 600; color: var(--text); border-bottom: none; padding-top: 14px; }
+
+.payment-card-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.billing-same { display: flex; align-items: center; gap: 10px; font-size: 14px; font-family: var(--font-b); color: var(--text); margin-bottom: 16px; }
+.billing-same input { accent-color: var(--accent); }
+.billing-address-fields { display: none; }
+.billing-address-fields.visible { display: block; }
+
+/* PAGE 16: CONFIRMED */
+.confirmed-page { padding: 64px 24px; background: var(--bg); min-height: 60vh; display: flex; flex-direction: column; align-items: center; }
+.confirmed-inner { max-width: 600px; width: 100%; }
+.confirmed-inner h1 { font-family: var(--font-h); font-size: 44px; font-weight: 600; margin-bottom: 12px; color: var(--text); }
+.confirmed-inner .confirmed-sub { font-size: 16px; color: var(--text-sec); font-family: var(--font-b); margin-bottom: 36px; }
+.confirmed-details { border: 1px solid var(--divider); background: var(--white); padding: 24px; margin-bottom: 28px; }
+.confirmed-detail-row { display: flex; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--divider); font-family: var(--font-b); font-size: 14px; }
+.confirmed-detail-row:last-child { border-bottom: none; }
+.confirmed-detail-row dt { color: var(--text-sec); min-width: 200px; }
+.confirmed-detail-row dd { color: var(--text); margin: 0; }
+.confirmed-detail-row dd.mono { font-family: var(--font-m); font-size: 13px; }
+.confirmed-links { display: flex; gap: 20px; flex-wrap: wrap; }
+
+@media(max-width:900px){
+  .pg-methods-grid { grid-template-columns: repeat(2,1fr); }
+  .pl-intro-inner { grid-template-columns: 1fr; }
+  .pl-steps-grid { grid-template-columns: repeat(2,1fr); }
+  .pl-features-inner { grid-template-columns: 1fr; }
+  .pl-numbers-grid { grid-template-columns: 1fr; }
+  .cart-inner { grid-template-columns: 1fr; }
+  .cart-title { grid-column: 1; }
+  .checkout-inner { grid-template-columns: 1fr; }
+  .checkout-summary { border-left: none; padding-left: 0; border-top: 1px solid var(--divider); padding-top: 28px; }
+}
+</style>
+</head>
+<body>
+
+<!-- ══ PAGE TAB SWITCHER ══ -->
+<div id="page-tabs">
+  <button class="active" onclick="showPage('home',this)">1 · Homepage</button>
+  <button onclick="showPage('collection',this)">2 · Collection</button>
+  <button onclick="showPage('pdp-guest',this)">3 · PDP — Guest</button>
+  <button onclick="showPage('pdp-wholesale',this)">4 · PDP — Wholesale</button>
+  <button onclick="showPage('about',this)">5 · About</button>
+  <button onclick="showPage('blog',this)">6 · Blog</button>
+  <button onclick="showPage('contact',this)">7 · Contact</button>
+  <button onclick="showPage('wholesale-form',this)">8 · Wholesale Form</button>
+  <button onclick="showPage('print-guide',this)">9 · Print Guide</button>
+  <button onclick="showPage('private-label',this)">10 · Private Label</button>
+  <button onclick="showPage('policies',this)">11 · Policies</button>
+  <button onclick="showPage('login',this)">12 · Log In</button>
+  <button onclick="showPage('cart',this)">13 · Cart</button>
+  <button onclick="showPage('checkout-shipping',this)">14 · Checkout — Shipping</button>
+  <button onclick="showPage('checkout-payment',this)">15 · Checkout — Payment</button>
+  <button onclick="showPage('checkout-confirmed',this)">16 · Checkout — Confirmed</button>
+</div>
+
+<!-- ══════════════════════════════════════════ -->
+<!-- PAGE 1: HOMEPAGE -->
+<!-- ══════════════════════════════════════════ -->
+<div class="page active" id="home">
+
+  <!-- ANNOUNCEMENT BAR -->
+  <div class="ann-bar">
+    Wholesale Blank Apparel &nbsp;·&nbsp; Serving 2,000+ US Businesses &nbsp;·&nbsp; Same-Day Shipping from Dallas, TX &nbsp;·&nbsp; (214) 272-7213
+  </div>
+
+  <!-- NAVIGATION -->
+  <div class="nav-wrap">
+    <nav class="nav">
+      <a href="#" class="nav-logo">AF Blanks</a>
+      <div class="nav-center">
+        <a href="#">Shop All</a>
+        <a href="#">T-Shirts</a>
+        <a href="#">Hoodies</a>
+        <a href="#">New</a>
+        <div class="nav-dropdown">
+          <span>Resources ▾</span>
+          <div class="dropdown-menu">
+            <a href="#">About Us</a>
+            <a href="#">Style Sheets</a>
+            <a href="#">Product Specs</a>
+            <a href="#">Print Guide</a>
+            <a href="#">Customer Reviews</a>
+            <a href="#">Private Label</a>
+            <a href="#">Blog</a>
+            <a href="#">Contact Us</a>
+          </div>
+        </div>
+      </div>
+      <div class="nav-right">
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        <a href="#">Log In</a>
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
+      </div>
+    </nav>
+  </div>
+
+  <!-- S1: HERO -->
+  <section class="hero-section">
+    <div class="hero-inner">
+      <div>
+        <h1 class="hero-headline">Premium Blank Apparel. Wholesale Prices. Ships Same Day.</h1>
+        <p class="hero-sub">No minimums. No markups. Delivered fast from Dallas, TX.</p>
+        <div class="hero-ctas">
+          <a href="#" class="btn-primary">Shop All →</a>
+          <a href="#" class="btn-outline">Apply for Wholesale Account</a>
+        </div>
+      </div>
+      <div class="photo-placeholder hero-image">[Product Stack Photo]</div>
+    </div>
+  </section>
+
+  <!-- S2: TRUST + WHOLESALE PROMPT -->
+  <section class="trust-section">
+    <div class="container">
+      <div class="trust-stats">
+        <div class="trust-stat">
+          <span class="num">2,000+</span>
+          <span class="lbl">Wholesale Accounts</span>
+        </div>
+        <div class="trust-stat">
+          <span class="num">15</span>
+          <span class="lbl">Years in Business</span>
+        </div>
+        <div class="trust-stat">
+          <span class="num">Same-Day</span>
+          <span class="lbl">Fulfillment by 2PM CT</span>
+        </div>
+        <div class="trust-stat">
+          <span class="num">No Min.</span>
+          <span class="lbl">Order Quantity</span>
+        </div>
+      </div>
+      <div class="trust-wholesale-row">
+        Create a wholesale account to get better prices on everything.
+        <a href="#" class="btn-outline-sm">Apply for Wholesale Account →</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- S3: CATEGORY GRID -->
+  <section class="cat-section">
+    <div class="container">
+      <div class="section-label">Shop by Category</div>
+      <div class="cat-grid">
+        <div class="cat-card">
+          <div class="photo-placeholder cat-img">[Photo — T-Shirts]</div>
+          <div class="cat-name">T-Shirts</div>
+        </div>
+        <div class="cat-card">
+          <div class="photo-placeholder cat-img">[Photo — Sweatshirts]</div>
+          <div class="cat-name">Sweatshirts</div>
+        </div>
+        <div class="cat-card">
+          <div class="photo-placeholder cat-img">[Photo — Hoodies]</div>
+          <div class="cat-name">Hoodies</div>
+        </div>
+        <div class="cat-card">
+          <div class="photo-placeholder cat-img">[Photo — New Arrivals]</div>
+          <div class="cat-name">New Arrivals</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- S4: CERTIFICATIONS -->
+  <section class="cert-section">
+    <div class="container">
+      <div class="section-label">Certifications &amp; Compliance</div>
+      <div class="cert-grid">
+        <div class="cert-item">
+          <h4>ISO 9000</h4>
+          <p>Consistent production standards, run to run.</p>
+        </div>
+        <div class="cert-item">
+          <h4>Oeko-Tex Standard 100</h4>
+          <p>Every component tested. Safe for sensitive skin.</p>
+        </div>
+        <div class="cert-item">
+          <h4>GOTS Certified</h4>
+          <p>Organic cotton verified field to finished product.</p>
+        </div>
+        <div class="cert-item">
+          <h4>WRAP Certified</h4>
+          <p>Ethical labor, legal compliance, safe working conditions.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- S5: WHOLESALE CTA BAND -->
+  <section class="cta-band">
+    <div class="container">
+      <h2>Better Prices. One Application.</h2>
+      <p>Apply for a wholesale account and get lower prices on everything we carry.</p>
+      <a href="#" class="btn-white">Apply for Wholesale Account →</a>
+      <div class="signin-link">Already have an account? <a href="#">Sign in →</a></div>
+    </div>
+  </section>
+
+  <!-- FOOTER -->
+  <footer class="footer">
+    <div class="footer-inner">
+      <div class="footer-col">
+        <h4>Shop</h4>
+        <a href="#">Shop All Products</a>
+        <a href="#">T-Shirts</a>
+        <a href="#">Hoodies</a>
+        <a href="#">Sweatshirts</a>
+        <a href="#">Polos</a>
+      </div>
+      <div class="footer-col">
+        <h4>Resources</h4>
+        <a href="#">Blog</a>
+        <a href="#">Product Specs</a>
+        <a href="#">Style Sheets</a>
+        <a href="#">About Us</a>
+      </div>
+      <div class="footer-col">
+        <h4>Account</h4>
+        <a href="#">Apply for Wholesale</a>
+        <a href="#">Log In</a>
+        <a href="#">Order History</a>
+      </div>
+      <div class="footer-col">
+        <h4>Support</h4>
+        <a href="#">Contact Us</a>
+        <a href="#">Track Order</a>
+        <a href="#">Privacy Policy</a>
+      </div>
+    </div>
+    <div class="footer-bottom">© 2026 AF Apparels. All rights reserved.</div>
+  </footer>
+
+</div><!-- /page home -->
+
+
+<!-- ══════════════════════════════════════════ -->
+<!-- PAGE 2: COLLECTION -->
+<!-- ══════════════════════════════════════════ -->
+<div class="page" id="collection">
+
+  <div class="ann-bar">Wholesale Blank Apparel &nbsp;·&nbsp; Serving 2,000+ US Businesses &nbsp;·&nbsp; Same-Day Shipping from Dallas, TX &nbsp;·&nbsp; (214) 272-7213</div>
+
+  <div class="nav-wrap">
+    <nav class="nav">
+      <a href="#" class="nav-logo">AF Blanks</a>
+      <div class="nav-center">
+        <a href="#">Shop All</a><a href="#">T-Shirts</a><a href="#">Hoodies</a><a href="#">New</a>
+        <div class="nav-dropdown"><span>Resources ▾</span><div class="dropdown-menu"><a href="#">About Us</a><a href="#">Style Sheets</a><a href="#">Product Specs</a><a href="#">Print Guide</a><a href="#">Customer Reviews</a><a href="#">Private Label</a><a href="#">Blog</a><a href="#">Contact Us</a></div></div>
+      </div>
+      <div class="nav-right">
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        <a href="#">Log In</a>
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
+      </div>
+    </nav>
+  </div>
+
+  <div class="coll-header">
+    <div class="container"><h1>All Products</h1></div>
+  </div>
+
+  <!-- Active Filters -->
+  <div class="container">
+    <div class="active-filters">
+      <div class="filter-pill">In Stock <button>×</button></div>
+      <div class="filter-pill">T-Shirts <button>×</button></div>
+      <div class="filter-pill">Navy <button>×</button></div>
+      <button class="clear-all">Clear All</button>
+    </div>
+  </div>
+
+  <div style="max-width:var(--max);margin:0 auto;padding:0 24px;">
+    <div class="coll-body">
+
+      <!-- FILTER SIDEBAR -->
+      <div class="filter-sidebar">
+
+        <div class="filter-group">
+          <h4>Gender</h4>
+          <label><input type="checkbox"> Men's</label>
+          <label><input type="checkbox"> Women's</label>
+          <label><input type="checkbox"> Youth</label>
+          <label><input type="checkbox"> Unisex</label>
+        </div>
+
+        <div class="filter-group">
+          <h4>Availability</h4>
+          <label><input type="checkbox" checked> In Stock Only</label>
+        </div>
+
+        <div class="filter-group">
+          <h4>Category</h4>
+          <label><input type="checkbox" checked> All Products</label>
+          <label><input type="checkbox"> T-Shirts</label>
+          <label><input type="checkbox"> Hoodies</label>
+          <label><input type="checkbox"> Sweatshirts</label>
+          <label><input type="checkbox"> Polos</label>
+          <label><input type="checkbox"> Women's</label>
+          <label><input type="checkbox"> Youth</label>
+        </div>
+
+        <div class="filter-group">
+          <h4>Color</h4>
+          <div class="color-swatches">
+            <div class="swatch-dot" data-color="White" style="background:#fff;border:1px solid #ccc"></div>
+            <div class="swatch-dot" data-color="Black" style="background:#111"></div>
+            <div class="swatch-dot" data-color="Navy" style="background:#1C3557"></div>
+            <div class="swatch-dot" data-color="Heather Grey" style="background:#b0b0b0"></div>
+            <div class="swatch-dot" data-color="Red" style="background:#c0392b"></div>
+            <div class="swatch-dot" data-color="Forest Green" style="background:#2d6a4f"></div>
+            <div class="swatch-dot" data-color="Royal Blue" style="background:#2563eb"></div>
+            <div class="swatch-dot" data-color="Sand" style="background:#d4b896"></div>
+            <div class="swatch-dot" data-color="Maroon" style="background:#800020"></div>
+            <div class="swatch-dot" data-color="Charcoal" style="background:#444"></div>
+            <div class="swatch-dot" data-color="Ash" style="background:#ccc;border:1px solid #aaa"></div>
+            <div class="swatch-dot" data-color="Natural" style="background:#f5e6d0"></div>
+          </div>
+        </div>
+
+        <div class="filter-group">
+          <h4>Size</h4>
+          <div class="size-chips">
+            <div class="size-chip">XS</div>
+            <div class="size-chip active">S</div>
+            <div class="size-chip active">M</div>
+            <div class="size-chip active">L</div>
+            <div class="size-chip active">XL</div>
+            <div class="size-chip">2XL</div>
+            <div class="size-chip">3XL</div>
+            <div class="size-chip">4XL</div>
+            <div class="size-chip">5XL</div>
+          </div>
+        </div>
+
+        <div class="filter-group">
+          <h4>Price Range</h4>
+          <input type="range" min="0" max="500" style="width:100%;accent-color:var(--accent)">
+          <div class="price-range-wrap">
+            <input type="text" placeholder="$0" value="$0">
+            <span style="font-size:12px;color:var(--text-sec)">–</span>
+            <input type="text" placeholder="$500" value="$500">
+            <button class="filter-btn">Apply</button>
+          </div>
+        </div>
+
+        <div class="filter-group">
+          <h4>Min. Inventory</h4>
+          <input type="range" min="0" max="200" style="width:100%;accent-color:var(--accent)">
+          <div style="font-size:12px;color:var(--text-sec);margin-top:6px;font-family:var(--font-b)">≥ 0 units per product</div>
+        </div>
+
+        <div class="filter-group">
+          <h4>Product Code</h4>
+          <div class="code-input-row">
+            <input type="text" placeholder="e.g. 1001">
+            <button class="filter-btn">Go</button>
+          </div>
+        </div>
+
+      </div><!-- /filter sidebar -->
+
+      <!-- PRODUCT GRID -->
+      <div class="product-grid-area">
+        <div class="sort-bar">
+          <span>Sort:</span>
+          <button class="sort-opt active">Featured</button>
+          <button class="sort-opt">Price: Low–High</button>
+          <button class="sort-opt">Price: High–Low</button>
+          <button class="sort-opt">New Arrivals</button>
+        </div>
+        <div class="prod-grid">
+          <div class="prod-card">
+            <div class="photo-placeholder prod-img">[Product Image]</div>
+            <div class="prod-name">Heavyweight Cotton Tee</div>
+            <div class="prod-code">SKU: 1001</div>
+          </div>
+          <div class="prod-card">
+            <div class="photo-placeholder prod-img">[Product Image]</div>
+            <div class="prod-name">Midweight Fleece Crewneck</div>
+            <div class="prod-code">SKU: 2201</div>
+          </div>
+          <div class="prod-card">
+            <div class="photo-placeholder prod-img">[Product Image]</div>
+            <div class="prod-name">Pullover Hoodie</div>
+            <div class="prod-code">SKU: 3001</div>
+          </div>
+          <div class="prod-card">
+            <div class="photo-placeholder prod-img">[Product Image]</div>
+            <div class="prod-name">Essential Polo</div>
+            <div class="prod-code">SKU: 4401</div>
+          </div>
+          <div class="prod-card">
+            <div class="photo-placeholder prod-img">[Product Image]</div>
+            <div class="prod-name">Youth Tee</div>
+            <div class="prod-code">SKU: 1050</div>
+          </div>
+          <div class="prod-card">
+            <div class="photo-placeholder prod-img">[Product Image]</div>
+            <div class="prod-name">CVC Blend Tee 65/35</div>
+            <div class="prod-code">SKU: 1020</div>
+          </div>
+          <div class="prod-card">
+            <div class="photo-placeholder prod-img">[Product Image]</div>
+            <div class="prod-name">Zip-Up Hoodie</div>
+            <div class="prod-code">SKU: 3050</div>
+          </div>
+          <div class="prod-card">
+            <div class="photo-placeholder prod-img">[Product Image]</div>
+            <div class="prod-name">Women's Relaxed Tee</div>
+            <div class="prod-code">SKU: 1080</div>
+          </div>
+          <div class="prod-card">
+            <div class="photo-placeholder prod-img">[Product Image]</div>
+            <div class="prod-name">Quarter-Zip Sweatshirt</div>
+            <div class="prod-code">SKU: 2250</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- FOOTER -->
+  <footer class="footer mt-32">
+    <div class="footer-inner">
+      <div class="footer-col"><h4>Shop</h4><a href="#">Shop All Products</a><a href="#">T-Shirts</a><a href="#">Hoodies</a><a href="#">Sweatshirts</a><a href="#">Polos</a></div>
+      <div class="footer-col"><h4>Resources</h4><a href="#">Blog</a><a href="#">Product Specs</a><a href="#">Style Sheets</a><a href="#">About Us</a></div>
+      <div class="footer-col"><h4>Account</h4><a href="#">Apply for Wholesale</a><a href="#">Log In</a><a href="#">Order History</a></div>
+      <div class="footer-col"><h4>Support</h4><a href="#">Contact Us</a><a href="#">Track Order</a><a href="#">Privacy Policy</a></div>
+    </div>
+    <div class="footer-bottom">© 2026 AF Apparels. All rights reserved.</div>
+  </footer>
+
+</div><!-- /page collection -->
+
+
+<!-- ══════════════════════════════════════════ -->
+<!-- PAGE 3: PDP — GUEST -->
+<!-- ══════════════════════════════════════════ -->
+<div class="page" id="pdp-guest">
+
+  <div class="ann-bar">Wholesale Blank Apparel &nbsp;·&nbsp; Serving 2,000+ US Businesses &nbsp;·&nbsp; Same-Day Shipping from Dallas, TX &nbsp;·&nbsp; (214) 272-7213</div>
+  <div class="nav-wrap">
+    <nav class="nav">
+      <a href="#" class="nav-logo">AF Blanks</a>
+      <div class="nav-center"><a href="#">Shop All</a><a href="#">T-Shirts</a><a href="#">Hoodies</a><a href="#">New</a><div class="nav-dropdown"><span>Resources ▾</span><div class="dropdown-menu"><a href="#">About Us</a><a href="#">Style Sheets</a><a href="#">Product Specs</a><a href="#">Print Guide</a><a href="#">Customer Reviews</a><a href="#">Private Label</a><a href="#">Blog</a><a href="#">Contact Us</a></div></div></div>
+      <div class="nav-right"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg><a href="#">Log In</a><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg></div>
+    </nav>
+  </div>
+
+  <div class="breadcrumb">
+    <a href="#">Home</a> &rsaquo; <a href="#">Collections</a> &rsaquo; <a href="#">T-Shirts</a> &rsaquo; Heavyweight Cotton Tee
+  </div>
+
+  <div class="pdp-wrap">
+    <!-- LEFT: IMAGE AREA -->
+    <div class="pdp-gallery">
+      <div class="photo-placeholder pdp-hero-img" id="guest-hero-img">[Product Image — White]</div>
+      <div class="pdp-thumbs">
+        <div class="pdp-thumb active" onclick="guestThumbClick(this,'White')">White</div>
+        <div class="pdp-thumb" onclick="guestThumbClick(this,'Black')">Black</div>
+        <div class="pdp-thumb" onclick="guestThumbClick(this,'Navy')">Navy</div>
+        <div class="pdp-thumb" onclick="guestThumbClick(this,'Heather Grey')">H.Grey</div>
+      </div>
+      <div class="pdp-gallery-links">
+        <a href="#">↓ Download Style Sheet</a>
+        <a href="#" onclick="openLightbox(); return false;">View Image Library →</a>
+      </div>
+    </div>
+
+    <!-- RIGHT: PRODUCT INFO -->
+    <div class="pdp-info">
+      <div class="pdp-code">1001</div>
+      <h1 class="pdp-title">Heavyweight Cotton Tee</h1>
+      <div class="pdp-meta">100% Heavyweight Cotton &nbsp;·&nbsp; 6.1 oz &nbsp;·&nbsp; 18 Colors</div>
+
+      <!-- WHOLESALE PROMPT (guest only) -->
+      <div class="pdp-wholesale-prompt">
+        Create a wholesale account to get lower prices. &nbsp;<a href="#">Create Account</a> &nbsp;·&nbsp; <a href="#">Log In</a>
+      </div>
+
+      <!-- COLOR SWATCHES -->
+      <div class="pdp-swatches-label">Color</div>
+      <div class="pdp-swatches" id="guest-swatches">
+        <div class="pdp-swatch active" data-name="White" style="background:#fff;border:1px solid #ccc" onclick="selectGuestColor(this,'White')"></div>
+        <div class="pdp-swatch" data-name="Black" style="background:#111" onclick="selectGuestColor(this,'Black')"></div>
+        <div class="pdp-swatch" data-name="Navy" style="background:#1C3557" onclick="selectGuestColor(this,'Navy')"></div>
+        <div class="pdp-swatch" data-name="Heather Grey" style="background:#b0b0b0" onclick="selectGuestColor(this,'Heather Grey')"></div>
+        <div class="pdp-swatch" data-name="Red" style="background:#c0392b" onclick="selectGuestColor(this,'Red')"></div>
+        <div class="pdp-swatch" data-name="Forest Green" style="background:#2d6a4f" onclick="selectGuestColor(this,'Forest Green')"></div>
+        <div class="pdp-swatch" data-name="Royal Blue" style="background:#2563eb" onclick="selectGuestColor(this,'Royal Blue')"></div>
+        <div class="pdp-swatch" data-name="Sand" style="background:#d4b896" onclick="selectGuestColor(this,'Sand')"></div>
+        <div class="pdp-swatch" data-name="Maroon" style="background:#800020" onclick="selectGuestColor(this,'Maroon')"></div>
+        <div class="pdp-swatch" data-name="Charcoal" style="background:#444" onclick="selectGuestColor(this,'Charcoal')"></div>
+      </div>
+
+      <!-- BULK ORDERING GRID -->
+      <div class="bulk-grid-label">Select Sizes &amp; Quantities</div>
+      <table class="bulk-grid" id="guest-bulk-table">
+        <thead>
+          <tr>
+            <th style="width:120px">Color</th>
+            <th>S</th><th>M</th><th>L</th><th>XL</th><th>2XL</th><th>3XL</th>
+            <th>Total</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr data-color="White">
+            <td><div class="color-row-head"><span class="color-dot-sm" style="background:#fff;border:1px solid #ccc"></span> White</div></td>
+            <td><span class="stock-info">142 in stock</span><span class="price-info">$4.20</span><input class="qty-input guest-qty" type="number" min="0" value="0" data-row="White" data-size="S"></td>
+            <td><span class="stock-info">218 in stock</span><span class="price-info">$4.20</span><input class="qty-input guest-qty" type="number" min="0" value="0" data-row="White" data-size="M"></td>
+            <td><span class="stock-info">189 in stock</span><span class="price-info">$4.20</span><input class="qty-input guest-qty" type="number" min="0" value="0" data-row="White" data-size="L"></td>
+            <td><span class="stock-info">97 in stock</span><span class="price-info">$4.20</span><input class="qty-input guest-qty" type="number" min="0" value="0" data-row="White" data-size="XL"></td>
+            <td><span class="stock-info">54 in stock</span><span class="price-info">$4.80</span><input class="qty-input guest-qty" type="number" min="0" value="0" data-row="White" data-size="2XL"></td>
+            <td><span class="stock-info">31 in stock</span><span class="price-info">$5.40</span><input class="qty-input guest-qty" type="number" min="0" value="0" data-row="White" data-size="3XL"></td>
+            <td><div class="row-total">Qty: <span class="row-qty-White">0</span><br>$<span class="row-price-White">0.00</span></div></td>
+            <td><button class="btn-outline row-atc">Add to Cart</button></td>
+          </tr>
+          <tr data-color="Black">
+            <td><div class="color-row-head"><span class="color-dot-sm" style="background:#111"></span> Black</div></td>
+            <td><span class="stock-info">208 in stock</span><span class="price-info">$4.20</span><input class="qty-input guest-qty" type="number" min="0" value="0" data-row="Black" data-size="S"></td>
+            <td><span class="stock-info">315 in stock</span><span class="price-info">$4.20</span><input class="qty-input guest-qty" type="number" min="0" value="0" data-row="Black" data-size="M"></td>
+            <td><span class="stock-info">277 in stock</span><span class="price-info">$4.20</span><input class="qty-input guest-qty" type="number" min="0" value="0" data-row="Black" data-size="L"></td>
+            <td><span class="stock-info">184 in stock</span><span class="price-info">$4.20</span><input class="qty-input guest-qty" type="number" min="0" value="0" data-row="Black" data-size="XL"></td>
+            <td><span class="stock-info">88 in stock</span><span class="price-info">$4.80</span><input class="qty-input guest-qty" type="number" min="0" value="0" data-row="Black" data-size="2XL"></td>
+            <td><span class="stock-info">42 in stock</span><span class="price-info">$5.40</span><input class="qty-input guest-qty" type="number" min="0" value="0" data-row="Black" data-size="3XL"></td>
+            <td><div class="row-total">Qty: <span class="row-qty-Black">0</span><br>$<span class="row-price-Black">0.00</span></div></td>
+            <td><button class="btn-outline row-atc">Add to Cart</button></td>
+          </tr>
+          <tr data-color="Navy">
+            <td><div class="color-row-head"><span class="color-dot-sm" style="background:#1C3557"></span> Navy</div></td>
+            <td><span class="stock-info">174 in stock</span><span class="price-info">$4.20</span><input class="qty-input guest-qty" type="number" min="0" value="0" data-row="Navy" data-size="S"></td>
+            <td><span class="stock-info">241 in stock</span><span class="price-info">$4.20</span><input class="qty-input guest-qty" type="number" min="0" value="0" data-row="Navy" data-size="M"></td>
+            <td><span class="stock-info">201 in stock</span><span class="price-info">$4.20</span><input class="qty-input guest-qty" type="number" min="0" value="0" data-row="Navy" data-size="L"></td>
+            <td><span class="stock-info">112 in stock</span><span class="price-info">$4.20</span><input class="qty-input guest-qty" type="number" min="0" value="0" data-row="Navy" data-size="XL"></td>
+            <td><span class="stock-info">60 in stock</span><span class="price-info">$4.80</span><input class="qty-input guest-qty" type="number" min="0" value="0" data-row="Navy" data-size="2XL"></td>
+            <td><span class="stock-info">28 in stock</span><span class="price-info">$5.40</span><input class="qty-input guest-qty" type="number" min="0" value="0" data-row="Navy" data-size="3XL"></td>
+            <td><div class="row-total">Qty: <span class="row-qty-Navy">0</span><br>$<span class="row-price-Navy">0.00</span></div></td>
+            <td><button class="btn-outline row-atc">Add to Cart</button></td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="grand-total-row">
+        <span>Grand Total Qty: <strong id="guest-grand-qty">0</strong></span>
+        <span>Grand Total Price: <strong>$<span id="guest-grand-price">0.00</span></strong></span>
+      </div>
+      <button class="btn-primary atc-all">Add to Cart — All Selections</button>
+      <div class="no-moq">No minimum order quantity</div>
+
+    </div>
+  </div>
+
+  <!-- PDP TABS -->
+  <div class="pdp-tabs-wrap">
+    <div class="pdp-tab-nav">
+      <button class="pdp-tab-btn active" onclick="switchTab(this,'tab-desc-g')">Description</button>
+      <button class="pdp-tab-btn" onclick="switchTab(this,'tab-specs-g')">Specifications</button>
+      <button class="pdp-tab-btn" onclick="switchTab(this,'tab-size-g')">Size Chart</button>
+      <button class="pdp-tab-btn" onclick="switchTab(this,'tab-reviews-g')">Reviews</button>
+    </div>
+    <div class="pdp-tab-content active" id="tab-desc-g">
+      <p style="font-size:15px;line-height:1.75;color:var(--text-sec);max-width:660px;font-family:var(--font-b)">The AF Blanks Heavyweight Cotton Tee is built for print shops that can't afford a blank that moves. It's 6.1 oz 100% ring-spun cotton — tight enough to hold DTF, screen print, and embroidery without distortion. Double-needle stitching throughout. A straight body, a reinforced collar, and a consistency that holds up run after run. 18 colorways. Zero surprises.</p>
+    </div>
+    <div class="pdp-tab-content" id="tab-specs-g">
+      <table class="spec-table" style="max-width:560px">
+        <tr><td>Fabric</td><td>100% Ring-Spun Cotton</td></tr>
+        <tr><td>Weight</td><td>6.1 oz/yd²</td></tr>
+        <tr><td>Construction</td><td>Tubular body, ribbed collar, double-needle sleeve and bottom hem</td></tr>
+        <tr><td>Collar</td><td>Tear-away label, reinforced set-in collar</td></tr>
+        <tr><td>Care</td><td>Machine wash cold, tumble dry low</td></tr>
+        <tr><td>Origin</td><td>Made in Honduras</td></tr>
+        <tr><td>Colors Available</td><td>18</td></tr>
+        <tr><td>Sizes</td><td>XS–5XL</td></tr>
+      </table>
+    </div>
+    <div class="pdp-tab-content" id="tab-size-g">
+      <table class="size-table" style="max-width:560px">
+        <thead>
+          <tr><th>Size</th><th>S</th><th>M</th><th>L</th><th>XL</th><th>2XL</th><th>3XL</th><th>4XL</th><th>5XL</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Chest (in)</td><td>18</td><td>20</td><td>22</td><td>24</td><td>26</td><td>28</td><td>30</td><td>32</td></tr>
+          <tr><td>Length (in)</td><td>27</td><td>28</td><td>29</td><td>30</td><td>31</td><td>32</td><td>33</td><td>34</td></tr>
+          <tr><td>Sleeve (in)</td><td>8</td><td>8.5</td><td>9</td><td>9.5</td><td>10</td><td>10.5</td><td>11</td><td>11.5</td></tr>
+        </tbody>
+      </table>
+      <p style="font-size:12px;color:var(--text-sec);margin-top:12px;font-family:var(--font-b)">Measurements taken flat. Allow ±1" variance.</p>
+    </div>
+    <div class="pdp-tab-content" id="tab-reviews-g">
+      <div class="review-summary">
+        <div class="review-num">4.8</div>
+        <div>
+          <div class="review-stars">★★★★★</div>
+          <div class="review-count">84 reviews</div>
+        </div>
+      </div>
+      <div class="review-card">
+        <div class="rev-stars">★★★★★</div>
+        <div class="rev-author">Marcus T. — Print Shop Owner, Austin TX</div>
+        <div class="rev-date">May 12, 2026</div>
+        <div class="rev-body">Consistent weight and dye absorption across every colorway. We run 10,000+ blanks a month and AF is our go-to. Zero rejection rate on prints.</div>
+      </div>
+      <div class="review-card">
+        <div class="rev-stars">★★★★★</div>
+        <div class="rev-author">Jennifer K. — DTF Decorator, Atlanta GA</div>
+        <div class="rev-date">April 29, 2026</div>
+        <div class="rev-body">The 6.1oz weight is exactly what our DTF transfers need. No bleed, no ghosting, clean edges every time. Packaging is solid too — no damage in transit.</div>
+      </div>
+      <div class="review-card">
+        <div class="rev-stars">★★★★☆</div>
+        <div class="rev-author">Darnell R. — Promo Distributor, Chicago IL</div>
+        <div class="rev-date">April 18, 2026</div>
+        <div class="rev-body">Great blank overall. 3XL sizing runs slightly different from 2XL but our clients haven't flagged it. Same-day shipping is legit — ordered at 11am, shipped same day.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- LIGHTBOX -->
+  <div class="lightbox" id="lightbox">
+    <div class="lightbox-inner">
+      <button class="lightbox-close" onclick="closeLightbox()">×</button>
+      <h3 style="font-family:var(--font-h);font-size:22px;font-weight:600">Image Library — Heavyweight Cotton Tee</h3>
+      <p style="font-size:13px;color:var(--text-sec);font-family:var(--font-b);margin-top:6px">All colorway flat lays available for download.</p>
+      <div class="lightbox-grid">
+        <div class="lb-item"><div class="photo-placeholder lb-img">[White Flat]</div><p>White</p><a href="#">↓ Download</a></div>
+        <div class="lb-item"><div class="photo-placeholder lb-img">[Black Flat]</div><p>Black</p><a href="#">↓ Download</a></div>
+        <div class="lb-item"><div class="photo-placeholder lb-img">[Navy Flat]</div><p>Navy</p><a href="#">↓ Download</a></div>
+        <div class="lb-item"><div class="photo-placeholder lb-img">[H.Grey Flat]</div><p>Heather Grey</p><a href="#">↓ Download</a></div>
+        <div class="lb-item"><div class="photo-placeholder lb-img">[Red Flat]</div><p>Red</p><a href="#">↓ Download</a></div>
+        <div class="lb-item"><div class="photo-placeholder lb-img">[Forest Flat]</div><p>Forest Green</p><a href="#">↓ Download</a></div>
+        <div class="lb-item"><div class="photo-placeholder lb-img">[Royal Flat]</div><p>Royal Blue</p><a href="#">↓ Download</a></div>
+        <div class="lb-item"><div class="photo-placeholder lb-img">[Sand Flat]</div><p>Sand</p><a href="#">↓ Download</a></div>
+      </div>
+    </div>
+  </div>
+
+  <footer class="footer mt-32">
+    <div class="footer-inner">
+      <div class="footer-col"><h4>Shop</h4><a href="#">Shop All Products</a><a href="#">T-Shirts</a><a href="#">Hoodies</a><a href="#">Sweatshirts</a><a href="#">Polos</a></div>
+      <div class="footer-col"><h4>Resources</h4><a href="#">Blog</a><a href="#">Product Specs</a><a href="#">Style Sheets</a><a href="#">About Us</a></div>
+      <div class="footer-col"><h4>Account</h4><a href="#">Apply for Wholesale</a><a href="#">Log In</a><a href="#">Order History</a></div>
+      <div class="footer-col"><h4>Support</h4><a href="#">Contact Us</a><a href="#">Track Order</a><a href="#">Privacy Policy</a></div>
+    </div>
+    <div class="footer-bottom">© 2026 AF Apparels. All rights reserved.</div>
+  </footer>
+
+</div><!-- /page pdp-guest -->
+
+
+<!-- ══════════════════════════════════════════ -->
+<!-- PAGE 4: PDP — WHOLESALE (LOGGED IN) -->
+<!-- ══════════════════════════════════════════ -->
+<div class="page" id="pdp-wholesale">
+
+  <div class="ann-bar">Wholesale Blank Apparel &nbsp;·&nbsp; Serving 2,000+ US Businesses &nbsp;·&nbsp; Same-Day Shipping from Dallas, TX &nbsp;·&nbsp; (214) 272-7213</div>
+  <div class="nav-wrap">
+    <nav class="nav">
+      <a href="#" class="nav-logo">AF Blanks</a>
+      <div class="nav-center"><a href="#">Shop All</a><a href="#">T-Shirts</a><a href="#">Hoodies</a><a href="#">New</a><div class="nav-dropdown"><span>Resources ▾</span><div class="dropdown-menu"><a href="#">About Us</a><a href="#">Style Sheets</a><a href="#">Product Specs</a><a href="#">Print Guide</a><a href="#">Customer Reviews</a><a href="#">Private Label</a><a href="#">Blog</a><a href="#">Contact Us</a></div></div></div>
+      <div class="nav-right"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg><a href="#" style="color:var(--accent);font-weight:600">My Account</a><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg></div>
+    </nav>
+  </div>
+
+  <div class="breadcrumb">
+    <a href="#">Home</a> &rsaquo; <a href="#">Collections</a> &rsaquo; <a href="#">T-Shirts</a> &rsaquo; Heavyweight Cotton Tee
+  </div>
+
+  <div class="pdp-wrap">
+    <!-- LEFT -->
+    <div class="pdp-gallery">
+      <div class="photo-placeholder pdp-hero-img" id="ws-hero-img">[Product Image — White]</div>
+      <div class="pdp-thumbs">
+        <div class="pdp-thumb active" onclick="wsThumbClick(this,'White')">White</div>
+        <div class="pdp-thumb" onclick="wsThumbClick(this,'Black')">Black</div>
+        <div class="pdp-thumb" onclick="wsThumbClick(this,'Navy')">Navy</div>
+        <div class="pdp-thumb" onclick="wsThumbClick(this,'Heather Grey')">H.Grey</div>
+      </div>
+      <div class="pdp-gallery-links">
+        <a href="#">↓ Download Style Sheet</a>
+        <a href="#" onclick="openLightbox(); return false;">View Image Library →</a>
+      </div>
+    </div>
+
+    <!-- RIGHT — WHOLESALE (no prompt, wholesale pricing) -->
+    <div class="pdp-info">
+      <div class="pdp-code">1001</div>
+      <h1 class="pdp-title">Heavyweight Cotton Tee</h1>
+      <div class="pdp-meta">100% Heavyweight Cotton &nbsp;·&nbsp; 6.1 oz &nbsp;·&nbsp; 18 Colors</div>
+      <!-- NO WHOLESALE PROMPT for logged-in users -->
+
+      <div class="pdp-swatches-label">Color</div>
+      <div class="pdp-swatches">
+        <div class="pdp-swatch active" data-name="White" style="background:#fff;border:1px solid #ccc" onclick="selectWSColor(this,'White')"></div>
+        <div class="pdp-swatch" data-name="Black" style="background:#111" onclick="selectWSColor(this,'Black')"></div>
+        <div class="pdp-swatch" data-name="Navy" style="background:#1C3557" onclick="selectWSColor(this,'Navy')"></div>
+        <div class="pdp-swatch" data-name="Heather Grey" style="background:#b0b0b0" onclick="selectWSColor(this,'Heather Grey')"></div>
+        <div class="pdp-swatch" data-name="Red" style="background:#c0392b" onclick="selectWSColor(this,'Red')"></div>
+        <div class="pdp-swatch" data-name="Forest Green" style="background:#2d6a4f" onclick="selectWSColor(this,'Forest Green')"></div>
+        <div class="pdp-swatch" data-name="Royal Blue" style="background:#2563eb" onclick="selectWSColor(this,'Royal Blue')"></div>
+        <div class="pdp-swatch" data-name="Sand" style="background:#d4b896" onclick="selectWSColor(this,'Sand')"></div>
+        <div class="pdp-swatch" data-name="Maroon" style="background:#800020" onclick="selectWSColor(this,'Maroon')"></div>
+        <div class="pdp-swatch" data-name="Charcoal" style="background:#444" onclick="selectWSColor(this,'Charcoal')"></div>
+      </div>
+
+      <!-- BULK GRID — WHOLESALE PRICES -->
+      <div class="bulk-grid-label">Select Sizes &amp; Quantities</div>
+      <table class="bulk-grid" id="ws-bulk-table">
+        <thead>
+          <tr>
+            <th style="width:120px">Color</th>
+            <th>S</th><th>M</th><th>L</th><th>XL</th><th>2XL</th><th>3XL</th>
+            <th>Total</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr data-color="White">
+            <td><div class="color-row-head"><span class="color-dot-sm" style="background:#fff;border:1px solid #ccc"></span> White</div></td>
+            <td><span class="stock-info">142 in stock</span><span class="price-info" style="color:var(--accent);font-weight:600">$2.85 WS</span><input class="qty-input ws-qty" type="number" min="0" value="0" data-row="wsWhite" data-size="S"></td>
+            <td><span class="stock-info">218 in stock</span><span class="price-info" style="color:var(--accent);font-weight:600">$2.85 WS</span><input class="qty-input ws-qty" type="number" min="0" value="0" data-row="wsWhite" data-size="M"></td>
+            <td><span class="stock-info">189 in stock</span><span class="price-info" style="color:var(--accent);font-weight:600">$2.85 WS</span><input class="qty-input ws-qty" type="number" min="0" value="0" data-row="wsWhite" data-size="L"></td>
+            <td><span class="stock-info">97 in stock</span><span class="price-info" style="color:var(--accent);font-weight:600">$2.85 WS</span><input class="qty-input ws-qty" type="number" min="0" value="0" data-row="wsWhite" data-size="XL"></td>
+            <td><span class="stock-info">54 in stock</span><span class="price-info" style="color:var(--accent);font-weight:600">$3.20 WS</span><input class="qty-input ws-qty" type="number" min="0" value="0" data-row="wsWhite" data-size="2XL"></td>
+            <td><span class="stock-info">31 in stock</span><span class="price-info" style="color:var(--accent);font-weight:600">$3.60 WS</span><input class="qty-input ws-qty" type="number" min="0" value="0" data-row="wsWhite" data-size="3XL"></td>
+            <td><div class="row-total">Qty: <span class="row-qty-wsWhite">0</span><br>$<span class="row-price-wsWhite">0.00</span></div></td>
+            <td><button class="btn-outline row-atc">Add to Cart</button></td>
+          </tr>
+          <tr data-color="Black">
+            <td><div class="color-row-head"><span class="color-dot-sm" style="background:#111"></span> Black</div></td>
+            <td><span class="stock-info">208 in stock</span><span class="price-info" style="color:var(--accent);font-weight:600">$2.85 WS</span><input class="qty-input ws-qty" type="number" min="0" value="0" data-row="wsBlack" data-size="S"></td>
+            <td><span class="stock-info">315 in stock</span><span class="price-info" style="color:var(--accent);font-weight:600">$2.85 WS</span><input class="qty-input ws-qty" type="number" min="0" value="0" data-row="wsBlack" data-size="M"></td>
+            <td><span class="stock-info">277 in stock</span><span class="price-info" style="color:var(--accent);font-weight:600">$2.85 WS</span><input class="qty-input ws-qty" type="number" min="0" value="0" data-row="wsBlack" data-size="L"></td>
+            <td><span class="stock-info">184 in stock</span><span class="price-info" style="color:var(--accent);font-weight:600">$2.85 WS</span><input class="qty-input ws-qty" type="number" min="0" value="0" data-row="wsBlack" data-size="XL"></td>
+            <td><span class="stock-info">88 in stock</span><span class="price-info" style="color:var(--accent);font-weight:600">$3.20 WS</span><input class="qty-input ws-qty" type="number" min="0" value="0" data-row="wsBlack" data-size="2XL"></td>
+            <td><span class="stock-info">42 in stock</span><span class="price-info" style="color:var(--accent);font-weight:600">$3.60 WS</span><input class="qty-input ws-qty" type="number" min="0" value="0" data-row="wsBlack" data-size="3XL"></td>
+            <td><div class="row-total">Qty: <span class="row-qty-wsBlack">0</span><br>$<span class="row-price-wsBlack">0.00</span></div></td>
+            <td><button class="btn-outline row-atc">Add to Cart</button></td>
+          </tr>
+          <tr data-color="Navy">
+            <td><div class="color-row-head"><span class="color-dot-sm" style="background:#1C3557"></span> Navy</div></td>
+            <td><span class="stock-info">174 in stock</span><span class="price-info" style="color:var(--accent);font-weight:600">$2.85 WS</span><input class="qty-input ws-qty" type="number" min="0" value="0" data-row="wsNavy" data-size="S"></td>
+            <td><span class="stock-info">241 in stock</span><span class="price-info" style="color:var(--accent);font-weight:600">$2.85 WS</span><input class="qty-input ws-qty" type="number" min="0" value="0" data-row="wsNavy" data-size="M"></td>
+            <td><span class="stock-info">201 in stock</span><span class="price-info" style="color:var(--accent);font-weight:600">$2.85 WS</span><input class="qty-input ws-qty" type="number" min="0" value="0" data-row="wsNavy" data-size="L"></td>
+            <td><span class="stock-info">112 in stock</span><span class="price-info" style="color:var(--accent);font-weight:600">$2.85 WS</span><input class="qty-input ws-qty" type="number" min="0" value="0" data-row="wsNavy" data-size="XL"></td>
+            <td><span class="stock-info">60 in stock</span><span class="price-info" style="color:var(--accent);font-weight:600">$3.20 WS</span><input class="qty-input ws-qty" type="number" min="0" value="0" data-row="wsNavy" data-size="2XL"></td>
+            <td><span class="stock-info">28 in stock</span><span class="price-info" style="color:var(--accent);font-weight:600">$3.60 WS</span><input class="qty-input ws-qty" type="number" min="0" value="0" data-row="wsNavy" data-size="3XL"></td>
+            <td><div class="row-total">Qty: <span class="row-qty-wsNavy">0</span><br>$<span class="row-price-wsNavy">0.00</span></div></td>
+            <td><button class="btn-outline row-atc">Add to Cart</button></td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="grand-total-row">
+        <span>Grand Total Qty: <strong id="ws-grand-qty">0</strong></span>
+        <span>Grand Total Price: <strong>$<span id="ws-grand-price">0.00</span></strong></span>
+      </div>
+      <button class="btn-primary atc-all">Add to Cart — All Selections</button>
+      <div class="no-moq">No minimum order quantity</div>
+
+    </div>
+  </div>
+
+  <!-- PDP TABS (WHOLESALE) -->
+  <div class="pdp-tabs-wrap">
+    <div class="pdp-tab-nav">
+      <button class="pdp-tab-btn active" onclick="switchTab(this,'tab-desc-ws')">Description</button>
+      <button class="pdp-tab-btn" onclick="switchTab(this,'tab-specs-ws')">Specifications</button>
+      <button class="pdp-tab-btn" onclick="switchTab(this,'tab-size-ws')">Size Chart</button>
+      <button class="pdp-tab-btn" onclick="switchTab(this,'tab-reviews-ws')">Reviews</button>
+    </div>
+    <div class="pdp-tab-content active" id="tab-desc-ws">
+      <p style="font-size:15px;line-height:1.75;color:var(--text-sec);max-width:660px;font-family:var(--font-b)">The AF Blanks Heavyweight Cotton Tee is built for print shops that can't afford a blank that moves. It's 6.1 oz 100% ring-spun cotton — tight enough to hold DTF, screen print, and embroidery without distortion. Double-needle stitching throughout. A straight body, a reinforced collar, and a consistency that holds up run after run. 18 colorways. Zero surprises.</p>
+    </div>
+    <div class="pdp-tab-content" id="tab-specs-ws">
+      <table class="spec-table" style="max-width:560px">
+        <tr><td>Fabric</td><td>100% Ring-Spun Cotton</td></tr>
+        <tr><td>Weight</td><td>6.1 oz/yd²</td></tr>
+        <tr><td>Construction</td><td>Tubular body, ribbed collar, double-needle sleeve and bottom hem</td></tr>
+        <tr><td>Collar</td><td>Tear-away label, reinforced set-in collar</td></tr>
+        <tr><td>Care</td><td>Machine wash cold, tumble dry low</td></tr>
+        <tr><td>Origin</td><td>Made in Honduras</td></tr>
+        <tr><td>Colors Available</td><td>18</td></tr>
+        <tr><td>Sizes</td><td>XS–5XL</td></tr>
+      </table>
+    </div>
+    <div class="pdp-tab-content" id="tab-size-ws">
+      <table class="size-table" style="max-width:560px">
+        <thead><tr><th>Size</th><th>S</th><th>M</th><th>L</th><th>XL</th><th>2XL</th><th>3XL</th><th>4XL</th><th>5XL</th></tr></thead>
+        <tbody>
+          <tr><td>Chest (in)</td><td>18</td><td>20</td><td>22</td><td>24</td><td>26</td><td>28</td><td>30</td><td>32</td></tr>
+          <tr><td>Length (in)</td><td>27</td><td>28</td><td>29</td><td>30</td><td>31</td><td>32</td><td>33</td><td>34</td></tr>
+          <tr><td>Sleeve (in)</td><td>8</td><td>8.5</td><td>9</td><td>9.5</td><td>10</td><td>10.5</td><td>11</td><td>11.5</td></tr>
+        </tbody>
+      </table>
+      <p style="font-size:12px;color:var(--text-sec);margin-top:12px;font-family:var(--font-b)">Measurements taken flat. Allow ±1" variance.</p>
+    </div>
+    <div class="pdp-tab-content" id="tab-reviews-ws">
+      <div class="review-summary">
+        <div class="review-num">4.8</div>
+        <div><div class="review-stars">★★★★★</div><div class="review-count">84 reviews</div></div>
+      </div>
+      <div class="review-card"><div class="rev-stars">★★★★★</div><div class="rev-author">Marcus T. — Print Shop Owner, Austin TX</div><div class="rev-date">May 12, 2026</div><div class="rev-body">Consistent weight and dye absorption across every colorway. We run 10,000+ blanks a month and AF is our go-to. Zero rejection rate on prints.</div></div>
+      <div class="review-card"><div class="rev-stars">★★★★★</div><div class="rev-author">Jennifer K. — DTF Decorator, Atlanta GA</div><div class="rev-date">April 29, 2026</div><div class="rev-body">The 6.1oz weight is exactly what our DTF transfers need. No bleed, no ghosting, clean edges every time.</div></div>
+    </div>
+  </div>
+
+  <footer class="footer mt-32">
+    <div class="footer-inner">
+      <div class="footer-col"><h4>Shop</h4><a href="#">Shop All Products</a><a href="#">T-Shirts</a><a href="#">Hoodies</a><a href="#">Sweatshirts</a><a href="#">Polos</a></div>
+      <div class="footer-col"><h4>Resources</h4><a href="#">Blog</a><a href="#">Product Specs</a><a href="#">Style Sheets</a><a href="#">About Us</a></div>
+      <div class="footer-col"><h4>Account</h4><a href="#">Apply for Wholesale</a><a href="#">Log In</a><a href="#">Order History</a></div>
+      <div class="footer-col"><h4>Support</h4><a href="#">Contact Us</a><a href="#">Track Order</a><a href="#">Privacy Policy</a></div>
+    </div>
+    <div class="footer-bottom">© 2026 AF Apparels. All rights reserved.</div>
+  </footer>
+
+</div><!-- /page pdp-wholesale -->
+
+
+<!-- ══════════════════════════════════════════ -->
+<!-- PAGE 5: ABOUT -->
+<!-- ══════════════════════════════════════════ -->
+<div class="page" id="about">
+
+  <div class="ann-bar">Wholesale Blank Apparel &nbsp;·&nbsp; Serving 2,000+ US Businesses &nbsp;·&nbsp; Same-Day Shipping from Dallas, TX &nbsp;·&nbsp; (214) 272-7213</div>
+  <div class="nav-wrap">
+    <nav class="nav">
+      <a href="#" class="nav-logo">AF Blanks</a>
+      <div class="nav-center"><a href="#">Shop All</a><a href="#">T-Shirts</a><a href="#">Hoodies</a><a href="#">New</a><div class="nav-dropdown"><span>Resources ▾</span><div class="dropdown-menu"><a href="#">About Us</a><a href="#">Style Sheets</a><a href="#">Product Specs</a><a href="#">Print Guide</a><a href="#">Customer Reviews</a><a href="#">Private Label</a><a href="#">Blog</a><a href="#">Contact Us</a></div></div></div>
+      <div class="nav-right"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg><a href="#">Log In</a><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg></div>
+    </nav>
+  </div>
+
+  <!-- HERO -->
+  <section class="about-hero">
+    <div class="container">
+      <h1>Premium Blank Apparel, Direct from Us.</h1>
+      <p>Dallas, TX. Supplying print shops and decorators across the US since 2010.</p>
+    </div>
+  </section>
+
+  <!-- STATS BAR -->
+  <div class="stats-bar">
+    <div class="container">
+      <div class="trust-stats">
+        <div class="trust-stat"><span class="num">2,000+</span><span class="lbl">Wholesale Accounts</span></div>
+        <div class="trust-stat"><span class="num">15</span><span class="lbl">Years in Business</span></div>
+        <div class="trust-stat"><span class="num">Dallas, TX</span><span class="lbl">Warehouse &amp; HQ</span></div>
+        <div class="trust-stat"><span class="num">Same-Day</span><span class="lbl">Fulfillment by 2PM CT</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- OUR STORY -->
+  <section class="story-section">
+    <div class="story-inner">
+      <div class="story-left">
+        <div class="story-sm">Our Story</div>
+        <h2>Lower prices, direct from us.</h2>
+      </div>
+      <div class="story-right">
+        <p>American Fashion was founded with a single purpose: remove the middlemen that drive up blank apparel costs for print shops and decorators across the US. For too long, businesses were paying markups of 20–35% on every blank they ordered. We built direct relationships with manufacturers and opened our own Dallas warehouse to fix that. Today, 2,000+ businesses across the US order with AF — getting lower prices and same-day shipping every time.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- TIMELINE -->
+  <section class="timeline-section">
+    <div class="container">
+      <div class="section-label">History</div>
+      <div class="timeline">
+        <div class="timeline-item">
+          <div class="timeline-year">2010</div>
+          <div class="timeline-text">
+            <h4>Founded in Dallas</h4>
+            <p>First warehouse opened. Started with cotton tees for the Texas print market.</p>
+          </div>
+        </div>
+        <div class="timeline-item">
+          <div class="timeline-year">2015</div>
+          <div class="timeline-text">
+            <h4>ISO 9000 Certified</h4>
+            <p>Quality standards locked in. GOTS and Oeko-Tex certifications followed.</p>
+          </div>
+        </div>
+        <div class="timeline-item">
+          <div class="timeline-year">2019</div>
+          <div class="timeline-text">
+            <h4>500+ Active Accounts</h4>
+            <p>Expanded to hoodies, sweatshirts, and polos. Started shipping nationwide.</p>
+          </div>
+        </div>
+        <div class="timeline-item">
+          <div class="timeline-year">2023</div>
+          <div class="timeline-text">
+            <h4>Private Label Program</h4>
+            <p>Started making custom-label apparel for brands. Min 2,500 pcs/style/color.</p>
+          </div>
+        </div>
+        <div class="timeline-item">
+          <div class="timeline-year">2025</div>
+          <div class="timeline-text">
+            <h4>2,000+ Accounts Nationwide</h4>
+            <p>Serving print shops, decorators, brands, and corporate buyers in all 50 states.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CERTIFICATIONS -->
+  <section class="cert-section">
+    <div class="container">
+      <div class="section-label">Certifications &amp; Compliance</div>
+      <p style="font-size:14px;color:var(--text-sec);font-family:var(--font-b);margin-bottom:24px">Every AF product is tested and certified.</p>
+      <div class="cert-grid">
+        <div class="cert-item"><h4>ISO 9000</h4><p>Consistent quality, every production run.</p></div>
+        <div class="cert-item"><h4>Oeko-Tex Standard 100</h4><p>Tested for harmful substances. Safe for all skin types.</p></div>
+        <div class="cert-item"><h4>GOTS Certified</h4><p>Certified organic cotton, tracked from farm to finished product.</p></div>
+        <div class="cert-item"><h4>WRAP Certified</h4><p>Ethical working conditions, verified.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CORPORATE BUYERS BAND -->
+  <div class="corp-band">
+    <div class="container">
+      <h2>Corporate &amp; Institutional Buyers</h2>
+      <p>Need compliance documents for your procurement team? We have everything ready.</p>
+      <div class="corp-contact">info@afblanks.com &nbsp;·&nbsp; +1 (469) 367-9753</div>
+    </div>
+  </div>
+
+  <footer class="footer">
+    <div class="footer-inner">
+      <div class="footer-col"><h4>Shop</h4><a href="#">Shop All Products</a><a href="#">T-Shirts</a><a href="#">Hoodies</a><a href="#">Sweatshirts</a><a href="#">Polos</a></div>
+      <div class="footer-col"><h4>Resources</h4><a href="#">Blog</a><a href="#">Product Specs</a><a href="#">Style Sheets</a><a href="#">About Us</a></div>
+      <div class="footer-col"><h4>Account</h4><a href="#">Apply for Wholesale</a><a href="#">Log In</a><a href="#">Order History</a></div>
+      <div class="footer-col"><h4>Support</h4><a href="#">Contact Us</a><a href="#">Track Order</a><a href="#">Privacy Policy</a></div>
+    </div>
+    <div class="footer-bottom">© 2026 AF Apparels. All rights reserved.</div>
+  </footer>
+
+</div><!-- /page about -->
+
+
+<!-- ══════════════════════════════════════════ -->
+<!-- PAGE 6: BLOG -->
+<!-- ══════════════════════════════════════════ -->
+<div class="page" id="blog">
+
+  <div class="ann-bar">Wholesale Blank Apparel &nbsp;·&nbsp; Serving 2,000+ US Businesses &nbsp;·&nbsp; Same-Day Shipping from Dallas, TX &nbsp;·&nbsp; (214) 272-7213</div>
+  <div class="nav-wrap">
+    <nav class="nav">
+      <a href="#" class="nav-logo">AF Blanks</a>
+      <div class="nav-center"><a href="#">Shop All</a><a href="#">T-Shirts</a><a href="#">Hoodies</a><a href="#">New</a><div class="nav-dropdown"><span>Resources ▾</span><div class="dropdown-menu"><a href="#">About Us</a><a href="#">Style Sheets</a><a href="#">Product Specs</a><a href="#">Print Guide</a><a href="#">Customer Reviews</a><a href="#">Private Label</a><a href="#">Blog</a><a href="#">Contact Us</a></div></div></div>
+      <div class="nav-right"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg><a href="#">Log In</a><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg></div>
+    </nav>
+  </div>
+
+  <div class="blog-header">
+    <div class="container">
+      <h1>Resources</h1>
+      <p>Printing guides, product updates, and useful references.</p>
+    </div>
+  </div>
+
+  <section class="blog-grid-section">
+    <div class="blog-grid">
+      <div class="blog-card">
+        <div class="photo-placeholder blog-img">[Article Image]</div>
+        <div class="blog-card-body">
+          <div class="tag-pill">Print Guide</div>
+          <h3>DTF vs Screen Print: Which Fabric Works Best For Each Method</h3>
+          <div class="blog-meta">June 1, 2026</div>
+          <div class="blog-excerpt">The blank you choose is as important as the method. Here's what actually holds up under each process.</div>
+          <a href="#" class="read-more">Read More →</a>
+        </div>
+      </div>
+      <div class="blog-card">
+        <div class="photo-placeholder blog-img">[Article Image]</div>
+        <div class="blog-card-body">
+          <div class="tag-pill">Industry</div>
+          <h3>How to Read an AF Style Sheet</h3>
+          <div class="blog-meta">May 18, 2026</div>
+          <div class="blog-excerpt">Every product ships with a style sheet. Here's what each measurement means and how to use it when prepping artwork.</div>
+          <a href="#" class="read-more">Read More →</a>
+        </div>
+      </div>
+      <div class="blog-card">
+        <div class="photo-placeholder blog-img">[Article Image]</div>
+        <div class="blog-card-body">
+          <div class="tag-pill">Print Guide</div>
+          <h3>Gang Sheet Tips for High-Volume DTF Shops</h3>
+          <div class="blog-meta">May 4, 2026</div>
+          <div class="blog-excerpt">How to maximize blank coverage, reduce waste, and keep transfer costs down when you're printing 500+ shirts a day.</div>
+          <a href="#" class="read-more">Read More →</a>
+        </div>
+      </div>
+      <div class="blog-card">
+        <div class="photo-placeholder blog-img">[Article Image]</div>
+        <div class="blog-card-body">
+          <div class="tag-pill">Product Update</div>
+          <h3>New: CVC Blend 65/35 Now Available in 22 Colors</h3>
+          <div class="blog-meta">April 22, 2026</div>
+          <div class="blog-excerpt">Our most-requested blank is back with 8 new colorways. Softer hand, better shrink resistance, ready to ship today.</div>
+          <a href="#" class="read-more">Read More →</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <div class="footer-inner">
+      <div class="footer-col"><h4>Shop</h4><a href="#">Shop All Products</a><a href="#">T-Shirts</a><a href="#">Hoodies</a><a href="#">Sweatshirts</a><a href="#">Polos</a></div>
+      <div class="footer-col"><h4>Resources</h4><a href="#">Blog</a><a href="#">Product Specs</a><a href="#">Style Sheets</a><a href="#">About Us</a></div>
+      <div class="footer-col"><h4>Account</h4><a href="#">Apply for Wholesale</a><a href="#">Log In</a><a href="#">Order History</a></div>
+      <div class="footer-col"><h4>Support</h4><a href="#">Contact Us</a><a href="#">Track Order</a><a href="#">Privacy Policy</a></div>
+    </div>
+    <div class="footer-bottom">© 2026 AF Apparels. All rights reserved.</div>
+  </footer>
+
+</div><!-- /page blog -->
+
+
+<!-- ══════════════════════════════════════════ -->
+<!-- PAGE 7: CONTACT -->
+<!-- ══════════════════════════════════════════ -->
+<div class="page" id="contact">
+
+  <div class="ann-bar">Wholesale Blank Apparel &nbsp;·&nbsp; Serving 2,000+ US Businesses &nbsp;·&nbsp; Same-Day Shipping from Dallas, TX &nbsp;·&nbsp; (214) 272-7213</div>
+  <div class="nav-wrap">
+    <nav class="nav">
+      <a href="#" class="nav-logo">AF Blanks</a>
+      <div class="nav-center"><a href="#">Shop All</a><a href="#">T-Shirts</a><a href="#">Hoodies</a><a href="#">New</a><div class="nav-dropdown"><span>Resources ▾</span><div class="dropdown-menu"><a href="#">About Us</a><a href="#">Style Sheets</a><a href="#">Product Specs</a><a href="#">Print Guide</a><a href="#">Customer Reviews</a><a href="#">Private Label</a><a href="#">Blog</a><a href="#">Contact Us</a></div></div></div>
+      <div class="nav-right"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg><a href="#">Log In</a><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg></div>
+    </nav>
+  </div>
+
+  <section class="contact-section">
+    <div class="contact-inner">
+
+      <!-- LEFT: FORM -->
+      <div>
+        <h2 class="contact-form-title">Get in Touch</h2>
+        <div class="form-row">
+          <div class="form-group"><label>Full Name</label><input type="text" placeholder="Your full name"></div>
+          <div class="form-group"><label>Company Name</label><input type="text" placeholder="Your company"></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label>Email</label><input type="email" placeholder="you@company.com"></div>
+          <div class="form-group"><label>Phone</label><input type="tel" placeholder="(000) 000-0000"></div>
+        </div>
+        <div class="form-group">
+          <label>Subject</label>
+          <select>
+            <option>General Inquiry</option>
+            <option>Order Support</option>
+            <option>Wholesale Application</option>
+            <option>Private Label</option>
+            <option>Press</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Message</label>
+          <textarea placeholder="How can we help?"></textarea>
+        </div>
+        <button class="btn-primary" style="padding:13px 28px;font-size:14px">Send Message →</button>
+      </div>
+
+      <!-- RIGHT: CONTACT INFO -->
+      <div class="contact-info">
+        <h2>Contact Info</h2>
+        <div class="contact-detail"><strong>Phone</strong>(214) 272-7213</div>
+        <div class="contact-detail"><strong>Email</strong>info@afblanks.com</div>
+        <div class="contact-detail"><strong>Hours</strong>Mon–Fri, 8AM–5PM CT</div>
+        <div class="contact-detail"><strong>Location</strong>Dallas, TX</div>
+        <div class="map-placeholder">[Map Placeholder]</div>
+        <div class="contact-links">
+          <a href="#">Apply for Wholesale Account →</a>
+          <a href="#">Track Your Order →</a>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <footer class="footer">
+    <div class="footer-inner">
+      <div class="footer-col"><h4>Shop</h4><a href="#">Shop All Products</a><a href="#">T-Shirts</a><a href="#">Hoodies</a><a href="#">Sweatshirts</a><a href="#">Polos</a></div>
+      <div class="footer-col"><h4>Resources</h4><a href="#">Blog</a><a href="#">Product Specs</a><a href="#">Style Sheets</a><a href="#">About Us</a></div>
+      <div class="footer-col"><h4>Account</h4><a href="#">Apply for Wholesale</a><a href="#">Log In</a><a href="#">Order History</a></div>
+      <div class="footer-col"><h4>Support</h4><a href="#">Contact Us</a><a href="#">Track Order</a><a href="#">Privacy Policy</a></div>
+    </div>
+    <div class="footer-bottom">© 2026 AF Apparels. All rights reserved.</div>
+  </footer>
+
+</div><!-- /page contact -->
+
+
+<!-- ══════════════════════════════════════════ -->
+<!-- PAGE 8: WHOLESALE APPLICATION FORM -->
+<!-- ══════════════════════════════════════════ -->
+<div class="page" id="wholesale-form">
+
+  <div class="ann-bar">Wholesale Blank Apparel &nbsp;·&nbsp; Serving 2,000+ US Businesses &nbsp;·&nbsp; Same-Day Shipping from Dallas, TX &nbsp;·&nbsp; (214) 272-7213</div>
+  <div class="nav-wrap">
+    <nav class="nav">
+      <a href="#" class="nav-logo">AF Blanks</a>
+      <div class="nav-center"><a href="#">Shop All</a><a href="#">T-Shirts</a><a href="#">Hoodies</a><a href="#">New</a><div class="nav-dropdown"><span>Resources ▾</span><div class="dropdown-menu"><a href="#">About Us</a><a href="#">Style Sheets</a><a href="#">Product Specs</a><a href="#">Print Guide</a><a href="#">Customer Reviews</a><a href="#">Private Label</a><a href="#">Blog</a><a href="#">Contact Us</a></div></div></div>
+      <div class="nav-right"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg><a href="#">Log In</a><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg></div>
+    </nav>
+  </div>
+
+  <section class="ws-form-section">
+    <div class="ws-form-wrap">
+      <h1 class="ws-form-title">Apply for a Wholesale Account</h1>
+      <p class="ws-form-sub">Apply once. Get lower prices, better terms, and faster fulfillment.</p>
+
+      <!-- COMPANY INFORMATION -->
+      <div class="ws-section-label">Company Information</div>
+      <div class="form-grid-2 mb-16">
+        <div class="form-group"><label>Company Name *</label><input type="text" placeholder="Your company name"></div>
+        <div class="form-group"><label>Website</label><input type="text" placeholder="https://"></div>
+      </div>
+      <div class="form-grid-2 mb-16">
+        <div class="form-group"><label>Company Email *</label><input type="email" placeholder="orders@company.com"></div>
+        <div class="form-group"><label>Phone *</label><input type="tel" placeholder="(000) 000-0000"></div>
+      </div>
+      <div class="form-grid-2 mb-16">
+        <div class="form-group"><label>Address Line 1 *</label><input type="text" placeholder="Street address"></div>
+        <div class="form-group"><label>Address Line 2</label><input type="text" placeholder="Suite, Unit, etc."></div>
+      </div>
+      <div class="form-grid-3 mb-16">
+        <div class="form-group"><label>City *</label><input type="text" placeholder="City"></div>
+        <div class="form-group"><label>State *</label><input type="text" placeholder="TX"></div>
+        <div class="form-group"><label>Postal/Zip *</label><input type="text" placeholder="00000"></div>
+      </div>
+      <div class="form-grid-2 mb-16">
+        <div class="form-group"><label>Country *</label>
+          <select><option>United States</option><option>Canada</option><option>Other</option></select>
+        </div>
+        <div class="form-group"><label>Fax</label><input type="tel" placeholder="(000) 000-0000"></div>
+      </div>
+      <div class="form-grid-3 mb-16">
+        <div class="form-group"><label>Resale # *</label><input type="text" placeholder="Resale certificate #"></div>
+        <div class="form-group"><label>PPAI #</label><input type="text" placeholder="Optional"></div>
+        <div class="form-group"><label>ASI #</label><input type="text" placeholder="Optional"></div>
+      </div>
+
+      <!-- CONTACT INFORMATION -->
+      <div class="ws-section-label mt-32">Contact Information</div>
+      <div class="form-grid-2 mb-16">
+        <div class="form-group"><label>First Name *</label><input type="text" placeholder="First name"></div>
+        <div class="form-group"><label>Last Name *</label><input type="text" placeholder="Last name"></div>
+      </div>
+      <div class="form-grid-2 mb-16">
+        <div class="form-group"><label>Title</label><input type="text" placeholder="e.g. Owner, Purchasing Manager"></div>
+        <div class="form-group"><label>Direct Email *</label><input type="email" placeholder="direct@company.com"></div>
+      </div>
+
+      <!-- BUSINESS INFORMATION -->
+      <div class="ws-section-label mt-32">Business Information</div>
+      <div class="form-grid-2 mb-16">
+        <div class="form-group">
+          <label>Primary Business Activity *</label>
+          <select>
+            <option>Select...</option>
+            <option>Screen Printer</option>
+            <option>Embroiderer</option>
+            <option>Promotional Products Distributor</option>
+            <option>Retailer</option>
+            <option>Online Retailer</option>
+            <option>Corporate Buyer</option>
+            <option>Athletic Team Dealer</option>
+            <option>Boutique</option>
+            <option>Decorator</option>
+            <option>Other</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Secondary Business Activity</label>
+          <select>
+            <option>Select (optional)...</option>
+            <option>Screen Printer</option>
+            <option>Embroiderer</option>
+            <option>Promotional Products Distributor</option>
+            <option>Retailer</option>
+            <option>Online Retailer</option>
+            <option>Corporate Buyer</option>
+            <option>Athletic Team Dealer</option>
+            <option>Boutique</option>
+            <option>Decorator</option>
+            <option>Other</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-grid-2 mb-16">
+        <div class="form-group">
+          <label>How Did You Hear About Us?</label>
+          <select>
+            <option>Select...</option>
+            <option>Google Search</option>
+            <option>Social Media</option>
+            <option>Trade Show</option>
+            <option>Referral</option>
+            <option>Email Campaign</option>
+            <option>Industry Publication</option>
+            <option>Other</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Number of Employees</label>
+          <select>
+            <option>Select...</option>
+            <option>1–5</option>
+            <option>6–10</option>
+            <option>11–25</option>
+            <option>26–50</option>
+            <option>51–100</option>
+            <option>100+</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-grid-2 mb-16">
+        <div class="form-group">
+          <label>Outside Sales Reps</label>
+          <select>
+            <option>0</option>
+            <option>1–2</option>
+            <option>3–5</option>
+            <option>6–10</option>
+            <option>10+</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- WEB ACCOUNT -->
+      <div class="ws-section-label mt-32">Web Account</div>
+      <div class="form-grid-3 mb-16">
+        <div class="form-group"><label>Password *</label><input type="password" placeholder="Choose a password"></div>
+        <div class="form-group"><label>Confirm Password *</label><input type="password" placeholder="Repeat password"></div>
+        <div class="form-group"><label>Password Hint</label><input type="text" placeholder="A hint for yourself"></div>
+      </div>
+
+      <!-- COMMUNICATION PREFERENCES -->
+      <div class="ws-section-label mt-32">Communication Preferences</div>
+      <div class="ws-check-row">
+        <input type="checkbox" style="accent-color:var(--accent);margin-top:2px">
+        <span>I would like to receive emails about new products and offers from AF Apparels.</span>
+      </div>
+
+      <!-- TERMS & CONDITIONS -->
+      <div class="ws-section-label mt-32">Terms &amp; Conditions</div>
+      <div class="ws-terms-box">
+        AF Apparels wholesale accounts are for business use only. By submitting this form you confirm that your business holds a valid resale certificate or tax exemption document. Pricing and availability are subject to change. We reserve the right to approve or deny any application. Wholesale pricing is available exclusively to approved account holders. All orders are subject to our standard shipping and returns policy. Account credentials must not be shared with third parties. AF Apparels reserves the right to revoke wholesale status for any account found to be reselling at retail without an active resale certificate.
+      </div>
+      <div class="ws-check-row">
+        <input type="checkbox" style="accent-color:var(--accent);margin-top:2px">
+        <span>I have read and agree to the terms and conditions above. *</span>
+      </div>
+
+      <!-- RECAPTCHA + SUBMIT -->
+      <div class="recaptcha-placeholder">[reCAPTCHA]</div>
+      <button class="btn-primary btn-submit">Submit Application →</button>
+      <p style="text-align:center;font-size:13px;color:var(--text-sec);margin-top:14px;font-family:var(--font-b)">Already have an account? <a href="#" class="inline-link">Sign in →</a></p>
+
+    </div>
+  </section>
+
+  <footer class="footer">
+    <div class="footer-inner">
+      <div class="footer-col"><h4>Shop</h4><a href="#">Shop All Products</a><a href="#">T-Shirts</a><a href="#">Hoodies</a><a href="#">Sweatshirts</a><a href="#">Polos</a></div>
+      <div class="footer-col"><h4>Resources</h4><a href="#">Blog</a><a href="#">Product Specs</a><a href="#">Style Sheets</a><a href="#">About Us</a></div>
+      <div class="footer-col"><h4>Account</h4><a href="#">Apply for Wholesale</a><a href="#">Log In</a><a href="#">Order History</a></div>
+      <div class="footer-col"><h4>Support</h4><a href="#">Contact Us</a><a href="#">Track Order</a><a href="#">Privacy Policy</a></div>
+    </div>
+    <div class="footer-bottom">© 2026 AF Apparels. All rights reserved.</div>
+  </footer>
+
+</div><!-- /page wholesale-form -->
+
+
+<!-- ══ JAVASCRIPT ══ -->
+<script>
+/* ── PAGE SWITCHER ── */
+function showPage(id, btn) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('#page-tabs button').forEach(b => b.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  btn.classList.add('active');
+  window.scrollTo(0,0);
+}
+
+/* ── PDP TABS ── */
+function switchTab(btn, contentId) {
+  const wrap = btn.closest('.pdp-tabs-wrap');
+  wrap.querySelectorAll('.pdp-tab-btn').forEach(b => b.classList.remove('active'));
+  wrap.querySelectorAll('.pdp-tab-content').forEach(c => c.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById(contentId).classList.add('active');
+}
+
+/* ── GUEST COLOR SWATCH ── */
+function selectGuestColor(el, name) {
+  document.querySelectorAll('#pdp-guest .pdp-swatch').forEach(s => s.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('guest-hero-img').textContent = '[Product Image — ' + name + ']';
+}
+function guestThumbClick(el, name) {
+  document.querySelectorAll('#pdp-guest .pdp-thumb').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('guest-hero-img').textContent = '[Product Image — ' + name + ']';
+}
+
+/* ── WS COLOR SWATCH ── */
+function selectWSColor(el, name) {
+  document.querySelectorAll('#pdp-wholesale .pdp-swatch').forEach(s => s.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('ws-hero-img').textContent = '[Product Image — ' + name + ']';
+}
+function wsThumbClick(el, name) {
+  document.querySelectorAll('#pdp-wholesale .pdp-thumb').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('ws-hero-img').textContent = '[Product Image — ' + name + ']';
+}
+
+/* ── COLLECTION SIZE CHIPS ── */
+document.querySelectorAll('.size-chip').forEach(chip => {
+  chip.addEventListener('click', () => chip.classList.toggle('active'));
+});
+
+/* ── COLLECTION SORT BAR ── */
+document.querySelectorAll('.sort-opt').forEach(opt => {
+  opt.addEventListener('click', () => {
+    document.querySelectorAll('.sort-opt').forEach(o => o.classList.remove('active'));
+    opt.classList.add('active');
+  });
+});
+
+/* ── BULK GRID — GUEST (retail prices) ── */
+// Prices per size: S=$4.20, M=$4.20, L=$4.20, XL=$4.20, 2XL=$4.80, 3XL=$5.40
+const guestPrices = { S:4.20, M:4.20, L:4.20, XL:4.20, '2XL':4.80, '3XL':5.40 };
+
+function recalcGuestRow(row) {
+  const inputs = document.querySelectorAll(`.guest-qty[data-row="${row}"]`);
+  let totalQty = 0, totalPrice = 0;
+  inputs.forEach(inp => {
+    const qty = parseInt(inp.value) || 0;
+    const size = inp.dataset.size;
+    const price = guestPrices[size] || 4.20;
+    totalQty += qty;
+    totalPrice += qty * price;
+  });
+  const qtyEl = document.querySelector(`.row-qty-${row}`);
+  const priceEl = document.querySelector(`.row-price-${row}`);
+  if(qtyEl) qtyEl.textContent = totalQty;
+  if(priceEl) priceEl.textContent = totalPrice.toFixed(2);
+  recalcGuestGrand();
+}
+
+function recalcGuestGrand() {
+  const rows = ['White','Black','Navy'];
+  let gQty = 0, gPrice = 0;
+  rows.forEach(row => {
+    gQty += parseInt(document.querySelector(`.row-qty-${row}`)?.textContent || 0);
+    gPrice += parseFloat(document.querySelector(`.row-price-${row}`)?.textContent || 0);
+  });
+  document.getElementById('guest-grand-qty').textContent = gQty;
+  document.getElementById('guest-grand-price').textContent = gPrice.toFixed(2);
+}
+
+document.querySelectorAll('.guest-qty').forEach(inp => {
+  inp.addEventListener('input', () => recalcGuestRow(inp.dataset.row));
+});
+
+/* ── BULK GRID — WHOLESALE (wholesale prices) ── */
+const wsPrices = { S:2.85, M:2.85, L:2.85, XL:2.85, '2XL':3.20, '3XL':3.60 };
+
+function recalcWSRow(row) {
+  const inputs = document.querySelectorAll(`.ws-qty[data-row="${row}"]`);
+  let totalQty = 0, totalPrice = 0;
+  inputs.forEach(inp => {
+    const qty = parseInt(inp.value) || 0;
+    const size = inp.dataset.size;
+    const price = wsPrices[size] || 2.85;
+    totalQty += qty;
+    totalPrice += qty * price;
+  });
+  const cleanRow = row.replace('ws','');
+  const qtyEl = document.querySelector(`.row-qty-${row}`);
+  const priceEl = document.querySelector(`.row-price-${row}`);
+  if(qtyEl) qtyEl.textContent = totalQty;
+  if(priceEl) priceEl.textContent = totalPrice.toFixed(2);
+  recalcWSGrand();
+}
+
+function recalcWSGrand() {
+  const rows = ['wsWhite','wsBlack','wsNavy'];
+  let gQty = 0, gPrice = 0;
+  rows.forEach(row => {
+    gQty += parseInt(document.querySelector(`.row-qty-${row}`)?.textContent || 0);
+    gPrice += parseFloat(document.querySelector(`.row-price-${row}`)?.textContent || 0);
+  });
+  document.getElementById('ws-grand-qty').textContent = gQty;
+  document.getElementById('ws-grand-price').textContent = gPrice.toFixed(2);
+}
+
+document.querySelectorAll('.ws-qty').forEach(inp => {
+  inp.addEventListener('input', () => recalcWSRow(inp.dataset.row));
+});
+
+/* ── LIGHTBOX ── */
+function openLightbox() { document.getElementById('lightbox').classList.add('open'); }
+function closeLightbox() { document.getElementById('lightbox').classList.remove('open'); }
+document.getElementById('lightbox').addEventListener('click', function(e) {
+  if(e.target === this) closeLightbox();
+});
+
+/* ── NAV SCROLL BORDER ── */
+window.addEventListener('scroll', () => {
+  document.querySelectorAll('.nav-wrap').forEach(nav => {
+    nav.style.boxShadow = window.scrollY > 10 ? '0 1px 0 0 var(--divider)' : 'none';
+  });
+});
+</script>
+
+
+<!-- ══════════════════════════════════════════ -->
+<!-- SHARED NAV SNIPPET (macro) -->
+<!-- ══════════════════════════════════════════ -->
+<!-- Each new page reuses identical nav/footer markup -->
+
+
+<!-- ══════════════════════════════════════════ -->
+<!-- PAGE 9: PRINT GUIDE -->
+<!-- ══════════════════════════════════════════ -->
+<div class="page" id="print-guide">
+
+  <div class="ann-bar">Wholesale Blank Apparel &nbsp;·&nbsp; Serving 2,000+ US Businesses &nbsp;·&nbsp; Same-Day Shipping from Dallas, TX &nbsp;·&nbsp; (214) 272-7213</div>
+  <div class="nav-wrap">
+    <nav class="nav">
+      <a href="#" class="nav-logo">AF Blanks</a>
+      <div class="nav-center"><a href="#">Shop All</a><a href="#">T-Shirts</a><a href="#">Hoodies</a><a href="#">New</a><div class="nav-dropdown"><span>Resources ▾</span><div class="dropdown-menu"><a href="#">About Us</a><a href="#">Style Sheets</a><a href="#">Product Specs</a><a href="#">Print Guide</a><a href="#">Customer Reviews</a><a href="#">Private Label</a><a href="#">Blog</a><a href="#">Contact Us</a></div></div></div>
+      <div class="nav-right"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg><a href="#">Log In</a><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg></div>
+    </nav>
+  </div>
+
+  <!-- HEADER -->
+  <div class="pg-header">
+    <div class="container">
+      <h1>Print Guide</h1>
+      <p>What works on what. Simple reference for decorators and print shops.</p>
+    </div>
+  </div>
+
+  <!-- S1: METHODS -->
+  <section class="pg-methods">
+    <div class="container">
+      <div class="section-label">Decoration Methods</div>
+      <div class="pg-methods-grid">
+        <div class="pg-method">
+          <h4>DTF (Direct-to-Film)</h4>
+          <p>Works on almost all fabrics. Great for detailed, full-color artwork.</p>
+        </div>
+        <div class="pg-method">
+          <h4>Screen Print</h4>
+          <p>Best for large runs on 100% cotton. Sharp, durable results.</p>
+        </div>
+        <div class="pg-method">
+          <h4>Embroidery</h4>
+          <p>Works on everything. Best for polos, caps, and structured garments.</p>
+        </div>
+        <div class="pg-method">
+          <h4>Sublimation</h4>
+          <p>Polyester only. Full color with no feel on the fabric.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- S2: COMPATIBILITY TABLE -->
+  <section class="pg-table-section">
+    <div class="container">
+      <div class="section-label">Fabric Compatibility</div>
+      <table class="compat-table">
+        <thead>
+          <tr>
+            <th>Fabric</th>
+            <th>DTF</th>
+            <th>Screen Print</th>
+            <th>Embroidery</th>
+            <th>Sublimation</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>100% Heavyweight Cotton</td>
+            <td class="works-great">Works Great</td>
+            <td class="works-great">Works Great</td>
+            <td class="works-well">Works Well</td>
+            <td class="not-rec">Not Recommended</td>
+          </tr>
+          <tr>
+            <td>100% Ring-Spun Cotton</td>
+            <td class="works-great">Works Great</td>
+            <td class="works-great">Works Great</td>
+            <td class="works-well">Works Well</td>
+            <td class="not-rec">Not Recommended</td>
+          </tr>
+          <tr>
+            <td>CVC 52/48</td>
+            <td class="works-well">Works Well</td>
+            <td class="works-well">Works Well</td>
+            <td class="works-well">Works Well</td>
+            <td class="test-first">Low Poly — Test First</td>
+          </tr>
+          <tr>
+            <td>CVC 60/40</td>
+            <td class="works-well">Works Well</td>
+            <td class="works-well">Works Well</td>
+            <td class="works-well">Works Well</td>
+            <td class="test-first">Low Poly — Test First</td>
+          </tr>
+          <tr>
+            <td>CVC 65/35</td>
+            <td class="works-well">Works Well</td>
+            <td class="test-first">Test First</td>
+            <td class="works-well">Works Well</td>
+            <td class="test-first">Low Poly — Test First</td>
+          </tr>
+          <tr>
+            <td>Fleece 70/30</td>
+            <td class="works-well">Works Well</td>
+            <td class="test-first">Test First</td>
+            <td class="works-great">Works Great</td>
+            <td class="not-rec">Not Recommended</td>
+          </tr>
+          <tr>
+            <td>Fleece 80/20</td>
+            <td class="works-well">Works Well</td>
+            <td class="test-first">Test First</td>
+            <td class="works-great">Works Great</td>
+            <td class="not-rec">Not Recommended</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- S3: TIPS -->
+  <section class="pg-tips">
+    <div class="container">
+      <div class="section-label">A Few Things Worth Knowing</div>
+      <ol>
+        <li>Wash and dry garments before decorating. Fabric can shrink slightly after first wash.</li>
+        <li>Pre-press for 3–5 seconds before applying any transfer. Removes moisture.</li>
+        <li>Always run a test on one piece before a full production run.</li>
+        <li>Follow your ink or transfer supplier's cure temps — those take priority over fabric type.</li>
+        <li>For a softer feel on heavier fabrics, use water-based inks or thin-adhesive DTF.</li>
+      </ol>
+      <div class="pg-contact-line">Questions? Email us at <a href="mailto:info@afblanks.com">info@afblanks.com</a></div>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <div class="footer-inner"><div class="footer-col"><h4>Shop</h4><a href="#">Shop All Products</a><a href="#">T-Shirts</a><a href="#">Hoodies</a><a href="#">Sweatshirts</a><a href="#">Polos</a></div><div class="footer-col"><h4>Resources</h4><a href="#">Blog</a><a href="#">Product Specs</a><a href="#">Style Sheets</a><a href="#">About Us</a></div><div class="footer-col"><h4>Account</h4><a href="#">Apply for Wholesale</a><a href="#">Log In</a><a href="#">Order History</a></div><div class="footer-col"><h4>Support</h4><a href="#">Contact Us</a><a href="#">Track Order</a><a href="#">Privacy Policy</a></div></div>
+    <div class="footer-bottom">© 2026 AF Apparels. All rights reserved.</div>
+  </footer>
+
+</div><!-- /page print-guide -->
+
+
+<!-- ══════════════════════════════════════════ -->
+<!-- PAGE 10: PRIVATE LABEL -->
+<!-- ══════════════════════════════════════════ -->
+<div class="page" id="private-label">
+
+  <div class="ann-bar">Wholesale Blank Apparel &nbsp;·&nbsp; Serving 2,000+ US Businesses &nbsp;·&nbsp; Same-Day Shipping from Dallas, TX &nbsp;·&nbsp; (214) 272-7213</div>
+  <div class="nav-wrap">
+    <nav class="nav">
+      <a href="#" class="nav-logo">AF Blanks</a>
+      <div class="nav-center"><a href="#">Shop All</a><a href="#">T-Shirts</a><a href="#">Hoodies</a><a href="#">New</a><div class="nav-dropdown"><span>Resources ▾</span><div class="dropdown-menu"><a href="#">About Us</a><a href="#">Style Sheets</a><a href="#">Product Specs</a><a href="#">Print Guide</a><a href="#">Customer Reviews</a><a href="#">Private Label</a><a href="#">Blog</a><a href="#">Contact Us</a></div></div></div>
+      <div class="nav-right"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg><a href="#">Log In</a><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg></div>
+    </nav>
+  </div>
+
+  <div class="pl-header">
+    <div class="container">
+      <h1>Private Label</h1>
+      <p>Your label. Your specs. Made in the same facilities as our wholesale line.</p>
+    </div>
+  </div>
+
+  <!-- S1: INTRO -->
+  <section class="pl-intro">
+    <div class="pl-intro-inner">
+      <div class="photo-placeholder pl-intro-img">[Photo]</div>
+      <div class="pl-intro-text">
+        <h2>Built for Brands Ready to Own Their Product</h2>
+        <p>Our private label program lets apparel brands, print shops, and retailers get custom-made garments under their own brand — your labels, your tags, your packaging. Same factories we use for everything else. No middlemen.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- S2: HOW IT WORKS -->
+  <section class="pl-steps">
+    <div class="container">
+      <div class="section-label">How It Works</div>
+      <div class="pl-steps-grid">
+        <div class="pl-step">
+          <div class="step-num">1</div>
+          <h4>Send Us Your Brief</h4>
+          <p>Share your fabric, fit, colors, sizing, and label requirements.</p>
+        </div>
+        <div class="pl-step">
+          <div class="step-num">2</div>
+          <h4>Sample First</h4>
+          <p>We make a sample for your approval before any bulk production starts.</p>
+        </div>
+        <div class="pl-step">
+          <div class="step-num">3</div>
+          <h4>Production</h4>
+          <p>Minimum 2,500 pieces per style per color. Takes 45–60 days.</p>
+        </div>
+        <div class="pl-step">
+          <div class="step-num">4</div>
+          <h4>Delivered to You</h4>
+          <p>Shipped direct to your warehouse or fulfillment center.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- S3: FEATURES -->
+  <section class="pl-features">
+    <div class="container">
+      <div class="section-label">What's Included</div>
+      <div class="pl-features-inner">
+        <ul>
+          <li>Custom woven or printed labels</li>
+          <li>Custom hang tags</li>
+          <li>Custom packaging</li>
+          <li>Multiple fabric options</li>
+        </ul>
+        <ul>
+          <li>Full size range XS–5XL</li>
+          <li>Oeko-Tex and GOTS certified fabrics available</li>
+          <li>Full compliance paperwork</li>
+          <li>One dedicated contact for your account</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- S4: THE NUMBERS -->
+  <section class="pl-numbers">
+    <div class="container">
+      <div class="section-label">The Numbers</div>
+      <dl class="pl-numbers-grid">
+        <div class="pl-number-item">
+          <dt>Minimum</dt>
+          <dd>2,500 pieces per style per color</dd>
+        </div>
+        <div class="pl-number-item">
+          <dt>Lead Time</dt>
+          <dd>45–60 days from sample approval</dd>
+        </div>
+        <div class="pl-number-item">
+          <dt>Samples</dt>
+          <dd>Available before you commit to production</dd>
+        </div>
+        <div class="pl-number-item">
+          <dt>Certifications</dt>
+          <dd>ISO 9000, Oeko-Tex, GOTS, WRAP — available on request</dd>
+        </div>
+      </dl>
+      <div class="pl-cta-line" style="margin-top:32px">
+        Ready to start? Contact us.<br>
+        <a href="mailto:info@afblanks.com">info@afblanks.com</a> &nbsp;·&nbsp; <a href="tel:2142727213">(214) 272-7213</a>
+      </div>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <div class="footer-inner"><div class="footer-col"><h4>Shop</h4><a href="#">Shop All Products</a><a href="#">T-Shirts</a><a href="#">Hoodies</a><a href="#">Sweatshirts</a><a href="#">Polos</a></div><div class="footer-col"><h4>Resources</h4><a href="#">Blog</a><a href="#">Product Specs</a><a href="#">Style Sheets</a><a href="#">About Us</a></div><div class="footer-col"><h4>Account</h4><a href="#">Apply for Wholesale</a><a href="#">Log In</a><a href="#">Order History</a></div><div class="footer-col"><h4>Support</h4><a href="#">Contact Us</a><a href="#">Track Order</a><a href="#">Privacy Policy</a></div></div>
+    <div class="footer-bottom">© 2026 AF Apparels. All rights reserved.</div>
+  </footer>
+
+</div><!-- /page private-label -->
+
+
+<!-- ══════════════════════════════════════════ -->
+<!-- PAGE 11: POLICIES -->
+<!-- ══════════════════════════════════════════ -->
+<div class="page" id="policies">
+
+  <div class="ann-bar">Wholesale Blank Apparel &nbsp;·&nbsp; Serving 2,000+ US Businesses &nbsp;·&nbsp; Same-Day Shipping from Dallas, TX &nbsp;·&nbsp; (214) 272-7213</div>
+  <div class="nav-wrap">
+    <nav class="nav">
+      <a href="#" class="nav-logo">AF Blanks</a>
+      <div class="nav-center"><a href="#">Shop All</a><a href="#">T-Shirts</a><a href="#">Hoodies</a><a href="#">New</a><div class="nav-dropdown"><span>Resources ▾</span><div class="dropdown-menu"><a href="#">About Us</a><a href="#">Style Sheets</a><a href="#">Product Specs</a><a href="#">Print Guide</a><a href="#">Customer Reviews</a><a href="#">Private Label</a><a href="#">Blog</a><a href="#">Contact Us</a></div></div></div>
+      <div class="nav-right"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg><a href="#">Log In</a><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg></div>
+    </nav>
+  </div>
+
+  <div class="pol-header">
+    <div class="container">
+      <h1>Policies</h1>
+      <div class="pol-tab-nav">
+        <button class="pol-tab-btn active" onclick="switchPolTab(this,'pol-shipping')">Shipping &amp; Returns</button>
+        <button class="pol-tab-btn" onclick="switchPolTab(this,'pol-ordering')">Ordering Info</button>
+        <button class="pol-tab-btn" onclick="switchPolTab(this,'pol-terms')">Terms &amp; Conditions</button>
+        <button class="pol-tab-btn" onclick="switchPolTab(this,'pol-privacy')">Privacy Policy</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="pol-body">
+    <div class="container">
+
+      <!-- TAB 1: SHIPPING & RETURNS -->
+      <div class="pol-content active" id="pol-shipping">
+        <div class="pol-section">
+          <h3>Shipping</h3>
+          <p>Orders placed before 1:00PM CT ship the same day from our Dallas, TX warehouse.</p>
+          <p>We ship via USPS, UPS, FedEx, or OnTrac ground. If you have your own UPS or FedEx account number, include it when ordering and we will use it.</p>
+          <p>Free shipping on orders $300 and above.</p>
+          <p>Shipping rates are calculated at checkout based on weight and destination.</p>
+        </div>
+        <div class="pol-section">
+          <h3>Will Call (Local Pickup)</h3>
+          <p>Available Monday–Friday, 8:30AM–4:30PM CT from our Dallas warehouse.</p>
+          <p>Allow at least 3 hours from when you place the order before coming in.</p>
+          <p>Cutoff for same-day pickup is 1:00PM CT. Orders placed after that may not be ready until the next business day.</p>
+          <p>Wait for your "Ready for Pickup" email before coming in.</p>
+          <p>We can hold will call orders for 5 business days. After that, items may be restocked and a 10% restocking fee applies.</p>
+        </div>
+        <div class="pol-section">
+          <h3>Returns &amp; Claims</h3>
+          <p>Inspect all items before washing, printing, or making any changes to the garment.</p>
+          <p>All claims must be made within 5 days of receiving your order. Email info@afblanks.com with your order number.</p>
+          <p>We cannot accept returns on anything that has been washed, printed, or altered in any way.</p>
+          <p>All returns require a Return Authorization (RA). We will email you one once your claim is approved. Returns sent without an RA will be refused.</p>
+          <p>RA numbers are valid for 14 days. If we do not receive the items within that time, you will need to submit a new request.</p>
+          <p>A 10% restocking fee applies to all returns that are not a result of our error.</p>
+          <p>Return shipping costs are the customer's responsibility unless the return is due to our mistake.</p>
+          <p>If you received damaged items, we will replace or refund them. Contact us within 5 days of delivery.</p>
+          <p>If you received the wrong style, color, or size, contact us within 5 days before making any changes to the garment.</p>
+        </div>
+      </div>
+
+      <!-- TAB 2: ORDERING INFO -->
+      <div class="pol-content" id="pol-ordering">
+        <div class="pol-section">
+          <h3>Placing an Order</h3>
+          <p>You do not need an account to place an order. Wholesale account holders get access to lower wholesale pricing.</p>
+          <p>There is no minimum order quantity on in-stock items.</p>
+          <p>For large orders over 1,000 units or custom configurations, use the "Request a Quote" option on any product page. We respond within 2 business hours.</p>
+          <p>To submit a PO, email it to info@afblanks.com</p>
+        </div>
+        <div class="pol-section">
+          <h3>Order Confirmation</h3>
+          <p>You will receive a confirmation email right after checkout. Check it carefully — it shows exactly what you ordered. If anything looks wrong, email info@afblanks.com within 24 hours.</p>
+        </div>
+        <div class="pol-section">
+          <h3>Changes &amp; Cancellations</h3>
+          <p>You can change or cancel an order within 2 hours of placing it. Email info@afblanks.com with your order number.</p>
+          <p>Once an order is being picked and packed it cannot be changed or cancelled.</p>
+          <p>Same-day orders cannot be changed after confirmation.</p>
+        </div>
+        <div class="pol-section">
+          <h3>Stock &amp; Availability</h3>
+          <p>Stock counts shown on product pages are updated in near real time.</p>
+          <p>If something goes out of stock after you order, we will contact you within 4 hours with three options: a backorder date, a substitute, or a full refund for those items.</p>
+        </div>
+        <div class="pol-section">
+          <h3>Payment</h3>
+          <p>Credit or Debit Card — Visa, Mastercard, Amex. Charged at checkout.</p>
+          <p>ACH Bank Transfer — 1–2 business days to process.</p>
+          <p>Wire Transfer — We send wire details after the order is placed. Ships when funds are received.</p>
+          <p>NET 30 — Available to accounts with 3 or more orders over 90 days. Apply through your account.</p>
+          <p>Cash — Accepted for will call orders only.</p>
+        </div>
+        <div class="pol-section">
+          <h3>Sales Tax</h3>
+          <p>We collect sales tax in states where required by law.</p>
+          <p>If your business has a sales tax exemption certificate, email it to info@afblanks.com before your first order. We will apply it to your account within 1 business day.</p>
+        </div>
+      </div>
+
+      <!-- TAB 3: TERMS & CONDITIONS -->
+      <div class="pol-content" id="pol-terms">
+        <div class="pol-section">
+          <h3>Payment Methods</h3>
+          <p>We accept cash (will call only), credit cards, approved company or personal checks, and cashier's checks. NET terms are available for accounts approved by our credit department or that have built sufficient order history with us. For more information contact 469-367-9753.</p>
+        </div>
+        <div class="pol-section">
+          <h3>No Minimums</h3>
+          <p>We do not have any minimum order quantities on standard in-stock items.</p>
+        </div>
+        <div class="pol-section">
+          <h3>Order Processing</h3>
+          <p>Most orders placed before 1:00PM CT are completed same day. If you need an order rushed, email info@afblanks.com or call 469-367-9753.</p>
+        </div>
+        <div class="pol-section">
+          <h3>Wholesale Accounts</h3>
+          <p>All wholesale accounts are for business-to-business use only. You must hold a valid resale certificate to maintain a wholesale account. We reserve the right to approve, suspend, or close any account at our discretion.</p>
+        </div>
+        <div class="pol-section">
+          <h3>Pricing</h3>
+          <p>All prices are in USD and subject to change without notice. Wholesale pricing is only available to approved account holders.</p>
+        </div>
+        <div class="pol-section">
+          <h3>Claims &amp; Returns</h3>
+          <p>All claims must be made within 5 days of receiving goods. Items must be unaltered. Returns require a Return Authorization. Items returned without one will be refused. A 10% restocking fee applies. Customers are responsible for return shipping unless the return is our fault.</p>
+        </div>
+        <div class="pol-section">
+          <h3>Cancellations</h3>
+          <p>Once you receive an order confirmation, the order cannot be cancelled. Call customer service to request any changes: 469-367-9753, Monday–Friday 8:30AM–5:00PM CT.</p>
+        </div>
+        <div class="pol-section">
+          <h3>Liability</h3>
+          <p>AF Apparels is not responsible for delays caused by shipping carriers or events outside our control. Our liability is limited to the value of the order placed.</p>
+        </div>
+      </div>
+
+      <!-- TAB 4: PRIVACY POLICY -->
+      <div class="pol-content" id="pol-privacy">
+        <p style="font-size:12px;color:var(--text-sec);font-family:var(--font-b);margin-bottom:24px">Last updated: January 30, 2025</p>
+        <div class="pol-section">
+          <h3>What We Collect</h3>
+          <p>When you use our site or place an order, we collect your name, address, phone number, email, and order details. Payment information is processed securely through our payment provider — we do not store card details on our servers. We also collect basic usage data through cookies to help the site work properly.</p>
+        </div>
+        <div class="pol-section">
+          <h3>How We Use It</h3>
+          <p>To process and fulfill your orders.</p>
+          <p>To send you updates about your order or account.</p>
+          <p>To send promotional emails if you have opted in. You can unsubscribe at any time using the link in any email.</p>
+          <p>To improve how our site works.</p>
+        </div>
+        <div class="pol-section">
+          <h3>Who We Share It With</h3>
+          <p>We share information with third parties only as needed to run the business — shipping carriers, payment processors, and our platform provider. We do not sell your personal information to third parties for their own marketing.</p>
+        </div>
+        <div class="pol-section">
+          <h3>Cookies</h3>
+          <p>We use cookies to keep the site running and to understand how people use it. You can turn cookies off in your browser settings, though some parts of the site may not work as expected.</p>
+        </div>
+        <div class="pol-section">
+          <h3>Your Rights</h3>
+          <p>Depending on where you live, you may have the right to access, correct, delete, or export your personal information. To make a request, email info.afapparel@gmail.com</p>
+        </div>
+        <div class="pol-section">
+          <h3>Children</h3>
+          <p>This site is not intended for anyone under 18. We do not knowingly collect information from children.</p>
+        </div>
+        <div class="pol-section">
+          <h3>Contact</h3>
+          <p>Privacy questions: info.afapparel@gmail.com</p>
+          <p>Address: 10719 Turbeville Road, Dallas, TX 75243</p>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <footer class="footer">
+    <div class="footer-inner"><div class="footer-col"><h4>Shop</h4><a href="#">Shop All Products</a><a href="#">T-Shirts</a><a href="#">Hoodies</a><a href="#">Sweatshirts</a><a href="#">Polos</a></div><div class="footer-col"><h4>Resources</h4><a href="#">Blog</a><a href="#">Product Specs</a><a href="#">Style Sheets</a><a href="#">About Us</a></div><div class="footer-col"><h4>Account</h4><a href="#">Apply for Wholesale</a><a href="#">Log In</a><a href="#">Order History</a></div><div class="footer-col"><h4>Support</h4><a href="#">Contact Us</a><a href="#">Track Order</a><a href="#">Privacy Policy</a></div></div>
+    <div class="footer-bottom">© 2026 AF Apparels. All rights reserved.</div>
+  </footer>
+
+</div><!-- /page policies -->
+
+
+<!-- ══════════════════════════════════════════ -->
+<!-- PAGE 12: LOG IN -->
+<!-- ══════════════════════════════════════════ -->
+<div class="page" id="login">
+
+  <div class="ann-bar">Wholesale Blank Apparel &nbsp;·&nbsp; Serving 2,000+ US Businesses &nbsp;·&nbsp; Same-Day Shipping from Dallas, TX &nbsp;·&nbsp; (214) 272-7213</div>
+  <div class="nav-wrap">
+    <nav class="nav">
+      <a href="#" class="nav-logo">AF Blanks</a>
+      <div class="nav-center"><a href="#">Shop All</a><a href="#">T-Shirts</a><a href="#">Hoodies</a><a href="#">New</a><div class="nav-dropdown"><span>Resources ▾</span><div class="dropdown-menu"><a href="#">About Us</a><a href="#">Style Sheets</a><a href="#">Product Specs</a><a href="#">Print Guide</a><a href="#">Customer Reviews</a><a href="#">Private Label</a><a href="#">Blog</a><a href="#">Contact Us</a></div></div></div>
+      <div class="nav-right"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg><a href="#" style="color:var(--accent);font-weight:600">Log In</a><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg></div>
+    </nav>
+  </div>
+
+  <div class="login-page">
+    <div class="login-box">
+      <h1>Log In</h1>
+
+      <div class="form-group">
+        <label>Email *</label>
+        <input type="email" placeholder="you@company.com">
+      </div>
+      <div class="form-group">
+        <label>Password *</label>
+        <input type="password" placeholder="Your password">
+        <a href="#" class="forgot-link">Forgot your password?</a>
+      </div>
+
+      <button class="btn-primary" style="width:100%;padding:14px;font-size:15px;margin-top:8px">Log In →</button>
+
+      <div class="login-divider"><span>or</span></div>
+
+      <a href="#" class="btn-outline" style="width:100%;padding:14px;font-size:15px;text-align:center;display:block">Create a Wholesale Account →</a>
+
+      <p class="login-guest-note">No account needed to place an order. Guests pay standard pricing.</p>
+    </div>
+  </div>
+
+  <footer class="footer">
+    <div class="footer-inner"><div class="footer-col"><h4>Shop</h4><a href="#">Shop All Products</a><a href="#">T-Shirts</a><a href="#">Hoodies</a><a href="#">Sweatshirts</a><a href="#">Polos</a></div><div class="footer-col"><h4>Resources</h4><a href="#">Blog</a><a href="#">Product Specs</a><a href="#">Style Sheets</a><a href="#">About Us</a></div><div class="footer-col"><h4>Account</h4><a href="#">Apply for Wholesale</a><a href="#">Log In</a><a href="#">Order History</a></div><div class="footer-col"><h4>Support</h4><a href="#">Contact Us</a><a href="#">Track Order</a><a href="#">Privacy Policy</a></div></div>
+    <div class="footer-bottom">© 2026 AF Apparels. All rights reserved.</div>
+  </footer>
+
+</div><!-- /page login -->
+
+
+<!-- ══════════════════════════════════════════ -->
+<!-- PAGE 13: CART -->
+<!-- ══════════════════════════════════════════ -->
+<div class="page" id="cart">
+
+  <div class="ann-bar">Wholesale Blank Apparel &nbsp;·&nbsp; Serving 2,000+ US Businesses &nbsp;·&nbsp; Same-Day Shipping from Dallas, TX &nbsp;·&nbsp; (214) 272-7213</div>
+  <div class="nav-wrap">
+    <nav class="nav">
+      <a href="#" class="nav-logo">AF Blanks</a>
+      <div class="nav-center"><a href="#">Shop All</a><a href="#">T-Shirts</a><a href="#">Hoodies</a><a href="#">New</a><div class="nav-dropdown"><span>Resources ▾</span><div class="dropdown-menu"><a href="#">About Us</a><a href="#">Style Sheets</a><a href="#">Product Specs</a><a href="#">Print Guide</a><a href="#">Customer Reviews</a><a href="#">Private Label</a><a href="#">Blog</a><a href="#">Contact Us</a></div></div></div>
+      <div class="nav-right"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg><a href="#">Log In</a><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg></div>
+    </nav>
+  </div>
+
+  <div class="cart-page">
+    <div style="max-width:var(--max);margin:0 auto;">
+      <h1 class="cart-title">Your Cart</h1>
+
+      <div class="cart-inner">
+        <!-- LEFT: CART ITEMS -->
+        <div>
+          <table class="cart-table" id="cart-table">
+            <thead>
+              <tr>
+                <th style="width:40%">Product</th>
+                <th>Color</th>
+                <th>Size</th>
+                <th>Qty</th>
+                <th>Price</th>
+                <th>Total</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="cart-tbody">
+              <tr data-price="4.20" data-id="row1">
+                <td>
+                  <div class="cart-prod-cell">
+                    <div class="cart-prod-img">[Img]</div>
+                    <div>
+                      <div class="cart-prod-name">Heavyweight Cotton Tee</div>
+                      <div class="cart-prod-code">1001</div>
+                    </div>
+                  </div>
+                </td>
+                <td>White</td>
+                <td>L</td>
+                <td><input class="cart-qty" type="number" min="1" value="24" onchange="updateCartRow(this)"></td>
+                <td>$4.20</td>
+                <td class="cart-line-total">$100.80</td>
+                <td><button class="cart-remove" onclick="removeCartRow(this)">×</button></td>
+              </tr>
+              <tr data-price="4.20" data-id="row2">
+                <td>
+                  <div class="cart-prod-cell">
+                    <div class="cart-prod-img">[Img]</div>
+                    <div>
+                      <div class="cart-prod-name">Heavyweight Cotton Tee</div>
+                      <div class="cart-prod-code">1001</div>
+                    </div>
+                  </div>
+                </td>
+                <td>Black</td>
+                <td>XL</td>
+                <td><input class="cart-qty" type="number" min="1" value="12" onchange="updateCartRow(this)"></td>
+                <td>$4.20</td>
+                <td class="cart-line-total">$50.40</td>
+                <td><button class="cart-remove" onclick="removeCartRow(this)">×</button></td>
+              </tr>
+              <tr data-price="4.80" data-id="row3">
+                <td>
+                  <div class="cart-prod-cell">
+                    <div class="cart-prod-img">[Img]</div>
+                    <div>
+                      <div class="cart-prod-name">Heavyweight Cotton Tee</div>
+                      <div class="cart-prod-code">1001</div>
+                    </div>
+                  </div>
+                </td>
+                <td>Navy</td>
+                <td>2XL</td>
+                <td><input class="cart-qty" type="number" min="1" value="6" onchange="updateCartRow(this)"></td>
+                <td>$4.80</td>
+                <td class="cart-line-total">$28.80</td>
+                <td><button class="cart-remove" onclick="removeCartRow(this)">×</button></td>
+              </tr>
+            </tbody>
+          </table>
+          <div id="cart-empty-state" class="cart-empty" style="display:none">
+            Your cart is empty. <a href="#">Shop All →</a>
+          </div>
+        </div>
+
+        <!-- RIGHT: ORDER SUMMARY -->
+        <div class="cart-summary">
+          <div class="cart-summary-row"><span>Subtotal</span><span id="cart-subtotal">$180.00</span></div>
+          <div class="cart-summary-row"><span>Shipping</span><span>Calculated at checkout</span></div>
+          <div class="cart-summary-row"><span>Tax</span><span>Calculated at checkout</span></div>
+          <div class="cart-summary-row total"><span>Total</span><span id="cart-total">$180.00</span></div>
+          <button class="btn-primary" style="width:100%;padding:14px;font-size:15px;margin-top:16px">Proceed to Checkout →</button>
+          <div class="cart-ws-note">Need a wholesale account? <a href="#">Apply here →</a></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <footer class="footer">
+    <div class="footer-inner"><div class="footer-col"><h4>Shop</h4><a href="#">Shop All Products</a><a href="#">T-Shirts</a><a href="#">Hoodies</a><a href="#">Sweatshirts</a><a href="#">Polos</a></div><div class="footer-col"><h4>Resources</h4><a href="#">Blog</a><a href="#">Product Specs</a><a href="#">Style Sheets</a><a href="#">About Us</a></div><div class="footer-col"><h4>Account</h4><a href="#">Apply for Wholesale</a><a href="#">Log In</a><a href="#">Order History</a></div><div class="footer-col"><h4>Support</h4><a href="#">Contact Us</a><a href="#">Track Order</a><a href="#">Privacy Policy</a></div></div>
+    <div class="footer-bottom">© 2026 AF Apparels. All rights reserved.</div>
+  </footer>
+
+</div><!-- /page cart -->
+
+
+<!-- ══════════════════════════════════════════ -->
+<!-- PAGE 14: CHECKOUT — SHIPPING -->
+<!-- ══════════════════════════════════════════ -->
+<div class="page" id="checkout-shipping">
+
+  <div class="ann-bar">Wholesale Blank Apparel &nbsp;·&nbsp; Serving 2,000+ US Businesses &nbsp;·&nbsp; Same-Day Shipping from Dallas, TX &nbsp;·&nbsp; (214) 272-7213</div>
+  <div class="nav-wrap">
+    <nav class="nav">
+      <a href="#" class="nav-logo">AF Blanks</a>
+      <div class="nav-center"><a href="#">Shop All</a><a href="#">T-Shirts</a><a href="#">Hoodies</a><a href="#">New</a><div class="nav-dropdown"><span>Resources ▾</span><div class="dropdown-menu"><a href="#">About Us</a><a href="#">Style Sheets</a><a href="#">Product Specs</a><a href="#">Print Guide</a><a href="#">Customer Reviews</a><a href="#">Private Label</a><a href="#">Blog</a><a href="#">Contact Us</a></div></div></div>
+      <div class="nav-right"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg><a href="#">Log In</a><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg></div>
+    </nav>
+  </div>
+
+  <!-- PROGRESS -->
+  <div class="checkout-progress">
+    <div class="checkout-progress-inner">
+      <span class="progress-step active">Shipping</span>
+      <span class="progress-sep">→</span>
+      <span class="progress-step">Payment</span>
+      <span class="progress-sep">→</span>
+      <span class="progress-step">Confirmed</span>
+    </div>
+  </div>
+
+  <div class="checkout-body">
+    <div class="checkout-inner">
+
+      <!-- LEFT: FORM -->
+      <div>
+        <div class="checkout-form-label">Contact</div>
+        <div class="form-group"><label>Email *</label><input type="email" placeholder="you@company.com"></div>
+
+        <div class="checkout-form-label">Shipping Address</div>
+        <div class="form-row">
+          <div class="form-group"><label>First Name *</label><input type="text" placeholder="First name"></div>
+          <div class="form-group"><label>Last Name *</label><input type="text" placeholder="Last name"></div>
+        </div>
+        <div class="form-group"><label>Address *</label><input type="text" placeholder="Street address"></div>
+        <div class="form-group"><label>Apartment, suite (optional)</label><input type="text" placeholder="Apt, suite, unit, etc."></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px">
+          <div class="form-group"><label>City *</label><input type="text" placeholder="City"></div>
+          <div class="form-group"><label>State *</label><input type="text" placeholder="TX"></div>
+          <div class="form-group"><label>ZIP *</label><input type="text" placeholder="00000"></div>
+        </div>
+        <div class="form-group"><label>Country *</label><select><option>United States</option><option>Canada</option></select></div>
+
+        <div class="checkout-form-label">Shipping Method</div>
+        <div class="shipping-opts">
+          <label class="shipping-opt selected">
+            <input type="radio" name="ship-method" checked>
+            <div class="shipping-opt-text">
+              <div class="shipping-opt-name">Standard Shipping (3–5 business days)</div>
+              <div class="shipping-opt-desc">Free on orders $300+</div>
+            </div>
+          </label>
+          <label class="shipping-opt">
+            <input type="radio" name="ship-method">
+            <div class="shipping-opt-text">
+              <div class="shipping-opt-name">Expedited Shipping (1–2 business days)</div>
+              <div class="shipping-opt-desc">Calculated at checkout</div>
+            </div>
+          </label>
+        </div>
+
+        <div style="margin-top:24px">
+          <button class="btn-primary" style="width:100%;padding:14px;font-size:15px">Continue to Payment →</button>
+          <a href="#" class="checkout-return-link">← Return to Cart</a>
+        </div>
+      </div>
+
+      <!-- RIGHT: ORDER SUMMARY -->
+      <div class="checkout-summary">
+        <div class="checkout-summary-title">Order Summary</div>
+        <div class="checkout-item">
+          <div class="checkout-item-img">[Img]</div>
+          <div class="checkout-item-info">
+            <div class="checkout-item-name">Heavyweight Cotton Tee</div>
+            <div class="checkout-item-detail">White / L &nbsp;×&nbsp; 24</div>
+          </div>
+          <div class="checkout-item-price">$100.80</div>
+        </div>
+        <div class="checkout-item">
+          <div class="checkout-item-img">[Img]</div>
+          <div class="checkout-item-info">
+            <div class="checkout-item-name">Heavyweight Cotton Tee</div>
+            <div class="checkout-item-detail">Black / XL &nbsp;×&nbsp; 12</div>
+          </div>
+          <div class="checkout-item-price">$50.40</div>
+        </div>
+        <div class="checkout-item">
+          <div class="checkout-item-img">[Img]</div>
+          <div class="checkout-item-info">
+            <div class="checkout-item-name">Heavyweight Cotton Tee</div>
+            <div class="checkout-item-detail">Navy / 2XL &nbsp;×&nbsp; 6</div>
+          </div>
+          <div class="checkout-item-price">$28.80</div>
+        </div>
+        <div class="checkout-sum-rows">
+          <div class="checkout-sum-row"><span>Subtotal</span><span>$180.00</span></div>
+          <div class="checkout-sum-row"><span>Shipping</span><span>Free</span></div>
+          <div class="checkout-sum-row"><span>Tax</span><span>Calculated</span></div>
+          <div class="checkout-sum-row total"><span>Total</span><span>$180.00</span></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <footer class="footer">
+    <div class="footer-inner"><div class="footer-col"><h4>Shop</h4><a href="#">Shop All Products</a><a href="#">T-Shirts</a><a href="#">Hoodies</a><a href="#">Sweatshirts</a><a href="#">Polos</a></div><div class="footer-col"><h4>Resources</h4><a href="#">Blog</a><a href="#">Product Specs</a><a href="#">Style Sheets</a><a href="#">About Us</a></div><div class="footer-col"><h4>Account</h4><a href="#">Apply for Wholesale</a><a href="#">Log In</a><a href="#">Order History</a></div><div class="footer-col"><h4>Support</h4><a href="#">Contact Us</a><a href="#">Track Order</a><a href="#">Privacy Policy</a></div></div>
+    <div class="footer-bottom">© 2026 AF Apparels. All rights reserved.</div>
+  </footer>
+
+</div><!-- /page checkout-shipping -->
+
+
+<!-- ══════════════════════════════════════════ -->
+<!-- PAGE 15: CHECKOUT — PAYMENT -->
+<!-- ══════════════════════════════════════════ -->
+<div class="page" id="checkout-payment">
+
+  <div class="ann-bar">Wholesale Blank Apparel &nbsp;·&nbsp; Serving 2,000+ US Businesses &nbsp;·&nbsp; Same-Day Shipping from Dallas, TX &nbsp;·&nbsp; (214) 272-7213</div>
+  <div class="nav-wrap">
+    <nav class="nav">
+      <a href="#" class="nav-logo">AF Blanks</a>
+      <div class="nav-center"><a href="#">Shop All</a><a href="#">T-Shirts</a><a href="#">Hoodies</a><a href="#">New</a><div class="nav-dropdown"><span>Resources ▾</span><div class="dropdown-menu"><a href="#">About Us</a><a href="#">Style Sheets</a><a href="#">Product Specs</a><a href="#">Print Guide</a><a href="#">Customer Reviews</a><a href="#">Private Label</a><a href="#">Blog</a><a href="#">Contact Us</a></div></div></div>
+      <div class="nav-right"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg><a href="#">Log In</a><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg></div>
+    </nav>
+  </div>
+
+  <!-- PROGRESS -->
+  <div class="checkout-progress">
+    <div class="checkout-progress-inner">
+      <span class="progress-step">Shipping</span>
+      <span class="progress-sep">→</span>
+      <span class="progress-step active">Payment</span>
+      <span class="progress-sep">→</span>
+      <span class="progress-step">Confirmed</span>
+    </div>
+  </div>
+
+  <div class="checkout-body">
+    <div class="checkout-inner">
+
+      <!-- LEFT: PAYMENT FORM -->
+      <div>
+        <div class="checkout-form-label">Payment</div>
+        <div class="form-group"><label>Card Number *</label><input type="text" placeholder="1234 5678 9012 3456"></div>
+        <div class="payment-card-row">
+          <div class="form-group"><label>Expiration *</label><input type="text" placeholder="MM / YY"></div>
+          <div class="form-group"><label>CVV *</label><input type="text" placeholder="CVV"></div>
+        </div>
+        <div class="form-group"><label>Name on Card *</label><input type="text" placeholder="Full name as shown on card"></div>
+
+        <div class="checkout-form-label">Billing Address</div>
+        <div class="billing-same">
+          <input type="checkbox" id="billing-same-check" checked onchange="toggleBillingFields(this)">
+          <label for="billing-same-check">Same as shipping address</label>
+        </div>
+        <div class="billing-address-fields" id="billing-address-fields">
+          <div class="form-row">
+            <div class="form-group"><label>First Name *</label><input type="text" placeholder="First name"></div>
+            <div class="form-group"><label>Last Name *</label><input type="text" placeholder="Last name"></div>
+          </div>
+          <div class="form-group"><label>Address *</label><input type="text" placeholder="Street address"></div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px">
+            <div class="form-group"><label>City *</label><input type="text" placeholder="City"></div>
+            <div class="form-group"><label>State *</label><input type="text" placeholder="TX"></div>
+            <div class="form-group"><label>ZIP *</label><input type="text" placeholder="00000"></div>
+          </div>
+          <div class="form-group"><label>Country *</label><select><option>United States</option><option>Canada</option></select></div>
+        </div>
+
+        <div style="margin-top:24px">
+          <button class="btn-primary" style="width:100%;padding:14px;font-size:15px">Place Order →</button>
+          <a href="#" class="checkout-return-link">← Return to Shipping</a>
+        </div>
+      </div>
+
+      <!-- RIGHT: ORDER SUMMARY -->
+      <div class="checkout-summary">
+        <div class="checkout-summary-title">Order Summary</div>
+        <div class="checkout-item">
+          <div class="checkout-item-img">[Img]</div>
+          <div class="checkout-item-info">
+            <div class="checkout-item-name">Heavyweight Cotton Tee</div>
+            <div class="checkout-item-detail">White / L &nbsp;×&nbsp; 24</div>
+          </div>
+          <div class="checkout-item-price">$100.80</div>
+        </div>
+        <div class="checkout-item">
+          <div class="checkout-item-img">[Img]</div>
+          <div class="checkout-item-info">
+            <div class="checkout-item-name">Heavyweight Cotton Tee</div>
+            <div class="checkout-item-detail">Black / XL &nbsp;×&nbsp; 12</div>
+          </div>
+          <div class="checkout-item-price">$50.40</div>
+        </div>
+        <div class="checkout-item">
+          <div class="checkout-item-img">[Img]</div>
+          <div class="checkout-item-info">
+            <div class="checkout-item-name">Heavyweight Cotton Tee</div>
+            <div class="checkout-item-detail">Navy / 2XL &nbsp;×&nbsp; 6</div>
+          </div>
+          <div class="checkout-item-price">$28.80</div>
+        </div>
+        <div class="checkout-sum-rows">
+          <div class="checkout-sum-row"><span>Subtotal</span><span>$180.00</span></div>
+          <div class="checkout-sum-row"><span>Shipping</span><span>Free</span></div>
+          <div class="checkout-sum-row"><span>Tax</span><span>Calculated</span></div>
+          <div class="checkout-sum-row total"><span>Total</span><span>$180.00</span></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <footer class="footer">
+    <div class="footer-inner"><div class="footer-col"><h4>Shop</h4><a href="#">Shop All Products</a><a href="#">T-Shirts</a><a href="#">Hoodies</a><a href="#">Sweatshirts</a><a href="#">Polos</a></div><div class="footer-col"><h4>Resources</h4><a href="#">Blog</a><a href="#">Product Specs</a><a href="#">Style Sheets</a><a href="#">About Us</a></div><div class="footer-col"><h4>Account</h4><a href="#">Apply for Wholesale</a><a href="#">Log In</a><a href="#">Order History</a></div><div class="footer-col"><h4>Support</h4><a href="#">Contact Us</a><a href="#">Track Order</a><a href="#">Privacy Policy</a></div></div>
+    <div class="footer-bottom">© 2026 AF Apparels. All rights reserved.</div>
+  </footer>
+
+</div><!-- /page checkout-payment -->
+
+
+<!-- ══════════════════════════════════════════ -->
+<!-- PAGE 16: CHECKOUT — CONFIRMED -->
+<!-- ══════════════════════════════════════════ -->
+<div class="page" id="checkout-confirmed">
+
+  <div class="ann-bar">Wholesale Blank Apparel &nbsp;·&nbsp; Serving 2,000+ US Businesses &nbsp;·&nbsp; Same-Day Shipping from Dallas, TX &nbsp;·&nbsp; (214) 272-7213</div>
+  <div class="nav-wrap">
+    <nav class="nav">
+      <a href="#" class="nav-logo">AF Blanks</a>
+      <div class="nav-center"><a href="#">Shop All</a><a href="#">T-Shirts</a><a href="#">Hoodies</a><a href="#">New</a><div class="nav-dropdown"><span>Resources ▾</span><div class="dropdown-menu"><a href="#">About Us</a><a href="#">Style Sheets</a><a href="#">Product Specs</a><a href="#">Print Guide</a><a href="#">Customer Reviews</a><a href="#">Private Label</a><a href="#">Blog</a><a href="#">Contact Us</a></div></div></div>
+      <div class="nav-right"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg><a href="#">Log In</a><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg></div>
+    </nav>
+  </div>
+
+  <!-- PROGRESS -->
+  <div class="checkout-progress">
+    <div class="checkout-progress-inner">
+      <span class="progress-step">Shipping</span>
+      <span class="progress-sep">→</span>
+      <span class="progress-step">Payment</span>
+      <span class="progress-sep">→</span>
+      <span class="progress-step active">Confirmed</span>
+    </div>
+  </div>
+
+  <div style="padding:64px 24px;background:var(--bg);min-height:60vh;display:flex;flex-direction:column;align-items:center;">
+    <div class="confirmed-inner">
+      <h1>Order Confirmed</h1>
+      <p class="confirmed-sub">Your order has been placed. You will receive a confirmation email shortly.</p>
+
+      <div class="confirmed-details">
+        <dl>
+          <div class="confirmed-detail-row">
+            <dt>Order Number</dt>
+            <dd class="mono">#AF-00001</dd>
+          </div>
+          <div class="confirmed-detail-row">
+            <dt>Email confirmation sent to</dt>
+            <dd>customer@email.com</dd>
+          </div>
+          <div class="confirmed-detail-row">
+            <dt>Estimated delivery</dt>
+            <dd>3–5 business days</dd>
+          </div>
+        </dl>
+      </div>
+
+      <div class="confirmed-links">
+        <a href="#" class="btn-outline">Track Your Order →</a>
+        <a href="#" class="btn-primary">Continue Shopping →</a>
+      </div>
+    </div>
+  </div>
+
+  <footer class="footer">
+    <div class="footer-inner"><div class="footer-col"><h4>Shop</h4><a href="#">Shop All Products</a><a href="#">T-Shirts</a><a href="#">Hoodies</a><a href="#">Sweatshirts</a><a href="#">Polos</a></div><div class="footer-col"><h4>Resources</h4><a href="#">Blog</a><a href="#">Product Specs</a><a href="#">Style Sheets</a><a href="#">About Us</a></div><div class="footer-col"><h4>Account</h4><a href="#">Apply for Wholesale</a><a href="#">Log In</a><a href="#">Order History</a></div><div class="footer-col"><h4>Support</h4><a href="#">Contact Us</a><a href="#">Track Order</a><a href="#">Privacy Policy</a></div></div>
+    <div class="footer-bottom">© 2026 AF Apparels. All rights reserved.</div>
+  </footer>
+
+</div><!-- /page checkout-confirmed -->
+
+
+<script>
+/* ── POLICY TABS ── */
+function switchPolTab(btn, contentId) {
+  document.querySelectorAll('.pol-tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.pol-content').forEach(c => c.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById(contentId).classList.add('active');
+}
+
+/* ── CART: UPDATE LINE TOTAL ── */
+function updateCartRow(input) {
+  const row = input.closest('tr');
+  const price = parseFloat(row.dataset.price);
+  const qty = parseInt(input.value) || 0;
+  const total = (price * qty).toFixed(2);
+  row.querySelector('.cart-line-total').textContent = '$' + total;
+  updateCartSummary();
+}
+
+function removeCartRow(btn) {
+  const row = btn.closest('tr');
+  row.remove();
+  updateCartSummary();
+  const tbody = document.getElementById('cart-tbody');
+  if (tbody && tbody.querySelectorAll('tr').length === 0) {
+    document.getElementById('cart-empty-state').style.display = 'block';
+    document.getElementById('cart-table').style.display = 'none';
+  }
+}
+
+function updateCartSummary() {
+  let subtotal = 0;
+  document.querySelectorAll('#cart-tbody tr').forEach(row => {
+    const price = parseFloat(row.dataset.price);
+    const qty = parseInt(row.querySelector('.cart-qty').value) || 0;
+    subtotal += price * qty;
+  });
+  const fmt = subtotal.toFixed(2);
+  const subEl = document.getElementById('cart-subtotal');
+  const totEl = document.getElementById('cart-total');
+  if (subEl) subEl.textContent = '$' + fmt;
+  if (totEl) totEl.textContent = '$' + fmt;
+}
+
+/* ── CHECKOUT: BILLING ADDRESS TOGGLE ── */
+function toggleBillingFields(checkbox) {
+  const fields = document.getElementById('billing-address-fields');
+  if (!checkbox.checked) {
+    fields.classList.add('visible');
+  } else {
+    fields.classList.remove('visible');
+  }
+}
+
+/* ── CHECKOUT: SHIPPING METHOD HIGHLIGHT ── */
+document.querySelectorAll('.shipping-opt input[type=radio]').forEach(radio => {
+  radio.addEventListener('change', function() {
+    document.querySelectorAll('.shipping-opt').forEach(opt => opt.classList.remove('selected'));
+    this.closest('.shipping-opt').classList.add('selected');
+  });
+});
+</script>
+
+</body>
+</html>

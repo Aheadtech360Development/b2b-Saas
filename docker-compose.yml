@@ -1,0 +1,170 @@
+services:
+  # ── PostgreSQL 16 ────────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: afapparel_postgres
+    environment:
+      POSTGRES_USER: afapparel
+      POSTGRES_PASSWORD: afapparel
+      POSTGRES_DB: afapparel_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U afapparel -d afapparel_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Redis 7 ──────────────────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: afapparel_redis
+    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── FastAPI Backend ───────────────────────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: afapparel_backend
+    env_file: .env
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://afapparel:afapparel@postgres:5432/afapparel_db
+      - DATABASE_URL_SYNC=postgresql://afapparel:afapparel@postgres:5432/afapparel_db
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/1
+      - CELERY_RESULT_BACKEND=redis://redis:6379/2
+      - ALLOWED_ORIGINS=http://localhost:3000,http://localhost:3001,https://af-apparel.vercel.app
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 2
+
+  # ── Celery Worker (general queues) ───────────────────────────────────────────
+  celery_worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: afapparel_celery
+    env_file: .env
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://afapparel:afapparel@postgres:5432/afapparel_db
+      - DATABASE_URL_SYNC=postgresql://afapparel:afapparel@postgres:5432/afapparel_db
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/1
+      - CELERY_RESULT_BACKEND=redis://redis:6379/2
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
+    command: celery -A app.core.celery worker --loglevel=info --concurrency=4 -Q celery,email,quickbooks,pricelist,inventory,default
+
+  # ── Celery Worker — S&S Activewear (concurrency=1 enforces 1 API call at a time)
+  celery_worker_supplier:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: afapparel_celery_supplier
+    env_file: .env
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://afapparel:afapparel@postgres:5432/afapparel_db
+      - DATABASE_URL_SYNC=postgresql://afapparel:afapparel@postgres:5432/afapparel_db
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/1
+      - CELERY_RESULT_BACKEND=redis://redis:6379/2
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
+    command: celery -A app.core.celery worker --loglevel=info --concurrency=1 -Q supplier
+
+  # ── Celery Beat (periodic tasks) ──────────────────────────────────────────────
+  celery_beat:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: afapparel_beat
+    env_file: .env
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://afapparel:afapparel@postgres:5432/afapparel_db
+      - DATABASE_URL_SYNC=postgresql://afapparel:afapparel@postgres:5432/afapparel_db
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/1
+      - CELERY_RESULT_BACKEND=redis://redis:6379/2
+    depends_on:
+      - redis
+    volumes:
+      - ./backend:/app
+    command: celery -A app.core.celery beat --loglevel=info
+
+  # ── Next.js Frontend ──────────────────────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      target: deps
+    container_name: afapparel_frontend
+    env_file: .env
+    environment:
+    - NEXT_PUBLIC_RECAPTCHA_SITE_KEY=${NEXT_PUBLIC_RECAPTCHA_SITE_KEY}
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+      - /app/.next
+    command: npm run dev
+
+  # ── NGINX ─────────────────────────────────────────────────────────────────────
+  nginx:
+    image: nginx:alpine
+    container_name: afapparel_nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    depends_on:
+      - backend
+      - frontend
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - nginx_logs:/var/log/nginx
+
+volumes:
+  postgres_data:
+  redis_data:
+  nginx_logs:
