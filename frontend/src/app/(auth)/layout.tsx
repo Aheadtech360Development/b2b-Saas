@@ -1,10 +1,5 @@
-import { Footer } from "@/components/layout/Footer";
-
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
-  return (
-    <>
-      {children}
-      <Footer />
-    </>
-  );
+  // Auth pages (login/register/forgot) are intentionally minimal — no store
+  // header or footer, just the form.
+  return <>{children}</>;
 }

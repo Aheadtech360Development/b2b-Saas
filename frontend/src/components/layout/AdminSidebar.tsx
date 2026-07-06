@@ -105,6 +105,7 @@ export function AdminSidebar() {
       <div style={SECTION_HEAD}>Overview</div>
       <NavLink href="/admin/dashboard" label="Dashboard" icon={<BarChartIcon size={15} color="currentColor" />} />
       <NavLink href="/admin/storefront" label="Storefront" icon={<BuildingIcon size={15} color="currentColor" />} />
+      <NavLink href="/admin/media" label="Media Library" icon={<BookIcon size={15} color="currentColor" />} />
 
       {/* ── ORDERS ── */}
       <div style={SECTION_HEAD}>Orders</div>

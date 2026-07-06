@@ -3,7 +3,7 @@ import io
 import os
 import uuid
 
-from fastapi import APIRouter, File, HTTPException, UploadFile
+from fastapi import APIRouter, File, HTTPException, Request, UploadFile
 
 router = APIRouter(prefix="/upload")
 
@@ -12,7 +12,7 @@ _ALLOWED_PDF = {"application/pdf"}
 
 
 @router.post("")
-async def upload_file(file: UploadFile = File(...)):
+async def upload_file(file: UploadFile = File(...), request: Request = None):  # type: ignore[assignment]
     """Upload an image or PDF. Returns { url, file_name, type }."""
     from app.core.config import get_settings
 
@@ -36,6 +36,17 @@ async def upload_file(file: UploadFile = File(...)):
     content = await file.read()
     asset_id = str(uuid.uuid4())
     original_name = file.filename or ("file.pdf" if is_pdf else "image.jpg")
+
+    # ── Prefer ImageKit when configured (media CDN + per-tenant folders) ──────
+    from app.services import imagekit_service
+    if imagekit_service.is_configured():
+        slug = getattr(request.state, "tenant_slug", None) if request is not None else None
+        try:
+            result = await imagekit_service.upload_bytes(content, original_name, tenant_id=slug)
+            return {"url": result["url"], "file_name": result.get("name") or original_name, "type": "pdf" if is_pdf else "image"}
+        except Exception as exc:  # noqa: BLE001 — fall back to local/S3 on ImageKit error
+            import logging
+            logging.getLogger(__name__).warning("ImageKit upload failed, falling back: %s", exc)
 
     if is_pdf:
         if use_s3:

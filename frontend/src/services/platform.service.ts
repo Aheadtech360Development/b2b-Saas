@@ -79,7 +79,19 @@ export const platformService = {
   async purgeTenant(slug: string): Promise<void> {
     return apiClient.delete<void>(`/api/v1/platform/tenants/${slug}/purge`);
   },
+
+  /** Enter a brand's admin dashboard (impersonate its admin). Returns an access token. */
+  async impersonate(slug: string): Promise<{ access_token: string; slug: string; admin_email: string }> {
+    return apiClient.post(`/api/v1/platform/tenants/${slug}/impersonate`);
+  },
 };
+
+/** Open a brand's admin dashboard as the super admin (impersonation). */
+export async function enterBrandDashboard(slug: string): Promise<void> {
+  const { access_token } = await platformService.impersonate(slug);
+  const base = tenantUrl(slug); // e.g. http://slug.localhost:3000
+  window.open(`${base}/admin/dashboard#session=${encodeURIComponent(access_token)}`, "_blank");
+}
 
 /**
  * Build the public URL for a tenant's store/admin, based on the current host.

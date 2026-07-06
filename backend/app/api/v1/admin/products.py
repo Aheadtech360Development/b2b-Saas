@@ -571,7 +571,7 @@ async def force_delete_product(product_id: str, db: AsyncSession = Depends(get_d
     # Tenant guard: a brand can only force-delete its OWN product.
     _tid = get_current_tenant_id()
     owner = await db.execute(
-        _text("SELECT tenant_id FROM products WHERE id = :pid::uuid"), {"pid": product_id}
+        _text("SELECT tenant_id FROM products WHERE id = CAST(:pid AS uuid)"), {"pid": product_id}
     )
     row = owner.first()
     if not row:
@@ -583,13 +583,13 @@ async def force_delete_product(product_id: str, db: AsyncSession = Depends(get_d
         await db.execute(_text(
             "UPDATE po_line_items SET product_variant_id = NULL "
             "WHERE product_variant_id IN "
-            "(SELECT id FROM product_variants WHERE product_id = :pid::uuid)"
+            "(SELECT id FROM product_variants WHERE product_id = CAST(:pid AS uuid))"
         ), {"pid": product_id})
         await db.execute(_text(
-            "DELETE FROM product_variants WHERE product_id = :pid::uuid"
+            "DELETE FROM product_variants WHERE product_id = CAST(:pid AS uuid)"
         ), {"pid": product_id})
         await db.execute(_text(
-            "DELETE FROM products WHERE id = :pid::uuid"
+            "DELETE FROM products WHERE id = CAST(:pid AS uuid)"
         ), {"pid": product_id})
     logger.info("force_delete_product: deleted %s", product_id)
     return {"success": True, "deleted": product_id}
@@ -623,7 +623,7 @@ async def delete_product(product_id: UUID, db: AsyncSession = Depends(get_db)):
             logger.info("delete_product %s: nulling %d PO line item references", product_id, len(variant_ids))
             for vid in variant_ids:
                 await db.execute(
-                    _text("UPDATE po_line_items SET product_variant_id = NULL WHERE product_variant_id = :vid::uuid"),
+                    _text("UPDATE po_line_items SET product_variant_id = NULL WHERE product_variant_id = CAST(:vid AS uuid)"),
                     {"vid": vid},
                 )
             await db.flush()
@@ -694,7 +694,7 @@ async def delete_variants_bulk(
         logger.info("delete_variants_bulk %s: nulling PO refs for %d variants", product_id, len(valid_ids))
         for vid in valid_ids:
             await db.execute(
-                _text("UPDATE po_line_items SET product_variant_id = NULL WHERE product_variant_id = :vid::uuid"),
+                _text("UPDATE po_line_items SET product_variant_id = NULL WHERE product_variant_id = CAST(:vid AS uuid)"),
                 {"vid": vid},
             )
         await db.flush()
@@ -788,7 +788,25 @@ async def delete_product_variant(
 async def _process_and_upload_image(
     content: bytes, product_id: UUID, filename: str
 ) -> dict:
-    """Resize to 150/400/800px + WebP. Uploads to S3 if configured, else saves locally."""
+    """Resize to 150/400/800px + WebP. Prefers ImageKit, else S3, else local."""
+    # ── Prefer ImageKit: upload once, generate sizes via URL transformations ──
+    from app.services import imagekit_service
+    if imagekit_service.is_configured():
+        from app.core.tenant_context import get_current_tenant_slug, get_current_tenant_id
+        folder_key = get_current_tenant_slug() or (str(get_current_tenant_id()) if get_current_tenant_id() else None)
+        result = await imagekit_service.upload_bytes(content, filename, tenant_id=folder_key)
+        base = result["url"]
+
+        def _tr(w: int, webp: bool = False) -> str:
+            sep = "&" if "?" in base else "?"
+            t = f"w-{w},f-webp" if webp else f"w-{w}"
+            return f"{base}{sep}tr={t}"
+
+        return {
+            "thumbnail": _tr(150), "medium": _tr(400), "large": _tr(800),
+            "thumbnail_webp": _tr(150, True), "medium_webp": _tr(400, True), "large_webp": _tr(800, True),
+        }
+
     from PIL import Image as PILImage
     import io as _io
     import os
@@ -949,17 +967,26 @@ async def delete_product_flyer(
 @router.post("/upload-image")
 async def upload_generic_image(
     file: UploadFile = File(...),
+    request: Request = None,  # type: ignore[assignment]
 ):
-    """Upload an image to S3 and return URLs. Used for collections and other non-product assets."""
+    """Upload an image (collections/categories). Prefers ImageKit, else S3/local."""
     import uuid as _uuid
     import io as _io
     import os
     from app.core.config import get_settings
 
+    content = await file.read()
+
+    # ── Prefer ImageKit ────────────────────────────────────────────────────────
+    from app.services import imagekit_service
+    if imagekit_service.is_configured():
+        slug = getattr(request.state, "tenant_slug", None) if request is not None else None
+        result = await imagekit_service.upload_bytes(content, file.filename or "image", tenant_id=slug)
+        url = result["url"]
+        return {"url": url, "url_thumbnail": f"{url}?tr=w-150", "url_medium": f"{url}?tr=w-400", "url_large": url}
+
     settings = get_settings()
     use_s3 = bool(settings.AWS_ACCESS_KEY_ID and settings.AWS_SECRET_ACCESS_KEY)
-
-    content = await file.read()
     asset_id = str(_uuid.uuid4())
     filename = file.filename or "image"
     base_name = filename.rsplit(".", 1)[0]

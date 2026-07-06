@@ -126,7 +126,7 @@ export default function LoginPage() {
   }
 
   return (
-    <div style={{ minHeight: "70vh", background: "#F8F8F6", fontFamily: "'DM Sans', sans-serif", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "48px 24px" }}>
+    <div style={{ minHeight: "100vh", background: "#F8F8F6", fontFamily: "'DM Sans', sans-serif", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "48px 24px" }}>
       {/* Main */}
       <div style={{ width: "100%", maxWidth: "400px" }}>
           {/* Heading */}

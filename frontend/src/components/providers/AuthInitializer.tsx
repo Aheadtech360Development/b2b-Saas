@@ -32,6 +32,33 @@ export function AuthInitializer() {
         window.location.href = "/login";
       }
     });
+
+    // ── Impersonation entry ──────────────────────────────────────────────────
+    // A platform admin 'entered' this brand — token arrives via the URL hash
+    // (#session=…). Log in as the brand admin, clean the URL, and stop.
+    if (typeof window !== "undefined" && window.location.hash.startsWith("#session=")) {
+      const token = decodeURIComponent(window.location.hash.slice("#session=".length));
+      if (token) {
+        window.history.replaceState(null, "", window.location.pathname + window.location.search);
+        setAccessToken(token);
+        const payload = decodeJwtPayload(token);
+        apiClient
+          .get<Record<string, unknown>>("/api/v1/auth/profile")
+          .then((profile) => {
+            useAuthStore.getState().setAuth(token, {
+              ...(profile as object),
+              is_admin: !!payload.is_admin,
+              is_platform_admin: !!payload.is_platform_admin,
+              role: payload.role as string,
+              tenant_id: (payload.tenant_id as string) ?? null,
+            } as unknown as UserProfile);
+          })
+          .catch(() => useAuthStore.getState().clearAuth())
+          .finally(() => useAuthStore.getState().setLoading(false));
+        return;
+      }
+    }
+
     const found = useAuthStore.getState().initAuth();
     if (!found) {
       // No session in sessionStorage — try to restore from httpOnly refresh cookie.

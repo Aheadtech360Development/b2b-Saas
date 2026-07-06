@@ -63,9 +63,13 @@ export function Header() {
   const authed = mounted && isAuthenticated();
   const isAdminUser = mounted && isAdmin();
 
-  // The storefront header is hidden inside the app consoles (platform + admin),
-  // which have their own chrome/sidebar.
-  const hideStoreHeader = pathname?.startsWith("/platform") || pathname?.startsWith("/admin");
+  // The storefront header is hidden inside the app consoles (platform + admin)
+  // and on the minimal auth pages (login/register/forgot/activate).
+  const _authPrefixes = ["/login", "/wholesale", "/forgot-password", "/reset-password", "/activate-account"];
+  const hideStoreHeader =
+    pathname?.startsWith("/platform") ||
+    pathname?.startsWith("/admin") ||
+    _authPrefixes.some((p) => pathname?.startsWith(p));
 
   useEffect(() => {
     if (isLoading || !user || user.is_admin) return;
@@ -185,16 +189,29 @@ export function Header() {
               </Link>
             )}
 
-            <div className="hidden md:flex" style={{ gap: "8px", alignItems: "center" }}>
+            <div className="hidden md:flex" style={{ gap: "10px", alignItems: "center" }}>
               {authed ? (
                 <>
-                  <span style={{ fontSize: "18px", color: "#1C3557", fontFamily: "'DM Sans', sans-serif" }}>
+                  {isAdminUser && (
+                    <Link
+                      href="/admin/dashboard"
+                      title="Go to Admin Dashboard"
+                      style={{ display: "flex", alignItems: "center", gap: "7px", background: branding.primary_color, color: "#fff", padding: "8px 15px", fontSize: "14px", fontWeight: 600, textDecoration: "none", borderRadius: "6px", fontFamily: "'DM Sans', sans-serif", transition: "opacity .2s" }}
+                      onMouseEnter={(e) => (e.currentTarget.style.opacity = "0.9")}
+                      onMouseLeave={(e) => (e.currentTarget.style.opacity = "1")}
+                    >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /><rect x="3" y="14" width="7" height="7" />
+                      </svg>
+                      Admin Panel
+                    </Link>
+                  )}
+                  <span style={{ fontSize: "15px", color: "#1C3557", fontFamily: "'DM Sans', sans-serif" }}>
                     {user?.first_name}
-                    {isAdminUser && <span style={{ marginLeft: "6px", fontSize: "10px", background: "rgba(28,53,87,.1)", color: "#1C3557", padding: "2px 8px", fontWeight: 600 }}>Admin</span>}
                   </span>
                   <button
                     onClick={handleLogout}
-                    style={{ background: "transparent", color: "#1C3557", padding: "8px 16px", fontSize: "18px", border: "1px solid #1C3557", cursor: "pointer", fontWeight: 500, transition: "all .2s", fontFamily: "'DM Sans', sans-serif" }}
+                    style={{ background: "transparent", color: "#1C3557", padding: "8px 16px", fontSize: "15px", border: "1px solid #E2E2DE", cursor: "pointer", fontWeight: 500, transition: "all .2s", fontFamily: "'DM Sans', sans-serif", borderRadius: "6px" }}
                   >
                     Sign out
                   </button>
@@ -302,8 +319,16 @@ export function Header() {
                   </div>
                 </>
               )}
+              {authed && isAdminUser && (
+                <Link href="/admin/dashboard" onClick={() => setMenuOpen(false)} style={{ marginTop: "20px", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", width: "100%", padding: "12px", color: "#fff", fontSize: "14px", fontWeight: 600, background: branding.primary_color, textDecoration: "none", fontFamily: "'DM Sans', sans-serif", borderRadius: "6px", boxSizing: "border-box" }}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /><rect x="3" y="14" width="7" height="7" />
+                  </svg>
+                  Admin Panel
+                </Link>
+              )}
               {authed && (
-                <button onClick={handleLogout} style={{ marginTop: "20px", display: "block", width: "100%", textAlign: "center", padding: "12px", color: "#1C3557", fontSize: "18px", fontWeight: 500, background: "transparent", border: "1px solid #E2E2DE", cursor: "pointer", fontFamily: "'DM Sans', sans-serif" }}>
+                <button onClick={handleLogout} style={{ marginTop: "12px", display: "block", width: "100%", textAlign: "center", padding: "12px", color: "#1C3557", fontSize: "18px", fontWeight: 500, background: "transparent", border: "1px solid #E2E2DE", cursor: "pointer", fontFamily: "'DM Sans', sans-serif" }}>
                   Sign Out
                 </button>
               )}

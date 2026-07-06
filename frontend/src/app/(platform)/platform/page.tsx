@@ -5,6 +5,7 @@ import { ApiClientError } from "@/lib/api-client";
 import {
   platformService,
   tenantUrl,
+  enterBrandDashboard,
   type CreateTenantPayload,
   type CreateTenantResponse,
 } from "@/services/platform.service";
@@ -122,7 +123,7 @@ export default function PlatformDashboard() {
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
             <thead>
               <tr style={{ background: "#0E1017", borderBottom: "1px solid #1E2230" }}>
-                {["Brand", "Store URL", "Plan", "Users", "Status", "Actions"].map((h) => (
+                {["Brand", "Open", "Plan", "Users", "Status", "Actions"].map((h) => (
                   <th key={h} style={{ padding: "12px 18px", textAlign: h === "Users" ? "center" : "left", fontSize: "11px", fontWeight: 700, color: "#6B7280", textTransform: "uppercase", letterSpacing: ".06em" }}>
                     {h}
                   </th>
@@ -137,9 +138,18 @@ export default function PlatformDashboard() {
                     <div style={{ fontSize: "11px", color: "#6B7280" }}>{t.email}</div>
                   </td>
                   <td style={{ padding: "14px 18px" }}>
-                    <a href={tenantUrl(t.slug)} target="_blank" rel="noopener noreferrer" style={{ color: "#818CF8", textDecoration: "none", fontFamily: "monospace", fontSize: "12px" }}>
-                      {t.slug}.… ↗
-                    </a>
+                    <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
+                      <button
+                        onClick={() => enterBrandDashboard(t.slug).catch(() => alert("Could not open dashboard"))}
+                        title="Enter this brand's admin dashboard"
+                        style={{ background: "transparent", border: "none", color: "#818CF8", fontSize: "13px", fontWeight: 700, cursor: "pointer", padding: 0, display: "flex", alignItems: "center", gap: "4px" }}
+                      >
+                        Dashboard ↗
+                      </button>
+                      <a href={tenantUrl(t.slug)} target="_blank" rel="noopener noreferrer" title="View public store" style={{ color: "#6B7280", textDecoration: "none", fontSize: "12px" }}>
+                        Store
+                      </a>
+                    </div>
                   </td>
                   <td style={{ padding: "14px 18px" }}>
                     <span style={{ textTransform: "capitalize", color: "#C7CBD4" }}>{t.plan}</span>

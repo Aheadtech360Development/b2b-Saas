@@ -17,7 +17,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.core.security import hash_password
+from app.core.security import create_access_token, hash_password
 
 router = APIRouter(prefix="/platform/tenants", tags=["platform"])
 
@@ -232,6 +232,46 @@ async def update_tenant_feature(
     """), {"tid": str(row[0]), "f": data.feature, "en": data.is_enabled})
     await db.commit()
     return {"feature": data.feature, "is_enabled": data.is_enabled}
+
+
+# ── Impersonate (enter a brand's admin dashboard) ─────────────────────────────
+@router.post("/{slug}/impersonate")
+async def impersonate_tenant(
+    slug: str,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """
+    Platform admin 'enters' a brand: issues an access token for that brand's
+    admin user, so the super admin lands inside the brand's admin dashboard
+    (logged in as the brand admin). Like Shopify Plus 'Login as store'.
+    """
+    _require_platform_admin(request)
+
+    row = (await db.execute(
+        text("SELECT id, name FROM tenants WHERE slug=:s"), {"s": slug}
+    )).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+    tenant_id = row[0]
+
+    admin = (await db.execute(text("""
+        SELECT id, email, role FROM users
+        WHERE tenant_id = :tid AND role = 'tenant_admin' AND is_active = true
+        ORDER BY created_at ASC LIMIT 1
+    """), {"tid": str(tenant_id)})).mappings().first()
+    if not admin:
+        raise HTTPException(status_code=404, detail="This brand has no active admin user")
+
+    claims = {
+        "tenant_id": str(tenant_id),
+        "role": "tenant_admin",
+        "is_platform_admin": False,
+        "is_admin": True,
+        "impersonated": True,
+    }
+    token = create_access_token(subject=str(admin["id"]), extra_claims=claims)
+    return {"access_token": token, "slug": slug, "admin_email": admin["email"]}
 
 
 # ── Hard purge (irreversible) ─────────────────────────────────────────────────

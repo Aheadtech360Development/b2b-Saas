@@ -120,6 +120,11 @@ class Settings(BaseSettings):
     SS_ACCOUNT_NUMBER: str = ""   # Account number from S&S portal
     SS_API_KEY: str = ""          # API key from S&S portal
 
+    # ── ImageKit (media library / image CDN) ──────────────────────────────────
+    IMAGEKIT_URL_ENDPOINT: str = ""   # e.g. https://ik.imagekit.io/xxxxxx
+    IMAGEKIT_PUBLIC_KEY: str = ""     # public_...
+    IMAGEKIT_PRIVATE_KEY: str = ""    # private_...  (secret — .env only)
+
     # ── Sentry ────────────────────────────────────────────────────────────────
     SENTRY_DSN: str = ""
 

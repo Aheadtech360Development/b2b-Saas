@@ -65,16 +65,19 @@ async def _apply_tenant_context(request: Request | None, session: AsyncSession) 
     """
     from sqlalchemy import text
 
-    from app.core.tenant_context import set_bypass_scoping, set_current_tenant
+    from app.core.tenant_context import set_bypass_scoping, set_current_tenant, set_current_tenant_slug
 
     # Fresh defaults for this request task.
     set_bypass_scoping(False)
     set_current_tenant(None)
+    set_current_tenant_slug(None)
 
     if request is None:
         return
 
     state = request.state
+    # Readable storage folder key (subdomain), independent of scoping bypass.
+    set_current_tenant_slug(getattr(state, "tenant_slug", None))
 
     # 1. Platform admin operates across all tenants.
     if getattr(state, "is_platform_admin", False):

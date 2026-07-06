@@ -861,6 +861,8 @@ app.include_router(tenant_auth.router, prefix=_V1)
 app.include_router(platform_tenants.router, prefix=_V1)
 app.include_router(storefront.public_router, prefix=_V1)
 app.include_router(storefront.admin_router, prefix=_V1)
+from app.api.v1.admin import media as admin_media  # noqa: E402
+app.include_router(admin_media.router, prefix=_V1)
 
 # ── Legacy single-tenant routes (kept for compatibility) ──────────────────────
 app.include_router(auth.router, prefix=_V1)
