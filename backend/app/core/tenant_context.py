@@ -28,6 +28,13 @@ _current_tenant_slug: ContextVar[str | None] = ContextVar("current_tenant_slug",
 # When True, tenant scoping is bypassed entirely (platform admin / system jobs).
 _bypass_scoping: ContextVar[bool] = ContextVar("bypass_tenant_scoping", default=False)
 
+# Sentinel used when a request names a tenant that cannot be resolved (unknown or
+# suspended subdomain, malformed JWT tenant claim). Scoping filters on it and it
+# matches no row, so such a request sees an empty store. Leaving the tenant unset
+# instead would mean "no scoping at all", which pools every tenant's data into the
+# response — the failure mode this sentinel exists to prevent.
+NO_TENANT: uuid.UUID = uuid.UUID(int=0)
+
 
 def set_current_tenant_slug(slug: str | None) -> None:
     _current_tenant_slug.set(slug or None)
@@ -46,7 +53,8 @@ def set_current_tenant(tenant_id: uuid.UUID | str | None) -> None:
         try:
             tenant_id = uuid.UUID(tenant_id)
         except (ValueError, AttributeError):
-            _current_tenant_id.set(None)
+            # Fail closed: a malformed id must not degrade into "unscoped".
+            _current_tenant_id.set(NO_TENANT)
             return
     _current_tenant_id.set(tenant_id)
 

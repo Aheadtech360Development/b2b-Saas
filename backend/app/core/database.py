@@ -65,11 +65,17 @@ async def _apply_tenant_context(request: Request | None, session: AsyncSession) 
       1. Platform admin (JWT is_platform_admin) → bypass scoping (sees all tenants).
       2. Authenticated tenant user (JWT tenant_id) → scope to that tenant.
       3. Public storefront (subdomain slug) → resolve slug → tenant_id, scope to it.
+         An unresolvable slug scopes to NO_TENANT (empty results), never unscoped.
       4. Otherwise → no tenant (unscoped; platform/root context).
     """
     from sqlalchemy import text
 
-    from app.core.tenant_context import set_bypass_scoping, set_current_tenant, set_current_tenant_slug
+    from app.core.tenant_context import (
+        NO_TENANT,
+        set_bypass_scoping,
+        set_current_tenant,
+        set_current_tenant_slug,
+    )
 
     # Fresh defaults for this request task.
     set_bypass_scoping(False)
@@ -102,8 +108,10 @@ async def _apply_tenant_context(request: Request | None, session: AsyncSession) 
             {"s": slug},
         )
         row = result.first()
-        if row:
-            set_current_tenant(row[0])
+        # An unknown or suspended slug must scope to nothing. Falling through with
+        # the tenant unset would leave the session unscoped, so a made-up subdomain
+        # would return every tenant's products pooled together.
+        set_current_tenant(row[0] if row else NO_TENANT)
         return
 
     # 4. No tenant context (root domain / platform routes) — leave unscoped.
