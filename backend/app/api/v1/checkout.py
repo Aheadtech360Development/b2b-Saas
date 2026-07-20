@@ -196,7 +196,7 @@ async def _confirm_checkout_inner(
             _sel(_Company).where(_Company.id == company_id)
         )).scalar_one_or_none()
         if not _company or not getattr(_company, "net30_enabled", False):
-            raise ValidationError("Net 30 payment terms are not available for your account. Contact AF Apparels to request Net 30.")
+            raise ValidationError("Net 30 payment terms are not available for your account. Contact us to request Net 30.")
 
     discount_percent = getattr(request.state, "tier_discount_percent", Decimal("0"))
     group_id = getattr(request.state, "discount_group_id", None)
@@ -262,13 +262,13 @@ async def _confirm_checkout_inner(
                     customer_id=qb_cust_id,
                     card_id=payload.saved_card_id,
                     amount=total_float,
-                    description=f"AF Apparels order — company {company_id}",
+                    description=f"Order — company {company_id}",
                 )
             else:
                 charge_resp = qb_pay.charge_card(
                     token=payload.qb_token,  # type: ignore[arg-type]
                     amount=total_float,
-                    description=f"AF Apparels order — company {company_id}",
+                    description=f"Order — company {company_id}",
                 )
         except RuntimeError as exc:
             raise ValidationError(f"Payment failed: {exc}") from exc

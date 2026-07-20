@@ -130,8 +130,8 @@ class Settings(BaseSettings):
     RESEND_API_KEY: str = ""
     SENDGRID_API_KEY: str = ""  # kept for backward compat, unused
     RESEND_FROM_EMAIL: str = ""
-    EMAIL_FROM_ADDRESS: str = "noreply@karauxbaia.resend.app"
-    EMAIL_FROM_NAME: str = "AF Apparels"
+    EMAIL_FROM_ADDRESS: str = "onboarding@resend.dev"
+    EMAIL_FROM_NAME: str = "Wholesale Store"
     ADMIN_NOTIFICATION_EMAIL: str = ""
 
     @model_validator(mode="after")

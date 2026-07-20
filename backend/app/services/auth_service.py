@@ -234,9 +234,7 @@ class AuthService:
                 body_html=f"""
                     <div style="font-family:sans-serif;max-width:600px;margin:0 auto">
                     <div style="background:#080808;padding:24px;text-align:center">
-                        <span style="font-size:36px;font-weight:900;color:#1A5CFF">A</span>
-                        <span style="font-size:36px;font-weight:900;color:#E8242A">F</span>
-                        <span style="color:#fff;font-size:14px;margin-left:8px;letter-spacing:.1em">APPARELS</span>
+                        <span style="color:#fff;font-size:22px;font-weight:800;letter-spacing:.04em">AF Apparels</span>
                     </div>
                     <div style="padding:32px;background:#fff">
                         <h2>Application Received! ✅</h2>

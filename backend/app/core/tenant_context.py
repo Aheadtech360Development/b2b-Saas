@@ -25,6 +25,11 @@ _current_tenant_id: ContextVar[uuid.UUID | None] = ContextVar("current_tenant_id
 # Current tenant slug (subdomain) — used for readable, consistent storage folders.
 _current_tenant_slug: ContextVar[str | None] = ContextVar("current_tenant_slug", default=None)
 
+# Current brand's display name (store_name) for the active tenant. Used so emails
+# and other outbound copy read as the brand the request belongs to, never a
+# hardcoded name. None until resolved for this request.
+_current_brand_name: ContextVar[str | None] = ContextVar("current_brand_name", default=None)
+
 # When True, tenant scoping is bypassed entirely (platform admin / system jobs).
 _bypass_scoping: ContextVar[bool] = ContextVar("bypass_tenant_scoping", default=False)
 
@@ -38,6 +43,14 @@ NO_TENANT: uuid.UUID = uuid.UUID(int=0)
 
 def set_current_tenant_slug(slug: str | None) -> None:
     _current_tenant_slug.set(slug or None)
+
+
+def set_current_brand_name(name: str | None) -> None:
+    _current_brand_name.set(name or None)
+
+
+def get_current_brand_name() -> str | None:
+    return _current_brand_name.get()
 
 
 def get_current_tenant_slug() -> str | None:

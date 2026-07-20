@@ -206,7 +206,7 @@ async def guest_checkout(
             charge_resp = qb_pay.charge_card(
                 token=payload.qb_token,
                 amount=float(total),
-                description=f"AF Apparels guest order — {payload.guest_email}",
+                description=f"Guest order — {payload.guest_email}",
             )
         except RuntimeError as exc:
             raise ValidationError(f"Payment failed: {exc}") from exc

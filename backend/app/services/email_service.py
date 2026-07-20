@@ -17,6 +17,37 @@ from app.models.communication import EmailTemplate
 
 logger = logging.getLogger(__name__)
 
+import re as _re
+
+# Legacy single-store identifiers baked into the email bodies. Kept here, at the
+# single send path, so every message is neutralised no matter which call site or
+# DB template produced it.
+_LEGACY_BRAND = "AF Apparels"
+_LEGACY_PHONE = "(214) 272-7213"
+# "Questions? Call us at (214) 272-7213" → "Questions?" — drop the dangling phrase
+# rather than leave "Call us at ." once the number is gone.
+_PHONE_PHRASE_RE = _re.compile(r"\s*(?:Call(?:\s+us)?(?:\s+at)?)\s*" + _re.escape(_LEGACY_PHONE))
+
+
+def _current_brand_from_context() -> str | None:
+    try:
+        from app.core.tenant_context import get_current_brand_name
+
+        return get_current_brand_name()
+    except Exception:
+        return None
+
+
+def _rebrand_text(text: str | None, brand: str) -> str | None:
+    """Replace the legacy store's name and phone with the active brand."""
+    if not text:
+        return text
+    text = _PHONE_PHRASE_RE.sub("", text)
+    text = text.replace(_LEGACY_PHONE, "")
+    text = text.replace(_LEGACY_BRAND, brand)
+    return text
+
+
 _jinja_env = Environment(loader=BaseLoader(), autoescape=True)
 
 _TEMPLATES_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "templates", "emails")
@@ -151,7 +182,19 @@ class EmailService:
             return False
 
         resend.api_key = settings.RESEND_API_KEY
-        from_addr = f"{settings.EMAIL_FROM_NAME} <{settings.EMAIL_FROM_ADDRESS}>"
+
+        # Rebrand outbound copy to the tenant this email belongs to. The bodies were
+        # written for a single store and still carry that store's name and phone;
+        # here — the one point every email passes through — they are swapped for the
+        # active brand so each tenant's customers only ever see their own store.
+        brand = _current_brand_from_context() or settings.EMAIL_FROM_NAME or "Our Store"
+        from_name = brand or settings.EMAIL_FROM_NAME
+        subject = _rebrand_text(subject, brand)
+        body_html = _rebrand_text(body_html, brand)
+        if body_text:
+            body_text = _rebrand_text(body_text, brand)
+
+        from_addr = f"{from_name} <{settings.EMAIL_FROM_ADDRESS}>"
 
         # In dev/test: redirect all emails to admin notification address
         recipient = to_email
@@ -196,43 +239,39 @@ class EmailService:
 
     @staticmethod
     def _base_template(content_html: str, footer_note: str = "") -> str:
-        """AF Apparels navy-branded HTML email wrapper."""
+        """Brand-neutral HTML email wrapper.
+
+        Header and footer resolve to the active tenant's store name (via the
+        request context), so every brand's mail carries its own identity. No
+        store's phone, address, or logo is hardcoded here — the previous version
+        baked a single store's contact block into every message.
+        """
         from app.core.config import settings as _cfg
+
+        brand = _current_brand_from_context() or _cfg.EMAIL_FROM_NAME or "Our Store"
         note_html = (
             f'<p style="color:#9ca3af;font-size:12px;margin:4px 0 0">{footer_note}</p>'
             if footer_note else ""
         )
-        logo_url = _cfg.LOGO_URL or f"{_cfg.FRONTEND_URL}/Af-apparel%20logo.png"
-        if logo_url:
-            logo_html = (
-                f'<img src="{logo_url}" alt="AF Apparels" '
-                f'style="height:44px;width:auto;display:block;margin:0 auto" />'
-            )
-        else:
-            logo_html = (
-                '<span style="font-size:28px;font-weight:900;color:#ffffff;'
-                'letter-spacing:-.5px">AF</span>'
-                '<span style="color:rgba(255,255,255,.55);font-size:13px;margin-left:8px;'
-                'letter-spacing:.18em;text-transform:uppercase;font-weight:600">APPARELS</span>'
-            )
+        # Per-tenant logo would need a lookup this static helper can't do cheaply;
+        # the brand name as text is a safe, always-correct header for every store.
+        logo_html = (
+            f'<span style="font-size:26px;font-weight:800;color:#1B3A5C;'
+            f'letter-spacing:-.3px">{brand}</span>'
+        )
         return (
             '<div style="font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\','
             'Helvetica,Arial,sans-serif;max-width:600px;margin:0 auto;background:#ffffff">'
             '<div style="background:#ffffff;padding:24px 32px;text-align:center;'
-            'border-bottom:3px solid #E8242A">'
+            'border-bottom:3px solid #1B3A5C">'
             + logo_html +
             '</div>'
             '<div style="padding:32px">'
             + content_html
             + '<div style="border-top:1px solid #e5e7eb;margin-top:28px;padding-top:20px">'
-            '<p style="color:#9ca3af;font-size:12px;margin:0 0 4px">'
-            'Questions? Call <a href="tel:4693679753" style="color:#1B3A5C;font-weight:700">'
-            '+1\xa0(469)\xa0367-9753</a> or '
-            '<a href="mailto:info@afblanks.com" style="color:#1B3A5C">'
-            'info@afblanks.com</a></p>'
             f'{note_html}'
             '<p style="color:#9ca3af;font-size:12px;margin:4px 0 0">'
-            '— AF Apparels Wholesale Team</p>'
+            f'— {brand} Team</p>'
             '</div>'
             '</div>'
             '</div>'

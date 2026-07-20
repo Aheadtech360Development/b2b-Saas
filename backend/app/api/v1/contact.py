@@ -83,7 +83,7 @@ def _send_contact_email(data: ContactRequest) -> None:
         resend.Emails.send({
             "from": settings.EMAIL_FROM_ADDRESS,
             "to": data.email,
-            "subject": "We received your message — AF Apparels",
+            "subject": "We received your message",
             "html": confirm_html,
         })
     except Exception as exc:

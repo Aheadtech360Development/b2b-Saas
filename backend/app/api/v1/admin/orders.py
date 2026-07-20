@@ -40,14 +40,16 @@ router = APIRouter(prefix="/admin", tags=["admin-orders"])
 
 
 def _af_email(content_html: str) -> str:
-    """Wrap content in the AF Apparels branded email shell."""
+    """Wrap content in the active brand's email shell (no store hardcoded)."""
     from app.core.config import settings as _cfg
-    logo_url = _cfg.LOGO_URL or f"{_cfg.FRONTEND_URL}/Af-apparel%20logo.png"
+    from app.core.tenant_context import get_current_brand_name
+    brand = get_current_brand_name() or _cfg.EMAIL_FROM_NAME or "Our Store"
+    logo_url = _cfg.LOGO_URL
     logo_html = (
-        f'<img src="{logo_url}" alt="AF Apparels" '
+        f'<img src="{logo_url}" alt="{brand}" '
         f'style="height:44px;width:auto;display:block;margin:0 auto" />'
         if logo_url else
-        '<span style="font-size:28px;font-weight:900;color:#fff">AF APPARELS</span>'
+        f'<span style="font-size:24px;font-weight:800;color:#fff">{brand}</span>'
     )
     return (
         '<div style="font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\','
@@ -59,11 +61,7 @@ def _af_email(content_html: str) -> str:
         '<div style="padding:32px;background:#fff">'
         + content_html
         + '<div style="border-top:1px solid #e5e7eb;margin-top:28px;padding-top:20px">'
-        '<p style="color:#9ca3af;font-size:12px;margin:0 0 4px">'
-        'Questions? Call <a href="tel:4693679753" style="color:#1B3A5C;font-weight:700">'
-        '+1\xa0(469)\xa0367-9753</a> or '
-        '<a href="mailto:info@afblanks.com" style="color:#1B3A5C">info@afblanks.com</a></p>'
-        '<p style="color:#9ca3af;font-size:12px;margin:4px 0 0">— AF Apparels Team</p>'
+        f'<p style="color:#9ca3af;font-size:12px;margin:4px 0 0">— {brand} Team</p>'
         '</div>'
         '</div></div>'
     )

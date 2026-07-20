@@ -13,6 +13,18 @@ def _run(coro):
     return asyncio.run(coro)
 
 
+async def _brand_from_order(db, order) -> None:
+    """Set the email brand to the order's tenant. Celery tasks run outside a
+    request, so no tenant context is established for them; without this the send
+    path would fall back to the generic default instead of the buyer's actual
+    store. No-ops when the order is missing."""
+    if order is None:
+        return
+    from app.core.database import _resolve_brand_name
+    from app.core.tenant_context import set_current_brand_name
+    set_current_brand_name(await _resolve_brand_name(db, getattr(order, "tenant_id", None)))
+
+
 def _fmt_items(items) -> list[dict]:
     """Convert order items to template-safe dicts."""
     return [
@@ -42,6 +54,7 @@ def send_order_confirmation_email(self, order_id: str) -> dict:
             from app.core.config import settings
             async with AsyncSessionLocal() as db:
                 order = (await db.execute(select(Order).where(Order.id == order_id))).scalar_one_or_none()
+                await _brand_from_order(db, order)
                 if not order:
                     return {"status": "skipped", "reason": "order_not_found"}
                 company = (await db.execute(select(Company).where(Company.id == order.company_id))).scalar_one_or_none()
@@ -91,6 +104,7 @@ def send_order_confirmed_email(self, order_id: str) -> dict:
             from app.core.config import settings
             async with AsyncSessionLocal() as db:
                 order = (await db.execute(select(Order).where(Order.id == order_id))).scalar_one_or_none()
+                await _brand_from_order(db, order)
                 if not order:
                     return {"status": "skipped", "reason": "order_not_found"}
                 company = (await db.execute(select(Company).where(Company.id == order.company_id))).scalar_one_or_none()
@@ -140,6 +154,7 @@ def send_order_processing_email(self, order_id: str) -> dict:
             from app.core.config import settings
             async with AsyncSessionLocal() as db:
                 order = (await db.execute(select(Order).where(Order.id == order_id))).scalar_one_or_none()
+                await _brand_from_order(db, order)
                 if not order:
                     return {"status": "skipped", "reason": "order_not_found"}
                 company = (await db.execute(select(Company).where(Company.id == order.company_id))).scalar_one_or_none()
@@ -189,6 +204,7 @@ def send_order_ready_email(self, order_id: str) -> dict:
             from app.core.config import settings
             async with AsyncSessionLocal() as db:
                 order = (await db.execute(select(Order).where(Order.id == order_id))).scalar_one_or_none()
+                await _brand_from_order(db, order)
                 if not order:
                     return {"status": "skipped", "reason": "order_not_found"}
                 company = (await db.execute(select(Company).where(Company.id == order.company_id))).scalar_one_or_none()
@@ -237,6 +253,7 @@ def send_order_shipped_email(self, order_id: str, tracking_number: str = "") -> 
             from app.core.config import settings
             async with AsyncSessionLocal() as db:
                 order = (await db.execute(select(Order).where(Order.id == order_id))).scalar_one_or_none()
+                await _brand_from_order(db, order)
                 if not order:
                     return {"status": "skipped", "reason": "order_not_found"}
                 contacts = (await db.execute(
@@ -286,6 +303,7 @@ def send_ready_for_pickup_email(self, order_id: str) -> dict:
             from app.core.config import settings
             async with AsyncSessionLocal() as db:
                 order = (await db.execute(select(Order).where(Order.id == order_id))).scalar_one_or_none()
+                await _brand_from_order(db, order)
                 if not order:
                     return {"status": "skipped", "reason": "order_not_found"}
                 company = (await db.execute(select(Company).where(Company.id == order.company_id))).scalar_one_or_none()
@@ -334,6 +352,7 @@ def send_order_delivered_email(self, order_id: str) -> dict:
             from app.core.config import settings
             async with AsyncSessionLocal() as db:
                 order = (await db.execute(select(Order).where(Order.id == order_id))).scalar_one_or_none()
+                await _brand_from_order(db, order)
                 if not order:
                     return {"status": "skipped", "reason": "order_not_found"}
                 company = (await db.execute(select(Company).where(Company.id == order.company_id))).scalar_one_or_none()
@@ -382,6 +401,7 @@ def send_order_cancelled_email(self, order_id: str, reason: str = "") -> dict:
             from app.core.config import settings
             async with AsyncSessionLocal() as db:
                 order = (await db.execute(select(Order).where(Order.id == order_id))).scalar_one_or_none()
+                await _brand_from_order(db, order)
                 if not order:
                     return {"status": "skipped", "reason": "order_not_found"}
                 contacts = (await db.execute(
@@ -431,6 +451,7 @@ def send_invoice_email(self, order_id: str) -> dict:
                 order = (await db.execute(
                     select(Order).where(Order.id == order_id).options(selectinload(Order.items))
                 )).scalar_one_or_none()
+                await _brand_from_order(db, order)
                 if not order:
                     return {"status": "skipped", "reason": "order_not_found"}
                 company = (await db.execute(select(Company).where(Company.id == order.company_id))).scalar_one_or_none()
@@ -691,6 +712,7 @@ def send_payment_failed_email(self, order_id: str) -> dict:
             from app.core.config import settings
             async with AsyncSessionLocal() as db:
                 order = (await db.execute(select(Order).where(Order.id == order_id))).scalar_one_or_none()
+                await _brand_from_order(db, order)
                 if not order:
                     return {"status": "skipped", "reason": "order_not_found"}
                 user = (await db.execute(select(User).where(User.id == order.created_by_id))).scalar_one_or_none()

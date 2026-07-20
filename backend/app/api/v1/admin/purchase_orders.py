@@ -581,7 +581,9 @@ async def send_po_email(po_id: UUID, db: AsyncSession = Depends(get_db)):
 
     import resend as _resend
     from app.core.config import settings as _cfg
-    logo_url = _cfg.LOGO_URL or f"{_cfg.FRONTEND_URL}/Af-apparel%20logo.png"
+    from app.core.tenant_context import get_current_brand_name
+    _brand = get_current_brand_name() or _cfg.EMAIL_FROM_NAME or "Our Store"
+    logo_url = _cfg.LOGO_URL
     _resend.api_key = _cfg.RESEND_API_KEY
 
     html_body = f"""<!DOCTYPE html>
@@ -589,8 +591,8 @@ async def send_po_email(po_id: UUID, db: AsyncSession = Depends(get_db)):
 <head><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
 <body style="margin:0;padding:0;background:#f4f4f4;font-family:Arial,sans-serif;">
 <div style="max-width:600px;margin:0 auto;background:#ffffff;">
-  <div style="background:#ffffff;padding:20px;text-align:center;border-bottom:2px solid #e63946;">
-    <img src="{logo_url}" style="max-height:60px;" alt="AF Apparels"/>
+  <div style="background:#ffffff;padding:20px;text-align:center;border-bottom:2px solid #1a1a2e;">
+    {f'<img src="{logo_url}" style="max-height:60px;" alt="{_brand}"/>' if logo_url else f'<span style="font-size:24px;font-weight:800;color:#1a1a2e;">{_brand}</span>'}
   </div>
   <div style="padding:24px;">
     <h2 style="color:#1a1a2e;margin-top:0;">Purchase Order: {po.po_number}</h2>
@@ -621,9 +623,7 @@ async def send_po_email(po_id: UUID, db: AsyncSession = Depends(get_db)):
     </p>
     <hr style="border:none;border-top:1px solid #eee;margin:20px 0;">
     <p style="color:#999;font-size:12px;margin:0;">
-      Questions? Call <strong>+1 (469) 367-9753</strong> or
-      <a href="mailto:info@afblanks.com" style="color:#e63946;">info@afblanks.com</a><br>
-      AF Apparels Wholesale Team | 10719 Turbeville Rd, Dallas, TX 75243
+      {_brand} — Purchasing Team
     </p>
   </div>
 </div>
@@ -636,7 +636,7 @@ async def send_po_email(po_id: UUID, db: AsyncSession = Depends(get_db)):
             {
                 "from": f"{_cfg.EMAIL_FROM_NAME} <{_cfg.EMAIL_FROM_ADDRESS}>",
                 "to": [manufacturer.email],
-                "subject": f"Purchase Order {po.po_number} — AF Apparels",
+                "subject": f"Purchase Order {po.po_number} — {_brand}",
                 "html": html_body,
             }
         )
