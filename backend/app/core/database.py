@@ -114,7 +114,12 @@ async def _apply_tenant_context(request: Request | None, session: AsyncSession) 
         set_current_tenant(row[0] if row else NO_TENANT)
         return
 
-    # 4. No tenant context (root domain / platform routes) — leave unscoped.
+    # 4. No tenant and not a platform admin — a public request to the bare root.
+    # This must scope to nothing, not run unscoped: the storefront ORM reads
+    # (products, categories, pages…) would otherwise pool every brand's rows
+    # together on the platform domain. Platform admins never reach here — they
+    # bypass at step 1 — and login/refresh use raw SQL that ORM scoping ignores.
+    set_current_tenant(NO_TENANT)
 
 
 # ── FastAPI dependency ────────────────────────────────────────────────────────
