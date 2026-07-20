@@ -32,8 +32,13 @@ function resolveSlug(request: NextRequest): string | null {
   }
 
   // 2. `?tenant=<slug>` — for hosts without wildcard subdomains (preview deploys).
-  const fromQuery = request.nextUrl.searchParams.get("tenant");
-  if (fromQuery) return fromQuery;
+  //    Present-but-empty (`?tenant=`) is an explicit "no tenant": platform admins
+  //    sign in at the root with no tenant scope, and without a way to clear it the
+  //    sticky cookie below would scope their login to whichever brand was browsed
+  //    last, failing the login with a misleading "invalid credentials".
+  if (request.nextUrl.searchParams.has("tenant")) {
+    return request.nextUrl.searchParams.get("tenant") || null;
+  }
 
   // 3. Cookie set by an earlier request, so in-app navigation keeps the brand.
   return request.cookies.get(TENANT_COOKIE)?.value || null;

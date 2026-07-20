@@ -31,10 +31,18 @@ export function currentTenantSlug(): string | null {
   //    wildcard subdomains (e.g. a preview deployment). Sticky for the tab so
   //    normal in-app navigation keeps the brand.
   try {
-    const fromQuery = new URLSearchParams(window.location.search).get("tenant");
-    if (fromQuery) {
-      sessionStorage.setItem(TENANT_OVERRIDE_KEY, fromQuery);
-      return fromQuery;
+    const params = new URLSearchParams(window.location.search);
+    if (params.has("tenant")) {
+      // Present-but-empty (`?tenant=`) explicitly clears the brand — platform
+      // admins sign in with no tenant scope, so the sticky value below must be
+      // escapable without opening a fresh tab.
+      const fromQuery = params.get("tenant") || "";
+      if (fromQuery) {
+        sessionStorage.setItem(TENANT_OVERRIDE_KEY, fromQuery);
+        return fromQuery;
+      }
+      sessionStorage.removeItem(TENANT_OVERRIDE_KEY);
+      return null;
     }
     const stored = sessionStorage.getItem(TENANT_OVERRIDE_KEY);
     if (stored) return stored;
