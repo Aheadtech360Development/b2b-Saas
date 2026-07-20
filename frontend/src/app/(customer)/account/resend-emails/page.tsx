@@ -8,6 +8,10 @@ import { useAuthStore } from "@/stores/auth.store";
 const ReCAPTCHA = dynamic(() => import("react-google-recaptcha"), {
   ssr: false,
 }) as typeof ReCAPTCHAType;
+// Without a site key the widget throws and crashes the page; render it only when
+// configured, and don't gate submission on a token that can never be produced.
+const RECAPTCHA_SITE_KEY = process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY ?? "";
+const CAPTCHA_ENABLED = RECAPTCHA_SITE_KEY.length > 0;
 const USER_GROUPS = [
   "Admin",
   "Accounting",
@@ -37,7 +41,7 @@ export default function ResendRegistrationEmailsPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
 
-    if (!recaptchaToken) {
+    if (CAPTCHA_ENABLED && !recaptchaToken) {
       setMessage({ type: "error", text: "Please complete the reCAPTCHA verification." });
       return;
     }
@@ -155,24 +159,26 @@ export default function ResendRegistrationEmailsPage() {
           />
         </div>
 
-        {/* reCAPTCHA */}
-        <div>
-          <ReCAPTCHA
-            ref={recaptchaRef}
-            sitekey={process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY ?? ""}
-            onChange={(token) => setRecaptchaToken(token)}
-            onExpired={() => setRecaptchaToken(null)}
-          />
-          {!recaptchaToken && (
-            <p className="text-xs text-gray-400 mt-1">Please complete the verification above to send.</p>
-          )}
-        </div>
+        {/* reCAPTCHA — only when a site key is configured */}
+        {CAPTCHA_ENABLED && (
+          <div>
+            <ReCAPTCHA
+              ref={recaptchaRef}
+              sitekey={RECAPTCHA_SITE_KEY}
+              onChange={(token) => setRecaptchaToken(token)}
+              onExpired={() => setRecaptchaToken(null)}
+            />
+            {!recaptchaToken && (
+              <p className="text-xs text-gray-400 mt-1">Please complete the verification above to send.</p>
+            )}
+          </div>
+        )}
 
         {/* Submit */}
         <div className="flex justify-end">
           <button
             type="submit"
-            disabled={sending || !recaptchaToken}
+            disabled={sending || (CAPTCHA_ENABLED && !recaptchaToken)}
             className="px-6 py-2 bg-blue-600 text-white rounded-md text-sm font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors"
           >
             {sending ? "Sending..." : "Send Email(s)"}

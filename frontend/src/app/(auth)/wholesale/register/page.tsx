@@ -97,10 +97,16 @@ const gridStyle: React.CSSProperties = {
 
 const req = <span style={{ color: "#E8242A" }}>*</span>;
 
+// reCAPTCHA renders only when a site key is configured. With no key the widget
+// throws "Missing required parameters: sitekey" and takes the whole page down, so
+// when it is absent we skip the widget and don't gate submission on a token.
+const RECAPTCHA_SITE_KEY = process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY ?? "";
+
 export default function WholesaleRegisterPage() {
   const router = useRouter();
   const { isAuthenticated, isLoading: authIsLoading } = useAuthStore();
   const recaptchaRef = useRef<any>(null);
+  const captchaEnabled = RECAPTCHA_SITE_KEY.length > 0;
 
   useEffect(() => {
     if (!authIsLoading && isAuthenticated()) {
@@ -166,7 +172,7 @@ export default function WholesaleRegisterPage() {
       setError("You must accept the terms and conditions.");
       return;
     }
-    if (!recaptchaToken) {
+    if (captchaEnabled && !recaptchaToken) {
       setError("Please complete the reCAPTCHA verification.");
       return;
     }
@@ -436,18 +442,20 @@ export default function WholesaleRegisterPage() {
                 AF Apparels wholesale accounts are strictly for business-to-business transactions. By submitting this application you confirm that your business holds a valid resale certificate or equivalent tax exemption document. All pricing, product availability, and terms are subject to change. Accounts may be suspended for misuse. We reserve the right to approve or deny any application at our sole discretion.
               </div>
 
-              {/* reCAPTCHA */}
-              <div className="recaptcha-wrap" style={{ marginBottom: "16px" }}>
-                <ReCAPTCHA
-                  ref={recaptchaRef}
-                  sitekey={process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY ?? ""}
-                  onChange={(token) => setRecaptchaToken(token)}
-                  onExpired={() => setRecaptchaToken(null)}
-                />
-                {!recaptchaToken && (
-                  <p style={{ fontSize: "11px", color: "#aaa", marginTop: "6px" }}>Please complete the verification above to submit.</p>
-                )}
-              </div>
+              {/* reCAPTCHA — only when a site key is configured */}
+              {captchaEnabled && (
+                <div className="recaptcha-wrap" style={{ marginBottom: "16px" }}>
+                  <ReCAPTCHA
+                    ref={recaptchaRef}
+                    sitekey={RECAPTCHA_SITE_KEY}
+                    onChange={(token) => setRecaptchaToken(token)}
+                    onExpired={() => setRecaptchaToken(null)}
+                  />
+                  {!recaptchaToken && (
+                    <p style={{ fontSize: "11px", color: "#aaa", marginTop: "6px" }}>Please complete the verification above to submit.</p>
+                  )}
+                </div>
+              )}
 
               <label style={{ display: "flex", alignItems: "flex-start", gap: "10px", cursor: "pointer" }}>
                 <input
@@ -465,10 +473,10 @@ export default function WholesaleRegisterPage() {
 
             <button
               type="submit"
-              disabled={isSubmitting || !recaptchaToken}
+              disabled={isSubmitting || (captchaEnabled && !recaptchaToken)}
               style={{
                 width: "100%",
-                background: (isSubmitting || !recaptchaToken) ? "#9ca3af" : "#1C3557",
+                background: (isSubmitting || (captchaEnabled && !recaptchaToken)) ? "#9ca3af" : "#1C3557",
                 color: "#fff",
                 padding: "16px",
                 fontSize: "15px",

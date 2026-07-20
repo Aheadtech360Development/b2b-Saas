@@ -13,6 +13,10 @@ import { productsService } from "@/services/products.service";
 const ReCAPTCHA = nextDynamic(() => import("react-google-recaptcha"), {
   ssr: false,
 }) as typeof ReCAPTCHAType;
+// Render the widget only when a site key exists — an empty key throws and takes
+// the page down; without it, submission is not gated on a captcha token.
+const RECAPTCHA_SITE_KEY = process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY ?? "";
+const CAPTCHA_ENABLED = RECAPTCHA_SITE_KEY.length > 0;
 
 const labelStyle: React.CSSProperties = {
   fontSize: "11px", fontWeight: 700, textTransform: "uppercase",
@@ -63,7 +67,7 @@ export default function EmailFlyerPage() {
     if (user?.email) setFromEmail(user.email);
   }, [user]);
 
-  const canSend = to.trim() && subject.trim() && !!recaptchaToken;
+  const canSend = to.trim() && subject.trim() && (!CAPTCHA_ENABLED || !!recaptchaToken);
 
   async function handleSend(e: React.FormEvent) {
     e.preventDefault();
@@ -208,18 +212,20 @@ export default function EmailFlyerPage() {
           </div>
         </div>
 
-        {/* reCAPTCHA */}
-        <div style={{ marginBottom: "24px" }}>
-          <ReCAPTCHA
-            ref={recaptchaRef}
-            sitekey={process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY ?? ""}
-            onChange={(token) => setRecaptchaToken(token)}
-            onExpired={() => setRecaptchaToken(null)}
-          />
-          {!recaptchaToken && (
-            <p style={{ fontSize: "11px", color: "#7A7880", marginTop: "6px" }}>Please complete the verification above to send.</p>
-          )}
-        </div>
+        {/* reCAPTCHA — only when a site key is configured */}
+        {CAPTCHA_ENABLED && (
+          <div style={{ marginBottom: "24px" }}>
+            <ReCAPTCHA
+              ref={recaptchaRef}
+              sitekey={RECAPTCHA_SITE_KEY}
+              onChange={(token) => setRecaptchaToken(token)}
+              onExpired={() => setRecaptchaToken(null)}
+            />
+            {!recaptchaToken && (
+              <p style={{ fontSize: "11px", color: "#7A7880", marginTop: "6px" }}>Please complete the verification above to send.</p>
+            )}
+          </div>
+        )}
 
         {/* Buttons */}
         <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
