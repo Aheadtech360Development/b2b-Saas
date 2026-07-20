@@ -90,12 +90,17 @@ export function ProductListClient({
   // Client-side product state — initialized from SSR data (guest prices),
   // re-fetched with auth token on every navigation so wholesale prices appear.
   const [products, setProducts] = useState<ProductListItem[]>(initialProducts);
+  // Count is stateful too so a client refetch can correct it. The SSR `total`
+  // can briefly belong to the wrong brand if a cross-tenant cached render is
+  // served; the refetch below is always tenant-scoped, so it heals the count.
+  const [count, setCount] = useState<number>(total);
 
   // Sync SSR products into state on every client-side navigation.
   // initialProducts is a new array reference each time the server re-renders
   // (i.e. whenever the URL changes), so this effect fires on every navigation.
   useEffect(() => {
     setProducts(initialProducts);
+    setCount(total);
   }, [initialProducts]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Re-fetch with auth token for wholesale prices.
@@ -115,8 +120,12 @@ export function ProductListClient({
     if (currentProductCode) params.product_code = currentProductCode;
     if (currentQ) params.q = currentQ;
     const qs = new URLSearchParams({ ...params, page_size: "24" }).toString();
-    apiClient.get<{ items: ProductListItem[] }>(`/api/v1/products?${qs}`)
-      .then((res) => { if (!cancelled && res?.items?.length) setProducts(res.items); })
+    apiClient.get<{ items: ProductListItem[]; total: number }>(`/api/v1/products?${qs}`)
+      .then((res) => {
+        if (cancelled || !res) return;
+        if (res.items?.length) setProducts(res.items);
+        if (typeof res.total === "number") setCount(res.total);
+      })
       .catch(() => { });
     return () => { cancelled = true; };
   }, [isAuthenticated, currentCategory, currentSize, currentColor, currentGender, currentInStock, currentPriceMin, currentPriceMax, currentProductCode, currentQ]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -295,7 +304,7 @@ export function ProductListClient({
             style={{ accentColor: "var(--brand-primary, #1C3557)", cursor: "pointer" }}
           />
           All Products
-          <span style={{ marginLeft: "auto", fontSize: "11px", color: "#6B6B6B", fontFamily: "'DM Sans', sans-serif" }}>{total}</span>
+          <span style={{ marginLeft: "auto", fontSize: "11px", color: "#6B6B6B", fontFamily: "'DM Sans', sans-serif" }}>{count}</span>
         </label>
         {categories.map((cat) => (
           <label key={cat.id} style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "13px", color: "#1A1A1A", marginBottom: "8px", cursor: "pointer", fontFamily: "'DM Sans', sans-serif" }}>
@@ -534,7 +543,7 @@ export function ProductListClient({
               Filters {hasFilters && "•"}
             </button>
             <span style={{ fontSize: "13px", fontWeight: 700, color: "#7A7880" }}>
-              {total} Product{total !== 1 ? "s" : ""}
+              {count} Product{count !== 1 ? "s" : ""}
             </span>
           </div>
 
