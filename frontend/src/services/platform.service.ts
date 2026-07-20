@@ -108,7 +108,18 @@ export function tenantUrl(slug: string, path = "/", hash?: string): string {
   // serve slug.<domain>, so linking there produces an unreachable URL. In that
   // mode the brand travels in the query string instead — the same fallback the
   // middleware and api-client already resolve.
-  if ((process.env.NEXT_PUBLIC_TENANT_MODE ?? "subdomain") === "query") {
+  //
+  // Detected rather than configured: if the page is not being served from the
+  // configured platform domain, then slug.<domain> is not where this app lives
+  // and a subdomain link cannot resolve. NEXT_PUBLIC_TENANT_MODE stays available
+  // to force query mode when the domain matches but wildcard DNS is missing.
+  const host = typeof window === "undefined" ? "" : window.location.hostname;
+  const domainMatchesHost =
+    !host || host === platformDomain || host.endsWith(`.${platformDomain}`);
+  const queryMode =
+    process.env.NEXT_PUBLIC_TENANT_MODE === "query" || !domainMatchesHost;
+
+  if (queryMode) {
     const url = new URL(path, origin);
     url.searchParams.set("tenant", slug);
     if (hash) url.hash = hash;
