@@ -252,11 +252,15 @@ class AuthService:
         except Exception:
             pass
 
-        # ✅ Admin notification
-        if settings.ADMIN_NOTIFICATION_EMAIL:
+        # ✅ Notify the store owner of the brand this application was submitted to.
+        # The application is tenant-scoped, so its stamped tenant_id tells us whose
+        # store it is; the recipient is that brand's own notification address, never
+        # a single shared inbox.
+        owner_email = await self._resolve_owner_notification_email(application.tenant_id)
+        if owner_email:
             try:
                 email_svc.send_raw(
-                    to_email=settings.ADMIN_NOTIFICATION_EMAIL,
+                    to_email=owner_email,
                     subject=f"New Wholesale Application — {data.company_name}",
                     body_html=f"""
                         <h2>New Wholesale Application</h2>
@@ -265,13 +269,45 @@ class AuthService:
                         <p><b>Email:</b> {data.email}</p>
                         <p><b>Phone:</b> {data.phone}</p>
                         <p><b>Business Type:</b> {data.business_type}</p>
-                        <a href="{settings.FRONTEND_URL}/admin/customers">Review Application →</a>
+                        <a href="{settings.FRONTEND_URL}/admin/customers/applications">Review Application →</a>
                     """,
                 )
             except Exception:
                 pass  # non-fatal
 
         return application
+
+    async def _resolve_owner_notification_email(self, tenant_id: object) -> str | None:
+        """Where a new wholesale application should notify — resolved per brand.
+
+        Order: the brand's configured support email, else its first tenant admin's
+        login email, else the platform-wide fallback. Each brand thus hears about
+        its own applicants and never about another brand's.
+        """
+        from sqlalchemy import text
+
+        if tenant_id:
+            branding = await self.db.execute(
+                text("SELECT support_email FROM tenant_branding WHERE tenant_id = :t"),
+                {"t": str(tenant_id)},
+            )
+            support_email = branding.scalar()
+            if support_email:
+                return support_email
+
+            admin = await self.db.execute(
+                text(
+                    "SELECT email FROM users "
+                    "WHERE tenant_id = :t AND role = 'tenant_admin' AND is_active = true "
+                    "ORDER BY created_at LIMIT 1"
+                ),
+                {"t": str(tenant_id)},
+            )
+            admin_email = admin.scalar()
+            if admin_email:
+                return admin_email
+
+        return settings.ADMIN_NOTIFICATION_EMAIL or None
 
     async def send_password_reset(self, email: str) -> None:
         result = await self.db.execute(select(User).where(User.email == email.lower()))
