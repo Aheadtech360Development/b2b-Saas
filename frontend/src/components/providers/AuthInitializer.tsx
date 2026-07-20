@@ -42,15 +42,27 @@ export function AuthInitializer() {
         window.history.replaceState(null, "", window.location.pathname + window.location.search);
         setAccessToken(token);
         const payload = decodeJwtPayload(token);
+
+        const claims = {
+          is_admin: !!payload.is_admin,
+          is_platform_admin: !!payload.is_platform_admin,
+          role: payload.role as string,
+          tenant_id: (payload.tenant_id as string) ?? null,
+        };
+
+        // Apply the impersonated identity synchronously, before awaiting the
+        // profile. A tab opened with window.open inherits a copy of the opener's
+        // sessionStorage, so this tab starts out holding the *platform admin's*
+        // session; the admin route guard would see that non-tenant-admin user and
+        // bounce to /account before the fetch below ever resolved.
+        useAuthStore.getState().setAuth(token, claims as unknown as UserProfile);
+
         apiClient
           .get<Record<string, unknown>>("/api/v1/auth/profile")
           .then((profile) => {
             useAuthStore.getState().setAuth(token, {
               ...(profile as object),
-              is_admin: !!payload.is_admin,
-              is_platform_admin: !!payload.is_platform_admin,
-              role: payload.role as string,
-              tenant_id: (payload.tenant_id as string) ?? null,
+              ...claims,
             } as unknown as UserProfile);
           })
           .catch(() => useAuthStore.getState().clearAuth())
