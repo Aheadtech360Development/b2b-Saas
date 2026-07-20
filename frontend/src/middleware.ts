@@ -1,40 +1,58 @@
 /**
- * Next.js Middleware — Multi-tenant subdomain routing.
+ * Next.js Middleware — Multi-tenant tenant resolution.
  *
  * Local:      http://demo.localhost:3000  → tenant slug = "demo"
  * Production: https://demo.platform.com  → tenant slug = "demo"
+ * Fallback:   https://platform.com/?tenant=demo  → tenant slug = "demo"
  *
- * Sets x-tenant-slug header so API calls carry the tenant context.
+ * The slug is put on the *request* headers (not just the response) because that
+ * is the only channel server components can read it from — they render before
+ * the response exists, and a server-side fetch has no browser cookie jar. The
+ * cookie is still set so client components and later navigations keep the brand
+ * once the `?tenant=` query is gone from the URL.
  */
 import { NextRequest, NextResponse } from "next/server";
 
 const PLATFORM_DOMAIN = process.env.NEXT_PUBLIC_PLATFORM_DOMAIN ?? "localhost";
 
-export function middleware(request: NextRequest) {
-  const hostname = request.nextUrl.hostname; // "demo.localhost" or "demo.platform.com"
-  const response = NextResponse.next();
+export const TENANT_HEADER = "x-tenant-slug";
+export const TENANT_COOKIE = "tenant_slug";
 
-  let slug: string | null = null;
+function resolveSlug(request: NextRequest): string | null {
+  const hostname = request.nextUrl.hostname;
 
+  // 1. Subdomain — the real production mechanism, always wins.
   if (
-    hostname === PLATFORM_DOMAIN ||
-    hostname === `www.${PLATFORM_DOMAIN}` ||
-    hostname === "localhost"
+    hostname !== PLATFORM_DOMAIN &&
+    hostname !== `www.${PLATFORM_DOMAIN}` &&
+    hostname !== "localhost" &&
+    hostname.endsWith(`.${PLATFORM_DOMAIN}`)
   ) {
-    // Root domain or plain localhost — no tenant (platform admin)
-    slug = null;
-  } else if (hostname.endsWith(`.${PLATFORM_DOMAIN}`)) {
-    // subdomain.platform.com → slug = "subdomain"
-    slug = hostname.slice(0, -(PLATFORM_DOMAIN.length + 1));
+    return hostname.slice(0, -(PLATFORM_DOMAIN.length + 1));
   }
 
-  // Forward slug to all API calls via custom header
+  // 2. `?tenant=<slug>` — for hosts without wildcard subdomains (preview deploys).
+  const fromQuery = request.nextUrl.searchParams.get("tenant");
+  if (fromQuery) return fromQuery;
+
+  // 3. Cookie set by an earlier request, so in-app navigation keeps the brand.
+  return request.cookies.get(TENANT_COOKIE)?.value || null;
+}
+
+export function middleware(request: NextRequest) {
+  const slug = resolveSlug(request);
+
+  const requestHeaders = new Headers(request.headers);
   if (slug) {
-    response.headers.set("x-tenant-slug", slug);
+    requestHeaders.set(TENANT_HEADER, slug);
+  } else {
+    // Never let a stale inbound header survive resolution.
+    requestHeaders.delete(TENANT_HEADER);
   }
 
-  // Store slug in a cookie so client components can read it
-  response.cookies.set("tenant_slug", slug ?? "", {
+  const response = NextResponse.next({ request: { headers: requestHeaders } });
+
+  response.cookies.set(TENANT_COOKIE, slug ?? "", {
     path: "/",
     sameSite: "lax",
     httpOnly: false, // readable by JS

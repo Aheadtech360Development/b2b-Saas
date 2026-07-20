@@ -45,6 +45,27 @@ export function currentTenantSlug(): string | null {
   return null; // root domain — platform level, no tenant
 }
 
+/**
+ * Server-side counterpart of `currentTenantSlug`. Server components render with
+ * no `window`, so the subdomain and the `?tenant=` query are both invisible to
+ * them — without this, every server-rendered page would call the API with no
+ * tenant at all and render whatever the backend returns unscoped.
+ *
+ * The middleware puts the resolved slug on the request headers; this reads it
+ * back. Dynamically imported so `next/headers` never reaches the client bundle
+ * (this module is imported by client components too).
+ */
+async function serverTenantSlug(): Promise<string | null> {
+  if (typeof window !== "undefined") return null;
+  try {
+    const { headers } = await import("next/headers");
+    return (await headers()).get("x-tenant-slug");
+  } catch {
+    // No request scope — build-time prerender, scripts, tests.
+    return null;
+  }
+}
+
 // In-memory token store (never persisted to localStorage for XSS safety)
 let accessToken: string | null = null;
 
@@ -136,8 +157,9 @@ async function request<T>(url: string, options: RequestOptions = {}): Promise<T>
     headers.set("Authorization", `Bearer ${accessToken}`);
   }
 
-  // Forward the current brand (subdomain) so the backend scopes the request.
-  const slug = currentTenantSlug();
+  // Forward the current brand so the backend scopes the request. On the server
+  // the slug comes from the middleware-injected header instead of `window`.
+  const slug = currentTenantSlug() ?? (await serverTenantSlug());
   if (slug) {
     headers.set("X-Tenant-Slug", slug);
   }
