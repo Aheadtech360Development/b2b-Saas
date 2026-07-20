@@ -49,14 +49,53 @@ class Settings(BaseSettings):
 
     @property
     def sync_db_url(self) -> str:
-        """Synchronous DB URL for Alembic — auto-derived from async URL if not set."""
+        """Synchronous DB URL for Alembic — auto-derived from async URL if not set.
+
+        Beyond swapping the driver, the query string has to be sanitised: asyncpg
+        accepts options libpq/psycopg2 rejects outright (`ssl`, `*_cache_size`,
+        ...), and a single unknown key makes psycopg2's `parse_dsn` raise, which
+        aborts the whole migration step. `ssl=true` is translated rather than
+        dropped so a TLS-only host (Neon) still gets an encrypted connection.
+        """
         if self.DATABASE_URL_SYNC:
             return self.DATABASE_URL_SYNC
-        return (
+
+        raw = (
             self.DATABASE_URL
             .replace("postgresql+asyncpg://", "postgresql://")
             .replace("postgres+asyncpg://", "postgresql://")
+            .replace("postgres://", "postgresql://")
         )
+
+        base, sep, query = raw.partition("?")
+        if not sep:
+            return base
+
+        # asyncpg-only connect args — libpq has no equivalent option name.
+        async_only = {"ssl", "statement_cache_size", "prepared_statement_cache_size", "server_settings"}
+        kept: list[str] = []
+        for part in query.split("&"):
+            if not part:
+                continue
+            key, _, value = part.partition("=")
+            key = key.strip()
+            if key not in async_only:
+                kept.append(part)
+                continue
+            if key == "ssl" and value.lower() in {"true", "1", "require"}:
+                kept.append("sslmode=require")
+
+        # De-dupe (an explicit sslmode in the URL wins over the translated one).
+        seen: set[str] = set()
+        final: list[str] = []
+        for part in kept:
+            key = part.partition("=")[0]
+            if key in seen:
+                continue
+            seen.add(key)
+            final.append(part)
+
+        return f"{base}?{'&'.join(final)}" if final else base
 
     # ── Redis ─────────────────────────────────────────────────────────────────
     REDIS_URL: str = "redis://localhost:6379/0"

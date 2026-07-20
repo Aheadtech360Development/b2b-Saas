@@ -934,12 +934,6 @@ app.include_router(admin_blog_posts.router, prefix=_V1)
 app.include_router(admin_purchase_orders.router, prefix=f"{_V1}/admin/purchase-orders", tags=["purchase-orders"])
 app.include_router(admin_supplier_catalog.router, prefix=_V1)
 
-# ── Debug: log all registered routes at import time ──────────────────────────
-for _route in app.routes:
-    _path = getattr(_route, "path", "?")
-    _methods = getattr(_route, "methods", None)
-    print(f"[ROUTE] {','.join(_methods) if _methods else 'MOUNT'} {_path}")
-
 # Static files
 os.makedirs("/app/media", exist_ok=True)
 app.mount("/media", StaticFiles(directory="/app/media"), name="media")
