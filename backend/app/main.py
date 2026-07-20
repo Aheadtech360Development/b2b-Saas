@@ -731,14 +731,17 @@ async def _seed_email_templates() -> None:
 # ── App factory ───────────────────────────────────────────────────────────────
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
-    # Run DB migrations before accepting traffic
+    # Run DB migrations before accepting traffic (from the backend dir, using the
+    # current interpreter so it works both locally and in Docker).
     try:
         import subprocess
+        import sys as _sys
+        backend_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         result = subprocess.run(
-            ["alembic", "upgrade", "head"],
+            [_sys.executable, "-m", "alembic", "upgrade", "head"],
             capture_output=True,
             text=True,
-            cwd="/app",
+            cwd=backend_dir,
         )
         if result.stdout:
             print("Migration stdout:", result.stdout[-2000:])
@@ -843,11 +846,32 @@ from app.api.v1.admin import (  # noqa: E402
     supplier_catalog as admin_supplier_catalog,
 )
 
+# ── CORS ──────────────────────────────────────────────────────────────────────
+# Origins are the explicit env list plus this platform's own domain and its brand
+# subdomains (multi-tenant storefronts live on <brand>.PLATFORM_DOMAIN).
+#
+# SECURITY: never pair `allow_credentials=True` with a blanket host regex such as
+# `.*\.vercel\.app`. Login sets an httpOnly refresh cookie that /api/v1/refresh
+# exchanges for an access token; with SameSite=None (the documented production
+# setting for a cross-domain frontend) any site on such a shared host could call
+# that endpoint with `credentials: "include"` and read the token back — a full
+# account takeover. Preview deployments must be added to ALLOWED_ORIGINS instead.
+import re as _re
+
 _cors_origins = list({settings.FRONTEND_URL, *settings.allowed_origins_list} - {""})
+
+_platform_domain = _re.escape(settings.PLATFORM_DOMAIN or "localhost")
+_origin_patterns = [rf"^https://([a-z0-9-]+\.)*{_platform_domain}$"]
+if settings.APP_ENV != "production":
+    # Local development: localhost, brand subdomains of it, and the loopback IP.
+    _origin_patterns.append(r"^http://([a-z0-9-]+\.)*localhost(:\d+)?$")
+    _origin_patterns.append(r"^http://127\.0\.0\.1(:\d+)?$")
+_cors_origin_regex = "|".join(_origin_patterns)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_cors_origins,
-    allow_origin_regex=r"https://(.*\.vercel\.app|.*\.up\.railway\.app|.*\.railway\.app)|http://(.*\.)?localhost(:\d+)?",
+    allow_origin_regex=_cors_origin_regex,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -861,6 +885,9 @@ app.include_router(tenant_auth.router, prefix=_V1)
 app.include_router(platform_tenants.router, prefix=_V1)
 app.include_router(storefront.public_router, prefix=_V1)
 app.include_router(storefront.admin_router, prefix=_V1)
+app.include_router(storefront.admin_pages_router, prefix=_V1)
+app.include_router(storefront.admin_contact_router, prefix=_V1)
+app.include_router(storefront.admin_menus_router, prefix=_V1)
 from app.api.v1.admin import media as admin_media  # noqa: E402
 app.include_router(admin_media.router, prefix=_V1)
 

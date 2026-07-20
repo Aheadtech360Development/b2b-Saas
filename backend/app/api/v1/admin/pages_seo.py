@@ -11,6 +11,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 from app.core.database import get_db
 from app.middleware.auth_middleware import require_admin
 from app.models.base import Base
+from app.models.base import TenantMixin
 
 router = APIRouter(prefix="/admin/pages-seo")
 
@@ -27,11 +28,11 @@ PREDEFINED_PAGES = [
 ]
 
 
-class PageSeo(Base):
+class PageSeo(TenantMixin, Base):
     __tablename__ = "page_seo"
 
     id: Mapped[str] = mapped_column(primary_key=True, server_default="gen_random_uuid()")
-    page_slug: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
+    page_slug: Mapped[str] = mapped_column(String(100), nullable=False)  # unique per tenant (DB constraint)
     meta_title: Mapped[Optional[str]] = mapped_column(String(60), nullable=True)
     meta_description: Mapped[Optional[str]] = mapped_column(String(160), nullable=True)
     keywords: Mapped[Optional[str]] = mapped_column(Text, nullable=True)

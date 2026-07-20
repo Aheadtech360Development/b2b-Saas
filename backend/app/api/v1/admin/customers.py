@@ -71,11 +71,11 @@ async def approve_application(
         data=data,
         admin_user_id=uuid.UUID(request.state.user_id),
     )
-    from app.tasks.quickbooks_tasks import sync_customer_to_qb
     from app.core.config import settings
-    logger.info("Approving company %s — broker=%s", company.id, settings.CELERY_BROKER_URL)
-    task = sync_customer_to_qb.delay(str(company.id))
-    logger.info("QB sync task queued for company %s — task_id=%s", company.id, task.id)
+    if settings.QUICKBOOKS_ENABLED:
+        from app.tasks.quickbooks_tasks import sync_customer_to_qb
+        task = sync_customer_to_qb.delay(str(company.id))
+        logger.info("QB sync task queued for company %s — task_id=%s", company.id, task.id)
     return {"message": "Application approved", "company_id": str(company.id)}
 
 

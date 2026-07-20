@@ -548,3 +548,8 @@
   .register-sub { font-size: 14px !important; }
   .register-content-wrap { padding: 24px 16px 48px !important; }
 }
+
+/* Storefront featured sections: exactly 4 per row on desktop, stack on mobile */
+.storefront-featured-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; }
+@media (max-width: 900px) { .storefront-featured-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 560px) { .storefront-featured-grid { grid-template-columns: 1fr; } }

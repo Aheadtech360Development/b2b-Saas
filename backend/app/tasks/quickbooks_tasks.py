@@ -78,6 +78,10 @@ def sync_customer_to_qb(self, company_id: str):
     """Sync a Company to QuickBooks as a Customer."""
     logger.info("sync_customer_to_qb started — company_id=%s", company_id)
 
+    if not settings.QUICKBOOKS_ENABLED:
+        logger.info("QuickBooks disabled — skipping sync task")
+        return {"status": "skipped", "reason": "QuickBooks disabled"}
+
     async def _run_all():
         from app.core.database import AsyncSessionLocal
         from app.models.company import Company, CompanyUser
@@ -177,6 +181,10 @@ def sync_order_invoice_to_qb(self, order_id: str):
     - Retail/wholesale with company: use company.qb_customer_id, fall back to QBSyncLog.
     - Company not yet in QB: dispatch sync_customer_to_qb and retry.
     """
+
+    if not settings.QUICKBOOKS_ENABLED:
+        logger.info("QuickBooks disabled — skipping sync task")
+        return {"status": "skipped", "reason": "QuickBooks disabled"}
 
     async def _run_all():
         from app.core.database import AsyncSessionLocal
@@ -407,6 +415,10 @@ def sync_variant_to_qb(self, variant_id: str):
     Writes the QB item Id back to product_variants.qb_item_id.
     """
 
+    if not settings.QUICKBOOKS_ENABLED:
+        logger.info("QuickBooks disabled — skipping sync task")
+        return {"status": "skipped", "reason": "QuickBooks disabled"}
+
     async def _run_all():
         from app.core.database import AsyncSessionLocal
         from app.models.product import ProductVariant
@@ -494,6 +506,10 @@ def sync_inventory_to_qb(self, variant_id: str):
     (which creates the item and sets initial QtyOnHand in one call).
     """
 
+    if not settings.QUICKBOOKS_ENABLED:
+        logger.info("QuickBooks disabled — skipping sync task")
+        return {"status": "skipped", "reason": "QuickBooks disabled"}
+
     async def _run_all():
         from app.core.database import AsyncSessionLocal
         from app.models.product import ProductVariant
@@ -551,6 +567,10 @@ def sync_po_receipt_to_qb(self, po_id: str, receiving_id: str):
     Writes qb_bill_id back to both POReceiving and PurchaseOrder rows.
     """
     logger.info("sync_po_receipt_to_qb started — po=%s receiving=%s", po_id, receiving_id)
+
+    if not settings.QUICKBOOKS_ENABLED:
+        logger.info("QuickBooks disabled — skipping sync task")
+        return {"status": "skipped", "reason": "QuickBooks disabled"}
 
     async def _run_all():
         from app.core.database import AsyncSessionLocal

@@ -26,7 +26,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.database import get_db
-from app.core.redis import redis_delete_pattern
+from app.core.redis import redis_delete_pattern, tenant_cache_key
 
 logger = logging.getLogger(__name__)
 
@@ -536,7 +536,7 @@ async def import_ss_product(style_id: str, db: AsyncSession = Depends(get_db)):
 
     # Invalidate product cache
     try:
-        await redis_delete_pattern("product:*")
+        await redis_delete_pattern(tenant_cache_key("products:*"))
     except Exception:
         pass
 

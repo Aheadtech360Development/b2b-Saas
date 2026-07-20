@@ -1296,6 +1296,9 @@ async def mark_order_paid(
 
 @router.post("/orders/{order_id}/sync-quickbooks", response_model=dict)
 async def sync_order_to_quickbooks(order_id: UUID, db: AsyncSession = Depends(get_db)):
+    from app.core.config import settings
+    if not settings.QUICKBOOKS_ENABLED:
+        return {"message": "QuickBooks integration is disabled", "order_id": str(order_id)}
     from app.tasks.quickbooks_tasks import sync_order_invoice_to_qb
     sync_order_invoice_to_qb.delay(str(order_id))
     return {"message": "QuickBooks sync queued", "order_id": str(order_id)}

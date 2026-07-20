@@ -9,7 +9,7 @@ from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import NotFoundError
-from app.core.redis import redis_delete, redis_delete_pattern, redis_get, redis_set
+from app.core.redis import redis_delete, redis_delete_pattern, redis_get, redis_set, tenant_cache_key
 from app.models.product import Category, Product, ProductAsset, ProductCategory, ProductVariant, ProductImage
 from app.schemas.product import FilterParams
 
@@ -29,7 +29,7 @@ class ProductService:
     # ------------------------------------------------------------------
 
     async def get_category_tree(self) -> list[Category]:
-        cached = await redis_get("categories:tree")
+        cached = await redis_get(tenant_cache_key("categories:tree"))
         if cached:
             return json.loads(cached)  # returned as plain dicts for response
 
@@ -41,7 +41,7 @@ class ProductService:
         # Only top-level categories; children are already eagerly loaded via selectinload
         root = [c for c in all_cats if c.parent_id is None]
 
-        await redis_set("categories:tree", json.dumps([_cat_to_dict(c) for c in root]), expire=_CATEGORY_TTL)
+        await redis_set(tenant_cache_key("categories:tree"), json.dumps([_cat_to_dict(c) for c in root]), expire=_CATEGORY_TTL)
         return root
 
     # ------------------------------------------------------------------
@@ -55,7 +55,7 @@ class ProductService:
         discount_group_id: str | None = None,
         is_guest: bool = False,
     ) -> tuple[list[Product], int]:
-        cache_key = (
+        cache_key = tenant_cache_key(
             f"products:list:{params.category}:{params.size}:{params.color}:"
             f"{params.price_min}:{params.price_max}:{params.q}:{params.page}:"
             f"{params.page_size}:{discount_percent}:{discount_group_id or 'none'}:{'g' if is_guest else 'a'}"
@@ -180,7 +180,7 @@ class ProductService:
         discount_group_id: str | None = None,
         is_guest: bool = False,
     ) -> Product:
-        cache_key = f"products:detail:{slug}:{discount_percent}:{discount_group_id or 'none'}:{'g' if is_guest else 'a'}"
+        cache_key = tenant_cache_key(f"products:detail:{slug}:{discount_percent}:{discount_group_id or 'none'}:{'g' if is_guest else 'a'}")
         cached = await redis_get(cache_key)
         if cached:
             return json.loads(cached)
@@ -338,8 +338,8 @@ class ProductService:
 
     async def invalidate_product_cache(self, slug: str | None = None) -> None:
         if slug:
-            await redis_delete_pattern(f"products:detail:{slug}:*")
-        await redis_delete_pattern("products:list:*")
+            await redis_delete_pattern(tenant_cache_key(f"products:detail:{slug}:*"))
+        await redis_delete_pattern(tenant_cache_key("products:list:*"))
 
     # ------------------------------------------------------------------
     # Admin methods (T104 — Phase 10)

@@ -752,7 +752,7 @@ export function ProductDetailClient({ slug }: ProductDetailClientProps) {
                     key={img.id}
                     onClick={() => setActiveImageIdx(i)}
                     className="pdp-thumb"
-                    style={{ width: "80px", height: "80px", flexShrink: 0, border: activeImageIdx === i ? "1px solid #1C3557" : "1px solid #E2E2DE", cursor: "pointer", background: "#F8F8F6", padding: 0, outline: activeImageIdx === i ? "1px solid #1C3557" : "none", outlineOffset: "2px", overflow: "hidden" }}
+                    style={{ width: "80px", height: "80px", flexShrink: 0, border: activeImageIdx === i ? "1px solid var(--brand-primary, #1C3557)" : "1px solid #E2E2DE", cursor: "pointer", background: "#F8F8F6", padding: 0, outline: activeImageIdx === i ? "1px solid var(--brand-primary, #1C3557)" : "none", outlineOffset: "2px", overflow: "hidden" }}
                   >
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src={thumbSrc(img)} alt={img.alt_text ?? ""} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
@@ -766,7 +766,7 @@ export function ProductDetailClient({ slug }: ProductDetailClientProps) {
               <a
                 href="#"
                 onClick={e => { e.preventDefault(); handleEmailFlyer(); }}
-                style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px", color: "#1C3557", textDecoration: "none", cursor: "pointer" }}
+                style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px", color: "var(--brand-primary, #1C3557)", textDecoration: "none", cursor: "pointer" }}
               >
                 ↓ Email Flyer
               </a>
@@ -774,7 +774,7 @@ export function ProductDetailClient({ slug }: ProductDetailClientProps) {
                 <a
                   href="#"
                   onClick={e => { e.preventDefault(); setShowImageLibrary(true); setExpandedLibraryColor(null); }}
-                  style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px", color: "#1C3557", textDecoration: "none", cursor: "pointer" }}
+                  style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px", color: "var(--brand-primary, #1C3557)", textDecoration: "none", cursor: "pointer" }}
                 >
                   View Image Library →
                 </a>
@@ -806,9 +806,9 @@ export function ProductDetailClient({ slug }: ProductDetailClientProps) {
             {!isAuthenticated && (
               <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px", color: "#6B6B6B", marginBottom: "22px" }}>
                 Create a wholesale account to get lower prices.{" "}
-                <Link href="/wholesale/register" style={{ color: "#1C3557", fontWeight: 500, textDecoration: "none" }}>Create Account</Link>
+                <Link href="/wholesale/register" style={{ color: "var(--brand-primary, #1C3557)", fontWeight: 500, textDecoration: "none" }}>Create Account</Link>
                 {" · "}
-                <Link href="/login" style={{ color: "#1C3557", fontWeight: 500, textDecoration: "none" }}>Log In</Link>
+                <Link href="/login" style={{ color: "var(--brand-primary, #1C3557)", fontWeight: 500, textDecoration: "none" }}>Log In</Link>
               </p>
             )}
 
@@ -835,7 +835,7 @@ export function ProductDetailClient({ slug }: ProductDetailClientProps) {
                         key={group.color}
                         onClick={() => { setSelectedColor(selectedColor === group.color ? null : group.color); setActiveImageIdx(0); }}
                         title={group.color}
-                        style={{ width: "24px", height: "24px", borderRadius: "50%", background: hex, border: isLight ? "1px solid #E2E2DE" : "1px solid rgba(0,0,0,.08)", cursor: "pointer", outline: isSel ? "2px solid #1C3557" : "none", outlineOffset: "2px", flexShrink: 0, padding: 0, display: "block" }}
+                        style={{ width: "24px", height: "24px", borderRadius: "50%", background: hex, border: isLight ? "1px solid #E2E2DE" : "1px solid rgba(0,0,0,.08)", cursor: "pointer", outline: isSel ? "2px solid var(--brand-primary, #1C3557)" : "none", outlineOffset: "2px", flexShrink: 0, padding: 0, display: "block" }}
                       />
                     );
                   })}
@@ -881,7 +881,7 @@ export function ProductDetailClient({ slug }: ProductDetailClientProps) {
                               <button
                                 onClick={() => handleRowAddToCart(group)}
                                 disabled={rowQty === 0 || allRowOOS}
-                                style={{ background: "transparent", color: (rowQty > 0 && !allRowOOS) ? "#1C3557" : "#ccc", border: `1px solid ${(rowQty > 0 && !allRowOOS) ? "#1C3557" : "#E2E2DE"}`, padding: "5px 10px", fontSize: "11px", fontFamily: "'DM Sans', sans-serif", cursor: (rowQty > 0 && !allRowOOS) ? "pointer" : "not-allowed", whiteSpace: "nowrap" }}
+                                style={{ background: "transparent", color: (rowQty > 0 && !allRowOOS) ? "var(--brand-primary, #1C3557)" : "#ccc", border: `1px solid ${(rowQty > 0 && !allRowOOS) ? "var(--brand-primary, #1C3557)" : "#E2E2DE"}`, padding: "5px 10px", fontSize: "11px", fontFamily: "'DM Sans', sans-serif", cursor: (rowQty > 0 && !allRowOOS) ? "pointer" : "not-allowed", whiteSpace: "nowrap" }}
                               >
                                 Add to Cart
                               </button>
@@ -926,7 +926,7 @@ export function ProductDetailClient({ slug }: ProductDetailClientProps) {
                                         return { ...prev, [variant.id]: val };
                                       });
                                     }}
-                                    style={{ width: "52px", border: `1px solid ${isOOS ? "#e0e0e0" : qty > 0 ? "#1C3557" : "#E2E2DE"}`, padding: "5px 6px", textAlign: "center", fontFamily: "'DM Sans', sans-serif", fontSize: "13px", outline: "none", cursor: isOOS ? "not-allowed" : "text", background: isOOS ? "#f0f0f0" : "#FFFFFF", color: isOOS ? "#aaaaaa" : "#1A1A1A" }}
+                                    style={{ width: "52px", border: `1px solid ${isOOS ? "#e0e0e0" : qty > 0 ? "var(--brand-primary, #1C3557)" : "#E2E2DE"}`, padding: "5px 6px", textAlign: "center", fontFamily: "'DM Sans', sans-serif", fontSize: "13px", outline: "none", cursor: isOOS ? "not-allowed" : "text", background: isOOS ? "#f0f0f0" : "#FFFFFF", color: isOOS ? "#aaaaaa" : "#1A1A1A" }}
                                   />
                                 </div>
                               );
@@ -961,7 +961,7 @@ export function ProductDetailClient({ slug }: ProductDetailClientProps) {
                 <button
                   onClick={handleAddToCart}
                   disabled={totalUnits === 0 || isSubmitting}
-                  style={{ width: "100%", padding: "14px", background: totalUnits > 0 ? "#1C3557" : "#E2E2DE", color: totalUnits > 0 ? "#fff" : "#aaa", border: "none", cursor: totalUnits > 0 ? "pointer" : "not-allowed", fontFamily: "'DM Sans', sans-serif", fontSize: "15px", fontWeight: 500, transition: "all .2s", marginTop: "12px" }}
+                  style={{ width: "100%", padding: "14px", background: totalUnits > 0 ? "var(--brand-primary, #1C3557)" : "#E2E2DE", color: totalUnits > 0 ? "#fff" : "#aaa", border: "none", cursor: totalUnits > 0 ? "pointer" : "not-allowed", fontFamily: "'DM Sans', sans-serif", fontSize: "15px", fontWeight: 500, transition: "all .2s", marginTop: "12px" }}
                 >
                   {isSubmitting ? "Adding to Cart…" : "Add to Cart — All Selections"}
                 </button>
@@ -980,7 +980,7 @@ export function ProductDetailClient({ slug }: ProductDetailClientProps) {
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
-                style={{ padding: "14px 20px", fontFamily: "'DM Sans', sans-serif", fontSize: "14px", fontWeight: 500, color: activeTab === tab ? "#1C3557" : "#6B6B6B", background: "none", border: "none", borderBottom: activeTab === tab ? "2px solid #1C3557" : "2px solid transparent", marginBottom: "-1px", cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0, transition: "color .15s" }}
+                style={{ padding: "14px 20px", fontFamily: "'DM Sans', sans-serif", fontSize: "14px", fontWeight: 500, color: activeTab === tab ? "var(--brand-primary, #1C3557)" : "#6B6B6B", background: "none", border: "none", borderBottom: activeTab === tab ? "2px solid var(--brand-primary, #1C3557)" : "2px solid transparent", marginBottom: "-1px", cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0, transition: "color .15s" }}
               >
                 {tab}
               </button>
@@ -1162,7 +1162,7 @@ export function ProductDetailClient({ slug }: ProductDetailClientProps) {
                 <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "12px", color: "#6B6B6B", margin: 0 }}>
                   All colorway images available for download.
                 </p>
-                <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px", color: "#1C3557", fontStyle: "italic", margin: "4px 0 0" }}>
+                <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px", color: "var(--brand-primary, #1C3557)", fontStyle: "italic", margin: "4px 0 0" }}>
                   Color may vary due to digital picture.
                 </p>
               </div>
@@ -1207,7 +1207,7 @@ export function ProductDetailClient({ slug }: ProductDetailClientProps) {
                           filename: `${product.slug}-${group.color ?? "image"}-${idx + 1}.jpg`,
                         }))
                       )}
-                      style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "11px", color: "#1C3557", background: "none", border: "none", cursor: "pointer", padding: 0, display: "block" }}
+                      style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "11px", color: "var(--brand-primary, #1C3557)", background: "none", border: "none", cursor: "pointer", padding: 0, display: "block" }}
                     >
                       Download All
                     </button>
@@ -1225,7 +1225,7 @@ export function ProductDetailClient({ slug }: ProductDetailClientProps) {
                               </div>
                               <button
                                 onClick={() => handleDownload(imgSrc(img), `${product.slug}-${group.color ?? "image"}-${idx + 1}.jpg`)}
-                                style={{ fontSize: "10px", color: "#1C3557", background: "none", border: "none", cursor: "pointer", padding: 0, fontFamily: "'DM Sans', sans-serif" }}
+                                style={{ fontSize: "10px", color: "var(--brand-primary, #1C3557)", background: "none", border: "none", cursor: "pointer", padding: 0, fontFamily: "'DM Sans', sans-serif" }}
                               >
                                 Download
                               </button>

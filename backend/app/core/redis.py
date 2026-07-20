@@ -27,6 +27,24 @@ def get_redis_pool() -> aioredis.Redis:
     return _pool
 
 
+# ── Tenant namespacing ────────────────────────────────────────────────────────
+def tenant_cache_key(key: str) -> str:
+    """Namespace a cache key by the current tenant.
+
+    Cached *data* (product lists, product details, category trees) must never be
+    shared between brands: without this prefix the first brand to warm a cache
+    entry serves its rows to every other brand on the platform.
+
+    Keys that are already globally unique (UUIDs: refresh tokens, jti blacklists,
+    pricing tiers) do not use this — they are read in contexts where no tenant
+    is resolved.
+    """
+    from app.core.tenant_context import get_current_tenant_id
+
+    tenant_id = get_current_tenant_id()
+    return f"t:{tenant_id}:{key}" if tenant_id else f"global:{key}"
+
+
 # ── Helper functions ──────────────────────────────────────────────────────────
 async def redis_get(key: str) -> str | None:
     r = get_redis_pool()

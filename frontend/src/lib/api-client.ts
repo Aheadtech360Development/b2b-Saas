@@ -10,16 +10,39 @@ const API_BASE =
 // the backend can scope every request to the correct brand.
 const PLATFORM_DOMAIN = process.env.NEXT_PUBLIC_PLATFORM_DOMAIN ?? "localhost";
 
+const TENANT_OVERRIDE_KEY = "tenant_slug_override";
+
 export function currentTenantSlug(): string | null {
   if (typeof window === "undefined") return null;
+
   const host = window.location.hostname; // e.g. "puma-wholesale.localhost"
-  if (host === PLATFORM_DOMAIN || host === `www.${PLATFORM_DOMAIN}` || host === "localhost") {
-    return null; // root domain — platform level, no tenant
-  }
-  if (host.endsWith(`.${PLATFORM_DOMAIN}`)) {
+
+  // 1. Subdomain — the real production mechanism, always wins.
+  if (
+    host !== PLATFORM_DOMAIN &&
+    host !== `www.${PLATFORM_DOMAIN}` &&
+    host !== "localhost" &&
+    host.endsWith(`.${PLATFORM_DOMAIN}`)
+  ) {
     return host.slice(0, -(PLATFORM_DOMAIN.length + 1));
   }
-  return null;
+
+  // 2. `?tenant=<slug>` fallback — lets the app be demoed on a host that has no
+  //    wildcard subdomains (e.g. a preview deployment). Sticky for the tab so
+  //    normal in-app navigation keeps the brand.
+  try {
+    const fromQuery = new URLSearchParams(window.location.search).get("tenant");
+    if (fromQuery) {
+      sessionStorage.setItem(TENANT_OVERRIDE_KEY, fromQuery);
+      return fromQuery;
+    }
+    const stored = sessionStorage.getItem(TENANT_OVERRIDE_KEY);
+    if (stored) return stored;
+  } catch {
+    // sessionStorage unavailable (private mode) — fall through.
+  }
+
+  return null; // root domain — platform level, no tenant
 }
 
 // In-memory token store (never persisted to localStorage for XSS safety)

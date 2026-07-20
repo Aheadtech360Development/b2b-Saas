@@ -249,8 +249,8 @@ export default function CheckoutPaymentPage() {
                   const isSelected = paymentType === type;
                   return (
                     <div key={type}>
-                      <label onClick={() => setPaymentType(type)} style={{ flex: 1, display: "flex", alignItems: "center", gap: "12px", padding: "14px 18px", border: `1px solid ${isSelected ? "#1C3557" : "#E2E2DE"}`, background: isSelected ? "rgba(28,53,87,.04)" : "#FAFAF8", cursor: "pointer", transition: "all .15s" }}>
-                        <div style={{ width: "18px", height: "18px", borderRadius: "50%", flexShrink: 0, border: `2px solid ${isSelected ? "#1C3557" : "#E2E2DE"}`, background: isSelected ? "#1C3557" : "#fff", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      <label onClick={() => setPaymentType(type)} style={{ flex: 1, display: "flex", alignItems: "center", gap: "12px", padding: "14px 18px", border: `1px solid ${isSelected ? "var(--brand-primary, #1C3557)" : "#E2E2DE"}`, background: isSelected ? "rgba(28,53,87,.04)" : "#FAFAF8", cursor: "pointer", transition: "all .15s" }}>
+                        <div style={{ width: "18px", height: "18px", borderRadius: "50%", flexShrink: 0, border: `2px solid ${isSelected ? "var(--brand-primary, #1C3557)" : "#E2E2DE"}`, background: isSelected ? "var(--brand-primary, #1C3557)" : "#fff", display: "flex", alignItems: "center", justifyContent: "center" }}>
                           {isSelected && <div style={{ width: "6px", height: "6px", borderRadius: "50%", background: "#fff" }} />}
                         </div>
                         <div>
@@ -269,8 +269,8 @@ export default function CheckoutPaymentPage() {
                 {!isGuest && isWholesale && net30Enabled && (() => {
                   const isSelected = paymentType === "net_30";
                   return (
-                    <label onClick={() => setPaymentType("net_30")} style={{ flex: 1, display: "flex", alignItems: "center", gap: "12px", padding: "14px 18px", border: `1px solid ${isSelected ? "#1C3557" : "#E2E2DE"}`, background: isSelected ? "rgba(28,53,87,.04)" : "#FAFAF8", cursor: "pointer", transition: "all .15s" }}>
-                      <div style={{ width: "18px", height: "18px", borderRadius: "50%", flexShrink: 0, border: `2px solid ${isSelected ? "#1C3557" : "#E2E2DE"}`, background: isSelected ? "#1C3557" : "#fff", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <label onClick={() => setPaymentType("net_30")} style={{ flex: 1, display: "flex", alignItems: "center", gap: "12px", padding: "14px 18px", border: `1px solid ${isSelected ? "var(--brand-primary, #1C3557)" : "#E2E2DE"}`, background: isSelected ? "rgba(28,53,87,.04)" : "#FAFAF8", cursor: "pointer", transition: "all .15s" }}>
+                      <div style={{ width: "18px", height: "18px", borderRadius: "50%", flexShrink: 0, border: `2px solid ${isSelected ? "var(--brand-primary, #1C3557)" : "#E2E2DE"}`, background: isSelected ? "var(--brand-primary, #1C3557)" : "#fff", display: "flex", alignItems: "center", justifyContent: "center" }}>
                         {isSelected && <div style={{ width: "6px", height: "6px", borderRadius: "50%", background: "#fff" }} />}
                       </div>
                       <div>
@@ -297,15 +297,15 @@ export default function CheckoutPaymentPage() {
                       style={{
                         display: "flex", alignItems: "center", gap: "14px",
                         padding: "14px 18px",
-                        border: `1px solid ${!useNewAch ? "#1C3557" : "#E2E2DE"}`,
+                        border: `1px solid ${!useNewAch ? "var(--brand-primary, #1C3557)" : "#E2E2DE"}`,
                         background: !useNewAch ? "rgba(28,53,87,.04)" : "#FAFAF8",
                         cursor: "pointer", transition: "all .15s",
                       }}
                     >
                       <div style={{
                         width: "18px", height: "18px", borderRadius: "50%", flexShrink: 0,
-                        border: `2px solid ${!useNewAch ? "#1C3557" : "#E2E2DE"}`,
-                        background: !useNewAch ? "#1C3557" : "#fff",
+                        border: `2px solid ${!useNewAch ? "var(--brand-primary, #1C3557)" : "#E2E2DE"}`,
+                        background: !useNewAch ? "var(--brand-primary, #1C3557)" : "#fff",
                         display: "flex", alignItems: "center", justifyContent: "center",
                       }}>
                         {!useNewAch && <div style={{ width: "6px", height: "6px", borderRadius: "50%", background: "#fff" }} />}
@@ -334,7 +334,7 @@ export default function CheckoutPaymentPage() {
                       style={{
                         display: "flex", alignItems: "center", gap: "14px",
                         padding: "12px 18px",
-                        border: `1px solid ${useNewAch ? "#1C3557" : "#E2E2DE"}`,
+                        border: `1px solid ${useNewAch ? "var(--brand-primary, #1C3557)" : "#E2E2DE"}`,
                         background: useNewAch ? "rgba(28,53,87,.04)" : "#FAFAF8",
                         cursor: "pointer", fontSize: "13px", fontWeight: 600, color: "#1A1A1A",
                         transition: "all .15s",
@@ -342,8 +342,8 @@ export default function CheckoutPaymentPage() {
                     >
                       <div style={{
                         width: "18px", height: "18px", borderRadius: "50%", flexShrink: 0,
-                        border: `2px solid ${useNewAch ? "#1C3557" : "#E2E2DE"}`,
-                        background: useNewAch ? "#1C3557" : "#fff",
+                        border: `2px solid ${useNewAch ? "var(--brand-primary, #1C3557)" : "#E2E2DE"}`,
+                        background: useNewAch ? "var(--brand-primary, #1C3557)" : "#fff",
                         display: "flex", alignItems: "center", justifyContent: "center",
                       }}>
                         {useNewAch && <div style={{ width: "6px", height: "6px", borderRadius: "50%", background: "#fff" }} />}
@@ -381,8 +381,8 @@ export default function CheckoutPaymentPage() {
                         <label style={lbl}>Account Type <span style={{ color: "#E8242A" }}>*</span></label>
                         <div style={{ display: "flex", gap: "10px" }}>
                           {(["checking", "savings"] as const).map(t => (
-                            <label key={t} onClick={() => setAchForm(p => ({ ...p, accountType: t }))} style={{ display: "flex", alignItems: "center", gap: "8px", padding: "10px 16px", border: `1px solid ${achForm.accountType === t ? "#1C3557" : "#E2E2DE"}`, cursor: "pointer", fontSize: "13px", fontWeight: 600, color: "#1A1A1A", background: achForm.accountType === t ? "rgba(28,53,87,.04)" : "#FAFAF8" }}>
-                              <div style={{ width: "16px", height: "16px", borderRadius: "50%", border: `2px solid ${achForm.accountType === t ? "#1C3557" : "#E2E2DE"}`, background: achForm.accountType === t ? "#1C3557" : "#fff", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                            <label key={t} onClick={() => setAchForm(p => ({ ...p, accountType: t }))} style={{ display: "flex", alignItems: "center", gap: "8px", padding: "10px 16px", border: `1px solid ${achForm.accountType === t ? "var(--brand-primary, #1C3557)" : "#E2E2DE"}`, cursor: "pointer", fontSize: "13px", fontWeight: 600, color: "#1A1A1A", background: achForm.accountType === t ? "rgba(28,53,87,.04)" : "#FAFAF8" }}>
+                              <div style={{ width: "16px", height: "16px", borderRadius: "50%", border: `2px solid ${achForm.accountType === t ? "var(--brand-primary, #1C3557)" : "#E2E2DE"}`, background: achForm.accountType === t ? "var(--brand-primary, #1C3557)" : "#fff", display: "flex", alignItems: "center", justifyContent: "center" }}>
                                 {achForm.accountType === t && <div style={{ width: "5px", height: "5px", borderRadius: "50%", background: "#fff" }} />}
                               </div>
                               {t.charAt(0).toUpperCase() + t.slice(1)}
@@ -401,12 +401,12 @@ export default function CheckoutPaymentPage() {
                   <a
                     href="/checkout/address"
                     style={{ display: "inline-block", fontSize: "13px", color: "#6B6B6B", textDecoration: "none", fontFamily: "'DM Sans', sans-serif", padding: "14px 0" }}
-                    onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.color = "#1C3557"; }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.color = "var(--brand-primary, #1C3557)"; }}
                     onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.color = "#6B6B6B"; }}
                   >
                     ← Back to Shipping
                   </a>
-                  <button type="button" onClick={handleAchContinue} style={{ flex: 1, padding: "14px", background: "#1C3557", color: "#fff", border: "none", fontFamily: "'DM Sans', sans-serif", fontSize: "15px", fontWeight: 500, cursor: "pointer", transition: "opacity .15s" }}
+                  <button type="button" onClick={handleAchContinue} style={{ flex: 1, padding: "14px", background: "var(--brand-primary, #1C3557)", color: "#fff", border: "none", fontFamily: "'DM Sans', sans-serif", fontSize: "15px", fontWeight: 500, cursor: "pointer", transition: "opacity .15s" }}
                     onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.opacity = "0.88"; }}
                     onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.opacity = "1"; }}
                   >
@@ -430,12 +430,12 @@ export default function CheckoutPaymentPage() {
                   <a
                     href="/checkout/address"
                     style={{ display: "inline-block", fontSize: "13px", color: "#6B6B6B", textDecoration: "none", fontFamily: "'DM Sans', sans-serif", padding: "14px 0" }}
-                    onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.color = "#1C3557"; }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.color = "var(--brand-primary, #1C3557)"; }}
                     onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.color = "#6B6B6B"; }}
                   >
                     ← Back to Shipping
                   </a>
-                  <button type="button" onClick={handleNet30Continue} style={{ flex: 1, padding: "14px", background: "#1C3557", color: "#fff", border: "none", fontFamily: "'DM Sans', sans-serif", fontSize: "15px", fontWeight: 500, cursor: "pointer", transition: "opacity .15s" }}
+                  <button type="button" onClick={handleNet30Continue} style={{ flex: 1, padding: "14px", background: "var(--brand-primary, #1C3557)", color: "#fff", border: "none", fontFamily: "'DM Sans', sans-serif", fontSize: "15px", fontWeight: 500, cursor: "pointer", transition: "opacity .15s" }}
                     onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.opacity = "0.88"; }}
                     onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.opacity = "1"; }}
                   >
@@ -461,7 +461,7 @@ export default function CheckoutPaymentPage() {
                           style={{
                             display: "flex", alignItems: "center", gap: "14px",
                             padding: "14px 18px",
-                            border: `1px solid ${isSelected ? "#1C3557" : "#E2E2DE"}`,
+                            border: `1px solid ${isSelected ? "var(--brand-primary, #1C3557)" : "#E2E2DE"}`,
                             background: isSelected ? "rgba(28,53,87,.04)" : "#FAFAF8",
                             cursor: "pointer", transition: "all .15s",
                           }}
@@ -469,8 +469,8 @@ export default function CheckoutPaymentPage() {
                           {/* Radio */}
                           <div style={{
                             width: "18px", height: "18px", borderRadius: "50%", flexShrink: 0,
-                            border: `2px solid ${isSelected ? "#1C3557" : "#E2E2DE"}`,
-                            background: isSelected ? "#1C3557" : "#fff",
+                            border: `2px solid ${isSelected ? "var(--brand-primary, #1C3557)" : "#E2E2DE"}`,
+                            background: isSelected ? "var(--brand-primary, #1C3557)" : "#fff",
                             display: "flex", alignItems: "center", justifyContent: "center",
                           }}>
                             {isSelected && <div style={{ width: "6px", height: "6px", borderRadius: "50%", background: "#fff" }} />}
@@ -487,7 +487,7 @@ export default function CheckoutPaymentPage() {
                             <div style={{ fontSize: "13px", fontWeight: 700, color: "#1A1A1A" }}>
                               {brandDisplayName(card.brand)} •••• {card.last4}
                               {card.is_default && (
-                                <span style={{ marginLeft: "8px", fontSize: "10px", background: "rgba(28,53,87,.1)", color: "#1C3557", padding: "2px 7px", fontWeight: 700 }}>
+                                <span style={{ marginLeft: "8px", fontSize: "10px", background: "rgba(28,53,87,.1)", color: "var(--brand-primary, #1C3557)", padding: "2px 7px", fontWeight: 700 }}>
                                   Default
                                 </span>
                               )}
@@ -506,7 +506,7 @@ export default function CheckoutPaymentPage() {
                       style={{
                         display: "flex", alignItems: "center", gap: "14px",
                         padding: "12px 18px",
-                        border: `1px solid ${showNewCardForm ? "#1C3557" : "#E2E2DE"}`,
+                        border: `1px solid ${showNewCardForm ? "var(--brand-primary, #1C3557)" : "#E2E2DE"}`,
                         background: showNewCardForm ? "rgba(28,53,87,.04)" : "#FAFAF8",
                         cursor: "pointer", fontSize: "13px", fontWeight: 600, color: "#1A1A1A",
                         transition: "all .15s",
@@ -514,8 +514,8 @@ export default function CheckoutPaymentPage() {
                     >
                       <div style={{
                         width: "18px", height: "18px", borderRadius: "50%", flexShrink: 0,
-                        border: `2px solid ${showNewCardForm ? "#1C3557" : "#E2E2DE"}`,
-                        background: showNewCardForm ? "#1C3557" : "#fff",
+                        border: `2px solid ${showNewCardForm ? "var(--brand-primary, #1C3557)" : "#E2E2DE"}`,
+                        background: showNewCardForm ? "var(--brand-primary, #1C3557)" : "#fff",
                         display: "flex", alignItems: "center", justifyContent: "center",
                       }}>
                         {showNewCardForm && <div style={{ width: "6px", height: "6px", borderRadius: "50%", background: "#fff" }} />}
@@ -545,7 +545,7 @@ export default function CheckoutPaymentPage() {
                     <a
                       href="/checkout/address"
                       style={{ display: "inline-block", fontSize: "13px", color: "#6B6B6B", textDecoration: "none", fontFamily: "'DM Sans', sans-serif" }}
-                      onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.color = "#1C3557"; }}
+                      onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.color = "var(--brand-primary, #1C3557)"; }}
                       onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.color = "#6B6B6B"; }}
                     >
                       ← Back to Shipping
@@ -554,7 +554,7 @@ export default function CheckoutPaymentPage() {
                       type="button"
                       onClick={handleContinueWithSavedCard}
                       style={{
-                        flex: 1, padding: "14px", background: "#1C3557",
+                        flex: 1, padding: "14px", background: "var(--brand-primary, #1C3557)",
                         color: "#fff", border: "none",
                         fontFamily: "'DM Sans', sans-serif", fontSize: "15px", fontWeight: 500,
                         cursor: "pointer", transition: "opacity .15s",
@@ -572,7 +572,7 @@ export default function CheckoutPaymentPage() {
                   <a
                     href="/checkout/address"
                     style={{ display: "inline-block", marginTop: "10px", fontSize: "13px", color: "#6B6B6B", textDecoration: "none", fontFamily: "'DM Sans', sans-serif" }}
-                    onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.color = "#1C3557"; }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.color = "var(--brand-primary, #1C3557)"; }}
                     onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.color = "#6B6B6B"; }}
                   >
                     ← Back to Shipping

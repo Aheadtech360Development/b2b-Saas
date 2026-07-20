@@ -297,7 +297,7 @@ export default function QuickOrderPage() {
                 ].map((step, i, arr) => (
                   <div key={step.n} style={{ display: "flex", alignItems: "center", gap: "6px" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                      <span style={{ width: "20px", height: "20px", borderRadius: "50%", background: "#1C3557", color: "#fff", fontSize: "10px", fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{step.n}</span>
+                      <span style={{ width: "20px", height: "20px", borderRadius: "50%", background: "var(--brand-primary, #1C3557)", color: "#fff", fontSize: "10px", fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{step.n}</span>
                       <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "12px", color: "#6B6B6B", fontWeight: 500 }}>{step.label}</span>
                     </div>
                     {i < arr.length - 1 && <span style={{ color: "#6B6B6B", fontSize: "12px", marginLeft: "2px" }}>→</span>}
@@ -310,7 +310,7 @@ export default function QuickOrderPage() {
             <div style={{ display: "flex", alignItems: "center", gap: "12px", flexShrink: 0, paddingTop: "4px" }}>
               {grandTotals.units > 0 && (
                 <div style={{ padding: "8px 14px", background: "#F8F8F6", border: "1px solid #E2E2DE", fontSize: "13px", color: "#6B6B6B", whiteSpace: "nowrap", textAlign: "center" }}>
-                  <div style={{ fontFamily: "'Fraunces', serif", fontSize: "22px", fontWeight: 700, color: "#1C3557", lineHeight: 1 }}>{formatCurrency(grandTotals.price)}</div>
+                  <div style={{ fontFamily: "'Fraunces', serif", fontSize: "22px", fontWeight: 700, color: "var(--brand-primary, #1C3557)", lineHeight: 1 }}>{formatCurrency(grandTotals.price)}</div>
                   <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "11px", color: "#6B6B6B" }}>{grandTotals.units} unit{grandTotals.units !== 1 ? "s" : ""}</div>
                 </div>
               )}
@@ -318,7 +318,7 @@ export default function QuickOrderPage() {
                 onClick={(e) => { e.stopPropagation(); handleAddToCart(); }}
                 disabled={isAddingToCart || grandTotals.units === 0}
                 style={{
-                  background: grandTotals.units === 0 ? "#E2E2DE" : "#1C3557",
+                  background: grandTotals.units === 0 ? "#E2E2DE" : "var(--brand-primary, #1C3557)",
                   color: grandTotals.units === 0 ? "#6B6B6B" : "#fff",
                   padding: "13px 28px", fontSize: "13px", fontWeight: 600,
                   fontFamily: "'DM Sans', sans-serif",

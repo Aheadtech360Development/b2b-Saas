@@ -118,14 +118,14 @@ export default function PrintGuidePage() {
           <ol style={{ paddingLeft: 0, listStyle: "none", maxWidth: "680px" }}>
             {TIPS.map((tip, i) => (
               <li key={i} style={{ display: "flex", gap: "16px", padding: "14px 0", borderBottom: "1px solid #E2E2DE", alignItems: "flex-start" }}>
-                <span style={{ fontFamily: "'Fraunces', serif", fontSize: "20px", fontWeight: 700, color: "#1C3557", minWidth: "24px", lineHeight: 1.4 }}>{i + 1}.</span>
+                <span style={{ fontFamily: "'Fraunces', serif", fontSize: "20px", fontWeight: 700, color: "var(--brand-primary, #1C3557)", minWidth: "24px", lineHeight: 1.4 }}>{i + 1}.</span>
                 <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px", color: "#6B6B6B", lineHeight: 1.65, margin: 0 }}>{tip}</p>
               </li>
             ))}
           </ol>
           <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px", color: "#6B6B6B", marginTop: "24px" }}>
             Questions? Email us at{" "}
-            <a href="mailto:info@afblanks.com" style={{ color: "#1C3557", textDecoration: "none" }}>info@afblanks.com</a>
+            <a href="mailto:info@afblanks.com" style={{ color: "var(--brand-primary, #1C3557)", textDecoration: "none" }}>info@afblanks.com</a>
           </p>
         </div>
       </div>

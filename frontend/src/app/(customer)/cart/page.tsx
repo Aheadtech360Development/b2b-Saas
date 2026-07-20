@@ -380,7 +380,7 @@ export default function CartPage() {
           /* ── Empty state ── */
           <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", color: "#6B6B6B" }}>
             Your cart is empty.{" "}
-            <Link href="/products" style={{ color: "#1C3557", fontWeight: 500, textDecoration: "none" }}>Shop All →</Link>
+            <Link href="/products" style={{ color: "var(--brand-primary, #1C3557)", fontWeight: 500, textDecoration: "none" }}>Shop All →</Link>
           </p>
         ) : (
           <div className="cart-grid" style={{ display: "grid", gridTemplateColumns: "1fr 360px", gap: "48px", alignItems: "start" }}>
@@ -519,7 +519,7 @@ export default function CartPage() {
                 Cancel
               </button>
               <button onClick={handleSaveTemplate} disabled={savingTemplate || !templateName.trim()}
-                style={{ padding: "9px 20px", background: "#1C3557", color: "#fff", border: "none", borderRadius: "7px", fontSize: "13px", fontWeight: 700, cursor: !templateName.trim() ? "not-allowed" : "pointer", opacity: !templateName.trim() ? 0.4 : 1 }}>
+                style={{ padding: "9px 20px", background: "var(--brand-primary, #1C3557)", color: "#fff", border: "none", borderRadius: "7px", fontSize: "13px", fontWeight: 700, cursor: !templateName.trim() ? "not-allowed" : "pointer", opacity: !templateName.trim() ? 0.4 : 1 }}>
                 {savingTemplate ? "Saving…" : "Save"}
               </button>
             </div>
@@ -528,7 +528,7 @@ export default function CartPage() {
       )}
 
       <style>{`
-        .cart-qty-input:focus { outline: 1px solid #1C3557 !important; }
+        .cart-qty-input:focus { outline: 1px solid var(--brand-primary, #1C3557) !important; }
         .cart-remove-btn:hover { color: #1A1A1A !important; }
         @media (max-width: 900px) {
           .cart-grid { display: block !important; }
@@ -585,7 +585,7 @@ function OrderSummary({
         onClick={onCheckout}
         disabled={!isValid}
         title={disabledReason}
-        style={{ width: "100%", marginTop: "16px", padding: "14px", background: isValid ? "#1C3557" : "#E2E2DE", color: isValid ? "#fff" : "#aaa", border: "none", cursor: isValid ? "pointer" : "not-allowed", fontFamily: "'DM Sans', sans-serif", fontSize: "15px", fontWeight: 500, transition: "background .2s" }}
+        style={{ width: "100%", marginTop: "16px", padding: "14px", background: isValid ? "var(--brand-primary, #1C3557)" : "#E2E2DE", color: isValid ? "#fff" : "#aaa", border: "none", cursor: isValid ? "pointer" : "not-allowed", fontFamily: "'DM Sans', sans-serif", fontSize: "15px", fontWeight: 500, transition: "background .2s" }}
       >
         Proceed to Checkout →
       </button>
@@ -595,7 +595,7 @@ function OrderSummary({
       {!isGuest && (
         <p style={{ marginTop: "14px", fontSize: "12px", color: "#6B6B6B", fontFamily: "'DM Sans', sans-serif" }}>
           Need a wholesale account?{" "}
-          <Link href="/wholesale/register" style={{ color: "#1C3557", fontWeight: 500, textDecoration: "none" }}>Apply here →</Link>
+          <Link href="/wholesale/register" style={{ color: "var(--brand-primary, #1C3557)", fontWeight: 500, textDecoration: "none" }}>Apply here →</Link>
         </p>
       )}
     </div>

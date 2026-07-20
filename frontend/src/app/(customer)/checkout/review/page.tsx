@@ -377,7 +377,7 @@ export default function CheckoutReviewPage() {
             <div style={{ marginBottom: "32px" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", ...sectionLabelStyle }}>
                 <span>Shipping Address</span>
-                <button onClick={() => router.push("/checkout/address")} style={{ fontSize: "12px", color: "#1C3557", background: "none", border: "none", cursor: "pointer", fontWeight: 600, fontFamily: "'DM Sans', sans-serif", textTransform: "none", letterSpacing: 0 }}>Edit</button>
+                <button onClick={() => router.push("/checkout/address")} style={{ fontSize: "12px", color: "var(--brand-primary, #1C3557)", background: "none", border: "none", cursor: "pointer", fontWeight: 600, fontFamily: "'DM Sans', sans-serif", textTransform: "none", letterSpacing: 0 }}>Edit</button>
               </div>
               <div style={{ fontSize: "13px", color: "#1A1A1A", lineHeight: 1.7 }}>
                 {companyName && <div style={{ fontWeight: 700 }}>{companyName}</div>}
@@ -404,7 +404,7 @@ export default function CheckoutReviewPage() {
             <div style={{ marginBottom: "32px" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", ...sectionLabelStyle }}>
                 <span>Payment</span>
-                <button onClick={() => router.push("/checkout/payment")} style={{ fontSize: "12px", color: "#1C3557", background: "none", border: "none", cursor: "pointer", fontWeight: 600, fontFamily: "'DM Sans', sans-serif", textTransform: "none", letterSpacing: 0 }}>Change</button>
+                <button onClick={() => router.push("/checkout/payment")} style={{ fontSize: "12px", color: "var(--brand-primary, #1C3557)", background: "none", border: "none", cursor: "pointer", fontWeight: 600, fontFamily: "'DM Sans', sans-serif", textTransform: "none", letterSpacing: 0 }}>Change</button>
               </div>
               {paymentMethod === "ach" ? (
                 <div style={{ fontSize: "13px", color: "#1A1A1A", lineHeight: 1.8 }}>
@@ -542,7 +542,7 @@ export default function CheckoutReviewPage() {
               <a
                 href="/checkout/payment"
                 style={{ display: "inline-block", fontSize: "13px", color: "#6B6B6B", textDecoration: "none", fontFamily: "'DM Sans', sans-serif" }}
-                onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.color = "#1C3557"; }}
+                onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.color = "var(--brand-primary, #1C3557)"; }}
                 onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.color = "#6B6B6B"; }}
               >
                 ← Back to Payment
@@ -553,7 +553,7 @@ export default function CheckoutReviewPage() {
                 disabled={isPlacing}
                 style={{
                   flex: 1, padding: "14px",
-                  background: isPlacing ? "#E2E2DE" : "#1C3557",
+                  background: isPlacing ? "#E2E2DE" : "var(--brand-primary, #1C3557)",
                   color: isPlacing ? "#aaa" : "#fff",
                   border: "none",
                   fontFamily: "'DM Sans', sans-serif", fontSize: "15px", fontWeight: 500,

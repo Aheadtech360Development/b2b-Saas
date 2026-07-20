@@ -47,6 +47,10 @@ class User(BaseModel):
     password_reset_expires: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     last_login: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
+    # Two-factor auth (future — columns exist in the multi-tenant users table)
+    two_factor_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    two_factor_secret: Mapped[str | None] = mapped_column(String(100), nullable=True)
+
     # ── Relationships ─────────────────────────────────────────────────────────
     company_memberships: Mapped[list["CompanyUser"]] = relationship(
         "CompanyUser",

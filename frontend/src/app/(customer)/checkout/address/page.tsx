@@ -488,15 +488,15 @@ export default function CheckoutAddressPage() {
                         style={{
                           display: "flex", alignItems: "flex-start", gap: "14px",
                           padding: "14px 18px",
-                          border: `1px solid ${isSelected ? "#1C3557" : "#E2E2DE"}`,
+                          border: `1px solid ${isSelected ? "var(--brand-primary, #1C3557)" : "#E2E2DE"}`,
                           background: isSelected ? "rgba(28,53,87,.03)" : "#FAFAF8",
                           cursor: "pointer", transition: "all .15s",
                         }}
                       >
                         <div style={{
                           width: "18px", height: "18px", borderRadius: "50%", flexShrink: 0, marginTop: "2px",
-                          border: `2px solid ${isSelected ? "#1C3557" : "#E2E2DE"}`,
-                          background: isSelected ? "#1C3557" : "#fff",
+                          border: `2px solid ${isSelected ? "var(--brand-primary, #1C3557)" : "#E2E2DE"}`,
+                          background: isSelected ? "var(--brand-primary, #1C3557)" : "#fff",
                           display: "flex", alignItems: "center", justifyContent: "center",
                         }}>
                           {isSelected && <div style={{ width: "6px", height: "6px", borderRadius: "50%", background: "#fff" }} />}
@@ -507,7 +507,7 @@ export default function CheckoutAddressPage() {
                               {addr.label || "Address"}
                             </span>
                             {addr.is_default && (
-                              <span style={{ fontSize: "10px", fontWeight: 700, padding: "1px 6px", background: "rgba(28,53,87,.1)", color: "#1C3557" }}>
+                              <span style={{ fontSize: "10px", fontWeight: 700, padding: "1px 6px", background: "rgba(28,53,87,.1)", color: "var(--brand-primary, #1C3557)" }}>
                                 Default
                               </span>
                             )}
@@ -527,7 +527,7 @@ export default function CheckoutAddressPage() {
                     style={{
                       display: "flex", alignItems: "center", gap: "14px",
                       padding: "12px 18px",
-                      border: `1px solid ${showNewForm ? "#1C3557" : "#E2E2DE"}`,
+                      border: `1px solid ${showNewForm ? "var(--brand-primary, #1C3557)" : "#E2E2DE"}`,
                       background: showNewForm ? "rgba(28,53,87,.03)" : "#FAFAF8",
                       cursor: "pointer", fontSize: "13px", fontWeight: 600, color: "#1A1A1A",
                       transition: "all .15s",
@@ -535,8 +535,8 @@ export default function CheckoutAddressPage() {
                   >
                     <div style={{
                       width: "18px", height: "18px", borderRadius: "50%", flexShrink: 0,
-                      border: `2px solid ${showNewForm ? "#1C3557" : "#E2E2DE"}`,
-                      background: showNewForm ? "#1C3557" : "#fff",
+                      border: `2px solid ${showNewForm ? "var(--brand-primary, #1C3557)" : "#E2E2DE"}`,
+                      background: showNewForm ? "var(--brand-primary, #1C3557)" : "#fff",
                       display: "flex", alignItems: "center", justifyContent: "center",
                     }}>
                       {showNewForm && <div style={{ width: "6px", height: "6px", borderRadius: "50%", background: "#fff" }} />}
@@ -668,15 +668,15 @@ export default function CheckoutAddressPage() {
                       style={{
                         display: "flex", alignItems: "flex-start", gap: "14px",
                         padding: "16px 18px",
-                        border: `1px solid ${isSelected ? "#1C3557" : "#E2E2DE"}`,
+                        border: `1px solid ${isSelected ? "var(--brand-primary, #1C3557)" : "#E2E2DE"}`,
                         background: isSelected ? "rgba(28,53,87,.03)" : "#FAFAF8",
                         cursor: "pointer", transition: "border-color .15s, background .15s",
                       }}
                     >
                       <div style={{
                         width: "18px", height: "18px", borderRadius: "50%", flexShrink: 0, marginTop: "1px",
-                        border: `2px solid ${isSelected ? "#1C3557" : "#E2E2DE"}`,
-                        background: isSelected ? "#1C3557" : "#fff",
+                        border: `2px solid ${isSelected ? "var(--brand-primary, #1C3557)" : "#E2E2DE"}`,
+                        background: isSelected ? "var(--brand-primary, #1C3557)" : "#fff",
                         display: "flex", alignItems: "center", justifyContent: "center",
                       }}>
                         {isSelected && <div style={{ width: "6px", height: "6px", borderRadius: "50%", background: "#fff" }} />}
@@ -691,7 +691,7 @@ export default function CheckoutAddressPage() {
                         {opt.id === "will_call" ? (
                           <div style={{ marginTop: "6px" }}>
                             <div style={{ display: "flex", alignItems: "flex-start", gap: "5px", marginBottom: "5px" }}>
-                              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#1C3557" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginTop: "1px" }}>
+                              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--brand-primary, #1C3557)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginTop: "1px" }}>
                                 <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" />
                               </svg>
                               <span style={{ fontSize: "12px", fontWeight: 600, color: "#1A1A1A" }}>10719 Turbeville Rd, Dallas, TX 75243</span>
@@ -723,15 +723,15 @@ export default function CheckoutAddressPage() {
                                       style={{
                                         display: "flex", alignItems: "center", justifyContent: "space-between",
                                         padding: "10px 14px", cursor: "pointer",
-                                        border: `1px solid ${isRateSelected ? "#1C3557" : "#E2E2DE"}`,
+                                        border: `1px solid ${isRateSelected ? "var(--brand-primary, #1C3557)" : "#E2E2DE"}`,
                                         background: isRateSelected ? "rgba(28,53,87,.03)" : "#fff",
                                       }}
                                     >
                                       <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
                                         <div style={{
                                           width: "14px", height: "14px", borderRadius: "50%", flexShrink: 0,
-                                          border: `2px solid ${isRateSelected ? "#1C3557" : "#E2E2DE"}`,
-                                          background: isRateSelected ? "#1C3557" : "#fff",
+                                          border: `2px solid ${isRateSelected ? "var(--brand-primary, #1C3557)" : "#E2E2DE"}`,
+                                          background: isRateSelected ? "var(--brand-primary, #1C3557)" : "#fff",
                                           display: "flex", alignItems: "center", justifyContent: "center",
                                         }}>
                                           {isRateSelected && <div style={{ width: "4px", height: "4px", borderRadius: "50%", background: "#fff" }} />}
@@ -785,7 +785,7 @@ export default function CheckoutAddressPage() {
             <button
               onClick={handleContinue}
               disabled={shippingTypeForUser === "live_shippo" && shippingMethod === "standard" && liveRatesLoading}
-              style={{ width: "100%", padding: "14px", background: "#1C3557", color: "#fff", border: "none", fontFamily: "'DM Sans', sans-serif", fontSize: "15px", fontWeight: 500, cursor: (shippingTypeForUser === "live_shippo" && shippingMethod === "standard" && liveRatesLoading) ? "not-allowed" : "pointer", transition: "opacity .15s", opacity: (shippingTypeForUser === "live_shippo" && shippingMethod === "standard" && liveRatesLoading) ? 0.6 : 1 }}
+              style={{ width: "100%", padding: "14px", background: "var(--brand-primary, #1C3557)", color: "#fff", border: "none", fontFamily: "'DM Sans', sans-serif", fontSize: "15px", fontWeight: 500, cursor: (shippingTypeForUser === "live_shippo" && shippingMethod === "standard" && liveRatesLoading) ? "not-allowed" : "pointer", transition: "opacity .15s", opacity: (shippingTypeForUser === "live_shippo" && shippingMethod === "standard" && liveRatesLoading) ? 0.6 : 1 }}
               onMouseEnter={e => { if (!(shippingTypeForUser === "live_shippo" && shippingMethod === "standard" && liveRatesLoading)) (e.currentTarget as HTMLButtonElement).style.opacity = "0.88"; }}
               onMouseLeave={e => { if (!(shippingTypeForUser === "live_shippo" && shippingMethod === "standard" && liveRatesLoading)) (e.currentTarget as HTMLButtonElement).style.opacity = "1"; }}
             >
@@ -794,7 +794,7 @@ export default function CheckoutAddressPage() {
             <a
               href="/cart"
               style={{ display: "inline-block", fontSize: "13px", color: "#6B6B6B", textDecoration: "none", marginTop: "14px", fontFamily: "'DM Sans', sans-serif" }}
-              onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.color = "#1C3557"; }}
+              onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.color = "var(--brand-primary, #1C3557)"; }}
               onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.color = "#6B6B6B"; }}
             >
               ← Return to Cart

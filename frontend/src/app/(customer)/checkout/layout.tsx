@@ -39,7 +39,7 @@ export default function CheckoutLayout({ children }: CheckoutLayoutProps) {
                   <span style={{
                     fontFamily: "'DM Sans', sans-serif", fontSize: "13px",
                     fontWeight: isActive ? 600 : 400,
-                    color: isActive ? "#1C3557" : isDone ? "#6B6B6B" : "#9B9B9B",
+                    color: isActive ? "var(--brand-primary, #1C3557)" : isDone ? "#6B6B6B" : "#9B9B9B",
                     textDecorationLine: isActive ? "underline" : "none",
                     textUnderlineOffset: isActive ? "3px" : undefined,
                   }}>

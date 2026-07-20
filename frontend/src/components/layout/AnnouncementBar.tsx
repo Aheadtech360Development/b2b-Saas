@@ -11,11 +11,11 @@ function AnnouncementBarInner() {
   return (
     <div
       style={{
-        background: branding.announcement_bg_color || branding.primary_color || "#1C3557",
+        background: branding.announcement_bg_color || branding.primary_color || "var(--brand-primary, #1C3557)",
         color: branding.announcement_text_color || "#fff",
         textAlign: "center",
         padding: "8px 16px",
-        fontFamily: "'DM Sans', sans-serif",
+        fontFamily: "var(--brand-font-body, 'DM Sans', sans-serif)",
         fontSize: "12px",
         letterSpacing: "0.02em",
         whiteSpace: "nowrap",

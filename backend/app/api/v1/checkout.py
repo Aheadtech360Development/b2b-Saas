@@ -4,6 +4,7 @@ from decimal import Decimal
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.core.database import get_db
 from app.core.exceptions import ForbiddenError, ValidationError
 from app.schemas.order import CheckoutConfirmRequest, CreatePaymentIntentRequest, OrderOut
@@ -356,10 +357,11 @@ async def _confirm_checkout_inner(
         _log.warning("Order confirmation email failed: %s", _exc)
 
     # ── QB invoice sync ───────────────────────────────────────────────────────
-    try:
-        from app.tasks.quickbooks_tasks import sync_order_invoice_to_qb
-        sync_order_invoice_to_qb.delay(str(order.id))
-    except Exception as _exc:
-        _log.warning("QB invoice sync dispatch failed: %s", _exc)
+    if settings.QUICKBOOKS_ENABLED:
+        try:
+            from app.tasks.quickbooks_tasks import sync_order_invoice_to_qb
+            sync_order_invoice_to_qb.delay(str(order.id))
+        except Exception as _exc:
+            _log.warning("QB invoice sync dispatch failed: %s", _exc)
 
     return order

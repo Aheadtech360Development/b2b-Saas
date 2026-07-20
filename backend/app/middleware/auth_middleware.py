@@ -169,6 +169,15 @@ class AuthMiddleware(BaseHTTPMiddleware):
                 status_code=403,
                 content={"error": {"code": "FORBIDDEN", "message": "Admin access required"}},
             )
+
+        # ── Role-based (RBAC) enforcement for admin sections ───────────────────
+        if path.startswith("/api/v1/admin/"):
+            from app.core.permissions import can_access
+            if not can_access(request.state.role, path, request.method):
+                return JSONResponse(
+                    status_code=403,
+                    content={"error": {"code": "FORBIDDEN", "message": "Your role does not allow this action"}},
+                )
         # Platform-admin-only paths
         if path.startswith("/api/v1/platform/") and not request.state.is_platform_admin:
             return JSONResponse(

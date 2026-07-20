@@ -13,16 +13,17 @@ from sqlalchemy.orm import Mapped, mapped_column
 from app.core.database import get_db
 from app.middleware.auth_middleware import require_admin
 from app.models.base import Base
+from app.models.base import TenantMixin
 
 router = APIRouter(prefix="/admin/blog-posts")
 
 
-class BlogPost(Base):
+class BlogPost(TenantMixin, Base):
     __tablename__ = "blog_posts"
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     title: Mapped[str] = mapped_column(String(255), nullable=False)
-    slug: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
+    slug: Mapped[str] = mapped_column(String(255), nullable=False)  # unique per tenant (DB constraint)
     cover_image_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     published_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
     read_time: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)

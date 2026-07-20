@@ -82,14 +82,14 @@ export default async function BlogListingPage() {
                       <img src={post.cover_image_url} alt={post.title} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                     ) : (
                       <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", background: "#F0F0EE" }}>
-                        <span style={{ fontSize: "32px", color: "#1C3557", opacity: 0.2 }}>✍</span>
+                        <span style={{ fontSize: "32px", color: "var(--brand-primary, #1C3557)", opacity: 0.2 }}>✍</span>
                       </div>
                     )}
                   </div>
                   <div style={{ padding: "20px" }}>
                     {/* Tag pill */}
                     {(post.tags || []).length > 0 && (
-                      <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "11px", textTransform: "uppercase", color: "#1C3557", border: "1px solid #1C3557", padding: "3px 8px", display: "inline-block", marginBottom: "10px", letterSpacing: "0.04em" }}>
+                      <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "11px", textTransform: "uppercase", color: "var(--brand-primary, #1C3557)", border: "1px solid var(--brand-primary, #1C3557)", padding: "3px 8px", display: "inline-block", marginBottom: "10px", letterSpacing: "0.04em" }}>
                         {post.tags[0]}
                       </span>
                     )}
@@ -106,7 +106,7 @@ export default async function BlogListingPage() {
                         {post.excerpt.length > 110 ? post.excerpt.slice(0, 110) + "…" : post.excerpt}
                       </p>
                     )}
-                    <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px", color: "#1C3557", fontWeight: 500 }}>Read More →</span>
+                    <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px", color: "var(--brand-primary, #1C3557)", fontWeight: 500 }}>Read More →</span>
                   </div>
                 </article>
               </Link>

@@ -4,6 +4,7 @@
 import { useEffect, useState } from "react";
 import { adminService, type AdminUser } from "@/services/admin.service";
 import { UsersIcon } from "@/components/ui/icons";
+import { ASSIGNABLE_ROLES, ROLE_LABELS } from "@/lib/permissions";
 
 // ── Shared styles ──────────────────────────────────────────────────────────────
 
@@ -22,9 +23,14 @@ const thStyle: React.CSSProperties = {
 };
 
 const ROLE_BADGE: Record<string, { bg: string; color: string }> = {
-  admin:    { bg: "rgba(232,36,42,.1)",   color: "#E8242A" },
-  staff:    { bg: "rgba(26,92,255,.1)",   color: "#1A5CFF" },
-  customer: { bg: "rgba(5,150,105,.1)",   color: "#059669" },
+  administrator: { bg: "rgba(232,36,42,.1)",  color: "#E8242A" },
+  manager:       { bg: "rgba(139,92,246,.12)", color: "#7C3AED" },
+  editor:        { bg: "rgba(26,92,255,.1)",   color: "#1A5CFF" },
+  order_manager: { bg: "rgba(217,119,6,.12)",  color: "#D97706" },
+  viewer:        { bg: "rgba(107,114,128,.12)", color: "#4B5563" },
+  customer:      { bg: "rgba(5,150,105,.1)",   color: "#059669" },
+  admin:         { bg: "rgba(232,36,42,.1)",   color: "#E8242A" },
+  staff:         { bg: "rgba(26,92,255,.1)",   color: "#1A5CFF" },
 };
 
 function autoPassword() {
@@ -48,7 +54,7 @@ function UserModal({
     first_name: user?.first_name ?? "",
     last_name: user?.last_name ?? "",
     email: user?.email ?? "",
-    role: user?.role ?? "staff",
+    role: user?.role ?? "editor",
     is_active: user?.is_active ?? true,
     password: "",
     send_welcome_email: false,
@@ -150,10 +156,11 @@ function UserModal({
             <div>
               <label style={lbl}>Role</label>
               <select style={inp} value={form.role} onChange={e => set("role", e.target.value)}>
-                <option value="admin">Admin</option>
-                <option value="staff">Staff</option>
-                <option value="customer">Customer</option>
+                {ASSIGNABLE_ROLES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
               </select>
+              <div style={{ fontSize: "11px", color: "#9A98A0", marginTop: "4px" }}>
+                {ASSIGNABLE_ROLES.find(r => r.value === form.role)?.desc}
+              </div>
             </div>
             {isEdit && (
               <div>
@@ -389,9 +396,7 @@ export default function AdminUsersPage() {
         <select value={roleFilter} onChange={e => { setRoleFilter(e.target.value); setPage(1); }}
           style={{ padding: "9px 12px", border: "1.5px solid #E2E0DA", borderRadius: "8px", fontSize: "13px", fontFamily: "var(--font-jakarta)", background: "#fff", cursor: "pointer" }}>
           <option value="">All Roles</option>
-          <option value="admin">Admin</option>
-          <option value="staff">Staff</option>
-          <option value="customer">Customer</option>
+          {ASSIGNABLE_ROLES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
         </select>
         <select value={statusFilter} onChange={e => { setStatusFilter(e.target.value); setPage(1); }}
           style={{ padding: "9px 12px", border: "1.5px solid #E2E0DA", borderRadius: "8px", fontSize: "13px", fontFamily: "var(--font-jakarta)", background: "#fff", cursor: "pointer" }}>
@@ -445,8 +450,8 @@ export default function AdminUsersPage() {
 
                   {/* Role */}
                   <td style={{ padding: "13px 14px" }}>
-                    <span style={{ padding: "3px 9px", borderRadius: "20px", fontSize: "11px", fontWeight: 700, textTransform: "capitalize", background: roleCfg.bg, color: roleCfg.color }}>
-                      {user.role}
+                    <span style={{ padding: "3px 9px", borderRadius: "20px", fontSize: "11px", fontWeight: 700, background: roleCfg.bg, color: roleCfg.color }}>
+                      {ROLE_LABELS[user.role] ?? user.role}
                     </span>
                   </td>
 

@@ -263,7 +263,7 @@ export function ProductListClient({
               type="checkbox"
               checked={currentGender === g.value}
               onChange={() => handleGenderClick(g.value)}
-              style={{ accentColor: "#1C3557", cursor: "pointer" }}
+              style={{ accentColor: "var(--brand-primary, #1C3557)", cursor: "pointer" }}
             />
             {g.label}
           </label>
@@ -278,7 +278,7 @@ export function ProductListClient({
             type="checkbox"
             checked={currentInStock === "true"}
             onChange={handleInStockClick}
-            style={{ accentColor: "#1C3557", cursor: "pointer" }}
+            style={{ accentColor: "var(--brand-primary, #1C3557)", cursor: "pointer" }}
           />
           In Stock Only
         </label>
@@ -292,7 +292,7 @@ export function ProductListClient({
             type="checkbox"
             checked={currentCategory === ""}
             onChange={() => handleCategoryClick("")}
-            style={{ accentColor: "#1C3557", cursor: "pointer" }}
+            style={{ accentColor: "var(--brand-primary, #1C3557)", cursor: "pointer" }}
           />
           All Products
           <span style={{ marginLeft: "auto", fontSize: "11px", color: "#6B6B6B", fontFamily: "'DM Sans', sans-serif" }}>{total}</span>
@@ -303,7 +303,7 @@ export function ProductListClient({
               type="checkbox"
               checked={currentCategory === cat.slug}
               onChange={() => handleCategoryClick(cat.slug)}
-              style={{ accentColor: "#1C3557", cursor: "pointer" }}
+              style={{ accentColor: "var(--brand-primary, #1C3557)", cursor: "pointer" }}
             />
             {cat.name}
           </label>
@@ -328,7 +328,7 @@ export function ProductListClient({
                     background: hex,
                     border: "1px solid #E2E2DE",
                     cursor: "pointer",
-                    outline: isSelected ? "2px solid #1C3557" : "none",
+                    outline: isSelected ? "2px solid var(--brand-primary, #1C3557)" : "none",
                     outlineOffset: "2px",
                     flexShrink: 0,
                     padding: 0,
@@ -356,8 +356,8 @@ export function ProductListClient({
                     borderRadius: 0,
                     fontSize: "12px",
                     fontFamily: "'DM Sans', sans-serif",
-                    border: `1px solid ${sel ? "#1C3557" : "#E2E2DE"}`,
-                    background: sel ? "#1C3557" : "#FFFFFF",
+                    border: `1px solid ${sel ? "var(--brand-primary, #1C3557)" : "#E2E2DE"}`,
+                    background: sel ? "var(--brand-primary, #1C3557)" : "#FFFFFF",
                     color: sel ? "#FFFFFF" : "#1A1A1A",
                     cursor: "pointer",
                     transition: "all .12s",
@@ -379,7 +379,7 @@ export function ProductListClient({
           min={0} max={500} step={5}
           value={localPriceMax}
           onChange={e => setLocalPriceMax(Math.max(Number(e.target.value), localPriceMin + 5))}
-          style={{ width: "100%", accentColor: "#1C3557", marginBottom: "10px" }}
+          style={{ width: "100%", accentColor: "var(--brand-primary, #1C3557)", marginBottom: "10px" }}
         />
         <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
           <input
@@ -397,7 +397,7 @@ export function ProductListClient({
           />
           <button
             onClick={applyPriceFilter}
-            style={{ background: "#1C3557", color: "#fff", border: "none", padding: "7px 14px", fontSize: "12px", fontFamily: "'DM Sans', sans-serif", cursor: "pointer" }}
+            style={{ background: "var(--brand-primary, #1C3557)", color: "#fff", border: "none", padding: "7px 14px", fontSize: "12px", fontFamily: "'DM Sans', sans-serif", cursor: "pointer" }}
           >
             Apply
           </button>
@@ -412,7 +412,7 @@ export function ProductListClient({
           min={0} max={200} step={10}
           value={localMinStock}
           onChange={e => setLocalMinStock(Number(e.target.value))}
-          style={{ width: "100%", accentColor: "#1C3557" }}
+          style={{ width: "100%", accentColor: "var(--brand-primary, #1C3557)" }}
         />
         <div style={{ fontSize: "12px", color: "#6B6B6B", marginTop: "6px", fontFamily: "'DM Sans', sans-serif" }}>
           ≥ {localMinStock} units per product
@@ -433,7 +433,7 @@ export function ProductListClient({
           />
           <button
             onClick={applyCodeFilter}
-            style={{ padding: "7px 14px", background: "#1C3557", color: "#fff", border: "none", fontSize: "12px", fontFamily: "'DM Sans', sans-serif", cursor: "pointer" }}
+            style={{ padding: "7px 14px", background: "var(--brand-primary, #1C3557)", color: "#fff", border: "none", fontSize: "12px", fontFamily: "'DM Sans', sans-serif", cursor: "pointer" }}
           >
             Go
           </button>
@@ -451,7 +451,7 @@ export function ProductListClient({
       {hasFilters && (
         <button
           onClick={handleClearAll}
-          style={{ fontSize: "12px", color: "#1C3557", fontWeight: 500, cursor: "pointer", padding: "5px 0", background: "none", border: "none", fontFamily: "'DM Sans', sans-serif", textDecoration: "underline" }}
+          style={{ fontSize: "12px", color: "var(--brand-primary, #1C3557)", fontWeight: 500, cursor: "pointer", padding: "5px 0", background: "none", border: "none", fontFamily: "'DM Sans', sans-serif", textDecoration: "underline" }}
         >
           Clear All Filters
         </button>
@@ -574,7 +574,7 @@ export function ProductListClient({
                 cursor: "pointer",
                 fontFamily: "'DM Sans', sans-serif",
                 fontSize: "13px",
-                color: sortBy === opt.value ? "#1C3557" : "#6B6B6B",
+                color: sortBy === opt.value ? "var(--brand-primary, #1C3557)" : "#6B6B6B",
                 fontWeight: sortBy === opt.value ? 600 : 400,
                 padding: "2px 4px",
               }}
@@ -585,7 +585,7 @@ export function ProductListClient({
         </div>
 
         {bulkMessage && (
-          <div style={{ marginBottom: "16px", background: "rgba(28,53,87,.06)", border: "1px solid rgba(28,53,87,.2)", padding: "12px 16px", fontSize: "13px", color: "#1C3557", fontFamily: "'DM Sans', sans-serif" }}>
+          <div style={{ marginBottom: "16px", background: "rgba(28,53,87,.06)", border: "1px solid rgba(28,53,87,.2)", padding: "12px 16px", fontSize: "13px", color: "var(--brand-primary, #1C3557)", fontFamily: "'DM Sans', sans-serif" }}>
             {bulkMessage}
           </div>
         )}
@@ -594,50 +594,50 @@ export function ProductListClient({
         {hasFilters && (
           <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", alignItems: "center", marginBottom: "16px" }}>
             {currentCategory && (
-              <span style={{ background: "#e8edf3", border: "1px solid #c5d0dc", fontSize: "12px", padding: "4px 10px", display: "flex", alignItems: "center", gap: "6px", fontFamily: "'DM Sans', sans-serif", color: "#1C3557" }}>
+              <span style={{ background: "#e8edf3", border: "1px solid #c5d0dc", fontSize: "12px", padding: "4px 10px", display: "flex", alignItems: "center", gap: "6px", fontFamily: "'DM Sans', sans-serif", color: "var(--brand-primary, #1C3557)" }}>
                 {categories.find(c => c.slug === currentCategory)?.name ?? currentCategory}
-                <button onClick={() => router.push(buildFilterUrl({ category: null }))} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "14px", color: "#1C3557", lineHeight: 1, padding: 0 }}>×</button>
+                <button onClick={() => router.push(buildFilterUrl({ category: null }))} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "14px", color: "var(--brand-primary, #1C3557)", lineHeight: 1, padding: 0 }}>×</button>
               </span>
             )}
             {currentColor && (
-              <span style={{ background: "#e8edf3", border: "1px solid #c5d0dc", fontSize: "12px", padding: "4px 10px", display: "flex", alignItems: "center", gap: "6px", fontFamily: "'DM Sans', sans-serif", color: "#1C3557" }}>
+              <span style={{ background: "#e8edf3", border: "1px solid #c5d0dc", fontSize: "12px", padding: "4px 10px", display: "flex", alignItems: "center", gap: "6px", fontFamily: "'DM Sans', sans-serif", color: "var(--brand-primary, #1C3557)" }}>
                 {currentColor}
-                <button onClick={() => router.push(buildFilterUrl({ color: null }))} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "14px", color: "#1C3557", lineHeight: 1, padding: 0 }}>×</button>
+                <button onClick={() => router.push(buildFilterUrl({ color: null }))} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "14px", color: "var(--brand-primary, #1C3557)", lineHeight: 1, padding: 0 }}>×</button>
               </span>
             )}
             {currentSize && (
-              <span style={{ background: "#e8edf3", border: "1px solid #c5d0dc", fontSize: "12px", padding: "4px 10px", display: "flex", alignItems: "center", gap: "6px", fontFamily: "'DM Sans', sans-serif", color: "#1C3557" }}>
+              <span style={{ background: "#e8edf3", border: "1px solid #c5d0dc", fontSize: "12px", padding: "4px 10px", display: "flex", alignItems: "center", gap: "6px", fontFamily: "'DM Sans', sans-serif", color: "var(--brand-primary, #1C3557)" }}>
                 Size: {currentSize}
-                <button onClick={() => router.push(buildFilterUrl({ size: null }))} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "14px", color: "#1C3557", lineHeight: 1, padding: 0 }}>×</button>
+                <button onClick={() => router.push(buildFilterUrl({ size: null }))} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "14px", color: "var(--brand-primary, #1C3557)", lineHeight: 1, padding: 0 }}>×</button>
               </span>
             )}
             {currentGender && (
-              <span style={{ background: "#e8edf3", border: "1px solid #c5d0dc", fontSize: "12px", padding: "4px 10px", display: "flex", alignItems: "center", gap: "6px", fontFamily: "'DM Sans', sans-serif", color: "#1C3557" }}>
+              <span style={{ background: "#e8edf3", border: "1px solid #c5d0dc", fontSize: "12px", padding: "4px 10px", display: "flex", alignItems: "center", gap: "6px", fontFamily: "'DM Sans', sans-serif", color: "var(--brand-primary, #1C3557)" }}>
                 {currentGender}
-                <button onClick={() => router.push(buildFilterUrl({ gender: null }))} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "14px", color: "#1C3557", lineHeight: 1, padding: 0 }}>×</button>
+                <button onClick={() => router.push(buildFilterUrl({ gender: null }))} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "14px", color: "var(--brand-primary, #1C3557)", lineHeight: 1, padding: 0 }}>×</button>
               </span>
             )}
             {currentInStock === "true" && (
-              <span style={{ background: "#e8edf3", border: "1px solid #c5d0dc", fontSize: "12px", padding: "4px 10px", display: "flex", alignItems: "center", gap: "6px", fontFamily: "'DM Sans', sans-serif", color: "#1C3557" }}>
+              <span style={{ background: "#e8edf3", border: "1px solid #c5d0dc", fontSize: "12px", padding: "4px 10px", display: "flex", alignItems: "center", gap: "6px", fontFamily: "'DM Sans', sans-serif", color: "var(--brand-primary, #1C3557)" }}>
                 In Stock
-                <button onClick={() => router.push(buildFilterUrl({ in_stock: null }))} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "14px", color: "#1C3557", lineHeight: 1, padding: 0 }}>×</button>
+                <button onClick={() => router.push(buildFilterUrl({ in_stock: null }))} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "14px", color: "var(--brand-primary, #1C3557)", lineHeight: 1, padding: 0 }}>×</button>
               </span>
             )}
             {(currentPriceMin || currentPriceMax) && (
-              <span style={{ background: "#e8edf3", border: "1px solid #c5d0dc", fontSize: "12px", padding: "4px 10px", display: "flex", alignItems: "center", gap: "6px", fontFamily: "'DM Sans', sans-serif", color: "#1C3557" }}>
+              <span style={{ background: "#e8edf3", border: "1px solid #c5d0dc", fontSize: "12px", padding: "4px 10px", display: "flex", alignItems: "center", gap: "6px", fontFamily: "'DM Sans', sans-serif", color: "var(--brand-primary, #1C3557)" }}>
                 ${currentPriceMin || 0}–${currentPriceMax || 500}
-                <button onClick={() => router.push(buildFilterUrl({ price_min: null, price_max: null }))} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "14px", color: "#1C3557", lineHeight: 1, padding: 0 }}>×</button>
+                <button onClick={() => router.push(buildFilterUrl({ price_min: null, price_max: null }))} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "14px", color: "var(--brand-primary, #1C3557)", lineHeight: 1, padding: 0 }}>×</button>
               </span>
             )}
             {currentProductCode && (
-              <span style={{ background: "#e8edf3", border: "1px solid #c5d0dc", fontSize: "12px", padding: "4px 10px", display: "flex", alignItems: "center", gap: "6px", fontFamily: "'DM Sans', sans-serif", color: "#1C3557" }}>
+              <span style={{ background: "#e8edf3", border: "1px solid #c5d0dc", fontSize: "12px", padding: "4px 10px", display: "flex", alignItems: "center", gap: "6px", fontFamily: "'DM Sans', sans-serif", color: "var(--brand-primary, #1C3557)" }}>
                 Code: {currentProductCode}
-                <button onClick={() => { setLocalCode(""); router.push(buildFilterUrl({ product_code: null })); }} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "14px", color: "#1C3557", lineHeight: 1, padding: 0 }}>×</button>
+                <button onClick={() => { setLocalCode(""); router.push(buildFilterUrl({ product_code: null })); }} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "14px", color: "var(--brand-primary, #1C3557)", lineHeight: 1, padding: 0 }}>×</button>
               </span>
             )}
             <button
               onClick={handleClearAll}
-              style={{ fontSize: "12px", color: "#1C3557", textDecoration: "underline", background: "none", border: "none", cursor: "pointer", fontFamily: "'DM Sans', sans-serif" }}
+              style={{ fontSize: "12px", color: "var(--brand-primary, #1C3557)", textDecoration: "underline", background: "none", border: "none", cursor: "pointer", fontFamily: "'DM Sans', sans-serif" }}
             >
               Clear All
             </button>
@@ -680,7 +680,7 @@ export function ProductListClient({
                     href={`/products/${product.slug}`}
                     style={{ display: "block", background: "#FFFFFF", border: "1px solid #E2E2DE", overflow: "hidden", textDecoration: "none", transition: "border-color .2s" }}
                     className="prod-card-hover"
-                    onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.borderColor = "#1C3557"; }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.borderColor = "var(--brand-primary, #1C3557)"; }}
                     onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.borderColor = "#E2E2DE"; }}
                   >
                     {/* Image area */}

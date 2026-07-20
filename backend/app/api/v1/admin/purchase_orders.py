@@ -440,23 +440,25 @@ async def receive_items(po_id: UUID, data: ReceivingCreate, db: AsyncSession = D
 
     await db.commit()
 
-    # Dispatch QB vendor bill sync asynchronously (fire-and-forget)
-    try:
-        from app.tasks.quickbooks_tasks import sync_po_receipt_to_qb
-        sync_po_receipt_to_qb.delay(str(po_id), str(receiving.id))
-        logger.info("Dispatched sync_po_receipt_to_qb po=%s receiving=%s", po_id, receiving.id)
-    except Exception as _e:
-        logger.warning("Could not dispatch QB sync task: %s", _e)
-
-    # Dispatch QB inventory+cost sync for each received variant (countdown=5s so cost_per_item commit lands first)
-    if variants_received:
+    # Dispatch QB sync (vendor bill + inventory/cost) — only when QB is enabled.
+    from app.core.config import settings as _qbcfg
+    if _qbcfg.QUICKBOOKS_ENABLED:
         try:
-            from app.tasks.quickbooks_tasks import sync_inventory_to_qb
-            for vid in variants_received:
-                sync_inventory_to_qb.apply_async(args=[str(vid)], countdown=5)
-            logger.info("Dispatched sync_inventory_to_qb for %d variants", len(variants_received))
+            from app.tasks.quickbooks_tasks import sync_po_receipt_to_qb
+            sync_po_receipt_to_qb.delay(str(po_id), str(receiving.id))
+            logger.info("Dispatched sync_po_receipt_to_qb po=%s receiving=%s", po_id, receiving.id)
         except Exception as _e:
-            logger.warning("Could not dispatch QB inventory sync tasks: %s", _e)
+            logger.warning("Could not dispatch QB sync task: %s", _e)
+
+        # Inventory+cost sync per received variant (countdown=5s so cost_per_item commit lands first)
+        if variants_received:
+            try:
+                from app.tasks.quickbooks_tasks import sync_inventory_to_qb
+                for vid in variants_received:
+                    sync_inventory_to_qb.apply_async(args=[str(vid)], countdown=5)
+                logger.info("Dispatched sync_inventory_to_qb for %d variants", len(variants_received))
+            except Exception as _e:
+                logger.warning("Could not dispatch QB inventory sync tasks: %s", _e)
 
     return {"success": True, "receiving_id": str(receiving.id)}
 

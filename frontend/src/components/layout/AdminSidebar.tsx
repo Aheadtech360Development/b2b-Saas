@@ -4,6 +4,8 @@ import Link from "next/link";
 import { usePathname, useSearchParams, useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import { useAuthStore } from "@/stores/auth.store";
+import { hasScope, type Scope } from "@/lib/permissions";
+import { contactService } from "@/services/contact.service";
 import {
   BarChartIcon, PackageIcon, BuildingIcon, ShirtIcon,
   SettingsIcon, BookIcon, SearchIcon, RefreshIcon, UsersIcon, TrendingUpIcon, TruckIcon, ShoppingCartIcon,
@@ -32,6 +34,7 @@ export function AdminSidebar() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const { user, clearAuth } = useAuthStore();
+  const can = (s: Scope) => hasScope(user?.role, s);
 
   function handleLogout() {
     clearAuth();
@@ -48,9 +51,17 @@ export function AdminSidebar() {
   const [settingsOpen, setSettingsOpen] = useState(isSettingsActive);
   const [contentOpen, setContentOpen] = useState(isContentActive);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [unreadMsgs, setUnreadMsgs] = useState(0);
 
   // Close mobile drawer on route change
   useEffect(() => { setMobileOpen(false); }, [pathname]);
+
+  // Unread contact-form submissions count (refreshes on navigation so it drops
+  // after you read messages, and picks up new ones as you move around).
+  useEffect(() => {
+    if (!can("customers")) return;
+    contactService.list().then((r) => setUnreadMsgs(r.unread || 0)).catch(() => {});
+  }, [pathname, user?.role]);
 
   useEffect(() => { if (isOrdersActive) setOrdersOpen(true); }, [isOrdersActive]);
   useEffect(() => { if (isProductsActive) setProductsOpen(true); }, [isProductsActive]);
@@ -58,8 +69,11 @@ export function AdminSidebar() {
   useEffect(() => { if (isSettingsActive) setSettingsOpen(true); }, [isSettingsActive]);
   useEffect(() => { if (isContentActive) setContentOpen(true); }, [isContentActive]);
 
-  function NavLink({ href, label, icon }: { href: string; label: string; icon: React.ReactNode }) {
-    const active = pathname === href || (href !== "/admin" && pathname.startsWith(href + "/"));
+  function NavLink({ href, label, icon, exact, badge }: { href: string; label: string; icon: React.ReactNode; exact?: boolean; badge?: number }) {
+    // `exact` links only light up on their own path — used when a child route has
+    // its own nav entry (e.g. Storefront vs Storefront → Pages) so both don't
+    // appear active at once.
+    const active = pathname === href || (!exact && href !== "/admin" && pathname.startsWith(href + "/"));
     return (
       <Link href={href} style={{
         ...NAV_LINK_BASE,
@@ -71,6 +85,11 @@ export function AdminSidebar() {
       >
         <span style={{ fontSize: "15px", flexShrink: 0 }}>{icon}</span>
         <span>{label}</span>
+        {badge !== undefined && badge > 0 && (
+          <span style={{ marginLeft: "auto", background: "#1A5CFF", color: "#fff", fontSize: "11px", fontWeight: 700, minWidth: "18px", height: "18px", borderRadius: "10px", display: "flex", alignItems: "center", justifyContent: "center", padding: "0 5px" }}>
+            {badge > 99 ? "99+" : badge}
+          </span>
+        )}
       </Link>
     );
   }
@@ -104,10 +123,14 @@ export function AdminSidebar() {
       {/* ── OVERVIEW ── */}
       <div style={SECTION_HEAD}>Overview</div>
       <NavLink href="/admin/dashboard" label="Dashboard" icon={<BarChartIcon size={15} color="currentColor" />} />
-      <NavLink href="/admin/storefront" label="Storefront" icon={<BuildingIcon size={15} color="currentColor" />} />
-      <NavLink href="/admin/media" label="Media Library" icon={<BookIcon size={15} color="currentColor" />} />
+      {can("storefront") && <NavLink href="/admin/storefront" label="Storefront" icon={<BuildingIcon size={15} color="currentColor" />} exact />}
+      {can("storefront") && <NavLink href="/admin/storefront/pages" label="Pages" icon={<BookIcon size={15} color="currentColor" />} />}
+      {can("storefront") && <NavLink href="/admin/storefront/menus" label="Menus" icon={<span style={{ fontSize: "14px" }}>🧭</span>} />}
+      {can("media") && <NavLink href="/admin/media" label="Media Library" icon={<BookIcon size={15} color="currentColor" />} />}
+      {can("customers") && <NavLink href="/admin/messages" label="Messages" icon={<span style={{ fontSize: "14px" }}>✉️</span>} badge={unreadMsgs} />}
 
       {/* ── ORDERS ── */}
+      {can("orders") && <>
       <div style={SECTION_HEAD}>Orders</div>
 
       {/* Orders dropdown trigger */}
@@ -140,9 +163,11 @@ export function AdminSidebar() {
       )}
 
       <NavLink href="/admin/returns" label="Returns (RMA)" icon={<RefreshIcon size={15} color="currentColor" />} />
-      <NavLink href="/admin/purchase-orders" label="Purchase Orders" icon={<ShoppingCartIcon size={15} color="currentColor" />} />
+      </>}
+      {can("inventory") && <NavLink href="/admin/purchase-orders" label="Purchase Orders" icon={<ShoppingCartIcon size={15} color="currentColor" />} />}
 
       {/* ── CUSTOMERS ── */}
+      {can("customers") && <>
       <div style={SECTION_HEAD}>Customers</div>
 
       {/* Customers dropdown */}
@@ -174,7 +199,10 @@ export function AdminSidebar() {
         </div>
       )}
 
+      </>}
+
       {/* ── CATALOG ── */}
+      {can("products") && <>
       <div style={SECTION_HEAD}>Catalog</div>
       <NavLink href="/admin/supplier-catalog" label="Supplier Catalog" icon={<PackageIcon size={15} color="currentColor" />} />
 
@@ -207,12 +235,17 @@ export function AdminSidebar() {
         </div>
       )}
 
+      </>}
+
       {/* ── MARKETING ── */}
+      {(can("discounts") || can("settings")) && <>
       <div style={SECTION_HEAD}>Marketing</div>
-      <NavLink href="/admin/discounts" label="Discounts" icon={<span style={{ fontSize: "15px" }}>%</span>} />
-      <NavLink href="/admin/standard-shipping" label="Standard Shipping" icon={<TruckIcon size={15} color="currentColor" />} />
+      {can("discounts") && <NavLink href="/admin/discounts" label="Discounts" icon={<span style={{ fontSize: "15px" }}>%</span>} />}
+      {can("settings") && <NavLink href="/admin/standard-shipping" label="Standard Shipping" icon={<TruckIcon size={15} color="currentColor" />} />}
+      </>}
 
       {/* ── CONTENT ── */}
+      {can("content") && <>
       <div style={SECTION_HEAD}>Content</div>
       <div
         onClick={() => setContentOpen(!contentOpen)}
@@ -240,8 +273,10 @@ export function AdminSidebar() {
           <SubLink href="/admin/product-specs" label="Product Specs" />
         </div>
       )}
+      </>}
 
       {/* ── SETTINGS ── */}
+      {(can("settings") || can("staff") || can("analytics")) && <>
       <div style={SECTION_HEAD}>Settings</div>
 
       {/* Settings dropdown */}
@@ -266,12 +301,13 @@ export function AdminSidebar() {
 
       {settingsOpen && (
         <div style={{ paddingLeft: "18px", marginTop: "3px", marginBottom: "3px" }}>
-          <SubLink href="/admin/settings/taxes" label="Taxes & Duties" />
-          <SubLink href="/admin/analytics" label="Analytics" />
-          <SubLink href="/admin/users" label="Users" />
-          <SubLink href="/admin/settings/audit-log" label="Audit Log" />
+          {can("settings") && <SubLink href="/admin/settings/taxes" label="Taxes & Duties" />}
+          {can("analytics") && <SubLink href="/admin/analytics" label="Analytics" />}
+          {can("staff") && <SubLink href="/admin/users" label="Users" />}
+          {can("settings") && <SubLink href="/admin/settings/audit-log" label="Audit Log" />}
         </div>
       )}
+      </>}
 
       {/* ── Account / Sign out (bottom) ── */}
       <div style={{ marginTop: "20px", paddingTop: "16px", borderTop: "1px solid #E2E0DA" }}>

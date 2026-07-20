@@ -16,16 +16,28 @@ from app.models.user import User
 
 router = APIRouter(prefix="/admin/users", tags=["admin", "users"])
 
-# Frontend role <-> DB role mapping
-_ROLE_TO_DB = {"admin": "tenant_admin", "staff": "tenant_staff", "customer": "buyer"}
+# Frontend role <-> DB role mapping (5 fixed roles + legacy aliases)
+_ROLE_TO_DB = {
+    "administrator": "tenant_admin",
+    "manager": "tenant_manager",
+    "editor": "tenant_editor",
+    "order_manager": "tenant_fulfillment",
+    "viewer": "tenant_viewer",
+    # legacy aliases
+    "admin": "tenant_admin", "staff": "tenant_editor", "customer": "buyer",
+}
+_DB_TO_UI = {
+    "tenant_admin": "administrator", "platform_admin": "administrator",
+    "tenant_manager": "manager", "tenant_editor": "editor",
+    "tenant_fulfillment": "order_manager", "tenant_viewer": "viewer",
+    "tenant_staff": "editor", "buyer": "customer",
+}
 
 
 def _db_role_to_ui(role: str, is_admin: bool) -> str:
-    if role in ("tenant_admin", "platform_admin") or is_admin:
-        return "admin"
-    if role == "tenant_staff":
-        return "staff"
-    return "customer"
+    if role in _DB_TO_UI:
+        return _DB_TO_UI[role]
+    return "administrator" if is_admin else "customer"
 
 
 def _user_to_dict(user: User) -> dict:
@@ -84,12 +96,8 @@ async def list_users(
             )
         )
 
-    if role == "admin":
-        query = query.where(User.role.in_(("tenant_admin", "platform_admin")))
-    elif role == "staff":
-        query = query.where(User.role == "tenant_staff")
-    elif role == "customer":
-        query = query.where(User.role == "buyer")
+    if role and role in _ROLE_TO_DB:
+        query = query.where(User.role == _ROLE_TO_DB[role])
 
     if status == "active":
         query = query.where(User.is_active.is_(True))
@@ -125,7 +133,7 @@ async def create_user(
         raise HTTPException(status_code=409, detail="A user with this email already exists")
 
     raw_password: str = payload.get("password") or secrets.token_urlsafe(12)
-    db_role = _ROLE_TO_DB.get(role, "tenant_staff")
+    db_role = _ROLE_TO_DB.get(role, "tenant_editor")
 
     user = User(
         email=email,
@@ -134,7 +142,7 @@ async def create_user(
         hashed_password=hash_password(raw_password),
         tenant_id=get_current_tenant_id(),
         role=db_role,
-        is_admin=(role == "admin"),
+        is_admin=(db_role != "buyer"),  # all staff roles access the admin panel
         is_active=True,
         email_verified=True,
     )
@@ -197,8 +205,8 @@ async def update_user(
                 raise HTTPException(status_code=409, detail="Email already in use")
             user.email = new_email
     if "role" in payload:
-        user.role = _ROLE_TO_DB.get(payload["role"], "tenant_staff")
-        user.is_admin = (payload["role"] == "admin")
+        user.role = _ROLE_TO_DB.get(payload["role"], "tenant_editor")
+        user.is_admin = (user.role != "buyer")
     if "is_active" in payload:
         user.is_active = bool(payload["is_active"])
 

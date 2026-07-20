@@ -70,7 +70,7 @@ export default function PrivateLabelPage() {
           <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "16px" }} className="cert-grid-responsive">
             {STEPS.map(step => (
               <div key={step.n} style={{ border: "1px solid #E2E2DE", padding: "24px" }}>
-                <div style={{ fontFamily: "'Fraunces', serif", fontSize: "28px", fontWeight: 300, color: "#1C3557", marginBottom: "12px" }}>{step.n}</div>
+                <div style={{ fontFamily: "'Fraunces', serif", fontSize: "28px", fontWeight: 300, color: "var(--brand-primary, #1C3557)", marginBottom: "12px" }}>{step.n}</div>
                 <h4 style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px", fontWeight: 600, color: "#1A1A1A", marginBottom: "8px" }}>{step.h}</h4>
                 <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px", color: "#6B6B6B", lineHeight: 1.6 }}>{step.p}</p>
               </div>
@@ -89,7 +89,7 @@ export default function PrivateLabelPage() {
             <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
               {["Custom woven or printed labels", "Custom hang tags", "Custom packaging", "Multiple fabric options"].map(item => (
                 <li key={item} style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px", color: "#1A1A1A", padding: "8px 0", borderBottom: "1px solid #E2E2DE", display: "flex", alignItems: "center", gap: "10px" }}>
-                  {/* <span style={{ color: "#1C3557" }}>—</span>  */}
+                  {/* <span style={{ color: "var(--brand-primary, #1C3557)" }}>—</span>  */}
                   {item}
                 </li>
               ))}
@@ -97,7 +97,7 @@ export default function PrivateLabelPage() {
             <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
               {["Full size range XS–5XL", "Oeko-Tex and GOTS certified fabrics available", "Full compliance paperwork", "One dedicated contact for your account"].map(item => (
                 <li key={item} style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px", color: "#1A1A1A", padding: "8px 0", borderBottom: "1px solid #E2E2DE", display: "flex", alignItems: "center", gap: "10px" }}>
-                  {/* <span style={{ color: "#1C3557" }}>—</span>  */}
+                  {/* <span style={{ color: "var(--brand-primary, #1C3557)" }}>—</span>  */}
                   {item}
                 </li>
               ))}
@@ -127,9 +127,9 @@ export default function PrivateLabelPage() {
           </div>
           <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px", color: "#6B6B6B", marginTop: "24px" }}>
             Ready to start? Contact us.{" "}
-            <a href="mailto:info@afblanks.com" style={{ color: "#1C3557", textDecoration: "none" }}>info@afblanks.com</a>
+            <a href="mailto:info@afblanks.com" style={{ color: "var(--brand-primary, #1C3557)", textDecoration: "none" }}>info@afblanks.com</a>
             {" "}·{" "}
-            <a href="tel:+12142727213" style={{ color: "#1C3557", textDecoration: "none" }}>(214) 272-7213</a>
+            <a href="tel:+12142727213" style={{ color: "var(--brand-primary, #1C3557)", textDecoration: "none" }}>(214) 272-7213</a>
           </p>
         </div>
       </div>

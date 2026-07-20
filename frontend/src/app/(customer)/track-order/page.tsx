@@ -85,11 +85,11 @@ export default function TrackOrderPage() {
 
         .to-lbl { display: block; font-size: 12px; font-family: 'DM Sans', sans-serif; font-weight: 600; text-transform: uppercase; letter-spacing: 0.07em; color: #1A1A1A; margin-bottom: 7px; }
         .to-inp { width: 100%; border: 1px solid #E2E2DE; padding: 11px 14px; font-family: 'DM Sans', sans-serif; font-size: 14px; background: #FFFFFF; color: #1A1A1A; border-radius: 0; outline: none; box-sizing: border-box; transition: border-color 0.15s; }
-        .to-inp:focus { border-color: #1C3557; }
+        .to-inp:focus { border-color: var(--brand-primary, #1C3557); }
 
         .to-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; }
 
-        .to-btn { background: #1C3557; color: #FFFFFF; border: none; padding: 12px 28px; font-size: 14px; font-family: 'DM Sans', sans-serif; font-weight: 500; cursor: pointer; margin-top: 8px; transition: opacity 0.15s; }
+        .to-btn { background: var(--brand-primary, #1C3557); color: #FFFFFF; border: none; padding: 12px 28px; font-size: 14px; font-family: 'DM Sans', sans-serif; font-weight: 500; cursor: pointer; margin-top: 8px; transition: opacity 0.15s; }
         .to-btn:hover:not(:disabled) { opacity: 0.88; }
         .to-btn:disabled { background: #E2E2DE; color: #9E9E9E; cursor: not-allowed; }
 
@@ -101,15 +101,15 @@ export default function TrackOrderPage() {
         .to-detail-val { color: #1A1A1A; font-weight: 500; }
 
         .to-mono { font-family: 'IBM Plex Mono', monospace; font-size: 13px; }
-        .to-track-mono { font-family: 'IBM Plex Mono', monospace; font-size: 13px; color: #1C3557; }
+        .to-track-mono { font-family: 'IBM Plex Mono', monospace; font-size: 13px; color: var(--brand-primary, #1C3557); }
 
-        .to-track-link { color: #1C3557; text-decoration: none; font-weight: 500; }
+        .to-track-link { color: var(--brand-primary, #1C3557); text-decoration: none; font-weight: 500; }
         .to-track-link:hover { text-decoration: underline; }
 
         .to-error { background: #fff5f5; border: 1px solid #fed7d7; padding: 16px; font-size: 14px; font-family: 'DM Sans', sans-serif; color: #c53030; margin-top: 16px; margin-bottom: 28px; }
 
         .to-back { text-align: center; margin-top: 8px; }
-        .to-back a { font-size: 13px; color: #1C3557; font-weight: 500; text-decoration: none; font-family: 'DM Sans', sans-serif; }
+        .to-back a { font-size: 13px; color: var(--brand-primary, #1C3557); font-weight: 500; text-decoration: none; font-family: 'DM Sans', sans-serif; }
         .to-back a:hover { text-decoration: underline; }
 
         @media (max-width: 600px) {
@@ -273,7 +273,7 @@ export default function TrackOrderPage() {
 
               <div className="to-detail-row" style={{ borderBottom: "none" }}>
                 <span style={{ fontSize: 15, fontWeight: 700, color: "#1A1A1A", fontFamily: "'DM Sans', sans-serif" }}>Total</span>
-                <span style={{ fontSize: 15, fontWeight: 700, color: "#1C3557", fontFamily: "'DM Sans', sans-serif" }}>
+                <span style={{ fontSize: 15, fontWeight: 700, color: "var(--brand-primary, #1C3557)", fontFamily: "'DM Sans', sans-serif" }}>
                   {formatCurrency(result.total)}
                 </span>
               </div>

@@ -23,13 +23,20 @@ from app.schemas.auth import LoginResponse, TokenRefreshResponse
 REFRESH_TOKEN_EXPIRE_DAYS = 7
 
 
+# Roles that can access the admin panel (staff roles). 'buyer' is a customer.
+_ADMIN_PANEL_ROLES = {
+    "platform_admin", "tenant_admin", "tenant_manager",
+    "tenant_editor", "tenant_fulfillment", "tenant_viewer",
+}
+
+
 def _build_claims(user_row: dict) -> dict:
     """Build JWT extra claims from user dict."""
     return {
         "tenant_id": str(user_row["tenant_id"]) if user_row["tenant_id"] else None,
         "role": user_row["role"],
         "is_platform_admin": user_row["is_platform_admin"],
-        "is_admin": user_row["role"] in ("tenant_admin", "platform_admin"),
+        "is_admin": user_row["role"] in _ADMIN_PANEL_ROLES,
     }
 
 

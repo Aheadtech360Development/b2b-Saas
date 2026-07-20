@@ -91,10 +91,12 @@ async def _handle_payment_succeeded(db: AsyncSession, payment_intent: dict) -> N
     )
 
     from app.tasks.email_tasks import send_order_confirmation_email
-    from app.tasks.quickbooks_tasks import sync_order_to_qb
-
     send_order_confirmation_email.delay(str(order.id))
-    sync_order_to_qb.delay(str(order.id))
+
+    from app.core.config import settings
+    if settings.QUICKBOOKS_ENABLED:
+        from app.tasks.quickbooks_tasks import sync_order_invoice_to_qb
+        sync_order_invoice_to_qb.delay(str(order.id))
 
     logger.info("Order %s confirmed via Stripe webhook", order.order_number)
 

@@ -64,7 +64,7 @@ export default function ReviewsPage() {
             <div style={{ fontFamily: "'Fraunces', serif", fontSize: "40px", marginBottom: "12px", color: "#f69d0b" }}>★</div>
             <div style={{ fontFamily: "'Fraunces', serif", fontSize: "22px", fontWeight: 600, color: "#1A1A1A", marginBottom: "8px" }}>No reviews yet</div>
             <p style={{ fontFamily: "'DM Sans', sans-serif", color: "#6B6B6B", marginBottom: "24px" }}>Be the first to review a product you&apos;ve ordered.</p>
-            <Link href="/products" style={{ background: "#1C3557", color: "#fff", padding: "12px 24px", fontWeight: 600, textDecoration: "none", fontSize: "14px", fontFamily: "'DM Sans', sans-serif" }}>
+            <Link href="/products" style={{ background: "var(--brand-primary, #1C3557)", color: "#fff", padding: "12px 24px", fontWeight: 600, textDecoration: "none", fontSize: "14px", fontFamily: "'DM Sans', sans-serif" }}>
               Browse Products
             </Link>
           </div>
@@ -81,7 +81,7 @@ export default function ReviewsPage() {
                 </div>
                 <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px", color: "#1A1A1A", lineHeight: 1.65, marginBottom: "12px" }}>{r.body}</p>
                 {r.product_slug && (
-                  <Link href={`/products/${r.product_slug}`} style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "12px", color: "#1C3557", fontWeight: 600, textDecoration: "none" }}>
+                  <Link href={`/products/${r.product_slug}`} style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "12px", color: "var(--brand-primary, #1C3557)", fontWeight: 600, textDecoration: "none" }}>
                     → {r.product_name ?? "View Product"}
                   </Link>
                 )}

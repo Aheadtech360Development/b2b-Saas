@@ -76,8 +76,8 @@ export default function CheckoutConfirmedPage() {
         {/* Success checkmark */}
         <div style={{ marginBottom: "20px", textAlign: "center" }}>
           <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
-            <circle cx="24" cy="24" r="24" fill="#1C3557" opacity="0.1"/>
-            <path d="M14 24l7 7 13-13" stroke="#1C3557" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+            <circle cx="24" cy="24" r="24" fill="var(--brand-primary, #1C3557)" opacity="0.1"/>
+            <path d="M14 24l7 7 13-13" stroke="var(--brand-primary, #1C3557)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
           </svg>
         </div>
 
@@ -116,13 +116,13 @@ export default function CheckoutConfirmedPage() {
             href={(() => {
               try { const d = JSON.parse(sessionStorage.getItem("af_confirmed_order") || "{}"); return d.isGuest ? "/track-order" : "/account/orders"; } catch { return "/account/orders"; }
             })()}
-            style={{ display: "inline-block", padding: "12px 24px", border: "1px solid #1C3557", color: "#1C3557", fontFamily: "'DM Sans', sans-serif", fontSize: "14px", fontWeight: 500, textDecoration: "none", transition: "all .15s" }}
+            style={{ display: "inline-block", padding: "12px 24px", border: "1px solid var(--brand-primary, #1C3557)", color: "var(--brand-primary, #1C3557)", fontFamily: "'DM Sans', sans-serif", fontSize: "14px", fontWeight: 500, textDecoration: "none", transition: "all .15s" }}
           >
             Track Your Order →
           </Link>
           <Link
             href="/products"
-            style={{ display: "inline-block", padding: "12px 24px", background: "#1C3557", color: "#fff", fontFamily: "'DM Sans', sans-serif", fontSize: "14px", fontWeight: 500, textDecoration: "none", transition: "opacity .15s" }}
+            style={{ display: "inline-block", padding: "12px 24px", background: "var(--brand-primary, #1C3557)", color: "#fff", fontFamily: "'DM Sans', sans-serif", fontSize: "14px", fontWeight: 500, textDecoration: "none", transition: "opacity .15s" }}
           >
             Continue Shopping →
           </Link>

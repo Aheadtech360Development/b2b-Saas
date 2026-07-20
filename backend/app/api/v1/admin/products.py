@@ -12,9 +12,10 @@ from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.core.config import settings
 from app.core.database import get_db
 from app.core.exceptions import NotFoundError
-from app.core.redis import redis_delete, redis_delete_pattern
+from app.core.redis import redis_delete, redis_delete_pattern, tenant_cache_key
 from app.models.product import Category, Product, ProductAsset, ProductCategory, ProductImage, ProductReview, ProductVariant
 from app.schemas.product import (
     BulkActionRequest,
@@ -256,11 +257,12 @@ async def add_variant(
     await db.commit()
     await db.refresh(variant)
 
-    try:
-        from app.tasks.quickbooks_tasks import sync_variant_to_qb
-        sync_variant_to_qb.delay(str(variant.id))
-    except Exception as _exc:
-        logger.warning("QB variant sync dispatch failed: %s", _exc)
+    if settings.QUICKBOOKS_ENABLED:
+        try:
+            from app.tasks.quickbooks_tasks import sync_variant_to_qb
+            sync_variant_to_qb.delay(str(variant.id))
+        except Exception as _exc:
+            logger.warning("QB variant sync dispatch failed: %s", _exc)
 
     variant.stock_quantity = 0
     return variant
@@ -276,12 +278,13 @@ async def bulk_generate_variants(
     )
     await db.commit()
 
-    try:
-        from app.tasks.quickbooks_tasks import sync_variant_to_qb
-        for v in variants:
-            sync_variant_to_qb.delay(str(v.id))
-    except Exception as _exc:
-        logger.warning("QB bulk variant sync dispatch failed: %s", _exc)
+    if settings.QUICKBOOKS_ENABLED:
+        try:
+            from app.tasks.quickbooks_tasks import sync_variant_to_qb
+            for v in variants:
+                sync_variant_to_qb.delay(str(v.id))
+        except Exception as _exc:
+            logger.warning("QB bulk variant sync dispatch failed: %s", _exc)
 
     return {"generated": len(variants), "variants": [{"id": str(v.id), "sku": v.sku} for v in variants]}
 
@@ -314,12 +317,13 @@ async def create_variants_batch(
     await db.flush()
     await db.commit()
 
-    try:
-        from app.tasks.quickbooks_tasks import sync_variant_to_qb
-        for v in created:
-            sync_variant_to_qb.delay(str(v.id))
-    except Exception as _exc:
-        logger.warning("QB batch variant sync dispatch failed: %s", _exc)
+    if settings.QUICKBOOKS_ENABLED:
+        try:
+            from app.tasks.quickbooks_tasks import sync_variant_to_qb
+            for v in created:
+                sync_variant_to_qb.delay(str(v.id))
+        except Exception as _exc:
+            logger.warning("QB batch variant sync dispatch failed: %s", _exc)
 
     return {"created": len(created), "variants": [{"id": str(v.id), "sku": v.sku} for v in created]}
 
@@ -408,11 +412,12 @@ async def update_variant(
 
     await db.commit()
 
-    try:
-        from app.tasks.quickbooks_tasks import sync_variant_to_qb
-        sync_variant_to_qb.delay(str(variant.id))
-    except Exception as _exc:
-        logger.warning("QB variant sync dispatch failed: %s", _exc)
+    if settings.QUICKBOOKS_ENABLED:
+        try:
+            from app.tasks.quickbooks_tasks import sync_variant_to_qb
+            sync_variant_to_qb.delay(str(variant.id))
+        except Exception as _exc:
+            logger.warning("QB variant sync dispatch failed: %s", _exc)
 
     return {"id": str(variant.id), "sku": variant.sku}
 
@@ -455,7 +460,7 @@ async def create_category(
     )
     db.add(cat)
     await db.commit()
-    await redis_delete("categories:tree")
+    await redis_delete(tenant_cache_key("categories:tree"))
     return await _load_category(db, cat.id)
 
 
@@ -472,7 +477,7 @@ async def update_category(
         if field in payload:
             setattr(cat, field, payload[field])
     await db.commit()
-    await redis_delete("categories:tree")
+    await redis_delete(tenant_cache_key("categories:tree"))
     return await _load_category(db, category_id)
 
 
@@ -484,7 +489,7 @@ async def delete_category(category_id: UUID, db: AsyncSession = Depends(get_db))
         raise NotFoundError(f"Category not found: {category_id}")
     await db.delete(cat)
     await db.commit()
-    await redis_delete("categories:tree")
+    await redis_delete(tenant_cache_key("categories:tree"))
 
 
 @router.post("/bulk-action")
@@ -929,7 +934,7 @@ async def upload_product_flyer(
     await db.commit()
     await db.refresh(new_asset)
 
-    await redis_delete_pattern(f"products:detail:{product.slug}:*")
+    await redis_delete_pattern(tenant_cache_key(f"products:detail:{product.slug}:*"))
 
     return {"url": url, "file_name": file_name, "id": str(new_asset.id)}
 
@@ -956,7 +961,7 @@ async def delete_product_flyer(
     if not deleted:
         raise HTTPException(status_code=404, detail="No flyer to remove")
 
-    await redis_delete_pattern(f"products:detail:{product.slug}:*")
+    await redis_delete_pattern(tenant_cache_key(f"products:detail:{product.slug}:*"))
     return {"message": "Flyer removed"}
 
 

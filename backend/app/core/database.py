@@ -30,6 +30,10 @@ engine = create_async_engine(
     max_overflow=40,
     pool_timeout=30,
     pool_recycle=1800,
+    # Neon (serverless PG) closes idle connections server-side; without a pre-ping
+    # the first use of a stale pooled connection raises "connection is closed".
+    # pre_ping transparently checks/replaces dead connections before handing them out.
+    pool_pre_ping=True,
     connect_args=_connect_args,
 )
 

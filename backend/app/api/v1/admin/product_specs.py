@@ -11,11 +11,12 @@ from sqlalchemy.orm import Mapped, mapped_column
 from app.core.database import get_db
 from app.middleware.auth_middleware import require_admin
 from app.models.base import BaseModel as DBBaseModel
+from app.models.base import TenantMixin
 
 router = APIRouter(prefix="/admin/product-specs")
 
 
-class ProductSpec(DBBaseModel):
+class ProductSpec(TenantMixin, DBBaseModel):
     __tablename__ = "product_specs"
 
     title: Mapped[str] = mapped_column(String(200), nullable=False)

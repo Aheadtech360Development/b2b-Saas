@@ -55,7 +55,7 @@ export default function ContactPage() {
                 <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", color: "#6B6B6B", marginBottom: "24px" }}>We will respond within 4 business hours Mon–Fri.</p>
                 <button
                   onClick={() => { setForm({ name: "", business: "", email: "", phone: "", subject: "", message: "" }); setStatus("idle"); }}
-                  style={{ background: "#1C3557", color: "#fff", border: "none", padding: "11px 24px", fontSize: "14px", fontFamily: "'DM Sans', sans-serif", cursor: "pointer" }}
+                  style={{ background: "var(--brand-primary, #1C3557)", color: "#fff", border: "none", padding: "11px 24px", fontSize: "14px", fontFamily: "'DM Sans', sans-serif", cursor: "pointer" }}
                 >
                   Send Another
                 </button>
@@ -67,14 +67,14 @@ export default function ContactPage() {
                   <div>
                     <label style={{ display: "block", fontFamily: "'DM Sans', sans-serif", fontSize: "12px", fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.05em", color: "#1A1A1A", marginBottom: "6px" }}>Full Name</label>
                     <input style={inp} value={form.name} onChange={e => set("name", e.target.value)} required placeholder="Your full name"
-                      onFocus={e => { (e.currentTarget as HTMLInputElement).style.borderColor = "#1C3557"; }}
+                      onFocus={e => { (e.currentTarget as HTMLInputElement).style.borderColor = "var(--brand-primary, #1C3557)"; }}
                       onBlur={e => { (e.currentTarget as HTMLInputElement).style.borderColor = "#E2E2DE"; }}
                     />
                   </div>
                   <div>
                     <label style={{ display: "block", fontFamily: "'DM Sans', sans-serif", fontSize: "12px", fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.05em", color: "#1A1A1A", marginBottom: "6px" }}>Company Name</label>
                     <input style={inp} value={form.business} onChange={e => set("business", e.target.value)} required placeholder="Your company"
-                      onFocus={e => { (e.currentTarget as HTMLInputElement).style.borderColor = "#1C3557"; }}
+                      onFocus={e => { (e.currentTarget as HTMLInputElement).style.borderColor = "var(--brand-primary, #1C3557)"; }}
                       onBlur={e => { (e.currentTarget as HTMLInputElement).style.borderColor = "#E2E2DE"; }}
                     />
                   </div>
@@ -85,14 +85,14 @@ export default function ContactPage() {
                   <div>
                     <label style={{ display: "block", fontFamily: "'DM Sans', sans-serif", fontSize: "12px", fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.05em", color: "#1A1A1A", marginBottom: "6px" }}>Email</label>
                     <input type="email" style={inp} value={form.email} onChange={e => set("email", e.target.value)} required placeholder="you@company.com"
-                      onFocus={e => { (e.currentTarget as HTMLInputElement).style.borderColor = "#1C3557"; }}
+                      onFocus={e => { (e.currentTarget as HTMLInputElement).style.borderColor = "var(--brand-primary, #1C3557)"; }}
                       onBlur={e => { (e.currentTarget as HTMLInputElement).style.borderColor = "#E2E2DE"; }}
                     />
                   </div>
                   <div>
                     <label style={{ display: "block", fontFamily: "'DM Sans', sans-serif", fontSize: "12px", fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.05em", color: "#1A1A1A", marginBottom: "6px" }}>Phone</label>
                     <input type="tel" style={inp} value={form.phone} onChange={e => set("phone", e.target.value)} placeholder="(555) 000-0000"
-                      onFocus={e => { (e.currentTarget as HTMLInputElement).style.borderColor = "#1C3557"; }}
+                      onFocus={e => { (e.currentTarget as HTMLInputElement).style.borderColor = "var(--brand-primary, #1C3557)"; }}
                       onBlur={e => { (e.currentTarget as HTMLInputElement).style.borderColor = "#E2E2DE"; }}
                     />
                   </div>
@@ -102,7 +102,7 @@ export default function ContactPage() {
                 <div style={{ marginBottom: "16px" }}>
                   <label style={{ display: "block", fontFamily: "'DM Sans', sans-serif", fontSize: "12px", fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.05em", color: "#1A1A1A", marginBottom: "6px" }}>Subject</label>
                   <select style={{ ...inp, cursor: "pointer" }} value={form.subject} onChange={e => set("subject", e.target.value)} required
-                    onFocus={e => { (e.currentTarget as HTMLSelectElement).style.borderColor = "#1C3557"; }}
+                    onFocus={e => { (e.currentTarget as HTMLSelectElement).style.borderColor = "var(--brand-primary, #1C3557)"; }}
                     onBlur={e => { (e.currentTarget as HTMLSelectElement).style.borderColor = "#E2E2DE"; }}
                   >
                     <option value="">Select a subject</option>
@@ -124,7 +124,7 @@ export default function ContactPage() {
                     onChange={e => set("message", e.target.value)}
                     required
                     placeholder="Tell us about your inquiry..."
-                    onFocus={e => { (e.currentTarget as HTMLTextAreaElement).style.borderColor = "#1C3557"; }}
+                    onFocus={e => { (e.currentTarget as HTMLTextAreaElement).style.borderColor = "var(--brand-primary, #1C3557)"; }}
                     onBlur={e => { (e.currentTarget as HTMLTextAreaElement).style.borderColor = "#E2E2DE"; }}
                   />
                 </div>
@@ -138,7 +138,7 @@ export default function ContactPage() {
                 <button
                   type="submit"
                   disabled={status === "sending"}
-                  style={{ background: "#1C3557", color: "#fff", border: "none", padding: "12px 24px", fontSize: "14px", fontFamily: "'DM Sans', sans-serif", cursor: "pointer", opacity: status === "sending" ? 0.7 : 1, width: "100%" }}
+                  style={{ background: "var(--brand-primary, #1C3557)", color: "#fff", border: "none", padding: "12px 24px", fontSize: "14px", fontFamily: "'DM Sans', sans-serif", cursor: "pointer", opacity: status === "sending" ? 0.7 : 1, width: "100%" }}
                 >
                   {status === "sending" ? "Sending…" : "Send Message →"}
                 </button>
@@ -179,10 +179,10 @@ export default function ContactPage() {
             </div>
 
             <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-              <Link href="/wholesale/register" style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px", color: "#1C3557", textDecoration: "none", fontWeight: 500 }}>
+              <Link href="/wholesale/register" style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px", color: "var(--brand-primary, #1C3557)", textDecoration: "none", fontWeight: 500 }}>
                 Apply for Wholesale Account →
               </Link>
-              <Link href="/track-order" style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px", color: "#1C3557", textDecoration: "none", fontWeight: 500 }}>
+              <Link href="/track-order" style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px", color: "var(--brand-primary, #1C3557)", textDecoration: "none", fontWeight: 500 }}>
                 Track Your Order →
               </Link>
             </div>
