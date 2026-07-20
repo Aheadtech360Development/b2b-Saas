@@ -422,7 +422,7 @@ function CreateBrandModal({
                   <label style={labelStyle}>Subdomain (slug) *</label>
                   <input style={inputStyle} value={form.slug} onChange={(e) => { setSlugEdited(true); set("slug", e.target.value); }} placeholder="nike" />
                   <div style={{ fontSize: "11px", color: "#6B7280", marginTop: "4px" }}>
-                    {form.slug ? `${slugify(form.slug)}.${process.env.NEXT_PUBLIC_PLATFORM_DOMAIN ?? "localhost"}` : "brand's store URL"}
+                    {form.slug ? tenantUrl(slugify(form.slug)) : "brand's store URL"}
                   </div>
                 </div>
                 <div>

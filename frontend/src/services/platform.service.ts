@@ -89,8 +89,8 @@ export const platformService = {
 /** Open a brand's admin dashboard as the super admin (impersonation). */
 export async function enterBrandDashboard(slug: string): Promise<void> {
   const { access_token } = await platformService.impersonate(slug);
-  const base = tenantUrl(slug); // e.g. http://slug.localhost:3000
-  window.open(`${base}/admin/dashboard#session=${encodeURIComponent(access_token)}`, "_blank");
+  const url = tenantUrl(slug, "/admin/dashboard", `session=${encodeURIComponent(access_token)}`);
+  window.open(url, "_blank");
 }
 
 /**
@@ -99,12 +99,26 @@ export async function enterBrandDashboard(slug: string): Promise<void> {
  * Production: slug.yourplatform.com
  * Deployment-safe: derives domain from NEXT_PUBLIC_PLATFORM_DOMAIN + window location.
  */
-export function tenantUrl(slug: string): string {
+export function tenantUrl(slug: string, path = "/", hash?: string): string {
   const platformDomain = process.env.NEXT_PUBLIC_PLATFORM_DOMAIN ?? "localhost";
-  if (typeof window === "undefined") {
-    return `https://${slug}.${platformDomain}`;
+  const origin =
+    typeof window === "undefined" ? `https://${platformDomain}` : window.location.origin;
+
+  // Hosts without wildcard DNS (preview deployments, *.vercel.app) can never
+  // serve slug.<domain>, so linking there produces an unreachable URL. In that
+  // mode the brand travels in the query string instead — the same fallback the
+  // middleware and api-client already resolve.
+  if ((process.env.NEXT_PUBLIC_TENANT_MODE ?? "subdomain") === "query") {
+    const url = new URL(path, origin);
+    url.searchParams.set("tenant", slug);
+    if (hash) url.hash = hash;
+    return url.toString();
   }
-  const { protocol, port } = window.location;
+
+  const { protocol, port } =
+    typeof window === "undefined" ? { protocol: "https:", port: "" } : window.location;
   const portPart = port ? `:${port}` : "";
-  return `${protocol}//${slug}.${platformDomain}${portPart}`;
+  const url = new URL(path, `${protocol}//${slug}.${platformDomain}${portPart}`);
+  if (hash) url.hash = hash;
+  return url.toString();
 }
