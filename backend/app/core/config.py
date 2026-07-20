@@ -100,7 +100,7 @@ class Settings(BaseSettings):
         if self.RESEND_FROM_EMAIL:
             self.EMAIL_FROM_ADDRESS = self.RESEND_FROM_EMAIL
         return self
-    FRONTEND_URL: str = "https://af-apparels.vercel.app"
+    FRONTEND_URL: str = "http://localhost:3000"
 
     # ── AWS S3 ────────────────────────────────────────────────────────────────
     AWS_ACCESS_KEY_ID: str = ""

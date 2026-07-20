@@ -1,3 +1,5 @@
 web: uvicorn app.main:app --host 0.0.0.0 --port $PORT
-worker: celery -A app.core.celery worker --loglevel=info -Q celery,default
+# Must list every queue in celeryconfig.task_routes, otherwise those tasks are
+# queued but never consumed (emails silently never send).
+worker: celery -A app.core.celery worker --loglevel=info -Q celery,default,email,pricelist,inventory,supplier,quickbooks
 beat: celery -A app.core.celery beat --loglevel=info
