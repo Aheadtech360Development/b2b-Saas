@@ -120,14 +120,9 @@ export function AdminSidebar() {
   const sidebarInner = (
     <div style={{ padding: "8px 10px 32px" }}>
 
-      {/* ── OVERVIEW ── */}
-      <div style={SECTION_HEAD}>Overview</div>
+      {/* ── HOME ── */}
+      <div style={SECTION_HEAD}>Home</div>
       <NavLink href="/admin/dashboard" label="Dashboard" icon={<BarChartIcon size={15} color="currentColor" />} />
-      {can("storefront") && <NavLink href="/admin/storefront" label="Storefront" icon={<BuildingIcon size={15} color="currentColor" />} exact />}
-      {can("storefront") && <NavLink href="/admin/storefront/pages" label="Pages" icon={<BookIcon size={15} color="currentColor" />} />}
-      {can("storefront") && <NavLink href="/admin/storefront/menus" label="Menus" icon={<span style={{ fontSize: "14px" }}>🧭</span>} />}
-      {can("media") && <NavLink href="/admin/media" label="Media Library" icon={<BookIcon size={15} color="currentColor" />} />}
-      {can("customers") && <NavLink href="/admin/messages" label="Messages" icon={<span style={{ fontSize: "14px" }}>✉️</span>} badge={unreadMsgs} />}
 
       {/* ── ORDERS ── */}
       {can("orders") && <>
@@ -166,6 +161,42 @@ export function AdminSidebar() {
       </>}
       {can("inventory") && <NavLink href="/admin/purchase-orders" label="Purchase Orders" icon={<ShoppingCartIcon size={15} color="currentColor" />} />}
 
+      {/* ── PRODUCTS ── */}
+      {can("products") && <>
+      <div style={SECTION_HEAD}>Products</div>
+
+      {/* Products dropdown */}
+      <div
+        onClick={() => setProductsOpen(!productsOpen)}
+        style={{
+          ...NAV_LINK_BASE,
+          justifyContent: "space-between",
+          background: isProductsActive ? "rgba(26,92,255,.08)" : "transparent",
+          color: isProductsActive ? "#1A5CFF" : "#555",
+          userSelect: "none",
+        }}
+        onMouseEnter={e => { if (!isProductsActive) (e.currentTarget as HTMLElement).style.background = "#F4F3EF"; }}
+        onMouseLeave={e => { if (!isProductsActive) (e.currentTarget as HTMLElement).style.background = isProductsActive ? "rgba(26,92,255,.08)" : "transparent"; }}
+      >
+        <span style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+          <ShirtIcon size={15} color="currentColor" />
+          <span>Products</span>
+        </span>
+        <span style={{ fontSize: "10px", color: "#aaa", transition: "transform .2s", transform: productsOpen ? "rotate(180deg)" : "rotate(0deg)", display: "inline-block" }}>▼</span>
+      </div>
+
+      {productsOpen && (
+        <div style={{ paddingLeft: "18px", marginTop: "3px", marginBottom: "3px" }}>
+          <SubLink href="/admin/products" label="All Products" />
+          <SubLink href="/admin/products/collections" label="Collections" />
+          <SubLink href="/admin/products/reviews" label="Reviews" />
+          <SubLink href="/admin/inventory" label="Inventory" />
+        </div>
+      )}
+
+      <NavLink href="/admin/supplier-catalog" label="Supplier Catalog" icon={<PackageIcon size={15} color="currentColor" />} />
+      </>}
+
       {/* ── CUSTOMERS ── */}
       {can("customers") && <>
       <div style={SECTION_HEAD}>Customers</div>
@@ -199,47 +230,12 @@ export function AdminSidebar() {
         </div>
       )}
 
+      <NavLink href="/admin/messages" label="Messages" icon={<span style={{ fontSize: "14px" }}>✉️</span>} badge={unreadMsgs} />
       </>}
 
-      {/* ── CATALOG ── */}
-      {can("products") && <>
-      <div style={SECTION_HEAD}>Catalog</div>
-      <NavLink href="/admin/supplier-catalog" label="Supplier Catalog" icon={<PackageIcon size={15} color="currentColor" />} />
-
-      {/* Products dropdown */}
-      <div
-        onClick={() => setProductsOpen(!productsOpen)}
-        style={{
-          ...NAV_LINK_BASE,
-          justifyContent: "space-between",
-          background: isProductsActive ? "rgba(26,92,255,.08)" : "transparent",
-          color: isProductsActive ? "#1A5CFF" : "#555",
-          userSelect: "none",
-        }}
-        onMouseEnter={e => { if (!isProductsActive) (e.currentTarget as HTMLElement).style.background = "#F4F3EF"; }}
-        onMouseLeave={e => { if (!isProductsActive) (e.currentTarget as HTMLElement).style.background = isProductsActive ? "rgba(26,92,255,.08)" : "transparent"; }}
-      >
-        <span style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-          <ShirtIcon size={15} color="currentColor" />
-          <span>Products</span>
-        </span>
-        <span style={{ fontSize: "10px", color: "#aaa", transition: "transform .2s", transform: productsOpen ? "rotate(180deg)" : "rotate(0deg)", display: "inline-block" }}>▼</span>
-      </div>
-
-      {productsOpen && (
-        <div style={{ paddingLeft: "18px", marginTop: "3px", marginBottom: "3px" }}>
-          <SubLink href="/admin/products" label="All Products" />
-          <SubLink href="/admin/products/collections" label="Collections" />
-          <SubLink href="/admin/products/reviews" label="Reviews" />
-          <SubLink href="/admin/inventory" label="Inventory" />
-        </div>
-      )}
-
-      </>}
-
-      {/* ── MARKETING ── */}
+      {/* ── DISCOUNTS ── */}
       {(can("discounts") || can("settings")) && <>
-      <div style={SECTION_HEAD}>Marketing</div>
+      <div style={SECTION_HEAD}>Discounts</div>
       {can("discounts") && <NavLink href="/admin/discounts" label="Discounts" icon={<span style={{ fontSize: "15px" }}>%</span>} />}
       {can("settings") && <NavLink href="/admin/standard-shipping" label="Standard Shipping" icon={<TruckIcon size={15} color="currentColor" />} />}
       </>}
@@ -273,6 +269,15 @@ export function AdminSidebar() {
           <SubLink href="/admin/product-specs" label="Product Specs" />
         </div>
       )}
+      </>}
+
+      {/* ── ONLINE STORE ── */}
+      {(can("storefront") || can("media")) && <>
+      <div style={SECTION_HEAD}>Online Store</div>
+      {can("storefront") && <NavLink href="/admin/storefront" label="Storefront" icon={<BuildingIcon size={15} color="currentColor" />} exact />}
+      {can("storefront") && <NavLink href="/admin/storefront/pages" label="Pages" icon={<BookIcon size={15} color="currentColor" />} />}
+      {can("storefront") && <NavLink href="/admin/storefront/menus" label="Menus" icon={<span style={{ fontSize: "14px" }}>🧭</span>} />}
+      {can("media") && <NavLink href="/admin/media" label="Media Library" icon={<BookIcon size={15} color="currentColor" />} />}
       </>}
 
       {/* ── SETTINGS ── */}

@@ -11,7 +11,10 @@ import {
 } from "@/services/platform.service";
 import type { Tenant } from "@/types/user.types";
 
-const PLANS = ["starter", "growth", "pro"];
+// The service is sold as a single flat offering — there are no tiers to choose
+// between. New brands are created on one fixed plan value purely to satisfy the
+// API contract; it is never surfaced as a choice in the UI.
+const DEFAULT_PLAN = "standard";
 
 const STATUS_STYLE: Record<string, { bg: string; color: string }> = {
   active:    { bg: "rgba(16,185,129,.15)", color: "#34D399" },
@@ -123,7 +126,7 @@ export default function PlatformDashboard() {
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
             <thead>
               <tr style={{ background: "#0E1017", borderBottom: "1px solid #1E2230" }}>
-                {["Brand", "Open", "Plan", "Users", "Status", "Actions"].map((h) => (
+                {["Brand", "Open", "Users", "Status", "Actions"].map((h) => (
                   <th key={h} style={{ padding: "12px 18px", textAlign: h === "Users" ? "center" : "left", fontSize: "11px", fontWeight: 700, color: "#6B7280", textTransform: "uppercase", letterSpacing: ".06em" }}>
                     {h}
                   </th>
@@ -150,9 +153,6 @@ export default function PlatformDashboard() {
                         Store
                       </a>
                     </div>
-                  </td>
-                  <td style={{ padding: "14px 18px" }}>
-                    <span style={{ textTransform: "capitalize", color: "#C7CBD4" }}>{t.plan}</span>
                   </td>
                   <td style={{ padding: "14px 18px", textAlign: "center", color: "#C7CBD4" }}>{t.user_count}</td>
                   <td style={{ padding: "14px 18px" }}>
@@ -214,9 +214,10 @@ export default function PlatformDashboard() {
   );
 }
 
-// ── Manage Tenant Modal (plan, features, lifecycle) ───────────────────────────
+// ── Manage Tenant Modal (features, lifecycle) ─────────────────────────────────
+// Subscription tiers are deliberately absent: the product is sold as one flat
+// service, so exposing plan pickers here would imply a tier that does not exist.
 function ManageTenantModal({ tenant, onClose, onChanged }: { tenant: Tenant; onClose: () => void; onChanged: () => void }) {
-  const [plan, setPlan] = useState(tenant.plan);
   const [features, setFeatures] = useState<{ feature: string; is_enabled: boolean }[]>([]);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
@@ -225,13 +226,6 @@ function ManageTenantModal({ tenant, onClose, onChanged }: { tenant: Tenant; onC
   useEffect(() => {
     platformService.getFeatures(tenant.slug).then(setFeatures).catch(() => {});
   }, [tenant.slug]);
-
-  async function savePlan(newPlan: string) {
-    setPlan(newPlan); setBusy(true); setMsg(null);
-    try { await platformService.updateTenant(tenant.slug, { plan: newPlan }); setMsg("Plan updated"); onChanged(); }
-    catch { setMsg("Failed to update plan"); }
-    finally { setBusy(false); }
-  }
 
   async function toggleFeature(feature: string, enabled: boolean) {
     setFeatures((prev) => prev.map((f) => (f.feature === feature ? { ...f, is_enabled: enabled } : f)));
@@ -262,19 +256,6 @@ function ManageTenantModal({ tenant, onClose, onChanged }: { tenant: Tenant; onC
         </div>
         <div style={{ fontSize: "12px", color: "#6B7280", marginBottom: "20px", fontFamily: "monospace" }}>{tenant.slug}</div>
         {msg && <div style={{ background: "rgba(52,211,153,.1)", color: "#34D399", padding: "8px 12px", borderRadius: "8px", fontSize: "12px", marginBottom: "14px" }}>{msg}</div>}
-
-        {/* Plan */}
-        <div style={{ marginBottom: "22px" }}>
-          <div style={{ fontSize: "12px", fontWeight: 700, color: "#A78BFA", textTransform: "uppercase", letterSpacing: ".05em", marginBottom: "10px" }}>Subscription Plan</div>
-          <div style={{ display: "flex", gap: "8px" }}>
-            {PLANS.map((p) => (
-              <button key={p} onClick={() => savePlan(p)} disabled={busy}
-                style={{ flex: 1, textTransform: "capitalize", background: plan === p ? "linear-gradient(135deg,#6366F1,#8B5CF6)" : "#0B0D12", color: plan === p ? "#fff" : "#A5AAB8", border: "1px solid #262B39", padding: "10px", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: "pointer" }}>
-                {p}
-              </button>
-            ))}
-          </div>
-        </div>
 
         {/* Feature flags */}
         <div style={{ marginBottom: "22px" }}>
@@ -324,7 +305,7 @@ function CreateBrandModal({
     name: "",
     slug: "",
     email: "",
-    plan: "starter",
+    plan: DEFAULT_PLAN,
     admin_email: "",
     admin_password: "",
     admin_first_name: "",
@@ -424,12 +405,6 @@ function CreateBrandModal({
                   <div style={{ fontSize: "11px", color: "#6B7280", marginTop: "4px" }}>
                     {form.slug ? tenantUrl(slugify(form.slug)) : "brand's store URL"}
                   </div>
-                </div>
-                <div>
-                  <label style={labelStyle}>Plan</label>
-                  <select style={inputStyle} value={form.plan} onChange={(e) => set("plan", e.target.value)}>
-                    {PLANS.map((p) => <option key={p} value={p} style={{ textTransform: "capitalize" }}>{p}</option>)}
-                  </select>
                 </div>
               </div>
               <div style={{ marginBottom: "24px" }}>
