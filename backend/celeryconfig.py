@@ -5,6 +5,32 @@ import os
 broker_url = os.environ.get("CELERY_BROKER_URL", "redis://localhost:6379/1")
 result_backend = os.environ.get("CELERY_RESULT_BACKEND", "redis://localhost:6379/2")
 
+# ── Broker polling ────────────────────────────────────────────────────────────
+# Celery polls the broker continuously even with nothing queued. At the default
+# 1s interval across seven queues that is on the order of half a million Redis
+# commands a day — enough to exhaust a request-metered Redis (Upstash free tier)
+# in about a day, which crashes the worker with "max requests limit exceeded".
+#
+# A longer interval trades task pickup latency for request volume. These jobs are
+# emails, syncs and report generation, so a few seconds of delay is immaterial.
+_polling_interval = float(os.environ.get("CELERY_POLLING_INTERVAL", "15"))
+broker_transport_options = {
+    "polling_interval": _polling_interval,
+    # Redelivery window for a task whose worker died before acking. Must exceed
+    # the longest task runtime, or that task gets delivered twice.
+    "visibility_timeout": int(os.environ.get("CELERY_VISIBILITY_TIMEOUT", "3600")),
+}
+result_backend_transport_options = {"polling_interval": _polling_interval}
+
+# Beat re-checks its schedule on this interval; the default wakes far more often
+# than a cron-granularity schedule needs.
+beat_max_loop_interval = int(os.environ.get("CELERY_BEAT_LOOP_INTERVAL", "60"))
+
+# Don't let idle workers hold a heartbeat/mingle chat with the broker — both are
+# pure request overhead for a single-worker deployment.
+broker_heartbeat = None
+worker_enable_remote_control = False
+
 # ── Serialization ─────────────────────────────────────────────────────────────
 task_serializer = "json"
 result_serializer = "json"
