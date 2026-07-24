@@ -223,6 +223,11 @@ class AuthMiddleware(BaseHTTPMiddleware):
         # Blog posts — public listing and detail
         if path.startswith("/api/v1/blog-posts"):
             return True
+        # Gang sheet catalogue — public so the builder can render sizes and pricing
+        # to a visitor. Submitting a job and uploading artwork stay authenticated:
+        # they write data and accept large files, so they need an accountable user.
+        if path == "/api/v1/gang-sheets/sizes":
+            return True
         # Invoice summary — public for pay-now email link access
         if path.endswith('/invoice-summary'):
             return True

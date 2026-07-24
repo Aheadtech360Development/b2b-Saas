@@ -179,6 +179,15 @@ export default function GangSheetBuilderPage() {
         Upload your designs, tell us the printed size of each, and we&apos;ll arrange them on the sheet.
       </p>
 
+      {/* Sizes and pricing are visible to everyone, but a job is submitted against
+          an account — say so up front rather than failing at the submit button. */}
+      {sizes.length > 0 && !isAuthenticated() && (
+        <div style={{ background: "#FFF7ED", border: "1px solid #FDBA74", color: "#9A3412", padding: "12px 15px", borderRadius: "8px", fontSize: "13px", marginBottom: "18px" }}>
+          Browse the sizes and pricing below — you&apos;ll need to{" "}
+          <a href="/login" style={{ color: "#9A3412", fontWeight: 700 }}>sign in</a> to upload artwork and submit your gang sheet.
+        </div>
+      )}
+
       {sizes.length === 0 ? (
         <div style={{ ...CARD, color: "#666", fontSize: "14px" }}>
           Gang sheets aren&apos;t available from this store yet. Please check back soon.
