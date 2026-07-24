@@ -822,6 +822,7 @@ from app.api.v1 import tenant_auth  # noqa: E402
 from app.api.v1 import storefront  # noqa: E402
 from app.api.v1.platform import tenants as platform_tenants  # noqa: E402
 from app.api.v1 import auth, products, cart, checkout, orders, account, webhooks, reviews, discounts, guest, contact, style_sheets, product_specs, upload, tax_rate, tax, pages_seo, blog_posts, shipping as public_shipping  # noqa: E402
+from app.api.v1 import gang_sheets  # noqa: E402
 from app.api.v1.admin import (  # noqa: E402
     customers,
     pricing as admin_pricing,
@@ -931,6 +932,8 @@ app.include_router(pages_seo.router, prefix=_V1)
 app.include_router(blog_posts.router, prefix=_V1)
 app.include_router(admin_pages_seo.router, prefix=_V1)
 app.include_router(admin_blog_posts.router, prefix=_V1)
+app.include_router(gang_sheets.public_router, prefix=_V1)
+app.include_router(gang_sheets.admin_router, prefix=_V1)
 app.include_router(admin_purchase_orders.router, prefix=f"{_V1}/admin/purchase-orders", tags=["purchase-orders"])
 app.include_router(admin_supplier_catalog.router, prefix=_V1)
 
