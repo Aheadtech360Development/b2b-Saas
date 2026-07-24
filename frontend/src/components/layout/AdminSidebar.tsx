@@ -195,6 +195,7 @@ export function AdminSidebar() {
       )}
 
       <NavLink href="/admin/supplier-catalog" label="Supplier Catalog" icon={<PackageIcon size={15} color="currentColor" />} />
+      <NavLink href="/admin/gang-sheets" label="Gang Sheets" icon={<span style={{ fontSize: "14px" }}>🧩</span>} />
       </>}
 
       {/* ── CUSTOMERS ── */}
