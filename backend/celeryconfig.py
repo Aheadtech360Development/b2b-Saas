@@ -26,10 +26,14 @@ result_backend_transport_options = {"polling_interval": _polling_interval}
 # than a cron-granularity schedule needs.
 beat_max_loop_interval = int(os.environ.get("CELERY_BEAT_LOOP_INTERVAL", "60"))
 
-# Don't let idle workers hold a heartbeat/mingle chat with the broker — both are
-# pure request overhead for a single-worker deployment.
+# Idle heartbeat is pure request overhead for a single-worker deployment.
 broker_heartbeat = None
-worker_enable_remote_control = False
+
+# Remote control stays ON: `celery inspect active_queues` is how we verify a
+# deployed worker is actually consuming every routed queue — the check that
+# caught a silent queue mismatch before. Its overhead is negligible next to
+# polling, which is where the request volume actually came from.
+worker_enable_remote_control = True
 
 # ── Serialization ─────────────────────────────────────────────────────────────
 task_serializer = "json"
