@@ -9,6 +9,7 @@ import {
   type CreateTenantPayload,
   type CreateTenantResponse,
 } from "@/services/platform.service";
+import { AnalyticsTab, ActivityTab, SearchTab, HealthTab } from "@/components/platform/InsightTabs";
 import type { Tenant } from "@/types/user.types";
 
 // The service is sold as a single flat offering — there are no tiers to choose
@@ -33,6 +34,7 @@ export default function PlatformDashboard() {
   const [showCreate, setShowCreate] = useState(false);
   const [createdInfo, setCreatedInfo] = useState<CreateTenantResponse | null>(null);
   const [manageTenant, setManageTenant] = useState<Tenant | null>(null);
+  const [tab, setTab] = useState<"brands" | "analytics" | "activity" | "search" | "health">("brands");
 
   async function loadTenants() {
     setLoading(true);
@@ -92,6 +94,37 @@ export default function PlatformDashboard() {
         </button>
       </div>
 
+      {/* Tabs */}
+      <div style={{ display: "flex", gap: "4px", borderBottom: "1px solid #1E2230", marginBottom: "24px" }}>
+        {([
+          ["brands", "Brands"],
+          ["analytics", "Analytics"],
+          ["activity", "Activity"],
+          ["search", "Search"],
+          ["health", "Brand Health"],
+        ] as const).map(([key, label]) => (
+          <button
+            key={key}
+            onClick={() => setTab(key)}
+            style={{
+              background: "transparent", border: "none", cursor: "pointer",
+              padding: "10px 16px", fontSize: "13px", fontWeight: 700,
+              color: tab === key ? "#fff" : "#6B7280",
+              borderBottom: "2px solid " + (tab === key ? "#8B5CF6" : "transparent"),
+              marginBottom: "-1px",
+            }}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {tab === "analytics" && <AnalyticsTab />}
+      {tab === "activity" && <ActivityTab tenants={tenants} />}
+      {tab === "search" && <SearchTab />}
+      {tab === "health" && <HealthTab onEnter={(slug) => enterBrandDashboard(slug).catch(() => alert("Could not open dashboard"))} />}
+
+      {tab === "brands" && <>
       {/* Stat cards */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: "14px", marginBottom: "28px" }}>
         {[
@@ -184,6 +217,7 @@ export default function PlatformDashboard() {
           </table>
         )}
       </div>
+      </>}
 
       {/* Create modal */}
       {showCreate && (

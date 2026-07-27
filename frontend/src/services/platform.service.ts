@@ -84,7 +84,64 @@ export const platformService = {
   async impersonate(slug: string): Promise<{ access_token: string; slug: string; admin_email: string }> {
     return apiClient.post(`/api/v1/platform/tenants/${slug}/impersonate`);
   },
+
+  // ── Cross-tenant insights (super admin) ─────────────────────────────────────
+  async analytics(): Promise<PlatformAnalytics> {
+    return apiClient.get<PlatformAnalytics>("/api/v1/platform/analytics");
+  },
+
+  async activity(params?: { tenant_id?: string; action?: string }): Promise<{ items: ActivityEntry[] }> {
+    const qs = new URLSearchParams();
+    if (params?.tenant_id) qs.set("tenant_id", params.tenant_id);
+    if (params?.action) qs.set("action", params.action);
+    const q = qs.toString();
+    return apiClient.get<{ items: ActivityEntry[] }>(`/api/v1/platform/activity${q ? `?${q}` : ""}`);
+  },
+
+  async search(q: string): Promise<GlobalSearchResult> {
+    return apiClient.get<GlobalSearchResult>(`/api/v1/platform/search?q=${encodeURIComponent(q)}`);
+  },
+
+  async brandsHealth(): Promise<BrandHealth[]> {
+    return apiClient.get<BrandHealth[]>("/api/v1/platform/brands/health");
+  },
 };
+
+export interface PlatformAnalytics {
+  totals: {
+    brands: number; active_brands: number; products: number;
+    users: number; companies: number; orders: number; revenue: number;
+  };
+  brands: {
+    id: string; slug: string; name: string; status: string;
+    products: number; users: number; companies: number; orders: number; revenue: number;
+  }[];
+}
+
+export interface ActivityEntry {
+  id: string;
+  action: string;
+  entity_type: string;
+  entity_id: string | null;
+  ip_address: string | null;
+  created_at: string | null;
+  brand_name: string | null;
+  brand_slug: string | null;
+  actor_email: string | null;
+}
+
+export interface GlobalSearchResult {
+  orders: { id: string; order_number: string; status: string; total: number; brand_name: string | null; brand_slug: string | null }[];
+  customers: { id: string; name: string; brand_name: string | null; brand_slug: string | null }[];
+  products: { id: string; name: string; slug: string; status: string; brand_name: string | null; brand_slug: string | null }[];
+}
+
+export interface BrandHealth {
+  id: string; slug: string; name: string; status: string;
+  products: number; orders: number; users: number;
+  created_at: string | null; last_activity: string | null;
+  state: "empty" | "no_sales" | "selling";
+}
 
 /** Open a brand's admin dashboard as the super admin (impersonation). */
 export async function enterBrandDashboard(slug: string): Promise<void> {
