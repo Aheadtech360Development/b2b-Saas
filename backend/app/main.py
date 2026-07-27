@@ -821,6 +821,7 @@ async def health_check() -> dict:
 from app.api.v1 import tenant_auth  # noqa: E402
 from app.api.v1 import storefront  # noqa: E402
 from app.api.v1.platform import tenants as platform_tenants  # noqa: E402
+from app.api.v1.platform import insights as platform_insights  # noqa: E402
 from app.api.v1 import auth, products, cart, checkout, orders, account, webhooks, reviews, discounts, guest, contact, style_sheets, product_specs, upload, tax_rate, tax, pages_seo, blog_posts, shipping as public_shipping  # noqa: E402
 from app.api.v1 import gang_sheets  # noqa: E402
 from app.api.v1.admin import (  # noqa: E402
@@ -884,6 +885,7 @@ _V1 = "/api/v1"
 # ── Multi-tenant routes (new) ─────────────────────────────────────────────────
 app.include_router(tenant_auth.router, prefix=_V1)
 app.include_router(platform_tenants.router, prefix=_V1)
+app.include_router(platform_insights.router, prefix=_V1)
 app.include_router(storefront.public_router, prefix=_V1)
 app.include_router(storefront.admin_router, prefix=_V1)
 app.include_router(storefront.admin_pages_router, prefix=_V1)

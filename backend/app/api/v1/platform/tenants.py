@@ -271,6 +271,29 @@ async def impersonate_tenant(
         "impersonated": True,
     }
     token = create_access_token(subject=str(admin["id"]), extra_claims=claims)
+
+    # Record who entered which brand. Impersonation grants a super admin full
+    # access to a brand's data, so it must leave an accountable trail — the audit
+    # middleware can't capture it because the request carries no brand context yet.
+    try:
+        from app.middleware.audit_middleware import write_audit_log
+
+        await write_audit_log(
+            db,
+            admin_user_id=getattr(request.state, "user_id", None),
+            action="CREATE",
+            entity_type="impersonation_session",
+            entity_id=slug,
+            old_values=None,
+            new_values={"brand": row[1], "entered_as": admin["email"]},
+            ip_address=getattr(getattr(request, "client", None), "host", None),
+            user_agent=request.headers.get("user-agent"),
+        )
+        await db.commit()
+    except Exception:
+        # Never let audit bookkeeping block the admin from entering the brand.
+        pass
+
     return {"access_token": token, "slug": slug, "admin_email": admin["email"]}
 
 
