@@ -31,6 +31,15 @@ export type GangSheetStatus =
   | "rejected"
   | "completed";
 
+export interface GangSheetPlacement {
+  artwork_id: string;
+  x_in: number;
+  y_in: number;
+  rotation: number;
+  w_in: number;
+  h_in: number;
+}
+
 export interface GangSheetOrder {
   id: string;
   reference: string;
@@ -50,6 +59,7 @@ export interface GangSheetOrder {
   sheet_size_id: string | null;
   created_at: string | null;
   updated_at: string | null;
+  layout?: GangSheetPlacement[];
   artworks?: GangSheetArtwork[];
 }
 
@@ -76,6 +86,12 @@ export const gangSheetsService = {
 
   reorder: (id: string) =>
     apiClient.post<GangSheetOrder>(`/api/v1/gang-sheets/orders/${id}/reorder`),
+
+  saveLayout: (id: string, layout: GangSheetPlacement[]) =>
+    apiClient.patch<GangSheetOrder>(`/api/v1/gang-sheets/orders/${id}/layout`, { layout }),
+
+  adminSaveLayout: (id: string, layout: GangSheetPlacement[]) =>
+    apiClient.patch<GangSheetOrder>(`/api/v1/admin/gang-sheets/orders/${id}/layout`, { layout }),
 
   /** Upload one artwork file. Print formats are stored verbatim, not re-encoded. */
   uploadArtwork: async (file: File) => {

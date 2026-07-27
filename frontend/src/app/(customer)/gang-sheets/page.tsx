@@ -8,7 +8,9 @@ import {
   type GangSheetArtwork,
   type GangSheetOrder,
   type GangSheetSize,
+  type GangSheetPlacement,
 } from "@/services/gangSheets.service";
+import { GangSheetCanvas } from "@/components/storefront/GangSheetCanvas";
 import { useAuthStore } from "@/stores/auth.store";
 
 const CARD: React.CSSProperties = {
@@ -151,17 +153,31 @@ export default function GangSheetBuilderPage() {
   }
 
   if (placed) {
+    const placedSize = sizes.find((s) => s.id === placed.sheet_size_id);
     return (
-      <div style={{ maxWidth: "640px", margin: "0 auto", padding: "48px 20px" }}>
-        <div style={{ ...CARD, textAlign: "center" }}>
+      <div style={{ maxWidth: "760px", margin: "0 auto", padding: "40px 20px 60px" }}>
+        <div style={{ ...CARD, textAlign: "center", marginBottom: "20px" }}>
           <div style={{ fontSize: "34px", marginBottom: "10px" }}>✅</div>
           <h1 style={{ fontSize: "22px", fontWeight: 800, marginBottom: "6px" }}>Gang sheet submitted</h1>
-          <p style={{ color: "#666", fontSize: "14px", marginBottom: "16px" }}>
+          <p style={{ color: "#666", fontSize: "14px", marginBottom: "10px" }}>
             Reference <strong>{placed.reference}</strong> — our team will review your layout and get back to you.
           </p>
-          <div style={{ fontSize: "14px", color: "#333", marginBottom: "20px" }}>
+          <div style={{ fontSize: "14px", color: "#333" }}>
             {placed.sheet_name} · {placed.sheet_quantity} sheet(s) · <strong>${placed.subtotal.toFixed(2)}</strong>
           </div>
+        </div>
+
+        {placedSize && placed.artworks && placed.artworks.length > 0 && (
+          <div style={{ ...CARD, marginBottom: "20px" }}>
+            <div style={{ fontSize: "15px", fontWeight: 700, marginBottom: "4px" }}>Arrange your sheet (optional)</div>
+            <p style={{ fontSize: "13px", color: "#777", marginBottom: "16px" }}>
+              Drag your designs where you want them, or hit Auto-arrange. Save it and our team prints it exactly like this — leave it and we&apos;ll lay it out for you.
+            </p>
+            <ArrangeStep order={placed} size={placedSize} />
+          </div>
+        )}
+
+        <div style={{ textAlign: "center" }}>
           <button onClick={() => setPlaced(null)} style={{ background: "var(--brand-primary, #1C3557)", color: "#fff", border: "none", padding: "11px 22px", borderRadius: "var(--brand-button-radius, 6px)", fontWeight: 600, cursor: "pointer" }}>
             Build another
           </button>
@@ -345,6 +361,48 @@ export default function GangSheetBuilderPage() {
           )}
         </>
       )}
+    </div>
+  );
+}
+
+// Post-submit optional layout editor. Kept as its own component so its drag
+// state never re-renders the whole builder.
+function ArrangeStep({ order, size }: { order: GangSheetOrder; size: GangSheetSize }) {
+  const [layout, setLayout] = useState<GangSheetPlacement[]>(order.layout ?? []);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  async function save() {
+    setSaving(true);
+    setSaved(false);
+    try {
+      await gangSheetsService.saveLayout(order.id, layout);
+      setSaved(true);
+    } catch {
+      /* non-fatal — arranging is optional */
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div>
+      <GangSheetCanvas
+        sheet={{ width_in: order.sheet_width_in, height_in: order.sheet_height_in, bleed_in: size.bleed_in, spacing_in: size.spacing_in }}
+        artworks={order.artworks ?? []}
+        value={layout}
+        onChange={(l) => { setLayout(l); setSaved(false); }}
+      />
+      <div style={{ display: "flex", alignItems: "center", gap: "12px", marginTop: "14px" }}>
+        <button
+          onClick={save}
+          disabled={saving || layout.length === 0}
+          style={{ background: saving || layout.length === 0 ? "#9ca3af" : "var(--brand-primary, #1C3557)", color: "#fff", border: "none", padding: "10px 20px", borderRadius: "var(--brand-button-radius, 6px)", fontSize: "14px", fontWeight: 700, cursor: saving || layout.length === 0 ? "not-allowed" : "pointer" }}
+        >
+          {saving ? "Saving…" : "Save my layout"}
+        </button>
+        {saved && <span style={{ color: "#166534", fontSize: "13px", fontWeight: 600 }}>✓ Layout saved</span>}
+      </div>
     </div>
   );
 }

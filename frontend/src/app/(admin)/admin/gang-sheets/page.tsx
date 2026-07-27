@@ -8,7 +8,9 @@ import {
   type GangSheetOrder,
   type GangSheetSize,
   type GangSheetStatus,
+  type GangSheetPlacement,
 } from "@/services/gangSheets.service";
+import { GangSheetCanvas } from "@/components/storefront/GangSheetCanvas";
 
 const CARD: React.CSSProperties = {
   background: "#fff",
@@ -188,6 +190,30 @@ function ReviewModal({ order, onClose, onChanged }: { order: GangSheetOrder; onC
   const [notes, setNotes] = useState(order.supplier_notes ?? "");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [size, setSize] = useState<GangSheetSize | null>(null);
+  const [layout, setLayout] = useState<GangSheetPlacement[]>(order.layout ?? []);
+  const [layoutMsg, setLayoutMsg] = useState<string | null>(null);
+  const [savingLayout, setSavingLayout] = useState(false);
+
+  // Bleed/spacing live on the size, not the order snapshot; fetch them so the
+  // canvas draws the same margins the buyer saw.
+  useEffect(() => {
+    gangSheetsService.adminListSizes()
+      .then((sizes) => setSize(sizes.find((s) => s.id === order.sheet_size_id) ?? null))
+      .catch(() => setSize(null));
+  }, [order.sheet_size_id]);
+
+  async function saveLayout() {
+    setSavingLayout(true); setLayoutMsg(null);
+    try {
+      await gangSheetsService.adminSaveLayout(order.id, layout);
+      setLayoutMsg("Layout saved");
+    } catch {
+      setLayoutMsg("Could not save layout");
+    } finally {
+      setSavingLayout(false);
+    }
+  }
 
   async function setStatus(status: GangSheetStatus) {
     setBusy(true); setErr(null);
@@ -245,6 +271,25 @@ function ReviewModal({ order, onClose, onChanged }: { order: GangSheetOrder; onC
             </div>
           ))}
         </div>
+
+        {/* Sheet layout — supplier arranges for production */}
+        {size && (order.artworks?.length ?? 0) > 0 && (
+          <div style={{ marginBottom: "18px" }}>
+            <div style={{ ...LABEL, marginBottom: "8px" }}>Sheet layout</div>
+            <GangSheetCanvas
+              sheet={{ width_in: order.sheet_width_in, height_in: order.sheet_height_in, bleed_in: size.bleed_in, spacing_in: size.spacing_in }}
+              artworks={order.artworks ?? []}
+              value={layout}
+              onChange={(l) => { setLayout(l); setLayoutMsg(null); }}
+            />
+            <div style={{ display: "flex", alignItems: "center", gap: "10px", marginTop: "12px" }}>
+              <button onClick={saveLayout} disabled={savingLayout} style={{ ...BTN, background: "#1B3A5C" }}>
+                {savingLayout ? "Saving…" : "Save layout"}
+              </button>
+              {layoutMsg && <span style={{ fontSize: "13px", color: layoutMsg.startsWith("Could") ? "#B91C1C" : "#166534", fontWeight: 600 }}>{layoutMsg}</span>}
+            </div>
+          </div>
+        )}
 
         <div style={{ marginBottom: "16px" }}>
           <label style={LABEL}>Notes to customer</label>
