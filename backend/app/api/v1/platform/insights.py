@@ -165,7 +165,7 @@ async def platform_search(
         SELECT c.id, c.name, c.tenant_id,
                t.name AS brand_name, t.slug AS brand_slug
         FROM companies c LEFT JOIN tenants t ON t.id = c.tenant_id
-        WHERE c.name ILIKE :like OR c.email ILIKE :like
+        WHERE c.name ILIKE :like OR c.company_email ILIKE :like OR c.trading_name ILIKE :like
         ORDER BY c.created_at DESC LIMIT 15
     """), {"like": like})).mappings().all()
 
