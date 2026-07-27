@@ -78,6 +78,7 @@ export interface ProductDetail {
   highlight_text?: string | null;
   review_count?: number;
   avg_rating?: number;
+  gang_sheet_enabled?: boolean;
 }
 
 /** Product asset (flyer, spec sheet). */

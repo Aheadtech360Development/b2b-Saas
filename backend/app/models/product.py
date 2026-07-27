@@ -40,6 +40,10 @@ class Product(TenantMixin, BaseModel):
     short_description: Mapped[str | None] = mapped_column(String(500))
     highlight_text: Mapped[str | None] = mapped_column(Text, nullable=True)
 
+    # When true, this product's page shows the gang sheet builder (column added in
+    # migration 0011; mapped here so the API can read and set it).
+    gang_sheet_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
     # Business rules
     moq: Mapped[int] = mapped_column(Integer, default=1, nullable=False, comment="Minimum order quantity")
 

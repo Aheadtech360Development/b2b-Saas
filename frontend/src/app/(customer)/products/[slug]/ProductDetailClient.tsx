@@ -489,6 +489,17 @@ export function ProductDetailClient({ slug }: ProductDetailClientProps) {
   const pricePerUnit = Number(primaryVariant?.effective_price ?? primaryVariant?.retail_price ?? 0);
   const anyInStock = (product.variants ?? []).some(v => !isOutOfStock(v.stock_quantity));
 
+  // Link to the builder for this product, preserving the ?tenant= fallback used
+  // on hosts without wildcard subdomains so the brand survives the navigation.
+  const gangSheetHref = (() => {
+    const params = new URLSearchParams({ product: product.id });
+    if (typeof window !== "undefined") {
+      const t = new URLSearchParams(window.location.search).get("tenant");
+      if (t) params.set("tenant", t);
+    }
+    return `/gang-sheets?${params.toString()}`;
+  })();
+
   // Color-filtered images for gallery: when a swatch is selected, show only that color's images
   const displayImages = selectedColor
     ? (() => {
@@ -969,6 +980,16 @@ export function ProductDetailClient({ slug }: ProductDetailClientProps) {
                   No minimum order quantity
                 </p>
               </>
+            )}
+
+            {/* Gang sheet builder — only when enabled for this product */}
+            {product.gang_sheet_enabled && (
+              <Link
+                href={gangSheetHref}
+                style={{ display: "block", width: "100%", boxSizing: "border-box", textAlign: "center", padding: "14px", marginTop: "12px", background: "#fff", color: "var(--brand-primary, #1C3557)", border: "1.5px solid var(--brand-primary, #1C3557)", textDecoration: "none", fontFamily: "'DM Sans', sans-serif", fontSize: "15px", fontWeight: 600 }}
+              >
+                🧩 Build a gang sheet
+              </Link>
             )}
           </div>
         </div>

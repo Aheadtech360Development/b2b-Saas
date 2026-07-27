@@ -53,6 +53,12 @@ export default function GangSheetBuilderPage() {
   const [placed, setPlaced] = useState<GangSheetOrder | null>(null);
   const [orders, setOrders] = useState<GangSheetOrder[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
+  // The product this build belongs to, when arrived here from a product page.
+  const [productId, setProductId] = useState<string | null>(null);
+
+  useEffect(() => {
+    setProductId(new URLSearchParams(window.location.search).get("product"));
+  }, []);
 
   useEffect(() => {
     gangSheetsService
@@ -137,6 +143,7 @@ export default function GangSheetBuilderPage() {
         sheet_size_id: size.id,
         sheet_quantity: qty,
         artworks,
+        product_id: productId || undefined,
         contact_name: name || undefined,
         contact_email: email || undefined,
         customer_notes: notes || undefined,

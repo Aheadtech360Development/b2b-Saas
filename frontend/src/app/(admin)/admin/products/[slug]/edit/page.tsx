@@ -414,6 +414,7 @@ export default function AdminProductEditPage() {
         print_guide: (product as any).print_guide ?? null,
         size_chart_data: (product as any).size_chart_data ?? null,
         highlight_text: (product as any).highlight_text ?? null,
+        gang_sheet_enabled: (product as any).gang_sheet_enabled ?? false,
       });
       await Promise.all([...variantSaves, productSave]);
       setVariantEdits({});
@@ -538,7 +539,7 @@ export default function AdminProductEditPage() {
                 style={{ ...inputStyle, resize: "vertical", lineHeight: 1.6 }}
               />
             </div>
-            <div>
+            <div style={{ marginBottom: "18px" }}>
               <label style={labelStyle}>Description</label>
               <RichTextEditor
                 value={product.description ?? ""}
@@ -546,6 +547,21 @@ export default function AdminProductEditPage() {
                 placeholder="Describe this product — fabric details, print compatibility, sizing notes…"
               />
             </div>
+            {/* Gang sheet builder — per product, like Shopify */}
+            <label style={{ display: "flex", alignItems: "flex-start", gap: "10px", cursor: "pointer", padding: "12px 14px", border: "1px solid #E4E1DB", borderRadius: "8px", background: (product as any).gang_sheet_enabled ? "#F3F7FF" : "#FAFAF8" }}>
+              <input
+                type="checkbox"
+                checked={!!(product as any).gang_sheet_enabled}
+                onChange={e => setProduct(p => p ? { ...p, gang_sheet_enabled: e.target.checked } as any : p)}
+                style={{ width: "16px", height: "16px", marginTop: "2px" }}
+              />
+              <span>
+                <span style={{ fontWeight: 600, fontSize: "14px" }}>Enable gang sheet builder</span>
+                <span style={{ display: "block", fontSize: "12px", color: "#7A7880", marginTop: "2px" }}>
+                  Shows a “Build a gang sheet” button on this product’s page so customers upload artwork and arrange their own sheet.
+                </span>
+              </span>
+            </label>
           </div>
 
           {/* Media */}

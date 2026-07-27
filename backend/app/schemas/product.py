@@ -142,6 +142,7 @@ class ProductDetail(BaseModel):
     highlight_text: str | None = None
     review_count: int = 0
     avg_rating: float = 0.0
+    gang_sheet_enabled: bool = False
 
     model_config = {"from_attributes": True}
 
@@ -186,6 +187,7 @@ class ProductCreate(BaseModel):
     weight: str | None = None
     gender: str | None = None
     category_ids: list[UUID] = []
+    gang_sheet_enabled: bool = False
 
 
 class ProductUpdate(BaseModel):
@@ -207,6 +209,7 @@ class ProductUpdate(BaseModel):
     print_guide: dict | None = None
     size_chart_data: list | None = None
     highlight_text: str | None = None
+    gang_sheet_enabled: bool | None = None
 
 
 class ImageUploadResponse(BaseModel):
