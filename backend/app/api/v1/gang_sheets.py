@@ -16,6 +16,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
 from sqlalchemy import Boolean, ForeignKey, Integer, Numeric, String, Text, func, select
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -81,6 +82,8 @@ class GangSheetOrder(TenantMixin, DBBaseModel):
     customer_notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     supplier_notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     revision_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    # Phase 2: placements on the sheet — [{artwork_id, x_in, y_in, rotation, w_in, h_in}]
+    layout: Mapped[list] = mapped_column(JSONB, default=list, nullable=False)
 
 
 class GangSheetArtwork(TenantMixin, DBBaseModel):
@@ -145,6 +148,19 @@ class StatusIn(BaseModel):
     supplier_notes: Optional[str] = None
 
 
+class Placement(BaseModel):
+    artwork_id: uuid.UUID
+    x_in: float = Field(ge=0)
+    y_in: float = Field(ge=0)
+    rotation: int = 0          # 0 or 90 — Phase 2 keeps rotation orthogonal
+    w_in: float = Field(gt=0)
+    h_in: float = Field(gt=0)
+
+
+class LayoutIn(BaseModel):
+    layout: list[Placement]
+
+
 # ── Serialisers ───────────────────────────────────────────────────────────────
 def _size_row(s: GangSheetSize) -> dict:
     return {
@@ -193,6 +209,7 @@ def _order_row(o: GangSheetOrder, artworks: list[GangSheetArtwork] | None = None
         "sheet_size_id": str(o.sheet_size_id) if o.sheet_size_id else None,
         "created_at": o.created_at.isoformat() if o.created_at else None,
         "updated_at": o.updated_at.isoformat() if o.updated_at else None,
+        "layout": o.layout or [],
     }
     if artworks is not None:
         data["artworks"] = [_art_row(a) for a in artworks]
@@ -212,6 +229,43 @@ async def _load_artworks(db: AsyncSession, order_id: uuid.UUID) -> list[GangShee
         .order_by(GangSheetArtwork.sort_order)
     )
     return list(rows.scalars().all())
+
+
+def _validate_layout(
+    order: GangSheetOrder, artworks: list[GangSheetArtwork], placements: list[Placement]
+) -> list[dict]:
+    """Validate a proposed arrangement and return it as JSON-safe dicts.
+
+    Every placement must reference an artwork on this order and sit fully inside
+    the sheet's printable area (bleed removed on every side). Validating on the
+    server means a hand-crafted request can't save a piece off the sheet or one
+    belonging to someone else's order.
+    """
+    valid_ids = {str(a.id) for a in artworks}
+    # Hard bound is the full sheet; the bleed margin is a visual guide the canvas
+    # enforces. A tiny epsilon absorbs float rounding from the client.
+    usable_w = float(order.sheet_width_in)
+    usable_h = float(order.sheet_height_in)
+
+    out: list[dict] = []
+    for p in placements:
+        if str(p.artwork_id) not in valid_ids:
+            raise HTTPException(status_code=400, detail="Layout references an unknown artwork")
+        w, h = (p.w_in, p.h_in) if p.rotation % 180 == 0 else (p.h_in, p.w_in)
+        if p.x_in < 0 or p.y_in < 0 or p.x_in + w > usable_w + 0.01 or p.y_in + h > usable_h + 0.01:
+            raise HTTPException(
+                status_code=400,
+                detail="A placement falls outside the sheet — move it back inside before saving.",
+            )
+        out.append({
+            "artwork_id": str(p.artwork_id),
+            "x_in": round(p.x_in, 3),
+            "y_in": round(p.y_in, 3),
+            "rotation": 90 if p.rotation % 180 else 0,
+            "w_in": round(p.w_in, 3),
+            "h_in": round(p.h_in, 3),
+        })
+    return out
 
 
 # ── Customer-facing router ────────────────────────────────────────────────────
@@ -336,6 +390,41 @@ async def my_order_detail(
         raise HTTPException(status_code=404, detail="Gang sheet order not found")
 
     return _order_row(order, await _load_artworks(db, order.id))
+
+
+@public_router.patch("/orders/{order_id}/layout")
+async def save_my_layout(
+    order_id: uuid.UUID,
+    payload: LayoutIn,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Buyer saves how they've arranged the artwork on the sheet.
+
+    Only allowed while the job is still theirs to change (submitted or sent back
+    for revision) — once the supplier has approved it, the layout is locked so a
+    late edit can't diverge from what's already going to production.
+    """
+    order = (
+        await db.execute(select(GangSheetOrder).where(GangSheetOrder.id == order_id))
+    ).scalar_one_or_none()
+    if not order:
+        raise HTTPException(status_code=404, detail="Gang sheet order not found")
+
+    user_id = getattr(request.state, "user_id", None)
+    company_id = getattr(request.state, "company_id", None)
+    owns = (company_id and str(order.company_id) == str(company_id)) or (
+        user_id and str(order.user_id) == str(user_id)
+    )
+    if not owns:
+        raise HTTPException(status_code=404, detail="Gang sheet order not found")
+    if order.status not in _BUYER_EDITABLE:
+        raise HTTPException(status_code=409, detail="This order can no longer be edited.")
+
+    artworks = await _load_artworks(db, order.id)
+    order.layout = _validate_layout(order, artworks, payload.layout)
+    await db.flush()
+    return _order_row(order, artworks)
 
 
 @public_router.post("/orders/{order_id}/reorder", status_code=status.HTTP_201_CREATED)
@@ -508,3 +597,23 @@ async def admin_set_status(
         order.supplier_notes = payload.supplier_notes
     await db.flush()
     return _order_row(order, await _load_artworks(db, order.id))
+
+
+@admin_router.patch("/orders/{order_id}/layout")
+async def admin_save_layout(
+    order_id: uuid.UUID,
+    payload: LayoutIn,
+    _: None = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Supplier arranges the sheet. Allowed at any status — the supplier is the
+    one who finalises the layout for production, including after approval."""
+    order = (
+        await db.execute(select(GangSheetOrder).where(GangSheetOrder.id == order_id))
+    ).scalar_one_or_none()
+    if not order:
+        raise HTTPException(status_code=404, detail="Gang sheet order not found")
+    artworks = await _load_artworks(db, order.id)
+    order.layout = _validate_layout(order, artworks, payload.layout)
+    await db.flush()
+    return _order_row(order, artworks)
