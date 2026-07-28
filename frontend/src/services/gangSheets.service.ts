@@ -27,9 +27,17 @@ export type GangSheetStatus =
   | "submitted"
   | "in_review"
   | "approved"
+  | "production"
   | "revision_requested"
   | "rejected"
   | "completed";
+
+export interface GangSheetVersion {
+  version: number;
+  created_at: string;
+  artworks: GangSheetArtwork[];
+  layout: GangSheetPlacement[];
+}
 
 export interface GangSheetPlacement {
   artwork_id: string;
@@ -61,6 +69,11 @@ export interface GangSheetOrder {
   updated_at: string | null;
   layout?: GangSheetPlacement[];
   artworks?: GangSheetArtwork[];
+  // Batch 3
+  version?: number;
+  status_timeline?: GangSheetStatus[];
+  internal_notes?: string | null; // admin responses only
+  versions?: GangSheetVersion[];  // admin responses only
 }
 
 export interface SubmitGangSheetPayload {
@@ -86,6 +99,9 @@ export const gangSheetsService = {
 
   reorder: (id: string) =>
     apiClient.post<GangSheetOrder>(`/api/v1/gang-sheets/orders/${id}/reorder`),
+
+  resubmit: (id: string) =>
+    apiClient.post<GangSheetOrder>(`/api/v1/gang-sheets/orders/${id}/resubmit`),
 
   saveLayout: (id: string, layout: GangSheetPlacement[]) =>
     apiClient.patch<GangSheetOrder>(`/api/v1/gang-sheets/orders/${id}/layout`, { layout }),
@@ -123,10 +139,11 @@ export const gangSheetsService = {
   adminOrder: (id: string) =>
     apiClient.get<GangSheetOrder>(`/api/v1/admin/gang-sheets/orders/${id}`),
 
-  adminSetStatus: (id: string, status: GangSheetStatus, supplier_notes?: string) =>
+  adminSetStatus: (id: string, status: GangSheetStatus, supplier_notes?: string, internal_notes?: string) =>
     apiClient.patch<GangSheetOrder>(`/api/v1/admin/gang-sheets/orders/${id}/status`, {
       status,
       supplier_notes,
+      internal_notes,
     }),
 };
 
@@ -134,6 +151,7 @@ export const GANG_SHEET_STATUS_LABEL: Record<GangSheetStatus, string> = {
   submitted: "Submitted",
   in_review: "In review",
   approved: "Approved",
+  production: "In production",
   revision_requested: "Revision requested",
   rejected: "Rejected",
   completed: "Completed",
@@ -143,6 +161,7 @@ export const GANG_SHEET_STATUS_COLOR: Record<GangSheetStatus, { bg: string; fg: 
   submitted: { bg: "#EEF2FF", fg: "#4338CA" },
   in_review: { bg: "#FEF3C7", fg: "#92400E" },
   approved: { bg: "#DCFCE7", fg: "#166534" },
+  production: { bg: "#E0E7FF", fg: "#3730A3" },
   revision_requested: { bg: "#FFEDD5", fg: "#9A3412" },
   rejected: { bg: "#FEE2E2", fg: "#991B1B" },
   completed: { bg: "#E0F2FE", fg: "#075985" },

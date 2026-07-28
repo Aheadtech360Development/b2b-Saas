@@ -11,6 +11,7 @@ import {
   type GangSheetPlacement,
 } from "@/services/gangSheets.service";
 import { GangSheetCanvas } from "@/components/storefront/GangSheetCanvas";
+import { GangSheetTimeline } from "@/components/storefront/GangSheetTimeline";
 import { analyzeArtwork, dpiFor, DPI_STYLE } from "@/lib/artworkAnalysis";
 import { useAuthStore } from "@/stores/auth.store";
 
@@ -404,27 +405,40 @@ export default function GangSheetBuilderPage() {
                 {orders.map((o, i) => {
                   const c = GANG_SHEET_STATUS_COLOR[o.status] ?? { bg: "#eee", fg: "#555" };
                   return (
-                    <div key={o.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px", flexWrap: "wrap", padding: "13px 16px", borderBottom: i < orders.length - 1 ? "1px solid #F1EFEB" : "none" }}>
-                      <div>
-                        <div style={{ fontWeight: 700, fontSize: "14px" }}>{o.reference}</div>
-                        <div style={{ fontSize: "12px", color: "#888" }}>
-                          {o.sheet_name} · {o.sheet_quantity} sheet(s) · ${o.subtotal.toFixed(2)}
+                    <div key={o.id} style={{ padding: "14px 16px", borderBottom: i < orders.length - 1 ? "1px solid #F1EFEB" : "none" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px", flexWrap: "wrap", marginBottom: "12px" }}>
+                        <div>
+                          <div style={{ fontWeight: 700, fontSize: "14px" }}>
+                            {o.reference}{(o.version ?? 1) > 1 ? <span style={{ color: "#888", fontWeight: 500 }}> · v{o.version}</span> : null}
+                          </div>
+                          <div style={{ fontSize: "12px", color: "#888" }}>
+                            {o.sheet_name} · {o.sheet_quantity} sheet(s) · ${o.subtotal.toFixed(2)}
+                          </div>
+                          {o.supplier_notes && (
+                            <div style={{ fontSize: "12px", color: "#9A3412", marginTop: "4px" }}>“{o.supplier_notes}”</div>
+                          )}
                         </div>
-                        {o.supplier_notes && (
-                          <div style={{ fontSize: "12px", color: "#9A3412", marginTop: "4px" }}>“{o.supplier_notes}”</div>
-                        )}
+                        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                          <span style={{ background: c.bg, color: c.fg, padding: "3px 10px", borderRadius: "20px", fontSize: "11px", fontWeight: 700 }}>
+                            {GANG_SHEET_STATUS_LABEL[o.status] ?? o.status}
+                          </span>
+                          {o.status === "revision_requested" && (
+                            <button
+                              onClick={() => gangSheetsService.resubmit(o.id).then(() => loadOrders()).catch(() => {})}
+                              style={{ background: "var(--brand-primary, #1C3557)", color: "#fff", border: "none", padding: "6px 12px", borderRadius: "6px", fontSize: "12px", fontWeight: 700, cursor: "pointer" }}
+                            >
+                              Resubmit
+                            </button>
+                          )}
+                          <button
+                            onClick={() => gangSheetsService.reorder(o.id).then(() => loadOrders()).catch(() => {})}
+                            style={{ background: "none", border: "1px solid #DDD9D2", padding: "5px 12px", borderRadius: "6px", fontSize: "12px", fontWeight: 600, cursor: "pointer" }}
+                          >
+                            Reorder
+                          </button>
+                        </div>
                       </div>
-                      <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                        <span style={{ background: c.bg, color: c.fg, padding: "3px 10px", borderRadius: "20px", fontSize: "11px", fontWeight: 700 }}>
-                          {GANG_SHEET_STATUS_LABEL[o.status] ?? o.status}
-                        </span>
-                        <button
-                          onClick={() => gangSheetsService.reorder(o.id).then(() => loadOrders()).catch(() => {})}
-                          style={{ background: "none", border: "1px solid #DDD9D2", padding: "5px 12px", borderRadius: "6px", fontSize: "12px", fontWeight: 600, cursor: "pointer" }}
-                        >
-                          Reorder
-                        </button>
-                      </div>
+                      <GangSheetTimeline status={o.status} timeline={o.status_timeline} />
                     </div>
                   );
                 })}

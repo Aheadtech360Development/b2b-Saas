@@ -11,6 +11,7 @@ import {
   type GangSheetPlacement,
 } from "@/services/gangSheets.service";
 import { GangSheetCanvas } from "@/components/storefront/GangSheetCanvas";
+import { GangSheetTimeline } from "@/components/storefront/GangSheetTimeline";
 
 const CARD: React.CSSProperties = {
   background: "#fff",
@@ -188,12 +189,14 @@ function OrdersTab() {
 
 function ReviewModal({ order, onClose, onChanged }: { order: GangSheetOrder; onClose: () => void; onChanged: () => void }) {
   const [notes, setNotes] = useState(order.supplier_notes ?? "");
+  const [internalNotes, setInternalNotes] = useState(order.internal_notes ?? "");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [size, setSize] = useState<GangSheetSize | null>(null);
   const [layout, setLayout] = useState<GangSheetPlacement[]>(order.layout ?? []);
   const [layoutMsg, setLayoutMsg] = useState<string | null>(null);
   const [savingLayout, setSavingLayout] = useState(false);
+  const [showVersions, setShowVersions] = useState(false);
 
   // Bleed/spacing live on the size, not the order snapshot; fetch them so the
   // canvas draws the same margins the buyer saw.
@@ -218,7 +221,7 @@ function ReviewModal({ order, onClose, onChanged }: { order: GangSheetOrder; onC
   async function setStatus(status: GangSheetStatus) {
     setBusy(true); setErr(null);
     try {
-      await gangSheetsService.adminSetStatus(order.id, status, notes || undefined);
+      await gangSheetsService.adminSetStatus(order.id, status, notes || undefined, internalNotes || undefined);
       onChanged();
     } catch {
       setErr("Could not update this order.");
@@ -238,6 +241,11 @@ function ReviewModal({ order, onClose, onChanged }: { order: GangSheetOrder; onC
             </div>
           </div>
           <button onClick={onClose} style={{ background: "none", border: "none", fontSize: "22px", color: "#999", cursor: "pointer" }}>×</button>
+        </div>
+
+        {/* Progress timeline */}
+        <div style={{ margin: "6px 0 20px" }}>
+          <GangSheetTimeline status={order.status} timeline={order.status_timeline} />
         </div>
 
         {order.contact_name || order.contact_email ? (
@@ -302,10 +310,50 @@ function ReviewModal({ order, onClose, onChanged }: { order: GangSheetOrder; onC
           />
         </div>
 
+        {/* Internal notes — supplier-only, never shown to the customer */}
+        <div style={{ marginBottom: "16px" }}>
+          <label style={LABEL}>Internal notes <span style={{ fontWeight: 400, textTransform: "none", color: "#9CA3AF" }}>· private, not visible to customer</span></label>
+          <textarea
+            value={internalNotes}
+            onChange={(e) => setInternalNotes(e.target.value)}
+            rows={2}
+            placeholder="Notes for your team only…"
+            style={{ ...INPUT, resize: "vertical", background: "#FFFBEB" }}
+          />
+        </div>
+
+        {/* Version history */}
+        {(order.versions?.length ?? 0) > 1 && (
+          <div style={{ marginBottom: "16px" }}>
+            <button onClick={() => setShowVersions((v) => !v)} style={{ background: "none", border: "none", color: "var(--brand-primary, #1C3557)", fontWeight: 700, fontSize: "13px", cursor: "pointer", padding: 0 }}>
+              {showVersions ? "▾" : "▸"} Version history ({order.versions!.length})
+            </button>
+            {showVersions && (
+              <div style={{ marginTop: "8px", border: "1px solid #EFEDE8", borderRadius: "8px", overflow: "hidden" }}>
+                {order.versions!.slice().reverse().map((v) => (
+                  <div key={v.version} style={{ padding: "10px 12px", borderBottom: "1px solid #F1EFEB", fontSize: "12px" }}>
+                    <div style={{ fontWeight: 700, marginBottom: "4px" }}>
+                      Version {v.version}{v.version === order.version ? " (current)" : ""}
+                      <span style={{ fontWeight: 400, color: "#9CA3AF", marginLeft: "8px" }}>{v.created_at ? new Date(v.created_at).toLocaleString() : ""}</span>
+                    </div>
+                    {v.artworks.map((a, k) => (
+                      <div key={k} style={{ color: "#666", display: "flex", justifyContent: "space-between", gap: "8px" }}>
+                        <a href={a.file_url} target="_blank" rel="noopener noreferrer" style={{ color: "#4338CA", textDecoration: "none", wordBreak: "break-all" }}>{a.file_name}</a>
+                        <span style={{ whiteSpace: "nowrap" }}>{a.width_in}″×{a.height_in}″ · q{a.quantity}</span>
+                      </div>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
         {err && <div style={{ color: "#B91C1C", fontSize: "13px", marginBottom: "10px" }}>{err}</div>}
 
         <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
           <button disabled={busy} onClick={() => setStatus("approved")} style={{ ...BTN, background: "#166534" }}>Approve</button>
+          <button disabled={busy} onClick={() => setStatus("production")} style={{ ...BTN, background: "#3730A3" }}>Start production</button>
           <button disabled={busy} onClick={() => setStatus("revision_requested")} style={{ ...BTN, background: "#C2410C" }}>Request revision</button>
           <button disabled={busy} onClick={() => setStatus("in_review")} style={{ ...BTN, background: "#B45309" }}>Mark in review</button>
           <button disabled={busy} onClick={() => setStatus("completed")} style={{ ...BTN, background: "#075985" }}>Completed</button>
