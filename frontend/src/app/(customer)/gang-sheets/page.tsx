@@ -13,6 +13,7 @@ import {
 import { GangSheetCanvas } from "@/components/storefront/GangSheetCanvas";
 import { GangSheetTimeline } from "@/components/storefront/GangSheetTimeline";
 import { analyzeArtwork, dpiFor, DPI_STYLE } from "@/lib/artworkAnalysis";
+import { openSheetPdf } from "@/lib/gangSheetPdf";
 import { useAuthStore } from "@/stores/auth.store";
 
 const CARD: React.CSSProperties = {
@@ -486,6 +487,13 @@ function ArrangeStep({ order, size }: { order: GangSheetOrder; size: GangSheetSi
           style={{ background: saving || layout.length === 0 ? "#9ca3af" : "var(--brand-primary, #1C3557)", color: "#fff", border: "none", padding: "10px 20px", borderRadius: "var(--brand-button-radius, 6px)", fontSize: "14px", fontWeight: 700, cursor: saving || layout.length === 0 ? "not-allowed" : "pointer" }}
         >
           {saving ? "Saving…" : "Save my layout"}
+        </button>
+        <button
+          onClick={() => openSheetPdf({ reference: order.reference, customerName: order.contact_name, sheet: { width_in: order.sheet_width_in, height_in: order.sheet_height_in, bleed_in: size.bleed_in }, artworks: order.artworks ?? [], layout })}
+          disabled={layout.length === 0}
+          style={{ background: "#fff", color: "var(--brand-primary, #1C3557)", border: "1px solid #DDD9D2", padding: "10px 18px", borderRadius: "var(--brand-button-radius, 6px)", fontSize: "14px", fontWeight: 600, cursor: layout.length === 0 ? "not-allowed" : "pointer", opacity: layout.length === 0 ? 0.5 : 1 }}
+        >
+          Preview PDF
         </button>
         {saved && <span style={{ color: "#166534", fontSize: "13px", fontWeight: 600 }}>✓ Layout saved</span>}
       </div>

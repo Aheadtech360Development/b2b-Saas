@@ -12,6 +12,7 @@ import {
 } from "@/services/gangSheets.service";
 import { GangSheetCanvas } from "@/components/storefront/GangSheetCanvas";
 import { GangSheetTimeline } from "@/components/storefront/GangSheetTimeline";
+import { openSheetPdf } from "@/lib/gangSheetPdf";
 
 const CARD: React.CSSProperties = {
   background: "#fff",
@@ -293,6 +294,12 @@ function ReviewModal({ order, onClose, onChanged }: { order: GangSheetOrder; onC
             <div style={{ display: "flex", alignItems: "center", gap: "10px", marginTop: "12px" }}>
               <button onClick={saveLayout} disabled={savingLayout} style={{ ...BTN, background: "#1B3A5C" }}>
                 {savingLayout ? "Saving…" : "Save layout"}
+              </button>
+              <button
+                onClick={() => openSheetPdf({ reference: order.reference, customerName: order.contact_name, sheet: { width_in: order.sheet_width_in, height_in: order.sheet_height_in, bleed_in: size.bleed_in }, artworks: order.artworks ?? [], layout })}
+                style={{ ...BTN, background: "#fff", color: "#1B3A5C", border: "1px solid #DDD9D2" }}
+              >
+                Download PDF
               </button>
               {layoutMsg && <span style={{ fontSize: "13px", color: layoutMsg.startsWith("Could") ? "#B91C1C" : "#166534", fontWeight: 600 }}>{layoutMsg}</span>}
             </div>
