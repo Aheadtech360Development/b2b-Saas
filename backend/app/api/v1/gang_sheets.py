@@ -250,6 +250,56 @@ async def _next_reference(db: AsyncSession) -> str:
     return f"GS-{datetime.now(UTC):%Y%m}-{n + 1:04d}"
 
 
+# What the buyer is told at each lifecycle event. The email shell rebrands to the
+# active tenant automatically, so copy here stays brand-neutral.
+_EVENT_COPY: dict[str, tuple[str, str]] = {
+    STATUS_SUBMITTED: ("Gang sheet received — {ref}", "We've received your gang sheet <b>{ref}</b> and our team will review it shortly."),
+    STATUS_IN_REVIEW: ("Your gang sheet is in review — {ref}", "Your gang sheet <b>{ref}</b> is now being reviewed by our team."),
+    STATUS_APPROVED: ("Gang sheet approved — {ref}", "Good news — your gang sheet <b>{ref}</b> has been approved and is queued for production."),
+    STATUS_PRODUCTION: ("Your gang sheet is in production — {ref}", "Your gang sheet <b>{ref}</b> has entered production."),
+    STATUS_REVISION: ("Changes requested on your gang sheet — {ref}", "Our team has requested changes to gang sheet <b>{ref}</b>. Please review the notes, update your artwork, and resubmit."),
+    STATUS_REJECTED: ("Update on your gang sheet — {ref}", "Unfortunately gang sheet <b>{ref}</b> could not be accepted."),
+    STATUS_COMPLETED: ("Your gang sheet is complete — {ref}", "Your gang sheet <b>{ref}</b> is complete. Thank you!"),
+}
+
+
+async def _buyer_email(db: AsyncSession, order: GangSheetOrder) -> str | None:
+    """Where to reach the buyer — the contact email they gave, else their account
+    email. Returns None when neither exists (nothing to notify)."""
+    if order.contact_email:
+        return order.contact_email
+    if order.user_id:
+        from sqlalchemy import text as _t
+        return (await db.execute(_t("SELECT email FROM users WHERE id=:i"), {"i": str(order.user_id)})).scalar()
+    return None
+
+
+async def _notify(db: AsyncSession, order: GangSheetOrder, event: str, extra_html: str = "") -> None:
+    """Email the buyer about a lifecycle event. Best-effort: a mail failure must
+    never block the status change or submission that triggered it. The email shell
+    resolves the tenant's brand, so the buyer only ever sees their store."""
+    copy = _EVENT_COPY.get(event)
+    if not copy:
+        return
+    try:
+        to = await _buyer_email(db, order)
+        if not to:
+            return
+        from app.services.email_service import EmailService
+
+        subj = copy[0].format(ref=order.reference)
+        body = EmailService._base_template(
+            f"<h2 style='color:#1B3A5C;margin:0 0 12px'>Gang Sheet Update</h2>"
+            f"<p style='font-size:14px;color:#444'>{copy[1].format(ref=order.reference)}</p>"
+            f"{extra_html}"
+            f"<p style='font-size:13px;color:#666;margin-top:16px'>Reference: <b>{order.reference}</b> · "
+            f"{order.sheet_name} · {order.sheet_quantity} sheet(s)</p>"
+        )
+        EmailService(db).send_raw(to_email=to, subject=subj, body_html=body)
+    except Exception:
+        pass
+
+
 async def _load_artworks(db: AsyncSession, order_id: uuid.UUID) -> list[GangSheetArtwork]:
     rows = await db.execute(
         select(GangSheetArtwork)
@@ -382,6 +432,7 @@ async def submit_order(
     order.version = 1
     order.versions = [_snapshot(order, arts, 1)]
     await db.flush()
+    await _notify(db, order, STATUS_SUBMITTED)
     return _order_row(order, arts)
 
 
@@ -662,6 +713,10 @@ async def admin_set_status(
     if payload.internal_notes is not None:
         order.internal_notes = payload.internal_notes
     await db.flush()
+    # Tell the buyer what changed. A revision passes the supplier note along.
+    extra = (f"<p style='background:#FFF7ED;border-radius:6px;padding:10px 12px;font-size:13px;color:#9A3412'>{order.supplier_notes}</p>"
+             if payload.status == STATUS_REVISION and order.supplier_notes else "")
+    await _notify(db, order, payload.status, extra_html=extra)
     return _order_row(order, await _load_artworks(db, order.id), admin=True)
 
 
