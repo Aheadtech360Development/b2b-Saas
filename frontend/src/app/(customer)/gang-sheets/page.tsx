@@ -11,6 +11,7 @@ import {
   type GangSheetPlacement,
 } from "@/services/gangSheets.service";
 import { GangSheetCanvas } from "@/components/storefront/GangSheetCanvas";
+import { analyzeArtwork, dpiFor, DPI_STYLE } from "@/lib/artworkAnalysis";
 import { useAuthStore } from "@/stores/auth.store";
 
 const CARD: React.CSSProperties = {
@@ -36,7 +37,15 @@ const LABEL: React.CSSProperties = {
   marginBottom: "5px",
 };
 
-type Draft = Omit<GangSheetArtwork, "id" | "sort_order">;
+// Local-only analysis fields (underscore-prefixed) travel with the draft in the
+// UI but are stripped before submit — the API only knows the fields in ArtworkIn.
+type Draft = Omit<GangSheetArtwork, "id" | "sort_order"> & {
+  _pxW?: number;
+  _pxH?: number;
+  _isImage?: boolean;
+  _hasAlpha?: boolean;
+  _alphaChecked?: boolean;
+};
 
 export default function GangSheetBuilderPage() {
   const { isAuthenticated } = useAuthStore();
@@ -78,10 +87,6 @@ export default function GangSheetBuilderPage() {
   useEffect(loadOrders, [loadOrders]);
 
   const size = useMemo(() => sizes.find((s) => s.id === sizeId), [sizes, sizeId]);
-  const total = useMemo(
-    () => (size ? size.price_per_sheet * Math.max(1, qty) : 0),
-    [size, qty]
-  );
 
   // The printable area excludes bleed on all sides — the same rule the server
   // enforces on submit, surfaced here so the buyer finds out before submitting.
@@ -104,6 +109,8 @@ export default function GangSheetBuilderPage() {
     setError(null);
     try {
       for (const file of Array.from(files)) {
+        // Inspect locally (pixels + transparency) before the bytes leave, then upload.
+        const analysis = await analyzeArtwork(file);
         const res = await gangSheetsService.uploadArtwork(file);
         setArtworks((cur) => [
           ...cur,
@@ -114,6 +121,11 @@ export default function GangSheetBuilderPage() {
             width_in: 0,
             height_in: 0,
             quantity: 1,
+            _pxW: analysis.pxW,
+            _pxH: analysis.pxH,
+            _isImage: analysis.isImage,
+            _hasAlpha: analysis.hasAlpha,
+            _alphaChecked: analysis.transparencyChecked,
           },
         ]);
       }
@@ -142,7 +154,15 @@ export default function GangSheetBuilderPage() {
       const order = await gangSheetsService.submit({
         sheet_size_id: size.id,
         sheet_quantity: qty,
-        artworks,
+        // Strip the local-only analysis fields — the API only accepts ArtworkIn.
+        artworks: artworks.map((a) => ({
+          file_url: a.file_url,
+          file_name: a.file_name,
+          file_type: a.file_type,
+          width_in: a.width_in,
+          height_in: a.height_in,
+          quantity: a.quantity,
+        })),
         product_id: productId || undefined,
         contact_name: name || undefined,
         contact_email: email || undefined,
@@ -263,10 +283,31 @@ export default function GangSheetBuilderPage() {
               const bad = !fits(a);
               return (
                 <div key={`${a.file_url}-${i}`} style={{ border: `1px solid ${bad ? "#FCA5A5" : "#EFEDE8"}`, background: bad ? "#FEF2F2" : "#fff", borderRadius: "8px", padding: "12px", marginBottom: "10px" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px", gap: "10px" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px", gap: "10px" }}>
                     <span style={{ fontSize: "13px", fontWeight: 600, wordBreak: "break-all" }}>{a.file_name}</span>
                     <button onClick={() => setArtworks((cur) => cur.filter((_, idx) => idx !== i))} style={{ background: "none", border: "none", color: "#B91C1C", cursor: "pointer", fontSize: "12px", whiteSpace: "nowrap" }}>Remove</button>
                   </div>
+                  {/* Quality + transparency — advisory, never blocks */}
+                  {a._isImage && (
+                    <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginBottom: "10px", alignItems: "center", fontSize: "12px" }}>
+                      {(() => {
+                        const d = dpiFor(a._pxW ?? 0, a._pxH ?? 0, a.width_in, a.height_in);
+                        if (!d) return <span style={{ color: "#9CA3AF" }}>Enter size to check print quality</span>;
+                        const st = DPI_STYLE[d.rating];
+                        return (
+                          <span style={{ background: st.bg, color: st.fg, padding: "2px 9px", borderRadius: "12px", fontWeight: 700 }}>
+                            {st.label} · {d.dpi} DPI{d.rating !== "good" ? " — may look soft when printed" : ""}
+                          </span>
+                        );
+                      })()}
+                      {a._alphaChecked && (
+                        a._hasAlpha
+                          ? <span style={{ color: "#166534", fontWeight: 600 }}>✔ Transparent background</span>
+                          : <span style={{ color: "#92400E", fontWeight: 600 }}>⚠ Background detected</span>
+                      )}
+                      {a._pxW ? <span style={{ color: "#9CA3AF" }}>{a._pxW}×{a._pxH}px</span> : null}
+                    </div>
+                  )}
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(110px,1fr))", gap: "10px" }}>
                     <div>
                       <label style={LABEL}>Width (in)</label>
@@ -314,21 +355,45 @@ export default function GangSheetBuilderPage() {
             </div>
           )}
 
-          <div style={{ ...CARD, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "14px" }}>
-            <div>
-              <div style={{ fontSize: "12px", color: "#888", textTransform: "uppercase", letterSpacing: ".05em", fontWeight: 700 }}>Total</div>
-              <div style={{ fontSize: "26px", fontWeight: 800 }}>${total.toFixed(2)}</div>
-              <div style={{ fontSize: "12px", color: "#888" }}>
-                {qty} × {size?.name} @ ${size?.price_per_sheet.toFixed(2)}
-              </div>
-            </div>
-            <button
-              onClick={submit}
-              disabled={submitting || uploading}
-              style={{ background: submitting || uploading ? "#9ca3af" : "var(--brand-primary, #1C3557)", color: "#fff", border: "none", padding: "14px 30px", borderRadius: "var(--brand-button-radius, 6px)", fontSize: "15px", fontWeight: 700, cursor: submitting || uploading ? "not-allowed" : "pointer" }}
-            >
-              {submitting ? "Submitting…" : "Submit gang sheet"}
-            </button>
+          {/* Cost breakdown — live; updates with sheet size and quantity */}
+          <div style={{ ...CARD }}>
+            {(() => {
+              const unit = size?.price_per_sheet ?? 0;
+              const firstSheet = unit;
+              const extraSheets = Math.max(0, qty - 1) * unit;
+              const fees = 0;               // reserved for supplier surcharges
+              const subtotal = firstSheet + extraSheets + fees;
+              const taxRate = 0;            // gang sheets untaxed until configured
+              const tax = subtotal * taxRate;
+              const grand = subtotal + tax;
+              const Row = ({ label, val, muted }: { label: string; val: string; muted?: boolean }) => (
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: "13px", color: muted ? "#888" : "#333", padding: "3px 0" }}>
+                  <span>{label}</span><span>{val}</span>
+                </div>
+              );
+              return (
+                <>
+                  <div style={{ fontSize: "12px", color: "#888", textTransform: "uppercase", letterSpacing: ".05em", fontWeight: 700, marginBottom: "8px" }}>Cost breakdown</div>
+                  <Row label={`Sheet price (${size?.name ?? "—"})`} val={`$${firstSheet.toFixed(2)}`} />
+                  {qty > 1 && <Row label={`Extra sheets (${qty - 1} × $${unit.toFixed(2)})`} val={`$${extraSheets.toFixed(2)}`} />}
+                  {fees > 0 && <Row label="Additional fees" val={`$${fees.toFixed(2)}`} />}
+                  <div style={{ borderTop: "1px solid #EFEDE8", margin: "6px 0" }} />
+                  <Row label="Subtotal" val={`$${subtotal.toFixed(2)}`} muted />
+                  {taxRate > 0 && <Row label={`Tax (${(taxRate * 100).toFixed(1)}%)`} val={`$${tax.toFixed(2)}`} muted />}
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginTop: "8px" }}>
+                    <span style={{ fontSize: "13px", fontWeight: 700 }}>Grand total</span>
+                    <span style={{ fontSize: "26px", fontWeight: 800 }}>${grand.toFixed(2)}</span>
+                  </div>
+                  <button
+                    onClick={submit}
+                    disabled={submitting || uploading}
+                    style={{ width: "100%", marginTop: "14px", background: submitting || uploading ? "#9ca3af" : "var(--brand-primary, #1C3557)", color: "#fff", border: "none", padding: "14px 30px", borderRadius: "var(--brand-button-radius, 6px)", fontSize: "15px", fontWeight: 700, cursor: submitting || uploading ? "not-allowed" : "pointer" }}
+                  >
+                    {submitting ? "Submitting…" : "Submit gang sheet"}
+                  </button>
+                </>
+              );
+            })()}
           </div>
 
           {/* History */}
