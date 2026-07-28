@@ -26,19 +26,25 @@ from app.models.base import BaseModel as DBBaseModel
 from app.models.base import TenantMixin
 
 # ── Status flow ───────────────────────────────────────────────────────────────
-# submitted → in_review → approved            (supplier accepts, goes to production)
-#                       → revision_requested  (buyer edits and resubmits)
+# submitted → in_review → approved → production → completed
+#                       → revision_requested → (buyer resubmits) → in_review
 #                       → rejected
 STATUS_SUBMITTED = "submitted"
 STATUS_IN_REVIEW = "in_review"
 STATUS_APPROVED = "approved"
+STATUS_PRODUCTION = "production"
 STATUS_REVISION = "revision_requested"
 STATUS_REJECTED = "rejected"
 STATUS_COMPLETED = "completed"
 
+# The stages shown on the progress timeline, in order. revision/rejected are
+# branch outcomes, surfaced separately rather than as a linear step.
+STATUS_TIMELINE = [STATUS_SUBMITTED, STATUS_IN_REVIEW, STATUS_APPROVED, STATUS_PRODUCTION, STATUS_COMPLETED]
+
 _ADMIN_STATUSES = {
     STATUS_IN_REVIEW,
     STATUS_APPROVED,
+    STATUS_PRODUCTION,
     STATUS_REVISION,
     STATUS_REJECTED,
     STATUS_COMPLETED,
@@ -84,6 +90,10 @@ class GangSheetOrder(TenantMixin, DBBaseModel):
     revision_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     # Phase 2: placements on the sheet — [{artwork_id, x_in, y_in, rotation, w_in, h_in}]
     layout: Mapped[list] = mapped_column(JSONB, default=list, nullable=False)
+    # Batch 3: supplier-only notes + preserved submission history
+    internal_notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    version: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+    versions: Mapped[list] = mapped_column(JSONB, default=list, nullable=False)
 
 
 class GangSheetArtwork(TenantMixin, DBBaseModel):
@@ -146,6 +156,7 @@ class OrderIn(BaseModel):
 class StatusIn(BaseModel):
     status: str
     supplier_notes: Optional[str] = None
+    internal_notes: Optional[str] = None  # supplier-only; never shown to the buyer
 
 
 class Placement(BaseModel):
@@ -189,11 +200,13 @@ def _art_row(a: GangSheetArtwork) -> dict:
     }
 
 
-def _order_row(o: GangSheetOrder, artworks: list[GangSheetArtwork] | None = None) -> dict:
+def _order_row(o: GangSheetOrder, artworks: list[GangSheetArtwork] | None = None, admin: bool = False) -> dict:
     data = {
         "id": str(o.id),
         "reference": o.reference,
         "status": o.status,
+        "status_timeline": STATUS_TIMELINE,
+        "version": getattr(o, "version", 1),
         "sheet_name": o.sheet_name,
         "sheet_width_in": float(o.sheet_width_in),
         "sheet_height_in": float(o.sheet_height_in),
@@ -213,7 +226,22 @@ def _order_row(o: GangSheetOrder, artworks: list[GangSheetArtwork] | None = None
     }
     if artworks is not None:
         data["artworks"] = [_art_row(a) for a in artworks]
+    # Supplier-only fields never reach the buyer.
+    if admin:
+        data["internal_notes"] = getattr(o, "internal_notes", None)
+        data["versions"] = getattr(o, "versions", None) or []
     return data
+
+
+def _snapshot(o: GangSheetOrder, artworks: list[GangSheetArtwork], version: int) -> dict:
+    """Freeze the current artwork set + layout as an immutable version entry, so a
+    later resubmit never overwrites what the supplier already saw."""
+    return {
+        "version": version,
+        "created_at": datetime.now(UTC).isoformat(),
+        "artworks": [_art_row(a) for a in artworks],
+        "layout": o.layout or [],
+    }
 
 
 async def _next_reference(db: AsyncSession) -> str:
@@ -349,7 +377,12 @@ async def submit_order(
             )
         )
     await db.flush()
-    return _order_row(order, await _load_artworks(db, order.id))
+    arts = await _load_artworks(db, order.id)
+    # Record the first submission as version 1 of the history.
+    order.version = 1
+    order.versions = [_snapshot(order, arts, 1)]
+    await db.flush()
+    return _order_row(order, arts)
 
 
 @public_router.get("/orders")
@@ -425,6 +458,37 @@ async def save_my_layout(
     order.layout = _validate_layout(order, artworks, payload.layout)
     await db.flush()
     return _order_row(order, artworks)
+
+
+@public_router.post("/orders/{order_id}/resubmit")
+async def resubmit_order(
+    order_id: uuid.UUID, request: Request, db: AsyncSession = Depends(get_db)
+) -> dict:
+    """Buyer resubmits after a revision request. Snapshots the current artwork +
+    layout as a new version (never overwriting the previous one) and sends the job
+    back into review."""
+    order = (
+        await db.execute(select(GangSheetOrder).where(GangSheetOrder.id == order_id))
+    ).scalar_one_or_none()
+    if not order:
+        raise HTTPException(status_code=404, detail="Gang sheet order not found")
+
+    user_id = getattr(request.state, "user_id", None)
+    company_id = getattr(request.state, "company_id", None)
+    owns = (company_id and str(order.company_id) == str(company_id)) or (
+        user_id and str(order.user_id) == str(user_id)
+    )
+    if not owns:
+        raise HTTPException(status_code=404, detail="Gang sheet order not found")
+    if order.status != STATUS_REVISION:
+        raise HTTPException(status_code=409, detail="Only an order awaiting revision can be resubmitted.")
+
+    arts = await _load_artworks(db, order.id)
+    order.version = (order.version or 1) + 1
+    order.versions = [*(order.versions or []), _snapshot(order, arts, order.version)]
+    order.status = STATUS_IN_REVIEW
+    await db.flush()
+    return _order_row(order, arts)
 
 
 @public_router.post("/orders/{order_id}/reorder", status_code=status.HTTP_201_CREATED)
@@ -554,7 +618,7 @@ async def admin_list_orders(
     if status_filter:
         stmt = stmt.where(GangSheetOrder.status == status_filter)
     rows = await db.execute(stmt.order_by(GangSheetOrder.created_at.desc()))
-    return [_order_row(o) for o in rows.scalars().all()]
+    return [_order_row(o, admin=True) for o in rows.scalars().all()]
 
 
 @admin_router.get("/orders/{order_id}")
@@ -566,7 +630,7 @@ async def admin_order_detail(
     ).scalar_one_or_none()
     if not order:
         raise HTTPException(status_code=404, detail="Gang sheet order not found")
-    return _order_row(order, await _load_artworks(db, order.id))
+    return _order_row(order, await _load_artworks(db, order.id), admin=True)
 
 
 @admin_router.patch("/orders/{order_id}/status")
@@ -595,8 +659,10 @@ async def admin_set_status(
     order.status = payload.status
     if payload.supplier_notes is not None:
         order.supplier_notes = payload.supplier_notes
+    if payload.internal_notes is not None:
+        order.internal_notes = payload.internal_notes
     await db.flush()
-    return _order_row(order, await _load_artworks(db, order.id))
+    return _order_row(order, await _load_artworks(db, order.id), admin=True)
 
 
 @admin_router.patch("/orders/{order_id}/layout")
@@ -616,4 +682,4 @@ async def admin_save_layout(
     artworks = await _load_artworks(db, order.id)
     order.layout = _validate_layout(order, artworks, payload.layout)
     await db.flush()
-    return _order_row(order, artworks)
+    return _order_row(order, artworks, admin=True)
