@@ -64,6 +64,13 @@ class GangSheetSize(TenantMixin, DBBaseModel):
     bleed_in: Mapped[Decimal] = mapped_column(Numeric(6, 2), default=Decimal("0.125"), nullable=False)
     spacing_in: Mapped[Decimal] = mapped_column(Numeric(6, 2), default=Decimal("0.125"), nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    # Custom-length pricing: width fixed, buyer picks length between min/max,
+    # priced per inch. pricing_mode 'fixed' keeps the flat per-sheet behaviour.
+    pricing_mode: Mapped[str] = mapped_column(String(20), default="fixed", nullable=False)
+    price_per_inch: Mapped[Decimal] = mapped_column(Numeric(10, 4), default=0, nullable=False)
+    min_length_in: Mapped[Decimal] = mapped_column(Numeric(8, 2), default=12, nullable=False)
+    max_length_in: Mapped[Decimal] = mapped_column(Numeric(8, 2), default=240, nullable=False)
+    max_upload_mb: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     sort_order: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
 
@@ -121,6 +128,11 @@ class SizeIn(BaseModel):
     spacing_in: Decimal = Field(ge=0, default=Decimal("0.125"))
     is_active: bool = True
     sort_order: int = 0
+    pricing_mode: str = "fixed"                                  # 'fixed' | 'custom_length'
+    price_per_inch: Decimal = Field(ge=0, default=Decimal("0"))
+    min_length_in: Decimal = Field(gt=0, default=Decimal("12"))
+    max_length_in: Decimal = Field(gt=0, default=Decimal("240"))
+    max_upload_mb: Optional[int] = Field(default=None, ge=1)
 
 
 class SizeUpdate(BaseModel):
@@ -132,6 +144,11 @@ class SizeUpdate(BaseModel):
     spacing_in: Optional[Decimal] = Field(default=None, ge=0)
     is_active: Optional[bool] = None
     sort_order: Optional[int] = None
+    pricing_mode: Optional[str] = None
+    price_per_inch: Optional[Decimal] = Field(default=None, ge=0)
+    min_length_in: Optional[Decimal] = Field(default=None, gt=0)
+    max_length_in: Optional[Decimal] = Field(default=None, gt=0)
+    max_upload_mb: Optional[int] = Field(default=None, ge=1)
 
 
 class ArtworkIn(BaseModel):
@@ -151,6 +168,9 @@ class OrderIn(BaseModel):
     contact_email: Optional[str] = None
     contact_name: Optional[str] = None
     customer_notes: Optional[str] = None
+    # For a custom-length size, the buyer's chosen length (inches). Ignored for
+    # fixed sizes, which use their stored height.
+    custom_length_in: Optional[Decimal] = Field(default=None, gt=0)
 
 
 class StatusIn(BaseModel):
@@ -184,6 +204,11 @@ def _size_row(s: GangSheetSize) -> dict:
         "spacing_in": float(s.spacing_in),
         "is_active": s.is_active,
         "sort_order": s.sort_order,
+        "pricing_mode": getattr(s, "pricing_mode", "fixed"),
+        "price_per_inch": float(getattr(s, "price_per_inch", 0) or 0),
+        "min_length_in": float(getattr(s, "min_length_in", 12) or 12),
+        "max_length_in": float(getattr(s, "max_length_in", 240) or 240),
+        "max_upload_mb": getattr(s, "max_upload_mb", None),
     }
 
 
@@ -374,10 +399,27 @@ async def submit_order(
     if not size or not size.is_active:
         raise HTTPException(status_code=400, detail="Selected sheet size is not available")
 
+    # Resolve the effective sheet: a custom-length size fixes the width and lets
+    # the buyer choose the length (priced per inch); a fixed size uses its stored
+    # dimensions and flat price. Either way, the order snapshots the result.
+    sheet_height = size.height_in
+    unit_price = size.price_per_sheet or Decimal("0")
+    if getattr(size, "pricing_mode", "fixed") == "custom_length":
+        length = payload.custom_length_in
+        if length is None:
+            raise HTTPException(status_code=400, detail="Enter a length for this custom sheet.")
+        if length < size.min_length_in or length > size.max_length_in:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Length must be between {size.min_length_in}in and {size.max_length_in}in.",
+            )
+        sheet_height = length
+        unit_price = (length * (size.price_per_inch or Decimal("0"))).quantize(Decimal("0.01"))
+
     # Reject artwork that cannot physically fit the sheet in either orientation —
     # catching it here avoids a production job that can never be laid out.
     usable_w = size.width_in - (size.bleed_in * 2)
-    usable_h = size.height_in - (size.bleed_in * 2)
+    usable_h = sheet_height - (size.bleed_in * 2)
     for art in payload.artworks:
         fits = (art.width_in <= usable_w and art.height_in <= usable_h) or (
             art.height_in <= usable_w and art.width_in <= usable_h
@@ -391,7 +433,7 @@ async def submit_order(
                 ),
             )
 
-    subtotal = (size.price_per_sheet or Decimal("0")) * payload.sheet_quantity
+    subtotal = unit_price * payload.sheet_quantity
 
     order = GangSheetOrder(
         reference=await _next_reference(db),
@@ -401,10 +443,10 @@ async def submit_order(
         contact_name=payload.contact_name,
         product_id=payload.product_id,
         sheet_size_id=size.id,
-        sheet_name=size.name,
+        sheet_name=(f"{size.name} ({sheet_height}\")" if getattr(size, "pricing_mode", "fixed") == "custom_length" else size.name),
         sheet_width_in=size.width_in,
-        sheet_height_in=size.height_in,
-        price_per_sheet=size.price_per_sheet,
+        sheet_height_in=sheet_height,
+        price_per_sheet=unit_price,
         sheet_quantity=payload.sheet_quantity,
         subtotal=subtotal,
         status=STATUS_SUBMITTED,
