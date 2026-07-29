@@ -480,8 +480,11 @@ export default function GangSheetBuilderPage() {
 // state never re-renders the whole builder.
 function ArrangeStep({ order, size }: { order: GangSheetOrder; size: GangSheetSize }) {
   const [layout, setLayout] = useState<GangSheetPlacement[]>(order.layout ?? []);
+  const [arts, setArts] = useState<GangSheetArtwork[]>(order.artworks ?? []);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [adding, setAdding] = useState(false);
+  const addRef = useRef<HTMLInputElement>(null);
 
   async function save() {
     setSaving(true);
@@ -496,11 +499,44 @@ function ArrangeStep({ order, size }: { order: GangSheetOrder; size: GangSheetSi
     }
   }
 
+  // Add another design straight onto the sheet — upload, then attach it to this
+  // order at a sensible default size; the buyer resizes it on the canvas.
+  async function addDesign(files: FileList | null) {
+    if (!files?.length) return;
+    setAdding(true);
+    try {
+      for (const file of Array.from(files)) {
+        const res = await gangSheetsService.uploadArtwork(file);
+        const printable = size.width_in - size.bleed_in * 2;
+        const dflt = Math.max(1, Math.min(4, Math.round(printable / 2)));
+        const updated = await gangSheetsService.addArtwork(order.id, {
+          file_url: res.url, file_name: res.file_name, file_type: res.type,
+          width_in: dflt, height_in: dflt, quantity: 1,
+        });
+        if (updated.artworks) setArts(updated.artworks);
+      }
+    } catch {
+      /* ignore — non-fatal */
+    } finally {
+      setAdding(false);
+      if (addRef.current) addRef.current.value = "";
+    }
+  }
+
   return (
     <div>
+      <input ref={addRef} type="file" multiple accept=".png,.jpg,.jpeg,.webp,.gif,.pdf,.svg,.ai,.eps,.psd,.tif,.tiff" onChange={(e) => addDesign(e.target.files)} style={{ display: "none" }} />
+      <button
+        onClick={() => addRef.current?.click()}
+        disabled={adding}
+        style={{ border: "1px dashed #C9C5BD", background: "#FAFAF8", color: "#444", width: "100%", padding: "12px", borderRadius: "8px", fontSize: "14px", fontWeight: 600, cursor: "pointer", marginBottom: "14px" }}
+      >
+        {adding ? "Uploading…" : "＋ Add another design to this sheet"}
+      </button>
+
       <GangSheetCanvas
         sheet={{ width_in: order.sheet_width_in, height_in: order.sheet_height_in, bleed_in: size.bleed_in, spacing_in: size.spacing_in }}
-        artworks={order.artworks ?? []}
+        artworks={arts}
         value={layout}
         onChange={(l) => { setLayout(l); setSaved(false); }}
       />
@@ -513,7 +549,7 @@ function ArrangeStep({ order, size }: { order: GangSheetOrder; size: GangSheetSi
           {saving ? "Saving…" : "Save my layout"}
         </button>
         <button
-          onClick={() => openSheetPdf({ reference: order.reference, customerName: order.contact_name, sheet: { width_in: order.sheet_width_in, height_in: order.sheet_height_in, bleed_in: size.bleed_in }, artworks: order.artworks ?? [], layout })}
+          onClick={() => openSheetPdf({ reference: order.reference, customerName: order.contact_name, sheet: { width_in: order.sheet_width_in, height_in: order.sheet_height_in, bleed_in: size.bleed_in }, artworks: arts, layout })}
           disabled={layout.length === 0}
           style={{ background: "#fff", color: "var(--brand-primary, #1C3557)", border: "1px solid #DDD9D2", padding: "10px 18px", borderRadius: "var(--brand-button-radius, 6px)", fontSize: "14px", fontWeight: 600, cursor: layout.length === 0 ? "not-allowed" : "pointer", opacity: layout.length === 0 ? 0.5 : 1 }}
         >

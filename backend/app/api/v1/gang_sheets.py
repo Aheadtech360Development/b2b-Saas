@@ -482,6 +482,48 @@ async def submit_order(
     return _order_row(order, arts)
 
 
+@public_router.post("/orders/{order_id}/artwork", status_code=status.HTTP_201_CREATED)
+async def add_artwork(
+    order_id: uuid.UUID,
+    payload: ArtworkIn,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Add another design to an existing order while it's still the buyer's to
+    change. Lets the arrange step act like a real editor — upload more artwork
+    without starting a new order."""
+    order = (
+        await db.execute(select(GangSheetOrder).where(GangSheetOrder.id == order_id))
+    ).scalar_one_or_none()
+    if not order:
+        raise HTTPException(status_code=404, detail="Gang sheet order not found")
+
+    user_id = getattr(request.state, "user_id", None)
+    company_id = getattr(request.state, "company_id", None)
+    owns = (company_id and str(order.company_id) == str(company_id)) or (
+        user_id and str(order.user_id) == str(user_id)
+    )
+    if not owns:
+        raise HTTPException(status_code=404, detail="Gang sheet order not found")
+    if order.status not in _BUYER_EDITABLE:
+        raise HTTPException(status_code=409, detail="This order can no longer be edited.")
+
+    arts = await _load_artworks(db, order.id)
+    db.add(GangSheetArtwork(
+        gang_sheet_order_id=order.id,
+        file_url=payload.file_url,
+        file_name=payload.file_name,
+        file_type=payload.file_type,
+        width_in=payload.width_in,
+        height_in=payload.height_in,
+        quantity=payload.quantity,
+        sort_order=len(arts),
+    ))
+    await db.flush()
+    await db.refresh(order)
+    return _order_row(order, await _load_artworks(db, order.id))
+
+
 @public_router.get("/orders")
 async def my_orders(request: Request, db: AsyncSession = Depends(get_db)) -> list[dict]:
     """The signed-in buyer's gang sheet jobs."""

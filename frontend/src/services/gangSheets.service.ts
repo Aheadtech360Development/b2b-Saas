@@ -112,6 +112,9 @@ export const gangSheetsService = {
   saveLayout: (id: string, layout: GangSheetPlacement[]) =>
     apiClient.patch<GangSheetOrder>(`/api/v1/gang-sheets/orders/${id}/layout`, { layout }),
 
+  addArtwork: (id: string, artwork: Omit<GangSheetArtwork, "id" | "sort_order">) =>
+    apiClient.post<GangSheetOrder>(`/api/v1/gang-sheets/orders/${id}/artwork`, artwork),
+
   adminSaveLayout: (id: string, layout: GangSheetPlacement[]) =>
     apiClient.patch<GangSheetOrder>(`/api/v1/admin/gang-sheets/orders/${id}/layout`, { layout }),
 
