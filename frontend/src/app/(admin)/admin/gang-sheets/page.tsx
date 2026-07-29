@@ -377,6 +377,9 @@ function SizesTab() {
   const [draft, setDraft] = useState({ ...EMPTY_SIZE });
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  // Inline edit: which size is open, and its working values.
+  const [editId, setEditId] = useState<string | null>(null);
+  const [editDraft, setEditDraft] = useState<Partial<GangSheetSize>>({});
 
   const load = useCallback(() => {
     gangSheetsService.adminListSizes().then(setSizes).catch(() => setSizes([]));
@@ -406,6 +409,24 @@ function SizesTab() {
     if (!confirm(`Delete "${s.name}"? Existing orders keep their saved sheet details.`)) return;
     await gangSheetsService.adminDeleteSize(s.id).catch(() => {});
     load();
+  }
+
+  function startEdit(s: GangSheetSize) {
+    setEditId(s.id);
+    setEditDraft({ name: s.name, width_in: s.width_in, height_in: s.height_in, price_per_sheet: s.price_per_sheet, bleed_in: s.bleed_in, spacing_in: s.spacing_in });
+  }
+
+  async function saveEdit(id: string) {
+    setBusy(true);
+    try {
+      await gangSheetsService.adminUpdateSize(id, editDraft);
+      setEditId(null);
+      load();
+    } catch {
+      setErr("Could not update this sheet size.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
@@ -457,22 +478,53 @@ function SizesTab() {
               </tr>
             </thead>
             <tbody>
-              {sizes.map((s) => (
-                <tr key={s.id} style={{ borderBottom: "1px solid #F1EFEB" }}>
-                  <td style={{ padding: "11px 14px", fontWeight: 700 }}>{s.name}</td>
-                  <td style={{ padding: "11px 14px", color: "#555" }}>{s.width_in}″ × {s.height_in}″</td>
-                  <td style={{ padding: "11px 14px" }}>${s.price_per_sheet.toFixed(2)}</td>
-                  <td style={{ padding: "11px 14px", color: "#888" }}>{s.bleed_in}″ / {s.spacing_in}″</td>
-                  <td style={{ padding: "11px 14px" }}>
-                    <button onClick={() => toggle(s)} style={{ background: s.is_active ? "#DCFCE7" : "#F3F4F6", color: s.is_active ? "#166534" : "#6B7280", border: "none", padding: "3px 10px", borderRadius: "20px", fontSize: "11px", fontWeight: 700, cursor: "pointer" }}>
-                      {s.is_active ? "Active" : "Hidden"}
-                    </button>
-                  </td>
-                  <td style={{ padding: "11px 14px", textAlign: "right" }}>
-                    <button onClick={() => remove(s)} style={{ background: "none", border: "none", color: "#B91C1C", cursor: "pointer", fontSize: "12px" }}>Delete</button>
-                  </td>
-                </tr>
-              ))}
+              {sizes.map((s) => {
+                const editing = editId === s.id;
+                const cell = { padding: "8px 14px" } as React.CSSProperties;
+                const numIn = { ...INPUT, padding: "6px 8px", width: "70px" } as React.CSSProperties;
+                if (editing) {
+                  return (
+                    <tr key={s.id} style={{ borderBottom: "1px solid #F1EFEB", background: "#F8FAFF" }}>
+                      <td style={cell}><input style={{ ...INPUT, padding: "6px 8px" }} value={editDraft.name ?? ""} onChange={(e) => setEditDraft({ ...editDraft, name: e.target.value })} /></td>
+                      <td style={cell}>
+                        <span style={{ display: "inline-flex", gap: "4px", alignItems: "center" }}>
+                          <input style={numIn} type="number" step="0.25" value={editDraft.width_in ?? 0} onChange={(e) => setEditDraft({ ...editDraft, width_in: Number(e.target.value) })} />×
+                          <input style={numIn} type="number" step="0.25" value={editDraft.height_in ?? 0} onChange={(e) => setEditDraft({ ...editDraft, height_in: Number(e.target.value) })} />
+                        </span>
+                      </td>
+                      <td style={cell}><input style={numIn} type="number" step="0.01" value={editDraft.price_per_sheet ?? 0} onChange={(e) => setEditDraft({ ...editDraft, price_per_sheet: Number(e.target.value) })} /></td>
+                      <td style={cell}>
+                        <span style={{ display: "inline-flex", gap: "4px", alignItems: "center" }}>
+                          <input style={{ ...numIn, width: "56px" }} type="number" step="0.025" value={editDraft.bleed_in ?? 0} onChange={(e) => setEditDraft({ ...editDraft, bleed_in: Number(e.target.value) })} />/
+                          <input style={{ ...numIn, width: "56px" }} type="number" step="0.025" value={editDraft.spacing_in ?? 0} onChange={(e) => setEditDraft({ ...editDraft, spacing_in: Number(e.target.value) })} />
+                        </span>
+                      </td>
+                      <td style={cell} />
+                      <td style={{ ...cell, textAlign: "right", whiteSpace: "nowrap" }}>
+                        <button disabled={busy} onClick={() => saveEdit(s.id)} style={{ background: "var(--brand-primary, #1C3557)", color: "#fff", border: "none", padding: "5px 12px", borderRadius: "6px", fontSize: "12px", fontWeight: 700, cursor: "pointer", marginRight: "6px" }}>Save</button>
+                        <button onClick={() => setEditId(null)} style={{ background: "none", border: "none", color: "#666", cursor: "pointer", fontSize: "12px" }}>Cancel</button>
+                      </td>
+                    </tr>
+                  );
+                }
+                return (
+                  <tr key={s.id} style={{ borderBottom: "1px solid #F1EFEB" }}>
+                    <td style={{ padding: "11px 14px", fontWeight: 700 }}>{s.name}</td>
+                    <td style={{ padding: "11px 14px", color: "#555" }}>{s.width_in}″ × {s.height_in}″</td>
+                    <td style={{ padding: "11px 14px" }}>${s.price_per_sheet.toFixed(2)}</td>
+                    <td style={{ padding: "11px 14px", color: "#888" }}>{s.bleed_in}″ / {s.spacing_in}″</td>
+                    <td style={{ padding: "11px 14px" }}>
+                      <button onClick={() => toggle(s)} style={{ background: s.is_active ? "#DCFCE7" : "#F3F4F6", color: s.is_active ? "#166534" : "#6B7280", border: "none", padding: "3px 10px", borderRadius: "20px", fontSize: "11px", fontWeight: 700, cursor: "pointer" }}>
+                        {s.is_active ? "Active" : "Hidden"}
+                      </button>
+                    </td>
+                    <td style={{ padding: "11px 14px", textAlign: "right", whiteSpace: "nowrap" }}>
+                      <button onClick={() => startEdit(s)} style={{ background: "none", border: "none", color: "var(--brand-primary, #1C3557)", cursor: "pointer", fontSize: "12px", fontWeight: 700, marginRight: "12px" }}>Edit</button>
+                      <button onClick={() => remove(s)} style={{ background: "none", border: "none", color: "#B91C1C", cursor: "pointer", fontSize: "12px" }}>Delete</button>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
