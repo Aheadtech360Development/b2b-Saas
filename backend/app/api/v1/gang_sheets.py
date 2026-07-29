@@ -432,6 +432,10 @@ async def submit_order(
     order.version = 1
     order.versions = [_snapshot(order, arts, 1)]
     await db.flush()
+    # updated_at has onupdate=now(); after an UPDATE flush it is expired and
+    # touching it in the serialiser would trigger implicit async IO (500). Refresh
+    # reloads it in the async context first.
+    await db.refresh(order)
     await _notify(db, order, STATUS_SUBMITTED)
     return _order_row(order, arts)
 
@@ -508,6 +512,7 @@ async def save_my_layout(
     artworks = await _load_artworks(db, order.id)
     order.layout = _validate_layout(order, artworks, payload.layout)
     await db.flush()
+    await db.refresh(order)  # reload onupdate'd updated_at before serialising
     return _order_row(order, artworks)
 
 
@@ -539,6 +544,7 @@ async def resubmit_order(
     order.versions = [*(order.versions or []), _snapshot(order, arts, order.version)]
     order.status = STATUS_IN_REVIEW
     await db.flush()
+    await db.refresh(order)
     return _order_row(order, arts)
 
 
@@ -717,6 +723,7 @@ async def admin_set_status(
     extra = (f"<p style='background:#FFF7ED;border-radius:6px;padding:10px 12px;font-size:13px;color:#9A3412'>{order.supplier_notes}</p>"
              if payload.status == STATUS_REVISION and order.supplier_notes else "")
     await _notify(db, order, payload.status, extra_html=extra)
+    await db.refresh(order)
     return _order_row(order, await _load_artworks(db, order.id), admin=True)
 
 
@@ -737,4 +744,5 @@ async def admin_save_layout(
     artworks = await _load_artworks(db, order.id)
     order.layout = _validate_layout(order, artworks, payload.layout)
     await db.flush()
+    await db.refresh(order)  # reload onupdate'd updated_at before serialising
     return _order_row(order, artworks, admin=True)
