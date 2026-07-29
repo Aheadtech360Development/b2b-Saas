@@ -685,7 +685,7 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
               <div style={S.panelTitle}>Add text</div>
               <textarea value={textDraft.text} onChange={(e) => setTextDraft((t) => ({ ...t, text: e.target.value }))}
                 placeholder="Type your text…" rows={3}
-                style={{ width: "100%", padding: "9px", border: "1px solid #DDD9D2", borderRadius: "6px", fontSize: "14px", resize: "vertical" }} />
+                style={{ width: "100%", boxSizing: "border-box", padding: "9px", border: "1px solid #DDD9D2", borderRadius: "6px", fontSize: "14px", resize: "vertical" }} />
               <div style={{ display: "flex", alignItems: "center", gap: "12px", marginTop: "10px" }}>
                 <label style={{ fontSize: "13px", display: "flex", alignItems: "center", gap: "6px" }}>
                   Colour <input type="color" value={textDraft.color} onChange={(e) => setTextDraft((t) => ({ ...t, color: e.target.value }))} style={{ width: "34px", height: "28px", border: "none", background: "none" }} />
@@ -713,7 +713,7 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
               <div style={{ marginTop: "14px" }}>
                 <label style={{ fontSize: "12px", fontWeight: 700, color: "#666" }}>Image margin (in)</label>
                 <input type="number" min={0} step="0.25" value={imageMargin} onChange={(e) => setImageMargin(Math.max(0, Number(e.target.value) || 0))}
-                  style={{ width: "100%", padding: "8px", border: "1px solid #DDD9D2", borderRadius: "6px", fontSize: "13px", marginTop: "4px" }} />
+                  style={{ width: "100%", boxSizing: "border-box", padding: "8px", border: "1px solid #DDD9D2", borderRadius: "6px", fontSize: "13px", marginTop: "4px" }} />
               </div>
             </>
           )}
@@ -725,7 +725,7 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
                 <span style={{ fontSize: "12px", fontWeight: 800, textTransform: "uppercase", letterSpacing: ".05em", color: "#555" }}>Selected design</span>
                 <button onClick={() => remove(sel.id)} style={{ background: "none", border: "none", color: "#B91C1C", cursor: "pointer", fontSize: "12px", fontWeight: 700 }}>Remove</button>
               </div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: "10px" }}>
                 <label style={S.miniLabel}>Width (in)
                   <input type="number" step="0.25" min={MIN_IN} value={sel.w_in} onChange={(e) => setDim(sel.id, "w", Number(e.target.value))} style={S.miniInput} />
                 </label>
@@ -875,7 +875,7 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
 }
 
 const S: Record<string, React.CSSProperties> = {
-  root: { position: "fixed", inset: 0, zIndex: 200, background: "#F4F3F1", display: "flex", flexDirection: "column", fontFamily: "var(--brand-font-body, inherit)" },
+  root: { position: "fixed", inset: 0, zIndex: 200, background: "#F4F3F1", display: "flex", flexDirection: "column", fontFamily: "'Open Sans', system-ui, sans-serif" },
   topbar: { height: "58px", flexShrink: 0, background: "#fff", borderBottom: "1px solid #E5E3DE", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 18px", gap: "16px" },
   logo: { fontSize: "18px", fontWeight: 900, letterSpacing: "-.02em" },
   primaryBtn: { background: "var(--brand-primary,#1C3557)", color: "#fff", border: "none", padding: "9px 16px", borderRadius: "7px", fontSize: "13px", fontWeight: 700, cursor: "pointer" },
@@ -895,7 +895,7 @@ const S: Record<string, React.CSSProperties> = {
   toggleRow: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: "1px solid #F0EEE9" },
   selCard: { marginTop: "18px", border: "1px solid #E5E3DE", borderRadius: "10px", padding: "14px", background: "#FBFBF9" },
   miniLabel: { display: "flex", flexDirection: "column", gap: "4px", fontSize: "11px", fontWeight: 700, color: "#777" },
-  miniInput: { padding: "7px", border: "1px solid #DDD9D2", borderRadius: "6px", fontSize: "13px" },
+  miniInput: { width: "100%", boxSizing: "border-box", minWidth: 0, padding: "7px", border: "1px solid #DDD9D2", borderRadius: "6px", fontSize: "13px" },
   smallBtn: { flex: 1, background: "#fff", border: "1px solid #DDD9D2", borderRadius: "7px", padding: "8px 6px", fontSize: "12px", fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" },
   canvasArea: { flex: 1, display: "flex", flexDirection: "column", minWidth: 0 },
   toolbar: { height: "50px", flexShrink: 0, background: "#fff", borderBottom: "1px solid #E5E3DE", display: "flex", alignItems: "center", gap: "10px", padding: "0 14px", flexWrap: "wrap" },
