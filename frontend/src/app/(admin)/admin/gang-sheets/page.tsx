@@ -53,10 +53,26 @@ const EMPTY_SIZE = {
   height_in: 60,
   price_per_sheet: 0,
   bleed_in: 0.125,
-  spacing_in: 0.125,
+  spacing_in: 0.25,
   is_active: true,
   sort_order: 0,
+  pricing_mode: "fixed" as "fixed" | "custom_length",
+  price_per_inch: 0,
+  min_length_in: 12,
+  max_length_in: 240,
+  max_upload_mb: null as number | null,
 };
+
+// One-click seed of the sizes ~95% of DTF stores offer (22" wide).
+const STANDARD_DTF_SIZES = [
+  { name: "22 × 24", height_in: 24, price_per_sheet: 12.99 },
+  { name: "22 × 36", height_in: 36, price_per_sheet: 18.99 },
+  { name: "22 × 48", height_in: 48, price_per_sheet: 24.99 },
+  { name: "22 × 60", height_in: 60, price_per_sheet: 29.99 },
+  { name: "22 × 72", height_in: 72, price_per_sheet: 35.99 },
+  { name: "22 × 84", height_in: 84, price_per_sheet: 41.99 },
+  { name: "22 × 96", height_in: 96, price_per_sheet: 47.99 },
+];
 
 export default function AdminGangSheetsPage() {
   const [tab, setTab] = useState<"orders" | "sizes">("orders");
@@ -429,27 +445,85 @@ function SizesTab() {
     }
   }
 
+  async function seedStandard() {
+    if (!confirm("Add the 7 standard DTF sizes (22×24 … 22×96)?")) return;
+    setBusy(true); setErr(null);
+    try {
+      for (const s of STANDARD_DTF_SIZES) {
+        await gangSheetsService.adminCreateSize({ ...EMPTY_SIZE, name: s.name, height_in: s.height_in, price_per_sheet: s.price_per_sheet });
+      }
+      load();
+    } catch {
+      setErr("Could not add the standard sizes.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const isCustom = draft.pricing_mode === "custom_length";
+
   return (
     <>
       <div style={{ ...CARD, marginBottom: "18px" }}>
-        <div style={{ fontSize: "14px", fontWeight: 700, marginBottom: "14px" }}>Add a sheet size</div>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px", flexWrap: "wrap", gap: "8px" }}>
+          <div style={{ fontSize: "14px", fontWeight: 700 }}>Add a sheet size</div>
+          <button onClick={seedStandard} disabled={busy} style={{ ...BTN, background: "#fff", color: "var(--brand-primary, #1C3557)", border: "1px solid #DDD9D2" }}>
+            + Add 7 standard DTF sizes
+          </button>
+        </div>
+
+        {/* Pricing mode */}
+        <div style={{ marginBottom: "14px" }}>
+          <label style={LABEL}>Pricing</label>
+          <div style={{ display: "flex", gap: "8px" }}>
+            {([["fixed", "Fixed size & price"], ["custom_length", "Custom length (per inch)"]] as const).map(([mode, lbl]) => (
+              <button key={mode} type="button" onClick={() => setDraft({ ...draft, pricing_mode: mode })}
+                style={{ padding: "8px 14px", borderRadius: "7px", fontSize: "13px", fontWeight: 600, cursor: "pointer",
+                  border: "1px solid " + (draft.pricing_mode === mode ? "var(--brand-primary, #1C3557)" : "#DDD9D2"),
+                  background: draft.pricing_mode === mode ? "var(--brand-primary, #1C3557)" : "#fff",
+                  color: draft.pricing_mode === mode ? "#fff" : "#555" }}>
+                {lbl}
+              </button>
+            ))}
+          </div>
+        </div>
+
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(140px,1fr))", gap: "12px", marginBottom: "14px" }}>
           <div>
             <label style={LABEL}>Name</label>
-            <input style={INPUT} value={draft.name} placeholder="DTF 22×60" onChange={(e) => setDraft({ ...draft, name: e.target.value })} />
+            <input style={INPUT} value={draft.name} placeholder={isCustom ? "Custom Gang Sheet" : "DTF 22×60"} onChange={(e) => setDraft({ ...draft, name: e.target.value })} />
           </div>
           <div>
             <label style={LABEL}>Width (in)</label>
             <input style={INPUT} type="number" step="0.25" min="0.25" value={draft.width_in} onChange={(e) => setDraft({ ...draft, width_in: Number(e.target.value) })} />
           </div>
-          <div>
-            <label style={LABEL}>Height (in)</label>
-            <input style={INPUT} type="number" step="0.25" min="0.25" value={draft.height_in} onChange={(e) => setDraft({ ...draft, height_in: Number(e.target.value) })} />
-          </div>
-          <div>
-            <label style={LABEL}>Price / sheet</label>
-            <input style={INPUT} type="number" step="0.01" min="0" value={draft.price_per_sheet} onChange={(e) => setDraft({ ...draft, price_per_sheet: Number(e.target.value) })} />
-          </div>
+          {isCustom ? (
+            <>
+              <div>
+                <label style={LABEL}>Price / inch</label>
+                <input style={INPUT} type="number" step="0.01" min="0" value={draft.price_per_inch} onChange={(e) => setDraft({ ...draft, price_per_inch: Number(e.target.value) })} />
+              </div>
+              <div>
+                <label style={LABEL}>Min length (in)</label>
+                <input style={INPUT} type="number" step="1" min="1" value={draft.min_length_in} onChange={(e) => setDraft({ ...draft, min_length_in: Number(e.target.value) })} />
+              </div>
+              <div>
+                <label style={LABEL}>Max length (in)</label>
+                <input style={INPUT} type="number" step="1" min="1" value={draft.max_length_in} onChange={(e) => setDraft({ ...draft, max_length_in: Number(e.target.value) })} />
+              </div>
+            </>
+          ) : (
+            <>
+              <div>
+                <label style={LABEL}>Height (in)</label>
+                <input style={INPUT} type="number" step="0.25" min="0.25" value={draft.height_in} onChange={(e) => setDraft({ ...draft, height_in: Number(e.target.value) })} />
+              </div>
+              <div>
+                <label style={LABEL}>Price / sheet</label>
+                <input style={INPUT} type="number" step="0.01" min="0" value={draft.price_per_sheet} onChange={(e) => setDraft({ ...draft, price_per_sheet: Number(e.target.value) })} />
+              </div>
+            </>
+          )}
           <div>
             <label style={LABEL}>Bleed (in)</label>
             <input style={INPUT} type="number" step="0.025" min="0" value={draft.bleed_in} onChange={(e) => setDraft({ ...draft, bleed_in: Number(e.target.value) })} />
@@ -510,8 +584,14 @@ function SizesTab() {
                 return (
                   <tr key={s.id} style={{ borderBottom: "1px solid #F1EFEB" }}>
                     <td style={{ padding: "11px 14px", fontWeight: 700 }}>{s.name}</td>
-                    <td style={{ padding: "11px 14px", color: "#555" }}>{s.width_in}″ × {s.height_in}″</td>
-                    <td style={{ padding: "11px 14px" }}>${s.price_per_sheet.toFixed(2)}</td>
+                    <td style={{ padding: "11px 14px", color: "#555" }}>
+                      {s.pricing_mode === "custom_length"
+                        ? <>{s.width_in}″ × custom <span style={{ color: "#8B5CF6", fontWeight: 700 }}>({s.min_length_in}–{s.max_length_in}″)</span></>
+                        : <>{s.width_in}″ × {s.height_in}″</>}
+                    </td>
+                    <td style={{ padding: "11px 14px" }}>
+                      {s.pricing_mode === "custom_length" ? `$${s.price_per_inch.toFixed(2)}/in` : `$${s.price_per_sheet.toFixed(2)}`}
+                    </td>
                     <td style={{ padding: "11px 14px", color: "#888" }}>{s.bleed_in}″ / {s.spacing_in}″</td>
                     <td style={{ padding: "11px 14px" }}>
                       <button onClick={() => toggle(s)} style={{ background: s.is_active ? "#DCFCE7" : "#F3F4F6", color: s.is_active ? "#166534" : "#6B7280", border: "none", padding: "3px 10px", borderRadius: "20px", fontSize: "11px", fontWeight: 700, cursor: "pointer" }}>

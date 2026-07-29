@@ -89,12 +89,25 @@ export default function GangSheetBuilderPage() {
   useEffect(loadOrders, [loadOrders]);
 
   const size = useMemo(() => sizes.find((s) => s.id === sizeId), [sizes, sizeId]);
+  const isCustom = size?.pricing_mode === "custom_length";
+
+  // Buyer-chosen length for a custom-length size (inches). Reset to the size's
+  // minimum whenever the selected size changes.
+  const [customLength, setCustomLength] = useState(0);
+  useEffect(() => {
+    if (isCustom && size) setCustomLength((cur) => (cur >= size.min_length_in && cur <= size.max_length_in ? cur : size.min_length_in));
+  }, [sizeId, isCustom, size]);
+
+  // Effective sheet length + unit price: a custom size uses the chosen length and
+  // per-inch price; a fixed size uses its stored height and flat price.
+  const effHeight = size ? (isCustom ? customLength : size.height_in) : 0;
+  const unitPrice = size ? (isCustom ? customLength * size.price_per_inch : size.price_per_sheet) : 0;
 
   // The printable area excludes bleed on all sides — the same rule the server
   // enforces on submit, surfaced here so the buyer finds out before submitting.
   const usable = useMemo(
-    () => (size ? { w: size.width_in - size.bleed_in * 2, h: size.height_in - size.bleed_in * 2 } : null),
-    [size]
+    () => (size ? { w: size.width_in - size.bleed_in * 2, h: effHeight - size.bleed_in * 2 } : null),
+    [size, effHeight]
   );
   function fits(a: Draft): boolean {
     if (!usable) return true;
@@ -156,6 +169,7 @@ export default function GangSheetBuilderPage() {
       const order = await gangSheetsService.submit({
         sheet_size_id: size.id,
         sheet_quantity: qty,
+        custom_length_in: isCustom ? customLength : undefined,
         // Strip the local-only analysis fields — the API only accepts ArtworkIn.
         artworks: artworks.map((a) => ({
           file_url: a.file_url,
@@ -248,11 +262,21 @@ export default function GangSheetBuilderPage() {
                 <select style={INPUT} value={sizeId} onChange={(e) => setSizeId(e.target.value)}>
                   {sizes.map((s) => (
                     <option key={s.id} value={s.id}>
-                      {s.name} — {s.width_in}″ × {s.height_in}″ (${s.price_per_sheet.toFixed(2)})
+                      {s.pricing_mode === "custom_length"
+                        ? `${s.name} — ${s.width_in}″ × custom ($${s.price_per_inch.toFixed(2)}/in)`
+                        : `${s.name} — ${s.width_in}″ × ${s.height_in}″ ($${s.price_per_sheet.toFixed(2)})`}
                     </option>
                   ))}
                 </select>
               </div>
+              {isCustom && size ? (
+                <div>
+                  <label style={LABEL}>Length (in) · {size.min_length_in}–{size.max_length_in}</label>
+                  <input style={INPUT} type="number" min={size.min_length_in} max={size.max_length_in} step="1"
+                    value={customLength}
+                    onChange={(e) => setCustomLength(Math.min(size.max_length_in, Math.max(size.min_length_in, Number(e.target.value) || size.min_length_in)))} />
+                </div>
+              ) : null}
               <div>
                 <label style={LABEL}>Number of sheets</label>
                 <input style={INPUT} type="number" min={1} value={qty} onChange={(e) => setQty(Math.max(1, Number(e.target.value) || 1))} />
@@ -360,7 +384,7 @@ export default function GangSheetBuilderPage() {
           {/* Cost breakdown — live; updates with sheet size and quantity */}
           <div style={{ ...CARD }}>
             {(() => {
-              const unit = size?.price_per_sheet ?? 0;
+              const unit = unitPrice;
               const firstSheet = unit;
               const extraSheets = Math.max(0, qty - 1) * unit;
               const fees = 0;               // reserved for supplier surcharges
@@ -376,7 +400,7 @@ export default function GangSheetBuilderPage() {
               return (
                 <>
                   <div style={{ fontSize: "12px", color: "#888", textTransform: "uppercase", letterSpacing: ".05em", fontWeight: 700, marginBottom: "8px" }}>Cost breakdown</div>
-                  <Row label={`Sheet price (${size?.name ?? "—"})`} val={`$${firstSheet.toFixed(2)}`} />
+                  <Row label={isCustom ? `Sheet price (${size?.width_in}″ × ${customLength}″ @ $${size?.price_per_inch.toFixed(2)}/in)` : `Sheet price (${size?.name ?? "—"})`} val={`$${firstSheet.toFixed(2)}`} />
                   {qty > 1 && <Row label={`Extra sheets (${qty - 1} × $${unit.toFixed(2)})`} val={`$${extraSheets.toFixed(2)}`} />}
                   {fees > 0 && <Row label="Additional fees" val={`$${fees.toFixed(2)}`} />}
                   <div style={{ borderTop: "1px solid #EFEDE8", margin: "6px 0" }} />

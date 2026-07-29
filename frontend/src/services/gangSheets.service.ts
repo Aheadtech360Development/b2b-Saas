@@ -10,6 +10,11 @@ export interface GangSheetSize {
   spacing_in: number;
   is_active: boolean;
   sort_order: number;
+  pricing_mode: "fixed" | "custom_length";
+  price_per_inch: number;
+  min_length_in: number;
+  max_length_in: number;
+  max_upload_mb: number | null;
 }
 
 export interface GangSheetArtwork {
@@ -84,6 +89,7 @@ export interface SubmitGangSheetPayload {
   contact_email?: string;
   contact_name?: string;
   customer_notes?: string;
+  custom_length_in?: number;
 }
 
 export const gangSheetsService = {
