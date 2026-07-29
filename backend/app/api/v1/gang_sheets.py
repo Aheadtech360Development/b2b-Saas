@@ -118,6 +118,19 @@ class GangSheetArtwork(TenantMixin, DBBaseModel):
     sort_order: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
 
+class GangSheetLibraryDesign(TenantMixin, DBBaseModel):
+    """A store-curated ready-made design buyers can drop onto a sheet. Managed by
+    the brand's admin; surfaced to buyers in the builder's "Designs" tab."""
+    __tablename__ = "gang_sheet_library_designs"
+
+    name: Mapped[str] = mapped_column(String(300), nullable=False)
+    file_url: Mapped[str] = mapped_column(String(1000), nullable=False)
+    file_type: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    category: Mapped[Optional[str]] = mapped_column(String(120), nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    sort_order: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
+
 # ── Schemas ───────────────────────────────────────────────────────────────────
 class SizeIn(BaseModel):
     name: str
@@ -192,6 +205,15 @@ class LayoutIn(BaseModel):
     layout: list[Placement]
 
 
+class LibraryIn(BaseModel):
+    name: str
+    file_url: str
+    file_type: Optional[str] = None
+    category: Optional[str] = None
+    is_active: bool = True
+    sort_order: int = 0
+
+
 # ── Serialisers ───────────────────────────────────────────────────────────────
 def _size_row(s: GangSheetSize) -> dict:
     return {
@@ -222,6 +244,18 @@ def _art_row(a: GangSheetArtwork) -> dict:
         "height_in": float(a.height_in),
         "quantity": a.quantity,
         "sort_order": a.sort_order,
+    }
+
+
+def _library_row(d: GangSheetLibraryDesign) -> dict:
+    return {
+        "id": str(d.id),
+        "name": d.name,
+        "file_url": d.file_url,
+        "file_type": d.file_type,
+        "category": d.category,
+        "is_active": d.is_active,
+        "sort_order": d.sort_order,
     }
 
 
@@ -384,6 +418,46 @@ async def list_sizes(db: AsyncSession = Depends(get_db)) -> list[dict]:
         .order_by(GangSheetSize.sort_order, GangSheetSize.name)
     )
     return [_size_row(s) for s in rows.scalars().all()]
+
+
+@public_router.get("/library")
+async def list_library(db: AsyncSession = Depends(get_db)) -> list[dict]:
+    """Store-curated ready-made designs a buyer can drop straight onto a sheet."""
+    rows = await db.execute(
+        select(GangSheetLibraryDesign)
+        .where(GangSheetLibraryDesign.is_active.is_(True))
+        .order_by(GangSheetLibraryDesign.sort_order, GangSheetLibraryDesign.name)
+    )
+    return [_library_row(d) for d in rows.scalars().all()]
+
+
+@public_router.get("/my-artworks")
+async def my_artworks(request: Request, db: AsyncSession = Depends(get_db)) -> list[dict]:
+    """The buyer's own previously-uploaded designs, de-duplicated, newest first —
+    the builder's "Gallery" so past artwork can be reused without re-uploading."""
+    user_id = getattr(request.state, "user_id", None)
+    company_id = getattr(request.state, "company_id", None)
+    if not user_id and not company_id:
+        return []
+
+    order_ids = select(GangSheetOrder.id).where(
+        GangSheetOrder.company_id == company_id if company_id else GangSheetOrder.user_id == user_id
+    )
+    rows = await db.execute(
+        select(GangSheetArtwork)
+        .where(GangSheetArtwork.gang_sheet_order_id.in_(order_ids))
+        .order_by(GangSheetArtwork.created_at.desc())
+    )
+    seen: set[str] = set()
+    out: list[dict] = []
+    for a in rows.scalars().all():
+        if a.file_url in seen:
+            continue
+        seen.add(a.file_url)
+        out.append(_art_row(a))
+        if len(out) >= 60:
+            break
+    return out
 
 
 @public_router.post("/orders", status_code=status.HTTP_201_CREATED)
@@ -830,3 +904,36 @@ async def admin_save_layout(
     await db.flush()
     await db.refresh(order)  # reload onupdate'd updated_at before serialising
     return _order_row(order, artworks, admin=True)
+
+
+# ── Admin: design library ─────────────────────────────────────────────────────
+@admin_router.get("/library")
+async def admin_list_library(
+    _: None = Depends(require_admin), db: AsyncSession = Depends(get_db)
+) -> list[dict]:
+    rows = await db.execute(
+        select(GangSheetLibraryDesign).order_by(GangSheetLibraryDesign.sort_order, GangSheetLibraryDesign.name)
+    )
+    return [_library_row(d) for d in rows.scalars().all()]
+
+
+@admin_router.post("/library", status_code=status.HTTP_201_CREATED)
+async def admin_create_library(
+    payload: LibraryIn, _: None = Depends(require_admin), db: AsyncSession = Depends(get_db)
+) -> dict:
+    design = GangSheetLibraryDesign(**payload.model_dump())
+    db.add(design)
+    await db.flush()
+    return _library_row(design)
+
+
+@admin_router.delete("/library/{design_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def admin_delete_library(
+    design_id: uuid.UUID, _: None = Depends(require_admin), db: AsyncSession = Depends(get_db)
+) -> None:
+    design = (
+        await db.execute(select(GangSheetLibraryDesign).where(GangSheetLibraryDesign.id == design_id))
+    ).scalar_one_or_none()
+    if not design:
+        raise HTTPException(status_code=404, detail="Design not found")
+    await db.delete(design)

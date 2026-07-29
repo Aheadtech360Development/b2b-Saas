@@ -9,6 +9,7 @@ import {
   type GangSheetSize,
   type GangSheetStatus,
   type GangSheetPlacement,
+  type GangSheetLibraryDesign,
 } from "@/services/gangSheets.service";
 import { GangSheetCanvas } from "@/components/storefront/GangSheetCanvas";
 import { GangSheetTimeline } from "@/components/storefront/GangSheetTimeline";
@@ -75,7 +76,8 @@ const STANDARD_DTF_SIZES = [
 ];
 
 export default function AdminGangSheetsPage() {
-  const [tab, setTab] = useState<"orders" | "sizes">("orders");
+  const [tab, setTab] = useState<"orders" | "sizes" | "library">("orders");
+  const TAB_LABEL: Record<string, string> = { orders: "Orders", sizes: "Sheet Sizes", library: "Design Library" };
 
   return (
     <div style={{ padding: "24px", maxWidth: "1100px" }}>
@@ -85,7 +87,7 @@ export default function AdminGangSheetsPage() {
       </p>
 
       <div style={{ display: "flex", gap: "6px", marginBottom: "18px" }}>
-        {(["orders", "sizes"] as const).map((t) => (
+        {(["orders", "sizes", "library"] as const).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -98,15 +100,14 @@ export default function AdminGangSheetsPage() {
               fontSize: "13px",
               fontWeight: 600,
               cursor: "pointer",
-              textTransform: "capitalize",
             }}
           >
-            {t === "orders" ? "Orders" : "Sheet Sizes"}
+            {TAB_LABEL[t]}
           </button>
         ))}
       </div>
 
-      {tab === "orders" ? <OrdersTab /> : <SizesTab />}
+      {tab === "orders" ? <OrdersTab /> : tab === "sizes" ? <SizesTab /> : <LibraryTab />}
     </div>
   );
 }
@@ -610,5 +611,87 @@ function SizesTab() {
         </div>
       )}
     </>
+  );
+}
+
+// ── Design Library ──────────────────────────────────────────────────────────────
+// Ready-made designs buyers can drop straight onto a sheet in the builder's
+// "Designs" tab. Admin uploads the file, then it's saved as a library entry.
+function LibraryTab() {
+  const [designs, setDesigns] = useState<GangSheetLibraryDesign[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [category, setCategory] = useState("");
+
+  const load = useCallback(() => {
+    gangSheetsService.adminListLibrary().then(setDesigns).catch(() => setDesigns([]));
+  }, []);
+  useEffect(load, [load]);
+
+  async function onFiles(files: FileList | null) {
+    if (!files?.length) return;
+    setUploading(true);
+    setError(null);
+    try {
+      for (const file of Array.from(files)) {
+        const res = await gangSheetsService.uploadArtwork(file);
+        await gangSheetsService.adminCreateLibrary({
+          name: res.file_name,
+          file_url: res.url,
+          file_type: res.type,
+          category: category.trim() || undefined,
+          is_active: true,
+        });
+      }
+      load();
+    } catch {
+      setError("Could not upload one of those files.");
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  async function remove(id: string) {
+    await gangSheetsService.adminDeleteLibrary(id).catch(() => {});
+    load();
+  }
+
+  return (
+    <div style={CARD}>
+      <div style={{ fontSize: "15px", fontWeight: 700, marginBottom: "4px" }}>Ready-made designs</div>
+      <p style={{ fontSize: "13px", color: "#777", marginBottom: "16px" }}>
+        Upload artwork here and it appears in every buyer&apos;s builder under the <strong>Designs</strong> tab, ready to drop onto a sheet.
+      </p>
+
+      <div style={{ display: "flex", gap: "10px", alignItems: "flex-end", flexWrap: "wrap", marginBottom: "18px" }}>
+        <div style={{ flex: "1 1 200px" }}>
+          <label style={LABEL}>Category (optional)</label>
+          <input style={INPUT} value={category} onChange={(e) => setCategory(e.target.value)} placeholder="e.g. Holidays, Sports" />
+        </div>
+        <label style={{ display: "inline-block" }}>
+          <input type="file" multiple accept=".png,.jpg,.jpeg,.webp,.gif,.svg" onChange={(e) => onFiles(e.target.files)} style={{ display: "none" }} />
+          <span style={{ display: "inline-block", background: "var(--brand-primary, #1C3557)", color: "#fff", padding: "10px 18px", borderRadius: "6px", fontSize: "13px", fontWeight: 700, cursor: "pointer" }}>
+            {uploading ? "Uploading…" : "＋ Upload designs"}
+          </span>
+        </label>
+      </div>
+
+      {error && <div style={{ background: "#FEF2F2", border: "1px solid #FCA5A5", color: "#B91C1C", padding: "10px 12px", borderRadius: "8px", fontSize: "13px", marginBottom: "14px" }}>{error}</div>}
+
+      {designs.length === 0 ? (
+        <div style={{ color: "#999", fontSize: "13px" }}>No designs yet. Upload some to get started.</div>
+      ) : (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(130px,1fr))", gap: "12px" }}>
+          {designs.map((d) => (
+            <div key={d.id} style={{ position: "relative", border: "1px solid #E8E6E1", borderRadius: "8px", overflow: "hidden", background: "#fff" }}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={d.file_url} alt={d.name} style={{ width: "100%", height: "110px", objectFit: "contain", background: "#F7F7F5" }} />
+              <div style={{ padding: "6px 8px", fontSize: "11px", color: "#555", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{d.name}</div>
+              <button onClick={() => remove(d.id)} title="Remove" style={{ position: "absolute", top: "5px", right: "5px", background: "rgba(255,255,255,.9)", border: "1px solid #F0C9C9", color: "#B91C1C", borderRadius: "5px", width: "24px", height: "24px", fontSize: "12px", fontWeight: 700, cursor: "pointer", lineHeight: 1 }}>✕</button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }

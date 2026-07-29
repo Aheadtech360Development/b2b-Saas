@@ -28,6 +28,16 @@ export interface GangSheetArtwork {
   sort_order?: number;
 }
 
+export interface GangSheetLibraryDesign {
+  id: string;
+  name: string;
+  file_url: string;
+  file_type?: string | null;
+  category?: string | null;
+  is_active: boolean;
+  sort_order: number;
+}
+
 export type GangSheetStatus =
   | "submitted"
   | "in_review"
@@ -115,6 +125,12 @@ export const gangSheetsService = {
   addArtwork: (id: string, artwork: Omit<GangSheetArtwork, "id" | "sort_order">) =>
     apiClient.post<GangSheetOrder>(`/api/v1/gang-sheets/orders/${id}/artwork`, artwork),
 
+  /** Store-curated ready-made designs the buyer can drop onto a sheet. */
+  listLibrary: () => apiClient.get<GangSheetLibraryDesign[]>("/api/v1/gang-sheets/library"),
+
+  /** The buyer's own previously-uploaded designs, de-duplicated (the "Gallery"). */
+  myArtworks: () => apiClient.get<GangSheetArtwork[]>("/api/v1/gang-sheets/my-artworks"),
+
   adminSaveLayout: (id: string, layout: GangSheetPlacement[]) =>
     apiClient.patch<GangSheetOrder>(`/api/v1/admin/gang-sheets/orders/${id}/layout`, { layout }),
 
@@ -139,6 +155,14 @@ export const gangSheetsService = {
 
   adminDeleteSize: (id: string) =>
     apiClient.delete<void>(`/api/v1/admin/gang-sheets/sizes/${id}`),
+
+  adminListLibrary: () => apiClient.get<GangSheetLibraryDesign[]>("/api/v1/admin/gang-sheets/library"),
+
+  adminCreateLibrary: (payload: Partial<GangSheetLibraryDesign>) =>
+    apiClient.post<GangSheetLibraryDesign>("/api/v1/admin/gang-sheets/library", payload),
+
+  adminDeleteLibrary: (id: string) =>
+    apiClient.delete<void>(`/api/v1/admin/gang-sheets/library/${id}`),
 
   adminListOrders: (status?: string) =>
     apiClient.get<GangSheetOrder[]>(

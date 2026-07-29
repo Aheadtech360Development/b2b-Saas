@@ -17,6 +17,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   gangSheetsService,
+  type GangSheetArtwork,
+  type GangSheetLibraryDesign,
   type GangSheetOrder,
   type GangSheetSize,
 } from "@/services/gangSheets.service";
@@ -88,7 +90,9 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
   const [showRes, setShowRes] = useState(true);
   const [imageMargin, setImageMargin] = useState(0.5);
   const [aspectLock, setAspectLock] = useState(true);
-  const [panel, setPanel] = useState<"uploads" | "text" | "settings">("uploads");
+  const [panel, setPanel] = useState<"uploads" | "designs" | "gallery" | "text" | "settings">("uploads");
+  const [library, setLibrary] = useState<GangSheetLibraryDesign[]>([]);
+  const [gallery, setGallery] = useState<GangSheetArtwork[]>([]);
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [savedOk, setSavedOk] = useState(false);
@@ -223,6 +227,39 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
     e.preventDefault();
     setDropActive(false);
     onFiles(e.dataTransfer.files);
+  }
+
+  // Ready-made designs (store library) + the buyer's own past uploads (gallery).
+  useEffect(() => {
+    gangSheetsService.listLibrary().then(setLibrary).catch(() => {});
+    gangSheetsService.myArtworks().then(setGallery).catch(() => {});
+  }, []);
+
+  /** Read an image's natural pixel size (for DPI) without needing CORS/canvas. */
+  function loadDims(src: string): Promise<{ w: number; h: number }> {
+    return new Promise((res, rej) => {
+      const img = new Image();
+      img.onload = () => res({ w: img.naturalWidth, h: img.naturalHeight });
+      img.onerror = rej;
+      img.src = src;
+    });
+  }
+
+  /** Add an already-hosted design (from Gallery or the store's Designs library)
+   *  straight onto the sheet — no re-upload, just reference its URL. */
+  async function addFromUrl(file_url: string, file_name: string, file_type?: string | null) {
+    const type = (file_type || file_url.split(".").pop() || "").toLowerCase();
+    const isImg = IMAGE_TYPES.has(type);
+    let pxW = 0, pxH = 0;
+    if (isImg) { try { const d = await loadDims(file_url); pxW = d.w; pxH = d.h; } catch { /* dims unknown */ } }
+    const u: Upload = {
+      uid: `${file_url}#${nextId.current++}`,
+      file_url, file_name, file_type: type,
+      isImage: isImg, pxW, pxH, hasAlpha: false,
+      aspect: pxW && pxH ? pxW / pxH : 1,
+    };
+    setUploads((cur) => [...cur, u]);
+    addPlacement(u);
   }
 
   // ── Add Text (rasterised to PNG so it flows through the same pipeline) ─────────
@@ -550,7 +587,7 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
       <div style={S.body}>
         {/* ── Left rail ─────────────────────────────────────────────────────── */}
         <div style={S.rail}>
-          {([["uploads", "⬆", "Uploads"], ["text", "T", "Add Text"], ["settings", "⚙", "Settings"]] as const).map(([key, icon, label]) => (
+          {([["uploads", "⬆", "Uploads"], ["designs", "✦", "Designs"], ["gallery", "🖼", "Gallery"], ["text", "T", "Add Text"], ["settings", "⚙", "Settings"]] as const).map(([key, icon, label]) => (
             <button key={key} onClick={() => setPanel(key)} title={label}
               style={{ ...S.railBtn, ...(panel === key ? S.railBtnActive : {}) }}>
               <span style={{ fontSize: "18px", lineHeight: 1 }}>{icon}</span>
@@ -592,6 +629,42 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
                   );
                 })}
                 {uploads.length === 0 && <div style={{ gridColumn: "1 / -1", fontSize: "12px", color: "#aaa", padding: "10px 0" }}>No uploads yet.</div>}
+              </div>
+            </>
+          )}
+
+          {panel === "designs" && (
+            <>
+              <div style={S.panelTitle}>Ready-made designs</div>
+              <p style={{ fontSize: "11px", color: "#999", marginBottom: "10px" }}>Tap any design to drop it on your sheet.</p>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
+                {library.map((d) => (
+                  <button key={d.id} onClick={() => addFromUrl(d.file_url, d.name, d.file_type)} title={d.name} style={S.uploadThumb}>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={d.file_url} alt="" style={{ width: "100%", height: "72px", objectFit: "contain", background: "#F7F7F5" }} />
+                    <div style={{ fontSize: "10px", color: "#666", padding: "3px 4px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{d.name}</div>
+                  </button>
+                ))}
+                {library.length === 0 && <div style={{ gridColumn: "1 / -1", fontSize: "12px", color: "#aaa", padding: "10px 0" }}>No ready-made designs yet.</div>}
+              </div>
+            </>
+          )}
+
+          {panel === "gallery" && (
+            <>
+              <div style={S.panelTitle}>Your gallery</div>
+              <p style={{ fontSize: "11px", color: "#999", marginBottom: "10px" }}>Designs you&apos;ve used before — reuse without re-uploading.</p>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
+                {gallery.map((a, i) => (
+                  <button key={`${a.file_url}-${i}`} onClick={() => addFromUrl(a.file_url, a.file_name, a.file_type)} title={a.file_name} style={S.uploadThumb}>
+                    {IMAGE_TYPES.has((a.file_type ?? "").toLowerCase())
+                      // eslint-disable-next-line @next/next/no-img-element
+                      ? <img src={a.file_url} alt="" style={{ width: "100%", height: "72px", objectFit: "contain", background: "#F7F7F5" }} />
+                      : <div style={{ height: "72px", display: "flex", alignItems: "center", justifyContent: "center", color: "#4338CA", fontWeight: 700 }}>{(a.file_type ?? "?").toUpperCase().slice(0, 4)}</div>}
+                    <div style={{ fontSize: "10px", color: "#666", padding: "3px 4px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.file_name}</div>
+                  </button>
+                ))}
+                {gallery.length === 0 && <div style={{ gridColumn: "1 / -1", fontSize: "12px", color: "#aaa", padding: "10px 0" }}>Your used designs will appear here.</div>}
               </div>
             </>
           )}
