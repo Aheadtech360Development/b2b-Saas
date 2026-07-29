@@ -111,6 +111,26 @@ class OrderService:
         ordered_product_slugs: set[str] = set()
 
         for cart_item in cart_items:
+            # Gang-sheet line: billed from its own snapshot — no variant to look
+            # up, no stock to check. Snapshotted onto an OrderItem with a null
+            # variant_id (allowed) for historical accuracy.
+            if getattr(cart_item, "item_type", "variant") == "gang_sheet" or cart_item.variant_id is None:
+                gs_unit = Decimal(str(cart_item.unit_price or 0))
+                gs_line = gs_unit * cart_item.quantity
+                subtotal += gs_line
+                total_units += cart_item.quantity
+                order_items_data.append({
+                    "variant_id": None,
+                    "product_name": (getattr(cart_item, "label", None) or "Gang sheet")[:255],
+                    "sku": "GANG-SHEET",
+                    "color": None,
+                    "size": None,
+                    "quantity": cart_item.quantity,
+                    "unit_price": gs_unit,
+                    "line_total": gs_line,
+                })
+                continue
+
             variant_result = await self.db.execute(
                 select(ProductVariant, Product)
                 .join(Product, ProductVariant.product_id == Product.id)
@@ -351,6 +371,8 @@ class OrderService:
         from sqlalchemy import update as _update
         for item_data in order_items_data:
             variant_id = item_data["variant_id"]
+            if variant_id is None:
+                continue  # gang-sheet line: no inventory to deduct
             qty_to_deduct = int(item_data["quantity"])
 
             inv_result = await self.db.execute(

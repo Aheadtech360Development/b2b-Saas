@@ -18,16 +18,21 @@ class MatrixAddRequest(BaseModel):
     items: list[CartItemAdd] = Field(..., min_length=1)
 
 
+class GangSheetAddRequest(BaseModel):
+    gang_sheet_order_id: UUID
+
+
 class CartItemOut(BaseModel):
     id: UUID
-    variant_id: UUID
-    product_id: UUID
+    # Null for non-variant lines (gang sheets); set for product variants.
+    variant_id: UUID | None = None
+    product_id: UUID | None = None
     product_name: str
     product_slug: str = ""
     product_image_url: str | None = None
-    sku: str
-    color: str | None
-    size: str | None
+    sku: str = ""
+    color: str | None = None
+    size: str | None = None
     quantity: int
     retail_price: Decimal = Decimal("0")
     unit_price: Decimal
@@ -35,6 +40,9 @@ class CartItemOut(BaseModel):
     moq: int
     moq_satisfied: bool
     stock_quantity: int
+    # 'variant' (default) or 'gang_sheet'
+    item_type: str = "variant"
+    gang_sheet_order_id: UUID | None = None
 
     model_config = {"from_attributes": True}
 

@@ -23,6 +23,7 @@ import {
   type GangSheetSize,
 } from "@/services/gangSheets.service";
 import { analyzeArtwork } from "@/lib/artworkAnalysis";
+import { cartService } from "@/services/cart.service";
 
 const IMAGE_TYPES = new Set(["png", "jpg", "jpeg", "webp", "gif"]);
 const MIN_IN = 0.5;
@@ -494,7 +495,7 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
   }
 
   // ── Save ─────────────────────────────────────────────────────────────────────
-  async function save(closeAfter: boolean) {
+  async function save(toCart: boolean) {
     setError(null);
     setSavedOk(false);
     if (!size) { setError("Choose a sheet size."); return; }
@@ -540,8 +541,18 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
         try { finalOrder = await gangSheetsService.saveLayout(order.id, layout); } catch { /* layout best-effort */ }
       }
 
+      // "Save & Add to Cart" — put it in the cart and head to checkout. Company
+      // buyers reach the cart; if the cart isn't available (individual buyer),
+      // fall back to the saved-to-gang-sheets flow so nothing is lost.
+      if (toCart) {
+        try {
+          await cartService.addGangSheet(finalOrder.id);
+          window.location.href = "/cart";
+          return;
+        } catch { /* cart unavailable — fall through */ }
+      }
       setSavedOk(true);
-      if (closeAfter) onSaved(finalOrder);
+      onSaved(finalOrder);
     } catch (e) {
       const msg = (e as { message?: string })?.message;
       setError(msg || "Could not save this gang sheet. Please make sure you're signed in.");
@@ -572,7 +583,7 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
           <button onClick={() => save(true)} disabled={saving} style={{ ...S.primaryBtn, opacity: saving ? 0.6 : 1 }}>
             {saving ? "Saving…" : "Save & Add to Cart"}
           </button>
-          <button onClick={() => save(false)} disabled={saving} style={S.ghostBtn}>Save</button>
+          <button onClick={() => save(false)} disabled={saving} style={S.ghostBtn} title="Save without adding to cart">Save</button>
           <button onClick={onClose} style={S.closeBtn}>Close</button>
         </div>
         <div style={{ textAlign: "right", minWidth: "120px" }}>

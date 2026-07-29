@@ -187,7 +187,7 @@ export default function CheckoutAddressPage() {
     } else {
       cartService.getCart().then(c => {
         setSubtotal(Number(c.subtotal));
-        setCartItemsForShipping(c.items.map(i => ({ variant_id: i.variant_id, quantity: i.quantity })));
+        setCartItemsForShipping(c.items.filter(i => i.variant_id).map(i => ({ variant_id: i.variant_id as string, quantity: i.quantity })));
         setCartDisplayItems(c.items.map(i => ({
           name: i.product_name,
           color: i.color ?? null,

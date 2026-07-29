@@ -95,6 +95,68 @@ class CartService:
         return await self.get_cart_with_pricing(company_id, discount_percent, group_id)
 
     # ------------------------------------------------------------------
+    # Add a gang-sheet line item
+    # ------------------------------------------------------------------
+
+    async def add_gang_sheet(
+        self,
+        company_id: UUID,
+        gang_sheet_order_id: UUID,
+        discount_percent: Decimal = Decimal("0"),
+        group_id: str | None = None,
+    ) -> CartResponse:
+        """Add a submitted gang sheet to the cart as its own billable line. Price,
+        quantity, label and image are snapshotted from the gang sheet order."""
+        from app.api.v1.gang_sheets import GangSheetOrder, GangSheetArtwork
+        from sqlalchemy import select as _select
+
+        order = (
+            await self.db.execute(_select(GangSheetOrder).where(GangSheetOrder.id == gang_sheet_order_id))
+        ).scalar_one_or_none()
+        if not order:
+            raise NotFoundError("Gang sheet order not found")
+        if order.company_id is not None and str(order.company_id) != str(company_id):
+            raise NotFoundError("Gang sheet order not found")
+
+        # Already in the cart? Don't duplicate — the sheet is one job.
+        existing = (await self.db.execute(
+            select(CartItem).where(
+                CartItem.company_id == company_id,
+                CartItem.gang_sheet_order_id == gang_sheet_order_id,
+            )
+        )).scalar_one_or_none()
+
+        first_art = (await self.db.execute(
+            _select(GangSheetArtwork)
+            .where(GangSheetArtwork.gang_sheet_order_id == order.id)
+            .order_by(GangSheetArtwork.sort_order)
+            .limit(1)
+        )).scalar_one_or_none()
+
+        label = f"Gang Sheet {order.reference} — {order.sheet_name}"
+        unit_price = Decimal(str(order.price_per_sheet or 0))
+
+        if existing:
+            existing.quantity = order.sheet_quantity
+            existing.unit_price = unit_price
+            existing.label = label
+            existing.image_url = first_art.file_url if first_art else None
+        else:
+            self.db.add(CartItem(
+                company_id=company_id,
+                variant_id=None,
+                item_type="gang_sheet",
+                gang_sheet_order_id=order.id,
+                quantity=order.sheet_quantity,
+                unit_price=unit_price,
+                label=label,
+                image_url=first_art.file_url if first_art else None,
+            ))
+
+        await self.db.flush()
+        return await self.get_cart_with_pricing(company_id, discount_percent, group_id)
+
+    # ------------------------------------------------------------------
     # Update item quantity
     # ------------------------------------------------------------------
 
@@ -329,6 +391,34 @@ class CartService:
 
         items: list[CartItemOut] = []
         for item in raw_items:
+            # Gang-sheet (non-variant) lines carry their own snapshot — no variant
+            # or product to join, no stock or MOQ to enforce.
+            if getattr(item, "item_type", "variant") == "gang_sheet" or item.variant_id is None:
+                unit_price = Decimal(str(item.unit_price or 0))
+                items.append(
+                    CartItemOut(
+                        id=item.id,
+                        variant_id=None,
+                        product_id=None,
+                        product_name=getattr(item, "label", None) or "Gang sheet",
+                        product_slug="",
+                        product_image_url=getattr(item, "image_url", None),
+                        sku="",
+                        color=None,
+                        size=None,
+                        quantity=item.quantity,
+                        retail_price=unit_price,
+                        unit_price=unit_price,
+                        line_total=unit_price * item.quantity,
+                        moq=0,
+                        moq_satisfied=True,
+                        stock_quantity=item.quantity,
+                        item_type="gang_sheet",
+                        gang_sheet_order_id=getattr(item, "gang_sheet_order_id", None),
+                    )
+                )
+                continue
+
             # Load variant + product info
             variant_result = await self.db.execute(
                 select(ProductVariant, Product)

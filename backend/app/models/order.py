@@ -194,7 +194,12 @@ class OrderItem(TenantMixin, BaseModel):
 #     variant: Mapped["ProductVariant"] = relationship("ProductVariant")
 
 class CartItem(TenantMixin, BaseModel):
-    """Live cart item stored in DB (company_id + variant_id)."""
+    """Live cart item stored in DB (company_id + variant_id).
+
+    Most items are product variants. A gang-sheet item has item_type
+    'gang_sheet', a null variant_id, and carries its own snapshotted label,
+    image and price so checkout can bill it like any other line.
+    """
 
     __tablename__ = "cart_items"
 
@@ -203,17 +208,24 @@ class CartItem(TenantMixin, BaseModel):
         UUID(as_uuid=True), ForeignKey("companies.id", ondelete="CASCADE"),
         nullable=False, index=True
     )
-    variant_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("product_variants.id", ondelete="CASCADE"), nullable=False
+    # Nullable: gang-sheet items have no product variant.
+    variant_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("product_variants.id", ondelete="CASCADE"), nullable=True
     )
     quantity: Mapped[int] = mapped_column(Integer, nullable=False)
     unit_price: Mapped[float | None] = mapped_column(  # price_at_add rename
         Numeric(10, 2), comment="Tier price at time item was added"
     )
 
+    # Non-variant line support (gang sheets, and any future custom line item)
+    item_type: Mapped[str] = mapped_column(String(20), default="variant", nullable=False)
+    gang_sheet_order_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    label: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    image_url: Mapped[str | None] = mapped_column(String(1000), nullable=True)
+
     # Relationships
     company: Mapped["Company"] = relationship("Company")
-    variant: Mapped["ProductVariant"] = relationship("ProductVariant")
+    variant: Mapped["ProductVariant | None"] = relationship("ProductVariant")
 
 
 class AbandonedCart(TenantMixin, BaseModel):

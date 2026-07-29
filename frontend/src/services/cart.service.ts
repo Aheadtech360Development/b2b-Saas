@@ -15,6 +15,11 @@ export const cartService = {
     return apiClient.post<Cart>("/api/v1/cart/add-matrix", { product_id, items });
   },
 
+  /** Add a submitted gang sheet to the cart as its own billable line. */
+  async addGangSheet(gang_sheet_order_id: string): Promise<Cart> {
+    return apiClient.post<Cart>("/api/v1/cart/add-gang-sheet", { gang_sheet_order_id });
+  },
+
   async updateItem(item_id: string, quantity: number): Promise<Cart> {
     return apiClient.patch<Cart>(`/api/v1/cart/items/${item_id}`, { quantity });
   },

@@ -70,6 +70,7 @@ function groupByProduct(items: CartItem[]): ProductGroup[] {
   const map = new Map<string, CartItem[]>();
   for (const item of items) {
     const pid = item.product_id;
+    if (!pid) continue; // gang-sheet / non-variant lines aren't product-grouped
     if (!map.has(pid)) map.set(pid, []);
     map.get(pid)!.push(item);
   }

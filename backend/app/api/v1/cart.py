@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.exceptions import ForbiddenError
-from app.schemas.cart import CartResponse, MatrixAddRequest, QuickOrderRequest, QuickOrderResult, ValidationResultItem
+from app.schemas.cart import CartResponse, GangSheetAddRequest, MatrixAddRequest, QuickOrderRequest, QuickOrderResult, ValidationResultItem
 from app.services.cart_service import CartService
 
 router = APIRouter(prefix="/cart", tags=["cart"])
@@ -43,6 +43,19 @@ async def add_matrix(
     company_id = _require_company(request)
     svc = CartService(db)
     result = await svc.add_matrix_items(company_id, payload, _discount(request), _group_id(request))
+    await db.commit()
+    return result
+
+
+@router.post("/add-gang-sheet", response_model=CartResponse, status_code=status.HTTP_200_OK)
+async def add_gang_sheet(
+    payload: GangSheetAddRequest,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    company_id = _require_company(request)
+    svc = CartService(db)
+    result = await svc.add_gang_sheet(company_id, payload.gang_sheet_order_id, _discount(request), _group_id(request))
     await db.commit()
     return result
 

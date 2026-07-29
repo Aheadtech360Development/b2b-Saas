@@ -3,8 +3,9 @@ import type { Address } from "./user.types";
 /** Cart item — matches backend CartItemOut schema. */
 export interface CartItem {
   id: string;
-  variant_id: string;
-  product_id: string;
+  // Null for non-variant lines (gang sheets); set for product variants.
+  variant_id: string | null;
+  product_id: string | null;
   product_name: string;
   product_slug?: string;
   product_image_url?: string | null;
@@ -18,6 +19,9 @@ export interface CartItem {
   moq: number;
   moq_satisfied: boolean;
   stock_quantity: number;
+  /** 'variant' (default) or 'gang_sheet'. */
+  item_type?: string;
+  gang_sheet_order_id?: string | null;
 }
 
 /** Cart validation result — matches backend CartValidation schema. */
