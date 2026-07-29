@@ -133,7 +133,7 @@ export default function GangSheetBuilderPage() {
               <button onClick={() => enterStudio(false)} style={welcomeBtn}>
                 <span>Start a brand-new gang sheet</span><span>→</span>
               </button>
-              <button onClick={() => enterStudio(true)} style={{ ...welcomeBtn, background: "#F4F6FB" }}>
+              <button onClick={() => enterStudio(true)} style={{ ...welcomeBtn, background: "#F4F6FB", color: "var(--brand-primary,#1C3557)", borderColor: "#D9DEE9" }}>
                 <span>Auto build (upload &amp; we arrange)</span><span>→</span>
               </button>
               <button onClick={() => setPhase("idle")} style={{ ...welcomeBtn, background: "#fff", color: "#888", justifyContent: "center", borderStyle: "dashed" }}>
