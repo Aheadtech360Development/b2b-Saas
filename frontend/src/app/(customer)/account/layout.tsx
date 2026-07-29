@@ -16,6 +16,7 @@ const NAV_ITEMS = [
   { href: "/account/resend-emails", label: "Resend Registration Emails" },
   { href: "/account/payment-methods", label: "Manage Payment Methods" },
   { href: "/account/orders", label: "Orders Status" },
+  { href: "/account/gang-sheets", label: "My Gang Sheets" },
   { href: "/account/statements", label: "Statements" },
   { href: "/account/invoices", label: "Invoices" },
   { href: "/account/sales-history", label: "Purchase History" },

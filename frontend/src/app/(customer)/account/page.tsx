@@ -67,6 +67,7 @@ export default function AccountOverviewPage() {
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
         {[
           { label: "Orders", href: "/account/orders" },
+          { label: "My Gang Sheets", href: "/account/gang-sheets" },
           { label: "Profile", href: "/account/profile" },
           { label: "Addresses", href: "/account/addresses" },
           { label: "Price List", href: "/account/price-list" },
