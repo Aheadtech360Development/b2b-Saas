@@ -426,11 +426,11 @@ export default function GangSheetBuilderPage() {
           {orders.length > 0 && (
             <div style={{ marginTop: "34px" }}>
               <h2 style={{ fontSize: "17px", fontWeight: 800, marginBottom: "12px" }}>Your gang sheets</h2>
-              <div style={{ ...CARD, padding: 0, overflow: "hidden" }}>
-                {orders.map((o, i) => {
+              <div style={{ display: "grid", gap: "14px" }}>
+                {orders.map((o) => {
                   const c = GANG_SHEET_STATUS_COLOR[o.status] ?? { bg: "#eee", fg: "#555" };
                   return (
-                    <div key={o.id} style={{ padding: "14px 16px", borderBottom: i < orders.length - 1 ? "1px solid #F1EFEB" : "none" }}>
+                    <div key={o.id} style={{ ...CARD, padding: "16px 18px" }}>
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px", flexWrap: "wrap", marginBottom: "12px" }}>
                         <div>
                           <div style={{ fontWeight: 700, fontSize: "14px" }}>
