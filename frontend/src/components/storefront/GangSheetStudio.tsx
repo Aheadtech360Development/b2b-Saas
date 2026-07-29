@@ -447,16 +447,61 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
     setSelected(null);
   }
 
+  // Auto-build: fill the sheet with copies of your designs (round-robin), packed
+  // top-to-bottom. Great starting point — then delete any copies you don't want.
+  function autoBuild() {
+    if (!size) return;
+    const g = Math.min(Math.max(imageMargin, 0.1), 3); // sane cap so a huge margin can't break the fill
+    const W = size.width_in;
+    // Base set: each unique design currently on the sheet at its size; if nothing
+    // is placed yet, every upload at its default print size.
+    const base: { uid: string; w: number; h: number }[] = [];
+    const seen = new Set<string>();
+    for (const p of stateRef.current.placements) {
+      if (seen.has(p.uid)) continue;
+      seen.add(p.uid);
+      base.push({ uid: p.uid, w: p.w_in, h: p.h_in });
+    }
+    if (base.length === 0) {
+      for (const u of uploads) { const d = defaultSize(u); base.push({ uid: u.uid, w: d.w, h: d.h }); }
+    }
+    if (base.length === 0) return;
+
+    const shelves: { y: number; height: number; cursorX: number }[] = [];
+    const out: Placement[] = [];
+    const CAP = 300;
+    let fails = 0;
+    for (let attempt = 0; attempt < 5000 && out.length < CAP; attempt++) {
+      const b = base[attempt % base.length]!;
+      let w = b.w, h = b.h, rot = 0;
+      if (h > w && b.h <= W) { w = b.h; h = b.w; rot = 90; } // rotate tall to fit width
+      if (w > W) { fails++; if (fails >= base.length) break; continue; }
+      let shelf = shelves.find((s) => s.cursorX + w <= W + 1e-6 && h <= s.height + 1e-6);
+      if (!shelf) {
+        const prev = shelves[shelves.length - 1];
+        const y = prev ? prev.y + prev.height + g : 0;
+        if (y + h > sheetLen) { fails++; if (fails >= base.length) break; continue; }
+        shelf = { y, height: h, cursorX: 0 };
+        shelves.push(shelf);
+      }
+      out.push({ id: nextId.current++, uid: b.uid, x_in: round3(shelf.cursorX), y_in: round3(shelf.y), w_in: b.w, h_in: b.h, rotation: rot });
+      shelf.cursorX = round3(shelf.cursorX + w + g);
+      fails = 0;
+    }
+    if (out.length) { setPlacements(out); setSelected(null); }
+  }
+
   function startOver() {
     setPlacements([]);
     setSelected(null);
   }
 
-  // Auto-build once when launched from the welcome screen's "Auto Build".
+  // Auto-build once when launched from the welcome screen's "Auto Build" — fill
+  // the sheet as soon as the first design is uploaded.
   useEffect(() => {
     if (autoStart && !autoRan.current && placements.length > 0) {
       autoRan.current = true;
-      autoNest();
+      autoBuild();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoStart, placements.length]);
@@ -712,7 +757,7 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
               ))}
               <div style={{ marginTop: "14px" }}>
                 <label style={{ fontSize: "12px", fontWeight: 700, color: "#666" }}>Image margin (in)</label>
-                <input type="number" min={0} step="0.25" value={imageMargin} onChange={(e) => setImageMargin(Math.max(0, Number(e.target.value) || 0))}
+                <input type="number" min={0} step="0.25" value={imageMargin} onWheel={(e) => e.currentTarget.blur()} onChange={(e) => setImageMargin(Math.max(0, Number(e.target.value) || 0))}
                   style={{ width: "100%", boxSizing: "border-box", padding: "8px", border: "1px solid #DDD9D2", borderRadius: "6px", fontSize: "13px", marginTop: "4px" }} />
               </div>
             </>
@@ -727,10 +772,10 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: "10px" }}>
                 <label style={S.miniLabel}>Width (in)
-                  <input type="number" step="0.25" min={MIN_IN} value={sel.w_in} onChange={(e) => setDim(sel.id, "w", Number(e.target.value))} style={S.miniInput} />
+                  <input type="number" step="0.25" min={MIN_IN} value={sel.w_in} onWheel={(e) => e.currentTarget.blur()} onChange={(e) => setDim(sel.id, "w", Number(e.target.value))} style={S.miniInput} />
                 </label>
                 <label style={S.miniLabel}>Height (in)
-                  <input type="number" step="0.25" min={MIN_IN} value={sel.h_in} onChange={(e) => setDim(sel.id, "h", Number(e.target.value))} style={S.miniInput} />
+                  <input type="number" step="0.25" min={MIN_IN} value={sel.h_in} onWheel={(e) => e.currentTarget.blur()} onChange={(e) => setDim(sel.id, "h", Number(e.target.value))} style={S.miniInput} />
                 </label>
               </div>
               {selDpi && (
@@ -775,7 +820,7 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
             <div style={S.toolDivider} />
             <label style={{ fontSize: "12px", color: "#555", display: "flex", alignItems: "center", gap: "5px" }}>
               Margin
-              <input type="number" min={0} step="0.25" value={imageMargin} onChange={(e) => setImageMargin(Math.max(0, Number(e.target.value) || 0))} style={{ width: "52px", padding: "6px", border: "1px solid #DDD9D2", borderRadius: "6px", fontSize: "12px" }} /> in
+              <input type="number" min={0} step="0.25" value={imageMargin} onWheel={(e) => e.currentTarget.blur()} onChange={(e) => setImageMargin(Math.max(0, Number(e.target.value) || 0))} style={{ width: "52px", padding: "6px", border: "1px solid #DDD9D2", borderRadius: "6px", fontSize: "12px" }} /> in
             </label>
             <button onClick={autoNest} style={S.nestBtn}>⚡ Auto Nest</button>
             <div style={S.toolDivider} />
@@ -863,7 +908,8 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
             </div>
           </div>
           <button onClick={() => { setPanel("uploads"); fileRef.current?.click(); }} style={S.rightAction}>⊕ Add new design</button>
-          <button onClick={autoNest} style={S.rightAction}>⚡ Auto build</button>
+          <button onClick={autoBuild} style={S.rightAction} title="Fill the sheet with copies of your designs">▦ Auto build (fill sheet)</button>
+          <button onClick={autoNest} style={S.rightAction} title="Arrange current designs compactly">⚡ Auto nest (tidy up)</button>
           <button onClick={startOver} style={{ ...S.rightAction, color: "#B91C1C" }}>↺ Start over</button>
           <div style={{ marginTop: "auto", fontSize: "11px", color: "#aaa", paddingTop: "16px" }}>
             Tip: drop designs on the sheet, drag to arrange, then <strong>Save &amp; Add to Cart</strong>.
