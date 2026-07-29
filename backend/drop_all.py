@@ -1,7 +1,10 @@
 """Drop every table in Neon DB — complete fresh start."""
-import asyncio, ssl, asyncpg
+import asyncio, os, ssl, asyncpg
 
-NEON_DSN = "postgresql://neondb_owner:npg_oSlUHEn9hcx6@ep-patient-sun-ahs9nsep.c-3.us-east-1.aws.neon.tech/neondb"
+# Read from env — never hardcode credentials in source.
+NEON_DSN = os.environ.get("NEON_DSN") or os.environ.get("DATABASE_URL")
+if not NEON_DSN:
+    raise SystemExit("Set NEON_DSN or DATABASE_URL (see backend/.env) before running this script.")
 
 async def main():
     ssl_ctx = ssl.create_default_context()

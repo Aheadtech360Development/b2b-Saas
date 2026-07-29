@@ -2,16 +2,21 @@
 Multi-Tenant SaaS — Fresh Database Setup
 Creates all tables from scratch + platform super admin + first tenant
 """
-import asyncio, ssl, asyncpg, uuid
+import asyncio, os, ssl, asyncpg, uuid
 from datetime import datetime, timezone
 from passlib.context import CryptContext
 
-NEON_DSN = "postgresql://neondb_owner:npg_oSlUHEn9hcx6@ep-patient-sun-ahs9nsep.c-3.us-east-1.aws.neon.tech/neondb"
+# Read from env — never hardcode credentials in source.
+NEON_DSN = os.environ.get("NEON_DSN") or os.environ.get("DATABASE_URL")
+if not NEON_DSN:
+    raise SystemExit("Set NEON_DSN or DATABASE_URL (see backend/.env) before running this script.")
 pwd_ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 # ── Platform super admin (owns the SaaS platform itself)
-PLATFORM_ADMIN_EMAIL    = "admin@b2bsaas.com"
-PLATFORM_ADMIN_PASSWORD = "Platform@123456"
+PLATFORM_ADMIN_EMAIL    = os.environ.get("SEED_PLATFORM_ADMIN_EMAIL", "admin@b2bsaas.com")
+PLATFORM_ADMIN_PASSWORD = os.environ.get("SEED_PLATFORM_ADMIN_PASSWORD")
+if not PLATFORM_ADMIN_PASSWORD:
+    raise SystemExit("Set SEED_PLATFORM_ADMIN_PASSWORD before running this script.")
 PLATFORM_ADMIN_NAME     = "Platform Admin"
 
 # ── First demo tenant

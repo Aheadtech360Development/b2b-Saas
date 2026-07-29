@@ -1,12 +1,18 @@
 """Create users table and admin user directly via raw SQL."""
 import asyncio
+import os
 import ssl
 import asyncpg
 from passlib.context import CryptContext
 
-NEON_DSN = "postgresql://neondb_owner:npg_Nm2dHKgRoLX4@ep-blue-cell-aion46an.c-4.us-east-1.aws.neon.tech/neondb"
-ADMIN_EMAIL = "admin@afapparels.com"
-ADMIN_PASSWORD = "Admin@123456"
+# Read from env — never hardcode credentials in source.
+NEON_DSN = os.environ.get("NEON_DSN") or os.environ.get("DATABASE_URL")
+if not NEON_DSN:
+    raise SystemExit("Set NEON_DSN or DATABASE_URL (see backend/.env) before running this script.")
+ADMIN_EMAIL = os.environ.get("SEED_ADMIN_EMAIL", "admin@afapparels.com")
+ADMIN_PASSWORD = os.environ.get("SEED_ADMIN_PASSWORD")
+if not ADMIN_PASSWORD:
+    raise SystemExit("Set SEED_ADMIN_PASSWORD before running this script.")
 
 async def main():
     ssl_ctx = ssl.create_default_context()
