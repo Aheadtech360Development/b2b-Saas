@@ -132,6 +132,56 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
 
   const upById = useCallback((uid: string) => uploads.find((u) => u.uid === uid), [uploads]);
 
+  // ── Undo / redo ──────────────────────────────────────────────────────────────
+  // History records committed placement states. Continuous gestures (drag/resize)
+  // record a single entry on release; discrete edits record on change. Undo/redo
+  // set placements without re-recording (suppressHistory) and one entry per step.
+  const historyRef = useRef<Placement[][]>([[]]);
+  const ptrRef = useRef(0);
+  const gesturing = useRef(false);
+  const suppressHistory = useRef(false);
+  const [, forceHud] = useState(0);
+
+  const recordHistory = useCallback((snapshot: Placement[]) => {
+    const snap = snapshot.map((p) => ({ ...p }));
+    const top = historyRef.current[ptrRef.current];
+    if (top && JSON.stringify(top) === JSON.stringify(snap)) return; // no-op change
+    const h = historyRef.current.slice(0, ptrRef.current + 1);
+    h.push(snap);
+    if (h.length > 120) h.shift();
+    historyRef.current = h;
+    ptrRef.current = h.length - 1;
+    forceHud((n) => n + 1);
+  }, []);
+
+  // Record every committed change except those made mid-gesture or by undo/redo.
+  useEffect(() => {
+    if (suppressHistory.current) { suppressHistory.current = false; return; }
+    if (gesturing.current) return;
+    recordHistory(placements);
+  }, [placements, recordHistory]);
+
+  const undo = useCallback(() => {
+    if (ptrRef.current <= 0) return;
+    ptrRef.current -= 1;
+    suppressHistory.current = true;
+    setPlacements(historyRef.current[ptrRef.current]!.map((p) => ({ ...p })));
+    setSelected(null);
+    forceHud((n) => n + 1);
+  }, []);
+
+  const redo = useCallback(() => {
+    if (ptrRef.current >= historyRef.current.length - 1) return;
+    ptrRef.current += 1;
+    suppressHistory.current = true;
+    setPlacements(historyRef.current[ptrRef.current]!.map((p) => ({ ...p })));
+    setSelected(null);
+    forceHud((n) => n + 1);
+  }, []);
+
+  const canUndo = ptrRef.current > 0;
+  const canRedo = ptrRef.current < historyRef.current.length - 1;
+
   // ── Fit-to-width sizing ──────────────────────────────────────────────────────
   useEffect(() => {
     function fit() {
@@ -305,6 +355,7 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
   function startMove(e: React.PointerEvent, id: number) {
     e.preventDefault(); e.stopPropagation();
     setSelected(id);
+    gesturing.current = true;
     const startX = e.clientX, startY = e.clientY;
     const orig = stateRef.current.placements.find((p) => p.id === id)!;
     const ox = orig.x_in, oy = orig.y_in;
@@ -320,6 +371,8 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
     function upFn() {
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", upFn);
+      gesturing.current = false;
+      recordHistory(stateRef.current.placements); // one undo entry per drag
     }
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", upFn);
@@ -329,6 +382,7 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
   function startResize(e: React.PointerEvent, id: number) {
     e.preventDefault(); e.stopPropagation();
     setSelected(id);
+    gesturing.current = true;
     const startX = e.clientX, startY = e.clientY;
     const orig = stateRef.current.placements.find((p) => p.id === id)!;
     const origFp = footprint(orig);
@@ -361,6 +415,8 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
     function upFn() {
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", upFn);
+      gesturing.current = false;
+      recordHistory(stateRef.current.placements); // one undo entry per resize
     }
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", upFn);
@@ -523,6 +579,10 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
 
   // ── Keyboard ─────────────────────────────────────────────────────────────────
   function onKeyDown(e: React.KeyboardEvent) {
+    const meta = e.ctrlKey || e.metaKey;
+    // Undo/redo work with or without a selection.
+    if (meta && e.key.toLowerCase() === "z") { e.preventDefault(); if (e.shiftKey) redo(); else undo(); return; }
+    if (meta && e.key.toLowerCase() === "y") { e.preventDefault(); redo(); return; }
     if (selected == null) return;
     if (e.key === "Delete" || e.key === "Backspace") { e.preventDefault(); remove(selected); return; }
     if (e.key === "d" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); duplicate(selected); return; }
@@ -611,6 +671,40 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
   const selUp = sel ? upById(sel.uid) : undefined;
   const selFp = sel ? footprint(sel) : null;
   const selDpi = sel && selFp ? dpiInfo(selUp, selFp.w, selFp.h) : null;
+
+  // ── Production warnings ──────────────────────────────────────────────────────
+  // Advisory only — never blocks saving. Flags low DPI, designs past the safe
+  // area, overlaps, and very small artwork, both in a summary and per-design.
+  const warnings = useMemo(() => {
+    const out: { id: number; kind: "dpi" | "outside" | "overlap" | "small"; msg: string }[] = [];
+    if (!size) return out;
+    const x1 = size.width_in - bleed, y1 = sheetLen - bleed;
+    for (const p of placements) {
+      const fp = footprint(p);
+      if (p.x_in < bleed - 1e-6 || p.y_in < bleed - 1e-6 || p.x_in + fp.w > x1 + 1e-6 || p.y_in + fp.h > y1 + 1e-6)
+        out.push({ id: p.id, kind: "outside", msg: "extends past the safe print area" });
+      if (Math.min(fp.w, fp.h) < 0.75)
+        out.push({ id: p.id, kind: "small", msg: "very small — may not print cleanly" });
+      const d = dpiInfo(upById(p.uid), fp.w, fp.h);
+      if (d && d.dpi < 200) out.push({ id: p.id, kind: "dpi", msg: `low resolution (${d.dpi} DPI)` });
+    }
+    for (let i = 0; i < placements.length; i++) {
+      for (let j = i + 1; j < placements.length; j++) {
+        const a = placements[i]!, b = placements[j]!;
+        const fa = footprint(a), fb = footprint(b);
+        const ov = !(a.x_in + fa.w <= b.x_in || b.x_in + fb.w <= a.x_in || a.y_in + fa.h <= b.y_in || b.y_in + fb.h <= a.y_in);
+        if (ov) { out.push({ id: a.id, kind: "overlap", msg: "overlaps another design" }); out.push({ id: b.id, kind: "overlap", msg: "overlaps another design" }); }
+      }
+    }
+    return out;
+  }, [placements, size, bleed, sheetLen, upById]);
+
+  const warnIds = useMemo(() => new Set(warnings.map((w) => w.id)), [warnings]);
+  const warnCounts = useMemo(() => {
+    const c: Record<string, number> = {};
+    for (const w of warnings) c[w.kind] = (c[w.kind] || 0) + 1;
+    return c;
+  }, [warnings]);
 
   return (
     <div style={S.root}>
@@ -785,6 +879,13 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
                   {selUp?.hasAlpha ? <span style={{ color: "#166534", marginLeft: "auto" }}>✔ transparent</span> : selUp?.isImage ? <span style={{ color: "#92400E", marginLeft: "auto" }}>⚠ background</span> : null}
                 </div>
               )}
+              {warnings.filter((w) => w.id === sel.id).length > 0 && (
+                <div style={{ marginTop: "8px", background: "#FFF7ED", border: "1px solid #FED7AA", borderRadius: "6px", padding: "7px 9px" }}>
+                  {Array.from(new Set(warnings.filter((w) => w.id === sel.id).map((w) => w.msg))).map((m) => (
+                    <div key={m} style={{ fontSize: "11px", color: "#9A3412", fontWeight: 600 }}>⚠ {m}</div>
+                  ))}
+                </div>
+              )}
               <div style={{ display: "flex", gap: "6px", marginTop: "12px", flexWrap: "wrap" }}>
                 <button onClick={() => rotate(sel.id)} style={S.smallBtn}>⟳ Rotate</button>
                 <button onClick={() => duplicate(sel.id)} style={S.smallBtn}>⧉ Duplicate</button>
@@ -824,6 +925,8 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
             </label>
             <button onClick={autoNest} style={S.nestBtn}>⚡ Auto Nest</button>
             <div style={S.toolDivider} />
+            <button onClick={undo} disabled={!canUndo} style={{ ...S.iconBtn, opacity: canUndo ? 1 : 0.4, cursor: canUndo ? "pointer" : "default" }} title="Undo (Ctrl+Z)">↶</button>
+            <button onClick={redo} disabled={!canRedo} style={{ ...S.iconBtn, opacity: canRedo ? 1 : 0.4, cursor: canRedo ? "pointer" : "default" }} title="Redo (Ctrl+Shift+Z)">↷</button>
             <div style={{ display: "flex", alignItems: "center", gap: "4px", marginLeft: "auto" }}>
               <button onClick={() => zoomBy(1 / 1.2)} style={S.iconBtn} title="Zoom out">−</button>
               <span style={{ fontSize: "12px", color: "#666", width: "44px", textAlign: "center" }}>{Math.round(zoom * 100)}%</span>
@@ -841,6 +944,16 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
                     <span style={{ width: "9px", height: "9px", borderRadius: "2px", background: c as string }} /> {t}
                   </span>
                 ))}
+              </div>
+            )}
+            {warnings.length > 0 && (
+              <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap", background: "#FFF7ED", border: "1px solid #FED7AA", color: "#9A3412", borderRadius: "8px", padding: "8px 12px", marginBottom: "12px", fontSize: "12px" }}>
+                <span style={{ fontWeight: 800 }}>⚠ {warnings.length} issue{warnings.length === 1 ? "" : "s"}</span>
+                {warnCounts.overlap ? <span>· {warnCounts.overlap} overlapping</span> : null}
+                {warnCounts.outside ? <span>· {warnCounts.outside} past safe area</span> : null}
+                {warnCounts.dpi ? <span>· {warnCounts.dpi} low resolution</span> : null}
+                {warnCounts.small ? <span>· {warnCounts.small} too small</span> : null}
+                <span style={{ color: "#B45309", marginLeft: "auto" }}>Fix before printing for best results — saving is still allowed.</span>
               </div>
             )}
             <div
@@ -865,12 +978,13 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
                 const isImg = u && IMAGE_TYPES.has(u.file_type.toLowerCase());
                 const isSel = selected === p.id;
                 const d = showRes ? dpiInfo(u, fp.w, fp.h) : null;
-                const ring = isSel ? "var(--brand-primary,#1C3557)" : d ? d.color : "#9AA3B2";
+                const warned = warnIds.has(p.id);
+                const ring = isSel ? "var(--brand-primary,#1C3557)" : warned ? "#EA580C" : d ? d.color : "#9AA3B2";
                 return (
                   <div key={p.id} onPointerDown={(e) => startMove(e, p.id)}
                     style={{
                       position: "absolute", left: p.x_in * ppi, top: p.y_in * ppi, width: fp.w * ppi, height: fp.h * ppi,
-                      border: `2px solid ${ring}`, boxShadow: isSel ? "0 0 0 2px rgba(28,53,87,.2)" : "none",
+                      border: `2px solid ${ring}`, boxShadow: isSel ? "0 0 0 2px rgba(28,53,87,.2)" : warned ? "0 0 0 2px rgba(234,88,12,.18)" : "none",
                       background: isImg ? "transparent" : "#EEF2FF", cursor: "move",
                       display: "flex", alignItems: "center", justifyContent: "center", boxSizing: "border-box", zIndex: isSel ? 5 : 1,
                     }}>
@@ -878,6 +992,9 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
                       // eslint-disable-next-line @next/next/no-img-element
                       ? <img src={u!.file_url} alt="" draggable={false} style={{ width: "100%", height: "100%", objectFit: "contain", pointerEvents: "none" }} />
                       : <span style={{ fontSize: "9px", color: "#4338CA", textAlign: "center", padding: "2px", pointerEvents: "none", wordBreak: "break-word" }}>{u?.file_name ?? "?"}</span>}
+                    {warned && !isSel && (
+                      <span style={{ position: "absolute", top: "-8px", right: "-8px", width: "18px", height: "18px", background: "#EA580C", color: "#fff", borderRadius: "50%", fontSize: "11px", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, pointerEvents: "none" }}>!</span>
+                    )}
                     {isSel && (
                       <>
                         <div style={{ position: "absolute", top: "-26px", left: 0, display: "flex", gap: "4px" }}>
