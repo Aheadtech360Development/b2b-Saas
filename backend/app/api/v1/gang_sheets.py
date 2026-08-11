@@ -218,6 +218,15 @@ class LibraryIn(BaseModel):
     sort_order: int = 0
 
 
+class RebuildIn(BaseModel):
+    """Replace an editable order's contents when the buyer reopens it in the
+    builder — same shape as a fresh submission, applied to the existing order."""
+    sheet_size_id: uuid.UUID
+    sheet_quantity: int = Field(default=1, ge=1)
+    artworks: list[ArtworkIn] = Field(min_length=1)
+    custom_length_in: Optional[Decimal] = Field(default=None, gt=0)
+
+
 # ── Serialisers ───────────────────────────────────────────────────────────────
 def _size_row(s: GangSheetSize) -> dict:
     return {
@@ -678,6 +687,100 @@ async def save_my_layout(
     await db.flush()
     await db.refresh(order)  # reload onupdate'd updated_at before serialising
     return _order_row(order, artworks)
+
+
+@public_router.patch("/orders/{order_id}/contents")
+async def rebuild_order(
+    order_id: uuid.UUID,
+    payload: RebuildIn,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Replace an editable order's artwork + sheet + quantity when the buyer
+    reopens it in the builder. The layout is cleared (artwork ids change); the
+    client re-saves it afterwards. Only allowed while the job is still the
+    buyer's to change."""
+    order = (
+        await db.execute(select(GangSheetOrder).where(GangSheetOrder.id == order_id))
+    ).scalar_one_or_none()
+    if not order:
+        raise HTTPException(status_code=404, detail="Gang sheet order not found")
+
+    user_id = getattr(request.state, "user_id", None)
+    company_id = getattr(request.state, "company_id", None)
+    owns = (company_id and str(order.company_id) == str(company_id)) or (
+        user_id and str(order.user_id) == str(user_id)
+    )
+    if not owns:
+        raise HTTPException(status_code=404, detail="Gang sheet order not found")
+    if order.status not in _BUYER_EDITABLE:
+        raise HTTPException(status_code=409, detail="This order can no longer be edited.")
+
+    size = (
+        await db.execute(select(GangSheetSize).where(GangSheetSize.id == payload.sheet_size_id))
+    ).scalar_one_or_none()
+    if not size or not size.is_active:
+        raise HTTPException(status_code=400, detail="Selected sheet size is not available")
+
+    # Resolve sheet + unit price (mirrors submit_order).
+    sheet_height = size.height_in
+    unit_price = size.price_per_sheet or Decimal("0")
+    if getattr(size, "pricing_mode", "fixed") == "custom_length":
+        length = payload.custom_length_in
+        if length is None:
+            raise HTTPException(status_code=400, detail="Enter a length for this custom sheet.")
+        if length < size.min_length_in or length > size.max_length_in:
+            raise HTTPException(status_code=400, detail=f"Length must be between {size.min_length_in}in and {size.max_length_in}in.")
+        sheet_height = length
+        unit_price = (length * (size.price_per_inch or Decimal("0"))).quantize(Decimal("0.01"))
+
+    usable_w = size.width_in - (size.bleed_in * 2)
+    usable_h = sheet_height - (size.bleed_in * 2)
+    for art in payload.artworks:
+        fits = (art.width_in <= usable_w and art.height_in <= usable_h) or (
+            art.height_in <= usable_w and art.width_in <= usable_h
+        )
+        if not fits:
+            raise HTTPException(
+                status_code=400,
+                detail=f'"{art.file_name}" ({art.width_in}in x {art.height_in}in) does not fit the {size.name} sheet.',
+            )
+
+    # Replace artwork rows.
+    for a in await _load_artworks(db, order.id):
+        await db.delete(a)
+    await db.flush()
+    for i, art in enumerate(payload.artworks):
+        db.add(GangSheetArtwork(
+            gang_sheet_order_id=order.id,
+            file_url=art.file_url, file_name=art.file_name, file_type=art.file_type,
+            width_in=art.width_in, height_in=art.height_in, quantity=art.quantity, sort_order=i,
+        ))
+
+    # Update the sheet snapshot + price; clear the layout (ids changed).
+    order.sheet_size_id = size.id
+    order.sheet_name = (f"{size.name} ({sheet_height}\")" if getattr(size, "pricing_mode", "fixed") == "custom_length" else size.name)
+    order.sheet_width_in = size.width_in
+    order.sheet_height_in = sheet_height
+    order.price_per_sheet = unit_price
+    order.sheet_quantity = payload.sheet_quantity
+    order.subtotal = unit_price * payload.sheet_quantity
+    order.layout = []
+    await db.flush()
+
+    # Keep the current version's snapshot accurate (don't spawn a new version for
+    # a plain edit — resubmit handles that).
+    arts = await _load_artworks(db, order.id)
+    snap = _snapshot(order, arts, order.version or 1)
+    vers = list(order.versions or [])
+    if vers:
+        vers[-1] = snap
+    else:
+        vers = [snap]
+    order.versions = vers
+    await db.flush()
+    await db.refresh(order)
+    return _order_row(order, arts)
 
 
 @public_router.post("/orders/{order_id}/resubmit")

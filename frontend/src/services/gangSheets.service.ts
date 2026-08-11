@@ -125,6 +125,10 @@ export const gangSheetsService = {
   saveLayout: (id: string, layout: GangSheetPlacement[]) =>
     apiClient.patch<GangSheetOrder>(`/api/v1/gang-sheets/orders/${id}/layout`, { layout }),
 
+  /** Replace an editable order's artwork/sheet/qty when reopened in the builder. */
+  rebuild: (id: string, payload: { sheet_size_id: string; sheet_quantity: number; custom_length_in?: number; artworks: Omit<GangSheetArtwork, "id" | "sort_order">[] }) =>
+    apiClient.patch<GangSheetOrder>(`/api/v1/gang-sheets/orders/${id}/contents`, payload),
+
   addArtwork: (id: string, artwork: Omit<GangSheetArtwork, "id" | "sort_order">) =>
     apiClient.post<GangSheetOrder>(`/api/v1/gang-sheets/orders/${id}/artwork`, artwork),
 

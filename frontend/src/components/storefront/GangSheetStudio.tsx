@@ -61,6 +61,8 @@ interface Props {
   contactName?: string;
   contactEmail?: string;
   autoStart?: boolean;
+  /** Reopen an existing editable order to edit it, instead of starting fresh. */
+  resumeOrder?: GangSheetOrder | null;
   onClose: () => void;
   onSaved: (order: GangSheetOrder) => void;
 }
@@ -79,8 +81,9 @@ function dpiInfo(u: Upload | undefined, w: number, h: number) {
   return { dpi, color: "#DC2626", label: "Low" };
 }
 
-export function GangSheetStudio({ sizes, productId, contactName, contactEmail, autoStart, onClose, onSaved }: Props) {
-  const [sizeId, setSizeId] = useState(sizes[0]?.id ?? "");
+export function GangSheetStudio({ sizes, productId, contactName, contactEmail, autoStart, resumeOrder, onClose, onSaved }: Props) {
+  const [sizeId, setSizeId] = useState(resumeOrder?.sheet_size_id || sizes[0]?.id || "");
+  const resumeId = resumeOrder?.id ?? null;
   const [qty, setQty] = useState(1);
   const [uploads, setUploads] = useState<Upload[]>([]);
   const [placements, setPlacements] = useState<Placement[]>([]);
@@ -284,6 +287,37 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
   useEffect(() => {
     gangSheetsService.listLibrary().then(setLibrary).catch(() => {});
     gangSheetsService.myArtworks().then(setGallery).catch(() => {});
+  }, []);
+
+  // Reopen an existing editable order — rebuild uploads + placements from it so
+  // the buyer can continue where they left off.
+  useEffect(() => {
+    if (!resumeOrder) return;
+    const arts = resumeOrder.artworks ?? [];
+    const ups: Upload[] = arts.map((a) => {
+      const type = (a.file_type ?? a.file_url.split(".").pop() ?? "").toLowerCase();
+      return {
+        uid: a.id ?? `${a.file_url}#${nextId.current++}`,
+        file_url: a.file_url, file_name: a.file_name, file_type: type,
+        isImage: IMAGE_TYPES.has(type), pxW: 0, pxH: 0, hasAlpha: false,
+        aspect: a.width_in && a.height_in ? a.width_in / a.height_in : 1,
+      };
+    });
+    setUploads(ups);
+    const pls: Placement[] = (resumeOrder.layout ?? [])
+      .map((p) => ({ id: nextId.current++, uid: p.artwork_id, x_in: p.x_in, y_in: p.y_in, w_in: p.w_in, h_in: p.h_in, rotation: p.rotation }))
+      .filter((p) => ups.some((u) => u.uid === p.uid));
+    setPlacements(pls);
+    setQty(resumeOrder.sheet_quantity || 1);
+    setCustomLength(resumeOrder.sheet_height_in || 0);
+    // Fill pixel dims for DPI (async, best-effort).
+    ups.forEach((u) => {
+      if (!u.isImage) return;
+      loadDims(u.file_url)
+        .then((d) => setUploads((cur) => cur.map((x) => (x.uid === u.uid ? { ...x, pxW: d.w, pxH: d.h, aspect: d.w && d.h ? d.w / d.h : x.aspect } : x))))
+        .catch(() => {});
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   /** Read an image's natural pixel size (for DPI) without needing CORS/canvas. */
@@ -620,15 +654,23 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
         };
       });
 
-      const order = await gangSheetsService.submit({
-        sheet_size_id: size.id,
-        sheet_quantity: qty,
-        custom_length_in: isCustom ? customLength : undefined,
-        artworks: artPayload,
-        product_id: productId || undefined,
-        contact_name: contactName || undefined,
-        contact_email: contactEmail || undefined,
-      });
+      // Reopened order → replace its contents in place; otherwise submit a new one.
+      const order = resumeId
+        ? await gangSheetsService.rebuild(resumeId, {
+            sheet_size_id: size.id,
+            sheet_quantity: qty,
+            custom_length_in: isCustom ? customLength : undefined,
+            artworks: artPayload,
+          })
+        : await gangSheetsService.submit({
+            sheet_size_id: size.id,
+            sheet_quantity: qty,
+            custom_length_in: isCustom ? customLength : undefined,
+            artworks: artPayload,
+            product_id: productId || undefined,
+            contact_name: contactName || undefined,
+            contact_email: contactEmail || undefined,
+          });
 
       // Map local uploads → server artwork ids (matched by file_url) and persist
       // the exact layout the buyer arranged.

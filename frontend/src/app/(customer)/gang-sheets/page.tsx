@@ -37,6 +37,7 @@ export default function GangSheetBuilderPage() {
   const [phase, setPhase] = useState<Phase>("idle");
   const [loadStep, setLoadStep] = useState(0);
   const [autoStart, setAutoStart] = useState(false);
+  const [resumeOrder, setResumeOrder] = useState<GangSheetOrder | null>(null);
   const [justSaved, setJustSaved] = useState<GangSheetOrder | null>(null);
   const [productId, setProductId] = useState<string | null>(null);
 
@@ -74,15 +75,28 @@ export default function GangSheetBuilderPage() {
   }
 
   function enterStudio(auto: boolean) {
+    setResumeOrder(null);   // fresh build
     setAutoStart(auto);
     setPhase("studio");
   }
 
+  // Reopen a saved, still-editable order in the builder.
+  async function editOrder(o: GangSheetOrder) {
+    try {
+      const full = await gangSheetsService.myOrder(o.id); // includes artworks + layout
+      setResumeOrder(full);
+      setAutoStart(false);
+      setPhase("studio");
+    } catch { /* ignore — leave them on the list */ }
+  }
+
   function closeStudio() {
+    setResumeOrder(null);
     setPhase("idle");
     loadOrders();
   }
   function onSaved(order: GangSheetOrder) {
+    setResumeOrder(null);
     setJustSaved(order);
     setPhase("idle");
     loadOrders();
@@ -97,6 +111,7 @@ export default function GangSheetBuilderPage() {
         contactName={[user?.first_name, user?.last_name].filter(Boolean).join(" ") || undefined}
         contactEmail={user?.email}
         autoStart={autoStart}
+        resumeOrder={resumeOrder}
         onClose={closeStudio}
         onSaved={onSaved}
       />
@@ -203,8 +218,11 @@ export default function GangSheetBuilderPage() {
                         {GANG_SHEET_STATUS_LABEL[o.status] ?? o.status}
                       </span>
                       {o.paid && <span style={{ background: "#DCFCE7", color: "#166534", padding: "3px 10px", borderRadius: "20px", fontSize: "11px", fontWeight: 700 }}>Paid ✓</span>}
+                      {(o.status === "submitted" || o.status === "revision_requested") && (
+                        <button onClick={() => editOrder(o)} style={{ background: "var(--brand-primary,#1C3557)", color: "#fff", border: "none", padding: "6px 12px", borderRadius: "6px", fontSize: "12px", fontWeight: 700, cursor: "pointer" }}>Edit in builder</button>
+                      )}
                       {o.status === "revision_requested" && (
-                        <button onClick={() => gangSheetsService.resubmit(o.id).then(loadOrders).catch(() => {})} style={{ background: "var(--brand-primary,#1C3557)", color: "#fff", border: "none", padding: "6px 12px", borderRadius: "6px", fontSize: "12px", fontWeight: 700, cursor: "pointer" }}>Resubmit</button>
+                        <button onClick={() => gangSheetsService.resubmit(o.id).then(loadOrders).catch(() => {})} style={{ background: "none", border: "1px solid #DDD9D2", padding: "5px 12px", borderRadius: "6px", fontSize: "12px", fontWeight: 600, cursor: "pointer" }}>Resubmit</button>
                       )}
                       <button onClick={() => gangSheetsService.reorder(o.id).then(loadOrders).catch(() => {})} style={{ background: "none", border: "1px solid #DDD9D2", padding: "5px 12px", borderRadius: "6px", fontSize: "12px", fontWeight: 600, cursor: "pointer" }}>Reorder</button>
                     </div>
