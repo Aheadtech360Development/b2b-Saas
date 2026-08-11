@@ -273,6 +273,11 @@ function ReviewModal({ order, onClose, onChanged }: { order: GangSheetOrder; onC
             <div style={{ fontSize: "12px", color: "#888" }}>
               {order.sheet_name} · {order.sheet_width_in}″ × {order.sheet_height_in}″ · {order.sheet_quantity} sheet(s) · ${order.subtotal.toFixed(2)}
             </div>
+            {order.order_id && (
+              <a href={`/admin/orders/${order.order_id}`} style={{ fontSize: "12px", color: "var(--brand-primary, #1C3557)", fontWeight: 700, textDecoration: "none" }}>
+                View linked order →
+              </a>
+            )}
           </div>
           <button onClick={onClose} style={{ background: "none", border: "none", fontSize: "22px", color: "#999", cursor: "pointer" }}>×</button>
         </div>
