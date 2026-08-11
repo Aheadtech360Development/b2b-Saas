@@ -84,6 +84,9 @@ export interface GangSheetOrder {
   updated_at: string | null;
   layout?: GangSheetPlacement[];
   artworks?: GangSheetArtwork[];
+  // Checkout link: set once the buyer pays for this sheet through the cart.
+  order_id?: string | null;
+  paid?: boolean;
   // Batch 3
   version?: number;
   status_timeline?: GangSheetStatus[];

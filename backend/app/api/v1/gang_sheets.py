@@ -15,7 +15,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
-from sqlalchemy import Boolean, ForeignKey, Integer, Numeric, String, Text, func, select
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, Numeric, String, Text, func, select
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Mapped, mapped_column
@@ -101,6 +101,10 @@ class GangSheetOrder(TenantMixin, DBBaseModel):
     internal_notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     version: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
     versions: Mapped[list] = mapped_column(JSONB, default=list, nullable=False)
+    # Checkout link: set when the buyer pays for this sheet through the cart, so
+    # the review pipeline and the paid order stay connected both ways.
+    order_id: Mapped[Optional[uuid.UUID]] = mapped_column(nullable=True)
+    paid_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class GangSheetArtwork(TenantMixin, DBBaseModel):
@@ -282,6 +286,8 @@ def _order_row(o: GangSheetOrder, artworks: list[GangSheetArtwork] | None = None
         "created_at": o.created_at.isoformat() if o.created_at else None,
         "updated_at": o.updated_at.isoformat() if o.updated_at else None,
         "layout": o.layout or [],
+        "order_id": str(o.order_id) if getattr(o, "order_id", None) else None,
+        "paid": bool(getattr(o, "paid_at", None)),
     }
     if artworks is not None:
         data["artworks"] = [_art_row(a) for a in artworks]

@@ -109,6 +109,7 @@ class OrderService:
         subtotal = Decimal("0")
         total_units = 0
         ordered_product_slugs: set[str] = set()
+        gang_sheet_ids: list = []  # gang sheet orders paid for in this checkout
 
         for cart_item in cart_items:
             # Gang-sheet line: billed from its own snapshot — no variant to look
@@ -129,6 +130,9 @@ class OrderService:
                     "unit_price": gs_unit,
                     "line_total": gs_line,
                 })
+                _gsid = getattr(cart_item, "gang_sheet_order_id", None)
+                if _gsid:
+                    gang_sheet_ids.append(_gsid)
                 continue
 
             variant_result = await self.db.execute(
@@ -287,6 +291,26 @@ class OrderService:
         )
         self.db.add(order)
         await self.db.flush()
+
+        # Link any gang sheets paid for in this checkout to the order + mark them
+        # paid, and move fresh submissions into the review queue now they're paid.
+        if gang_sheet_ids:
+            from datetime import datetime as _dt, timezone as _tz
+            from app.api.v1.gang_sheets import (
+                GangSheetOrder as _GSOrder,
+                STATUS_SUBMITTED as _GS_SUBMITTED,
+                STATUS_IN_REVIEW as _GS_IN_REVIEW,
+            )
+            _is_paid = order.payment_status == "paid"
+            for _gsid in gang_sheet_ids:
+                _gs = (await self.db.execute(select(_GSOrder).where(_GSOrder.id == _gsid))).scalar_one_or_none()
+                if _gs is not None:
+                    _gs.order_id = order.id
+                    if _is_paid:
+                        _gs.paid_at = _dt.now(_tz.utc)
+                    if _gs.status == _GS_SUBMITTED:
+                        _gs.status = _GS_IN_REVIEW  # paid/ordered → enters the review queue
+            await self.db.flush()
 
         # Save tax_rate / tax_region via raw SQL — columns may not exist in older deployments.
         # This is a best-effort update; failure does not block order creation.

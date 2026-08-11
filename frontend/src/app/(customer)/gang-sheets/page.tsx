@@ -202,6 +202,7 @@ export default function GangSheetBuilderPage() {
                       <span style={{ background: c.bg, color: c.fg, padding: "3px 10px", borderRadius: "20px", fontSize: "11px", fontWeight: 700 }}>
                         {GANG_SHEET_STATUS_LABEL[o.status] ?? o.status}
                       </span>
+                      {o.paid && <span style={{ background: "#DCFCE7", color: "#166534", padding: "3px 10px", borderRadius: "20px", fontSize: "11px", fontWeight: 700 }}>Paid ✓</span>}
                       {o.status === "revision_requested" && (
                         <button onClick={() => gangSheetsService.resubmit(o.id).then(loadOrders).catch(() => {})} style={{ background: "var(--brand-primary,#1C3557)", color: "#fff", border: "none", padding: "6px 12px", borderRadius: "6px", fontSize: "12px", fontWeight: 700, cursor: "pointer" }}>Resubmit</button>
                       )}

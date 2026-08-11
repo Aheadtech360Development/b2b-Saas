@@ -172,6 +172,13 @@ function OrdersTab() {
                       <span style={{ background: c.bg, color: c.fg, padding: "3px 9px", borderRadius: "20px", fontSize: "11px", fontWeight: 700 }}>
                         {GANG_SHEET_STATUS_LABEL[o.status] ?? o.status}
                       </span>
+                      {o.paid ? (
+                        <span style={{ marginLeft: "6px", background: "#DCFCE7", color: "#166534", padding: "2px 8px", borderRadius: "20px", fontSize: "10px", fontWeight: 700 }}>PAID</span>
+                      ) : o.order_id ? (
+                        <span style={{ marginLeft: "6px", background: "#FEF3C7", color: "#92400E", padding: "2px 8px", borderRadius: "20px", fontSize: "10px", fontWeight: 700 }}>ORDERED</span>
+                      ) : (
+                        <span style={{ marginLeft: "6px", background: "#F3F4F6", color: "#6B7280", padding: "2px 8px", borderRadius: "20px", fontSize: "10px", fontWeight: 700 }}>DRAFT</span>
+                      )}
                       {o.revision_count > 0 && (
                         <span style={{ marginLeft: "6px", fontSize: "11px", color: "#9A3412" }}>
                           rev {o.revision_count}
@@ -253,7 +260,16 @@ function ReviewModal({ order, onClose, onChanged }: { order: GangSheetOrder; onC
       <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", borderRadius: "12px", width: "100%", maxWidth: "620px", maxHeight: "88vh", overflowY: "auto", padding: "24px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
           <div>
-            <h2 style={{ fontSize: "18px", fontWeight: 800 }}>{order.reference}</h2>
+            <h2 style={{ fontSize: "18px", fontWeight: 800 }}>
+              {order.reference}
+              {order.paid ? (
+                <span style={{ marginLeft: "10px", background: "#DCFCE7", color: "#166534", padding: "2px 10px", borderRadius: "20px", fontSize: "11px", fontWeight: 700, verticalAlign: "middle" }}>PAID</span>
+              ) : order.order_id ? (
+                <span style={{ marginLeft: "10px", background: "#FEF3C7", color: "#92400E", padding: "2px 10px", borderRadius: "20px", fontSize: "11px", fontWeight: 700, verticalAlign: "middle" }}>ORDERED · unpaid</span>
+              ) : (
+                <span style={{ marginLeft: "10px", background: "#F3F4F6", color: "#6B7280", padding: "2px 10px", borderRadius: "20px", fontSize: "11px", fontWeight: 700, verticalAlign: "middle" }}>DRAFT · not checked out</span>
+              )}
+            </h2>
             <div style={{ fontSize: "12px", color: "#888" }}>
               {order.sheet_name} · {order.sheet_width_in}″ × {order.sheet_height_in}″ · {order.sheet_quantity} sheet(s) · ${order.subtotal.toFixed(2)}
             </div>
