@@ -225,6 +225,7 @@ export function AdminSidebar() {
       {customersOpen && (
         <div style={{ paddingLeft: "18px", marginTop: "3px", marginBottom: "3px" }}>
           <SubLink href="/admin/customers" label="All Customers" />
+          <SubLink href="/admin/customers/segments" label="Segments" />
           <SubLink href="/admin/customers/applications" label="Applications" />
           <SubLink href="/admin/customers/tiers?tab=groups" label="Discount Groups" />
           <SubLink href="/admin/customers/tiers?tab=variants" label="Individual Variant Pricing" />
