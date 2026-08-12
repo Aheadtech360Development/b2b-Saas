@@ -846,6 +846,7 @@ from app.api.v1.admin import (  # noqa: E402
     blog_posts as admin_blog_posts,
     purchase_orders as admin_purchase_orders,
     supplier_catalog as admin_supplier_catalog,
+    segments as admin_segments,
 )
 
 # ── CORS ──────────────────────────────────────────────────────────────────────
@@ -938,6 +939,7 @@ app.include_router(gang_sheets.public_router, prefix=_V1)
 app.include_router(gang_sheets.admin_router, prefix=_V1)
 app.include_router(admin_purchase_orders.router, prefix=f"{_V1}/admin/purchase-orders", tags=["purchase-orders"])
 app.include_router(admin_supplier_catalog.router, prefix=_V1)
+app.include_router(admin_segments.router, prefix=_V1)
 
 # Static files
 os.makedirs("/app/media", exist_ok=True)

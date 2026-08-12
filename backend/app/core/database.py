@@ -53,6 +53,13 @@ from app.core.tenant_scope import install_tenant_scoping  # noqa: E402
 
 install_tenant_scoping()
 
+# Centralized customer-metrics propagation: any order change enqueues a recompute
+# for that company on commit (no per-controller wiring). Safe — enqueue failures
+# never break the transaction.
+from app.core.segment_events import install_segment_events  # noqa: E402
+
+install_segment_events()
+
 
 # Process-local cache of tenant_id → (store_name, expires_at). Emails read the
 # brand name synchronously from a contextvar, but resolving it needs a DB lookup;
