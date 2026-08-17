@@ -824,6 +824,7 @@ from app.api.v1.platform import tenants as platform_tenants  # noqa: E402
 from app.api.v1.platform import insights as platform_insights  # noqa: E402
 from app.api.v1 import auth, products, cart, checkout, orders, account, webhooks, reviews, discounts, guest, contact, style_sheets, product_specs, upload, tax_rate, tax, pages_seo, blog_posts, shipping as public_shipping  # noqa: E402
 from app.api.v1 import gang_sheets  # noqa: E402
+from app.api.v1 import two_factor  # noqa: E402
 from app.api.v1.admin import (  # noqa: E402
     customers,
     pricing as admin_pricing,
@@ -942,6 +943,8 @@ app.include_router(admin_purchase_orders.router, prefix=f"{_V1}/admin/purchase-o
 app.include_router(admin_supplier_catalog.router, prefix=_V1)
 app.include_router(admin_segments.router, prefix=_V1)
 app.include_router(admin_roles.router, prefix=_V1)
+app.include_router(two_factor.router, prefix=_V1)
+app.include_router(two_factor.public_router, prefix=_V1)
 
 # Static files
 os.makedirs("/app/media", exist_ok=True)

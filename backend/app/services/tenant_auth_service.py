@@ -100,27 +100,70 @@ class TenantAuthService:
             raise AccountSuspendedError()
 
         user_id = str(row["id"])
-        _scopes, _read_only = await _resolve_custom_scopes(self.db, dict(row))
-        claims = _build_claims(dict(row), _scopes, _read_only)
+
+        # 2FA gate: password is correct, but if the account has an authenticator
+        # enrolled, issue only a short-lived challenge — no access until the code
+        # is verified at /auth/2fa/verify.
+        if row.get("two_factor_enabled"):
+            from app.core.security import create_2fa_challenge_token
+            tid = str(row["tenant_id"]) if row["tenant_id"] else None
+            challenge = create_2fa_challenge_token(user_id, tid)
+            return LoginResponse(requires_2fa=True, challenge_token=challenge), ""
+
+        return await self._issue_login(dict(row))
+
+    async def _issue_login(self, row: dict) -> tuple[LoginResponse, str]:
+        """Mint access + refresh tokens for a fully-authenticated user (password,
+        and 2FA if enabled). Shared by login and the 2FA verify step."""
+        from sqlalchemy import text
+        user_id = str(row["id"])
+        _scopes, _read_only = await _resolve_custom_scopes(self.db, row)
+        claims = _build_claims(row, _scopes, _read_only)
 
         access_token = create_access_token(subject=user_id, extra_claims=claims)
         refresh_token = create_refresh_token(subject=user_id)
 
-        # Store refresh token in Redis (7 days TTL)
         await redis_set(
             f"refresh:{user_id}:{refresh_token[-10:]}",
             refresh_token,
             expire=REFRESH_TOKEN_EXPIRE_DAYS * 86400,
         )
-
-        # Update last_login
-        await self.db.execute(
-            text("UPDATE users SET last_login=now() WHERE id=:id"),
-            {"id": user_id},
-        )
+        await self.db.execute(text("UPDATE users SET last_login=now() WHERE id=:id"), {"id": user_id})
         await self.db.commit()
-
         return LoginResponse(access_token=access_token, token_type="bearer"), refresh_token
+
+    async def verify_2fa_and_login(self, challenge_token: str, code: str) -> tuple[LoginResponse, str]:
+        """Complete a 2FA login: validate the challenge + the TOTP (or a backup)
+        code, then issue real tokens."""
+        import pyotp
+        from sqlalchemy import text
+        from app.core.security import decode_token
+        from app.services.two_factor_service import verify_totp_or_backup
+
+        try:
+            payload = decode_token(challenge_token)
+        except Exception:
+            raise UnauthorizedError("Your verification session expired. Please sign in again.")
+        if payload.get("type") != "2fa_challenge":
+            raise UnauthorizedError("Invalid verification session.")
+        user_id = payload.get("sub")
+
+        row = (await self.db.execute(text("SELECT * FROM users WHERE id=:id AND is_active=true"), {"id": user_id})).mappings().first()
+        if not row or not row.get("two_factor_enabled") or not row.get("two_factor_secret"):
+            raise UnauthorizedError("Two-factor is not set up for this account.")
+
+        ok, remaining_backups = verify_totp_or_backup(
+            row["two_factor_secret"], row.get("two_factor_backup_codes") or [], code
+        )
+        if not ok:
+            raise UnauthorizedError("Incorrect code. Try again.")
+        if remaining_backups is not None:  # a backup code was consumed
+            import json as _json
+            await self.db.execute(
+                text("UPDATE users SET two_factor_backup_codes = CAST(:c AS jsonb) WHERE id=:id"),
+                {"c": _json.dumps(remaining_backups), "id": user_id},
+            )
+        return await self._issue_login(dict(row))
 
     async def get_profile(self, user_id: str) -> dict:
         from sqlalchemy import text

@@ -8,8 +8,12 @@ class LoginRequest(BaseModel):
 
 
 class LoginResponse(BaseModel):
-    access_token: str
+    access_token: str = ""
     token_type: str = "bearer"
+    # When the account has 2FA on, login returns no access token — instead a
+    # short-lived challenge the client exchanges at /auth/2fa/verify with a code.
+    requires_2fa: bool = False
+    challenge_token: str | None = None
 
 
 class RegisterWholesaleRequest(BaseModel):

@@ -41,16 +41,19 @@ async def login(
     service = TenantAuthService(db)
     login_resp, refresh_token = await service.login(data.email, data.password, tenant_id)
 
-    response.set_cookie(
-        key=REFRESH_COOKIE,
-        value=refresh_token,
-        max_age=REFRESH_MAX_AGE,
-        httponly=True,
-        secure=settings.COOKIE_SECURE,
-        samesite=settings.COOKIE_SAMESITE,  # type: ignore[arg-type]
-        path="/api/v1/auth/refresh",
-        domain=settings.COOKIE_DOMAIN,
-    )
+    # No refresh token yet when a 2FA challenge is returned — set the cookie only
+    # once the login is actually complete.
+    if refresh_token:
+        response.set_cookie(
+            key=REFRESH_COOKIE,
+            value=refresh_token,
+            max_age=REFRESH_MAX_AGE,
+            httponly=True,
+            secure=settings.COOKIE_SECURE,
+            samesite=settings.COOKIE_SAMESITE,  # type: ignore[arg-type]
+            path="/api/v1/auth/refresh",
+            domain=settings.COOKIE_DOMAIN,
+        )
     return login_resp
 
 

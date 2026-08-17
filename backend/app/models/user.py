@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING
 
 from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, String
-from sqlalchemy.dialects.postgresql import UUID as PGUUID
+from sqlalchemy.dialects.postgresql import JSONB, UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import BaseModel
@@ -47,9 +47,10 @@ class User(BaseModel):
     password_reset_expires: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     last_login: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
-    # Two-factor auth (future — columns exist in the multi-tenant users table)
+    # Two-factor auth (TOTP — authenticator app)
     two_factor_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     two_factor_secret: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    two_factor_backup_codes: Mapped[list | None] = mapped_column(JSONB, nullable=True)
 
     # Custom RBAC role — when set, its scopes override the fixed `role`.
     custom_role_id: Mapped[uuid.UUID | None] = mapped_column(nullable=True)
