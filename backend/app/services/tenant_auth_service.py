@@ -24,20 +24,42 @@ REFRESH_TOKEN_EXPIRE_DAYS = 7
 
 
 # Roles that can access the admin panel (staff roles). 'buyer' is a customer.
+# 'tenant_custom' = a user on a tenant-defined custom role (scopes in the token).
 _ADMIN_PANEL_ROLES = {
     "platform_admin", "tenant_admin", "tenant_manager",
-    "tenant_editor", "tenant_fulfillment", "tenant_viewer",
+    "tenant_editor", "tenant_fulfillment", "tenant_viewer", "tenant_custom",
 }
 
 
-def _build_claims(user_row: dict) -> dict:
-    """Build JWT extra claims from user dict."""
-    return {
+def _build_claims(user_row: dict, scopes: list | None = None, read_only: bool = False) -> dict:
+    """Build JWT extra claims from user dict. When the user is on a custom role,
+    `scopes` + `read_only` are embedded so enforcement needs no DB lookup."""
+    role = user_row["role"]
+    claims = {
         "tenant_id": str(user_row["tenant_id"]) if user_row["tenant_id"] else None,
-        "role": user_row["role"],
+        "role": role,
         "is_platform_admin": user_row["is_platform_admin"],
-        "is_admin": user_row["role"] in _ADMIN_PANEL_ROLES,
+        "is_admin": role in _ADMIN_PANEL_ROLES or scopes is not None,
     }
+    if scopes is not None:
+        claims["scopes"] = list(scopes)
+        claims["read_only"] = bool(read_only)
+    return claims
+
+
+async def _resolve_custom_scopes(db, user_row: dict) -> tuple[list | None, bool]:
+    """If the user is on a custom role, return (scopes, read_only); else (None, False)."""
+    cr_id = user_row.get("custom_role_id")
+    if not cr_id:
+        return None, False
+    from sqlalchemy import text as _text
+    row = (await db.execute(
+        _text("SELECT scopes, read_only FROM custom_roles WHERE id = :id"),
+        {"id": str(cr_id)},
+    )).mappings().first()
+    if not row:
+        return None, False
+    return list(row["scopes"] or []), bool(row["read_only"])
 
 
 class TenantAuthService:
@@ -78,7 +100,8 @@ class TenantAuthService:
             raise AccountSuspendedError()
 
         user_id = str(row["id"])
-        claims = _build_claims(dict(row))
+        _scopes, _read_only = await _resolve_custom_scopes(self.db, dict(row))
+        claims = _build_claims(dict(row), _scopes, _read_only)
 
         access_token = create_access_token(subject=user_id, extra_claims=claims)
         refresh_token = create_refresh_token(subject=user_id)
@@ -133,7 +156,8 @@ class TenantAuthService:
         if not row:
             raise UnauthorizedError("User not found or inactive")
 
-        claims = _build_claims(dict(row))
+        _scopes, _read_only = await _resolve_custom_scopes(self.db, dict(row))
+        claims = _build_claims(dict(row), _scopes, _read_only)
         new_access = create_access_token(subject=user_id, extra_claims=claims)
         new_refresh = create_refresh_token(subject=user_id)
 

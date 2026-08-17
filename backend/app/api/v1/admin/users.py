@@ -56,6 +56,7 @@ def _user_to_dict(user: User) -> dict:
         "last_name": user.last_name,
         "full_name": f"{user.first_name} {user.last_name}".strip(),
         "role": role,
+        "custom_role_id": str(user.custom_role_id) if getattr(user, "custom_role_id", None) else None,
         "is_admin": user.is_admin,
         "is_active": user.is_active,
         "email_verified": user.email_verified,
@@ -133,7 +134,8 @@ async def create_user(
         raise HTTPException(status_code=409, detail="A user with this email already exists")
 
     raw_password: str = payload.get("password") or secrets.token_urlsafe(12)
-    db_role = _ROLE_TO_DB.get(role, "tenant_editor")
+    custom_role_id = payload.get("custom_role_id")
+    db_role = "tenant_custom" if custom_role_id else _ROLE_TO_DB.get(role, "tenant_editor")
 
     user = User(
         email=email,
@@ -145,6 +147,7 @@ async def create_user(
         is_admin=(db_role != "buyer"),  # all staff roles access the admin panel
         is_active=True,
         email_verified=True,
+        custom_role_id=UUID(str(custom_role_id)) if custom_role_id else None,
     )
     db.add(user)
     await db.commit()
@@ -207,6 +210,18 @@ async def update_user(
     if "role" in payload:
         user.role = _ROLE_TO_DB.get(payload["role"], "tenant_editor")
         user.is_admin = (user.role != "buyer")
+    # Custom role wins when provided; null clears it back to the fixed role.
+    if "custom_role_id" in payload:
+        cr = payload["custom_role_id"]
+        if cr:
+            user.custom_role_id = UUID(str(cr))
+            user.role = "tenant_custom"
+            user.is_admin = True
+        else:
+            user.custom_role_id = None
+            if user.role == "tenant_custom":
+                user.role = _ROLE_TO_DB.get(payload.get("role", "editor"), "tenant_editor")
+                user.is_admin = True
     if "is_active" in payload:
         user.is_active = bool(payload["is_active"])
 

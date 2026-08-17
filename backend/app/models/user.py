@@ -51,6 +51,9 @@ class User(BaseModel):
     two_factor_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     two_factor_secret: Mapped[str | None] = mapped_column(String(100), nullable=True)
 
+    # Custom RBAC role — when set, its scopes override the fixed `role`.
+    custom_role_id: Mapped[uuid.UUID | None] = mapped_column(nullable=True)
+
     # ── Relationships ─────────────────────────────────────────────────────────
     company_memberships: Mapped[list["CompanyUser"]] = relationship(
         "CompanyUser",

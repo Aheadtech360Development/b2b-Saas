@@ -77,6 +77,7 @@ _PATH_SCOPES: list[tuple[str, str]] = [
     ("/api/v1/admin/variant-pricing", "discounts"),
     ("/api/v1/admin/variant-level-pricing", "discounts"),
     ("/api/v1/admin/users", "staff"),
+    ("/api/v1/admin/roles", "staff"),
     ("/api/v1/admin/settings", "settings"),
     ("/api/v1/admin/email-templates", "settings"),
     ("/api/v1/admin/quickbooks", "settings"),
@@ -98,29 +99,43 @@ def scope_for_path(path: str) -> str | None:
     return None
 
 
-def can_access(role: str | None, path: str, method: str) -> bool:
-    """Can a user with this role perform `method` on `path`?"""
+def can_access(
+    role: str | None,
+    path: str,
+    method: str,
+    scopes: list[str] | None = None,
+    read_only: bool = False,
+) -> bool:
+    """Can a user perform `method` on `path`?
+
+    When `scopes` is provided (a custom role), the check uses that explicit scope
+    set + `read_only`, so custom roles need no entry in ROLE_SCOPES. Otherwise the
+    fixed-role mapping applies. Enforcement is identical either way — one place.
+    """
     role = role or ""
-    # Full-access roles.
+    # Full-access roles always win, custom scopes or not.
     if role in ("platform_admin", "tenant_admin"):
         return True
 
     is_read = method.upper() in _READ_METHODS
     scope = scope_for_path(path)
 
-    if scope is None:
-        # Ungated admin path (e.g. generic dashboard data). Read-only roles may
-        # only read it; others allowed.
-        return is_read if role in READ_ONLY_ROLES else True
+    # Custom role: use the explicit scope set.
+    if scopes is not None:
+        allowed = set(scopes)
+        if scope is None:
+            return is_read if read_only else True
+        if scope not in allowed:
+            return False
+        return is_read if read_only else True
 
-    # Section must be accessible to the role at all.
+    # Fixed role.
+    if scope is None:
+        return is_read if role in READ_ONLY_ROLES else True
     if scope not in ROLE_SCOPES.get(role, set()):
         return False
-
-    # Read-only roles can view accessible sections but never write.
     if role in READ_ONLY_ROLES:
         return is_read
-
     return True
 
 

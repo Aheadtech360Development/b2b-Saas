@@ -144,6 +144,8 @@ class AuthMiddleware(BaseHTTPMiddleware):
         request.state.is_platform_admin = payload.get("is_platform_admin", False)
         request.state.tenant_id = payload.get("tenant_id")
         request.state.role = payload.get("role")
+        request.state.scopes = payload.get("scopes")          # custom role scopes, or None
+        request.state.read_only = payload.get("read_only", False)
         request.state.company_id = payload.get("company_id")
         request.state.pricing_tier_id = payload.get("pricing_tier_id")
         request.state.company_role = payload.get("company_role")
@@ -173,7 +175,11 @@ class AuthMiddleware(BaseHTTPMiddleware):
         # ── Role-based (RBAC) enforcement for admin sections ───────────────────
         if path.startswith("/api/v1/admin/"):
             from app.core.permissions import can_access
-            if not can_access(request.state.role, path, request.method):
+            if not can_access(
+                request.state.role, path, request.method,
+                scopes=getattr(request.state, "scopes", None),
+                read_only=getattr(request.state, "read_only", False),
+            ):
                 return JSONResponse(
                     status_code=403,
                     content={"error": {"code": "FORBIDDEN", "message": "Your role does not allow this action"}},
