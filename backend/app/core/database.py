@@ -60,6 +60,12 @@ from app.core.segment_events import install_segment_events  # noqa: E402
 
 install_segment_events()
 
+# Phase A of DB row-level security: bind the current tenant into a Postgres
+# session variable on every transaction. Harmless until RLS policies exist.
+from app.core.rls import install_rls_session_binding  # noqa: E402
+
+install_rls_session_binding()
+
 
 # Process-local cache of tenant_id → (store_name, expires_at). Emails read the
 # brand name synchronously from a contextvar, but resolving it needs a DB lookup;
