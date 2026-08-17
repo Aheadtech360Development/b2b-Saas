@@ -51,6 +51,25 @@ export const authService = {
     return apiClient.post<AuthTokens>("/api/v1/auth/login", payload, { skipAuth: true });
   },
 
+  /** Complete a 2FA login: exchange the challenge + code for real tokens. */
+  async verify2fa(challenge_token: string, code: string): Promise<AuthTokens> {
+    return apiClient.post<AuthTokens>("/api/v1/auth/2fa/verify", { challenge_token, code }, { skipAuth: true });
+  },
+
+  // ── 2FA management (authenticated) ──────────────────────────────────────────
+  async twoFaStatus(): Promise<{ enabled: boolean }> {
+    return apiClient.get("/api/v1/2fa/status");
+  },
+  async twoFaSetup(): Promise<{ secret: string; otpauth_uri: string }> {
+    return apiClient.post("/api/v1/2fa/setup");
+  },
+  async twoFaEnable(code: string): Promise<{ enabled: boolean; backup_codes: string[] }> {
+    return apiClient.post("/api/v1/2fa/enable", { code });
+  },
+  async twoFaDisable(password: string, code: string): Promise<{ enabled: boolean }> {
+    return apiClient.post("/api/v1/2fa/disable", { password, code });
+  },
+
   /** Log out — clear refresh cookie. */
   async logout(): Promise<void> {
     return apiClient.post<void>("/api/v1/auth/logout");

@@ -60,6 +60,10 @@ export interface Company {
 export interface AuthTokens {
   access_token: string;
   token_type: "bearer";
+  // When the account has 2FA on, login returns no access token — a challenge to
+  // exchange (with a code) at /auth/2fa/verify instead.
+  requires_2fa?: boolean;
+  challenge_token?: string | null;
 }
 
 /** Address record. */

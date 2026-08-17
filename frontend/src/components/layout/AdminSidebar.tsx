@@ -311,6 +311,7 @@ export function AdminSidebar() {
           {can("settings") && <SubLink href="/admin/settings/taxes" label="Taxes & Duties" />}
           {can("analytics") && <SubLink href="/admin/analytics" label="Analytics" />}
           {can("staff") && <SubLink href="/admin/users" label="Users" />}
+          <SubLink href="/admin/settings/security" label="Security (2FA)" />
           {can("settings") && <SubLink href="/admin/settings/audit-log" label="Audit Log" />}
         </div>
       )}

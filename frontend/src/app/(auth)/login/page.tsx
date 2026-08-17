@@ -46,6 +46,41 @@ export default function LoginPage() {
   const [showResendActivation, setShowResendActivation] = useState(false);
   const [resendSent, setResendSent] = useState(false);
   const [showPendingApproval, setShowPendingApproval] = useState(false);
+  const [twoFaChallenge, setTwoFaChallenge] = useState<string | null>(null);
+  const [twoFaCode, setTwoFaCode] = useState("");
+
+  // Shared post-authentication step (used by password login and 2FA completion).
+  async function completeLogin(accessToken: string) {
+    setAccessToken(accessToken);
+    const profile = await authService.getProfile();
+    const payload = decodeJwtPayload(accessToken);
+    const fullProfile = {
+      ...profile,
+      is_admin: !!payload.is_admin,
+      is_platform_admin: !!payload.is_platform_admin,
+      role: (payload.role as string) || undefined,
+      tenant_id: (payload.tenant_id as string | null) ?? null,
+      account_type: (payload.account_type as string) || "wholesale",
+    };
+    setAuth(accessToken, fullProfile);
+    if (fullProfile.is_platform_admin) router.push("/platform");
+    else if (fullProfile.is_admin) router.push("/admin/dashboard");
+    else router.push("/account");
+  }
+
+  async function handleVerify2fa(e: React.FormEvent) {
+    e.preventDefault();
+    if (!twoFaChallenge) return;
+    setError(null);
+    setIsSubmitting(true);
+    try {
+      const tokens = await authService.verify2fa(twoFaChallenge, twoFaCode.trim());
+      await completeLogin(tokens.access_token);
+    } catch (err) {
+      setError(err instanceof ApiClientError ? (err.message || "Incorrect code.") : "Incorrect code. Try again.");
+      setIsSubmitting(false);
+    }
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -58,34 +93,13 @@ export default function LoginPage() {
 
     try {
       const tokens = await authService.login({ email, password });
-
-      // Set token in memory BEFORE calling getProfile so the request is authenticated
-      setAccessToken(tokens.access_token);
-
-      const profile = await authService.getProfile();
-
-      // JWT payload contains is_admin, is_platform_admin, role, tenant_id as claims
-      const payload = decodeJwtPayload(tokens.access_token);
-      const fullProfile = {
-        ...profile,
-        is_admin: !!payload.is_admin,
-        is_platform_admin: !!payload.is_platform_admin,
-        role: (payload.role as string) || undefined,
-        tenant_id: (payload.tenant_id as string | null) ?? null,
-        account_type: (payload.account_type as string) || "wholesale",
-      };
-
-      setAuth(tokens.access_token, fullProfile);
-
-      if (fullProfile.is_platform_admin) {
-        // Super admin → platform dashboard (manage all brands)
-        router.push("/platform");
-      } else if (fullProfile.is_admin) {
-        // Brand admin → their own store admin panel
-        router.push("/admin/dashboard");
-      } else {
-        router.push("/account");
+      // 2FA-enabled account → password was correct, now ask for the code.
+      if (tokens.requires_2fa && tokens.challenge_token) {
+        setTwoFaChallenge(tokens.challenge_token);
+        setIsSubmitting(false);
+        return;
       }
+      await completeLogin(tokens.access_token);
     } catch (err) {
       recaptchaRef.current?.reset();
       setRecaptchaToken(null);
@@ -138,6 +152,28 @@ export default function LoginPage() {
 
           {/* Card */}
           <div style={{ background: "#FFFFFF", border: "1px solid #E2E2DE", padding: "36px" }}>
+            {twoFaChallenge ? (
+              <form onSubmit={handleVerify2fa}>
+                <h2 style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "18px", fontWeight: 700, color: "#1A1A1A", margin: "0 0 6px" }}>Two-factor verification</h2>
+                <p style={{ fontSize: "13px", color: "#6B6B6B", margin: "0 0 18px" }}>Enter the 6-digit code from your authenticator app. You can also use a backup code.</p>
+                {error && (
+                  <div style={{ background: "rgba(232,36,42,.08)", border: "1px solid rgba(232,36,42,.2)", borderRadius: "6px", padding: "10px 14px", fontSize: "13px", color: "#E8242A", marginBottom: "16px" }}>{error}</div>
+                )}
+                <input
+                  autoFocus inputMode="text" autoComplete="one-time-code" value={twoFaCode}
+                  onChange={(e) => setTwoFaCode(e.target.value)} placeholder="123456"
+                  style={{ width: "100%", background: "#fff", border: "1px solid #E2E2DE", padding: "12px 14px", fontSize: "18px", letterSpacing: "0.15em", textAlign: "center", color: "#1A1A1A", outline: "none", boxSizing: "border-box", fontFamily: "'DM Sans', sans-serif", marginBottom: "16px" }}
+                />
+                <button type="submit" disabled={isSubmitting || twoFaCode.trim().length < 6}
+                  style={{ width: "100%", background: (isSubmitting || twoFaCode.trim().length < 6) ? "#9ca3af" : "#1C3557", color: "#fff", border: "none", padding: "13px", fontSize: "14px", fontWeight: 700, cursor: (isSubmitting || twoFaCode.trim().length < 6) ? "not-allowed" : "pointer", fontFamily: "'DM Sans', sans-serif" }}>
+                  {isSubmitting ? "Verifying…" : "Verify →"}
+                </button>
+                <button type="button" onClick={() => { setTwoFaChallenge(null); setTwoFaCode(""); setError(null); }}
+                  style={{ width: "100%", background: "none", border: "none", color: "#6B6B6B", fontSize: "13px", cursor: "pointer", marginTop: "12px", fontFamily: "'DM Sans', sans-serif" }}>
+                  ← Back to sign in
+                </button>
+              </form>
+            ) : (
             <form onSubmit={handleSubmit}>
               {error && (
                 <div style={{ background: "#fff0f0", border: "1px solid #fcc", padding: "12px 14px", fontSize: "13px", color: "#cc0000", marginBottom: "12px", fontFamily: "'DM Sans', sans-serif" }}>
@@ -286,6 +322,7 @@ export default function LoginPage() {
                 {isSubmitting ? "Signing in…" : "Log In →"}
               </button>
             </form>
+            )}
 
             <div style={{ marginTop: "20px", paddingTop: "16px", borderTop: "1px solid #E2E2DE" }}>
               <div style={{ position: "relative", textAlign: "center", marginBottom: "16px" }}>
