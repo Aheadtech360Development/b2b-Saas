@@ -11,6 +11,7 @@ from app.core.config import settings
 
 from app.core.database import get_db
 from app.core.security import get_token_jti, hash_password, create_access_token, create_refresh_token
+from app.core.rate_limit import enforce_rate_limit
 from app.schemas.auth import (
     ActivateAccountSchema,
     ChangePasswordRequest,
@@ -34,9 +35,11 @@ REFRESH_COOKIE_MAX_AGE = 7 * 24 * 60 * 60  # 7 days
 @router.post("/register-wholesale", response_model=WholesaleApplicationOut, status_code=201)
 async def register_wholesale(
     data: RegisterWholesaleRequest,
+    request: Request,
     db: AsyncSession = Depends(get_db),
 ) -> WholesaleApplicationOut:
     """Submit a wholesale registration application."""
+    await enforce_rate_limit(request, "register", limit=5, window=3600)
     service = AuthService(db)
     application = await service.register_wholesale(data)
     return WholesaleApplicationOut.model_validate(application)
@@ -45,10 +48,14 @@ async def register_wholesale(
 @router.post("/login", response_model=LoginResponse)
 async def login(
     data: LoginRequest,
+    request: Request,
     response: Response,
     db: AsyncSession = Depends(get_db),
 ) -> LoginResponse:
     """Authenticate and return an access token. Sets httpOnly refresh cookie."""
+    # Brute-force / credential-stuffing guard: per IP+email, and a broader per-IP cap.
+    await enforce_rate_limit(request, "login", limit=10, window=900, extra=data.email)
+    await enforce_rate_limit(request, "login_ip", limit=30, window=900)
     service = AuthService(db)
     login_response, refresh_token = await service.login(data.email, data.password)
 
@@ -119,9 +126,11 @@ async def refresh(
 @router.post("/forgot-password", status_code=204)
 async def forgot_password(
     data: ForgotPasswordRequest,
+    request: Request,
     db: AsyncSession = Depends(get_db),
 ) -> None:
     """Send password reset email (always returns 204 to prevent enumeration)."""
+    await enforce_rate_limit(request, "forgot", limit=5, window=3600, extra=data.email)
     service = AuthService(db)
     await service.send_password_reset(data.email)
 
@@ -129,8 +138,10 @@ async def forgot_password(
 @router.post("/reset-password", status_code=204)
 async def reset_password(
     data: ResetPasswordRequest,
+    request: Request,
     db: AsyncSession = Depends(get_db),
 ) -> None:
+    await enforce_rate_limit(request, "reset", limit=10, window=3600)
     service = AuthService(db)
     await service.reset_password(data.token, data.new_password)
 

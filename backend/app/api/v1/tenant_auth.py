@@ -34,6 +34,10 @@ async def login(
     raw = tenant.get("id")
     tenant_id = (raw if isinstance(raw, uuid.UUID) else uuid.UUID(str(raw))) if raw else None
 
+    from app.core.rate_limit import enforce_rate_limit
+    await enforce_rate_limit(request, "login", limit=10, window=900, extra=data.email)
+    await enforce_rate_limit(request, "login_ip", limit=30, window=900)
+
     service = TenantAuthService(db)
     login_resp, refresh_token = await service.login(data.email, data.password, tenant_id)
 
