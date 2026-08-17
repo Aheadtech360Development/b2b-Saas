@@ -24,7 +24,7 @@ function TemplatePreview({ blocks }: { blocks: PageTemplate["preview"] }) {
 export default function PagesListPage() {
   const router = useRouter();
   const { user } = useAuthStore();
-  const readOnly = isReadOnly(user?.role);
+  const readOnly = isReadOnly(user?.role, user?.read_only);
   const [pages, setPages] = useState<StorefrontPageRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

@@ -8,6 +8,7 @@ export interface AdminUser {
   last_name: string;
   full_name: string;
   role: "admin" | "staff" | "customer";
+  custom_role_id?: string | null;
   is_admin: boolean;
   is_active: boolean;
   email_verified: boolean;
@@ -412,14 +413,14 @@ export const adminService = {
 
   async createUser(data: {
     email: string; first_name: string; last_name: string;
-    role: string; password?: string; send_welcome_email?: boolean;
+    role?: string; custom_role_id?: string | null; password?: string; send_welcome_email?: boolean;
   }) {
     return apiClient.post<AdminUser>("/api/v1/admin/users", data);
   },
 
   async updateUser(id: string, data: {
     first_name?: string; last_name?: string; email?: string;
-    role?: string; is_active?: boolean;
+    role?: string; custom_role_id?: string | null; is_active?: boolean;
   }) {
     return apiClient.patch<AdminUser>(`/api/v1/admin/users/${id}`, data);
   },

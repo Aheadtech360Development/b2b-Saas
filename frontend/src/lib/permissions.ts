@@ -27,15 +27,19 @@ const ROLE_SCOPES: Record<string, Scope[]> = {
   tenant_viewer: OPERATIONAL, // sees operational sections, but read-only
 };
 
-/** Can a role access (see) a section? */
-export function hasScope(role: string | undefined | null, scope: Scope): boolean {
+/** Can a role access (see) a section?
+ *  When `scopes` is provided (a custom role), it's the source of truth; otherwise
+ *  the fixed-role mapping applies. Mirrors backend can_access. */
+export function hasScope(role: string | undefined | null, scope: Scope, scopes?: string[] | null): boolean {
   const r = role ?? "";
   if (r === "tenant_admin" || r === "platform_admin") return true;
+  if (Array.isArray(scopes)) return scopes.includes(scope);
   return (ROLE_SCOPES[r] ?? []).includes(scope);
 }
 
-/** Read-only role — hide/disable edit controls. */
-export function isReadOnly(role: string | undefined | null): boolean {
+/** Read-only — hide/disable edit controls. Custom roles pass their read_only flag. */
+export function isReadOnly(role: string | undefined | null, readOnly?: boolean | null): boolean {
+  if (typeof readOnly === "boolean") return readOnly;
   return role === "tenant_viewer";
 }
 
@@ -55,6 +59,7 @@ export const ROLE_LABELS: Record<string, string> = {
   tenant_editor: "Editor",
   tenant_fulfillment: "Order Manager",
   tenant_viewer: "Viewer",
+  tenant_custom: "Custom role",
   administrator: "Administrator",
   manager: "Manager",
   editor: "Editor",

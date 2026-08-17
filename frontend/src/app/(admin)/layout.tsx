@@ -53,7 +53,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     <div className="admin-layout-root flex w-full max-w-[1500px] mx-auto">
       <AdminSidebar />
       <main className="flex-1 p-6 overflow-auto admin-content">
-        {isReadOnly(user?.role) && (
+        {isReadOnly(user?.role, user?.read_only) && (
           <div style={{ background: "#FFFBEB", border: "1px solid #FDE68A", color: "#92400E", padding: "10px 16px", borderRadius: "8px", fontSize: "13px", marginBottom: "16px", display: "flex", alignItems: "center", gap: "8px" }}>
             <span style={{ fontSize: "15px" }}>👁</span> <strong>View-only access</strong> — you can browse but cannot make changes.
           </div>

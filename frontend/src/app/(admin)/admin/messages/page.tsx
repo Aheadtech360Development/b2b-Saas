@@ -13,7 +13,7 @@ function timeAgo(iso: string | null): string {
 
 export default function MessagesPage() {
   const { user } = useAuthStore();
-  const readOnly = isReadOnly(user?.role);
+  const readOnly = isReadOnly(user?.role, user?.read_only);
   const [items, setItems] = useState<ContactSubmission[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

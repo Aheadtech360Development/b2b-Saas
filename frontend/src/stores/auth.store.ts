@@ -79,6 +79,8 @@ function buildSyncState(): SyncAuthState {
       is_platform_admin: !!payload.is_platform_admin,
       role: (payload.role as string) ?? session.user.role,
       tenant_id: (payload.tenant_id as string | null) ?? session.user.tenant_id ?? null,
+      scopes: (payload.scopes as string[] | undefined) ?? null,
+      read_only: !!payload.read_only,
     },
     isLoading: false,
   };
@@ -143,6 +145,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         is_platform_admin: !!payload.is_platform_admin,
         role: (payload.role as string) ?? session.user.role,
         tenant_id: (payload.tenant_id as string | null) ?? session.user.tenant_id ?? null,
+        scopes: (payload.scopes as string[] | undefined) ?? null,
+        read_only: !!payload.read_only,
       };
       const exp = payload.exp as number | undefined;
       const isExpired = exp ? (Date.now() / 1000) > exp - 30 : false;

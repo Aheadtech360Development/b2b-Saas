@@ -75,7 +75,7 @@ function PickerModal({ title, options, selected, onClose, onSave }: {
 
 export default function StorefrontSettingsPage() {
   const { user } = useAuthStore();
-  const readOnly = isReadOnly(user?.role);
+  const readOnly = isReadOnly(user?.role, user?.read_only);
   const [form, setForm] = useState<Branding>(DEFAULT_BRANDING);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);

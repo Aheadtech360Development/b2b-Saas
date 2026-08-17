@@ -5,6 +5,8 @@ import { useEffect, useState } from "react";
 import { adminService, type AdminUser } from "@/services/admin.service";
 import { UsersIcon } from "@/components/ui/icons";
 import { ASSIGNABLE_ROLES, ROLE_LABELS } from "@/lib/permissions";
+import { rolesService, type CustomRole } from "@/services/roles.service";
+import Link from "next/link";
 
 // ── Shared styles ──────────────────────────────────────────────────────────────
 
@@ -54,11 +56,13 @@ function UserModal({
     first_name: user?.first_name ?? "",
     last_name: user?.last_name ?? "",
     email: user?.email ?? "",
-    role: user?.role ?? "editor",
+    role: user?.custom_role_id ? `custom:${user.custom_role_id}` : (user?.role ?? "editor"),
     is_active: user?.is_active ?? true,
     password: "",
     send_welcome_email: false,
   });
+  const [customRoles, setCustomRoles] = useState<CustomRole[]>([]);
+  useEffect(() => { rolesService.list().then(setCustomRoles).catch(() => {}); }, []);
   const [autoGen, setAutoGen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -76,13 +80,18 @@ function UserModal({
     }
     setSaving(true);
     setError(null);
+    // A "custom:<id>" selection assigns a custom role; anything else is a fixed role.
+    const isCustom = form.role.startsWith("custom:");
+    const roleVal = isCustom ? undefined : form.role;
+    const customRoleId = isCustom ? form.role.slice("custom:".length) : null;
     try {
       if (isEdit) {
         await adminService.updateUser(user!.id, {
           first_name: form.first_name,
           last_name: form.last_name,
           email: form.email,
-          role: form.role,
+          role: roleVal,
+          custom_role_id: customRoleId,
           is_active: form.is_active,
         });
       } else {
@@ -91,7 +100,8 @@ function UserModal({
           first_name: form.first_name,
           last_name: form.last_name,
           email: form.email,
-          role: form.role,
+          role: roleVal,
+          custom_role_id: customRoleId ?? undefined,
           password: pwd || undefined,
           send_welcome_email: form.send_welcome_email,
         });
@@ -157,9 +167,17 @@ function UserModal({
               <label style={lbl}>Role</label>
               <select style={inp} value={form.role} onChange={e => set("role", e.target.value)}>
                 {ASSIGNABLE_ROLES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+                {customRoles.length > 0 && (
+                  <optgroup label="Custom roles">
+                    {customRoles.map(r => <option key={r.id} value={`custom:${r.id}`}>{r.name}</option>)}
+                  </optgroup>
+                )}
               </select>
               <div style={{ fontSize: "11px", color: "#9A98A0", marginTop: "4px" }}>
-                {ASSIGNABLE_ROLES.find(r => r.value === form.role)?.desc}
+                {form.role.startsWith("custom:")
+                  ? customRoles.find(r => `custom:${r.id}` === form.role)?.scopes.join(", ")
+                  : ASSIGNABLE_ROLES.find(r => r.value === form.role)?.desc}
+                {" · "}<Link href="/admin/users/roles" style={{ color: "var(--brand-primary,#1C3557)", fontWeight: 600 }}>Manage roles</Link>
               </div>
             </div>
             {isEdit && (

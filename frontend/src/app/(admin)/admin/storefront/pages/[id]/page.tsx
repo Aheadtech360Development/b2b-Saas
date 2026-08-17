@@ -21,7 +21,7 @@ export default function PageEditor() {
   const params = useParams();
   const id = String(params.id);
   const { user } = useAuthStore();
-  const readOnly = isReadOnly(user?.role);
+  const readOnly = isReadOnly(user?.role, user?.read_only);
 
   const [page, setPage] = useState<StorefrontPageRecord | null>(null);
   const [loading, setLoading] = useState(true);

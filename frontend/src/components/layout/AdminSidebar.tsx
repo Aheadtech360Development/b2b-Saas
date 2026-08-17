@@ -34,7 +34,7 @@ export function AdminSidebar() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const { user, clearAuth } = useAuthStore();
-  const can = (s: Scope) => hasScope(user?.role, s);
+  const can = (s: Scope) => hasScope(user?.role, s, user?.scopes);
 
   function handleLogout() {
     clearAuth();

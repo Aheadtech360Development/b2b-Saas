@@ -19,7 +19,7 @@ const btnGhost: React.CSSProperties = { background: "#F0F4FA", border: "1px soli
 
 export default function MenusPage() {
   const { user } = useAuthStore();
-  const readOnly = isReadOnly(user?.role);
+  const readOnly = isReadOnly(user?.role, user?.read_only);
   const [menus, setMenus] = useState<NavMenu[]>([]);
   const [draft, setDraft] = useState<NavMenu | null>(null);
   const [dirty, setDirty] = useState(false);
