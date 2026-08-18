@@ -14,6 +14,14 @@ import {
   BarChart, Bar, PieChart, Pie, Cell,
 } from "recharts";
 
+/** Two-letter avatar initials from a brand name: "Fresh Basics Co." -> "FB". */
+function initialsOf(name) {
+  const words = (name || "").trim().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return "";
+  if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
+  return (words[0][0] + words[1][0]).toUpperCase();
+}
+
 /* ---------------------------------------------------------------------- */
 /* MOCK DATA                                                              */
 /* ---------------------------------------------------------------------- */
@@ -434,7 +442,7 @@ function ListView({ title, data, columns, statusField, statusOptions, searchFiel
 /* HOME                                                                    */
 /* ---------------------------------------------------------------------- */
 
-function HomeScreen({ orders, customers, products, goTo, dash }) {
+function HomeScreen({ orders, customers, products, goTo, dash, brandName }) {
   // `dash` = real data from the backend; when absent the mock arrays drive it so
   // this screen still renders standalone.
   const pendingApprovals = dash ? dash.pendingApprovals : customers.filter((c) => c.status === "pending").length;
@@ -452,7 +460,7 @@ function HomeScreen({ orders, customers, products, goTo, dash }) {
     <div>
       <div className="mb-5">
         <h2 className="text-lg font-medium">Good morning</h2>
-        <div className="text-sm text-gray-500">Here's how Fresh Basics Co. is doing this week.</div>
+        <div className="text-sm text-gray-500">{brandName ? `Here's how ${brandName} is doing this week.` : "Here's how your store is doing this week."}</div>
       </div>
 
       <div className="grid grid-cols-4 gap-3 mb-6">
@@ -1659,11 +1667,11 @@ function findGroupFor(view) {
   return null;
 }
 
-function Sidebar({ view, setView, expanded, setExpanded }) {
+function Sidebar({ view, setView, expanded, setExpanded, brandName }) {
   return (
     <div style={{ background: "#1d3c73" }} className="w-56 flex-shrink-0 p-3">
       <style>{`.nav-dark:hover { background: rgba(255,255,255,0.07); }`}</style>
-      <div className="text-sm font-medium px-2 pb-4 text-white">Fresh Basics Co.</div>
+      <div className="text-sm font-medium px-2 pb-4 text-white">{brandName || " "}</div>
       <nav className="space-y-0.5">
         {NAV.map((item) => {
           const Icon = item.icon;
@@ -1712,7 +1720,8 @@ function Sidebar({ view, setView, expanded, setExpanded }) {
   );
 }
 
-function Topbar() {
+function Topbar({ brandName }) {
+  const initials = initialsOf(brandName);
   return (
     <div className="flex items-center justify-between px-6 py-3 border-b border-gray-200">
       <div className="flex items-center gap-2 border border-gray-300 rounded px-2.5 py-1.5 w-64">
@@ -1721,7 +1730,7 @@ function Topbar() {
       </div>
       <div className="flex items-center gap-4 text-gray-500">
         <Bell size={18} />
-        <div style={{ background: "rgba(36,181,116,0.14)", color: "#1a8f5c" }} className="w-7 h-7 rounded-full text-xs font-medium flex items-center justify-center">IK</div>
+        <div title={brandName || ""} style={{ background: "rgba(36,181,116,0.14)", color: "#1a8f5c" }} className="w-7 h-7 rounded-full text-xs font-medium flex items-center justify-center">{initials}</div>
       </div>
     </div>
   );
@@ -1763,6 +1772,17 @@ export default function App() {
   const [pos, setPos] = useState([]);
   const [collections, setCollections] = useState([]);
   const [reviews, setReviews] = useState([]);
+
+  // The brand whose admin this is — its store name drives the sidebar title,
+  // greeting and avatar initials. Comes from the tenant's own branding record.
+  const [brandName, setBrandName] = useState("");
+  useEffect(() => {
+    let alive = true;
+    apiClient.get("/api/v1/admin/storefront")
+      .then((b) => { if (alive && b?.store_name && b.store_name !== "Store") setBrandName(b.store_name); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, []);
 
   // Real dashboard data — loads when an admin is signed in (api-client attaches
   // the token); otherwise the screen keeps its mock data. First wired screen of
@@ -1921,7 +1941,7 @@ export default function App() {
 
   let content = null;
 
-  if (view === "home") content = <HomeScreen orders={orders} customers={customers} products={products} goTo={setView} dash={dash} />;
+  if (view === "home") content = <HomeScreen orders={orders} customers={customers} products={products} goTo={setView} dash={dash} brandName={brandName} />;
 
   else if (view === "orders") {
     const open = orders.find((o) => o.id === openId);
@@ -2079,10 +2099,10 @@ export default function App() {
   return (
     <>
       <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600&display=swap" />
-      <div className="flex border border-gray-200 rounded-xl overflow-hidden" style={{ minHeight: 600, fontFamily: "'Outfit', sans-serif" }}>
-        <Sidebar view={view} setView={setView} expanded={expanded} setExpanded={setExpanded} />
+      <div className="flex overflow-hidden" style={{ minHeight: "100vh", fontFamily: "'Outfit', sans-serif" }}>
+        <Sidebar view={view} setView={setView} expanded={expanded} setExpanded={setExpanded} brandName={brandName} />
         <div className="flex-1 min-w-0 flex flex-col">
-          <Topbar />
+          <Topbar brandName={brandName} />
           <div className="p-6 overflow-y-auto flex-1">{content}</div>
         </div>
         <Drawer title={drawer?.title} record={drawer?.record} fields={drawer?.fields} onClose={() => setDrawer(null)} />
