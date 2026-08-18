@@ -1408,20 +1408,88 @@ function EditorForm({ record, onBack, onSave, kind }) {
   );
 }
 
-function SeoPanel({ pages }) {
-  const [pageId, setPageId] = useState(pages[0]?.id);
-  const [meta, setMeta] = useState({});
-  const current = meta[pageId] || { title: "", desc: "" };
-  function update(field, val) { setMeta((m) => ({ ...m, [pageId]: { ...current, [field]: val } })); }
+// Real on-page SEO. The page list is dynamic: the predefined SEO pages plus the
+// brand's own storefront pages (About, Contact, custom…), merged by slug. Meta
+// title/description persist to /admin/pages-seo (upsert), store-isolated.
+function SeoPanel() {
+  const [pages, setPages] = useState([]);
+  const [slug, setSlug] = useState("");
+  const [title, setTitle] = useState("");
+  const [desc, setDesc] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      const [seoRes, pagesRes] = await Promise.allSettled([
+        apiClient.get("/api/v1/admin/pages-seo"),
+        apiClient.get("/api/v1/admin/storefront/pages"),
+      ]);
+      const map = new Map();
+      if (seoRes.status === "fulfilled" && Array.isArray(seoRes.value)) {
+        seoRes.value.forEach((p) => map.set(p.page_slug, {
+          slug: p.page_slug, name: p.page_name || p.page_slug,
+          meta_title: p.meta_title || "", meta_description: p.meta_description || "",
+        }));
+      }
+      if (pagesRes.status === "fulfilled") {
+        const list = Array.isArray(pagesRes.value) ? pagesRes.value : (pagesRes.value?.items || []);
+        list.forEach((p) => { if (p.slug && !map.has(p.slug)) map.set(p.slug, { slug: p.slug, name: p.title || p.slug, meta_title: "", meta_description: "" }); });
+      }
+      if (!alive) return;
+      const arr = Array.from(map.values());
+      setPages(arr);
+      if (arr.length) { setSlug(arr[0].slug); setTitle(arr[0].meta_title); setDesc(arr[0].meta_description); }
+      setLoading(false);
+    })();
+    return () => { alive = false; };
+  }, []);
+
+  function selectPage(s) {
+    setSlug(s); setSaved(false);
+    const known = pages.find((p) => p.slug === s);
+    setTitle(known?.meta_title || ""); setDesc(known?.meta_description || "");
+    // Pull the freshest saved values for this page.
+    apiClient.get(`/api/v1/admin/pages-seo/${s}`)
+      .then((r) => { setTitle(r?.meta_title || ""); setDesc(r?.meta_description || ""); })
+      .catch(() => {});
+  }
+
+  async function save() {
+    if (!slug) return;
+    setSaving(true); setSaved(false);
+    try {
+      await apiClient.patch(`/api/v1/admin/pages-seo/${slug}`, { meta_title: title || null, meta_description: desc || null });
+      setPages((ps) => ps.map((p) => (p.slug === slug ? { ...p, meta_title: title, meta_description: desc } : p)));
+      setSaved(true);
+    } catch { /* surfaced by api-client */ }
+    finally { setSaving(false); }
+  }
+
   return (
     <div>
       <h2 className="text-lg font-medium mb-4">On page SEO</h2>
-      <div className="max-w-md">
-        <Field label="Page"><Select value={pageId} onChange={setPageId} options={pages.map((p) => p.id)} /></Field>
-        <Field label="Meta title"><TextInput value={current.title} onChange={(e) => update("title", e.target.value)} /></Field>
-        <Field label="Meta description"><TextArea rows={3} value={current.desc} onChange={(e) => update("desc", e.target.value)} /></Field>
-        <Btn variant="primary">Save SEO settings</Btn>
-      </div>
+      {loading ? (
+        <div className="text-sm text-gray-400">Loading pages…</div>
+      ) : pages.length === 0 ? (
+        <div className="text-sm text-gray-400">No pages found.</div>
+      ) : (
+        <div className="max-w-md">
+          <Field label="Page">
+            <select value={slug} onChange={(e) => selectPage(e.target.value)} className="w-full border border-gray-300 rounded px-3 py-1.5 text-sm bg-white">
+              {pages.map((p) => <option key={p.slug} value={p.slug}>{p.name}</option>)}
+            </select>
+          </Field>
+          <Field label="Meta title"><TextInput value={title} maxLength={60} onChange={(e) => { setTitle(e.target.value); setSaved(false); }} /></Field>
+          <Field label="Meta description"><TextArea rows={3} value={desc} maxLength={160} onChange={(e) => { setDesc(e.target.value); setSaved(false); }} /></Field>
+          <div className="flex items-center gap-3">
+            <Btn variant="primary" onClick={save}>{saving ? "Saving…" : "Save SEO settings"}</Btn>
+            {saved && <span className="text-sm text-green-600">✓ Saved</span>}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -2164,7 +2232,7 @@ export default function App() {
       />;
   }
 
-  else if (view === "seo") content = <SeoPanel pages={pages} />;
+  else if (view === "seo") content = <SeoPanel />;
 
   // Storefront builders — the real, full-featured tools (sections + live
   // preview) rendered inside this shell, not the prototype's stub screens.
