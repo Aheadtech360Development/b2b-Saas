@@ -64,7 +64,7 @@ export default function LoginPage() {
     };
     setAuth(accessToken, fullProfile);
     if (fullProfile.is_platform_admin) router.push("/platform");
-    else if (fullProfile.is_admin) router.push("/admin/dashboard");
+    else if (fullProfile.is_admin) router.push("/ui-preview");
     else router.push("/account");
   }
 

@@ -1,6 +1,8 @@
 "use client";
 import React, { useState, useMemo, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { apiClient } from "@/lib/api-client";
+import { useAuthStore } from "@/stores/auth.store";
 import {
   Home, ShoppingCart, Package, Users, Megaphone, Store, BarChart3,
   Settings as SettingsIcon, Search, Bell, ChevronDown, ChevronRight,
@@ -1730,6 +1732,19 @@ function Topbar() {
 /* ---------------------------------------------------------------------- */
 
 export default function App() {
+  // Auth guard — this is the real admin now. Wait a beat so an impersonation
+  // token (#session=…) can be processed by AuthInitializer before bouncing.
+  const router = useRouter();
+  const { isAuthenticated, isLoading } = useAuthStore();
+  const [authChecked, setAuthChecked] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => {
+      if (!useAuthStore.getState().isAuthenticated()) router.replace("/login");
+      else setAuthChecked(true);
+    }, 450);
+    return () => clearTimeout(t);
+  }, [router]);
+
   const [view, setViewRaw] = useState("home");
   const [expanded, setExpanded] = useState("orders-group");
   const [openId, setOpenId] = useState(null);
@@ -2054,6 +2069,12 @@ export default function App() {
   else if (view === "domains") content = <DomainsPanel />;
   else if (view === "analytics") content = <AnalyticsScreen products={products} customers={customers} />;
   else if (view === "settings") content = <SettingsScreen />;
+
+  // While auth is still resolving (e.g. an impersonation token being processed),
+  // hold a neutral loading state instead of flashing an empty admin.
+  if (!isAuthenticated() && !authChecked) {
+    return <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", color: "#888", fontSize: "14px" }}>Loading…</div>;
+  }
 
   return (
     <>
