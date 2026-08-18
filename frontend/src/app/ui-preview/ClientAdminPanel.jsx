@@ -6,6 +6,23 @@ import { useAuthStore } from "@/stores/auth.store";
 import StorefrontCustomizer from "@/components/admin/StorefrontCustomizer";
 import MenusManager from "@/components/admin/MenusManager";
 import PagesManager from "@/components/admin/PagesManager";
+// Real, already-built admin features — reused (not rebuilt) inside this shell so
+// the new design has full parity with the old sidebar. All are self-contained
+// client screens, store-isolated at the backend.
+import SupplierCatalogPage from "@/app/(admin)/admin/supplier-catalog/page";
+import AdminGangSheetsPage from "@/app/(admin)/admin/gang-sheets/page";
+import MediaLibraryPage from "@/app/(admin)/admin/media/page";
+import MessagesPage from "@/app/(admin)/admin/messages/page";
+import AdminProductSpecsPage from "@/app/(admin)/admin/product-specs/page";
+import AdminStyleSheetsPage from "@/app/(admin)/admin/style-sheets/page";
+import StandardShippingPage from "@/app/(admin)/admin/standard-shipping/page";
+import ShippingLabelsPage from "@/app/(admin)/admin/orders/shipping-labels/page";
+import AdminSettingsPage from "@/app/(admin)/admin/settings/page";
+import AdminUsersPage from "@/app/(admin)/admin/users/page";
+import RolesPage from "@/app/(admin)/admin/users/roles/page";
+import TaxesPage from "@/app/(admin)/admin/settings/taxes/page";
+import SecurityPage from "@/app/(admin)/admin/settings/security/page";
+import AuditLogPage from "@/app/(admin)/admin/settings/audit-log/page";
 import {
   Home, ShoppingCart, Package, Users, Megaphone, Store, BarChart3,
   Settings as SettingsIcon, Search, Bell, ChevronDown, ChevronRight,
@@ -1570,75 +1587,31 @@ function AnalyticsScreen({ products, customers }) {
 /* SETTINGS                                                                 */
 /* ---------------------------------------------------------------------- */
 
-const SETTINGS_SECTIONS = ["General", "Billing", "Users and roles", "Shipping and delivery", "Tax", "Locations", "Domains", "Notifications", "Policies", "Checkout", "Legal", "Integrations"];
+// Each section renders the REAL, already-built settings screen (saves to the
+// backend, store-isolated). No mock users/plans/locations — the earlier
+// prototype hardcoded those and never persisted anything.
+const SETTINGS_SECTIONS = [
+  { id: "general", label: "General", Comp: AdminSettingsPage },
+  { id: "users", label: "Users & roles", Comp: AdminUsersPage },
+  { id: "roles", label: "Roles & permissions", Comp: RolesPage },
+  { id: "tax", label: "Taxes & duties", Comp: TaxesPage },
+  { id: "security", label: "Security (2FA)", Comp: SecurityPage },
+  { id: "audit", label: "Audit log", Comp: AuditLogPage },
+];
 
 function SettingsScreen() {
-  const [section, setSection] = useState("General");
-  const [toggles, setToggles] = useState({ localPickup: true, netTerms: true, autoTax: true, requireAccount: false, showCompany: true, emailOrders: true, emailMarketing: false });
-  const [users, setUsers] = useState([{ name: "Ikrash Ovais", role: "Owner" }, { name: "Khaleel", role: "Account manager" }]);
-  const [newUser, setNewUser] = useState("");
-  const [locations, setLocations] = useState(["Karachi warehouse", "Chicago fulfillment center"]);
-  const [newLocation, setNewLocation] = useState("");
-
-  function toggle(key) { setToggles((t) => ({ ...t, [key]: !t[key] })); }
-  function addUser() { if (!newUser) return; setUsers((u) => [...u, { name: newUser, role: "Staff" }]); setNewUser(""); }
-  function addLocation() { if (!newLocation) return; setLocations((l) => [...l, newLocation]); setNewLocation(""); }
-
+  const [sectionId, setSectionId] = useState("general");
+  const active = SETTINGS_SECTIONS.find((s) => s.id === sectionId) || SETTINGS_SECTIONS[0];
+  const ActiveComp = active.Comp;
   return (
     <div className="flex gap-8">
       <div className="w-48 flex-shrink-0">
         {SETTINGS_SECTIONS.map((s) => (
-          <button key={s} onClick={() => setSection(s)} className={`block w-full text-left text-sm px-3 py-2 rounded mb-0.5 ${section === s ? "bg-gray-100 font-medium" : "text-gray-600 hover:bg-gray-50"}`}>{s}</button>
+          <button key={s.id} onClick={() => setSectionId(s.id)} className={`block w-full text-left text-sm px-3 py-2 rounded mb-0.5 ${sectionId === s.id ? "bg-gray-100 font-medium" : "text-gray-600 hover:bg-gray-50"}`}>{s.label}</button>
         ))}
       </div>
-      <div className="flex-1 max-w-lg">
-        {section === "General" && (<>
-          <Field label="Store name"><TextInput defaultValue="Fresh Basics Co." /></Field>
-          <Field label="Store email"><TextInput defaultValue="hello@freshbasicsco.com" /></Field>
-          <Field label="Time zone"><Select value="Central Time (US)" onChange={() => {}} options={["Central Time (US)", "Eastern Time (US)", "Pacific Time (US)"]} /></Field>
-        </>)}
-        {section === "Billing" && (<>
-          <div className="bg-gray-50 rounded-lg p-4 mb-4"><div className="text-sm text-gray-500">Current plan</div><div className="text-lg font-medium">Tier 2 &middot; $299/mo</div></div>
-          <Btn variant="primary">Upgrade plan</Btn>
-        </>)}
-        {section === "Users and roles" && (<>
-          <div className="space-y-2 mb-4">{users.map((u, i) => (
-            <div key={i} className="flex items-center justify-between border border-gray-200 rounded px-3 py-2 text-sm"><span>{u.name}</span><span className="text-gray-500">{u.role}</span></div>
-          ))}</div>
-          <div className="flex gap-2"><TextInput value={newUser} onChange={(e) => setNewUser(e.target.value)} placeholder="Team member name" /><Btn onClick={addUser}><Plus size={13} />Invite</Btn></div>
-        </>)}
-        {section === "Shipping and delivery" && (<>
-          <div className="flex items-center justify-between mb-4"><span className="text-sm">Allow local pickup</span><Toggle checked={toggles.localPickup} onChange={() => toggle("localPickup")} /></div>
-          <div className="flex items-center justify-between mb-4"><span className="text-sm">Enable net terms at checkout</span><Toggle checked={toggles.netTerms} onChange={() => toggle("netTerms")} /></div>
-          <Field label="Connected carriers"><TextInput defaultValue="FedEx, UPS, USPS" /></Field>
-        </>)}
-        {section === "Tax" && (<>
-          <div className="flex items-center justify-between mb-4"><span className="text-sm">Automatically calculate tax</span><Toggle checked={toggles.autoTax} onChange={() => toggle("autoTax")} /></div>
-          <Field label="Tax registration state"><TextInput defaultValue="Texas" /></Field>
-        </>)}
-        {section === "Locations" && (<>
-          <div className="space-y-2 mb-4">{locations.map((l, i) => <div key={i} className="border border-gray-200 rounded px-3 py-2 text-sm">{l}</div>)}</div>
-          <div className="flex gap-2"><TextInput value={newLocation} onChange={(e) => setNewLocation(e.target.value)} placeholder="Location name" /><Btn onClick={addLocation}><Plus size={13} />Add location</Btn></div>
-        </>)}
-        {section === "Domains" && <div className="text-sm text-gray-500">Manage domains from Online Store &gt; Domains.</div>}
-        {section === "Notifications" && (<>
-          <div className="flex items-center justify-between mb-4"><span className="text-sm">Order email notifications</span><Toggle checked={toggles.emailOrders} onChange={() => toggle("emailOrders")} /></div>
-          <div className="flex items-center justify-between mb-4"><span className="text-sm">Marketing email notifications</span><Toggle checked={toggles.emailMarketing} onChange={() => toggle("emailMarketing")} /></div>
-        </>)}
-        {section === "Policies" && (<>
-          <Field label="Refund policy"><TextArea rows={3} defaultValue="Returns accepted within 30 days for unused items." /></Field>
-          <Field label="Shipping policy"><TextArea rows={3} defaultValue="Orders ship within 3 to 5 business days." /></Field>
-        </>)}
-        {section === "Checkout" && (<>
-          <div className="flex items-center justify-between mb-4"><span className="text-sm">Require account to checkout</span><Toggle checked={toggles.requireAccount} onChange={() => toggle("requireAccount")} /></div>
-          <div className="flex items-center justify-between mb-4"><span className="text-sm">Show company name field</span><Toggle checked={toggles.showCompany} onChange={() => toggle("showCompany")} /></div>
-        </>)}
-        {section === "Legal" && <div className="text-sm text-gray-500">Terms of service last accepted August 1, 2026.</div>}
-        {section === "Integrations" && (<div className="space-y-2">
-          <div className="flex items-center justify-between border border-gray-200 rounded px-3 py-2 text-sm"><span>S&amp;S Activewear</span><Badge status="approved" /></div>
-          <div className="flex items-center justify-between border border-gray-200 rounded px-3 py-2 text-sm"><span>SanMar</span><Btn>Connect</Btn></div>
-          <div className="flex items-center justify-between border border-gray-200 rounded px-3 py-2 text-sm"><span>QuickBooks</span><Btn>Connect</Btn></div>
-        </div>)}
+      <div className="flex-1 min-w-0">
+        <ActiveComp />
       </div>
     </div>
   );
@@ -1652,19 +1625,21 @@ const NAV = [
   { id: "home", label: "Home", icon: Home },
   { id: "orders-group", label: "Orders", icon: ShoppingCart, children: [
     { id: "orders", label: "Orders" }, { id: "abandoned", label: "Abandoned checkouts" }, { id: "drafts", label: "Drafts" },
-    { id: "returns", label: "Returns" }, { id: "pos", label: "Purchase orders" },
+    { id: "shipping-labels", label: "Shipping labels" }, { id: "returns", label: "Returns" }, { id: "pos", label: "Purchase orders" },
   ]},
   { id: "products-group", label: "Products", icon: Package, children: [
     { id: "products", label: "Products" }, { id: "collections", label: "Collections" }, { id: "inventory", label: "Inventory" }, { id: "reviews", label: "Reviews" },
+    { id: "supplier", label: "Supplier catalog (S&S)" }, { id: "gangsheets", label: "Gang sheets" }, { id: "productspecs", label: "Product specs" },
   ]},
   { id: "customers-group", label: "Customers", icon: Users, children: [
     { id: "customers", label: "Customers" }, { id: "approvals", label: "Wholesale approvals" }, { id: "segments", label: "Segments" }, { id: "tiers", label: "Discount groups" },
+    { id: "messages", label: "Messages" },
   ]},
   { id: "marketing-group", label: "Marketing", icon: Megaphone, children: [
-    { id: "discounts", label: "Discounts" }, { id: "blogs", label: "Blogs" }, { id: "seo", label: "SEO" },
+    { id: "discounts", label: "Discounts" }, { id: "stdshipping", label: "Standard shipping" }, { id: "blogs", label: "Blogs" }, { id: "stylesheets", label: "Style sheets" }, { id: "seo", label: "SEO" },
   ]},
   { id: "store-group", label: "Online Store", icon: Store, children: [
-    { id: "pages", label: "Pages" }, { id: "menus", label: "Menus" }, { id: "theme", label: "Storefront theme" }, { id: "domains", label: "Domains" },
+    { id: "pages", label: "Pages" }, { id: "menus", label: "Menus" }, { id: "theme", label: "Storefront theme" }, { id: "media", label: "Media library" }, { id: "domains", label: "Domains" },
   ]},
   { id: "analytics", label: "Analytics", icon: BarChart3 },
   { id: "settings", label: "Settings", icon: SettingsIcon },
@@ -2089,6 +2064,17 @@ export default function App() {
   else if (view === "menus") content = <MenusManager />;
   else if (view === "theme") content = <StorefrontCustomizer />;
   else if (view === "domains") content = <DomainsPanel />;
+
+  // Real, already-built features brought to full parity with the old sidebar —
+  // rendered in-shell (reused, not rebuilt).
+  else if (view === "supplier") content = <SupplierCatalogPage />;
+  else if (view === "gangsheets") content = <AdminGangSheetsPage />;
+  else if (view === "media") content = <MediaLibraryPage />;
+  else if (view === "messages") content = <MessagesPage />;
+  else if (view === "productspecs") content = <AdminProductSpecsPage />;
+  else if (view === "stylesheets") content = <AdminStyleSheetsPage />;
+  else if (view === "stdshipping") content = <StandardShippingPage />;
+  else if (view === "shipping-labels") content = <ShippingLabelsPage />;
   else if (view === "analytics") content = <AnalyticsScreen products={products} customers={customers} />;
   else if (view === "settings") content = <SettingsScreen />;
 
