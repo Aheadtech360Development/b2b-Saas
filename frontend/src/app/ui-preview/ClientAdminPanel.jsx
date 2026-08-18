@@ -2092,13 +2092,20 @@ export default function App() {
           makes every reused feature screen adopt the new admin's Outfit type
           automatically — no per-file edits, no functional change. */}
       <style>{`
-        .atui-shell { --font-jakarta: 'Outfit', sans-serif; --font-bebas: 'Outfit', sans-serif; }
+        .atui-shell { --font-jakarta: 'Outfit', sans-serif; --font-bebas: 'Outfit', sans-serif;
+          --af-border: #e5e7eb; --divider: #e5e7eb; --accent: #1d3c73; --af-blue: #1d3c73; }
         /* The global stylesheet forces h1-h3 to Fraunces (serif) with a literal
            family, so the var override alone can't reach bare heading tags — pin
            them to Outfit here (higher specificity wins over the global rule). */
         .atui-shell h1, .atui-shell h2, .atui-shell h3, .atui-shell h4 {
           font-family: 'Outfit', sans-serif; letter-spacing: -0.01em;
         }
+        /* Card / input / divider consistency: the reused screens hardcode a warm
+           cream border (#E2E0DA / #E2E2DE) inline. Recolor just the border to the
+           new admin's cool gray-200 so cards match — inline styles are beaten with
+           !important, case-insensitive so both hex casings are caught. Only the
+           border color changes; widths, radii and behavior are untouched. */
+        .atui-shell [style*="#E2E0DA" i], .atui-shell [style*="#E2E2DE" i] { border-color: #e5e7eb !important; }
       `}</style>
       <div className="atui-shell flex overflow-hidden" style={{ minHeight: "100vh", fontFamily: "'Outfit', sans-serif" }}>
         <Sidebar view={view} setView={setView} expanded={expanded} setExpanded={setExpanded} brandName={brandName} />
