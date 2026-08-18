@@ -70,6 +70,7 @@ export function Header() {
   const hideStoreHeader =
     pathname?.startsWith("/platform") ||
     pathname?.startsWith("/admin") ||
+    pathname?.startsWith("/ui-preview") ||
     _authPrefixes.some((p) => pathname?.startsWith(p));
 
   useEffect(() => {
