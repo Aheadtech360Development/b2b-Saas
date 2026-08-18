@@ -181,8 +181,27 @@ async def get_db(request: Request = None) -> AsyncGenerator[AsyncSession, None]:
     inside this dependency (same task as the endpoint) so query scoping is
     reliable and leak-free across concurrent requests.
     """
+    from sqlalchemy import text
     async with AsyncSessionLocal() as session:
         await _apply_tenant_context(request, session)
+        # RLS: the after_begin hook binds the tenant GUC at transaction start, but a
+        # public/subdomain request only resolves its tenant *inside*
+        # _apply_tenant_context — after that first transaction already began with an
+        # empty GUC. Rebind now to the resolved tenant so RLS matches the queries the
+        # endpoint is about to run (otherwise it would see zero rows → default data).
+        try:
+            from app.core.tenant_context import get_current_tenant_id, is_scoping_bypassed
+            if is_scoping_bypassed():
+                await session.execute(text("SELECT set_config('app.bypass_rls', 'on', true)"))
+            else:
+                _tid = get_current_tenant_id()
+                await session.execute(text("SELECT set_config('app.bypass_rls', 'off', true)"))
+                await session.execute(
+                    text("SELECT set_config('app.current_tenant', :t, true)"),
+                    {"t": str(_tid) if _tid else ""},
+                )
+        except Exception:
+            pass
         try:
             yield session
             await session.commit()
