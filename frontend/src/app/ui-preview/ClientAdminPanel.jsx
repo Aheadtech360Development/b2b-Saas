@@ -1,5 +1,6 @@
 "use client";
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
+import { apiClient } from "@/lib/api-client";
 import {
   Home, ShoppingCart, Package, Users, Megaphone, Store, BarChart3,
   Settings as SettingsIcon, Search, Bell, ChevronDown, ChevronRight,
@@ -431,15 +432,19 @@ function ListView({ title, data, columns, statusField, statusOptions, searchFiel
 /* HOME                                                                    */
 /* ---------------------------------------------------------------------- */
 
-function HomeScreen({ orders, customers, products, goTo }) {
-  const pendingApprovals = customers.filter((c) => c.status === "pending").length;
-  const lowStock = products.filter((p) => p.variants.some((v) => v.stock > 0 && v.stock <= 15)).length;
-  const awaitingFulfillment = orders.filter((o) => o.status === "pending" || o.status === "processing").length;
-  const netTermsOutstanding = orders.filter((o) => o.payment === "net terms").reduce((s, o) => s + o.total, 0);
-  const salesThisWeek = orders.reduce((s, o) => s + o.total, 0);
-  const aov = Math.round(salesThisWeek / orders.length);
-  const recent = orders.slice(0, 5);
-  const topProducts = [...products].sort((a, b) => b.revenue - a.revenue).slice(0, 4);
+function HomeScreen({ orders, customers, products, goTo, dash }) {
+  // `dash` = real data from the backend; when absent the mock arrays drive it so
+  // this screen still renders standalone.
+  const pendingApprovals = dash ? dash.pendingApprovals : customers.filter((c) => c.status === "pending").length;
+  const lowStock = dash ? dash.lowStock : products.filter((p) => p.variants.some((v) => v.stock > 0 && v.stock <= 15)).length;
+  const awaitingFulfillment = dash ? dash.awaitingFulfillment : orders.filter((o) => o.status === "pending" || o.status === "processing").length;
+  const netTermsOutstanding = dash ? dash.netTermsOutstanding : orders.filter((o) => o.payment === "net terms").reduce((s, o) => s + o.total, 0);
+  const salesThisWeek = dash ? dash.salesThisWeek : orders.reduce((s, o) => s + o.total, 0);
+  const ordersCount = dash ? dash.ordersCount : orders.length;
+  const aov = dash ? dash.aov : Math.round(salesThisWeek / (orders.length || 1));
+  const recent = dash ? dash.recent : orders.slice(0, 5);
+  const topProducts = dash && dash.topProducts ? dash.topProducts : [...products].sort((a, b) => b.revenue - a.revenue).slice(0, 4);
+  const trend = dash && dash.salesTrend ? dash.salesTrend : salesTrend;
 
   return (
     <div>
@@ -450,7 +455,7 @@ function HomeScreen({ orders, customers, products, goTo }) {
 
       <div className="grid grid-cols-4 gap-3 mb-6">
         <MetricCard label="Sales this week" value={`$${salesThisWeek.toLocaleString()}`} />
-        <MetricCard label="Orders" value={orders.length} />
+        <MetricCard label="Orders" value={ordersCount} />
         <MetricCard label="Avg. order value" value={`$${aov.toLocaleString()}`} />
         <MetricCard label="Net terms outstanding" value={`$${netTermsOutstanding.toLocaleString()}`} />
       </div>
@@ -461,7 +466,7 @@ function HomeScreen({ orders, customers, products, goTo }) {
             <div className="text-sm font-medium mb-3">Sales, last 8 weeks</div>
             <div style={{ height: 180 }}>
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={salesTrend}>
+                <LineChart data={trend}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                   <XAxis dataKey="week" tick={{ fontSize: 11 }} />
                   <YAxis tick={{ fontSize: 11 }} width={40} />
@@ -1744,6 +1749,47 @@ export default function App() {
   const [collections, setCollections] = useState(seedCollections);
   const [reviews, setReviews] = useState(seedReviews);
 
+  // Real dashboard data — loads when an admin is signed in (api-client attaches
+  // the token); otherwise the screen keeps its mock data. First wired screen of
+  // the real-data migration.
+  const [dash, setDash] = useState(null);
+  useEffect(() => {
+    Promise.allSettled([
+      apiClient.get("/api/v1/admin/reports/sales?period=week"),
+      apiClient.get("/api/v1/admin/wholesale-applications?status=pending"),
+      apiClient.get("/api/v1/admin/reports/inventory?low_stock_only=true"),
+      apiClient.get("/api/v1/admin/orders?page_size=10"),
+      apiClient.get("/api/v1/admin/orders?status=pending&page_size=50"),
+    ]).then(([salesRes, appsRes, stockRes, ordersRes, pendingRes]) => {
+      const d = {};
+      let any = false;
+      if (salesRes.status === "fulfilled") {
+        const s = salesRes.value?.summary || {};
+        d.salesThisWeek = s.total_revenue ?? 0;
+        d.ordersCount = s.total_orders ?? 0;
+        d.aov = Math.round(s.avg_order_value ?? 0);
+        any = true;
+      }
+      d.netTermsOutstanding = 0;
+      if (appsRes.status === "fulfilled") { d.pendingApprovals = Array.isArray(appsRes.value) ? appsRes.value.length : 0; any = true; }
+      if (stockRes.status === "fulfilled") { d.lowStock = Array.isArray(stockRes.value) ? stockRes.value.length : 0; any = true; }
+      if (pendingRes.status === "fulfilled") { d.awaitingFulfillment = (pendingRes.value?.items || []).length; any = true; }
+      if (ordersRes.status === "fulfilled") {
+        const items = ordersRes.value?.items || [];
+        d.recent = items.slice(0, 5).map((o) => ({ id: o.order_number, customer: o.company?.name ?? o.company_name ?? "—", status: o.status, total: Number(o.total) || 0 }));
+        const now = new Date();
+        d.salesTrend = Array.from({ length: 8 }, (_, i) => {
+          const dt = new Date(now); dt.setDate(dt.getDate() - (7 - i));
+          const key = dt.toISOString().split("T")[0];
+          const sales = items.filter((o) => o.created_at?.startsWith(key)).reduce((s, o) => s + (Number(o.total) || 0), 0);
+          return { week: dt.toLocaleDateString(undefined, { month: "short", day: "numeric" }), sales };
+        });
+        any = true;
+      }
+      if (any) setDash(d);
+    }).catch(() => {});
+  }, []);
+
   function setView(v) {
     setOpenId(null);
     setDrawer(null);
@@ -1814,7 +1860,7 @@ export default function App() {
 
   let content = null;
 
-  if (view === "home") content = <HomeScreen orders={orders} customers={customers} products={products} goTo={setView} />;
+  if (view === "home") content = <HomeScreen orders={orders} customers={customers} products={products} goTo={setView} dash={dash} />;
 
   else if (view === "orders") {
     const open = orders.find((o) => o.id === openId);
