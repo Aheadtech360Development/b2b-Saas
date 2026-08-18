@@ -1735,19 +1735,19 @@ export default function App() {
   const [openId, setOpenId] = useState(null);
   const [drawer, setDrawer] = useState(null);
 
-  const [orders, setOrders] = useState(seedOrders);
-  const [products, setProducts] = useState(seedProducts);
-  const [customers, setCustomers] = useState(seedCustomers);
-  const [tiers, setTiers] = useState(seedTiers);
-  const [discounts, setDiscounts] = useState(seedDiscounts);
-  const [blogs, setBlogs] = useState(seedBlogs);
-  const [pages, setPages] = useState(seedPages);
-  const [abandoned, setAbandoned] = useState(seedAbandoned);
-  const [drafts, setDrafts] = useState(seedDrafts);
-  const [returns, setReturns] = useState(seedReturns);
-  const [pos, setPos] = useState(seedPOs);
-  const [collections, setCollections] = useState(seedCollections);
-  const [reviews, setReviews] = useState(seedReviews);
+  const [orders, setOrders] = useState([]);
+  const [products, setProducts] = useState([]);
+  const [customers, setCustomers] = useState([]);
+  const [tiers, setTiers] = useState([]);
+  const [discounts, setDiscounts] = useState([]);
+  const [blogs, setBlogs] = useState([]);
+  const [pages, setPages] = useState([]);
+  const [abandoned, setAbandoned] = useState([]);
+  const [drafts, setDrafts] = useState([]);
+  const [returns, setReturns] = useState([]);
+  const [pos, setPos] = useState([]);
+  const [collections, setCollections] = useState([]);
+  const [reviews, setReviews] = useState([]);
 
   // Real dashboard data — loads when an admin is signed in (api-client attaches
   // the token); otherwise the screen keeps its mock data. First wired screen of
@@ -1788,6 +1788,52 @@ export default function App() {
       }
       if (any) setDash(d);
     }).catch(() => {});
+  }, []);
+
+  // Real catalog / orders / customers — replaces the old mock seeds. When an
+  // endpoint returns nothing, the screen shows its "nothing found" empty state.
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const res = await apiClient.get("/api/v1/admin/orders?page_size=100");
+        const items = res?.items || [];
+        if (alive) setOrders(items.map((o) => ({
+          id: o.order_number || o.id, _id: o.id,
+          customer: o.company?.name || o.company_name || o.guest_name || "Guest",
+          date: o.created_at ? new Date(o.created_at).toLocaleDateString() : "—",
+          status: o.status, total: Number(o.total) || 0,
+          payment: o.payment_terms === "net_30" ? "net terms" : (o.payment_status || "—"),
+          items: (o.items || []).map((it) => ({ name: it.product_name, qty: it.quantity, price: Number(it.unit_price) || 0, fulfilled: o.status === "fulfilled" || o.status === "delivered" })),
+          timeline: [], tags: [],
+        })));
+      } catch { /* leave empty */ }
+      try {
+        const list = await apiClient.get("/api/v1/admin/products");
+        const arr = Array.isArray(list) ? list : (list?.items || []);
+        if (alive) setProducts(arr.map((p) => ({
+          id: p.id, name: p.name, sku: p.sku || p.product_code || p.variants?.[0]?.sku || "—",
+          price: Number(p.price ?? p.variants?.[0]?.retail_price ?? 0), compareAtPrice: null, costPerItem: 0,
+          status: p.status || "active", revenue: 0, vendor: p.vendor || "", productType: p.product_type || "",
+          weight: 0, trackQuantity: true, imageCount: p.images?.length ?? 0, collections: [], tags: [],
+          description: p.description || "", seoTitle: "", seoDescription: "",
+          variants: (p.variants || []).map((v) => ({ size: v.size || "—", color: v.color || "—", stock: v.stock_quantity ?? 0 })),
+        })));
+      } catch { /* leave empty */ }
+      try {
+        const res = await apiClient.get("/api/v1/admin/companies?page_size=100");
+        const items = res?.items || [];
+        if (alive) setCustomers(items.map((c) => ({
+          id: c.id, name: c.name || c.trading_name || "—", email: c.company_email || "—",
+          phone: c.phone || "", address: [c.address_line1, c.city, c.state_province].filter(Boolean).join(", ") || "—",
+          tier: c.pricing_tier_name || "—", taxExempt: !!c.tax_exempt,
+          status: c.status === "active" ? "approved" : (c.status || "pending"),
+          spend: Number(c.total_spend ?? 0), orders: c.order_count ?? 0,
+          location: c.state_province || c.country || "—", notes: c.admin_notes || "",
+        })));
+      } catch { /* leave empty */ }
+    })();
+    return () => { alive = false; };
   }, []);
 
   function setView(v) {
