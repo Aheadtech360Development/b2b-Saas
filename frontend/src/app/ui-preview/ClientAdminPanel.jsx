@@ -3,6 +3,7 @@ import React, { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { apiClient } from "@/lib/api-client";
 import { useAuthStore } from "@/stores/auth.store";
+import { contactService } from "@/services/contact.service";
 import StorefrontCustomizer from "@/components/admin/StorefrontCustomizer";
 import MenusManager from "@/components/admin/MenusManager";
 import PagesManager from "@/components/admin/PagesManager";
@@ -1703,6 +1704,70 @@ function Sidebar({ view, setView, expanded, setExpanded, brandName }) {
   );
 }
 
+// Real notifications: customer contact-form / support submissions. Polls so new
+// queries surface without a refresh. When you wire a customer support ticket,
+// point it at the same contact-submissions feed and it shows here automatically.
+function NotifBell({ onNavigate }) {
+  const [items, setItems] = useState([]);
+  const [unread, setUnread] = useState(0);
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    const load = () => contactService.list()
+      .then((r) => { if (alive) { setItems(r.items || []); setUnread(r.unread || 0); } })
+      .catch(() => {});
+    load();
+    const t = setInterval(load, 30000); // near-live
+    return () => { alive = false; clearInterval(t); };
+  }, []);
+
+  function preview(s) {
+    const d = s.data || {};
+    const name = d.name || d.Name || d.full_name || d.email || d.Email || "New submission";
+    const msg = d.message || d.Message || d.comment || d.body || Object.values(d).find((v) => v && String(v).length > 12) || "";
+    return { name, msg: String(msg) };
+  }
+
+  return (
+    <div className="relative">
+      <button onClick={() => setOpen((o) => !o)} className="relative flex items-center justify-center w-9 h-9 rounded-lg hover:bg-gray-100 transition-colors" aria-label="Notifications">
+        <Bell size={18} />
+        {unread > 0 && (
+          <span className="absolute top-1 right-1 bg-red-500 text-white text-[10px] font-semibold rounded-full min-w-[15px] h-[15px] px-1 flex items-center justify-center leading-none">{unread > 99 ? "99+" : unread}</span>
+        )}
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} />
+          <div className="absolute right-0 mt-2 w-80 bg-white border border-gray-200 rounded-lg shadow-lg z-40 overflow-hidden">
+            <div className="px-4 py-2.5 border-b border-gray-100 flex items-center justify-between">
+              <span className="text-sm font-semibold text-gray-800">Notifications</span>
+              {unread > 0 && <span className="text-xs text-gray-400">{unread} unread</span>}
+            </div>
+            <div className="max-h-80 overflow-y-auto">
+              {items.length === 0 && <div className="px-4 py-8 text-sm text-gray-400 text-center">No notifications yet</div>}
+              {items.slice(0, 8).map((s) => {
+                const p = preview(s);
+                return (
+                  <button key={s.id} onClick={() => { setOpen(false); onNavigate && onNavigate("messages"); }} className={`w-full text-left px-4 py-2.5 hover:bg-gray-50 border-b border-gray-100 ${!s.is_read ? "bg-blue-50/50" : ""}`}>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-sm font-medium text-gray-800 truncate">{p.name}</span>
+                      {!s.is_read && <span style={{ background: "#1d3c73" }} className="w-2 h-2 rounded-full flex-shrink-0" />}
+                    </div>
+                    {p.msg && <div className="text-xs text-gray-500 truncate mt-0.5">{p.msg}</div>}
+                    <div className="text-[11px] text-gray-400 mt-0.5">{s.form_name || "Contact form"}{s.created_at ? " · " + new Date(s.created_at).toLocaleDateString() : ""}</div>
+                  </button>
+                );
+              })}
+            </div>
+            <button onClick={() => { setOpen(false); onNavigate && onNavigate("messages"); }} style={{ color: "#1d3c73" }} className="w-full text-center py-2.5 text-sm font-medium hover:bg-gray-50 border-t border-gray-100">View all messages</button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 function Topbar({ brandName, orders = [], products = [], customers = [], onNavigate }) {
   const initials = initialsOf(brandName);
   const [q, setQ] = useState("");
@@ -1754,8 +1819,8 @@ function Topbar({ brandName, orders = [], products = [], customers = [], onNavig
           </div>
         )}
       </div>
-      <div className="flex items-center gap-4 text-gray-500">
-        <Bell size={18} />
+      <div className="flex items-center gap-3 text-gray-500">
+        <NotifBell onNavigate={onNavigate} />
         <div title={brandName || ""} style={{ background: "rgba(36,181,116,0.14)", color: "#1a8f5c" }} className="w-7 h-7 rounded-full text-xs font-medium flex items-center justify-center">{initials}</div>
       </div>
     </div>
@@ -2141,8 +2206,16 @@ export default function App() {
            family, so the var override alone can't reach bare heading tags — pin
            them to Outfit here (higher specificity wins over the global rule). */
         .atui-shell h1, .atui-shell h2, .atui-shell h3, .atui-shell h4 {
-          font-family: 'Outfit', sans-serif; letter-spacing: -0.01em;
+          font-family: 'Outfit', sans-serif;
         }
+        /* One heading scale everywhere. Reused screens hardcode big serif-style
+           titles (32px, wide tracking) inline; normalize page titles to the same
+           clean size/weight as the dashboard's "Good morning" so headings match
+           throughout. No inline SectionRenderer preview exists in the shell, so
+           this can't shrink a storefront preview. */
+        .atui-shell h1 { font-size: 19px !important; font-weight: 600 !important; letter-spacing: -0.01em !important; line-height: 1.35 !important; }
+        .atui-shell h2 { font-size: 18px !important; font-weight: 600 !important; letter-spacing: -0.01em !important; }
+        .atui-shell h3 { font-size: 15px !important; font-weight: 600 !important; letter-spacing: -0.01em !important; }
         /* Card / input / divider consistency: the reused screens hardcode a warm
            cream border (#E2E0DA / #E2E2DE) inline. Recolor just the border to the
            new admin's cool gray-200 so cards match — inline styles are beaten with
