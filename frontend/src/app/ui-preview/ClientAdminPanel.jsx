@@ -3,6 +3,9 @@ import React, { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { apiClient } from "@/lib/api-client";
 import { useAuthStore } from "@/stores/auth.store";
+import StorefrontCustomizer from "@/components/admin/StorefrontCustomizer";
+import MenusManager from "@/components/admin/MenusManager";
+import PagesManager from "@/components/admin/PagesManager";
 import {
   Home, ShoppingCart, Package, Users, Megaphone, Store, BarChart3,
   Settings as SettingsIcon, Search, Bell, ChevronDown, ChevronRight,
@@ -1667,16 +1670,6 @@ const NAV = [
   { id: "settings", label: "Settings", icon: SettingsIcon },
 ];
 
-// These features already have full, purpose-built admin screens (the real
-// storefront customizer with live section preview, the pages builder, the
-// menu builder). Rather than ship a thinner copy, the nav opens the real
-// thing — carrying the current ?tenant=… so the right brand stays in scope.
-const EXTERNAL_ADMIN_ROUTES = {
-  theme: "/admin/storefront",
-  pages: "/admin/storefront/pages",
-  menus: "/admin/storefront/menus",
-};
-
 function findGroupFor(view) {
   for (const item of NAV) if (item.children && item.children.some((c) => c.id === view)) return item.id;
   return null;
@@ -1887,13 +1880,6 @@ export default function App() {
   }, []);
 
   function setView(v) {
-    // Rich builders live at their own real routes — hand off, keeping ?tenant=.
-    const ext = EXTERNAL_ADMIN_ROUTES[v];
-    if (ext) {
-      const qs = typeof window !== "undefined" ? window.location.search : "";
-      router.push(`${ext}${qs}`);
-      return;
-    }
     setOpenId(null);
     setDrawer(null);
     setViewRaw(v);
@@ -2097,17 +2083,11 @@ export default function App() {
 
   else if (view === "seo") content = <SeoPanel pages={pages} />;
 
-  else if (view === "pages") {
-    if (openId === "new") content = <EditorForm kind="page" onBack={() => setOpenId(null)} onSave={(p) => { setPages((ps) => [p, ...ps]); setOpenId(null); }} />;
-    else if (openId) content = <EditorForm kind="page" record={pages.find((p) => p.id === openId)} onBack={() => setOpenId(null)} onSave={(np) => { setPages((ps) => ps.map((p) => (p.id === np.id ? np : p))); setOpenId(null); }} />;
-    else content = <ListView title="Pages" data={pages} statusField="status" statusOptions={["published", "draft"]} searchFields={["title"]}
-        columns={[{ key: "title", label: "Title" }, { key: "status", label: "Status", render: (r) => <Badge status={r.status} /> }]}
-        onRowClick={(r) => setOpenId(r.id)} onCreate={() => setOpenId("new")} createLabel="New page"
-      />;
-  }
-
-  else if (view === "menus") content = <MenusBuilder />;
-  else if (view === "theme") content = <StorefrontTheme />;
+  // Storefront builders — the real, full-featured tools (sections + live
+  // preview) rendered inside this shell, not the prototype's stub screens.
+  else if (view === "pages") content = <PagesManager />;
+  else if (view === "menus") content = <MenusManager />;
+  else if (view === "theme") content = <StorefrontCustomizer />;
   else if (view === "domains") content = <DomainsPanel />;
   else if (view === "analytics") content = <AnalyticsScreen products={products} customers={customers} />;
   else if (view === "settings") content = <SettingsScreen />;
