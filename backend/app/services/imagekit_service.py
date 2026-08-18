@@ -89,8 +89,28 @@ async def list_files(tenant_id: str | uuid.UUID | None, limit: int = 100) -> lis
     ]
 
 
-async def delete_file(file_id: str) -> None:
-    """Delete a file from ImageKit by its fileId."""
+async def _file_path(file_id: str) -> str | None:
+    """Return a file's stored path (e.g. /tenants/acme/x.png), or None if absent."""
+    async with httpx.AsyncClient(timeout=30) as client:
+        resp = await client.get(f"{_LIST_URL}/{file_id}/details", auth=(settings.IMAGEKIT_PRIVATE_KEY, ""))
+    if resp.status_code == 404:
+        return None
+    resp.raise_for_status()
+    return resp.json().get("filePath")
+
+
+async def delete_file(file_id: str, expected_tenant: str | uuid.UUID | None = None) -> None:
+    """Delete a file from ImageKit by its fileId.
+
+    When `expected_tenant` is given, the file must live in that tenant's folder
+    or the delete is refused (PermissionError) — so a brand can never delete
+    another brand's media by guessing/enumerating a fileId.
+    """
+    if expected_tenant is not None:
+        path = await _file_path(file_id)
+        prefix = _folder_for(expected_tenant).rstrip("/") + "/"
+        if not path or not path.startswith(prefix):
+            raise PermissionError("File does not belong to this tenant")
     async with httpx.AsyncClient(timeout=30) as client:
         resp = await client.delete(f"{_LIST_URL}/{file_id}", auth=(settings.IMAGEKIT_PRIVATE_KEY, ""))
     resp.raise_for_status()

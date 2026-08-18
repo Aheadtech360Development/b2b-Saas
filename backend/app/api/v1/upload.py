@@ -3,7 +3,12 @@ import io
 import os
 import uuid
 
-from fastapi import APIRouter, File, HTTPException, Request, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.database import get_db
+from app.core.rate_limit import enforce_rate_limit
+from app.core.tenant_media import resolve_media_folder_key
 
 router = APIRouter(prefix="/upload")
 
@@ -21,9 +26,12 @@ _ARTWORK_MAX_BYTES = 50 * 1024 * 1024  # 50 MB — design files are large
 
 
 @router.post("")
-async def upload_file(file: UploadFile = File(...), request: Request = None):  # type: ignore[assignment]
+async def upload_file(file: UploadFile = File(...), request: Request = None, db: AsyncSession = Depends(get_db)):  # type: ignore[assignment]
     """Upload an image or PDF. Returns { url, file_name, type }."""
     from app.core.config import get_settings
+
+    # Open endpoint (guest storefront uploads use it too) → rate-limit per IP.
+    await enforce_rate_limit(request, scope="upload", limit=60, window=60)
 
     settings = get_settings()
     use_s3 = bool(settings.AWS_ACCESS_KEY_ID and settings.AWS_SECRET_ACCESS_KEY)
@@ -49,9 +57,11 @@ async def upload_file(file: UploadFile = File(...), request: Request = None):  #
     # ── Prefer ImageKit when configured (media CDN + per-tenant folders) ──────
     from app.services import imagekit_service
     if imagekit_service.is_configured():
-        slug = getattr(request.state, "tenant_slug", None) if request is not None else None
+        # Folder from the authenticated tenant (or a validated storefront slug),
+        # never the raw client header — so uploads can't target another brand.
+        folder = await resolve_media_folder_key(request, db) if request is not None else None
         try:
-            result = await imagekit_service.upload_bytes(content, original_name, tenant_id=slug)
+            result = await imagekit_service.upload_bytes(content, original_name, tenant_id=folder)
             return {"url": result["url"], "file_name": result.get("name") or original_name, "type": "pdf" if is_pdf else "image"}
         except Exception as exc:  # noqa: BLE001 — fall back to local/S3 on ImageKit error
             import logging
@@ -113,7 +123,7 @@ async def upload_file(file: UploadFile = File(...), request: Request = None):  #
 
 
 @router.post("/artwork")
-async def upload_artwork(file: UploadFile = File(...), request: Request = None):  # type: ignore[assignment]
+async def upload_artwork(file: UploadFile = File(...), request: Request = None, db: AsyncSession = Depends(get_db)):  # type: ignore[assignment]
     """Upload a print-ready artwork file for the gang sheet builder.
 
     Kept separate from the generic upload so design formats (AI, PSD, EPS…) are
@@ -121,6 +131,8 @@ async def upload_artwork(file: UploadFile = File(...), request: Request = None):
     Files are stored verbatim — no re-encoding — because re-compressing print
     artwork would destroy it.
     """
+    await enforce_rate_limit(request, scope="upload_artwork", limit=60, window=60)
+
     name = (file.filename or "").strip()
     ext = os.path.splitext(name.lower())[1]
     if ext not in _ARTWORK_EXTENSIONS:
@@ -141,9 +153,9 @@ async def upload_artwork(file: UploadFile = File(...), request: Request = None):
     from app.services import imagekit_service
 
     if imagekit_service.is_configured():
-        slug = getattr(request.state, "tenant_slug", None) if request is not None else None
+        folder = await resolve_media_folder_key(request, db) if request is not None else None
         try:
-            result = await imagekit_service.upload_bytes(content, name, tenant_id=slug)
+            result = await imagekit_service.upload_bytes(content, name, tenant_id=folder)
             return {
                 "url": result["url"],
                 "file_name": result.get("name") or name,
