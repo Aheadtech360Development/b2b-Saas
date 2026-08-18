@@ -2086,8 +2086,21 @@ export default function App() {
 
   return (
     <>
-      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600&display=swap" />
-      <div className="flex overflow-hidden" style={{ minHeight: "100vh", fontFamily: "'Outfit', sans-serif" }}>
+      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&display=swap" />
+      {/* Typography consistency: the embedded real screens read their fonts from
+          the --font-* custom properties. Redefining those inside this shell
+          makes every reused feature screen adopt the new admin's Outfit type
+          automatically — no per-file edits, no functional change. */}
+      <style>{`
+        .atui-shell { --font-jakarta: 'Outfit', sans-serif; --font-bebas: 'Outfit', sans-serif; }
+        /* The global stylesheet forces h1-h3 to Fraunces (serif) with a literal
+           family, so the var override alone can't reach bare heading tags — pin
+           them to Outfit here (higher specificity wins over the global rule). */
+        .atui-shell h1, .atui-shell h2, .atui-shell h3, .atui-shell h4 {
+          font-family: 'Outfit', sans-serif; letter-spacing: -0.01em;
+        }
+      `}</style>
+      <div className="atui-shell flex overflow-hidden" style={{ minHeight: "100vh", fontFamily: "'Outfit', sans-serif" }}>
         <Sidebar view={view} setView={setView} expanded={expanded} setExpanded={setExpanded} brandName={brandName} />
         <div className="flex-1 min-w-0 flex flex-col">
           <Topbar brandName={brandName} />
