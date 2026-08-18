@@ -1475,27 +1475,32 @@ function StorefrontTheme() {
 }
 
 function DomainsPanel() {
-  const [domains, setDomains] = useState(["freshbasicsco.myat360.com", "shop.freshbasicsco.com"]);
-  const [newDomain, setNewDomain] = useState("");
-  function add() { if (!newDomain) return; setDomains((d) => [...d, newDomain]); setNewDomain(""); }
-  function remove(i) { setDomains((d) => d.filter((_, idx) => idx !== i)); }
+  // The live store address, derived from the real host + the current brand —
+  // no placeholders. Custom domains are provisioned at the platform level
+  // (DNS + TLS), so this screen reports the real URL rather than faking an add.
+  const [storeUrl, setStoreUrl] = useState("");
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const slug = new URLSearchParams(window.location.search).get("tenant");
+    setStoreUrl(slug ? `${window.location.origin}/?tenant=${slug}` : window.location.origin + "/");
+  }, []);
   return (
     <div>
       <h2 className="text-lg font-medium mb-4">Domains</h2>
-      <div className="max-w-md space-y-2 mb-4">
-        {domains.map((d, i) => (
-          <div key={i} className="flex items-center justify-between border border-gray-200 rounded px-3 py-2 text-sm">
-            <span>{d}</span>
-            <div className="flex items-center gap-2">
-              {i === 0 && <span className="text-xs bg-gray-100 px-2 py-0.5 rounded">Primary</span>}
-              {i !== 0 && <button onClick={() => remove(i)}><Trash2 size={13} className="text-gray-400" /></button>}
-            </div>
+      <div className="max-w-lg space-y-3">
+        <div className="border border-gray-200 rounded px-3 py-2.5 text-sm flex items-center justify-between">
+          <div>
+            <div className="text-xs text-gray-500 mb-0.5">Primary store address</div>
+            {storeUrl
+              ? <a href={storeUrl} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline break-all">{storeUrl}</a>
+              : <span className="text-gray-400">—</span>}
           </div>
-        ))}
-      </div>
-      <div className="flex gap-2 max-w-md">
-        <TextInput value={newDomain} onChange={(e) => setNewDomain(e.target.value)} placeholder="www.yourdomain.com" />
-        <Btn onClick={add}><Plus size={13} />Add domain</Btn>
+          <span className="text-xs bg-gray-100 px-2 py-0.5 rounded shrink-0 ml-2">Live</span>
+        </div>
+        <div className="text-sm text-gray-500 leading-relaxed">
+          Connecting a custom domain (e.g. <span className="text-gray-700">www.yourbrand.com</span>) requires DNS and TLS
+          setup handled at the platform level. Ask your platform administrator to provision it for this brand.
+        </div>
       </div>
     </div>
   );
@@ -1661,6 +1666,16 @@ const NAV = [
   { id: "analytics", label: "Analytics", icon: BarChart3 },
   { id: "settings", label: "Settings", icon: SettingsIcon },
 ];
+
+// These features already have full, purpose-built admin screens (the real
+// storefront customizer with live section preview, the pages builder, the
+// menu builder). Rather than ship a thinner copy, the nav opens the real
+// thing — carrying the current ?tenant=… so the right brand stays in scope.
+const EXTERNAL_ADMIN_ROUTES = {
+  theme: "/admin/storefront",
+  pages: "/admin/storefront/pages",
+  menus: "/admin/storefront/menus",
+};
 
 function findGroupFor(view) {
   for (const item of NAV) if (item.children && item.children.some((c) => c.id === view)) return item.id;
@@ -1872,6 +1887,13 @@ export default function App() {
   }, []);
 
   function setView(v) {
+    // Rich builders live at their own real routes — hand off, keeping ?tenant=.
+    const ext = EXTERNAL_ADMIN_ROUTES[v];
+    if (ext) {
+      const qs = typeof window !== "undefined" ? window.location.search : "";
+      router.push(`${ext}${qs}`);
+      return;
+    }
     setOpenId(null);
     setDrawer(null);
     setViewRaw(v);
