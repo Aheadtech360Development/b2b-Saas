@@ -305,7 +305,18 @@ async def get_admin_branding(
     tenant_id = _resolve_tenant_id(request)
     if not tenant_id:
         return dict(_DEFAULT_BRANDING)
-    return await _fetch_branding(db, tenant_id)
+    data = dict(await _fetch_branding(db, tenant_id))
+    # Include the brand's slug so the admin can open its own storefront reliably
+    # (?tenant=slug) regardless of the sticky tenant cookie.
+    try:
+        slug = (await db.execute(
+            text("SELECT slug FROM tenants WHERE id = :id"), {"id": str(tenant_id)}
+        )).scalar()
+        if slug:
+            data["slug"] = slug
+    except Exception:
+        pass
+    return data
 
 
 class BrandingUpdate(BaseModel):

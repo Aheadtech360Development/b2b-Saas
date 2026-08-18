@@ -176,7 +176,18 @@ export default function StorefrontSettingsPage() {
     finally { setSaving(false); }
   }
 
-  function openStore() { if (typeof window !== "undefined") window.open(window.location.origin + "/", "_blank"); }
+  // Open THIS brand's storefront. Prefer the authoritative slug from the branding
+  // response (JWT tenant), falling back to the sticky tenant_slug cookie — so the
+  // preview always lands on the right brand, not a generic/default store.
+  function openStore() {
+    if (typeof window === "undefined") return;
+    const cookieSlug = document.cookie.match(/(?:^|;\s*)tenant_slug=([^;]*)/)?.[1];
+    const slug = form.slug || (cookieSlug ? decodeURIComponent(cookieSlug) : "");
+    const url = slug
+      ? `${window.location.origin}/?tenant=${encodeURIComponent(slug)}`
+      : `${window.location.origin}/`;
+    window.open(url, "_blank");
+  }
 
   if (loading) return <div style={{ padding: "40px", color: "#888", fontSize: "14px" }}>Loading storefront settings…</div>;
 

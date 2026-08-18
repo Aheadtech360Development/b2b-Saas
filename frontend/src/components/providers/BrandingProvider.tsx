@@ -20,6 +20,9 @@ export interface MenuItem {
 export type SectionKey = "hero" | "featured_categories" | "featured_products";
 
 export interface Branding {
+  // Present in the admin branding response — the brand's subdomain slug, used to
+  // open this brand's storefront reliably (?tenant=slug).
+  slug?: string | null;
   store_name: string;
   logo_url: string | null;
   favicon_url: string | null;
