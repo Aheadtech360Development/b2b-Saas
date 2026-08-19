@@ -57,9 +57,11 @@ class Settings(BaseSettings):
         aborts the whole migration step. `ssl=true` is translated rather than
         dropped so a TLS-only host (Neon) still gets an encrypted connection.
         """
-        if self.DATABASE_URL_SYNC:
-            return self.DATABASE_URL_SYNC
-
+        # NOTE: intentionally derive from DATABASE_URL and ignore a separately-set
+        # DATABASE_URL_SYNC. A stale sync URL (pointing at an old/dead database)
+        # makes Alembic create the schema in a *different* DB than the app reads —
+        # so the app connects fine (SELECT 1) yet every table is "missing". Always
+        # migrating the same DB the app talks to removes that whole failure class.
         raw = (
             self.DATABASE_URL
             .replace("postgresql+asyncpg://", "postgresql://")
