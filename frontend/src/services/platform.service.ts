@@ -146,7 +146,7 @@ export interface BrandHealth {
 /** Open a brand's admin dashboard as the super admin (impersonation). */
 export async function enterBrandDashboard(slug: string): Promise<void> {
   const { access_token } = await platformService.impersonate(slug);
-  const url = tenantUrl(slug, "/ui-preview", `session=${encodeURIComponent(access_token)}`);
+  const url = tenantUrl(slug, "/admin/dashboard", `session=${encodeURIComponent(access_token)}`);
   window.open(url, "_blank");
 }
 
