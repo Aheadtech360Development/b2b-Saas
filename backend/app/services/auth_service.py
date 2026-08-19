@@ -20,6 +20,7 @@ from app.core.exceptions import (
     ValidationError,
 )
 from app.core.redis import redis_delete, redis_get, redis_set
+from app.core.tenant_context import get_current_tenant_id
 from app.core.security import (
     create_access_token,
     create_refresh_token,
@@ -188,6 +189,10 @@ class AuthService:
             is_admin=False,
             is_active=True,
             email_verified=False,
+            # User isn't a TenantMixin, so it isn't auto-stamped — bind the buyer
+            # to the storefront's brand explicitly, or their tenant-scoped login
+            # (which filters by tenant_id) can never find them.
+            tenant_id=get_current_tenant_id(),
         )
         self.db.add(user)
         await self.db.flush()
