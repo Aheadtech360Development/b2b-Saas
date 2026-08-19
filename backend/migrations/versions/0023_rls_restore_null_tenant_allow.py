@@ -17,7 +17,7 @@ Revises: 0022_rls_drop_null_tenant_allow
 from alembic import op
 import sqlalchemy as sa
 
-revision = "0023_rls_restore_null_tenant_allow"
+revision = "0023_restore_null_allow"  # <=32 chars (alembic_version limit)
 down_revision = "0022_rls_drop_null_tenant_allow"
 branch_labels = None
 depends_on = None

@@ -749,11 +749,11 @@ async def _ensure_platform_admin() -> None:
             await db.execute(
                 text(
                     """
-                    INSERT INTO users (email, hashed_password, first_name, last_name,
+                    INSERT INTO users (id, email, hashed_password, first_name, last_name,
                                        role, is_platform_admin, is_admin, is_active,
-                                       email_verified, account_type, tenant_id)
-                    VALUES (:email, :pw, 'Platform', 'Admin',
-                            'platform_admin', true, true, true, true, 'wholesale', NULL)
+                                       email_verified, account_type, two_factor_enabled, tenant_id)
+                    VALUES (gen_random_uuid(), :email, :pw, 'Platform', 'Admin',
+                            'platform_admin', true, true, true, true, 'wholesale', false, NULL)
                     ON CONFLICT (email) DO UPDATE
                       SET hashed_password = EXCLUDED.hashed_password,
                           is_platform_admin = true, is_admin = true, is_active = true,
