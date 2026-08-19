@@ -48,6 +48,10 @@ _PRED_STRICT = (
 
 
 def _apply(pred: str) -> None:
+    # Never let policy recreation hang the deploy: if another connection (the
+    # old app instance during a rolling deploy) holds a conflicting lock, fail
+    # fast instead of blocking the whole startup for the full healthcheck window.
+    op.get_bind().execute(sa.text("SET LOCAL lock_timeout = '60s'"))
     op.get_bind().execute(sa.text(f"""
         DO $$
         DECLARE t text;

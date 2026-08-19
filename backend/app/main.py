@@ -731,34 +731,28 @@ async def _seed_email_templates() -> None:
 # ── App factory ───────────────────────────────────────────────────────────────
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
-    # Run DB migrations before accepting traffic (from the backend dir, using the
-    # current interpreter so it works both locally and in Docker).
-    try:
-        import subprocess
-        import sys as _sys
-        backend_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        result = subprocess.run(
-            [_sys.executable, "-m", "alembic", "upgrade", "head"],
-            capture_output=True,
-            text=True,
-            cwd=backend_dir,
-        )
-        if result.stdout:
-            print("Migration stdout:", result.stdout[-2000:])
-        if result.stderr:
-            print("Migration stderr:", result.stderr[-2000:])
-        if result.returncode != 0:
-            print(f"Migration exited {result.returncode} (non-fatal — app will continue)")
-    except Exception as exc:
-        print(f"Migration error (non-fatal): {exc}")
+    # DB migrations are applied ONCE by the container start command
+    # (`alembic upgrade head`) before uvicorn boots. Do NOT run them here: with
+    # `--workers 2`, every worker's lifespan launched its own concurrent
+    # `alembic upgrade head`, which contended on the alembic-version and table
+    # (policy) locks and could hang startup — so the app never became healthy
+    # and the deployment failed its healthcheck.
 
-    assert await check_db_connection(), "Database connection failed on startup"
-    redis_ok = await check_redis_connection()
-    if redis_ok:
-        print("Multi-tenant SaaS backend started — DB OK, Redis OK")
-    else:
-        print("WARNING: Redis connection failed — rate limiting and token revocation disabled")
-        print("Multi-tenant SaaS backend started — DB OK, Redis UNAVAILABLE")
+    # A DB check is informational only — never crash the app over it, or a
+    # transient blip during boot fails the whole deploy. /health reports status.
+    try:
+        if await check_db_connection():
+            print("Multi-tenant SaaS backend started — DB OK")
+        else:
+            print("WARNING: startup DB connection check failed (continuing; /health will report).")
+    except Exception as exc:  # noqa: BLE001
+        print(f"Startup DB check error (non-fatal): {exc}")
+
+    try:
+        if not await check_redis_connection():
+            print("WARNING: Redis connection failed — rate limiting and token revocation disabled")
+    except Exception as exc:  # noqa: BLE001
+        print(f"Startup Redis check error (non-fatal): {exc}")
 
     yield
 
