@@ -6,9 +6,6 @@ import { useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuthStore } from "@/stores/auth.store";
 import { authService } from "@/services/auth.service";
-import { apiClient } from "@/lib/api-client";
-import { ShoppingCartIcon } from "@/components/ui/icons";
-import { useBranding } from "@/components/providers/BrandingProvider";
 
 const NAV_ITEMS = [
   { href: "/account", label: "Overview" },
@@ -71,17 +68,7 @@ export default function AccountLayout({ children }: { children: React.ReactNode 
   const [drawerOpen, setDrawerOpen] = useState(false);
   const navItems = NAV_ITEMS;
 
-  // The store navbar is hidden on account pages, so this layout carries the
-  // essentials it used to provide: brand name (back to shop), cart, sign out.
-  const branding = useBranding();
-  const [cartCount, setCartCount] = useState(0);
-  useEffect(() => {
-    apiClient
-      .get<{ items: { quantity: number }[] }>("/api/v1/cart")
-      .then((r) => setCartCount((r.items || []).reduce((s, i) => s + i.quantity, 0)))
-      .catch(() => setCartCount(0));
-  }, [pathname]);
-
+  // Clean account portal — no store chrome. Sign out lives in the sidebar.
   async function handleSignOut() {
     try { await authService.logout(); } catch { /* ignore */ }
     useAuthStore.getState().clearAuth();
@@ -131,50 +118,6 @@ export default function AccountLayout({ children }: { children: React.ReactNode 
 
   return (
     <>
-      {/* ── Slim account header (replaces the store navbar on account pages) ── */}
-      <div
-        style={{
-          background: "#fff",
-          borderBottom: "1px solid #E2E0DA",
-          padding: "10px 20px",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          position: "sticky",
-          top: 0,
-          zIndex: 40,
-        }}
-      >
-        <Link href="/" style={{ display: "flex", alignItems: "center", gap: "10px", textDecoration: "none" }}>
-          {branding?.logo_url ? (
-            <img src={branding.logo_url} alt={branding.store_name} height={30} style={{ maxHeight: "30px", width: "auto", objectFit: "contain" }} />
-          ) : (
-            <span style={{ fontSize: "17px", fontWeight: 800, color: "var(--brand-primary, #1C3557)", fontFamily: "var(--brand-font-heading, 'DM Sans', sans-serif)" }}>
-              {branding?.store_name || "Store"}
-            </span>
-          )}
-        </Link>
-        <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
-          <Link href="/" style={{ fontSize: "13px", fontWeight: 600, color: "#2A2830", textDecoration: "none" }}>
-            ← Shop
-          </Link>
-          <Link href="/cart" style={{ position: "relative", display: "flex", alignItems: "center", border: "1px solid #E2E2DE", borderRadius: "6px", padding: "6px 10px", textDecoration: "none" }}>
-            <ShoppingCartIcon size={17} color="var(--brand-primary, #1C3557)" />
-            {cartCount > 0 && (
-              <span style={{ position: "absolute", top: "-7px", right: "-7px", background: "var(--brand-primary, #1C3557)", color: "#fff", fontSize: "10px", fontWeight: 700, minWidth: "17px", height: "17px", borderRadius: "9px", display: "flex", alignItems: "center", justifyContent: "center", padding: "0 4px" }}>
-                {cartCount}
-              </span>
-            )}
-          </Link>
-          <button
-            onClick={handleSignOut}
-            style={{ fontSize: "13px", fontWeight: 600, color: "#B91C1C", background: "#fff", border: "1px solid #E2E0DA", borderRadius: "6px", padding: "7px 14px", cursor: "pointer" }}
-          >
-            Sign out
-          </button>
-        </div>
-      </div>
-
       {/* ── Mobile nav bar ── */}
       <div
         className="account-sidebar-mobile"
@@ -186,7 +129,7 @@ export default function AccountLayout({ children }: { children: React.ReactNode 
           alignItems: "center",
           gap: "10px",
           position: "sticky",
-          top: "52px",
+          top: 0,
           zIndex: 30,
         }}
       >
@@ -289,6 +232,17 @@ export default function AccountLayout({ children }: { children: React.ReactNode 
               </button>
             </div>
             <NavLinks items={navItems} pathname={pathname} onClose={() => setDrawerOpen(false)} />
+            <button
+              onClick={() => { setDrawerOpen(false); handleSignOut(); }}
+              style={{
+                display: "block", width: "100%", textAlign: "left",
+                marginTop: "10px", padding: "10px 12px", borderRadius: "6px",
+                fontSize: "14px", fontWeight: 600, color: "#B91C1C",
+                background: "transparent", border: "1px solid #F3D0D0", cursor: "pointer",
+              }}
+            >
+              Sign out
+            </button>
           </div>
         </div>
       )}
@@ -312,7 +266,7 @@ export default function AccountLayout({ children }: { children: React.ReactNode 
             width: "200px",
             flexShrink: 0,
             position: "sticky",
-            top: "72px",
+            top: "20px",
           }}
         >
           <h2
@@ -328,6 +282,19 @@ export default function AccountLayout({ children }: { children: React.ReactNode 
             My Account
           </h2>
           <NavLinks items={navItems} pathname={pathname} />
+          <button
+            onClick={handleSignOut}
+            style={{
+              display: "block", width: "100%", textAlign: "left",
+              marginTop: "10px", padding: "9px 12px", borderRadius: "6px",
+              fontSize: "13px", fontWeight: 600, color: "#B91C1C",
+              background: "transparent", border: "1px solid #F3D0D0", cursor: "pointer",
+            }}
+            onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "#FEF2F2"; }}
+            onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "transparent"; }}
+          >
+            Sign out
+          </button>
         </nav>
 
         {/* Main content */}
