@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuthStore } from "@/stores/auth.store";
 import { authService } from "@/services/auth.service";
+import { useBranding } from "@/components/providers/BrandingProvider";
 
 const NAV_ITEMS = [
   { href: "/account", label: "Overview" },
@@ -68,7 +69,10 @@ export default function AccountLayout({ children }: { children: React.ReactNode 
   const [drawerOpen, setDrawerOpen] = useState(false);
   const navItems = NAV_ITEMS;
 
-  // Clean account portal — no store chrome. Sign out lives in the sidebar.
+  // Clean account portal — no store chrome. A store link + sign out live in
+  // the sidebar so the buyer can jump back to shopping. The store home ("/")
+  // resolves to their own brand via the active tenant.
+  const branding = useBranding();
   async function handleSignOut() {
     try { await authService.logout(); } catch { /* ignore */ }
     useAuthStore.getState().clearAuth();
@@ -231,6 +235,18 @@ export default function AccountLayout({ children }: { children: React.ReactNode 
                 ✕
               </button>
             </div>
+            <Link
+              href="/"
+              onClick={() => setDrawerOpen(false)}
+              style={{
+                display: "flex", alignItems: "center", gap: "8px",
+                padding: "11px 12px", marginBottom: "14px", borderRadius: "8px",
+                background: "var(--brand-primary, #1C3557)", color: "#fff",
+                textDecoration: "none", fontSize: "14px", fontWeight: 700,
+              }}
+            >
+              🛍 {branding?.store_name ? `Visit ${branding.store_name}` : "Visit Store"} →
+            </Link>
             <NavLinks items={navItems} pathname={pathname} onClose={() => setDrawerOpen(false)} />
             <button
               onClick={() => { setDrawerOpen(false); handleSignOut(); }}
@@ -269,6 +285,17 @@ export default function AccountLayout({ children }: { children: React.ReactNode 
             top: "20px",
           }}
         >
+          <Link
+            href="/"
+            style={{
+              display: "flex", alignItems: "center", gap: "8px",
+              padding: "11px 12px", marginBottom: "16px", borderRadius: "8px",
+              background: "var(--brand-primary, #1C3557)", color: "#fff",
+              textDecoration: "none", fontSize: "13px", fontWeight: 700,
+            }}
+          >
+            🛍 {branding?.store_name ? `Visit ${branding.store_name}` : "Visit Store"} →
+          </Link>
           <h2
             style={{
               fontSize: "11px",
