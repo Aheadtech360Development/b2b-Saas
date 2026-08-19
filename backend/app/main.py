@@ -728,6 +728,52 @@ async def _seed_email_templates() -> None:
         print(f"Email template seed warning (non-fatal): {exc}")
 
 
+async def _ensure_platform_admin() -> None:
+    """On a fresh database, make sure a platform super-admin exists so someone can
+    log in. Runs only when SEED_PLATFORM_ADMIN_PASSWORD is set. Idempotent
+    (upsert by email) and non-fatal — never blocks startup."""
+    pw = os.environ.get("SEED_PLATFORM_ADMIN_PASSWORD")
+    if not pw:
+        return
+    email = os.environ.get("SEED_PLATFORM_ADMIN_EMAIL", "admin@b2bsaas.com")
+    try:
+        from sqlalchemy import text
+
+        from app.core.database import AsyncSessionLocal
+        from app.core.security import hash_password
+        from app.core.tenant_context import set_bypass_scoping
+
+        set_bypass_scoping(True)  # seed as the superuser connection, no RLS
+        hashed = hash_password(pw)
+        async with AsyncSessionLocal() as db:
+            await db.execute(
+                text(
+                    """
+                    INSERT INTO users (email, hashed_password, first_name, last_name,
+                                       role, is_platform_admin, is_admin, is_active,
+                                       email_verified, account_type, tenant_id)
+                    VALUES (:email, :pw, 'Platform', 'Admin',
+                            'platform_admin', true, true, true, true, 'wholesale', NULL)
+                    ON CONFLICT (email) DO UPDATE
+                      SET hashed_password = EXCLUDED.hashed_password,
+                          is_platform_admin = true, is_admin = true, is_active = true,
+                          email_verified = true, role = 'platform_admin'
+                    """
+                ),
+                {"email": email, "pw": hashed},
+            )
+            await db.commit()
+        print(f"Platform admin ensured: {email}")
+    except Exception as exc:  # noqa: BLE001
+        print(f"Platform admin seed skipped (non-fatal): {exc}")
+    finally:
+        try:
+            from app.core.tenant_context import set_bypass_scoping
+            set_bypass_scoping(False)
+        except Exception:  # noqa: BLE001
+            pass
+
+
 # ── App factory ───────────────────────────────────────────────────────────────
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
@@ -753,6 +799,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             print("WARNING: Redis connection failed — rate limiting and token revocation disabled")
     except Exception as exc:  # noqa: BLE001
         print(f"Startup Redis check error (non-fatal): {exc}")
+
+    await _ensure_platform_admin()
 
     yield
 
