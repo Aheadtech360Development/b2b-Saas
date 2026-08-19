@@ -71,6 +71,7 @@ export function Header() {
     pathname?.startsWith("/platform") ||
     pathname?.startsWith("/admin") ||
     pathname?.startsWith("/ui-preview") ||
+    pathname?.startsWith("/account") ||
     _authPrefixes.some((p) => pathname?.startsWith(p));
 
   useEffect(() => {
