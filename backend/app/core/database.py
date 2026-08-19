@@ -14,7 +14,13 @@ from app.core.config import settings
 # ── Engine ────────────────────────────────────────────────────────────────────
 _db_url = settings.DATABASE_URL.replace("?ssl=true", "").replace("?sslmode=require", "")
 
-_is_cloud_db = any(h in settings.DATABASE_URL for h in ["neon.tech", "amazonaws.com", "supabase", "railway.app", "render.com"])
+_is_cloud_db = any(h in settings.DATABASE_URL for h in [
+    "neon.tech", "amazonaws.com", "supabase", "render.com",
+    # Railway-managed Postgres: public TCP proxy (*.rlwy.net) and the in-project
+    # private network (*.railway.internal). Its postgres-ssl image speaks TLS, so
+    # connect with the same relaxed (self-signed-tolerant) context as the others.
+    "railway.app", "rlwy.net", "railway.internal",
+])
 
 _connect_args = {}
 if _is_cloud_db:
