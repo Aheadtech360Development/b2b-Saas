@@ -2006,7 +2006,7 @@ export default function App() {
         const list = await apiClient.get("/api/v1/admin/products");
         const arr = Array.isArray(list) ? list : (list?.items || []);
         if (alive) setProducts(arr.map((p) => ({
-          id: p.id, name: p.name, sku: p.sku || p.product_code || p.variants?.[0]?.sku || "—",
+          id: p.id, slug: p.slug, name: p.name, sku: p.sku || p.product_code || p.variants?.[0]?.sku || "—",
           price: Number(p.price ?? p.variants?.[0]?.retail_price ?? 0), compareAtPrice: null, costPerItem: 0,
           status: p.status || "active", revenue: 0, vendor: p.vendor || "", productType: p.product_type || "",
           weight: 0, trackQuantity: true, imageCount: p.images?.length ?? 0, collections: [], tags: [],
@@ -2164,14 +2164,14 @@ export default function App() {
   }
 
   else if (view === "products") {
-    if (openId === "new") content = <ProductDetail allCollections={collections.map((c) => c.name)} reviews={reviews} onBack={() => setOpenId(null)} onSave={(p) => { setProducts((ps) => [p, ...ps]); setOpenId(null); }} />;
-    else if (openId) {
-      const p = products.find((x) => x.id === openId);
-      content = <ProductDetail product={p} allCollections={collections.map((c) => c.name)} reviews={reviews} onBack={() => setOpenId(null)} onSave={(np) => { setProducts((ps) => ps.map((x) => (x.id === np.id ? np : x))); setOpenId(null); }} />;
-    } else content = <ListView title="Products" data={products} statusField="status" statusOptions={["active", "draft", "inactive"]} searchFields={["name", "sku"]}
+    // Add/Edit open the REAL product editor (which actually saves: rich text,
+    // variants, images, inventory, SEO). The prototype's local-only form was
+    // discarding everything on reload. The list itself is real data.
+    const _qs = typeof window !== "undefined" ? window.location.search : "";
+    content = <ListView title="Products" data={products} statusField="status" statusOptions={["active", "draft", "inactive"]} searchFields={["name", "sku"]}
         columns={[{ key: "name", label: "Product" }, { key: "sku", label: "SKU" }, { key: "price", label: "Price", render: (r) => `$${r.price}` }, { key: "status", label: "Status", render: (r) => <Badge status={r.status} /> }, { key: "stock", label: "Stock", render: (r) => r.variants.reduce((s, v) => s + v.stock, 0) }]}
-        onRowClick={(r) => setOpenId(r.id)} onCreate={() => setOpenId("new")} createLabel="Add product"
-        onBulkAction={(ids) => setProducts((ps) => ps.filter((p) => !ids.includes(p.id)))}
+        onRowClick={(r) => router.push(r.slug ? `/admin/products/${r.slug}/edit${_qs}` : `/admin/products${_qs}`)}
+        onCreate={() => router.push(`/admin/products/new${_qs}`)} createLabel="Add product"
       />;
   }
 
