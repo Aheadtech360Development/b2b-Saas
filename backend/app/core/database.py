@@ -24,10 +24,12 @@ _is_cloud_db = any(h in settings.DATABASE_URL for h in [
 
 _connect_args = {}
 if _is_cloud_db:
-    _ssl_ctx = ssl.create_default_context()
-    _ssl_ctx.check_hostname = False
-    _ssl_ctx.verify_mode = ssl.CERT_NONE
-    _connect_args = {"ssl": _ssl_ctx}
+    # 'prefer': negotiate TLS without certificate verification (managed Postgres
+    # uses self-signed certs) and transparently fall back to a plain connection
+    # if the server doesn't offer TLS on that interface — e.g. Railway's private
+    # network. One setting that works for Neon (TLS-required) and Railway
+    # (public *.rlwy.net proxy or private *.railway.internal) alike.
+    _connect_args = {"ssl": "prefer"}
 
 engine = create_async_engine(
     _db_url,
