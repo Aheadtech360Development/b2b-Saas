@@ -27,16 +27,23 @@ async def stripe_webhook(
     settings = get_settings()
     payload = await request.body()
 
-    # Verify Stripe signature
-    try:
-        event = stripe.Webhook.construct_event(
-            payload, stripe_signature, settings.STRIPE_WEBHOOK_SECRET
-        )
-    except stripe.SignatureVerificationError:
+    # Verify the signature against EITHER configured secret. A Stripe "Your
+    # account" destination (platform billing) and a "Connected accounts"
+    # destination (Direct charges, disputes, onboarding) each have their own
+    # signing secret, but both deliver to this one endpoint.
+    _secrets = [s for s in (settings.STRIPE_WEBHOOK_SECRET, settings.STRIPE_CONNECT_WEBHOOK_SECRET) if s]
+    event = None
+    for _secret in _secrets:
+        try:
+            event = stripe.Webhook.construct_event(payload, stripe_signature, _secret)
+            break
+        except stripe.SignatureVerificationError:
+            continue
+        except Exception as exc:
+            logger.error("Webhook parse error: %s", exc)
+            raise HTTPException(status_code=400, detail="Webhook parse error")
+    if event is None:
         raise HTTPException(status_code=400, detail="Invalid Stripe signature")
-    except Exception as exc:
-        logger.error("Webhook parse error: %s", exc)
-        raise HTTPException(status_code=400, detail="Webhook parse error")
 
     event_id = event["id"]
     event_type = event["type"]

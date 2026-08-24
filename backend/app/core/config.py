@@ -113,7 +113,8 @@ class Settings(BaseSettings):
     # ── Stripe ────────────────────────────────────────────────────────────────
     STRIPE_SECRET_KEY: str = ""
     STRIPE_PUBLISHABLE_KEY: str = ""
-    STRIPE_WEBHOOK_SECRET: str = ""
+    STRIPE_WEBHOOK_SECRET: str = ""          # "Your account" scope destination
+    STRIPE_CONNECT_WEBHOOK_SECRET: str = ""  # "Connected accounts" scope destination
 
     # ── QuickBooks ────────────────────────────────────────────────────────────
     # Master kill-switch for QuickBooks. Off by default — the QB integration is a
