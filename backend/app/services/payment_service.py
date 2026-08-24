@@ -42,6 +42,51 @@ class PaymentService:
         intent = s.PaymentIntent.create(**params)
         return intent
 
+    async def create_direct_payment_intent(
+        self,
+        amount_decimal: Decimal,
+        connected_account_id: str,
+        currency: str = "usd",
+        metadata: dict | None = None,
+    ) -> stripe.PaymentIntent:
+        """Direct charge on a brand's connected account (customer -> brand).
+
+        The `stripe_account` request option routes creation to the connected
+        account, so the charge, balance, and payout all land with the brand and
+        the brand is merchant of record (disputes/refunds are theirs). No
+        application_fee — the platform earns from subscription tiers, not sales.
+        """
+        s = _get_stripe()
+        amount_cents = int(amount_decimal * 100)
+        return s.PaymentIntent.create(
+            amount=amount_cents,
+            currency=currency,
+            payment_method_types=["card"],
+            metadata=metadata or {},
+            stripe_account=connected_account_id,
+        )
+
+    async def create_refund(
+        self,
+        payment_intent_id: str,
+        connected_account_id: str,
+        amount_decimal: Decimal | None = None,
+        reason: str | None = None,
+    ) -> stripe.Refund:
+        """Refund a Direct charge on the brand's connected account.
+
+        amount_decimal=None refunds in full. Runs on the connected account, so
+        the money comes back out of the brand's balance (they are merchant of
+        record).
+        """
+        s = _get_stripe()
+        params: dict = {"payment_intent": payment_intent_id}
+        if amount_decimal is not None:
+            params["amount"] = int(amount_decimal * 100)
+        if reason in ("duplicate", "fraudulent", "requested_by_customer"):
+            params["reason"] = reason
+        return s.Refund.create(stripe_account=connected_account_id, **params)
+
     async def retrieve_payment_intent(self, intent_id: str) -> stripe.PaymentIntent:
         s = _get_stripe()
         return s.PaymentIntent.retrieve(intent_id)

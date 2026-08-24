@@ -482,7 +482,7 @@ export default function WholesaleRegisterPage() {
                 fontSize: "15px",
                 fontWeight: 500,
                 border: "none",
-                cursor: (isSubmitting || !recaptchaToken) ? "not-allowed" : "pointer",
+                cursor: (isSubmitting || (captchaEnabled && !recaptchaToken)) ? "not-allowed" : "pointer",
                 transition: "all .2s",
                 fontFamily: "'DM Sans', sans-serif",
               }}

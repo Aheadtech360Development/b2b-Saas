@@ -34,6 +34,7 @@ interface DashboardState {
   recentApplications: Application[];
   dailyCounts: number[];
   conversionRate: number;
+  customerCount: number;
 }
 
 const STATUS_STYLE: Record<string, { bg: string; color: string }> = {
@@ -109,13 +110,6 @@ const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 export default function AdminDashboard() {
   const [state, setState] = useState<Partial<DashboardState>>({});
   const [loading, setLoading] = useState(true);
-  const [showPasswordWarning, setShowPasswordWarning] = useState(false);
-
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      setShowPasswordWarning(!localStorage.getItem("pw_warning_dismissed"));
-    }
-  }, []);
 
   useEffect(() => {
     Promise.allSettled([
@@ -125,7 +119,8 @@ export default function AdminDashboard() {
       apiClient.get("/api/v1/admin/orders?page_size=10"),
       apiClient.get("/api/v1/admin/orders?status=pending&page_size=50"),
       apiClient.get("/api/v1/admin/analytics?period=7d"),
-    ]).then(([salesRes, appsRes, stockRes, ordersRes, pendingRes, analyticsRes]) => {
+      apiClient.get("/api/v1/admin/companies?page_size=1"),
+    ]).then(([salesRes, appsRes, stockRes, ordersRes, pendingRes, analyticsRes, customersRes]) => {
       const s: Partial<DashboardState> = {};
 
       if (salesRes.status === "fulfilled") {
@@ -186,6 +181,11 @@ export default function AdminDashboard() {
         s.conversionRate = (analyticsRes.value as any)?.overview?.conversion_rate ?? 0;
       }
 
+      if (customersRes.status === "fulfilled") {
+        const v = customersRes.value as any;
+        s.customerCount = v?.total ?? (Array.isArray(v?.items) ? v.items.length : (Array.isArray(v) ? v.length : 0));
+      }
+
       setState(s);
     }).finally(() => setLoading(false));
   }, []);
@@ -223,22 +223,18 @@ export default function AdminDashboard() {
   const dailyCounts = state.dailyCounts ?? [0, 0, 0, 0, 0, 0, 0];
 
   const statCards = [
-    { label: "Sessions", value: "1,247", change: "+12%", up: true, sub: "past 7 days" },
+    { label: "Customers", value: String(state.customerCount ?? 0), sub: "active accounts" },
     {
       label: "Total Sales",
       value: `$${(state.totalRevenue ?? 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}`,
-      change: "+24%",
-      up: true,
       sub: `${state.totalOrders ?? 0} orders`,
     },
     {
       label: "Orders",
       value: String(state.totalOrders ?? 0),
-      change: "-3%",
-      up: false,
       sub: `avg $${(state.avgOrderValue ?? 0).toFixed(0)}`,
     },
-    { label: "Conversion Rate", value: `${(state.conversionRate ?? 0).toFixed(1)}%`, change: "", up: true, sub: "paid / total orders" },
+    { label: "Conversion Rate", value: `${(state.conversionRate ?? 0).toFixed(1)}%`, sub: "paid / total orders" },
   ];
 
   return (
@@ -249,48 +245,14 @@ export default function AdminDashboard() {
         <p style={{ fontSize: "13px", color: "#7A7880", marginTop: "4px" }}>Last 7 days overview</p>
       </div>
 
-      {/* Security warning banner */}
-      {showPasswordWarning && (
-        <div style={{ background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: "8px", padding: "12px 16px", marginBottom: "20px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px" }}>
-          <div style={{ fontSize: "13px", color: "#991B1B" }}>
-            <strong>⚠️ Security Alert:</strong>
-            <span style={{ marginLeft: "8px" }}>
-              Your admin password was found in a public data breach. Please change it in{" "}
-              <a href="/admin/settings" style={{ color: "#DC2626", fontWeight: 700 }}>Settings</a>{" "}
-              immediately.
-            </span>
-          </div>
-          <button
-            onClick={() => {
-              localStorage.setItem("pw_warning_dismissed", "1");
-              setShowPasswordWarning(false);
-            }}
-            style={{ background: "none", border: "none", cursor: "pointer", fontSize: "18px", color: "#F87171", flexShrink: 0, lineHeight: 1 }}
-          >
-            ×
-          </button>
-        </div>
-      )}
-
       {/* Stat Cards */}
       <div className="admin-dash-stat-grid" style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: "16px", marginBottom: "24px" }}>
         {statCards.map(stat => (
           <div key={stat.label} style={{ background: "#fff", border: "1px solid #E2E0DA", borderRadius: "10px", padding: "20px 24px" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-              <div>
-                <div style={{ fontSize: "13px", color: "#7A7880", marginBottom: "6px" }}>{stat.label}</div>
-                <div style={{ fontFamily: "var(--font-bebas)", fontSize: "32px", color: "#2A2830", lineHeight: 1 }}>{stat.value}</div>
-                <div style={{ fontSize: "11px", color: "#aaa", marginTop: "4px" }}>{stat.sub}</div>
-              </div>
-              {stat.change && (
-                <span style={{
-                  background: stat.up ? "rgba(5,150,105,.1)" : "rgba(232,36,42,.1)",
-                  color: stat.up ? "#059669" : "#E8242A",
-                  padding: "4px 10px", borderRadius: "20px", fontSize: "12px", fontWeight: 700,
-                }}>
-                  {stat.up ? "↑" : "↓"} {stat.change}
-                </span>
-              )}
+            <div>
+              <div style={{ fontSize: "13px", color: "#7A7880", marginBottom: "6px" }}>{stat.label}</div>
+              <div style={{ fontFamily: "var(--font-bebas)", fontSize: "32px", color: "#2A2830", lineHeight: 1 }}>{stat.value}</div>
+              <div style={{ fontSize: "11px", color: "#aaa", marginTop: "4px" }}>{stat.sub}</div>
             </div>
           </div>
         ))}

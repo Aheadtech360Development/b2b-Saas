@@ -120,6 +120,24 @@ class TenantAuthService:
         _scopes, _read_only = await _resolve_custom_scopes(self.db, row)
         claims = _build_claims(row, _scopes, _read_only)
 
+        # Resolve the buyer's company membership so checkout (which needs
+        # company_id + account_type) works. Bypass RLS — a user resolving their
+        # own membership at login carries no tenant scope yet.
+        claims["account_type"] = row.get("account_type") or "wholesale"
+        await self.db.execute(text("SELECT set_config('app.bypass_rls', 'on', true)"))
+        _mem = (await self.db.execute(text("""
+            SELECT cu.company_id, cu.role AS cu_role, c.pricing_tier_id
+            FROM company_users cu
+            JOIN companies c ON c.id = cu.company_id
+            WHERE cu.user_id = :uid AND cu.is_active = true
+            LIMIT 1
+        """), {"uid": user_id})).mappings().first()
+        if _mem:
+            claims["company_id"] = str(_mem["company_id"])
+            claims["company_role"] = _mem["cu_role"]
+            if _mem["pricing_tier_id"]:
+                claims["pricing_tier_id"] = str(_mem["pricing_tier_id"])
+
         access_token = create_access_token(subject=user_id, extra_claims=claims)
         refresh_token = create_refresh_token(subject=user_id)
 

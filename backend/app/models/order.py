@@ -3,7 +3,7 @@ import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING, Optional
 
-from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, Integer, Numeric, String, Text
+from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -17,8 +17,11 @@ if TYPE_CHECKING:
 
 class Order(TenantMixin, BaseModel):
     __tablename__ = "orders"
+    # order_number is unique PER TENANT (each brand numbers from #1001), not
+    # globally — see migration 0027_order_number_per_tenant.
+    __table_args__ = (UniqueConstraint("tenant_id", "order_number", name="uq_orders_tenant_order_number"),)
 
-    order_number: Mapped[str] = mapped_column(String(50), unique=True, nullable=False, index=True)
+    order_number: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
     company_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("companies.id", ondelete="RESTRICT"),
         nullable=True, index=True

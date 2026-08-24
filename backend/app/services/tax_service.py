@@ -5,7 +5,7 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
-ZIPTAX_BASE_URL = "https://api.zip-tax.com/request/v40"
+ZIPTAX_BASE_URL = "https://api.zip-tax.com/request/v60"
 
 
 def get_ziptax_client() -> str | None:
@@ -38,7 +38,8 @@ async def calculate_tax(
         async with httpx.AsyncClient(timeout=5.0) as client:
             response = await client.get(
                 ZIPTAX_BASE_URL,
-                params={"key": api_key, "postalcode": clean_zip},
+                params={"postalcode": clean_zip},
+                headers={"X-API-KEY": api_key},
             )
             logger.info("ZipTax HTTP status: %s", response.status_code)
             response.raise_for_status()

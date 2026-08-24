@@ -448,136 +448,49 @@ export default function CheckoutPaymentPage() {
             {/* ── Card payment section (when card type selected) ── */}
             {paymentType === "card" && (
               <div style={{ marginBottom: "32px" }}>
-                {!isGuest && <div style={sectionLabelStyle}>Card Details</div>}
-
-                {savedCards.length > 0 && !isGuest && (
-                  <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginBottom: showNewCardForm ? "16px" : "0" }}>
-                    {savedCards.map(card => {
-                      const isSelected = selectedCardId === card.id && !showNewCardForm;
-                      return (
-                        <label
-                          key={card.id}
-                          onClick={() => { setSelectedCardId(card.id); setShowNewCardForm(false); }}
-                          style={{
-                            display: "flex", alignItems: "center", gap: "14px",
-                            padding: "14px 18px",
-                            border: `1px solid ${isSelected ? "var(--brand-primary, #1C3557)" : "#E2E2DE"}`,
-                            background: isSelected ? "rgba(28,53,87,.04)" : "#FAFAF8",
-                            cursor: "pointer", transition: "all .15s",
-                          }}
-                        >
-                          {/* Radio */}
-                          <div style={{
-                            width: "18px", height: "18px", borderRadius: "50%", flexShrink: 0,
-                            border: `2px solid ${isSelected ? "var(--brand-primary, #1C3557)" : "#E2E2DE"}`,
-                            background: isSelected ? "var(--brand-primary, #1C3557)" : "#fff",
-                            display: "flex", alignItems: "center", justifyContent: "center",
-                          }}>
-                            {isSelected && <div style={{ width: "6px", height: "6px", borderRadius: "50%", background: "#fff" }} />}
-                          </div>
-                          {/* Card icon */}
-                          <svg width="32" height="22" viewBox="0 0 32 22" fill="none" style={{ flexShrink: 0 }}>
-                            <rect width="32" height="22" rx="3" fill="#F4F3EF" stroke="#E2E2DE" />
-                            <rect x="4" y="8" width="10" height="6" rx="1.5" fill="#E2E2DE" />
-                            <rect x="4" y="16" width="5" height="2" rx="0.5" fill="#E2E2DE" />
-                            <rect x="11" y="16" width="5" height="2" rx="0.5" fill="#E2E2DE" />
-                          </svg>
-                          {/* Card info */}
-                          <div style={{ flex: 1 }}>
-                            <div style={{ fontSize: "13px", fontWeight: 700, color: "#1A1A1A" }}>
-                              {brandDisplayName(card.brand)} •••• {card.last4}
-                              {card.is_default && (
-                                <span style={{ marginLeft: "8px", fontSize: "10px", background: "rgba(28,53,87,.1)", color: "var(--brand-primary, #1C3557)", padding: "2px 7px", fontWeight: 700 }}>
-                                  Default
-                                </span>
-                              )}
-                            </div>
-                            <div style={{ fontSize: "11px", color: "#6B6B6B", marginTop: "2px" }}>
-                              Expires {card.exp_month}/{card.exp_year}
-                            </div>
-                          </div>
-                        </label>
-                      );
-                    })}
-
-                    {/* Use new card option */}
-                    <label
-                      onClick={() => { setShowNewCardForm(true); setSelectedCardId(null); }}
-                      style={{
-                        display: "flex", alignItems: "center", gap: "14px",
-                        padding: "12px 18px",
-                        border: `1px solid ${showNewCardForm ? "var(--brand-primary, #1C3557)" : "#E2E2DE"}`,
-                        background: showNewCardForm ? "rgba(28,53,87,.04)" : "#FAFAF8",
-                        cursor: "pointer", fontSize: "13px", fontWeight: 600, color: "#1A1A1A",
-                        transition: "all .15s",
-                      }}
-                    >
-                      <div style={{
-                        width: "18px", height: "18px", borderRadius: "50%", flexShrink: 0,
-                        border: `2px solid ${showNewCardForm ? "var(--brand-primary, #1C3557)" : "#E2E2DE"}`,
-                        background: showNewCardForm ? "var(--brand-primary, #1C3557)" : "#fff",
-                        display: "flex", alignItems: "center", justifyContent: "center",
-                      }}>
-                        {showNewCardForm && <div style={{ width: "6px", height: "6px", borderRadius: "50%", background: "#fff" }} />}
-                      </div>
-                      + Use a new card
-                    </label>
+                {!isGuest && <div style={sectionLabelStyle}>Card Payment</div>}
+                <div style={{ display: "flex", gap: "12px", alignItems: "flex-start", padding: "14px 18px", border: "1px solid #E2E2DE", background: "#FAFAF8", marginBottom: "16px" }}>
+                  <svg width="32" height="22" viewBox="0 0 32 22" fill="none" style={{ flexShrink: 0, marginTop: "2px" }}>
+                    <rect width="32" height="22" rx="3" fill="#F4F3EF" stroke="#E2E2DE" />
+                    <rect x="4" y="8" width="10" height="6" rx="1.5" fill="#E2E2DE" />
+                    <rect x="4" y="16" width="5" height="2" rx="0.5" fill="#E2E2DE" />
+                    <rect x="11" y="16" width="5" height="2" rx="0.5" fill="#E2E2DE" />
+                  </svg>
+                  <div>
+                    <div style={{ fontSize: "13px", fontWeight: 700, color: "#1A1A1A" }}>Pay securely by card</div>
+                    <div style={{ fontSize: "12px", color: "#6B6B6B", marginTop: "3px", lineHeight: 1.5 }}>
+                      Enter your card on the next step — processed securely by Stripe. Visa, Mastercard, Amex, Discover.
+                    </div>
                   </div>
-                )}
-
-                {/* New card form */}
-                {showNewCardForm && (
-                  <div style={{ borderTop: savedCards.length > 0 ? "1px solid #E2E2DE" : "none", paddingTop: savedCards.length > 0 ? "16px" : "0" }}>
-                    <QBPaymentForm
-                      onToken={handleNewCardToken}
-                      onBack={
-                        savedCards.length > 0
-                          ? () => { setShowNewCardForm(false); setSelectedCardId(savedCards.find(c => c.is_default)?.id ?? savedCards[0]?.id ?? null); }
-                          : () => router.push("/checkout/address")
-                      }
-                    />
-                  </div>
-                )}
-
-                {/* Continue to Review (saved card) */}
-                {!showNewCardForm && selectedCardId && (
-                  <div style={{ display: "flex", gap: "16px", alignItems: "center", marginTop: "16px" }}>
-                    <a
-                      href="/checkout/address"
-                      style={{ display: "inline-block", fontSize: "13px", color: "#6B6B6B", textDecoration: "none", fontFamily: "'DM Sans', sans-serif" }}
-                      onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.color = "var(--brand-primary, #1C3557)"; }}
-                      onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.color = "#6B6B6B"; }}
-                    >
-                      ← Back to Shipping
-                    </a>
-                    <button
-                      type="button"
-                      onClick={handleContinueWithSavedCard}
-                      style={{
-                        flex: 1, padding: "14px", background: "var(--brand-primary, #1C3557)",
-                        color: "#fff", border: "none",
-                        fontFamily: "'DM Sans', sans-serif", fontSize: "15px", fontWeight: 500,
-                        cursor: "pointer", transition: "opacity .15s",
-                      }}
-                      onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.opacity = "0.88"; }}
-                      onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.opacity = "1"; }}
-                    >
-                      Continue to Review →
-                    </button>
-                  </div>
-                )}
-
-                {/* Back button when new card form shown and no saved cards */}
-                {showNewCardForm && savedCards.length === 0 && (
+                </div>
+                <div style={{ display: "flex", gap: "16px", alignItems: "center" }}>
                   <a
                     href="/checkout/address"
-                    style={{ display: "inline-block", marginTop: "10px", fontSize: "13px", color: "#6B6B6B", textDecoration: "none", fontFamily: "'DM Sans', sans-serif" }}
+                    style={{ display: "inline-block", fontSize: "13px", color: "#6B6B6B", textDecoration: "none", fontFamily: "'DM Sans', sans-serif" }}
                     onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.color = "var(--brand-primary, #1C3557)"; }}
                     onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.color = "#6B6B6B"; }}
                   >
                     ← Back to Shipping
                   </a>
-                )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPaymentMethod("card");
+                      setConvenienceFee(convenienceFee);
+                      router.push("/checkout/review");
+                    }}
+                    style={{
+                      flex: 1, padding: "14px", background: "var(--brand-primary, #1C3557)",
+                      color: "#fff", border: "none",
+                      fontFamily: "'DM Sans', sans-serif", fontSize: "15px", fontWeight: 500,
+                      cursor: "pointer", transition: "opacity .15s",
+                    }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.opacity = "0.88"; }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.opacity = "1"; }}
+                  >
+                    Continue to Review →
+                  </button>
+                </div>
               </div>
             )}
           </div>

@@ -313,7 +313,7 @@ export default function LoginPage() {
                   fontSize: "14px",
                   fontWeight: 500,
                   border: "none",
-                  cursor: (isSubmitting || !recaptchaToken) ? "not-allowed" : "pointer",
+                  cursor: (isSubmitting || (!!process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY && !recaptchaToken)) ? "not-allowed" : "pointer",
                   transition: "background .2s",
                   fontFamily: "'DM Sans', sans-serif",
                   marginTop: "8px",

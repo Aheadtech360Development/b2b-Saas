@@ -43,7 +43,7 @@ export function AdminSidebar() {
   const isOrdersActive = pathname.startsWith("/admin/orders") || pathname === "/admin/abandoned-carts" || pathname.startsWith("/admin/purchase-orders");
   const isProductsActive = pathname.startsWith("/admin/products") || pathname.startsWith("/admin/inventory");
   const isCustomersActive = pathname.startsWith("/admin/customers");
-  const isSettingsActive = pathname.startsWith("/admin/settings") || pathname.startsWith("/admin/users") || pathname === "/admin/analytics";
+  const isSettingsActive = pathname.startsWith("/admin/settings") || pathname.startsWith("/admin/users") || pathname === "/admin/analytics" || pathname.startsWith("/admin/billing");
   const isContentActive = pathname.startsWith("/admin/style-sheets") || pathname.startsWith("/admin/product-specs") || pathname.startsWith("/admin/pages") || pathname.startsWith("/admin/blogs");
   const [ordersOpen, setOrdersOpen] = useState(isOrdersActive);
   const [productsOpen, setProductsOpen] = useState(isProductsActive);
@@ -308,6 +308,7 @@ export function AdminSidebar() {
 
       {settingsOpen && (
         <div style={{ paddingLeft: "18px", marginTop: "3px", marginBottom: "3px" }}>
+          {can("settings") && <SubLink href="/admin/billing" label="Billing & Payouts" />}
           {can("settings") && <SubLink href="/admin/settings/taxes" label="Taxes & Duties" />}
           {can("analytics") && <SubLink href="/admin/analytics" label="Analytics" />}
           {can("staff") && <SubLink href="/admin/users" label="Users" />}

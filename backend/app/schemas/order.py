@@ -43,6 +43,17 @@ class AddressOut(BaseModel):
 
 class CreatePaymentIntentRequest(BaseModel):
     cart_validated: bool = True  # client confirms cart is valid
+    # Total-affecting fields — MUST mirror what the client sends to /checkout/confirm
+    # so the PaymentIntent amount equals the final order total (no over/under-charge).
+    shipping_method: str | None = None
+    shipping_cost: Decimal | None = None
+    tax_amount: Decimal | None = None
+    discount_code: str | None = None
+    payment_method: str | None = None  # "card" for the Stripe flow
+    # Ship-to for backend tax calc — the server computes tax itself (never trusts
+    # the client's tax_amount), so tax is always correct + can't be manipulated.
+    to_state: str | None = None
+    to_zip: str | None = None
 
 
 class CheckoutConfirmRequest(BaseModel):

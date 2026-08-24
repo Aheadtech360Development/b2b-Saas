@@ -10,6 +10,9 @@ from app.core.config import get_settings
 from app.core.database import get_db
 from app.models.order import Order
 from app.models.system import WebhookLog
+from app.services.billing_service import BillingService
+from app.services.connect_service import ConnectService
+from app.services.dispute_service import DisputeService
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/webhooks", tags=["webhooks"])
@@ -45,24 +48,54 @@ async def stripe_webhook(
     if existing.scalar_one_or_none():
         return {"status": "already_processed"}
 
-    # Log event
+    # Log event. provider + payload are NOT NULL; status is an enum
+    # (received | processed | failed) — do not use other literals.
     log_entry = WebhookLog(
         event_id=event_id,
+        provider="stripe",
         event_type=event_type,
-        status="processing",
+        payload=payload.decode("utf-8", "replace"),
+        status="received",
     )
     db.add(log_entry)
     await db.flush()
 
     try:
+        obj = event["data"]["object"]
+        # ── Customer order payments ──
         if event_type == "payment_intent.succeeded":
-            await _handle_payment_succeeded(db, event["data"]["object"])
+            await _handle_payment_succeeded(db, obj)
         elif event_type == "payment_intent.payment_failed":
-            await _handle_payment_failed(db, event["data"]["object"])
+            await _handle_payment_failed(db, obj)
         elif event_type == "charge.refunded":
-            await _handle_charge_refunded(db, event["data"]["object"])
+            await _handle_charge_refunded(db, obj)
+        # ── Brand billing (System A — Stripe Subscriptions) ──
+        elif event_type == "checkout.session.completed":
+            await _handle_checkout_completed(db, obj)
+        elif event_type in (
+            "customer.subscription.created",
+            "customer.subscription.updated",
+            "customer.subscription.deleted",
+        ):
+            await BillingService(db).sync_subscription(obj)
+        elif event_type == "invoice.payment_failed":
+            sub_id = obj.get("subscription")
+            if sub_id:
+                await BillingService(db).mark_past_due(sub_id)
+        # ── Connect onboarding (System B) ──
+        elif event_type == "account.updated":
+            await ConnectService(db).sync_account(obj)
+        # ── Disputes / chargebacks on Direct charges (System B) ──
+        elif event_type in (
+            "charge.dispute.created",
+            "charge.dispute.updated",
+            "charge.dispute.closed",
+            "charge.dispute.funds_withdrawn",
+            "charge.dispute.funds_reinstated",
+        ):
+            await DisputeService(db).record_dispute(obj)
 
-        log_entry.status = "completed"
+        log_entry.status = "processed"
         await db.commit()
 
     except Exception as exc:
@@ -118,3 +151,19 @@ async def _handle_charge_refunded(db: AsyncSession, charge: dict) -> None:
             .where(Order.stripe_payment_intent_id == intent_id)
             .values(payment_status="refunded", status="refunded")
         )
+
+
+async def _handle_checkout_completed(db: AsyncSession, session: dict) -> None:
+    """Brand finished a subscription Checkout — pull the subscription and sync.
+
+    A customer.subscription.created event usually follows and would sync too;
+    doing it here as well makes activation immediate and is idempotent.
+    """
+    if session.get("mode") != "subscription":
+        return
+    sub_id = session.get("subscription")
+    if not sub_id:
+        return
+    stripe.api_key = get_settings().STRIPE_SECRET_KEY
+    subscription = stripe.Subscription.retrieve(sub_id)
+    await BillingService(db).sync_subscription(subscription)

@@ -96,10 +96,12 @@ async def create_tenant(
         VALUES (:tid, :name)
     """), {"tid": str(tenant_id), "name": data.name})
 
-    # Subscription record
+    # Subscription record — starts 'inactive' until the brand actually pays via
+    # Stripe (a webhook/sync flips it to 'active'). Seeding 'active' would let a
+    # brand appear paid-up without a real subscription.
     await db.execute(text("""
         INSERT INTO tenant_subscriptions (tenant_id, plan, status)
-        VALUES (:tid, :plan, 'active')
+        VALUES (:tid, :plan, 'inactive')
     """), {"tid": str(tenant_id), "plan": data.plan})
 
     # Default feature flags

@@ -10,6 +10,7 @@ import { cartService } from "@/services/cart.service";
 import { ordersService } from "@/services/orders.service";
 import { apiClient } from "@/lib/api-client";
 import { formatCurrency } from "@/lib/utils";
+import { StripePaymentForm } from "@/components/checkout/StripePaymentForm";
 import type { Cart } from "@/types/order.types";
 
 type GuestCartEntry = { variant_id: string; quantity: number; product_id: string; product_name: string; slug: string; color: string | null; size: string | null; unit_price: number; image_url?: string | null };
@@ -105,7 +106,11 @@ export default function CheckoutReviewPage() {
   useEffect(() => {
     if (!shippingAddress) {
       router.replace("/checkout/address");
-    } else if (!savedCardId && !qbToken && paymentMethod !== "ach" && paymentMethod !== "net_30") {
+    } else if (
+      paymentMethod !== "card" && paymentMethod !== "ach" && paymentMethod !== "net_30" &&
+      !savedCardId && !qbToken
+    ) {
+      // Stripe card is entered here on the review step, so "card" needs no token yet.
       router.replace("/checkout/payment");
     }
   }, [shippingAddress, savedCardId, qbToken, paymentMethod, router]);
@@ -174,7 +179,7 @@ export default function CheckoutReviewPage() {
       .join(", ");
   }
 
-  async function handlePlaceOrder() {
+  async function handlePlaceOrder(stripePaymentIntentId?: string) {
     if (!shippingAddress) return;
     setIsPlacing(true);
     setError(null);
@@ -208,7 +213,7 @@ export default function CheckoutReviewPage() {
           },
           shipping_method: shippingMethod || "standard",
           payment_method: paymentMethod,
-          qb_token: paymentMethod === "card" ? qbToken : undefined,
+          payment_intent_id: paymentMethod === "card" ? stripePaymentIntentId : undefined,
           ach_bank_name: paymentMethod === "ach" ? achBankName : undefined,
           ach_account_holder: paymentMethod === "ach" ? achAccountHolder : undefined,
           ach_routing_number: paymentMethod === "ach" ? achRoutingNumber : undefined,
@@ -309,8 +314,7 @@ export default function CheckoutReviewPage() {
           : {
               ...basePayload,
               payment_method: "card",
-              qb_token: qbToken ?? undefined,
-              saved_card_id: savedCardId ?? undefined,
+              payment_intent_id: stripePaymentIntentId,
             }
       );
 
@@ -538,33 +542,64 @@ export default function CheckoutReviewPage() {
             )}
 
             {/* ── Place Order ── */}
-            <div style={{ display: "flex", gap: "16px", alignItems: "center" }}>
-              <a
-                href="/checkout/payment"
-                style={{ display: "inline-block", fontSize: "13px", color: "#6B6B6B", textDecoration: "none", fontFamily: "'DM Sans', sans-serif" }}
-                onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.color = "var(--brand-primary, #1C3557)"; }}
-                onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.color = "#6B6B6B"; }}
-              >
-                ← Back to Payment
-              </a>
-              <button
-                type="button"
-                onClick={handlePlaceOrder}
-                disabled={isPlacing}
-                style={{
-                  flex: 1, padding: "14px",
-                  background: isPlacing ? "#E2E2DE" : "var(--brand-primary, #1C3557)",
-                  color: isPlacing ? "#aaa" : "#fff",
-                  border: "none",
-                  fontFamily: "'DM Sans', sans-serif", fontSize: "15px", fontWeight: 500,
-                  cursor: isPlacing ? "not-allowed" : "pointer", transition: "opacity .15s",
-                }}
-                onMouseEnter={e => { if (!isPlacing) (e.currentTarget as HTMLButtonElement).style.opacity = "0.88"; }}
-                onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.opacity = "1"; }}
-              >
-                {isPlacing ? "Placing Order…" : "Place Order"}
-              </button>
-            </div>
+            {paymentMethod === "card" ? (
+              // Stripe card entry + payment. On success the confirmed PaymentIntent
+              // id is handed to order creation. Money settles on the brand's account.
+              <div>
+                <div style={sectionLabelStyle}>Card Details</div>
+                {isPlacing ? (
+                  <div style={{ padding: "16px", color: "#6B6B6B", fontSize: "13px" }}>Placing your order…</div>
+                ) : (
+                  <StripePaymentForm
+                    intentPayload={{
+                      shipping_method: shippingMethod || "standard",
+                      shipping_cost: shippingCost > 0 ? shippingCost : undefined,
+                      discount_code: appliedCoupon?.code || undefined,
+                      payment_method: "card",
+                      // Ship-to → the backend computes tax itself (authoritative).
+                      to_state: shippingAddress?.state || undefined,
+                      to_zip: shippingAddress?.postal_code || undefined,
+                    }}
+                    onPaid={(pi) => handlePlaceOrder(pi)}
+                    buttonLabel={`Pay ${formatCurrency(total)} & Place Order`}
+                  />
+                )}
+                <a
+                  href="/checkout/payment"
+                  style={{ display: "inline-block", marginTop: "14px", fontSize: "13px", color: "#6B6B6B", textDecoration: "none", fontFamily: "'DM Sans', sans-serif" }}
+                >
+                  ← Back to Payment
+                </a>
+              </div>
+            ) : (
+              <div style={{ display: "flex", gap: "16px", alignItems: "center" }}>
+                <a
+                  href="/checkout/payment"
+                  style={{ display: "inline-block", fontSize: "13px", color: "#6B6B6B", textDecoration: "none", fontFamily: "'DM Sans', sans-serif" }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.color = "var(--brand-primary, #1C3557)"; }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.color = "#6B6B6B"; }}
+                >
+                  ← Back to Payment
+                </a>
+                <button
+                  type="button"
+                  onClick={() => handlePlaceOrder()}
+                  disabled={isPlacing}
+                  style={{
+                    flex: 1, padding: "14px",
+                    background: isPlacing ? "#E2E2DE" : "var(--brand-primary, #1C3557)",
+                    color: isPlacing ? "#aaa" : "#fff",
+                    border: "none",
+                    fontFamily: "'DM Sans', sans-serif", fontSize: "15px", fontWeight: 500,
+                    cursor: isPlacing ? "not-allowed" : "pointer", transition: "opacity .15s",
+                  }}
+                  onMouseEnter={e => { if (!isPlacing) (e.currentTarget as HTMLButtonElement).style.opacity = "0.88"; }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.opacity = "1"; }}
+                >
+                  {isPlacing ? "Placing Order…" : "Place Order"}
+                </button>
+              </div>
+            )}
 
             <p style={{ textAlign: "center", fontSize: "12px", color: "#6B6B6B", marginTop: "12px", fontFamily: "'DM Sans', sans-serif" }}>
               By placing your order you agree to our Terms of Service and wholesale pricing agreement.

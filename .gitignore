@@ -59,6 +59,10 @@ pnpm-debug.log*
 .env.production.local
 .env.staging
 .env.production
+# Never commit env backups (they hold real secrets)
+.env.*-backup
+*.railway-backup
+.env.railway-backup
 # Keep .env.example in version control
 
 # ─── Database / migration artefacts ──────────────────────────────────────────

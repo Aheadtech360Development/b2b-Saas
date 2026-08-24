@@ -1152,6 +1152,90 @@ async def cancel_admin_order(
     return {"message": "Order cancelled"}
 
 
+class RefundOrderRequest(BaseModel):
+    amount: float | None = None   # None = full refund
+    reason: str | None = None     # duplicate | fraudulent | requested_by_customer
+
+
+@router.post("/orders/{order_id}/refund", response_model=dict)
+async def refund_admin_order(
+    order_id: UUID,
+    payload: RefundOrderRequest,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """Refund a Stripe Direct-charge order on the brand's connected account.
+
+    The order must have been paid by card via Stripe (has stripe_payment_intent_id);
+    QB Payments / Net-30 orders are refunded through their original rails, not here.
+    Order is tenant-scoped, so an admin can only refund their own brand's orders.
+    """
+    from decimal import Decimal
+    from app.services.connect_service import ConnectService
+    from app.services.payment_service import PaymentService
+
+    order = (await db.execute(select(Order).where(Order.id == order_id))).scalar_one_or_none()
+    if not order:
+        raise NotFoundError(f"Order {order_id} not found")
+    if not order.stripe_payment_intent_id:
+        raise HTTPException(
+            status_code=400,
+            detail="This order was not paid by card via Stripe; refund it through the original payment method.",
+        )
+    if order.payment_status != "paid":
+        raise HTTPException(
+            status_code=400,
+            detail=f"Order is not refundable (payment status: {order.payment_status}).",
+        )
+
+    tenant_id = getattr(request.state, "tenant_id", None)
+    connect = await ConnectService(db).get_status(str(tenant_id))
+    if not connect.get("account_id"):
+        raise HTTPException(status_code=400, detail="This store has no connected Stripe account.")
+
+    amount_dec = None
+    if payload.amount is not None:
+        amount_dec = Decimal(str(payload.amount))
+        if amount_dec <= 0 or amount_dec > Decimal(str(order.total)):
+            raise HTTPException(status_code=400, detail="Refund amount must be > 0 and <= order total.")
+
+    try:
+        refund = await PaymentService(db).create_refund(
+            payment_intent_id=order.stripe_payment_intent_id,
+            connected_account_id=connect["account_id"],
+            amount_decimal=amount_dec,
+            reason=payload.reason,
+        )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("Stripe refund failed for order %s: %s", order_id, exc)
+        raise HTTPException(status_code=502, detail=f"Refund failed at Stripe: {exc}")
+
+    # Full refund flips status; partial keeps 'paid' (the enum has no partial state).
+    is_full = amount_dec is None or amount_dec >= Decimal(str(order.total))
+    if is_full:
+        order.payment_status = "refunded"
+    await db.commit()
+
+    return {
+        "message": "Refund issued" if is_full else "Partial refund issued",
+        "refund_id": refund.id,
+        "amount": float(amount_dec) if amount_dec is not None else float(order.total),
+        "payment_status": order.payment_status,
+    }
+
+
+@router.get("/disputes")
+async def list_admin_disputes(request: Request, db: AsyncSession = Depends(get_db)) -> list[dict]:
+    """Chargebacks/disputes on this brand's Direct-charge orders. Tenant-scoped."""
+    from app.services.dispute_service import DisputeService
+    tenant_id = getattr(request.state, "tenant_id", None)
+    if not tenant_id:
+        return []
+    return await DisputeService(db).list_for_tenant(str(tenant_id))
+
+
 @router.post("/orders/{order_id}/resend-invoice", response_model=dict)
 async def resend_invoice_email(order_id: UUID, db: AsyncSession = Depends(get_db)):
     """Generate and email the invoice PDF to the customer (or admin in dev)."""

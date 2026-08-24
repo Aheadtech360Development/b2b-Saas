@@ -79,6 +79,8 @@ _PATH_SCOPES: list[tuple[str, str]] = [
     ("/api/v1/admin/users", "staff"),
     ("/api/v1/admin/roles", "staff"),
     ("/api/v1/admin/settings", "settings"),
+    ("/api/v1/admin/connect", "settings"),
+    ("/api/v1/admin/billing", "settings"),
     ("/api/v1/admin/email-templates", "settings"),
     ("/api/v1/admin/quickbooks", "settings"),
     ("/api/v1/admin/taxes", "settings"),

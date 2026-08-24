@@ -84,23 +84,31 @@ async def calculate_tax(
     else:
         logger.info("Tax: skipping ZipTax — clean_zip=%r empty or taxable_subtotal=0", clean_zip)
 
-    # Fallback: manual tax_rates table
-    from app.api.v1.admin.taxes import TaxRate
-    r = (await db.execute(
-        select(TaxRate).where(TaxRate.region == state, TaxRate.is_enabled == True)  # noqa: E712
-    )).scalar_one_or_none()
-
-    if r:
-        rate = float(r.rate)
-        tax_amount = round(taxable_subtotal * rate / 100, 2)
-        logger.info("Tax: manual table match for %s → rate=%.4f%% amount=$%.2f", state, rate, tax_amount)
-        return {
-            "tax_rate": rate,
-            "tax_amount": tax_amount,
-            "region": r.region,
-            "taxable": tax_amount > 0,
-            "source": "manual",
-        }
+    # Fallback: manual tax_rates table (optional — never let it break checkout).
+    try:
+        from app.api.v1.admin.taxes import TaxRate
+        r = (await db.execute(
+            select(TaxRate).where(TaxRate.region == state, TaxRate.is_enabled == True)  # noqa: E712
+        )).scalar_one_or_none()
+        if r:
+            rate = float(r.rate)
+            tax_amount = round(taxable_subtotal * rate / 100, 2)
+            logger.info("Tax: manual table match for %s → rate=%.4f%% amount=$%.2f", state, rate, tax_amount)
+            return {
+                "tax_rate": rate,
+                "tax_amount": tax_amount,
+                "region": r.region,
+                "taxable": tax_amount > 0,
+                "source": "manual",
+            }
+    except Exception as exc:
+        # Table missing / query failed — roll back the aborted tx and fall through
+        # to a 0% result so tax never crashes the checkout flow.
+        logger.warning("Tax: manual tax_rates fallback unavailable (%s) — returning 0", exc)
+        try:
+            await db.rollback()
+        except Exception:
+            pass
 
     logger.info("Tax: no manual rate found for %s → returning 0", state)
     return {"tax_rate": 0.0, "tax_amount": 0.0, "region": state, "taxable": False, "source": "none"}
