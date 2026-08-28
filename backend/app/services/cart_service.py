@@ -604,12 +604,11 @@ class CartService:
                         # Fallback: use standard_shipping platform setting for untiered users
                         try:
                             import json as _json
-                            from app.models.system import Settings as _PlatformSettings
-                            std_row = (await self.db.execute(
-                                select(_PlatformSettings).where(_PlatformSettings.key == "standard_shipping")
-                            )).scalar_one_or_none()
-                            if std_row and std_row.value:
-                                cfg = _json.loads(std_row.value)
+                            from app.core.tenant_settings import get_setting as _get_setting
+                            # Per-brand shipping config (falls back to global default).
+                            std_value = await _get_setting(self.db, "standard_shipping")
+                            if std_value:
+                                cfg = _json.loads(std_value)
                                 if cfg.get("shipping_type") == "flat_rate" and cfg.get("brackets"):
                                     brackets_json = _json.dumps(cfg["brackets"])
                                     estimated_shipping = svc.calculate_dg_shipping_cost(

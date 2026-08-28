@@ -10,6 +10,7 @@ import {
   type MarkupRuleCreate,
   type SyncStatus,
   type ProductsFilter,
+  type SSStyleSearchItem,
 } from "@/services/supplierCatalog.service";
 
 // ── Mini icon helpers ─────────────────────────────────────────────────────────
@@ -109,6 +110,10 @@ function CatalogTab() {
   const [importMsg, setImportMsg] = useState<{ styleId: string; msg: string; ok: boolean } | null>(null);
   const [selectedProduct, setSelectedProduct] = useState<SSProductDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  // Live import: search S&S directly (no full sync needed).
+  const [liveQ, setLiveQ] = useState("");
+  const [liveResults, setLiveResults] = useState<SSStyleSearchItem[] | null>(null);
+  const [liveLoading, setLiveLoading] = useState(false);
 
   useEffect(() => {
     supplierCatalogService.getCategories().then(setCategories).catch(() => {});
@@ -145,7 +150,7 @@ function CatalogTab() {
     try {
       const res = await supplierCatalogService.importProduct(styleId);
       setImportMsg({ styleId, msg: res.message, ok: res.success });
-      // Mark as imported in local state
+      // Mark as imported in local state (both the synced grid and live results)
       setProducts((prev) =>
         prev.map((p) =>
           p.style_id === styleId
@@ -153,11 +158,30 @@ function CatalogTab() {
             : p
         )
       );
+      setLiveResults((prev) =>
+        prev
+          ? prev.map((s) => (s.style_id === styleId ? { ...s, is_imported: true } : s))
+          : prev
+      );
     } catch (err: unknown) {
       const msg = (err as { message?: string })?.message ?? "Import failed";
       setImportMsg({ styleId, msg, ok: false });
     } finally {
       setImporting(null);
+    }
+  }
+
+  async function handleLiveSearch() {
+    const q = liveQ.trim();
+    if (q.length < 2) return;
+    setLiveLoading(true);
+    try {
+      const res = await supplierCatalogService.searchStyles(q);
+      setLiveResults(res.items);
+    } catch {
+      setLiveResults([]);
+    } finally {
+      setLiveLoading(false);
     }
   }
 
@@ -254,6 +278,61 @@ function CatalogTab() {
 
       {/* Product grid */}
       <div style={{ flex: 1 }}>
+        {/* Live import — search S&S directly, import any specific style */}
+        <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, padding: 16, marginBottom: 16 }}>
+          <div style={{ fontWeight: 700, fontSize: 13, color: "#111827", marginBottom: 4 }}>⚡ Quick Import — search S&S live</div>
+          <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 10 }}>
+            Find any specific style by brand, name or number and import it directly — no full sync needed.
+          </div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <input
+              value={liveQ}
+              onChange={(e) => setLiveQ(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") handleLiveSearch(); }}
+              placeholder="e.g. Gildan 5000, Bella+Canvas 3001, Next Level…"
+              style={{ flex: 1, padding: "8px 12px", border: "1px solid #e5e7eb", borderRadius: 7, fontSize: 13, boxSizing: "border-box" }}
+            />
+            <button
+              onClick={handleLiveSearch}
+              disabled={liveLoading || liveQ.trim().length < 2}
+              className="sc-btn"
+              style={{ padding: "8px 18px", background: "#1A5CFF", color: "#fff", border: "none", borderRadius: 7, fontSize: 13, fontWeight: 700, cursor: "pointer" }}
+            >
+              {liveLoading ? <Spinner /> : "Search"}
+            </button>
+          </div>
+
+          {liveResults && (
+            <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 8, maxHeight: 340, overflowY: "auto" }}>
+              {liveResults.length === 0 ? (
+                <div style={{ fontSize: 12, color: "#9ca3af", padding: "8px 0" }}>No styles found — try a brand or style number.</div>
+              ) : (
+                liveResults.map((s) => (
+                  <div key={s.style_id ?? s.part_number} style={{ display: "flex", alignItems: "center", gap: 12, padding: 8, border: "1px solid #f3f4f6", borderRadius: 8 }}>
+                    <div style={{ width: 44, height: 44, background: "#f3f4f6", borderRadius: 6, overflow: "hidden", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      {s.image ? (
+                        <img src={s.image} alt="" style={{ width: "100%", height: "100%", objectFit: "contain" }} onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+                      ) : <span style={{ fontSize: 18, color: "#d1d5db" }}>👕</span>}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: "#111827" }}>{s.brand_name} {s.style_name}</div>
+                      <div style={{ fontSize: 11, color: "#6b7280", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.title}{s.style_id ? ` · #${s.style_id}` : ""}</div>
+                    </div>
+                    <button
+                      className="sc-btn"
+                      disabled={!s.style_id || importing === s.style_id || s.is_imported}
+                      onClick={() => s.style_id && handleImport(s.style_id)}
+                      style={{ padding: "6px 14px", borderRadius: 7, border: "none", fontSize: 12, fontWeight: 700, cursor: "pointer", background: s.is_imported ? "#d1fae5" : "#1A5CFF", color: s.is_imported ? "#065f46" : "#fff", flexShrink: 0 }}
+                    >
+                      {importing === s.style_id ? <Spinner /> : s.is_imported ? "✓ Imported" : "Import"}
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+        </div>
+
         {/* Results bar */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
           <span style={{ fontSize: 13, color: "#6b7280" }}>

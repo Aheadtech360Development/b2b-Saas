@@ -323,231 +323,248 @@ async def get_ss_product(style_id: str, db: AsyncSession = Depends(get_db)):
 
 # ── One-click import ──────────────────────────────────────────────────────────
 
+_LBS_TO_GRAMS = 453.59237
+
+
 @router.post("/products/{style_id}/import", response_model=ImportResult)
 async def import_ss_product(style_id: str, db: AsyncSession = Depends(get_db)):
-    """
-    Import an S&S catalog product into the tenant's product catalog.
+    """Import an S&S style into THIS brand's catalog with every colour/size variant.
 
-    Flow:
-    1. Fetch full product detail + variants from S&S API.
-    2. Apply markup rules to set retail_price.
-    3. Create Product + ProductVariants + ProductImages in existing tables.
-    4. Create InventoryRecord rows with current S&S stock levels.
-    5. Mark SSProduct.is_imported = True.
+    The S&S Products API returns a FLAT list of SKUs (one object per colour+size),
+    not a nested colours→sizes tree. We therefore:
+      1. Pull the style header (title/description/brand/category) from the Styles API.
+      2. Pull every SKU for the style from the Products API (?styleid=).
+      3. Group SKUs by colour → one ProductImage per colour, one ProductVariant per SKU.
+      4. Map real fields: customerPrice→cost, markup→retail, retailPrice→msrp,
+         unitWeight(lbs)→weight_grams, qty→stock, image paths→absolute URLs.
+
+    The "already imported" check is per-brand (Product is tenant-scoped), so two
+    brands can each import the same style.
     """
     from app.models.inventory import InventoryRecord, Warehouse
-    from app.models.product import Product, ProductCategory, ProductImage, ProductVariant
-    from app.models.supplier import SSMarkupRule, SSProduct, SSVariant
-    from app.services.ss_activewear_service import SSActivewearService
+    from app.models.product import Product, ProductImage, ProductVariant
+    from app.models.supplier import SSMarkupRule, SSProduct
+    from app.services.ss_activewear_service import SSActivewearService, ss_image_url
 
-    # Check if already imported
-    res = await db.execute(select(SSProduct).where(SSProduct.style_id == style_id))
-    ss_product = res.scalar_one_or_none()
-    if not ss_product:
-        raise HTTPException(status_code=404, detail="Style not found in supplier catalog")
-    if ss_product.is_imported and ss_product.imported_product_id:
+    # Per-brand guard: has THIS brand already imported this style? Product is a
+    # TenantMixin model, so this query only ever sees the current brand's rows.
+    already = (await db.execute(
+        select(Product).where(Product.product_code == style_id)
+    )).scalar_one_or_none()
+    if already:
         return ImportResult(
-            success=True,
-            product_id=str(ss_product.imported_product_id),
+            success=True, product_id=str(already.id), product_slug=already.slug,
             message="Already imported",
         )
 
-    # Fetch full detail from S&S API
+    # Optional cached catalog row — used only for markup category/brand hints.
+    ss_product = (await db.execute(
+        select(SSProduct).where(SSProduct.style_id == style_id)
+    )).scalar_one_or_none()
+
+    # ── Fetch live from S&S: style header + every SKU ─────────────────────────
     svc = SSActivewearService()
     try:
-        detail = await svc.fetch_product_detail(style_id)
+        style = await svc.fetch_style(style_id) or {}
+        skus = await svc.fetch_products_by_style(style_id)
     finally:
         await svc.close()
 
-    if not detail:
-        raise HTTPException(status_code=502, detail="Could not fetch product detail from S&S API")
+    if not skus:
+        raise HTTPException(
+            status_code=502,
+            detail="Could not fetch this style's products from S&S. Check the API key / VPN and that the style ID is valid.",
+        )
 
-    # Load markup rules
-    rules_res = await db.execute(
+    first = skus[0]
+    brand = style.get("brandName") or first.get("brandName") or (ss_product.brand_name if ss_product else None)
+    style_name = style.get("styleName") or first.get("styleName") or style_id
+    title = style.get("title")
+    description = style.get("description") or title
+    base_category = style.get("baseCategory") or (ss_product.category_name if ss_product else None)
+    product_name = " ".join(p for p in (brand, style_name) if p).strip() or str(style_id)
+
+    markup_rules = (await db.execute(
         select(SSMarkupRule).where(SSMarkupRule.is_active.is_(True))
-    )
-    markup_rules = rules_res.scalars().all()
+    )).scalars().all()
 
-    # ── Create Product ────────────────────────────────────────────────────────
-    base_slug = _slugify(
-        f"{detail.get('styleName') or detail.get('title') or style_id}-{style_id}"
-    )
-    # Ensure unique slug
+    # Unique slug (slug is globally unique on products).
+    base_slug = _slugify(f"{product_name}-{style_id}")
     slug = base_slug
     counter = 1
-    while True:
-        existing = await db.execute(select(Product).where(Product.slug == slug))
-        if not existing.scalar_one_or_none():
-            break
+    while (await db.execute(select(Product).where(Product.slug == slug))).scalar_one_or_none():
         slug = f"{base_slug}-{counter}"
         counter += 1
 
-    wholesale_price = float(
-        detail.get("piecePrice") or detail.get("partPrice") or ss_product.piece_price or 0
-    )
-    retail_price = _apply_best_markup(
-        wholesale_price,
-        markup_rules,
-        ss_product.category_name,
-        ss_product.brand_name,
-        style_id,
-    )
-
     new_product = Product(
-        name=detail.get("styleName") or detail.get("title") or style_id,
+        name=product_name,
         slug=slug,
-        description=detail.get("description"),
-        vendor="S&S Activewear",
+        description=description,
+        short_description=title,
+        vendor=brand or "S&S Activewear",
         product_code=style_id,
-        product_type=detail.get("categoryName") or ss_product.category_name,
-        gender=detail.get("genderName") or ss_product.gender_name,
+        product_type=base_category,
         status="active",
     )
     db.add(new_product)
-    await db.flush()  # get new_product.id
+    await db.flush()
 
-    # ── Get or create default warehouse ──────────────────────────────────────
-    wh_res = await db.execute(select(Warehouse).where(Warehouse.is_active.is_(True)).limit(1))
-    warehouse = wh_res.scalar_one_or_none()
+    # Default warehouse for this brand (created on first import if none exists).
+    warehouse = (await db.execute(
+        select(Warehouse).where(Warehouse.is_active.is_(True)).limit(1)
+    )).scalar_one_or_none()
     if not warehouse:
-        warehouse = Warehouse(name="S&S Activewear", code="SS-DEFAULT", country="US")
+        warehouse = Warehouse(name="Default Warehouse", code=f"WH-{str(new_product.id)[:8]}", country="US")
         db.add(warehouse)
         await db.flush()
 
-    # ── Build variants from colors/sizes ─────────────────────────────────────
-    colors: list[dict] = detail.get("colors") or []
+    # ── One image per colour + one variant per SKU ────────────────────────────
+    seen_colors: dict[str, bool] = {}
     image_sort = 0
-    is_first_image = True
-    ss_variant_rows: list[SSVariant] = []
+    variant_sort = 0
 
-    for color in colors:
-        color_name = color.get("colorName") or color.get("color") or "N/A"
-        color_code = color.get("colorCode") or color.get("code") or ""
-        front_img = color.get("frontImage") or color.get("colorFrontImage")
-        back_img = color.get("backImage") or color.get("colorBackImage")
-        side_img = color.get("sideImage") or color.get("colorSideImage")
-        swatch = color.get("colorSquareImage") or color.get("swatchImage")
+    for sku in skus:
+        color_name = sku.get("colorName") or "Default"
 
-        # Create ProductImage for this color
-        if front_img:
-            db.add(ProductImage(
-                product_id=new_product.id,
-                url_thumbnail=front_img,
-                url_medium=front_img,
-                url_large=front_img,
-                alt_text=f"{new_product.name} - {color_name}",
-                is_primary=is_first_image,
-                sort_order=image_sort,
-            ))
-            image_sort += 1
-            is_first_image = False
+        if color_name not in seen_colors:
+            seen_colors[color_name] = True
+            large = ss_image_url(sku.get("colorFrontImage"), "large")
+            if large:
+                db.add(ProductImage(
+                    product_id=new_product.id,
+                    url_thumbnail=ss_image_url(sku.get("colorFrontImage"), "small") or large,
+                    url_medium=ss_image_url(sku.get("colorFrontImage"), "medium") or large,
+                    url_large=large,
+                    alt_text=f"{product_name} - {color_name}",
+                    is_primary=(image_sort == 0),
+                    sort_order=image_sort,
+                ))
+                image_sort += 1
 
-        sizes: list[dict] = color.get("sizes") or []
-        size_sort = 0
-        for size in sizes:
-            sku = (
-                size.get("sku")
-                or size.get("gtin")
-                or f"{style_id}-{color_code}-{size.get('sizeName', 'OS')}"
-            )
-            size_name = size.get("sizeName") or size.get("size") or "OS"
-            v_price = float(size.get("piecePrice") or color.get("piecePrice") or wholesale_price or 0)
-            retail = _apply_best_markup(
-                v_price,
-                markup_rules,
-                ss_product.category_name,
-                ss_product.brand_name,
-                style_id,
-            )
+        real_sku = str(
+            sku.get("sku") or sku.get("gtin")
+            or f"{style_id}-{sku.get('colorCode', '')}-{sku.get('sizeCode', '')}"
+        )
+        cost = float(sku.get("customerPrice") or sku.get("piecePrice") or 0)
+        retail = _apply_best_markup(cost, markup_rules, base_category, brand, style_id)
+        msrp = float(sku.get("retailPrice") or 0) or None
 
-            pv = ProductVariant(
-                product_id=new_product.id,
-                sku=sku,
-                color=color_name,
-                size=size_name,
-                retail_price=retail,
-                cost_per_item=v_price,
-                status="active",
-                sort_order=size_sort,
-            )
-            db.add(pv)
-            await db.flush()
+        weight_g = None
+        if sku.get("unitWeight"):
+            try:
+                weight_g = round(float(sku["unitWeight"]) * _LBS_TO_GRAMS, 2)
+            except (TypeError, ValueError):
+                weight_g = None
 
-            qty = int(size.get("qty") or size.get("onHandQty") or 0)
-            db.add(InventoryRecord(
-                variant_id=pv.id,
-                warehouse_id=warehouse.id,
-                quantity=qty,
-                low_stock_threshold=10,
-            ))
+        # Inventory: combined qty when present, else sum across warehouses.
+        qty = sku.get("qty")
+        if qty is None:
+            qty = sum(int(w.get("qty") or 0) for w in (sku.get("warehouses") or []))
+        qty = int(qty or 0)
 
-            # Track in ss_variants for ongoing inventory sync
-            ss_var = SSVariant(
-                ss_product_id=ss_product.id,
-                style_id=style_id,
-                sku=sku,
-                gtin=size.get("gtin"),
-                color_name=color_name,
-                color_code=color_code,
-                size_name=size_name,
-                piece_price=v_price,
-                front_image=front_img,
-                back_image=back_img,
-                side_image=side_img,
-                color_swatch=swatch,
-                qty_on_hand=qty,
-                last_inventory_sync=datetime.now(timezone.utc),
-            )
-            db.add(ss_var)
-            size_sort += 1
-
-    # If no colors/sizes in detail, fall back to creating a single generic variant
-    if not colors:
         pv = ProductVariant(
             product_id=new_product.id,
-            sku=f"{style_id}-OS",
-            retail_price=retail_price,
-            cost_per_item=wholesale_price,
+            sku=real_sku,
+            color=color_name,
+            size=sku.get("sizeName") or "OS",
+            retail_price=retail,
+            cost_per_item=cost,
+            msrp=msrp,
+            compare_price=msrp,
+            country_of_origin=sku.get("countryOfOrigin"),
+            weight_grams=weight_g,
             status="active",
-            sort_order=0,
+            sort_order=variant_sort,
         )
         db.add(pv)
         await db.flush()
+        variant_sort += 1
+
         db.add(InventoryRecord(
             variant_id=pv.id,
             warehouse_id=warehouse.id,
-            quantity=0,
+            quantity=qty,
             low_stock_threshold=10,
         ))
-        db.add(SSVariant(
-            ss_product_id=ss_product.id,
-            style_id=style_id,
-            sku=f"{style_id}-OS",
-            qty_on_hand=0,
-            last_inventory_sync=datetime.now(timezone.utc),
-        ))
 
-    # ── Mark as imported ──────────────────────────────────────────────────────
-    ss_product.is_imported = True
-    ss_product.imported_product_id = new_product.id
+    # Best-effort: point the global catalog cache at the first importer.
+    if ss_product is not None and not ss_product.is_imported:
+        ss_product.is_imported = True
+        ss_product.imported_product_id = new_product.id
 
-    await db.commit()
+    try:
+        await db.commit()
+    except Exception as exc:
+        await db.rollback()
+        # SKU/slug are unique PER BRAND now (migration 0028), so two brands can
+        # import the same style. A collision here means THIS brand already has a
+        # product/variant using one of these SKUs (a manual product or a partial
+        # re-import) — report it clearly rather than 500.
+        logger.warning("S&S import commit failed for style %s: %s", style_id, exc)
+        raise HTTPException(
+            status_code=409,
+            detail="Couldn't import — one of this style's SKUs already exists in your catalog (a manual product or an earlier import). Remove the duplicate and try again.",
+        )
     await db.refresh(new_product)
 
-    # Invalidate product cache
     try:
         await redis_delete_pattern(tenant_cache_key("products:*"))
     except Exception:
         pass
 
-    logger.info("Imported S&S style %s → product %s (slug=%s)", style_id, new_product.id, new_product.slug)
-
+    logger.info(
+        "Imported S&S style %s → product %s (%d variants, %d colours)",
+        style_id, new_product.id, variant_sort, len(seen_colors),
+    )
     return ImportResult(
         success=True,
         product_id=str(new_product.id),
         product_slug=new_product.slug,
-        message=f"Imported successfully as '{new_product.name}'",
+        message=f"Imported '{product_name}' — {variant_sort} variants across {len(seen_colors)} colour(s).",
     )
+
+
+# ── Live import picker: search S&S styles without a full sync ──────────────────
+@router.get("/search")
+async def search_ss_styles(
+    q: Annotated[str, Query(min_length=2)],
+    db: AsyncSession = Depends(get_db),
+):
+    """Live-search S&S styles (brand / name / number) so the admin can import any
+    specific style directly, without depending on a full catalogue sync.
+
+    Marks styles this brand has already imported (by product_code)."""
+    from app.models.product import Product
+    from app.services.ss_activewear_service import SSActivewearService, ss_image_url
+
+    svc = SSActivewearService()
+    try:
+        styles = await svc.search_styles(q)
+    finally:
+        await svc.close()
+
+    # Which of these has THIS brand already imported? (tenant-scoped)
+    style_ids = [str(s.get("styleID")) for s in styles if s.get("styleID") is not None]
+    imported: set[str] = set()
+    if style_ids:
+        rows = (await db.execute(
+            select(Product.product_code).where(Product.product_code.in_(style_ids))
+        )).scalars().all()
+        imported = {str(r) for r in rows if r}
+
+    out = []
+    for s in styles[:60]:
+        sid = str(s.get("styleID")) if s.get("styleID") is not None else None
+        out.append({
+            "style_id": sid,
+            "part_number": s.get("partNumber"),
+            "brand_name": s.get("brandName"),
+            "style_name": s.get("styleName"),
+            "title": s.get("title"),
+            "image": ss_image_url(s.get("styleImage"), "medium"),
+            "is_imported": sid in imported,
+        })
+    return {"items": out, "total": len(out)}
 
 
 # ── Sync status & manual trigger ──────────────────────────────────────────────

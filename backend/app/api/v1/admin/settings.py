@@ -90,10 +90,24 @@ async def get_platform_settings(
     _: None = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ):
-    """Return all platform settings as a key-value dict."""
+    """Return settings as a key-value dict, with THIS brand's overrides applied."""
+    from app.core.tenant_context import get_current_tenant_id
+    from app.core.tenant_settings import TENANT_SCOPED_KEYS, is_scoped_row, scoped_key
     from app.models.system import Settings as PlatformSettings
     rows = (await db.execute(select(PlatformSettings))).scalars().all()
-    return {row.key: row.value for row in rows}
+
+    # Base = plain global rows only; never expose another brand's namespaced rows.
+    result = {row.key: row.value for row in rows if not is_scoped_row(row.key)}
+
+    # Overlay this brand's own overrides, exposed under the plain key name.
+    tid = get_current_tenant_id()
+    if tid:
+        scoped_lookup = {scoped_key(k, tid): k for k in TENANT_SCOPED_KEYS}
+        for row in rows:
+            base = scoped_lookup.get(row.key)
+            if base:
+                result[base] = row.value
+    return result
 
 
 @router.patch("/settings")
@@ -109,25 +123,31 @@ async def update_platform_settings(
     ALLOWED_KEYS = {
         "mov", "moq", "guest_pricing_mode", "tax_rate",
         "low_stock_threshold", "notification_email", "standard_shipping",
-        "standard_shipping_method",
+        "standard_shipping_method", "ship_from",
     }
+
+    # Shipping keys are stored per-brand (namespaced); everything else stays global.
+    from app.core.tenant_context import get_current_tenant_id
+    from app.core.tenant_settings import scoped_key
+    tid = get_current_tenant_id()
 
     updated = {}
     for key, value in payload.items():
         if key not in ALLOWED_KEYS:
             continue
+        store_key = scoped_key(key, tid)
         result = await db.execute(
-            select(PlatformSettings).where(PlatformSettings.key == key)
+            select(PlatformSettings).where(PlatformSettings.key == store_key)
         )
         setting = result.scalar_one_or_none()
         if setting:
             setting.value = str(value)
         else:
-            db.add(PlatformSettings(key=key, value=str(value)))
+            db.add(PlatformSettings(key=store_key, value=str(value)))
         updated[key] = str(value)
 
         # When standard_shipping JSON is saved, also upsert standard_shipping_method
-        # as a plain string for quick lookup without JSON parsing.
+        # (per-brand) as a plain string for quick lookup without JSON parsing.
         if key == "standard_shipping":
             import json as _json
             _TYPE_MAP = {"store_default": "flat", "flat_rate": "bracket", "live_shippo": "live_shippo"}
@@ -136,13 +156,14 @@ async def update_platform_settings(
                 method_val = _TYPE_MAP.get(cfg.get("shipping_type", ""), "flat")
             except Exception:
                 method_val = "flat"
+            method_key = scoped_key("standard_shipping_method", tid)
             method_row = (await db.execute(
-                select(PlatformSettings).where(PlatformSettings.key == "standard_shipping_method")
+                select(PlatformSettings).where(PlatformSettings.key == method_key)
             )).scalar_one_or_none()
             if method_row:
                 method_row.value = method_val
             else:
-                db.add(PlatformSettings(key="standard_shipping_method", value=method_val))
+                db.add(PlatformSettings(key=method_key, value=method_val))
 
     await db.commit()
     await redis_delete("platform_settings")

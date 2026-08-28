@@ -2,7 +2,7 @@
 import uuid
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, Enum, Float, ForeignKey, Integer, Numeric, String, Text
+from sqlalchemy import Boolean, Enum, Float, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB, TSVECTOR, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -33,9 +33,15 @@ class Category(TenantMixin, BaseModel):
 
 class Product(TenantMixin, BaseModel):
     __tablename__ = "products"
+    # slug is unique PER TENANT (not globally) so two brands can each import the
+    # same supplier style / share a slug. Storefront lookups are tenant-scoped,
+    # so each brand resolves its own product. See migration 0028.
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "slug", name="uq_products_tenant_slug"),
+    )
 
     name: Mapped[str] = mapped_column(String(255), nullable=False)
-    slug: Mapped[str] = mapped_column(String(255), unique=True, nullable=False, index=True)
+    slug: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
     description: Mapped[str | None] = mapped_column(Text)
     short_description: Mapped[str | None] = mapped_column(String(500))
     highlight_text: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -114,11 +120,17 @@ class Product(TenantMixin, BaseModel):
 
 class ProductVariant(TenantMixin, BaseModel):
     __tablename__ = "product_variants"
+    # sku is unique PER TENANT (not globally) so two brands can each carry the
+    # same supplier SKU (e.g. both selling Gildan 2000). All variant-by-sku
+    # lookups run inside a tenant-scoped session. See migration 0028.
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "sku", name="uq_product_variants_tenant_sku"),
+    )
 
     product_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("products.id", ondelete="CASCADE"), nullable=False, index=True
     )
-    sku: Mapped[str] = mapped_column(String(100), unique=True, nullable=False, index=True)
+    sku: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
     color: Mapped[str | None] = mapped_column(String(100))
     size: Mapped[str | None] = mapped_column(String(50))
     retail_price: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)

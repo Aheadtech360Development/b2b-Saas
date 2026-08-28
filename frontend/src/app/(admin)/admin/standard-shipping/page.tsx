@@ -153,6 +153,11 @@ export default function StandardShippingPage() {
   const [calcType, setCalcType] = useState<"units" | "order_value">("order_value");
   const [cutoffTime, setCutoffTime] = useState("");
   const [brackets, setBrackets] = useState<FullShippingBracket[]>([]);
+  // Ship-from (origin) — live carrier rates and Shippo labels are computed FROM
+  // this address, so each brand quotes/ships from its own warehouse.
+  const [shipFrom, setShipFrom] = useState({
+    name: "", street1: "", city: "", state: "", zip: "", phone: "",
+  });
 
   function showToast(msg: string, ok = true) {
     setToast({ msg, ok });
@@ -171,6 +176,15 @@ export default function StandardShippingPage() {
         setCutoffTime(cfg.cutoff_time ?? "");
         setBrackets(Array.isArray(cfg.brackets) ? cfg.brackets : []);
       }
+      if (settings?.ship_from) {
+        try {
+          const sf = JSON.parse(settings.ship_from);
+          setShipFrom({
+            name: sf.name ?? "", street1: sf.street1 ?? "", city: sf.city ?? "",
+            state: sf.state ?? "", zip: sf.zip ?? "", phone: sf.phone ?? "",
+          });
+        } catch { /* ignore malformed */ }
+      }
     } catch { /* use defaults */ }
     setLoading(false);
   }
@@ -186,6 +200,7 @@ export default function StandardShippingPage() {
           cutoff_time: cutoffTime,
           brackets: shippingType === "flat_rate" ? brackets : [],
         }),
+        ship_from: JSON.stringify(shipFrom),
       });
       showToast("Standard shipping saved");
     } catch {
@@ -231,6 +246,41 @@ export default function StandardShippingPage() {
       {loading ? (
         <div style={{ textAlign: "center", padding: "60px", color: "#bbb", fontSize: "14px" }}>Loading…</div>
       ) : (
+        <>
+        {/* Ship-From (origin) address — labels & live rates are computed from this */}
+        <div style={{ background: "#fff", border: "1.5px solid #E2E0DA", borderRadius: "12px", padding: "24px", marginBottom: "20px" }}>
+          <h2 style={{ fontSize: "15px", fontWeight: 700, color: "#2A2830", marginBottom: "4px" }}>Ship-From Address</h2>
+          <p style={{ fontSize: "12px", color: "#7A7880", marginBottom: "16px", lineHeight: 1.6 }}>
+            Your warehouse / origin address. <strong>Live carrier rates and shipping labels are calculated from here</strong>, so set your real location. Leave blank to use the platform default.
+          </p>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "14px" }}>
+            <div style={{ gridColumn: "1 / -1" }}>
+              <label style={labelStyle}>Warehouse / Business Name</label>
+              <input type="text" value={shipFrom.name} onChange={e => setShipFrom({ ...shipFrom, name: e.target.value })} placeholder="e.g. Acme Apparel Warehouse" style={inputStyle} />
+            </div>
+            <div style={{ gridColumn: "1 / -1" }}>
+              <label style={labelStyle}>Street Address</label>
+              <input type="text" value={shipFrom.street1} onChange={e => setShipFrom({ ...shipFrom, street1: e.target.value })} placeholder="123 Main St" style={inputStyle} />
+            </div>
+            <div>
+              <label style={labelStyle}>City</label>
+              <input type="text" value={shipFrom.city} onChange={e => setShipFrom({ ...shipFrom, city: e.target.value })} placeholder="New York" style={inputStyle} />
+            </div>
+            <div>
+              <label style={labelStyle}>State</label>
+              <input type="text" value={shipFrom.state} onChange={e => setShipFrom({ ...shipFrom, state: e.target.value.toUpperCase().slice(0, 2) })} placeholder="NY" maxLength={2} style={inputStyle} />
+            </div>
+            <div>
+              <label style={labelStyle}>ZIP Code</label>
+              <input type="text" value={shipFrom.zip} onChange={e => setShipFrom({ ...shipFrom, zip: e.target.value })} placeholder="10001" style={inputStyle} />
+            </div>
+            <div>
+              <label style={labelStyle}>Phone</label>
+              <input type="text" value={shipFrom.phone} onChange={e => setShipFrom({ ...shipFrom, phone: e.target.value })} placeholder="2125550100" style={inputStyle} />
+            </div>
+          </div>
+        </div>
+
         <div style={{ background: "#fff", border: "1.5px solid #E2E0DA", borderRadius: "12px", padding: "24px" }}>
           <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
 
@@ -336,6 +386,7 @@ export default function StandardShippingPage() {
             </div>
           </div>
         </div>
+        </>
       )}
     </div>
   );

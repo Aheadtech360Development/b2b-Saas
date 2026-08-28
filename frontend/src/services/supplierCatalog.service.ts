@@ -106,6 +106,16 @@ export interface ImportResult {
   message: string;
 }
 
+export interface SSStyleSearchItem {
+  style_id: string | null;
+  part_number: string | null;
+  brand_name: string | null;
+  style_name: string | null;
+  title: string | null;
+  image: string | null;
+  is_imported: boolean;
+}
+
 export interface ProductsFilter {
   q?: string;
   category?: string;
@@ -147,6 +157,14 @@ export const supplierCatalogService = {
   async importProduct(styleId: string): Promise<ImportResult> {
     return apiClient.post<ImportResult>(
       `/api/v1/admin/supplier-catalog/products/${styleId}/import`
+    );
+  },
+
+  /** Live-search S&S styles (brand / name / number) — import any specific style
+   *  directly, no full catalogue sync required. */
+  async searchStyles(q: string): Promise<{ items: SSStyleSearchItem[]; total: number }> {
+    return apiClient.get<{ items: SSStyleSearchItem[]; total: number }>(
+      `/api/v1/admin/supplier-catalog/search?q=${encodeURIComponent(q)}`
     );
   },
 

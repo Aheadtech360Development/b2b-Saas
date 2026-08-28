@@ -14,6 +14,8 @@ def grams_to_oz(grams: float) -> float:
     return grams / GRAMS_PER_OZ
 
 
+# Platform-level FALLBACK ship-from — used only when a brand hasn't set its own
+# warehouse address. Each tenant should configure its own (see get_ship_from).
 WAREHOUSE_ADDRESS = {
     "name": "AF Apparels",
     "street1": "10719 Turbeville Rd",
@@ -24,6 +26,76 @@ WAREHOUSE_ADDRESS = {
     "phone": "2145550100",
     "email": "shipping@afapparels.com",
 }
+
+async def get_ship_from(db, tenant_id) -> dict:
+    """Return THIS brand's ship-from (origin) address, or the platform default.
+
+    Resolution order (first hit wins), so a brand in NY no longer ships "from
+    Dallas" and shipping never hard-fails:
+      1. The `ship_from` address the brand set on its Shipping settings page
+         (a per-tenant setting — see app.core.tenant_settings).
+      2. The brand's first active Warehouse that has a usable street + ZIP + state.
+      3. WAREHOUSE_ADDRESS — the platform-wide fallback.
+
+    Both Warehouse and the settings lookup are tenant-scoped to the current
+    request; `tenant_id` short-circuits contexts with no resolved tenant.
+    """
+    if not tenant_id:
+        return dict(WAREHOUSE_ADDRESS)
+
+    # 1. Explicit ship-from address configured in the brand's shipping settings.
+    try:
+        import json as _json
+        from app.core.tenant_settings import get_setting
+        raw = await get_setting(db, "ship_from", tenant_id=tenant_id)
+        if raw:
+            cfg = _json.loads(raw)
+            if cfg.get("street1") and cfg.get("zip") and cfg.get("state"):
+                return {
+                    "name": cfg.get("name") or "Warehouse",
+                    "street1": cfg["street1"],
+                    "city": cfg.get("city", ""),
+                    "state": cfg["state"],
+                    "zip": cfg["zip"],
+                    "country": cfg.get("country") or "US",
+                    "phone": cfg.get("phone") or WAREHOUSE_ADDRESS["phone"],
+                    "email": cfg.get("email") or WAREHOUSE_ADDRESS["email"],
+                }
+    except Exception as exc:
+        logger.warning("get_ship_from: ship_from setting lookup failed (%s)", exc)
+
+    # 2. Otherwise fall back to the brand's primary active Warehouse address.
+    try:
+        from sqlalchemy import select
+        from app.models.inventory import Warehouse
+
+        rows = (await db.execute(
+            select(Warehouse)
+            .where(Warehouse.is_active.is_(True))
+            .order_by(Warehouse.created_at.asc())
+        )).scalars().all()
+        wh = next(
+            (w for w in rows if w.address_line1 and w.postal_code and w.state),
+            None,
+        )
+    except Exception as exc:  # never block a checkout on a ship-from lookup
+        logger.warning("get_ship_from fell back to default (%s)", exc)
+        return dict(WAREHOUSE_ADDRESS)
+
+    if wh is None:
+        return dict(WAREHOUSE_ADDRESS)  # 3. platform default
+    return {
+        "name": wh.name or "Warehouse",
+        "street1": wh.address_line1,
+        "city": wh.city or "",
+        "state": wh.state,
+        "zip": wh.postal_code,
+        "country": wh.country or "US",
+        # Warehouse has no phone/email columns — use the platform contact so
+        # carriers that require them (UPS/FedEx) still get valid values.
+        "phone": WAREHOUSE_ADDRESS["phone"],
+        "email": WAREHOUSE_ADDRESS["email"],
+    }
 
 # Maps carrier key → Shippo service-level token fragment used for rate selection
 CARRIER_TOKENS = {
@@ -40,7 +112,16 @@ def get_client():
     return shippo.Shippo(api_key_header=api_key)
 
 
-async def create_label(order_id: str, to_address: dict, carrier_token: str, weight_oz: float = 16.0) -> dict:
+async def create_label(
+    order_id: str,
+    to_address: dict,
+    carrier_token: str,
+    weight_oz: float = 16.0,
+    address_from: dict | None = None,
+) -> dict:
+    # Ship FROM the brand's own warehouse when provided; fall back to the
+    # platform default only if a caller couldn't resolve a tenant address.
+    ship_from = address_from or WAREHOUSE_ADDRESS
     try:
         client = get_client()
 
@@ -70,14 +151,14 @@ async def create_label(order_id: str, to_address: dict, carrier_token: str, weig
         shipment = client.shipments.create(
             components.ShipmentCreateRequest(
                 address_from=components.AddressCreateRequest(
-                    name=WAREHOUSE_ADDRESS["name"],
-                    street1=WAREHOUSE_ADDRESS["street1"],
-                    city=WAREHOUSE_ADDRESS["city"],
-                    state=WAREHOUSE_ADDRESS["state"],
-                    zip=WAREHOUSE_ADDRESS["zip"],
-                    country=WAREHOUSE_ADDRESS["country"],
-                    phone=WAREHOUSE_ADDRESS["phone"],
-                    email=WAREHOUSE_ADDRESS["email"],
+                    name=ship_from["name"],
+                    street1=ship_from["street1"],
+                    city=ship_from["city"],
+                    state=ship_from["state"],
+                    zip=ship_from["zip"],
+                    country=ship_from.get("country", "US"),
+                    phone=ship_from.get("phone", "0000000000"),
+                    email=ship_from.get("email", "shipping@example.com"),
                 ),
                 address_to=components.AddressCreateRequest(
                     name=to_address.get("name", ""),
@@ -143,8 +224,13 @@ async def create_label(order_id: str, to_address: dict, carrier_token: str, weig
         return {"success": False, "error": str(e)}
 
 
-async def create_shippo_label(order, carrier: str) -> dict:
-    """Wrapper used by admin/orders.py — extracts address from order snapshot."""
+async def create_shippo_label(order, carrier: str, db=None) -> dict:
+    """Wrapper used by admin/orders.py — extracts address from order snapshot.
+
+    Ships FROM the order's own brand warehouse: when a db session is passed we
+    resolve this tenant's ship-from address, so a NY brand's label prints its NY
+    origin (not the platform default).
+    """
     try:
         addr = json.loads(order.shipping_address_snapshot or "{}")
     except Exception:
@@ -180,8 +266,15 @@ async def create_shippo_label(order, carrier: str) -> dict:
         if total_g > 0:
             weight_oz = grams_to_oz(total_g)
 
+    # Resolve THIS brand's ship-from (falls back to platform default inside helper).
+    ship_from = None
+    if db is not None:
+        ship_from = await get_ship_from(db, getattr(order, "tenant_id", None))
+
     carrier_token = CARRIER_TOKENS.get(carrier, "usps_priority")
-    return await create_label(str(order.id), to_address, carrier_token, weight_oz=weight_oz)
+    return await create_label(
+        str(order.id), to_address, carrier_token, weight_oz=weight_oz, address_from=ship_from
+    )
 
 
 async def track_package(tracking_number: str, carrier: str) -> dict:

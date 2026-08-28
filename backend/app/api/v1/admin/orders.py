@@ -894,7 +894,7 @@ async def generate_shipping_label(
             _lbl_log.warning("Saved rate_id failed (likely expired): %s — falling back to fresh rate", _e)
 
     if result is None:
-        result = await create_shippo_label(order, carrier=payload.carrier.lower())
+        result = await create_shippo_label(order, carrier=payload.carrier.lower(), db=db)
 
     if result.get("success"):
         order.tracking_number = result["tracking_number"]

@@ -1,8 +1,16 @@
 """S&S Activewear API v2 client with rate limiting.
 
 S&S API base: https://api.ssactivewear.com/v2/
-Auth: HTTP Basic (account_number : api_key)
-Free dev tier: 10 calls/day — production tier required for live usage.
+Auth: HTTP Basic (account_number : api_key). No IP allowlisting is required for
+standard REST access — access is keyed to the account, not the source IP.
+
+Rate limit: public references cite ~60 requests/minute on the production tier;
+the exact per-minute / per-day caps are account-specific — confirm yours with
+S&S. (An earlier note here claimed "10 calls/day" for a dev tier; that figure
+was never verified against S&S docs, so don't treat it as authoritative.)
+_MIN_INTERVAL below (~40 req/min) stays deliberately under the 60/min ceiling.
+Production access + "API customer pricing" are enabled by S&S on your account
+(request via api@ssactivewear.com), not through a self-service toggle.
 
 All public methods catch exceptions and return empty lists/None so callers
 don't need to handle network errors individually.
@@ -20,6 +28,19 @@ logger = logging.getLogger(__name__)
 
 _SS_BASE = "https://api.ssactivewear.com/v2"
 _MIN_INTERVAL = 1.5  # seconds between requests (~40 req/min)
+
+# S&S returns image paths relative to their storefront host (medium '_fm' by
+# default). e.g. "Images/Color/17130_f_fm.jpg" → prefix + optional size swap.
+SS_IMAGE_BASE = "https://www.ssactivewear.com/"
+_IMG_SIZE = {"large": "_fl", "medium": "_fm", "small": "_fs"}
+
+
+def ss_image_url(path: str | None, size: str = "large") -> str | None:
+    """Absolute S&S image URL at the requested size, or None for an empty path."""
+    if not path:
+        return None
+    p = path.replace("_fm", _IMG_SIZE.get(size, "_fl"))
+    return f"{SS_IMAGE_BASE}{p.lstrip('/')}"
 
 
 class SSActivewearService:
@@ -88,6 +109,56 @@ class SSActivewearService:
             return data if isinstance(data, list) else []
         except Exception as exc:
             logger.error("SS products fetch error (category=%s): %s", category, exc)
+            return []
+
+    async def fetch_style(self, style_id: str) -> dict | None:
+        """Style-level info (title, description, brand, baseCategory, images).
+
+        Uses the Styles API — the SKU/Products payload does NOT carry title,
+        description or category, so they must come from here.
+        """
+        try:
+            data = await self._get("/styles/", {"styleid": style_id})
+            if isinstance(data, list) and data:
+                return data[0]
+            if isinstance(data, dict):
+                return data
+            return None
+        except Exception as exc:
+            logger.error("SS style fetch error (style=%s): %s", style_id, exc)
+            return None
+
+    async def fetch_products_by_style(self, style_id: str) -> list[dict]:
+        """Every SKU (colour+size variant) for a style — the real import source.
+
+        S&S returns a FLAT list: one object per colour+size, each carrying
+        colorName/sizeName/customerPrice/qty/warehouses/images. This is what the
+        importer groups by colour to build variants (there is no nested
+        colours→sizes structure in the API).
+        """
+        try:
+            data = await self._get("/products/", {"styleid": style_id})
+            return data if isinstance(data, list) else []
+        except Exception as exc:
+            logger.error("SS products-by-style fetch error (style=%s): %s", style_id, exc)
+            return []
+
+    async def search_styles(self, query: str) -> list[dict]:
+        """Live style search (brand / style name / number) for the import picker."""
+        try:
+            data = await self._get("/styles/", {"search": query})
+            return data if isinstance(data, list) else []
+        except Exception as exc:
+            logger.error("SS style search error (q=%s): %s", query, exc)
+            return []
+
+    async def fetch_inventory_by_style(self, style_id: str) -> list[dict]:
+        """Light inventory payload for every SKU in a style (bulk, one call)."""
+        try:
+            data = await self._get("/inventory/", {"styleid": style_id})
+            return data if isinstance(data, list) else []
+        except Exception as exc:
+            logger.error("SS inventory-by-style error (style=%s): %s", style_id, exc)
             return []
 
     async def fetch_product_detail(self, style_id: str) -> dict | None:

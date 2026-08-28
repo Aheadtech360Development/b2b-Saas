@@ -404,15 +404,14 @@ async def guest_shipping_estimate(
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Return standard shipping cost for a guest cart (uses platform standard_shipping setting)."""
-    from app.models.system import Settings
+    from app.core.tenant_settings import get_setting
 
     try:
-        std_row = (await db.execute(
-            select(Settings).where(Settings.key == "standard_shipping")
-        )).scalar_one_or_none()
+        # Per-brand shipping config (falls back to the global default).
+        std_value = await get_setting(db, "standard_shipping")
 
-        if std_row and std_row.value:
-            cfg = json.loads(std_row.value)
+        if std_value:
+            cfg = json.loads(std_value)
             shipping_type = cfg.get("shipping_type", "store_default")
 
             if shipping_type == "store_default":

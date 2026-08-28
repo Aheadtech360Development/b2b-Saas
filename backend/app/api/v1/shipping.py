@@ -69,8 +69,11 @@ async def get_live_rates(payload: LiveRatesRequest, db: AsyncSession = Depends(g
     logger.info(f"Live rates weight: grams={total_grams:.1f}, oz={weight_oz:.2f}")
 
     try:
+        from app.core.tenant_context import get_current_tenant_id
         client = shippo_service.get_client()
-        wh = shippo_service.WAREHOUSE_ADDRESS
+        # Ship-from = THIS brand's own warehouse (resolved from tenant settings).
+        # Rates are computed from it, so each brand quotes from its real origin.
+        wh = await shippo_service.get_ship_from(db, get_current_tenant_id())
 
         shipment = client.shipments.create(
             components.ShipmentCreateRequest(
@@ -128,33 +131,33 @@ async def get_live_rates(payload: LiveRatesRequest, db: AsyncSession = Depends(g
 
 
 @router.get("/shipping-type")
-async def get_shipping_type(request: Request):
+async def get_shipping_type(request: Request, db: AsyncSession = Depends(get_db)):
     """Return the shipping type applicable to the current session.
 
     - Users with a discount group: returns that group's shipping_type
-    - All others: reads standard_shipping_method from the settings table
+    - All others: reads standard_shipping_method for THIS brand (tenant-scoped),
+      falling back to the platform-wide default when the brand hasn't set one.
     """
-    from app.core.database import AsyncSessionLocal
+    from app.core.tenant_settings import get_setting
     from app.models.discount_group import DiscountGroup
-    from app.models.system import Settings as PlatformSettings
 
     group_id = getattr(request.state, "discount_group_id", None)
     if group_id:
-        async with AsyncSessionLocal() as session:
-            g = (await session.execute(
-                select(DiscountGroup).where(DiscountGroup.id == str(group_id))
-            )).scalar_one_or_none()
-            if g:
-                return {
-                    "shipping_type": g.shipping_type,
-                    "shipping_amount": float(g.shipping_amount) if g.shipping_amount else 0,
-                }
-
-    async with AsyncSessionLocal() as session:
-        setting = (await session.execute(
-            select(PlatformSettings).where(PlatformSettings.key == "standard_shipping_method")
+        g = (await db.execute(
+            select(DiscountGroup).where(DiscountGroup.id == str(group_id))
         )).scalar_one_or_none()
-        if setting:
-            return {"shipping_type": setting.value, "shipping_amount": 0}
+        if g:
+            return {
+                "shipping_type": g.shipping_type,
+                "shipping_amount": float(g.shipping_amount) if g.shipping_amount else 0,
+            }
+
+    # This brand's own shipping mode, falling back to the platform-wide default.
+    try:
+        value = await get_setting(db, "standard_shipping_method")
+        if value:
+            return {"shipping_type": value, "shipping_amount": 0}
+    except Exception as exc:
+        logger.warning("shipping-type lookup failed, defaulting to flat: %s", exc)
 
     return {"shipping_type": "flat", "shipping_amount": 0}
