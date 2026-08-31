@@ -29,9 +29,11 @@ logger = logging.getLogger(__name__)
 _SS_BASE = "https://api.ssactivewear.com/v2"
 _MIN_INTERVAL = 1.5  # seconds between requests (~40 req/min)
 
-# S&S returns image paths relative to their storefront host (medium '_fm' by
-# default). e.g. "Images/Color/17130_f_fm.jpg" → prefix + optional size swap.
-SS_IMAGE_BASE = "https://www.ssactivewear.com/"
+# S&S returns image paths relative to their CDN host (medium '_fm' by default).
+# e.g. "Images/Color/17130_f_fm.jpg" → prefix + optional size swap.
+# NOTE: the docs say www.ssactivewear.com, but that 301-redirects for images;
+# the images actually live on cdn.ssactivewear.com (verified: www → 301, cdn → 200).
+SS_IMAGE_BASE = "https://cdn.ssactivewear.com/"
 _IMG_SIZE = {"large": "_fl", "medium": "_fm", "small": "_fs"}
 
 

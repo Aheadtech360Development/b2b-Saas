@@ -103,6 +103,7 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
   const [error, setError] = useState<string | null>(null);
   const [customLength, setCustomLength] = useState(0);
   const [textDraft, setTextDraft] = useState({ text: "", color: "#111111", bold: true });
+  const [copyN, setCopyN] = useState(1); // "add copies" quantity for the selected design
 
   const fileRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -489,6 +490,84 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
       else { h = Math.max(MIN_IN, val); if (aspectLock) w = round2(h * asp); }
       return { ...p, w_in: round2(w), h_in: round2(h) };
     }));
+  }
+
+  /** Set the exact Left/Top of a design (clamped + snapped inside the sheet). */
+  function setPos(id: number, axis: "x" | "y", val: number) {
+    setPlacements((list) => list.map((p) => {
+      if (p.id !== id) return p;
+      const fp = footprint(p);
+      const { x, y } = clampSnap(axis === "x" ? val : p.x_in, axis === "y" ? val : p.y_in, fp.w, fp.h);
+      return { ...p, x_in: x, y_in: y };
+    }));
+  }
+
+  /** Align the selected design to an edge or centre of the sheet's print area. */
+  function align(kind: "left" | "hcenter" | "right" | "top" | "vcenter" | "bottom") {
+    if (!size || selected == null) return;
+    setPlacements((list) => list.map((q) => {
+      if (q.id !== selected) return q;
+      const fp = footprint(q);
+      let x = q.x_in, y = q.y_in;
+      if (kind === "left") x = bleed;
+      else if (kind === "hcenter") x = (size.width_in - fp.w) / 2;
+      else if (kind === "right") x = size.width_in - bleed - fp.w;
+      else if (kind === "top") y = bleed;
+      else if (kind === "vcenter") y = (sheetLen - fp.h) / 2;
+      else if (kind === "bottom") y = sheetLen - bleed - fp.h;
+      return { ...q, x_in: round3(Math.max(0, x)), y_in: round3(Math.max(0, y)) };
+    }));
+  }
+
+  /** Space every design evenly across the sheet along one axis (needs 3+). */
+  function distribute(axis: "h" | "v") {
+    setPlacements((list) => {
+      if (list.length < 3) return list;
+      const items = list.map((p) => ({
+        id: p.id,
+        pos: axis === "h" ? p.x_in : p.y_in,
+        ext: axis === "h" ? footprint(p).w : footprint(p).h,
+      })).sort((a, b) => a.pos - b.pos);
+      const first = items[0]!, last = items[items.length - 1]!;
+      const span = (last.pos + last.ext) - first.pos;
+      const totalExt = items.reduce((s, it) => s + it.ext, 0);
+      const gap = (span - totalExt) / (items.length - 1);
+      const posById = new Map<number, number>();
+      let cursor = first.pos;
+      for (const it of items) { posById.set(it.id, round3(cursor)); cursor += it.ext + gap; }
+      return list.map((p) => {
+        const np = posById.get(p.id);
+        if (np == null) return p;
+        return axis === "h" ? { ...p, x_in: np } : { ...p, y_in: np };
+      });
+    });
+  }
+
+  /** Add N more copies of the selected design, packed into the free space. */
+  function addCopies(n: number) {
+    if (selected == null || n < 1 || !size) return;
+    const src = stateRef.current.placements.find((q) => q.id === selected);
+    if (!src) return;
+    const g = Math.max(imageMargin, 0.25);
+    const fp = footprint(src);
+    // Track occupied boxes locally so copies added in this batch don't stack.
+    const taken = stateRef.current.placements.map((p) => ({ x: p.x_in, y: p.y_in, w: footprint(p).w, h: footprint(p).h }));
+    const freeSpot = () => {
+      for (let y = 0; y + fp.h <= sheetLen + 1e-6; y += g) {
+        for (let x = 0; x + fp.w <= size.width_in + 1e-6; x += g) {
+          const clash = taken.some((q) => !(x + fp.w + g <= q.x || x >= q.x + q.w + g || y + fp.h + g <= q.y || y >= q.y + q.h + g));
+          if (!clash) return { x: round3(x), y: round3(y) };
+        }
+      }
+      return { x: 0, y: 0 };
+    };
+    const out: Placement[] = [];
+    for (let i = 0; i < n; i++) {
+      const spot = freeSpot();
+      out.push({ ...src, id: nextId.current++, x_in: spot.x, y_in: spot.y });
+      taken.push({ x: spot.x, y: spot.y, w: fp.w, h: fp.h });
+    }
+    setPlacements((list) => [...list, ...out]);
   }
 
   /** Fill the whole sheet with copies of one design (shelf pack). */
@@ -906,12 +985,18 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
                 <span style={{ fontSize: "12px", fontWeight: 800, textTransform: "uppercase", letterSpacing: ".05em", color: "#555" }}>Selected design</span>
                 <button onClick={() => remove(sel.id)} style={{ background: "none", border: "none", color: "#B91C1C", cursor: "pointer", fontSize: "12px", fontWeight: 700 }}>Remove</button>
               </div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: "10px" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
                 <label style={S.miniLabel}>Width (in)
                   <input type="number" step="0.25" min={MIN_IN} value={sel.w_in} onWheel={(e) => e.currentTarget.blur()} onChange={(e) => setDim(sel.id, "w", Number(e.target.value))} style={S.miniInput} />
                 </label>
                 <label style={S.miniLabel}>Height (in)
                   <input type="number" step="0.25" min={MIN_IN} value={sel.h_in} onWheel={(e) => e.currentTarget.blur()} onChange={(e) => setDim(sel.id, "h", Number(e.target.value))} style={S.miniInput} />
+                </label>
+                <label style={S.miniLabel}>Left (in)
+                  <input type="number" step="0.25" min={0} value={sel.x_in} onWheel={(e) => e.currentTarget.blur()} onChange={(e) => setPos(sel.id, "x", Number(e.target.value))} style={S.miniInput} />
+                </label>
+                <label style={S.miniLabel}>Top (in)
+                  <input type="number" step="0.25" min={0} value={sel.y_in} onWheel={(e) => e.currentTarget.blur()} onChange={(e) => setPos(sel.id, "y", Number(e.target.value))} style={S.miniInput} />
                 </label>
               </div>
               {selDpi && (
@@ -928,6 +1013,39 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
                   ))}
                 </div>
               )}
+              {/* Align the selected design to the sheet */}
+              <div style={{ marginTop: "12px" }}>
+                <div style={{ ...S.miniLabel, marginBottom: "5px" }}>Align to sheet</div>
+                <div style={{ display: "flex", gap: "4px", flexWrap: "wrap" }}>
+                  <button onClick={() => align("left")} style={S.smallBtn} title="Align left">⇤ L</button>
+                  <button onClick={() => align("hcenter")} style={S.smallBtn} title="Center across">⇔ C</button>
+                  <button onClick={() => align("right")} style={S.smallBtn} title="Align right">⇥ R</button>
+                  <button onClick={() => align("top")} style={S.smallBtn} title="Align top">⤒ T</button>
+                  <button onClick={() => align("vcenter")} style={S.smallBtn} title="Center down">⥮ M</button>
+                  <button onClick={() => align("bottom")} style={S.smallBtn} title="Align bottom">⤓ B</button>
+                </div>
+              </div>
+
+              {/* Distribute all designs evenly (needs 3+) */}
+              {placements.length >= 3 && (
+                <div style={{ marginTop: "10px" }}>
+                  <div style={{ ...S.miniLabel, marginBottom: "5px" }}>Distribute all designs</div>
+                  <div style={{ display: "flex", gap: "4px" }}>
+                    <button onClick={() => distribute("h")} style={S.smallBtn} title="Even spacing across">↔ Across</button>
+                    <button onClick={() => distribute("v")} style={S.smallBtn} title="Even spacing down">↕ Down</button>
+                  </div>
+                </div>
+              )}
+
+              {/* Add copies of the selected design */}
+              <div style={{ marginTop: "10px" }}>
+                <div style={{ ...S.miniLabel, marginBottom: "5px" }}>Add copies of this design</div>
+                <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+                  <input type="number" min={1} value={copyN} onWheel={(e) => e.currentTarget.blur()} onChange={(e) => setCopyN(Math.max(1, Math.floor(Number(e.target.value)) || 1))} style={{ ...S.miniInput, width: "70px" }} />
+                  <button onClick={() => addCopies(copyN)} style={S.smallBtn}>＋ Add copies</button>
+                </div>
+              </div>
+
               <div style={{ display: "flex", gap: "6px", marginTop: "12px", flexWrap: "wrap" }}>
                 <button onClick={() => rotate(sel.id)} style={S.smallBtn}>⟳ Rotate</button>
                 <button onClick={() => duplicate(sel.id)} style={S.smallBtn}>⧉ Duplicate</button>
