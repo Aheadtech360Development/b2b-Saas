@@ -730,8 +730,13 @@ async def _seed_email_templates() -> None:
 
 async def _ensure_platform_admin() -> None:
     """On a fresh database, make sure a platform super-admin exists so someone can
-    log in. Runs only when SEED_PLATFORM_ADMIN_PASSWORD is set. Idempotent
-    (upsert by email) and non-fatal — never blocks startup."""
+    log in. Runs only when SEED_PLATFORM_ADMIN_PASSWORD is set. Non-fatal — never
+    blocks startup.
+
+    IMPORTANT: on an EXISTING admin this only re-asserts the platform flags — it
+    does NOT overwrite the password. Previously it reset hashed_password on every
+    startup, so each deploy clobbered a password that had been changed via the UI
+    or SQL. The password is only set when the row is first created."""
     pw = os.environ.get("SEED_PLATFORM_ADMIN_PASSWORD")
     if not pw:
         return
@@ -755,8 +760,7 @@ async def _ensure_platform_admin() -> None:
                     VALUES (gen_random_uuid(), :email, :pw, 'Platform', 'Admin',
                             'platform_admin', true, true, true, true, 'wholesale', false, NULL)
                     ON CONFLICT (email) DO UPDATE
-                      SET hashed_password = EXCLUDED.hashed_password,
-                          is_platform_admin = true, is_admin = true, is_active = true,
+                      SET is_platform_admin = true, is_admin = true, is_active = true,
                           email_verified = true, role = 'platform_admin'
                     """
                 ),
