@@ -615,6 +615,7 @@ def _variant_to_dict(variant: ProductVariant) -> dict:
         "id": str(variant.id),
         "sku": variant.sku,
         "color": variant.color,
+        "color_hex": getattr(variant, "color_hex", None),
         "size": variant.size,
         "retail_price": str(variant.retail_price),
         "compare_price": str(variant.compare_price) if variant.compare_price is not None else None,

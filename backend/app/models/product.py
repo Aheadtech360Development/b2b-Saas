@@ -132,6 +132,9 @@ class ProductVariant(TenantMixin, BaseModel):
     )
     sku: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
     color: Mapped[str | None] = mapped_column(String(100))
+    # Real swatch hex (e.g. "#B31B1B") from the supplier, so the storefront shows
+    # the true colour instead of guessing from the colour name. See migration 0029.
+    color_hex: Mapped[str | None] = mapped_column(String(9), nullable=True)
     size: Mapped[str | None] = mapped_column(String(50))
     retail_price: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)
     compare_price: Mapped[float | None] = mapped_column(Numeric(10, 2), nullable=True)

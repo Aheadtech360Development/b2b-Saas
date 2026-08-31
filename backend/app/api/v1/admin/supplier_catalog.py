@@ -462,10 +462,15 @@ async def import_ss_product(style_id: str, db: AsyncSession = Depends(get_db)):
             qty = sum(int(w.get("qty") or 0) for w in (sku.get("warehouses") or []))
         qty = int(qty or 0)
 
+        # Real swatch hex from S&S (color1, e.g. "#B31B1B"); ignore empties/junk.
+        _hex = (sku.get("color1") or "").strip()
+        color_hex = _hex if _hex.startswith("#") and len(_hex) <= 9 else None
+
         pv = ProductVariant(
             product_id=new_product.id,
             sku=real_sku,
             color=color_name,
+            color_hex=color_hex,
             size=sku.get("sizeName") or "OS",
             retail_price=retail,
             cost_per_item=cost,

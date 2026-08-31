@@ -26,6 +26,7 @@ export interface ProductVariant {
   id: string;
   sku: string;
   color: string | null;
+  color_hex?: string | null; // real swatch hex from supplier, e.g. "#B31B1B"
   size: string | null;
   retail_price: string;
   compare_price: string | null;

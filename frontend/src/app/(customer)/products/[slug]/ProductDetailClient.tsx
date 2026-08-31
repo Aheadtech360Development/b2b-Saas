@@ -345,7 +345,7 @@ function ReviewsTab({ productId, isAuthenticated }: { productId: string; isAuthe
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function groupVariantsByColor(variants: ProductVariant[]) {
-  const groups: { color: string; variants: ProductVariant[] }[] = [];
+  const groups: { color: string; hex: string | null; variants: ProductVariant[] }[] = [];
   const seen = new Set<string>();
   for (const v of variants) {
     const color = v.color ?? "Default";
@@ -361,7 +361,9 @@ function groupVariantsByColor(variants: ProductVariant[]) {
           if (bi === -1) return -1;
           return ai - bi;
         });
-      groups.push({ color, variants: colorVariants });
+      // Real supplier hex if any variant of this colour carries one.
+      const hex = colorVariants.find(x => x.color_hex)?.color_hex ?? null;
+      groups.push({ color, hex, variants: colorVariants });
     }
   }
   return groups;
@@ -520,7 +522,7 @@ export function ProductDetailClient({ slug }: ProductDetailClientProps) {
         img.alt_text?.toLowerCase().includes(cg.color.toLowerCase())
       );
       if (colorImgs.length > 0) {
-        imageGroups.push({ color: cg.color, hex: COLOR_MAP[cg.color] ?? "#E2E2DE", images: colorImgs });
+        imageGroups.push({ color: cg.color, hex: cg.hex ?? COLOR_MAP[cg.color] ?? "#E2E2DE", images: colorImgs });
         colorImgs.forEach(img => assigned.add(img.id));
       }
     }
@@ -838,7 +840,7 @@ export function ProductDetailClient({ slug }: ProductDetailClientProps) {
                 </div>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", marginBottom: "28px" }}>
                   {colorGroups.map(group => {
-                    const hex = COLOR_MAP[group.color] ?? "#E2E2DE";
+                    const hex = group.hex ?? COLOR_MAP[group.color] ?? "#E2E2DE";
                     const isLight = ["#FFFFFF", "#fffff0", "#fef3c7", "#f5f0e8"].includes(hex);
                     const isSel = selectedColor === group.color;
                     return (
@@ -873,7 +875,7 @@ export function ProductDetailClient({ slug }: ProductDetailClientProps) {
 
                     {/* One section per color */}
                     {colorGroups.map((group, groupIdx) => {
-                      const hex = COLOR_MAP[group.color] ?? "#E2E2DE";
+                      const hex = group.hex ?? COLOR_MAP[group.color] ?? "#E2E2DE";
                       const isLight = ["#FFFFFF", "#fffff0", "#fef3c7", "#f5f0e8"].includes(hex);
                       const rowQty = group.variants.reduce((s, v) => s + (quantities[v.id] ?? 0), 0);
                       const rowTotal = group.variants.reduce((s, v) => s + (quantities[v.id] ?? 0) * Number(v.effective_price ?? v.retail_price ?? 0), 0);
