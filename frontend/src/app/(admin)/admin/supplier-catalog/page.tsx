@@ -3,7 +3,6 @@
 import { useEffect, useState, useCallback } from "react";
 import {
   supplierCatalogService,
-  type SSCategory,
   type SSProductListItem,
   type SSProductDetail,
   type SSMarkupRule,
@@ -99,8 +98,6 @@ export default function SupplierCatalogPage() {
 // ── CATALOG TAB ───────────────────────────────────────────────────────────────
 
 function CatalogTab() {
-  const [categories, setCategories] = useState<SSCategory[]>([]);
-  const [brands, setBrands] = useState<string[]>([]);
   const [products, setProducts] = useState<SSProductListItem[]>([]);
   const [total, setTotal] = useState(0);
   const [pages, setPages] = useState(1);
@@ -115,10 +112,6 @@ function CatalogTab() {
   const [liveResults, setLiveResults] = useState<SSStyleSearchItem[] | null>(null);
   const [liveLoading, setLiveLoading] = useState(false);
 
-  useEffect(() => {
-    supplierCatalogService.getCategories().then(setCategories).catch(() => {});
-  }, []);
-
   const loadProducts = useCallback(async (f: ProductsFilter) => {
     setLoading(true);
     try {
@@ -126,9 +119,6 @@ function CatalogTab() {
       setProducts(res.items);
       setTotal(res.total);
       setPages(res.pages);
-      // Derive unique brands from results for sidebar filter
-      const uniqueBrands = [...new Set(res.items.map((p) => p.brand_name).filter(Boolean) as string[])].sort();
-      if (!f.brand) setBrands(uniqueBrands);
     } catch {
       setProducts([]);
     } finally {
@@ -226,53 +216,8 @@ function CatalogTab() {
             Imported only
           </label>
 
-          {/* Category */}
-          {categories.length > 0 && (
-            <>
-              <div style={{ fontWeight: 600, fontSize: 11, color: "#6b7280", marginBottom: 6 }}>Category</div>
-              <div style={{ maxHeight: 200, overflowY: "auto", marginBottom: 14 }}>
-                <div
-                  onClick={() => applyFilter({ category: undefined })}
-                  style={{ padding: "5px 8px", borderRadius: 6, fontSize: 12, cursor: "pointer", fontWeight: !filter.category ? 700 : 400, background: !filter.category ? "#EFF6FF" : "transparent", color: !filter.category ? "#1A5CFF" : "#374151" }}
-                >
-                  All ({total})
-                </div>
-                {categories.map((c) => (
-                  <div
-                    key={c.id}
-                    onClick={() => applyFilter({ category: c.name })}
-                    style={{ padding: "5px 8px", borderRadius: 6, fontSize: 12, cursor: "pointer", fontWeight: filter.category === c.name ? 700 : 400, background: filter.category === c.name ? "#EFF6FF" : "transparent", color: filter.category === c.name ? "#1A5CFF" : "#374151" }}
-                  >
-                    {c.name}
-                  </div>
-                ))}
-              </div>
-            </>
-          )}
-
-          {/* Brand */}
-          {brands.length > 0 && (
-            <>
-              <div style={{ fontWeight: 600, fontSize: 11, color: "#6b7280", marginBottom: 6 }}>Brand</div>
-              <div style={{ maxHeight: 180, overflowY: "auto" }}>
-                <div
-                  onClick={() => applyFilter({ brand: undefined })}
-                  style={{ padding: "5px 8px", borderRadius: 6, fontSize: 12, cursor: "pointer", fontWeight: !filter.brand ? 700 : 400, background: !filter.brand ? "#EFF6FF" : "transparent", color: !filter.brand ? "#1A5CFF" : "#374151" }}
-                >
-                  All brands
-                </div>
-                {brands.map((b) => (
-                  <div
-                    key={b}
-                    onClick={() => applyFilter({ brand: b })}
-                    style={{ padding: "5px 8px", borderRadius: 6, fontSize: 12, cursor: "pointer", fontWeight: filter.brand === b ? 700 : 400, background: filter.brand === b ? "#EFF6FF" : "transparent", color: filter.brand === b ? "#1A5CFF" : "#374151" }}
-                  >
-                    {b}
-                  </div>
-                ))}
-              </div>
-            </>
-          )}
+          {/* Category & brand filters removed — the S&S browse cache is unused;
+              use Quick Import (live search) to find and import any style. */}
         </div>
       </aside>
 
@@ -350,8 +295,8 @@ function CatalogTab() {
 
         {noCatalog ? (
           <EmptyState
-            title="No supplier products synced yet"
-            description="Go to the Sync Status tab and trigger a product sync to populate the catalog."
+            title="Import products with Quick Import above"
+            description="Search any S&S style by brand, name or number and import it directly — no full catalog sync needed."
           />
         ) : loading ? (
           <div style={{ textAlign: "center", padding: 60 }}><Spinner /></div>
