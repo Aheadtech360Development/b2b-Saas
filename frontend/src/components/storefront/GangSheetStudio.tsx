@@ -691,11 +691,34 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
     const zy = ((el.clientHeight || 560) - 40) / (sheetLen * fitPpi);
     setZoom(clamp(round3(Math.min(zx, zy)), 0.15, 6));
   };
-  function onWheel(e: React.WheelEvent) {
-    if (!e.ctrlKey && !e.metaKey) return;
-    e.preventDefault();
-    zoomBy(e.deltaY < 0 ? 1.1 : 1 / 1.1);
-  }
+  // Mouse-wheel zooms the sheet toward the cursor — the rest of the canvas (rails,
+  // toolbar, panels) stay put; only the sheet scales, like the reference builder.
+  // React makes onWheel passive (so preventDefault is ignored + warns), so we bind
+  // a native non-passive listener. Re-bound on zoom change to read the latest scale;
+  // the point under the cursor is anchored by adjusting scroll after the re-render.
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    function handle(e: WheelEvent) {
+      e.preventDefault();
+      const factor = e.deltaY < 0 ? 1.1 : 1 / 1.1;
+      const next = clamp(round3(zoom * factor), 0.15, 6);
+      if (next === zoom) return;
+      const rect = el!.getBoundingClientRect();
+      const px = e.clientX - rect.left; // cursor within the viewport
+      const py = e.clientY - rect.top;
+      const cx = el!.scrollLeft + px;   // cursor within the scrolled content
+      const cy = el!.scrollTop + py;
+      const ratio = next / zoom;
+      setZoom(next);
+      requestAnimationFrame(() => {
+        el!.scrollLeft = cx * ratio - px;
+        el!.scrollTop = cy * ratio - py;
+      });
+    }
+    el.addEventListener("wheel", handle, { passive: false });
+    return () => el.removeEventListener("wheel", handle);
+  }, [zoom]);
 
   // ── Keyboard ─────────────────────────────────────────────────────────────────
   function onKeyDown(e: React.KeyboardEvent) {
@@ -1102,8 +1125,8 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
             </div>
           </div>
 
-          {/* Scrollable sheet */}
-          <div ref={scrollRef} onWheel={onWheel} style={S.canvasScroll}>
+          {/* Scrollable sheet — wheel-zoom is bound natively (see effect above). */}
+          <div ref={scrollRef} style={S.canvasScroll}>
             {showRes && (
               <div style={S.legend}>
                 {[["#16A34A", "Optimal ≥300"], ["#CA8A04", "Good ≥250"], ["#EA580C", "Fair ≥200"], ["#DC2626", "Low <200"]].map(([c, t]) => (
