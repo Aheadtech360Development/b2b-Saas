@@ -605,17 +605,24 @@ function SizesTab() {
   // Inline edit: which size is open, and its working values.
   const [editId, setEditId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState<Partial<GangSheetSize>>({});
+  // Which product these sizes belong to. "" = the brand's global default set.
+  const [scopeProductId, setScopeProductId] = useState<string>("");
+  const [products, setProducts] = useState<GangSheetProduct[]>([]);
+
+  useEffect(() => {
+    gangSheetsService.adminListProducts().then(setProducts).catch(() => setProducts([]));
+  }, []);
 
   const load = useCallback(() => {
-    gangSheetsService.adminListSizes().then(setSizes).catch(() => setSizes([]));
-  }, []);
+    gangSheetsService.adminListSizes(scopeProductId || undefined).then(setSizes).catch(() => setSizes([]));
+  }, [scopeProductId]);
   useEffect(load, [load]);
 
   async function create() {
     if (!draft.name.trim()) { setErr("Give the sheet size a name."); return; }
     setBusy(true); setErr(null);
     try {
-      await gangSheetsService.adminCreateSize(draft);
+      await gangSheetsService.adminCreateSize({ ...draft, product_id: scopeProductId || undefined });
       setDraft({ ...EMPTY_SIZE });
       load();
     } catch {
@@ -659,7 +666,7 @@ function SizesTab() {
     setBusy(true); setErr(null);
     try {
       for (const s of STANDARD_DTF_SIZES) {
-        await gangSheetsService.adminCreateSize({ ...EMPTY_SIZE, name: s.name, height_in: s.height_in, price_per_sheet: s.price_per_sheet });
+        await gangSheetsService.adminCreateSize({ ...EMPTY_SIZE, name: s.name, height_in: s.height_in, price_per_sheet: s.price_per_sheet, product_id: scopeProductId || undefined });
       }
       load();
     } catch {
@@ -673,6 +680,22 @@ function SizesTab() {
 
   return (
     <>
+      {/* Scope: the brand's global default sizes, or one product's own sizes */}
+      <div style={{ ...CARD, marginBottom: "18px", display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
+        <span style={LABEL}>Sizes for</span>
+        <select value={scopeProductId} onChange={(e) => setScopeProductId(e.target.value)} style={{ ...INPUT, width: "auto", minWidth: "240px" }}>
+          <option value="">Global default (all products)</option>
+          {products.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.name}{p.gang_sheet_type ? ` — ${p.gang_sheet_type === "upload_by_size" ? "Upload By Size" : "Gang Sheet"}` : ""}
+            </option>
+          ))}
+        </select>
+        <span style={{ fontSize: "12px", color: "#9CA3AF" }}>
+          {scopeProductId ? "Editing this product's own sizes." : "Default set — used when a product has no sizes of its own."}
+        </span>
+      </div>
+
       <div style={{ ...CARD, marginBottom: "18px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px", flexWrap: "wrap", gap: "8px" }}>
           <div style={{ fontSize: "14px", fontWeight: 700 }}>Add a sheet size</div>

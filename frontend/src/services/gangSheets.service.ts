@@ -15,6 +15,7 @@ export interface GangSheetSize {
   min_length_in: number;
   max_length_in: number;
   max_upload_mb: number | null;
+  product_id?: string | null; // which product these sizes belong to (null = global default)
 }
 
 export interface GangSheetArtwork {
@@ -183,7 +184,8 @@ export const gangSheetsService = {
   },
 
   // ── Admin ─────────────────────────────────────────────────────────────────
-  adminListSizes: () => apiClient.get<GangSheetSize[]>("/api/v1/admin/gang-sheets/sizes"),
+  adminListSizes: (productId?: string) =>
+    apiClient.get<GangSheetSize[]>(`/api/v1/admin/gang-sheets/sizes${productId ? `?product_id=${productId}` : ""}`),
 
   adminCreateSize: (payload: Partial<GangSheetSize>) =>
     apiClient.post<GangSheetSize>("/api/v1/admin/gang-sheets/sizes", payload),
