@@ -137,6 +137,13 @@ export interface GangSheetProduct {
   size_count: number;
 }
 
+export interface GangSheetSetup {
+  has_products: boolean;
+  has_sizes: boolean;
+  has_library: boolean;
+  has_designs: boolean;
+}
+
 export const gangSheetsService = {
   // ── Customer ──────────────────────────────────────────────────────────────
   listSizes: () => apiClient.get<GangSheetSize[]>("/api/v1/gang-sheets/sizes"),
@@ -229,6 +236,9 @@ export const gangSheetsService = {
   /** Enable/disable the builder on a product and/or set its builder type. */
   adminUpdateProduct: (id: string, data: { gang_sheet_enabled?: boolean; gang_sheet_type?: string }) =>
     apiClient.patch<GangSheetProduct>(`/api/v1/admin/gang-sheets/products/${id}`, data),
+
+  /** Onboarding checklist state for the Set up tab. */
+  adminSetup: () => apiClient.get<GangSheetSetup>("/api/v1/admin/gang-sheets/setup"),
 };
 
 export const GANG_SHEET_STATUS_LABEL: Record<GangSheetStatus, string> = {

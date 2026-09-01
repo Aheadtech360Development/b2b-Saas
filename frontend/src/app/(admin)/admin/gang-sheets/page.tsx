@@ -12,6 +12,7 @@ import {
   type GangSheetLibraryDesign,
   type GangSheetDashboard,
   type GangSheetProduct,
+  type GangSheetSetup,
 } from "@/services/gangSheets.service";
 import { GangSheetCanvas } from "@/components/storefront/GangSheetCanvas";
 import { GangSheetTimeline } from "@/components/storefront/GangSheetTimeline";
@@ -78,8 +79,8 @@ const STANDARD_DTF_SIZES = [
 ];
 
 export default function AdminGangSheetsPage() {
-  const [tab, setTab] = useState<"dashboard" | "products" | "orders" | "sizes" | "library">("dashboard");
-  const TAB_LABEL: Record<string, string> = { dashboard: "Dashboard", products: "Products", orders: "Designs", sizes: "Sheet Sizes", library: "Design Library" };
+  const [tab, setTab] = useState<"dashboard" | "setup" | "products" | "orders" | "sizes" | "library">("dashboard");
+  const TAB_LABEL: Record<string, string> = { dashboard: "Dashboard", setup: "Set up", products: "Products", orders: "Designs", sizes: "Sheet Sizes", library: "Design Library" };
 
   return (
     <div style={{ padding: "24px", maxWidth: "1100px" }}>
@@ -89,7 +90,7 @@ export default function AdminGangSheetsPage() {
       </p>
 
       <div style={{ display: "flex", gap: "6px", marginBottom: "18px" }}>
-        {(["dashboard", "products", "orders", "sizes", "library"] as const).map((t) => (
+        {(["dashboard", "setup", "products", "orders", "sizes", "library"] as const).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -109,7 +110,7 @@ export default function AdminGangSheetsPage() {
         ))}
       </div>
 
-      {tab === "dashboard" ? <DashboardTab /> : tab === "products" ? <ProductsTab /> : tab === "orders" ? <OrdersTab /> : tab === "sizes" ? <SizesTab /> : <LibraryTab />}
+      {tab === "dashboard" ? <DashboardTab /> : tab === "setup" ? <SetupTab /> : tab === "products" ? <ProductsTab /> : tab === "orders" ? <OrdersTab /> : tab === "sizes" ? <SizesTab /> : <LibraryTab />}
     </div>
   );
 }
@@ -210,6 +211,49 @@ function DashboardTab() {
           ))}
         </div>
       </div>
+    </div>
+  );
+}
+
+// ── Set up ────────────────────────────────────────────────────────────────────
+function SetupTab() {
+  const [data, setData] = useState<GangSheetSetup | null>(null);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    gangSheetsService.adminSetup().then(setData).catch(() => setData(null)).finally(() => setLoading(false));
+  }, []);
+
+  const steps = [
+    { done: !!data?.has_products, title: "Enable the builder on a product", desc: "In the Products tab, turn a product on and choose its builder type (Gang Sheet or Upload By Size)." },
+    { done: !!data?.has_sizes, title: "Configure sheet sizes & prices", desc: "In the Sheet Sizes tab, add the sizes and prices you offer — globally or per product." },
+    { done: !!data?.has_library, title: "Add ready-made designs (optional)", desc: "In the Design Library tab, upload artwork customers can drop straight onto a sheet." },
+    { done: !!data?.has_designs, title: "Receive your first design", desc: "Once live, customers build gang sheets on your storefront and they show up under Designs." },
+  ];
+
+  return (
+    <div style={{ maxWidth: "760px" }}>
+      <div style={{ ...CARD, marginBottom: "16px" }}>
+        <h2 style={{ fontSize: "16px", fontWeight: 800, margin: "0 0 4px" }}>Get your gang-sheet builder ready</h2>
+        <p style={{ fontSize: "13px", color: "#6B6B6B", margin: 0 }}>Complete these steps to start selling custom gang sheets. The ticks update automatically as you go.</p>
+      </div>
+
+      {loading ? (
+        <div style={{ color: "#888", fontSize: "13px" }}>Loading…</div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+          {steps.map((s, i) => (
+            <div key={i} style={{ ...CARD, display: "flex", gap: "14px", alignItems: "flex-start" }}>
+              <div style={{ width: "26px", height: "26px", borderRadius: "50%", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "14px", fontWeight: 800, background: s.done ? "#DCFCE7" : "#F3F4F6", color: s.done ? "#166534" : "#9CA3AF" }}>
+                {s.done ? "✓" : i + 1}
+              </div>
+              <div>
+                <div style={{ fontSize: "14px", fontWeight: 700, color: s.done ? "#166534" : "#2A2830" }}>{s.title}</div>
+                <div style={{ fontSize: "13px", color: "#6B6B6B", marginTop: "2px" }}>{s.desc}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

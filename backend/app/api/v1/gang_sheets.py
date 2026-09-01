@@ -1034,6 +1034,27 @@ async def admin_update_gs_product(
     }
 
 
+@admin_router.get("/setup")
+async def admin_setup(
+    _: None = Depends(require_admin), db: AsyncSession = Depends(get_db)
+) -> dict:
+    """Onboarding checklist state (this brand) — all live, nothing hardcoded."""
+    from app.models.product import Product
+
+    has_sizes = ((await db.execute(select(func.count(GangSheetSize.id)))).scalar() or 0) > 0
+    has_products = ((await db.execute(
+        select(func.count(Product.id)).where(Product.gang_sheet_enabled.is_(True))
+    )).scalar() or 0) > 0
+    has_designs = ((await db.execute(select(func.count(GangSheetOrder.id)))).scalar() or 0) > 0
+    has_library = ((await db.execute(select(func.count(GangSheetLibraryDesign.id)))).scalar() or 0) > 0
+    return {
+        "has_products": bool(has_products),
+        "has_sizes": bool(has_sizes),
+        "has_library": bool(has_library),
+        "has_designs": bool(has_designs),
+    }
+
+
 @admin_router.get("/sizes")
 async def admin_list_sizes(
     product_id: Optional[uuid.UUID] = None,
