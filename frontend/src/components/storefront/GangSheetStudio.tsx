@@ -28,10 +28,54 @@ import { cartService } from "@/services/cart.service";
 const IMAGE_TYPES = new Set(["png", "jpg", "jpeg", "webp", "gif"]);
 const MIN_IN = 0.5;
 const FOOT_PRESETS = [2, 3, 4, 5, 6, 7, 8, 10, 12, 15, 20];
+const RULER_PAD = 24; // px before the sheet inside the canvas scroll — rulers start here
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 const round3 = (n: number) => Math.round(n * 1000) / 1000;
 const clamp = (n: number, lo: number, hi: number) => Math.max(lo, Math.min(n, hi));
+
+/** Inch marks for a ruler: a labelled "major" step (kept ≥46px apart so labels
+ *  never crowd at any zoom) with a minor tick halfway between. */
+function rulerMarks(lengthIn: number, ppi: number): { inch: number; major: boolean }[] {
+  if (lengthIn <= 0 || ppi <= 0) return [];
+  const steps = [0.5, 1, 2, 4, 6, 12, 24];
+  let major = 24;
+  for (const s of steps) { major = s; if (s * ppi >= 46) break; }
+  const minor = major / 2;
+  const out: { inch: number; major: boolean }[] = [];
+  const n = Math.floor(lengthIn / minor + 1e-6);
+  for (let i = 0; i <= n; i++) {
+    const inch = Math.round(i * minor * 1000) / 1000;
+    out.push({ inch, major: Math.abs(inch / major - Math.round(inch / major)) < 1e-6 });
+  }
+  return out;
+}
+
+/** A horizontal or vertical inch ruler that lines up with the sheet (offset by
+ *  `pad`) and scales with `ppi`. Rendered inside an overflow-hidden strip whose
+ *  scroll is synced to the canvas. */
+function Ruler({ axis, contentPx, ppi, lengthIn, pad }: { axis: "x" | "y"; contentPx: number; ppi: number; lengthIn: number; pad: number }) {
+  const horiz = axis === "x";
+  const marks = rulerMarks(lengthIn, ppi);
+  return (
+    <div style={{ position: "relative", background: "#fff", width: horiz ? `${contentPx}px` : "100%", height: horiz ? "100%" : `${contentPx}px` }}>
+      {marks.map((m) => {
+        const at = pad + m.inch * ppi;
+        return horiz ? (
+          <div key={m.inch} style={{ position: "absolute", left: `${at}px`, top: 0, bottom: 0 }}>
+            <div style={{ position: "absolute", top: 0, left: 0, width: "1px", height: m.major ? "13px" : "7px", background: "#C7CBD2" }} />
+            {m.major && <span style={{ position: "absolute", top: "1px", left: "3px", fontSize: "9px", color: "#9299A3", lineHeight: 1 }}>{m.inch}</span>}
+          </div>
+        ) : (
+          <div key={m.inch} style={{ position: "absolute", top: `${at}px`, left: 0, right: 0 }}>
+            <div style={{ position: "absolute", left: 0, top: 0, height: "1px", width: m.major ? "13px" : "7px", background: "#C7CBD2" }} />
+            {m.major && <span style={{ position: "absolute", left: "2px", top: "2px", fontSize: "9px", color: "#9299A3", lineHeight: 1 }}>{m.inch}</span>}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
 interface Upload {
   uid: string;
@@ -111,10 +155,15 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
   const [customLength, setCustomLength] = useState(0);
   const [textDraft, setTextDraft] = useState({ text: "", color: "#111111", bold: true });
   const [copyN, setCopyN] = useState(1); // "add copies" quantity for the selected design
+  const [panTool, setPanTool] = useState(false);  // ✋ hand tool: drag to pan the canvas
+  const [showGrid, setShowGrid] = useState(false); // ▦ grid overlay on the sheet
+  const [showOverlap, setShowOverlap] = useState(true); // highlight overlapping designs
 
   const fileRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const sheetRef = useRef<HTMLDivElement>(null);
+  const topRulerRef = useRef<HTMLDivElement>(null);
+  const leftRulerRef = useRef<HTMLDivElement>(null);
   const nextId = useRef(1);
   const autoRan = useRef(false);
 
@@ -393,8 +442,32 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
     }
   }
 
+  // ── Pan (hand tool) ────────────────────────────────────────────────────────
+  // Drag anywhere on the canvas to scroll it — the sheet and everything on it move
+  // together; nothing is edited while the hand tool is active.
+  function startPan(e: React.PointerEvent) {
+    const el = scrollRef.current;
+    if (!el) return;
+    e.preventDefault();
+    const sx = e.clientX, sy = e.clientY, sl = el.scrollLeft, st = el.scrollTop;
+    function move(ev: PointerEvent) { el!.scrollLeft = sl - (ev.clientX - sx); el!.scrollTop = st - (ev.clientY - sy); }
+    function up() { window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up); }
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+  }
+
+  // Keep the top/left rulers aligned with the canvas as it scrolls (programmatic
+  // scrolls from wheel-zoom fire this too, so the rulers track zoom as well).
+  function syncRulers() {
+    const el = scrollRef.current;
+    if (!el) return;
+    if (topRulerRef.current) topRulerRef.current.scrollLeft = el.scrollLeft;
+    if (leftRulerRef.current) leftRulerRef.current.scrollTop = el.scrollTop;
+  }
+
   // ── Drag (move) ──────────────────────────────────────────────────────────────
   function startMove(e: React.PointerEvent, id: number) {
+    if (panTool) { startPan(e); return; }
     e.preventDefault(); e.stopPropagation();
     setSelected(id);
     gesturing.current = true;
@@ -596,9 +669,11 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
   }
 
   // Auto-nest every placement: first-fit-decreasing-height shelf packing.
-  function autoNest() {
+  // extraGap adds cut-around spacing for the "Auto Nest for Cutting" variant so a
+  // plotter has room to cut each piece out.
+  function autoNest(extraGap = 0) {
     if (!size) return;
-    const g = imageMargin, W = size.width_in;
+    const g = imageMargin + extraGap, W = size.width_in;
     const items = stateRef.current.placements.map((p) => {
       let w = p.w_in, h = p.h_in, rot = 0;
       if (h > w && p.h_in <= W) { w = p.h_in; h = p.w_in; rot = 90; }
@@ -719,6 +794,15 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
     el.addEventListener("wheel", handle, { passive: false });
     return () => el.removeEventListener("wheel", handle);
   }, [zoom]);
+
+  // Keep rulers aligned after zoom/size changes made without a scroll event
+  // (zoom buttons, fit-to-screen, size switch).
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    if (topRulerRef.current) topRulerRef.current.scrollLeft = el.scrollLeft;
+    if (leftRulerRef.current) leftRulerRef.current.scrollTop = el.scrollTop;
+  }, [zoom, sheetWpx, sheetHpx]);
 
   // ── Keyboard ─────────────────────────────────────────────────────────────────
   function onKeyDown(e: React.KeyboardEvent) {
@@ -851,6 +935,7 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
   }, [placements, size, bleed, sheetLen, upById]);
 
   const warnIds = useMemo(() => new Set(warnings.map((w) => w.id)), [warnings]);
+  const overlapIds = useMemo(() => new Set(warnings.filter((w) => w.kind === "overlap").map((w) => w.id)), [warnings]);
   const warnCounts = useMemo(() => {
     const c: Record<string, number> = {};
     for (const w of warnings) c[w.kind] = (c[w.kind] || 0) + 1;
@@ -1109,11 +1194,15 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
               </div>
             )}
             <div style={S.toolDivider} />
+            <button onClick={() => setPanTool((v) => !v)} title="Pan / hand tool" style={{ ...S.iconBtn, background: panTool ? "#E8EEF9" : "#fff", borderColor: panTool ? "var(--brand-primary,#1C3557)" : "#DDD9D2" }}>✋</button>
+            <button onClick={() => setShowGrid((v) => !v)} title="Toggle grid" style={{ ...S.iconBtn, background: showGrid ? "#E8EEF9" : "#fff", borderColor: showGrid ? "var(--brand-primary,#1C3557)" : "#DDD9D2" }}>▦</button>
+            <div style={S.toolDivider} />
             <label style={{ fontSize: "12px", color: "#555", display: "flex", alignItems: "center", gap: "5px" }}>
               Margin
               <input type="number" min={0} step="0.25" value={imageMargin} onWheel={(e) => e.currentTarget.blur()} onChange={(e) => setImageMargin(Math.max(0, Number(e.target.value) || 0))} style={{ width: "52px", padding: "6px", border: "1px solid #DDD9D2", borderRadius: "6px", fontSize: "12px" }} /> in
             </label>
-            <button onClick={autoNest} style={S.nestBtn}>⚡ Auto Nest</button>
+            <button onClick={() => autoNest()} style={S.nestBtn}>⚡ Auto Nest</button>
+            <button onClick={() => autoNest(0.5)} style={S.nestBtn} title="Nest with extra spacing so each design can be cut out">✂ Auto Nest for Cutting</button>
             <div style={S.toolDivider} />
             <button onClick={undo} disabled={!canUndo} style={{ ...S.iconBtn, opacity: canUndo ? 1 : 0.4, cursor: canUndo ? "pointer" : "default" }} title="Undo (Ctrl+Z)">↶</button>
             <button onClick={redo} disabled={!canRedo} style={{ ...S.iconBtn, opacity: canRedo ? 1 : 0.4, cursor: canRedo ? "pointer" : "default" }} title="Redo (Ctrl+Shift+Z)">↷</button>
@@ -1125,43 +1214,39 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
             </div>
           </div>
 
-          {/* Scrollable sheet — wheel-zoom is bound natively (see effect above). */}
-          <div ref={scrollRef} style={S.canvasScroll}>
-            {showRes && (
-              <div style={S.legend}>
-                {[["#16A34A", "Optimal ≥300"], ["#CA8A04", "Good ≥250"], ["#EA580C", "Fair ≥200"], ["#DC2626", "Low <200"]].map(([c, t]) => (
-                  <span key={t} style={{ display: "inline-flex", alignItems: "center", gap: "4px" }}>
-                    <span style={{ width: "9px", height: "9px", borderRadius: "2px", background: c as string }} /> {t}
-                  </span>
-                ))}
-              </div>
-            )}
-            {warnings.length > 0 && (
-              <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap", background: "#FFF7ED", border: "1px solid #FED7AA", color: "#9A3412", borderRadius: "8px", padding: "8px 12px", marginBottom: "12px", fontSize: "12px" }}>
-                <span style={{ fontWeight: 800 }}>⚠ {warnings.length} issue{warnings.length === 1 ? "" : "s"}</span>
-                {warnCounts.overlap ? <span>· {warnCounts.overlap} overlapping</span> : null}
-                {warnCounts.outside ? <span>· {warnCounts.outside} past safe area</span> : null}
-                {warnCounts.dpi ? <span>· {warnCounts.dpi} low resolution</span> : null}
-                {warnCounts.small ? <span>· {warnCounts.small} too small</span> : null}
-                <span style={{ color: "#B45309", marginLeft: "auto" }}>Fix before printing for best results — saving is still allowed.</span>
-              </div>
-            )}
-            <div
-              ref={sheetRef}
-              tabIndex={0}
-              onKeyDown={onKeyDown}
-              onPointerDown={() => { setSelected(null); sheetRef.current?.focus(); }}
-              style={{
-                position: "relative", width: `${sheetWpx}px`, height: `${sheetHpx}px`, margin: "0 auto",
-                background: "#fff", outline: "none", touchAction: "none", userSelect: "none",
-                backgroundImage: "repeating-conic-gradient(#EFEFEF 0% 25%, #fff 0% 50%)",
-                backgroundSize: "18px 18px",
-                boxShadow: "0 1px 6px rgba(0,0,0,.12)",
-              }}
-            >
-              {bleed > 0 && (
-                <div style={{ position: "absolute", left: bleed * ppi, top: bleed * ppi, right: bleed * ppi, bottom: bleed * ppi, border: "1px dashed #D08C8C", pointerEvents: "none" }} />
-              )}
+          {/* Rulers + canvas. The top/left inch rulers scroll in sync with the sheet. */}
+          <div style={S.rulerGrid}>
+            <div style={S.rulerCorner} />
+            <div ref={topRulerRef} style={S.rulerTopWrap}>
+              <Ruler axis="x" contentPx={sheetWpx + RULER_PAD * 2} ppi={ppi} lengthIn={size?.width_in ?? 0} pad={RULER_PAD} />
+            </div>
+            <div ref={leftRulerRef} style={S.rulerLeftWrap}>
+              <Ruler axis="y" contentPx={sheetHpx + RULER_PAD * 2} ppi={ppi} lengthIn={sheetLen} pad={RULER_PAD} />
+            </div>
+
+            <div style={{ position: "relative", minWidth: 0, minHeight: 0 }}>
+              {/* Scrollable sheet — wheel-zoom bound natively; scroll syncs the rulers. */}
+              <div ref={scrollRef} onScroll={syncRulers} style={S.canvasScroll}>
+                <div
+                  ref={sheetRef}
+                  tabIndex={0}
+                  onKeyDown={onKeyDown}
+                  onPointerDown={(e) => { if (panTool) { startPan(e); return; } setSelected(null); sheetRef.current?.focus(); }}
+                  style={{
+                    position: "relative", width: `${sheetWpx}px`, height: `${sheetHpx}px`, margin: 0,
+                    background: "#fff", outline: "none", touchAction: "none", userSelect: "none",
+                    cursor: panTool ? "grab" : "default",
+                    backgroundImage: "repeating-conic-gradient(#EFEFEF 0% 25%, #fff 0% 50%)",
+                    backgroundSize: "18px 18px",
+                    boxShadow: "0 1px 6px rgba(0,0,0,.12)",
+                  }}
+                >
+                  {bleed > 0 && (
+                    <div style={{ position: "absolute", left: bleed * ppi, top: bleed * ppi, right: bleed * ppi, bottom: bleed * ppi, border: "1px dashed #D08C8C", pointerEvents: "none" }} />
+                  )}
+                  {showGrid && (
+                    <div style={{ position: "absolute", inset: 0, pointerEvents: "none", backgroundImage: "linear-gradient(to right, rgba(28,53,87,.13) 1px, transparent 1px), linear-gradient(to bottom, rgba(28,53,87,.13) 1px, transparent 1px)", backgroundSize: `${ppi}px ${ppi}px` }} />
+                  )}
               {placements.map((p) => {
                 const u = upById(p.uid);
                 const fp = footprint(p);
@@ -1169,13 +1254,14 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
                 const isSel = selected === p.id;
                 const d = showRes ? dpiInfo(u, fp.w, fp.h) : null;
                 const warned = warnIds.has(p.id);
-                const ring = isSel ? "var(--brand-primary,#1C3557)" : warned ? "#EA580C" : d ? d.color : "#9AA3B2";
+                const isOverlap = showOverlap && overlapIds.has(p.id);
+                const ring = isSel ? "var(--brand-primary,#1C3557)" : isOverlap ? "#2563EB" : warned ? "#EA580C" : d ? d.color : "#9AA3B2";
                 return (
                   <div key={p.id} onPointerDown={(e) => startMove(e, p.id)}
                     style={{
                       position: "absolute", left: p.x_in * ppi, top: p.y_in * ppi, width: fp.w * ppi, height: fp.h * ppi,
-                      border: `2px solid ${ring}`, boxShadow: isSel ? "0 0 0 2px rgba(28,53,87,.2)" : warned ? "0 0 0 2px rgba(234,88,12,.18)" : "none",
-                      background: isImg ? "transparent" : "#EEF2FF", cursor: "move",
+                      border: `2px solid ${ring}`, boxShadow: isSel ? "0 0 0 2px rgba(28,53,87,.2)" : isOverlap ? "0 0 0 2px rgba(37,99,235,.18)" : warned ? "0 0 0 2px rgba(234,88,12,.18)" : "none",
+                      background: isImg ? "transparent" : "#EEF2FF", cursor: panTool ? "grab" : "move",
                       display: "flex", alignItems: "center", justifyContent: "center", boxSizing: "border-box", zIndex: isSel ? 5 : 1,
                     }}>
                     {isImg
@@ -1198,6 +1284,38 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
                   </div>
                 );
               })}
+                </div>
+              </div>
+
+              {/* Floating canvas controls (top-left) — like the reference builder. */}
+              <div style={S.canvasControls}>
+                <label style={S.canvasCheck}>
+                  <input type="checkbox" checked={showOverlap} onChange={(e) => setShowOverlap(e.target.checked)} /> Show Overlapping Lines
+                </label>
+                <label style={S.canvasCheck}>
+                  <input type="checkbox" checked={showRes} onChange={(e) => setShowRes(e.target.checked)} /> Show Resolution Lines
+                </label>
+                {showRes && (
+                  <div style={{ marginTop: "6px", display: "flex", flexDirection: "column", gap: "3px" }}>
+                    {[["#16A34A", "Optimal ≥ 300 dpi"], ["#CA8A04", "Good ≥ 250 dpi"], ["#EA580C", "Fair ≥ 200 dpi"], ["#DC2626", "Low < 200 dpi"], ["#2563EB", "Overlapping images"]].map(([c, t]) => (
+                      <span key={t} style={{ display: "inline-flex", alignItems: "center", gap: "5px", fontSize: "10px", color: "#777" }}>
+                        <span style={{ width: "9px", height: "9px", borderRadius: "2px", background: c as string }} /> {t}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Floating warnings (top-right) — advisory, never blocks saving. */}
+              {warnings.length > 0 && (
+                <div style={S.canvasWarn}>
+                  <span style={{ fontWeight: 800 }}>⚠ {warnings.length} issue{warnings.length === 1 ? "" : "s"}</span>
+                  {warnCounts.overlap ? <span> · {warnCounts.overlap} overlapping</span> : null}
+                  {warnCounts.outside ? <span> · {warnCounts.outside} past safe area</span> : null}
+                  {warnCounts.dpi ? <span> · {warnCounts.dpi} low res</span> : null}
+                  {warnCounts.small ? <span> · {warnCounts.small} too small</span> : null}
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -1216,7 +1334,8 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
           </div>
           <button onClick={() => { setPanel("uploads"); fileRef.current?.click(); }} style={S.rightAction}>⊕ Add new design</button>
           <button onClick={autoBuild} style={S.rightAction} title="Fill the sheet with copies of your designs">▦ Auto build (fill sheet)</button>
-          <button onClick={autoNest} style={S.rightAction} title="Arrange current designs compactly">⚡ Auto nest (tidy up)</button>
+          <button onClick={() => autoNest()} style={S.rightAction} title="Arrange current designs compactly">⚡ Auto nest (tidy up)</button>
+          <button onClick={() => autoNest(0.5)} style={S.rightAction} title="Nest with extra spacing for cutting">✂ Auto nest for cutting</button>
           <button onClick={startOver} style={{ ...S.rightAction, color: "#B91C1C" }}>↺ Start over</button>
           <div style={{ marginTop: "auto", fontSize: "11px", color: "#aaa", paddingTop: "16px" }}>
             Tip: drop designs on the sheet, drag to arrange, then <strong>Save &amp; Add to Cart</strong>.
@@ -1256,8 +1375,15 @@ const S: Record<string, React.CSSProperties> = {
   toolDivider: { width: "1px", height: "24px", background: "#E5E3DE" },
   nestBtn: { background: "#B91C1C", color: "#fff", border: "none", padding: "7px 14px", borderRadius: "7px", fontSize: "13px", fontWeight: 700, cursor: "pointer" },
   iconBtn: { width: "30px", height: "30px", border: "1px solid #DDD9D2", background: "#fff", borderRadius: "6px", fontSize: "15px", cursor: "pointer", lineHeight: 1 },
-  canvasScroll: { flex: 1, overflow: "auto", padding: "24px", position: "relative" },
+  canvasScroll: { position: "absolute", inset: 0, overflow: "auto", padding: "24px" },
   legend: { position: "sticky", top: 0, display: "flex", gap: "12px", flexWrap: "wrap", fontSize: "11px", color: "#777", marginBottom: "14px", background: "rgba(244,243,241,.9)", padding: "4px 0", zIndex: 2 },
+  rulerGrid: { flex: 1, minHeight: 0, display: "grid", gridTemplateColumns: "26px 1fr", gridTemplateRows: "22px 1fr", background: "#F4F3F1" },
+  rulerCorner: { borderRight: "1px solid #ECEAE5", borderBottom: "1px solid #ECEAE5", background: "#FAFAF8" },
+  rulerTopWrap: { overflow: "hidden", borderBottom: "1px solid #ECEAE5", background: "#fff", position: "relative" },
+  rulerLeftWrap: { overflow: "hidden", borderRight: "1px solid #ECEAE5", background: "#fff", position: "relative" },
+  canvasControls: { position: "absolute", top: "10px", left: "10px", zIndex: 4, background: "rgba(255,255,255,.96)", border: "1px solid #E5E3DE", borderRadius: "8px", padding: "8px 10px", display: "flex", flexDirection: "column", gap: "5px", boxShadow: "0 1px 4px rgba(0,0,0,.06)" },
+  canvasCheck: { display: "flex", alignItems: "center", gap: "6px", fontSize: "12px", fontWeight: 600, color: "#444", cursor: "pointer" },
+  canvasWarn: { position: "absolute", top: "10px", right: "10px", zIndex: 4, display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap", background: "#FFF7ED", border: "1px solid #FED7AA", color: "#9A3412", borderRadius: "8px", padding: "7px 11px", fontSize: "12px", maxWidth: "55%", justifyContent: "flex-end", boxShadow: "0 1px 4px rgba(0,0,0,.06)" },
   rightPanel: { width: "230px", flexShrink: 0, background: "#fff", borderLeft: "1px solid #E5E3DE", padding: "16px", display: "flex", flexDirection: "column", gap: "10px" },
   activeCard: { border: "1px solid #E5E3DE", borderRadius: "10px", padding: "12px" },
   rightAction: { textAlign: "left", background: "#fff", border: "1px solid #E5E3DE", borderRadius: "8px", padding: "10px 12px", fontSize: "13px", fontWeight: 600, cursor: "pointer", color: "#333" },
