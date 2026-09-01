@@ -606,6 +606,8 @@ def _product_to_dict(product: Product) -> dict:
         "review_count": getattr(product, "review_count", 0),
         "avg_rating": getattr(product, "avg_rating", 0.0),
         "gang_sheet_enabled": getattr(product, "gang_sheet_enabled", False),
+        "gang_sheet_type": getattr(product, "gang_sheet_type", None),
+        "gang_sheet_config": getattr(product, "gang_sheet_config", None),
     }
 
 

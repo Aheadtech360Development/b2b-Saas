@@ -10,6 +10,7 @@ import { useAuthStore } from "@/stores/auth.store";
 import { apiClient } from "@/lib/api-client";
 import { cartService } from "@/services/cart.service";
 import { productsService } from "@/services/products.service";
+import { UploadBySizeModal } from "@/components/storefront/UploadBySizeModal";
 
 function formatWeightGrams(raw: string | null | undefined): string | null {
   if (!raw) return null;
@@ -490,6 +491,11 @@ export function ProductDetailClient({ slug }: ProductDetailClientProps) {
   const filteredGroups = showAllColors ? colorGroups : colorGroups.slice(0, 4);
   const pricePerUnit = Number(primaryVariant?.effective_price ?? primaryVariant?.retail_price ?? 0);
   const anyInStock = (product.variants ?? []).some(v => !isOutOfStock(v.stock_quantity));
+
+  const [showUploadBySize, setShowUploadBySize] = useState(false);
+  // "Upload by size" products get the simple single-design flow; everything else
+  // (or an unset type) opens the full gang-sheet builder.
+  const isUploadBySize = product.gang_sheet_enabled && product.gang_sheet_type === "upload_by_size";
 
   // Link to the builder for this product, preserving the ?tenant= fallback used
   // on hosts without wildcard subdomains so the brand survives the navigation.
@@ -984,17 +990,29 @@ export function ProductDetailClient({ slug }: ProductDetailClientProps) {
               </>
             )}
 
-            {/* Gang sheet builder — only when enabled for this product */}
-            {product.gang_sheet_enabled && (
+            {/* Gang sheet — "Upload by size" is the simple single-design flow;
+                any other enabled product opens the full builder. */}
+            {isUploadBySize ? (
+              <button
+                onClick={() => setShowUploadBySize(true)}
+                style={{ display: "block", width: "100%", boxSizing: "border-box", textAlign: "center", padding: "15px", marginTop: "12px", background: "#DC2626", color: "#fff", border: "none", cursor: "pointer", fontFamily: "'DM Sans', sans-serif", fontSize: "15px", fontWeight: 800, letterSpacing: ".02em" }}
+              >
+                UPLOAD IMAGE BY SIZE
+              </button>
+            ) : product.gang_sheet_enabled ? (
               <Link
                 href={gangSheetHref}
                 style={{ display: "block", width: "100%", boxSizing: "border-box", textAlign: "center", padding: "14px", marginTop: "12px", background: "#fff", color: "var(--brand-primary, #1C3557)", border: "1.5px solid var(--brand-primary, #1C3557)", textDecoration: "none", fontFamily: "'DM Sans', sans-serif", fontSize: "15px", fontWeight: 600 }}
               >
                 🧩 Build a gang sheet
               </Link>
-            )}
+            ) : null}
           </div>
         </div>
+
+        {showUploadBySize && (
+          <UploadBySizeModal product={product} onClose={() => setShowUploadBySize(false)} />
+        )}
 
         {/* ── Product Tabs ───────────────────────────────────────────────── */}
         <div style={{ marginTop: "40px", borderTop: "1px solid #E2E2DE" }}>

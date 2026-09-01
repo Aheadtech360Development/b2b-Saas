@@ -80,6 +80,12 @@ export interface ProductDetail {
   review_count?: number;
   avg_rating?: number;
   gang_sheet_enabled?: boolean;
+  gang_sheet_type?: "gang_sheet" | "upload_by_size" | null;
+  gang_sheet_config?: {
+    printer_width?: number;
+    max_height?: number;
+    tiers?: { max_height: number; max_area: number; price_per_sqin: number; discount: number }[];
+  } | null;
 }
 
 /** Product asset (flyer, spec sheet). */

@@ -194,6 +194,21 @@ class OrderIn(BaseModel):
     custom_length_in: Optional[Decimal] = Field(default=None, gt=0)
 
 
+class UploadBySizeIn(BaseModel):
+    """A single-design "Upload by size" order: one artwork printed at an exact
+    width×height, priced from the product's area-tiered table (server-side)."""
+    product_id: uuid.UUID
+    width_in: Decimal = Field(gt=0)
+    height_in: Decimal = Field(gt=0)
+    quantity: int = Field(default=1, ge=1)
+    file_url: str
+    file_name: str
+    file_type: Optional[str] = None
+    contact_email: Optional[str] = None
+    contact_name: Optional[str] = None
+    customer_notes: Optional[str] = None
+
+
 class StatusIn(BaseModel):
     status: str
     supplier_notes: Optional[str] = None
@@ -585,6 +600,106 @@ async def submit_order(
     # updated_at has onupdate=now(); after an UPDATE flush it is expired and
     # touching it in the serialiser would trigger implicit async IO (500). Refresh
     # reloads it in the async context first.
+    await db.refresh(order)
+    await _notify(db, order, STATUS_SUBMITTED)
+    return _order_row(order, arts)
+
+
+def _upload_by_size_rate(config: dict, area: float) -> Optional[float]:
+    """Price-per-sq-inch for a design of `area` sq.in from a product's tiered
+    table. Tiers are {max_area, price_per_sqin}; the first tier whose max_area
+    covers the design wins (bigger prints fall to a cheaper per-inch rate).
+    Above the largest tier, the largest tier's rate applies. None = no pricing."""
+    norm: list[tuple[float, float]] = []
+    for t in (config.get("tiers") or []):
+        try:
+            ma = float(t.get("max_area") or 0)
+            pp = float(t.get("price_per_sqin") or 0)
+        except (TypeError, ValueError):
+            continue
+        if ma > 0 and pp > 0:
+            norm.append((ma, pp))
+    if not norm:
+        return None
+    norm.sort(key=lambda x: x[0])
+    for ma, pp in norm:
+        if area <= ma + 1e-6:
+            return pp
+    return norm[-1][1]
+
+
+@public_router.post("/orders/upload-by-size", status_code=status.HTTP_201_CREATED)
+async def submit_upload_by_size(
+    payload: UploadBySizeIn,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """One-design "Upload by size" order. Price is computed here from the
+    product's area-tiered table — the client's estimate is never trusted."""
+    product = (
+        await db.execute(select(Product).where(Product.id == payload.product_id))
+    ).scalar_one_or_none()
+    if not product or not getattr(product, "gang_sheet_enabled", False):
+        raise HTTPException(status_code=400, detail="This product does not accept uploads by size.")
+    if getattr(product, "gang_sheet_type", None) != "upload_by_size":
+        raise HTTPException(status_code=400, detail="This product is not configured for upload by size.")
+
+    config = getattr(product, "gang_sheet_config", None) or {}
+    printer_w = Decimal(str(config.get("printer_width") or 0))
+    max_h = Decimal(str(config.get("max_height") or 0))
+    w, h = payload.width_in, payload.height_in
+    if printer_w > 0 and w > printer_w:
+        raise HTTPException(status_code=400, detail=f"Width must be at most {printer_w}in for this product.")
+    if max_h > 0 and h > max_h:
+        raise HTTPException(status_code=400, detail=f"Height must be at most {max_h}in for this product.")
+
+    area = float(w) * float(h)
+    rate = _upload_by_size_rate(config, area)
+    if rate is None:
+        raise HTTPException(status_code=400, detail="This product has no pricing configured yet.")
+    unit_price = (w * h * Decimal(str(rate))).quantize(Decimal("0.01"))
+    subtotal = (unit_price * payload.quantity).quantize(Decimal("0.01"))
+
+    order = GangSheetOrder(
+        reference=await _next_reference(db),
+        company_id=getattr(request.state, "company_id", None),
+        user_id=getattr(request.state, "user_id", None),
+        contact_email=payload.contact_email,
+        contact_name=payload.contact_name,
+        product_id=product.id,
+        sheet_size_id=None,  # upload-by-size has no preset sheet
+        sheet_name=f'{product.name} — {w}"×{h}"',
+        sheet_width_in=w,
+        sheet_height_in=h,
+        price_per_sheet=unit_price,
+        sheet_quantity=payload.quantity,
+        subtotal=subtotal,
+        status=STATUS_SUBMITTED,
+        customer_notes=payload.customer_notes,
+    )
+    db.add(order)
+    await db.flush()
+
+    art = GangSheetArtwork(
+        gang_sheet_order_id=order.id,
+        file_url=payload.file_url,
+        file_name=payload.file_name,
+        file_type=payload.file_type,
+        width_in=w,
+        height_in=h,
+        quantity=payload.quantity,
+        sort_order=0,
+    )
+    db.add(art)
+    await db.flush()
+
+    # The single design fills its own sheet — record it as the layout so the admin
+    # review + production pipeline sees exactly what was ordered.
+    order.layout = [{"artwork_id": str(art.id), "x_in": 0, "y_in": 0, "rotation": 0, "w_in": float(w), "h_in": float(h)}]
+    arts = await _load_artworks(db, order.id)
+    order.version = 1
+    order.versions = [_snapshot(order, arts, 1)]
+    await db.flush()
     await db.refresh(order)
     await _notify(db, order, STATUS_SUBMITTED)
     return _order_row(order, arts)

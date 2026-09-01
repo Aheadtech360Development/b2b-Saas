@@ -141,6 +141,43 @@ export interface GangSheetConfig {
   tiers?: GangSheetTier[];
 }
 
+export interface UploadBySizePayload {
+  product_id: string;
+  width_in: number;
+  height_in: number;
+  quantity: number;
+  file_url: string;
+  file_name: string;
+  file_type?: string;
+  contact_email?: string;
+  contact_name?: string;
+  customer_notes?: string;
+}
+
+/**
+ * Live client-side estimate for an "Upload by size" design — a mirror of the
+ * server's authoritative calc (backend recomputes on submit). Picks the first
+ * tier whose max_area covers the design's area; above the largest tier the
+ * largest rate applies. Returns the per-sq-in rate, area, unit and total.
+ */
+export function priceUploadBySize(
+  config: GangSheetConfig | null | undefined,
+  widthIn: number,
+  heightIn: number,
+  qty: number,
+): { rate: number; area: number; unit: number; total: number } | null {
+  const tiers = (config?.tiers ?? [])
+    .map((t) => ({ maxArea: Number(t.max_area) || 0, rate: Number(t.price_per_sqin) || 0 }))
+    .filter((t) => t.maxArea > 0 && t.rate > 0)
+    .sort((a, b) => a.maxArea - b.maxArea);
+  if (!tiers.length || widthIn <= 0 || heightIn <= 0) return null;
+  const area = widthIn * heightIn;
+  const tier = tiers.find((t) => area <= t.maxArea + 1e-6) ?? tiers[tiers.length - 1]!;
+  const unit = Math.round(area * tier.rate * 100) / 100;
+  const total = Math.round(unit * Math.max(1, qty) * 100) / 100;
+  return { rate: tier.rate, area, unit, total };
+}
+
 export interface GangSheetProduct {
   id: string;
   name: string;
@@ -197,6 +234,10 @@ export const gangSheetsService = {
 
   submit: (payload: SubmitGangSheetPayload) =>
     apiClient.post<GangSheetOrder>("/api/v1/gang-sheets/orders", payload),
+
+  /** One-design "Upload by size" order — server recomputes price from the product's tiers. */
+  submitUploadBySize: (payload: UploadBySizePayload) =>
+    apiClient.post<GangSheetOrder>("/api/v1/gang-sheets/orders/upload-by-size", payload),
 
   myOrders: () => apiClient.get<GangSheetOrder[]>("/api/v1/gang-sheets/orders"),
 
