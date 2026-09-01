@@ -99,6 +99,22 @@ interface Placement {
   rotation: number; // 0 | 90
 }
 
+// One "Active Gang Sheet" in a multi-sheet build. The active sheet's live edits
+// live in the working state (placements/sizeId/qty/customLength); inactive sheets
+// are held here as snapshots and swapped in when selected. Each sheet becomes its
+// own reviewable order + cart line on save, so one checkout = many sheets.
+interface SheetTab {
+  key: string;
+  name: string;
+  sizeId: string;
+  qty: number;
+  customLength: number;
+  placements: Placement[];
+  orderId?: string | null; // set for the sheet that reopened an existing order
+}
+
+const uid = () => Math.random().toString(36).slice(2, 10);
+
 interface Props {
   sizes: GangSheetSize[];
   productId: string | null;
@@ -134,7 +150,6 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
     sizes[0]?.id ||
     ""
   );
-  const resumeId = resumeOrder?.id ?? null;
   const [qty, setQty] = useState(1);
   const [uploads, setUploads] = useState<Upload[]>([]);
   const [placements, setPlacements] = useState<Placement[]>([]);
@@ -158,6 +173,10 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
   const [panTool, setPanTool] = useState(false);  // ✋ hand tool: drag to pan the canvas
   const [showGrid, setShowGrid] = useState(false); // ▦ grid overlay on the sheet
   const [showOverlap, setShowOverlap] = useState(true); // highlight overlapping designs
+  // Multi-sheet build: `sheets` holds every Active Gang Sheet; the one at `active`
+  // is edited through the working state above and snapshotted back on switch/save.
+  const [sheets, setSheets] = useState<SheetTab[]>([]);
+  const [active, setActive] = useState(0);
 
   const fileRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -804,6 +823,20 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
     if (leftRulerRef.current) leftRulerRef.current.scrollTop = el.scrollTop;
   }, [zoom, sheetWpx, sheetHpx]);
 
+  // Seed the first Active Gang Sheet once sizes (or a resumed order) are known.
+  useEffect(() => {
+    if (sheets.length > 0) return;
+    if (!sizes.length && !resumeOrder) return;
+    setSheets([{
+      key: uid(),
+      name: resumeOrder?.sheet_name || "Gang Sheet 1",
+      sizeId: sizeId || sizes[0]?.id || "",
+      qty, customLength, placements: [],
+      orderId: resumeOrder?.id ?? null,
+    }]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sizes.length, resumeOrder]);
+
   // ── Keyboard ─────────────────────────────────────────────────────────────────
   function onKeyDown(e: React.KeyboardEvent) {
     const meta = e.ctrlKey || e.metaKey;
@@ -826,82 +859,143 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
     }
   }
 
+  // ── Multi-sheet management ───────────────────────────────────────────────────
+  // Reset undo history to a placement set (so undo stays within the active sheet).
+  function resetHistory(pls: Placement[]) {
+    historyRef.current = [pls.map((p) => ({ ...p }))];
+    ptrRef.current = 0;
+    suppressHistory.current = true; // the load's placements-change is the reset itself
+    forceHud((n) => n + 1);
+  }
+
+  // Snapshot the active sheet's live edits back into the sheets list.
+  function snapshotAll(): SheetTab[] {
+    return sheets.map((s, i) => (i === active ? { ...s, sizeId, qty, customLength, placements } : s));
+  }
+
+  // Load a sheet (from an already-snapshotted list) into the working state.
+  function goTo(list: SheetTab[], idx: number) {
+    const target = list[idx];
+    if (!target) return;
+    setSheets(list);
+    setActive(idx);
+    setSizeId(target.sizeId || sizes[0]?.id || "");
+    setQty(target.qty || 1);
+    setCustomLength(target.customLength || 0);
+    setPlacements(target.placements.map((p) => ({ ...p })));
+    setSelected(null);
+    resetHistory(target.placements);
+  }
+
+  function switchTo(idx: number) { if (idx !== active) goTo(snapshotAll(), idx); }
+
+  function addSheet() {
+    const fresh: SheetTab = { key: uid(), name: `Gang Sheet ${sheets.length + 1}`, sizeId: sizes[0]?.id || sizeId, qty: 1, customLength: 0, placements: [] };
+    const next = [...snapshotAll(), fresh];
+    goTo(next, next.length - 1);
+    setPanel("uploads");
+  }
+
+  function duplicateSheet(idx: number) {
+    const snap = snapshotAll();
+    const src = snap[idx];
+    if (!src) return;
+    const copy: SheetTab = { ...src, key: uid(), name: `${src.name} copy`, orderId: null, placements: src.placements.map((p) => ({ ...p, id: nextId.current++ })) };
+    const next = [...snap.slice(0, idx + 1), copy, ...snap.slice(idx + 1)];
+    goTo(next, idx + 1);
+  }
+
+  function deleteSheet(idx: number) {
+    if (sheets.length <= 1) return;
+    const next = snapshotAll().filter((_, i) => i !== idx);
+    let landing = active;
+    if (idx === active) landing = Math.min(idx, next.length - 1);
+    else if (idx < active) landing = active - 1;
+    goTo(next, landing);
+  }
+
+  function renameSheet(idx: number, name: string) {
+    setSheets((list) => list.map((s, i) => (i === idx ? { ...s, name } : s)));
+  }
+
+  function setSheetQty(idx: number, q: number) {
+    const nq = Math.max(1, Math.floor(q) || 1);
+    if (idx === active) { setQty(nq); return; }
+    setSheets((list) => list.map((s, i) => (i === idx ? { ...s, qty: nq } : s)));
+  }
+
+  /** Per-sheet unit price (per-sheet flat, or custom length × per-inch). */
+  function sheetUnitPrice(s: { sizeId: string; customLength: number }): number {
+    const sz = sizes.find((z) => z.id === s.sizeId);
+    if (!sz) return 0;
+    return sz.pricing_mode === "custom_length"
+      ? s.customLength * Number(sz.price_per_inch || 0)
+      : Number(sz.price_per_sheet || 0);
+  }
+
   // ── Save ─────────────────────────────────────────────────────────────────────
+  // Submit one sheet as its own order and persist its layout; returns the order.
+  async function submitSheet(s: SheetTab): Promise<GangSheetOrder> {
+    const sz = sizes.find((z) => z.id === s.sizeId);
+    if (!sz) throw new Error("Choose a sheet size for every sheet.");
+    const sCustom = sz.pricing_mode === "custom_length";
+    const usedUids = Array.from(new Set(s.placements.map((p) => p.uid)));
+    const artPayload = usedUids.map((u) => {
+      const up = upById(u)!;
+      const first = s.placements.find((p) => p.uid === u)!;
+      const count = s.placements.filter((p) => p.uid === u).length;
+      return { file_url: up.file_url, file_name: up.file_name, file_type: up.file_type, width_in: round2(first.w_in), height_in: round2(first.h_in), quantity: count };
+    });
+    // Reopened sheet → replace its order's contents; otherwise submit a new one.
+    const order = s.orderId
+      ? await gangSheetsService.rebuild(s.orderId, { sheet_size_id: sz.id, sheet_quantity: s.qty, custom_length_in: sCustom ? s.customLength : undefined, artworks: artPayload })
+      : await gangSheetsService.submit({ sheet_size_id: sz.id, sheet_quantity: s.qty, custom_length_in: sCustom ? s.customLength : undefined, artworks: artPayload, product_id: productId || undefined, contact_name: contactName || undefined, contact_email: contactEmail || undefined });
+    const idByUrl = new Map((order.artworks ?? []).map((a) => [a.file_url, a.id ?? ""]));
+    const layout = s.placements
+      .map((p) => {
+        const up = upById(p.uid);
+        const artId = up ? idByUrl.get(up.file_url) : undefined;
+        if (!artId) return null;
+        return { artwork_id: artId, x_in: p.x_in, y_in: p.y_in, rotation: p.rotation, w_in: p.w_in, h_in: p.h_in };
+      })
+      .filter((x): x is NonNullable<typeof x> => x != null);
+    if (layout.length) { try { return await gangSheetsService.saveLayout(order.id, layout); } catch { return order; } }
+    return order;
+  }
+
   async function save(toCart: boolean) {
     setError(null);
     setSavedOk(false);
-    if (!size) { setError("Choose a sheet size."); return; }
-    if (placements.length === 0) { setError("Add at least one design to the sheet."); return; }
+    const toSubmit = snapshotAll().filter((s) => s.placements.length > 0);
+    if (!toSubmit.length) { setError("Add at least one design to a sheet before saving."); return; }
     setSaving(true);
     try {
-      // One artwork per unique upload that's actually on the sheet; its stored
-      // size is the first placement's footprint, quantity = number of copies.
-      const usedUids = Array.from(new Set(placements.map((p) => p.uid)));
-      const artPayload = usedUids.map((uid) => {
-        const u = upById(uid)!;
-        const first = placements.find((p) => p.uid === uid)!;
-        const count = placements.filter((p) => p.uid === uid).length;
-        return {
-          file_url: u.file_url, file_name: u.file_name, file_type: u.file_type,
-          width_in: round2(first.w_in), height_in: round2(first.h_in), quantity: count,
-        };
-      });
-
-      // Reopened order → replace its contents in place; otherwise submit a new one.
-      const order = resumeId
-        ? await gangSheetsService.rebuild(resumeId, {
-            sheet_size_id: size.id,
-            sheet_quantity: qty,
-            custom_length_in: isCustom ? customLength : undefined,
-            artworks: artPayload,
-          })
-        : await gangSheetsService.submit({
-            sheet_size_id: size.id,
-            sheet_quantity: qty,
-            custom_length_in: isCustom ? customLength : undefined,
-            artworks: artPayload,
-            product_id: productId || undefined,
-            contact_name: contactName || undefined,
-            contact_email: contactEmail || undefined,
-          });
-
-      // Map local uploads → server artwork ids (matched by file_url) and persist
-      // the exact layout the buyer arranged.
-      const idByUrl = new Map((order.artworks ?? []).map((a) => [a.file_url, a.id ?? ""]));
-      const layout = placements
-        .map((p) => {
-          const u = upById(p.uid);
-          const artId = u ? idByUrl.get(u.file_url) : undefined;
-          if (!artId) return null;
-          return { artwork_id: artId, x_in: p.x_in, y_in: p.y_in, rotation: p.rotation, w_in: p.w_in, h_in: p.h_in };
-        })
-        .filter((x): x is NonNullable<typeof x> => x != null);
-      let finalOrder = order;
-      if (layout.length) {
-        try { finalOrder = await gangSheetsService.saveLayout(order.id, layout); } catch { /* layout best-effort */ }
-      }
-
-      // "Save & Add to Cart" — put it in the cart and head to checkout. Company
-      // buyers reach the cart; if the cart isn't available (individual buyer),
-      // fall back to the saved-to-gang-sheets flow so nothing is lost.
+      // Each sheet is its own order (its own review + print job); adding them all
+      // to the cart means one checkout can contain many sheets.
+      const orders: GangSheetOrder[] = [];
+      for (const s of toSubmit) orders.push(await submitSheet(s));
       if (toCart) {
         try {
-          await cartService.addGangSheet(finalOrder.id);
+          for (const o of orders) await cartService.addGangSheet(o.id);
           window.location.href = "/cart";
           return;
-        } catch { /* cart unavailable — fall through */ }
+        } catch { /* cart unavailable — fall through to the saved state */ }
       }
       setSavedOk(true);
-      onSaved(finalOrder);
+      onSaved(orders[0]!);
     } catch (e) {
       const msg = (e as { message?: string })?.message;
-      setError(msg || "Could not save this gang sheet. Please make sure you're signed in.");
+      setError(msg || "Could not save your gang sheets. Please make sure you're signed in.");
     } finally {
       setSaving(false);
     }
   }
 
-  const usedLength = placements.reduce((mx, p) => Math.max(mx, p.y_in + footprint(p).h), 0);
+  // Total across every sheet: the active one live, the rest from their snapshots.
+  const cartTotal = sheets.reduce((sum, s, i) => {
+    if (i === active) return sum + unitPrice * qty;
+    return sum + sheetUnitPrice(s) * s.qty;
+  }, 0);
   const sel = selected != null ? placements.find((p) => p.id === selected) : undefined;
   const selUp = sel ? upById(sel.uid) : undefined;
   const selFp = sel ? footprint(sel) : null;
@@ -961,9 +1055,11 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
           <button onClick={() => save(false)} disabled={saving} style={S.ghostBtn} title="Save without adding to cart">Save</button>
           <button onClick={onClose} style={S.closeBtn}>Close</button>
         </div>
-        <div style={{ textAlign: "right", minWidth: "120px" }}>
-          <div style={{ fontSize: "11px", color: "#999", textTransform: "uppercase", letterSpacing: ".05em" }}>Price</div>
-          <div style={{ fontSize: "20px", fontWeight: 800 }}>${(unitPrice * qty).toFixed(2)}</div>
+        <div style={{ textAlign: "right", minWidth: "130px" }}>
+          <div style={{ fontSize: "11px", color: "#999", textTransform: "uppercase", letterSpacing: ".05em" }}>
+            {sheets.length > 1 ? `Total · ${sheets.length} sheets` : "Price"}
+          </div>
+          <div style={{ fontSize: "20px", fontWeight: 800 }}>${cartTotal.toFixed(2)}</div>
         </div>
       </div>
 
@@ -1320,25 +1416,55 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
           </div>
         </div>
 
-        {/* ── Right panel ───────────────────────────────────────────────────── */}
+        {/* ── Right panel: Active Gang Sheets ───────────────────────────────── */}
         <div style={S.rightPanel}>
-          <div style={{ fontSize: "13px", fontWeight: 800 }}>Active gang sheet</div>
-          <div style={S.activeCard}>
-            <div style={{ fontSize: "13px", fontWeight: 700 }}>{size?.name ?? "—"}</div>
-            <div style={{ fontSize: "12px", color: "#777", marginTop: "2px" }}>{size?.width_in ?? 0}″ × {sheetLen.toFixed(0)}″</div>
-            <div style={{ fontSize: "12px", color: "#777", marginTop: "6px" }}>{placements.length} image{placements.length === 1 ? "" : "s"} · {usedLength.toFixed(1)}″ used</div>
-            <div style={{ marginTop: "8px", display: "flex", alignItems: "center", gap: "8px" }}>
-              <span style={{ fontSize: "12px", color: "#777" }}>Qty</span>
-              <input type="number" min={1} value={qty} onChange={(e) => setQty(Math.max(1, Number(e.target.value) || 1))} style={{ width: "56px", padding: "5px 7px", border: "1px solid #DDD9D2", borderRadius: "6px", fontSize: "13px" }} />
-            </div>
+          <div style={{ fontSize: "13px", fontWeight: 800 }}>({sheets.length}) Active Gang Sheet{sheets.length === 1 ? "" : "s"}</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: "8px", overflowY: "auto", maxHeight: "44vh", paddingRight: "2px" }}>
+            {sheets.map((s, i) => {
+              const isA = i === active;
+              const sz = sizes.find((z) => z.id === (isA ? sizeId : s.sizeId));
+              const imgs = isA ? placements.length : s.placements.length;
+              const q = isA ? qty : s.qty;
+              const len = sz ? (sz.pricing_mode === "custom_length" ? (isA ? sheetLen : s.customLength) : Number(sz.height_in)) : 0;
+              return (
+                <div key={s.key} onClick={() => switchTo(i)} style={{ ...S.sheetCard, ...(isA ? S.sheetCardActive : {}) }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                    <span style={{ fontSize: "11px", color: "#888", fontWeight: 700 }}>🏠 {sz?.name ?? "—"}</span>
+                    {sheets.length > 1 && (
+                      <button onClick={(e) => { e.stopPropagation(); deleteSheet(i); }} title="Delete sheet" style={{ marginLeft: "auto", background: "none", border: "none", color: "#B91C1C", cursor: "pointer", fontSize: "13px", padding: 0 }}>🗑</button>
+                    )}
+                  </div>
+                  <input
+                    value={s.name}
+                    onClick={(e) => e.stopPropagation()}
+                    onChange={(e) => renameSheet(i, e.target.value)}
+                    style={S.sheetNameInput}
+                  />
+                  <div style={{ fontSize: "11px", color: "#999" }}>
+                    {imgs} image{imgs === 1 ? "" : "s"}{len ? ` · ${sz?.width_in ?? 0}×${Math.round(len)}″` : ""}
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: "6px" }}>
+                    <label style={{ display: "flex", alignItems: "center", gap: "5px", fontSize: "11px", color: "#777" }}>
+                      Qty
+                      <input type="number" min={1} value={q} onClick={(e) => e.stopPropagation()} onChange={(e) => setSheetQty(i, Number(e.target.value))} style={{ width: "48px", padding: "3px 6px", border: "1px solid #DDD9D2", borderRadius: "5px", fontSize: "12px" }} />
+                    </label>
+                    <button onClick={(e) => { e.stopPropagation(); duplicateSheet(i); }} style={{ background: "none", border: "1px solid #DDD9D2", borderRadius: "6px", padding: "3px 8px", fontSize: "11px", fontWeight: 600, cursor: "pointer", color: "#444" }}>⧉ Duplicate</button>
+                  </div>
+                </div>
+              );
+            })}
           </div>
-          <button onClick={() => { setPanel("uploads"); fileRef.current?.click(); }} style={S.rightAction}>⊕ Add new design</button>
-          <button onClick={autoBuild} style={S.rightAction} title="Fill the sheet with copies of your designs">▦ Auto build (fill sheet)</button>
-          <button onClick={() => autoNest()} style={S.rightAction} title="Arrange current designs compactly">⚡ Auto nest (tidy up)</button>
+
+          <button onClick={addSheet} style={{ ...S.rightAction, borderStyle: "dashed", color: "var(--brand-primary,#1C3557)", fontWeight: 700 }}>⊕ Add new sheet</button>
+
+          <div style={{ borderTop: "1px solid #EEECE7", margin: "2px 0" }} />
+          <button onClick={() => { setPanel("uploads"); fileRef.current?.click(); }} style={S.rightAction}>⬆ Add new design</button>
+          <button onClick={autoBuild} style={S.rightAction} title="Fill this sheet with copies of your designs">▦ Auto build (fill sheet)</button>
+          <button onClick={() => autoNest()} style={S.rightAction} title="Arrange this sheet's designs compactly">⚡ Auto nest (tidy up)</button>
           <button onClick={() => autoNest(0.5)} style={S.rightAction} title="Nest with extra spacing for cutting">✂ Auto nest for cutting</button>
-          <button onClick={startOver} style={{ ...S.rightAction, color: "#B91C1C" }}>↺ Start over</button>
-          <div style={{ marginTop: "auto", fontSize: "11px", color: "#aaa", paddingTop: "16px" }}>
-            Tip: drop designs on the sheet, drag to arrange, then <strong>Save &amp; Add to Cart</strong>.
+          <button onClick={startOver} style={{ ...S.rightAction, color: "#B91C1C" }}>↺ Start over (this sheet)</button>
+          <div style={{ marginTop: "auto", fontSize: "11px", color: "#aaa", paddingTop: "12px" }}>
+            Tip: build multiple sheets, then <strong>Save &amp; Add to Cart</strong> — each sheet is its own print job.
           </div>
         </div>
       </div>
@@ -1384,8 +1510,11 @@ const S: Record<string, React.CSSProperties> = {
   canvasControls: { position: "absolute", top: "10px", left: "10px", zIndex: 4, background: "rgba(255,255,255,.96)", border: "1px solid #E5E3DE", borderRadius: "8px", padding: "8px 10px", display: "flex", flexDirection: "column", gap: "5px", boxShadow: "0 1px 4px rgba(0,0,0,.06)" },
   canvasCheck: { display: "flex", alignItems: "center", gap: "6px", fontSize: "12px", fontWeight: 600, color: "#444", cursor: "pointer" },
   canvasWarn: { position: "absolute", top: "10px", right: "10px", zIndex: 4, display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap", background: "#FFF7ED", border: "1px solid #FED7AA", color: "#9A3412", borderRadius: "8px", padding: "7px 11px", fontSize: "12px", maxWidth: "55%", justifyContent: "flex-end", boxShadow: "0 1px 4px rgba(0,0,0,.06)" },
-  rightPanel: { width: "230px", flexShrink: 0, background: "#fff", borderLeft: "1px solid #E5E3DE", padding: "16px", display: "flex", flexDirection: "column", gap: "10px" },
+  rightPanel: { width: "240px", flexShrink: 0, background: "#fff", borderLeft: "1px solid #E5E3DE", padding: "16px", display: "flex", flexDirection: "column", gap: "10px" },
   activeCard: { border: "1px solid #E5E3DE", borderRadius: "10px", padding: "12px" },
+  sheetCard: { border: "1px solid #E5E3DE", borderRadius: "10px", padding: "10px 12px", cursor: "pointer", background: "#fff" },
+  sheetCardActive: { borderColor: "var(--brand-primary,#1C3557)", boxShadow: "0 0 0 1px var(--brand-primary,#1C3557)", background: "#F7F9FD" },
+  sheetNameInput: { width: "100%", boxSizing: "border-box", border: "1px solid transparent", background: "transparent", fontSize: "13px", fontWeight: 700, padding: "2px 4px", borderRadius: "5px", margin: "3px 0", color: "#222" },
   rightAction: { textAlign: "left", background: "#fff", border: "1px solid #E5E3DE", borderRadius: "8px", padding: "10px 12px", fontSize: "13px", fontWeight: 600, cursor: "pointer", color: "#333" },
   chip: { border: "1px solid #D5D2CB", background: "#fff", borderRadius: "5px", width: "24px", height: "24px", fontSize: "12px", cursor: "pointer", lineHeight: 1, padding: 0 },
 };
