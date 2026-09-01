@@ -105,6 +105,28 @@ export interface SubmitGangSheetPayload {
   custom_length_in?: number;
 }
 
+export interface GangSheetDashboard {
+  total_jobs: number;
+  total_sheets: number;
+  total_orders: number;
+  total_amount: number;
+  status_breakdown: { status: string; count: number }[];
+  recent_designs: {
+    reference: string;
+    contact: string | null;
+    status: GangSheetStatus;
+    sheet_name: string;
+    subtotal: number;
+    created_at: string | null;
+  }[];
+  recent_orders: {
+    reference: string;
+    subtotal: number;
+    paid: boolean;
+    created_at: string | null;
+  }[];
+}
+
 export const gangSheetsService = {
   // ── Customer ──────────────────────────────────────────────────────────────
   listSizes: () => apiClient.get<GangSheetSize[]>("/api/v1/gang-sheets/sizes"),
@@ -185,6 +207,9 @@ export const gangSheetsService = {
       supplier_notes,
       internal_notes,
     }),
+
+  /** Live stats for the gang-sheet admin Dashboard (this brand only). */
+  adminDashboard: () => apiClient.get<GangSheetDashboard>("/api/v1/admin/gang-sheets/dashboard"),
 };
 
 export const GANG_SHEET_STATUS_LABEL: Record<GangSheetStatus, string> = {

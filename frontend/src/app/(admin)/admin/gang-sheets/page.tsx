@@ -10,6 +10,7 @@ import {
   type GangSheetStatus,
   type GangSheetPlacement,
   type GangSheetLibraryDesign,
+  type GangSheetDashboard,
 } from "@/services/gangSheets.service";
 import { GangSheetCanvas } from "@/components/storefront/GangSheetCanvas";
 import { GangSheetTimeline } from "@/components/storefront/GangSheetTimeline";
@@ -76,8 +77,8 @@ const STANDARD_DTF_SIZES = [
 ];
 
 export default function AdminGangSheetsPage() {
-  const [tab, setTab] = useState<"orders" | "sizes" | "library">("orders");
-  const TAB_LABEL: Record<string, string> = { orders: "Orders", sizes: "Sheet Sizes", library: "Design Library" };
+  const [tab, setTab] = useState<"dashboard" | "orders" | "sizes" | "library">("dashboard");
+  const TAB_LABEL: Record<string, string> = { dashboard: "Dashboard", orders: "Orders", sizes: "Sheet Sizes", library: "Design Library" };
 
   return (
     <div style={{ padding: "24px", maxWidth: "1100px" }}>
@@ -87,7 +88,7 @@ export default function AdminGangSheetsPage() {
       </p>
 
       <div style={{ display: "flex", gap: "6px", marginBottom: "18px" }}>
-        {(["orders", "sizes", "library"] as const).map((t) => (
+        {(["dashboard", "orders", "sizes", "library"] as const).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -107,7 +108,107 @@ export default function AdminGangSheetsPage() {
         ))}
       </div>
 
-      {tab === "orders" ? <OrdersTab /> : tab === "sizes" ? <SizesTab /> : <LibraryTab />}
+      {tab === "dashboard" ? <DashboardTab /> : tab === "orders" ? <OrdersTab /> : tab === "sizes" ? <SizesTab /> : <LibraryTab />}
+    </div>
+  );
+}
+
+// ── Dashboard ─────────────────────────────────────────────────────────────────
+function DashboardTab() {
+  const [data, setData] = useState<GangSheetDashboard | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    gangSheetsService.adminDashboard().then(setData).catch(() => setData(null)).finally(() => setLoading(false));
+  }, []);
+
+  if (loading) return <div style={{ color: "#888", fontSize: "13px" }}>Loading…</div>;
+  if (!data) return <div style={{ ...CARD, color: "#888", fontSize: "13px" }}>Could not load dashboard.</div>;
+
+  const stats = [
+    { label: "Total Sheets", value: data.total_sheets.toLocaleString(), sub: `${data.total_jobs.toLocaleString()} designs`, color: "#4338CA" },
+    { label: "Total Orders", value: data.total_orders.toLocaleString(), sub: "checked out", color: "#166534" },
+    { label: "Total Order Amount", value: `$${data.total_amount.toFixed(2)}`, sub: "from placed orders", color: "#075985" },
+  ];
+  const totalStatus = data.status_breakdown.reduce((s, r) => s + r.count, 0) || 1;
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "18px" }}>
+      {/* Stat cards */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "14px" }}>
+        {stats.map((s) => (
+          <div key={s.label} style={CARD}>
+            <div style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: ".05em", color: "#6B6B6B" }}>{s.label}</div>
+            <div style={{ fontSize: "28px", fontWeight: 800, color: s.color, margin: "6px 0 2px" }}>{s.value}</div>
+            <div style={{ fontSize: "12px", color: "#9CA3AF" }}>{s.sub}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Status breakdown */}
+      <div style={CARD}>
+        <div style={{ fontSize: "14px", fontWeight: 700, marginBottom: "12px" }}>Designs by status</div>
+        {data.status_breakdown.length === 0 ? (
+          <div style={{ color: "#9CA3AF", fontSize: "13px" }}>No gang sheet designs yet.</div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+            {data.status_breakdown.map((r) => {
+              const c = GANG_SHEET_STATUS_COLOR[r.status as GangSheetStatus] ?? { bg: "#eee", fg: "#555" };
+              const pct = Math.round((r.count / totalStatus) * 100);
+              return (
+                <div key={r.status}>
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12px", marginBottom: "3px" }}>
+                    <span style={{ fontWeight: 600, color: c.fg }}>{GANG_SHEET_STATUS_LABEL[r.status as GangSheetStatus] ?? r.status}</span>
+                    <span style={{ color: "#6B6B6B" }}>{r.count} · {pct}%</span>
+                  </div>
+                  <div style={{ height: "8px", background: "#F1EFEB", borderRadius: "20px", overflow: "hidden" }}>
+                    <div style={{ width: `${pct}%`, height: "100%", background: c.fg, borderRadius: "20px" }} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Recent designs + recent orders */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: "14px" }}>
+        <div style={{ ...CARD, padding: 0, overflow: "hidden" }}>
+          <div style={{ padding: "14px 18px", borderBottom: "1px solid #F1EFEB", fontSize: "14px", fontWeight: 700 }}>Recent designs</div>
+          {data.recent_designs.length === 0 ? (
+            <div style={{ padding: "18px", color: "#9CA3AF", fontSize: "13px" }}>None yet.</div>
+          ) : data.recent_designs.map((d, i) => {
+            const c = GANG_SHEET_STATUS_COLOR[d.status] ?? { bg: "#eee", fg: "#555" };
+            return (
+              <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 18px", borderBottom: i < data.recent_designs.length - 1 ? "1px solid #F6F5F2" : "none" }}>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: "13px", fontWeight: 600, color: "#2A2830" }}>{d.reference}</div>
+                  <div style={{ fontSize: "11px", color: "#9CA3AF" }}>{d.contact || "—"} · {d.sheet_name}</div>
+                </div>
+                <span style={{ background: c.bg, color: c.fg, padding: "2px 9px", borderRadius: "20px", fontSize: "11px", fontWeight: 700, whiteSpace: "nowrap" }}>{GANG_SHEET_STATUS_LABEL[d.status] ?? d.status}</span>
+              </div>
+            );
+          })}
+        </div>
+
+        <div style={{ ...CARD, padding: 0, overflow: "hidden" }}>
+          <div style={{ padding: "14px 18px", borderBottom: "1px solid #F1EFEB", fontSize: "14px", fontWeight: 700 }}>Recent orders</div>
+          {data.recent_orders.length === 0 ? (
+            <div style={{ padding: "18px", color: "#9CA3AF", fontSize: "13px" }}>No orders yet.</div>
+          ) : data.recent_orders.map((o, i) => (
+            <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 18px", borderBottom: i < data.recent_orders.length - 1 ? "1px solid #F6F5F2" : "none" }}>
+              <div>
+                <div style={{ fontSize: "13px", fontWeight: 600, color: "#2A2830" }}>{o.reference}</div>
+                <div style={{ fontSize: "11px", color: "#9CA3AF" }}>{o.created_at ? new Date(o.created_at).toLocaleDateString() : ""}</div>
+              </div>
+              <div style={{ textAlign: "right" }}>
+                <div style={{ fontSize: "13px", fontWeight: 700 }}>${o.subtotal.toFixed(2)}</div>
+                <span style={{ fontSize: "10px", fontWeight: 700, color: o.paid ? "#166534" : "#92400E" }}>{o.paid ? "PAID" : "ORDERED"}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }

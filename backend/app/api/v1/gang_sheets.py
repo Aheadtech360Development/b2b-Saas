@@ -882,6 +882,69 @@ async def reorder(
 admin_router = APIRouter(prefix="/admin/gang-sheets", tags=["admin-gang-sheets"])
 
 
+@admin_router.get("/dashboard")
+async def admin_dashboard(
+    _: None = Depends(require_admin), db: AsyncSession = Depends(get_db)
+) -> dict:
+    """Live stats for the gang-sheet admin Dashboard (this brand only).
+
+    Everything is computed from the brand's own gang_sheet_orders — fully
+    dynamic, nothing hardcoded. GangSheetOrder is tenant-scoped, so the ORM
+    auto-filters to the current brand.
+    """
+    # Totals
+    total_jobs = (await db.execute(select(func.count(GangSheetOrder.id)))).scalar() or 0
+    total_sheets = (await db.execute(
+        select(func.coalesce(func.sum(GangSheetOrder.sheet_quantity), 0))
+    )).scalar() or 0
+    total_orders = (await db.execute(
+        select(func.count(GangSheetOrder.id)).where(GangSheetOrder.order_id.isnot(None))
+    )).scalar() or 0
+    total_amount = (await db.execute(
+        select(func.coalesce(func.sum(GangSheetOrder.subtotal), 0)).where(GangSheetOrder.order_id.isnot(None))
+    )).scalar() or 0
+
+    # Breakdown by status (the review pipeline) — real counts.
+    status_rows = (await db.execute(
+        select(GangSheetOrder.status, func.count(GangSheetOrder.id)).group_by(GangSheetOrder.status)
+    )).all()
+    status_breakdown = [{"status": s, "count": int(c)} for s, c in status_rows]
+
+    # Recent designs (latest jobs) + recent orders (jobs that became a paid/placed order).
+    recent = (await db.execute(
+        select(GangSheetOrder).order_by(GangSheetOrder.created_at.desc()).limit(8)
+    )).scalars().all()
+    recent_designs = [{
+        "reference": o.reference,
+        "contact": o.contact_name,
+        "status": o.status,
+        "sheet_name": o.sheet_name,
+        "subtotal": float(o.subtotal),
+        "created_at": o.created_at.isoformat() if o.created_at else None,
+    } for o in recent]
+
+    recent_ord_rows = (await db.execute(
+        select(GangSheetOrder).where(GangSheetOrder.order_id.isnot(None))
+        .order_by(GangSheetOrder.created_at.desc()).limit(8)
+    )).scalars().all()
+    recent_orders = [{
+        "reference": o.reference,
+        "subtotal": float(o.subtotal),
+        "paid": bool(getattr(o, "paid_at", None)),
+        "created_at": o.created_at.isoformat() if o.created_at else None,
+    } for o in recent_ord_rows]
+
+    return {
+        "total_jobs": int(total_jobs),
+        "total_sheets": int(total_sheets),
+        "total_orders": int(total_orders),
+        "total_amount": float(total_amount),
+        "status_breakdown": status_breakdown,
+        "recent_designs": recent_designs,
+        "recent_orders": recent_orders,
+    }
+
+
 @admin_router.get("/sizes")
 async def admin_list_sizes(
     _: None = Depends(require_admin), db: AsyncSession = Depends(get_db)
