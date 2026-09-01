@@ -191,7 +191,9 @@ export interface GangSheetSettings {
 
 export const gangSheetsService = {
   // ── Customer ──────────────────────────────────────────────────────────────
-  listSizes: () => apiClient.get<GangSheetSize[]>("/api/v1/gang-sheets/sizes"),
+  /** Sizes for a product (falls back to the brand's global set) or, with no id, every size. */
+  listSizes: (productId?: string) =>
+    apiClient.get<GangSheetSize[]>(`/api/v1/gang-sheets/sizes${productId ? `?product_id=${productId}` : ""}`),
 
   submit: (payload: SubmitGangSheetPayload) =>
     apiClient.post<GangSheetOrder>("/api/v1/gang-sheets/orders", payload),

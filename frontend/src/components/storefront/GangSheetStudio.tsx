@@ -61,6 +61,8 @@ interface Props {
   contactName?: string;
   contactEmail?: string;
   autoStart?: boolean;
+  /** Pre-select this sheet size when the builder opens (from the product page grid). */
+  initialSizeId?: string | null;
   /** Reopen an existing editable order to edit it, instead of starting fresh. */
   resumeOrder?: GangSheetOrder | null;
   onClose: () => void;
@@ -81,8 +83,13 @@ function dpiInfo(u: Upload | undefined, w: number, h: number) {
   return { dpi, color: "#DC2626", label: "Low" };
 }
 
-export function GangSheetStudio({ sizes, productId, contactName, contactEmail, autoStart, resumeOrder, onClose, onSaved }: Props) {
-  const [sizeId, setSizeId] = useState(resumeOrder?.sheet_size_id || sizes[0]?.id || "");
+export function GangSheetStudio({ sizes, productId, contactName, contactEmail, autoStart, initialSizeId, resumeOrder, onClose, onSaved }: Props) {
+  const [sizeId, setSizeId] = useState(
+    resumeOrder?.sheet_size_id ||
+    (initialSizeId && sizes.some((s) => s.id === initialSizeId) ? initialSizeId : "") ||
+    sizes[0]?.id ||
+    ""
+  );
   const resumeId = resumeOrder?.id ?? null;
   const [qty, setQty] = useState(1);
   const [uploads, setUploads] = useState<Upload[]>([]);

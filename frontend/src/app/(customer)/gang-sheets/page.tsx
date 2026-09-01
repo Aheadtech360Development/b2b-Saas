@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   GANG_SHEET_STATUS_COLOR,
   GANG_SHEET_STATUS_LABEL,
@@ -40,13 +40,21 @@ export default function GangSheetBuilderPage() {
   const [resumeOrder, setResumeOrder] = useState<GangSheetOrder | null>(null);
   const [justSaved, setJustSaved] = useState<GangSheetOrder | null>(null);
   const [productId, setProductId] = useState<string | null>(null);
+  const [selectedSizeId, setSelectedSizeId] = useState<string>("");
 
+  // Read the product from the URL, then load THAT product's sizes (falls back to
+  // the brand's global set server-side). Done together so we never load the
+  // wrong (global) sizes first when a product is in scope.
   useEffect(() => {
-    setProductId(new URLSearchParams(window.location.search).get("product"));
-  }, []);
-
-  useEffect(() => {
-    gangSheetsService.listSizes().then(setSizes).catch(() => setSizes([]));
+    const pid = new URLSearchParams(window.location.search).get("product");
+    setProductId(pid);
+    gangSheetsService
+      .listSizes(pid || undefined)
+      .then((rows) => {
+        setSizes(rows);
+        setSelectedSizeId((cur) => cur || rows[0]?.id || "");
+      })
+      .catch(() => setSizes([]));
   }, []);
 
   const loadOrders = useCallback(() => {
@@ -54,6 +62,34 @@ export default function GangSheetBuilderPage() {
     gangSheetsService.myOrders().then(setOrders).catch(() => setOrders([]));
   }, [isAuthenticated]);
   useEffect(loadOrders, [loadOrders]);
+
+  // ── Per-size "Save %" (vs the best per-foot price) + a Best-value marker ──────
+  // Mirrors the industry size grid: bigger sheets cost less per foot, so we show
+  // the discount off the priciest-per-foot size. Purely derived from the admin's
+  // sizes/prices — nothing hardcoded.
+  const { savings, bestValueId } = useMemo(() => {
+    const perFoot = (s: GangSheetSize) => {
+      const feet = s.height_in / 12;
+      return s.pricing_mode === "fixed" && s.price_per_sheet > 0 && feet > 0
+        ? s.price_per_sheet / feet
+        : null;
+    };
+    const rates = sizes.map(perFoot).filter((r): r is number => r != null);
+    const worst = rates.length ? Math.max(...rates) : 0; // priciest per-foot = the baseline
+    const save: Record<string, number> = {};
+    let bestId = "";
+    let bestPct = 0;
+    for (const s of sizes) {
+      const r = perFoot(s);
+      if (r == null || worst <= 0) continue;
+      const pct = Math.round((1 - r / worst) * 100);
+      save[s.id] = pct;
+      if (pct > bestPct) { bestPct = pct; bestId = s.id; }
+    }
+    return { savings: save, bestValueId: bestId };
+  }, [sizes]);
+
+  const selectedSize = sizes.find((s) => s.id === selectedSizeId) || sizes[0];
 
   // ── Launch flow: idle → loading (staged) → welcome modal ─────────────────────
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
@@ -111,6 +147,7 @@ export default function GangSheetBuilderPage() {
         contactName={[user?.first_name, user?.last_name].filter(Boolean).join(" ") || undefined}
         contactEmail={user?.email}
         autoStart={autoStart}
+        initialSizeId={selectedSizeId}
         resumeOrder={resumeOrder}
         onClose={closeStudio}
         onSaved={onSaved}
@@ -175,24 +212,86 @@ export default function GangSheetBuilderPage() {
         </div>
       )}
 
-      {/* Hero / launch */}
-      <div style={{ ...CARD, textAlign: "center", padding: "40px 24px", marginBottom: "26px", background: "linear-gradient(135deg,#FBFBF9,#F4F6FB)" }}>
-        <div style={{ fontSize: "40px" }}>🧩</div>
-        <h2 style={{ fontSize: "20px", fontWeight: 800, margin: "10px 0 6px" }}>Build a Gang Sheet</h2>
-        <p style={{ fontSize: "13px", color: "#777", maxWidth: "420px", margin: "0 auto 18px" }}>
-          A full-screen editor with uploads, text, auto-nesting and live DPI checks.
-        </p>
+      {/* Hero / launch — size grid (price + Save %) then the big build CTA. */}
+      <div style={{ ...CARD, padding: "28px 24px 32px", marginBottom: "26px", background: "linear-gradient(135deg,#FBFBF9,#F4F6FB)" }}>
+        <div style={{ textAlign: "center" }}>
+          <div style={{ fontSize: "34px" }}>🧩</div>
+          <h2 style={{ fontSize: "20px", fontWeight: 800, margin: "8px 0 4px" }}>Build a Gang Sheet</h2>
+          <p style={{ fontSize: "13px", color: "#777", maxWidth: "440px", margin: "0 auto 6px" }}>
+            Pick a size, then drop your designs onto a to-scale sheet — resize, duplicate, auto-nest, with live print-quality checks.
+          </p>
+        </div>
+
         {sizes.length === 0 ? (
-          <div style={{ color: "#999", fontSize: "13px" }}>Gang sheets aren&apos;t available from this store yet.</div>
-        ) : (
-          <button onClick={launch} style={{ background: "var(--brand-primary,#1C3557)", color: "#fff", border: "none", padding: "14px 34px", borderRadius: "8px", fontSize: "15px", fontWeight: 800, cursor: "pointer" }}>
-            {isAuthenticated() ? "Open the builder →" : "Sign in to build →"}
-          </button>
-        )}
-        {sizes.length > 0 && (
-          <div style={{ marginTop: "18px", fontSize: "12px", color: "#999" }}>
-            {sizes.slice(0, 6).map((s) => s.name).join(" · ")}
+          <div style={{ color: "#999", fontSize: "13px", textAlign: "center", marginTop: "14px" }}>
+            Gang sheets aren&apos;t available from this store yet.
           </div>
+        ) : (
+          <>
+            {/* Selected-size summary */}
+            {selectedSize && (
+              <div style={{ textAlign: "center", margin: "18px 0 6px" }}>
+                <div style={{ fontSize: "13px", color: "#666" }}>
+                  Size: <strong>{selectedSize.name}</strong>
+                  {selectedSize.pricing_mode === "fixed" && (
+                    <span style={{ color: "#111", fontWeight: 800, marginLeft: "8px" }}>
+                      ${selectedSize.price_per_sheet.toFixed(2)}
+                    </span>
+                  )}
+                  {selectedSize.pricing_mode === "custom_length" && (
+                    <span style={{ color: "#111", fontWeight: 800, marginLeft: "8px" }}>
+                      ${selectedSize.price_per_inch.toFixed(2)}/in · {selectedSize.min_length_in}–{selectedSize.max_length_in} in
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Size grid */}
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "10px", justifyContent: "center", margin: "12px 0 22px" }}>
+              {sizes.map((s) => {
+                const active = s.id === selectedSizeId;
+                const pct = savings[s.id] ?? 0;
+                const best = s.id === bestValueId && pct > 0;
+                return (
+                  <div key={s.id} style={{ position: "relative", paddingTop: best ? "12px" : 0 }}>
+                    {best && (
+                      <span style={{ position: "absolute", top: 0, left: "50%", transform: "translateX(-50%)", background: "#DC2626", color: "#fff", fontSize: "9px", fontWeight: 800, padding: "2px 8px", borderRadius: "10px", whiteSpace: "nowrap", letterSpacing: ".03em", zIndex: 1 }}>
+                        BEST VALUE
+                      </span>
+                    )}
+                    <button
+                      onClick={() => setSelectedSizeId(s.id)}
+                      style={{
+                        minWidth: "92px", padding: "12px 14px 10px", cursor: "pointer",
+                        border: active ? "2px solid var(--brand-primary,#1C3557)" : "1px solid #DDD9D2",
+                        background: active ? "#fff" : "#fff",
+                        borderRadius: "10px", textAlign: "center",
+                        boxShadow: active ? "0 2px 8px rgba(28,53,87,.12)" : "none",
+                      }}
+                    >
+                      <div style={{ fontSize: "14px", fontWeight: 800, color: "#111" }}>{s.name}</div>
+                      {s.pricing_mode === "fixed" && (
+                        <div style={{ fontSize: "11px", color: "#888", marginTop: "2px" }}>${s.price_per_sheet.toFixed(0)}</div>
+                      )}
+                      <div style={{ fontSize: "11px", fontWeight: 700, color: pct > 0 ? "#DC2626" : "transparent", marginTop: "3px" }}>
+                        {pct > 0 ? `Save ${pct}%` : "—"}
+                      </div>
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div style={{ textAlign: "center" }}>
+              <button
+                onClick={launch}
+                style={{ background: "var(--brand-primary,#1C3557)", color: "#fff", border: "none", padding: "15px 40px", borderRadius: "8px", fontSize: "15px", fontWeight: 800, cursor: "pointer", letterSpacing: ".02em" }}
+              >
+                {isAuthenticated() ? "BUILD YOUR OWN GANG SHEET →" : "Sign in to build →"}
+              </button>
+            </div>
+          </>
         )}
       </div>
 
