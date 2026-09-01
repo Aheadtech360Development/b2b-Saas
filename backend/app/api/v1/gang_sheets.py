@@ -57,6 +57,9 @@ _BUYER_EDITABLE = {STATUS_SUBMITTED, STATUS_REVISION}
 class GangSheetSize(TenantMixin, DBBaseModel):
     __tablename__ = "gang_sheet_sizes"
 
+    # Which gang-sheet product these sizes belong to. NULL = the brand's global
+    # default set (backward-compatible with pre-per-product sizes). See migration 0030.
+    product_id: Mapped[Optional[uuid.UUID]] = mapped_column(nullable=True, index=True)
     name: Mapped[str] = mapped_column(String(120), nullable=False)
     width_in: Mapped[Decimal] = mapped_column(Numeric(8, 2), nullable=False)
     height_in: Mapped[Decimal] = mapped_column(Numeric(8, 2), nullable=False)
@@ -137,6 +140,7 @@ class GangSheetLibraryDesign(TenantMixin, DBBaseModel):
 
 # ── Schemas ───────────────────────────────────────────────────────────────────
 class SizeIn(BaseModel):
+    product_id: Optional[uuid.UUID] = None
     name: str
     width_in: Decimal = Field(gt=0)
     height_in: Decimal = Field(gt=0)
@@ -231,6 +235,7 @@ class RebuildIn(BaseModel):
 def _size_row(s: GangSheetSize) -> dict:
     return {
         "id": str(s.id),
+        "product_id": str(s.product_id) if getattr(s, "product_id", None) else None,
         "name": s.name,
         "width_in": float(s.width_in),
         "height_in": float(s.height_in),
@@ -425,14 +430,28 @@ public_router = APIRouter(prefix="/gang-sheets", tags=["gang-sheets"])
 
 
 @public_router.get("/sizes")
-async def list_sizes(db: AsyncSession = Depends(get_db)) -> list[dict]:
-    """Sheet sizes this brand offers. Only active ones are buyable."""
-    rows = await db.execute(
-        select(GangSheetSize)
-        .where(GangSheetSize.is_active.is_(True))
-        .order_by(GangSheetSize.sort_order, GangSheetSize.name)
-    )
-    return [_size_row(s) for s in rows.scalars().all()]
+async def list_sizes(
+    product_id: Optional[uuid.UUID] = None, db: AsyncSession = Depends(get_db)
+) -> list[dict]:
+    """Sheet sizes this brand offers (only active ones are buyable).
+
+    When a product_id is given, return THAT product's sizes; if it has none yet,
+    fall back to the brand's global default set (product_id IS NULL). Without a
+    product_id, return every active size (legacy behaviour).
+    """
+    base = select(GangSheetSize).where(GangSheetSize.is_active.is_(True))
+    order = (GangSheetSize.sort_order, GangSheetSize.name)
+    if product_id is not None:
+        rows = (await db.execute(
+            base.where(GangSheetSize.product_id == product_id).order_by(*order)
+        )).scalars().all()
+        if not rows:
+            rows = (await db.execute(
+                base.where(GangSheetSize.product_id.is_(None)).order_by(*order)
+            )).scalars().all()
+        return [_size_row(s) for s in rows]
+    rows = (await db.execute(base.order_by(*order))).scalars().all()
+    return [_size_row(s) for s in rows]
 
 
 @public_router.get("/library")
@@ -945,13 +964,86 @@ async def admin_dashboard(
     }
 
 
+class GSProductUpdate(BaseModel):
+    gang_sheet_enabled: Optional[bool] = None
+    gang_sheet_type: Optional[str] = None  # 'gang_sheet' | 'upload_by_size' | '' (clear)
+
+
+async def _gs_size_counts(db: AsyncSession) -> dict[str, int]:
+    rows = (await db.execute(
+        select(GangSheetSize.product_id, func.count(GangSheetSize.id)).group_by(GangSheetSize.product_id)
+    )).all()
+    return {str(pid): int(c) for pid, c in rows if pid}
+
+
+@admin_router.get("/products")
+async def admin_list_gs_products(
+    show_all: bool = False,
+    _: None = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> list[dict]:
+    """Brand products with the gang-sheet builder. Default: only builder-enabled
+    products; pass show_all=true to browse every product (to enable more)."""
+    from app.models.product import Product
+
+    stmt = select(Product)
+    if not show_all:
+        stmt = stmt.where(Product.gang_sheet_enabled.is_(True))
+    prods = (await db.execute(
+        stmt.order_by(Product.gang_sheet_enabled.desc(), Product.name).limit(200)
+    )).scalars().all()
+    counts = await _gs_size_counts(db)
+    return [{
+        "id": str(p.id),
+        "name": p.name,
+        "slug": p.slug,
+        "gang_sheet_enabled": bool(p.gang_sheet_enabled),
+        "gang_sheet_type": getattr(p, "gang_sheet_type", None),
+        "size_count": counts.get(str(p.id), 0),
+    } for p in prods]
+
+
+@admin_router.patch("/products/{product_id}")
+async def admin_update_gs_product(
+    product_id: uuid.UUID,
+    payload: GSProductUpdate,
+    _: None = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Enable/disable the builder on a product and set its builder type."""
+    from app.models.product import Product
+
+    p = (await db.execute(select(Product).where(Product.id == product_id))).scalar_one_or_none()
+    if not p:
+        raise HTTPException(status_code=404, detail="Product not found")
+    if payload.gang_sheet_enabled is not None:
+        p.gang_sheet_enabled = payload.gang_sheet_enabled
+    if payload.gang_sheet_type is not None:
+        if payload.gang_sheet_type not in ("gang_sheet", "upload_by_size", ""):
+            raise HTTPException(status_code=400, detail="gang_sheet_type must be 'gang_sheet' or 'upload_by_size'")
+        p.gang_sheet_type = payload.gang_sheet_type or None
+    await db.flush()
+    counts = await _gs_size_counts(db)
+    return {
+        "id": str(p.id),
+        "name": p.name,
+        "slug": p.slug,
+        "gang_sheet_enabled": bool(p.gang_sheet_enabled),
+        "gang_sheet_type": getattr(p, "gang_sheet_type", None),
+        "size_count": counts.get(str(p.id), 0),
+    }
+
+
 @admin_router.get("/sizes")
 async def admin_list_sizes(
-    _: None = Depends(require_admin), db: AsyncSession = Depends(get_db)
+    product_id: Optional[uuid.UUID] = None,
+    _: None = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
 ) -> list[dict]:
-    rows = await db.execute(
-        select(GangSheetSize).order_by(GangSheetSize.sort_order, GangSheetSize.name)
-    )
+    stmt = select(GangSheetSize)
+    if product_id is not None:
+        stmt = stmt.where(GangSheetSize.product_id == product_id)
+    rows = await db.execute(stmt.order_by(GangSheetSize.sort_order, GangSheetSize.name))
     return [_size_row(s) for s in rows.scalars().all()]
 
 

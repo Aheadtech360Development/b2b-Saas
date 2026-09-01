@@ -49,6 +49,10 @@ class Product(TenantMixin, BaseModel):
     # When true, this product's page shows the gang sheet builder (column added in
     # migration 0011; mapped here so the API can read and set it).
     gang_sheet_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    # Which builder this gang-sheet product uses: 'gang_sheet' (combine designs on
+    # a fixed-size sheet) or 'upload_by_size' (upload art + pick a size, area-priced).
+    # NULL until configured. See migration 0030.
+    gang_sheet_type: Mapped[str | None] = mapped_column(String(30), nullable=True)
 
     # Business rules
     moq: Mapped[int] = mapped_column(Integer, default=1, nullable=False, comment="Minimum order quantity")

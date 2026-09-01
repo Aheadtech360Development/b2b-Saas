@@ -127,6 +127,15 @@ export interface GangSheetDashboard {
   }[];
 }
 
+export interface GangSheetProduct {
+  id: string;
+  name: string;
+  slug: string;
+  gang_sheet_enabled: boolean;
+  gang_sheet_type: "gang_sheet" | "upload_by_size" | null;
+  size_count: number;
+}
+
 export const gangSheetsService = {
   // ── Customer ──────────────────────────────────────────────────────────────
   listSizes: () => apiClient.get<GangSheetSize[]>("/api/v1/gang-sheets/sizes"),
@@ -210,6 +219,14 @@ export const gangSheetsService = {
 
   /** Live stats for the gang-sheet admin Dashboard (this brand only). */
   adminDashboard: () => apiClient.get<GangSheetDashboard>("/api/v1/admin/gang-sheets/dashboard"),
+
+  /** Products with the gang-sheet builder. showAll=true browses every product. */
+  adminListProducts: (showAll = false) =>
+    apiClient.get<GangSheetProduct[]>(`/api/v1/admin/gang-sheets/products${showAll ? "?show_all=true" : ""}`),
+
+  /** Enable/disable the builder on a product and/or set its builder type. */
+  adminUpdateProduct: (id: string, data: { gang_sheet_enabled?: boolean; gang_sheet_type?: string }) =>
+    apiClient.patch<GangSheetProduct>(`/api/v1/admin/gang-sheets/products/${id}`, data),
 };
 
 export const GANG_SHEET_STATUS_LABEL: Record<GangSheetStatus, string> = {

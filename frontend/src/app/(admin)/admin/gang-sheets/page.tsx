@@ -11,6 +11,7 @@ import {
   type GangSheetPlacement,
   type GangSheetLibraryDesign,
   type GangSheetDashboard,
+  type GangSheetProduct,
 } from "@/services/gangSheets.service";
 import { GangSheetCanvas } from "@/components/storefront/GangSheetCanvas";
 import { GangSheetTimeline } from "@/components/storefront/GangSheetTimeline";
@@ -77,8 +78,8 @@ const STANDARD_DTF_SIZES = [
 ];
 
 export default function AdminGangSheetsPage() {
-  const [tab, setTab] = useState<"dashboard" | "orders" | "sizes" | "library">("dashboard");
-  const TAB_LABEL: Record<string, string> = { dashboard: "Dashboard", orders: "Orders", sizes: "Sheet Sizes", library: "Design Library" };
+  const [tab, setTab] = useState<"dashboard" | "products" | "orders" | "sizes" | "library">("dashboard");
+  const TAB_LABEL: Record<string, string> = { dashboard: "Dashboard", products: "Products", orders: "Designs", sizes: "Sheet Sizes", library: "Design Library" };
 
   return (
     <div style={{ padding: "24px", maxWidth: "1100px" }}>
@@ -88,7 +89,7 @@ export default function AdminGangSheetsPage() {
       </p>
 
       <div style={{ display: "flex", gap: "6px", marginBottom: "18px" }}>
-        {(["dashboard", "orders", "sizes", "library"] as const).map((t) => (
+        {(["dashboard", "products", "orders", "sizes", "library"] as const).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -108,7 +109,7 @@ export default function AdminGangSheetsPage() {
         ))}
       </div>
 
-      {tab === "dashboard" ? <DashboardTab /> : tab === "orders" ? <OrdersTab /> : tab === "sizes" ? <SizesTab /> : <LibraryTab />}
+      {tab === "dashboard" ? <DashboardTab /> : tab === "products" ? <ProductsTab /> : tab === "orders" ? <OrdersTab /> : tab === "sizes" ? <SizesTab /> : <LibraryTab />}
     </div>
   );
 }
@@ -213,7 +214,91 @@ function DashboardTab() {
   );
 }
 
-// ── Orders ────────────────────────────────────────────────────────────────────
+// ── Products ──────────────────────────────────────────────────────────────────
+function ProductsTab() {
+  const [products, setProducts] = useState<GangSheetProduct[]>([]);
+  const [showAll, setShowAll] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [busyId, setBusyId] = useState<string | null>(null);
+
+  const load = useCallback(() => {
+    setLoading(true);
+    gangSheetsService.adminListProducts(showAll).then(setProducts).catch(() => setProducts([])).finally(() => setLoading(false));
+  }, [showAll]);
+  useEffect(load, [load]);
+
+  async function patch(id: string, data: { gang_sheet_enabled?: boolean; gang_sheet_type?: string }) {
+    setBusyId(id);
+    try {
+      const updated = await gangSheetsService.adminUpdateProduct(id, data);
+      setProducts((prev) => prev.map((p) => (p.id === id ? updated : p)));
+    } catch { /* ignore */ } finally { setBusyId(null); }
+  }
+
+  return (
+    <>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px", flexWrap: "wrap", gap: "8px" }}>
+        <p style={{ fontSize: "13px", color: "#6B6B6B", margin: 0, maxWidth: "620px" }}>
+          Enable the gang-sheet builder on a product and choose its builder type. Sizes &amp; prices for each product are set on the <strong>Sheet Sizes</strong> tab.
+        </p>
+        <label style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "13px", whiteSpace: "nowrap" }}>
+          <input type="checkbox" checked={showAll} onChange={(e) => setShowAll(e.target.checked)} />
+          Show all products
+        </label>
+      </div>
+
+      {loading ? (
+        <div style={{ color: "#888", fontSize: "13px" }}>Loading…</div>
+      ) : products.length === 0 ? (
+        <div style={{ ...CARD, color: "#888", fontSize: "13px" }}>
+          {showAll ? "No products found." : "No gang-sheet products yet — tick “Show all products” to enable the builder on a product."}
+        </div>
+      ) : (
+        <div style={{ ...CARD, padding: 0, overflow: "hidden" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
+            <thead>
+              <tr style={{ background: "#FAFAF8", borderBottom: "1px solid #E8E6E1" }}>
+                {["Product", "Builder", "Type", "Sizes"].map((h) => (
+                  <th key={h} style={{ padding: "10px 14px", textAlign: "left", fontSize: "11px", fontWeight: 700, color: "#6B6B6B", textTransform: "uppercase" }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {products.map((p) => (
+                <tr key={p.id} style={{ borderBottom: "1px solid #F1EFEB", opacity: busyId === p.id ? 0.55 : 1 }}>
+                  <td style={{ padding: "11px 14px", fontWeight: 600, color: "#2A2830" }}>{p.name}</td>
+                  <td style={{ padding: "11px 14px" }}>
+                    <button
+                      onClick={() => patch(p.id, { gang_sheet_enabled: !p.gang_sheet_enabled })}
+                      style={{ background: p.gang_sheet_enabled ? "#DCFCE7" : "#F3F4F6", color: p.gang_sheet_enabled ? "#166534" : "#6B7280", border: "none", padding: "3px 12px", borderRadius: "20px", fontSize: "11px", fontWeight: 700, cursor: "pointer" }}
+                    >
+                      {p.gang_sheet_enabled ? "Enabled" : "Disabled"}
+                    </button>
+                  </td>
+                  <td style={{ padding: "11px 14px" }}>
+                    <select
+                      value={p.gang_sheet_type ?? ""}
+                      onChange={(e) => patch(p.id, { gang_sheet_type: e.target.value })}
+                      disabled={!p.gang_sheet_enabled}
+                      style={{ ...INPUT, padding: "5px 8px", width: "auto", opacity: p.gang_sheet_enabled ? 1 : 0.5 }}
+                    >
+                      <option value="">— choose —</option>
+                      <option value="gang_sheet">Gang Sheet</option>
+                      <option value="upload_by_size">Upload By Size</option>
+                    </select>
+                  </td>
+                  <td style={{ padding: "11px 14px", color: "#6B6B6B" }}>{p.size_count}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </>
+  );
+}
+
+// ── Orders / Designs ──────────────────────────────────────────────────────────
 function OrdersTab() {
   const [orders, setOrders] = useState<GangSheetOrder[]>([]);
   const [selected, setSelected] = useState<GangSheetOrder | null>(null);
@@ -253,7 +338,7 @@ function OrdersTab() {
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
             <thead>
               <tr style={{ background: "#FAFAF8", borderBottom: "1px solid #E8E6E1" }}>
-                {["Reference", "Sheet", "Qty", "Total", "Status", ""].map((h) => (
+                {["Reference", "Customer", "Sheet", "Qty", "Total", "Status", ""].map((h) => (
                   <th key={h} style={{ padding: "10px 14px", textAlign: "left", fontSize: "11px", fontWeight: 700, color: "#6B6B6B", textTransform: "uppercase" }}>{h}</th>
                 ))}
               </tr>
@@ -264,6 +349,7 @@ function OrdersTab() {
                 return (
                   <tr key={o.id} style={{ borderBottom: "1px solid #F1EFEB" }}>
                     <td style={{ padding: "11px 14px", fontWeight: 700 }}>{o.reference}</td>
+                    <td style={{ padding: "11px 14px", color: "#555" }}>{o.contact_name || "—"}</td>
                     <td style={{ padding: "11px 14px", color: "#555" }}>
                       {o.sheet_name} <span style={{ color: "#999" }}>({o.sheet_width_in}″×{o.sheet_height_in}″)</span>
                     </td>
