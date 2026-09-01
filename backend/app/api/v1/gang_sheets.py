@@ -450,9 +450,10 @@ async def list_sizes(
 ) -> list[dict]:
     """Sheet sizes this brand offers (only active ones are buyable).
 
-    When a product_id is given, return THAT product's sizes; if it has none yet,
-    fall back to the brand's global default set (product_id IS NULL). Without a
-    product_id, return every active size (legacy behaviour).
+    When a product_id is given, return ONLY that product's own sizes — each
+    gang-sheet product is configured individually (no shared/auto defaults), so a
+    product with no sizes yet simply has none. Without a product_id (the generic
+    builder), return every active size.
     """
     base = select(GangSheetSize).where(GangSheetSize.is_active.is_(True))
     order = (GangSheetSize.sort_order, GangSheetSize.name)
@@ -460,10 +461,6 @@ async def list_sizes(
         rows = (await db.execute(
             base.where(GangSheetSize.product_id == product_id).order_by(*order)
         )).scalars().all()
-        if not rows:
-            rows = (await db.execute(
-                base.where(GangSheetSize.product_id.is_(None)).order_by(*order)
-            )).scalars().all()
         return [_size_row(s) for s in rows]
     rows = (await db.execute(base.order_by(*order))).scalars().all()
     return [_size_row(s) for s in rows]

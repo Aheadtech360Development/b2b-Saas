@@ -81,6 +81,23 @@ const STANDARD_DTF_SIZES = [
   { name: "22 × 96", height_in: 96, price_per_sheet: 47.99 },
 ];
 
+// The classic "N feet" gang-sheet ladder (22" wide) most DTF stores sell.
+const STANDARD_FEET_SIZES = [
+  { name: "2 feet", height_in: 24, price_per_sheet: 15 },
+  { name: "3 feet", height_in: 36, price_per_sheet: 21 },
+  { name: "4 feet", height_in: 48, price_per_sheet: 26 },
+  { name: "5 feet", height_in: 60, price_per_sheet: 32 },
+  { name: "6 feet", height_in: 72, price_per_sheet: 36 },
+  { name: "7 feet", height_in: 84, price_per_sheet: 42 },
+  { name: "8 feet", height_in: 96, price_per_sheet: 48 },
+  { name: "10 feet", height_in: 120, price_per_sheet: 54 },
+  { name: "12 feet", height_in: 144, price_per_sheet: 62 },
+  { name: "15 feet", height_in: 180, price_per_sheet: 76 },
+  { name: "20 feet", height_in: 240, price_per_sheet: 105 },
+];
+
+interface SizeRow { id?: string; name: string; width_in: number; height_in: number; price_per_sheet: number; }
+
 export default function AdminGangSheetsPage() {
   const [tab, setTab] = useState<"dashboard" | "setup" | "products" | "orders" | "sizes" | "library" | "settings">("dashboard");
   const TAB_LABEL: Record<string, string> = { dashboard: "Dashboard", setup: "Set up", products: "Products", orders: "Designs", sizes: "Sheet Sizes", library: "Design Library", settings: "Settings" };
@@ -362,6 +379,25 @@ function ProductEditor({ product, onBack, onGoToSizes }: { product: GangSheetPro
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null);
 
+  // This product's OWN fixed sizes (Gang Sheet type). Loaded once; saved as a diff.
+  const [rows, setRows] = useState<SizeRow[]>([]);
+  const [origIds, setOrigIds] = useState<string[]>([]);
+  useEffect(() => {
+    gangSheetsService.adminListSizes(product.id).then((list) => {
+      setRows(list.map((s) => ({ id: s.id, name: s.name, width_in: s.width_in, height_in: s.height_in, price_per_sheet: s.price_per_sheet })));
+      setOrigIds(list.map((s) => s.id));
+    }).catch(() => {});
+  }, [product.id]);
+
+  function setRow(i: number, field: keyof SizeRow, val: string | number) {
+    setRows((r) => r.map((row, idx) => (idx === i ? { ...row, [field]: val } : row)));
+  }
+  function addRow() { setRows((r) => [...r, { name: "", width_in: 22, height_in: 24, price_per_sheet: 0 }]); }
+  function removeRow(i: number) { setRows((r) => r.filter((_, idx) => idx !== i)); }
+  function addStandardFeet() {
+    setRows((r) => [...r, ...STANDARD_FEET_SIZES.map((s) => ({ name: s.name, width_in: 22, height_in: s.height_in, price_per_sheet: s.price_per_sheet }))]);
+  }
+
   const tiers: GangSheetTier[] = cfg.tiers ?? [];
   function setTier(i: number, field: keyof GangSheetTier, val: number) {
     setCfg((c) => ({ ...c, tiers: (c.tiers ?? []).map((t, idx) => (idx === i ? { ...t, [field]: val } : t)) }));
@@ -379,6 +415,22 @@ function ProductEditor({ product, onBack, onGoToSizes }: { product: GangSheetPro
       const data: { gang_sheet_type: string; gang_sheet_config?: GangSheetConfig } = { gang_sheet_type: type };
       if (type === "upload_by_size") data.gang_sheet_config = cfg;
       await gangSheetsService.adminUpdateProduct(product.id, data);
+
+      // Persist this product's own sizes (create / update / delete) when it's a
+      // Gang Sheet product — each product is configured on its own, no shared set.
+      if (type === "gang_sheet") {
+        const keptIds = new Set(rows.filter((r) => r.id).map((r) => r.id as string));
+        for (const id of origIds) if (!keptIds.has(id)) await gangSheetsService.adminDeleteSize(id);
+        for (let i = 0; i < rows.length; i++) {
+          const r = rows[i]!;
+          const payload = { name: r.name || `Sheet ${i + 1}`, width_in: Number(r.width_in) || 22, height_in: Number(r.height_in) || 24, price_per_sheet: Number(r.price_per_sheet) || 0, sort_order: i, pricing_mode: "fixed" as const };
+          if (r.id) await gangSheetsService.adminUpdateSize(r.id, payload);
+          else await gangSheetsService.adminCreateSize({ ...EMPTY_SIZE, ...payload, product_id: product.id });
+        }
+        const list = await gangSheetsService.adminListSizes(product.id);
+        setRows(list.map((s) => ({ id: s.id, name: s.name, width_in: s.width_in, height_in: s.height_in, price_per_sheet: s.price_per_sheet })));
+        setOrigIds(list.map((s) => s.id));
+      }
       setMsg({ text: "Saved", ok: true });
     } catch {
       setMsg({ text: "Could not save", ok: false });
@@ -388,6 +440,7 @@ function ProductEditor({ product, onBack, onGoToSizes }: { product: GangSheetPro
   }
 
   const numInput: React.CSSProperties = { ...INPUT, width: "100%" };
+  const cellInput: React.CSSProperties = { ...INPUT, padding: "6px 8px", width: "100%" };
 
   return (
     <div>
@@ -409,13 +462,45 @@ function ProductEditor({ product, onBack, onGoToSizes }: { product: GangSheetPro
 
       {type === "gang_sheet" ? (
         <div style={{ ...CARD }}>
-          <div style={{ fontSize: "14px", fontWeight: 700, marginBottom: "6px" }}>Sizes &amp; Prices</div>
-          <p style={{ fontSize: "13px", color: "#6B6B6B", marginBottom: "12px" }}>
-            This product currently has <strong>{product.size_count}</strong> size(s). Fixed sizes (name · width · height · price) are managed on the Sheet Sizes tab — it has a “Sizes for” selector; pick <strong>{product.name}</strong> there.
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px", flexWrap: "wrap", gap: "8px" }}>
+            <div style={{ fontSize: "14px", fontWeight: 700 }}>Sizes &amp; Prices</div>
+            <button onClick={addStandardFeet} style={{ ...BTN, background: "#fff", color: "var(--brand-primary, #1C3557)", border: "1px solid #DDD9D2" }}>
+              + Add standard sizes (2–20 ft)
+            </button>
+          </div>
+          <p style={{ fontSize: "12px", color: "#9CA3AF", marginBottom: "12px" }}>
+            These sizes belong only to <strong>{product.name}</strong>. Buyers pick from exactly these on this product&apos;s builder — nothing is shared or auto-filled.
           </p>
-          <button onClick={onGoToSizes} style={{ ...BTN, background: "#fff", color: "var(--brand-primary, #1C3557)", border: "1px solid #DDD9D2" }}>
-            Manage sizes on the Sheet Sizes tab →
-          </button>
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px", minWidth: "520px" }}>
+              <thead>
+                <tr style={{ background: "#FAFAF8" }}>
+                  {["Size name", "Width (in)", "Height (in)", "Price ($)", ""].map((h) => (
+                    <th key={h} style={{ padding: "7px 10px", textAlign: "left", fontSize: "10px", fontWeight: 700, color: "#6B6B6B", textTransform: "uppercase" }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((r, i) => (
+                  <tr key={r.id ?? `new-${i}`}>
+                    <td style={{ padding: "5px 8px", minWidth: "180px" }}><input value={r.name} placeholder="e.g. 2 feet" onChange={(e) => setRow(i, "name", e.target.value)} style={cellInput} /></td>
+                    <td style={{ padding: "5px 8px" }}><input type="number" step="0.25" value={r.width_in} onChange={(e) => setRow(i, "width_in", Number(e.target.value))} style={cellInput} /></td>
+                    <td style={{ padding: "5px 8px" }}><input type="number" step="1" value={r.height_in} onChange={(e) => setRow(i, "height_in", Number(e.target.value))} style={cellInput} /></td>
+                    <td style={{ padding: "5px 8px" }}><input type="number" step="0.01" value={r.price_per_sheet} onChange={(e) => setRow(i, "price_per_sheet", Number(e.target.value))} style={cellInput} /></td>
+                    <td style={{ padding: "5px 8px", textAlign: "center" }}><button onClick={() => removeRow(i)} style={{ background: "none", border: "none", color: "#B91C1C", cursor: "pointer", fontSize: "16px" }}>×</button></td>
+                  </tr>
+                ))}
+                {rows.length === 0 && (
+                  <tr><td colSpan={5} style={{ padding: "14px", textAlign: "center", color: "#9CA3AF", fontSize: "12px" }}>No sizes yet — add a row, or click “Add standard sizes (2–20 ft)”.</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+          <div style={{ display: "flex", gap: "10px", alignItems: "center", marginTop: "10px", flexWrap: "wrap" }}>
+            <button onClick={addRow} style={{ ...BTN, background: "#F4F3EF", color: "#2A2830" }}>+ Add size</button>
+            <button onClick={onGoToSizes} style={{ background: "none", border: "none", color: "#9CA3AF", fontSize: "12px", cursor: "pointer", textDecoration: "underline" }}>Open full Sheet Sizes manager →</button>
+          </div>
+          <p style={{ fontSize: "11px", color: "#9CA3AF", marginTop: "8px" }}>Save (top-right) to apply. Buyers see the size name + an auto “Save %” based on these prices.</p>
         </div>
       ) : (
         <div style={{ ...CARD }}>
