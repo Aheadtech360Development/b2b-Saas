@@ -128,12 +128,26 @@ export interface GangSheetDashboard {
   }[];
 }
 
+export interface GangSheetTier {
+  max_height: number;
+  max_area: number;
+  price_per_sqin: number;
+  discount: number;
+}
+
+export interface GangSheetConfig {
+  printer_width?: number;
+  max_height?: number;
+  tiers?: GangSheetTier[];
+}
+
 export interface GangSheetProduct {
   id: string;
   name: string;
   slug: string;
   gang_sheet_enabled: boolean;
   gang_sheet_type: "gang_sheet" | "upload_by_size" | null;
+  gang_sheet_config: GangSheetConfig | null;
   size_count: number;
 }
 
@@ -233,8 +247,8 @@ export const gangSheetsService = {
   adminListProducts: (showAll = false) =>
     apiClient.get<GangSheetProduct[]>(`/api/v1/admin/gang-sheets/products${showAll ? "?show_all=true" : ""}`),
 
-  /** Enable/disable the builder on a product and/or set its builder type. */
-  adminUpdateProduct: (id: string, data: { gang_sheet_enabled?: boolean; gang_sheet_type?: string }) =>
+  /** Enable/disable the builder on a product, set its type, and/or save its config. */
+  adminUpdateProduct: (id: string, data: { gang_sheet_enabled?: boolean; gang_sheet_type?: string; gang_sheet_config?: GangSheetConfig }) =>
     apiClient.patch<GangSheetProduct>(`/api/v1/admin/gang-sheets/products/${id}`, data),
 
   /** Onboarding checklist state for the Set up tab. */

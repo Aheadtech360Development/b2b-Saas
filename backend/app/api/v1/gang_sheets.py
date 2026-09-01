@@ -967,6 +967,7 @@ async def admin_dashboard(
 class GSProductUpdate(BaseModel):
     gang_sheet_enabled: Optional[bool] = None
     gang_sheet_type: Optional[str] = None  # 'gang_sheet' | 'upload_by_size' | '' (clear)
+    gang_sheet_config: Optional[dict] = None  # type-specific (upload_by_size tiers etc.)
 
 
 async def _gs_size_counts(db: AsyncSession) -> dict[str, int]:
@@ -999,6 +1000,7 @@ async def admin_list_gs_products(
         "slug": p.slug,
         "gang_sheet_enabled": bool(p.gang_sheet_enabled),
         "gang_sheet_type": getattr(p, "gang_sheet_type", None),
+        "gang_sheet_config": getattr(p, "gang_sheet_config", None),
         "size_count": counts.get(str(p.id), 0),
     } for p in prods]
 
@@ -1022,6 +1024,8 @@ async def admin_update_gs_product(
         if payload.gang_sheet_type not in ("gang_sheet", "upload_by_size", ""):
             raise HTTPException(status_code=400, detail="gang_sheet_type must be 'gang_sheet' or 'upload_by_size'")
         p.gang_sheet_type = payload.gang_sheet_type or None
+    if payload.gang_sheet_config is not None:
+        p.gang_sheet_config = payload.gang_sheet_config or None
     await db.flush()
     counts = await _gs_size_counts(db)
     return {
@@ -1030,6 +1034,7 @@ async def admin_update_gs_product(
         "slug": p.slug,
         "gang_sheet_enabled": bool(p.gang_sheet_enabled),
         "gang_sheet_type": getattr(p, "gang_sheet_type", None),
+        "gang_sheet_config": getattr(p, "gang_sheet_config", None),
         "size_count": counts.get(str(p.id), 0),
     }
 

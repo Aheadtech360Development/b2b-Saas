@@ -53,6 +53,10 @@ class Product(TenantMixin, BaseModel):
     # a fixed-size sheet) or 'upload_by_size' (upload art + pick a size, area-priced).
     # NULL until configured. See migration 0030.
     gang_sheet_type: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    # Type-specific builder config (migration 0031). For 'upload_by_size':
+    # {printer_width, max_height, tiers:[{max_height, max_area, price_per_sqin, discount}]}.
+    # Gang-sheet fixed sizes live in gang_sheet_sizes (per product_id), not here.
+    gang_sheet_config: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
 
     # Business rules
     moq: Mapped[int] = mapped_column(Integer, default=1, nullable=False, comment="Minimum order quantity")

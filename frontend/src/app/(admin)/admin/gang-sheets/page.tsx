@@ -13,6 +13,8 @@ import {
   type GangSheetDashboard,
   type GangSheetProduct,
   type GangSheetSetup,
+  type GangSheetConfig,
+  type GangSheetTier,
 } from "@/services/gangSheets.service";
 import { GangSheetCanvas } from "@/components/storefront/GangSheetCanvas";
 import { GangSheetTimeline } from "@/components/storefront/GangSheetTimeline";
@@ -110,7 +112,7 @@ export default function AdminGangSheetsPage() {
         ))}
       </div>
 
-      {tab === "dashboard" ? <DashboardTab /> : tab === "setup" ? <SetupTab /> : tab === "products" ? <ProductsTab /> : tab === "orders" ? <OrdersTab /> : tab === "sizes" ? <SizesTab /> : <LibraryTab />}
+      {tab === "dashboard" ? <DashboardTab /> : tab === "setup" ? <SetupTab /> : tab === "products" ? <ProductsTab onGoToSizes={() => setTab("sizes")} /> : tab === "orders" ? <OrdersTab /> : tab === "sizes" ? <SizesTab /> : <LibraryTab />}
     </div>
   );
 }
@@ -259,11 +261,12 @@ function SetupTab() {
 }
 
 // ── Products ──────────────────────────────────────────────────────────────────
-function ProductsTab() {
+function ProductsTab({ onGoToSizes }: { onGoToSizes: () => void }) {
   const [products, setProducts] = useState<GangSheetProduct[]>([]);
   const [showAll, setShowAll] = useState(false);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [editing, setEditing] = useState<GangSheetProduct | null>(null);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -279,11 +282,15 @@ function ProductsTab() {
     } catch { /* ignore */ } finally { setBusyId(null); }
   }
 
+  if (editing) {
+    return <ProductEditor product={editing} onBack={() => { setEditing(null); load(); }} onGoToSizes={onGoToSizes} />;
+  }
+
   return (
     <>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px", flexWrap: "wrap", gap: "8px" }}>
         <p style={{ fontSize: "13px", color: "#6B6B6B", margin: 0, maxWidth: "620px" }}>
-          Enable the gang-sheet builder on a product and choose its builder type. Sizes &amp; prices for each product are set on the <strong>Sheet Sizes</strong> tab.
+          Enable the gang-sheet builder on a product and choose its builder type. Configure each product&apos;s sizes &amp; prices with the <strong>edit</strong> button.
         </p>
         <label style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "13px", whiteSpace: "nowrap" }}>
           <input type="checkbox" checked={showAll} onChange={(e) => setShowAll(e.target.checked)} />
@@ -302,7 +309,7 @@ function ProductsTab() {
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
             <thead>
               <tr style={{ background: "#FAFAF8", borderBottom: "1px solid #E8E6E1" }}>
-                {["Product", "Builder", "Type", "Sizes"].map((h) => (
+                {["Product", "Builder", "Type", "Sizes", ""].map((h) => (
                   <th key={h} style={{ padding: "10px 14px", textAlign: "left", fontSize: "11px", fontWeight: 700, color: "#6B6B6B", textTransform: "uppercase" }}>{h}</th>
                 ))}
               </tr>
@@ -332,6 +339,11 @@ function ProductsTab() {
                     </select>
                   </td>
                   <td style={{ padding: "11px 14px", color: "#6B6B6B" }}>{p.size_count}</td>
+                  <td style={{ padding: "11px 14px", textAlign: "right", whiteSpace: "nowrap" }}>
+                    <a href={`/products/${p.slug}`} target="_blank" rel="noopener noreferrer" title="View on store" style={{ textDecoration: "none", fontSize: "15px", marginRight: "12px" }}>👁</a>
+                    <button title="Copy store link" onClick={() => { try { navigator.clipboard?.writeText(`${window.location.origin}/products/${p.slug}`); } catch { /* ignore */ } }} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "14px", marginRight: "12px" }}>🔗</button>
+                    <button title="Edit builder & sizes" onClick={() => setEditing(p)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "14px", color: "var(--brand-primary, #1C3557)", fontWeight: 700 }}>✎</button>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -339,6 +351,114 @@ function ProductsTab() {
         </div>
       )}
     </>
+  );
+}
+
+// ── Per-product builder editor (opened from the Products edit button) ───────────
+function ProductEditor({ product, onBack, onGoToSizes }: { product: GangSheetProduct; onBack: () => void; onGoToSizes: () => void }) {
+  const [type, setType] = useState<"gang_sheet" | "upload_by_size">(product.gang_sheet_type ?? "gang_sheet");
+  const [cfg, setCfg] = useState<GangSheetConfig>(product.gang_sheet_config ?? { printer_width: 22, max_height: 312, tiers: [] });
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null);
+
+  const tiers: GangSheetTier[] = cfg.tiers ?? [];
+  function setTier(i: number, field: keyof GangSheetTier, val: number) {
+    setCfg((c) => ({ ...c, tiers: (c.tiers ?? []).map((t, idx) => (idx === i ? { ...t, [field]: val } : t)) }));
+  }
+  function addTier() {
+    setCfg((c) => ({ ...c, tiers: [...(c.tiers ?? []), { max_height: 0, max_area: 0, price_per_sqin: 0, discount: 0 }] }));
+  }
+  function removeTier(i: number) {
+    setCfg((c) => ({ ...c, tiers: (c.tiers ?? []).filter((_, idx) => idx !== i) }));
+  }
+
+  async function save() {
+    setSaving(true); setMsg(null);
+    try {
+      const data: { gang_sheet_type: string; gang_sheet_config?: GangSheetConfig } = { gang_sheet_type: type };
+      if (type === "upload_by_size") data.gang_sheet_config = cfg;
+      await gangSheetsService.adminUpdateProduct(product.id, data);
+      setMsg({ text: "Saved", ok: true });
+    } catch {
+      setMsg({ text: "Could not save", ok: false });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const numInput: React.CSSProperties = { ...INPUT, width: "100%" };
+
+  return (
+    <div>
+      <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "16px", flexWrap: "wrap" }}>
+        <button onClick={onBack} style={{ background: "none", border: "none", fontSize: "18px", cursor: "pointer", color: "#6B6B6B" }}>←</button>
+        <h2 style={{ fontSize: "18px", fontWeight: 800, margin: 0 }}>{product.name}</h2>
+        <div style={{ flex: 1 }} />
+        {msg && <span style={{ fontSize: "13px", fontWeight: 600, color: msg.ok ? "#166534" : "#B91C1C" }}>{msg.text}</span>}
+        <button onClick={save} disabled={saving} style={BTN}>{saving ? "Saving…" : "Save"}</button>
+      </div>
+
+      <div style={{ ...CARD, marginBottom: "16px", display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
+        <span style={LABEL}>Builder type</span>
+        <select value={type} onChange={(e) => setType(e.target.value as "gang_sheet" | "upload_by_size")} style={{ ...INPUT, width: "auto", minWidth: "200px" }}>
+          <option value="gang_sheet">Gang Sheet (combine designs)</option>
+          <option value="upload_by_size">Upload By Size (area-priced)</option>
+        </select>
+      </div>
+
+      {type === "gang_sheet" ? (
+        <div style={{ ...CARD }}>
+          <div style={{ fontSize: "14px", fontWeight: 700, marginBottom: "6px" }}>Sizes &amp; Prices</div>
+          <p style={{ fontSize: "13px", color: "#6B6B6B", marginBottom: "12px" }}>
+            This product currently has <strong>{product.size_count}</strong> size(s). Fixed sizes (name · width · height · price) are managed on the Sheet Sizes tab — it has a “Sizes for” selector; pick <strong>{product.name}</strong> there.
+          </p>
+          <button onClick={onGoToSizes} style={{ ...BTN, background: "#fff", color: "var(--brand-primary, #1C3557)", border: "1px solid #DDD9D2" }}>
+            Manage sizes on the Sheet Sizes tab →
+          </button>
+        </div>
+      ) : (
+        <div style={{ ...CARD }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))", gap: "14px", marginBottom: "18px" }}>
+            <div>
+              <label style={LABEL}>Printer width (in)</label>
+              <input type="number" step="0.25" min="1" value={cfg.printer_width ?? 22} onChange={(e) => setCfg((c) => ({ ...c, printer_width: Number(e.target.value) }))} style={numInput} />
+            </div>
+            <div>
+              <label style={LABEL}>Max height (in)</label>
+              <input type="number" step="1" min="1" value={cfg.max_height ?? 312} onChange={(e) => setCfg((c) => ({ ...c, max_height: Number(e.target.value) }))} style={numInput} />
+            </div>
+          </div>
+
+          <div style={{ fontSize: "13px", fontWeight: 700, marginBottom: "8px" }}>Tiered pricing (per square inch, by area)</div>
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px", minWidth: "560px" }}>
+              <thead>
+                <tr style={{ background: "#FAFAF8" }}>
+                  {["~Max height (in)", "Max area (sq in)", "Price ($/sq in)", "Discount (%)", ""].map((h) => (
+                    <th key={h} style={{ padding: "7px 10px", textAlign: "left", fontSize: "10px", fontWeight: 700, color: "#6B6B6B", textTransform: "uppercase" }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {tiers.map((t, i) => (
+                  <tr key={i}>
+                    <td style={{ padding: "5px 8px" }}><input type="number" step="0.01" value={t.max_height} onChange={(e) => setTier(i, "max_height", Number(e.target.value))} style={{ ...INPUT, padding: "6px 8px" }} /></td>
+                    <td style={{ padding: "5px 8px" }}><input type="number" step="0.01" value={t.max_area} onChange={(e) => setTier(i, "max_area", Number(e.target.value))} style={{ ...INPUT, padding: "6px 8px" }} /></td>
+                    <td style={{ padding: "5px 8px" }}><input type="number" step="0.0001" value={t.price_per_sqin} onChange={(e) => setTier(i, "price_per_sqin", Number(e.target.value))} style={{ ...INPUT, padding: "6px 8px" }} /></td>
+                    <td style={{ padding: "5px 8px" }}><input type="number" step="1" value={t.discount} onChange={(e) => setTier(i, "discount", Number(e.target.value))} style={{ ...INPUT, padding: "6px 8px" }} /></td>
+                    <td style={{ padding: "5px 8px", textAlign: "center" }}><button onClick={() => removeTier(i)} style={{ background: "none", border: "none", color: "#B91C1C", cursor: "pointer", fontSize: "16px" }}>×</button></td>
+                  </tr>
+                ))}
+                {tiers.length === 0 && (
+                  <tr><td colSpan={5} style={{ padding: "12px", textAlign: "center", color: "#9CA3AF", fontSize: "12px" }}>No tiers yet. Add a row below.</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+          <button onClick={addTier} style={{ marginTop: "10px", ...BTN, background: "#F4F3EF", color: "#2A2830" }}>+ Add tier</button>
+        </div>
+      )}
+    </div>
   );
 }
 
