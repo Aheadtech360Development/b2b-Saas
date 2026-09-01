@@ -1060,6 +1060,46 @@ async def admin_setup(
     }
 
 
+@admin_router.get("/settings")
+async def admin_get_gs_settings(
+    _: None = Depends(require_admin), db: AsyncSession = Depends(get_db)
+) -> dict:
+    """This brand's gang-sheet settings blob (General/Output/Builder/Appearance/Gallery)."""
+    import json as _json
+    from app.core.tenant_settings import get_setting
+
+    raw = await get_setting(db, "gs_settings")
+    if not raw:
+        return {}
+    try:
+        return _json.loads(raw)
+    except Exception:
+        return {}
+
+
+@admin_router.put("/settings")
+async def admin_save_gs_settings(
+    payload: dict, _: None = Depends(require_admin), db: AsyncSession = Depends(get_db)
+) -> dict:
+    """Save this brand's gang-sheet settings blob (per-tenant, namespaced key)."""
+    import json as _json
+    from app.core.tenant_context import get_current_tenant_id
+    from app.core.tenant_settings import scoped_key
+    from app.models.system import Settings as PlatformSettings
+
+    key = scoped_key("gs_settings", get_current_tenant_id())
+    row = (await db.execute(
+        select(PlatformSettings).where(PlatformSettings.key == key)
+    )).scalar_one_or_none()
+    value = _json.dumps(payload)
+    if row:
+        row.value = value
+    else:
+        db.add(PlatformSettings(key=key, value=value))
+    await db.flush()
+    return payload
+
+
 @admin_router.get("/sizes")
 async def admin_list_sizes(
     product_id: Optional[uuid.UUID] = None,

@@ -15,6 +15,7 @@ import {
   type GangSheetSetup,
   type GangSheetConfig,
   type GangSheetTier,
+  type GangSheetSettings,
 } from "@/services/gangSheets.service";
 import { GangSheetCanvas } from "@/components/storefront/GangSheetCanvas";
 import { GangSheetTimeline } from "@/components/storefront/GangSheetTimeline";
@@ -81,8 +82,8 @@ const STANDARD_DTF_SIZES = [
 ];
 
 export default function AdminGangSheetsPage() {
-  const [tab, setTab] = useState<"dashboard" | "setup" | "products" | "orders" | "sizes" | "library">("dashboard");
-  const TAB_LABEL: Record<string, string> = { dashboard: "Dashboard", setup: "Set up", products: "Products", orders: "Designs", sizes: "Sheet Sizes", library: "Design Library" };
+  const [tab, setTab] = useState<"dashboard" | "setup" | "products" | "orders" | "sizes" | "library" | "settings">("dashboard");
+  const TAB_LABEL: Record<string, string> = { dashboard: "Dashboard", setup: "Set up", products: "Products", orders: "Designs", sizes: "Sheet Sizes", library: "Design Library", settings: "Settings" };
 
   return (
     <div style={{ padding: "24px", maxWidth: "1100px" }}>
@@ -92,7 +93,7 @@ export default function AdminGangSheetsPage() {
       </p>
 
       <div style={{ display: "flex", gap: "6px", marginBottom: "18px" }}>
-        {(["dashboard", "setup", "products", "orders", "sizes", "library"] as const).map((t) => (
+        {(["dashboard", "setup", "products", "orders", "sizes", "library", "settings"] as const).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -112,7 +113,7 @@ export default function AdminGangSheetsPage() {
         ))}
       </div>
 
-      {tab === "dashboard" ? <DashboardTab /> : tab === "setup" ? <SetupTab /> : tab === "products" ? <ProductsTab onGoToSizes={() => setTab("sizes")} /> : tab === "orders" ? <OrdersTab /> : tab === "sizes" ? <SizesTab /> : <LibraryTab />}
+      {tab === "dashboard" ? <DashboardTab /> : tab === "setup" ? <SetupTab /> : tab === "products" ? <ProductsTab onGoToSizes={() => setTab("sizes")} /> : tab === "orders" ? <OrdersTab /> : tab === "sizes" ? <SizesTab /> : tab === "library" ? <LibraryTab /> : <SettingsTab />}
     </div>
   );
 }
@@ -1006,6 +1007,118 @@ function SizesTab() {
         </div>
       )}
     </>
+  );
+}
+
+// ── Settings ──────────────────────────────────────────────────────────────────
+function SettingsTab() {
+  const [s, setS] = useState<GangSheetSettings>({});
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null);
+
+  useEffect(() => {
+    gangSheetsService.adminGetSettings().then((d) => setS(d ?? {})).catch(() => setS({})).finally(() => setLoading(false));
+  }, []);
+
+  function set(k: keyof GangSheetSettings, v: unknown) {
+    setS((prev) => ({ ...prev, [k]: v }) as GangSheetSettings);
+  }
+
+  async function save() {
+    setSaving(true); setMsg(null);
+    try {
+      await gangSheetsService.adminSaveSettings(s);
+      setMsg({ text: "Settings saved", ok: true });
+    } catch {
+      setMsg({ text: "Could not save", ok: false });
+    } finally { setSaving(false); }
+  }
+
+  if (loading) return <div style={{ color: "#888", fontSize: "13px" }}>Loading…</div>;
+
+  // Plain render helpers (NOT components) so text inputs don't lose focus on re-render.
+  const toggle = (k: keyof GangSheetSettings, label: string, desc?: string) => (
+    <label style={{ display: "flex", alignItems: "flex-start", gap: "10px", cursor: "pointer", padding: "6px 0" }}>
+      <input type="checkbox" checked={!!s[k]} onChange={(e) => set(k, e.target.checked)} style={{ marginTop: "2px" }} />
+      <span>
+        <span style={{ fontSize: "13px", fontWeight: 600, color: "#2A2830" }}>{label}</span>
+        {desc ? <span style={{ display: "block", fontSize: "12px", color: "#9CA3AF" }}>{desc}</span> : null}
+      </span>
+    </label>
+  );
+  const section = (title: string, children: React.ReactNode) => (
+    <div style={{ ...CARD, marginBottom: "16px" }}>
+      <div style={{ fontSize: "14px", fontWeight: 800, marginBottom: "12px" }}>{title}</div>
+      {children}
+    </div>
+  );
+
+  return (
+    <div style={{ maxWidth: "820px" }}>
+      <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: "12px", marginBottom: "14px" }}>
+        {msg && <span style={{ fontSize: "13px", fontWeight: 600, color: msg.ok ? "#166534" : "#B91C1C" }}>{msg.text}</span>}
+        <button onClick={save} disabled={saving} style={BTN}>{saving ? "Saving…" : "Save settings"}</button>
+      </div>
+
+      {section("General", <>
+        <label style={LABEL}>Design-edit request email</label>
+        <input style={{ ...INPUT, marginBottom: "14px" }} value={s.design_edit_email ?? ""} onChange={(e) => set("design_edit_email", e.target.value)} placeholder="art@yourbrand.com" />
+        <label style={LABEL}>Customer agreement</label>
+        <textarea style={{ ...INPUT, minHeight: "90px", resize: "vertical" }} value={s.customer_agreement ?? ""} onChange={(e) => set("customer_agreement", e.target.value)} placeholder="Terms the customer must accept before ordering…" />
+      </>)}
+
+      {section("Print output", <>
+        <label style={LABEL}>Print file-name format</label>
+        <input style={{ ...INPUT, marginBottom: "14px" }} value={s.filename_format ?? ""} onChange={(e) => set("filename_format", e.target.value)} placeholder="{order}-{customer}-{design}" />
+        <label style={LABEL}>File type</label>
+        <select style={{ ...INPUT, width: "auto", marginBottom: "8px" }} value={s.file_type ?? "PNG"} onChange={(e) => set("file_type", e.target.value)}>
+          <option value="PNG">PNG (keeps transparency)</option>
+          <option value="PDF">PDF (keeps vectors)</option>
+        </select>
+        {toggle("auto_trim", "Auto-trim whitespace", "Trim empty space around artwork — saves film.")}
+        {toggle("print_qr_logo", "Print QR / logo on the sheet")}
+      </>)}
+
+      {section("Builder behaviour", <>
+        {toggle("auto_resize_300", "Auto-resize uploads to 300 DPI")}
+        {toggle("warn_background", "Warn about backgrounds")}
+        {toggle("warn_transparent", "Warn about partial transparency")}
+        {toggle("enable_flip", "Enable flipping (mirror)", "Useful for iron-on transfers printed in reverse.")}
+        {toggle("disable_text", "Disable the text tool")}
+        {toggle("auto_build", "Enable Auto Build")}
+        {toggle("folder_organization", "Folder organisation in uploads")}
+        {toggle("require_login", "Require customer login")}
+        {toggle("allow_reorder", "Allow reorder of past designs")}
+        <div style={{ marginTop: "8px" }}>
+          <label style={LABEL}>Minimum resolution (DPI) — reject below</label>
+          <input type="number" style={{ ...INPUT, width: "120px" }} value={s.min_resolution ?? 72} onChange={(e) => set("min_resolution", Number(e.target.value))} />
+        </div>
+      </>)}
+
+      {section("Appearance", <>
+        {toggle("welcome_popup", "Show welcome popup")}
+        <label style={{ ...LABEL, marginTop: "8px" }}>Welcome message</label>
+        <textarea style={{ ...INPUT, minHeight: "70px", resize: "vertical", marginBottom: "14px" }} value={s.welcome_message ?? ""} onChange={(e) => set("welcome_message", e.target.value)} placeholder="Welcome! Build your gang sheet below." />
+        <div style={{ display: "flex", gap: "20px", flexWrap: "wrap" }}>
+          <div>
+            <label style={LABEL}>Primary colour</label>
+            <input type="color" value={s.theme_primary ?? "#1C3557"} onChange={(e) => set("theme_primary", e.target.value)} style={{ width: "56px", height: "34px", border: "1px solid #DDD9D2", borderRadius: "6px", cursor: "pointer", display: "block" }} />
+          </div>
+          <div>
+            <label style={LABEL}>Text colour</label>
+            <input type="color" value={s.theme_text ?? "#2A2830"} onChange={(e) => set("theme_text", e.target.value)} style={{ width: "56px", height: "34px", border: "1px solid #DDD9D2", borderRadius: "6px", cursor: "pointer", display: "block" }} />
+          </div>
+        </div>
+      </>)}
+
+      {section("Gallery", <>
+        {toggle("show_gallery", "Show the design gallery in the builder")}
+        {toggle("watermark_enabled", "Watermark gallery previews", "Discourages screenshots of your stock artwork.")}
+        <label style={{ ...LABEL, marginTop: "8px" }}>Watermark text</label>
+        <input style={INPUT} value={s.watermark_text ?? ""} onChange={(e) => set("watermark_text", e.target.value)} placeholder="Your store name" />
+      </>)}
+    </div>
   );
 }
 

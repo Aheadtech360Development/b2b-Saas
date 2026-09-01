@@ -158,6 +158,37 @@ export interface GangSheetSetup {
   has_designs: boolean;
 }
 
+export interface GangSheetSettings {
+  // General
+  design_edit_email?: string;
+  customer_agreement?: string;
+  // Output
+  filename_format?: string;
+  file_type?: "PNG" | "PDF";
+  auto_trim?: boolean;
+  print_qr_logo?: boolean;
+  // Builder
+  auto_resize_300?: boolean;
+  warn_background?: boolean;
+  warn_transparent?: boolean;
+  enable_flip?: boolean;
+  disable_text?: boolean;
+  auto_build?: boolean;
+  folder_organization?: boolean;
+  require_login?: boolean;
+  allow_reorder?: boolean;
+  min_resolution?: number;
+  // Appearance
+  welcome_popup?: boolean;
+  welcome_message?: string;
+  theme_primary?: string;
+  theme_text?: string;
+  // Gallery
+  show_gallery?: boolean;
+  watermark_enabled?: boolean;
+  watermark_text?: string;
+}
+
 export const gangSheetsService = {
   // ── Customer ──────────────────────────────────────────────────────────────
   listSizes: () => apiClient.get<GangSheetSize[]>("/api/v1/gang-sheets/sizes"),
@@ -253,6 +284,11 @@ export const gangSheetsService = {
 
   /** Onboarding checklist state for the Set up tab. */
   adminSetup: () => apiClient.get<GangSheetSetup>("/api/v1/admin/gang-sheets/setup"),
+
+  /** This brand's gang-sheet settings blob. */
+  adminGetSettings: () => apiClient.get<GangSheetSettings>("/api/v1/admin/gang-sheets/settings"),
+  adminSaveSettings: (data: GangSheetSettings) =>
+    apiClient.put<GangSheetSettings>("/api/v1/admin/gang-sheets/settings", data),
 };
 
 export const GANG_SHEET_STATUS_LABEL: Record<GangSheetStatus, string> = {

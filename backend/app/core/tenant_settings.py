@@ -30,6 +30,7 @@ TENANT_SCOPED_KEYS: frozenset[str] = frozenset({
     "standard_shipping",
     "standard_shipping_method",
     "ship_from",  # brand's own warehouse / ship-from address (JSON)
+    "gs_settings",  # gang-sheet admin settings blob (JSON) — per brand
 })
 
 _SEP = "@"
