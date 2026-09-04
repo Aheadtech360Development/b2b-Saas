@@ -933,6 +933,48 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
       : Number(sz.price_per_sheet || 0);
   }
 
+  // ── Preview ──────────────────────────────────────────────────────────────────
+  // Open a print-resolution preview of the active sheet in a new tab — the exact
+  // layout on a to-scale transparent sheet, with the true print pixel size shown.
+  function preview() {
+    if (!size) return;
+    if (placements.length === 0) { setError("Add at least one design to preview."); return; }
+    const DPI = 300;
+    const wPx = Math.round(size.width_in * DPI);
+    const hPx = Math.round(sheetLen * DPI);
+    const scale = clamp(1100 / (size.width_in || 22), 24, 60); // on-screen px per inch
+    const cw = size.width_in * scale;
+    const ch = sheetLen * scale;
+    const items = placements.map((p) => {
+      const u = upById(p.uid);
+      if (!u || !IMAGE_TYPES.has(u.file_type.toLowerCase())) return "";
+      const fp = footprint(p);
+      const cx = (p.x_in + fp.w / 2) * scale;
+      const cy = (p.y_in + fp.h / 2) * scale;
+      const iw = p.w_in * scale, ih = p.h_in * scale;
+      return `<img src="${u.file_url}" style="position:absolute;left:${cx - iw / 2}px;top:${cy - ih / 2}px;width:${iw}px;height:${ih}px;transform:rotate(${p.rotation}deg);transform-origin:center center;" />`;
+    }).join("");
+    const html = `<!doctype html><html><head><meta charset="utf-8"><title>Full Resolution Preview</title>
+      <style>
+        body{margin:0;background:#EDEDF0;font-family:system-ui,-apple-system,sans-serif;padding:26px;text-align:center;}
+        h1{font-size:20px;font-weight:800;margin:0 0 4px;}
+        .sub{color:#666;font-size:13px;margin:0 0 22px;}
+        .sheet{position:relative;margin:0 auto;width:${cw}px;height:${ch}px;
+          background-image:repeating-conic-gradient(#e6e6e6 0% 25%,#fff 0% 50%);background-size:20px 20px;
+          box-shadow:0 3px 16px rgba(0,0,0,.18);}
+        img{display:block;}
+      </style></head><body>
+      <h1>Full Resolution Preview</h1>
+      <div class="sub">${wPx} × ${hPx} pixels (${size.width_in}″ × ${round2(sheetLen)}″ @ ${DPI} DPI)</div>
+      <div class="sheet">${items}</div>
+      </body></html>`;
+    const win = window.open("", "_blank");
+    if (!win) { setError("Please allow pop-ups to open the preview."); return; }
+    win.document.open();
+    win.document.write(html);
+    win.document.close();
+  }
+
   // ── Save ─────────────────────────────────────────────────────────────────────
   // Submit one sheet as its own order and persist its layout; returns the order.
   async function submitSheet(s: SheetTab): Promise<GangSheetOrder> {
@@ -1049,6 +1091,7 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
             <input type="number" min={1} value={qty} onChange={(e) => setQty(Math.max(1, Number(e.target.value) || 1))}
               style={{ width: "58px", padding: "6px 8px", border: "1px solid #DDD9D2", borderRadius: "6px", fontSize: "13px" }} />
           </label>
+          <button onClick={preview} style={S.ghostBtn} title="Open a full-resolution preview in a new tab">👁 Preview</button>
           <button onClick={() => save(true)} disabled={saving} style={{ ...S.primaryBtn, opacity: saving ? 0.6 : 1 }}>
             {saving ? "Saving…" : "Save & Add to Cart"}
           </button>
