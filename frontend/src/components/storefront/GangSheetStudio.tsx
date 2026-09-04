@@ -24,6 +24,7 @@ import {
 } from "@/services/gangSheets.service";
 import { analyzeArtwork } from "@/lib/artworkAnalysis";
 import { cartService } from "@/services/cart.service";
+import { ImageEditorModal } from "@/components/storefront/ImageEditorModal";
 
 const IMAGE_TYPES = new Set(["png", "jpg", "jpeg", "webp", "gif"]);
 const MIN_IN = 0.5;
@@ -183,6 +184,7 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
   const [bgDontShow, setBgDontShow] = useState(false);
   const [bgPreviewUrl, setBgPreviewUrl] = useState("");
   const bgSkipRef = useRef(false);
+  const [editUpload, setEditUpload] = useState<Upload | null>(null); // upload open in the image editor
 
   const fileRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -414,6 +416,32 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
     setBgDontShow(v);
     bgSkipRef.current = v;
     try { localStorage.setItem("gs_bg_skip", v ? "1" : "0"); } catch { /* private mode */ }
+  }
+
+  // Image-editor result: upload the edited PNG and swap it into the upload in
+  // place (same uid) so its thumbnail — and every placement using it — updates.
+  async function applyEdit(file: File) {
+    const target = editUpload;
+    setEditUpload(null);
+    if (!target) return;
+    setUploading(true); setError(null);
+    try {
+      const analysis = await analyzeArtwork(file);
+      const res = await gangSheetsService.uploadArtwork(file);
+      setUploads((cur) => cur.map((u) => (u.uid === target.uid ? {
+        ...u,
+        file_url: res.url,
+        file_name: res.file_name,
+        file_type: res.type,
+        isImage: analysis.isImage,
+        pxW: analysis.pxW,
+        pxH: analysis.pxH,
+        hasAlpha: analysis.hasAlpha,
+        aspect: analysis.pxW && analysis.pxH ? analysis.pxW / analysis.pxH : u.aspect,
+      } : u)));
+    } catch {
+      setError("Could not save the edited image.");
+    } finally { setUploading(false); }
   }
 
   const [dropActive, setDropActive] = useState(false);
@@ -1173,6 +1201,15 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
       {error && <div style={S.errorBar}>{error}{savedOk ? "" : " "}<button onClick={() => setError(null)} style={{ background: "none", border: "none", color: "#991B1B", cursor: "pointer", fontWeight: 700 }}>✕</button></div>}
       {savedOk && !error && <div style={S.okBar}>✓ Saved. It&apos;s in your gang sheets and ready for checkout.</div>}
 
+      {editUpload && (
+        <ImageEditorModal
+          src={editUpload.file_url}
+          fileName={editUpload.file_name}
+          onClose={() => setEditUpload(null)}
+          onApply={applyEdit}
+        />
+      )}
+
       {/* ── Background-removal prompt ──────────────────────────────────────────── */}
       {bgFile && (
         <div style={S.bgOverlay}>
@@ -1238,15 +1275,20 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", marginTop: "8px" }}>
                 {uploads.map((u) => {
                   const count = placements.filter((p) => p.uid === u.uid).length;
+                  const isImg = IMAGE_TYPES.has(u.file_type.toLowerCase());
                   return (
-                    <button key={u.uid} onClick={() => addPlacement(u)} title="Add to sheet" style={S.uploadThumb}>
-                      {IMAGE_TYPES.has(u.file_type.toLowerCase())
+                    <div key={u.uid} onClick={() => addPlacement(u)} title="Add to sheet" style={{ ...S.uploadThumb, cursor: "pointer" }}>
+                      {isImg
                         // eslint-disable-next-line @next/next/no-img-element
                         ? <img src={u.file_url} alt="" style={{ width: "100%", height: "64px", objectFit: "contain" }} />
                         : <div style={{ height: "64px", display: "flex", alignItems: "center", justifyContent: "center", color: "#4338CA", fontWeight: 700 }}>{u.file_type.toUpperCase().slice(0, 4)}</div>}
                       <div style={{ fontSize: "10px", color: "#666", padding: "3px 4px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{u.file_name}</div>
                       {count > 0 && <span style={S.thumbBadge}>{count}</span>}
-                    </button>
+                      {isImg && (
+                        <button onClick={(e) => { e.stopPropagation(); setEditUpload(u); }} title="Edit image (background, halftone, crop…)"
+                          style={{ position: "absolute", top: "4px", left: "4px", width: "22px", height: "22px", borderRadius: "6px", border: "none", background: "rgba(28,53,87,.9)", color: "#fff", fontSize: "11px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}>✎</button>
+                      )}
+                    </div>
                   );
                 })}
                 {uploads.length === 0 && <div style={{ gridColumn: "1 / -1", fontSize: "12px", color: "#aaa", padding: "10px 0" }}>No uploads yet.</div>}
