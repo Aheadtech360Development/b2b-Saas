@@ -64,13 +64,13 @@ function Ruler({ axis, contentPx, ppi, lengthIn, pad }: { axis: "x" | "y"; conte
         const at = pad + m.inch * ppi;
         return horiz ? (
           <div key={m.inch} style={{ position: "absolute", left: `${at}px`, top: 0, bottom: 0 }}>
-            <div style={{ position: "absolute", top: 0, left: 0, width: "1px", height: m.major ? "13px" : "7px", background: "#C7CBD2" }} />
-            {m.major && <span style={{ position: "absolute", top: "1px", left: "3px", fontSize: "9px", color: "#9299A3", lineHeight: 1 }}>{m.inch}</span>}
+            <div style={{ position: "absolute", top: 0, left: 0, width: "1px", height: m.major ? "13px" : "7px", background: "#8B93A1" }} />
+            {m.major && <span style={{ position: "absolute", top: "1px", left: "3px", fontSize: "9px", color: "#5A6474", fontWeight: 700, lineHeight: 1 }}>{m.inch}</span>}
           </div>
         ) : (
           <div key={m.inch} style={{ position: "absolute", top: `${at}px`, left: 0, right: 0 }}>
-            <div style={{ position: "absolute", left: 0, top: 0, height: "1px", width: m.major ? "13px" : "7px", background: "#C7CBD2" }} />
-            {m.major && <span style={{ position: "absolute", left: "2px", top: "2px", fontSize: "9px", color: "#9299A3", lineHeight: 1 }}>{m.inch}</span>}
+            <div style={{ position: "absolute", left: 0, top: 0, height: "1px", width: m.major ? "13px" : "7px", background: "#8B93A1" }} />
+            {m.major && <span style={{ position: "absolute", left: "2px", top: "2px", fontSize: "9px", color: "#5A6474", fontWeight: 700, lineHeight: 1 }}>{m.inch}</span>}
           </div>
         );
       })}
@@ -1347,10 +1347,11 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
           {([["uploads", "⬆", "Uploads"], ["designs", "✦", "Designs"], ["gallery", "🖼", "Gallery"], ["text", "T", "Add Text"], ["settings", "⚙", "Settings"]] as const).map(([key, icon, label]) => (
             <button key={key} onClick={() => setPanel(key)} title={label}
               style={{ ...S.railBtn, ...(panel === key ? S.railBtnActive : {}) }}>
-              <span style={{ fontSize: "18px", lineHeight: 1 }}>{icon}</span>
-              <span style={{ fontSize: "9px", marginTop: "3px" }}>{label}</span>
+              <span style={{ fontSize: "19px", lineHeight: 1 }}>{icon}</span>
+              <span style={{ fontSize: "10px", marginTop: "3px", fontWeight: 700 }}>{label}</span>
             </button>
           ))}
+          <div style={{ marginTop: "auto", fontSize: "8px", fontWeight: 800, color: "#A9AFB9", textAlign: "center", padding: "10px 2px 4px", letterSpacing: ".04em" }}>AT360<br/>APPS</div>
         </div>
 
         {/* ── Left panel ────────────────────────────────────────────────────── */}
@@ -1744,8 +1745,11 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
           <button onClick={() => autoNest()} style={S.rightAction} title="Arrange this sheet's designs compactly">⚡ Auto nest (tidy up)</button>
           <button onClick={() => autoNest(0.5)} style={S.rightAction} title="Nest with extra spacing for cutting">✂ Auto nest for cutting</button>
           <button onClick={startOver} style={{ ...S.rightAction, color: "#B91C1C" }}>↺ Start over (this sheet)</button>
-          <div style={{ marginTop: "auto", fontSize: "11px", color: "#aaa", paddingTop: "12px" }}>
+          <div style={{ marginTop: "auto", fontSize: "11px", color: "#8A8A8A", paddingTop: "12px" }}>
             Tip: build multiple sheets, then <strong>Save &amp; Add to Cart</strong> — each sheet is its own print job.
+          </div>
+          <div style={{ fontSize: "11px", color: "#9AA0AA", textAlign: "center", paddingTop: "10px", borderTop: "1px solid #EEECE7" }}>
+            Powered by <strong style={{ color: "var(--brand-primary,#1C3557)" }}>AT360 APPS</strong>
           </div>
         </div>
       </div>
@@ -1754,7 +1758,7 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
 }
 
 const S: Record<string, React.CSSProperties> = {
-  root: { position: "fixed", inset: 0, zIndex: 200, background: "#F4F3F1", display: "flex", flexDirection: "column", fontFamily: "'Open Sans', system-ui, sans-serif" },
+  root: { position: "fixed", inset: 0, zIndex: 200, background: "#F4F3F1", color: "#242832", display: "flex", flexDirection: "column", fontFamily: "'Open Sans', system-ui, sans-serif" },
   topbar: { height: "58px", flexShrink: 0, background: "#fff", borderBottom: "1px solid #E5E3DE", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 18px", gap: "16px" },
   logo: { fontSize: "18px", fontWeight: 900, letterSpacing: "-.02em" },
   primaryBtn: { background: "var(--brand-primary,#1C3557)", color: "#fff", border: "none", padding: "9px 16px", borderRadius: "7px", fontSize: "13px", fontWeight: 700, cursor: "pointer" },
@@ -1770,8 +1774,8 @@ const S: Record<string, React.CSSProperties> = {
   bgFoot: { display: "flex", alignItems: "center", gap: "8px", padding: "14px 18px", borderTop: "1px solid #EFEDE8", flexWrap: "wrap" },
   body: { flex: 1, display: "flex", minHeight: 0 },
   rail: { width: "62px", flexShrink: 0, background: "#fff", borderRight: "1px solid #E5E3DE", display: "flex", flexDirection: "column", padding: "10px 0", gap: "4px" },
-  railBtn: { background: "none", border: "none", color: "#666", display: "flex", flexDirection: "column", alignItems: "center", padding: "9px 4px", cursor: "pointer", borderLeft: "3px solid transparent" },
-  railBtnActive: { color: "var(--brand-primary,#1C3557)", borderLeftColor: "var(--brand-primary,#1C3557)", background: "#F4F6FB" },
+  railBtn: { background: "none", border: "none", color: "#3D4350", fontWeight: 700, display: "flex", flexDirection: "column", alignItems: "center", padding: "9px 4px", cursor: "pointer", borderLeft: "3px solid transparent" },
+  railBtnActive: { color: "var(--brand-primary,#1C3557)", borderLeftColor: "var(--brand-primary,#1C3557)", background: "#EEF3FB" },
   leftPanel: { width: "270px", flexShrink: 0, background: "#fff", borderRight: "1px solid #E5E3DE", padding: "16px", overflowY: "auto" },
   dropzone: { border: "2px dashed #C9C5BD", borderRadius: "10px", padding: "22px 12px", textAlign: "center", cursor: "pointer" },
   panelTitle: { fontSize: "14px", fontWeight: 800, marginBottom: "12px" },
@@ -1787,7 +1791,7 @@ const S: Record<string, React.CSSProperties> = {
   sizeSelect: { padding: "7px 10px", border: "1px solid #DDD9D2", borderRadius: "6px", fontSize: "13px", minWidth: "150px", background: "#fff" },
   toolDivider: { width: "1px", height: "24px", background: "#E5E3DE" },
   nestBtn: { background: "#B91C1C", color: "#fff", border: "none", padding: "7px 14px", borderRadius: "7px", fontSize: "13px", fontWeight: 700, cursor: "pointer" },
-  iconBtn: { width: "30px", height: "30px", border: "1px solid #DDD9D2", background: "#fff", borderRadius: "6px", fontSize: "15px", cursor: "pointer", lineHeight: 1 },
+  iconBtn: { width: "30px", height: "30px", border: "1px solid #BEC4CE", background: "#fff", color: "#2A2F3A", borderRadius: "6px", fontSize: "15px", fontWeight: 700, cursor: "pointer", lineHeight: 1 },
   canvasScroll: { position: "absolute", inset: 0, overflow: "auto", padding: "24px" },
   legend: { position: "sticky", top: 0, display: "flex", gap: "12px", flexWrap: "wrap", fontSize: "11px", color: "#777", marginBottom: "14px", background: "rgba(244,243,241,.9)", padding: "4px 0", zIndex: 2 },
   rulerGrid: { flex: 1, minHeight: 0, display: "grid", gridTemplateColumns: "26px 1fr", gridTemplateRows: "22px 1fr", background: "#F4F3F1" },
