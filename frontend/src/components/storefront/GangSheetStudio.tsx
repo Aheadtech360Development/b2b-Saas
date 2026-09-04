@@ -177,6 +177,12 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
   // is edited through the working state above and snapshotted back on switch/save.
   const [sheets, setSheets] = useState<SheetTab[]>([]);
   const [active, setActive] = useState(0);
+  // Background-removal prompt: files awaiting a decision + the removal state.
+  const [bgQueue, setBgQueue] = useState<File[]>([]);
+  const [bgBusy, setBgBusy] = useState(false);
+  const [bgDontShow, setBgDontShow] = useState(false);
+  const [bgPreviewUrl, setBgPreviewUrl] = useState("");
+  const bgSkipRef = useRef(false);
 
   const fileRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -322,27 +328,41 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
   }
 
   // ── Uploads ──────────────────────────────────────────────────────────────────
+  // Analyse + upload one file and (optionally) drop it on the sheet.
+  async function ingestFile(file: File, autoPlace = true) {
+    const analysis = await analyzeArtwork(file);
+    const res = await gangSheetsService.uploadArtwork(file);
+    const u: Upload = {
+      uid: `${res.url}#${nextId.current++}`,
+      file_url: res.url,
+      file_name: res.file_name,
+      file_type: res.type,
+      isImage: analysis.isImage,
+      pxW: analysis.pxW,
+      pxH: analysis.pxH,
+      hasAlpha: analysis.hasAlpha,
+      aspect: analysis.pxW && analysis.pxH ? analysis.pxW / analysis.pxH : 1,
+    };
+    setUploads((cur) => [...cur, u]);
+    if (autoPlace) addPlacement(u);
+    return u;
+  }
+
   async function onFiles(files: FileList | null, autoPlace = true) {
     if (!files?.length || !size) return;
     setUploading(true);
     setError(null);
+    const review: File[] = [];
     try {
       for (const file of Array.from(files)) {
-        const analysis = await analyzeArtwork(file);
-        const res = await gangSheetsService.uploadArtwork(file);
-        const u: Upload = {
-          uid: `${res.url}#${nextId.current++}`,
-          file_url: res.url,
-          file_name: res.file_name,
-          file_type: res.type,
-          isImage: analysis.isImage,
-          pxW: analysis.pxW,
-          pxH: analysis.pxH,
-          hasAlpha: analysis.hasAlpha,
-          aspect: analysis.pxW && analysis.pxH ? analysis.pxW / analysis.pxH : 1,
-        };
-        setUploads((cur) => [...cur, u]);
-        if (autoPlace) addPlacement(u);
+        const ext = (file.name.split(".").pop() || "").toLowerCase();
+        // A raster image with no transparency almost always has a background —
+        // hold it for the removal prompt (unless the buyer opted out).
+        if (!bgSkipRef.current && ["png", "jpg", "jpeg", "webp"].includes(ext)) {
+          const analysis = await analyzeArtwork(file);
+          if (analysis.isImage && !analysis.hasAlpha) { review.push(file); continue; }
+        }
+        await ingestFile(file, autoPlace);
       }
     } catch {
       setError("That file could not be uploaded. Allowed: PNG, JPG, PDF, SVG, AI, EPS, PSD, TIFF (max 50 MB).");
@@ -350,6 +370,50 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
       setUploading(false);
       if (fileRef.current) fileRef.current.value = "";
     }
+    if (review.length) setBgQueue((q) => [...q, ...review]);
+  }
+
+  // ── Background removal ───────────────────────────────────────────────────────
+  const bgFile = bgQueue[0];
+  useEffect(() => {
+    if (!bgFile) { setBgPreviewUrl(""); return; }
+    const url = URL.createObjectURL(bgFile);
+    setBgPreviewUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [bgFile]);
+  useEffect(() => {
+    try { if (localStorage.getItem("gs_bg_skip") === "1") { bgSkipRef.current = true; setBgDontShow(true); } } catch { /* private mode */ }
+  }, []);
+
+  function shiftBg() { setBgQueue((q) => q.slice(1)); }
+  function bgDiscard() { shiftBg(); }
+  async function bgContinue() {
+    const f = bgQueue[0]; if (!f) return;
+    setUploading(true);
+    try { await ingestFile(f); } catch { setError("Could not add that image."); }
+    finally { setUploading(false); shiftBg(); }
+  }
+  async function bgRemove() {
+    const f = bgQueue[0]; if (!f) return;
+    setBgBusy(true); setError(null);
+    try {
+      const { removeBackground } = await import("@imgly/background-removal");
+      const out = await removeBackground(f);
+      const base = f.name.replace(/\.[^.]+$/, "");
+      await ingestFile(new File([out], `${base}-nobg.png`, { type: "image/png" }));
+    } catch {
+      // Fall back to keeping the original so nothing is lost.
+      try { await ingestFile(f); } catch { /* ignore */ }
+      setError("Background removal wasn't available just now — kept the original image.");
+    } finally {
+      setBgBusy(false);
+      shiftBg();
+    }
+  }
+  function setDontShowBg(v: boolean) {
+    setBgDontShow(v);
+    bgSkipRef.current = v;
+    try { localStorage.setItem("gs_bg_skip", v ? "1" : "0"); } catch { /* private mode */ }
   }
 
   const [dropActive, setDropActive] = useState(false);
@@ -1109,6 +1173,38 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
       {error && <div style={S.errorBar}>{error}{savedOk ? "" : " "}<button onClick={() => setError(null)} style={{ background: "none", border: "none", color: "#991B1B", cursor: "pointer", fontWeight: 700 }}>✕</button></div>}
       {savedOk && !error && <div style={S.okBar}>✓ Saved. It&apos;s in your gang sheets and ready for checkout.</div>}
 
+      {/* ── Background-removal prompt ──────────────────────────────────────────── */}
+      {bgFile && (
+        <div style={S.bgOverlay}>
+          <div style={S.bgModal}>
+            <div style={S.bgHead}>
+              <span style={{ fontSize: "17px", fontWeight: 800 }}>Background Warning</span>
+              <button onClick={bgDiscard} style={{ background: "none", border: "none", fontSize: "18px", cursor: "pointer", color: "#666" }}>✕</button>
+            </div>
+            <div style={S.bgWarnBar}>
+              ⚠ We detected a background in this image. We recommend removing it with the background-removal tool, or replacing it with transparent artwork.
+            </div>
+            <div style={S.bgPreviewBox}>
+              {bgPreviewUrl && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={bgPreviewUrl} alt="Uploaded design" style={{ maxWidth: "100%", maxHeight: "46vh", objectFit: "contain", display: "block", margin: "0 auto" }} />
+              )}
+            </div>
+            <div style={S.bgFoot}>
+              <label style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12px", color: "#555", cursor: "pointer" }}>
+                <input type="checkbox" checked={bgDontShow} onChange={(e) => setDontShowBg(e.target.checked)} /> Don&apos;t show again
+              </label>
+              <div style={{ flex: 1 }} />
+              <button onClick={bgDiscard} disabled={bgBusy} style={S.ghostBtn}>Discard</button>
+              <button onClick={bgContinue} disabled={bgBusy} style={S.ghostBtn}>Continue</button>
+              <button onClick={bgRemove} disabled={bgBusy} style={{ ...S.primaryBtn, background: "#2563EB", opacity: bgBusy ? 0.65 : 1 }}>
+                {bgBusy ? "Removing…" : "✨ Remove Background"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div style={S.body}>
         {/* ── Left rail ─────────────────────────────────────────────────────── */}
         <div style={S.rail}>
@@ -1524,6 +1620,12 @@ const S: Record<string, React.CSSProperties> = {
   closeBtn: { background: "#fff", color: "#B91C1C", border: "1px solid #F0C9C9", padding: "9px 16px", borderRadius: "7px", fontSize: "13px", fontWeight: 600, cursor: "pointer" },
   errorBar: { background: "#FEF2F2", color: "#991B1B", borderBottom: "1px solid #FCA5A5", padding: "8px 18px", fontSize: "13px", display: "flex", alignItems: "center", gap: "10px" },
   okBar: { background: "#F0FDF4", color: "#166534", borderBottom: "1px solid #BBF7D0", padding: "8px 18px", fontSize: "13px" },
+  bgOverlay: { position: "fixed", inset: 0, zIndex: 400, background: "rgba(20,24,31,.55)", display: "flex", alignItems: "center", justifyContent: "center", padding: "20px" },
+  bgModal: { width: "min(560px, 94vw)", maxHeight: "92vh", display: "flex", flexDirection: "column", background: "#fff", borderRadius: "12px", overflow: "hidden", boxShadow: "0 20px 60px rgba(0,0,0,.35)" },
+  bgHead: { display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 18px", borderBottom: "1px solid #EFEDE8" },
+  bgWarnBar: { margin: "14px 18px 0", background: "#FEF3E2", border: "1px solid #FBD9A5", color: "#92400E", borderRadius: "8px", padding: "10px 12px", fontSize: "13px", lineHeight: 1.5 },
+  bgPreviewBox: { flex: 1, overflow: "auto", padding: "16px 18px", background: "#F7F7F5", margin: "14px 18px 0", borderRadius: "8px", border: "1px solid #EFEDE8" },
+  bgFoot: { display: "flex", alignItems: "center", gap: "8px", padding: "14px 18px", borderTop: "1px solid #EFEDE8", flexWrap: "wrap" },
   body: { flex: 1, display: "flex", minHeight: 0 },
   rail: { width: "62px", flexShrink: 0, background: "#fff", borderRight: "1px solid #E5E3DE", display: "flex", flexDirection: "column", padding: "10px 0", gap: "4px" },
   railBtn: { background: "none", border: "none", color: "#666", display: "flex", flexDirection: "column", alignItems: "center", padding: "9px 4px", cursor: "pointer", borderLeft: "3px solid transparent" },
