@@ -11,6 +11,7 @@ import { apiClient } from "@/lib/api-client";
 import { cartService } from "@/services/cart.service";
 import { productsService } from "@/services/products.service";
 import { UploadBySizeModal } from "@/components/storefront/UploadBySizeModal";
+import { gangSheetsService, type GangSheetSize } from "@/services/gangSheets.service";
 
 function formatWeightGrams(raw: string | null | undefined): string | null {
   if (!raw) return null;
@@ -423,6 +424,8 @@ export function ProductDetailClient({ slug }: ProductDetailClientProps) {
   const [showImageLibrary, setShowImageLibrary] = useState(false);
   const [expandedLibraryColor, setExpandedLibraryColor] = useState<string | null>(null);
   const [showUploadBySize, setShowUploadBySize] = useState(false); // Upload-by-size modal (declared with the other hooks, before any early return)
+  const [gsSizes, setGsSizes] = useState<GangSheetSize[]>([]); // this gang-sheet product's own sizes (for the storefront size grid)
+  const [gsSelectedId, setGsSelectedId] = useState("");
 
   useEffect(() => {
     if (authIsLoading) return; // wait for auth to resolve before fetching
@@ -475,6 +478,34 @@ export function ProductDetailClient({ slug }: ProductDetailClientProps) {
     }, 0),
     [quantities, product?.variants]
   );
+
+  // Load this gang-sheet product's own sizes for the storefront size grid.
+  useEffect(() => {
+    if (!product?.gang_sheet_enabled || product?.gang_sheet_type === "upload_by_size") { setGsSizes([]); return; }
+    gangSheetsService.listSizes(product.id)
+      .then((rows) => { setGsSizes(rows); setGsSelectedId((c) => c || rows[0]?.id || ""); })
+      .catch(() => setGsSizes([]));
+  }, [product?.id, product?.gang_sheet_enabled, product?.gang_sheet_type]);
+
+  // Per-size "Save %" (off the priciest per-foot price) + the best-value size.
+  const { gsSavings, gsBestId } = useMemo(() => {
+    const perFoot = (s: GangSheetSize) => {
+      const feet = s.height_in / 12;
+      return s.pricing_mode === "fixed" && s.price_per_sheet > 0 && feet > 0 ? s.price_per_sheet / feet : null;
+    };
+    const rates = gsSizes.map(perFoot).filter((r): r is number => r != null);
+    const worst = rates.length ? Math.max(...rates) : 0;
+    const save: Record<string, number> = {};
+    let bestId = "", bestPct = 0;
+    for (const s of gsSizes) {
+      const r = perFoot(s);
+      if (r == null || worst <= 0) continue;
+      const pct = Math.round((1 - r / worst) * 100);
+      save[s.id] = pct;
+      if (pct > bestPct) { bestPct = pct; bestId = s.id; }
+    }
+    return { gsSavings: save, gsBestId: bestId };
+  }, [gsSizes]);
 
   if (productLoading || !product) {
     return (
@@ -1000,12 +1031,49 @@ export function ProductDetailClient({ slug }: ProductDetailClientProps) {
                 UPLOAD IMAGE BY SIZE
               </button>
             ) : product.gang_sheet_enabled ? (
-              <Link
-                href={gangSheetHref}
-                style={{ display: "block", width: "100%", boxSizing: "border-box", textAlign: "center", padding: "14px", marginTop: "12px", background: "#fff", color: "var(--brand-primary, #1C3557)", border: "1.5px solid var(--brand-primary, #1C3557)", textDecoration: "none", fontFamily: "'DM Sans', sans-serif", fontSize: "15px", fontWeight: 600 }}
-              >
-                🧩 Build a gang sheet
-              </Link>
+              gsSizes.length > 0 ? (
+                <div style={{ marginTop: "14px", fontFamily: "'DM Sans', sans-serif" }}>
+                  <div style={{ fontSize: "14px", fontWeight: 700, marginBottom: "10px" }}>
+                    Size: {gsSizes.find((s) => s.id === gsSelectedId)?.name ?? gsSizes[0]?.name}
+                  </div>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: "8px 10px", marginBottom: "18px" }}>
+                    {gsSizes.map((s) => {
+                      const active = s.id === gsSelectedId;
+                      const pct = gsSavings[s.id] ?? 0;
+                      const best = s.id === gsBestId && pct > 0;
+                      return (
+                        <div key={s.id} style={{ position: "relative", paddingTop: best ? "11px" : 0, textAlign: "center" }}>
+                          {best && (
+                            <span style={{ position: "absolute", top: 0, left: "50%", transform: "translateX(-50%)", background: "#DC2626", color: "#fff", fontSize: "9px", fontWeight: 800, padding: "2px 8px", borderRadius: "10px", whiteSpace: "nowrap", zIndex: 1 }}>Most popular</span>
+                          )}
+                          <button
+                            onClick={() => setGsSelectedId(s.id)}
+                            style={{ minWidth: "76px", padding: "11px 14px", cursor: "pointer", borderRadius: "8px", background: "#fff", fontSize: "14px", fontWeight: 700, color: "#111", border: active ? "2px solid #111" : "1px solid #D6D3CC" }}
+                          >
+                            {s.name}
+                          </button>
+                          <div style={{ fontSize: "12px", fontWeight: 700, color: "#DC2626", marginTop: "4px", minHeight: "16px" }}>
+                            {pct > 0 ? `Save ${pct}%` : ""}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <Link
+                    href={`${gangSheetHref}&size=${gsSelectedId}`}
+                    style={{ display: "block", width: "100%", boxSizing: "border-box", textAlign: "center", padding: "16px", background: "#DC2626", color: "#fff", border: "none", textDecoration: "none", fontSize: "15px", fontWeight: 800, letterSpacing: ".03em", borderRadius: "4px" }}
+                  >
+                    BUILD YOUR OWN GANG SHEET
+                  </Link>
+                </div>
+              ) : (
+                <Link
+                  href={gangSheetHref}
+                  style={{ display: "block", width: "100%", boxSizing: "border-box", textAlign: "center", padding: "14px", marginTop: "12px", background: "#fff", color: "var(--brand-primary, #1C3557)", border: "1.5px solid var(--brand-primary, #1C3557)", textDecoration: "none", fontFamily: "'DM Sans', sans-serif", fontSize: "15px", fontWeight: 600 }}
+                >
+                  🧩 Build a gang sheet
+                </Link>
+              )
             ) : null}
           </div>
         </div>

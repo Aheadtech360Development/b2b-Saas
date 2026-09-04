@@ -46,13 +46,15 @@ export default function GangSheetBuilderPage() {
   // the brand's global set server-side). Done together so we never load the
   // wrong (global) sizes first when a product is in scope.
   useEffect(() => {
-    const pid = new URLSearchParams(window.location.search).get("product");
+    const params = new URLSearchParams(window.location.search);
+    const pid = params.get("product");
+    const sid = params.get("size"); // pre-selected size from the product page grid
     setProductId(pid);
     gangSheetsService
       .listSizes(pid || undefined)
       .then((rows) => {
         setSizes(rows);
-        setSelectedSizeId((cur) => cur || rows[0]?.id || "");
+        setSelectedSizeId((cur) => cur || (sid && rows.some((r) => r.id === sid) ? sid : "") || rows[0]?.id || "");
       })
       .catch(() => setSizes([]));
   }, []);
