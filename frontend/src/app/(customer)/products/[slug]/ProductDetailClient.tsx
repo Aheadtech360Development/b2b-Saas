@@ -422,6 +422,7 @@ export function ProductDetailClient({ slug }: ProductDetailClientProps) {
   const [copiedUrl, setCopiedUrl] = useState(false);
   const [showImageLibrary, setShowImageLibrary] = useState(false);
   const [expandedLibraryColor, setExpandedLibraryColor] = useState<string | null>(null);
+  const [showUploadBySize, setShowUploadBySize] = useState(false); // Upload-by-size modal (declared with the other hooks, before any early return)
 
   useEffect(() => {
     if (authIsLoading) return; // wait for auth to resolve before fetching
@@ -492,7 +493,6 @@ export function ProductDetailClient({ slug }: ProductDetailClientProps) {
   const pricePerUnit = Number(primaryVariant?.effective_price ?? primaryVariant?.retail_price ?? 0);
   const anyInStock = (product.variants ?? []).some(v => !isOutOfStock(v.stock_quantity));
 
-  const [showUploadBySize, setShowUploadBySize] = useState(false);
   // "Upload by size" products get the simple single-design flow; everything else
   // (or an unset type) opens the full gang-sheet builder.
   const isUploadBySize = product.gang_sheet_enabled && product.gang_sheet_type === "upload_by_size";
