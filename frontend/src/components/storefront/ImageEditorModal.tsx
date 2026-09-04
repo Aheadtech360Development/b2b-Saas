@@ -16,9 +16,10 @@ interface Props {
   fileName: string;
   onClose: () => void;
   onApply: (file: File) => void;
+  initialTab?: Tab;
 }
 
-type Tab = "enhance" | "halftone" | "crop" | "colors";
+type Tab = "enhance" | "halftone" | "crop" | "colors" | "removecolor";
 const DEFAULT_COLORS = { brightness: 100, contrast: 100, saturate: 100 };
 const RATIOS: { key: string; label: string; r: number | null }[] = [
   { key: "free", label: "Free", r: null },
@@ -39,8 +40,10 @@ function makeCanvas(w: number, h: number) {
   return c;
 }
 
-export function ImageEditorModal({ src, fileName, onClose, onApply }: Props) {
-  const [tab, setTab] = useState<Tab>("enhance");
+export function ImageEditorModal({ src, fileName, onClose, onApply, initialTab }: Props) {
+  const [tab, setTab] = useState<Tab>(initialTab ?? "enhance");
+  const [pickColor, setPickColor] = useState<{ r: number; g: number; b: number } | null>(null);
+  const [tolerance, setTolerance] = useState(40);
   const [ready, setReady] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [showBefore, setShowBefore] = useState(false);
@@ -200,6 +203,40 @@ export function ImageEditorModal({ src, fileName, onClose, onApply }: Props) {
   function applyColors() { bakeColors(); commit(); }
   function resetColors() { setColors({ ...DEFAULT_COLORS }); }
 
+  // ── Remove colour (chroma key) ────────────────────────────────────────────────
+  // Click the preview to sample a colour; Apply makes every pixel within the
+  // tolerance of it transparent.
+  function pickAt(e: React.MouseEvent) {
+    if (tab !== "removecolor") return;
+    const disp = dispRef.current, w = workRef.current;
+    if (!disp || !w) return;
+    const rect = disp.getBoundingClientRect();
+    const sx = Math.round((e.clientX - rect.left) * (w.width / disp.width));
+    const sy = Math.round((e.clientY - rect.top) * (w.height / disp.height));
+    if (sx < 0 || sy < 0 || sx >= w.width || sy >= w.height) return;
+    try {
+      const d = w.getContext("2d")!.getImageData(sx, sy, 1, 1).data;
+      setPickColor({ r: d[0]!, g: d[1]!, b: d[2]! });
+    } catch { setError("Couldn't read this image (cross-origin protected)."); }
+  }
+  function applyRemoveColor() {
+    if (!pickColor) { setError("Click the image to pick a colour first."); return; }
+    setError(null);
+    bakeColors();
+    try {
+      const w = workRef.current!;
+      const ctx = w.getContext("2d")!;
+      const img = ctx.getImageData(0, 0, w.width, w.height);
+      const d = img.data;
+      for (let i = 0; i < d.length; i += 4) {
+        const dr = d[i]! - pickColor.r, dg = d[i + 1]! - pickColor.g, db = d[i + 2]! - pickColor.b;
+        if (Math.sqrt(dr * dr + dg * dg + db * db) <= tolerance) d[i + 3] = 0;
+      }
+      ctx.putImageData(img, 0, 0);
+      commit();
+    } catch { setError("Couldn't process this image (cross-origin protected)."); }
+  }
+
   // ── Crop ──────────────────────────────────────────────────────────────────────
   function startCrop() {
     const disp = dispRef.current; if (!disp) return;
@@ -284,7 +321,7 @@ export function ImageEditorModal({ src, fileName, onClose, onApply }: Props) {
         <div style={S.body}>
           {/* Left tabs */}
           <div style={S.tabs}>
-            {([["enhance", "✨", "Enhance"], ["halftone", "▦", "Halftone"], ["crop", "⛶", "Crop"], ["colors", "🎨", "Colors"]] as const).map(([k, ic, lb]) => (
+            {([["enhance", "✨", "Enhance"], ["halftone", "▦", "Halftone"], ["crop", "⛶", "Crop"], ["colors", "🎨", "Colors"], ["removecolor", "🎯", "Remove Color"]] as const).map(([k, ic, lb]) => (
               <button key={k} onClick={() => setTab(k)} style={{ ...S.tabBtn, ...(tab === k ? S.tabBtnActive : {}) }}>
                 <span style={{ fontSize: "18px" }}>{ic}</span>
                 <span style={{ fontSize: "10px", marginTop: "3px", textTransform: "uppercase", letterSpacing: ".04em" }}>{lb}</span>
@@ -345,13 +382,27 @@ export function ImageEditorModal({ src, fileName, onClose, onApply }: Props) {
                 </div>
               </>
             )}
+
+            {tab === "removecolor" && (
+              <>
+                <div style={S.groupLabel}>Pick a colour</div>
+                <p style={{ fontSize: "12px", color: "#777", marginBottom: "12px" }}>Click on the image to pick the colour you want to remove.</p>
+                <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "14px" }}>
+                  <span style={{ width: 34, height: 34, borderRadius: "6px", border: "1px solid #D0D0D0", background: pickColor ? `rgb(${pickColor.r},${pickColor.g},${pickColor.b})` : "conic-gradient(#ccc 25%,#fff 0 50%,#ccc 0 75%,#fff 0)", backgroundSize: pickColor ? undefined : "10px 10px" }} />
+                  <span style={{ fontSize: "12px", color: "#666" }}>{pickColor ? `rgb(${pickColor.r}, ${pickColor.g}, ${pickColor.b})` : "No colour picked"}</span>
+                </div>
+                <Slider label="Tolerance" min={5} max={150} value={tolerance} onChange={setTolerance} />
+                <button onClick={applyRemoveColor} disabled={!pickColor || !!busy} style={S.applyBtn}>Remove this colour</button>
+                <p style={S.hint}>Great for knocking out a solid background colour. Raise tolerance to catch more shades.</p>
+              </>
+            )}
           </div>
 
           {/* Preview stage */}
           <div ref={stageRef} style={S.stage}>
             <div style={{ ...S.checker, background: bgColor === "transparent" ? undefined : bgColor }} className={bgColor === "transparent" ? "gs-checker" : ""}>
               <div style={{ position: "relative", lineHeight: 0 }}>
-                <canvas ref={dispRef} style={{ display: "block", filter: showBefore ? "none" : colorFilter }} />
+                <canvas ref={dispRef} onClick={pickAt} style={{ display: "block", filter: showBefore ? "none" : colorFilter, cursor: tab === "removecolor" ? "crosshair" : "default" }} />
                 {/* Crop overlay */}
                 {tab === "crop" && crop && (
                   <div

@@ -185,6 +185,13 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
   const [bgPreviewUrl, setBgPreviewUrl] = useState("");
   const bgSkipRef = useRef(false);
   const [editUpload, setEditUpload] = useState<Upload | null>(null); // upload open in the image editor
+  const [editTab, setEditTab] = useState<"enhance" | "crop" | "removecolor" | "colors" | "halftone">("enhance");
+  const [ctxMenu, setCtxMenu] = useState<{ id: number; x: number; y: number } | null>(null); // right-click menu
+  const clipRef = useRef<Placement | null>(null); // copy/paste clipboard
+  const [dupModal, setDupModal] = useState<number | null>(null); // "Add quantity" for this placement
+  const [dupQty, setDupQty] = useState(5);
+  const [dupApplyMargin, setDupApplyMargin] = useState(false);
+  const [dupMargin, setDupMargin] = useState(0.5);
 
   const fileRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -735,11 +742,11 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
   }
 
   /** Add N more copies of the selected design, packed into the free space. */
-  function addCopies(n: number) {
+  function addCopies(n: number, gapOverride?: number) {
     if (selected == null || n < 1 || !size) return;
     const src = stateRef.current.placements.find((q) => q.id === selected);
     if (!src) return;
-    const g = Math.max(imageMargin, 0.25);
+    const g = gapOverride != null ? Math.max(gapOverride, 0.02) : Math.max(imageMargin, 0.25);
     const fp = footprint(src);
     // Track occupied boxes locally so copies added in this batch don't stack.
     const taken = stateRef.current.placements.map((p) => ({ x: p.x_in, y: p.y_in, w: footprint(p).w, h: footprint(p).h }));
@@ -1025,6 +1032,43 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
       : Number(sz.price_per_sheet || 0);
   }
 
+  // ── Right-click menu actions ─────────────────────────────────────────────────
+  function openEditorFor(id: number, t: "enhance" | "crop" | "removecolor") {
+    const p = stateRef.current.placements.find((q) => q.id === id);
+    const u = p ? upById(p.uid) : undefined;
+    if (u && IMAGE_TYPES.has(u.file_type.toLowerCase())) { setEditUpload(u); setEditTab(t); }
+    setCtxMenu(null);
+  }
+  function copyPlacement(id: number) {
+    const p = stateRef.current.placements.find((q) => q.id === id);
+    if (p) clipRef.current = { ...p };
+    setCtxMenu(null);
+  }
+  function pastePlacement() {
+    const c = clipRef.current;
+    setCtxMenu(null);
+    if (!c) return;
+    const fp = footprint(c);
+    const spot = firstFreeSpot(fp.w, fp.h);
+    const nid = nextId.current++;
+    setPlacements((list) => [...list, { ...c, id: nid, x_in: spot.x, y_in: spot.y }]);
+    setSelected(nid);
+  }
+  function openDupModal(id: number) { setSelected(id); setDupQty(5); setDupApplyMargin(false); setDupModal(id); setCtxMenu(null); }
+  function confirmDup() {
+    if (dupModal == null) return;
+    addCopies(dupQty, dupApplyMargin ? dupMargin : undefined);
+    setDupModal(null);
+  }
+  // Close the context menu on any outside click / scroll.
+  useEffect(() => {
+    if (!ctxMenu) return;
+    const close = () => setCtxMenu(null);
+    window.addEventListener("click", close);
+    window.addEventListener("scroll", close, true);
+    return () => { window.removeEventListener("click", close); window.removeEventListener("scroll", close, true); };
+  }, [ctxMenu]);
+
   // ── Preview ──────────────────────────────────────────────────────────────────
   // Open a print-resolution preview of the active sheet in a new tab — the exact
   // layout on a to-scale transparent sheet, with the true print pixel size shown.
@@ -1205,9 +1249,64 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
         <ImageEditorModal
           src={editUpload.file_url}
           fileName={editUpload.file_name}
+          initialTab={editTab}
           onClose={() => setEditUpload(null)}
           onApply={applyEdit}
         />
+      )}
+
+      {/* ── Right-click context menu on a placed design ───────────────────────── */}
+      {ctxMenu && (
+        <div style={{ position: "fixed", top: ctxMenu.y, left: ctxMenu.x, zIndex: 450, background: "#fff", borderRadius: "10px", boxShadow: "0 8px 30px rgba(0,0,0,.22)", padding: "6px", minWidth: "190px" }} onClick={(e) => e.stopPropagation()}>
+          {([
+            ["⧉ Copy", () => copyPlacement(ctxMenu.id), true],
+            ["📋 Paste", () => pastePlacement(), !!clipRef.current],
+            ["🗑 Delete", () => { remove(ctxMenu.id); setCtxMenu(null); }, true],
+            ["⧉ Duplicate", () => { duplicate(ctxMenu.id); setCtxMenu(null); }, true],
+            ["＋ Add Quantity", () => openDupModal(ctxMenu.id), true],
+            ["🎯 Remove Color", () => openEditorFor(ctxMenu.id, "removecolor"), true],
+            ["⛶ Crop", () => openEditorFor(ctxMenu.id, "crop"), true],
+            ["✨ Edit image", () => openEditorFor(ctxMenu.id, "enhance"), true],
+          ] as const).map(([label, fn, enabled]) => (
+            <button key={label} onClick={enabled ? fn : undefined} disabled={!enabled}
+              style={{ display: "block", width: "100%", textAlign: "left", background: "none", border: "none", padding: "9px 12px", fontSize: "13px", fontWeight: 600, color: enabled ? "#222" : "#BBB", cursor: enabled ? "pointer" : "default", borderRadius: "6px" }}
+              onMouseEnter={(e) => { if (enabled) e.currentTarget.style.background = "#F2F4F8"; }}
+              onMouseLeave={(e) => (e.currentTarget.style.background = "none")}>
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* ── Auto Duplicate (Add Quantity) ─────────────────────────────────────── */}
+      {dupModal != null && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 460, background: "rgba(20,24,31,.5)", display: "flex", alignItems: "center", justifyContent: "center" }} onClick={() => setDupModal(null)}>
+          <div style={{ width: "min(420px,92vw)", background: "#fff", borderRadius: "12px", padding: "20px", boxShadow: "0 20px 60px rgba(0,0,0,.35)" }} onClick={(e) => e.stopPropagation()}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px" }}>
+              <span style={{ fontSize: "16px", fontWeight: 800 }}>Auto Duplicate</span>
+              <button onClick={() => setDupModal(null)} style={{ background: "none", border: "none", fontSize: "17px", cursor: "pointer", color: "#666" }}>✕</button>
+            </div>
+            <label style={{ fontSize: "13px", fontWeight: 600, color: "#444" }}>Quantity you want to add</label>
+            <input type="number" min={1} value={dupQty} onChange={(e) => setDupQty(Math.max(1, Math.floor(Number(e.target.value)) || 1))}
+              style={{ width: "100%", boxSizing: "border-box", padding: "10px", border: "1px solid #DDD9D2", borderRadius: "8px", fontSize: "14px", margin: "6px 0 14px" }} />
+            <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "18px" }}>
+              <label style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "13px", fontWeight: 600, color: "#444", cursor: "pointer" }}>
+                <input type="checkbox" checked={dupApplyMargin} onChange={(e) => setDupApplyMargin(e.target.checked)} /> Apply margin
+              </label>
+              {dupApplyMargin && (
+                <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                  <input type="number" min={0} step="0.05" value={dupMargin} onChange={(e) => setDupMargin(Math.max(0, Number(e.target.value) || 0))}
+                    style={{ width: "80px", padding: "8px", border: "1px solid #DDD9D2", borderRadius: "8px", fontSize: "13px" }} />
+                  <span style={{ fontSize: "12px", color: "#888" }}>in</span>
+                </div>
+              )}
+            </div>
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: "8px" }}>
+              <button onClick={() => setDupModal(null)} style={S.ghostBtn}>Cancel</button>
+              <button onClick={confirmDup} style={S.primaryBtn}>Add</button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* ── Background-removal prompt ──────────────────────────────────────────── */}
@@ -1535,6 +1634,7 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
                 const ring = isSel ? "var(--brand-primary,#1C3557)" : isOverlap ? "#2563EB" : warned ? "#EA580C" : d ? d.color : "#9AA3B2";
                 return (
                   <div key={p.id} onPointerDown={(e) => startMove(e, p.id)}
+                    onContextMenu={(e) => { e.preventDefault(); setSelected(p.id); setCtxMenu({ id: p.id, x: e.clientX, y: e.clientY }); }}
                     style={{
                       position: "absolute", left: p.x_in * ppi, top: p.y_in * ppi, width: fp.w * ppi, height: fp.h * ppi,
                       border: `2px solid ${ring}`, boxShadow: isSel ? "0 0 0 2px rgba(28,53,87,.2)" : isOverlap ? "0 0 0 2px rgba(37,99,235,.18)" : warned ? "0 0 0 2px rgba(234,88,12,.18)" : "none",
