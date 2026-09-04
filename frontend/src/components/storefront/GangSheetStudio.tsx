@@ -174,6 +174,7 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
   const [panTool, setPanTool] = useState(false);  // ✋ hand tool: drag to pan the canvas
   const [showGrid, setShowGrid] = useState(false); // ▦ grid overlay on the sheet
   const [showOverlap, setShowOverlap] = useState(true); // highlight overlapping designs
+  const [showViewPanel, setShowViewPanel] = useState(false); // collapsible overlay/resolution legend
   // Multi-sheet build: `sheets` holds every Active Gang Sheet; the one at `active`
   // is edited through the working state above and snapshotted back on switch/save.
   const [sheets, setSheets] = useState<SheetTab[]>([]);
@@ -1665,21 +1666,29 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
                 </div>
               </div>
 
-              {/* Floating canvas controls (top-left) — like the reference builder. */}
-              <div style={S.canvasControls}>
-                <label style={S.canvasCheck}>
-                  <input type="checkbox" checked={showOverlap} onChange={(e) => setShowOverlap(e.target.checked)} /> Show Overlapping Lines
-                </label>
-                <label style={S.canvasCheck}>
-                  <input type="checkbox" checked={showRes} onChange={(e) => setShowRes(e.target.checked)} /> Show Resolution Lines
-                </label>
-                {showRes && (
-                  <div style={{ marginTop: "6px", display: "flex", flexDirection: "column", gap: "3px" }}>
-                    {[["#16A34A", "Optimal ≥ 300 dpi"], ["#CA8A04", "Good ≥ 250 dpi"], ["#EA580C", "Fair ≥ 200 dpi"], ["#DC2626", "Low < 200 dpi"], ["#2563EB", "Overlapping images"]].map(([c, t]) => (
-                      <span key={t} style={{ display: "inline-flex", alignItems: "center", gap: "5px", fontSize: "10px", color: "#777" }}>
-                        <span style={{ width: "9px", height: "9px", borderRadius: "2px", background: c as string }} /> {t}
-                      </span>
-                    ))}
+              {/* Collapsible view controls (top-left) — a small chip so it never
+                  blocks the canvas; expands to the overlap/resolution options. */}
+              <div style={{ position: "absolute", top: "10px", left: "10px", zIndex: 4 }}>
+                <button onClick={() => setShowViewPanel((v) => !v)} title="View options" style={S.viewChip}>
+                  👁 View <span style={{ fontSize: "9px" }}>{showViewPanel ? "▲" : "▼"}</span>
+                </button>
+                {showViewPanel && (
+                  <div style={S.canvasControls}>
+                    <label style={S.canvasCheck}>
+                      <input type="checkbox" checked={showOverlap} onChange={(e) => setShowOverlap(e.target.checked)} /> Show Overlapping Lines
+                    </label>
+                    <label style={S.canvasCheck}>
+                      <input type="checkbox" checked={showRes} onChange={(e) => setShowRes(e.target.checked)} /> Show Resolution Lines
+                    </label>
+                    {showRes && (
+                      <div style={{ marginTop: "6px", display: "flex", flexDirection: "column", gap: "3px" }}>
+                        {[["#16A34A", "Optimal ≥ 300 dpi"], ["#CA8A04", "Good ≥ 250 dpi"], ["#EA580C", "Fair ≥ 200 dpi"], ["#DC2626", "Low < 200 dpi"], ["#2563EB", "Overlapping images"]].map(([c, t]) => (
+                          <span key={t} style={{ display: "inline-flex", alignItems: "center", gap: "5px", fontSize: "10px", color: "#555" }}>
+                            <span style={{ width: "9px", height: "9px", borderRadius: "2px", background: c as string }} /> {t}
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -1798,7 +1807,8 @@ const S: Record<string, React.CSSProperties> = {
   rulerCorner: { borderRight: "1px solid #ECEAE5", borderBottom: "1px solid #ECEAE5", background: "#FAFAF8" },
   rulerTopWrap: { overflow: "hidden", borderBottom: "1px solid #ECEAE5", background: "#fff", position: "relative" },
   rulerLeftWrap: { overflow: "hidden", borderRight: "1px solid #ECEAE5", background: "#fff", position: "relative" },
-  canvasControls: { position: "absolute", top: "10px", left: "10px", zIndex: 4, background: "rgba(255,255,255,.96)", border: "1px solid #E5E3DE", borderRadius: "8px", padding: "8px 10px", display: "flex", flexDirection: "column", gap: "5px", boxShadow: "0 1px 4px rgba(0,0,0,.06)" },
+  canvasControls: { marginTop: "6px", background: "rgba(255,255,255,.98)", border: "1px solid #D8DCE3", borderRadius: "8px", padding: "9px 11px", display: "flex", flexDirection: "column", gap: "5px", boxShadow: "0 4px 14px rgba(0,0,0,.12)" },
+  viewChip: { display: "inline-flex", alignItems: "center", gap: "5px", background: "rgba(255,255,255,.98)", border: "1px solid #C4C9D2", borderRadius: "8px", padding: "6px 11px", fontSize: "12px", fontWeight: 700, color: "#2A2F3A", cursor: "pointer", boxShadow: "0 1px 4px rgba(0,0,0,.08)" },
   canvasCheck: { display: "flex", alignItems: "center", gap: "6px", fontSize: "12px", fontWeight: 600, color: "#444", cursor: "pointer" },
   canvasWarn: { position: "absolute", top: "10px", right: "10px", zIndex: 4, display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap", background: "#FFF7ED", border: "1px solid #FED7AA", color: "#9A3412", borderRadius: "8px", padding: "7px 11px", fontSize: "12px", maxWidth: "55%", justifyContent: "flex-end", boxShadow: "0 1px 4px rgba(0,0,0,.06)" },
   rightPanel: { width: "240px", flexShrink: 0, background: "#fff", borderLeft: "1px solid #E5E3DE", padding: "16px", display: "flex", flexDirection: "column", gap: "10px" },
