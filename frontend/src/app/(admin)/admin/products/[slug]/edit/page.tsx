@@ -506,10 +506,10 @@ export default function AdminProductEditPage() {
       </div>
 
       {/* 2-column layout */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: "16px", alignItems: "start" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 340px", gap: "16px", alignItems: "start" }}>
 
         {/* ── LEFT COLUMN ────────────────────────────────────────────────── */}
-        <div>
+        <div style={{ minWidth: 0 }}>
 
           {/* Title & Description */}
           <div style={sectionCard}>
@@ -754,7 +754,8 @@ export default function AdminProductEditPage() {
 
                 {/* Variants table */}
                 {(expandAll || expandedGroups.includes(group.color)) && (
-                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
+                  <div style={{ overflowX: "auto" }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px", minWidth: "600px" }}>
                     <thead>
                       <tr style={{ borderBottom: "1px solid #E2E0DA", background: "#FAFAFA" }}>
                         <th style={{ ...thStyle, width: "36px" }}>
@@ -887,6 +888,7 @@ export default function AdminProductEditPage() {
                       ))}
                     </tbody>
                   </table>
+                  </div>
                 )}
               </div>
             ))}

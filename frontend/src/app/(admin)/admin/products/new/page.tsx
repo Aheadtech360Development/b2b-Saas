@@ -365,10 +365,10 @@ export default function NewProductPage() {
       )}
 
       <form id="new-product-form" onSubmit={handleSubmit}>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: "16px", alignItems: "start" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 340px", gap: "16px", alignItems: "start" }}>
 
           {/* ── LEFT COLUMN ── */}
-          <div>
+          <div style={{ minWidth: 0 }}>
 
             {/* Title & Description */}
             <div style={sectionCard}>
