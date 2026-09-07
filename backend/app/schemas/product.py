@@ -222,6 +222,7 @@ class ImageUploadResponse(BaseModel):
 class VariantCreate(BaseModel):
     sku: str = Field(..., min_length=1, max_length=100)
     color: str | None = None
+    color_hex: str | None = None
     size: str | None = None
     retail_price: Decimal = Field(Decimal("0"), ge=0)
     compare_price: Decimal | None = None

@@ -7,6 +7,7 @@ import { productsService } from "@/services/products.service";
 import { apiClient } from "@/lib/api-client";
 import dynamic from "next/dynamic";
 import type { Category } from "@/types/product.types";
+import { VariantOptionsEditor, type ColorOption } from "@/components/admin/VariantOptionsEditor";
 
 const RichTextEditor = dynamic(
   () => import("@/components/admin/RichTextEditor").then(m => m.RichTextEditor),
@@ -80,11 +81,11 @@ const COLOR_MAP: Record<string, string> = {
   "Decadent Chocolate": "#723638",
 };
 
-const ALL_SIZES = ["XS", "S", "S/M", "M", "M/L", "L", "XL", "2XL", "3XL", "4XL", "5XL", "One Size"];
 
 interface PendingVariant {
   id: string;
   color: string;
+  color_hex?: string;
   size: string;
   price: string;
   sku: string;
@@ -122,9 +123,6 @@ export default function NewProductPage() {
 
   // Variant modal
   const [showAddVariant, setShowAddVariant] = useState(false);
-  const [bulkColors, setBulkColors] = useState("");
-  const [bulkSizes, setBulkSizes] = useState<string[]>([]);
-  const [bulkPrice, setBulkPrice] = useState("");
   const [pendingVariants, setPendingVariants] = useState<PendingVariant[]>([]);
 
   const [form, setForm] = useState({
@@ -201,26 +199,27 @@ export default function NewProductPage() {
     e.target.value = "";
   }
 
-  function handleAddVariants() {
-    const colors = bulkColors.split(",").map(c => c.trim()).filter(Boolean);
-    if (!colors.length || !bulkSizes.length) return;
+  function handleAddVariants(colors: ColorOption[], sizes: string[], price: string) {
+    if (!colors.length || !sizes.length) return;
     const productCode = form.name.split(" ").map(w => w[0] ?? "").join("").toUpperCase() || "SKU";
     const newRows: PendingVariant[] = [];
     for (const color of colors) {
-      for (const size of bulkSizes) {
-        const colorCode = color.slice(0, 3).toUpperCase();
+      for (const size of sizes) {
+        // Skip a combination that already exists in the pending list.
+        if (pendingVariants.some(v => v.color.toLowerCase() === color.name.toLowerCase() && v.size.toLowerCase() === size.toLowerCase())) continue;
+        const colorCode = color.name.slice(0, 3).toUpperCase();
         const sizeCode = size.toUpperCase().replace(/\//g, "");
         newRows.push({
           id: crypto.randomUUID(),
-          color,
+          color: color.name,
+          color_hex: color.hex,
           size,
-          price: bulkPrice,
+          price,
           sku: `${productCode}-${colorCode}-${sizeCode}-${Date.now().toString(36).toUpperCase()}`,
         });
       }
     }
     setPendingVariants(prev => [...prev, ...newRows]);
-    setBulkColors(""); setBulkSizes([]); setBulkPrice("");
     setShowAddVariant(false);
   }
 
@@ -291,6 +290,7 @@ export default function NewProductPage() {
         await apiClient.post(`/api/v1/admin/products/${product.id}/variants`, {
           sku: v.sku,
           color: v.color,
+          color_hex: v.color_hex,
           size: v.size,
           retail_price: parseFloat(v.price) || 0,
           status: "active",
@@ -318,9 +318,6 @@ export default function NewProductPage() {
     if (!variantsByColor[v.color]) variantsByColor[v.color] = [];
     variantsByColor[v.color]!.push(v);
   });
-
-  const parsedBulkColors = bulkColors.split(",").map(c => c.trim()).filter(Boolean);
-  const willCreate = parsedBulkColors.length * bulkSizes.length;
 
   return (
     <div style={{ fontFamily: "var(--font-jakarta)" }}>
@@ -787,94 +784,13 @@ export default function NewProductPage() {
       {showAddVariant && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }}>
           <div style={{ background: "#fff", borderRadius: "12px", width: "540px", maxHeight: "90vh", overflowY: "auto", padding: "28px", boxShadow: "0 20px 60px rgba(0,0,0,.2)" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
               <h3 style={{ fontFamily: "var(--font-bebas)", fontSize: "22px", color: "#2A2830", letterSpacing: ".04em" }}>ADD VARIANTS</h3>
-              <button type="button" onClick={() => { setShowAddVariant(false); setBulkColors(""); setBulkSizes([]); setBulkPrice(""); }} style={{ background: "none", border: "none", fontSize: "20px", cursor: "pointer", color: "#aaa" }}>✕</button>
+              <button type="button" onClick={() => setShowAddVariant(false)} style={{ background: "none", border: "none", fontSize: "20px", cursor: "pointer", color: "#aaa" }}>✕</button>
             </div>
+            <p style={{ fontSize: "12px", color: "#7A7880", marginBottom: "18px" }}>Define your options (Color &amp; Size values), then generate every combination.</p>
 
-            {/* Colors */}
-            <div style={{ marginBottom: "18px" }}>
-              <label style={labelStyle}>Colors <span style={{ color: "#E8242A" }}>*</span></label>
-              <input
-                value={bulkColors}
-                onChange={e => setBulkColors(e.target.value)}
-                placeholder="Navy, Black, White, Red, Forest…"
-                style={inputStyle}
-              />
-              <p style={{ fontSize: "11px", color: "#7A7880", marginTop: "4px" }}>Separate multiple colors with commas</p>
-              {parsedBulkColors.length > 0 && (
-                <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginTop: "8px" }}>
-                  {parsedBulkColors.map(c => (
-                    <span key={c} style={{ display: "flex", alignItems: "center", gap: "5px", background: "#F4F3EF", padding: "4px 10px", borderRadius: "20px", fontSize: "12px", fontWeight: 600 }}>
-                      <span style={{ width: "10px", height: "10px", borderRadius: "50%", background: COLOR_MAP[c] ?? "#888", border: "1px solid rgba(0,0,0,.1)", display: "inline-block", flexShrink: 0 }} />
-                      {c}
-                    </span>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Sizes */}
-            <div style={{ marginBottom: "18px" }}>
-              <label style={{ ...labelStyle, marginBottom: "10px" }}>Sizes <span style={{ color: "#E8242A" }}>*</span></label>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
-                {ALL_SIZES.map(s => {
-                  const checked = bulkSizes.includes(s);
-                  return (
-                    <label key={s} style={{ display: "flex", alignItems: "center", gap: "5px", padding: "6px 12px", border: `1.5px solid ${checked ? "#1A5CFF" : "#E2E0DA"}`, borderRadius: "6px", cursor: "pointer", fontSize: "13px", fontWeight: checked ? 700 : 500, background: checked ? "rgba(26,92,255,.06)" : "#fff", color: checked ? "#1A5CFF" : "#2A2830", userSelect: "none" }}>
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        onChange={e => setBulkSizes(prev => e.target.checked ? [...prev, s] : prev.filter(x => x !== s))}
-                        style={{ display: "none" }}
-                      />
-                      {s}
-                    </label>
-                  );
-                })}
-              </div>
-              <div style={{ marginTop: "8px", display: "flex", gap: "8px" }}>
-                <button type="button" onClick={() => setBulkSizes(ALL_SIZES)} style={{ fontSize: "11px", color: "#1A5CFF", background: "none", border: "none", cursor: "pointer", padding: 0, fontWeight: 600 }}>Select All</button>
-                <button type="button" onClick={() => setBulkSizes([])} style={{ fontSize: "11px", color: "#7A7880", background: "none", border: "none", cursor: "pointer", padding: 0 }}>Clear</button>
-              </div>
-            </div>
-
-            {/* Price */}
-            <div style={{ marginBottom: "18px" }}>
-              <label style={labelStyle}>Price ($)</label>
-              <input
-                type="number"
-                value={bulkPrice}
-                onChange={e => setBulkPrice(e.target.value)}
-                placeholder="0.00"
-                style={{ ...inputStyle, width: "140px" }}
-              />
-            </div>
-
-            {/* Preview */}
-            {willCreate > 0 && (
-              <div style={{ padding: "10px 14px", background: "rgba(5,150,105,.06)", border: "1px solid rgba(5,150,105,.2)", borderRadius: "6px", fontSize: "13px", color: "#059669", fontWeight: 600, marginBottom: "16px" }}>
-                Will create {willCreate} variant{willCreate !== 1 ? "s" : ""} ({parsedBulkColors.length} color{parsedBulkColors.length !== 1 ? "s" : ""} × {bulkSizes.length} size{bulkSizes.length !== 1 ? "s" : ""})
-              </div>
-            )}
-
-            <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
-              <button
-                type="button"
-                onClick={() => { setShowAddVariant(false); setBulkColors(""); setBulkSizes([]); setBulkPrice(""); }}
-                style={{ padding: "10px 20px", border: "1px solid #E2E0DA", borderRadius: "8px", background: "#fff", cursor: "pointer", fontWeight: 600, fontSize: "13px" }}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleAddVariants}
-                disabled={!parsedBulkColors.length || !bulkSizes.length}
-                style={{ padding: "10px 20px", background: "#1A5CFF", color: "#fff", border: "none", borderRadius: "8px", fontWeight: 700, cursor: "pointer", fontSize: "13px", opacity: (!parsedBulkColors.length || !bulkSizes.length) ? 0.6 : 1 }}
-              >
-                {willCreate > 0 ? `Add ${willCreate} Variant${willCreate !== 1 ? "s" : ""}` : "Add Variants"}
-              </button>
-            </div>
+            <VariantOptionsEditor onAdd={handleAddVariants} onCancel={() => setShowAddVariant(false)} />
           </div>
         </div>
       )}

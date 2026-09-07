@@ -248,6 +248,7 @@ async def add_variant(
         product_id=product_id,
         sku=payload.sku,
         color=payload.color,
+        color_hex=payload.color_hex,
         size=payload.size,
         retail_price=payload.retail_price,
         compare_price=payload.compare_price,
