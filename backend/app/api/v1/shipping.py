@@ -70,10 +70,13 @@ async def get_live_rates(payload: LiveRatesRequest, db: AsyncSession = Depends(g
 
     try:
         from app.core.tenant_context import get_current_tenant_id
-        client = shippo_service.get_client()
-        # Ship-from = THIS brand's own warehouse (resolved from tenant settings).
-        # Rates are computed from it, so each brand quotes from its real origin.
-        wh = await shippo_service.get_ship_from(db, get_current_tenant_id())
+        _tid = get_current_tenant_id()
+        # Rate quotes come from THIS brand's own Shippo account (its key) + its own
+        # warehouse — so the rate ids the customer sees belong to the same account
+        # that later buys the label. Both fall back to the platform when unset.
+        _key = await shippo_service.get_shippo_key(db, _tid)
+        client = shippo_service.get_client(_key)
+        wh = await shippo_service.get_ship_from(db, _tid)
 
         shipment = client.shipments.create(
             components.ShipmentCreateRequest(

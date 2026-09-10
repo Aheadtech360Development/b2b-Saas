@@ -272,7 +272,7 @@ export default function StandardShippingPage() {
           <label style={labelStyle}>Shippo API key</label>
           <input type="password" autoComplete="off" value={shippoKey} onChange={e => setShippoKey(e.target.value)}
             placeholder={shippoConnected ? `Connected (${shippoHint}) — type a new key to replace` : "shippo_live_xxxxxxxxxxxxxxxx"} style={inputStyle} />
-          <p style={{ fontSize: "11px", color: "#9CA3AF", marginTop: "6px" }}>Stored securely; we never show it back. Rate quotes shown to customers still use the platform account, but every label you purchase bills the account above.</p>
+          <p style={{ fontSize: "11px", color: "#9CA3AF", marginTop: "6px" }}>Stored securely; we never show it back. Both live rate quotes and every label you purchase use this account — nothing touches the platform&apos;s.</p>
         </div>
 
         {/* Ship-From (origin) address — labels & live rates are computed from this */}
