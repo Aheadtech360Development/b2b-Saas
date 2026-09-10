@@ -376,7 +376,7 @@ export default function CustomerDetailPage() {
             </div>
             <div>
               <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
-                <h1 style={{ fontFamily: "var(--font-bebas)", fontSize: "30px", color: "#2A2830", letterSpacing: ".02em", lineHeight: 1 }}>
+                <h1 style={{ fontFamily: "var(--font-bebas)", fontSize: "30px", color: "#2A2830", letterSpacing: "-0.01em", lineHeight: 1 }}>
                   {customer.name}
                 </h1>
                 <span style={{ padding: "3px 10px", borderRadius: "20px", fontSize: "11px", fontWeight: 700, background: statusCfg.bg, color: statusCfg.color, textTransform: "capitalize" }}>

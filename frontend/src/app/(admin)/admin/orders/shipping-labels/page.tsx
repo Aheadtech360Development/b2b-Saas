@@ -120,7 +120,7 @@ export default function ShippingLabelsPage() {
       {/* Header */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "24px" }}>
         <div>
-          <h1 style={{ fontFamily: "var(--font-bebas)", fontSize: "32px", color: "#2A2830", letterSpacing: ".02em", lineHeight: 1 }}>SHIPPING LABELS</h1>
+          <h1 style={{ fontFamily: "var(--font-bebas)", fontSize: "32px", color: "#2A2830", letterSpacing: "-0.01em", lineHeight: 1 }}>Shipping Labels</h1>
           <p style={{ fontSize: "13px", color: "#7A7880", marginTop: "4px" }}>Manage shipments, print labels & packing slips · {stats.total} shipped orders</p>
         </div>
         <div style={{ display: "flex", gap: "10px" }}>
@@ -162,7 +162,7 @@ export default function ShippingLabelsPage() {
       <div style={{ background: "#fff", border: "1px solid #E3E3E3", borderRadius: "10px", overflow: "hidden" }}>
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
           <thead>
-            <tr style={{ background: "#FAFAF8", borderBottom: "2px solid #E3E3E3" }}>
+            <tr style={{ background: "#FAFAF8", borderBottom: "1px solid #E3E3E3" }}>
               {["Order #", "Company", "Package Type", "Weight (lbs)", "Courier", "Tracking #", "Label", "Delivery", "Shipped", "Actions"].map(h => (
                 <th key={h} style={{ padding: "11px 14px", textAlign: "left" as const, fontSize: "11px", fontWeight: 700, color: "#7A7880", textTransform: "uppercase" as const, letterSpacing: ".06em", whiteSpace: "nowrap" as const }}>
                   {h}

@@ -208,7 +208,7 @@ export default function DiscountsPage() {
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "24px" }}>
         <div>
-          <h1 style={{ fontFamily: "var(--font-bebas)", fontSize: "30px", letterSpacing: ".04em", color: "#2A2830", marginBottom: "3px" }}>Discounts</h1>
+          <h1 style={{ fontFamily: "var(--font-bebas)", fontSize: "30px", letterSpacing: "-0.01em", color: "#2A2830", marginBottom: "3px" }}>Discounts</h1>
           <p style={{ fontSize: "13px", color: "#7A7880" }}>{total} coupon code{total !== 1 ? "s" : ""}</p>
         </div>
         <button
@@ -362,7 +362,7 @@ export default function DiscountsPage() {
           <div style={{ background: "#fff", borderRadius: "14px", width: "100%", maxWidth: "540px", boxShadow: "0 24px 80px rgba(0,0,0,.2)", overflow: "hidden" }}>
             {/* Modal header */}
             <div style={{ padding: "20px 24px 16px", borderBottom: "1px solid #F0EEE9", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <h2 style={{ fontFamily: "var(--font-bebas)", fontSize: "22px", letterSpacing: ".04em", color: "#2A2830" }}>
+              <h2 style={{ fontFamily: "var(--font-bebas)", fontSize: "22px", letterSpacing: "-0.01em", color: "#2A2830" }}>
                 {editId ? "Edit Discount Code" : "Create Discount Code"}
               </h2>
               <button onClick={() => setShowModal(false)} style={{ fontSize: "18px", color: "#7A7880", background: "none", border: "none", cursor: "pointer", lineHeight: 1 }}>✕</button>

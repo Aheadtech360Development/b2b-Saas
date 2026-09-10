@@ -303,7 +303,7 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
         {/* Header */}
         <div style={{ padding: "20px 24px", borderBottom: "1px solid #E3E3E3", display: "flex",
           justifyContent: "space-between", alignItems: "center", position: "sticky", top: 0, background: "#fff", zIndex: 1 }}>
-          <h2 style={{ fontFamily: "var(--font-bebas)", fontSize: "22px", color: "#2A2830", letterSpacing: ".04em", margin: 0 }}>
+          <h2 style={{ fontFamily: "var(--font-bebas)", fontSize: "22px", color: "#2A2830", letterSpacing: "-0.01em", margin: 0 }}>
             NEW SHIPPING TIER
           </h2>
           <button onClick={onClose} style={{ background: "none", border: "none", fontSize: "22px", cursor: "pointer", color: "#aaa" }}>✕</button>
@@ -386,7 +386,7 @@ function EditModal({ tier, onClose, onSaved }: {
         maxHeight: "90vh", overflow: "auto", boxShadow: "0 20px 60px rgba(0,0,0,.2)" }}>
         <div style={{ padding: "20px 24px", borderBottom: "1px solid #E3E3E3", display: "flex",
           justifyContent: "space-between", alignItems: "center", position: "sticky", top: 0, background: "#fff", zIndex: 1 }}>
-          <h2 style={{ fontFamily: "var(--font-bebas)", fontSize: "22px", color: "#2A2830", letterSpacing: ".04em", margin: 0 }}>
+          <h2 style={{ fontFamily: "var(--font-bebas)", fontSize: "22px", color: "#2A2830", letterSpacing: "-0.01em", margin: 0 }}>
             EDIT — {tier.name.toUpperCase()}
           </h2>
           <button onClick={onClose} style={{ background: "none", border: "none", fontSize: "22px", cursor: "pointer", color: "#aaa" }}>✕</button>
@@ -582,7 +582,7 @@ export default function ShippingTiersPage() {
       {/* Header */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "24px" }}>
         <div>
-          <h1 style={{ fontFamily: "var(--font-bebas)", fontSize: "32px", color: "#2A2830", letterSpacing: ".02em", lineHeight: 1 }}>
+          <h1 style={{ fontFamily: "var(--font-bebas)", fontSize: "32px", color: "#2A2830", letterSpacing: "-0.01em", lineHeight: 1 }}>
             SHIPPING TIERS
           </h1>
           <p style={{ fontSize: "13px", color: "#7A7880", marginTop: "4px" }}>

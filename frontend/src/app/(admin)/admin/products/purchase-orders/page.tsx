@@ -249,7 +249,7 @@ export default function PurchaseOrdersPage() {
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
         <div>
-          <h1 style={{ fontFamily: 'var(--font-bebas)', fontSize: '32px', letterSpacing: '.02em', color: '#2A2830', lineHeight: 1 }}>PURCHASE ORDERS</h1>
+          <h1 style={{ fontFamily: 'var(--font-bebas)', fontSize: '32px', letterSpacing: '.02em', color: '#2A2830', lineHeight: 1 }}>Purchase Orders</h1>
           <p style={{ fontSize: '13px', color: '#7A7880', marginTop: '4px' }}>Manage incoming inventory from suppliers</p>
         </div>
         <div style={{ display: 'flex', gap: '10px' }}>
@@ -287,7 +287,7 @@ export default function PurchaseOrdersPage() {
       {orders.length === 0 ? (
         <div style={{ background: '#fff', border: '1px solid #E3E3E3', borderRadius: '10px', padding: '60px', textAlign: 'center' }}>
           <div style={{ marginBottom: '12px' }}><ClipboardIcon size={48} color="#aaa" /></div>
-          <h3 style={{ fontFamily: 'var(--font-bebas)', fontSize: '22px', color: '#2A2830', marginBottom: '8px' }}>NO PURCHASE ORDERS YET</h3>
+          <h3 style={{ fontFamily: 'var(--font-bebas)', fontSize: '22px', color: '#2A2830', marginBottom: '8px' }}>No Purchase Orders Yet</h3>
           <p style={{ fontSize: '14px', color: '#7A7880', marginBottom: '20px' }}>Create your first purchase order to track incoming inventory</p>
           <button onClick={() => setShowCreate(true)}
             style={{ background: '#1A5CFF', color: '#fff', border: 'none', padding: '12px 24px', borderRadius: '8px', fontWeight: 700, cursor: 'pointer' }}>
@@ -354,7 +354,7 @@ export default function PurchaseOrdersPage() {
           onClick={() => setShowCreate(false)}>
           <div style={{ background: '#fff', borderRadius: '12px', width: '100%', maxWidth: '860px', padding: '28px' }} onClick={e => e.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '22px' }}>
-              <h2 style={{ fontFamily: 'var(--font-bebas)', fontSize: '26px', color: '#2A2830' }}>CREATE PURCHASE ORDER</h2>
+              <h2 style={{ fontFamily: 'var(--font-bebas)', fontSize: '26px', color: '#2A2830' }}>Create Purchase Order</h2>
               <button onClick={() => setShowCreate(false)} style={{ background: 'none', border: 'none', fontSize: '22px', cursor: 'pointer', color: '#aaa' }}>✕</button>
             </div>
 

@@ -64,7 +64,7 @@ export default function SupplierCatalogPage() {
       </div>
 
       {/* Tab bar */}
-      <div style={{ display: "flex", gap: 4, borderBottom: "2px solid #E3E3E3", marginBottom: 24 }}>
+      <div style={{ display: "flex", gap: 4, borderBottom: "1px solid #E3E3E3", marginBottom: 24 }}>
         {TABS.map((t) => (
           <button
             key={t.id}

@@ -144,7 +144,7 @@ export default function AdminProductsPage() {
       {/* Header */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
         <div>
-          <h1 style={{ fontFamily: "var(--font-bebas)", fontSize: "32px", color: "#2A2830", letterSpacing: ".02em", lineHeight: 1 }}>PRODUCTS</h1>
+          <h1 style={{ fontFamily: "var(--font-bebas)", fontSize: "32px", color: "#2A2830", letterSpacing: "-0.01em", lineHeight: 1 }}>Products</h1>
           <p style={{ fontSize: "13px", color: "#7A7880", marginTop: "4px" }}>Manage your product catalog · {products.length} items</p>
         </div>
       </div>
@@ -228,7 +228,7 @@ export default function AdminProductsPage() {
       <div style={{ background: "#fff", border: "1px solid #E3E3E3", borderRadius: "10px", overflow: "hidden" }}>
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
-            <tr style={{ background: "#F6F6F7", borderBottom: "2px solid #E3E3E3" }}>
+            <tr style={{ background: "#F6F6F7", borderBottom: "1px solid #E3E3E3" }}>
               <th style={{ width: "40px", padding: "12px 16px" }}>
                 <input
                   type="checkbox"
@@ -244,7 +244,20 @@ export default function AdminProductsPage() {
           </thead>
           <tbody>
             {isLoading && products.length === 0 ? (
-              <tr><td colSpan={9} style={{ padding: "48px", textAlign: "center", color: "#aaa", fontSize: "14px" }}><div className="at-skel" style={{ height: "14px", width: "60%", margin: "0 auto" }} /></td></tr>
+              // Skeleton rows that mirror the real table, so the layout doesn't
+              // jump when data lands.
+              Array.from({ length: 6 }).map((_, i) => (
+                <tr key={`sk-${i}`} style={{ borderBottom: "1px solid #F1F1F1" }}>
+                  <td style={{ padding: "14px 16px" }}><div className="at-skel" style={{ width: "14px", height: "14px" }} /></td>
+                  <td style={{ padding: "14px 16px" }}><div className="at-skel" style={{ width: "38px", height: "38px", borderRadius: "8px" }} /></td>
+                  <td style={{ padding: "14px 16px" }}><div className="at-skel" style={{ height: "12px", width: `${58 + (i % 3) * 12}%` }} /></td>
+                  <td style={{ padding: "14px 16px" }}><div className="at-skel" style={{ height: "20px", width: "62px", borderRadius: "20px" }} /></td>
+                  <td style={{ padding: "14px 16px" }}><div className="at-skel" style={{ height: "12px", width: "46px" }} /></td>
+                  <td style={{ padding: "14px 16px" }}><div className="at-skel" style={{ height: "12px", width: "72px" }} /></td>
+                  <td style={{ padding: "14px 16px" }}><div className="at-skel" style={{ height: "12px", width: "58px" }} /></td>
+                  <td style={{ padding: "14px 16px" }}><div className="at-skel" style={{ height: "12px", width: "54px" }} /></td>
+                </tr>
+              ))
             ) : loadError ? (
               <tr>
                 <td colSpan={9} style={{ padding: "48px", textAlign: "center" }}>
@@ -255,9 +268,25 @@ export default function AdminProductsPage() {
               </tr>
             ) : products.length === 0 ? (
               <tr>
-                <td colSpan={9} style={{ padding: "56px", textAlign: "center" }}>
-                  <div style={{ fontSize: "32px", marginBottom: "10px" }}>👕</div>
-                  <div style={{ fontSize: "14px", color: "#aaa", fontWeight: 600 }}>No products found</div>
+                <td colSpan={9} style={{ padding: "64px 24px", textAlign: "center" }}>
+                  <div style={{ width: "52px", height: "52px", borderRadius: "14px", background: "#F4F4F5", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 14px", fontSize: "24px" }}>👕</div>
+                  <div style={{ fontSize: "15px", color: "#1A1A1A", fontWeight: 700, marginBottom: "4px" }}>
+                    {search || statusFilter ? "No products match your filters" : "No products yet"}
+                  </div>
+                  <div style={{ fontSize: "13px", color: "#7A7880", marginBottom: "18px" }}>
+                    {search || statusFilter ? "Try a different search, or clear the filters to see everything." : "Add your first product to start selling."}
+                  </div>
+                  {search || statusFilter ? (
+                    <button onClick={() => { setSearch(""); setStatusFilter(""); }}
+                      style={{ padding: "9px 18px", border: "1px solid #E3E3E3", background: "#fff", borderRadius: "8px", fontSize: "13px", fontWeight: 600, cursor: "pointer" }}>
+                      Clear filters
+                    </button>
+                  ) : (
+                    <button onClick={() => router.push("/admin/products/new")}
+                      style={{ padding: "9px 20px", background: "#1A1A1A", color: "#fff", border: "none", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: "pointer" }}>
+                      + Add product
+                    </button>
+                  )}
                 </td>
               </tr>
             ) : products.map(product => (
@@ -355,7 +384,7 @@ export default function AdminProductsPage() {
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center" }}>
           <div style={{ background: "#fff", borderRadius: "12px", width: "90%", maxWidth: "960px", maxHeight: "80vh", overflow: "auto", boxShadow: "0 20px 60px rgba(0,0,0,.2)" }}>
             <div style={{ padding: "20px 24px", borderBottom: "1px solid #E3E3E3", display: "flex", justifyContent: "space-between", alignItems: "center", position: "sticky", top: 0, background: "#fff", zIndex: 1 }}>
-              <h2 style={{ fontFamily: "var(--font-bebas)", fontSize: "24px", color: "#2A2830", letterSpacing: ".04em" }}>
+              <h2 style={{ fontFamily: "var(--font-bebas)", fontSize: "24px", color: "#2A2830", letterSpacing: "-0.01em" }}>
                 BULK EDIT — {selectedIds.length} PRODUCTS
               </h2>
               <button onClick={() => setShowBulkEdit(false)} style={{ background: "none", border: "none", fontSize: "22px", cursor: "pointer", color: "#aaa" }}>✕</button>
@@ -367,7 +396,7 @@ export default function AdminProductsPage() {
               </p>
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
                 <thead>
-                  <tr style={{ background: "#F6F6F7", borderBottom: "2px solid #E3E3E3" }}>
+                  <tr style={{ background: "#F6F6F7", borderBottom: "1px solid #E3E3E3" }}>
                     {["Product", "Status", "Vendor", "Type"].map(h => (
                       <th key={h} style={thStyle}>{h}</th>
                     ))}

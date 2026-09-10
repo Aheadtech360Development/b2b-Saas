@@ -88,7 +88,7 @@ export default function MenusManager() {
     <div style={{ fontFamily: "var(--font-jakarta), sans-serif", maxWidth: "920px" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: "22px", flexWrap: "wrap", gap: "12px" }}>
         <div>
-          <h1 style={{ fontFamily: "var(--font-bebas), sans-serif", fontSize: "32px", color: "#2A2830", letterSpacing: ".03em", lineHeight: 1 }}>Menus</h1>
+          <h1 style={{ fontFamily: "var(--font-bebas), sans-serif", fontSize: "32px", color: "#2A2830", letterSpacing: "-0.01em", lineHeight: 1 }}>Menus</h1>
           <p style={{ fontSize: "13px", color: "#7A7880", marginTop: "4px" }}>Build navigation menus, then choose which one shows in your header &amp; footer (Storefront → Header/Footer menu).</p>
         </div>
         {!readOnly && <button onClick={() => setShowNew(true)} style={btnPrimary}>+ New Menu</button>}

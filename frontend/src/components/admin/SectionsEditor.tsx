@@ -180,7 +180,7 @@ export function SectionsEditor({ sections, onChange, products, categories, pages
         return (
           <div key={i} style={{ ...card, opacity: enabled ? 1 : 0.6 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px", gap: "10px", flexWrap: "wrap" }}>
-              <div style={{ fontFamily: "var(--font-bebas), sans-serif", fontSize: "17px", letterSpacing: ".04em", color: "#2A2830" }}>{meta.icon} {meta.label}</div>
+              <div style={{ fontFamily: "var(--font-bebas), sans-serif", fontSize: "17px", letterSpacing: "-0.01em", color: "#2A2830" }}>{meta.icon} {meta.label}</div>
               <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
                 <label style={{ display: "flex", alignItems: "center", gap: "5px", fontSize: "12px", color: "#555", cursor: "pointer", marginRight: "6px" }}>
                   <input type="checkbox" checked={enabled} onChange={(e) => updateSection(i, { enabled: e.target.checked })} /> Shown

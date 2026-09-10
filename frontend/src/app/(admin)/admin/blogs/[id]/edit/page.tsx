@@ -19,7 +19,7 @@ const cardSt: React.CSSProperties = {
   background: "#fff", border: "1px solid #E3E3E3", borderRadius: "10px", padding: "24px", marginBottom: "16px",
 };
 const sectionTitle: React.CSSProperties = {
-  fontFamily: "var(--font-bebas)", fontSize: "15px", letterSpacing: ".08em", color: "#2A2830", marginBottom: "16px",
+  fontFamily: "var(--font-bebas)", fontSize: "15px", letterSpacing: "-0.01em", color: "#2A2830", marginBottom: "16px",
 };
 
 function toSlug(title: string) {
@@ -189,7 +189,7 @@ export default function AdminBlogEditPage() {
             style={{ background: "none", border: "none", color: "#7A7880", fontSize: "13px", cursor: "pointer", padding: 0, marginBottom: "6px" }}>
             ← Blog Posts
           </button>
-          <h1 style={{ fontFamily: "var(--font-bebas)", fontSize: "26px", letterSpacing: ".06em", color: "#2A2830" }}>
+          <h1 style={{ fontFamily: "var(--font-bebas)", fontSize: "26px", letterSpacing: "-0.01em", color: "#2A2830" }}>
             {title || "Edit Post"}
           </h1>
         </div>

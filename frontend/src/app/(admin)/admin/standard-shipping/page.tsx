@@ -236,7 +236,7 @@ export default function StandardShippingPage() {
       {/* Page header */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
         <div>
-          <h1 style={{ fontFamily: "var(--font-bebas)", fontSize: "32px", color: "#2A2830", letterSpacing: ".02em", lineHeight: 1 }}>Standard Shipping</h1>
+          <h1 style={{ fontFamily: "var(--font-bebas)", fontSize: "32px", color: "#2A2830", letterSpacing: "-0.01em", lineHeight: 1 }}>Standard Shipping</h1>
           <p style={{ fontSize: "13px", color: "#7A7880", marginTop: "4px" }}>Shipping rate for customers without a discount group or shipping tier</p>
         </div>
         <button

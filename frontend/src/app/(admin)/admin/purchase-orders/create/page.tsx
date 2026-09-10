@@ -391,7 +391,7 @@ export default function CreatePOPage() {
     <div style={{ padding: "32px", maxWidth: "1000px", margin: "0 auto" }}>
       <div style={{ display: "flex", alignItems: "center", gap: "16px", marginBottom: "28px" }}>
         <button onClick={() => router.back()} style={{ background: "none", border: "none", cursor: "pointer", color: "#6B7280", fontSize: "13px" }}>← Back</button>
-        <h1 style={{ fontSize: "22px", fontWeight: 700, color: "#1B3A5C", letterSpacing: ".04em" }}>CREATE PURCHASE ORDER</h1>
+        <h1 style={{ fontSize: "22px", fontWeight: 700, color: "#1B3A5C", letterSpacing: ".04em" }}>Create Purchase Order</h1>
       </div>
 
       {/* Step tabs — display only, not clickable */}

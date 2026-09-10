@@ -285,7 +285,7 @@ export default function AdminDashboard() {
       <div className="admin-table-card" style={{ background: "#fff", border: "1px solid #E3E3E3", borderRadius: "10px", padding: "20px 24px", marginBottom: "24px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
           <div>
-            <div style={{ fontFamily: "var(--font-bebas)", fontSize: "16px", letterSpacing: ".05em", color: "#2A2830" }}>ORDERS — LAST 7 DAYS</div>
+            <div style={{ fontFamily: "var(--font-bebas)", fontSize: "16px", letterSpacing: "-0.01em", color: "#2A2830" }}>Orders — Last 7 Days</div>
             <div style={{ fontSize: "12px", color: "#7A7880" }}>Daily order volume</div>
           </div>
           <div style={{ fontFamily: "var(--font-bebas)", fontSize: "28px", color: "#005BD3" }}>
@@ -303,7 +303,7 @@ export default function AdminDashboard() {
       {/* Recent Orders */}
       <div className="admin-table-card" style={{ background: "#fff", border: "1px solid #E3E3E3", borderRadius: "10px", overflow: "hidden", marginBottom: "24px" }}>
         <div style={{ padding: "16px 24px", borderBottom: "1px solid #E3E3E3", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <h2 style={{ fontFamily: "var(--font-bebas)", fontSize: "16px", letterSpacing: ".05em", color: "#2A2830" }}>RECENT ORDERS</h2>
+          <h2 style={{ fontFamily: "var(--font-bebas)", fontSize: "16px", letterSpacing: "-0.01em", color: "#2A2830" }}>Recent Orders</h2>
           <Link href="/admin/orders" style={{ fontSize: "12px", color: "#005BD3", textDecoration: "none", fontWeight: 700 }}>View all →</Link>
         </div>
         {!state.recentOrders?.length ? (
@@ -345,7 +345,7 @@ export default function AdminDashboard() {
       {/* Recent Applications */}
       <div className="admin-table-card" style={{ background: "#fff", border: "1px solid #E3E3E3", borderRadius: "10px", overflow: "hidden" }}>
         <div style={{ padding: "16px 24px", borderBottom: "1px solid #E3E3E3", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <h2 style={{ fontFamily: "var(--font-bebas)", fontSize: "16px", letterSpacing: ".05em", color: "#2A2830" }}>RECENT APPLICATIONS</h2>
+          <h2 style={{ fontFamily: "var(--font-bebas)", fontSize: "16px", letterSpacing: "-0.01em", color: "#2A2830" }}>Recent Applications</h2>
           <Link href="/admin/customers/applications" style={{ fontSize: "12px", color: "#005BD3", textDecoration: "none", fontWeight: 700 }}>View all →</Link>
         </div>
         {!state.recentApplications?.length ? (

@@ -16,7 +16,7 @@ export default function AdminLoading() {
 
       {/* Table skeleton */}
       <div style={{ background: "#fff", border: "1px solid #E3E3E3", borderRadius: "10px", overflow: "hidden" }}>
-        <div style={{ background: "#F6F6F7", padding: "12px 16px", borderBottom: "2px solid #E3E3E3", display: "flex", gap: "24px" }}>
+        <div style={{ background: "#F6F6F7", padding: "12px 16px", borderBottom: "1px solid #E3E3E3", display: "flex", gap: "24px" }}>
           {[120, 180, 80, 100, 100, 80].map((w, i) => (
             <div key={i} style={{ width: `${w}px`, height: "12px", background: "#E3E3E3", borderRadius: "6px", animation: "pulse 1.5s ease-in-out infinite" }} />
           ))}

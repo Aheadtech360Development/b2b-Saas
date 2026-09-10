@@ -108,7 +108,7 @@ export default function AdminPageSeoEditPage() {
             style={{ background: "none", border: "none", color: "#7A7880", fontSize: "13px", cursor: "pointer", padding: 0, marginBottom: "6px", display: "flex", alignItems: "center", gap: "4px" }}>
             ← Pages SEO
           </button>
-          <h1 style={{ fontFamily: "var(--font-bebas)", fontSize: "26px", letterSpacing: ".06em", color: "#2A2830" }}>
+          <h1 style={{ fontFamily: "var(--font-bebas)", fontSize: "26px", letterSpacing: "-0.01em", color: "#2A2830" }}>
             {pageName} — SEO
           </h1>
         </div>

@@ -64,7 +64,7 @@ function StatCard({
       <div style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: ".08em", color: "#7A7880" }}>
         {label}
       </div>
-      <div style={{ fontFamily: "var(--font-bebas)", fontSize: "28px", color, lineHeight: 1, letterSpacing: ".02em" }}>
+      <div style={{ fontFamily: "var(--font-bebas)", fontSize: "28px", color, lineHeight: 1, letterSpacing: "-0.01em" }}>
         {prefix}{typeof value === "number" ? value.toLocaleString() : value}{suffix}
       </div>
       {change !== undefined && (
@@ -167,7 +167,7 @@ export default function AnalyticsPage() {
 
       {/* ── Page header ── */}
       <div style={{ marginBottom: "24px" }}>
-        <h1 style={{ fontFamily: "var(--font-bebas)", fontSize: "28px", color: "#2A2830", letterSpacing: ".02em", lineHeight: 1, marginBottom: "4px" }}>
+        <h1 style={{ fontFamily: "var(--font-bebas)", fontSize: "28px", color: "#2A2830", letterSpacing: "-0.01em", lineHeight: 1, marginBottom: "4px" }}>
           ANALYTICS
         </h1>
         <p style={{ fontSize: "13px", color: "#7A7880" }}>Revenue, orders, and customer insights</p>
@@ -285,7 +285,7 @@ export default function AnalyticsPage() {
       <div style={{ ...card, marginBottom: "20px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
           <div>
-            <div style={{ fontFamily: "var(--font-bebas)", fontSize: "16px", letterSpacing: ".08em", color: "#2A2830" }}>REVENUE & ORDERS</div>
+            <div style={{ fontFamily: "var(--font-bebas)", fontSize: "16px", letterSpacing: "-0.01em", color: "#2A2830" }}>Revenue & Orders</div>
             {!loading && data && (
               <div style={{ fontSize: "11px", color: "#aaa", marginTop: "2px" }}>
                 {fmt(data.overview.total_revenue)} total · {data.overview.total_orders} orders
@@ -351,7 +351,7 @@ export default function AnalyticsPage() {
 
         {/* Order Status Donut */}
         <div style={card}>
-          <div style={{ fontFamily: "var(--font-bebas)", fontSize: "16px", letterSpacing: ".08em", color: "#2A2830", marginBottom: "16px" }}>ORDER STATUS BREAKDOWN</div>
+          <div style={{ fontFamily: "var(--font-bebas)", fontSize: "16px", letterSpacing: "-0.01em", color: "#2A2830", marginBottom: "16px" }}>Order Status Breakdown</div>
           {loading ? (
             <div style={{ height: "200px", background: "#F6F6F7", borderRadius: "8px" }} />
           ) : data && data.order_status_breakdown.length > 0 ? (
@@ -399,7 +399,7 @@ export default function AnalyticsPage() {
 
         {/* New vs Returning */}
         <div style={card}>
-          <div style={{ fontFamily: "var(--font-bebas)", fontSize: "16px", letterSpacing: ".08em", color: "#2A2830", marginBottom: "16px" }}>NEW VS RETURNING CUSTOMERS</div>
+          <div style={{ fontFamily: "var(--font-bebas)", fontSize: "16px", letterSpacing: "-0.01em", color: "#2A2830", marginBottom: "16px" }}>New Vs Returning Customers</div>
           {loading ? (
             <div style={{ height: "200px", background: "#F6F6F7", borderRadius: "8px" }} />
           ) : data ? (() => {
@@ -440,13 +440,13 @@ export default function AnalyticsPage() {
 
       {/* ── Top Products table ── */}
       <div style={{ ...card, marginBottom: "20px" }}>
-        <div style={{ fontFamily: "var(--font-bebas)", fontSize: "16px", letterSpacing: ".08em", color: "#2A2830", marginBottom: "16px" }}>TOP PRODUCTS</div>
+        <div style={{ fontFamily: "var(--font-bebas)", fontSize: "16px", letterSpacing: "-0.01em", color: "#2A2830", marginBottom: "16px" }}>Top Products</div>
         {loading ? (
           <div style={{ height: "200px", background: "#F6F6F7", borderRadius: "8px" }} />
         ) : data && data.top_products.length > 0 ? (
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
             <thead>
-              <tr style={{ borderBottom: "2px solid #E3E3E3" }}>
+              <tr style={{ borderBottom: "1px solid #E3E3E3" }}>
                 {["#", "Product", "Units Sold", "Revenue", ""].map(h => (
                   <th key={h} style={{ padding: "8px 12px", textAlign: h === "Revenue" || h === "Units Sold" ? "right" : "left", fontSize: "11px", textTransform: "uppercase", letterSpacing: ".06em", color: "#7A7880", fontWeight: 700 }}>{h}</th>
                 ))}
@@ -483,7 +483,7 @@ export default function AnalyticsPage() {
 
         {/* Top Customers */}
         <div style={card}>
-          <div style={{ fontFamily: "var(--font-bebas)", fontSize: "16px", letterSpacing: ".08em", color: "#2A2830", marginBottom: "16px" }}>TOP CUSTOMERS</div>
+          <div style={{ fontFamily: "var(--font-bebas)", fontSize: "16px", letterSpacing: "-0.01em", color: "#2A2830", marginBottom: "16px" }}>Top Customers</div>
           {loading ? (
             <div style={{ height: "200px", background: "#F6F6F7", borderRadius: "8px" }} />
           ) : data && data.top_customers.length > 0 ? (
@@ -518,7 +518,7 @@ export default function AnalyticsPage() {
 
         {/* Orders by State */}
         <div style={card}>
-          <div style={{ fontFamily: "var(--font-bebas)", fontSize: "16px", letterSpacing: ".08em", color: "#2A2830", marginBottom: "16px" }}>ORDERS BY STATE</div>
+          <div style={{ fontFamily: "var(--font-bebas)", fontSize: "16px", letterSpacing: "-0.01em", color: "#2A2830", marginBottom: "16px" }}>Orders By State</div>
           {loading ? (
             <div style={{ height: "200px", background: "#F6F6F7", borderRadius: "8px" }} />
           ) : data && data.orders_by_state.length > 0 ? (

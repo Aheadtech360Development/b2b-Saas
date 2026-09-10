@@ -308,7 +308,7 @@ export function ImportProductsModal({ onClose, onSuccess }: Props) {
         {/* Header */}
         <div style={{ padding: "20px 24px", borderBottom: "1px solid #E3E3E3", display: "flex", justifyContent: "space-between", alignItems: "center", flexShrink: 0 }}>
           <div>
-            <h2 style={{ fontFamily: "var(--font-bebas)", fontSize: "26px", color: "#2A2830", letterSpacing: ".04em", lineHeight: 1 }}>
+            <h2 style={{ fontFamily: "var(--font-bebas)", fontSize: "26px", color: "#2A2830", letterSpacing: "-0.01em", lineHeight: 1 }}>
               📥 IMPORT PRODUCTS
             </h2>
             <p style={{ fontSize: "12px", color: "#7A7880", margin: "4px 0 0" }}>
@@ -439,7 +439,7 @@ export function ImportProductsModal({ onClose, onSuccess }: Props) {
                 <div style={{ overflowX: "auto" }}>
                   <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12px" }}>
                     <thead>
-                      <tr style={{ background: "#F4F3EF", borderBottom: "2px solid #E3E3E3" }}>
+                      <tr style={{ background: "#F4F3EF", borderBottom: "1px solid #E3E3E3" }}>
                         {["#", "Name", "Category", "Type", "Vendor", "Price", "MOQ", "Colors", "Sizes", "Images", "Status"].map(h => (
                           <th key={h} style={thStyle}>{h}</th>
                         ))}

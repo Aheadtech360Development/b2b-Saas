@@ -52,7 +52,7 @@ export default function AdminBlogNewPage() {
           style={{ background: "none", border: "none", color: "#7A7880", fontSize: "13px", cursor: "pointer", padding: 0, marginBottom: "6px" }}>
           ← Blog Posts
         </button>
-        <h1 style={{ fontFamily: "var(--font-bebas)", fontSize: "28px", letterSpacing: ".06em", color: "#2A2830" }}>
+        <h1 style={{ fontFamily: "var(--font-bebas)", fontSize: "28px", letterSpacing: "-0.01em", color: "#2A2830" }}>
           New Blog Post
         </h1>
         <p style={{ fontSize: "13px", color: "#7A7880" }}>Fill in the basics — you can add full content after creating.</p>

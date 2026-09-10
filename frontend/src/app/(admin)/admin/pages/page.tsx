@@ -36,7 +36,7 @@ export default function AdminPagesPage() {
   return (
     <div style={{ padding: "32px", maxWidth: "960px" }}>
       <div style={{ marginBottom: "24px" }}>
-        <h1 style={{ fontFamily: "var(--font-bebas)", fontSize: "28px", letterSpacing: ".06em", color: "#2A2830", marginBottom: "4px" }}>
+        <h1 style={{ fontFamily: "var(--font-bebas)", fontSize: "28px", letterSpacing: "-0.01em", color: "#2A2830", marginBottom: "4px" }}>
           Pages SEO
         </h1>
         <p style={{ fontSize: "14px", color: "#7A7880" }}>

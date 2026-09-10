@@ -130,7 +130,7 @@ function UserModal({
 
         {/* Header */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "20px 24px", borderBottom: "1px solid #E3E3E3", flexShrink: 0 }}>
-          <h2 style={{ fontFamily: "var(--font-bebas)", fontSize: "22px", color: "#2A2830", letterSpacing: ".04em", margin: 0 }}>
+          <h2 style={{ fontFamily: "var(--font-bebas)", fontSize: "22px", color: "#2A2830", letterSpacing: "-0.01em", margin: 0 }}>
             {isEdit ? "EDIT USER" : "ADD USER"}
           </h2>
           <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "22px", color: "#7A7880", lineHeight: 1 }}>×</button>
@@ -284,7 +284,7 @@ function DeleteDialog({ user, onClose, onSuccess }: { user: AdminUser; onClose: 
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,.5)", padding: "16px" }}>
       <div style={{ background: "#fff", borderRadius: "12px", width: "100%", maxWidth: "420px", padding: "28px", boxShadow: "0 20px 60px rgba(0,0,0,.2)" }}>
-        <h3 style={{ fontFamily: "var(--font-bebas)", fontSize: "20px", color: "#2A2830", letterSpacing: ".04em", marginBottom: "10px" }}>DELETE USER</h3>
+        <h3 style={{ fontFamily: "var(--font-bebas)", fontSize: "20px", color: "#2A2830", letterSpacing: "-0.01em", marginBottom: "10px" }}>Delete User</h3>
         <p style={{ fontSize: "14px", color: "#7A7880", lineHeight: 1.6, marginBottom: "20px" }}>
           Are you sure you want to delete <strong style={{ color: "#2A2830" }}>{user.full_name}</strong> ({user.email})? This action cannot be undone.
         </p>
@@ -374,7 +374,7 @@ export default function AdminUsersPage() {
       {/* Header */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "24px" }}>
         <div>
-          <h1 style={{ fontFamily: "var(--font-bebas)", fontSize: "32px", color: "#2A2830", letterSpacing: ".02em", lineHeight: 1 }}>USERS</h1>
+          <h1 style={{ fontFamily: "var(--font-bebas)", fontSize: "32px", color: "#2A2830", letterSpacing: "-0.01em", lineHeight: 1 }}>Users</h1>
           <p style={{ fontSize: "13px", color: "#7A7880", marginTop: "4px" }}>{total} platform users</p>
         </div>
         <button
@@ -431,7 +431,7 @@ export default function AdminUsersPage() {
       <div style={{ background: "#fff", border: "1px solid #E3E3E3", borderRadius: "10px", overflow: "hidden" }}>
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
-            <tr style={{ background: "#F6F6F7", borderBottom: "2px solid #E3E3E3" }}>
+            <tr style={{ background: "#F6F6F7", borderBottom: "1px solid #E3E3E3" }}>
               <th style={thStyle}>Name</th>
               <th style={thStyle}>Email</th>
               <th style={thStyle}>Role</th>

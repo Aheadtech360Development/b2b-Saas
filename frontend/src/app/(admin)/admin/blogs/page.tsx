@@ -46,7 +46,7 @@ export default function AdminBlogsPage() {
     <div style={{ padding: "32px", maxWidth: "1100px" }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "24px" }}>
         <div>
-          <h1 style={{ fontFamily: "var(--font-bebas)", fontSize: "28px", letterSpacing: ".06em", color: "#2A2830", marginBottom: "4px" }}>
+          <h1 style={{ fontFamily: "var(--font-bebas)", fontSize: "28px", letterSpacing: "-0.01em", color: "#2A2830", marginBottom: "4px" }}>
             Blog Posts
           </h1>
           <p style={{ fontSize: "14px", color: "#7A7880" }}>

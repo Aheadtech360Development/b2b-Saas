@@ -98,7 +98,7 @@ export default function ReceiveItemsPage() {
       <div style={{ display: "flex", alignItems: "center", gap: "16px", marginBottom: "28px" }}>
         <button onClick={() => router.back()} style={{ background: "none", border: "none", cursor: "pointer", color: "#6B7280", fontSize: "13px" }}>← Back</button>
         <div>
-          <h1 style={{ fontSize: "22px", fontWeight: 700, color: "#1B3A5C" }}>RECEIVE ITEMS</h1>
+          <h1 style={{ fontSize: "22px", fontWeight: 700, color: "#1B3A5C" }}>Receive Items</h1>
           <div style={{ fontSize: "13px", color: "#6B7280" }}>{po.po_number}</div>
         </div>
       </div>

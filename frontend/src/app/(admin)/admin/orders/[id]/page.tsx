@@ -706,7 +706,7 @@ export default function AdminOrderDetailPage() {
       {/* Header */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "24px", flexWrap: "wrap", gap: "12px" }}>
         <div>
-          <h1 style={{ fontFamily: "var(--font-bebas)", fontSize: "28px", color: "#2A2830", letterSpacing: ".04em", lineHeight: 1 }}>
+          <h1 style={{ fontFamily: "var(--font-bebas)", fontSize: "28px", color: "#2A2830", letterSpacing: "-0.01em", lineHeight: 1 }}>
             {order.order_number}
           </h1>
           <p style={{ fontSize: "13px", color: "#7A7880", marginTop: "6px", display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" as const }}>
@@ -764,7 +764,7 @@ export default function AdminOrderDetailPage() {
         <div>
           {/* SHIPPING & COURIER — always shown; content varies by order type */}
           <div style={{ ...CardStyle, padding: "24px" }}>
-            <h3 style={{ ...SectionHead, fontSize: "18px", letterSpacing: ".05em", marginBottom: "14px" }}>SHIPPING & COURIER</h3>
+            <h3 style={{ ...SectionHead, fontSize: "18px", letterSpacing: ".05em", marginBottom: "14px" }}>Shipping & Courier</h3>
 
             {/* Already-shipped summary */}
             {order.status === "shipped" && order.courier && (
@@ -939,7 +939,7 @@ export default function AdminOrderDetailPage() {
 
           {/* STATUS UPDATE */}
           <div style={{ ...CardStyle, padding: "24px" }}>
-            <h3 style={{ ...SectionHead, fontSize: "18px", letterSpacing: ".05em", marginBottom: "16px" }}>UPDATE ORDER</h3>
+            <h3 style={{ ...SectionHead, fontSize: "18px", letterSpacing: ".05em", marginBottom: "16px" }}>Update Order</h3>
             <form onSubmit={handleUpdate} style={{ display: "flex", gap: "12px", alignItems: "flex-end", flexWrap: "wrap" as const }}>
               <div>
                 <label style={LabelStyle}>Status</label>
@@ -961,7 +961,7 @@ export default function AdminOrderDetailPage() {
           {/* ORDER ITEMS */}
           <div style={{ ...CardStyle, padding: "24px" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
-              <h3 style={{ ...SectionHead, fontSize: "18px", letterSpacing: ".05em" }}>ORDER ITEMS</h3>
+              <h3 style={{ ...SectionHead, fontSize: "18px", letterSpacing: ".05em" }}>Order Items</h3>
               {["pending", "confirmed", "processing"].includes(order.status) && (
                 editingItems ? (
                   <button
@@ -1040,7 +1040,7 @@ export default function AdminOrderDetailPage() {
             )}
             <table style={{ width: "100%", borderCollapse: "collapse" }}>
               <thead>
-                <tr style={{ borderBottom: "2px solid #E3E3E3" }}>
+                <tr style={{ borderBottom: "1px solid #E3E3E3" }}>
                   {["Product", "SKU", "Color / Size", "Qty", "Unit Price", "Total", ""].map(h => (
                     <th key={h} style={{ textAlign: (h === "Qty" || h === "Unit Price" || h === "Total") ? "right" as const : "left" as const, padding: "10px 12px", fontSize: "11px", fontWeight: 700, textTransform: "uppercase" as const, letterSpacing: ".06em", color: "#7A7880" }}>{h}</th>
                   ))}
@@ -1136,7 +1136,7 @@ export default function AdminOrderDetailPage() {
 
           {/* TIMELINE */}
           <div style={{ ...CardStyle, padding: "24px", marginBottom: 0 }}>
-            <h3 style={{ ...SectionHead, fontSize: "18px", letterSpacing: ".05em", marginBottom: "20px" }}>TIMELINE</h3>
+            <h3 style={{ ...SectionHead, fontSize: "18px", letterSpacing: ".05em", marginBottom: "20px" }}>Timeline</h3>
             <div style={{ position: "relative", paddingLeft: "28px" }}>
               <div style={{ position: "absolute", left: "23px", top: "8px", bottom: "8px", width: "2px", background: "#E3E3E3" }} />
               {timelineEvents.map((event, i) => (
@@ -1157,7 +1157,7 @@ export default function AdminOrderDetailPage() {
         <div>
           {/* ── SECTION 0: DOCUMENTS ── */}
           {/* <div style={CardStyle}>
-            <h3 style={{ ...SectionHead, marginBottom: "14px" }}>DOCUMENTS</h3>
+            <h3 style={{ ...SectionHead, marginBottom: "14px" }}>Documents</h3>
             <div style={{ display: "flex", flexDirection: "column" as const, gap: "8px" }}>
               <button
                 onClick={handleResendInvoice}
@@ -1178,7 +1178,7 @@ export default function AdminOrderDetailPage() {
           {/* ── SECTION 1: NOTES ── */}
           <div style={CardStyle}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px" }}>
-              <h3 style={SectionHead}>NOTES</h3>
+              <h3 style={SectionHead}>Notes</h3>
               <button onClick={() => { setEditingNote(true); setNoteText(order.order_notes ?? ""); }}
                 style={{ background: "none", border: "none", cursor: "pointer", fontSize: "16px", lineHeight: 1 }}>✏️</button>
             </div>
@@ -1227,7 +1227,7 @@ export default function AdminOrderDetailPage() {
           {/* ── SECTION 2: CUSTOMER ── */}
           <div style={CardStyle}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px" }}>
-              <h3 style={SectionHead}>CUSTOMER</h3>
+              <h3 style={SectionHead}>Customer</h3>
               <span onClick={() => router.push(`/admin/customers/${order.company_id}`)}
                 style={{ fontSize: "12px", color: "#005BD3", fontWeight: 700, cursor: "pointer" }}>
                 View Profile →
@@ -1333,7 +1333,7 @@ export default function AdminOrderDetailPage() {
 
           {/* ── SECTION 3: CONVERSION SUMMARY ── */}
           <div style={{ ...CardStyle, marginBottom: 0 }}>
-            <h3 style={{ ...SectionHead, marginBottom: "14px" }}>CONVERSION SUMMARY</h3>
+            <h3 style={{ ...SectionHead, marginBottom: "14px" }}>Conversion Summary</h3>
 
             {/* Key metrics */}
             <div style={{ display: "flex", flexDirection: "column" as const, gap: "10px", marginBottom: "16px" }}>

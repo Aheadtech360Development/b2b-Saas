@@ -159,7 +159,7 @@ function CreateDraftModal({ onClose, onSuccess }: { onClose: () => void; onSucce
         {/* Header */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "18px 24px", borderBottom: "1px solid #E3E3E3", flexShrink: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-            <h2 style={{ fontFamily: "var(--font-bebas)", fontSize: "22px", color: "#2A2830", letterSpacing: ".04em", margin: 0 }}>CREATE DRAFT ORDER</h2>
+            <h2 style={{ fontFamily: "var(--font-bebas)", fontSize: "22px", color: "#2A2830", letterSpacing: "-0.01em", margin: 0 }}>Create Draft Order</h2>
             <div style={{ display: "flex", gap: "6px" }}>
               {STEPS.map((label, i) => (
                 <div key={label} style={{ display: "flex", alignItems: "center", gap: "5px" }}>
@@ -312,7 +312,7 @@ function CreateDraftModal({ onClose, onSuccess }: { onClose: () => void; onSucce
               {/* Right: cart summary */}
               <div style={{ border: "1px solid #E3E3E3", borderRadius: "8px", display: "flex", flexDirection: "column" }}>
                 <div style={{ padding: "12px 14px", borderBottom: "1px solid #E3E3E3", background: "#F6F6F7" }}>
-                  <div style={{ fontFamily: "var(--font-bebas)", fontSize: "15px", letterSpacing: ".06em", color: "#2A2830" }}>ORDER ITEMS</div>
+                  <div style={{ fontFamily: "var(--font-bebas)", fontSize: "15px", letterSpacing: "-0.01em", color: "#2A2830" }}>Order Items</div>
                   <div style={{ fontSize: "11px", color: "#7A7880" }}>{lineItems.length} line items</div>
                 </div>
                 <div style={{ flex: 1, overflowY: "auto", padding: "8px 0" }}>
@@ -468,7 +468,7 @@ export default function DraftOrdersPage() {
       {/* Header */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "24px" }}>
         <div>
-          <h1 style={{ fontFamily: "var(--font-bebas)", fontSize: "32px", color: "#2A2830", letterSpacing: ".02em", lineHeight: 1 }}>DRAFT ORDERS</h1>
+          <h1 style={{ fontFamily: "var(--font-bebas)", fontSize: "32px", color: "#2A2830", letterSpacing: "-0.01em", lineHeight: 1 }}>Draft Orders</h1>
           <p style={{ fontSize: "13px", color: "#7A7880", marginTop: "4px" }}>Pending orders awaiting confirmation · {total} total</p>
         </div>
         <button
@@ -482,7 +482,7 @@ export default function DraftOrdersPage() {
       <div style={{ background: "#fff", border: "1px solid #E3E3E3", borderRadius: "10px", overflow: "hidden" }}>
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
           <thead>
-            <tr style={{ background: "#FAFAF8", borderBottom: "2px solid #E3E3E3" }}>
+            <tr style={{ background: "#FAFAF8", borderBottom: "1px solid #E3E3E3" }}>
               {["Order #", "Company", "Status", "PO #", "Items", "Total", "Created", "Actions"].map(h => (
                 <th key={h} style={{ padding: "11px 16px", textAlign: h === "Total" ? "right" as const : "left" as const, fontSize: "11px", fontWeight: 700, color: "#7A7880", textTransform: "uppercase" as const, letterSpacing: ".06em" }}>
                   {h}

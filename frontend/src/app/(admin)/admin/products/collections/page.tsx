@@ -131,7 +131,7 @@ export default function CollectionsPage() {
       {/* Header */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "24px" }}>
         <div>
-          <h1 style={{ fontFamily: "var(--font-bebas)", fontSize: "32px", color: "#2A2830", letterSpacing: ".02em", lineHeight: 1 }}>COLLECTIONS</h1>
+          <h1 style={{ fontFamily: "var(--font-bebas)", fontSize: "32px", color: "#2A2830", letterSpacing: "-0.01em", lineHeight: 1 }}>Collections</h1>
           <p style={{ fontSize: "13px", color: "#7A7880", marginTop: "4px" }}>Group products into collections for easy browsing · {collections.length} collections</p>
         </div>
         <button
@@ -148,7 +148,7 @@ export default function CollectionsPage() {
 ) : collections.length === 0 ? (
         <div style={{ background: "#fff", border: "1px solid #E3E3E3", borderRadius: "10px", padding: "60px", textAlign: "center" }}>
           <div style={{ fontSize: "48px", marginBottom: "12px" }}>🗂️</div>
-          <h3 style={{ fontFamily: "var(--font-bebas)", fontSize: "22px", color: "#2A2830", marginBottom: "8px" }}>NO COLLECTIONS YET</h3>
+          <h3 style={{ fontFamily: "var(--font-bebas)", fontSize: "22px", color: "#2A2830", marginBottom: "8px" }}>No Collections Yet</h3>
           <p style={{ fontSize: "14px", color: "#7A7880", marginBottom: "20px" }}>Create collections to organize your products for customers.</p>
           <button
             onClick={openCreate}
@@ -193,7 +193,7 @@ export default function CollectionsPage() {
 
               {/* Info */}
               <div style={{ padding: "16px 18px" }}>
-                <div style={{ fontFamily: "var(--font-bebas)", fontSize: "18px", color: "#2A2830", marginBottom: "4px", letterSpacing: ".02em" }}>{col.name}</div>
+                <div style={{ fontFamily: "var(--font-bebas)", fontSize: "18px", color: "#2A2830", marginBottom: "4px", letterSpacing: "-0.01em" }}>{col.name}</div>
                 <div style={{ fontSize: "12px", color: "#7A7880", marginBottom: "8px" }}>
                   {col.product_count ?? 0} products · /{col.slug}
                 </div>
@@ -239,7 +239,7 @@ export default function CollectionsPage() {
             onClick={e => e.stopPropagation()}
           >
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "22px" }}>
-              <h2 style={{ fontFamily: "var(--font-bebas)", fontSize: "24px", color: "#2A2830", letterSpacing: ".04em" }}>
+              <h2 style={{ fontFamily: "var(--font-bebas)", fontSize: "24px", color: "#2A2830", letterSpacing: "-0.01em" }}>
                 {editingId ? "EDIT COLLECTION" : "CREATE COLLECTION"}
               </h2>
               <button onClick={closeModal} style={{ background: "none", border: "none", fontSize: "20px", cursor: "pointer", color: "#aaa" }}>✕</button>

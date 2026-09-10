@@ -37,7 +37,7 @@ const sectionCard: React.CSSProperties = {
   padding: "24px", marginBottom: "16px",
 };
 const sectionTitle: React.CSSProperties = {
-  fontFamily: "var(--font-bebas)", fontSize: "16px", letterSpacing: ".08em",
+  fontFamily: "var(--font-bebas)", fontSize: "16px", letterSpacing: "-0.01em",
   color: "#2A2830", marginBottom: "16px", display: "block",
 };
 const thStyle: React.CSSProperties = {
@@ -483,7 +483,7 @@ export default function AdminProductEditPage() {
           >
             ← Products
           </button>
-          <h1 style={{ fontFamily: "var(--font-bebas)", fontSize: "28px", color: "#2A2830", letterSpacing: ".02em", lineHeight: 1 }}>
+          <h1 style={{ fontFamily: "var(--font-bebas)", fontSize: "28px", color: "#2A2830", letterSpacing: "-0.01em", lineHeight: 1 }}>
             {product.name}
           </h1>
         </div>
@@ -1268,7 +1268,7 @@ export default function AdminProductEditPage() {
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }}>
           <div style={{ background: "#fff", borderRadius: "12px", width: "540px", maxHeight: "90vh", overflowY: "auto", padding: "28px", boxShadow: "0 20px 60px rgba(0,0,0,.2)" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
-              <h3 style={{ fontFamily: "var(--font-bebas)", fontSize: "22px", color: "#2A2830", letterSpacing: ".04em" }}>ADD VARIANTS</h3>
+              <h3 style={{ fontFamily: "var(--font-bebas)", fontSize: "22px", color: "#2A2830", letterSpacing: "-0.01em" }}>Add Variants</h3>
               <button onClick={() => setShowAddVariant(false)} style={{ background: "none", border: "none", fontSize: "20px", cursor: "pointer", color: "#aaa" }}>✕</button>
             </div>
             <p style={{ fontSize: "12px", color: "#7A7880", marginBottom: "18px" }}>Define your options (Color &amp; Size values), then generate every combination. Existing combinations are skipped.</p>

@@ -194,7 +194,7 @@ export default function StorefrontCustomizer() {
   const label: React.CSSProperties = { display: "block", fontSize: "12px", fontWeight: 600, color: "#555", marginBottom: "6px", textTransform: "uppercase", letterSpacing: ".04em" };
   const input: React.CSSProperties = { width: "100%", border: "1px solid #E3E3E3", borderRadius: "8px", padding: "10px 12px", fontSize: "14px", outline: "none", boxSizing: "border-box", background: "#fff" };
   const card: React.CSSProperties = { background: "#fff", border: "1px solid #E3E3E3", borderRadius: "12px", padding: "24px", marginBottom: "20px" };
-  const title: React.CSSProperties = { fontFamily: "var(--font-bebas), sans-serif", fontSize: "18px", letterSpacing: ".04em", color: "#2A2830", marginBottom: "16px" };
+  const title: React.CSSProperties = { fontFamily: "var(--font-bebas), sans-serif", fontSize: "18px", letterSpacing: "-0.01em", color: "#2A2830", marginBottom: "16px" };
 
   const ColorField = ({ k, name }: { k: keyof Branding; name: string }) => (
     <div>
@@ -217,7 +217,7 @@ export default function StorefrontCustomizer() {
       {/* Header */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: "24px", flexWrap: "wrap", gap: "12px" }}>
         <div>
-          <h1 style={{ fontFamily: "var(--font-bebas), sans-serif", fontSize: "32px", color: "#2A2830", letterSpacing: ".03em", lineHeight: 1 }}>Storefront</h1>
+          <h1 style={{ fontFamily: "var(--font-bebas), sans-serif", fontSize: "32px", color: "#2A2830", letterSpacing: "-0.01em", lineHeight: 1 }}>Storefront</h1>
           <p style={{ fontSize: "13px", color: "#7A7880", marginTop: "4px" }}>Design your store — logo, menu, hero, sections, colors. This is what customers see.</p>
         </div>
         <div style={{ display: "flex", gap: "10px" }}>

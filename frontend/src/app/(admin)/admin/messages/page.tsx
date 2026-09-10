@@ -53,7 +53,7 @@ export default function MessagesPage() {
   return (
     <div style={{ fontFamily: "var(--font-jakarta), sans-serif", maxWidth: "820px" }}>
       <div style={{ marginBottom: "22px" }}>
-        <h1 style={{ fontFamily: "var(--font-bebas), sans-serif", fontSize: "32px", color: "#2A2830", letterSpacing: ".03em", lineHeight: 1 }}>
+        <h1 style={{ fontFamily: "var(--font-bebas), sans-serif", fontSize: "32px", color: "#2A2830", letterSpacing: "-0.01em", lineHeight: 1 }}>
           Messages {unread > 0 && <span style={{ fontSize: "13px", fontWeight: 700, color: "#fff", background: "#1A1A1A", borderRadius: "20px", padding: "3px 10px", verticalAlign: "middle", marginLeft: "8px", fontFamily: "var(--font-jakarta), sans-serif" }}>{unread} new</span>}
         </h1>
         <p style={{ fontSize: "13px", color: "#7A7880", marginTop: "4px" }}>Form submissions from your storefront contact forms.</p>

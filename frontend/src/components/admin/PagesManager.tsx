@@ -100,7 +100,7 @@ export default function PagesManager() {
     <div style={{ fontFamily: "var(--font-jakarta), sans-serif", maxWidth: "920px" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: "24px", flexWrap: "wrap", gap: "12px" }}>
         <div>
-          <h1 style={{ fontFamily: "var(--font-bebas), sans-serif", fontSize: "32px", color: "#2A2830", letterSpacing: ".03em", lineHeight: 1 }}>Pages</h1>
+          <h1 style={{ fontFamily: "var(--font-bebas), sans-serif", fontSize: "32px", color: "#2A2830", letterSpacing: "-0.01em", lineHeight: 1 }}>Pages</h1>
           <p style={{ fontSize: "13px", color: "#7A7880", marginTop: "4px" }}>Build storefront pages — About, Contact, or any custom page. They share your store&apos;s navbar &amp; footer.</p>
         </div>
         {!readOnly && (

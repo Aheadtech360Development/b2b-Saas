@@ -535,7 +535,7 @@ export default function DiscountGroupsPage() {
       {/* Page header */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
         <div>
-          <h1 style={{ fontFamily: "var(--font-bebas)", fontSize: "32px", color: "#2A2830", letterSpacing: ".02em", lineHeight: 1 }}>Discount Groups & Pricing</h1>
+          <h1 style={{ fontFamily: "var(--font-bebas)", fontSize: "32px", color: "#2A2830", letterSpacing: "-0.01em", lineHeight: 1 }}>Discount Groups & Pricing</h1>
           <p style={{ fontSize: "13px", color: "#7A7880", marginTop: "4px" }}>Manage discount groups and individual variant pricing overrides</p>
         </div>
         {activeTab === "groups" && (
@@ -551,7 +551,7 @@ export default function DiscountGroupsPage() {
       </div>
 
       {/* Tabs */}
-      <div style={{ display: "flex", gap: 0, borderBottom: "2px solid #E3E3E3", marginBottom: "24px" }}>
+      <div style={{ display: "flex", gap: 0, borderBottom: "1px solid #E3E3E3", marginBottom: "24px" }}>
         {([
           { key: "groups", label: "Discount Groups" },
           { key: "variants", label: "Individual Variant Pricing" },
@@ -588,7 +588,7 @@ export default function DiscountGroupsPage() {
             <div style={{ background: "#fff", border: "1px solid #E3E3E3", borderRadius: "10px", overflow: "hidden" }}>
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
                 <thead>
-                  <tr style={{ background: "#FAFAF8", borderBottom: "2px solid #E3E3E3" }}>
+                  <tr style={{ background: "#FAFAF8", borderBottom: "1px solid #E3E3E3" }}>
                     {["Title", "Customer Tag", "Applies To", "Min Requirement", "Shipping", "Status", ""].map(h => (
                       <th key={h} style={{ padding: "11px 16px", textAlign: "left", fontSize: "11px", fontWeight: 700, color: "#7A7880", textTransform: "uppercase", letterSpacing: ".06em" }}>{h}</th>
                     ))}
@@ -652,7 +652,7 @@ export default function DiscountGroupsPage() {
             <div style={{ background: "#fff", border: "1px solid #E3E3E3", borderRadius: "10px", overflow: "auto" }}>
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12px", minWidth: "600px" }}>
                 <thead>
-                  <tr style={{ background: "#FAFAF8", borderBottom: "2px solid #E3E3E3" }}>
+                  <tr style={{ background: "#FAFAF8", borderBottom: "1px solid #E3E3E3" }}>
                     <th style={{ padding: "11px 16px", textAlign: "left", fontSize: "11px", fontWeight: 700, color: "#7A7880", textTransform: "uppercase", letterSpacing: ".06em", minWidth: "200px" }}>Product</th>
                     <th style={{ padding: "11px 16px", textAlign: "left", fontSize: "11px", fontWeight: 700, color: "#7A7880", textTransform: "uppercase", letterSpacing: ".06em" }}>Categories</th>
                     {groups.map(group => (
@@ -866,7 +866,7 @@ export default function DiscountGroupsPage() {
 
             {/* Title */}
             <div style={sectionBox}>
-              <div style={{ fontFamily: "var(--font-bebas)", fontSize: "13px", letterSpacing: ".1em", color: "#7A7880", marginBottom: "14px" }}>BASIC INFO</div>
+              <div style={{ fontFamily: "var(--font-bebas)", fontSize: "13px", letterSpacing: "-0.01em", color: "#7A7880", marginBottom: "14px" }}>Basic Info</div>
               <div>
                 <label style={labelStyle}>Title *</label>
                 <input value={groupForm.title} onChange={e => setGroupForm(f => ({ ...f, title: e.target.value }))} placeholder="e.g. VIP Wholesale Group" style={inputStyle} />
@@ -875,7 +875,7 @@ export default function DiscountGroupsPage() {
 
             {/* Customer Tag + Assigned Customers */}
             <div style={sectionBox}>
-              <div style={{ fontFamily: "var(--font-bebas)", fontSize: "13px", letterSpacing: ".1em", color: "#7A7880", marginBottom: "14px" }}>CUSTOMER TAG & ASSIGNMENT</div>
+              <div style={{ fontFamily: "var(--font-bebas)", fontSize: "13px", letterSpacing: "-0.01em", color: "#7A7880", marginBottom: "14px" }}>Customer Tag & Assignment</div>
 
               <div style={{ marginBottom: "16px" }}>
                 <label style={labelStyle}>Customer Tag</label>
@@ -969,7 +969,7 @@ export default function DiscountGroupsPage() {
 
             {/* Applies To */}
             <div style={sectionBox}>
-              <div style={{ fontFamily: "var(--font-bebas)", fontSize: "13px", letterSpacing: ".1em", color: "#7A7880", marginBottom: "12px" }}>APPLIES TO</div>
+              <div style={{ fontFamily: "var(--font-bebas)", fontSize: "13px", letterSpacing: "-0.01em", color: "#7A7880", marginBottom: "12px" }}>Applies To</div>
               <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
                 {(["store", "collections", "products"] as const).map(opt => (
                   <div key={opt}>
@@ -1016,7 +1016,7 @@ export default function DiscountGroupsPage() {
 
             {/* Minimum Requirements */}
             <div style={sectionBox}>
-              <div style={{ fontFamily: "var(--font-bebas)", fontSize: "13px", letterSpacing: ".1em", color: "#7A7880", marginBottom: "12px" }}>MINIMUM REQUIREMENTS</div>
+              <div style={{ fontFamily: "var(--font-bebas)", fontSize: "13px", letterSpacing: "-0.01em", color: "#7A7880", marginBottom: "12px" }}>Minimum Requirements</div>
               <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
                 {(["none", "amount", "quantity"] as const).map(opt => (
                   <label key={opt} style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 14px", background: groupForm.min_req_type === opt ? "rgba(26,26,26,.06)" : "#fff", border: `1.5px solid ${groupForm.min_req_type === opt ? "#1A5CFF" : "#E3E3E3"}`, borderRadius: "8px", cursor: "pointer" }}>
@@ -1040,7 +1040,7 @@ export default function DiscountGroupsPage() {
 
             {/* Shipping Rate */}
             <div style={sectionBox}>
-              <div style={{ fontFamily: "var(--font-bebas)", fontSize: "13px", letterSpacing: ".1em", color: "#7A7880", marginBottom: "12px" }}>SHIPPING RATE</div>
+              <div style={{ fontFamily: "var(--font-bebas)", fontSize: "13px", letterSpacing: "-0.01em", color: "#7A7880", marginBottom: "12px" }}>Shipping Rate</div>
               <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
 
                 {/* Store Default */}

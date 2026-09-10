@@ -71,7 +71,7 @@ export default function PageEditor({ id, onBack }: { id: string; onBack: () => v
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: "22px", flexWrap: "wrap", gap: "12px" }}>
         <div>
           <button onClick={onBack} style={{ background: "none", border: "none", color: "#1C3557", fontSize: "13px", fontWeight: 700, cursor: "pointer", padding: 0, marginBottom: "6px" }}>← All Pages</button>
-          <h1 style={{ fontFamily: "var(--font-bebas), sans-serif", fontSize: "30px", color: "#2A2830", letterSpacing: ".03em", lineHeight: 1 }}>{page.title || "Untitled"}</h1>
+          <h1 style={{ fontFamily: "var(--font-bebas), sans-serif", fontSize: "30px", color: "#2A2830", letterSpacing: "-0.01em", lineHeight: 1 }}>{page.title || "Untitled"}</h1>
           <p style={{ fontSize: "12px", color: "#7A7880", marginTop: "4px" }}>/{page.slug}</p>
         </div>
         <div style={{ display: "flex", gap: "10px" }}>
@@ -91,7 +91,7 @@ export default function PageEditor({ id, onBack }: { id: string; onBack: () => v
       <fieldset disabled={readOnly} style={{ border: "none", margin: 0, padding: 0, minWidth: 0 }}>
         {/* Page settings */}
         <div style={card}>
-          <div style={{ fontFamily: "var(--font-bebas), sans-serif", fontSize: "18px", letterSpacing: ".04em", color: "#2A2830", marginBottom: "16px" }}>PAGE SETTINGS</div>
+          <div style={{ fontFamily: "var(--font-bebas), sans-serif", fontSize: "18px", letterSpacing: "-0.01em", color: "#2A2830", marginBottom: "16px" }}>PAGE SETTINGS</div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px", marginBottom: "14px" }}>
             <div><label style={label}>Page Title</label><input style={input} value={page.title} onChange={(e) => setField("title", e.target.value)} placeholder="About Us" /></div>
             <div><label style={label}>URL Slug</label><input style={input} value={page.slug} onChange={(e) => setField("slug", e.target.value)} placeholder="about-us" /></div>

@@ -89,7 +89,7 @@ export default function AdminReviewsPage() {
           >
             ← Products
           </button>
-          <h1 style={{ fontFamily: "var(--font-bebas)", fontSize: "32px", color: "#2A2830", letterSpacing: ".02em", lineHeight: 1 }}>REVIEWS</h1>
+          <h1 style={{ fontFamily: "var(--font-bebas)", fontSize: "32px", color: "#2A2830", letterSpacing: "-0.01em", lineHeight: 1 }}>Reviews</h1>
           <p style={{ fontSize: "13px", color: "#7A7880", marginTop: "4px" }}>Manage customer reviews · {total} total</p>
         </div>
       </div>
@@ -122,7 +122,7 @@ export default function AdminReviewsPage() {
       <div style={{ background: "#fff", border: "1px solid #E3E3E3", borderRadius: "10px", overflow: "hidden" }}>
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
-            <tr style={{ background: "#F6F6F7", borderBottom: "2px solid #E3E3E3" }}>
+            <tr style={{ background: "#F6F6F7", borderBottom: "1px solid #E3E3E3" }}>
               <th style={thStyle}>Reviewer</th>
               <th style={thStyle}>Product</th>
               <th style={thStyle}>Rating</th>

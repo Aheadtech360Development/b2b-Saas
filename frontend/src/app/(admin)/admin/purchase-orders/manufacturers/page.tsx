@@ -65,7 +65,7 @@ export default function ManufacturersPage() {
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "28px" }}>
         <div>
           <a href="/admin/purchase-orders" style={{ fontSize: "13px", color: "#6B7280", textDecoration: "none" }}>← Purchase Orders</a>
-          <h1 style={{ fontSize: "22px", fontWeight: 700, color: "#1B3A5C", letterSpacing: ".04em", marginTop: "4px" }}>MANUFACTURERS</h1>
+          <h1 style={{ fontSize: "22px", fontWeight: 700, color: "#1B3A5C", letterSpacing: ".04em", marginTop: "4px" }}>Manufacturers</h1>
         </div>
         <button onClick={openNew} style={{ padding: "9px 18px", background: "#1B3A5C", color: "#fff", border: "none", borderRadius: "8px", fontSize: "13px", fontWeight: 600, cursor: "pointer" }}>
           + Add Manufacturer
