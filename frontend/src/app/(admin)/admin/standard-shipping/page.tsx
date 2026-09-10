@@ -158,6 +158,11 @@ export default function StandardShippingPage() {
   const [shipFrom, setShipFrom] = useState({
     name: "", street1: "", city: "", state: "", zip: "", phone: "",
   });
+  // The brand's own Shippo API key — its labels bill to its own account. We only
+  // ever hold a newly-typed key here; the server returns "set" + a masked hint.
+  const [shippoKey, setShippoKey] = useState("");
+  const [shippoConnected, setShippoConnected] = useState(false);
+  const [shippoHint, setShippoHint] = useState("");
 
   function showToast(msg: string, ok = true) {
     setToast({ msg, ok });
@@ -185,6 +190,8 @@ export default function StandardShippingPage() {
           });
         } catch { /* ignore malformed */ }
       }
+      setShippoConnected(Boolean((settings as Record<string, unknown>)?.shippo_api_key_set));
+      setShippoHint(String((settings as Record<string, unknown>)?.shippo_api_key_hint ?? ""));
     } catch { /* use defaults */ }
     setLoading(false);
   }
@@ -201,7 +208,11 @@ export default function StandardShippingPage() {
           brackets: shippingType === "flat_rate" ? brackets : [],
         }),
         ship_from: JSON.stringify(shipFrom),
+        // Only send the Shippo key when a new one was typed — leaving it blank
+        // keeps the existing connection (the server never returns the raw key).
+        ...(shippoKey.trim() ? { shippo_api_key: shippoKey.trim() } : {}),
       });
+      if (shippoKey.trim()) { setShippoConnected(true); setShippoHint(`••••${shippoKey.trim().slice(-4)}`); setShippoKey(""); }
       showToast("Standard shipping saved");
     } catch {
       showToast("Save failed", false);
@@ -247,6 +258,23 @@ export default function StandardShippingPage() {
         <div style={{ textAlign: "center", padding: "60px", color: "#bbb", fontSize: "14px" }}>Loading…</div>
       ) : (
         <>
+        {/* Shippo account — the brand's OWN key so its labels bill to its account */}
+        <div style={{ background: "#fff", border: "1.5px solid #E2E0DA", borderRadius: "12px", padding: "24px", marginBottom: "20px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "4px" }}>
+            <h2 style={{ fontSize: "15px", fontWeight: 700, color: "#2A2830" }}>Shipping carrier account (Shippo)</h2>
+            {shippoConnected
+              ? <span style={{ fontSize: "11px", fontWeight: 700, color: "#166534", background: "#DCFCE7", padding: "3px 9px", borderRadius: "20px" }}>Connected {shippoHint}</span>
+              : <span style={{ fontSize: "11px", fontWeight: 700, color: "#92400E", background: "#FEF3C7", padding: "3px 9px", borderRadius: "20px" }}>Using platform account</span>}
+          </div>
+          <p style={{ fontSize: "12px", color: "#7A7880", marginBottom: "16px", lineHeight: 1.6 }}>
+            Paste <strong>your own Shippo API key</strong> so shipping labels you buy are charged to <strong>your</strong> Shippo account — not the platform&apos;s. Get it from Shippo → Settings → API. Leave blank to keep using the platform account.
+          </p>
+          <label style={labelStyle}>Shippo API key</label>
+          <input type="password" autoComplete="off" value={shippoKey} onChange={e => setShippoKey(e.target.value)}
+            placeholder={shippoConnected ? `Connected (${shippoHint}) — type a new key to replace` : "shippo_live_xxxxxxxxxxxxxxxx"} style={inputStyle} />
+          <p style={{ fontSize: "11px", color: "#9CA3AF", marginTop: "6px" }}>Stored securely; we never show it back. Rate quotes shown to customers still use the platform account, but every label you purchase bills the account above.</p>
+        </div>
+
         {/* Ship-From (origin) address — labels & live rates are computed from this */}
         <div style={{ background: "#fff", border: "1.5px solid #E2E0DA", borderRadius: "12px", padding: "24px", marginBottom: "20px" }}>
           <h2 style={{ fontSize: "15px", fontWeight: 700, color: "#2A2830", marginBottom: "4px" }}>Ship-From Address</h2>

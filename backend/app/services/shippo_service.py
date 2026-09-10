@@ -105,11 +105,32 @@ CARRIER_TOKENS = {
 }
 
 
-def get_client():
-    api_key = os.getenv("SHIPPO_API_KEY", "")
-    if not api_key:
+def get_client(api_key: str | None = None):
+    key = api_key or os.getenv("SHIPPO_API_KEY", "")
+    if not key:
         raise ValueError("SHIPPO_API_KEY not set")
-    return shippo.Shippo(api_key_header=api_key)
+    return shippo.Shippo(api_key_header=key)
+
+
+async def get_shippo_key(db, tenant_id) -> str:
+    """This brand's OWN Shippo API key so its labels bill to its own account.
+
+    Falls back to the platform key only when the brand hasn't connected one —
+    so on a per-brand key, buying a label never charges the platform account.
+    Rate-fetch and purchase inside create_label use one client (this key), so the
+    rate object_id and the transaction always belong to the same account.
+    """
+    env_key = os.getenv("SHIPPO_API_KEY", "")
+    if not tenant_id or db is None:
+        return env_key
+    try:
+        from app.core.tenant_settings import get_setting
+        raw = await get_setting(db, "shippo_api_key", tenant_id=tenant_id)
+        if raw and raw.strip():
+            return raw.strip()
+    except Exception as exc:  # never block shipping on a key lookup
+        logger.warning("get_shippo_key lookup failed (%s)", exc)
+    return env_key
 
 
 async def create_label(
@@ -118,12 +139,13 @@ async def create_label(
     carrier_token: str,
     weight_oz: float = 16.0,
     address_from: dict | None = None,
+    api_key: str | None = None,
 ) -> dict:
     # Ship FROM the brand's own warehouse when provided; fall back to the
     # platform default only if a caller couldn't resolve a tenant address.
     ship_from = address_from or WAREHOUSE_ADDRESS
     try:
-        client = get_client()
+        client = get_client(api_key)  # the brand's own Shippo account when set
 
         # For UPS, validate that city/state/zip match before creating shipment
         if "ups" in carrier_token.lower():
@@ -266,14 +288,19 @@ async def create_shippo_label(order, carrier: str, db=None) -> dict:
         if total_g > 0:
             weight_oz = grams_to_oz(total_g)
 
-    # Resolve THIS brand's ship-from (falls back to platform default inside helper).
+    # Resolve THIS brand's ship-from + its own Shippo key (both fall back to the
+    # platform default inside their helpers), so the label prints the brand's
+    # origin AND bills the brand's Shippo account — not the platform's.
     ship_from = None
+    api_key = None
     if db is not None:
-        ship_from = await get_ship_from(db, getattr(order, "tenant_id", None))
+        _tid = getattr(order, "tenant_id", None)
+        ship_from = await get_ship_from(db, _tid)
+        api_key = await get_shippo_key(db, _tid)
 
     carrier_token = CARRIER_TOKENS.get(carrier, "usps_priority")
     return await create_label(
-        str(order.id), to_address, carrier_token, weight_oz=weight_oz, address_from=ship_from
+        str(order.id), to_address, carrier_token, weight_oz=weight_oz, address_from=ship_from, api_key=api_key
     )
 
 

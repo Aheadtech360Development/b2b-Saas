@@ -107,6 +107,12 @@ async def get_platform_settings(
             base = scoped_lookup.get(row.key)
             if base:
                 result[base] = row.value
+
+    # Never hand the raw Shippo key back to the browser — expose only whether the
+    # brand has connected one, plus a masked hint.
+    _sk = result.pop("shippo_api_key", None)
+    result["shippo_api_key_set"] = bool(_sk)
+    result["shippo_api_key_hint"] = (f"••••{_sk[-4:]}" if _sk and len(_sk) >= 4 else "")
     return result
 
 
@@ -123,7 +129,7 @@ async def update_platform_settings(
     ALLOWED_KEYS = {
         "mov", "moq", "guest_pricing_mode", "tax_rate",
         "low_stock_threshold", "notification_email", "standard_shipping",
-        "standard_shipping_method", "ship_from",
+        "standard_shipping_method", "ship_from", "shippo_api_key",
     }
 
     # Shipping keys are stored per-brand (namespaced); everything else stays global.
