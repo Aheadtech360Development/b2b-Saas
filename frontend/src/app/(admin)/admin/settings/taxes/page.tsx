@@ -59,6 +59,18 @@ export default function TaxesPage() {
   const [form, setForm] = useState(blankForm);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // How THIS brand charges tax: auto (ZipTax lookup) | manual (own rates below) | none.
+  const [taxMode, setTaxMode] = useState<"auto" | "manual" | "none">("auto");
+  const [modeSaved, setModeSaved] = useState(false);
+
+  async function saveTaxMode(mode: "auto" | "manual" | "none") {
+    setTaxMode(mode);
+    try {
+      await apiClient.patch("/api/v1/admin/settings", { tax_mode: mode });
+      setModeSaved(true);
+      setTimeout(() => setModeSaved(false), 2000);
+    } catch { setError("Could not save the tax mode."); }
+  }
 
   async function load() {
     setLoading(true);
@@ -70,6 +82,11 @@ export default function TaxesPage() {
     } finally {
       setLoading(false);
     }
+    try {
+      const s = await apiClient.get<Record<string, string>>("/api/v1/admin/settings");
+      const m = String(s?.tax_mode ?? "auto").toLowerCase();
+      setTaxMode(m === "manual" || m === "none" ? (m as "manual" | "none") : "auto");
+    } catch { /* default auto */ }
   }
 
   useEffect(() => { load(); }, []);
@@ -138,6 +155,41 @@ export default function TaxesPage() {
           + Add Tax Rate
         </button>
       </div>
+
+      {/* How this brand charges tax */}
+      <div style={{ background: "#fff", border: "1.5px solid #E2E0DA", borderRadius: "12px", padding: "24px", marginBottom: "20px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "4px" }}>
+          <h2 style={{ fontSize: "15px", fontWeight: 700, color: "#2A2830" }}>How you charge tax</h2>
+          {modeSaved && <span style={{ fontSize: "11px", fontWeight: 700, color: "#166534", background: "#DCFCE7", padding: "3px 9px", borderRadius: "20px" }}>Saved</span>}
+        </div>
+        <p style={{ fontSize: "12px", color: "#7A7880", marginBottom: "16px", lineHeight: 1.6 }}>
+          Applies to <strong>your store only</strong>. The tax collected is yours — you remit it to your tax authority.
+        </p>
+        <div style={{ display: "grid", gap: "10px" }}>
+          {([
+            ["auto", "Automatic (recommended)", "Looks up the correct sales-tax rate for each customer's ZIP automatically. Nothing to set up."],
+            ["manual", "My own rates", "Ignore the automatic lookup and use only the regional rates you add below."],
+            ["none", "Don't charge tax", "No tax is added at checkout."],
+          ] as const).map(([val, title, desc]) => {
+            const active = taxMode === val;
+            return (
+              <label key={val} style={{ display: "flex", gap: "10px", alignItems: "flex-start", padding: "14px 16px", border: `1.5px solid ${active ? "#1A1A1A" : "#E2E0DA"}`, borderRadius: "10px", cursor: "pointer", background: active ? "#FAFAFA" : "#fff" }}>
+                <input type="radio" name="tax_mode" checked={active} onChange={() => saveTaxMode(val)} style={{ marginTop: "3px", accentColor: "#1A1A1A" }} />
+                <span>
+                  <span style={{ display: "block", fontSize: "13px", fontWeight: 700, color: "#2A2830" }}>{title}</span>
+                  <span style={{ display: "block", fontSize: "12px", color: "#7A7880", marginTop: "2px", lineHeight: 1.5 }}>{desc}</span>
+                </span>
+              </label>
+            );
+          })}
+        </div>
+      </div>
+
+      {taxMode === "none" && (
+        <div style={{ background: "#FEF3C7", border: "1px solid #FDE68A", color: "#92400E", borderRadius: "10px", padding: "12px 16px", fontSize: "13px", marginBottom: "20px" }}>
+          Tax is turned off — no tax is added at checkout. The rates below are ignored.
+        </div>
+      )}
 
       {loading ? (
         <div style={{ textAlign: "center", padding: "60px", color: "#aaa" }}>Loading…</div>

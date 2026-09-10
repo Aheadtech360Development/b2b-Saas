@@ -34,41 +34,14 @@ async def get_tax_rate(
     # Taxable amount = merchandise only (subtotal − discount); shipping is not taxed
     taxable_subtotal = max(0.0, subtotal - discount)
 
-    # ── TaxJar: use when API key is configured and we have enough address data ──
-    if zip_code and subtotal > 0:
-        from app.services.tax_service import calculate_tax, get_ziptax_client
-        if get_ziptax_client() is not None:
-            result = await calculate_tax(
-                to_state=state,
-                to_zip=zip_code,
-                to_city=city,
-                subtotal=taxable_subtotal,
-                shipping=0,  # shipping not taxed
-            )
-            if result.get("source") == "ziptax":
-                logger.info(
-                    "ZipTax: %s %s → rate=%.4f%% amount=$%.2f (discount=$%.2f applied)",
-                    state, zip_code, result["rate"], result["tax_amount"], discount,
-                )
-                return result
-
-    # ── Fallback: manual tax_rates table ──────────────────────────────────────
-    from app.api.v1.admin.taxes import TaxRate
-    r = (await db.execute(
-        select(TaxRate).where(
-            TaxRate.region == state,
-            TaxRate.is_enabled == True,  # noqa: E712
-        )
-    )).scalar_one_or_none()
-
-    if r:
-        rate = float(r.rate)
-        taxable_amount = max(0.0, subtotal - discount)  # shipping not taxed
-        return {
-            "rate": rate,
-            "tax_amount": round(taxable_amount * rate / 100, 2),
-            "region": r.region,
-            "source": "manual",
-        }
-
-    return {"rate": 0.0, "tax_amount": 0.0, "region": state, "source": "none"}
+    # ── Brand-aware resolution: honours this brand's tax mode (auto/manual/none),
+    # falling back to its own rate table. Same helper the charge path uses, so the
+    # quote and the charged amount always agree.
+    from app.services.tax_service import resolve_tax
+    result = await resolve_tax(db, state, zip_code, city, taxable_subtotal)
+    logger.info(
+        "Tax (%s): %s %s → rate=%.4f%% amount=$%.2f (discount=$%.2f applied)",
+        result.get("source"), state, zip_code, result.get("rate", 0.0),
+        result.get("tax_amount", 0.0), discount,
+    )
+    return result

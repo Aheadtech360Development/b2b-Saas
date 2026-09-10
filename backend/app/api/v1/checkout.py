@@ -89,13 +89,11 @@ async def create_payment_intent(
     taxable_base = cart.subtotal - coupon_discount_amount
     tax_amount_dc = Decimal("0")
     if payload.to_state and taxable_base > 0:
-        from app.services.tax_service import calculate_tax as _calc_tax
-        _tax = await _calc_tax(
-            to_state=payload.to_state,
-            to_zip=payload.to_zip or "",
-            to_city="",
-            subtotal=float(taxable_base),
-            shipping=0.0,
+        # Brand-aware: honours this brand's tax mode (auto ZipTax / its own manual
+        # rates / no tax) — the same helper the quote endpoint uses.
+        from app.services.tax_service import resolve_tax as _resolve_tax
+        _tax = await _resolve_tax(
+            db, payload.to_state, payload.to_zip or "", "", float(taxable_base)
         )
         tax_amount_dc = Decimal(str(_tax.get("tax_amount", 0) or 0))
 

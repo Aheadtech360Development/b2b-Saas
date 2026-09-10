@@ -67,3 +67,62 @@ async def calculate_tax(
     except Exception as exc:
         logger.warning("ZipTax calculation failed for %s %s: %s", to_state, to_zip, exc)
         return {"rate": 0.0, "tax_amount": 0.0, "region": to_state.upper(), "source": "fallback", "error": str(exc)}
+
+
+async def resolve_tax(db, to_state: str, to_zip: str, to_city: str, taxable_subtotal: float) -> dict:
+    """Brand-aware tax resolution — the single source of truth for tax.
+
+    Honours THIS brand's `tax_mode` (a per-tenant setting), so every brand keeps
+    control without needing its own tax provider:
+      • auto   (default) → ZipTax lookup, then the brand's own rate table.
+      • manual           → the brand's own rate table only (no ZipTax call).
+      • none             → charge no tax at all.
+
+    Both the checkout quote and the amount actually charged call this, so what the
+    buyer is shown and what they pay can never drift apart.
+    """
+    state = (to_state or "").upper()
+    zero = {"rate": 0.0, "tax_amount": 0.0, "region": state}
+
+    mode = "auto"
+    try:
+        from app.core.tenant_settings import get_setting
+        raw = await get_setting(db, "tax_mode")
+        if raw and raw.strip().lower() in ("auto", "manual", "none"):
+            mode = raw.strip().lower()
+    except Exception as exc:  # never block checkout on a settings read
+        logger.warning("tax_mode lookup failed, defaulting to auto: %s", exc)
+
+    if mode == "none":
+        return {**zero, "source": "disabled"}
+
+    if mode == "auto" and to_zip and taxable_subtotal > 0 and get_ziptax_client() is not None:
+        result = await calculate_tax(
+            to_state=state, to_zip=to_zip, to_city=to_city or "",
+            subtotal=taxable_subtotal, shipping=0,
+        )
+        if result.get("source") == "ziptax":
+            return result
+
+    # manual mode, or auto falling back: the brand's own regional rate table.
+    try:
+        from sqlalchemy import select as _select
+        from app.api.v1.admin.taxes import TaxRate
+        row = (await db.execute(
+            _select(TaxRate).where(
+                TaxRate.region == state,
+                TaxRate.is_enabled == True,  # noqa: E712
+            )
+        )).scalar_one_or_none()
+        if row:
+            rate = float(row.rate)
+            return {
+                "rate": rate,
+                "tax_amount": round(max(0.0, taxable_subtotal) * rate / 100, 2),
+                "region": row.region,
+                "source": "manual",
+            }
+    except Exception as exc:
+        logger.warning("manual tax-rate lookup failed for %s: %s", state, exc)
+
+    return {**zero, "source": "none"}
