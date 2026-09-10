@@ -258,6 +258,16 @@ export default function AdminDashboard() {
         <p style={{ fontSize: "14px", color: "#6B6B6B", marginTop: "6px" }}>Here&apos;s what&apos;s happening with your store today.</p>
       </div>
 
+      {/* Needs attention — action strip pinned to the top (command-centre concept) */}
+      <div style={{ marginBottom: "24px" }}>
+        <div style={{ fontSize: "12px", fontWeight: 700, color: "#8A8A8A", textTransform: "uppercase" as const, letterSpacing: ".06em", marginBottom: "10px" }}>Needs attention</div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "16px" }}>
+          <AlertCard icon={<PackageIcon size={20} color="#E8242A" />} count={state.pendingOrders ?? 0} label="orders to fulfill" color="#E8242A" href="/admin/orders?status=pending" />
+          <AlertCard icon={<ClipboardIcon size={20} color="#D97706" />} count={state.pendingApplications ?? 0} label="applications pending" color="#D97706" href="/admin/customers/applications" />
+          <AlertCard icon={<AlertTriangleIcon size={20} color="#6366F1" />} count={state.lowStockCount ?? 0} label="low stock SKUs" color="#6366F1" href="/admin/reports/inventory" />
+        </div>
+      </div>
+
       {/* Stat Cards */}
       <div className="admin-dash-stat-grid" style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: "16px", marginBottom: "24px" }}>
         {statCards.map(stat => (
@@ -271,32 +281,22 @@ export default function AdminDashboard() {
         ))}
       </div>
 
-      {/* Sparkline + Alerts Row */}
-      <div className="admin-dash-kpi-row" style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: "16px", marginBottom: "24px", alignItems: "start" }}>
-        {/* Sparkline */}
-        <div style={{ background: "#fff", border: "1px solid #E2E0DA", borderRadius: "10px", padding: "20px 24px" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
-            <div>
-              <div style={{ fontFamily: "var(--font-bebas)", fontSize: "16px", letterSpacing: ".05em", color: "#2A2830" }}>ORDERS — LAST 7 DAYS</div>
-              <div style={{ fontSize: "12px", color: "#7A7880" }}>Daily order volume</div>
-            </div>
-            <div style={{ fontFamily: "var(--font-bebas)", fontSize: "28px", color: "#1A5CFF" }}>
-              {dailyCounts.reduce((a, b) => a + b, 0)}
-            </div>
+      {/* Orders chart — full width */}
+      <div className="admin-table-card" style={{ background: "#fff", border: "1px solid #E2E0DA", borderRadius: "10px", padding: "20px 24px", marginBottom: "24px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
+          <div>
+            <div style={{ fontFamily: "var(--font-bebas)", fontSize: "16px", letterSpacing: ".05em", color: "#2A2830" }}>ORDERS — LAST 7 DAYS</div>
+            <div style={{ fontSize: "12px", color: "#7A7880" }}>Daily order volume</div>
           </div>
-          <Sparkline counts={dailyCounts} />
-          <div style={{ display: "flex", justifyContent: "space-between", marginTop: "6px" }}>
-            {DAY_LABELS.map(d => (
-              <span key={d} style={{ fontSize: "10px", color: "#bbb", fontWeight: 600, textTransform: "uppercase" as const }}>{d}</span>
-            ))}
+          <div style={{ fontFamily: "var(--font-bebas)", fontSize: "28px", color: "#1A5CFF" }}>
+            {dailyCounts.reduce((a, b) => a + b, 0)}
           </div>
         </div>
-
-        {/* Alerts */}
-        <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-          <AlertCard icon={<PackageIcon size={20} color="#E8242A" />} count={state.pendingOrders ?? 0} label="orders to fulfill" color="#E8242A" href="/admin/orders?status=pending" />
-          <AlertCard icon={<ClipboardIcon size={20} color="#D97706" />} count={state.pendingApplications ?? 0} label="applications pending" color="#D97706" href="/admin/customers/applications" />
-          <AlertCard icon={<AlertTriangleIcon size={20} color="#6366F1" />} count={state.lowStockCount ?? 0} label="low stock SKUs" color="#6366F1" href="/admin/reports/inventory" />
+        <Sparkline counts={dailyCounts} />
+        <div style={{ display: "flex", justifyContent: "space-between", marginTop: "6px" }}>
+          {DAY_LABELS.map(d => (
+            <span key={d} style={{ fontSize: "10px", color: "#bbb", fontWeight: 600, textTransform: "uppercase" as const }}>{d}</span>
+          ))}
         </div>
       </div>
 
