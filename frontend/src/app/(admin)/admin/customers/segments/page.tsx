@@ -15,8 +15,8 @@ import {
 } from "@/services/segments.service";
 
 const CARD: React.CSSProperties = { background: "#fff", border: "1px solid #E8E6E1", borderRadius: "10px", padding: "20px" };
-const INPUT: React.CSSProperties = { padding: "8px 10px", border: "1px solid #DDD9D2", borderRadius: "6px", fontSize: "13px", background: "#fff" };
-const BTN: React.CSSProperties = { border: "none", color: "#fff", padding: "9px 16px", borderRadius: "7px", fontSize: "13px", fontWeight: 700, cursor: "pointer" };
+const INPUT: React.CSSProperties = { padding: "8px 10px", border: "1px solid #E3E3E3", borderRadius: "6px", fontSize: "13px", background: "#fff" };
+const BTN: React.CSSProperties = { border: "none", color: "#fff", padding: "9px 16px", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: "pointer" };
 
 const ARRAY_OPS = new Set(["in", "not_in", "contains_any", "contains_all"]);
 const NO_VALUE_OPS = new Set(["is_set", "is_not_set"]);
@@ -64,13 +64,13 @@ export default function SegmentsPage() {
           <p style={{ fontSize: "13px", color: "#6B6B6B" }}>Group customers by spend, orders, tags, location and what they buy — reused across notifications, marketing and exports.</p>
         </div>
         <div style={{ display: "flex", gap: "8px" }}>
-          <button onClick={() => segmentsService.recomputeAll().then(() => load()).catch(() => {})} style={{ ...BTN, background: "#fff", color: "#555", border: "1px solid #DDD9D2" }} title="Rebuild every customer's metrics (first rollout / manual refresh)">Refresh metrics</button>
+          <button onClick={() => segmentsService.recomputeAll().then(() => load()).catch(() => {})} style={{ ...BTN, background: "#fff", color: "#555", border: "1px solid #E3E3E3" }} title="Rebuild every customer's metrics (first rollout / manual refresh)">Refresh metrics</button>
           <button onClick={openNew} style={{ ...BTN, background: "var(--brand-primary, #1C3557)" }}>＋ Create segment</button>
         </div>
       </div>
 
       {loading ? (
-        <div style={{ color: "#888", fontSize: "13px" }}>Loading…</div>
+        <div style={{ padding: "26px" }}>{[70, 92, 58, 84].map((w, i) => (<div key={i} className="at-skel" style={{ height: "14px", width: `${w}%`, marginBottom: "12px" }} />))}</div>
       ) : segments.length === 0 ? (
         <div style={{ ...CARD, color: "#888", fontSize: "13px" }}>No segments yet. Create your first one — e.g. “VIP: spent over $1,000 with 3+ orders”.</div>
       ) : (
@@ -182,7 +182,7 @@ function SegmentEditor({ initial, typeOf, opsFor, fields, onClose }: {
 
           <div style={{ display: "flex", gap: "10px" }}>
             <button onClick={save} disabled={saving} style={{ ...BTN, background: saving ? "#9ca3af" : "var(--brand-primary, #1C3557)" }}>{saving ? "Saving…" : initial ? "Save changes" : "Save segment"}</button>
-            <button onClick={onClose} style={{ ...BTN, background: "#fff", color: "#555", border: "1px solid #DDD9D2" }}>Cancel</button>
+            <button onClick={onClose} style={{ ...BTN, background: "#fff", color: "#555", border: "1px solid #E3E3E3" }}>Cancel</button>
           </div>
         </div>
 
@@ -230,7 +230,7 @@ function GroupEditor({ group, onChange, typeOf, opsFor, fields, depth }: {
   return (
     <div style={{ border: depth > 0 ? "1px dashed #D6D3CC" : "none", borderRadius: "8px", padding: depth > 0 ? "12px" : 0, background: depth > 0 ? "#FBFBF9" : "transparent" }}>
       {/* AND / OR toggle */}
-      <div style={{ display: "inline-flex", border: "1px solid #DDD9D2", borderRadius: "7px", overflow: "hidden", marginBottom: "12px" }}>
+      <div style={{ display: "inline-flex", border: "1px solid #E3E3E3", borderRadius: "8px", overflow: "hidden", marginBottom: "12px" }}>
         {(["and", "or"] as const).map((op) => (
           <button key={op} onClick={() => onChange({ ...group, op })}
             style={{ padding: "6px 16px", fontSize: "12px", fontWeight: 700, border: "none", cursor: "pointer",
@@ -258,10 +258,10 @@ function GroupEditor({ group, onChange, typeOf, opsFor, fields, depth }: {
 
       <div style={{ display: "flex", gap: "8px", marginTop: "10px" }}>
         <button onClick={() => onChange({ ...group, conditions: [...group.conditions, newCondition(firstField)] })}
-          style={{ background: "#fff", border: "1px solid #DDD9D2", color: "#333", padding: "7px 12px", borderRadius: "7px", fontSize: "12px", fontWeight: 600, cursor: "pointer" }}>＋ Add condition</button>
+          style={{ background: "#fff", border: "1px solid #E3E3E3", color: "#333", padding: "7px 12px", borderRadius: "8px", fontSize: "12px", fontWeight: 600, cursor: "pointer" }}>＋ Add condition</button>
         {depth < 3 && (
           <button onClick={() => onChange({ ...group, conditions: [...group.conditions, emptyGroup()] })}
-            style={{ background: "#fff", border: "1px dashed #C9C5BD", color: "#666", padding: "7px 12px", borderRadius: "7px", fontSize: "12px", fontWeight: 600, cursor: "pointer" }}>＋ Add group</button>
+            style={{ background: "#fff", border: "1px dashed #C9C5BD", color: "#666", padding: "7px 12px", borderRadius: "8px", fontSize: "12px", fontWeight: 600, cursor: "pointer" }}>＋ Add group</button>
         )}
       </div>
     </div>

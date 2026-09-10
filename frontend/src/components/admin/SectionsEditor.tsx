@@ -29,14 +29,14 @@ const SECTION_META: Record<string, { label: string; icon: string }> = {
 };
 
 const label: React.CSSProperties = { display: "block", fontSize: "12px", fontWeight: 600, color: "#555", marginBottom: "6px", textTransform: "uppercase", letterSpacing: ".04em" };
-const input: React.CSSProperties = { width: "100%", border: "1px solid #E2E0DA", borderRadius: "8px", padding: "10px 12px", fontSize: "14px", outline: "none", boxSizing: "border-box", background: "#fff" };
-const card: React.CSSProperties = { background: "#fff", border: "1px solid #E2E0DA", borderRadius: "12px", padding: "20px", marginBottom: "18px" };
+const input: React.CSSProperties = { width: "100%", border: "1px solid #E3E3E3", borderRadius: "8px", padding: "10px 12px", fontSize: "14px", outline: "none", boxSizing: "border-box", background: "#fff" };
+const card: React.CSSProperties = { background: "#fff", border: "1px solid #E3E3E3", borderRadius: "12px", padding: "20px", marginBottom: "18px" };
 const btnGhost: React.CSSProperties = { background: "#F0F4FA", border: "1px solid #C9D6E8", color: "#1C3557", padding: "8px 14px", borderRadius: "8px", fontSize: "12px", fontWeight: 700, cursor: "pointer" };
 
 function ColorInput({ value, onChange }: { value?: string; onChange: (v: string) => void }) {
   return (
     <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-      <input type="color" value={value || "#ffffff"} onChange={(e) => onChange(e.target.value)} style={{ width: "44px", height: "38px", border: "1px solid #E2E0DA", borderRadius: "8px", cursor: "pointer", background: "#fff" }} />
+      <input type="color" value={value || "#ffffff"} onChange={(e) => onChange(e.target.value)} style={{ width: "44px", height: "38px", border: "1px solid #E3E3E3", borderRadius: "8px", cursor: "pointer", background: "#fff" }} />
       <input style={{ ...input, maxWidth: "120px" }} value={value ?? ""} onChange={(e) => onChange(e.target.value)} placeholder="#ffffff" />
     </div>
   );
@@ -185,8 +185,8 @@ export function SectionsEditor({ sections, onChange, products, categories, pages
                 <label style={{ display: "flex", alignItems: "center", gap: "5px", fontSize: "12px", color: "#555", cursor: "pointer", marginRight: "6px" }}>
                   <input type="checkbox" checked={enabled} onChange={(e) => updateSection(i, { enabled: e.target.checked })} /> Shown
                 </label>
-                <button onClick={() => moveSection(i, -1)} disabled={i === 0} style={{ background: "#fff", border: "1px solid #E2E0DA", borderRadius: "6px", padding: "4px 10px", cursor: i === 0 ? "not-allowed" : "pointer", opacity: i === 0 ? 0.4 : 1 }}>↑</button>
-                <button onClick={() => moveSection(i, 1)} disabled={i === sections.length - 1} style={{ background: "#fff", border: "1px solid #E2E0DA", borderRadius: "6px", padding: "4px 10px", cursor: i === sections.length - 1 ? "not-allowed" : "pointer", opacity: i === sections.length - 1 ? 0.4 : 1 }}>↓</button>
+                <button onClick={() => moveSection(i, -1)} disabled={i === 0} style={{ background: "#fff", border: "1px solid #E3E3E3", borderRadius: "6px", padding: "4px 10px", cursor: i === 0 ? "not-allowed" : "pointer", opacity: i === 0 ? 0.4 : 1 }}>↑</button>
+                <button onClick={() => moveSection(i, 1)} disabled={i === sections.length - 1} style={{ background: "#fff", border: "1px solid #E3E3E3", borderRadius: "6px", padding: "4px 10px", cursor: i === sections.length - 1 ? "not-allowed" : "pointer", opacity: i === sections.length - 1 ? 0.4 : 1 }}>↓</button>
                 <button onClick={() => removeSection(i)} title="Remove section" style={{ background: "#fff", border: "1px solid #F1C4C4", borderRadius: "6px", color: "#B91C1C", padding: "4px 10px", cursor: "pointer" }}>🗑</button>
               </div>
             </div>
@@ -207,12 +207,12 @@ export function SectionsEditor({ sections, onChange, products, categories, pages
                   <input type="number" min={2} max={30} style={input} value={s.interval ?? 5} onChange={(e) => updateSection(i, { interval: Number(e.target.value) })} />
                 </div>
                 {(s.slides ?? []).map((sl, si) => (
-                  <div key={si} style={{ border: "1px solid #E2E0DA", borderRadius: "10px", padding: "14px", marginBottom: "12px", background: "#FAFAF8" }}>
+                  <div key={si} style={{ border: "1px solid #E3E3E3", borderRadius: "10px", padding: "14px", marginBottom: "12px", background: "#FAFAF8" }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
                       <span style={{ fontSize: "13px", fontWeight: 700, color: "#555" }}>Slide {si + 1}</span>
                       <div style={{ display: "flex", gap: "6px" }}>
-                        <button onClick={() => moveSlide(i, si, -1)} disabled={si === 0} style={{ background: "#fff", border: "1px solid #E2E0DA", borderRadius: "6px", padding: "3px 9px", cursor: si === 0 ? "not-allowed" : "pointer", opacity: si === 0 ? 0.4 : 1 }}>↑</button>
-                        <button onClick={() => moveSlide(i, si, 1)} disabled={si === (s.slides?.length ?? 0) - 1} style={{ background: "#fff", border: "1px solid #E2E0DA", borderRadius: "6px", padding: "3px 9px", cursor: si === (s.slides?.length ?? 0) - 1 ? "not-allowed" : "pointer", opacity: si === (s.slides?.length ?? 0) - 1 ? 0.4 : 1 }}>↓</button>
+                        <button onClick={() => moveSlide(i, si, -1)} disabled={si === 0} style={{ background: "#fff", border: "1px solid #E3E3E3", borderRadius: "6px", padding: "3px 9px", cursor: si === 0 ? "not-allowed" : "pointer", opacity: si === 0 ? 0.4 : 1 }}>↑</button>
+                        <button onClick={() => moveSlide(i, si, 1)} disabled={si === (s.slides?.length ?? 0) - 1} style={{ background: "#fff", border: "1px solid #E3E3E3", borderRadius: "6px", padding: "3px 9px", cursor: si === (s.slides?.length ?? 0) - 1 ? "not-allowed" : "pointer", opacity: si === (s.slides?.length ?? 0) - 1 ? 0.4 : 1 }}>↓</button>
                         <button onClick={() => setSlides(i, (s.slides ?? []).filter((_, y) => y !== si))} title="Remove slide" style={{ background: "#fff", border: "1px solid #F1C4C4", borderRadius: "6px", color: "#B91C1C", padding: "3px 9px", cursor: "pointer" }}>🗑</button>
                       </div>
                     </div>
@@ -423,7 +423,7 @@ export function SectionsEditor({ sections, onChange, products, categories, pages
                 <label style={label}>Layout</label>
                 <div style={{ display: "flex", gap: "8px" }}>
                   {(["image_left", "image_right"] as const).map((opt) => (
-                    <button key={opt} onClick={() => updateSection(i, { layout: opt })} style={{ flex: 1, padding: "10px", borderRadius: "8px", fontSize: "13px", fontWeight: 600, cursor: "pointer", border: (s.layout ?? "image_right") === opt ? "2px solid #1C3557" : "1px solid #E2E0DA", background: (s.layout ?? "image_right") === opt ? "#F0F4FA" : "#fff", color: "#2A2830" }}>
+                    <button key={opt} onClick={() => updateSection(i, { layout: opt })} style={{ flex: 1, padding: "10px", borderRadius: "8px", fontSize: "13px", fontWeight: 600, cursor: "pointer", border: (s.layout ?? "image_right") === opt ? "2px solid #1C3557" : "1px solid #E3E3E3", background: (s.layout ?? "image_right") === opt ? "#F0F4FA" : "#fff", color: "#2A2830" }}>
                       {opt === "image_left" ? "◧ Image left · Text right" : "Text left · Image right ◨"}
                     </button>
                   ))}

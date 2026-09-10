@@ -4,8 +4,8 @@ import { useEffect, useState } from "react";
 import { authService } from "@/services/auth.service";
 
 const CARD: React.CSSProperties = { background: "#fff", border: "1px solid #E8E6E1", borderRadius: "10px", padding: "22px", maxWidth: "560px" };
-const BTN: React.CSSProperties = { border: "none", color: "#fff", padding: "10px 18px", borderRadius: "7px", fontSize: "13px", fontWeight: 700, cursor: "pointer" };
-const INPUT: React.CSSProperties = { width: "100%", boxSizing: "border-box", padding: "10px 12px", border: "1px solid #DDD9D2", borderRadius: "6px", fontSize: "14px" };
+const BTN: React.CSSProperties = { border: "none", color: "#fff", padding: "10px 18px", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: "pointer" };
+const INPUT: React.CSSProperties = { width: "100%", boxSizing: "border-box", padding: "10px 12px", border: "1px solid #E3E3E3", borderRadius: "6px", fontSize: "14px" };
 
 type Stage = "idle" | "setup" | "backup" | "disabling";
 
@@ -69,7 +69,7 @@ export default function SecurityPage() {
           )}
         </div>
 
-        {error && <div style={{ background: "#FEF2F2", border: "1px solid #FCA5A5", color: "#B91C1C", padding: "9px 12px", borderRadius: "7px", fontSize: "13px", marginBottom: "14px" }}>{error}</div>}
+        {error && <div style={{ background: "#FEF2F2", border: "1px solid #FCA5A5", color: "#B91C1C", padding: "9px 12px", borderRadius: "8px", fontSize: "13px", marginBottom: "14px" }}>{error}</div>}
 
         {stage === "setup" && (
           <div>
@@ -82,7 +82,7 @@ export default function SecurityPage() {
             <input value={code} onChange={(e) => setCode(e.target.value)} placeholder="123456" inputMode="numeric" style={{ ...INPUT, textAlign: "center", letterSpacing: "0.15em", fontSize: "18px" }} />
             <div style={{ display: "flex", gap: "10px", marginTop: "14px" }}>
               <button onClick={confirmEnable} disabled={busy || code.trim().length < 6} style={{ ...BTN, background: busy || code.trim().length < 6 ? "#9ca3af" : "var(--brand-primary, #1C3557)" }}>{busy ? "Verifying…" : "Confirm & enable"}</button>
-              <button onClick={() => { setStage("idle"); setError(null); }} style={{ ...BTN, background: "#fff", color: "#555", border: "1px solid #DDD9D2" }}>Cancel</button>
+              <button onClick={() => { setStage("idle"); setError(null); }} style={{ ...BTN, background: "#fff", color: "#555", border: "1px solid #E3E3E3" }}>Cancel</button>
             </div>
           </div>
         )}
@@ -94,7 +94,7 @@ export default function SecurityPage() {
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", background: "#FBFBF9", border: "1px solid #E8E6E1", borderRadius: "8px", padding: "14px", fontFamily: "monospace", fontSize: "14px" }}>
               {backupCodes.map((c) => <div key={c} style={{ textAlign: "center" }}>{c}</div>)}
             </div>
-            <button onClick={() => { navigator.clipboard?.writeText(backupCodes.join("\n")).catch(() => {}); }} style={{ ...BTN, background: "#fff", color: "#555", border: "1px solid #DDD9D2", marginTop: "12px" }}>Copy codes</button>
+            <button onClick={() => { navigator.clipboard?.writeText(backupCodes.join("\n")).catch(() => {}); }} style={{ ...BTN, background: "#fff", color: "#555", border: "1px solid #E3E3E3", marginTop: "12px" }}>Copy codes</button>
             <button onClick={() => setStage("idle")} style={{ ...BTN, background: "var(--brand-primary, #1C3557)", marginTop: "12px", marginLeft: "10px" }}>Done</button>
           </div>
         )}
@@ -106,7 +106,7 @@ export default function SecurityPage() {
             <input value={code} onChange={(e) => setCode(e.target.value)} placeholder="6-digit or backup code" style={INPUT} />
             <div style={{ display: "flex", gap: "10px", marginTop: "14px" }}>
               <button onClick={disable} disabled={busy || !password || !code} style={{ ...BTN, background: busy || !password || !code ? "#9ca3af" : "#B91C1C" }}>{busy ? "…" : "Disable 2FA"}</button>
-              <button onClick={() => { setStage("idle"); setError(null); setPassword(""); setCode(""); }} style={{ ...BTN, background: "#fff", color: "#555", border: "1px solid #DDD9D2" }}>Cancel</button>
+              <button onClick={() => { setStage("idle"); setError(null); setPassword(""); setCode(""); }} style={{ ...BTN, background: "#fff", color: "#555", border: "1px solid #E3E3E3" }}>Cancel</button>
             </div>
           </div>
         )}

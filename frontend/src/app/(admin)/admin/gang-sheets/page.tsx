@@ -30,7 +30,7 @@ const CARD: React.CSSProperties = {
 const INPUT: React.CSSProperties = {
   width: "100%",
   padding: "8px 10px",
-  border: "1px solid #DDD9D2",
+  border: "1px solid #E3E3E3",
   borderRadius: "6px",
   fontSize: "13px",
 };
@@ -144,7 +144,7 @@ function DashboardTab() {
     gangSheetsService.adminDashboard().then(setData).catch(() => setData(null)).finally(() => setLoading(false));
   }, []);
 
-  if (loading) return <div style={{ color: "#888", fontSize: "13px" }}>Loading…</div>;
+  if (loading) return <div style={{ padding: "26px" }}>{[70, 92, 58, 84].map((w, i) => (<div key={i} className="at-skel" style={{ height: "14px", width: `${w}%`, marginBottom: "12px" }} />))}</div>;
   if (!data) return <div style={{ ...CARD, color: "#888", fontSize: "13px" }}>Could not load dashboard.</div>;
 
   const stats = [
@@ -258,7 +258,7 @@ function SetupTab() {
       </div>
 
       {loading ? (
-        <div style={{ color: "#888", fontSize: "13px" }}>Loading…</div>
+        <div style={{ padding: "26px" }}>{[70, 92, 58, 84].map((w, i) => (<div key={i} className="at-skel" style={{ height: "14px", width: `${w}%`, marginBottom: "12px" }} />))}</div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
           {steps.map((s, i) => (
@@ -317,7 +317,7 @@ function ProductsTab({ onGoToSizes }: { onGoToSizes: () => void }) {
       </div>
 
       {loading ? (
-        <div style={{ color: "#888", fontSize: "13px" }}>Loading…</div>
+        <div style={{ padding: "26px" }}>{[70, 92, 58, 84].map((w, i) => (<div key={i} className="at-skel" style={{ height: "14px", width: `${w}%`, marginBottom: "12px" }} />))}</div>
       ) : products.length === 0 ? (
         <div style={{ ...CARD, color: "#888", fontSize: "13px" }}>
           {showAll ? "No products found." : "No gang-sheet products yet — tick “Show all products” to enable the builder on a product."}
@@ -464,7 +464,7 @@ function ProductEditor({ product, onBack, onGoToSizes }: { product: GangSheetPro
         <div style={{ ...CARD }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px", flexWrap: "wrap", gap: "8px" }}>
             <div style={{ fontSize: "14px", fontWeight: 700 }}>Sizes &amp; Prices</div>
-            <button onClick={addStandardFeet} style={{ ...BTN, background: "#fff", color: "var(--brand-primary, #1C3557)", border: "1px solid #DDD9D2" }}>
+            <button onClick={addStandardFeet} style={{ ...BTN, background: "#fff", color: "var(--brand-primary, #1C3557)", border: "1px solid #E3E3E3" }}>
               + Add standard sizes (2–20 ft)
             </button>
           </div>
@@ -566,7 +566,7 @@ function OrdersTab() {
 
   useEffect(load, [load]);
 
-  if (loading) return <div style={{ color: "#888", fontSize: "13px" }}>Loading…</div>;
+  if (loading) return <div style={{ padding: "26px" }}>{[70, 92, 58, 84].map((w, i) => (<div key={i} className="at-skel" style={{ height: "14px", width: `${w}%`, marginBottom: "12px" }} />))}</div>;
 
   return (
     <>
@@ -772,7 +772,7 @@ function ReviewModal({ order, onClose, onChanged }: { order: GangSheetOrder; onC
               </button>
               <button
                 onClick={() => openSheetPdf({ reference: order.reference, customerName: order.contact_name, sheet: { width_in: order.sheet_width_in, height_in: order.sheet_height_in, bleed_in: size.bleed_in }, artworks: order.artworks ?? [], layout })}
-                style={{ ...BTN, background: "#fff", color: "#1B3A5C", border: "1px solid #DDD9D2" }}
+                style={{ ...BTN, background: "#fff", color: "#1B3A5C", border: "1px solid #E3E3E3" }}
               >
                 Download PDF
               </button>
@@ -949,7 +949,7 @@ function SizesTab() {
       <div style={{ ...CARD, marginBottom: "18px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px", flexWrap: "wrap", gap: "8px" }}>
           <div style={{ fontSize: "14px", fontWeight: 700 }}>Add a sheet size</div>
-          <button onClick={seedStandard} disabled={busy} style={{ ...BTN, background: "#fff", color: "var(--brand-primary, #1C3557)", border: "1px solid #DDD9D2" }}>
+          <button onClick={seedStandard} disabled={busy} style={{ ...BTN, background: "#fff", color: "var(--brand-primary, #1C3557)", border: "1px solid #E3E3E3" }}>
             + Add 7 standard DTF sizes
           </button>
         </div>
@@ -960,8 +960,8 @@ function SizesTab() {
           <div style={{ display: "flex", gap: "8px" }}>
             {([["fixed", "Fixed size & price"], ["custom_length", "Custom length (per inch)"]] as const).map(([mode, lbl]) => (
               <button key={mode} type="button" onClick={() => setDraft({ ...draft, pricing_mode: mode })}
-                style={{ padding: "8px 14px", borderRadius: "7px", fontSize: "13px", fontWeight: 600, cursor: "pointer",
-                  border: "1px solid " + (draft.pricing_mode === mode ? "var(--brand-primary, #1C3557)" : "#DDD9D2"),
+                style={{ padding: "8px 14px", borderRadius: "8px", fontSize: "13px", fontWeight: 600, cursor: "pointer",
+                  border: "1px solid " + (draft.pricing_mode === mode ? "var(--brand-primary, #1C3557)" : "#E3E3E3"),
                   background: draft.pricing_mode === mode ? "var(--brand-primary, #1C3557)" : "#fff",
                   color: draft.pricing_mode === mode ? "#fff" : "#555" }}>
                 {lbl}
@@ -1120,7 +1120,7 @@ function SettingsTab() {
     } finally { setSaving(false); }
   }
 
-  if (loading) return <div style={{ color: "#888", fontSize: "13px" }}>Loading…</div>;
+  if (loading) return <div style={{ padding: "26px" }}>{[70, 92, 58, 84].map((w, i) => (<div key={i} className="at-skel" style={{ height: "14px", width: `${w}%`, marginBottom: "12px" }} />))}</div>;
 
   // Plain render helpers (NOT components) so text inputs don't lose focus on re-render.
   const toggle = (k: keyof GangSheetSettings, label: string, desc?: string) => (
@@ -1188,11 +1188,11 @@ function SettingsTab() {
         <div style={{ display: "flex", gap: "20px", flexWrap: "wrap" }}>
           <div>
             <label style={LABEL}>Primary colour</label>
-            <input type="color" value={s.theme_primary ?? "#1C3557"} onChange={(e) => set("theme_primary", e.target.value)} style={{ width: "56px", height: "34px", border: "1px solid #DDD9D2", borderRadius: "6px", cursor: "pointer", display: "block" }} />
+            <input type="color" value={s.theme_primary ?? "#1C3557"} onChange={(e) => set("theme_primary", e.target.value)} style={{ width: "56px", height: "34px", border: "1px solid #E3E3E3", borderRadius: "6px", cursor: "pointer", display: "block" }} />
           </div>
           <div>
             <label style={LABEL}>Text colour</label>
-            <input type="color" value={s.theme_text ?? "#2A2830"} onChange={(e) => set("theme_text", e.target.value)} style={{ width: "56px", height: "34px", border: "1px solid #DDD9D2", borderRadius: "6px", cursor: "pointer", display: "block" }} />
+            <input type="color" value={s.theme_text ?? "#2A2830"} onChange={(e) => set("theme_text", e.target.value)} style={{ width: "56px", height: "34px", border: "1px solid #E3E3E3", borderRadius: "6px", cursor: "pointer", display: "block" }} />
           </div>
         </div>
       </>)}
@@ -1280,7 +1280,7 @@ function LibraryTab() {
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={d.file_url} alt={d.name} style={{ width: "100%", height: "110px", objectFit: "contain", background: "#F7F7F5" }} />
               <div style={{ padding: "6px 8px", fontSize: "11px", color: "#555", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{d.name}</div>
-              <button onClick={() => remove(d.id)} title="Remove" style={{ position: "absolute", top: "5px", right: "5px", background: "rgba(255,255,255,.9)", border: "1px solid #F0C9C9", color: "#B91C1C", borderRadius: "5px", width: "24px", height: "24px", fontSize: "12px", fontWeight: 700, cursor: "pointer", lineHeight: 1 }}>✕</button>
+              <button onClick={() => remove(d.id)} title="Remove" style={{ position: "absolute", top: "5px", right: "5px", background: "rgba(255,255,255,.9)", border: "1px solid #F0C9C9", color: "#B91C1C", borderRadius: "6px", width: "24px", height: "24px", fontSize: "12px", fontWeight: 700, cursor: "pointer", lineHeight: 1 }}>✕</button>
             </div>
           ))}
         </div>

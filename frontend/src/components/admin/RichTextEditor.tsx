@@ -34,7 +34,7 @@ function ToolbarBtn({
       style={{
         padding: "5px 8px",
         border: "none",
-        borderRadius: "5px",
+        borderRadius: "6px",
         cursor: "pointer",
         background: active ? "#1A5CFF" : "transparent",
         color: active ? "#fff" : "#2A2830",
@@ -57,7 +57,7 @@ function ToolbarBtn({
 
 function Divider() {
   return (
-    <div style={{ width: "1px", height: "20px", background: "#E2E0DA", margin: "0 3px", flexShrink: 0 }} />
+    <div style={{ width: "1px", height: "20px", background: "#E3E3E3", margin: "0 3px", flexShrink: 0 }} />
   );
 }
 
@@ -91,11 +91,11 @@ export function RichTextEditor({ value, onChange, placeholder }: Props) {
   const charCount = editor.getText().length;
 
   return (
-    <div style={{ border: "1.5px solid #E2E0DA", borderRadius: "8px", overflow: "hidden", background: "#fff" }}>
+    <div style={{ border: "1.5px solid #E3E3E3", borderRadius: "8px", overflow: "hidden", background: "#fff" }}>
       {/* Toolbar */}
       <div style={{
         display: "flex", alignItems: "center", gap: "2px", padding: "7px 10px",
-        borderBottom: "1px solid #E2E0DA", background: "#FAFAFA", flexWrap: "wrap",
+        borderBottom: "1px solid #E3E3E3", background: "#FAFAFA", flexWrap: "wrap",
       }}>
         {/* Heading select */}
         <select
@@ -105,7 +105,7 @@ export function RichTextEditor({ value, onChange, placeholder }: Props) {
             else editor.chain().focus().toggleHeading({ level: parseInt(v) as 1 | 2 | 3 }).run();
           }}
           style={{
-            padding: "5px 8px", border: "1px solid #E2E0DA", borderRadius: "5px",
+            padding: "5px 8px", border: "1px solid #E3E3E3", borderRadius: "6px",
             fontSize: "12px", fontFamily: "var(--font-jakarta)", background: "#fff",
             marginRight: "4px", cursor: "pointer",
           }}

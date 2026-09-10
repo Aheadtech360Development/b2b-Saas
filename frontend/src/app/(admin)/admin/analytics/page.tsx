@@ -36,7 +36,7 @@ type Period = "today" | "7d" | "30d" | "90d" | "custom";
 
 // ── Style constants ───────────────────────────────────────────────────────────
 const card: React.CSSProperties = {
-  background: "#fff", border: "1px solid #E2E0DA", borderRadius: "10px", padding: "20px",
+  background: "#fff", border: "1px solid #E3E3E3", borderRadius: "10px", padding: "20px",
 };
 
 const STATUS_COLORS: Record<string, string> = {
@@ -156,8 +156,8 @@ export default function AnalyticsPage() {
 
   const pillStyle = (active: boolean): React.CSSProperties => ({
     padding: "7px 16px", borderRadius: "20px", fontSize: "12px", fontWeight: 600,
-    border: `1.5px solid ${active ? "#1A5CFF" : "#E2E0DA"}`,
-    background: active ? "rgba(26,92,255,.08)" : "#fff",
+    border: `1.5px solid ${active ? "#1A1A1A" : "#E3E3E3"}`,
+    background: active ? "rgba(26,26,26,.08)" : "#fff",
     color: active ? "#1A5CFF" : "#555",
     cursor: "pointer", transition: "all .15s",
   });
@@ -186,20 +186,20 @@ export default function AnalyticsPage() {
               type="date"
               value={customStart}
               onChange={e => setCustomStart(e.target.value)}
-              style={{ padding: "6px 10px", border: "1.5px solid #E2E0DA", borderRadius: "8px", fontSize: "12px", outline: "none" }}
+              style={{ padding: "6px 10px", border: "1.5px solid #E3E3E3", borderRadius: "8px", fontSize: "12px", outline: "none" }}
             />
             <span style={{ fontSize: "12px", color: "#aaa" }}>to</span>
             <input
               type="date"
               value={customEnd}
               onChange={e => setCustomEnd(e.target.value)}
-              style={{ padding: "6px 10px", border: "1.5px solid #E2E0DA", borderRadius: "8px", fontSize: "12px", outline: "none" }}
+              style={{ padding: "6px 10px", border: "1.5px solid #E3E3E3", borderRadius: "8px", fontSize: "12px", outline: "none" }}
             />
             <button
               type="button"
               onClick={handleCustomApply}
               disabled={!customStart || !customEnd}
-              style={{ padding: "6px 16px", background: "#1A5CFF", color: "#fff", border: "none", borderRadius: "8px", fontSize: "12px", fontWeight: 700, cursor: "pointer", opacity: (!customStart || !customEnd) ? 0.5 : 1 }}
+              style={{ padding: "6px 16px", background: "#1A1A1A", color: "#fff", border: "none", borderRadius: "8px", fontSize: "12px", fontWeight: 700, cursor: "pointer", opacity: (!customStart || !customEnd) ? 0.5 : 1 }}
             >
               Apply
             </button>
@@ -208,7 +208,7 @@ export default function AnalyticsPage() {
         <button
           type="button"
           onClick={() => fetchData(period, customStart, customEnd)}
-          style={{ marginLeft: "auto", padding: "7px 14px", border: "1.5px solid #E2E0DA", borderRadius: "8px", background: "#fff", fontSize: "12px", fontWeight: 600, color: "#555", cursor: "pointer" }}
+          style={{ marginLeft: "auto", padding: "7px 14px", border: "1.5px solid #E3E3E3", borderRadius: "8px", background: "#fff", fontSize: "12px", fontWeight: 600, color: "#555", cursor: "pointer" }}
         >
           ↻ Refresh
         </button>
@@ -267,10 +267,10 @@ export default function AnalyticsPage() {
               </div>
               <div style={{ display: "flex", gap: "16px" }}>
                 <div>
-                  <div style={{ fontFamily: "var(--font-bebas)", fontSize: "26px", color: "#1A5CFF", lineHeight: 1 }}>{data.overview.wholesale_orders}</div>
+                  <div style={{ fontFamily: "var(--font-bebas)", fontSize: "26px", color: "#005BD3", lineHeight: 1 }}>{data.overview.wholesale_orders}</div>
                   <div style={{ fontSize: "11px", color: "#7A7880", marginTop: "2px" }}>Wholesale</div>
                 </div>
-                <div style={{ width: "1px", background: "#E2E0DA" }} />
+                <div style={{ width: "1px", background: "#E3E3E3" }} />
                 <div>
                   <div style={{ fontFamily: "var(--font-bebas)", fontSize: "26px", color: "#F97316", lineHeight: 1 }}>{data.overview.guest_orders}</div>
                   <div style={{ fontSize: "11px", color: "#7A7880", marginTop: "2px" }}>Guest / Retail</div>
@@ -300,8 +300,8 @@ export default function AnalyticsPage() {
                 onClick={() => setChartView(v)}
                 style={{
                   padding: "5px 12px", borderRadius: "6px", fontSize: "11px", fontWeight: 600,
-                  border: `1.5px solid ${chartView === v ? "#1A5CFF" : "#E2E0DA"}`,
-                  background: chartView === v ? "rgba(26,92,255,.08)" : "#fff",
+                  border: `1.5px solid ${chartView === v ? "#1A5CFF" : "#E3E3E3"}`,
+                  background: chartView === v ? "rgba(26,26,26,.08)" : "#fff",
                   color: chartView === v ? "#1A5CFF" : "#555",
                   cursor: "pointer",
                 }}
@@ -337,9 +337,9 @@ export default function AnalyticsPage() {
                   const d = new Date(l + "T00:00:00");
                   return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
                 }}
-                contentStyle={{ fontSize: "12px", border: "1px solid #E2E0DA", borderRadius: "6px" }}
+                contentStyle={{ fontSize: "12px", border: "1px solid #E3E3E3", borderRadius: "6px" }}
               />
-              <Bar yAxisId="right" dataKey="orders" fill="rgba(26,92,255,.15)" radius={[3, 3, 0, 0]} name="orders" />
+              <Bar yAxisId="right" dataKey="orders" fill="rgba(26,26,26,.15)" radius={[3, 3, 0, 0]} name="orders" />
               <Line yAxisId="left" type="monotone" dataKey="revenue" stroke="#1A5CFF" strokeWidth={2} dot={false} name="revenue" />
             </ComposedChart>
           </ResponsiveContainer>
@@ -373,7 +373,7 @@ export default function AnalyticsPage() {
                   </Pie>
                   <Tooltip
                     formatter={(v, _n, props) => [v + " orders", (props as { payload?: { status?: string } }).payload?.status ?? ""]}
-                    contentStyle={{ fontSize: "12px", border: "1px solid #E2E0DA", borderRadius: "6px" }}
+                    contentStyle={{ fontSize: "12px", border: "1px solid #E3E3E3", borderRadius: "6px" }}
                   />
                 </PieChart>
               </ResponsiveContainer>
@@ -418,7 +418,7 @@ export default function AnalyticsPage() {
                     </Pie>
                     <Tooltip
                       formatter={(v, n) => [`${v} (${total ? ((Number(v) / total) * 100).toFixed(1) : 0}%)`, String(n)]}
-                      contentStyle={{ fontSize: "12px", border: "1px solid #E2E0DA", borderRadius: "6px" }}
+                      contentStyle={{ fontSize: "12px", border: "1px solid #E3E3E3", borderRadius: "6px" }}
                     />
                   </PieChart>
                 </ResponsiveContainer>
@@ -446,7 +446,7 @@ export default function AnalyticsPage() {
         ) : data && data.top_products.length > 0 ? (
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
             <thead>
-              <tr style={{ borderBottom: "2px solid #E2E0DA" }}>
+              <tr style={{ borderBottom: "2px solid #E3E3E3" }}>
                 {["#", "Product", "Units Sold", "Revenue", ""].map(h => (
                   <th key={h} style={{ padding: "8px 12px", textAlign: h === "Revenue" || h === "Units Sold" ? "right" : "left", fontSize: "11px", textTransform: "uppercase", letterSpacing: ".06em", color: "#7A7880", fontWeight: 700 }}>{h}</th>
                 ))}
@@ -463,7 +463,7 @@ export default function AnalyticsPage() {
                     {p.slug && (
                       <a
                         href={`/admin/products/${p.slug}/edit`}
-                        style={{ fontSize: "11px", color: "#1A5CFF", fontWeight: 600, textDecoration: "none" }}
+                        style={{ fontSize: "11px", color: "#005BD3", fontWeight: 600, textDecoration: "none" }}
                       >
                         View →
                       </a>
@@ -489,7 +489,7 @@ export default function AnalyticsPage() {
           ) : data && data.top_customers.length > 0 ? (
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
               <thead>
-                <tr style={{ borderBottom: "1px solid #E2E0DA" }}>
+                <tr style={{ borderBottom: "1px solid #E3E3E3" }}>
                   {["Company", "Orders", "Total Spend"].map(h => (
                     <th key={h} style={{ padding: "6px 8px", textAlign: h !== "Company" ? "right" : "left", fontSize: "10px", textTransform: "uppercase", letterSpacing: ".06em", color: "#7A7880", fontWeight: 700 }}>{h}</th>
                   ))}
@@ -501,10 +501,10 @@ export default function AnalyticsPage() {
                     key={i}
                     style={{ borderBottom: "1px solid #F6F6F7", cursor: "pointer", background: i % 2 === 0 ? "#fff" : "#FAFAFA" }}
                     onClick={() => router.push(`/admin/customers/${c.company_id}`)}
-                    onMouseEnter={e => (e.currentTarget.style.background = "rgba(26,92,255,.04)")}
+                    onMouseEnter={e => (e.currentTarget.style.background = "rgba(26,26,26,.04)")}
                     onMouseLeave={e => (e.currentTarget.style.background = i % 2 === 0 ? "#fff" : "#FAFAFA")}
                   >
-                    <td style={{ padding: "8px 8px", fontWeight: 600, color: "#1A5CFF" }}>{c.company_name}</td>
+                    <td style={{ padding: "8px 8px", fontWeight: 600, color: "#005BD3" }}>{c.company_name}</td>
                     <td style={{ padding: "8px 8px", textAlign: "right", color: "#7A7880" }}>{c.orders}</td>
                     <td style={{ padding: "8px 8px", textAlign: "right", fontWeight: 700, color: "#059669" }}>{fmt(c.total_spend)}</td>
                   </tr>
@@ -533,7 +533,7 @@ export default function AnalyticsPage() {
                 <YAxis type="category" dataKey="state" tick={{ fontSize: 11, fill: "#7A7880" }} width={36} />
                 <Tooltip
                   formatter={(v) => [v + " orders", "Orders"]}
-                  contentStyle={{ fontSize: "12px", border: "1px solid #E2E0DA", borderRadius: "6px" }}
+                  contentStyle={{ fontSize: "12px", border: "1px solid #E3E3E3", borderRadius: "6px" }}
                 />
                 <Bar dataKey="orders" fill="#1A5CFF" radius={[0, 4, 4, 0]} />
               </BarChart>

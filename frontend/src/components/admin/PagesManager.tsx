@@ -92,8 +92,8 @@ export default function PagesManager() {
     return <PageEditor id={editingId} onBack={() => { setEditingId(null); load(); }} />;
   }
 
-  const card: React.CSSProperties = { background: "#fff", border: "1px solid #E2E0DA", borderRadius: "12px" };
-  const input: React.CSSProperties = { border: "1px solid #E2E0DA", borderRadius: "8px", padding: "10px 12px", fontSize: "14px", outline: "none", boxSizing: "border-box" };
+  const card: React.CSSProperties = { background: "#fff", border: "1px solid #E3E3E3", borderRadius: "12px" };
+  const input: React.CSSProperties = { border: "1px solid #E3E3E3", borderRadius: "8px", padding: "10px 12px", fontSize: "14px", outline: "none", boxSizing: "border-box" };
   const btnPrimary: React.CSSProperties = { background: "#1C3557", color: "#fff", border: "none", padding: "10px 20px", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: "pointer" };
 
   return (
@@ -121,7 +121,7 @@ export default function PagesManager() {
           <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
             <input autoFocus style={{ ...input, flex: 1, minWidth: "220px" }} value={newTitle} onChange={(e) => setNewTitle(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleCreate()} placeholder="e.g. Shipping &amp; Returns" />
             <button onClick={handleCreate} disabled={creating || !newTitle.trim()} style={{ ...btnPrimary, opacity: creating || !newTitle.trim() ? 0.6 : 1 }}>{creating ? "Creating…" : "Create & Edit"}</button>
-            <button onClick={() => { setShowNew(false); setNewTitle(""); }} style={{ background: "#fff", border: "1px solid #E2E0DA", color: "#555", padding: "10px 18px", borderRadius: "8px", fontSize: "13px", fontWeight: 600, cursor: "pointer" }}>Cancel</button>
+            <button onClick={() => { setShowNew(false); setNewTitle(""); }} style={{ background: "#fff", border: "1px solid #E3E3E3", color: "#555", padding: "10px 18px", borderRadius: "8px", fontSize: "13px", fontWeight: 600, cursor: "pointer" }}>Cancel</button>
           </div>
         </div>
       )}
@@ -170,11 +170,11 @@ export default function PagesManager() {
                 <div style={{ fontSize: "12px", color: "#999", marginTop: "3px" }}>/{p.slug} · {p.sections.length} section{p.sections.length === 1 ? "" : "s"}</div>
               </div>
               {!readOnly && (
-                <button onClick={() => togglePublish(p)} title={p.is_published ? "Unpublish" : "Publish"} style={{ background: "#fff", border: "1px solid #E2E0DA", color: p.is_published ? "#15803D" : "#92400E", padding: "7px 12px", borderRadius: "7px", fontSize: "12px", fontWeight: 700, cursor: "pointer" }}>
+                <button onClick={() => togglePublish(p)} title={p.is_published ? "Unpublish" : "Publish"} style={{ background: "#fff", border: "1px solid #E3E3E3", color: p.is_published ? "#15803D" : "#92400E", padding: "7px 12px", borderRadius: "8px", fontSize: "12px", fontWeight: 700, cursor: "pointer" }}>
                   {p.is_published ? "Published" : "Draft"}
                 </button>
               )}
-              <button onClick={() => setEditingId(p.id)} style={{ background: "#F0F4FA", border: "1px solid #C9D6E8", color: "#1C3557", padding: "7px 16px", borderRadius: "7px", fontSize: "12px", fontWeight: 700, cursor: "pointer" }}>
+              <button onClick={() => setEditingId(p.id)} style={{ background: "#F0F4FA", border: "1px solid #C9D6E8", color: "#1C3557", padding: "7px 16px", borderRadius: "8px", fontSize: "12px", fontWeight: 700, cursor: "pointer" }}>
                 {readOnly ? "View" : "Edit"}
               </button>
               {!readOnly && (

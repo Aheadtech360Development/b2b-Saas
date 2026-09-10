@@ -29,7 +29,7 @@ export function ThemePreview({ theme }: { theme: StoreTheme }) {
   const gridPad = spacing === "compact" ? "7px" : spacing === "spacious" ? "16px" : "10px";
 
   return (
-    <div style={{ border: "1px solid #E2E0DA", borderRadius: "10px", overflow: "hidden", background: "#fff", fontFamily: body }}>
+    <div style={{ border: "1px solid #E3E3E3", borderRadius: "10px", overflow: "hidden", background: "#fff", fontFamily: body }}>
       {/* Header bar */}
       <div style={{ background: "#fff", borderBottom: "1px solid #ECECEC", padding: "8px 10px", display: "flex", alignItems: "center", justifyContent: layout === "logo_center" || layout === "logo_center_below" ? "center" : "space-between", gap: "8px", flexDirection: layout === "logo_center_below" ? "column" : "row" }}>
         <span style={{ fontFamily: heading, fontWeight: 700, fontSize: "11px", color: primary }}>Your Store</span>

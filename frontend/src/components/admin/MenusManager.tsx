@@ -12,8 +12,8 @@ import type { MenuItem } from "@/components/providers/BrandingProvider";
 import type { Category } from "@/types/product.types";
 
 const label: React.CSSProperties = { display: "block", fontSize: "12px", fontWeight: 600, color: "#555", marginBottom: "6px", textTransform: "uppercase", letterSpacing: ".04em" };
-const input: React.CSSProperties = { border: "1px solid #E2E0DA", borderRadius: "8px", padding: "10px 12px", fontSize: "14px", outline: "none", boxSizing: "border-box", background: "#fff" };
-const card: React.CSSProperties = { background: "#fff", border: "1px solid #E2E0DA", borderRadius: "12px", padding: "20px", marginBottom: "18px" };
+const input: React.CSSProperties = { border: "1px solid #E3E3E3", borderRadius: "8px", padding: "10px 12px", fontSize: "14px", outline: "none", boxSizing: "border-box", background: "#fff" };
+const card: React.CSSProperties = { background: "#fff", border: "1px solid #E3E3E3", borderRadius: "12px", padding: "20px", marginBottom: "18px" };
 const btnPrimary: React.CSSProperties = { background: "#1C3557", color: "#fff", border: "none", padding: "10px 20px", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: "pointer" };
 const btnGhost: React.CSSProperties = { background: "#F0F4FA", border: "1px solid #C9D6E8", color: "#1C3557", padding: "8px 14px", borderRadius: "8px", fontSize: "12px", fontWeight: 700, cursor: "pointer" };
 
@@ -100,7 +100,7 @@ export default function MenusManager() {
         <div style={{ ...card, display: "flex", gap: "10px", flexWrap: "wrap", alignItems: "center" }}>
           <input autoFocus value={newName} onChange={(e) => setNewName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleCreate()} placeholder="Menu name (e.g. Main menu, Footer menu)" style={{ ...input, flex: 1, minWidth: "220px" }} />
           <button onClick={handleCreate} disabled={!newName.trim()} style={{ ...btnPrimary, opacity: newName.trim() ? 1 : 0.6 }}>Create</button>
-          <button onClick={() => { setShowNew(false); setNewName(""); }} style={{ background: "#fff", border: "1px solid #E2E0DA", color: "#555", padding: "10px 16px", borderRadius: "8px", fontSize: "13px", fontWeight: 600, cursor: "pointer" }}>Cancel</button>
+          <button onClick={() => { setShowNew(false); setNewName(""); }} style={{ background: "#fff", border: "1px solid #E3E3E3", color: "#555", padding: "10px 16px", borderRadius: "8px", fontSize: "13px", fontWeight: 600, cursor: "pointer" }}>Cancel</button>
         </div>
       )}
 
@@ -108,7 +108,7 @@ export default function MenusManager() {
       {menus.length > 0 && (
         <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginBottom: "16px" }}>
           {menus.map((m) => (
-            <button key={m.id} onClick={() => selectMenu(m)} style={{ padding: "8px 16px", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: "pointer", border: draft?.id === m.id ? "2px solid #1C3557" : "1px solid #E2E0DA", background: draft?.id === m.id ? "#F0F4FA" : "#fff", color: "#2A2830" }}>
+            <button key={m.id} onClick={() => selectMenu(m)} style={{ padding: "8px 16px", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: "pointer", border: draft?.id === m.id ? "2px solid #1C3557" : "1px solid #E3E3E3", background: draft?.id === m.id ? "#F0F4FA" : "#fff", color: "#2A2830" }}>
               {m.name} <span style={{ color: "#aaa", fontWeight: 500 }}>({m.items.length})</span>
             </button>
           ))}
@@ -140,8 +140,8 @@ export default function MenusManager() {
               <div key={i} style={{ border: "1px solid #EEE", borderRadius: "8px", padding: "12px", marginBottom: "12px", background: "#FAFAF8" }}>
                 <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
                   <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
-                    <button onClick={() => moveItem(i, -1)} disabled={i === 0} style={{ background: "#fff", border: "1px solid #E2E0DA", borderRadius: "5px", cursor: i === 0 ? "not-allowed" : "pointer", opacity: i === 0 ? 0.4 : 1, fontSize: "11px", padding: "1px 6px" }}>↑</button>
-                    <button onClick={() => moveItem(i, 1)} disabled={i === draft.items.length - 1} style={{ background: "#fff", border: "1px solid #E2E0DA", borderRadius: "5px", cursor: i === draft.items.length - 1 ? "not-allowed" : "pointer", opacity: i === draft.items.length - 1 ? 0.4 : 1, fontSize: "11px", padding: "1px 6px" }}>↓</button>
+                    <button onClick={() => moveItem(i, -1)} disabled={i === 0} style={{ background: "#fff", border: "1px solid #E3E3E3", borderRadius: "6px", cursor: i === 0 ? "not-allowed" : "pointer", opacity: i === 0 ? 0.4 : 1, fontSize: "11px", padding: "1px 6px" }}>↑</button>
+                    <button onClick={() => moveItem(i, 1)} disabled={i === draft.items.length - 1} style={{ background: "#fff", border: "1px solid #E3E3E3", borderRadius: "6px", cursor: i === draft.items.length - 1 ? "not-allowed" : "pointer", opacity: i === draft.items.length - 1 ? 0.4 : 1, fontSize: "11px", padding: "1px 6px" }}>↓</button>
                   </div>
                   <input style={{ ...input, flex: "0 0 170px", padding: "8px 10px" }} value={m.label} onChange={(e) => setItem(i, { label: e.target.value })} placeholder="Label (e.g. Shop)" />
                   <MenuLinkField href={m.href} onChange={(v) => setItem(i, { href: v })} products={products} categories={categories} pages={pages} />

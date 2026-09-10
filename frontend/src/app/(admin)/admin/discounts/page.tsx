@@ -213,7 +213,7 @@ export default function DiscountsPage() {
         </div>
         <button
           onClick={openCreate}
-          style={{ padding: "10px 20px", background: "#1A5CFF", color: "#fff", border: "none", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: "pointer" }}
+          style={{ padding: "10px 20px", background: "#1A1A1A", color: "#fff", border: "none", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: "pointer" }}
         >
           + Create Discount
         </button>
@@ -227,21 +227,21 @@ export default function DiscountsPage() {
           value={search}
           onChange={e => setSearch(e.target.value)}
           onKeyDown={e => { if (e.key === "Enter") { setPage(1); load(1, search); } }}
-          style={{ padding: "9px 14px", border: "1.5px solid #E2E0DA", borderRadius: "8px", fontSize: "13px", width: "280px", outline: "none", fontFamily: "var(--font-jakarta)" }}
+          style={{ padding: "9px 14px", border: "1.5px solid #E3E3E3", borderRadius: "8px", fontSize: "13px", width: "280px", outline: "none", fontFamily: "var(--font-jakarta)" }}
         />
         <button
           onClick={() => { setPage(1); load(1, search); }}
-          style={{ marginLeft: "8px", padding: "9px 16px", background: "#F6F6F7", border: "1.5px solid #E2E0DA", borderRadius: "8px", fontSize: "13px", fontWeight: 600, cursor: "pointer" }}
+          style={{ marginLeft: "8px", padding: "9px 16px", background: "#F6F6F7", border: "1.5px solid #E3E3E3", borderRadius: "8px", fontSize: "13px", fontWeight: 600, cursor: "pointer" }}
         >
           Search
         </button>
       </div>
 
       {/* Table */}
-      <div style={{ background: "#fff", border: "1.5px solid #E2E0DA", borderRadius: "10px", overflow: "hidden" }}>
+      <div style={{ background: "#fff", border: "1.5px solid #E3E3E3", borderRadius: "10px", overflow: "hidden" }}>
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
           <thead>
-            <tr style={{ background: "#F9F8F5", borderBottom: "1.5px solid #E2E0DA" }}>
+            <tr style={{ background: "#F9F8F5", borderBottom: "1.5px solid #E3E3E3" }}>
               {["Code", "Type / Value", "Usage", "Expiry", "Eligibility", "Status", ""].map(h => (
                 <th key={h} style={{ padding: "11px 16px", textAlign: "left", fontWeight: 700, fontSize: "11px", textTransform: "uppercase", letterSpacing: ".06em", color: "#7A7880", whiteSpace: "nowrap" }}>{h}</th>
               ))}
@@ -249,7 +249,7 @@ export default function DiscountsPage() {
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={7} style={{ padding: "40px", textAlign: "center", color: "#aaa", fontSize: "13px" }}>Loading…</td></tr>
+              <tr><td colSpan={7} style={{ padding: "40px", textAlign: "center", color: "#aaa", fontSize: "13px" }}><div className="at-skel" style={{ height: "14px", width: "60%", margin: "0 auto" }} /></td></tr>
             ) : codes.length === 0 ? (
               <tr><td colSpan={7} style={{ padding: "40px", textAlign: "center", color: "#aaa", fontSize: "13px" }}>No discount codes yet</td></tr>
             ) : codes.map(dc => {
@@ -262,11 +262,11 @@ export default function DiscountsPage() {
                   {/* Code + copy */}
                   <td style={{ padding: "12px 16px" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                      <span style={{ fontWeight: 700, fontFamily: "monospace", fontSize: "13px", color: "#2A2830", background: "#F6F6F7", padding: "3px 8px", borderRadius: "5px" }}>{dc.code}</span>
+                      <span style={{ fontWeight: 700, fontFamily: "monospace", fontSize: "13px", color: "#2A2830", background: "#F6F6F7", padding: "3px 8px", borderRadius: "6px" }}>{dc.code}</span>
                       <button
                         onClick={() => handleCopy(dc.code, dc.id)}
                         title="Copy code"
-                        style={{ padding: "3px 8px", border: "1px solid #E2E0DA", borderRadius: "5px", background: copiedId === dc.id ? "#d1fae5" : "#fff", fontSize: "11px", fontWeight: 600, cursor: "pointer", color: copiedId === dc.id ? "#059669" : "#7A7880", transition: "all .15s" }}
+                        style={{ padding: "3px 8px", border: "1px solid #E3E3E3", borderRadius: "6px", background: copiedId === dc.id ? "#d1fae5" : "#fff", fontSize: "11px", fontWeight: 600, cursor: "pointer", color: copiedId === dc.id ? "#059669" : "#7A7880", transition: "all .15s" }}
                       >
                         {copiedId === dc.id ? "Copied!" : "Copy"}
                       </button>
@@ -320,7 +320,7 @@ export default function DiscountsPage() {
                     <div style={{ display: "flex", gap: "6px" }}>
                       <button
                         onClick={() => openEdit(dc)}
-                        style={{ padding: "5px 12px", border: "1px solid #E2E0DA", borderRadius: "6px", background: "#fff", fontSize: "12px", fontWeight: 600, cursor: "pointer", color: "#2A2830" }}
+                        style={{ padding: "5px 12px", border: "1px solid #E3E3E3", borderRadius: "6px", background: "#fff", fontSize: "12px", fontWeight: 600, cursor: "pointer", color: "#2A2830" }}
                       >
                         Edit
                       </button>
@@ -348,7 +348,7 @@ export default function DiscountsPage() {
             <button
               key={p}
               onClick={() => { setPage(p); load(p, search); }}
-              style={{ padding: "6px 12px", borderRadius: "6px", border: "1.5px solid #E2E0DA", background: p === page ? "#1A5CFF" : "#fff", color: p === page ? "#fff" : "#2A2830", fontWeight: 700, fontSize: "13px", cursor: "pointer" }}
+              style={{ padding: "6px 12px", borderRadius: "6px", border: "1.5px solid #E3E3E3", background: p === page ? "#1A5CFF" : "#fff", color: p === page ? "#fff" : "#2A2830", fontWeight: 700, fontSize: "13px", cursor: "pointer" }}
             >
               {p}
             </button>
@@ -371,7 +371,7 @@ export default function DiscountsPage() {
             {/* Modal body */}
             <div style={{ padding: "20px 24px", maxHeight: "70vh", overflowY: "auto", display: "flex", flexDirection: "column", gap: "14px" }}>
               {formError && (
-                <div style={{ padding: "10px 14px", background: "rgba(232,36,42,.07)", border: "1px solid rgba(232,36,42,.25)", borderRadius: "7px", fontSize: "13px", color: "#E8242A" }}>{formError}</div>
+                <div style={{ padding: "10px 14px", background: "rgba(232,36,42,.07)", border: "1px solid rgba(232,36,42,.25)", borderRadius: "8px", fontSize: "13px", color: "#E8242A" }}>{formError}</div>
               )}
 
               {/* Code */}
@@ -460,7 +460,7 @@ export default function DiscountsPage() {
                   onClick={() => set("is_active", !F.is_active)}
                   style={{
                     width: "42px", height: "22px", borderRadius: "11px", border: "none", cursor: "pointer",
-                    background: F.is_active ? "#059669" : "#E2E0DA", position: "relative", transition: "background .2s",
+                    background: F.is_active ? "#059669" : "#E3E3E3", position: "relative", transition: "background .2s",
                   }}
                 >
                   <span style={{
@@ -473,13 +473,13 @@ export default function DiscountsPage() {
 
             {/* Modal footer */}
             <div style={{ padding: "16px 24px", borderTop: "1px solid #F0EEE9", display: "flex", justifyContent: "flex-end", gap: "10px" }}>
-              <button onClick={() => setShowModal(false)} style={{ padding: "10px 18px", border: "1.5px solid #E2E0DA", borderRadius: "8px", background: "#fff", fontSize: "13px", fontWeight: 600, cursor: "pointer", color: "#7A7880" }}>
+              <button onClick={() => setShowModal(false)} style={{ padding: "10px 18px", border: "1.5px solid #E3E3E3", borderRadius: "8px", background: "#fff", fontSize: "13px", fontWeight: 600, cursor: "pointer", color: "#7A7880" }}>
                 Cancel
               </button>
               <button
                 onClick={handleSave}
                 disabled={saving}
-                style={{ padding: "10px 24px", background: saving ? "#E2E0DA" : "#1A5CFF", color: saving ? "#aaa" : "#fff", border: "none", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: saving ? "not-allowed" : "pointer" }}
+                style={{ padding: "10px 24px", background: saving ? "#E3E3E3" : "#1A5CFF", color: saving ? "#aaa" : "#fff", border: "none", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: saving ? "not-allowed" : "pointer" }}
               >
                 {saving ? "Saving…" : editId ? "Save Changes" : "Create Code"}
               </button>
@@ -496,6 +496,6 @@ const labelStyle: React.CSSProperties = {
 };
 
 const inputStyle: React.CSSProperties = {
-  width: "100%", padding: "9px 12px", border: "1.5px solid #E2E0DA", borderRadius: "7px", fontSize: "13px",
+  width: "100%", padding: "9px 12px", border: "1.5px solid #E3E3E3", borderRadius: "8px", fontSize: "13px",
   fontFamily: "var(--font-jakarta)", outline: "none", boxSizing: "border-box", background: "#fff",
 };

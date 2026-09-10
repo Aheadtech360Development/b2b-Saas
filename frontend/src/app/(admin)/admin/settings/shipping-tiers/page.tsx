@@ -33,12 +33,12 @@ const labelStyle: React.CSSProperties = {
   letterSpacing: ".08em", color: "#7A7880", display: "block", marginBottom: "5px",
 };
 const inputStyle: React.CSSProperties = {
-  width: "100%", padding: "9px 12px", border: "1.5px solid #E2E0DA", borderRadius: "7px",
+  width: "100%", padding: "9px 12px", border: "1.5px solid #E3E3E3", borderRadius: "8px",
   fontSize: "13px", fontFamily: "var(--font-jakarta)", outline: "none", boxSizing: "border-box",
 };
 
 const TYPE_BADGE: Record<CalcType, { bg: string; color: string; label: string }> = {
-  units:       { bg: "rgba(26,92,255,.08)",   color: "#1A5CFF", label: "Per Unit Count" },
+  units:       { bg: "rgba(26,26,26,.08)",   color: "#005BD3", label: "Per Unit Count" },
   order_value: { bg: "rgba(5,150,105,.08)",   color: "#059669", label: "Per Order Value" },
 };
 
@@ -91,7 +91,7 @@ function BracketEditor({
       <div style={{ overflowX: "auto" }}>
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px", minWidth: "520px" }}>
           <thead>
-            <tr style={{ background: "#F6F6F7", borderBottom: "1px solid #E2E0DA" }}>
+            <tr style={{ background: "#F6F6F7", borderBottom: "1px solid #E3E3E3" }}>
               {calcType === "units" ? (
                 <><th style={thS}>Min Units</th><th style={thS}>Max Units (blank = no limit)</th></>
               ) : (
@@ -146,7 +146,7 @@ function BracketEditor({
                       style={{ ...inputStyle, width: "90px" }} />
                     {Number(b.cost) === 0 && (
                       <span style={{ fontSize: "10px", fontWeight: 700, color: "#059669",
-                        background: "rgba(5,150,105,.1)", padding: "2px 6px", borderRadius: "4px" }}>FREE</span>
+                        background: "rgba(5,150,105,.1)", padding: "2px 6px", borderRadius: "6px" }}>FREE</span>
                     )}
                   </div>
                 </td>
@@ -167,7 +167,7 @@ function BracketEditor({
         </table>
       </div>
       <button onClick={() => onChange([...brackets, emptyBracket()])}
-        style={{ marginTop: "10px", padding: "6px 16px", background: "#F6F6F7", border: "1px solid #E2E0DA",
+        style={{ marginTop: "10px", padding: "6px 16px", background: "#F6F6F7", border: "1px solid #E3E3E3",
           borderRadius: "6px", fontSize: "12px", fontWeight: 700, cursor: "pointer", color: "#2A2830" }}>
         + Add Bracket
       </button>
@@ -220,9 +220,9 @@ function TierFormFields({
               <button key={t} type="button"
                 onClick={() => setForm(f => ({ ...f, calculation_type: t, brackets: [] }))}
                 style={{
-                  flex: 1, padding: "9px 12px", border: `2px solid ${form.calculation_type === t ? "#1A5CFF" : "#E2E0DA"}`,
-                  borderRadius: "7px", fontSize: "12px", fontWeight: 700, cursor: "pointer",
-                  background: form.calculation_type === t ? "rgba(26,92,255,.06)" : "#fff",
+                  flex: 1, padding: "9px 12px", border: `2px solid ${form.calculation_type === t ? "#1A5CFF" : "#E3E3E3"}`,
+                  borderRadius: "8px", fontSize: "12px", fontWeight: 700, cursor: "pointer",
+                  background: form.calculation_type === t ? "rgba(26,26,26,.06)" : "#fff",
                   color: form.calculation_type === t ? "#1A5CFF" : "#7A7880",
                 }}>
                 {t === "units" ? "📦 Per Unit Count" : "💰 Per Order Value"}
@@ -246,7 +246,7 @@ function TierFormFields({
           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
             <input id={`active-${tierId}`} type="checkbox" checked={form.is_active}
               onChange={e => setForm(f => ({ ...f, is_active: e.target.checked }))}
-              style={{ width: "15px", height: "15px", accentColor: "#1A5CFF" }} />
+              style={{ width: "15px", height: "15px", accentColor: "#1A1A1A" }} />
             <label htmlFor={`active-${tierId}`} style={{ fontSize: "13px", fontWeight: 600, cursor: "pointer" }}>
               Active (available for assignment to companies)
             </label>
@@ -301,7 +301,7 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
       <div style={{ background: "#fff", borderRadius: "12px", width: "100%", maxWidth: "740px",
         maxHeight: "90vh", overflow: "auto", boxShadow: "0 20px 60px rgba(0,0,0,.2)" }}>
         {/* Header */}
-        <div style={{ padding: "20px 24px", borderBottom: "1px solid #E2E0DA", display: "flex",
+        <div style={{ padding: "20px 24px", borderBottom: "1px solid #E3E3E3", display: "flex",
           justifyContent: "space-between", alignItems: "center", position: "sticky", top: 0, background: "#fff", zIndex: 1 }}>
           <h2 style={{ fontFamily: "var(--font-bebas)", fontSize: "22px", color: "#2A2830", letterSpacing: ".04em", margin: 0 }}>
             NEW SHIPPING TIER
@@ -321,15 +321,15 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
         </div>
 
         {/* Footer */}
-        <div style={{ padding: "16px 24px", borderTop: "1px solid #E2E0DA", display: "flex",
+        <div style={{ padding: "16px 24px", borderTop: "1px solid #E3E3E3", display: "flex",
           gap: "10px", justifyContent: "flex-end", position: "sticky", bottom: 0, background: "#fff" }}>
           <button onClick={onClose}
-            style={{ padding: "10px 20px", border: "1px solid #E2E0DA", borderRadius: "8px",
+            style={{ padding: "10px 20px", border: "1px solid #E3E3E3", borderRadius: "8px",
               background: "#fff", fontSize: "13px", fontWeight: 600, cursor: "pointer" }}>
             Cancel
           </button>
           <button onClick={handleCreate} disabled={saving || !form.name.trim()}
-            style={{ padding: "10px 24px", background: "#1A5CFF", color: "#fff", border: "none",
+            style={{ padding: "10px 24px", background: "#1A1A1A", color: "#fff", border: "none",
               borderRadius: "8px", fontWeight: 700, cursor: "pointer", fontSize: "13px",
               opacity: (saving || !form.name.trim()) ? 0.6 : 1 }}>
             {saving ? "Creating…" : "Create Tier"}
@@ -384,7 +384,7 @@ function EditModal({ tier, onClose, onSaved }: {
       display: "flex", alignItems: "center", justifyContent: "center", padding: "20px" }}>
       <div style={{ background: "#fff", borderRadius: "12px", width: "100%", maxWidth: "740px",
         maxHeight: "90vh", overflow: "auto", boxShadow: "0 20px 60px rgba(0,0,0,.2)" }}>
-        <div style={{ padding: "20px 24px", borderBottom: "1px solid #E2E0DA", display: "flex",
+        <div style={{ padding: "20px 24px", borderBottom: "1px solid #E3E3E3", display: "flex",
           justifyContent: "space-between", alignItems: "center", position: "sticky", top: 0, background: "#fff", zIndex: 1 }}>
           <h2 style={{ fontFamily: "var(--font-bebas)", fontSize: "22px", color: "#2A2830", letterSpacing: ".04em", margin: 0 }}>
             EDIT — {tier.name.toUpperCase()}
@@ -402,15 +402,15 @@ function EditModal({ tier, onClose, onSaved }: {
           <TierFormFields form={form} setForm={setForm} tierId={tier.id} />
         </div>
 
-        <div style={{ padding: "16px 24px", borderTop: "1px solid #E2E0DA", display: "flex",
+        <div style={{ padding: "16px 24px", borderTop: "1px solid #E3E3E3", display: "flex",
           gap: "10px", justifyContent: "flex-end", position: "sticky", bottom: 0, background: "#fff" }}>
           <button onClick={onClose}
-            style={{ padding: "10px 20px", border: "1px solid #E2E0DA", borderRadius: "8px",
+            style={{ padding: "10px 20px", border: "1px solid #E3E3E3", borderRadius: "8px",
               background: "#fff", fontSize: "13px", fontWeight: 600, cursor: "pointer" }}>
             Cancel
           </button>
           <button onClick={handleSave} disabled={saving || !form.name.trim()}
-            style={{ padding: "10px 24px", background: "#1A5CFF", color: "#fff", border: "none",
+            style={{ padding: "10px 24px", background: "#1A1A1A", color: "#fff", border: "none",
               borderRadius: "8px", fontWeight: 700, cursor: "pointer", fontSize: "13px",
               opacity: (saving || !form.name.trim()) ? 0.6 : 1 }}>
             {saving ? "Saving…" : "Save Changes"}
@@ -438,12 +438,12 @@ function TierCard({ tier, onEdit, onDelete }: {
   );
 
   return (
-    <div style={{ background: "#fff", border: "1px solid #E2E0DA", borderRadius: "10px",
+    <div style={{ background: "#fff", border: "1px solid #E3E3E3", borderRadius: "10px",
       overflow: "hidden", marginBottom: "10px" }}>
       {/* Header row */}
       <div style={{ padding: "16px 20px", display: "flex", alignItems: "center", gap: "12px",
         cursor: "pointer", background: expanded ? "#FAFAFA" : "#fff",
-        borderBottom: expanded ? "1px solid #E2E0DA" : "none" }}
+        borderBottom: expanded ? "1px solid #E3E3E3" : "none" }}
         onClick={() => setExpanded(v => !v)}>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
@@ -454,13 +454,13 @@ function TierCard({ tier, onEdit, onDelete }: {
             </span>
             {tier.cutoff_time && (
               <span style={{ fontSize: "11px", color: "#7A7880", background: "#F6F6F7",
-                padding: "2px 8px", borderRadius: "4px" }}>
+                padding: "2px 8px", borderRadius: "6px" }}>
                 ⏰ Cutoff {tier.cutoff_time}
               </span>
             )}
             {!tier.is_active && (
               <span style={{ fontSize: "11px", fontWeight: 700, color: "#E8242A",
-                background: "rgba(232,36,42,.08)", padding: "2px 8px", borderRadius: "4px" }}>Inactive</span>
+                background: "rgba(232,36,42,.08)", padding: "2px 8px", borderRadius: "6px" }}>Inactive</span>
             )}
           </div>
           {tier.description && (
@@ -533,12 +533,12 @@ function TierCard({ tier, onEdit, onDelete }: {
                 onDelete();
               }}
               style={{ padding: "8px 16px", background: "rgba(232,36,42,.06)", color: "#E8242A",
-                border: "1px solid #FECACA", borderRadius: "7px", fontSize: "12px", fontWeight: 700, cursor: "pointer" }}>
+                border: "1px solid #FECACA", borderRadius: "8px", fontSize: "12px", fontWeight: 700, cursor: "pointer" }}>
               Delete
             </button>
             <button onClick={onEdit}
-              style={{ padding: "8px 20px", background: "#1A5CFF", color: "#fff", border: "none",
-                borderRadius: "7px", fontSize: "13px", fontWeight: 700, cursor: "pointer" }}>
+              style={{ padding: "8px 20px", background: "#1A1A1A", color: "#fff", border: "none",
+                borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: "pointer" }}>
               Edit
             </button>
           </div>
@@ -591,19 +591,19 @@ export default function ShippingTiersPage() {
         </div>
         <button
           onClick={() => setShowCreate(true)}
-          style={{ padding: "11px 22px", background: "#1A5CFF", color: "#fff", border: "none",
+          style={{ padding: "11px 22px", background: "#1A1A1A", color: "#fff", border: "none",
             borderRadius: "8px", fontWeight: 700, cursor: "pointer", fontSize: "14px" }}>
           + New Tier
         </button>
       </div>
 
       {/* Info banner */}
-      <div style={{ background: "rgba(26,92,255,.04)", border: "1px solid rgba(26,92,255,.15)", borderRadius: "8px",
+      <div style={{ background: "rgba(26,26,26,.04)", border: "1px solid rgba(26,26,26,.15)", borderRadius: "8px",
         padding: "14px 18px", marginBottom: "20px", fontSize: "13px", color: "#2A2830", lineHeight: 1.7 }}>
         <strong>How tiers work:</strong> Each company is assigned a shipping tier.
         When an order is placed, the cost is automatically calculated from the tier's brackets.
         <br />
-        <span style={{ color: "#1A5CFF", fontWeight: 600 }}>📦 Per Unit Count</span> — cost based on total pieces in the order.{" "}
+        <span style={{ color: "#005BD3", fontWeight: 600 }}>📦 Per Unit Count</span> — cost based on total pieces in the order.{" "}
         <span style={{ color: "#059669", fontWeight: 600 }}>💰 Per Order Value</span> — cost based on order dollar total.
         Set cost to <strong>$0.00</strong> on a bracket for free shipping above a threshold.
       </div>
@@ -630,7 +630,7 @@ export default function ShippingTiersPage() {
         </div>
       ) : tiers.length === 0 ? (
         <div style={{ padding: "64px", textAlign: "center", background: "#fff",
-          border: "1px solid #E2E0DA", borderRadius: "10px" }}>
+          border: "1px solid #E3E3E3", borderRadius: "10px" }}>
           <div style={{ fontSize: "40px", marginBottom: "12px" }}>🚚</div>
           <div style={{ fontSize: "16px", fontWeight: 700, color: "#2A2830", marginBottom: "6px" }}>
             No shipping tiers yet
@@ -639,7 +639,7 @@ export default function ShippingTiersPage() {
             Click <strong>"+ New Tier"</strong> to create your first shipping tier.
           </div>
           <button onClick={() => setShowCreate(true)}
-            style={{ padding: "11px 24px", background: "#1A5CFF", color: "#fff", border: "none",
+            style={{ padding: "11px 24px", background: "#1A1A1A", color: "#fff", border: "none",
               borderRadius: "8px", fontWeight: 700, cursor: "pointer", fontSize: "13px" }}>
             + New Tier
           </button>

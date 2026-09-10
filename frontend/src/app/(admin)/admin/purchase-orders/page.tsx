@@ -72,7 +72,7 @@ export default function PurchaseOrdersPage() {
           { label: "Pending / In Progress", value: pending.toString() },
           { label: "Total Value", value: fmt(totalValue) },
         ].map(card => (
-          <div key={card.label} style={{ background: "#fff", border: "1px solid #E5E7EB", borderRadius: "10px", padding: "20px" }}>
+          <div key={card.label} style={{ background: "#fff", border: "1px solid #E3E3E3", borderRadius: "10px", padding: "20px" }}>
             <div style={{ fontSize: "12px", color: "#6B7280", marginBottom: "6px", textTransform: "uppercase", letterSpacing: ".07em" }}>{card.label}</div>
             <div style={{ fontSize: "24px", fontWeight: 700, color: "#1B3A5C" }}>{card.value}</div>
           </div>
@@ -80,10 +80,10 @@ export default function PurchaseOrdersPage() {
       </div>
 
       {/* Table */}
-      <div style={{ background: "#fff", border: "1px solid #E5E7EB", borderRadius: "10px", overflow: "hidden" }}>
+      <div style={{ background: "#fff", border: "1px solid #E3E3E3", borderRadius: "10px", overflow: "hidden" }}>
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
-            <tr style={{ background: "#F9FAFB", borderBottom: "1px solid #E5E7EB" }}>
+            <tr style={{ background: "#F9FAFB", borderBottom: "1px solid #E3E3E3" }}>
               {["PO NUMBER", "MANUFACTURER", "DATE", "EXP. DELIVERY", "ITEMS", "TOTAL", "STATUS", ""].map(h => (
                 <th key={h} style={{ padding: "12px 16px", textAlign: "left", fontSize: "11px", fontWeight: 700, color: "#6B7280", letterSpacing: ".07em" }}>{h}</th>
               ))}
@@ -91,9 +91,9 @@ export default function PurchaseOrdersPage() {
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={8} style={{ padding: "40px", textAlign: "center", color: "#9CA3AF" }}>Loading…</td></tr>
+              <tr><td colSpan={8} style={{ padding: "40px", textAlign: "center", color: "#9CA3AF" }}><div className="at-skel" style={{ height: "14px", width: "60%", margin: "0 auto" }} /></td></tr>
             ) : pos.length === 0 ? (
-              <tr><td colSpan={8} style={{ padding: "40px", textAlign: "center", color: "#9CA3AF" }}>No purchase orders yet. <Link href="/admin/purchase-orders/create" style={{ color: "#1A5CFF" }}>Create one →</Link></td></tr>
+              <tr><td colSpan={8} style={{ padding: "40px", textAlign: "center", color: "#9CA3AF" }}>No purchase orders yet. <Link href="/admin/purchase-orders/create" style={{ color: "#005BD3" }}>Create one →</Link></td></tr>
             ) : pos.map(po => {
               const sc = STATUS_COLORS[po.status] ?? STATUS_COLORS.draft!;
               return (
@@ -114,7 +114,7 @@ export default function PurchaseOrdersPage() {
                     </span>
                   </td>
                   <td style={{ padding: "14px 16px" }}>
-                    <Link href={`/admin/purchase-orders/${po.id}`} style={{ fontSize: "12px", color: "#1A5CFF", textDecoration: "none", fontWeight: 600 }} onClick={e => e.stopPropagation()}>
+                    <Link href={`/admin/purchase-orders/${po.id}`} style={{ fontSize: "12px", color: "#005BD3", textDecoration: "none", fontWeight: 600 }} onClick={e => e.stopPropagation()}>
                       View →
                     </Link>
                   </td>

@@ -14,10 +14,10 @@ const thStyle: React.CSSProperties = {
 };
 const bulkBtnStyle: React.CSSProperties = {
   background: "rgba(255,255,255,.15)", color: "#fff", border: "1px solid rgba(255,255,255,.3)",
-  padding: "5px 12px", borderRadius: "5px", fontSize: "12px", fontWeight: 600, cursor: "pointer",
+  padding: "5px 12px", borderRadius: "6px", fontSize: "12px", fontWeight: 600, cursor: "pointer",
 };
 const pageBtn: React.CSSProperties = {
-  padding: "6px 12px", border: "1px solid #E2E0DA", borderRadius: "6px",
+  padding: "6px 12px", border: "1px solid #E3E3E3", borderRadius: "6px",
   background: "#fff", fontSize: "13px", fontWeight: 600, cursor: "pointer",
 };
 
@@ -158,7 +158,7 @@ export default function AdminProductsPage() {
             placeholder="Search products..."
             value={search}
             onChange={e => setSearch(e.target.value)}
-            style={{ width: "100%", padding: "10px 12px 10px 36px", border: "1.5px solid #E2E0DA", borderRadius: "8px", fontSize: "14px", fontFamily: "var(--font-jakarta)", boxSizing: "border-box", outline: "none" }}
+            style={{ width: "100%", padding: "10px 12px 10px 36px", border: "1.5px solid #E3E3E3", borderRadius: "8px", fontSize: "14px", fontFamily: "var(--font-jakarta)", boxSizing: "border-box", outline: "none" }}
           />
         </div>
 
@@ -166,7 +166,7 @@ export default function AdminProductsPage() {
         <select
           value={statusFilter}
           onChange={e => setStatusFilter(e.target.value)}
-          style={{ padding: "10px 14px", border: "1.5px solid #E2E0DA", borderRadius: "8px", fontSize: "13px", fontFamily: "var(--font-jakarta)", background: "#fff", cursor: "pointer" }}
+          style={{ padding: "10px 14px", border: "1.5px solid #E3E3E3", borderRadius: "8px", fontSize: "13px", fontFamily: "var(--font-jakarta)", background: "#fff", cursor: "pointer" }}
         >
           <option value="">Status</option>
           <option value="active">Active</option>
@@ -177,19 +177,19 @@ export default function AdminProductsPage() {
         <div style={{ marginLeft: "auto", display: "flex", gap: "8px" }}>
           <button
             onClick={() => setShowImport(true)}
-            style={{ padding: "10px 16px", border: "1px solid #E2E0DA", borderRadius: "8px", background: "#fff", fontSize: "13px", fontWeight: 600, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "6px" }}
+            style={{ padding: "10px 16px", border: "1px solid #E3E3E3", borderRadius: "8px", background: "#fff", fontSize: "13px", fontWeight: 600, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "6px" }}
           >
             <DownloadIcon size={14} color="#2A2830" /> Import
           </button>
           <button
             onClick={() => adminService.exportProductsCsv()}
-            style={{ padding: "10px 16px", border: "1px solid #E2E0DA", borderRadius: "8px", background: "#fff", fontSize: "13px", fontWeight: 600, cursor: "pointer" }}
+            style={{ padding: "10px 16px", border: "1px solid #E3E3E3", borderRadius: "8px", background: "#fff", fontSize: "13px", fontWeight: 600, cursor: "pointer" }}
           >
             ↓ Export
           </button>
           <button
             onClick={() => router.push("/admin/products/new")}
-            style={{ padding: "10px 20px", background: "#1A5CFF", color: "#fff", border: "none", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: "pointer" }}
+            style={{ padding: "10px 20px", background: "#1A1A1A", color: "#fff", border: "none", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: "pointer" }}
           >
             + Add Product
           </button>
@@ -198,7 +198,7 @@ export default function AdminProductsPage() {
 
       {/* Bulk Toolbar */}
       {selectedIds.length > 0 && (
-        <div style={{ background: "#1A5CFF", color: "#fff", padding: "10px 16px", borderRadius: "8px", marginBottom: "12px", display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
+        <div style={{ background: "#1A1A1A", color: "#fff", padding: "10px 16px", borderRadius: "8px", marginBottom: "12px", display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
           <span style={{ fontWeight: 700, marginRight: "4px" }}>{selectedIds.length} selected</span>
           <button onClick={() => handleBulkAction("active")} style={bulkBtnStyle}>Set Active</button>
           <button onClick={() => handleBulkAction("draft")} style={bulkBtnStyle}>Set Draft</button>
@@ -225,10 +225,10 @@ export default function AdminProductsPage() {
       )}
 
       {/* Table */}
-      <div style={{ background: "#fff", border: "1px solid #E2E0DA", borderRadius: "10px", overflow: "hidden" }}>
+      <div style={{ background: "#fff", border: "1px solid #E3E3E3", borderRadius: "10px", overflow: "hidden" }}>
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
-            <tr style={{ background: "#F6F6F7", borderBottom: "2px solid #E2E0DA" }}>
+            <tr style={{ background: "#F6F6F7", borderBottom: "2px solid #E3E3E3" }}>
               <th style={{ width: "40px", padding: "12px 16px" }}>
                 <input
                   type="checkbox"
@@ -244,13 +244,13 @@ export default function AdminProductsPage() {
           </thead>
           <tbody>
             {isLoading && products.length === 0 ? (
-              <tr><td colSpan={9} style={{ padding: "48px", textAlign: "center", color: "#aaa", fontSize: "14px" }}>Loading…</td></tr>
+              <tr><td colSpan={9} style={{ padding: "48px", textAlign: "center", color: "#aaa", fontSize: "14px" }}><div className="at-skel" style={{ height: "14px", width: "60%", margin: "0 auto" }} /></td></tr>
             ) : loadError ? (
               <tr>
                 <td colSpan={9} style={{ padding: "48px", textAlign: "center" }}>
                   <div style={{ fontSize: "14px", color: "#E8242A", fontWeight: 600, marginBottom: "8px" }}>Failed to load products</div>
                   <div style={{ fontSize: "12px", color: "#aaa", marginBottom: "16px", maxWidth: "480px", margin: "0 auto 16px" }}>{loadError}</div>
-                  <button onClick={() => load()} style={{ padding: "8px 20px", background: "#1A5CFF", color: "#fff", border: "none", borderRadius: "6px", cursor: "pointer", fontWeight: 600, fontSize: "13px" }}>Retry</button>
+                  <button onClick={() => load()} style={{ padding: "8px 20px", background: "#1A1A1A", color: "#fff", border: "none", borderRadius: "6px", cursor: "pointer", fontWeight: 600, fontSize: "13px" }}>Retry</button>
                 </td>
               </tr>
             ) : products.length === 0 ? (
@@ -281,7 +281,7 @@ export default function AdminProductsPage() {
 
                 {/* Image */}
                 <td style={{ padding: "10px 16px" }} onClick={() => router.push(`/admin/products/${product.slug}/edit`)}>
-                  <div style={{ width: "48px", height: "48px", borderRadius: "8px", overflow: "hidden", background: "linear-gradient(135deg,#f0ede8,#e8e4df)", display: "flex", alignItems: "center", justifyContent: "center", border: "1px solid #E2E0DA", flexShrink: 0 }}>
+                  <div style={{ width: "48px", height: "48px", borderRadius: "8px", overflow: "hidden", background: "linear-gradient(135deg,#f0ede8,#e8e4df)", display: "flex", alignItems: "center", justifyContent: "center", border: "1px solid #E3E3E3", flexShrink: 0 }}>
                     {product.images?.[0] ? (
                       <img src={product.images[0].url_thumbnail} alt={product.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                     ) : (
@@ -332,7 +332,7 @@ export default function AdminProductsPage() {
         </table>
 
         {/* Pagination */}
-        <div style={{ padding: "14px 20px", borderTop: "1px solid #E2E0DA", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div style={{ padding: "14px 20px", borderTop: "1px solid #E3E3E3", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <span style={{ fontSize: "13px", color: "#7A7880" }}>{products.length} products</span>
           <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
             <button disabled={page === 1} onClick={() => setPage(p => p - 1)} style={{ ...pageBtn, opacity: page === 1 ? 0.4 : 1 }}>← Prev</button>
@@ -354,7 +354,7 @@ export default function AdminProductsPage() {
       {showBulkEdit && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center" }}>
           <div style={{ background: "#fff", borderRadius: "12px", width: "90%", maxWidth: "960px", maxHeight: "80vh", overflow: "auto", boxShadow: "0 20px 60px rgba(0,0,0,.2)" }}>
-            <div style={{ padding: "20px 24px", borderBottom: "1px solid #E2E0DA", display: "flex", justifyContent: "space-between", alignItems: "center", position: "sticky", top: 0, background: "#fff", zIndex: 1 }}>
+            <div style={{ padding: "20px 24px", borderBottom: "1px solid #E3E3E3", display: "flex", justifyContent: "space-between", alignItems: "center", position: "sticky", top: 0, background: "#fff", zIndex: 1 }}>
               <h2 style={{ fontFamily: "var(--font-bebas)", fontSize: "24px", color: "#2A2830", letterSpacing: ".04em" }}>
                 BULK EDIT — {selectedIds.length} PRODUCTS
               </h2>
@@ -367,7 +367,7 @@ export default function AdminProductsPage() {
               </p>
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
                 <thead>
-                  <tr style={{ background: "#F6F6F7", borderBottom: "2px solid #E2E0DA" }}>
+                  <tr style={{ background: "#F6F6F7", borderBottom: "2px solid #E3E3E3" }}>
                     {["Product", "Status", "Vendor", "Type"].map(h => (
                       <th key={h} style={thStyle}>{h}</th>
                     ))}
@@ -401,7 +401,7 @@ export default function AdminProductsPage() {
                         <select
                           value={bulkEdits[p.id]?.status ?? p.status}
                           onChange={e => setBulkEdit(p.id, "status", e.target.value)}
-                          style={{ padding: "6px 10px", border: "1px solid #E2E0DA", borderRadius: "5px", fontSize: "12px" }}
+                          style={{ padding: "6px 10px", border: "1px solid #E3E3E3", borderRadius: "6px", fontSize: "12px" }}
                         >
                           <option value="active">Active</option>
                           <option value="draft">Draft</option>
@@ -413,7 +413,7 @@ export default function AdminProductsPage() {
                           value={bulkEdits[p.id]?.vendor ?? (p.vendor ?? "")}
                           onChange={e => setBulkEdit(p.id, "vendor", e.target.value)}
                           placeholder="Vendor"
-                          style={{ padding: "6px 8px", border: "1px solid #E2E0DA", borderRadius: "5px", fontSize: "12px", width: "120px" }}
+                          style={{ padding: "6px 8px", border: "1px solid #E3E3E3", borderRadius: "6px", fontSize: "12px", width: "120px" }}
                         />
                       </td>
                       <td style={{ padding: "10px 12px" }}>
@@ -421,7 +421,7 @@ export default function AdminProductsPage() {
                           value={bulkEdits[p.id]?.product_type ?? (p.product_type ?? "")}
                           onChange={e => setBulkEdit(p.id, "product_type", e.target.value)}
                           placeholder="Type"
-                          style={{ padding: "6px 8px", border: "1px solid #E2E0DA", borderRadius: "5px", fontSize: "12px", width: "120px" }}
+                          style={{ padding: "6px 8px", border: "1px solid #E3E3E3", borderRadius: "6px", fontSize: "12px", width: "120px" }}
                         />
                       </td>
                     </tr>
@@ -430,16 +430,16 @@ export default function AdminProductsPage() {
               </table>
             </div>
 
-            <div style={{ padding: "16px 24px", borderTop: "1px solid #E2E0DA", display: "flex", gap: "10px", justifyContent: "flex-end", position: "sticky", bottom: 0, background: "#fff" }}>
+            <div style={{ padding: "16px 24px", borderTop: "1px solid #E3E3E3", display: "flex", gap: "10px", justifyContent: "flex-end", position: "sticky", bottom: 0, background: "#fff" }}>
               <button
                 onClick={() => setShowBulkEdit(false)}
-                style={{ padding: "10px 20px", border: "1px solid #E2E0DA", borderRadius: "6px", background: "#fff", cursor: "pointer", fontWeight: 600, fontSize: "13px" }}
+                style={{ padding: "10px 20px", border: "1px solid #E3E3E3", borderRadius: "6px", background: "#fff", cursor: "pointer", fontWeight: 600, fontSize: "13px" }}
               >
                 Cancel
               </button>
               <button
                 onClick={handleBulkSave}
-                style={{ padding: "10px 20px", background: "#1A5CFF", color: "#fff", border: "none", borderRadius: "6px", cursor: "pointer", fontWeight: 700, fontSize: "13px" }}
+                style={{ padding: "10px 20px", background: "#1A1A1A", color: "#fff", border: "none", borderRadius: "6px", cursor: "pointer", fontWeight: 700, fontSize: "13px" }}
               >
                 Save Changes
               </button>

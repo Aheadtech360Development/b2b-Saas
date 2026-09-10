@@ -5,7 +5,7 @@ import Link from "next/link";
 import { rolesService, type CustomRole, type ScopeCatalog } from "@/services/roles.service";
 
 const CARD: React.CSSProperties = { background: "#fff", border: "1px solid #E8E6E1", borderRadius: "10px", padding: "20px" };
-const BTN: React.CSSProperties = { border: "none", color: "#fff", padding: "9px 16px", borderRadius: "7px", fontSize: "13px", fontWeight: 700, cursor: "pointer" };
+const BTN: React.CSSProperties = { border: "none", color: "#fff", padding: "9px 16px", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: "pointer" };
 
 const BLANK = { id: "", name: "", scopes: [] as string[], read_only: false };
 
@@ -47,7 +47,7 @@ export default function RolesPage() {
           <p style={{ fontSize: "13px", color: "#6B6B6B", marginTop: "4px" }}>Create custom roles with exactly the access a team member needs — e.g. a sales rep who sees orders but not pricing.</p>
         </div>
         <div style={{ display: "flex", gap: "8px" }}>
-          <Link href="/admin/users" style={{ ...BTN, background: "#fff", color: "#555", border: "1px solid #DDD9D2", textDecoration: "none" }}>← Users</Link>
+          <Link href="/admin/users" style={{ ...BTN, background: "#fff", color: "#555", border: "1px solid #E3E3E3", textDecoration: "none" }}>← Users</Link>
           <button onClick={() => setEditing({ ...BLANK })} style={{ ...BTN, background: "var(--brand-primary, #1C3557)" }}>＋ New role</button>
         </div>
       </div>
@@ -96,12 +96,12 @@ export default function RolesPage() {
           <div onClick={(e) => e.stopPropagation()} style={{ ...CARD, width: "100%", maxWidth: "480px", maxHeight: "88vh", overflowY: "auto" }}>
             <h2 style={{ fontSize: "17px", fontWeight: 800, marginBottom: "14px" }}>{editing.id ? "Edit role" : "New role"}</h2>
             <label style={{ fontSize: "11px", fontWeight: 700, color: "#6B6B6B", textTransform: "uppercase" }}>Role name</label>
-            <input value={editing.name} onChange={(e) => setEditing({ ...editing, name: e.target.value })} placeholder="e.g. Sales rep" style={{ width: "100%", boxSizing: "border-box", padding: "9px 11px", border: "1px solid #DDD9D2", borderRadius: "6px", fontSize: "14px", margin: "5px 0 16px" }} />
+            <input value={editing.name} onChange={(e) => setEditing({ ...editing, name: e.target.value })} placeholder="e.g. Sales rep" style={{ width: "100%", boxSizing: "border-box", padding: "9px 11px", border: "1px solid #E3E3E3", borderRadius: "6px", fontSize: "14px", margin: "5px 0 16px" }} />
 
             <div style={{ fontSize: "11px", fontWeight: 700, color: "#6B6B6B", textTransform: "uppercase", marginBottom: "8px" }}>Sections this role can access</div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
               {catalog.scopes.map((s) => (
-                <label key={s.key} style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "13px", border: "1px solid #EFEDE8", borderRadius: "7px", padding: "8px 10px", cursor: "pointer", background: editing.scopes.includes(s.key) ? "#F4F6FB" : "#fff" }}>
+                <label key={s.key} style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "13px", border: "1px solid #EFEDE8", borderRadius: "8px", padding: "8px 10px", cursor: "pointer", background: editing.scopes.includes(s.key) ? "#F4F6FB" : "#fff" }}>
                   <input type="checkbox" checked={editing.scopes.includes(s.key)} onChange={() => toggleScope(s.key)} />
                   {s.label}
                 </label>
@@ -113,11 +113,11 @@ export default function RolesPage() {
               Read-only (can view its sections but not make changes)
             </label>
 
-            {error && <div style={{ background: "#FEF2F2", border: "1px solid #FCA5A5", color: "#B91C1C", padding: "9px 11px", borderRadius: "7px", fontSize: "13px", marginTop: "12px" }}>{error}</div>}
+            {error && <div style={{ background: "#FEF2F2", border: "1px solid #FCA5A5", color: "#B91C1C", padding: "9px 11px", borderRadius: "8px", fontSize: "13px", marginTop: "12px" }}>{error}</div>}
 
             <div style={{ display: "flex", gap: "10px", marginTop: "16px" }}>
               <button onClick={save} disabled={saving} style={{ ...BTN, background: saving ? "#9ca3af" : "var(--brand-primary, #1C3557)" }}>{saving ? "Saving…" : "Save role"}</button>
-              <button onClick={() => setEditing(null)} style={{ ...BTN, background: "#fff", color: "#555", border: "1px solid #DDD9D2" }}>Cancel</button>
+              <button onClick={() => setEditing(null)} style={{ ...BTN, background: "#fff", color: "#555", border: "1px solid #E3E3E3" }}>Cancel</button>
             </div>
           </div>
         </div>

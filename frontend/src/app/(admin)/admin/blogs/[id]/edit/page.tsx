@@ -12,11 +12,11 @@ const labelSt: React.CSSProperties = {
   letterSpacing: ".08em", color: "#7A7880", marginBottom: "6px", display: "block",
 };
 const inputSt: React.CSSProperties = {
-  width: "100%", padding: "10px 14px", border: "1.5px solid #E2E0DA", borderRadius: "8px",
+  width: "100%", padding: "10px 14px", border: "1.5px solid #E3E3E3", borderRadius: "8px",
   fontSize: "14px", fontFamily: "var(--font-jakarta)", outline: "none", boxSizing: "border-box",
 };
 const cardSt: React.CSSProperties = {
-  background: "#fff", border: "1px solid #E2E0DA", borderRadius: "10px", padding: "24px", marginBottom: "16px",
+  background: "#fff", border: "1px solid #E3E3E3", borderRadius: "10px", padding: "24px", marginBottom: "16px",
 };
 const sectionTitle: React.CSSProperties = {
   fontFamily: "var(--font-bebas)", fontSize: "15px", letterSpacing: ".08em", color: "#2A2830", marginBottom: "16px",
@@ -178,7 +178,7 @@ export default function AdminBlogEditPage() {
 
   const keywordList = keywords ? keywords.split(",").map(k => k.trim()).filter(Boolean) : [];
 
-  if (loading) return <div style={{ padding: "32px", color: "#7A7880", fontSize: "14px" }}>Loading…</div>;
+  if (loading) return <div style={{ padding: "26px" }}>{[70, 92, 58, 84].map((w, i) => (<div key={i} className="at-skel" style={{ height: "14px", width: `${w}%`, marginBottom: "12px" }} />))}</div>;
 
   return (
     <div style={{ padding: "32px", maxWidth: "900px" }}>
@@ -229,12 +229,12 @@ export default function AdminBlogEditPage() {
           <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
             <input value={coverUrl} onChange={e => setCoverUrl(e.target.value)} placeholder="Image URL" style={{ ...inputSt, flex: 1 }} />
             <button type="button" onClick={() => coverRef.current?.click()}
-              style={{ background: "#F6F6F7", border: "1.5px solid #E2E0DA", borderRadius: "8px", padding: "10px 14px", fontSize: "13px", fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap", color: "#2A2830" }}>
+              style={{ background: "#F6F6F7", border: "1.5px solid #E3E3E3", borderRadius: "8px", padding: "10px 14px", fontSize: "13px", fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap", color: "#2A2830" }}>
               {uploadingCover ? "…" : "Upload"}
             </button>
             <input ref={coverRef} type="file" accept="image/*" style={{ display: "none" }} onChange={handleCoverUpload} />
           </div>
-          {coverUrl && <img src={coverUrl} alt="Cover" style={{ marginTop: "8px", maxHeight: "140px", borderRadius: "6px", border: "1px solid #E2E0DA" }} />}
+          {coverUrl && <img src={coverUrl} alt="Cover" style={{ marginTop: "8px", maxHeight: "140px", borderRadius: "6px", border: "1px solid #E3E3E3" }} />}
         </div>
 
         <div className="checkout-form-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "16px", marginBottom: "16px" }}>
@@ -267,9 +267,9 @@ export default function AdminBlogEditPage() {
           <label style={labelSt}>Tags / Keywords</label>
           <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginBottom: "8px" }}>
             {tags.map(tag => (
-              <span key={tag} style={{ display: "inline-flex", alignItems: "center", gap: "5px", background: "rgba(26,92,255,.08)", color: "#1A5CFF", padding: "3px 10px", borderRadius: "20px", fontSize: "12px", fontWeight: 600 }}>
+              <span key={tag} style={{ display: "inline-flex", alignItems: "center", gap: "5px", background: "rgba(26,26,26,.08)", color: "#005BD3", padding: "3px 10px", borderRadius: "20px", fontSize: "12px", fontWeight: 600 }}>
                 {tag}
-                <button type="button" onClick={() => removeTag(tag)} style={{ background: "none", border: "none", color: "#1A5CFF", cursor: "pointer", padding: 0, fontSize: "13px" }}>×</button>
+                <button type="button" onClick={() => removeTag(tag)} style={{ background: "none", border: "none", color: "#005BD3", cursor: "pointer", padding: 0, fontSize: "13px" }}>×</button>
               </span>
             ))}
           </div>
@@ -297,13 +297,13 @@ export default function AdminBlogEditPage() {
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
           <span style={sectionTitle}>FAQ SECTION</span>
           <button type="button" onClick={addFaq}
-            style={{ background: "#1B3A5C", color: "#fff", border: "none", borderRadius: "7px", padding: "7px 14px", fontSize: "12px", fontWeight: 700, cursor: "pointer" }}>
+            style={{ background: "#1B3A5C", color: "#fff", border: "none", borderRadius: "8px", padding: "7px 14px", fontSize: "12px", fontWeight: 700, cursor: "pointer" }}>
             + Add FAQ
           </button>
         </div>
         {faqs.length === 0 && <p style={{ fontSize: "13px", color: "#bbb", textAlign: "center", padding: "16px 0" }}>No FAQ items yet.</p>}
         {faqs.map((faq, i) => (
-          <div key={i} style={{ border: "1px solid #E2E0DA", borderRadius: "8px", padding: "14px", marginBottom: "10px" }}>
+          <div key={i} style={{ border: "1px solid #E3E3E3", borderRadius: "8px", padding: "14px", marginBottom: "10px" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
               <span style={{ fontSize: "12px", fontWeight: 700, color: "#7A7880" }}>FAQ #{i + 1}</span>
               <button type="button" onClick={() => removeFaq(i)}
@@ -362,12 +362,12 @@ export default function AdminBlogEditPage() {
           <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
             <input value={ogImageUrl} onChange={e => setOgImageUrl(e.target.value)} placeholder="URL or upload" style={{ ...inputSt, flex: 1 }} />
             <button type="button" onClick={() => ogRef.current?.click()}
-              style={{ background: "#F6F6F7", border: "1.5px solid #E2E0DA", borderRadius: "8px", padding: "10px 14px", fontSize: "13px", fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap", color: "#2A2830" }}>
+              style={{ background: "#F6F6F7", border: "1.5px solid #E3E3E3", borderRadius: "8px", padding: "10px 14px", fontSize: "13px", fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap", color: "#2A2830" }}>
               {uploadingOg ? "…" : "Upload"}
             </button>
             <input ref={ogRef} type="file" accept="image/*" style={{ display: "none" }} onChange={handleOgUpload} />
           </div>
-          {ogImageUrl && <img src={ogImageUrl} alt="OG" style={{ marginTop: "8px", maxHeight: "100px", borderRadius: "6px", border: "1px solid #E2E0DA" }} />}
+          {ogImageUrl && <img src={ogImageUrl} alt="OG" style={{ marginTop: "8px", maxHeight: "100px", borderRadius: "6px", border: "1px solid #E3E3E3" }} />}
         </div>
       </div>
 

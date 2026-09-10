@@ -14,7 +14,7 @@ const RichTextEditor = dynamic(
   {
     ssr: false,
     loading: () => (
-      <div style={{ border: "1.5px solid #E2E0DA", borderRadius: "8px", padding: "14px 16px", minHeight: "160px", color: "#aaa", fontSize: "14px" }}>
+      <div style={{ border: "1.5px solid #E3E3E3", borderRadius: "8px", padding: "14px 16px", minHeight: "160px", color: "#aaa", fontSize: "14px" }}>
         Loading editor…
       </div>
     ),
@@ -29,11 +29,11 @@ const labelStyle: React.CSSProperties = {
   letterSpacing: ".08em", color: "#7A7880", marginBottom: "6px", display: "block",
 };
 const inputStyle: React.CSSProperties = {
-  width: "100%", padding: "10px 14px", border: "1.5px solid #E2E0DA", borderRadius: "8px",
+  width: "100%", padding: "10px 14px", border: "1.5px solid #E3E3E3", borderRadius: "8px",
   fontSize: "14px", fontFamily: "var(--font-jakarta)", outline: "none", boxSizing: "border-box",
 };
 const sectionCard: React.CSSProperties = {
-  background: "#fff", border: "1px solid #E2E0DA", borderRadius: "10px",
+  background: "#fff", border: "1px solid #E3E3E3", borderRadius: "10px",
   padding: "24px", marginBottom: "16px",
 };
 const sectionTitle: React.CSSProperties = {
@@ -457,13 +457,13 @@ export default function AdminProductEditPage() {
         <div style={{ marginTop: "16px", display: "flex", gap: "10px", justifyContent: "center" }}>
           <button
             onClick={() => load()}
-            style={{ padding: "10px 20px", background: "#F6F6F7", color: "#2A2830", border: "1px solid #E2E0DA", borderRadius: "8px", cursor: "pointer", fontWeight: 600 }}
+            style={{ padding: "10px 20px", background: "#F6F6F7", color: "#2A2830", border: "1px solid #E3E3E3", borderRadius: "8px", cursor: "pointer", fontWeight: 600 }}
           >
             Retry
           </button>
           <button
             onClick={() => router.push("/admin/products")}
-            style={{ padding: "10px 20px", background: "#1A5CFF", color: "#fff", border: "none", borderRadius: "8px", cursor: "pointer", fontWeight: 600 }}
+            style={{ padding: "10px 20px", background: "#1A1A1A", color: "#fff", border: "none", borderRadius: "8px", cursor: "pointer", fontWeight: 600 }}
           >
             Back to Products
           </button>
@@ -491,7 +491,7 @@ export default function AdminProductEditPage() {
           {saveMsg && <span style={{ color: "#059669", fontSize: "13px", fontWeight: 600 }}>{saveMsg}</span>}
           <button
             onClick={() => router.push(`/products/${product.slug}`)}
-            style={{ padding: "10px 14px", border: "1px solid #E2E0DA", borderRadius: "8px", background: "#fff", fontSize: "13px", cursor: "pointer", fontWeight: 600 }}
+            style={{ padding: "10px 14px", border: "1px solid #E3E3E3", borderRadius: "8px", background: "#fff", fontSize: "13px", cursor: "pointer", fontWeight: 600 }}
           >
             👁 Preview
           </button>
@@ -593,28 +593,28 @@ export default function AdminProductEditPage() {
                         {/* Images in this group */}
                         <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
                           {groupImages.map((img, groupIdx) => (
-                            <div key={img.id} style={{ display: "flex", gap: "10px", alignItems: "center", padding: "10px 12px", border: "1px solid #E2E0DA", borderRadius: "8px", background: product.images[0]?.id === img.id ? "rgba(26,92,255,.03)" : "#fff" }}>
+                            <div key={img.id} style={{ display: "flex", gap: "10px", alignItems: "center", padding: "10px 12px", border: "1px solid #E3E3E3", borderRadius: "8px", background: product.images[0]?.id === img.id ? "rgba(26,26,26,.03)" : "#fff" }}>
                               {/* Up/down sort buttons */}
                               <div style={{ display: "flex", flexDirection: "column", gap: "3px", flexShrink: 0 }}>
                                 <button type="button" onClick={() => moveImageInGroup(img.id, "up")} disabled={groupIdx === 0}
-                                  style={{ width: "24px", height: "22px", border: "1px solid #E2E0DA", borderRadius: "4px", background: groupIdx === 0 ? "#fafafa" : "#F6F6F7", cursor: groupIdx === 0 ? "default" : "pointer", color: groupIdx === 0 ? "#ccc" : "#7A7880", fontSize: "10px", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}
+                                  style={{ width: "24px", height: "22px", border: "1px solid #E3E3E3", borderRadius: "6px", background: groupIdx === 0 ? "#fafafa" : "#F6F6F7", cursor: groupIdx === 0 ? "default" : "pointer", color: groupIdx === 0 ? "#ccc" : "#7A7880", fontSize: "10px", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}
                                   title="Move up">▲</button>
                                 <button type="button" onClick={() => moveImageInGroup(img.id, "down")} disabled={groupIdx === groupImages.length - 1}
-                                  style={{ width: "24px", height: "22px", border: "1px solid #E2E0DA", borderRadius: "4px", background: groupIdx === groupImages.length - 1 ? "#fafafa" : "#F6F6F7", cursor: groupIdx === groupImages.length - 1 ? "default" : "pointer", color: groupIdx === groupImages.length - 1 ? "#ccc" : "#7A7880", fontSize: "10px", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}
+                                  style={{ width: "24px", height: "22px", border: "1px solid #E3E3E3", borderRadius: "6px", background: groupIdx === groupImages.length - 1 ? "#fafafa" : "#F6F6F7", cursor: groupIdx === groupImages.length - 1 ? "default" : "pointer", color: groupIdx === groupImages.length - 1 ? "#ccc" : "#7A7880", fontSize: "10px", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}
                                   title="Move down">▼</button>
                               </div>
                               {/* Thumbnail */}
-                              <div style={{ width: "64px", height: "64px", borderRadius: "6px", overflow: "hidden", flexShrink: 0, border: "1px solid #E2E0DA", background: "#f5f5f5" }}>
+                              <div style={{ width: "64px", height: "64px", borderRadius: "6px", overflow: "hidden", flexShrink: 0, border: "1px solid #E3E3E3", background: "#f5f5f5" }}>
                                 <img src={img.url_medium} alt={img.alt_text ?? ""} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                               </div>
                               {/* Controls */}
                               <div style={{ flex: 1, minWidth: 0 }}>
                                 <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "6px" }}>
                                   {product.images[0]?.id === img.id ? (
-                                    <span style={{ background: "#1A5CFF", color: "#fff", fontSize: "9px", fontWeight: 700, padding: "2px 8px", borderRadius: "3px" }}>★ PRIMARY</span>
+                                    <span style={{ background: "#1A1A1A", color: "#fff", fontSize: "9px", fontWeight: 700, padding: "2px 8px", borderRadius: "3px" }}>★ PRIMARY</span>
                                   ) : (
                                     <button onClick={() => handleSetPrimary(img.id)}
-                                      style={{ background: "#F6F6F7", border: "1px solid #E2E0DA", color: "#7A7880", fontSize: "10px", fontWeight: 700, padding: "2px 8px", borderRadius: "3px", cursor: "pointer" }}
+                                      style={{ background: "#F6F6F7", border: "1px solid #E3E3E3", color: "#7A7880", fontSize: "10px", fontWeight: 700, padding: "2px 8px", borderRadius: "3px", cursor: "pointer" }}
                                     >☆ Set Primary</button>
                                   )}
                                 </div>
@@ -623,14 +623,14 @@ export default function AdminProductEditPage() {
                                   <label style={{ fontSize: "11px", color: "#7A7880", whiteSpace: "nowrap" }}>Color:</label>
                                   {variantColors.length > 0 ? (
                                     <select value={img.alt_text ?? ""} onChange={e => handleUpdateImageColor(img.id, e.target.value)}
-                                      style={{ padding: "4px 8px", border: "1px solid #E2E0DA", borderRadius: "5px", fontSize: "12px", background: "#fff", maxWidth: "160px" }}>
+                                      style={{ padding: "4px 8px", border: "1px solid #E3E3E3", borderRadius: "6px", fontSize: "12px", background: "#fff", maxWidth: "160px" }}>
                                       <option value="">— No color —</option>
                                       {variantColors.map(c => <option key={c} value={c}>{c}</option>)}
                                     </select>
                                   ) : (
                                     <input value={img.alt_text ?? ""} onChange={e => handleUpdateImageColor(img.id, e.target.value)}
                                       placeholder="e.g. Navy (links to color tab)"
-                                      style={{ padding: "4px 8px", border: "1px solid #E2E0DA", borderRadius: "5px", fontSize: "12px", width: "180px" }} />
+                                      style={{ padding: "4px 8px", border: "1px solid #E3E3E3", borderRadius: "6px", fontSize: "12px", width: "180px" }} />
                                   )}
                                 </div>
                               </div>
@@ -651,9 +651,9 @@ export default function AdminProductEditPage() {
             {/* Upload tile */}
             <div
               onClick={() => fileInputRef.current?.click()}
-              style={{ borderRadius: "8px", border: "2px dashed #E2E0DA", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", cursor: "pointer", background: "#FAFAFA", padding: "16px", transition: "border-color .2s" }}
+              style={{ borderRadius: "8px", border: "2px dashed #E3E3E3", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", cursor: "pointer", background: "#FAFAFA", padding: "16px", transition: "border-color .2s" }}
               onMouseEnter={e => (e.currentTarget.style.borderColor = "#1A5CFF")}
-              onMouseLeave={e => (e.currentTarget.style.borderColor = "#E2E0DA")}
+              onMouseLeave={e => (e.currentTarget.style.borderColor = "#E3E3E3")}
             >
               <span style={{ fontSize: "20px", color: "#aaa" }}>+</span>
               <span style={{ fontSize: "13px", color: "#7A7880" }}>Add media</span>
@@ -676,13 +676,13 @@ export default function AdminProductEditPage() {
                 )}
                 <button
                   onClick={() => setExpandAll(v => !v)}
-                  style={{ padding: "6px 14px", border: "1px solid #E2E0DA", borderRadius: "6px", fontSize: "12px", fontWeight: 600, cursor: "pointer", background: "#fff" }}
+                  style={{ padding: "6px 14px", border: "1px solid #E3E3E3", borderRadius: "6px", fontSize: "12px", fontWeight: 600, cursor: "pointer", background: "#fff" }}
                 >
                   {expandAll ? "Collapse All" : "Expand All"}
                 </button>
                 <button
                   onClick={() => setShowAddVariant(true)}
-                  style={{ padding: "6px 14px", background: "#1A5CFF", color: "#fff", border: "none", borderRadius: "6px", fontSize: "12px", fontWeight: 700, cursor: "pointer" }}
+                  style={{ padding: "6px 14px", background: "#1A1A1A", color: "#fff", border: "none", borderRadius: "6px", fontSize: "12px", fontWeight: 700, cursor: "pointer" }}
                 >
                   + Add Variant
                 </button>
@@ -695,28 +695,28 @@ export default function AdminProductEditPage() {
                 <span style={{ fontSize: "12px", fontWeight: 700, color: "#7A7880", whiteSpace: "nowrap" }}>BULK EDIT:</span>
                 <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
                   <span style={{ fontSize: "12px", color: "#aaa" }}>Price $</span>
-                  <input type="number" placeholder="—" value={bulkApply.price} onChange={e => setBulkApply(p => ({ ...p, price: e.target.value }))} style={{ width: "72px", padding: "5px 7px", border: "1px solid #E2E0DA", borderRadius: "5px", fontSize: "12px" }} />
+                  <input type="number" placeholder="—" value={bulkApply.price} onChange={e => setBulkApply(p => ({ ...p, price: e.target.value }))} style={{ width: "72px", padding: "5px 7px", border: "1px solid #E3E3E3", borderRadius: "6px", fontSize: "12px" }} />
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
                   <span style={{ fontSize: "12px", color: "#aaa" }}>Compare $</span>
-                  <input type="number" placeholder="—" value={bulkApply.compare} onChange={e => setBulkApply(p => ({ ...p, compare: e.target.value }))} style={{ width: "72px", padding: "5px 7px", border: "1px solid #E2E0DA", borderRadius: "5px", fontSize: "12px" }} />
+                  <input type="number" placeholder="—" value={bulkApply.compare} onChange={e => setBulkApply(p => ({ ...p, compare: e.target.value }))} style={{ width: "72px", padding: "5px 7px", border: "1px solid #E3E3E3", borderRadius: "6px", fontSize: "12px" }} />
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
                   <span style={{ fontSize: "12px", color: "#aaa" }}>Cost $</span>
-                  <input type="number" placeholder="—" value={bulkApply.cost} onChange={e => setBulkApply(p => ({ ...p, cost: e.target.value }))} style={{ width: "72px", padding: "5px 7px", border: "1px solid #E2E0DA", borderRadius: "5px", fontSize: "12px" }} />
+                  <input type="number" placeholder="—" value={bulkApply.cost} onChange={e => setBulkApply(p => ({ ...p, cost: e.target.value }))} style={{ width: "72px", padding: "5px 7px", border: "1px solid #E3E3E3", borderRadius: "6px", fontSize: "12px" }} />
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
                   <span style={{ fontSize: "12px", color: "#aaa" }}>Country</span>
-                  <input type="text" placeholder="e.g. Bangladesh" value={bulkApply.origin} onChange={e => setBulkApply(p => ({ ...p, origin: e.target.value }))} style={{ width: "120px", padding: "5px 7px", border: "1px solid #E2E0DA", borderRadius: "5px", fontSize: "12px" }} />
+                  <input type="text" placeholder="e.g. Bangladesh" value={bulkApply.origin} onChange={e => setBulkApply(p => ({ ...p, origin: e.target.value }))} style={{ width: "120px", padding: "5px 7px", border: "1px solid #E3E3E3", borderRadius: "6px", fontSize: "12px" }} />
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
                   <span style={{ fontSize: "12px", color: "#aaa" }}>Stock</span>
-                  <input type="number" placeholder="—" value={bulkApply.stock} onChange={e => setBulkApply(p => ({ ...p, stock: e.target.value }))} style={{ width: "60px", padding: "5px 7px", border: "1px solid #E2E0DA", borderRadius: "5px", fontSize: "12px" }} />
+                  <input type="number" placeholder="—" value={bulkApply.stock} onChange={e => setBulkApply(p => ({ ...p, stock: e.target.value }))} style={{ width: "60px", padding: "5px 7px", border: "1px solid #E3E3E3", borderRadius: "6px", fontSize: "12px" }} />
                 </div>
                 <button
                   onClick={applyToAllVariants}
                   disabled={!bulkApply.price && !bulkApply.compare && !bulkApply.cost && !bulkApply.origin && !bulkApply.stock}
-                  style={{ padding: "5px 14px", background: "#1A5CFF", color: "#fff", border: "none", borderRadius: "5px", fontSize: "12px", fontWeight: 700, cursor: "pointer", opacity: (!bulkApply.price && !bulkApply.compare && !bulkApply.cost && !bulkApply.origin && !bulkApply.stock) ? 0.4 : 1 }}
+                  style={{ padding: "5px 14px", background: "#1A1A1A", color: "#fff", border: "none", borderRadius: "6px", fontSize: "12px", fontWeight: 700, cursor: "pointer", opacity: (!bulkApply.price && !bulkApply.compare && !bulkApply.cost && !bulkApply.origin && !bulkApply.stock) ? 0.4 : 1 }}
                 >
                   Apply to All
                 </button>
@@ -724,7 +724,7 @@ export default function AdminProductEditPage() {
                   <button
                     onClick={applyToSelectedVariants}
                     disabled={!bulkApply.price && !bulkApply.compare && !bulkApply.cost && !bulkApply.origin && !bulkApply.stock}
-                    style={{ padding: "5px 14px", background: "#059669", color: "#fff", border: "none", borderRadius: "5px", fontSize: "12px", fontWeight: 700, cursor: "pointer", opacity: (!bulkApply.price && !bulkApply.compare && !bulkApply.cost && !bulkApply.origin && !bulkApply.stock) ? 0.4 : 1 }}
+                    style={{ padding: "5px 14px", background: "#059669", color: "#fff", border: "none", borderRadius: "6px", fontSize: "12px", fontWeight: 700, cursor: "pointer", opacity: (!bulkApply.price && !bulkApply.compare && !bulkApply.cost && !bulkApply.origin && !bulkApply.stock) ? 0.4 : 1 }}
                   >
                     Apply to Selected ({selectedVariantIds.size})
                   </button>
@@ -737,7 +737,7 @@ export default function AdminProductEditPage() {
                 No variants yet. Use the bulk generate tool to create color/size variants.
               </div>
             ) : groupedVariants.map(group => (
-              <div key={group.color} style={{ border: "1px solid #E2E0DA", borderRadius: "8px", marginBottom: "10px", overflow: "hidden" }}>
+              <div key={group.color} style={{ border: "1px solid #E3E3E3", borderRadius: "8px", marginBottom: "10px", overflow: "hidden" }}>
                 {/* Color header */}
                 <div
                   onClick={() => toggleGroup(group.color)}
@@ -757,7 +757,7 @@ export default function AdminProductEditPage() {
                   <div style={{ overflowX: "auto" }}>
                   <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px", minWidth: "600px" }}>
                     <thead>
-                      <tr style={{ borderBottom: "1px solid #E2E0DA", background: "#FAFAFA" }}>
+                      <tr style={{ borderBottom: "1px solid #E3E3E3", background: "#FAFAFA" }}>
                         <th style={{ ...thStyle, width: "36px" }}>
                           <input
                             type="checkbox"
@@ -779,7 +779,7 @@ export default function AdminProductEditPage() {
                     </thead>
                     <tbody>
                       {group.variants.map(variant => (
-                        <tr key={variant.id} style={{ borderBottom: "1px solid #F6F6F7", background: selectedVariantIds.has(variant.id) ? "rgba(26,92,255,.04)" : undefined }}>
+                        <tr key={variant.id} style={{ borderBottom: "1px solid #F6F6F7", background: selectedVariantIds.has(variant.id) ? "rgba(26,26,26,.04)" : undefined }}>
                           <td style={{ padding: "10px 16px", width: "36px" }}>
                             <input
                               type="checkbox"
@@ -799,7 +799,7 @@ export default function AdminProductEditPage() {
                               value={getVariantValue(variant, "sku")}
                               onChange={e => updateVariantEdit(variant.id, "sku", e.target.value)}
                               onBlur={() => saveVariant(variant.id)}
-                              style={{ padding: "6px 10px", border: "1px solid #E2E0DA", borderRadius: "5px", fontSize: "12px", width: "130px" }}
+                              style={{ padding: "6px 10px", border: "1px solid #E3E3E3", borderRadius: "6px", fontSize: "12px", width: "130px" }}
                             />
                           </td>
                           <td style={{ padding: "10px 16px" }}>
@@ -810,7 +810,7 @@ export default function AdminProductEditPage() {
                                 value={getVariantValue(variant, "retail_price")}
                                 onChange={e => updateVariantEdit(variant.id, "retail_price", e.target.value)}
                                 onBlur={() => saveVariant(variant.id)}
-                                style={{ padding: "6px 8px", border: "1px solid #E2E0DA", borderRadius: "5px", fontSize: "12px", width: "80px" }}
+                                style={{ padding: "6px 8px", border: "1px solid #E3E3E3", borderRadius: "6px", fontSize: "12px", width: "80px" }}
                               />
                             </div>
                           </td>
@@ -823,7 +823,7 @@ export default function AdminProductEditPage() {
                                 onChange={e => updateVariantEdit(variant.id, "compare_price", e.target.value)}
                                 onBlur={() => saveVariant(variant.id)}
                                 placeholder="0.00"
-                                style={{ padding: "6px 8px", border: "1px solid #E2E0DA", borderRadius: "5px", fontSize: "12px", width: "80px" }}
+                                style={{ padding: "6px 8px", border: "1px solid #E3E3E3", borderRadius: "6px", fontSize: "12px", width: "80px" }}
                               />
                             </div>
                           </td>
@@ -836,7 +836,7 @@ export default function AdminProductEditPage() {
                                 onChange={e => updateVariantEdit(variant.id, "cost_per_item", e.target.value)}
                                 onBlur={() => saveVariant(variant.id)}
                                 placeholder="0.00"
-                                style={{ padding: "6px 8px", border: "1px solid #E2E0DA", borderRadius: "5px", fontSize: "12px", width: "80px" }}
+                                style={{ padding: "6px 8px", border: "1px solid #E3E3E3", borderRadius: "6px", fontSize: "12px", width: "80px" }}
                               />
                             </div>
                           </td>
@@ -847,7 +847,7 @@ export default function AdminProductEditPage() {
                               onChange={e => updateVariantEdit(variant.id, "country_of_origin", e.target.value)}
                               onBlur={() => saveVariant(variant.id)}
                               placeholder="e.g. Bangladesh"
-                              style={{ padding: "6px 8px", border: "1px solid #E2E0DA", borderRadius: "5px", fontSize: "12px", width: "140px" }}
+                              style={{ padding: "6px 8px", border: "1px solid #E3E3E3", borderRadius: "6px", fontSize: "12px", width: "140px" }}
                             />
                           </td>
                           <td style={{ padding: "10px 16px" }}>
@@ -866,7 +866,7 @@ export default function AdminProductEditPage() {
                                   .forEach(v => { if (variantEdits[v.id]) saveVariant(v.id); });
                               }}
                               placeholder="e.g. 71"
-                              style={{ padding: "6px 8px", border: "1px solid #E2E0DA", borderRadius: "5px", fontSize: "12px", width: "70px" }}
+                              style={{ padding: "6px 8px", border: "1px solid #E3E3E3", borderRadius: "6px", fontSize: "12px", width: "70px" }}
                             />
                           </td>
                           <td style={{ padding: "10px 16px" }}>
@@ -875,7 +875,7 @@ export default function AdminProductEditPage() {
                               value={getVariantValue(variant, "stock_quantity")}
                               onChange={e => updateVariantEdit(variant.id, "stock_quantity", e.target.value)}
                               onBlur={() => saveVariant(variant.id)}
-                              style={{ padding: "6px 8px", border: "1px solid #E2E0DA", borderRadius: "5px", fontSize: "12px", width: "70px", textAlign: "center" }}
+                              style={{ padding: "6px 8px", border: "1px solid #E3E3E3", borderRadius: "6px", fontSize: "12px", width: "70px", textAlign: "center" }}
                             />
                           </td>
                           <td style={{ padding: "10px 16px" }}>
@@ -921,7 +921,7 @@ export default function AdminProductEditPage() {
               </button>
               <button
                 onClick={() => router.push(`/products/${product.slug}`)}
-                style={{ padding: "10px 14px", border: "1px solid #E2E0DA", borderRadius: "8px", background: "#fff", cursor: "pointer", fontSize: "13px" }}
+                style={{ padding: "10px 14px", border: "1px solid #E3E3E3", borderRadius: "8px", background: "#fff", cursor: "pointer", fontSize: "13px" }}
               >
                 👁
               </button>
@@ -1016,7 +1016,7 @@ export default function AdminProductEditPage() {
             <div>
               <label style={labelStyle}>Tags</label>
               <div
-                style={{ display: "flex", flexWrap: "wrap", gap: "6px", padding: "10px", border: "1.5px solid #E2E0DA", borderRadius: "8px", minHeight: "44px", cursor: "text" }}
+                style={{ display: "flex", flexWrap: "wrap", gap: "6px", padding: "10px", border: "1.5px solid #E3E3E3", borderRadius: "8px", minHeight: "44px", cursor: "text" }}
                 onClick={e => (e.currentTarget.querySelector("input") as HTMLInputElement)?.focus()}
               >
                 {(product.tags ?? []).map(tag => (
@@ -1072,7 +1072,7 @@ export default function AdminProductEditPage() {
                   const methods: string[] = ((product as any).print_guide as any)?.methods ?? [];
                   const checked = methods.includes(method);
                   return (
-                    <label key={method} style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "13px", color: "#2A2830", cursor: "pointer", padding: "6px 10px", border: `1.5px solid ${checked ? "#1A5CFF" : "#E2E0DA"}`, borderRadius: "7px", background: checked ? "rgba(26,92,255,.05)" : "#fff", transition: "all .15s" }}>
+                    <label key={method} style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "13px", color: "#2A2830", cursor: "pointer", padding: "6px 10px", border: `1.5px solid ${checked ? "#1A5CFF" : "#E3E3E3"}`, borderRadius: "8px", background: checked ? "rgba(26,26,26,.05)" : "#fff", transition: "all .15s" }}>
                       <input
                         type="checkbox"
                         checked={checked}
@@ -1081,7 +1081,7 @@ export default function AdminProductEditPage() {
                           const next = e.target.checked ? [...cur, method] : cur.filter(m => m !== method);
                           setProduct(p => p ? { ...p, print_guide: { ...((p as any).print_guide ?? {}), methods: next } } as any : p);
                         }}
-                        style={{ accentColor: "#1A5CFF" }}
+                        style={{ accentColor: "#1A1A1A" }}
                       />
                       {method}
                     </label>
@@ -1101,14 +1101,14 @@ export default function AdminProductEditPage() {
                     const rows: any[] = ((product as any).size_chart_data as any) ?? [];
                     setProduct(p => p ? { ...p, size_chart_data: [...rows, { size: "", chest: "", length: "", sleeve: "" }] } as any : p);
                   }}
-                  style={{ fontSize: "12px", color: "#1A5CFF", fontWeight: 700, background: "none", border: "none", cursor: "pointer", padding: 0 }}
+                  style={{ fontSize: "12px", color: "#005BD3", fontWeight: 700, background: "none", border: "none", cursor: "pointer", padding: 0 }}
                 >
                   + Add Row
                 </button>
               </div>
 
               {(((product as any).size_chart_data as any[]) ?? []).length === 0 ? (
-                <div style={{ textAlign: "center", padding: "20px", border: "1.5px dashed #E2E0DA", borderRadius: "8px", color: "#aaa", fontSize: "13px" }}>
+                <div style={{ textAlign: "center", padding: "20px", border: "1.5px dashed #E3E3E3", borderRadius: "8px", color: "#aaa", fontSize: "13px" }}>
                   No size chart rows yet. Click + Add Row to build one.
                 </div>
               ) : (
@@ -1134,7 +1134,7 @@ export default function AdminProductEditPage() {
                                   setProduct(p => p ? { ...p, size_chart_data: rows } as any : p);
                                 }}
                                 placeholder={field === "size" ? "XL" : "—"}
-                                style={{ width: "100%", padding: "5px 8px", border: "1px solid #E2E0DA", borderRadius: "5px", fontSize: "12px", fontFamily: "var(--font-jakarta)", outline: "none" }}
+                                style={{ width: "100%", padding: "5px 8px", border: "1px solid #E3E3E3", borderRadius: "6px", fontSize: "12px", fontFamily: "var(--font-jakarta)", outline: "none" }}
                               />
                             </td>
                           ))}
@@ -1164,7 +1164,7 @@ export default function AdminProductEditPage() {
               <span style={{ ...sectionTitle, marginBottom: 0 }}>SEARCH ENGINE LISTING</span>
               <button
                 onClick={() => setEditSEO(v => !v)}
-                style={{ fontSize: "12px", color: "#1A5CFF", fontWeight: 700, background: "none", border: "none", cursor: "pointer" }}
+                style={{ fontSize: "12px", color: "#005BD3", fontWeight: 700, background: "none", border: "none", cursor: "pointer" }}
               >
                 {editSEO ? "Preview" : "Edit"}
               </button>
@@ -1197,7 +1197,7 @@ export default function AdminProductEditPage() {
                 </div>
               </div>
             ) : (
-              <div style={{ border: "1px solid #E2E0DA", borderRadius: "8px", padding: "14px 16px", background: "#FAFAFA" }}>
+              <div style={{ border: "1px solid #E3E3E3", borderRadius: "8px", padding: "14px 16px", background: "#FAFAFA" }}>
                 <div style={{ fontSize: "11px", color: "#059669", marginBottom: "3px" }}>
                   af-apparel.com/products/{product.slug}
                 </div>
@@ -1219,13 +1219,13 @@ export default function AdminProductEditPage() {
               return (
                 <>
                   {flyer && (
-                    <div style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 12px", border: "1px solid #E2E0DA", borderRadius: "8px", background: "#FAFAFA", marginBottom: "12px" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 12px", border: "1px solid #E3E3E3", borderRadius: "8px", background: "#FAFAFA", marginBottom: "12px" }}>
                       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#E8242A" strokeWidth={2}><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontSize: "13px", fontWeight: 600, color: "#2A2830", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{flyer.file_name}</div>
                         <div style={{ fontSize: "11px", color: "#7A7880" }}>PDF Flyer</div>
                       </div>
-                      <a href={flyer.url} target="_blank" rel="noreferrer" style={{ fontSize: "11px", color: "#1A5CFF", fontWeight: 700, whiteSpace: "nowrap" }}>View</a>
+                      <a href={flyer.url} target="_blank" rel="noreferrer" style={{ fontSize: "11px", color: "#005BD3", fontWeight: 700, whiteSpace: "nowrap" }}>View</a>
                       <button onClick={handleDeleteFlyer} style={{ background: "none", border: "none", cursor: "pointer", color: "#E8242A", padding: "2px 4px", fontSize: "16px", lineHeight: 1 }}>×</button>
                     </div>
                   )}
@@ -1233,7 +1233,7 @@ export default function AdminProductEditPage() {
                   <button
                     onClick={() => flyerInputRef.current?.click()}
                     disabled={uploadingFlyer}
-                    style={{ width: "100%", padding: "10px", border: "1.5px dashed #E2E0DA", borderRadius: "8px", background: uploadingFlyer ? "#f9fafb" : "#fff", cursor: uploadingFlyer ? "not-allowed" : "pointer", fontSize: "13px", fontWeight: 600, color: uploadingFlyer ? "#aaa" : "#1A5CFF", fontFamily: "var(--font-jakarta)" }}
+                    style={{ width: "100%", padding: "10px", border: "1.5px dashed #E3E3E3", borderRadius: "8px", background: uploadingFlyer ? "#f9fafb" : "#fff", cursor: uploadingFlyer ? "not-allowed" : "pointer", fontSize: "13px", fontWeight: 600, color: uploadingFlyer ? "#aaa" : "#1A5CFF", fontFamily: "var(--font-jakarta)" }}
                   >
                     {uploadingFlyer ? "Uploading…" : flyer ? "Replace Flyer (PDF)" : "Upload Flyer (PDF)"}
                   </button>

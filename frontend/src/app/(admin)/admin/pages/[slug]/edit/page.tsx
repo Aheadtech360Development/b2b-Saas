@@ -21,11 +21,11 @@ const labelSt: React.CSSProperties = {
   letterSpacing: ".08em", color: "#7A7880", marginBottom: "6px", display: "block",
 };
 const inputSt: React.CSSProperties = {
-  width: "100%", padding: "10px 14px", border: "1.5px solid #E2E0DA", borderRadius: "8px",
+  width: "100%", padding: "10px 14px", border: "1.5px solid #E3E3E3", borderRadius: "8px",
   fontSize: "14px", fontFamily: "var(--font-jakarta)", outline: "none", boxSizing: "border-box",
 };
 const cardSt: React.CSSProperties = {
-  background: "#fff", border: "1px solid #E2E0DA", borderRadius: "10px", padding: "24px", marginBottom: "16px",
+  background: "#fff", border: "1px solid #E3E3E3", borderRadius: "10px", padding: "24px", marginBottom: "16px",
 };
 
 export default function AdminPageSeoEditPage() {
@@ -97,7 +97,7 @@ export default function AdminPageSeoEditPage() {
   const pageName = PAGE_NAMES[slug] || slug;
   const tags = form.keywords ? form.keywords.split(",").map(k => k.trim()).filter(Boolean) : [];
 
-  if (loading) return <div style={{ padding: "32px", color: "#7A7880", fontSize: "14px" }}>Loading…</div>;
+  if (loading) return <div style={{ padding: "26px" }}>{[70, 92, 58, 84].map((w, i) => (<div key={i} className="at-skel" style={{ height: "14px", width: `${w}%`, marginBottom: "12px" }} />))}</div>;
 
   return (
     <div style={{ padding: "32px", maxWidth: "760px" }}>
@@ -162,9 +162,9 @@ export default function AdminPageSeoEditPage() {
         <label style={labelSt}>Keywords</label>
         <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginBottom: "8px" }}>
           {tags.map(tag => (
-            <span key={tag} style={{ display: "inline-flex", alignItems: "center", gap: "5px", background: "rgba(26,92,255,.08)", color: "#1A5CFF", padding: "3px 10px", borderRadius: "20px", fontSize: "12px", fontWeight: 600 }}>
+            <span key={tag} style={{ display: "inline-flex", alignItems: "center", gap: "5px", background: "rgba(26,26,26,.08)", color: "#005BD3", padding: "3px 10px", borderRadius: "20px", fontSize: "12px", fontWeight: 600 }}>
               {tag}
-              <button type="button" onClick={() => removeTag(tag)} style={{ background: "none", border: "none", color: "#1A5CFF", cursor: "pointer", padding: 0, fontSize: "13px", lineHeight: 1 }}>×</button>
+              <button type="button" onClick={() => removeTag(tag)} style={{ background: "none", border: "none", color: "#005BD3", cursor: "pointer", padding: 0, fontSize: "13px", lineHeight: 1 }}>×</button>
             </span>
           ))}
         </div>
@@ -194,14 +194,14 @@ export default function AdminPageSeoEditPage() {
             style={{ ...inputSt, flex: 1 }}
           />
           <button type="button" onClick={() => ogFileRef.current?.click()}
-            style={{ background: "#F6F6F7", border: "1.5px solid #E2E0DA", borderRadius: "8px", padding: "10px 16px", fontSize: "13px", fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap", color: "#2A2830" }}>
+            style={{ background: "#F6F6F7", border: "1.5px solid #E3E3E3", borderRadius: "8px", padding: "10px 16px", fontSize: "13px", fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap", color: "#2A2830" }}>
             {uploadingOg ? "Uploading…" : "Upload"}
           </button>
           <input ref={ogFileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={handleOgUpload} />
         </div>
         {form.og_image_url && (
           <div style={{ marginTop: "10px" }}>
-            <img src={form.og_image_url} alt="OG preview" style={{ maxHeight: "120px", borderRadius: "6px", border: "1px solid #E2E0DA" }} />
+            <img src={form.og_image_url} alt="OG preview" style={{ maxHeight: "120px", borderRadius: "6px", border: "1px solid #E3E3E3" }} />
           </div>
         )}
         <p style={{ fontSize: "11px", color: "#7A7880", marginTop: "6px" }}>Shown when page is shared on social media (Facebook, Twitter, LinkedIn). Recommended: 1200×630px.</p>

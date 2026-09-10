@@ -21,7 +21,7 @@ const SECTION_HEAD: React.CSSProperties = {
 
 const NAV_LINK_BASE: React.CSSProperties = {
   display: "flex", alignItems: "center", gap: "10px",
-  padding: "9px 12px", borderRadius: "7px", textDecoration: "none",
+  padding: "9px 12px", borderRadius: "8px", textDecoration: "none",
   fontSize: "13px", fontWeight: 600, transition: "all .15s", cursor: "pointer",
 };
 
@@ -29,7 +29,7 @@ const SUB_LINK_BASE: React.CSSProperties = {
   display: "block", padding: "7px 12px", borderRadius: "6px",
   textDecoration: "none", fontSize: "13px", fontWeight: 500,
   marginBottom: "1px", transition: "all .15s",
-  borderLeft: "2px solid #E2E0DA",
+  borderLeft: "2px solid #E3E3E3",
 };
 
 export function AdminSidebar() {
@@ -109,7 +109,7 @@ export function AdminSidebar() {
         ...SUB_LINK_BASE,
         background: active ? "#F1F1F0" : "transparent",
         color: active ? "#1A1A1A" : "#7A7880",
-        borderLeftColor: active ? "#1A1A1A" : "#E2E0DA",
+        borderLeftColor: active ? "#1A1A1A" : "#E3E3E3",
         fontWeight: active ? 700 : 500,
       }}
         onMouseEnter={e => { if (!active) (e.currentTarget as HTMLElement).style.background = "#F6F6F7"; }}
@@ -322,7 +322,7 @@ export function AdminSidebar() {
       </>}
 
       {/* ── Account / Sign out (bottom) ── */}
-      <div style={{ marginTop: "20px", paddingTop: "16px", borderTop: "1px solid #E2E0DA" }}>
+      <div style={{ marginTop: "20px", paddingTop: "16px", borderTop: "1px solid #E3E3E3" }}>
         {user && (
           <div style={{ padding: "0 12px 10px", fontSize: "12px", color: "#7A7880", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
             {user.first_name ? `${user.first_name} ${user.last_name ?? ""}`.trim() : user.email}
@@ -332,7 +332,7 @@ export function AdminSidebar() {
           onClick={handleLogout}
           style={{
             ...NAV_LINK_BASE,
-            width: "100%", border: "1px solid #E2E0DA", background: "#fff",
+            width: "100%", border: "1px solid #E3E3E3", background: "#fff",
             color: "#B91C1C", justifyContent: "flex-start",
           }}
           onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#FEF2F2"; }}
@@ -371,10 +371,10 @@ export function AdminSidebar() {
           <aside style={{
             position: "fixed", left: 0, top: 0, bottom: 0, width: "260px",
             background: "#fff", overflowY: "auto", zIndex: 161,
-            borderRight: "1px solid #E2E0DA",
+            borderRight: "1px solid #E3E3E3",
             boxShadow: "4px 0 24px rgba(0,0,0,.15)",
           }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 16px", borderBottom: "1px solid #E2E0DA" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 16px", borderBottom: "1px solid #E3E3E3" }}>
               <span style={{ fontSize: "12px", fontWeight: 700, textTransform: "uppercase", letterSpacing: ".1em", color: "#7A7880" }}>Admin</span>
               <button onClick={() => setMobileOpen(false)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "18px", color: "#7A7880" }}>✕</button>
             </div>
@@ -384,7 +384,7 @@ export function AdminSidebar() {
       )}
 
       {/* Desktop sidebar */}
-      <aside className="admin-sidebar-desktop" style={{ width: "220px", flexShrink: 0, borderRight: "1px solid #E2E0DA", background: "#fff", minHeight: "calc(100vh - 68px)" }}>
+      <aside className="admin-sidebar-desktop" style={{ width: "220px", flexShrink: 0, borderRight: "1px solid #E3E3E3", background: "#fff", minHeight: "calc(100vh - 68px)" }}>
         {sidebarInner}
       </aside>
     </>

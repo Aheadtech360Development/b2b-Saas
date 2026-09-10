@@ -176,7 +176,7 @@ export default function AdminOrdersPage() {
           </thead>
           <tbody>
             {isLoading && orders.length === 0 ? (
-              <tr><td colSpan={6} style={{ padding: "40px", textAlign: "center", color: "#bbb", fontSize: "14px" }}>Loading…</td></tr>
+              <tr><td colSpan={6} style={{ padding: "40px", textAlign: "center", color: "#bbb", fontSize: "14px" }}><div className="at-skel" style={{ height: "14px", width: "60%", margin: "0 auto" }} /></td></tr>
             ) : orders.length === 0 ? (
               <tr><td colSpan={6} className="py-8 text-center text-gray-400">No orders found</td></tr>
             ) : orders.map((o) => (

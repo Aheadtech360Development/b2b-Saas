@@ -9,7 +9,7 @@ const labelSt: React.CSSProperties = {
   letterSpacing: ".08em", color: "#7A7880", marginBottom: "6px", display: "block",
 };
 const inputSt: React.CSSProperties = {
-  width: "100%", padding: "10px 14px", border: "1.5px solid #E2E0DA", borderRadius: "8px",
+  width: "100%", padding: "10px 14px", border: "1.5px solid #E3E3E3", borderRadius: "8px",
   fontSize: "14px", fontFamily: "var(--font-jakarta)", outline: "none", boxSizing: "border-box",
 };
 
@@ -58,7 +58,7 @@ export default function AdminBlogNewPage() {
         <p style={{ fontSize: "13px", color: "#7A7880" }}>Fill in the basics — you can add full content after creating.</p>
       </div>
 
-      <div style={{ background: "#fff", border: "1px solid #E2E0DA", borderRadius: "10px", padding: "24px", display: "flex", flexDirection: "column", gap: "18px" }}>
+      <div style={{ background: "#fff", border: "1px solid #E3E3E3", borderRadius: "10px", padding: "24px", display: "flex", flexDirection: "column", gap: "18px" }}>
         <div>
           <label style={labelSt}>Title *</label>
           <input value={title} onChange={e => handleTitleChange(e.target.value)} placeholder="My Blog Post Title" style={inputSt} />
@@ -87,7 +87,7 @@ export default function AdminBlogNewPage() {
                   padding: "8px 20px", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: "pointer",
                   background: status === s ? "#1B3A5C" : "#F6F6F7",
                   color: status === s ? "#fff" : "#555",
-                  border: "1.5px solid " + (status === s ? "#1B3A5C" : "#E2E0DA"),
+                  border: "1.5px solid " + (status === s ? "#1B3A5C" : "#E3E3E3"),
                 }}>
                 {s === "draft" ? "Draft" : "Published"}
               </button>

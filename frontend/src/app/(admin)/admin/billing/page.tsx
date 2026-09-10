@@ -166,7 +166,7 @@ export default function BillingPage() {
     }
   }
 
-  if (loading) return <div className="text-center py-16 text-gray-500">Loading…</div>;
+  if (loading) return <div style={{ padding: "26px" }}>{[70, 92, 58, 84].map((w, i) => (<div key={i} className="at-skel" style={{ height: "14px", width: `${w}%`, marginBottom: "12px" }} />))}</div>;
 
   const currentPlan = billing?.plan;
   const subActive = billing?.subscription?.status === "active" || billing?.subscription?.status === "trialing";

@@ -119,13 +119,13 @@ export function MediaPicker({ onSelect, onSelectMultiple, onClose, multiple }: {
                 const isSel = selected.includes(m.url);
                 return (
                   <button key={m.file_id} onClick={() => toggle(m.url)} title={m.name}
-                    style={{ position: "relative", padding: 0, border: isSel ? "2px solid #1A5CFF" : "1px solid #E2E0DA", borderRadius: "8px", overflow: "hidden", cursor: "pointer", background: "#F4F3EF", aspectRatio: "1 / 1" }}
+                    style={{ position: "relative", padding: 0, border: isSel ? "2px solid #1A1A1A" : "1px solid #E3E3E3", borderRadius: "8px", overflow: "hidden", cursor: "pointer", background: "#F4F3EF", aspectRatio: "1 / 1" }}
                     onMouseOver={(e) => { if (!isSel) e.currentTarget.style.borderColor = "#1C3557"; }}
-                    onMouseOut={(e) => { if (!isSel) e.currentTarget.style.borderColor = "#E2E0DA"; }}>
+                    onMouseOut={(e) => { if (!isSel) e.currentTarget.style.borderColor = "#E3E3E3"; }}>
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src={m.thumbnail_url || m.url} alt={m.name} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block", opacity: isSel ? 0.85 : 1 }} />
                     {multiple && isSel && (
-                      <span style={{ position: "absolute", top: "6px", right: "6px", background: "#1A5CFF", color: "#fff", width: "22px", height: "22px", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "13px", fontWeight: 700 }}>✓</span>
+                      <span style={{ position: "absolute", top: "6px", right: "6px", background: "#1A1A1A", color: "#fff", width: "22px", height: "22px", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "13px", fontWeight: 700 }}>✓</span>
                     )}
                   </button>
                 );
@@ -136,7 +136,7 @@ export function MediaPicker({ onSelect, onSelectMultiple, onClose, multiple }: {
 
         {/* Footer — paste URL + (multiple) add button */}
         <div style={{ borderTop: "1px solid #EEE", padding: "14px 22px", display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
-          <input value={urlInput} onChange={(e) => setUrlInput(e.target.value)} placeholder="…or paste an image URL" style={{ flex: 1, minWidth: "180px", border: "1px solid #E2E0DA", borderRadius: "8px", padding: "10px 12px", fontSize: "13px", outline: "none" }} />
+          <input value={urlInput} onChange={(e) => setUrlInput(e.target.value)} placeholder="…or paste an image URL" style={{ flex: 1, minWidth: "180px", border: "1px solid #E3E3E3", borderRadius: "8px", padding: "10px 12px", fontSize: "13px", outline: "none" }} />
           <button
             onClick={() => {
               const u = urlInput.trim(); if (!u) return;

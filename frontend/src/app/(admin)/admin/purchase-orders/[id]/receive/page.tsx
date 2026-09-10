@@ -90,7 +90,7 @@ export default function ReceiveItemsPage() {
     }
   }
 
-  if (loading) return <div style={{ padding: "32px", color: "#9CA3AF" }}>Loading…</div>;
+  if (loading) return <div style={{ padding: "26px" }}>{[70, 92, 58, 84].map((w, i) => (<div key={i} className="at-skel" style={{ height: "14px", width: `${w}%`, marginBottom: "12px" }} />))}</div>;
   if (!po) return <div style={{ padding: "32px", color: "#EF4444" }}>PO not found.</div>;
 
   return (
@@ -103,7 +103,7 @@ export default function ReceiveItemsPage() {
         </div>
       </div>
 
-      <div style={{ background: "#fff", border: "1px solid #E5E7EB", borderRadius: "10px", padding: "28px", marginBottom: "20px" }}>
+      <div style={{ background: "#fff", border: "1px solid #E3E3E3", borderRadius: "10px", padding: "28px", marginBottom: "20px" }}>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px", marginBottom: "24px" }}>
           <div>
             <label style={LBL}>Received Date</label>
@@ -117,7 +117,7 @@ export default function ReceiveItemsPage() {
 
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
-            <tr style={{ background: "#F9FAFB", borderBottom: "1px solid #E5E7EB" }}>
+            <tr style={{ background: "#F9FAFB", borderBottom: "1px solid #E3E3E3" }}>
               {["PRODUCT", "QTY ORDERED", "ALREADY RECEIVED", "QTY RECEIVING NOW", "ACTUAL UNIT COST"].map(h => (
                 <th key={h} style={{ padding: "11px 14px", textAlign: "left", fontSize: "11px", fontWeight: 700, color: "#6B7280", letterSpacing: ".07em" }}>{h}</th>
               ))}
@@ -174,4 +174,4 @@ export default function ReceiveItemsPage() {
 }
 
 const LBL: React.CSSProperties = { fontSize: "12px", fontWeight: 600, color: "#374151", display: "block", marginBottom: "6px" };
-const INPUT: React.CSSProperties = { width: "100%", padding: "9px 12px", border: "1px solid #D1D5DB", borderRadius: "7px", fontSize: "13px", boxSizing: "border-box", outline: "none" };
+const INPUT: React.CSSProperties = { width: "100%", padding: "9px 12px", border: "1px solid #D1D5DB", borderRadius: "8px", fontSize: "13px", boxSizing: "border-box", outline: "none" };

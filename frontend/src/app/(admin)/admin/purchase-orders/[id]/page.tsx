@@ -128,7 +128,7 @@ export default function PODetailPage() {
     }
   }
 
-  if (loading) return <div style={{ padding: "32px", color: "#9CA3AF" }}>Loading…</div>;
+  if (loading) return <div style={{ padding: "26px" }}>{[70, 92, 58, 84].map((w, i) => (<div key={i} className="at-skel" style={{ height: "14px", width: `${w}%`, marginBottom: "12px" }} />))}</div>;
   if (!po) return <div style={{ padding: "32px", color: "#EF4444" }}>PO not found.</div>;
 
   const sc = STATUS_COLORS[po.status] ?? STATUS_COLORS.draft!;
@@ -193,7 +193,7 @@ export default function PODetailPage() {
           { label: "Total Expected", value: fmt(po.total_expected) },
           { label: "Total Received", value: fmt(po.total_received) },
         ].map(c => (
-          <div key={c.label} style={{ background: "#fff", border: "1px solid #E5E7EB", borderRadius: "10px", padding: "16px" }}>
+          <div key={c.label} style={{ background: "#fff", border: "1px solid #E3E3E3", borderRadius: "10px", padding: "16px" }}>
             <div style={{ fontSize: "11px", color: "#6B7280", marginBottom: "4px", textTransform: "uppercase", letterSpacing: ".07em" }}>{c.label}</div>
             <div style={{ fontSize: "16px", fontWeight: 700, color: "#1B3A5C" }}>{c.value}</div>
           </div>
@@ -217,13 +217,13 @@ export default function PODetailPage() {
       )}
 
       {/* Line Items */}
-      <div style={{ background: "#fff", border: "1px solid #E5E7EB", borderRadius: "10px", overflow: "hidden", marginBottom: "28px" }}>
-        <div style={{ padding: "16px 20px", borderBottom: "1px solid #E5E7EB", fontWeight: 700, fontSize: "14px", color: "#1B3A5C" }}>
+      <div style={{ background: "#fff", border: "1px solid #E3E3E3", borderRadius: "10px", overflow: "hidden", marginBottom: "28px" }}>
+        <div style={{ padding: "16px 20px", borderBottom: "1px solid #E3E3E3", fontWeight: 700, fontSize: "14px", color: "#1B3A5C" }}>
           Line Items ({po.line_items.length})
         </div>
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
-            <tr style={{ background: "#F9FAFB", borderBottom: "1px solid #E5E7EB" }}>
+            <tr style={{ background: "#F9FAFB", borderBottom: "1px solid #E3E3E3" }}>
               {["PRODUCT", "SKU", "COLOR", "SIZE", "QTY ORDERED", "UNIT COST", "TOTAL EXPECTED"].map(h => (
                 <th key={h} style={{ padding: "11px 16px", textAlign: "left", fontSize: "11px", fontWeight: 700, color: "#6B7280", letterSpacing: ".07em" }}>{h}</th>
               ))}
@@ -247,8 +247,8 @@ export default function PODetailPage() {
 
       {/* Receivings */}
       {po.receivings.length > 0 && (
-        <div style={{ background: "#fff", border: "1px solid #E5E7EB", borderRadius: "10px", overflow: "hidden" }}>
-          <div style={{ padding: "16px 20px", borderBottom: "1px solid #E5E7EB", fontWeight: 700, fontSize: "14px", color: "#1B3A5C" }}>
+        <div style={{ background: "#fff", border: "1px solid #E3E3E3", borderRadius: "10px", overflow: "hidden" }}>
+          <div style={{ padding: "16px 20px", borderBottom: "1px solid #E3E3E3", fontWeight: 700, fontSize: "14px", color: "#1B3A5C" }}>
             Receivings ({po.receivings.length})
           </div>
           {po.receivings.map((r, idx) => (

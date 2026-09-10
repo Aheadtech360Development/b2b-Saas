@@ -73,7 +73,7 @@ export function ApprovalModal({ applicationId, companyName, onClose, onSuccess }
               <div
                 onClick={() => setTaxExempt(v => !v)}
                 className="relative flex-shrink-0"
-                style={{ width: "44px", height: "24px", borderRadius: "12px", background: taxExempt ? "#059669" : "#E2E0DA", cursor: "pointer", transition: "background .2s" }}
+                style={{ width: "44px", height: "24px", borderRadius: "12px", background: taxExempt ? "#059669" : "#E3E3E3", cursor: "pointer", transition: "background .2s" }}
               >
                 <div style={{ position: "absolute", top: "3px", left: taxExempt ? "23px" : "3px", width: "18px", height: "18px", borderRadius: "50%", background: "#fff", transition: "left .2s", boxShadow: "0 1px 4px rgba(0,0,0,.2)" }} />
               </div>

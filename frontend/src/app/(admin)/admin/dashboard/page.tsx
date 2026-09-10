@@ -49,7 +49,7 @@ interface DashboardState {
 
 const STATUS_STYLE: Record<string, { bg: string; color: string }> = {
   pending:    { bg: "rgba(217,119,6,.1)",   color: "#D97706" },
-  confirmed:  { bg: "rgba(26,92,255,.1)",   color: "#1A5CFF" },
+  confirmed:  { bg: "rgba(0,91,211,.10)",  color: "#005BD3" },
   processing: { bg: "rgba(99,102,241,.1)",  color: "#6366F1" },
   shipped:    { bg: "rgba(139,92,246,.1)",  color: "#8B5CF6" },
   delivered:  { bg: "rgba(5,150,105,.1)",   color: "#059669" },
@@ -86,12 +86,12 @@ function Sparkline({ counts }: { counts: number[] }) {
     <svg width={W} height={H} style={{ display: "block" }}>
       <defs>
         <linearGradient id="spGrad" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#1A5CFF" stopOpacity="0.15" />
-          <stop offset="100%" stopColor="#1A5CFF" stopOpacity="0" />
+          <stop offset="0%" stopColor="#005BD3" stopOpacity="0.15" />
+          <stop offset="100%" stopColor="#005BD3" stopOpacity="0" />
         </linearGradient>
       </defs>
       <path d={area} fill="url(#spGrad)" />
-      <polyline points={pts} fill="none" stroke="#1A5CFF" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
+      <polyline points={pts} fill="none" stroke="#005BD3" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
     </svg>
   );
 }
@@ -271,7 +271,7 @@ export default function AdminDashboard() {
       {/* Stat Cards */}
       <div className="admin-dash-stat-grid" style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: "16px", marginBottom: "24px" }}>
         {statCards.map(stat => (
-          <div key={stat.label} style={{ background: "#fff", border: "1px solid #E2E0DA", borderRadius: "10px", padding: "20px 24px" }}>
+          <div key={stat.label} style={{ background: "#fff", border: "1px solid #E3E3E3", borderRadius: "10px", padding: "20px 24px" }}>
             <div>
               <div style={{ fontSize: "13px", color: "#7A7880", marginBottom: "6px" }}>{stat.label}</div>
               <div style={{ fontFamily: "var(--font-bebas)", fontSize: "32px", color: "#2A2830", lineHeight: 1 }}>{stat.value}</div>
@@ -282,13 +282,13 @@ export default function AdminDashboard() {
       </div>
 
       {/* Orders chart — full width */}
-      <div className="admin-table-card" style={{ background: "#fff", border: "1px solid #E2E0DA", borderRadius: "10px", padding: "20px 24px", marginBottom: "24px" }}>
+      <div className="admin-table-card" style={{ background: "#fff", border: "1px solid #E3E3E3", borderRadius: "10px", padding: "20px 24px", marginBottom: "24px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
           <div>
             <div style={{ fontFamily: "var(--font-bebas)", fontSize: "16px", letterSpacing: ".05em", color: "#2A2830" }}>ORDERS — LAST 7 DAYS</div>
             <div style={{ fontSize: "12px", color: "#7A7880" }}>Daily order volume</div>
           </div>
-          <div style={{ fontFamily: "var(--font-bebas)", fontSize: "28px", color: "#1A5CFF" }}>
+          <div style={{ fontFamily: "var(--font-bebas)", fontSize: "28px", color: "#005BD3" }}>
             {dailyCounts.reduce((a, b) => a + b, 0)}
           </div>
         </div>
@@ -301,17 +301,17 @@ export default function AdminDashboard() {
       </div>
 
       {/* Recent Orders */}
-      <div className="admin-table-card" style={{ background: "#fff", border: "1px solid #E2E0DA", borderRadius: "10px", overflow: "hidden", marginBottom: "24px" }}>
-        <div style={{ padding: "16px 24px", borderBottom: "1px solid #E2E0DA", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+      <div className="admin-table-card" style={{ background: "#fff", border: "1px solid #E3E3E3", borderRadius: "10px", overflow: "hidden", marginBottom: "24px" }}>
+        <div style={{ padding: "16px 24px", borderBottom: "1px solid #E3E3E3", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <h2 style={{ fontFamily: "var(--font-bebas)", fontSize: "16px", letterSpacing: ".05em", color: "#2A2830" }}>RECENT ORDERS</h2>
-          <Link href="/admin/orders" style={{ fontSize: "12px", color: "#1A5CFF", textDecoration: "none", fontWeight: 700 }}>View all →</Link>
+          <Link href="/admin/orders" style={{ fontSize: "12px", color: "#005BD3", textDecoration: "none", fontWeight: 700 }}>View all →</Link>
         </div>
         {!state.recentOrders?.length ? (
           <div style={{ padding: "32px", textAlign: "center", color: "#aaa", fontSize: "13px" }}>No recent orders.</div>
         ) : (
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
             <thead>
-              <tr style={{ borderBottom: "1px solid #E2E0DA", background: "#FAFAF8" }}>
+              <tr style={{ borderBottom: "1px solid #E3E3E3", background: "#FAFAF8" }}>
                 {["Order #", "Customer", "Date", "Items", "Total", "Status"].map(h => (
                   <th key={h} style={{ padding: "10px 16px", textAlign: h === "Total" ? "right" : "left", fontSize: "11px", fontWeight: 700, color: "#7A7880", textTransform: "uppercase" as const, letterSpacing: ".06em" }}>{h}</th>
                 ))}
@@ -324,7 +324,7 @@ export default function AdminDashboard() {
                   onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
                 >
                   <td style={{ padding: "12px 16px" }}>
-                    <Link href={`/admin/orders/${order.id}`} style={{ color: "#1A5CFF", textDecoration: "none", fontFamily: "monospace", fontSize: "12px", fontWeight: 700 }}>
+                    <Link href={`/admin/orders/${order.id}`} style={{ color: "#005BD3", textDecoration: "none", fontFamily: "monospace", fontSize: "12px", fontWeight: 700 }}>
                       {order.order_number}
                     </Link>
                   </td>
@@ -343,17 +343,17 @@ export default function AdminDashboard() {
       </div>
 
       {/* Recent Applications */}
-      <div className="admin-table-card" style={{ background: "#fff", border: "1px solid #E2E0DA", borderRadius: "10px", overflow: "hidden" }}>
-        <div style={{ padding: "16px 24px", borderBottom: "1px solid #E2E0DA", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+      <div className="admin-table-card" style={{ background: "#fff", border: "1px solid #E3E3E3", borderRadius: "10px", overflow: "hidden" }}>
+        <div style={{ padding: "16px 24px", borderBottom: "1px solid #E3E3E3", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <h2 style={{ fontFamily: "var(--font-bebas)", fontSize: "16px", letterSpacing: ".05em", color: "#2A2830" }}>RECENT APPLICATIONS</h2>
-          <Link href="/admin/customers/applications" style={{ fontSize: "12px", color: "#1A5CFF", textDecoration: "none", fontWeight: 700 }}>View all →</Link>
+          <Link href="/admin/customers/applications" style={{ fontSize: "12px", color: "#005BD3", textDecoration: "none", fontWeight: 700 }}>View all →</Link>
         </div>
         {!state.recentApplications?.length ? (
           <div style={{ padding: "32px", textAlign: "center", color: "#aaa", fontSize: "13px" }}>No pending applications.</div>
         ) : (
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
             <thead>
-              <tr style={{ borderBottom: "1px solid #E2E0DA", background: "#FAFAF8" }}>
+              <tr style={{ borderBottom: "1px solid #E3E3E3", background: "#FAFAF8" }}>
                 {["Company", "Type", "Date", "Status", "Actions"].map(h => (
                   <th key={h} style={{ padding: "10px 16px", textAlign: "left", fontSize: "11px", fontWeight: 700, color: "#7A7880", textTransform: "uppercase" as const, letterSpacing: ".06em" }}>{h}</th>
                 ))}
@@ -374,11 +374,11 @@ export default function AdminDashboard() {
                   <td style={{ padding: "12px 16px" }}>
                     <div style={{ display: "flex", gap: "8px" }}>
                       <button onClick={() => handleApprove(app.id)}
-                        style={{ background: "rgba(5,150,105,.1)", color: "#059669", border: "none", padding: "5px 12px", borderRadius: "5px", fontSize: "12px", fontWeight: 700, cursor: "pointer" }}>
+                        style={{ background: "rgba(5,150,105,.1)", color: "#059669", border: "none", padding: "5px 12px", borderRadius: "6px", fontSize: "12px", fontWeight: 700, cursor: "pointer" }}>
                         ✓ Approve
                       </button>
                       <button onClick={() => handleReject(app.id)}
-                        style={{ background: "rgba(232,36,42,.08)", color: "#E8242A", border: "none", padding: "5px 12px", borderRadius: "5px", fontSize: "12px", fontWeight: 700, cursor: "pointer" }}>
+                        style={{ background: "rgba(232,36,42,.08)", color: "#E8242A", border: "none", padding: "5px 12px", borderRadius: "6px", fontSize: "12px", fontWeight: 700, cursor: "pointer" }}>
                         ✕ Reject
                       </button>
                     </div>

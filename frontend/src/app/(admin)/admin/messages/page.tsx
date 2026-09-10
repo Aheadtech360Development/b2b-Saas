@@ -47,14 +47,14 @@ export default function MessagesPage() {
     } catch { setError("Could not delete."); }
   }
 
-  const card: React.CSSProperties = { background: "#fff", border: "1px solid #E2E0DA", borderRadius: "12px" };
+  const card: React.CSSProperties = { background: "#fff", border: "1px solid #E3E3E3", borderRadius: "12px" };
   const unread = items.filter((i) => !i.is_read).length;
 
   return (
     <div style={{ fontFamily: "var(--font-jakarta), sans-serif", maxWidth: "820px" }}>
       <div style={{ marginBottom: "22px" }}>
         <h1 style={{ fontFamily: "var(--font-bebas), sans-serif", fontSize: "32px", color: "#2A2830", letterSpacing: ".03em", lineHeight: 1 }}>
-          Messages {unread > 0 && <span style={{ fontSize: "13px", fontWeight: 700, color: "#fff", background: "#1A5CFF", borderRadius: "20px", padding: "3px 10px", verticalAlign: "middle", marginLeft: "8px", fontFamily: "var(--font-jakarta), sans-serif" }}>{unread} new</span>}
+          Messages {unread > 0 && <span style={{ fontSize: "13px", fontWeight: 700, color: "#fff", background: "#1A1A1A", borderRadius: "20px", padding: "3px 10px", verticalAlign: "middle", marginLeft: "8px", fontFamily: "var(--font-jakarta), sans-serif" }}>{unread} new</span>}
         </h1>
         <p style={{ fontSize: "13px", color: "#7A7880", marginTop: "4px" }}>Form submissions from your storefront contact forms.</p>
       </div>
@@ -76,7 +76,7 @@ export default function MessagesPage() {
             return (
               <div key={s.id} style={{ borderTop: idx === 0 ? "none" : "1px solid #F2F1EC", background: s.is_read ? "#fff" : "#F7FAFF" }}>
                 <div onClick={() => toggle(s)} style={{ display: "flex", alignItems: "center", gap: "12px", padding: "14px 18px", cursor: "pointer" }}>
-                  {!s.is_read && <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "#1A5CFF", flexShrink: 0 }} />}
+                  {!s.is_read && <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "#1A1A1A", flexShrink: 0 }} />}
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: "14px", fontWeight: s.is_read ? 500 : 700, color: "#2A2830", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{summary}</div>
                     <div style={{ fontSize: "12px", color: "#999", marginTop: "2px" }}>{s.form_name || "Contact"}{s.page_slug ? ` · /${s.page_slug}` : ""}</div>
@@ -96,7 +96,7 @@ export default function MessagesPage() {
                     </div>
                     {!readOnly && (
                       <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "10px" }}>
-                        <button onClick={() => remove(s)} style={{ background: "transparent", border: "1px solid #F1C4C4", color: "#B91C1C", padding: "7px 16px", borderRadius: "7px", fontSize: "12px", fontWeight: 700, cursor: "pointer" }}>Delete</button>
+                        <button onClick={() => remove(s)} style={{ background: "transparent", border: "1px solid #F1C4C4", color: "#B91C1C", padding: "7px 16px", borderRadius: "8px", fontSize: "12px", fontWeight: 700, cursor: "pointer" }}>Delete</button>
                       </div>
                     )}
                   </div>

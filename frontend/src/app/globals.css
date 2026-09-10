@@ -77,6 +77,56 @@
   }
   .admin-layout-root h1,
   .admin-layout-root h2 { font-weight: 800; }
+
+  /* ── Admin interaction polish ────────────────────────────────────────────────
+     The admin is styled with inline styles, so these target properties inline
+     never sets (filter/transform/box-shadow/outline) — giving every button,
+     input and card consistent, professional feedback without touching 58 pages. */
+  .admin-layout-root button,
+  .admin-layout-root a[href] {
+    transition: filter .15s ease, box-shadow .15s ease, transform .12s ease,
+                background-color .15s ease, border-color .15s ease, color .15s ease;
+  }
+  .admin-layout-root button:not(:disabled):hover {
+    filter: brightness(1.06);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, .10);
+  }
+  .admin-layout-root button:not(:disabled):active { transform: translateY(1px); }
+  .admin-layout-root button:disabled { cursor: not-allowed; }
+
+  /* Keyboard-only focus ring — accessible and on-theme (never on mouse click). */
+  .admin-layout-root :is(button, a, input, select, textarea):focus-visible {
+    outline: 2px solid #1A1A1A;
+    outline-offset: 2px;
+  }
+
+  /* Inputs: clear, calm focus. !important beats the inline border colour. */
+  .admin-layout-root :is(input, select, textarea) {
+    transition: border-color .15s ease, box-shadow .15s ease;
+  }
+  .admin-layout-root :is(input:not([type="checkbox"]):not([type="radio"]):not([type="color"]), select, textarea):focus {
+    outline: none;
+    border-color: #1A1A1A !important;
+    box-shadow: 0 0 0 3px rgba(26, 26, 26, .08);
+  }
+
+  /* Shimmer used by loading skeletons (see components/admin/Skeleton). */
+  @keyframes atSkeleton { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
+  .at-skel {
+    background: linear-gradient(90deg, #EDEDED 25%, #F7F7F7 37%, #EDEDED 63%);
+    background-size: 200% 100%;
+    animation: atSkeleton 1.4s ease-in-out infinite;
+    border-radius: 6px;
+  }
+  @media (prefers-reduced-motion: reduce) { .at-skel { animation: none; } }
+
+  /* Softer, modern scrollbars inside the admin. */
+  .admin-layout-root ::-webkit-scrollbar { width: 10px; height: 10px; }
+  .admin-layout-root ::-webkit-scrollbar-track { background: transparent; }
+  .admin-layout-root ::-webkit-scrollbar-thumb {
+    background: #D6D6D6; border-radius: 8px; border: 3px solid transparent; background-clip: content-box;
+  }
+  .admin-layout-root ::-webkit-scrollbar-thumb:hover { background: #BDBDBD; background-clip: content-box; }
 }
 
 @layer components {

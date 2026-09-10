@@ -72,10 +72,10 @@ export default function ManufacturersPage() {
         </button>
       </div>
 
-      <div style={{ background: "#fff", border: "1px solid #E5E7EB", borderRadius: "10px", overflow: "hidden" }}>
+      <div style={{ background: "#fff", border: "1px solid #E3E3E3", borderRadius: "10px", overflow: "hidden" }}>
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
-            <tr style={{ background: "#F9FAFB", borderBottom: "1px solid #E5E7EB" }}>
+            <tr style={{ background: "#F9FAFB", borderBottom: "1px solid #E3E3E3" }}>
               {["NAME", "CONTACT", "EMAIL", "PHONE", "ACTIONS"].map(h => (
                 <th key={h} style={{ padding: "12px 16px", textAlign: "left", fontSize: "11px", fontWeight: 700, color: "#6B7280", letterSpacing: ".07em" }}>{h}</th>
               ))}
@@ -83,7 +83,7 @@ export default function ManufacturersPage() {
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={5} style={{ padding: "40px", textAlign: "center", color: "#9CA3AF" }}>Loading…</td></tr>
+              <tr><td colSpan={5} style={{ padding: "40px", textAlign: "center", color: "#9CA3AF" }}><div className="at-skel" style={{ height: "14px", width: "60%", margin: "0 auto" }} /></td></tr>
             ) : manufacturers.length === 0 ? (
               <tr><td colSpan={5} style={{ padding: "40px", textAlign: "center", color: "#9CA3AF" }}>No manufacturers yet.</td></tr>
             ) : manufacturers.map(m => (
@@ -141,4 +141,4 @@ export default function ManufacturersPage() {
 }
 
 const LBL: React.CSSProperties = { fontSize: "12px", fontWeight: 600, color: "#374151", display: "block", marginBottom: "6px" };
-const INPUT: React.CSSProperties = { width: "100%", padding: "9px 12px", border: "1px solid #D1D5DB", borderRadius: "7px", fontSize: "13px", boxSizing: "border-box", outline: "none" };
+const INPUT: React.CSSProperties = { width: "100%", padding: "9px 12px", border: "1px solid #D1D5DB", borderRadius: "8px", fontSize: "13px", boxSizing: "border-box", outline: "none" };

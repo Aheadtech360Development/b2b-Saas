@@ -40,17 +40,17 @@ const labelStyle: React.CSSProperties = {
   letterSpacing: '.08em', color: '#7A7880', display: 'block', marginBottom: '5px',
 }
 const inputStyle: React.CSSProperties = {
-  width: '100%', padding: '10px 12px', border: '1.5px solid #E2E0DA',
+  width: '100%', padding: '10px 12px', border: '1.5px solid #E3E3E3',
   borderRadius: '6px', fontSize: '14px', fontFamily: 'var(--font-jakarta)',
   boxSizing: 'border-box',
 }
 const cellInput: React.CSSProperties = {
-  padding: '7px 8px', border: '1px solid #E2E0DA', borderRadius: '5px', fontSize: '12px',
+  padding: '7px 8px', border: '1px solid #E3E3E3', borderRadius: '5px', fontSize: '12px',
 }
 
 const STATUS_CONFIG: Record<string, { label: string; bg: string; color: string }> = {
   draft:     { label: 'Draft',     bg: 'rgba(156,163,175,.15)', color: '#9CA3AF' },
-  sent:      { label: 'Sent',      bg: 'rgba(26,92,255,.1)',    color: '#1A5CFF' },
+  sent:      { label: 'Sent',      bg: 'rgba(26,26,26,.1)',    color: '#1A5CFF' },
   partial:   { label: 'Partial',   bg: 'rgba(217,119,6,.1)',    color: '#D97706' },
   received:  { label: 'Received',  bg: 'rgba(5,150,105,.1)',    color: '#059669' },
   cancelled: { label: 'Cancelled', bg: 'rgba(232,36,42,.1)',    color: '#E8242A' },
@@ -102,7 +102,7 @@ function ReceiveModal({
           Enter quantities received for each item. This will update your inventory levels.
         </p>
 
-        <div style={{ border: '1px solid #E2E0DA', borderRadius: '8px', overflow: 'hidden', marginBottom: '22px' }}>
+        <div style={{ border: '1px solid #E3E3E3', borderRadius: '8px', overflow: 'hidden', marginBottom: '22px' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ background: '#F6F6F7' }}>
@@ -127,7 +127,7 @@ function ReceiveModal({
                       onChange={e => setQtys(q => ({ ...q, [item.id]: parseInt(e.target.value) || 0 }))}
                       min="0"
                       max={item.quantity_ordered}
-                      style={{ width: '80px', padding: '8px 10px', border: '1.5px solid #1A5CFF', borderRadius: '6px', fontSize: '14px', textAlign: 'center', fontWeight: 700 }}
+                      style={{ width: '80px', padding: '8px 10px', border: '1.5px solid #1A1A1A', borderRadius: '6px', fontSize: '14px', textAlign: 'center', fontWeight: 700 }}
                     />
                   </td>
                 </tr>
@@ -138,7 +138,7 @@ function ReceiveModal({
 
         <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
           <button onClick={onClose}
-            style={{ padding: '11px 22px', border: '1px solid #E2E0DA', borderRadius: '8px', background: '#fff', cursor: 'pointer', fontWeight: 600 }}>
+            style={{ padding: '11px 22px', border: '1px solid #E3E3E3', borderRadius: '8px', background: '#fff', cursor: 'pointer', fontWeight: 600 }}>
             Cancel
           </button>
           <button onClick={() => onReceive(po, qtys)}
@@ -253,7 +253,7 @@ export default function PurchaseOrdersPage() {
           <p style={{ fontSize: '13px', color: '#7A7880', marginTop: '4px' }}>Manage incoming inventory from suppliers</p>
         </div>
         <div style={{ display: 'flex', gap: '10px' }}>
-          <button style={{ padding: '10px 18px', border: '1px solid #E2E0DA', borderRadius: '8px', background: '#fff', fontSize: '13px', fontWeight: 600, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+          <button style={{ padding: '10px 18px', border: '1px solid #E3E3E3', borderRadius: '8px', background: '#fff', fontSize: '13px', fontWeight: 600, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
             <DownloadIcon size={14} color="#2A2830" /> Export
           </button>
           <button onClick={() => setShowCreate(true)}
@@ -271,7 +271,7 @@ export default function PurchaseOrdersPage() {
           { label: 'Received',        value: String(stats.received), icon: <CheckCircleIcon size={24} color="#059669" />, color: '#059669' },
           { label: 'Total Value',     value: `$${stats.total_value.toLocaleString('en-US', { minimumFractionDigits: 2 })}`, icon: <DollarSignIcon size={24} color="#2A2830" />, color: '#2A2830' },
         ]).map(s => (
-          <div key={s.label} style={{ background: '#fff', border: '1px solid #E2E0DA', borderRadius: '10px', padding: '18px 20px' }}>
+          <div key={s.label} style={{ background: '#fff', border: '1px solid #E3E3E3', borderRadius: '10px', padding: '18px 20px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
               {s.icon}
               <div>
@@ -285,7 +285,7 @@ export default function PurchaseOrdersPage() {
 
       {/* Table / Empty state */}
       {orders.length === 0 ? (
-        <div style={{ background: '#fff', border: '1px solid #E2E0DA', borderRadius: '10px', padding: '60px', textAlign: 'center' }}>
+        <div style={{ background: '#fff', border: '1px solid #E3E3E3', borderRadius: '10px', padding: '60px', textAlign: 'center' }}>
           <div style={{ marginBottom: '12px' }}><ClipboardIcon size={48} color="#aaa" /></div>
           <h3 style={{ fontFamily: 'var(--font-bebas)', fontSize: '22px', color: '#2A2830', marginBottom: '8px' }}>NO PURCHASE ORDERS YET</h3>
           <p style={{ fontSize: '14px', color: '#7A7880', marginBottom: '20px' }}>Create your first purchase order to track incoming inventory</p>
@@ -295,10 +295,10 @@ export default function PurchaseOrdersPage() {
           </button>
         </div>
       ) : (
-        <div style={{ background: '#fff', border: '1px solid #E2E0DA', borderRadius: '10px', overflow: 'hidden' }}>
+        <div style={{ background: '#fff', border: '1px solid #E3E3E3', borderRadius: '10px', overflow: 'hidden' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
-              <tr style={{ background: '#F6F6F7', borderBottom: '2px solid #E2E0DA' }}>
+              <tr style={{ background: '#F6F6F7', borderBottom: '2px solid #E3E3E3' }}>
                 {['PO Number', 'Supplier', 'Items', 'Expected Date', 'Total', 'Status', 'Actions'].map(h => (
                   <th key={h} style={{ padding: '12px 16px', textAlign: 'left', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '.06em', color: '#7A7880', fontWeight: 700 }}>{h}</th>
                 ))}
@@ -330,7 +330,7 @@ export default function PurchaseOrdersPage() {
                   <td style={{ padding: '14px 16px' }}>
                     <div style={{ display: 'flex', gap: '6px' }}>
                       <button onClick={() => setSelectedPO(po)}
-                        style={{ padding: '6px 12px', border: '1px solid #E2E0DA', borderRadius: '6px', background: '#fff', fontSize: '12px', fontWeight: 600, cursor: 'pointer' }}>
+                        style={{ padding: '6px 12px', border: '1px solid #E3E3E3', borderRadius: '6px', background: '#fff', fontSize: '12px', fontWeight: 600, cursor: 'pointer' }}>
                         View
                       </button>
                       {['sent', 'partial'].includes(po.status) && (
@@ -389,7 +389,7 @@ export default function PurchaseOrdersPage() {
                   + Add Item
                 </button>
               </div>
-              <div style={{ border: '1px solid #E2E0DA', borderRadius: '8px', overflow: 'hidden' }}>
+              <div style={{ border: '1px solid #E3E3E3', borderRadius: '8px', overflow: 'hidden' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                   <thead>
                     <tr style={{ background: '#F6F6F7' }}>
@@ -452,7 +452,7 @@ export default function PurchaseOrdersPage() {
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', color: '#7A7880', marginBottom: '6px' }}>
                     <span>Subtotal</span><span>${subtotal.toFixed(2)}</span>
                   </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px', fontWeight: 700, color: '#2A2830', borderTop: '1px solid #E2E0DA', paddingTop: '8px', marginTop: '6px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px', fontWeight: 700, color: '#2A2830', borderTop: '1px solid #E3E3E3', paddingTop: '8px', marginTop: '6px' }}>
                     <span>Total</span><span>${subtotal.toFixed(2)}</span>
                   </div>
                 </div>
@@ -469,11 +469,11 @@ export default function PurchaseOrdersPage() {
 
             <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
               <button onClick={() => setShowCreate(false)}
-                style={{ padding: '11px 22px', border: '1px solid #E2E0DA', borderRadius: '8px', background: '#fff', cursor: 'pointer', fontWeight: 600 }}>
+                style={{ padding: '11px 22px', border: '1px solid #E3E3E3', borderRadius: '8px', background: '#fff', cursor: 'pointer', fontWeight: 600 }}>
                 Cancel
               </button>
               <button onClick={() => handleCreate('draft')}
-                style={{ padding: '11px 22px', border: '1px solid #E2E0DA', borderRadius: '8px', background: '#fff', cursor: 'pointer', fontWeight: 700, color: '#2A2830' }}>
+                style={{ padding: '11px 22px', border: '1px solid #E3E3E3', borderRadius: '8px', background: '#fff', cursor: 'pointer', fontWeight: 700, color: '#2A2830' }}>
                 Save as Draft
               </button>
               <button onClick={() => handleCreate('sent')}
@@ -519,7 +519,7 @@ export default function PurchaseOrdersPage() {
               ))}
             </div>
 
-            <div style={{ border: '1px solid #E2E0DA', borderRadius: '8px', overflow: 'hidden', marginBottom: '20px' }}>
+            <div style={{ border: '1px solid #E3E3E3', borderRadius: '8px', overflow: 'hidden', marginBottom: '20px' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead>
                   <tr style={{ background: '#F6F6F7' }}>

@@ -14,7 +14,7 @@ const RichTextEditor = dynamic(
   {
     ssr: false,
     loading: () => (
-      <div style={{ border: "1.5px solid #E2E0DA", borderRadius: "8px", padding: "14px 16px", minHeight: "160px", color: "#aaa", fontSize: "14px" }}>
+      <div style={{ border: "1.5px solid #E3E3E3", borderRadius: "8px", padding: "14px 16px", minHeight: "160px", color: "#aaa", fontSize: "14px" }}>
         Loading editor…
       </div>
     ),
@@ -26,11 +26,11 @@ const labelStyle: React.CSSProperties = {
   letterSpacing: ".08em", color: "#7A7880", marginBottom: "6px", display: "block",
 };
 const inputStyle: React.CSSProperties = {
-  width: "100%", padding: "10px 14px", border: "1.5px solid #E2E0DA", borderRadius: "8px",
+  width: "100%", padding: "10px 14px", border: "1.5px solid #E3E3E3", borderRadius: "8px",
   fontSize: "14px", fontFamily: "var(--font-jakarta)", outline: "none", boxSizing: "border-box",
 };
 const sectionCard: React.CSSProperties = {
-  background: "#fff", border: "1px solid #E2E0DA", borderRadius: "10px",
+  background: "#fff", border: "1px solid #E3E3E3", borderRadius: "10px",
   padding: "24px", marginBottom: "16px",
 };
 const sectionTitle: React.CSSProperties = {
@@ -338,7 +338,7 @@ export default function NewProductPage() {
           <button
             type="button"
             onClick={() => router.push("/admin/products")}
-            style={{ padding: "10px 20px", border: "1px solid #E2E0DA", borderRadius: "8px", background: "#fff", fontSize: "13px", fontWeight: 600, cursor: "pointer" }}
+            style={{ padding: "10px 20px", border: "1px solid #E3E3E3", borderRadius: "8px", background: "#fff", fontSize: "13px", fontWeight: 600, cursor: "pointer" }}
           >
             Cancel
           </button>
@@ -410,8 +410,8 @@ export default function NewProductPage() {
               <span style={sectionTitle}>MEDIA</span>
               <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginBottom: "12px" }}>
                 {imagePreviewUrls.map((url, i) => (
-                  <div key={i} style={{ display: "flex", gap: "12px", alignItems: "center", padding: "10px 12px", border: "1px solid #E2E0DA", borderRadius: "8px", background: i === 0 ? "rgba(26,92,255,.03)" : "#fff" }}>
-                    <div style={{ width: "64px", height: "64px", borderRadius: "6px", overflow: "hidden", flexShrink: 0, border: "1px solid #E2E0DA", background: "#f5f5f5" }}>
+                  <div key={i} style={{ display: "flex", gap: "12px", alignItems: "center", padding: "10px 12px", border: "1px solid #E3E3E3", borderRadius: "8px", background: i === 0 ? "rgba(26,26,26,.03)" : "#fff" }}>
+                    <div style={{ width: "64px", height: "64px", borderRadius: "6px", overflow: "hidden", flexShrink: 0, border: "1px solid #E3E3E3", background: "#f5f5f5" }}>
                       <img src={url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                     </div>
                     <div style={{ flex: 1 }}>
@@ -430,9 +430,9 @@ export default function NewProductPage() {
               </div>
               <div
                 onClick={() => fileInputRef.current?.click()}
-                style={{ borderRadius: "8px", border: "2px dashed #E2E0DA", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", cursor: "pointer", background: "#FAFAFA", padding: "16px", transition: "border-color .2s" }}
+                style={{ borderRadius: "8px", border: "2px dashed #E3E3E3", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", cursor: "pointer", background: "#FAFAFA", padding: "16px", transition: "border-color .2s" }}
                 onMouseEnter={e => (e.currentTarget.style.borderColor = "#1A5CFF")}
-                onMouseLeave={e => (e.currentTarget.style.borderColor = "#E2E0DA")}
+                onMouseLeave={e => (e.currentTarget.style.borderColor = "#E3E3E3")}
               >
                 <span style={{ fontSize: "20px", color: "#aaa" }}>+</span>
                 <span style={{ fontSize: "13px", color: "#7A7880" }}>Add media</span>
@@ -448,7 +448,7 @@ export default function NewProductPage() {
                 <button
                   type="button"
                   onClick={() => setShowAddVariant(true)}
-                  style={{ padding: "6px 14px", background: "#1A5CFF", color: "#fff", border: "none", borderRadius: "6px", fontSize: "12px", fontWeight: 700, cursor: "pointer" }}
+                  style={{ padding: "6px 14px", background: "#1A1A1A", color: "#fff", border: "none", borderRadius: "6px", fontSize: "12px", fontWeight: 700, cursor: "pointer" }}
                 >
                   + Add Variants
                 </button>
@@ -458,13 +458,13 @@ export default function NewProductPage() {
               </p>
 
               {pendingVariants.length === 0 ? (
-                <div style={{ padding: "24px", textAlign: "center", border: "1.5px dashed #E2E0DA", borderRadius: "8px", color: "#aaa", fontSize: "13px" }}>
+                <div style={{ padding: "24px", textAlign: "center", border: "1.5px dashed #E3E3E3", borderRadius: "8px", color: "#aaa", fontSize: "13px" }}>
                   No variants added yet. Click <strong>+ Add Variants</strong> to generate color/size combinations.
                 </div>
               ) : (
                 <div>
                   {Object.entries(variantsByColor).map(([color, rows]) => (
-                    <div key={color} style={{ border: "1px solid #E2E0DA", borderRadius: "8px", marginBottom: "10px", overflow: "hidden" }}>
+                    <div key={color} style={{ border: "1px solid #E3E3E3", borderRadius: "8px", marginBottom: "10px", overflow: "hidden" }}>
                       {/* Color header */}
                       <div style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 14px", background: "#F6F6F7" }}>
                         <div style={{ width: "18px", height: "18px", borderRadius: "50%", background: COLOR_MAP[color] ?? "#888", border: "1.5px solid rgba(0,0,0,.1)", flexShrink: 0 }} />
@@ -474,7 +474,7 @@ export default function NewProductPage() {
                       {/* Size rows */}
                       <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
                         <thead>
-                          <tr style={{ background: "#FAFAFA", borderBottom: "1px solid #E2E0DA" }}>
+                          <tr style={{ background: "#FAFAFA", borderBottom: "1px solid #E3E3E3" }}>
                             {["Size", "SKU", "Price", ""].map(h => (
                               <th key={h} style={thStyle}>{h}</th>
                             ))}
@@ -576,7 +576,7 @@ export default function NewProductPage() {
               <div>
                 <label style={labelStyle}>Tags</label>
                 <div
-                  style={{ display: "flex", flexWrap: "wrap", gap: "6px", padding: "10px", border: "1.5px solid #E2E0DA", borderRadius: "8px", minHeight: "44px", cursor: "text" }}
+                  style={{ display: "flex", flexWrap: "wrap", gap: "6px", padding: "10px", border: "1.5px solid #E3E3E3", borderRadius: "8px", minHeight: "44px", cursor: "text" }}
                   onClick={e => (e.currentTarget.querySelector("input") as HTMLInputElement)?.focus()}
                 >
                   {form.tags.map(tag => (
@@ -626,12 +626,12 @@ export default function NewProductPage() {
                   {["DTF (Direct to Film)", "Screen Printing", "Embroidery", "DTG (Direct to Garment)", "Heat Transfer", "Sublimation", "Vinyl / HTV", "Laser Engraving"].map(method => {
                     const checked = form.print_guide_methods.includes(method);
                     return (
-                      <label key={method} style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "13px", color: "#2A2830", cursor: "pointer", padding: "6px 10px", border: `1.5px solid ${checked ? "#1A5CFF" : "#E2E0DA"}`, borderRadius: "7px", background: checked ? "rgba(26,92,255,.05)" : "#fff", transition: "all .15s" }}>
+                      <label key={method} style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "13px", color: "#2A2830", cursor: "pointer", padding: "6px 10px", border: `1.5px solid ${checked ? "#1A5CFF" : "#E3E3E3"}`, borderRadius: "8px", background: checked ? "rgba(26,26,26,.05)" : "#fff", transition: "all .15s" }}>
                         <input
                           type="checkbox"
                           checked={checked}
                           onChange={() => togglePrintMethod(method)}
-                          style={{ accentColor: "#1A5CFF" }}
+                          style={{ accentColor: "#1A1A1A" }}
                         />
                         {method}
                       </label>
@@ -648,13 +648,13 @@ export default function NewProductPage() {
                   <button
                     type="button"
                     onClick={addSizeChartRow}
-                    style={{ fontSize: "12px", color: "#1A5CFF", fontWeight: 700, background: "none", border: "none", cursor: "pointer", padding: 0 }}
+                    style={{ fontSize: "12px", color: "#005BD3", fontWeight: 700, background: "none", border: "none", cursor: "pointer", padding: 0 }}
                   >
                     + Add Row
                   </button>
                 </div>
                 {form.size_chart_data.length === 0 ? (
-                  <div style={{ textAlign: "center", padding: "20px", border: "1.5px dashed #E2E0DA", borderRadius: "8px", color: "#aaa", fontSize: "13px" }}>
+                  <div style={{ textAlign: "center", padding: "20px", border: "1.5px dashed #E3E3E3", borderRadius: "8px", color: "#aaa", fontSize: "13px" }}>
                     No size chart rows yet. Click + Add Row to build one.
                   </div>
                 ) : (
@@ -676,7 +676,7 @@ export default function NewProductPage() {
                                   value={row[field]}
                                   onChange={e => updateSizeChartRow(i, field, e.target.value)}
                                   placeholder={field === "size" ? "XL" : "—"}
-                                  style={{ width: "100%", padding: "5px 8px", border: "1px solid #E2E0DA", borderRadius: "5px", fontSize: "12px", fontFamily: "var(--font-jakarta)", outline: "none" }}
+                                  style={{ width: "100%", padding: "5px 8px", border: "1px solid #E3E3E3", borderRadius: "6px", fontSize: "12px", fontFamily: "var(--font-jakarta)", outline: "none" }}
                                 />
                               </td>
                             ))}
@@ -704,7 +704,7 @@ export default function NewProductPage() {
                 <button
                   type="button"
                   onClick={() => setEditSEO(v => !v)}
-                  style={{ fontSize: "12px", color: "#1A5CFF", fontWeight: 700, background: "none", border: "none", cursor: "pointer" }}
+                  style={{ fontSize: "12px", color: "#005BD3", fontWeight: 700, background: "none", border: "none", cursor: "pointer" }}
                 >
                   {editSEO ? "Preview" : "Edit"}
                 </button>
@@ -739,7 +739,7 @@ export default function NewProductPage() {
                   </div>
                 </div>
               ) : (
-                <div style={{ border: "1px solid #E2E0DA", borderRadius: "8px", padding: "14px 16px", background: "#FAFAFA" }}>
+                <div style={{ border: "1px solid #E3E3E3", borderRadius: "8px", padding: "14px 16px", background: "#FAFAFA" }}>
                   <div style={{ fontSize: "11px", color: "#059669", marginBottom: "3px" }}>
                     af-apparel.com/products/{form.slug || "product-slug"}
                   </div>
@@ -757,7 +757,7 @@ export default function NewProductPage() {
             <div style={sectionCard}>
               <span style={sectionTitle}>MARKETING FLYER</span>
               {pendingFlyer && (
-                <div style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 12px", border: "1px solid #E2E0DA", borderRadius: "8px", background: "#FAFAFA", marginBottom: "12px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 12px", border: "1px solid #E3E3E3", borderRadius: "8px", background: "#FAFAFA", marginBottom: "12px" }}>
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#E8242A" strokeWidth={2}><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: "13px", fontWeight: 600, color: "#2A2830", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{pendingFlyer.name}</div>
@@ -770,7 +770,7 @@ export default function NewProductPage() {
               <button
                 type="button"
                 onClick={() => flyerInputRef.current?.click()}
-                style={{ width: "100%", padding: "10px", border: "1.5px dashed #E2E0DA", borderRadius: "8px", background: "#fff", cursor: "pointer", fontSize: "13px", fontWeight: 600, color: "#1A5CFF", fontFamily: "var(--font-jakarta)" }}
+                style={{ width: "100%", padding: "10px", border: "1.5px dashed #E3E3E3", borderRadius: "8px", background: "#fff", cursor: "pointer", fontSize: "13px", fontWeight: 600, color: "#005BD3", fontFamily: "var(--font-jakarta)" }}
               >
                 {pendingFlyer ? "Replace Flyer (PDF)" : "Upload Flyer (PDF)"}
               </button>

@@ -306,7 +306,7 @@ export function ImportProductsModal({ onClose, onSuccess }: Props) {
       <div style={{ background: "#fff", borderRadius: "14px", width: "100%", maxWidth: "980px", maxHeight: "90vh", overflow: "hidden", display: "flex", flexDirection: "column", boxShadow: "0 24px 72px rgba(0,0,0,.25)" }}>
 
         {/* Header */}
-        <div style={{ padding: "20px 24px", borderBottom: "1px solid #E2E0DA", display: "flex", justifyContent: "space-between", alignItems: "center", flexShrink: 0 }}>
+        <div style={{ padding: "20px 24px", borderBottom: "1px solid #E3E3E3", display: "flex", justifyContent: "space-between", alignItems: "center", flexShrink: 0 }}>
           <div>
             <h2 style={{ fontFamily: "var(--font-bebas)", fontSize: "26px", color: "#2A2830", letterSpacing: ".04em", lineHeight: 1 }}>
               📥 IMPORT PRODUCTS
@@ -352,15 +352,15 @@ export function ImportProductsModal({ onClose, onSuccess }: Props) {
                 </div>
                 <button
                   onClick={downloadTemplate}
-                  style={{ padding: "8px 16px", background: "#fff", border: "1.5px solid #1A5CFF", color: "#1A5CFF", borderRadius: "6px", fontSize: "12px", fontWeight: 700, cursor: "pointer" }}
+                  style={{ padding: "8px 16px", background: "#fff", border: "1.5px solid #1A1A1A", color: "#005BD3", borderRadius: "6px", fontSize: "12px", fontWeight: 700, cursor: "pointer" }}
                 >
                   ↓ Template
                 </button>
               </div>
 
               {/* Column guide */}
-              <div style={{ border: "1px solid #E2E0DA", borderRadius: "10px", overflow: "hidden" }}>
-                <div style={{ padding: "12px 16px", background: "#F4F3EF", borderBottom: "1px solid #E2E0DA" }}>
+              <div style={{ border: "1px solid #E3E3E3", borderRadius: "10px", overflow: "hidden" }}>
+                <div style={{ padding: "12px 16px", background: "#F4F3EF", borderBottom: "1px solid #E3E3E3" }}>
                   <span style={{ fontSize: "12px", fontWeight: 700, color: "#7A7880", textTransform: "uppercase", letterSpacing: ".06em" }}>CSV Column Reference</span>
                 </div>
                 <div style={{ padding: "12px 16px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px 24px" }}>
@@ -380,7 +380,7 @@ export function ImportProductsModal({ onClose, onSuccess }: Props) {
                     ["images", '"Color:https://url.jpg,Color2:https://url2.jpg"'],
                   ].map(([col, desc]) => (
                     <div key={col} style={{ display: "flex", gap: "8px", alignItems: "flex-start" }}>
-                      <code style={{ background: "#EEF2FF", color: "#1A5CFF", padding: "2px 6px", borderRadius: "4px", fontSize: "11px", fontWeight: 700, flexShrink: 0 }}>{col}</code>
+                      <code style={{ background: "#EEF2FF", color: "#005BD3", padding: "2px 6px", borderRadius: "6px", fontSize: "11px", fontWeight: 700, flexShrink: 0 }}>{col}</code>
                       <span style={{ fontSize: "12px", color: "#7A7880" }}>{desc}</span>
                     </div>
                   ))}
@@ -399,7 +399,7 @@ export function ImportProductsModal({ onClose, onSuccess }: Props) {
                   padding: "48px 24px",
                   textAlign: "center",
                   cursor: "pointer",
-                  background: dragOver ? "rgba(26,92,255,.04)" : "#FAFAFA",
+                  background: dragOver ? "rgba(26,26,26,.04)" : "#FAFAFA",
                   transition: "all .2s",
                 }}
               >
@@ -409,7 +409,7 @@ export function ImportProductsModal({ onClose, onSuccess }: Props) {
                 </div>
                 <div style={{ fontSize: "12px", color: "#7A7880", marginBottom: "16px" }}>or click to browse</div>
                 <button
-                  style={{ padding: "8px 20px", background: "#1A5CFF", color: "#fff", border: "none", borderRadius: "6px", fontSize: "13px", fontWeight: 700, cursor: "pointer" }}
+                  style={{ padding: "8px 20px", background: "#1A1A1A", color: "#fff", border: "none", borderRadius: "6px", fontSize: "13px", fontWeight: 700, cursor: "pointer" }}
                   onClick={e => { e.stopPropagation(); fileInputRef.current?.click(); }}
                 >
                   Browse CSV
@@ -429,17 +429,17 @@ export function ImportProductsModal({ onClose, onSuccess }: Props) {
                 </div>
                 <button
                   onClick={() => { setFile(null); setRows([]); setStep("upload"); }}
-                  style={{ padding: "6px 12px", border: "1px solid #E2E0DA", borderRadius: "6px", background: "#fff", fontSize: "12px", fontWeight: 600, cursor: "pointer", color: "#7A7880" }}
+                  style={{ padding: "6px 12px", border: "1px solid #E3E3E3", borderRadius: "6px", background: "#fff", fontSize: "12px", fontWeight: 600, cursor: "pointer", color: "#7A7880" }}
                 >
                   ← Change File
                 </button>
               </div>
 
-              <div style={{ border: "1px solid #E2E0DA", borderRadius: "10px", overflow: "hidden" }}>
+              <div style={{ border: "1px solid #E3E3E3", borderRadius: "10px", overflow: "hidden" }}>
                 <div style={{ overflowX: "auto" }}>
                   <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12px" }}>
                     <thead>
-                      <tr style={{ background: "#F4F3EF", borderBottom: "2px solid #E2E0DA" }}>
+                      <tr style={{ background: "#F4F3EF", borderBottom: "2px solid #E3E3E3" }}>
                         {["#", "Name", "Category", "Type", "Vendor", "Price", "MOQ", "Colors", "Sizes", "Images", "Status"].map(h => (
                           <th key={h} style={thStyle}>{h}</th>
                         ))}
@@ -501,7 +501,7 @@ export function ImportProductsModal({ onClose, onSuccess }: Props) {
           {/* ── STEP 3: Importing ──────────────────────────────────────────── */}
           {step === "importing" && (
             <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "48px 24px", textAlign: "center" }}>
-              <div style={{ width: "56px", height: "56px", border: "4px solid #EEF2FF", borderTop: "4px solid #1A5CFF", borderRadius: "50%", animation: "spin 1s linear infinite", marginBottom: "24px" }} />
+              <div style={{ width: "56px", height: "56px", border: "4px solid #EEF2FF", borderTop: "4px solid #1A1A1A", borderRadius: "50%", animation: "spin 1s linear infinite", marginBottom: "24px" }} />
               <div style={{ fontWeight: 700, fontSize: "16px", color: "#2A2830", marginBottom: "8px" }}>
                 Importing products…
               </div>
@@ -509,7 +509,7 @@ export function ImportProductsModal({ onClose, onSuccess }: Props) {
                 {importProgress}% complete · Do not close this window
               </div>
               <div style={{ width: "100%", maxWidth: "360px", background: "#F4F3EF", borderRadius: "8px", height: "8px", overflow: "hidden" }}>
-                <div style={{ height: "100%", background: "#1A5CFF", width: `${importProgress}%`, transition: "width .3s", borderRadius: "8px" }} />
+                <div style={{ height: "100%", background: "#1A1A1A", width: `${importProgress}%`, transition: "width .3s", borderRadius: "8px" }} />
               </div>
             </div>
           )}
@@ -533,8 +533,8 @@ export function ImportProductsModal({ onClose, onSuccess }: Props) {
 
               {/* Created products */}
               {result.created.length > 0 && (
-                <div style={{ border: "1px solid #E2E0DA", borderRadius: "10px", overflow: "hidden" }}>
-                  <div style={{ padding: "10px 14px", background: "#F4F3EF", borderBottom: "1px solid #E2E0DA" }}>
+                <div style={{ border: "1px solid #E3E3E3", borderRadius: "10px", overflow: "hidden" }}>
+                  <div style={{ padding: "10px 14px", background: "#F4F3EF", borderBottom: "1px solid #E3E3E3" }}>
                     <span style={{ fontSize: "11px", fontWeight: 700, color: "#7A7880", textTransform: "uppercase", letterSpacing: ".06em" }}>Created Products</span>
                   </div>
                   <div style={{ padding: "12px 14px", display: "flex", flexDirection: "column", gap: "6px" }}>
@@ -566,21 +566,21 @@ export function ImportProductsModal({ onClose, onSuccess }: Props) {
         </div>
 
         {/* Footer */}
-        <div style={{ padding: "16px 24px", borderTop: "1px solid #E2E0DA", display: "flex", gap: "10px", justifyContent: "flex-end", flexShrink: 0 }}>
+        <div style={{ padding: "16px 24px", borderTop: "1px solid #E3E3E3", display: "flex", gap: "10px", justifyContent: "flex-end", flexShrink: 0 }}>
           {step === "upload" && (
-            <button onClick={onClose} style={{ padding: "10px 20px", border: "1px solid #E2E0DA", borderRadius: "6px", background: "#fff", cursor: "pointer", fontWeight: 600, fontSize: "13px" }}>
+            <button onClick={onClose} style={{ padding: "10px 20px", border: "1px solid #E3E3E3", borderRadius: "6px", background: "#fff", cursor: "pointer", fontWeight: 600, fontSize: "13px" }}>
               Cancel
             </button>
           )}
           {step === "preview" && (
             <>
-              <button onClick={() => setStep("upload")} style={{ padding: "10px 20px", border: "1px solid #E2E0DA", borderRadius: "6px", background: "#fff", cursor: "pointer", fontWeight: 600, fontSize: "13px" }}>
+              <button onClick={() => setStep("upload")} style={{ padding: "10px 20px", border: "1px solid #E3E3E3", borderRadius: "6px", background: "#fff", cursor: "pointer", fontWeight: 600, fontSize: "13px" }}>
                 Back
               </button>
               <button
                 onClick={runImport}
                 disabled={rows.length === 0}
-                style={{ padding: "10px 24px", background: rows.length === 0 ? "#E2E0DA" : "#1A5CFF", color: "#fff", border: "none", borderRadius: "6px", cursor: rows.length === 0 ? "not-allowed" : "pointer", fontWeight: 700, fontSize: "13px" }}
+                style={{ padding: "10px 24px", background: rows.length === 0 ? "#E3E3E3" : "#1A5CFF", color: "#fff", border: "none", borderRadius: "6px", cursor: rows.length === 0 ? "not-allowed" : "pointer", fontWeight: 700, fontSize: "13px" }}
               >
                 Import {rows.length} Product{rows.length !== 1 ? "s" : ""}
               </button>
@@ -589,7 +589,7 @@ export function ImportProductsModal({ onClose, onSuccess }: Props) {
           {step === "done" && (
             <button
               onClick={onClose}
-              style={{ padding: "10px 24px", background: "#1A5CFF", color: "#fff", border: "none", borderRadius: "6px", cursor: "pointer", fontWeight: 700, fontSize: "13px" }}
+              style={{ padding: "10px 24px", background: "#1A1A1A", color: "#fff", border: "none", borderRadius: "6px", cursor: "pointer", fontWeight: 700, fontSize: "13px" }}
             >
               Done
             </button>

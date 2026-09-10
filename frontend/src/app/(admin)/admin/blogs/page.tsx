@@ -17,10 +17,10 @@ interface BlogPost {
 const thSt: React.CSSProperties = {
   padding: "10px 16px", textAlign: "left", fontSize: "11px", textTransform: "uppercase",
   letterSpacing: ".06em", color: "#7A7880", fontWeight: 700, background: "#F9F8F4",
-  borderBottom: "1px solid #E2E0DA",
+  borderBottom: "1px solid #E3E3E3",
 };
 const tdSt: React.CSSProperties = {
-  padding: "12px 16px", fontSize: "14px", color: "#2A2830", borderBottom: "1px solid #E2E0DA",
+  padding: "12px 16px", fontSize: "14px", color: "#2A2830", borderBottom: "1px solid #E3E3E3",
 };
 
 export default function AdminBlogsPage() {
@@ -62,9 +62,9 @@ export default function AdminBlogsPage() {
       </div>
 
       {loading ? (
-        <p style={{ color: "#7A7880", fontSize: "14px" }}>Loading…</p>
+        <div style={{ padding: "26px" }}>{[70, 92, 58, 84].map((w, i) => (<div key={i} className="at-skel" style={{ height: "14px", width: `${w}%`, marginBottom: "12px" }} />))}</div>
       ) : posts.length === 0 ? (
-        <div style={{ background: "#fff", border: "1px solid #E2E0DA", borderRadius: "10px", padding: "48px", textAlign: "center" }}>
+        <div style={{ background: "#fff", border: "1px solid #E3E3E3", borderRadius: "10px", padding: "48px", textAlign: "center" }}>
           <p style={{ color: "#7A7880", fontSize: "14px", marginBottom: "16px" }}>No blog posts yet.</p>
           <button onClick={() => router.push("/admin/blogs/new")}
             style={{ background: "#1B3A5C", color: "#fff", border: "none", borderRadius: "8px", padding: "10px 22px", fontSize: "14px", fontWeight: 700, cursor: "pointer" }}>
@@ -72,7 +72,7 @@ export default function AdminBlogsPage() {
           </button>
         </div>
       ) : (
-        <div style={{ background: "#fff", border: "1px solid #E2E0DA", borderRadius: "10px", overflow: "hidden" }}>
+        <div style={{ background: "#fff", border: "1px solid #E3E3E3", borderRadius: "10px", overflow: "hidden" }}>
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
               <tr>
@@ -111,7 +111,7 @@ export default function AdminBlogsPage() {
                   <td style={tdSt}>
                     <div style={{ display: "flex", flexWrap: "wrap", gap: "4px" }}>
                       {(post.tags || []).slice(0, 3).map(tag => (
-                        <span key={tag} style={{ background: "#F6F6F7", color: "#555", padding: "2px 8px", borderRadius: "4px", fontSize: "11px" }}>{tag}</span>
+                        <span key={tag} style={{ background: "#F6F6F7", color: "#555", padding: "2px 8px", borderRadius: "6px", fontSize: "11px" }}>{tag}</span>
                       ))}
                     </div>
                   </td>

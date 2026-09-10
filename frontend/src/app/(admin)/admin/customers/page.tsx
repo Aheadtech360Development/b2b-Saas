@@ -83,8 +83,8 @@ function AddCustomerModal({ pricingTiers, onClose, onSuccess }: {
   }
 
   const inp: React.CSSProperties = {
-    width: "100%", padding: "8px 11px", border: "1.5px solid #E2E0DA",
-    borderRadius: "7px", fontSize: "13px", outline: "none", boxSizing: "border-box",
+    width: "100%", padding: "8px 11px", border: "1.5px solid #E3E3E3",
+    borderRadius: "8px", fontSize: "13px", outline: "none", boxSizing: "border-box",
     fontFamily: "var(--font-jakarta)",
   };
   const lbl: React.CSSProperties = {
@@ -95,7 +95,7 @@ function AddCustomerModal({ pricingTiers, onClose, onSuccess }: {
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,.5)", padding: "16px" }}>
       <div style={{ background: "#fff", borderRadius: "12px", width: "100%", maxWidth: "600px", boxShadow: "0 20px 60px rgba(0,0,0,.2)", maxHeight: "90vh", display: "flex", flexDirection: "column" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "20px 24px", borderBottom: "1px solid #E2E0DA", flexShrink: 0 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "20px 24px", borderBottom: "1px solid #E3E3E3", flexShrink: 0 }}>
           <h2 style={{ fontFamily: "var(--font-bebas)", fontSize: "22px", color: "#2A2830", letterSpacing: ".04em", margin: 0 }}>ADD CUSTOMER</h2>
           <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "22px", color: "#7A7880", lineHeight: 1 }}>×</button>
         </div>
@@ -179,13 +179,13 @@ function AddCustomerModal({ pricingTiers, onClose, onSuccess }: {
             <textarea style={{ ...inp, resize: "vertical", minHeight: "60px" }} value={form.admin_notes} onChange={e => set("admin_notes", e.target.value)} />
           </div>
 
-          <div style={{ display: "flex", gap: "10px", marginTop: "20px", paddingTop: "16px", borderTop: "1px solid #E2E0DA" }}>
+          <div style={{ display: "flex", gap: "10px", marginTop: "20px", paddingTop: "16px", borderTop: "1px solid #E3E3E3" }}>
             <button type="button" onClick={onClose}
-              style={{ flex: 1, padding: "10px", border: "1.5px solid #E2E0DA", borderRadius: "7px", fontSize: "13px", fontWeight: 600, cursor: "pointer", background: "#fff" }}>
+              style={{ flex: 1, padding: "10px", border: "1.5px solid #E3E3E3", borderRadius: "8px", fontSize: "13px", fontWeight: 600, cursor: "pointer", background: "#fff" }}>
               Cancel
             </button>
             <button type="submit" disabled={saving}
-              style={{ flex: 2, padding: "10px", background: saving ? "#E2E0DA" : "#1A5CFF", color: saving ? "#aaa" : "#fff", border: "none", borderRadius: "7px", fontSize: "13px", fontWeight: 700, cursor: saving ? "not-allowed" : "pointer" }}>
+              style={{ flex: 2, padding: "10px", background: saving ? "#E3E3E3" : "#1A5CFF", color: saving ? "#aaa" : "#fff", border: "none", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: saving ? "not-allowed" : "pointer" }}>
               {saving ? "Creating…" : "Create Customer"}
             </button>
           </div>
@@ -280,12 +280,12 @@ export default function AdminCustomersPage() {
         <div style={{ display: "flex", gap: "10px" }}>
           <button
             onClick={handleExport} disabled={exportLoading}
-            style={{ padding: "10px 18px", border: "1px solid #E2E0DA", borderRadius: "8px", background: "#fff", fontSize: "13px", fontWeight: 600, cursor: exportLoading ? "not-allowed" : "pointer", display: "inline-flex", alignItems: "center", gap: "6px", opacity: exportLoading ? .6 : 1 }}>
+            style={{ padding: "10px 18px", border: "1px solid #E3E3E3", borderRadius: "8px", background: "#fff", fontSize: "13px", fontWeight: 600, cursor: exportLoading ? "not-allowed" : "pointer", display: "inline-flex", alignItems: "center", gap: "6px", opacity: exportLoading ? .6 : 1 }}>
             <DownloadIcon size={14} color="#2A2830" /> {exportLoading ? "Exporting…" : "Export CSV"}
           </button>
           <button
             onClick={() => setShowAddModal(true)}
-            style={{ background: "#1A5CFF", color: "#fff", border: "none", padding: "10px 20px", borderRadius: "8px", fontWeight: 700, cursor: "pointer", fontSize: "14px" }}>
+            style={{ background: "#1A1A1A", color: "#fff", border: "none", padding: "10px 20px", borderRadius: "8px", fontWeight: 700, cursor: "pointer", fontSize: "14px" }}>
             + Add Customer
           </button>
         </div>
@@ -296,10 +296,10 @@ export default function AdminCustomersPage() {
         {[
           { label: "Total Customers", value: stats.total, icon: <UsersIcon size={22} color="#2A2830" />, color: "#2A2830" },
           { label: "Active Accounts", value: stats.active, icon: <CheckCircleIcon size={22} color="#059669" />, color: "#059669" },
-          { label: "Avg Order Value", value: `$${stats.avg_spend.toLocaleString("en-US", { minimumFractionDigits: 2 })}`, icon: <BarChartIcon size={22} color="#1A5CFF" />, color: "#1A5CFF" },
+          { label: "Avg Order Value", value: `$${stats.avg_spend.toLocaleString("en-US", { minimumFractionDigits: 2 })}`, icon: <BarChartIcon size={22} color="#1A5CFF" />, color: "#005BD3" },
           { label: "Total Revenue", value: `$${stats.total_revenue.toLocaleString("en-US", { minimumFractionDigits: 2 })}`, icon: <DollarSignIcon size={22} color="#D97706" />, color: "#D97706" },
         ].map(s => (
-          <div key={s.label} style={{ background: "#fff", border: "1px solid #E2E0DA", borderRadius: "10px", padding: "16px 18px", display: "flex", alignItems: "center", gap: "12px" }}>
+          <div key={s.label} style={{ background: "#fff", border: "1px solid #E3E3E3", borderRadius: "10px", padding: "16px 18px", display: "flex", alignItems: "center", gap: "12px" }}>
             {s.icon}
             <div>
               <div style={{ fontFamily: "var(--font-bebas)", fontSize: "24px", color: s.color, lineHeight: 1 }}>{s.value}</div>
@@ -314,17 +314,17 @@ export default function AdminCustomersPage() {
         <input
           value={q} onChange={e => { setQ(e.target.value); setPage(1); }}
           placeholder="Search customers…"
-          style={{ padding: "9px 14px", border: "1.5px solid #E2E0DA", borderRadius: "8px", fontSize: "13px", fontFamily: "var(--font-jakarta)", outline: "none", width: "220px" }}
+          style={{ padding: "9px 14px", border: "1.5px solid #E3E3E3", borderRadius: "8px", fontSize: "13px", fontFamily: "var(--font-jakarta)", outline: "none", width: "220px" }}
         />
         <select value={statusFilter} onChange={e => { setStatusFilter(e.target.value); setPage(1); }}
-          style={{ padding: "9px 12px", border: "1.5px solid #E2E0DA", borderRadius: "8px", fontSize: "13px", fontFamily: "var(--font-jakarta)", background: "#fff", cursor: "pointer" }}>
+          style={{ padding: "9px 12px", border: "1.5px solid #E3E3E3", borderRadius: "8px", fontSize: "13px", fontFamily: "var(--font-jakarta)", background: "#fff", cursor: "pointer" }}>
           <option value="">All Status</option>
           <option value="active">Active</option>
           <option value="pending">Pending</option>
           <option value="suspended">Suspended</option>
         </select>
         <select value={sortBy} onChange={e => setSortBy(e.target.value)}
-          style={{ padding: "9px 12px", border: "1.5px solid #E2E0DA", borderRadius: "8px", fontSize: "13px", fontFamily: "var(--font-jakarta)", background: "#fff", cursor: "pointer" }}>
+          style={{ padding: "9px 12px", border: "1.5px solid #E3E3E3", borderRadius: "8px", fontSize: "13px", fontFamily: "var(--font-jakarta)", background: "#fff", cursor: "pointer" }}>
           <option value="created_at">Sort: Newest</option>
           <option value="total_spend">Sort: Most Spent</option>
           <option value="order_count">Sort: Most Orders</option>
@@ -335,10 +335,10 @@ export default function AdminCustomersPage() {
       </div>
 
       {/* Table */}
-      <div style={{ background: "#fff", border: "1px solid #E2E0DA", borderRadius: "10px", overflow: "hidden" }}>
+      <div style={{ background: "#fff", border: "1px solid #E3E3E3", borderRadius: "10px", overflow: "hidden" }}>
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
-            <tr style={{ background: "#F6F6F7", borderBottom: "2px solid #E2E0DA" }}>
+            <tr style={{ background: "#F6F6F7", borderBottom: "2px solid #E3E3E3" }}>
               <th style={thStyle}>Company</th>
               <th style={thStyle}>Contact</th>
               <th style={{ ...thStyle, textAlign: "right" }}>Orders</th>
@@ -350,7 +350,7 @@ export default function AdminCustomersPage() {
           </thead>
           <tbody>
             {isLoading && sorted.length === 0 ? (
-              <tr><td colSpan={7} style={{ padding: "40px", textAlign: "center", color: "#bbb", fontSize: "14px" }}>Loading…</td></tr>
+              <tr><td colSpan={7} style={{ padding: "40px", textAlign: "center", color: "#bbb", fontSize: "14px" }}><div className="at-skel" style={{ height: "14px", width: "60%", margin: "0 auto" }} /></td></tr>
             ) : sorted.length === 0 ? (
               <tr><td colSpan={7} style={{ padding: "40px", textAlign: "center", color: "#bbb", fontSize: "14px" }}>No customers found</td></tr>
             ) : sorted.map(co => {
@@ -370,7 +370,7 @@ export default function AdminCustomersPage() {
                       <div>
                         <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
                           <span style={{ fontWeight: 700, fontSize: "13px", color: "#2A2830" }}>{co.name}</span>
-                          <span style={{ padding: "1px 7px", borderRadius: "20px", fontSize: "10px", fontWeight: 700, background: isRetail ? "rgba(124,58,237,.1)" : "rgba(26,92,255,.1)", color: isRetail ? "#7C3AED" : "#1A5CFF", textTransform: "uppercase", letterSpacing: ".04em", flexShrink: 0 }}>
+                          <span style={{ padding: "1px 7px", borderRadius: "20px", fontSize: "10px", fontWeight: 700, background: isRetail ? "rgba(124,58,237,.1)" : "rgba(26,26,26,.1)", color: isRetail ? "#7C3AED" : "#1A5CFF", textTransform: "uppercase", letterSpacing: ".04em", flexShrink: 0 }}>
                             {isRetail ? "Retail" : "Wholesale"}
                           </span>
                         </div>
@@ -397,7 +397,7 @@ export default function AdminCustomersPage() {
                   <td style={{ padding: "13px 14px" }} onClick={e => e.stopPropagation()}>
                     <button
                       onClick={() => router.push(`/admin/customers/${co.id}`)}
-                      style={{ padding: "5px 12px", border: "1px solid #E2E0DA", borderRadius: "6px", background: "#fff", fontSize: "12px", fontWeight: 600, cursor: "pointer" }}>
+                      style={{ padding: "5px 12px", border: "1px solid #E3E3E3", borderRadius: "6px", background: "#fff", fontSize: "12px", fontWeight: 600, cursor: "pointer" }}>
                       View
                     </button>
                   </td>
@@ -412,12 +412,12 @@ export default function AdminCustomersPage() {
       {pages > 1 && (
         <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", marginTop: "16px" }}>
           <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
-            style={{ padding: "7px 14px", border: "1px solid #E2E0DA", borderRadius: "6px", background: "#fff", cursor: page === 1 ? "not-allowed" : "pointer", opacity: page === 1 ? 0.4 : 1, fontSize: "13px", fontWeight: 600 }}>
+            style={{ padding: "7px 14px", border: "1px solid #E3E3E3", borderRadius: "6px", background: "#fff", cursor: page === 1 ? "not-allowed" : "pointer", opacity: page === 1 ? 0.4 : 1, fontSize: "13px", fontWeight: 600 }}>
             ← Prev
           </button>
           <span style={{ fontSize: "13px", color: "#7A7880" }}>{page} / {pages}</span>
           <button onClick={() => setPage(p => Math.min(pages, p + 1))} disabled={page === pages}
-            style={{ padding: "7px 14px", border: "1px solid #E2E0DA", borderRadius: "6px", background: "#fff", cursor: page === pages ? "not-allowed" : "pointer", opacity: page === pages ? 0.4 : 1, fontSize: "13px", fontWeight: 600 }}>
+            style={{ padding: "7px 14px", border: "1px solid #E3E3E3", borderRadius: "6px", background: "#fff", cursor: page === pages ? "not-allowed" : "pointer", opacity: page === pages ? 0.4 : 1, fontSize: "13px", fontWeight: 600 }}>
             Next →
           </button>
         </div>

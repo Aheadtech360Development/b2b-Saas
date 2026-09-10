@@ -4,7 +4,7 @@ export default function AdminLoading() {
       {/* Header skeleton */}
       <div style={{ marginBottom: "20px" }}>
         <div style={{ width: "180px", height: "32px", background: "#E8E6E0", borderRadius: "6px", marginBottom: "8px", animation: "pulse 1.5s ease-in-out infinite" }} />
-        <div style={{ width: "260px", height: "14px", background: "#F0EDE8", borderRadius: "4px", animation: "pulse 1.5s ease-in-out infinite" }} />
+        <div style={{ width: "260px", height: "14px", background: "#F0EDE8", borderRadius: "6px", animation: "pulse 1.5s ease-in-out infinite" }} />
       </div>
 
       {/* Toolbar skeleton */}
@@ -15,10 +15,10 @@ export default function AdminLoading() {
       </div>
 
       {/* Table skeleton */}
-      <div style={{ background: "#fff", border: "1px solid #E2E0DA", borderRadius: "10px", overflow: "hidden" }}>
-        <div style={{ background: "#F6F6F7", padding: "12px 16px", borderBottom: "2px solid #E2E0DA", display: "flex", gap: "24px" }}>
+      <div style={{ background: "#fff", border: "1px solid #E3E3E3", borderRadius: "10px", overflow: "hidden" }}>
+        <div style={{ background: "#F6F6F7", padding: "12px 16px", borderBottom: "2px solid #E3E3E3", display: "flex", gap: "24px" }}>
           {[120, 180, 80, 100, 100, 80].map((w, i) => (
-            <div key={i} style={{ width: `${w}px`, height: "12px", background: "#E2E0DA", borderRadius: "4px", animation: "pulse 1.5s ease-in-out infinite" }} />
+            <div key={i} style={{ width: `${w}px`, height: "12px", background: "#E3E3E3", borderRadius: "6px", animation: "pulse 1.5s ease-in-out infinite" }} />
           ))}
         </div>
         {Array.from({ length: 8 }).map((_, i) => (
@@ -29,12 +29,12 @@ export default function AdminLoading() {
             <div style={{ width: "16px", height: "16px", background: "#F0EDE8", borderRadius: "3px", animation: "pulse 1.5s ease-in-out infinite" }} />
             <div style={{ width: "48px", height: "48px", background: "#F0EDE8", borderRadius: "8px", flexShrink: 0, animation: "pulse 1.5s ease-in-out infinite" }} />
             <div style={{ flex: 1 }}>
-              <div style={{ width: `${120 + (i % 3) * 40}px`, height: "14px", background: "#F0EDE8", borderRadius: "4px", marginBottom: "6px", animation: "pulse 1.5s ease-in-out infinite" }} />
-              <div style={{ width: "80px", height: "11px", background: "#F6F6F7", borderRadius: "4px", animation: "pulse 1.5s ease-in-out infinite" }} />
+              <div style={{ width: `${120 + (i % 3) * 40}px`, height: "14px", background: "#F0EDE8", borderRadius: "6px", marginBottom: "6px", animation: "pulse 1.5s ease-in-out infinite" }} />
+              <div style={{ width: "80px", height: "11px", background: "#F6F6F7", borderRadius: "6px", animation: "pulse 1.5s ease-in-out infinite" }} />
             </div>
             <div style={{ width: "60px", height: "22px", background: "#F0EDE8", borderRadius: "20px", animation: "pulse 1.5s ease-in-out infinite" }} />
-            <div style={{ width: "70px", height: "14px", background: "#F0EDE8", borderRadius: "4px", animation: "pulse 1.5s ease-in-out infinite" }} />
-            <div style={{ width: "80px", height: "14px", background: "#F0EDE8", borderRadius: "4px", animation: "pulse 1.5s ease-in-out infinite" }} />
+            <div style={{ width: "70px", height: "14px", background: "#F0EDE8", borderRadius: "6px", animation: "pulse 1.5s ease-in-out infinite" }} />
+            <div style={{ width: "80px", height: "14px", background: "#F0EDE8", borderRadius: "6px", animation: "pulse 1.5s ease-in-out infinite" }} />
           </div>
         ))}
       </div>

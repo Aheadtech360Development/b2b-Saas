@@ -29,7 +29,7 @@ export function MenuLinkField({ href, onChange, products, categories, pages, com
   };
   const [type, setType] = useState<LinkType>(inferType());
 
-  const box: React.CSSProperties = { border: "1px solid #E2E0DA", borderRadius: "8px", padding: compact ? "7px 10px" : "10px 12px", fontSize: compact ? "13px" : "14px", outline: "none", boxSizing: "border-box", background: "#fff" };
+  const box: React.CSSProperties = { border: "1px solid #E3E3E3", borderRadius: "8px", padding: compact ? "7px 10px" : "10px 12px", fontSize: compact ? "13px" : "14px", outline: "none", boxSizing: "border-box", background: "#fff" };
   const productSlug = href?.startsWith("/products/") ? href.slice(10) : "";
   const catSlug = href?.startsWith("/products?category=") ? href.slice(19) : "";
   const pageVal = (pages.some((p) => `/${p.slug}` === href) || href === "/" || href === "/products") ? href : "";

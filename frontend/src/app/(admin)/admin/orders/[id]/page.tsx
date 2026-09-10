@@ -167,7 +167,7 @@ const COURIERS = [
 
 const STATUS_STYLE: Record<string, { bg: string; color: string }> = {
   pending:           { bg: "rgba(217,119,6,.1)",   color: "#D97706" },
-  confirmed:         { bg: "rgba(26,92,255,.1)",   color: "#1A5CFF" },
+  confirmed:         { bg: "rgba(26,26,26,.1)",   color: "#005BD3" },
   processing:        { bg: "rgba(99,102,241,.1)",  color: "#6366F1" },
   ready_for_pickup:  { bg: "rgba(8,145,178,.1)",   color: "#0891B2" },
   shipped:           { bg: "rgba(139,92,246,.1)",  color: "#8B5CF6" },
@@ -204,7 +204,7 @@ const LabelStyle: React.CSSProperties = {
 };
 
 const CardStyle: React.CSSProperties = {
-  background: "#fff", border: "1px solid #E2E0DA",
+  background: "#fff", border: "1px solid #E3E3E3",
   borderRadius: "10px", padding: "20px", marginBottom: "16px",
 };
 
@@ -653,7 +653,7 @@ export default function AdminOrderDetailPage() {
     return (
       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "320px", gap: "12px" }}>
         <div style={{ fontSize: "14px", color: "#E8242A", fontWeight: 600 }}>{orderError || "Order not found."}</div>
-        <button onClick={() => router.back()} style={{ fontSize: "13px", color: "#1A5CFF", background: "none", border: "none", cursor: "pointer", fontWeight: 700 }}>← Back to Orders</button>
+        <button onClick={() => router.back()} style={{ fontSize: "13px", color: "#005BD3", background: "none", border: "none", cursor: "pointer", fontWeight: 700 }}>← Back to Orders</button>
       </div>
     );
   }
@@ -682,7 +682,7 @@ export default function AdminOrderDetailPage() {
       text: "Order placed",
       sub: `${order.company_name || order.customer_name || "Customer"} · ${order.payment_status}`,
       time: order.created_at,
-      color: "#1A5CFF",
+      color: "#005BD3",
     },
     // Append all backend-recorded status changes in chronological order
     ...backendTimeline.map(entry => ({
@@ -699,7 +699,7 @@ export default function AdminOrderDetailPage() {
   return (
     <div style={{ fontFamily: "var(--font-jakarta)", maxWidth: "1200px" }}>
       {/* Back */}
-      <button onClick={() => router.back()} style={{ background: "none", border: "none", color: "#1A5CFF", cursor: "pointer", fontSize: "13px", fontWeight: 700, padding: 0, marginBottom: "20px", display: "flex", alignItems: "center", gap: "6px" }}>
+      <button onClick={() => router.back()} style={{ background: "none", border: "none", color: "#005BD3", cursor: "pointer", fontSize: "13px", fontWeight: 700, padding: 0, marginBottom: "20px", display: "flex", alignItems: "center", gap: "6px" }}>
         ← Back to Orders
       </button>
 
@@ -720,7 +720,7 @@ export default function AdminOrderDetailPage() {
         </div>
         <button
           onClick={() => window.print()}
-          style={{ display: "flex", alignItems: "center", gap: "6px", background: "#fff", border: "1.5px solid #E2E0DA", borderRadius: "8px", padding: "8px 16px", fontSize: "13px", fontWeight: 700, color: "#2A2830", cursor: "pointer" }}
+          style={{ display: "flex", alignItems: "center", gap: "6px", background: "#fff", border: "1.5px solid #E3E3E3", borderRadius: "8px", padding: "8px 16px", fontSize: "13px", fontWeight: 700, color: "#2A2830", cursor: "pointer" }}
           className="no-print"
         >
           🖨️ Print
@@ -777,8 +777,8 @@ export default function AdminOrderDetailPage() {
 
             {/* CASE 3: Will Call Pickup */}
             {isWillCallPickup ? (
-              <div style={{ background: "rgba(26,92,255,.05)", border: "1.5px solid rgba(26,92,255,.2)", borderRadius: "10px", padding: "18px 20px" }}>
-                <div style={{ fontSize: "13px", fontWeight: 700, color: "#1A5CFF", marginBottom: "10px" }}>📦 Customer selected: Will Call Pickup</div>
+              <div style={{ background: "rgba(26,26,26,.05)", border: "1.5px solid rgba(26,26,26,.2)", borderRadius: "10px", padding: "18px 20px" }}>
+                <div style={{ fontSize: "13px", fontWeight: 700, color: "#005BD3", marginBottom: "10px" }}>📦 Customer selected: Will Call Pickup</div>
                 <div style={{ fontSize: "13px", color: "#2A2830", fontWeight: 600, marginBottom: "6px" }}>Warehouse Address:</div>
                 <div style={{ fontSize: "13px", color: "#7A7880", lineHeight: 1.7 }}>
                   AF Apparels<br />
@@ -797,9 +797,9 @@ export default function AdminOrderDetailPage() {
 
                 {/* Customer selection info banner */}
                 {order.shipping_method && (
-                  <div style={{ background: "rgba(26,92,255,.06)", border: "1px solid rgba(26,92,255,.2)", borderRadius: "8px", padding: "10px 14px", marginBottom: "12px" }}>
-                    <div style={{ fontSize: "12px", color: "#1A5CFF", fontWeight: 700, marginBottom: "2px" }}>Customer Selected:</div>
-                    <div style={{ fontSize: "12px", color: "#1A5CFF", fontWeight: 600 }}>
+                  <div style={{ background: "rgba(26,26,26,.06)", border: "1px solid rgba(26,26,26,.2)", borderRadius: "8px", padding: "10px 14px", marginBottom: "12px" }}>
+                    <div style={{ fontSize: "12px", color: "#005BD3", fontWeight: 700, marginBottom: "2px" }}>Customer Selected:</div>
+                    <div style={{ fontSize: "12px", color: "#005BD3", fontWeight: 600 }}>
                       {hasLiveRate && order.carrier
                         ? `${order.carrier} — ${order.courier_service ?? ""} — $${Number(order.shipping_cost).toFixed(2)}`
                         : `${order.shipping_method} — Flat Rate — $${Number(order.shipping_cost).toFixed(2)}`
@@ -822,10 +822,10 @@ export default function AdminOrderDetailPage() {
                           <input
                             type="number" min="0.1" step="0.1" value={manualWeight}
                             onChange={e => setManualWeight(parseFloat(e.target.value) || 0.5)}
-                            style={{ width: "80px", padding: "8px 10px", border: "1.5px solid #E2E0DA", borderRadius: "6px", fontSize: "14px", fontFamily: "var(--font-jakarta)" }}
+                            style={{ width: "80px", padding: "8px 10px", border: "1.5px solid #E3E3E3", borderRadius: "6px", fontSize: "14px", fontFamily: "var(--font-jakarta)" }}
                           />
                           <button onClick={handleFetchAdminRates} disabled={adminRatesLoading}
-                            style={{ padding: "8px 18px", background: "#1A5CFF", color: "#fff", border: "none", borderRadius: "6px", fontSize: "13px", fontWeight: 700, cursor: adminRatesLoading ? "not-allowed" : "pointer", opacity: adminRatesLoading ? .65 : 1, whiteSpace: "nowrap" as const }}>
+                            style={{ padding: "8px 18px", background: "#1A1A1A", color: "#fff", border: "none", borderRadius: "6px", fontSize: "13px", fontWeight: 700, cursor: adminRatesLoading ? "not-allowed" : "pointer", opacity: adminRatesLoading ? .65 : 1, whiteSpace: "nowrap" as const }}>
                             {adminRatesLoading ? "Fetching…" : "Refresh Rates"}
                           </button>
                         </div>
@@ -846,15 +846,15 @@ export default function AdminOrderDetailPage() {
                                   style={{
                                     display: "flex", alignItems: "center", justifyContent: "space-between",
                                     padding: "10px 14px", cursor: "pointer",
-                                    border: `1px solid ${isRateSelected ? "#1A5CFF" : "#E2E0DA"}`,
+                                    border: `1px solid ${isRateSelected ? "#1A5CFF" : "#E3E3E3"}`,
                                     borderRadius: "6px",
-                                    background: isRateSelected ? "rgba(26,92,255,.04)" : "#fff",
+                                    background: isRateSelected ? "rgba(26,26,26,.04)" : "#fff",
                                     transition: "all .1s",
                                   }}>
                                   <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
                                     <div style={{
                                       width: "14px", height: "14px", borderRadius: "50%", flexShrink: 0,
-                                      border: `2px solid ${isRateSelected ? "#1A5CFF" : "#E2E0DA"}`,
+                                      border: `2px solid ${isRateSelected ? "#1A5CFF" : "#E3E3E3"}`,
                                       background: isRateSelected ? "#1A5CFF" : "#fff",
                                       display: "flex", alignItems: "center", justifyContent: "center",
                                     }}>
@@ -886,7 +886,7 @@ export default function AdminOrderDetailPage() {
 
                         {/* Generate Label button */}
                         <button onClick={handleGenerateManualLabel} disabled={!adminSelectedRateId || manualLabelLoading}
-                          style={{ background: adminSelectedRateId ? "#1A5CFF" : "#E2E0DA", color: "#fff", border: "none", padding: "12px 24px", borderRadius: "6px", fontSize: "14px", fontWeight: 700, cursor: adminSelectedRateId ? "pointer" : "not-allowed", opacity: manualLabelLoading ? .65 : 1, marginBottom: "14px" }}>
+                          style={{ background: adminSelectedRateId ? "#1A5CFF" : "#E3E3E3", color: "#fff", border: "none", padding: "12px 24px", borderRadius: "6px", fontSize: "14px", fontWeight: 700, cursor: adminSelectedRateId ? "pointer" : "not-allowed", opacity: manualLabelLoading ? .65 : 1, marginBottom: "14px" }}>
                           {manualLabelLoading ? "Generating label…" : adminSelectedRateId ? "Generate Label" : "Select a rate first"}
                         </button>
                       </>
@@ -896,7 +896,7 @@ export default function AdminOrderDetailPage() {
                   /* CASE 1 (Live Rate): customer's rate already known — generate label directly */
                   <>
                     <button onClick={handleGenerateLabel} disabled={!selectedCarrier || labelLoading}
-                      style={{ background: selectedCarrier ? "#1A5CFF" : "#E2E0DA", color: "#fff", border: "none", padding: "12px 24px", borderRadius: "6px", fontSize: "14px", fontWeight: 700, cursor: selectedCarrier ? "pointer" : "not-allowed", opacity: labelLoading ? .65 : 1, marginBottom: "14px" }}>
+                      style={{ background: selectedCarrier ? "#1A5CFF" : "#E3E3E3", color: "#fff", border: "none", padding: "12px 24px", borderRadius: "6px", fontSize: "14px", fontWeight: 700, cursor: selectedCarrier ? "pointer" : "not-allowed", opacity: labelLoading ? .65 : 1, marginBottom: "14px" }}>
                       {labelLoading ? "Generating label…" : `Generate ${(order.carrier ?? selectedCarrier ?? "").toUpperCase()} Label`}
                     </button>
                   </>
@@ -915,13 +915,13 @@ export default function AdminOrderDetailPage() {
                     <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" as const }}>
                       {labelResult.label_url && (
                         <a href={labelResult.label_url} target="_blank" rel="noreferrer"
-                          style={{ background: "#1A5CFF", color: "#fff", padding: "8px 16px", borderRadius: "6px", fontSize: "13px", fontWeight: 700, textDecoration: "none" }}>
+                          style={{ background: "#1A1A1A", color: "#fff", padding: "8px 16px", borderRadius: "6px", fontSize: "13px", fontWeight: 700, textDecoration: "none" }}>
                           ↓ Download Label PDF
                         </a>
                       )}
                       {labelResult.tracking_url && (
                         <a href={labelResult.tracking_url} target="_blank" rel="noreferrer"
-                          style={{ background: "#fff", color: "#1A5CFF", padding: "8px 16px", borderRadius: "6px", fontSize: "13px", fontWeight: 700, textDecoration: "none", border: "1.5px solid #1A5CFF" }}>
+                          style={{ background: "#fff", color: "#005BD3", padding: "8px 16px", borderRadius: "6px", fontSize: "13px", fontWeight: 700, textDecoration: "none", border: "1.5px solid #1A1A1A" }}>
                           Track Package →
                         </a>
                       )}
@@ -944,7 +944,7 @@ export default function AdminOrderDetailPage() {
               <div>
                 <label style={LabelStyle}>Status</label>
                 <select value={status} onChange={e => setStatus(e.target.value)}
-                  style={{ padding: "10px 14px", border: "1.5px solid #E2E0DA", borderRadius: "6px", fontSize: "14px", fontFamily: "var(--font-jakarta)", background: "#fff" }}>
+                  style={{ padding: "10px 14px", border: "1.5px solid #E3E3E3", borderRadius: "6px", fontSize: "14px", fontFamily: "var(--font-jakarta)", background: "#fff" }}>
                   {getAvailableStatuses(order.status).filter(s => !(s === "shipped" && order.shipping_method === "will_call")).map(s => (
                     <option key={s} value={s}>{STATUS_LABEL[s] ?? s}</option>
                   ))}
@@ -952,7 +952,7 @@ export default function AdminOrderDetailPage() {
               </div>
               {/* Tracking is managed via Shipping & Courier section above */}
               <button type="submit" disabled={isSaving}
-                style={{ background: "#1A5CFF", color: "#fff", border: "none", padding: "11px 24px", borderRadius: "6px", fontSize: "14px", fontWeight: 700, cursor: "pointer", opacity: isSaving ? .6 : 1 }}>
+                style={{ background: "#1A1A1A", color: "#fff", border: "none", padding: "11px 24px", borderRadius: "6px", fontSize: "14px", fontWeight: 700, cursor: "pointer", opacity: isSaving ? .6 : 1 }}>
                 {isSaving ? "Saving…" : "Update Order"}
               </button>
             </form>
@@ -966,13 +966,13 @@ export default function AdminOrderDetailPage() {
                 editingItems ? (
                   <button
                     onClick={() => setEditingItems(false)}
-                    style={{ display: "flex", alignItems: "center", gap: "5px", background: "none", border: "1.5px solid #E2E0DA", borderRadius: "6px", padding: "6px 12px", fontSize: "12px", fontWeight: 700, cursor: "pointer", color: "#7A7880" }}>
+                    style={{ display: "flex", alignItems: "center", gap: "5px", background: "none", border: "1.5px solid #E3E3E3", borderRadius: "6px", padding: "6px 12px", fontSize: "12px", fontWeight: 700, cursor: "pointer", color: "#7A7880" }}>
                     ✕ Done Editing
                   </button>
                 ) : (
                   <button
                     onClick={() => setEditingItems(true)}
-                    style={{ display: "flex", alignItems: "center", gap: "5px", background: "#F6F6F7", border: "1px solid #E2E0DA", borderRadius: "6px", padding: "6px 12px", fontSize: "12px", fontWeight: 700, cursor: "pointer", color: "#2A2830" }}>
+                    style={{ display: "flex", alignItems: "center", gap: "5px", background: "#F6F6F7", border: "1px solid #E3E3E3", borderRadius: "6px", padding: "6px 12px", fontSize: "12px", fontWeight: 700, cursor: "pointer", color: "#2A2830" }}>
                     ✎ Edit
                   </button>
                 )
@@ -989,10 +989,10 @@ export default function AdminOrderDetailPage() {
                       value={itemSearch}
                       onChange={e => handleItemSearchChange(e.target.value)}
                       placeholder="Search product by name or SKU…"
-                      style={{ width: "100%", padding: "9px 12px", border: "1.5px solid #E2E0DA", borderRadius: "6px", fontSize: "13px", fontFamily: "var(--font-jakarta)", outline: "none", boxSizing: "border-box" as const, background: "#fff" }}
+                      style={{ width: "100%", padding: "9px 12px", border: "1.5px solid #E3E3E3", borderRadius: "6px", fontSize: "13px", fontFamily: "var(--font-jakarta)", outline: "none", boxSizing: "border-box" as const, background: "#fff" }}
                     />
                     {itemResults.length > 0 && !selectedVariant && (
-                      <div style={{ position: "absolute", top: "100%", left: 0, right: 0, background: "#fff", border: "1.5px solid #E2E0DA", borderRadius: "6px", boxShadow: "0 8px 24px rgba(0,0,0,.12)", zIndex: 50, maxHeight: "200px", overflowY: "auto" as const }}>
+                      <div style={{ position: "absolute", top: "100%", left: 0, right: 0, background: "#fff", border: "1.5px solid #E3E3E3", borderRadius: "6px", boxShadow: "0 8px 24px rgba(0,0,0,.12)", zIndex: 50, maxHeight: "200px", overflowY: "auto" as const }}>
                         {itemResults.map(v => (
                           <div
                             key={v.variant_id}
@@ -1005,7 +1005,7 @@ export default function AdminOrderDetailPage() {
                             <span style={{ color: "#7A7880", marginLeft: "8px" }}>
                               {[v.color, v.size].filter(Boolean).join(" / ")}
                             </span>
-                            <span style={{ color: "#1A5CFF", marginLeft: "8px", fontFamily: "monospace", fontSize: "11px" }}>{v.sku}</span>
+                            <span style={{ color: "#005BD3", marginLeft: "8px", fontFamily: "monospace", fontSize: "11px" }}>{v.sku}</span>
                             <span style={{ color: "#059669", marginLeft: "8px", fontWeight: 700 }}>${v.price.toFixed(2)}</span>
                           </div>
                         ))}
@@ -1018,12 +1018,12 @@ export default function AdminOrderDetailPage() {
                     value={addQty}
                     onChange={e => setAddQty(Math.max(1, Number(e.target.value)))}
                     placeholder="Qty"
-                    style={{ width: "72px", padding: "9px 8px", border: "1.5px solid #E2E0DA", borderRadius: "6px", fontSize: "13px", textAlign: "center" as const, background: "#fff" }}
+                    style={{ width: "72px", padding: "9px 8px", border: "1.5px solid #E3E3E3", borderRadius: "6px", fontSize: "13px", textAlign: "center" as const, background: "#fff" }}
                   />
                   <button
                     onClick={handleAddItem}
                     disabled={!selectedVariant || addingItem}
-                    style={{ background: selectedVariant && !addingItem ? "#059669" : "#E2E0DA", color: selectedVariant && !addingItem ? "#fff" : "#aaa", border: "none", padding: "9px 18px", borderRadius: "6px", fontSize: "13px", fontWeight: 700, cursor: selectedVariant && !addingItem ? "pointer" : "not-allowed", whiteSpace: "nowrap" as const }}>
+                    style={{ background: selectedVariant && !addingItem ? "#059669" : "#E3E3E3", color: selectedVariant && !addingItem ? "#fff" : "#aaa", border: "none", padding: "9px 18px", borderRadius: "6px", fontSize: "13px", fontWeight: 700, cursor: selectedVariant && !addingItem ? "pointer" : "not-allowed", whiteSpace: "nowrap" as const }}>
                     {addingItem ? "Adding…" : "+ Add"}
                   </button>
                 </div>
@@ -1040,7 +1040,7 @@ export default function AdminOrderDetailPage() {
             )}
             <table style={{ width: "100%", borderCollapse: "collapse" }}>
               <thead>
-                <tr style={{ borderBottom: "2px solid #E2E0DA" }}>
+                <tr style={{ borderBottom: "2px solid #E3E3E3" }}>
                   {["Product", "SKU", "Color / Size", "Qty", "Unit Price", "Total", ""].map(h => (
                     <th key={h} style={{ textAlign: (h === "Qty" || h === "Unit Price" || h === "Total") ? "right" as const : "left" as const, padding: "10px 12px", fontSize: "11px", fontWeight: 700, textTransform: "uppercase" as const, letterSpacing: ".06em", color: "#7A7880" }}>{h}</th>
                   ))}
@@ -1053,7 +1053,7 @@ export default function AdminOrderDetailPage() {
                     <td style={{ padding: "14px 12px", fontSize: "12px", color: "#7A7880", fontFamily: "monospace" }}>{item.sku}</td>
                     <td style={{ padding: "14px 12px" }}>
                       {item.color && <span style={{ fontSize: "13px", color: "#2A2830", marginRight: "6px" }}>{item.color}</span>}
-                      {item.size && <span style={{ background: "#F6F6F7", padding: "2px 8px", borderRadius: "4px", fontSize: "11px", fontWeight: 700, color: "#2A2830" }}>{item.size}</span>}
+                      {item.size && <span style={{ background: "#F6F6F7", padding: "2px 8px", borderRadius: "6px", fontSize: "11px", fontWeight: 700, color: "#2A2830" }}>{item.size}</span>}
                       {!item.color && !item.size && <span style={{ color: "#aaa" }}>—</span>}
                     </td>
                     <td style={{ padding: "14px 12px", textAlign: "right" as const, fontWeight: 700, color: "#2A2830" }}>{item.quantity}</td>
@@ -1074,7 +1074,7 @@ export default function AdminOrderDetailPage() {
               </tbody>
             </table>
             {/* Totals */}
-            <div style={{ borderTop: "2px solid #E2E0DA", marginTop: "16px", paddingTop: "16px", display: "flex", justifyContent: "flex-end" }}>
+            <div style={{ borderTop: "2px solid #E3E3E3", marginTop: "16px", paddingTop: "16px", display: "flex", justifyContent: "flex-end" }}>
               <div style={{ minWidth: "260px" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "8px", fontSize: "14px", color: "#7A7880" }}>
                   <span>Subtotal</span><span>${Number(order.subtotal).toFixed(2)}</span>
@@ -1092,7 +1092,7 @@ export default function AdminOrderDetailPage() {
                     <span>Convenience Fee (3%)</span><span>${Number(order.convenience_fee).toFixed(2)}</span>
                   </div>
                 )}
-                <div style={{ display: "flex", justifyContent: "space-between", fontFamily: "var(--font-bebas)", fontSize: "20px", color: "#2A2830", borderTop: "1px solid #E2E0DA", paddingTop: "10px", marginTop: "4px" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", fontFamily: "var(--font-bebas)", fontSize: "20px", color: "#2A2830", borderTop: "1px solid #E3E3E3", paddingTop: "10px", marginTop: "4px" }}>
                   <span>Total</span><span>${Number(order.total).toFixed(2)}</span>
                 </div>
               </div>
@@ -1101,7 +1101,7 @@ export default function AdminOrderDetailPage() {
 
           {/* INVOICE & PAYMENT — always visible unless paid+card+no edits */}
           {(order.payment_status !== "paid" || order.items_edited) && (
-          <div style={{ background: '#f8f9fa', border: '1px solid #e5e7eb', borderRadius: '8px', padding: '16px', marginTop: '16px', display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' as const }}>
+          <div style={{ background: '#f8f9fa', border: '1px solid #E3E3E3', borderRadius: '8px', padding: '16px', marginTop: '16px', display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' as const }}>
             <div style={{ flex: 1 }}>
               <p style={{ margin: 0, fontSize: '13px', fontWeight: 600, color: '#1B3A5C' }}>Invoice &amp; Payment</p>
               <p style={{ margin: '2px 0 0', fontSize: '12px', color: '#888' }}>
@@ -1138,7 +1138,7 @@ export default function AdminOrderDetailPage() {
           <div style={{ ...CardStyle, padding: "24px", marginBottom: 0 }}>
             <h3 style={{ ...SectionHead, fontSize: "18px", letterSpacing: ".05em", marginBottom: "20px" }}>TIMELINE</h3>
             <div style={{ position: "relative", paddingLeft: "28px" }}>
-              <div style={{ position: "absolute", left: "23px", top: "8px", bottom: "8px", width: "2px", background: "#E2E0DA" }} />
+              <div style={{ position: "absolute", left: "23px", top: "8px", bottom: "8px", width: "2px", background: "#E3E3E3" }} />
               {timelineEvents.map((event, i) => (
                 <div key={i} style={{ display: "flex", gap: "16px", marginBottom: "20px", position: "relative", alignItems: "flex-start" }}>
                   <div style={{ width: "20px", height: "20px", borderRadius: "50%", background: event.color, border: "2px solid #fff", boxShadow: `0 0 0 2px ${event.color}`, flexShrink: 0, zIndex: 1, marginLeft: "-14px", marginTop: "2px" }} />
@@ -1169,7 +1169,7 @@ export default function AdminOrderDetailPage() {
                 href={`/api/v1/orders/${id}/pdf/invoice`}
                 target="_blank"
                 rel="noopener noreferrer"
-                style={{ display: "flex", alignItems: "center", justifyContent: "center" as const, gap: "8px", background: "#F6F6F7", color: "#2A2830", border: "1px solid #E2E0DA", padding: "10px 16px", borderRadius: "6px", fontSize: "13px", fontWeight: 700, textDecoration: "none" }}>
+                style={{ display: "flex", alignItems: "center", justifyContent: "center" as const, gap: "8px", background: "#F6F6F7", color: "#2A2830", border: "1px solid #E3E3E3", padding: "10px 16px", borderRadius: "6px", fontSize: "13px", fontWeight: 700, textDecoration: "none" }}>
                 ⬇ Download Invoice PDF
               </a>
             </div>
@@ -1187,14 +1187,14 @@ export default function AdminOrderDetailPage() {
               <div>
                 <textarea value={noteText} onChange={e => setNoteText(e.target.value)}
                   placeholder="Add note about this order…"
-                  style={{ width: "100%", padding: "10px 12px", border: "1.5px solid #1A5CFF", borderRadius: "6px", fontSize: "13px", fontFamily: "var(--font-jakarta)", minHeight: "80px", resize: "vertical" as const, outline: "none", boxSizing: "border-box" as const }} />
+                  style={{ width: "100%", padding: "10px 12px", border: "1.5px solid #1A1A1A", borderRadius: "6px", fontSize: "13px", fontFamily: "var(--font-jakarta)", minHeight: "80px", resize: "vertical" as const, outline: "none", boxSizing: "border-box" as const }} />
                 <div style={{ display: "flex", gap: "8px", marginTop: "8px" }}>
                   <button onClick={handleSaveNote}
-                    style={{ background: "#1A5CFF", color: "#fff", border: "none", padding: "8px 16px", borderRadius: "6px", fontSize: "13px", fontWeight: 700, cursor: "pointer" }}>
+                    style={{ background: "#1A1A1A", color: "#fff", border: "none", padding: "8px 16px", borderRadius: "6px", fontSize: "13px", fontWeight: 700, cursor: "pointer" }}>
                     Save
                   </button>
                   <button onClick={() => setEditingNote(false)}
-                    style={{ background: "none", border: "1px solid #E2E0DA", padding: "8px 16px", borderRadius: "6px", fontSize: "13px", cursor: "pointer", color: "#555" }}>
+                    style={{ background: "none", border: "1px solid #E3E3E3", padding: "8px 16px", borderRadius: "6px", fontSize: "13px", cursor: "pointer", color: "#555" }}>
                     Cancel
                   </button>
                 </div>
@@ -1229,14 +1229,14 @@ export default function AdminOrderDetailPage() {
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px" }}>
               <h3 style={SectionHead}>CUSTOMER</h3>
               <span onClick={() => router.push(`/admin/customers/${order.company_id}`)}
-                style={{ fontSize: "12px", color: "#1A5CFF", fontWeight: 700, cursor: "pointer" }}>
+                style={{ fontSize: "12px", color: "#005BD3", fontWeight: 700, cursor: "pointer" }}>
                 View Profile →
               </span>
             </div>
 
             {/* Avatar + company */}
             <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "14px" }}>
-              <div style={{ width: "40px", height: "40px", borderRadius: "50%", background: "#1A5CFF", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 700, fontSize: "16px", flexShrink: 0 }}>
+              <div style={{ width: "40px", height: "40px", borderRadius: "50%", background: "#1A1A1A", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 700, fontSize: "16px", flexShrink: 0 }}>
                 {avatarInitial}
               </div>
               <div>
@@ -1248,7 +1248,7 @@ export default function AdminOrderDetailPage() {
             {/* Contact */}
             {(order.customer_email || order.customer_phone) && (
               <div style={{ fontSize: "13px", marginBottom: "14px" }}>
-                {order.customer_email && <div style={{ color: "#1A5CFF", marginBottom: "4px" }}>📧 {order.customer_email}</div>}
+                {order.customer_email && <div style={{ color: "#005BD3", marginBottom: "4px" }}>📧 {order.customer_email}</div>}
                 {order.customer_phone && <div style={{ color: "#7A7880" }}>📞 {order.customer_phone}</div>}
               </div>
             )}
@@ -1257,7 +1257,7 @@ export default function AdminOrderDetailPage() {
             <div style={{ background: "#F6F6F7", borderRadius: "6px", padding: "10px 14px", marginBottom: "14px", fontSize: "13px" }}>
               <span style={{ color: "#7A7880" }}>Orders from this company: </span>
               <span onClick={() => router.push(`/admin/orders?company=${order.company_id}`)}
-                style={{ fontWeight: 700, color: "#1A5CFF", cursor: "pointer" }}>
+                style={{ fontWeight: 700, color: "#005BD3", cursor: "pointer" }}>
                 View all →
               </span>
             </div>
@@ -1276,7 +1276,7 @@ export default function AdminOrderDetailPage() {
                 {mapQuery && (
                   <a href={`https://maps.google.com/?q=${encodeURIComponent(mapQuery)}`}
                     target="_blank" rel="noopener noreferrer"
-                    style={{ fontSize: "12px", color: "#1A5CFF", fontWeight: 700, textDecoration: "none", display: "inline-block", marginTop: "6px" }}>
+                    style={{ fontSize: "12px", color: "#005BD3", fontWeight: 700, textDecoration: "none", display: "inline-block", marginTop: "6px" }}>
                     View map →
                   </a>
                 )}
@@ -1383,7 +1383,7 @@ export default function AdminOrderDetailPage() {
             {order.pricing_tier && (
               <div style={{ borderTop: "1px solid #F6F6F7", paddingTop: "14px", marginBottom: "14px" }}>
                 <div style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase" as const, letterSpacing: ".08em", color: "#aaa", marginBottom: "8px" }}>Pricing Tier</div>
-                <span style={{ background: "rgba(26,92,255,.1)", color: "#1A5CFF", padding: "4px 12px", borderRadius: "20px", fontSize: "12px", fontWeight: 700 }}>
+                <span style={{ background: "rgba(26,26,26,.1)", color: "#005BD3", padding: "4px 12px", borderRadius: "20px", fontSize: "12px", fontWeight: 700 }}>
                   {order.pricing_tier}
                 </span>
               </div>
@@ -1432,7 +1432,7 @@ export default function AdminOrderDetailPage() {
                       <button
                         onClick={handleSyncQB}
                         disabled={isSyncing}
-                        style={{ background: "#1B3A5C", color: "#fff", border: "none", padding: "3px 10px", borderRadius: "5px", fontSize: "11px", fontWeight: 700, cursor: isSyncing ? "not-allowed" : "pointer", opacity: isSyncing ? 0.6 : 1 }}>
+                        style={{ background: "#1B3A5C", color: "#fff", border: "none", padding: "3px 10px", borderRadius: "6px", fontSize: "11px", fontWeight: 700, cursor: isSyncing ? "not-allowed" : "pointer", opacity: isSyncing ? 0.6 : 1 }}>
                         {isSyncing ? "Syncing…" : "Sync Now"}
                       </button>
                     )}

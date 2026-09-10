@@ -38,7 +38,7 @@ const BLOCK_DEFAULTS: Record<Block["type"], Record<string, unknown>> = {
 };
 
 const inputSt: React.CSSProperties = {
-  width: "100%", padding: "8px 10px", border: "1.5px solid #E2E0DA",
+  width: "100%", padding: "8px 10px", border: "1.5px solid #E3E3E3",
   borderRadius: "6px", fontSize: "14px", boxSizing: "border-box",
 };
 const labelSt: React.CSSProperties = {
@@ -112,7 +112,7 @@ function BlockEditor({
   }
 
   const btnSt: React.CSSProperties = {
-    background: "transparent", border: "1px solid #E2E0DA", borderRadius: "4px",
+    background: "transparent", border: "1px solid #E3E3E3", borderRadius: "6px",
     padding: "3px 7px", fontSize: "11px", cursor: "pointer", color: "#7A7880",
   };
 
@@ -160,7 +160,7 @@ function BlockEditor({
     );
   } else if (block.type === "cta_box") {
     editor = (
-      <div style={{ display: "flex", flexDirection: "column", gap: "10px", background: "rgba(26,92,255,.04)", border: "1.5px solid rgba(26,92,255,.2)", borderRadius: "8px", padding: "14px" }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: "10px", background: "rgba(26,26,26,.04)", border: "1.5px solid rgba(26,26,26,.2)", borderRadius: "8px", padding: "14px" }}>
         <div><label style={labelSt}>CTA Title</label>
           <input value={(c.title as string) || ""} onChange={e => set("title", e.target.value)} style={inputSt} placeholder="Call to action headline" /></div>
         <div style={{ display: "flex", gap: "10px" }}>
@@ -205,7 +205,7 @@ function BlockEditor({
             </button>
             <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={handleImageUpload} />
           </div>
-          {typeof c.url === "string" && c.url ? <img src={c.url} alt="" style={{ marginTop: "8px", maxHeight: "120px", borderRadius: "6px", border: "1px solid #E2E0DA" }} /> : null}
+          {typeof c.url === "string" && c.url ? <img src={c.url} alt="" style={{ marginTop: "8px", maxHeight: "120px", borderRadius: "6px", border: "1px solid #E3E3E3" }} /> : null}
         </div>
         <div style={{ display: "flex", gap: "10px" }}>
           <div style={{ flex: 1 }}><label style={labelSt}>Alt Text</label>
@@ -226,12 +226,12 @@ function BlockEditor({
           <thead>
             <tr>
               {rows[0]?.map((_, ci) => (
-                <th key={ci} style={{ padding: "4px", border: "1px solid #E2E0DA", background: "#F9F8F4" }}>
+                <th key={ci} style={{ padding: "4px", border: "1px solid #E3E3E3", background: "#F9F8F4" }}>
                   <button type="button" onClick={() => tableRemoveCol(rows, ci)}
                     style={{ ...btnSt, color: "#E8242A", fontSize: "10px", width: "100%" }}>✕ Col</button>
                 </th>
               ))}
-              <th style={{ padding: "4px", border: "1px solid #E2E0DA", background: "#F9F8F4" }}>
+              <th style={{ padding: "4px", border: "1px solid #E3E3E3", background: "#F9F8F4" }}>
                 <button type="button" onClick={() => tableAddCol(rows)} style={{ ...btnSt, fontSize: "10px" }}>+ Col</button>
               </th>
             </tr>
@@ -240,12 +240,12 @@ function BlockEditor({
             {rows.map((row, ri) => (
               <tr key={ri}>
                 {row.map((cell, ci) => (
-                  <td key={ci} style={{ padding: "4px", border: "1px solid #E2E0DA" }}>
+                  <td key={ci} style={{ padding: "4px", border: "1px solid #E3E3E3" }}>
                     <input value={cell} onChange={e => tableSetCell(rows, ri, ci, e.target.value)}
                       style={{ ...inputSt, padding: "5px 7px", fontSize: "13px" }} />
                   </td>
                 ))}
-                <td style={{ padding: "4px", border: "1px solid #E2E0DA", verticalAlign: "middle" }}>
+                <td style={{ padding: "4px", border: "1px solid #E3E3E3", verticalAlign: "middle" }}>
                   <button type="button" onClick={() => tableRemoveRow(rows, ri)}
                     style={{ ...btnSt, color: "#E8242A", fontSize: "10px" }}>✕</button>
                 </td>
@@ -261,8 +261,8 @@ function BlockEditor({
   const typeInfo = BLOCK_TYPES.find(b => b.type === block.type);
 
   return (
-    <div style={{ border: "1.5px solid #E2E0DA", borderRadius: "8px", background: "#fff", marginBottom: "8px" }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px", background: "#F9F8F4", borderBottom: "1px solid #E2E0DA", borderRadius: "8px 8px 0 0" }}>
+    <div style={{ border: "1.5px solid #E3E3E3", borderRadius: "8px", background: "#fff", marginBottom: "8px" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px", background: "#F9F8F4", borderBottom: "1px solid #E3E3E3", borderRadius: "8px 8px 0 0" }}>
         <span style={{ fontSize: "12px", fontWeight: 700, color: "#555", display: "flex", alignItems: "center", gap: "6px" }}>
           <span style={{ fontSize: "14px" }}>{typeInfo?.icon}</span>
           {typeInfo?.label}
@@ -333,18 +333,18 @@ export function BlogBlockEditor({
         <button
           type="button"
           onClick={() => setShowPicker(o => !o)}
-          style={{ background: "#1A5CFF", color: "#fff", border: "none", borderRadius: "7px", padding: "9px 18px", fontSize: "13px", fontWeight: 700, cursor: "pointer" }}
+          style={{ background: "#1A1A1A", color: "#fff", border: "none", borderRadius: "8px", padding: "9px 18px", fontSize: "13px", fontWeight: 700, cursor: "pointer" }}
         >
           + Add Block
         </button>
         {showPicker && (
-          <div style={{ position: "absolute", top: "calc(100% + 6px)", left: 0, background: "#fff", border: "1px solid #E2E0DA", borderRadius: "8px", padding: "6px", boxShadow: "0 6px 20px rgba(0,0,0,.12)", zIndex: 50, display: "grid", gridTemplateColumns: "1fr 1fr", gap: "3px", minWidth: "240px" }}>
+          <div style={{ position: "absolute", top: "calc(100% + 6px)", left: 0, background: "#fff", border: "1px solid #E3E3E3", borderRadius: "8px", padding: "6px", boxShadow: "0 6px 20px rgba(0,0,0,.12)", zIndex: 50, display: "grid", gridTemplateColumns: "1fr 1fr", gap: "3px", minWidth: "240px" }}>
             {BLOCK_TYPES.map(bt => (
               <button
                 key={bt.type}
                 type="button"
                 onClick={() => addBlock(bt.type)}
-                style={{ display: "flex", alignItems: "center", gap: "8px", padding: "8px 10px", background: "transparent", border: "none", borderRadius: "5px", cursor: "pointer", fontSize: "13px", fontWeight: 500, color: "#2A2830", textAlign: "left" }}
+                style={{ display: "flex", alignItems: "center", gap: "8px", padding: "8px 10px", background: "transparent", border: "none", borderRadius: "6px", cursor: "pointer", fontSize: "13px", fontWeight: 500, color: "#2A2830", textAlign: "left" }}
                 onMouseEnter={e => (e.currentTarget.style.background = "#F4F3EF")}
                 onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
               >

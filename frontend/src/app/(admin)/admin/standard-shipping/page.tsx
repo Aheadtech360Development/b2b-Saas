@@ -19,8 +19,8 @@ const labelStyle: React.CSSProperties = {
 };
 
 const inputStyle: React.CSSProperties = {
-  width: "100%", padding: "9px 12px", border: "1.5px solid #E2E0DA",
-  borderRadius: "7px", fontSize: "13px", fontFamily: "var(--font-jakarta)",
+  width: "100%", padding: "9px 12px", border: "1.5px solid #E3E3E3",
+  borderRadius: "8px", fontSize: "13px", fontFamily: "var(--font-jakarta)",
   outline: "none", boxSizing: "border-box", background: "#fff",
 };
 
@@ -54,10 +54,10 @@ function BracketEditor({
 
   return (
     <div>
-      <div style={{ overflowX: "auto", border: "1px solid #E2E0DA", borderRadius: "7px", background: "#fff" }}>
+      <div style={{ overflowX: "auto", border: "1px solid #E3E3E3", borderRadius: "8px", background: "#fff" }}>
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px", minWidth: "420px" }}>
           <thead>
-            <tr style={{ background: "#F6F6F7", borderBottom: "1px solid #E2E0DA" }}>
+            <tr style={{ background: "#F6F6F7", borderBottom: "1px solid #E3E3E3" }}>
               {calcType === "units" ? (
                 <><th style={thS}>Min Units</th><th style={thS}>Max Units (blank = no limit)</th></>
               ) : (
@@ -113,7 +113,7 @@ function BracketEditor({
                     {Number(b.cost) === 0 && (
                       <span style={{
                         fontSize: "10px", fontWeight: 700, color: "#059669",
-                        background: "rgba(5,150,105,.1)", padding: "2px 6px", borderRadius: "4px"
+                        background: "rgba(5,150,105,.1)", padding: "2px 6px", borderRadius: "6px"
                       }}>FREE</span>
                     )}
                   </div>
@@ -134,7 +134,7 @@ function BracketEditor({
       </div>
       <button onClick={() => onChange([...brackets, emptyBracket()])}
         style={{
-          marginTop: "8px", padding: "6px 14px", background: "#F6F6F7", border: "1px solid #E2E0DA",
+          marginTop: "8px", padding: "6px 14px", background: "#F6F6F7", border: "1px solid #E3E3E3",
           borderRadius: "6px", fontSize: "12px", fontWeight: 700, cursor: "pointer", color: "#2A2830"
         }}>
         + Add Bracket
@@ -242,24 +242,24 @@ export default function StandardShippingPage() {
         <button
           onClick={handleSave}
           disabled={saving}
-          style={{ padding: "10px 20px", background: "#1A5CFF", color: "#fff", border: "none", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: saving ? "not-allowed" : "pointer", opacity: saving ? 0.6 : 1 }}
+          style={{ padding: "10px 20px", background: "#1A1A1A", color: "#fff", border: "none", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: saving ? "not-allowed" : "pointer", opacity: saving ? 0.6 : 1 }}
         >
           {saving ? "Saving…" : "Save"}
         </button>
       </div>
 
       {/* Info banner */}
-      <div style={{ background: "rgba(26,92,255,.04)", border: "1px solid rgba(26,92,255,.15)", borderRadius: "8px", padding: "14px 18px", marginBottom: "24px", fontSize: "13px", color: "#2A2830", lineHeight: 1.7 }}>
+      <div style={{ background: "rgba(26,26,26,.04)", border: "1px solid rgba(26,26,26,.15)", borderRadius: "8px", padding: "14px 18px", marginBottom: "24px", fontSize: "13px", color: "#2A2830", lineHeight: 1.7 }}>
         <strong>Standard Shipping</strong> — applies to customers who are not in any discount group and have no shipping tier assigned, including logged-out users.
         Configure a flat rate, bracket-based rate, or live carrier rates via Shippo for these customers.
       </div>
 
       {loading ? (
-        <div style={{ textAlign: "center", padding: "60px", color: "#bbb", fontSize: "14px" }}>Loading…</div>
+        <div style={{ padding: "26px" }}>{[70, 92, 58, 84].map((w, i) => (<div key={i} className="at-skel" style={{ height: "14px", width: `${w}%`, marginBottom: "12px" }} />))}</div>
       ) : (
         <>
         {/* Shippo account — the brand's OWN key so its labels bill to its account */}
-        <div style={{ background: "#fff", border: "1.5px solid #E2E0DA", borderRadius: "12px", padding: "24px", marginBottom: "20px" }}>
+        <div style={{ background: "#fff", border: "1.5px solid #E3E3E3", borderRadius: "12px", padding: "24px", marginBottom: "20px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "4px" }}>
             <h2 style={{ fontSize: "15px", fontWeight: 700, color: "#2A2830" }}>Shipping carrier account (Shippo)</h2>
             {shippoConnected
@@ -276,7 +276,7 @@ export default function StandardShippingPage() {
         </div>
 
         {/* Ship-From (origin) address — labels & live rates are computed from this */}
-        <div style={{ background: "#fff", border: "1.5px solid #E2E0DA", borderRadius: "12px", padding: "24px", marginBottom: "20px" }}>
+        <div style={{ background: "#fff", border: "1.5px solid #E3E3E3", borderRadius: "12px", padding: "24px", marginBottom: "20px" }}>
           <h2 style={{ fontSize: "15px", fontWeight: 700, color: "#2A2830", marginBottom: "4px" }}>Ship-From Address</h2>
           <p style={{ fontSize: "12px", color: "#7A7880", marginBottom: "16px", lineHeight: 1.6 }}>
             Your warehouse / origin address. <strong>Live carrier rates and shipping labels are calculated from here</strong>, so set your real location. Leave blank to use the platform default.
@@ -309,20 +309,20 @@ export default function StandardShippingPage() {
           </div>
         </div>
 
-        <div style={{ background: "#fff", border: "1.5px solid #E2E0DA", borderRadius: "12px", padding: "24px" }}>
+        <div style={{ background: "#fff", border: "1.5px solid #E3E3E3", borderRadius: "12px", padding: "24px" }}>
           <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
 
             {/* Flat Rate option */}
             <div>
-              <label style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 14px", background: shippingType === "store_default" ? "rgba(26,92,255,.06)" : "#fff", border: `1.5px solid ${shippingType === "store_default" ? "#1A5CFF" : "#E2E0DA"}`, borderRadius: "7px", cursor: "pointer" }}>
-                <input type="radio" name="shipping_type" value="store_default" checked={shippingType === "store_default"} onChange={() => setShippingType("store_default")} style={{ accentColor: "#1A5CFF" }} />
+              <label style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 14px", background: shippingType === "store_default" ? "rgba(26,26,26,.06)" : "#fff", border: `1.5px solid ${shippingType === "store_default" ? "#1A5CFF" : "#E3E3E3"}`, borderRadius: "8px", cursor: "pointer" }}>
+                <input type="radio" name="shipping_type" value="store_default" checked={shippingType === "store_default"} onChange={() => setShippingType("store_default")} style={{ accentColor: "#1A1A1A" }} />
                 <div>
                   <div style={{ fontSize: "13px", fontWeight: 600, color: "#2A2830" }}>Flat Rate</div>
                   <div style={{ fontSize: "11px", color: "#7A7880" }}>A single shipping cost applied to every order</div>
                 </div>
               </label>
               {shippingType === "store_default" && (
-                <div style={{ marginTop: "10px", marginLeft: "12px", border: "1px solid #E2E0DA", borderRadius: "8px", background: "#fff", padding: "14px 16px" }}>
+                <div style={{ marginTop: "10px", marginLeft: "12px", border: "1px solid #E3E3E3", borderRadius: "8px", background: "#fff", padding: "14px 16px" }}>
                   <label style={labelStyle}>Shipping Amount</label>
                   <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                     <span style={{ fontSize: "14px", color: "#7A7880" }}>$</span>
@@ -332,7 +332,7 @@ export default function StandardShippingPage() {
                       placeholder="0.00" style={{ ...inputStyle, width: "130px" }}
                     />
                     {shippingAmount === 0 && (
-                      <span style={{ fontSize: "11px", fontWeight: 700, color: "#059669", background: "rgba(5,150,105,.1)", padding: "2px 8px", borderRadius: "4px" }}>FREE</span>
+                      <span style={{ fontSize: "11px", fontWeight: 700, color: "#059669", background: "rgba(5,150,105,.1)", padding: "2px 8px", borderRadius: "6px" }}>FREE</span>
                     )}
                   </div>
                   <p style={{ fontSize: "11px", color: "#7A7880", marginTop: "6px" }}>Set 0.00 for free shipping on all standard orders.</p>
@@ -342,15 +342,15 @@ export default function StandardShippingPage() {
 
             {/* Live Shippo Rates option */}
             <div>
-              <label style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 14px", background: shippingType === "live_shippo" ? "rgba(26,92,255,.06)" : "#fff", border: `1.5px solid ${shippingType === "live_shippo" ? "#1A5CFF" : "#E2E0DA"}`, borderRadius: "7px", cursor: "pointer" }}>
-                <input type="radio" name="shipping_type" value="live_shippo" checked={shippingType === "live_shippo"} onChange={() => setShippingType("live_shippo")} style={{ accentColor: "#1A5CFF" }} />
+              <label style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 14px", background: shippingType === "live_shippo" ? "rgba(26,26,26,.06)" : "#fff", border: `1.5px solid ${shippingType === "live_shippo" ? "#1A5CFF" : "#E3E3E3"}`, borderRadius: "8px", cursor: "pointer" }}>
+                <input type="radio" name="shipping_type" value="live_shippo" checked={shippingType === "live_shippo"} onChange={() => setShippingType("live_shippo")} style={{ accentColor: "#1A1A1A" }} />
                 <div>
                   <div style={{ fontSize: "13px", fontWeight: 600, color: "#2A2830" }}>Live Shipping Rates (via Shippo)</div>
                   <div style={{ fontSize: "11px", color: "#7A7880" }}>Real-time carrier rates fetched at checkout based on the customer&apos;s address</div>
                 </div>
               </label>
               {shippingType === "live_shippo" && (
-                <div style={{ marginTop: "10px", marginLeft: "12px", border: "1px solid #E2E0DA", borderRadius: "8px", background: "#fff", padding: "14px 16px" }}>
+                <div style={{ marginTop: "10px", marginLeft: "12px", border: "1px solid #E3E3E3", borderRadius: "8px", background: "#fff", padding: "14px 16px" }}>
                   <p style={{ fontSize: "12px", color: "#2A2830", lineHeight: 1.6, margin: 0 }}>
                     Customers will see a list of available carrier services (USPS, UPS, FedEx) with live pricing at checkout. They can select their preferred service before placing the order.
                   </p>
@@ -363,8 +363,8 @@ export default function StandardShippingPage() {
 
             {/* Bracket-based option */}
             <div>
-              <label style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 14px", background: shippingType === "flat_rate" ? "rgba(26,92,255,.06)" : "#fff", border: `1.5px solid ${shippingType === "flat_rate" ? "#1A5CFF" : "#E2E0DA"}`, borderRadius: "7px", cursor: "pointer" }}>
-                <input type="radio" name="shipping_type" value="flat_rate" checked={shippingType === "flat_rate"} onChange={() => setShippingType("flat_rate")} style={{ accentColor: "#1A5CFF" }} />
+              <label style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 14px", background: shippingType === "flat_rate" ? "rgba(26,26,26,.06)" : "#fff", border: `1.5px solid ${shippingType === "flat_rate" ? "#1A5CFF" : "#E3E3E3"}`, borderRadius: "8px", cursor: "pointer" }}>
+                <input type="radio" name="shipping_type" value="flat_rate" checked={shippingType === "flat_rate"} onChange={() => setShippingType("flat_rate")} style={{ accentColor: "#1A1A1A" }} />
                 <div>
                   <div style={{ fontSize: "13px", fontWeight: 600, color: "#2A2830" }}>Bracket-Based Rate</div>
                   <div style={{ fontSize: "11px", color: "#7A7880" }}>Shipping cost varies by order size or value</div>
@@ -372,7 +372,7 @@ export default function StandardShippingPage() {
               </label>
 
               {shippingType === "flat_rate" && (
-                <div style={{ marginTop: "10px", marginLeft: "12px", border: "1px solid #E2E0DA", borderRadius: "8px", background: "#fff", padding: "16px" }}>
+                <div style={{ marginTop: "10px", marginLeft: "12px", border: "1px solid #E3E3E3", borderRadius: "8px", background: "#fff", padding: "16px" }}>
                   <div style={{ marginBottom: "14px" }}>
                     <label style={labelStyle}>Calculation Type</label>
                     <div style={{ display: "flex", gap: "8px" }}>
@@ -380,9 +380,9 @@ export default function StandardShippingPage() {
                         <button key={t} type="button"
                           onClick={() => { setCalcType(t); setBrackets([]); }}
                           style={{
-                            flex: 1, padding: "9px 12px", border: `2px solid ${calcType === t ? "#1A5CFF" : "#E2E0DA"}`,
-                            borderRadius: "7px", fontSize: "12px", fontWeight: 700, cursor: "pointer",
-                            background: calcType === t ? "rgba(26,92,255,.06)" : "#fff",
+                            flex: 1, padding: "9px 12px", border: `2px solid ${calcType === t ? "#1A5CFF" : "#E3E3E3"}`,
+                            borderRadius: "8px", fontSize: "12px", fontWeight: 700, cursor: "pointer",
+                            background: calcType === t ? "rgba(26,26,26,.06)" : "#fff",
                             color: calcType === t ? "#1A5CFF" : "#7A7880",
                           }}>
                           {t === "units" ? "Per Unit Count" : "Per Order Value"}

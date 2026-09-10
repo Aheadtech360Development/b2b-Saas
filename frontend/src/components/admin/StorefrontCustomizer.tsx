@@ -38,7 +38,7 @@ function PickerModal({ title, options, selected, onClose, onSave }: {
   const [sel, setSel] = useState<string[]>(selected);
   const filtered = options.filter((o) => o.label.toLowerCase().includes(q.toLowerCase()));
   function toggle(id: string) { setSel((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id])); }
-  const inp: React.CSSProperties = { width: "100%", border: "1px solid #E2E0DA", borderRadius: "8px", padding: "10px 12px", fontSize: "14px", outline: "none", boxSizing: "border-box" };
+  const inp: React.CSSProperties = { width: "100%", border: "1px solid #E3E3E3", borderRadius: "8px", padding: "10px 12px", fontSize: "14px", outline: "none", boxSizing: "border-box" };
   return (
     <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.5)", display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "48px 20px", zIndex: 1000, overflowY: "auto" }}>
       <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", borderRadius: "14px", width: "100%", maxWidth: "560px", padding: "24px", maxHeight: "80vh", display: "flex", flexDirection: "column" }}>
@@ -192,15 +192,15 @@ export default function StorefrontCustomizer() {
   if (loading) return <div style={{ padding: "40px", color: "#888", fontSize: "14px" }}>Loading storefront settings…</div>;
 
   const label: React.CSSProperties = { display: "block", fontSize: "12px", fontWeight: 600, color: "#555", marginBottom: "6px", textTransform: "uppercase", letterSpacing: ".04em" };
-  const input: React.CSSProperties = { width: "100%", border: "1px solid #E2E0DA", borderRadius: "8px", padding: "10px 12px", fontSize: "14px", outline: "none", boxSizing: "border-box", background: "#fff" };
-  const card: React.CSSProperties = { background: "#fff", border: "1px solid #E2E0DA", borderRadius: "12px", padding: "24px", marginBottom: "20px" };
+  const input: React.CSSProperties = { width: "100%", border: "1px solid #E3E3E3", borderRadius: "8px", padding: "10px 12px", fontSize: "14px", outline: "none", boxSizing: "border-box", background: "#fff" };
+  const card: React.CSSProperties = { background: "#fff", border: "1px solid #E3E3E3", borderRadius: "12px", padding: "24px", marginBottom: "20px" };
   const title: React.CSSProperties = { fontFamily: "var(--font-bebas), sans-serif", fontSize: "18px", letterSpacing: ".04em", color: "#2A2830", marginBottom: "16px" };
 
   const ColorField = ({ k, name }: { k: keyof Branding; name: string }) => (
     <div>
       <label style={label}>{name}</label>
       <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-        <input type="color" value={String(form[k] ?? "#000000")} onChange={(e) => set(k, e.target.value as never)} style={{ width: "44px", height: "38px", border: "1px solid #E2E0DA", borderRadius: "8px", cursor: "pointer", background: "#fff" }} />
+        <input type="color" value={String(form[k] ?? "#000000")} onChange={(e) => set(k, e.target.value as never)} style={{ width: "44px", height: "38px", border: "1px solid #E3E3E3", borderRadius: "8px", cursor: "pointer", background: "#fff" }} />
         <input style={{ ...input, maxWidth: "120px" }} value={String(form[k] ?? "")} onChange={(e) => set(k, e.target.value as never)} />
       </div>
     </div>
@@ -246,7 +246,7 @@ export default function StorefrontCustomizer() {
           {STORE_THEMES.map((t) => {
             const isLive = form.active_theme === t.id;
             return (
-            <div key={t.id} style={{ background: "#fff", border: isLive ? "2px solid #16A34A" : "1px solid #E2E0DA", borderRadius: "12px", padding: "14px", display: "flex", flexDirection: "column", position: "relative" }}>
+            <div key={t.id} style={{ background: "#fff", border: isLive ? "2px solid #16A34A" : "1px solid #E3E3E3", borderRadius: "12px", padding: "14px", display: "flex", flexDirection: "column", position: "relative" }}>
               {isLive && <span style={{ position: "absolute", top: "10px", right: "10px", zIndex: 2, background: "#16A34A", color: "#fff", fontSize: "10px", fontWeight: 800, padding: "3px 9px", borderRadius: "20px", letterSpacing: ".04em", display: "flex", alignItems: "center", gap: "4px" }}><span style={{ width: "6px", height: "6px", borderRadius: "50%", background: "#fff" }} /> LIVE</span>}
               <ThemePreview theme={t} />
               <div style={{ fontSize: "16px", fontWeight: 800, color: "#2A2830", marginTop: "12px" }}>{t.name}</div>
@@ -339,7 +339,7 @@ export default function StorefrontCustomizer() {
           ] as const).map((opt) => {
             const on = (form.card_style || "bordered") === opt.v;
             return (
-              <button key={opt.v} onClick={() => set("card_style", opt.v)} style={{ padding: "12px 10px", borderRadius: "8px", cursor: "pointer", textAlign: "center", border: on ? "2px solid #1C3557" : "1px solid #E2E0DA", background: on ? "#F0F4FA" : "#fff" }}>
+              <button key={opt.v} onClick={() => set("card_style", opt.v)} style={{ padding: "12px 10px", borderRadius: "8px", cursor: "pointer", textAlign: "center", border: on ? "2px solid #1C3557" : "1px solid #E3E3E3", background: on ? "#F0F4FA" : "#fff" }}>
                 <div style={{ height: "34px", margin: "0 auto 8px", width: "70%", background: opt.v === "flat" ? "transparent" : "#fff", border: opt.v === "flat" ? "none" : "1px solid #E2E2DE", borderRadius: "6px", boxShadow: opt.v === "elevated" ? "0 4px 12px rgba(0,0,0,.14)" : "none" }} />
                 <div style={{ fontSize: "12.5px", fontWeight: 700, color: "#2A2830" }}>{opt.label}</div>
                 <div style={{ fontSize: "11px", color: "#999" }}>{opt.hint}</div>
@@ -365,7 +365,7 @@ export default function StorefrontCustomizer() {
           {(["compact", "normal", "spacious"] as const).map((sp) => {
             const on = (form.section_spacing || "normal") === sp;
             return (
-              <button key={sp} onClick={() => set("section_spacing", sp)} style={{ flex: 1, padding: "10px", borderRadius: "8px", fontSize: "13px", fontWeight: 600, cursor: "pointer", textTransform: "capitalize", border: on ? "2px solid #1C3557" : "1px solid #E2E0DA", background: on ? "#F0F4FA" : "#fff", color: "#2A2830" }}>{sp}</button>
+              <button key={sp} onClick={() => set("section_spacing", sp)} style={{ flex: 1, padding: "10px", borderRadius: "8px", fontSize: "13px", fontWeight: 600, cursor: "pointer", textTransform: "capitalize", border: on ? "2px solid #1C3557" : "1px solid #E3E3E3", background: on ? "#F0F4FA" : "#fff", color: "#2A2830" }}>{sp}</button>
             );
           })}
         </div>
@@ -418,7 +418,7 @@ export default function StorefrontCustomizer() {
             { v: "logo_center", label: "Logo center", hint: "Menu · Logo · Actions" },
             { v: "logo_center_below", label: "Logo center, menu below", hint: "Logo on top row" },
           ] as const).map((opt) => (
-            <button key={opt.v} onClick={() => set("header_layout", opt.v)} style={{ padding: "16px 10px", borderRadius: "8px", cursor: "pointer", textAlign: "center", border: (form.header_layout || "logo_left") === opt.v ? "2px solid #1C3557" : "1px solid #E2E0DA", background: (form.header_layout || "logo_left") === opt.v ? "#F0F4FA" : "#fff" }}>
+            <button key={opt.v} onClick={() => set("header_layout", opt.v)} style={{ padding: "16px 10px", borderRadius: "8px", cursor: "pointer", textAlign: "center", border: (form.header_layout || "logo_left") === opt.v ? "2px solid #1C3557" : "1px solid #E3E3E3", background: (form.header_layout || "logo_left") === opt.v ? "#F0F4FA" : "#fff" }}>
               <div style={{ fontSize: "13px", fontWeight: 700, color: "#2A2830", marginBottom: "4px" }}>{opt.label}</div>
               <div style={{ fontSize: "11px", color: "#999" }}>{opt.hint}</div>
             </button>
@@ -492,7 +492,7 @@ export default function StorefrontCustomizer() {
             {form.featured_product_ids.map((id) => {
               const p = allProducts.find((x) => x.id === id);
               return (
-                <span key={id} style={{ display: "inline-flex", alignItems: "center", gap: "6px", background: "#F4F3EF", border: "1px solid #E2E0DA", borderRadius: "20px", padding: "4px 10px", fontSize: "12px" }}>
+                <span key={id} style={{ display: "inline-flex", alignItems: "center", gap: "6px", background: "#F4F3EF", border: "1px solid #E3E3E3", borderRadius: "20px", padding: "4px 10px", fontSize: "12px" }}>
                   {p?.name ?? "product"}
                   <button onClick={() => set("featured_product_ids", form.featured_product_ids.filter((x) => x !== id))} style={{ background: "none", border: "none", color: "#B91C1C", cursor: "pointer", fontSize: "14px", lineHeight: 1 }}>×</button>
                 </span>
@@ -531,7 +531,7 @@ export default function StorefrontCustomizer() {
             {form.featured_category_ids.map((id) => {
               const c = allCategories.find((x) => x.id === id);
               return (
-                <span key={id} style={{ display: "inline-flex", alignItems: "center", gap: "6px", background: "#F4F3EF", border: "1px solid #E2E0DA", borderRadius: "20px", padding: "4px 10px", fontSize: "12px" }}>
+                <span key={id} style={{ display: "inline-flex", alignItems: "center", gap: "6px", background: "#F4F3EF", border: "1px solid #E3E3E3", borderRadius: "20px", padding: "4px 10px", fontSize: "12px" }}>
                   {c?.name ?? "category"}
                   <button onClick={() => set("featured_category_ids", form.featured_category_ids.filter((x) => x !== id))} style={{ background: "none", border: "none", color: "#B91C1C", cursor: "pointer", fontSize: "14px", lineHeight: 1 }}>×</button>
                 </span>
@@ -583,11 +583,11 @@ export default function StorefrontCustomizer() {
         <div style={title}>HOMEPAGE SECTION ORDER</div>
         <p style={{ fontSize: "13px", color: "#7A7880", marginBottom: "12px" }}>Reorder with the arrows — this is the order customers see. Your <strong>Addons</strong> appear here too (added at the end; move them anywhere).</p>
         {(() => { const fo = fullOrder(); return fo.map((key, i) => (
-          <div key={key} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 14px", border: "1px solid #E2E0DA", borderRadius: "8px", marginBottom: "8px", background: key.startsWith("addon:") ? "#F0F4FA" : "#FAFAF8" }}>
-            <span style={{ fontSize: "14px", fontWeight: 600, color: "#2A2830" }}>{i + 1}. {orderLabel(key)} {key.startsWith("addon:") && <span style={{ fontSize: "11px", color: "#1A5CFF", fontWeight: 700 }}>· addon</span>}</span>
+          <div key={key} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 14px", border: "1px solid #E3E3E3", borderRadius: "8px", marginBottom: "8px", background: key.startsWith("addon:") ? "#F0F4FA" : "#FAFAF8" }}>
+            <span style={{ fontSize: "14px", fontWeight: 600, color: "#2A2830" }}>{i + 1}. {orderLabel(key)} {key.startsWith("addon:") && <span style={{ fontSize: "11px", color: "#005BD3", fontWeight: 700 }}>· addon</span>}</span>
             <div style={{ display: "flex", gap: "6px" }}>
-              <button onClick={() => moveSection(i, -1)} disabled={i === 0} style={{ background: "#fff", border: "1px solid #E2E0DA", borderRadius: "6px", padding: "4px 10px", cursor: i === 0 ? "not-allowed" : "pointer", opacity: i === 0 ? 0.4 : 1 }}>↑</button>
-              <button onClick={() => moveSection(i, 1)} disabled={i === fo.length - 1} style={{ background: "#fff", border: "1px solid #E2E0DA", borderRadius: "6px", padding: "4px 10px", cursor: i === fo.length - 1 ? "not-allowed" : "pointer", opacity: i === fo.length - 1 ? 0.4 : 1 }}>↓</button>
+              <button onClick={() => moveSection(i, -1)} disabled={i === 0} style={{ background: "#fff", border: "1px solid #E3E3E3", borderRadius: "6px", padding: "4px 10px", cursor: i === 0 ? "not-allowed" : "pointer", opacity: i === 0 ? 0.4 : 1 }}>↑</button>
+              <button onClick={() => moveSection(i, 1)} disabled={i === fo.length - 1} style={{ background: "#fff", border: "1px solid #E3E3E3", borderRadius: "6px", padding: "4px 10px", cursor: i === fo.length - 1 ? "not-allowed" : "pointer", opacity: i === fo.length - 1 ? 0.4 : 1 }}>↓</button>
             </div>
           </div>
         )); })()}

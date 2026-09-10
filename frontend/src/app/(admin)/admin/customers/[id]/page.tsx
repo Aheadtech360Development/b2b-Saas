@@ -70,7 +70,7 @@ interface DiscountGroup { id: string; title: string; customer_tag: string; appli
 
 const ORDER_STATUS: Record<string, { bg: string; color: string }> = {
   pending:    { bg: "rgba(217,119,6,.1)",   color: "#D97706" },
-  confirmed:  { bg: "rgba(26,92,255,.1)",   color: "#1A5CFF" },
+  confirmed:  { bg: "rgba(26,26,26,.1)",   color: "#005BD3" },
   processing: { bg: "rgba(8,145,178,.1)",   color: "#0891B2" },
   shipped:    { bg: "rgba(124,58,237,.1)",  color: "#7C3AED" },
   delivered:  { bg: "rgba(5,150,105,.1)",   color: "#059669" },
@@ -88,7 +88,7 @@ const COMPANY_STATUS: Record<string, { bg: string; color: string }> = {
 
 const card: React.CSSProperties = {
   background: "#fff",
-  border: "1px solid #E2E0DA",
+  border: "1px solid #E3E3E3",
   borderRadius: "10px",
   padding: "18px 20px",
   marginBottom: "14px",
@@ -106,8 +106,8 @@ const sectionTitle: React.CSSProperties = {
 const inp: React.CSSProperties = {
   width: "100%",
   padding: "8px 11px",
-  border: "1.5px solid #E2E0DA",
-  borderRadius: "7px",
+  border: "1.5px solid #E3E3E3",
+  borderRadius: "8px",
   fontSize: "13px",
   fontFamily: "var(--font-jakarta)",
   outline: "none",
@@ -329,7 +329,7 @@ export default function CustomerDetailPage() {
     return (
       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "220px", gap: "12px", fontFamily: "var(--font-jakarta)" }}>
         <div style={{ fontSize: "14px", color: "#E8242A" }}>Customer not found</div>
-        <button onClick={() => router.back()} style={{ fontSize: "13px", color: "#1A5CFF", background: "none", border: "none", cursor: "pointer", fontWeight: 600 }}>← Back</button>
+        <button onClick={() => router.back()} style={{ fontSize: "13px", color: "#005BD3", background: "none", border: "none", cursor: "pointer", fontWeight: 600 }}>← Back</button>
       </div>
     );
   }
@@ -355,13 +355,13 @@ export default function CustomerDetailPage() {
       {/* Back */}
       <button
         onClick={() => router.back()}
-        style={{ fontSize: "13px", color: "#1A5CFF", fontWeight: 600, background: "none", border: "none", cursor: "pointer", padding: 0, marginBottom: "18px" }}
+        style={{ fontSize: "13px", color: "#005BD3", fontWeight: 600, background: "none", border: "none", cursor: "pointer", padding: 0, marginBottom: "18px" }}
       >
         ← Back to Customers
       </button>
 
       {/* ── HEADER ────────────────────────────────────────────────────────── */}
-      <div style={{ background: "#fff", border: "1px solid #E2E0DA", borderRadius: "12px", padding: "20px 24px", marginBottom: "20px" }}>
+      <div style={{ background: "#fff", border: "1px solid #E3E3E3", borderRadius: "12px", padding: "20px 24px", marginBottom: "20px" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "16px", flexWrap: "wrap" }}>
 
           {/* Avatar + info */}
@@ -425,12 +425,12 @@ export default function CustomerDetailPage() {
               <button
                 onClick={handleSuspend}
                 disabled={suspending || !suspendReason.trim()}
-                style={{ padding: "8px 18px", background: "#E8242A", color: "#fff", border: "none", borderRadius: "7px", fontSize: "13px", fontWeight: 700, cursor: !suspendReason.trim() ? "not-allowed" : "pointer", opacity: !suspendReason.trim() ? 0.5 : 1 }}>
+                style={{ padding: "8px 18px", background: "#E8242A", color: "#fff", border: "none", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: !suspendReason.trim() ? "not-allowed" : "pointer", opacity: !suspendReason.trim() ? 0.5 : 1 }}>
                 {suspending ? "Suspending…" : "Confirm Suspend"}
               </button>
               <button
                 onClick={() => { setShowSuspend(false); setSuspendReason(""); }}
-                style={{ padding: "8px 14px", border: "1px solid #E2E0DA", borderRadius: "7px", background: "#fff", fontSize: "13px", fontWeight: 600, cursor: "pointer" }}>
+                style={{ padding: "8px 14px", border: "1px solid #E3E3E3", borderRadius: "8px", background: "#fff", fontSize: "13px", fontWeight: 600, cursor: "pointer" }}>
                 Cancel
               </button>
             </div>
@@ -440,25 +440,25 @@ export default function CustomerDetailPage() {
 
       {/* ── TOP STATS ────────────────────────────────────────────────────── */}
       <div className="admin-stats-grid" style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: "12px", marginBottom: "20px" }}>
-        <div style={{ background: "#fff", border: "1px solid #E2E0DA", borderRadius: "10px", padding: "16px 18px" }}>
+        <div style={{ background: "#fff", border: "1px solid #E3E3E3", borderRadius: "10px", padding: "16px 18px" }}>
           <div style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: ".06em", color: "#059669", marginBottom: "6px" }}>Amount Spent</div>
           <div style={{ fontFamily: "var(--font-bebas)", fontSize: "28px", color: "#059669", lineHeight: 1 }}>
             ${totalSpend.toLocaleString("en-US", { minimumFractionDigits: 2 })}
           </div>
         </div>
-        <div style={{ background: "#fff", border: "1px solid #E2E0DA", borderRadius: "10px", padding: "16px 18px" }}>
-          <div style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: ".06em", color: "#1A5CFF", marginBottom: "6px" }}>Total Orders</div>
-          <div style={{ fontFamily: "var(--font-bebas)", fontSize: "28px", color: "#1A5CFF", lineHeight: 1 }}>
+        <div style={{ background: "#fff", border: "1px solid #E3E3E3", borderRadius: "10px", padding: "16px 18px" }}>
+          <div style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: ".06em", color: "#005BD3", marginBottom: "6px" }}>Total Orders</div>
+          <div style={{ fontFamily: "var(--font-bebas)", fontSize: "28px", color: "#005BD3", lineHeight: 1 }}>
             {orders.length}
           </div>
         </div>
-        <div style={{ background: "#fff", border: "1px solid #E2E0DA", borderRadius: "10px", padding: "16px 18px" }}>
+        <div style={{ background: "#fff", border: "1px solid #E3E3E3", borderRadius: "10px", padding: "16px 18px" }}>
           <div style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: ".06em", color: "#7A7880", marginBottom: "6px" }}>Customer Since</div>
           <div style={{ fontFamily: "var(--font-bebas)", fontSize: "28px", color: "#2A2830", lineHeight: 1 }}>
             {new Date(customer.created_at).toLocaleDateString("en-US", { month: "short", year: "numeric" })}
           </div>
         </div>
-        <div style={{ background: "#fff", border: "1px solid #E2E0DA", borderRadius: "10px", padding: "16px 18px" }}>
+        <div style={{ background: "#fff", border: "1px solid #E3E3E3", borderRadius: "10px", padding: "16px 18px" }}>
           <div style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: ".06em", color: "#7A7880", marginBottom: "6px" }}>Last Order</div>
           <div style={{ fontFamily: "var(--font-bebas)", fontSize: "22px", color: "#2A2830", lineHeight: 1 }}>
             {lastOrderDate ? new Date(lastOrderDate).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "—"}
@@ -497,7 +497,7 @@ export default function CustomerDetailPage() {
                     </span>
                     <button
                       onClick={() => router.push(`/admin/orders/${last.id}`)}
-                      style={{ padding: "5px 12px", border: "1px solid #E2E0DA", borderRadius: "6px", background: "#fff", fontSize: "12px", fontWeight: 600, cursor: "pointer" }}>
+                      style={{ padding: "5px 12px", border: "1px solid #E3E3E3", borderRadius: "6px", background: "#fff", fontSize: "12px", fontWeight: 600, cursor: "pointer" }}>
                       View
                     </button>
                   </div>
@@ -518,7 +518,7 @@ export default function CustomerDetailPage() {
               <div style={{ overflowX: "auto" }}>
                 <table style={{ width: "100%", borderCollapse: "collapse" }}>
                   <thead>
-                    <tr style={{ background: "#F6F6F7", borderBottom: "1.5px solid #E2E0DA" }}>
+                    <tr style={{ background: "#F6F6F7", borderBottom: "1.5px solid #E3E3E3" }}>
                       <th style={thSt}>Order #</th>
                       <th style={thSt}>Date</th>
                       <th style={{ ...thSt, textAlign: "right" }}>Items</th>
@@ -555,7 +555,7 @@ export default function CustomerDetailPage() {
                           <td style={{ padding: "11px 14px" }} onClick={e => e.stopPropagation()}>
                             <button
                               onClick={() => router.push(`/admin/orders/${o.id}`)}
-                              style={{ padding: "4px 10px", border: "1px solid #E2E0DA", borderRadius: "6px", background: "#fff", fontSize: "11px", fontWeight: 600, cursor: "pointer" }}>
+                              style={{ padding: "4px 10px", border: "1px solid #E3E3E3", borderRadius: "6px", background: "#fff", fontSize: "11px", fontWeight: 600, cursor: "pointer" }}>
                               View
                             </button>
                           </td>
@@ -585,7 +585,7 @@ export default function CustomerDetailPage() {
                 date: o.created_at,
                 label: `Order #${o.order_number} placed`,
                 sub: `${o.item_count} item${o.item_count !== 1 ? "s" : ""} · $${Number(o.total).toLocaleString("en-US", { minimumFractionDigits: 2 })}`,
-                color: "#1A5CFF",
+                color: "#005BD3",
                 key: `order-placed-${oi}`,
               });
               (o.timeline ?? []).forEach((e, ei) => {
@@ -607,7 +607,7 @@ export default function CustomerDetailPage() {
                     <div key={ev.key} style={{ display: "flex", gap: "14px", alignItems: "flex-start" }}>
                       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", flexShrink: 0 }}>
                         <div style={{ width: "10px", height: "10px", borderRadius: "50%", background: ev.color, marginTop: "4px" }} />
-                        {i < arr.length - 1 && <div style={{ width: "2px", background: "#E2E0DA", flexGrow: 1, minHeight: "20px" }} />}
+                        {i < arr.length - 1 && <div style={{ width: "2px", background: "#E3E3E3", flexGrow: 1, minHeight: "20px" }} />}
                       </div>
                       <div style={{ paddingBottom: "16px" }}>
                         <div style={{ fontSize: "13px", fontWeight: 600, color: "#2A2830" }}>{ev.label}</div>
@@ -698,8 +698,8 @@ export default function CustomerDetailPage() {
                   );
                 }
                 return matched.map(g => (
-                  <div key={g.id} style={{ padding: "10px 12px", background: "rgba(26,92,255,.05)", border: "1px solid rgba(26,92,255,.15)", borderRadius: "8px", marginBottom: "8px" }}>
-                    <div style={{ fontWeight: 700, fontSize: "13px", color: "#1A5CFF" }}>{g.title}</div>
+                  <div key={g.id} style={{ padding: "10px 12px", background: "rgba(26,26,26,.05)", border: "1px solid rgba(26,26,26,.15)", borderRadius: "8px", marginBottom: "8px" }}>
+                    <div style={{ fontWeight: 700, fontSize: "13px", color: "#005BD3" }}>{g.title}</div>
                     <div style={{ fontSize: "11px", color: "#7A7880", marginTop: "3px" }}>
                       Tag: <strong style={{ color: "#2A2830" }}>@{g.customer_tag}</strong>
                       {" · "}
@@ -735,7 +735,7 @@ export default function CustomerDetailPage() {
             >
               <div style={{
                 position: "relative", width: "44px", height: "24px", borderRadius: "12px",
-                background: taxExempt ? "#059669" : "#E2E0DA",
+                background: taxExempt ? "#059669" : "#E3E3E3",
                 transition: "background .2s", flexShrink: 0,
               }}>
                 <div style={{
@@ -758,7 +758,7 @@ export default function CustomerDetailPage() {
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "4px" }}>
                 <div style={sectionTitle}>Net 30 Payment Terms</div>
                 {net30Enabled && (
-                  <span style={{ fontSize: "10px", fontWeight: 700, padding: "2px 8px", borderRadius: "20px", background: "rgba(26,92,255,.1)", color: "#1A5CFF" }}>
+                  <span style={{ fontSize: "10px", fontWeight: 700, padding: "2px 8px", borderRadius: "20px", background: "rgba(26,26,26,.1)", color: "#005BD3" }}>
                     ACTIVE
                   </span>
                 )}
@@ -773,7 +773,7 @@ export default function CustomerDetailPage() {
               >
                 <div style={{
                   position: "relative", width: "44px", height: "24px", borderRadius: "12px",
-                  background: net30Enabled ? "#1A5CFF" : "#E2E0DA",
+                  background: net30Enabled ? "#1A5CFF" : "#E3E3E3",
                   transition: "background .2s", flexShrink: 0,
                 }}>
                   <div style={{
@@ -797,11 +797,11 @@ export default function CustomerDetailPage() {
             <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", minHeight: "28px", marginBottom: "10px" }}>
               {tags.length === 0 && <span style={{ fontSize: "12px", color: "#bbb" }}>No tags yet</span>}
               {tags.map(tag => (
-                <span key={tag} style={{ display: "inline-flex", alignItems: "center", gap: "4px", padding: "3px 10px", background: "rgba(26,92,255,.08)", color: "#1A5CFF", borderRadius: "20px", fontSize: "12px", fontWeight: 600 }}>
+                <span key={tag} style={{ display: "inline-flex", alignItems: "center", gap: "4px", padding: "3px 10px", background: "rgba(26,26,26,.08)", color: "#005BD3", borderRadius: "20px", fontSize: "12px", fontWeight: 600 }}>
                   {tag}
                   <button
                     onClick={() => handleRemoveTag(tag)}
-                    style={{ background: "none", border: "none", cursor: "pointer", color: "#1A5CFF", padding: 0, fontSize: "14px", lineHeight: 1, marginLeft: "2px" }}>
+                    style={{ background: "none", border: "none", cursor: "pointer", color: "#005BD3", padding: 0, fontSize: "14px", lineHeight: 1, marginLeft: "2px" }}>
                     ×
                   </button>
                 </span>
@@ -818,7 +818,7 @@ export default function CustomerDetailPage() {
               <button
                 onClick={handleAddTag}
                 disabled={savingTags || !tagInput.trim()}
-                style={{ padding: "8px 13px", background: "#1A5CFF", color: "#fff", border: "none", borderRadius: "7px", fontSize: "16px", fontWeight: 700, cursor: !tagInput.trim() ? "not-allowed" : "pointer", opacity: !tagInput.trim() ? 0.4 : 1 }}>
+                style={{ padding: "8px 13px", background: "#1A1A1A", color: "#fff", border: "none", borderRadius: "8px", fontSize: "16px", fontWeight: 700, cursor: !tagInput.trim() ? "not-allowed" : "pointer", opacity: !tagInput.trim() ? 0.4 : 1 }}>
                 +
               </button>
             </div>
@@ -913,7 +913,7 @@ export default function CustomerDetailPage() {
               {!editingNote && (
                 <button
                   onClick={() => { setNoteText(note); setEditingNote(true); }}
-                  style={{ fontSize: "12px", color: "#1A5CFF", fontWeight: 600, background: "none", border: "none", cursor: "pointer", padding: 0 }}>
+                  style={{ fontSize: "12px", color: "#005BD3", fontWeight: 600, background: "none", border: "none", cursor: "pointer", padding: 0 }}>
                   Edit
                 </button>
               )}
@@ -931,12 +931,12 @@ export default function CustomerDetailPage() {
                   <button
                     onClick={handleSaveNote}
                     disabled={savingNote}
-                    style={{ flex: 1, padding: "8px", background: "#1A5CFF", color: "#fff", border: "none", borderRadius: "7px", fontSize: "13px", fontWeight: 700, cursor: savingNote ? "not-allowed" : "pointer", opacity: savingNote ? 0.6 : 1 }}>
+                    style={{ flex: 1, padding: "8px", background: "#1A1A1A", color: "#fff", border: "none", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: savingNote ? "not-allowed" : "pointer", opacity: savingNote ? 0.6 : 1 }}>
                     {savingNote ? "Saving…" : "Save Notes"}
                   </button>
                   <button
                     onClick={() => { setEditingNote(false); setNoteText(note); }}
-                    style={{ padding: "8px 14px", border: "1px solid #E2E0DA", borderRadius: "7px", background: "#fff", fontSize: "13px", fontWeight: 600, cursor: "pointer" }}>
+                    style={{ padding: "8px 14px", border: "1px solid #E3E3E3", borderRadius: "8px", background: "#fff", fontSize: "13px", fontWeight: 600, cursor: "pointer" }}>
                     Cancel
                   </button>
                 </div>

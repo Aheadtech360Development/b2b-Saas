@@ -13,7 +13,7 @@ interface ProductSpec {
 }
 
 const inp: React.CSSProperties = {
-  width: "100%", padding: "9px 12px", border: "1.5px solid #E2E0DA",
+  width: "100%", padding: "9px 12px", border: "1.5px solid #E3E3E3",
   borderRadius: "8px", fontSize: "13px", outline: "none", background: "#fff",
   fontFamily: "inherit",
 };
@@ -133,26 +133,26 @@ export default function AdminProductSpecsPage() {
           <h1 style={{ fontSize: "22px", fontWeight: 800, color: "#2A2830", marginBottom: "4px" }}>Product Specs</h1>
           <p style={{ fontSize: "13px", color: "#7A7880" }}>Manage technical product specification PDFs shown on the Product Specs page.</p>
         </div>
-        <button onClick={openNew} style={{ background: "#1A5CFF", color: "#fff", border: "none", borderRadius: "8px", padding: "10px 20px", fontSize: "13px", fontWeight: 700, cursor: "pointer" }}>
+        <button onClick={openNew} style={{ background: "#1A1A1A", color: "#fff", border: "none", borderRadius: "8px", padding: "10px 20px", fontSize: "13px", fontWeight: 700, cursor: "pointer" }}>
           + Add Product Spec
         </button>
       </div>
 
       {loading ? (
-        <div style={{ textAlign: "center", padding: "60px", color: "#aaa" }}>Loading…</div>
+        <div style={{ padding: "26px" }}>{[70, 92, 58, 84].map((w, i) => (<div key={i} className="at-skel" style={{ height: "14px", width: `${w}%`, marginBottom: "12px" }} />))}</div>
       ) : specs.length === 0 ? (
-        <div style={{ background: "#fff", border: "1.5px solid #E2E0DA", borderRadius: "12px", padding: "60px", textAlign: "center" }}>
+        <div style={{ background: "#fff", border: "1.5px solid #E3E3E3", borderRadius: "12px", padding: "60px", textAlign: "center" }}>
           <div style={{ fontSize: "40px", marginBottom: "12px" }}>📐</div>
           <p style={{ color: "#7A7880", fontSize: "14px" }}>No product specs added yet.</p>
-          <button onClick={openNew} style={{ marginTop: "16px", background: "#1A5CFF", color: "#fff", border: "none", borderRadius: "8px", padding: "10px 20px", fontSize: "13px", fontWeight: 700, cursor: "pointer" }}>
+          <button onClick={openNew} style={{ marginTop: "16px", background: "#1A1A1A", color: "#fff", border: "none", borderRadius: "8px", padding: "10px 20px", fontSize: "13px", fontWeight: 700, cursor: "pointer" }}>
             Add First Product Spec
           </button>
         </div>
       ) : (
-        <div style={{ background: "#fff", border: "1.5px solid #E2E0DA", borderRadius: "12px", overflow: "hidden" }}>
+        <div style={{ background: "#fff", border: "1.5px solid #E3E3E3", borderRadius: "12px", overflow: "hidden" }}>
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
-              <tr style={{ borderBottom: "1px solid #E2E0DA", background: "#F9F8F5" }}>
+              <tr style={{ borderBottom: "1px solid #E3E3E3", background: "#F9F8F5" }}>
                 {["Title", "Description", "PDF", "Sort", "Active", ""].map(h => (
                   <th key={h} style={{ padding: "12px 16px", textAlign: "left", fontSize: "11px", fontWeight: 700, color: "#888", textTransform: "uppercase", letterSpacing: ".06em" }}>{h}</th>
                 ))}
@@ -167,7 +167,7 @@ export default function AdminProductSpecsPage() {
                   </td>
                   <td style={{ padding: "12px 16px" }}>
                     {p.pdf_url ? (
-                      <a href={p.pdf_url} target="_blank" rel="noopener noreferrer" style={{ fontSize: "12px", color: "#1A5CFF", fontWeight: 600 }}>View PDF</a>
+                      <a href={p.pdf_url} target="_blank" rel="noopener noreferrer" style={{ fontSize: "12px", color: "#005BD3", fontWeight: 600 }}>View PDF</a>
                     ) : (
                       <span style={{ fontSize: "12px", color: "#bbb" }}>—</span>
                     )}
@@ -183,7 +183,7 @@ export default function AdminProductSpecsPage() {
                   </td>
                   <td style={{ padding: "12px 16px" }}>
                     <div style={{ display: "flex", gap: "8px" }}>
-                      <button onClick={() => openEdit(p)} style={{ fontSize: "12px", color: "#1A5CFF", background: "none", border: "none", cursor: "pointer", fontWeight: 600 }}>Edit</button>
+                      <button onClick={() => openEdit(p)} style={{ fontSize: "12px", color: "#005BD3", background: "none", border: "none", cursor: "pointer", fontWeight: 600 }}>Edit</button>
                       <button onClick={() => handleDelete(p.id)} style={{ fontSize: "12px", color: "#E8242A", background: "none", border: "none", cursor: "pointer", fontWeight: 600 }}>Delete</button>
                     </div>
                   </td>
@@ -216,12 +216,12 @@ export default function AdminProductSpecsPage() {
                 <div style={{ display: "flex", gap: "8px" }}>
                   <input style={{ ...inp, flex: 1 }} value={form.pdf_url} onChange={e => setForm(f => ({ ...f, pdf_url: e.target.value }))} placeholder="https://... or upload below" />
                   <button type="button" onClick={() => pdfRef.current?.click()} disabled={uploadingPdf}
-                    style={{ flexShrink: 0, padding: "9px 14px", border: "1.5px solid #E2E0DA", borderRadius: "8px", background: "#F6F6F7", fontSize: "12px", fontWeight: 700, cursor: "pointer" }}>
+                    style={{ flexShrink: 0, padding: "9px 14px", border: "1.5px solid #E3E3E3", borderRadius: "8px", background: "#F6F6F7", fontSize: "12px", fontWeight: 700, cursor: "pointer" }}>
                     {uploadingPdf ? "…" : "Upload"}
                   </button>
                   <input ref={pdfRef} type="file" accept="application/pdf" style={{ display: "none" }} onChange={e => { if (e.target.files?.[0]) uploadFile(e.target.files[0]); }} />
                 </div>
-                {form.pdf_url && <a href={form.pdf_url} target="_blank" rel="noopener noreferrer" style={{ fontSize: "12px", color: "#1A5CFF", display: "inline-block", marginTop: "6px" }}>View uploaded PDF</a>}
+                {form.pdf_url && <a href={form.pdf_url} target="_blank" rel="noopener noreferrer" style={{ fontSize: "12px", color: "#005BD3", display: "inline-block", marginTop: "6px" }}>View uploaded PDF</a>}
               </div>
 
               <div style={{ marginBottom: "14px" }}>
@@ -236,8 +236,8 @@ export default function AdminProductSpecsPage() {
 
               {error && <p style={{ fontSize: "13px", color: "#E8242A", marginBottom: "12px" }}>{error}</p>}
               <div style={{ display: "flex", gap: "10px" }}>
-                <button type="button" onClick={() => setShowModal(false)} style={{ flex: 1, padding: "10px", border: "1.5px solid #E2E0DA", borderRadius: "8px", background: "#fff", fontSize: "13px", cursor: "pointer" }}>Cancel</button>
-                <button type="submit" disabled={saving} style={{ flex: 1, padding: "10px", background: "#1A5CFF", color: "#fff", border: "none", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: "pointer", opacity: saving ? 0.6 : 1 }}>
+                <button type="button" onClick={() => setShowModal(false)} style={{ flex: 1, padding: "10px", border: "1.5px solid #E3E3E3", borderRadius: "8px", background: "#fff", fontSize: "13px", cursor: "pointer" }}>Cancel</button>
+                <button type="submit" disabled={saving} style={{ flex: 1, padding: "10px", background: "#1A1A1A", color: "#fff", border: "none", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: "pointer", opacity: saving ? 0.6 : 1 }}>
                   {saving ? "Saving…" : "Save"}
                 </button>
               </div>

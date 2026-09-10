@@ -16,7 +16,7 @@ import {
 
 function Spinner() {
   return (
-    <div style={{ display: "inline-block", width: 18, height: 18, border: "2px solid #e5e7eb", borderTopColor: "#1A5CFF", borderRadius: "50%", animation: "spin 0.7s linear infinite" }} />
+    <div style={{ display: "inline-block", width: 18, height: 18, border: "2px solid #E3E3E3", borderTopColor: "#1A5CFF", borderRadius: "50%", animation: "spin 0.7s linear infinite" }} />
   );
 }
 
@@ -64,7 +64,7 @@ export default function SupplierCatalogPage() {
       </div>
 
       {/* Tab bar */}
-      <div style={{ display: "flex", gap: 4, borderBottom: "2px solid #e5e7eb", marginBottom: 24 }}>
+      <div style={{ display: "flex", gap: 4, borderBottom: "2px solid #E3E3E3", marginBottom: 24 }}>
         {TABS.map((t) => (
           <button
             key={t.id}
@@ -76,7 +76,7 @@ export default function SupplierCatalogPage() {
               color: activeTab === t.id ? "#1A5CFF" : "#6b7280",
               background: "none",
               border: "none",
-              borderBottom: activeTab === t.id ? "2px solid #1A5CFF" : "2px solid transparent",
+              borderBottom: activeTab === t.id ? "2px solid #1A1A1A" : "2px solid transparent",
               cursor: "pointer",
               marginBottom: -2,
               transition: "all .15s",
@@ -194,7 +194,7 @@ function CatalogTab() {
     <div style={{ display: "flex", gap: 20 }}>
       {/* Sidebar filters */}
       <aside style={{ width: 220, flexShrink: 0 }}>
-        <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, padding: 16 }}>
+        <div style={{ background: "#fff", border: "1px solid #E3E3E3", borderRadius: 10, padding: 16 }}>
           <div style={{ fontWeight: 700, fontSize: 12, textTransform: "uppercase", letterSpacing: ".08em", color: "#9ca3af", marginBottom: 12 }}>Filters</div>
 
           {/* Search */}
@@ -203,7 +203,7 @@ function CatalogTab() {
             placeholder="Search styles, brands…"
             defaultValue={filter.q ?? ""}
             onKeyDown={(e) => { if (e.key === "Enter") applyFilter({ q: (e.target as HTMLInputElement).value || undefined }); }}
-            style={{ width: "100%", padding: "7px 10px", borderRadius: 7, border: "1px solid #e5e7eb", fontSize: 12, marginBottom: 14, boxSizing: "border-box" }}
+            style={{ width: "100%", padding: "7px 10px", borderRadius: 7, border: "1px solid #E3E3E3", fontSize: 12, marginBottom: 14, boxSizing: "border-box" }}
           />
 
           {/* Show imported only */}
@@ -224,7 +224,7 @@ function CatalogTab() {
       {/* Product grid */}
       <div style={{ flex: 1 }}>
         {/* Live import — search S&S directly, import any specific style */}
-        <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, padding: 16, marginBottom: 16 }}>
+        <div style={{ background: "#fff", border: "1px solid #E3E3E3", borderRadius: 10, padding: 16, marginBottom: 16 }}>
           <div style={{ fontWeight: 700, fontSize: 13, color: "#111827", marginBottom: 4 }}>⚡ Quick Import — search S&S live</div>
           <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 10 }}>
             Find any specific style by brand, name or number and import it directly — no full sync needed.
@@ -235,13 +235,13 @@ function CatalogTab() {
               onChange={(e) => setLiveQ(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter") handleLiveSearch(); }}
               placeholder="e.g. Gildan 5000, Bella+Canvas 3001, Next Level…"
-              style={{ flex: 1, padding: "8px 12px", border: "1px solid #e5e7eb", borderRadius: 7, fontSize: 13, boxSizing: "border-box" }}
+              style={{ flex: 1, padding: "8px 12px", border: "1px solid #E3E3E3", borderRadius: 7, fontSize: 13, boxSizing: "border-box" }}
             />
             <button
               onClick={handleLiveSearch}
               disabled={liveLoading || liveQ.trim().length < 2}
               className="sc-btn"
-              style={{ padding: "8px 18px", background: "#1A5CFF", color: "#fff", border: "none", borderRadius: 7, fontSize: 13, fontWeight: 700, cursor: "pointer" }}
+              style={{ padding: "8px 18px", background: "#1A1A1A", color: "#fff", border: "none", borderRadius: 7, fontSize: 13, fontWeight: 700, cursor: "pointer" }}
             >
               {liveLoading ? <Spinner /> : "Search"}
             </button>
@@ -363,7 +363,7 @@ function ProductCard({
       className="sc-card"
       style={{
         background: "#fff",
-        border: "1px solid #e5e7eb",
+        border: "1px solid #E3E3E3",
         borderRadius: 10,
         overflow: "hidden",
         transition: "box-shadow .2s, transform .2s",
@@ -452,7 +452,7 @@ function PaginationBtn({ label, disabled, onClick }: { label: string; disabled: 
       onClick={onClick}
       disabled={disabled}
       className="sc-btn"
-      style={{ padding: "7px 14px", borderRadius: 7, border: "1px solid #e5e7eb", background: "#fff", fontSize: 13, cursor: "pointer" }}
+      style={{ padding: "7px 14px", borderRadius: 7, border: "1px solid #E3E3E3", background: "#fff", fontSize: 13, cursor: "pointer" }}
     >
       {label}
     </button>
@@ -487,7 +487,7 @@ function ProductDetailDrawer({
         boxShadow: "-8px 0 40px rgba(0,0,0,.15)",
         display: "flex", flexDirection: "column",
       }}>
-        <div style={{ padding: "20px 24px", borderBottom: "1px solid #e5e7eb", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <div style={{ padding: "20px 24px", borderBottom: "1px solid #E3E3E3", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <span style={{ fontWeight: 700, fontSize: 15 }}>Product Detail</span>
           <button onClick={onClose} style={{ background: "none", border: "none", fontSize: 20, cursor: "pointer", color: "#6b7280" }}>✕</button>
         </div>
@@ -533,9 +533,9 @@ function ProductDetailDrawer({
                       return (
                         <div key={c} title={c ?? ""} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
                           {variant?.color_swatch ? (
-                            <img src={variant.color_swatch} alt={c ?? ""} style={{ width: 28, height: 28, borderRadius: "50%", border: "1px solid #e5e7eb", objectFit: "cover" }} />
+                            <img src={variant.color_swatch} alt={c ?? ""} style={{ width: 28, height: 28, borderRadius: "50%", border: "1px solid #E3E3E3", objectFit: "cover" }} />
                           ) : (
-                            <div style={{ width: 28, height: 28, borderRadius: "50%", background: "#e5e7eb", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10 }}>?</div>
+                            <div style={{ width: 28, height: 28, borderRadius: "50%", background: "#E3E3E3", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10 }}>?</div>
                           )}
                           <span style={{ fontSize: 9, color: "#6b7280", maxWidth: 40, textAlign: "center", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c}</span>
                         </div>
@@ -549,12 +549,12 @@ function ProductDetailDrawer({
               {product.variants.length > 0 && (
                 <div style={{ marginBottom: 16 }}>
                   <div style={{ fontSize: 12, fontWeight: 700, color: "#374151", marginBottom: 8 }}>Variants ({product.variants.length})</div>
-                  <div style={{ border: "1px solid #e5e7eb", borderRadius: 8, overflow: "hidden" }}>
+                  <div style={{ border: "1px solid #E3E3E3", borderRadius: 8, overflow: "hidden" }}>
                     <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
                       <thead>
                         <tr style={{ background: "#f9fafb" }}>
                           {["SKU", "Color", "Size", "Price", "Stock"].map((h) => (
-                            <th key={h} style={{ padding: "7px 10px", textAlign: "left", fontWeight: 600, color: "#6b7280", borderBottom: "1px solid #e5e7eb" }}>{h}</th>
+                            <th key={h} style={{ padding: "7px 10px", textAlign: "left", fontWeight: 600, color: "#6b7280", borderBottom: "1px solid #E3E3E3" }}>{h}</th>
                           ))}
                         </tr>
                       </thead>
@@ -588,7 +588,7 @@ function ProductDetailDrawer({
 
         {/* Import button */}
         {product && (
-          <div style={{ padding: "16px 24px", borderTop: "1px solid #e5e7eb" }}>
+          <div style={{ padding: "16px 24px", borderTop: "1px solid #E3E3E3" }}>
             <button
               className="sc-btn"
               disabled={importing || product.is_imported}
@@ -610,7 +610,7 @@ function ProductDetailDrawer({
             {product.imported_product_id && (
               <a
                 href={`/admin/products/${product.imported_product_id}`}
-                style={{ display: "block", textAlign: "center", marginTop: 10, fontSize: 12, color: "#1A5CFF" }}
+                style={{ display: "block", textAlign: "center", marginTop: 10, fontSize: 12, color: "#005BD3" }}
               >
                 View in Products →
               </a>
@@ -706,7 +706,7 @@ function MarkupTab() {
         </div>
         <button
           onClick={startNew}
-          style={{ padding: "9px 18px", background: "#1A5CFF", color: "#fff", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: "pointer" }}
+          style={{ padding: "9px 18px", background: "#1A1A1A", color: "#fff", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: "pointer" }}
         >
           + Add Rule
         </button>
@@ -720,7 +720,7 @@ function MarkupTab() {
 
       {/* Add/edit form */}
       {showForm && (
-        <div style={{ background: "#f9fafb", border: "1px solid #e5e7eb", borderRadius: 10, padding: 20, marginBottom: 20 }}>
+        <div style={{ background: "#f9fafb", border: "1px solid #E3E3E3", borderRadius: 10, padding: 20, marginBottom: 20 }}>
           <h3 style={{ fontSize: 14, fontWeight: 700, margin: "0 0 16px" }}>{editingId ? "Edit Rule" : "New Rule"}</h3>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
             <div>
@@ -728,7 +728,7 @@ function MarkupTab() {
               <select
                 value={form.rule_type}
                 onChange={(e) => setForm((f) => ({ ...f, rule_type: e.target.value, target_value: undefined }))}
-                style={{ width: "100%", padding: "8px 10px", borderRadius: 7, border: "1px solid #e5e7eb", fontSize: 13 }}
+                style={{ width: "100%", padding: "8px 10px", borderRadius: 7, border: "1px solid #E3E3E3", fontSize: 13 }}
               >
                 {Object.entries(RULE_TYPE_LABELS).map(([v, l]) => (
                   <option key={v} value={v}>{l}</option>
@@ -745,7 +745,7 @@ function MarkupTab() {
                   value={form.target_value ?? ""}
                   onChange={(e) => setForm((f) => ({ ...f, target_value: e.target.value }))}
                   placeholder={form.rule_type === "product" ? "e.g. PC61" : form.rule_type === "brand" ? "e.g. Port & Company" : "e.g. T-Shirts"}
-                  style={{ width: "100%", padding: "8px 10px", borderRadius: 7, border: "1px solid #e5e7eb", fontSize: 13, boxSizing: "border-box" }}
+                  style={{ width: "100%", padding: "8px 10px", borderRadius: 7, border: "1px solid #E3E3E3", fontSize: 13, boxSizing: "border-box" }}
                 />
               </div>
             )}
@@ -758,7 +758,7 @@ function MarkupTab() {
                 step={0.5}
                 value={form.markup_pct ?? 0}
                 onChange={(e) => setForm((f) => ({ ...f, markup_pct: parseFloat(e.target.value) || 0 }))}
-                style={{ width: "100%", padding: "8px 10px", borderRadius: 7, border: "1px solid #e5e7eb", fontSize: 13, boxSizing: "border-box" }}
+                style={{ width: "100%", padding: "8px 10px", borderRadius: 7, border: "1px solid #E3E3E3", fontSize: 13, boxSizing: "border-box" }}
               />
             </div>
 
@@ -770,7 +770,7 @@ function MarkupTab() {
                 step={0.01}
                 value={form.markup_fixed ?? 0}
                 onChange={(e) => setForm((f) => ({ ...f, markup_fixed: parseFloat(e.target.value) || 0 }))}
-                style={{ width: "100%", padding: "8px 10px", borderRadius: 7, border: "1px solid #e5e7eb", fontSize: 13, boxSizing: "border-box" }}
+                style={{ width: "100%", padding: "8px 10px", borderRadius: 7, border: "1px solid #E3E3E3", fontSize: 13, boxSizing: "border-box" }}
               />
             </div>
           </div>
@@ -781,13 +781,13 @@ function MarkupTab() {
               Active
             </label>
             <div style={{ flex: 1 }} />
-            <button onClick={() => setShowForm(false)} style={{ padding: "7px 16px", border: "1px solid #e5e7eb", borderRadius: 7, background: "#fff", fontSize: 13, cursor: "pointer" }}>
+            <button onClick={() => setShowForm(false)} style={{ padding: "7px 16px", border: "1px solid #E3E3E3", borderRadius: 7, background: "#fff", fontSize: 13, cursor: "pointer" }}>
               Cancel
             </button>
             <button
               onClick={handleSave}
               disabled={saving}
-              style={{ padding: "7px 16px", background: "#1A5CFF", color: "#fff", border: "none", borderRadius: 7, fontSize: 13, fontWeight: 700, cursor: "pointer" }}
+              style={{ padding: "7px 16px", background: "#1A1A1A", color: "#fff", border: "none", borderRadius: 7, fontSize: 13, fontWeight: 700, cursor: "pointer" }}
             >
               {saving ? "Saving…" : "Save Rule"}
             </button>
@@ -801,12 +801,12 @@ function MarkupTab() {
       ) : rules.length === 0 ? (
         <EmptyState title="No markup rules yet" description="Add a Global rule to set a default markup for all S&S products (recommended: 40%)." />
       ) : (
-        <div style={{ border: "1px solid #e5e7eb", borderRadius: 10, overflow: "hidden" }}>
+        <div style={{ border: "1px solid #E3E3E3", borderRadius: 10, overflow: "hidden" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
             <thead>
               <tr style={{ background: "#f9fafb" }}>
                 {["Rule Type", "Target", "Markup %", "Fixed $", "Status", ""].map((h) => (
-                  <th key={h} style={{ padding: "10px 14px", textAlign: "left", fontWeight: 600, color: "#6b7280", borderBottom: "1px solid #e5e7eb", fontSize: 12 }}>{h}</th>
+                  <th key={h} style={{ padding: "10px 14px", textAlign: "left", fontWeight: 600, color: "#6b7280", borderBottom: "1px solid #E3E3E3", fontSize: 12 }}>{h}</th>
                 ))}
               </tr>
             </thead>
@@ -826,7 +826,7 @@ function MarkupTab() {
                   </td>
                   <td style={{ padding: "10px 14px", borderBottom: "1px solid #f3f4f6" }}>
                     <div style={{ display: "flex", gap: 8 }}>
-                      <button onClick={() => startEdit(r)} style={{ padding: "4px 10px", border: "1px solid #e5e7eb", borderRadius: 6, background: "#fff", fontSize: 12, cursor: "pointer" }}>Edit</button>
+                      <button onClick={() => startEdit(r)} style={{ padding: "4px 10px", border: "1px solid #E3E3E3", borderRadius: 6, background: "#fff", fontSize: 12, cursor: "pointer" }}>Edit</button>
                       <button onClick={() => handleDelete(r.id)} style={{ padding: "4px 10px", border: "1px solid #fecaca", borderRadius: 6, background: "#fff", color: "#b91c1c", fontSize: 12, cursor: "pointer" }}>Delete</button>
                     </div>
                   </td>
@@ -894,7 +894,7 @@ function SyncTab() {
             Syncs run automatically on schedule. Use manual triggers for immediate refresh.
           </p>
         </div>
-        <button onClick={load} style={{ padding: "8px 14px", border: "1px solid #e5e7eb", borderRadius: 8, background: "#fff", fontSize: 13, cursor: "pointer" }}>
+        <button onClick={load} style={{ padding: "8px 14px", border: "1px solid #E3E3E3", borderRadius: 8, background: "#fff", fontSize: 13, cursor: "pointer" }}>
           ↻ Refresh
         </button>
       </div>
@@ -910,7 +910,7 @@ function SyncTab() {
         {SYNCS.map(({ type, label, schedule }) => {
           const info = status?.latest_by_type?.[type];
           return (
-            <div key={type} style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, padding: 18 }}>
+            <div key={type} style={{ background: "#fff", border: "1px solid #E3E3E3", borderRadius: 10, padding: 18 }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
                 <span style={{ fontWeight: 700, fontSize: 14 }}>{label}</span>
                 {info && (
@@ -941,7 +941,7 @@ function SyncTab() {
                 onClick={() => handleTrigger(type)}
                 disabled={triggering === type}
                 className="sc-btn"
-                style={{ marginTop: 8, width: "100%", padding: "7px 12px", border: "1px solid #1A5CFF", borderRadius: 7, background: "transparent", color: "#1A5CFF", fontSize: 12, fontWeight: 700, cursor: "pointer" }}
+                style={{ marginTop: 8, width: "100%", padding: "7px 12px", border: "1px solid #1A1A1A", borderRadius: 7, background: "transparent", color: "#005BD3", fontSize: 12, fontWeight: 700, cursor: "pointer" }}
               >
                 {triggering === type ? <Spinner /> : `Sync ${label} Now`}
               </button>
@@ -957,12 +957,12 @@ function SyncTab() {
       ) : !status?.history?.length ? (
         <EmptyState title="No sync history yet" description="Trigger a manual sync or wait for the scheduled sync to run." />
       ) : (
-        <div style={{ border: "1px solid #e5e7eb", borderRadius: 10, overflow: "hidden" }}>
+        <div style={{ border: "1px solid #E3E3E3", borderRadius: 10, overflow: "hidden" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
             <thead>
               <tr style={{ background: "#f9fafb" }}>
                 {["Type", "Status", "Started", "Duration", "Records", ""].map((h) => (
-                  <th key={h} style={{ padding: "10px 14px", textAlign: "left", fontWeight: 600, color: "#6b7280", borderBottom: "1px solid #e5e7eb", fontSize: 12 }}>{h}</th>
+                  <th key={h} style={{ padding: "10px 14px", textAlign: "left", fontWeight: 600, color: "#6b7280", borderBottom: "1px solid #E3E3E3", fontSize: 12 }}>{h}</th>
                 ))}
               </tr>
             </thead>
@@ -1008,7 +1008,7 @@ function SyncTab() {
 
 function EmptyState({ title, description }: { title: string; description: string }) {
   return (
-    <div style={{ textAlign: "center", padding: "48px 24px", background: "#f9fafb", borderRadius: 12, border: "1px dashed #e5e7eb" }}>
+    <div style={{ textAlign: "center", padding: "48px 24px", background: "#f9fafb", borderRadius: 12, border: "1px dashed #E3E3E3" }}>
       <div style={{ fontSize: 36, marginBottom: 12 }}>📦</div>
       <div style={{ fontWeight: 700, fontSize: 15, color: "#374151", marginBottom: 6 }}>{title}</div>
       <div style={{ fontSize: 13, color: "#6b7280", maxWidth: 360, margin: "0 auto" }}>{description}</div>

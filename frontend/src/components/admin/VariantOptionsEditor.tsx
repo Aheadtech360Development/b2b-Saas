@@ -68,7 +68,7 @@ export function VariantOptionsEditor({
       <div>
         <div style={L}>Color — add each colour value</div>
         <div style={{ display: "flex", gap: "8px", alignItems: "center", marginBottom: "10px", flexWrap: "wrap" }}>
-          <input type="color" value={colorHex} onChange={(e) => setColorHex(e.target.value)} title="Swatch colour" style={{ width: "38px", height: "38px", border: "1px solid #E2E0DA", borderRadius: "8px", background: "none", cursor: "pointer", padding: 0 }} />
+          <input type="color" value={colorHex} onChange={(e) => setColorHex(e.target.value)} title="Swatch colour" style={{ width: "38px", height: "38px", border: "1px solid #E3E3E3", borderRadius: "8px", background: "none", cursor: "pointer", padding: 0 }} />
           <input
             value={colorInput}
             onChange={(e) => { setColorInput(e.target.value); const k = KNOWN[e.target.value.trim().toLowerCase()]; if (k) setColorHex(k); }}
@@ -142,10 +142,10 @@ export function VariantOptionsEditor({
 
 const L: React.CSSProperties = { fontSize: "12px", fontWeight: 700, color: "#2A2830", marginBottom: "8px", textTransform: "uppercase", letterSpacing: ".03em" };
 const INPUT: React.CSSProperties = { padding: "9px 11px", border: "1px solid #D6D3CC", borderRadius: "8px", fontSize: "14px", boxSizing: "border-box" };
-const CHIP: React.CSSProperties = { display: "inline-flex", alignItems: "center", gap: "6px", background: "#F4F3EF", border: "1px solid #E2E0DA", borderRadius: "18px", padding: "5px 6px 5px 10px", fontSize: "13px", fontWeight: 600, color: "#2A2830" };
-const CHIP_X: React.CSSProperties = { background: "#fff", border: "1px solid #E2E0DA", color: "#B91C1C", borderRadius: "50%", width: "18px", height: "18px", cursor: "pointer", fontSize: "12px", lineHeight: 1, padding: 0 };
+const CHIP: React.CSSProperties = { display: "inline-flex", alignItems: "center", gap: "6px", background: "#F4F3EF", border: "1px solid #E3E3E3", borderRadius: "18px", padding: "5px 6px 5px 10px", fontSize: "13px", fontWeight: 600, color: "#2A2830" };
+const CHIP_X: React.CSSProperties = { background: "#fff", border: "1px solid #E3E3E3", color: "#B91C1C", borderRadius: "50%", width: "18px", height: "18px", cursor: "pointer", fontSize: "12px", lineHeight: 1, padding: 0 };
 const ADD_BTN: React.CSSProperties = { padding: "9px 16px", background: "#2A2830", color: "#fff", border: "none", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: "pointer" };
 const QUICK: React.CSSProperties = { padding: "5px 10px", background: "#fff", border: "1px solid #D6D3CC", borderRadius: "16px", fontSize: "12px", fontWeight: 600, cursor: "pointer", color: "#444" };
 const EMPTY: React.CSSProperties = { fontSize: "12px", color: "#AAA" };
 const GHOST: React.CSSProperties = { padding: "10px 18px", background: "#fff", border: "1px solid #D6D3CC", borderRadius: "8px", fontSize: "13px", fontWeight: 600, cursor: "pointer", color: "#444" };
-const PRIMARY: React.CSSProperties = { padding: "10px 20px", background: "#1A5CFF", color: "#fff", border: "none", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: "pointer" };
+const PRIMARY: React.CSSProperties = { padding: "10px 20px", background: "#1A1A1A", color: "#fff", border: "none", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: "pointer" };

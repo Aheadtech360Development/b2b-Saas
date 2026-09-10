@@ -104,13 +104,13 @@ export default function AdminReviewsPage() {
             placeholder="Search by reviewer name or review text…"
             value={search}
             onChange={e => setSearch(e.target.value)}
-            style={{ width: "100%", padding: "10px 12px 10px 36px", border: "1.5px solid #E2E0DA", borderRadius: "8px", fontSize: "14px", fontFamily: "var(--font-jakarta)", boxSizing: "border-box", outline: "none" }}
+            style={{ width: "100%", padding: "10px 12px 10px 36px", border: "1.5px solid #E3E3E3", borderRadius: "8px", fontSize: "14px", fontFamily: "var(--font-jakarta)", boxSizing: "border-box", outline: "none" }}
           />
         </div>
         <select
           value={approvedFilter}
           onChange={e => setApprovedFilter(e.target.value as "" | "true" | "false")}
-          style={{ padding: "10px 14px", border: "1.5px solid #E2E0DA", borderRadius: "8px", fontSize: "13px", fontFamily: "var(--font-jakarta)", background: "#fff", cursor: "pointer" }}
+          style={{ padding: "10px 14px", border: "1.5px solid #E3E3E3", borderRadius: "8px", fontSize: "13px", fontFamily: "var(--font-jakarta)", background: "#fff", cursor: "pointer" }}
         >
           <option value="">All Reviews</option>
           <option value="true">Approved</option>
@@ -119,10 +119,10 @@ export default function AdminReviewsPage() {
       </div>
 
       {/* Table */}
-      <div style={{ background: "#fff", border: "1px solid #E2E0DA", borderRadius: "10px", overflow: "hidden" }}>
+      <div style={{ background: "#fff", border: "1px solid #E3E3E3", borderRadius: "10px", overflow: "hidden" }}>
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
-            <tr style={{ background: "#F6F6F7", borderBottom: "2px solid #E2E0DA" }}>
+            <tr style={{ background: "#F6F6F7", borderBottom: "2px solid #E3E3E3" }}>
               <th style={thStyle}>Reviewer</th>
               <th style={thStyle}>Product</th>
               <th style={thStyle}>Rating</th>
@@ -134,13 +134,13 @@ export default function AdminReviewsPage() {
           </thead>
           <tbody>
             {loading && reviews.length === 0 ? (
-              <tr><td colSpan={7} style={{ padding: "48px", textAlign: "center", color: "#aaa", fontSize: "14px" }}>Loading…</td></tr>
+              <tr><td colSpan={7} style={{ padding: "48px", textAlign: "center", color: "#aaa", fontSize: "14px" }}><div className="at-skel" style={{ height: "14px", width: "60%", margin: "0 auto" }} /></td></tr>
             ) : error ? (
               <tr>
                 <td colSpan={7} style={{ padding: "48px", textAlign: "center" }}>
                   <div style={{ fontSize: "14px", color: "#E8242A", fontWeight: 600, marginBottom: "8px" }}>Failed to load reviews</div>
                   <div style={{ fontSize: "12px", color: "#aaa", marginBottom: "16px" }}>{error}</div>
-                  <button onClick={() => load()} style={{ padding: "8px 20px", background: "#1A5CFF", color: "#fff", border: "none", borderRadius: "6px", cursor: "pointer", fontWeight: 600, fontSize: "13px" }}>Retry</button>
+                  <button onClick={() => load()} style={{ padding: "8px 20px", background: "#1A1A1A", color: "#fff", border: "none", borderRadius: "6px", cursor: "pointer", fontWeight: 600, fontSize: "13px" }}>Retry</button>
                 </td>
               </tr>
             ) : reviews.length === 0 ? (
@@ -171,7 +171,7 @@ export default function AdminReviewsPage() {
                 <td style={{ padding: "14px 16px" }}>
                   <a
                     href={`/admin/products/${review.product_slug}/edit`}
-                    style={{ fontSize: "13px", color: "#1A5CFF", textDecoration: "none", fontWeight: 600 }}
+                    style={{ fontSize: "13px", color: "#005BD3", textDecoration: "none", fontWeight: 600 }}
                     onClick={e => { e.preventDefault(); router.push(`/admin/products/${review.product_slug}/edit`); }}
                   >
                     {review.product_name}
@@ -190,7 +190,7 @@ export default function AdminReviewsPage() {
                   </div>
                   {review.image_url && (
                     <div style={{ marginTop: "4px" }}>
-                      <a href={review.image_url} target="_blank" rel="noopener noreferrer" style={{ fontSize: "11px", color: "#1A5CFF" }}>📷 View image</a>
+                      <a href={review.image_url} target="_blank" rel="noopener noreferrer" style={{ fontSize: "11px", color: "#005BD3" }}>📷 View image</a>
                     </div>
                   )}
                 </td>
@@ -219,21 +219,21 @@ export default function AdminReviewsPage() {
                     {review.is_approved ? (
                       <button
                         onClick={() => handleApprove(review.id, false)}
-                        style={{ padding: "5px 10px", background: "rgba(245,158,11,.1)", color: "#D97706", border: "1px solid rgba(245,158,11,.3)", borderRadius: "5px", fontSize: "11px", fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}
+                        style={{ padding: "5px 10px", background: "rgba(245,158,11,.1)", color: "#D97706", border: "1px solid rgba(245,158,11,.3)", borderRadius: "6px", fontSize: "11px", fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}
                       >
                         Reject
                       </button>
                     ) : (
                       <button
                         onClick={() => handleApprove(review.id, true)}
-                        style={{ padding: "5px 10px", background: "rgba(5,150,105,.1)", color: "#059669", border: "1px solid rgba(5,150,105,.3)", borderRadius: "5px", fontSize: "11px", fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}
+                        style={{ padding: "5px 10px", background: "rgba(5,150,105,.1)", color: "#059669", border: "1px solid rgba(5,150,105,.3)", borderRadius: "6px", fontSize: "11px", fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}
                       >
                         Approve
                       </button>
                     )}
                     <button
                       onClick={() => handleDelete(review.id)}
-                      style={{ background: "none", border: "1px solid #FECACA", borderRadius: "5px", cursor: "pointer", color: "#E8242A", padding: "5px 8px", display: "inline-flex" }}
+                      style={{ background: "none", border: "1px solid #FECACA", borderRadius: "6px", cursor: "pointer", color: "#E8242A", padding: "5px 8px", display: "inline-flex" }}
                     >
                       <TrashIcon size={13} color="#E8242A" />
                     </button>
@@ -245,19 +245,19 @@ export default function AdminReviewsPage() {
         </table>
 
         {/* Pagination */}
-        <div style={{ padding: "14px 20px", borderTop: "1px solid #E2E0DA", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div style={{ padding: "14px 20px", borderTop: "1px solid #E3E3E3", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <span style={{ fontSize: "13px", color: "#7A7880" }}>{total} reviews · Page {page} of {Math.max(1, totalPages)}</span>
           <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
             <button
               disabled={page === 1}
               onClick={() => setPage(p => p - 1)}
-              style={{ padding: "6px 12px", border: "1px solid #E2E0DA", borderRadius: "6px", background: "#fff", fontSize: "13px", fontWeight: 600, cursor: "pointer", opacity: page === 1 ? 0.4 : 1 }}
+              style={{ padding: "6px 12px", border: "1px solid #E3E3E3", borderRadius: "6px", background: "#fff", fontSize: "13px", fontWeight: 600, cursor: "pointer", opacity: page === 1 ? 0.4 : 1 }}
             >← Prev</button>
             <span style={{ padding: "6px 12px", fontSize: "13px", fontWeight: 600 }}>Page {page}</span>
             <button
               disabled={page >= totalPages || totalPages === 0}
               onClick={() => setPage(p => p + 1)}
-              style={{ padding: "6px 12px", border: "1px solid #E2E0DA", borderRadius: "6px", background: "#fff", fontSize: "13px", fontWeight: 600, cursor: "pointer", opacity: (page >= totalPages || totalPages === 0) ? 0.4 : 1 }}
+              style={{ padding: "6px 12px", border: "1px solid #E3E3E3", borderRadius: "6px", background: "#fff", fontSize: "13px", fontWeight: 600, cursor: "pointer", opacity: (page >= totalPages || totalPages === 0) ? 0.4 : 1 }}
             >Next →</button>
           </div>
         </div>

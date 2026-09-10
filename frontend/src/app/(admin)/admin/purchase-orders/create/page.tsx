@@ -410,7 +410,7 @@ export default function CreatePOPage() {
 
       {/* ── Step 1: PO Info ─────────────────────────────────────────────────── */}
       {step === 1 && (
-        <div style={{ background: "#fff", border: "1px solid #E5E7EB", borderRadius: "10px", padding: "28px" }}>
+        <div style={{ background: "#fff", border: "1px solid #E3E3E3", borderRadius: "10px", padding: "28px" }}>
           <h2 style={{ fontSize: "15px", fontWeight: 700, color: "#1B3A5C", marginBottom: "20px" }}>PO Information</h2>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px" }}>
             <div>
@@ -425,7 +425,7 @@ export default function CreatePOPage() {
                 <option value="__new__">+ Add New Manufacturer</option>
               </select>
               {showNewMfr && (
-                <div style={{ marginTop: "10px", border: "1px solid #E5E7EB", borderRadius: "8px", padding: "16px", background: "#F9FAFB" }}>
+                <div style={{ marginTop: "10px", border: "1px solid #E3E3E3", borderRadius: "8px", padding: "16px", background: "#F9FAFB" }}>
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "10px" }}>
                     <div><label style={LBL}>Name *</label><input value={newMfrForm.name} onChange={e => setNewMfrForm(f => ({ ...f, name: e.target.value }))} placeholder="Manufacturer name" style={INPUT} /></div>
                     <div><label style={LBL}>Contact Name *</label><input value={newMfrForm.contact_name} onChange={e => setNewMfrForm(f => ({ ...f, contact_name: e.target.value }))} placeholder="Contact person" style={INPUT} /></div>
@@ -503,7 +503,7 @@ export default function CreatePOPage() {
 
       {/* ── Step 3: Review ──────────────────────────────────────────────────── */}
       {step === 3 && (
-        <div style={{ background: "#fff", border: "1px solid #E5E7EB", borderRadius: "10px", padding: "28px" }}>
+        <div style={{ background: "#fff", border: "1px solid #E3E3E3", borderRadius: "10px", padding: "28px" }}>
           <h2 style={{ fontSize: "15px", fontWeight: 700, color: "#1B3A5C", marginBottom: "20px" }}>Review & Save</h2>
 
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px", marginBottom: "24px" }}>
@@ -519,7 +519,7 @@ export default function CreatePOPage() {
 
           <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: "20px" }}>
             <thead>
-              <tr style={{ background: "#F9FAFB", borderBottom: "1px solid #E5E7EB" }}>
+              <tr style={{ background: "#F9FAFB", borderBottom: "1px solid #E3E3E3" }}>
                 {["PRODUCT / VARIANT", "COLOR", "SIZE", "QTY", "UNIT COST", "TOTAL"].map(h => (
                   <th key={h} style={{ padding: "10px 14px", textAlign: "left", fontSize: "11px", fontWeight: 700, color: "#6B7280", letterSpacing: ".07em" }}>{h}</th>
                 ))}
@@ -590,7 +590,7 @@ function ProductBlockEditor({
   const variantRows = block.mode === "existing" ? block.search_variant_rows : block.new_variant_rows;
 
   return (
-    <div style={{ background: "#fff", border: "1px solid #E5E7EB", borderRadius: "10px", padding: "24px", marginBottom: "16px" }}>
+    <div style={{ background: "#fff", border: "1px solid #E3E3E3", borderRadius: "10px", padding: "24px", marginBottom: "16px" }}>
       {/* Block header */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
         <span style={{ fontSize: "14px", fontWeight: 700, color: "#1B3A5C" }}>Product {blockIndex + 1}</span>
@@ -632,7 +632,7 @@ function ProductBlockEditor({
                 style={INPUT}
               />
               {block.search_results.length > 0 && (
-                <div style={{ position: "absolute", top: "100%", left: 0, right: 0, background: "#fff", border: "1px solid #E5E7EB", borderRadius: "8px", zIndex: 20, maxHeight: "220px", overflowY: "auto", boxShadow: "0 4px 16px rgba(0,0,0,.12)" }}>
+                <div style={{ position: "absolute", top: "100%", left: 0, right: 0, background: "#fff", border: "1px solid #E3E3E3", borderRadius: "8px", zIndex: 20, maxHeight: "220px", overflowY: "auto", boxShadow: "0 4px 16px rgba(0,0,0,.12)" }}>
                   {block.search_results.map(p => (
                     <button key={p.id} onClick={() => onSelectProduct(p)}
                       style={{ display: "block", width: "100%", textAlign: "left", padding: "10px 14px", border: "none", background: "none", cursor: "pointer", borderBottom: "1px solid #F3F4F6" }}
@@ -693,7 +693,7 @@ function ProductBlockEditor({
 
           <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: "8px" }}>
             <thead>
-              <tr style={{ background: "#F9FAFB", borderBottom: "1px solid #E5E7EB" }}>
+              <tr style={{ background: "#F9FAFB", borderBottom: "1px solid #E3E3E3" }}>
                 {["COLOR", "SIZE", "CURRENT STOCK", "QTY ORDERED", "UNIT COST ($)", ""].map(h => (
                   <th key={h} style={{ padding: "9px 12px", textAlign: "left", fontSize: "11px", fontWeight: 700, color: "#6B7280", letterSpacing: ".06em" }}>{h}</th>
                 ))}
@@ -742,7 +742,7 @@ function ProductBlockEditor({
                   <td style={{ padding: "8px 12px" }}>
                     <div style={{ display: "flex", gap: "4px", alignItems: "center" }}>
                       <button onClick={() => onDuplicateRow(row.key)} title="Duplicate row"
-                        style={{ background: "none", border: "1px solid #D1D5DB", borderRadius: "4px", cursor: "pointer", color: "#6B7280", fontSize: "12px", padding: "2px 6px" }}>⧉</button>
+                        style={{ background: "none", border: "1px solid #D1D5DB", borderRadius: "6px", cursor: "pointer", color: "#6B7280", fontSize: "12px", padding: "2px 6px" }}>⧉</button>
                       {row.is_new_variant && (
                         <button onClick={() => onRemoveRow(row.key)}
                           style={{ background: "none", border: "none", cursor: "pointer", color: "#EF4444", fontSize: "16px" }}>×</button>
@@ -755,7 +755,7 @@ function ProductBlockEditor({
           </table>
 
           <button onClick={onAddNewVariant}
-            style={{ fontSize: "12px", color: "#1A5CFF", background: "none", border: "1px dashed #93C5FD", borderRadius: "6px", padding: "6px 14px", cursor: "pointer", width: "100%", marginBottom: "4px" }}>
+            style={{ fontSize: "12px", color: "#005BD3", background: "none", border: "1px dashed #93C5FD", borderRadius: "6px", padding: "6px 14px", cursor: "pointer", width: "100%", marginBottom: "4px" }}>
             + Add New Variant (New Color or Size)
           </button>
         </>
@@ -774,7 +774,7 @@ function ProductBlockEditor({
 // ── Styles ────────────────────────────────────────────────────────────────────
 
 const LBL: React.CSSProperties = { fontSize: "12px", fontWeight: 600, color: "#374151", display: "block", marginBottom: "6px" };
-const INPUT: React.CSSProperties = { width: "100%", padding: "9px 12px", border: "1px solid #D1D5DB", borderRadius: "7px", fontSize: "13px", boxSizing: "border-box", outline: "none" };
+const INPUT: React.CSSProperties = { width: "100%", padding: "9px 12px", border: "1px solid #D1D5DB", borderRadius: "8px", fontSize: "13px", boxSizing: "border-box", outline: "none" };
 const SELECT: React.CSSProperties = { ...INPUT, background: "#fff" };
 const BTN_PRIMARY: React.CSSProperties = { padding: "10px 24px", background: "#1B3A5C", color: "#fff", border: "none", borderRadius: "8px", fontSize: "13px", fontWeight: 600, cursor: "pointer" };
-const BTN_SM: React.CSSProperties = { padding: "8px 16px", background: "#1B3A5C", color: "#fff", border: "none", borderRadius: "7px", fontSize: "12px", fontWeight: 600, cursor: "pointer" };
+const BTN_SM: React.CSSProperties = { padding: "8px 16px", background: "#1B3A5C", color: "#fff", border: "none", borderRadius: "8px", fontSize: "12px", fontWeight: 600, cursor: "pointer" };

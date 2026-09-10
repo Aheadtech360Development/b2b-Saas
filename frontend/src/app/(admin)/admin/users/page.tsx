@@ -11,8 +11,8 @@ import Link from "next/link";
 // ── Shared styles ──────────────────────────────────────────────────────────────
 
 const inp: React.CSSProperties = {
-  width: "100%", padding: "8px 11px", border: "1.5px solid #E2E0DA",
-  borderRadius: "7px", fontSize: "13px", outline: "none", boxSizing: "border-box",
+  width: "100%", padding: "8px 11px", border: "1.5px solid #E3E3E3",
+  borderRadius: "8px", fontSize: "13px", outline: "none", boxSizing: "border-box",
   fontFamily: "var(--font-jakarta)",
 };
 const lbl: React.CSSProperties = {
@@ -27,12 +27,12 @@ const thStyle: React.CSSProperties = {
 const ROLE_BADGE: Record<string, { bg: string; color: string }> = {
   administrator: { bg: "rgba(232,36,42,.1)",  color: "#E8242A" },
   manager:       { bg: "rgba(139,92,246,.12)", color: "#7C3AED" },
-  editor:        { bg: "rgba(26,92,255,.1)",   color: "#1A5CFF" },
+  editor:        { bg: "rgba(26,26,26,.1)",   color: "#005BD3" },
   order_manager: { bg: "rgba(217,119,6,.12)",  color: "#D97706" },
   viewer:        { bg: "rgba(107,114,128,.12)", color: "#4B5563" },
   customer:      { bg: "rgba(5,150,105,.1)",   color: "#059669" },
   admin:         { bg: "rgba(232,36,42,.1)",   color: "#E8242A" },
-  staff:         { bg: "rgba(26,92,255,.1)",   color: "#1A5CFF" },
+  staff:         { bg: "rgba(26,26,26,.1)",   color: "#005BD3" },
 };
 
 function autoPassword() {
@@ -129,7 +129,7 @@ function UserModal({
       <div style={{ background: "#fff", borderRadius: "12px", width: "100%", maxWidth: "520px", boxShadow: "0 20px 60px rgba(0,0,0,.2)", maxHeight: "90vh", display: "flex", flexDirection: "column" }}>
 
         {/* Header */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "20px 24px", borderBottom: "1px solid #E2E0DA", flexShrink: 0 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "20px 24px", borderBottom: "1px solid #E3E3E3", flexShrink: 0 }}>
           <h2 style={{ fontFamily: "var(--font-bebas)", fontSize: "22px", color: "#2A2830", letterSpacing: ".04em", margin: 0 }}>
             {isEdit ? "EDIT USER" : "ADD USER"}
           </h2>
@@ -207,7 +207,7 @@ function UserModal({
                 <button
                   type="button"
                   onClick={() => setAutoGen(v => !v)}
-                  style={{ flexShrink: 0, padding: "8px 12px", border: `1.5px solid ${autoGen ? "#1A5CFF" : "#E2E0DA"}`, borderRadius: "7px", fontSize: "11px", fontWeight: 700, cursor: "pointer", background: autoGen ? "rgba(26,92,255,.08)" : "#fff", color: autoGen ? "#1A5CFF" : "#7A7880", whiteSpace: "nowrap" }}
+                  style={{ flexShrink: 0, padding: "8px 12px", border: `1.5px solid ${autoGen ? "#1A5CFF" : "#E3E3E3"}`, borderRadius: "8px", fontSize: "11px", fontWeight: 700, cursor: "pointer", background: autoGen ? "rgba(26,26,26,.08)" : "#fff", color: autoGen ? "#1A5CFF" : "#7A7880", whiteSpace: "nowrap" }}
                 >
                   Auto-generate
                 </button>
@@ -222,7 +222,7 @@ function UserModal({
                 type="checkbox"
                 checked={form.send_welcome_email}
                 onChange={e => set("send_welcome_email", e.target.checked)}
-                style={{ width: "16px", height: "16px", accentColor: "#1A5CFF", flexShrink: 0 }}
+                style={{ width: "16px", height: "16px", accentColor: "#1A1A1A", flexShrink: 0 }}
               />
               <span style={{ fontSize: "13px", color: "#2A2830" }}>Send welcome email with login credentials</span>
             </label>
@@ -230,13 +230,13 @@ function UserModal({
 
           {/* Reset password (edit only) */}
           {isEdit && (
-            <div style={{ marginBottom: "16px", padding: "12px 14px", background: "#F6F6F7", borderRadius: "8px", border: "1px solid #E2E0DA" }}>
+            <div style={{ marginBottom: "16px", padding: "12px 14px", background: "#F6F6F7", borderRadius: "8px", border: "1px solid #E3E3E3" }}>
               <div style={{ fontSize: "12px", fontWeight: 700, color: "#2A2830", marginBottom: "6px" }}>Password Reset</div>
               <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
                 <button
                   type="button"
                   onClick={handleResetPassword}
-                  style={{ padding: "7px 14px", background: "#fff", border: "1.5px solid #E2E0DA", borderRadius: "6px", fontSize: "12px", fontWeight: 600, cursor: "pointer", color: "#2A2830" }}
+                  style={{ padding: "7px 14px", background: "#fff", border: "1.5px solid #E3E3E3", borderRadius: "6px", fontSize: "12px", fontWeight: 600, cursor: "pointer", color: "#2A2830" }}
                 >
                   Send Reset Email
                 </button>
@@ -250,13 +250,13 @@ function UserModal({
           )}
 
           {/* Actions */}
-          <div style={{ display: "flex", gap: "10px", paddingTop: "16px", borderTop: "1px solid #E2E0DA" }}>
+          <div style={{ display: "flex", gap: "10px", paddingTop: "16px", borderTop: "1px solid #E3E3E3" }}>
             <button type="button" onClick={onClose}
-              style={{ flex: 1, padding: "10px", border: "1.5px solid #E2E0DA", borderRadius: "7px", fontSize: "13px", fontWeight: 600, cursor: "pointer", background: "#fff" }}>
+              style={{ flex: 1, padding: "10px", border: "1.5px solid #E3E3E3", borderRadius: "8px", fontSize: "13px", fontWeight: 600, cursor: "pointer", background: "#fff" }}>
               Cancel
             </button>
             <button type="submit" disabled={saving}
-              style={{ flex: 2, padding: "10px", background: saving ? "#E2E0DA" : "#1A5CFF", color: saving ? "#aaa" : "#fff", border: "none", borderRadius: "7px", fontSize: "13px", fontWeight: 700, cursor: saving ? "not-allowed" : "pointer" }}>
+              style={{ flex: 2, padding: "10px", background: saving ? "#E3E3E3" : "#1A5CFF", color: saving ? "#aaa" : "#fff", border: "none", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: saving ? "not-allowed" : "pointer" }}>
               {saving ? "Saving…" : isEdit ? "Save Changes" : "Create User"}
             </button>
           </div>
@@ -289,11 +289,11 @@ function DeleteDialog({ user, onClose, onSuccess }: { user: AdminUser; onClose: 
           Are you sure you want to delete <strong style={{ color: "#2A2830" }}>{user.full_name}</strong> ({user.email})? This action cannot be undone.
         </p>
         <div style={{ display: "flex", gap: "10px" }}>
-          <button onClick={onClose} style={{ flex: 1, padding: "10px", border: "1.5px solid #E2E0DA", borderRadius: "7px", fontSize: "13px", fontWeight: 600, cursor: "pointer", background: "#fff" }}>
+          <button onClick={onClose} style={{ flex: 1, padding: "10px", border: "1.5px solid #E3E3E3", borderRadius: "8px", fontSize: "13px", fontWeight: 600, cursor: "pointer", background: "#fff" }}>
             Cancel
           </button>
           <button onClick={handleDelete} disabled={deleting}
-            style={{ flex: 1, padding: "10px", background: deleting ? "#E2E0DA" : "#E8242A", color: deleting ? "#aaa" : "#fff", border: "none", borderRadius: "7px", fontSize: "13px", fontWeight: 700, cursor: deleting ? "not-allowed" : "pointer" }}>
+            style={{ flex: 1, padding: "10px", background: deleting ? "#E3E3E3" : "#E8242A", color: deleting ? "#aaa" : "#fff", border: "none", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: deleting ? "not-allowed" : "pointer" }}>
             {deleting ? "Deleting…" : "Delete User"}
           </button>
         </div>
@@ -379,7 +379,7 @@ export default function AdminUsersPage() {
         </div>
         <button
           onClick={() => setShowCreate(true)}
-          style={{ background: "#1A5CFF", color: "#fff", border: "none", padding: "10px 20px", borderRadius: "8px", fontWeight: 700, cursor: "pointer", fontSize: "14px" }}
+          style={{ background: "#1A1A1A", color: "#fff", border: "none", padding: "10px 20px", borderRadius: "8px", fontWeight: 700, cursor: "pointer", fontSize: "14px" }}
         >
           + Add User
         </button>
@@ -393,7 +393,7 @@ export default function AdminUsersPage() {
           { label: "Active",        value: stats.active,   color: "#059669" },
           { label: "Inactive",      value: stats.inactive, color: "#D97706" },
         ].map(s => (
-          <div key={s.label} style={{ background: "#fff", border: "1px solid #E2E0DA", borderRadius: "10px", padding: "16px 18px", display: "flex", alignItems: "center", gap: "12px" }}>
+          <div key={s.label} style={{ background: "#fff", border: "1px solid #E3E3E3", borderRadius: "10px", padding: "16px 18px", display: "flex", alignItems: "center", gap: "12px" }}>
             <UsersIcon size={22} color={s.color} />
             <div>
               <div style={{ fontFamily: "var(--font-bebas)", fontSize: "24px", color: s.color, lineHeight: 1 }}>{s.value}</div>
@@ -409,15 +409,15 @@ export default function AdminUsersPage() {
           value={q}
           onChange={e => { setQ(e.target.value); setPage(1); }}
           placeholder="Search by name or email…"
-          style={{ padding: "9px 14px", border: "1.5px solid #E2E0DA", borderRadius: "8px", fontSize: "13px", fontFamily: "var(--font-jakarta)", outline: "none", width: "240px" }}
+          style={{ padding: "9px 14px", border: "1.5px solid #E3E3E3", borderRadius: "8px", fontSize: "13px", fontFamily: "var(--font-jakarta)", outline: "none", width: "240px" }}
         />
         <select value={roleFilter} onChange={e => { setRoleFilter(e.target.value); setPage(1); }}
-          style={{ padding: "9px 12px", border: "1.5px solid #E2E0DA", borderRadius: "8px", fontSize: "13px", fontFamily: "var(--font-jakarta)", background: "#fff", cursor: "pointer" }}>
+          style={{ padding: "9px 12px", border: "1.5px solid #E3E3E3", borderRadius: "8px", fontSize: "13px", fontFamily: "var(--font-jakarta)", background: "#fff", cursor: "pointer" }}>
           <option value="">All Roles</option>
           {ASSIGNABLE_ROLES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
         </select>
         <select value={statusFilter} onChange={e => { setStatusFilter(e.target.value); setPage(1); }}
-          style={{ padding: "9px 12px", border: "1.5px solid #E2E0DA", borderRadius: "8px", fontSize: "13px", fontFamily: "var(--font-jakarta)", background: "#fff", cursor: "pointer" }}>
+          style={{ padding: "9px 12px", border: "1.5px solid #E3E3E3", borderRadius: "8px", fontSize: "13px", fontFamily: "var(--font-jakarta)", background: "#fff", cursor: "pointer" }}>
           <option value="">All Status</option>
           <option value="active">Active</option>
           <option value="inactive">Inactive</option>
@@ -428,10 +428,10 @@ export default function AdminUsersPage() {
       </div>
 
       {/* Table */}
-      <div style={{ background: "#fff", border: "1px solid #E2E0DA", borderRadius: "10px", overflow: "hidden" }}>
+      <div style={{ background: "#fff", border: "1px solid #E3E3E3", borderRadius: "10px", overflow: "hidden" }}>
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
-            <tr style={{ background: "#F6F6F7", borderBottom: "2px solid #E2E0DA" }}>
+            <tr style={{ background: "#F6F6F7", borderBottom: "2px solid #E3E3E3" }}>
               <th style={thStyle}>Name</th>
               <th style={thStyle}>Email</th>
               <th style={thStyle}>Role</th>
@@ -444,7 +444,7 @@ export default function AdminUsersPage() {
           </thead>
           <tbody>
             {isLoading && users.length === 0 ? (
-              <tr><td colSpan={8} style={{ padding: "40px", textAlign: "center", color: "#bbb", fontSize: "14px" }}>Loading…</td></tr>
+              <tr><td colSpan={8} style={{ padding: "40px", textAlign: "center", color: "#bbb", fontSize: "14px" }}><div className="at-skel" style={{ height: "14px", width: "60%", margin: "0 auto" }} /></td></tr>
             ) : users.length === 0 ? (
               <tr><td colSpan={8} style={{ padding: "40px", textAlign: "center", color: "#bbb", fontSize: "14px" }}>No users found</td></tr>
             ) : users.map(user => {
@@ -500,14 +500,14 @@ export default function AdminUsersPage() {
                     <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
                       <button
                         onClick={() => setEditUser(user)}
-                        style={{ padding: "5px 11px", border: "1px solid #E2E0DA", borderRadius: "6px", background: "#fff", fontSize: "12px", fontWeight: 600, cursor: "pointer", color: "#2A2830" }}
+                        style={{ padding: "5px 11px", border: "1px solid #E3E3E3", borderRadius: "6px", background: "#fff", fontSize: "12px", fontWeight: 600, cursor: "pointer", color: "#2A2830" }}
                       >
                         Edit
                       </button>
                       <button
                         onClick={() => handleToggleActive(user)}
                         disabled={isToggling}
-                        style={{ padding: "5px 11px", border: `1px solid ${user.is_active ? "#E2E0DA" : "rgba(5,150,105,.3)"}`, borderRadius: "6px", background: user.is_active ? "#fff" : "rgba(5,150,105,.06)", fontSize: "12px", fontWeight: 600, cursor: isToggling ? "not-allowed" : "pointer", color: user.is_active ? "#D97706" : "#059669", opacity: isToggling ? 0.5 : 1 }}
+                        style={{ padding: "5px 11px", border: `1px solid ${user.is_active ? "#E3E3E3" : "rgba(5,150,105,.3)"}`, borderRadius: "6px", background: user.is_active ? "#fff" : "rgba(5,150,105,.06)", fontSize: "12px", fontWeight: 600, cursor: isToggling ? "not-allowed" : "pointer", color: user.is_active ? "#D97706" : "#059669", opacity: isToggling ? 0.5 : 1 }}
                       >
                         {user.is_active ? "Deactivate" : "Reactivate"}
                       </button>
@@ -530,12 +530,12 @@ export default function AdminUsersPage() {
       {pages > 1 && (
         <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", marginTop: "16px" }}>
           <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
-            style={{ padding: "7px 14px", border: "1px solid #E2E0DA", borderRadius: "6px", background: "#fff", cursor: page === 1 ? "not-allowed" : "pointer", opacity: page === 1 ? 0.4 : 1, fontSize: "13px", fontWeight: 600 }}>
+            style={{ padding: "7px 14px", border: "1px solid #E3E3E3", borderRadius: "6px", background: "#fff", cursor: page === 1 ? "not-allowed" : "pointer", opacity: page === 1 ? 0.4 : 1, fontSize: "13px", fontWeight: 600 }}>
             ← Prev
           </button>
           <span style={{ fontSize: "13px", color: "#7A7880" }}>{page} / {pages}</span>
           <button onClick={() => setPage(p => Math.min(pages, p + 1))} disabled={page === pages}
-            style={{ padding: "7px 14px", border: "1px solid #E2E0DA", borderRadius: "6px", background: "#fff", cursor: page === pages ? "not-allowed" : "pointer", opacity: page === pages ? 0.4 : 1, fontSize: "13px", fontWeight: 600 }}>
+            style={{ padding: "7px 14px", border: "1px solid #E3E3E3", borderRadius: "6px", background: "#fff", cursor: page === pages ? "not-allowed" : "pointer", opacity: page === pages ? 0.4 : 1, fontSize: "13px", fontWeight: 600 }}>
             Next →
           </button>
         </div>

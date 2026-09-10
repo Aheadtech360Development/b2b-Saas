@@ -27,7 +27,7 @@ const COURIERS = ["FedEx", "UPS", "USPS", "DHL", "Other"];
 const LABEL_STYLE: Record<string, { bg: string; color: string }> = {
   printed: { bg: "rgba(5,150,105,.1)", color: "#059669" },
   pending: { bg: "rgba(217,119,6,.1)", color: "#D97706" },
-  in_transit: { bg: "rgba(26,92,255,.1)", color: "#1A5CFF" },
+  in_transit: { bg: "rgba(26,26,26,.1)", color: "#005BD3" },
   delivered: { bg: "rgba(5,150,105,.1)", color: "#059669" },
 };
 
@@ -109,8 +109,8 @@ export default function ShippingLabelsPage() {
   ];
 
   const STAT_CARDS = [
-    { label: "Total Shipments", value: stats.total, icon: <PackageIcon size={20} color="#1A5CFF" />, color: "#1A5CFF" },
-    { label: "In Transit", value: stats.in_transit, icon: <TruckIcon size={20} color="#1A5CFF" />, color: "#1A5CFF" },
+    { label: "Total Shipments", value: stats.total, icon: <PackageIcon size={20} color="#1A5CFF" />, color: "#005BD3" },
+    { label: "In Transit", value: stats.in_transit, icon: <TruckIcon size={20} color="#1A5CFF" />, color: "#005BD3" },
     { label: "Delivered", value: stats.delivered, icon: <CheckCircleIcon size={20} color="#059669" />, color: "#059669" },
     { label: "Pending Label", value: stats.pending_label, icon: <TagIcon size={20} color="#D97706" />, color: "#D97706" },
   ];
@@ -124,10 +124,10 @@ export default function ShippingLabelsPage() {
           <p style={{ fontSize: "13px", color: "#7A7880", marginTop: "4px" }}>Manage shipments, print labels & packing slips · {stats.total} shipped orders</p>
         </div>
         <div style={{ display: "flex", gap: "10px" }}>
-          <button style={{ background: "#F6F6F7", color: "#2A2830", border: "1px solid #E2E0DA", padding: "10px 18px", borderRadius: "6px", fontWeight: 700, cursor: "pointer", fontSize: "13px" }}>
+          <button style={{ background: "#F6F6F7", color: "#2A2830", border: "1px solid #E3E3E3", padding: "10px 18px", borderRadius: "6px", fontWeight: 700, cursor: "pointer", fontSize: "13px" }}>
             ↓ Export CSV
           </button>
-          <button style={{ background: "#1A5CFF", color: "#fff", border: "none", padding: "10px 18px", borderRadius: "6px", fontWeight: 700, cursor: "pointer", fontSize: "13px", display: "inline-flex", alignItems: "center", gap: "6px" }}>
+          <button style={{ background: "#1A1A1A", color: "#fff", border: "none", padding: "10px 18px", borderRadius: "6px", fontWeight: 700, cursor: "pointer", fontSize: "13px", display: "inline-flex", alignItems: "center", gap: "6px" }}>
             <PrinterIcon size={14} color="#fff" /> Print All
           </button>
         </div>
@@ -136,7 +136,7 @@ export default function ShippingLabelsPage() {
       {/* Stats Cards */}
       <div className="admin-stats-grid" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "16px", marginBottom: "24px" }}>
         {STAT_CARDS.map(c => (
-          <div key={c.label} style={{ background: "#fff", border: "1px solid #E2E0DA", borderRadius: "10px", padding: "18px 20px", display: "flex", alignItems: "center", gap: "14px" }}>
+          <div key={c.label} style={{ background: "#fff", border: "1px solid #E3E3E3", borderRadius: "10px", padding: "18px 20px", display: "flex", alignItems: "center", gap: "14px" }}>
             <div style={{ width: "42px", height: "42px", borderRadius: "10px", background: `rgba(${c.color === "#059669" ? "5,150,105" : c.color === "#D97706" ? "217,119,6" : "26,92,255"},.1)`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "20px", flexShrink: 0 }}>
               {c.icon}
             </div>
@@ -159,10 +159,10 @@ export default function ShippingLabelsPage() {
       </div>
 
       {/* Table */}
-      <div style={{ background: "#fff", border: "1px solid #E2E0DA", borderRadius: "10px", overflow: "hidden" }}>
+      <div style={{ background: "#fff", border: "1px solid #E3E3E3", borderRadius: "10px", overflow: "hidden" }}>
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
           <thead>
-            <tr style={{ background: "#FAFAF8", borderBottom: "2px solid #E2E0DA" }}>
+            <tr style={{ background: "#FAFAF8", borderBottom: "2px solid #E3E3E3" }}>
               {["Order #", "Company", "Package Type", "Weight (lbs)", "Courier", "Tracking #", "Label", "Delivery", "Shipped", "Actions"].map(h => (
                 <th key={h} style={{ padding: "11px 14px", textAlign: "left" as const, fontSize: "11px", fontWeight: 700, color: "#7A7880", textTransform: "uppercase" as const, letterSpacing: ".06em", whiteSpace: "nowrap" as const }}>
                   {h}
@@ -172,7 +172,7 @@ export default function ShippingLabelsPage() {
           </thead>
           <tbody>
             {isLoading && filtered.length === 0 ? (
-              <tr><td colSpan={8} style={{ padding: "40px", textAlign: "center", color: "#bbb", fontSize: "14px" }}>Loading…</td></tr>
+              <tr><td colSpan={8} style={{ padding: "40px", textAlign: "center", color: "#bbb", fontSize: "14px" }}><div className="at-skel" style={{ height: "14px", width: "60%", margin: "0 auto" }} /></td></tr>
             ) : filtered.length === 0 ? (
               <tr>
                 <td colSpan={10} style={{ padding: "56px", textAlign: "center" as const }}>
@@ -188,7 +188,7 @@ export default function ShippingLabelsPage() {
                 onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
               >
                 <td style={{ padding: "12px 14px" }}>
-                  <Link href={`/admin/orders/${l.id}`} style={{ color: "#1A5CFF", textDecoration: "none", fontFamily: "monospace", fontSize: "12px", fontWeight: 700 }}>
+                  <Link href={`/admin/orders/${l.id}`} style={{ color: "#005BD3", textDecoration: "none", fontFamily: "monospace", fontSize: "12px", fontWeight: 700 }}>
                     {l.order_number}
                   </Link>
                 </td>
@@ -199,7 +199,7 @@ export default function ShippingLabelsPage() {
                   <select
                     value={pkgTypes[l.id] ?? "Box"}
                     onChange={e => setPkgTypes(prev => ({ ...prev, [l.id]: e.target.value }))}
-                    style={{ border: "1px solid #E2E0DA", borderRadius: "5px", padding: "4px 8px", fontSize: "12px", color: "#2A2830", background: "#fff", cursor: "pointer" }}
+                    style={{ border: "1px solid #E3E3E3", borderRadius: "6px", padding: "4px 8px", fontSize: "12px", color: "#2A2830", background: "#fff", cursor: "pointer" }}
                   >
                     {PKG_TYPES.map(p => <option key={p}>{p}</option>)}
                   </select>
@@ -214,7 +214,7 @@ export default function ShippingLabelsPage() {
                     placeholder="0.0"
                     value={weights[l.id] ?? ""}
                     onChange={e => setWeights(prev => ({ ...prev, [l.id]: e.target.value }))}
-                    style={{ width: "68px", border: "1px solid #E2E0DA", borderRadius: "5px", padding: "4px 8px", fontSize: "12px", color: "#2A2830", textAlign: "right" as const }}
+                    style={{ width: "68px", border: "1px solid #E3E3E3", borderRadius: "6px", padding: "4px 8px", fontSize: "12px", color: "#2A2830", textAlign: "right" as const }}
                   />
                 </td>
 
@@ -227,7 +227,7 @@ export default function ShippingLabelsPage() {
                 {/* Tracking */}
                 <td style={{ padding: "12px 14px" }}>
                   {l.tracking_number ? (
-                    <span style={{ fontFamily: "monospace", fontSize: "11px", color: "#2A2830", background: "#F6F6F7", padding: "2px 6px", borderRadius: "4px" }}>{l.tracking_number}</span>
+                    <span style={{ fontFamily: "monospace", fontSize: "11px", color: "#2A2830", background: "#F6F6F7", padding: "2px 6px", borderRadius: "6px" }}>{l.tracking_number}</span>
                   ) : (
                     <span style={{ color: "#bbb", fontSize: "12px" }}>—</span>
                   )}
@@ -255,13 +255,13 @@ export default function ShippingLabelsPage() {
                 <td style={{ padding: "12px 14px" }}>
                   <div style={{ display: "flex", gap: "5px", flexWrap: "nowrap" as const }}>
                     <button
-                      style={{ background: "rgba(26,92,255,.08)", color: "#1A5CFF", border: "none", padding: "5px 11px", borderRadius: "5px", fontSize: "11px", fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" as const, display: "inline-flex", alignItems: "center", gap: "4px" }}
+                      style={{ background: "rgba(26,26,26,.08)", color: "#005BD3", border: "none", padding: "5px 11px", borderRadius: "6px", fontSize: "11px", fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" as const, display: "inline-flex", alignItems: "center", gap: "4px" }}
                       onClick={() => window.print()}
                     >
                       <PrinterIcon size={11} color="#1A5CFF" /> Label
                     </button>
                     <button
-                      style={{ background: "#F6F6F7", color: "#2A2830", border: "1px solid #E2E0DA", padding: "5px 11px", borderRadius: "5px", fontSize: "11px", fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" as const, display: "inline-flex", alignItems: "center", gap: "4px" }}
+                      style={{ background: "#F6F6F7", color: "#2A2830", border: "1px solid #E3E3E3", padding: "5px 11px", borderRadius: "6px", fontSize: "11px", fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" as const, display: "inline-flex", alignItems: "center", gap: "4px" }}
                       onClick={() => window.print()}
                     >
                       <FileTextIcon size={11} color="#2A2830" /> Slip

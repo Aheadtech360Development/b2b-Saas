@@ -23,7 +23,7 @@ const labelStyle: React.CSSProperties = {
   letterSpacing: ".08em", color: "#7A7880", marginBottom: "6px", display: "block",
 };
 const inputStyle: React.CSSProperties = {
-  width: "100%", padding: "10px 14px", border: "1.5px solid #E2E0DA", borderRadius: "8px",
+  width: "100%", padding: "10px 14px", border: "1.5px solid #E3E3E3", borderRadius: "8px",
   fontSize: "14px", fontFamily: "var(--font-jakarta)", outline: "none", boxSizing: "border-box",
 };
 
@@ -136,7 +136,7 @@ export default function CollectionsPage() {
         </div>
         <button
           onClick={openCreate}
-          style={{ background: "#1A5CFF", color: "#fff", border: "none", padding: "10px 20px", borderRadius: "8px", fontWeight: 700, cursor: "pointer", fontSize: "14px" }}
+          style={{ background: "#1A1A1A", color: "#fff", border: "none", padding: "10px 20px", borderRadius: "8px", fontWeight: 700, cursor: "pointer", fontSize: "14px" }}
         >
           + Create Collection
         </button>
@@ -144,15 +144,15 @@ export default function CollectionsPage() {
 
       {/* Content */}
       {isLoading && collections.length === 0 ? (
-  <div style={{ textAlign: "center", padding: "60px", color: "#aaa", fontSize: "14px" }}>Loading…</div>
+  <div style={{ padding: "26px" }}>{[70, 92, 58, 84].map((w, i) => (<div key={i} className="at-skel" style={{ height: "14px", width: `${w}%`, marginBottom: "12px" }} />))}</div>
 ) : collections.length === 0 ? (
-        <div style={{ background: "#fff", border: "1px solid #E2E0DA", borderRadius: "10px", padding: "60px", textAlign: "center" }}>
+        <div style={{ background: "#fff", border: "1px solid #E3E3E3", borderRadius: "10px", padding: "60px", textAlign: "center" }}>
           <div style={{ fontSize: "48px", marginBottom: "12px" }}>🗂️</div>
           <h3 style={{ fontFamily: "var(--font-bebas)", fontSize: "22px", color: "#2A2830", marginBottom: "8px" }}>NO COLLECTIONS YET</h3>
           <p style={{ fontSize: "14px", color: "#7A7880", marginBottom: "20px" }}>Create collections to organize your products for customers.</p>
           <button
             onClick={openCreate}
-            style={{ background: "#1A5CFF", color: "#fff", border: "none", padding: "12px 24px", borderRadius: "8px", fontWeight: 700, cursor: "pointer", fontSize: "14px" }}
+            style={{ background: "#1A1A1A", color: "#fff", border: "none", padding: "12px 24px", borderRadius: "8px", fontWeight: 700, cursor: "pointer", fontSize: "14px" }}
           >
             + Create First Collection
           </button>
@@ -162,9 +162,9 @@ export default function CollectionsPage() {
           {collections.map(col => (
             <div
               key={col.id}
-              style={{ background: "#fff", border: "1px solid #E2E0DA", borderRadius: "10px", overflow: "hidden", transition: "all .2s" }}
+              style={{ background: "#fff", border: "1px solid #E3E3E3", borderRadius: "10px", overflow: "hidden", transition: "all .2s" }}
               onMouseEnter={e => { e.currentTarget.style.boxShadow = "0 4px 20px rgba(0,0,0,.08)"; e.currentTarget.style.borderColor = "#bbb"; }}
-              onMouseLeave={e => { e.currentTarget.style.boxShadow = "none"; e.currentTarget.style.borderColor = "#E2E0DA"; }}
+              onMouseLeave={e => { e.currentTarget.style.boxShadow = "none"; e.currentTarget.style.borderColor = "#E3E3E3"; }}
             >
               {/* Image / placeholder */}
               <div style={{ height: "140px", background: "linear-gradient(135deg,#f0ede8,#e8e4df)", display: "flex", alignItems: "center", justifyContent: "center", position: "relative" }}>
@@ -178,7 +178,7 @@ export default function CollectionsPage() {
                 <div style={{ position: "absolute", top: "10px", right: "10px", display: "flex", gap: "6px" }}>
                   <button
                     onClick={e => { e.stopPropagation(); openEdit(col); }}
-                    style={{ background: "rgba(255,255,255,.92)", border: "1px solid #E2E0DA", borderRadius: "6px", padding: "5px 10px", fontSize: "12px", fontWeight: 600, cursor: "pointer" }}
+                    style={{ background: "rgba(255,255,255,.92)", border: "1px solid #E3E3E3", borderRadius: "6px", padding: "5px 10px", fontSize: "12px", fontWeight: 600, cursor: "pointer" }}
                   >
                     Edit
                   </button>
@@ -207,7 +207,7 @@ export default function CollectionsPage() {
                     href={`/products?category=${col.slug}`}
                     target="_blank"
                     rel="noreferrer"
-                    style={{ fontSize: "12px", color: "#1A5CFF", fontWeight: 700, textDecoration: "none" }}
+                    style={{ fontSize: "12px", color: "#005BD3", fontWeight: 700, textDecoration: "none" }}
                   >
                     View in store →
                   </a>
@@ -258,8 +258,8 @@ export default function CollectionsPage() {
 
             <div style={{ marginBottom: "16px" }}>
               <label style={labelStyle}>Slug (URL)</label>
-              <div style={{ display: "flex", alignItems: "center", border: "1.5px solid #E2E0DA", borderRadius: "8px", overflow: "hidden" }}>
-                <span style={{ padding: "10px 12px", background: "#F6F6F7", fontSize: "13px", color: "#aaa", borderRight: "1px solid #E2E0DA", whiteSpace: "nowrap", flexShrink: 0 }}>
+              <div style={{ display: "flex", alignItems: "center", border: "1.5px solid #E3E3E3", borderRadius: "8px", overflow: "hidden" }}>
+                <span style={{ padding: "10px 12px", background: "#F6F6F7", fontSize: "13px", color: "#aaa", borderRight: "1px solid #E3E3E3", whiteSpace: "nowrap", flexShrink: 0 }}>
                   /products?category=
                 </span>
                 <input
@@ -292,7 +292,7 @@ export default function CollectionsPage() {
               />
               <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
                 {form.image_url && (
-                  <div style={{ width: "64px", height: "64px", borderRadius: "6px", overflow: "hidden", border: "1px solid #E2E0DA", flexShrink: 0 }}>
+                  <div style={{ width: "64px", height: "64px", borderRadius: "6px", overflow: "hidden", border: "1px solid #E3E3E3", flexShrink: 0 }}>
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src={form.image_url} alt="Preview" style={{ width: "100%", height: "100%", objectFit: "cover" }} onError={e => { (e.target as HTMLImageElement).style.display = "none"; }} />
                   </div>
@@ -302,7 +302,7 @@ export default function CollectionsPage() {
                   onClick={() => fileInputRef.current?.click()}
                   disabled={uploading}
                   style={{
-                    padding: "9px 18px", border: "1.5px dashed #E2E0DA", borderRadius: "8px",
+                    padding: "9px 18px", border: "1.5px dashed #E3E3E3", borderRadius: "8px",
                     background: uploading ? "#f9fafb" : "#fff", cursor: uploading ? "not-allowed" : "pointer",
                     fontSize: "13px", fontWeight: 600, color: uploading ? "#aaa" : "#1A5CFF",
                     fontFamily: "var(--font-jakarta)",
@@ -314,7 +314,7 @@ export default function CollectionsPage() {
                   <button
                     type="button"
                     onClick={() => setForm(f => ({ ...f, image_url: "" }))}
-                    style={{ padding: "9px 14px", border: "1px solid #E2E0DA", borderRadius: "8px", background: "#fff", cursor: "pointer", fontSize: "13px", color: "#7A7880", fontFamily: "var(--font-jakarta)" }}
+                    style={{ padding: "9px 14px", border: "1px solid #E3E3E3", borderRadius: "8px", background: "#fff", cursor: "pointer", fontSize: "13px", color: "#7A7880", fontFamily: "var(--font-jakarta)" }}
                   >
                     Remove
                   </button>
@@ -338,7 +338,7 @@ export default function CollectionsPage() {
             <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
               <button
                 onClick={closeModal}
-                style={{ padding: "11px 22px", border: "1px solid #E2E0DA", borderRadius: "8px", background: "#fff", cursor: "pointer", fontWeight: 600, fontSize: "14px" }}
+                style={{ padding: "11px 22px", border: "1px solid #E3E3E3", borderRadius: "8px", background: "#fff", cursor: "pointer", fontWeight: 600, fontSize: "14px" }}
               >
                 Cancel
               </button>

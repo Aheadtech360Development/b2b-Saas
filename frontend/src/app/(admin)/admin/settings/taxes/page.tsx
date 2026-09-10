@@ -39,7 +39,7 @@ const US_STATES: { code: string; name: string }[] = [
 ];
 
 const inp: React.CSSProperties = {
-  width: "100%", padding: "9px 12px", border: "1.5px solid #E2E0DA",
+  width: "100%", padding: "9px 12px", border: "1.5px solid #E3E3E3",
   borderRadius: "8px", fontSize: "13px", outline: "none", background: "#fff",
   fontFamily: "inherit",
 };
@@ -150,14 +150,14 @@ export default function TaxesPage() {
         </div>
         <button
           onClick={openNew}
-          style={{ background: "#1A5CFF", color: "#fff", border: "none", borderRadius: "8px", padding: "10px 20px", fontSize: "13px", fontWeight: 700, cursor: "pointer" }}
+          style={{ background: "#1A1A1A", color: "#fff", border: "none", borderRadius: "8px", padding: "10px 20px", fontSize: "13px", fontWeight: 700, cursor: "pointer" }}
         >
           + Add Tax Rate
         </button>
       </div>
 
       {/* How this brand charges tax */}
-      <div style={{ background: "#fff", border: "1.5px solid #E2E0DA", borderRadius: "12px", padding: "24px", marginBottom: "20px" }}>
+      <div style={{ background: "#fff", border: "1.5px solid #E3E3E3", borderRadius: "12px", padding: "24px", marginBottom: "20px" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "4px" }}>
           <h2 style={{ fontSize: "15px", fontWeight: 700, color: "#2A2830" }}>How you charge tax</h2>
           {modeSaved && <span style={{ fontSize: "11px", fontWeight: 700, color: "#166534", background: "#DCFCE7", padding: "3px 9px", borderRadius: "20px" }}>Saved</span>}
@@ -173,7 +173,7 @@ export default function TaxesPage() {
           ] as const).map(([val, title, desc]) => {
             const active = taxMode === val;
             return (
-              <label key={val} style={{ display: "flex", gap: "10px", alignItems: "flex-start", padding: "14px 16px", border: `1.5px solid ${active ? "#1A1A1A" : "#E2E0DA"}`, borderRadius: "10px", cursor: "pointer", background: active ? "#FAFAFA" : "#fff" }}>
+              <label key={val} style={{ display: "flex", gap: "10px", alignItems: "flex-start", padding: "14px 16px", border: `1.5px solid ${active ? "#1A1A1A" : "#E3E3E3"}`, borderRadius: "10px", cursor: "pointer", background: active ? "#FAFAFA" : "#fff" }}>
                 <input type="radio" name="tax_mode" checked={active} onChange={() => saveTaxMode(val)} style={{ marginTop: "3px", accentColor: "#1A1A1A" }} />
                 <span>
                   <span style={{ display: "block", fontSize: "13px", fontWeight: 700, color: "#2A2830" }}>{title}</span>
@@ -192,20 +192,20 @@ export default function TaxesPage() {
       )}
 
       {loading ? (
-        <div style={{ textAlign: "center", padding: "60px", color: "#aaa" }}>Loading…</div>
+        <div style={{ padding: "26px" }}>{[70, 92, 58, 84].map((w, i) => (<div key={i} className="at-skel" style={{ height: "14px", width: `${w}%`, marginBottom: "12px" }} />))}</div>
       ) : rates.length === 0 ? (
-        <div style={{ background: "#fff", border: "1.5px solid #E2E0DA", borderRadius: "12px", padding: "60px", textAlign: "center" }}>
+        <div style={{ background: "#fff", border: "1.5px solid #E3E3E3", borderRadius: "12px", padding: "60px", textAlign: "center" }}>
           <div style={{ fontSize: "40px", marginBottom: "12px" }}>🧾</div>
           <p style={{ color: "#7A7880", fontSize: "14px" }}>No tax rates configured yet.</p>
-          <button onClick={openNew} style={{ marginTop: "16px", background: "#1A5CFF", color: "#fff", border: "none", borderRadius: "8px", padding: "10px 20px", fontSize: "13px", fontWeight: 700, cursor: "pointer" }}>
+          <button onClick={openNew} style={{ marginTop: "16px", background: "#1A1A1A", color: "#fff", border: "none", borderRadius: "8px", padding: "10px 20px", fontSize: "13px", fontWeight: 700, cursor: "pointer" }}>
             Add Your First Rate
           </button>
         </div>
       ) : (
-        <div style={{ background: "#fff", border: "1.5px solid #E2E0DA", borderRadius: "12px", overflow: "hidden" }}>
+        <div style={{ background: "#fff", border: "1.5px solid #E3E3E3", borderRadius: "12px", overflow: "hidden" }}>
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
-              <tr style={{ borderBottom: "1px solid #E2E0DA", background: "#F9F8F5" }}>
+              <tr style={{ borderBottom: "1px solid #E3E3E3", background: "#F9F8F5" }}>
                 {["Region", "Name", "Rate", "Applies To", "Enabled", ""].map(h => (
                   <th key={h} style={{ padding: "12px 16px", textAlign: "left", fontSize: "11px", fontWeight: 700, color: "#888", textTransform: "uppercase", letterSpacing: ".06em" }}>{h}</th>
                 ))}
@@ -215,7 +215,7 @@ export default function TaxesPage() {
               {rates.map((t, i) => (
                 <tr key={t.id} style={{ borderBottom: i < rates.length - 1 ? "1px solid #F6F6F7" : "none" }}>
                   <td style={{ padding: "14px 16px" }}>
-                    <span style={{ background: "#F6F6F7", padding: "2px 8px", borderRadius: "4px", fontSize: "12px", fontWeight: 700, fontFamily: "monospace" }}>{t.region}</span>
+                    <span style={{ background: "#F6F6F7", padding: "2px 8px", borderRadius: "6px", fontSize: "12px", fontWeight: 700, fontFamily: "monospace" }}>{t.region}</span>
                   </td>
                   <td style={{ padding: "14px 16px", fontSize: "13px", color: "#2A2830", fontWeight: 600 }}>{t.name}</td>
                   <td style={{ padding: "14px 16px", fontSize: "13px", color: "#2A2830", fontFamily: "monospace" }}>{t.rate}%</td>
@@ -239,7 +239,7 @@ export default function TaxesPage() {
                   </td>
                   <td style={{ padding: "14px 16px" }}>
                     <div style={{ display: "flex", gap: "8px" }}>
-                      <button onClick={() => openEdit(t)} style={{ fontSize: "12px", color: "#1A5CFF", background: "none", border: "none", cursor: "pointer", fontWeight: 600 }}>Edit</button>
+                      <button onClick={() => openEdit(t)} style={{ fontSize: "12px", color: "#005BD3", background: "none", border: "none", cursor: "pointer", fontWeight: 600 }}>Edit</button>
                       <button onClick={() => handleDelete(t.id)} style={{ fontSize: "12px", color: "#E8242A", background: "none", border: "none", cursor: "pointer", fontWeight: 600 }}>Delete</button>
                     </div>
                   </td>
@@ -280,10 +280,10 @@ export default function TaxesPage() {
               </div>
               {error && <p style={{ fontSize: "13px", color: "#E8242A", marginBottom: "12px" }}>{error}</p>}
               <div style={{ display: "flex", gap: "10px" }}>
-                <button type="button" onClick={() => setShowModal(false)} style={{ flex: 1, padding: "10px", border: "1.5px solid #E2E0DA", borderRadius: "8px", background: "#fff", fontSize: "13px", cursor: "pointer" }}>
+                <button type="button" onClick={() => setShowModal(false)} style={{ flex: 1, padding: "10px", border: "1.5px solid #E3E3E3", borderRadius: "8px", background: "#fff", fontSize: "13px", cursor: "pointer" }}>
                   Cancel
                 </button>
-                <button type="submit" disabled={saving} style={{ flex: 1, padding: "10px", background: "#1A5CFF", color: "#fff", border: "none", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: "pointer", opacity: saving ? 0.6 : 1 }}>
+                <button type="submit" disabled={saving} style={{ flex: 1, padding: "10px", background: "#1A1A1A", color: "#fff", border: "none", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: "pointer", opacity: saving ? 0.6 : 1 }}>
                   {saving ? "Saving…" : "Save"}
                 </button>
               </div>

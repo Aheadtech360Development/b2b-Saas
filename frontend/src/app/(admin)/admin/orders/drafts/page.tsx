@@ -23,7 +23,7 @@ interface CompanyOption { id: string; name: string; }
 
 const STATUS_STYLE: Record<string, { bg: string; color: string }> = {
   pending:   { bg: "rgba(217,119,6,.1)",  color: "#D97706" },
-  confirmed: { bg: "rgba(26,92,255,.1)",  color: "#1A5CFF" },
+  confirmed: { bg: "rgba(26,26,26,.1)",  color: "#005BD3" },
   cancelled: { bg: "rgba(232,36,42,.1)",  color: "#E8242A" },
 };
 
@@ -54,7 +54,7 @@ interface DraftLineItem {
 
 function CreateDraftModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: (id: string) => void }) {
   const [step, setStep] = useState<1 | 2 | 3>(1);
-  const inp: React.CSSProperties = { width: "100%", padding: "9px 12px", border: "1.5px solid #E2E0DA", borderRadius: "7px", fontSize: "13px", outline: "none", boxSizing: "border-box", fontFamily: "var(--font-jakarta)" };
+  const inp: React.CSSProperties = { width: "100%", padding: "9px 12px", border: "1.5px solid #E3E3E3", borderRadius: "8px", fontSize: "13px", outline: "none", boxSizing: "border-box", fontFamily: "var(--font-jakarta)" };
 
   // Step 1
   const [companies, setCompanies] = useState<CompanyOption[]>([]);
@@ -157,17 +157,17 @@ function CreateDraftModal({ onClose, onSuccess }: { onClose: () => void; onSucce
       <div style={{ background: "#fff", borderRadius: "12px", width: "100%", maxWidth: step === 2 ? "860px" : "560px", maxHeight: "90vh", display: "flex", flexDirection: "column", boxShadow: "0 20px 60px rgba(0,0,0,.25)" }}>
 
         {/* Header */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "18px 24px", borderBottom: "1px solid #E2E0DA", flexShrink: 0 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "18px 24px", borderBottom: "1px solid #E3E3E3", flexShrink: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
             <h2 style={{ fontFamily: "var(--font-bebas)", fontSize: "22px", color: "#2A2830", letterSpacing: ".04em", margin: 0 }}>CREATE DRAFT ORDER</h2>
             <div style={{ display: "flex", gap: "6px" }}>
               {STEPS.map((label, i) => (
                 <div key={label} style={{ display: "flex", alignItems: "center", gap: "5px" }}>
-                  <div style={{ width: "22px", height: "22px", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "11px", fontWeight: 700, background: step === i + 1 ? "#1A5CFF" : step > i + 1 ? "#059669" : "#E2E0DA", color: step >= i + 1 ? "#fff" : "#aaa" }}>
+                  <div style={{ width: "22px", height: "22px", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "11px", fontWeight: 700, background: step === i + 1 ? "#1A5CFF" : step > i + 1 ? "#059669" : "#E3E3E3", color: step >= i + 1 ? "#fff" : "#aaa" }}>
                     {step > i + 1 ? "✓" : i + 1}
                   </div>
                   <span style={{ fontSize: "11px", fontWeight: 600, color: step === i + 1 ? "#1A5CFF" : "#aaa" }}>{label}</span>
-                  {i < 2 && <span style={{ color: "#E2E0DA", fontSize: "12px" }}>›</span>}
+                  {i < 2 && <span style={{ color: "#E3E3E3", fontSize: "12px" }}>›</span>}
                 </div>
               ))}
             </div>
@@ -186,7 +186,7 @@ function CreateDraftModal({ onClose, onSuccess }: { onClose: () => void; onSucce
               <label style={{ display: "block", fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: ".06em", color: "#7A7880", marginBottom: "5px" }}>Select Company *</label>
               <input style={inp} placeholder="Search company…" value={companySearch} onChange={e => { setCompanySearch(e.target.value); setCompanyId(""); setCompanyName(""); }} />
               {companies.length > 0 && !companyId && (
-                <div style={{ border: "1.5px solid #E2E0DA", borderTop: "none", borderRadius: "0 0 7px 7px", maxHeight: "200px", overflowY: "auto", background: "#fff" }}>
+                <div style={{ border: "1.5px solid #E3E3E3", borderTop: "none", borderRadius: "0 0 7px 7px", maxHeight: "200px", overflowY: "auto", background: "#fff" }}>
                   {companies.map(c => (
                     <div key={c.id} onClick={async () => {
                       setCompanyId(c.id); setCompanyName(c.name); setCompanySearch(c.name); setCompanies([]);
@@ -203,7 +203,7 @@ function CreateDraftModal({ onClose, onSuccess }: { onClose: () => void; onSucce
                 </div>
               )}
               {companyId && (
-                <div style={{ marginTop: "12px", display: "flex", alignItems: "center", gap: "8px", padding: "10px 14px", background: "rgba(5,150,105,.06)", border: "1px solid rgba(5,150,105,.2)", borderRadius: "7px", fontSize: "13px", color: "#059669", fontWeight: 600 }}>
+                <div style={{ marginTop: "12px", display: "flex", alignItems: "center", gap: "8px", padding: "10px 14px", background: "rgba(5,150,105,.06)", border: "1px solid rgba(5,150,105,.2)", borderRadius: "8px", fontSize: "13px", color: "#059669", fontWeight: 600 }}>
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#059669" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/></svg>
                   {companyName} selected
                 </div>
@@ -219,11 +219,11 @@ function CreateDraftModal({ onClose, onSuccess }: { onClose: () => void; onSucce
                 <input style={{ ...inp, marginBottom: "12px" }} placeholder="Search products…" value={productSearch} onChange={e => setProductSearch(e.target.value)} />
 
                 {selectedProduct ? (
-                  <div style={{ border: "1px solid #E2E0DA", borderRadius: "8px", overflow: "hidden" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: "10px", padding: "12px 14px", background: "#F6F6F7", borderBottom: "1px solid #E2E0DA" }}>
+                  <div style={{ border: "1px solid #E3E3E3", borderRadius: "8px", overflow: "hidden" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "10px", padding: "12px 14px", background: "#F6F6F7", borderBottom: "1px solid #E3E3E3" }}>
                       {selectedProduct.primary_image?.url_thumbnail && (
                         // eslint-disable-next-line @next/next/no-img-element
-                        <img src={selectedProduct.primary_image.url_thumbnail} alt="" style={{ width: "36px", height: "36px", objectFit: "contain", borderRadius: "4px", background: "#fff" }} />
+                        <img src={selectedProduct.primary_image.url_thumbnail} alt="" style={{ width: "36px", height: "36px", objectFit: "contain", borderRadius: "6px", background: "#fff" }} />
                       )}
                       <div style={{ flex: 1 }}>
                         <div style={{ fontWeight: 700, fontSize: "13px", color: "#2A2830" }}>{selectedProduct.name}</div>
@@ -270,7 +270,7 @@ function CreateDraftModal({ onClose, onSuccess }: { onClose: () => void; onSucce
                                 <input type="number" min="0" placeholder="0"
                                   value={variantQtys[v.id] ?? ""}
                                   onChange={e => setVariantQtys(prev => ({ ...prev, [v.id]: e.target.value }))}
-                                  style={{ width: "56px", padding: "4px 6px", border: "1px solid #E2E0DA", borderRadius: "5px", fontSize: "12px", textAlign: "center" }}
+                                  style={{ width: "56px", padding: "4px 6px", border: "1px solid #E3E3E3", borderRadius: "6px", fontSize: "12px", textAlign: "center" }}
                                 />
                               </td>
                             </tr>
@@ -278,16 +278,16 @@ function CreateDraftModal({ onClose, onSuccess }: { onClose: () => void; onSucce
                         </tbody>
                       </table>
                     </div>
-                    <div style={{ padding: "10px 14px", borderTop: "1px solid #E2E0DA", display: "flex", justifyContent: "flex-end" }}>
+                    <div style={{ padding: "10px 14px", borderTop: "1px solid #E3E3E3", display: "flex", justifyContent: "flex-end" }}>
                       <button onClick={addLineItems}
                         disabled={!Object.values(variantQtys).some(q => parseInt(q, 10) > 0)}
-                        style={{ padding: "8px 18px", background: "#1A5CFF", color: "#fff", border: "none", borderRadius: "6px", fontSize: "12px", fontWeight: 700, cursor: "pointer", opacity: !Object.values(variantQtys).some(q => parseInt(q, 10) > 0) ? 0.4 : 1 }}>
+                        style={{ padding: "8px 18px", background: "#1A1A1A", color: "#fff", border: "none", borderRadius: "6px", fontSize: "12px", fontWeight: 700, cursor: "pointer", opacity: !Object.values(variantQtys).some(q => parseInt(q, 10) > 0) ? 0.4 : 1 }}>
                         Add to Order
                       </button>
                     </div>
                   </div>
                 ) : (
-                  <div style={{ maxHeight: "340px", overflowY: "auto", border: "1px solid #E2E0DA", borderRadius: "8px" }}>
+                  <div style={{ maxHeight: "340px", overflowY: "auto", border: "1px solid #E3E3E3", borderRadius: "8px" }}>
                     {loadingProducts ? (
                       <div style={{ padding: "32px", textAlign: "center", color: "#aaa", fontSize: "13px" }}>Loading…</div>
                     ) : products.length === 0 ? (
@@ -310,8 +310,8 @@ function CreateDraftModal({ onClose, onSuccess }: { onClose: () => void; onSucce
               </div>
 
               {/* Right: cart summary */}
-              <div style={{ border: "1px solid #E2E0DA", borderRadius: "8px", display: "flex", flexDirection: "column" }}>
-                <div style={{ padding: "12px 14px", borderBottom: "1px solid #E2E0DA", background: "#F6F6F7" }}>
+              <div style={{ border: "1px solid #E3E3E3", borderRadius: "8px", display: "flex", flexDirection: "column" }}>
+                <div style={{ padding: "12px 14px", borderBottom: "1px solid #E3E3E3", background: "#F6F6F7" }}>
                   <div style={{ fontFamily: "var(--font-bebas)", fontSize: "15px", letterSpacing: ".06em", color: "#2A2830" }}>ORDER ITEMS</div>
                   <div style={{ fontSize: "11px", color: "#7A7880" }}>{lineItems.length} line items</div>
                 </div>
@@ -334,7 +334,7 @@ function CreateDraftModal({ onClose, onSuccess }: { onClose: () => void; onSucce
                   ))}
                 </div>
                 {lineItems.length > 0 && (
-                  <div style={{ padding: "10px 14px", borderTop: "1px solid #E2E0DA", background: "#FAFAFA" }}>
+                  <div style={{ padding: "10px 14px", borderTop: "1px solid #E3E3E3", background: "#FAFAFA" }}>
                     <div style={{ display: "flex", justifyContent: "space-between", fontSize: "13px", fontWeight: 700, color: "#2A2830" }}>
                       <span>Total</span>
                       <span>${orderTotal.toFixed(2)}</span>
@@ -348,13 +348,13 @@ function CreateDraftModal({ onClose, onSuccess }: { onClose: () => void; onSucce
           {/* ── Step 3: Review ── */}
           {step === 3 && (
             <div>
-              <div style={{ background: "#F6F6F7", border: "1px solid #E2E0DA", borderRadius: "8px", padding: "14px 16px", marginBottom: "16px" }}>
+              <div style={{ background: "#F6F6F7", border: "1px solid #E3E3E3", borderRadius: "8px", padding: "14px 16px", marginBottom: "16px" }}>
                 <div style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: ".06em", color: "#7A7880", marginBottom: "4px" }}>Company</div>
                 <div style={{ fontSize: "14px", fontWeight: 600, color: "#2A2830" }}>{companyName}</div>
               </div>
 
               {lineItems.length > 0 && (
-                <div style={{ border: "1px solid #E2E0DA", borderRadius: "8px", overflow: "hidden", marginBottom: "16px" }}>
+                <div style={{ border: "1px solid #E3E3E3", borderRadius: "8px", overflow: "hidden", marginBottom: "16px" }}>
                   <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12px" }}>
                     <thead>
                       <tr style={{ background: "#FAFAFA" }}>
@@ -377,7 +377,7 @@ function CreateDraftModal({ onClose, onSuccess }: { onClose: () => void; onSucce
                     <tfoot>
                       <tr style={{ background: "#F6F6F7" }}>
                         <td colSpan={4} style={{ padding: "10px 12px", fontWeight: 700, textAlign: "right", fontSize: "13px" }}>Order Total</td>
-                        <td style={{ padding: "10px 12px", fontWeight: 700, fontSize: "14px", color: "#1A5CFF" }}>${orderTotal.toFixed(2)}</td>
+                        <td style={{ padding: "10px 12px", fontWeight: 700, fontSize: "14px", color: "#005BD3" }}>${orderTotal.toFixed(2)}</td>
                       </tr>
                     </tfoot>
                   </table>
@@ -397,21 +397,21 @@ function CreateDraftModal({ onClose, onSuccess }: { onClose: () => void; onSucce
         </div>
 
         {/* Footer */}
-        <div style={{ display: "flex", gap: "10px", padding: "16px 24px", borderTop: "1px solid #E2E0DA", flexShrink: 0 }}>
+        <div style={{ display: "flex", gap: "10px", padding: "16px 24px", borderTop: "1px solid #E3E3E3", flexShrink: 0 }}>
           <button onClick={step === 1 ? onClose : () => setStep(s => (s - 1) as 1 | 2 | 3)}
-            style={{ flex: 1, padding: "10px", border: "1.5px solid #E2E0DA", borderRadius: "7px", fontSize: "13px", fontWeight: 600, cursor: "pointer", background: "#fff" }}>
+            style={{ flex: 1, padding: "10px", border: "1.5px solid #E3E3E3", borderRadius: "8px", fontSize: "13px", fontWeight: 600, cursor: "pointer", background: "#fff" }}>
             {step === 1 ? "Cancel" : "← Back"}
           </button>
           {step < 3 ? (
             <button
               disabled={step === 1 && !companyId}
               onClick={() => setStep(s => (s + 1) as 2 | 3)}
-              style={{ flex: 2, padding: "10px", background: (step === 1 && !companyId) ? "#E2E0DA" : "#1A5CFF", color: (step === 1 && !companyId) ? "#aaa" : "#fff", border: "none", borderRadius: "7px", fontSize: "13px", fontWeight: 700, cursor: (step === 1 && !companyId) ? "not-allowed" : "pointer" }}>
+              style={{ flex: 2, padding: "10px", background: (step === 1 && !companyId) ? "#E3E3E3" : "#1A5CFF", color: (step === 1 && !companyId) ? "#aaa" : "#fff", border: "none", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: (step === 1 && !companyId) ? "not-allowed" : "pointer" }}>
               Continue →
             </button>
           ) : (
             <button onClick={handleCreate} disabled={saving}
-              style={{ flex: 2, padding: "10px", background: saving ? "#E2E0DA" : "#1A5CFF", color: saving ? "#aaa" : "#fff", border: "none", borderRadius: "7px", fontSize: "13px", fontWeight: 700, cursor: saving ? "not-allowed" : "pointer" }}>
+              style={{ flex: 2, padding: "10px", background: saving ? "#E3E3E3" : "#1A5CFF", color: saving ? "#aaa" : "#fff", border: "none", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: saving ? "not-allowed" : "pointer" }}>
               {saving ? "Creating…" : "Create Draft Order"}
             </button>
           )}
@@ -473,16 +473,16 @@ export default function DraftOrdersPage() {
         </div>
         <button
           onClick={() => setShowCreate(true)}
-          style={{ background: "#1A5CFF", color: "#fff", border: "none", padding: "10px 20px", borderRadius: "6px", fontWeight: 700, cursor: "pointer", fontSize: "13px" }}>
+          style={{ background: "#1A1A1A", color: "#fff", border: "none", padding: "10px 20px", borderRadius: "6px", fontWeight: 700, cursor: "pointer", fontSize: "13px" }}>
           + Create Draft
         </button>
       </div>
 
       {/* Table */}
-      <div style={{ background: "#fff", border: "1px solid #E2E0DA", borderRadius: "10px", overflow: "hidden" }}>
+      <div style={{ background: "#fff", border: "1px solid #E3E3E3", borderRadius: "10px", overflow: "hidden" }}>
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
           <thead>
-            <tr style={{ background: "#FAFAF8", borderBottom: "2px solid #E2E0DA" }}>
+            <tr style={{ background: "#FAFAF8", borderBottom: "2px solid #E3E3E3" }}>
               {["Order #", "Company", "Status", "PO #", "Items", "Total", "Created", "Actions"].map(h => (
                 <th key={h} style={{ padding: "11px 16px", textAlign: h === "Total" ? "right" as const : "left" as const, fontSize: "11px", fontWeight: 700, color: "#7A7880", textTransform: "uppercase" as const, letterSpacing: ".06em" }}>
                   {h}
@@ -492,7 +492,7 @@ export default function DraftOrdersPage() {
           </thead>
           <tbody>
             {isLoading && orders.length === 0 ? (
-              <tr><td colSpan={8} style={{ padding: "40px", textAlign: "center", color: "#bbb", fontSize: "14px" }}>Loading…</td></tr>
+              <tr><td colSpan={8} style={{ padding: "40px", textAlign: "center", color: "#bbb", fontSize: "14px" }}><div className="at-skel" style={{ height: "14px", width: "60%", margin: "0 auto" }} /></td></tr>
             ) : orders.length === 0 ? (
               <tr>
                 <td colSpan={8} style={{ padding: "56px", textAlign: "center" as const }}>
@@ -508,7 +508,7 @@ export default function DraftOrdersPage() {
                 onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
               >
                 <td style={{ padding: "13px 16px" }}>
-                  <Link href={`/admin/orders/${o.id}`} style={{ color: "#1A5CFF", textDecoration: "none", fontFamily: "monospace", fontSize: "12px", fontWeight: 700 }}>
+                  <Link href={`/admin/orders/${o.id}`} style={{ color: "#005BD3", textDecoration: "none", fontFamily: "monospace", fontSize: "12px", fontWeight: 700 }}>
                     {o.order_number}
                   </Link>
                 </td>
@@ -522,12 +522,12 @@ export default function DraftOrdersPage() {
                   <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" as const }}>
                     {o.status === "pending" && (
                       <button onClick={() => handleConvert(o.id)}
-                        style={{ background: "rgba(5,150,105,.1)", color: "#059669", border: "none", padding: "5px 12px", borderRadius: "5px", fontSize: "11px", fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" as const }}>
+                        style={{ background: "rgba(5,150,105,.1)", color: "#059669", border: "none", padding: "5px 12px", borderRadius: "6px", fontSize: "11px", fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" as const }}>
                         ✓ Confirm
                       </button>
                     )}
                     <Link href={`/admin/orders/${o.id}`}
-                      style={{ background: "#F6F6F7", color: "#2A2830", border: "1px solid #E2E0DA", padding: "5px 12px", borderRadius: "5px", fontSize: "11px", fontWeight: 700, textDecoration: "none" }}>
+                      style={{ background: "#F6F6F7", color: "#2A2830", border: "1px solid #E3E3E3", padding: "5px 12px", borderRadius: "6px", fontSize: "11px", fontWeight: 700, textDecoration: "none" }}>
                       Edit
                     </Link>
                   </div>

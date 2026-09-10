@@ -145,7 +145,7 @@ export default function AdminAbandonedCartsPage() {
       </div>
 
       {loading ? (
-        <div className="py-12 text-center text-gray-400">Loading…</div>
+        <div style={{ padding: "26px" }}>{[70, 92, 58, 84].map((w, i) => (<div key={i} className="at-skel" style={{ height: "14px", width: `${w}%`, marginBottom: "12px" }} />))}</div>
       ) : filtered.length === 0 ? (
         <div className="text-center py-16 bg-white border border-gray-200 rounded-lg">
           <div className="mb-3 flex justify-center"><ShoppingCartIcon size={40} color="#9CA3AF" /></div>
@@ -200,9 +200,9 @@ export default function AdminAbandonedCartsPage() {
                       disabled={reminding === cart.company_id}
                       className="text-xs font-semibold px-3 py-1.5 rounded-md border transition-colors"
                       style={{
-                        background: reminding === cart.company_id ? "#f3f4f6" : "#1A5CFF",
+                        background: reminding === cart.company_id ? "#f3f4f6" : "#1A1A1A",
                         color: reminding === cart.company_id ? "#9ca3af" : "#fff",
-                        borderColor: reminding === cart.company_id ? "#e5e7eb" : "#1A5CFF",
+                        borderColor: reminding === cart.company_id ? "#E3E3E3" : "#1A1A1A",
                         cursor: reminding === cart.company_id ? "not-allowed" : "pointer",
                       }}
                     >

@@ -15,10 +15,10 @@ interface PageSeoRow {
 const thSt: React.CSSProperties = {
   padding: "10px 16px", textAlign: "left", fontSize: "11px", textTransform: "uppercase",
   letterSpacing: ".06em", color: "#7A7880", fontWeight: 700, background: "#F9F8F4",
-  borderBottom: "1px solid #E2E0DA",
+  borderBottom: "1px solid #E3E3E3",
 };
 const tdSt: React.CSSProperties = {
-  padding: "12px 16px", fontSize: "14px", color: "#2A2830", borderBottom: "1px solid #E2E0DA",
+  padding: "12px 16px", fontSize: "14px", color: "#2A2830", borderBottom: "1px solid #E3E3E3",
 };
 
 export default function AdminPagesPage() {
@@ -45,9 +45,9 @@ export default function AdminPagesPage() {
       </div>
 
       {loading ? (
-        <p style={{ color: "#7A7880", fontSize: "14px" }}>Loading…</p>
+        <div style={{ padding: "26px" }}>{[70, 92, 58, 84].map((w, i) => (<div key={i} className="at-skel" style={{ height: "14px", width: `${w}%`, marginBottom: "12px" }} />))}</div>
       ) : (
-        <div style={{ background: "#fff", border: "1px solid #E2E0DA", borderRadius: "10px", overflow: "hidden" }}>
+        <div style={{ background: "#fff", border: "1px solid #E3E3E3", borderRadius: "10px", overflow: "hidden" }}>
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
               <tr>
