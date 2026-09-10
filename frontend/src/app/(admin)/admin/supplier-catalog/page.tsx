@@ -55,7 +55,7 @@ export default function SupplierCatalogPage() {
 
       {/* Header */}
       <div style={{ marginBottom: 24 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 700, color: "#1B3A5C", margin: 0 }}>
+        <h1 style={{ fontSize: 22, fontWeight: 700, color: "#1A1A1A", margin: 0 }}>
           Supplier Catalog
         </h1>
         <p style={{ color: "#6b7280", fontSize: 13, marginTop: 4 }}>
@@ -254,7 +254,7 @@ function CatalogTab() {
               ) : (
                 liveResults.map((s) => (
                   <div key={s.style_id ?? s.part_number} style={{ display: "flex", alignItems: "center", gap: 12, padding: 8, border: "1px solid #f3f4f6", borderRadius: 8 }}>
-                    <div style={{ width: 44, height: 44, background: "#f3f4f6", borderRadius: 6, overflow: "hidden", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <div style={{ width: 44, height: 44, background: "#F6F6F7", borderRadius: 6, overflow: "hidden", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
                       {s.image ? (
                         <img src={s.image} alt="" style={{ width: "100%", height: "100%", objectFit: "contain" }} onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
                       ) : <span style={{ fontSize: 18, color: "#d1d5db" }}>👕</span>}
@@ -372,7 +372,7 @@ function ProductCard({
       onClick={onViewDetail}
     >
       {/* Image */}
-      <div style={{ height: 160, background: "#f3f4f6", position: "relative", overflow: "hidden" }}>
+      <div style={{ height: 160, background: "#F6F6F7", position: "relative", overflow: "hidden" }}>
         {product.front_image ? (
           <img
             src={product.front_image}
@@ -406,7 +406,7 @@ function ProductCard({
         </div>
 
         {product.piece_price != null && (
-          <div style={{ fontSize: 12, fontWeight: 700, color: "#1B3A5C", marginBottom: 10 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: "#1A1A1A", marginBottom: 10 }}>
             ${product.piece_price.toFixed(2)} / piece
             {product.case_price && (
               <span style={{ fontWeight: 400, color: "#6b7280", marginLeft: 6 }}>
@@ -499,7 +499,7 @@ function ProductDetailDrawer({
             <>
               {/* Image */}
               {product.front_image && (
-                <img src={product.front_image} alt={product.style_name} style={{ width: "100%", maxHeight: 240, objectFit: "contain", borderRadius: 10, background: "#f3f4f6", marginBottom: 20 }} />
+                <img src={product.front_image} alt={product.style_name} style={{ width: "100%", maxHeight: 240, objectFit: "contain", borderRadius: 10, background: "#F6F6F7", marginBottom: 20 }} />
               )}
 
               <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", color: "#9ca3af", letterSpacing: ".08em" }}>{product.brand_name}</div>
@@ -507,7 +507,7 @@ function ProductDetailDrawer({
               <div style={{ fontSize: 13, color: "#6b7280", marginBottom: 12 }}>Style #{product.style_id} · {product.category_name}</div>
 
               {product.piece_price != null && (
-                <div style={{ fontSize: 16, fontWeight: 700, color: "#1B3A5C", marginBottom: 16 }}>
+                <div style={{ fontSize: 16, fontWeight: 700, color: "#1A1A1A", marginBottom: 16 }}>
                   Wholesale: ${product.piece_price.toFixed(2)}/piece
                   {product.case_price && (
                     <span style={{ fontSize: 12, fontWeight: 400, color: "#6b7280", marginLeft: 8 }}>
@@ -552,7 +552,7 @@ function ProductDetailDrawer({
                   <div style={{ border: "1px solid #E3E3E3", borderRadius: 8, overflow: "hidden" }}>
                     <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
                       <thead>
-                        <tr style={{ background: "#f9fafb" }}>
+                        <tr style={{ background: "#F6F6F7" }}>
                           {["SKU", "Color", "Size", "Price", "Stock"].map((h) => (
                             <th key={h} style={{ padding: "7px 10px", textAlign: "left", fontWeight: 600, color: "#6b7280", borderBottom: "1px solid #E3E3E3" }}>{h}</th>
                           ))}
@@ -720,7 +720,7 @@ function MarkupTab() {
 
       {/* Add/edit form */}
       {showForm && (
-        <div style={{ background: "#f9fafb", border: "1px solid #E3E3E3", borderRadius: 10, padding: 20, marginBottom: 20 }}>
+        <div style={{ background: "#F6F6F7", border: "1px solid #E3E3E3", borderRadius: 10, padding: 20, marginBottom: 20 }}>
           <h3 style={{ fontSize: 14, fontWeight: 700, margin: "0 0 16px" }}>{editingId ? "Edit Rule" : "New Rule"}</h3>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
             <div>
@@ -804,7 +804,7 @@ function MarkupTab() {
         <div style={{ border: "1px solid #E3E3E3", borderRadius: 10, overflow: "hidden" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
             <thead>
-              <tr style={{ background: "#f9fafb" }}>
+              <tr style={{ background: "#F6F6F7" }}>
                 {["Rule Type", "Target", "Markup %", "Fixed $", "Status", ""].map((h) => (
                   <th key={h} style={{ padding: "10px 14px", textAlign: "left", fontWeight: 600, color: "#6b7280", borderBottom: "1px solid #E3E3E3", fontSize: 12 }}>{h}</th>
                 ))}
@@ -960,7 +960,7 @@ function SyncTab() {
         <div style={{ border: "1px solid #E3E3E3", borderRadius: 10, overflow: "hidden" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
             <thead>
-              <tr style={{ background: "#f9fafb" }}>
+              <tr style={{ background: "#F6F6F7" }}>
                 {["Type", "Status", "Started", "Duration", "Records", ""].map((h) => (
                   <th key={h} style={{ padding: "10px 14px", textAlign: "left", fontWeight: 600, color: "#6b7280", borderBottom: "1px solid #E3E3E3", fontSize: 12 }}>{h}</th>
                 ))}
@@ -1008,7 +1008,7 @@ function SyncTab() {
 
 function EmptyState({ title, description }: { title: string; description: string }) {
   return (
-    <div style={{ textAlign: "center", padding: "48px 24px", background: "#f9fafb", borderRadius: 12, border: "1px dashed #E3E3E3" }}>
+    <div style={{ textAlign: "center", padding: "48px 24px", background: "#F6F6F7", borderRadius: 12, border: "1px dashed #E3E3E3" }}>
       <div style={{ fontSize: 36, marginBottom: 12 }}>📦</div>
       <div style={{ fontWeight: 700, fontSize: 15, color: "#374151", marginBottom: 6 }}>{title}</div>
       <div style={{ fontSize: 13, color: "#6b7280", maxWidth: 360, margin: "0 auto" }}>{description}</div>

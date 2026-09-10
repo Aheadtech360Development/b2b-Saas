@@ -411,7 +411,7 @@ export default function NewProductPage() {
               <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginBottom: "12px" }}>
                 {imagePreviewUrls.map((url, i) => (
                   <div key={i} style={{ display: "flex", gap: "12px", alignItems: "center", padding: "10px 12px", border: "1px solid #E3E3E3", borderRadius: "8px", background: i === 0 ? "rgba(26,26,26,.03)" : "#fff" }}>
-                    <div style={{ width: "64px", height: "64px", borderRadius: "6px", overflow: "hidden", flexShrink: 0, border: "1px solid #E3E3E3", background: "#f5f5f5" }}>
+                    <div style={{ width: "64px", height: "64px", borderRadius: "6px", overflow: "hidden", flexShrink: 0, border: "1px solid #E3E3E3", background: "#F6F6F7" }}>
                       <img src={url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                     </div>
                     <div style={{ flex: 1 }}>
@@ -430,7 +430,7 @@ export default function NewProductPage() {
               </div>
               <div
                 onClick={() => fileInputRef.current?.click()}
-                style={{ borderRadius: "8px", border: "2px dashed #E3E3E3", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", cursor: "pointer", background: "#FAFAFA", padding: "16px", transition: "border-color .2s" }}
+                style={{ borderRadius: "8px", border: "2px dashed #E3E3E3", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", cursor: "pointer", background: "#F6F6F7", padding: "16px", transition: "border-color .2s" }}
                 onMouseEnter={e => (e.currentTarget.style.borderColor = "#1A5CFF")}
                 onMouseLeave={e => (e.currentTarget.style.borderColor = "#E3E3E3")}
               >
@@ -474,7 +474,7 @@ export default function NewProductPage() {
                       {/* Size rows */}
                       <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
                         <thead>
-                          <tr style={{ background: "#FAFAFA", borderBottom: "1px solid #E3E3E3" }}>
+                          <tr style={{ background: "#F6F6F7", borderBottom: "1px solid #E3E3E3" }}>
                             {["Size", "SKU", "Price", ""].map(h => (
                               <th key={h} style={thStyle}>{h}</th>
                             ))}
@@ -739,7 +739,7 @@ export default function NewProductPage() {
                   </div>
                 </div>
               ) : (
-                <div style={{ border: "1px solid #E3E3E3", borderRadius: "8px", padding: "14px 16px", background: "#FAFAFA" }}>
+                <div style={{ border: "1px solid #E3E3E3", borderRadius: "8px", padding: "14px 16px", background: "#F6F6F7" }}>
                   <div style={{ fontSize: "11px", color: "#059669", marginBottom: "3px" }}>
                     af-apparel.com/products/{form.slug || "product-slug"}
                   </div>
@@ -757,7 +757,7 @@ export default function NewProductPage() {
             <div style={sectionCard}>
               <span style={sectionTitle}>MARKETING FLYER</span>
               {pendingFlyer && (
-                <div style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 12px", border: "1px solid #E3E3E3", borderRadius: "8px", background: "#FAFAFA", marginBottom: "12px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 12px", border: "1px solid #E3E3E3", borderRadius: "8px", background: "#F6F6F7", marginBottom: "12px" }}>
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#E8242A" strokeWidth={2}><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: "13px", fontWeight: 600, color: "#2A2830", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{pendingFlyer.name}</div>

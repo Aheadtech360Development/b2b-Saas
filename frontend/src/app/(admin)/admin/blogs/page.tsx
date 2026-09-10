@@ -16,7 +16,7 @@ interface BlogPost {
 
 const thSt: React.CSSProperties = {
   padding: "10px 16px", textAlign: "left", fontSize: "11px", textTransform: "uppercase",
-  letterSpacing: ".06em", color: "#7A7880", fontWeight: 700, background: "#F9F8F4",
+  letterSpacing: ".06em", color: "#7A7880", fontWeight: 700, background: "#F6F6F7",
   borderBottom: "1px solid #E3E3E3",
 };
 const tdSt: React.CSSProperties = {
@@ -67,7 +67,7 @@ export default function AdminBlogsPage() {
         <div style={{ background: "#fff", border: "1px solid #E3E3E3", borderRadius: "10px", padding: "48px", textAlign: "center" }}>
           <p style={{ color: "#7A7880", fontSize: "14px", marginBottom: "16px" }}>No blog posts yet.</p>
           <button onClick={() => router.push("/admin/blogs/new")}
-            style={{ background: "#1B3A5C", color: "#fff", border: "none", borderRadius: "8px", padding: "10px 22px", fontSize: "14px", fontWeight: 700, cursor: "pointer" }}>
+            style={{ background: "#1A1A1A", color: "#fff", border: "none", borderRadius: "8px", padding: "10px 22px", fontSize: "14px", fontWeight: 700, cursor: "pointer" }}>
             Write First Post
           </button>
         </div>
@@ -118,7 +118,7 @@ export default function AdminBlogsPage() {
                   <td style={{ ...tdSt, width: "120px" }}>
                     <div style={{ display: "flex", gap: "6px" }}>
                       <button onClick={e => { e.stopPropagation(); router.push(`/admin/blogs/${post.id}/edit`); }}
-                        style={{ background: "#1B3A5C", color: "#fff", border: "none", borderRadius: "6px", padding: "5px 12px", fontSize: "12px", fontWeight: 700, cursor: "pointer" }}>
+                        style={{ background: "#1A1A1A", color: "#fff", border: "none", borderRadius: "6px", padding: "5px 12px", fontSize: "12px", fontWeight: 700, cursor: "pointer" }}>
                         Edit
                       </button>
                       <button onClick={e => handleDelete(post.id, e)}

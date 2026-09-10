@@ -98,7 +98,7 @@ export default function ReceiveItemsPage() {
       <div style={{ display: "flex", alignItems: "center", gap: "16px", marginBottom: "28px" }}>
         <button onClick={() => router.back()} style={{ background: "none", border: "none", cursor: "pointer", color: "#6B7280", fontSize: "13px" }}>← Back</button>
         <div>
-          <h1 style={{ fontSize: "22px", fontWeight: 700, color: "#1B3A5C" }}>Receive Items</h1>
+          <h1 style={{ fontSize: "22px", fontWeight: 700, color: "#1A1A1A" }}>Receive Items</h1>
           <div style={{ fontSize: "13px", color: "#6B7280" }}>{po.po_number}</div>
         </div>
       </div>
@@ -117,7 +117,7 @@ export default function ReceiveItemsPage() {
 
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
-            <tr style={{ background: "#F9FAFB", borderBottom: "1px solid #E3E3E3" }}>
+            <tr style={{ background: "#F6F6F7", borderBottom: "1px solid #E3E3E3" }}>
               {["PRODUCT", "QTY ORDERED", "ALREADY RECEIVED", "QTY RECEIVING NOW", "ACTUAL UNIT COST"].map(h => (
                 <th key={h} style={{ padding: "11px 14px", textAlign: "left", fontSize: "11px", fontWeight: 700, color: "#6B7280", letterSpacing: ".07em" }}>{h}</th>
               ))}
@@ -162,7 +162,7 @@ export default function ReceiveItemsPage() {
       </div>
 
       <div style={{ display: "flex", justifyContent: "flex-end", gap: "12px" }}>
-        <button onClick={() => router.back()} style={{ padding: "10px 20px", background: "#F3F4F6", color: "#374151", border: "none", borderRadius: "8px", fontSize: "13px", fontWeight: 600, cursor: "pointer" }}>
+        <button onClick={() => router.back()} style={{ padding: "10px 20px", background: "#F6F6F7", color: "#374151", border: "none", borderRadius: "8px", fontSize: "13px", fontWeight: 600, cursor: "pointer" }}>
           Cancel
         </button>
         <button onClick={submit} disabled={saving} style={{ padding: "10px 24px", background: "#059669", color: "#fff", border: "none", borderRadius: "8px", fontSize: "13px", fontWeight: 600, cursor: "pointer" }}>

@@ -86,7 +86,7 @@ export default function MessagesPage() {
                 </div>
                 {open === s.id && (
                   <div style={{ padding: "0 18px 18px 18px" }}>
-                    <div style={{ background: "#FAFAF8", border: "1px solid #EEE", borderRadius: "8px", padding: "14px" }}>
+                    <div style={{ background: "#F6F6F7", border: "1px solid #EEE", borderRadius: "8px", padding: "14px" }}>
                       {Object.entries(s.data).map(([k, v]) => (
                         <div key={k} style={{ display: "flex", gap: "10px", padding: "6px 0", borderBottom: "1px solid #F0EFEA", fontSize: "14px" }}>
                           <span style={{ fontWeight: 700, color: "#555", flex: "0 0 130px" }}>{k}</span>

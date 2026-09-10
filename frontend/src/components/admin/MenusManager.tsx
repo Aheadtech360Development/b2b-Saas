@@ -14,8 +14,8 @@ import type { Category } from "@/types/product.types";
 const label: React.CSSProperties = { display: "block", fontSize: "12px", fontWeight: 600, color: "#555", marginBottom: "6px", textTransform: "uppercase", letterSpacing: ".04em" };
 const input: React.CSSProperties = { border: "1px solid #E3E3E3", borderRadius: "8px", padding: "10px 12px", fontSize: "14px", outline: "none", boxSizing: "border-box", background: "#fff" };
 const card: React.CSSProperties = { background: "#fff", border: "1px solid #E3E3E3", borderRadius: "12px", padding: "20px", marginBottom: "18px" };
-const btnPrimary: React.CSSProperties = { background: "#1C3557", color: "#fff", border: "none", padding: "10px 20px", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: "pointer" };
-const btnGhost: React.CSSProperties = { background: "#F0F4FA", border: "1px solid #C9D6E8", color: "#1C3557", padding: "8px 14px", borderRadius: "8px", fontSize: "12px", fontWeight: 700, cursor: "pointer" };
+const btnPrimary: React.CSSProperties = { background: "#1A1A1A", color: "#fff", border: "none", padding: "10px 20px", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: "pointer" };
+const btnGhost: React.CSSProperties = { background: "#F6F6F7", border: "1px solid #C9D6E8", color: "#1A1A1A", padding: "8px 14px", borderRadius: "8px", fontSize: "12px", fontWeight: 700, cursor: "pointer" };
 
 export default function MenusManager() {
   const { user } = useAuthStore();
@@ -108,7 +108,7 @@ export default function MenusManager() {
       {menus.length > 0 && (
         <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginBottom: "16px" }}>
           {menus.map((m) => (
-            <button key={m.id} onClick={() => selectMenu(m)} style={{ padding: "8px 16px", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: "pointer", border: draft?.id === m.id ? "2px solid #1C3557" : "1px solid #E3E3E3", background: draft?.id === m.id ? "#F0F4FA" : "#fff", color: "#2A2830" }}>
+            <button key={m.id} onClick={() => selectMenu(m)} style={{ padding: "8px 16px", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: "pointer", border: draft?.id === m.id ? "2px solid #1A1A1A" : "1px solid #E3E3E3", background: draft?.id === m.id ? "#F0F4FA" : "#fff", color: "#2A2830" }}>
               {m.name} <span style={{ color: "#aaa", fontWeight: 500 }}>({m.items.length})</span>
             </button>
           ))}
@@ -137,7 +137,7 @@ export default function MenusManager() {
             <label style={label}>Menu Items</label>
             {draft.items.length === 0 && <p style={{ fontSize: "13px", color: "#aaa", marginBottom: "10px" }}>No items yet — add your first link.</p>}
             {draft.items.map((m, i) => (
-              <div key={i} style={{ border: "1px solid #EEE", borderRadius: "8px", padding: "12px", marginBottom: "12px", background: "#FAFAF8" }}>
+              <div key={i} style={{ border: "1px solid #EEE", borderRadius: "8px", padding: "12px", marginBottom: "12px", background: "#F6F6F7" }}>
                 <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
                   <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
                     <button onClick={() => moveItem(i, -1)} disabled={i === 0} style={{ background: "#fff", border: "1px solid #E3E3E3", borderRadius: "6px", cursor: i === 0 ? "not-allowed" : "pointer", opacity: i === 0 ? 0.4 : 1, fontSize: "11px", padding: "1px 6px" }}>↑</button>
@@ -157,7 +157,7 @@ export default function MenusManager() {
                       <button onClick={() => removeChild(i, j)} style={{ background: "transparent", border: "none", color: "#B91C1C", fontSize: "16px", cursor: "pointer" }}>×</button>
                     </div>
                   ))}
-                  <button onClick={() => addChild(i)} style={{ background: "transparent", border: "none", color: "#1C3557", fontSize: "12px", fontWeight: 700, cursor: "pointer", padding: "4px 0" }}>+ Add sub-menu item</button>
+                  <button onClick={() => addChild(i)} style={{ background: "transparent", border: "none", color: "#1A1A1A", fontSize: "12px", fontWeight: 700, cursor: "pointer", padding: "4px 0" }}>+ Add sub-menu item</button>
                 </div>
               </div>
             ))}

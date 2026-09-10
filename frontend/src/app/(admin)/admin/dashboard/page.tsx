@@ -311,7 +311,7 @@ export default function AdminDashboard() {
         ) : (
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
             <thead>
-              <tr style={{ borderBottom: "1px solid #E3E3E3", background: "#FAFAF8" }}>
+              <tr style={{ borderBottom: "1px solid #E3E3E3", background: "#F6F6F7" }}>
                 {["Order #", "Customer", "Date", "Items", "Total", "Status"].map(h => (
                   <th key={h} style={{ padding: "10px 16px", textAlign: h === "Total" ? "right" : "left", fontSize: "11px", fontWeight: 700, color: "#7A7880", textTransform: "uppercase" as const, letterSpacing: ".06em" }}>{h}</th>
                 ))}
@@ -353,7 +353,7 @@ export default function AdminDashboard() {
         ) : (
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
             <thead>
-              <tr style={{ borderBottom: "1px solid #E3E3E3", background: "#FAFAF8" }}>
+              <tr style={{ borderBottom: "1px solid #E3E3E3", background: "#F6F6F7" }}>
                 {["Company", "Type", "Date", "Status", "Actions"].map(h => (
                   <th key={h} style={{ padding: "10px 16px", textAlign: "left", fontSize: "11px", fontWeight: 700, color: "#7A7880", textTransform: "uppercase" as const, letterSpacing: ".06em" }}>{h}</th>
                 ))}

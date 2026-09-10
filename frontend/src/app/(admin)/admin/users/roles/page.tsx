@@ -48,7 +48,7 @@ export default function RolesPage() {
         </div>
         <div style={{ display: "flex", gap: "8px" }}>
           <Link href="/admin/users" style={{ ...BTN, background: "#fff", color: "#555", border: "1px solid #E3E3E3", textDecoration: "none" }}>← Users</Link>
-          <button onClick={() => setEditing({ ...BLANK })} style={{ ...BTN, background: "var(--brand-primary, #1C3557)" }}>＋ New role</button>
+          <button onClick={() => setEditing({ ...BLANK })} style={{ ...BTN, background: "#1A1A1A" }}>＋ New role</button>
         </div>
       </div>
 
@@ -81,7 +81,7 @@ export default function RolesPage() {
                   <div style={{ fontSize: "12px", color: "#999" }}>{r.scopes.join(", ")}</div>
                 </div>
                 <div style={{ display: "flex", gap: "10px", flexShrink: 0 }}>
-                  <button onClick={() => setEditing({ id: r.id, name: r.name, scopes: [...r.scopes], read_only: r.read_only })} style={{ background: "none", border: "none", color: "var(--brand-primary, #1C3557)", fontWeight: 600, fontSize: "13px", cursor: "pointer" }}>Edit</button>
+                  <button onClick={() => setEditing({ id: r.id, name: r.name, scopes: [...r.scopes], read_only: r.read_only })} style={{ background: "none", border: "none", color: "#1A1A1A", fontWeight: 600, fontSize: "13px", cursor: "pointer" }}>Edit</button>
                   <button onClick={() => { if (confirm(`Delete “${r.name}”? Users on it revert to Viewer.`)) rolesService.remove(r.id).then(load).catch(() => {}); }} style={{ background: "none", border: "none", color: "#B91C1C", fontWeight: 600, fontSize: "13px", cursor: "pointer" }}>Delete</button>
                 </div>
               </div>
@@ -116,7 +116,7 @@ export default function RolesPage() {
             {error && <div style={{ background: "#FEF2F2", border: "1px solid #FCA5A5", color: "#B91C1C", padding: "9px 11px", borderRadius: "8px", fontSize: "13px", marginTop: "12px" }}>{error}</div>}
 
             <div style={{ display: "flex", gap: "10px", marginTop: "16px" }}>
-              <button onClick={save} disabled={saving} style={{ ...BTN, background: saving ? "#9ca3af" : "var(--brand-primary, #1C3557)" }}>{saving ? "Saving…" : "Save role"}</button>
+              <button onClick={save} disabled={saving} style={{ ...BTN, background: saving ? "#9ca3af" : "#1A1A1A" }}>{saving ? "Saving…" : "Save role"}</button>
               <button onClick={() => setEditing(null)} style={{ ...BTN, background: "#fff", color: "#555", border: "1px solid #E3E3E3" }}>Cancel</button>
             </div>
           </div>

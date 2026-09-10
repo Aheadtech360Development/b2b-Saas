@@ -65,9 +65,9 @@ export default function ManufacturersPage() {
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "28px" }}>
         <div>
           <a href="/admin/purchase-orders" style={{ fontSize: "13px", color: "#6B7280", textDecoration: "none" }}>← Purchase Orders</a>
-          <h1 style={{ fontSize: "22px", fontWeight: 700, color: "#1B3A5C", letterSpacing: ".04em", marginTop: "4px" }}>Manufacturers</h1>
+          <h1 style={{ fontSize: "22px", fontWeight: 700, color: "#1A1A1A", letterSpacing: ".04em", marginTop: "4px" }}>Manufacturers</h1>
         </div>
-        <button onClick={openNew} style={{ padding: "9px 18px", background: "#1B3A5C", color: "#fff", border: "none", borderRadius: "8px", fontSize: "13px", fontWeight: 600, cursor: "pointer" }}>
+        <button onClick={openNew} style={{ padding: "9px 18px", background: "#1A1A1A", color: "#fff", border: "none", borderRadius: "8px", fontSize: "13px", fontWeight: 600, cursor: "pointer" }}>
           + Add Manufacturer
         </button>
       </div>
@@ -75,7 +75,7 @@ export default function ManufacturersPage() {
       <div style={{ background: "#fff", border: "1px solid #E3E3E3", borderRadius: "10px", overflow: "hidden" }}>
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
-            <tr style={{ background: "#F9FAFB", borderBottom: "1px solid #E3E3E3" }}>
+            <tr style={{ background: "#F6F6F7", borderBottom: "1px solid #E3E3E3" }}>
               {["NAME", "CONTACT", "EMAIL", "PHONE", "ACTIONS"].map(h => (
                 <th key={h} style={{ padding: "12px 16px", textAlign: "left", fontSize: "11px", fontWeight: 700, color: "#6B7280", letterSpacing: ".07em" }}>{h}</th>
               ))}
@@ -94,7 +94,7 @@ export default function ManufacturersPage() {
                 <td style={{ padding: "14px 16px", fontSize: "13px", color: "#6B7280" }}>{m.phone || "—"}</td>
                 <td style={{ padding: "14px 16px" }}>
                   <div style={{ display: "flex", gap: "8px" }}>
-                    <button onClick={() => openEdit(m)} style={{ padding: "5px 12px", background: "#F3F4F6", color: "#374151", border: "none", borderRadius: "6px", fontSize: "12px", fontWeight: 600, cursor: "pointer" }}>Edit</button>
+                    <button onClick={() => openEdit(m)} style={{ padding: "5px 12px", background: "#F6F6F7", color: "#374151", border: "none", borderRadius: "6px", fontSize: "12px", fontWeight: 600, cursor: "pointer" }}>Edit</button>
                     <button onClick={() => del(m.id, m.name)} style={{ padding: "5px 12px", background: "#FEE2E2", color: "#991B1B", border: "none", borderRadius: "6px", fontSize: "12px", fontWeight: 600, cursor: "pointer" }}>Delete</button>
                   </div>
                 </td>
@@ -108,7 +108,7 @@ export default function ManufacturersPage() {
       {showModal && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 200 }}>
           <div style={{ background: "#fff", borderRadius: "12px", padding: "32px", width: "480px", maxWidth: "95vw" }}>
-            <h2 style={{ fontSize: "17px", fontWeight: 700, color: "#1B3A5C", marginBottom: "20px" }}>
+            <h2 style={{ fontSize: "17px", fontWeight: 700, color: "#1A1A1A", marginBottom: "20px" }}>
               {editing ? "Edit Manufacturer" : "Add Manufacturer"}
             </h2>
             <div style={{ display: "grid", gap: "14px" }}>
@@ -128,8 +128,8 @@ export default function ManufacturersPage() {
               </div>
             </div>
             <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px", marginTop: "24px" }}>
-              <button onClick={() => setShowModal(false)} style={{ padding: "9px 20px", background: "#F3F4F6", color: "#374151", border: "none", borderRadius: "8px", fontSize: "13px", fontWeight: 600, cursor: "pointer" }}>Cancel</button>
-              <button onClick={save} disabled={saving} style={{ padding: "9px 20px", background: "#1B3A5C", color: "#fff", border: "none", borderRadius: "8px", fontSize: "13px", fontWeight: 600, cursor: "pointer" }}>
+              <button onClick={() => setShowModal(false)} style={{ padding: "9px 20px", background: "#F6F6F7", color: "#374151", border: "none", borderRadius: "8px", fontSize: "13px", fontWeight: 600, cursor: "pointer" }}>Cancel</button>
+              <button onClick={save} disabled={saving} style={{ padding: "9px 20px", background: "#1A1A1A", color: "#fff", border: "none", borderRadius: "8px", fontSize: "13px", fontWeight: 600, cursor: "pointer" }}>
                 {saving ? "Saving…" : "Save"}
               </button>
             </div>

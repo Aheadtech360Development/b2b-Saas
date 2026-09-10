@@ -65,7 +65,7 @@ export default function SegmentsPage() {
         </div>
         <div style={{ display: "flex", gap: "8px" }}>
           <button onClick={() => segmentsService.recomputeAll().then(() => load()).catch(() => {})} style={{ ...BTN, background: "#fff", color: "#555", border: "1px solid #E3E3E3" }} title="Rebuild every customer's metrics (first rollout / manual refresh)">Refresh metrics</button>
-          <button onClick={openNew} style={{ ...BTN, background: "var(--brand-primary, #1C3557)" }}>＋ Create segment</button>
+          <button onClick={openNew} style={{ ...BTN, background: "#1A1A1A" }}>＋ Create segment</button>
         </div>
       </div>
 
@@ -77,7 +77,7 @@ export default function SegmentsPage() {
         <div style={{ ...CARD, padding: 0, overflow: "hidden" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
             <thead>
-              <tr style={{ background: "#FAFAF8", borderBottom: "1px solid #E8E6E1" }}>
+              <tr style={{ background: "#F6F6F7", borderBottom: "1px solid #E8E6E1" }}>
                 {["Segment", "Customers", "Updated", ""].map((h) => (
                   <th key={h} style={{ padding: "10px 14px", textAlign: "left", fontSize: "11px", fontWeight: 700, color: "#6B6B6B", textTransform: "uppercase" }}>{h}</th>
                 ))}
@@ -87,7 +87,7 @@ export default function SegmentsPage() {
               {segments.map((s) => (
                 <tr key={s.id} style={{ borderBottom: "1px solid #F1EFEB" }}>
                   <td style={{ padding: "12px 14px" }}>
-                    <button onClick={() => openEdit(s)} style={{ background: "none", border: "none", color: "var(--brand-primary, #1C3557)", fontWeight: 700, cursor: "pointer", fontSize: "13px", padding: 0 }}>{s.name}</button>
+                    <button onClick={() => openEdit(s)} style={{ background: "none", border: "none", color: "#1A1A1A", fontWeight: 700, cursor: "pointer", fontSize: "13px", padding: 0 }}>{s.name}</button>
                     {s.description && <div style={{ color: "#999", fontSize: "12px" }}>{s.description}</div>}
                   </td>
                   <td style={{ padding: "12px 14px" }}><SegmentCount id={s.id} /></td>
@@ -181,7 +181,7 @@ function SegmentEditor({ initial, typeOf, opsFor, fields, onClose }: {
           {error && <div style={{ background: "#FEF2F2", border: "1px solid #FCA5A5", color: "#B91C1C", padding: "10px 12px", borderRadius: "8px", fontSize: "13px" }}>{error}</div>}
 
           <div style={{ display: "flex", gap: "10px" }}>
-            <button onClick={save} disabled={saving} style={{ ...BTN, background: saving ? "#9ca3af" : "var(--brand-primary, #1C3557)" }}>{saving ? "Saving…" : initial ? "Save changes" : "Save segment"}</button>
+            <button onClick={save} disabled={saving} style={{ ...BTN, background: saving ? "#9ca3af" : "#1A1A1A" }}>{saving ? "Saving…" : initial ? "Save changes" : "Save segment"}</button>
             <button onClick={onClose} style={{ ...BTN, background: "#fff", color: "#555", border: "1px solid #E3E3E3" }}>Cancel</button>
           </div>
         </div>
@@ -234,7 +234,7 @@ function GroupEditor({ group, onChange, typeOf, opsFor, fields, depth }: {
         {(["and", "or"] as const).map((op) => (
           <button key={op} onClick={() => onChange({ ...group, op })}
             style={{ padding: "6px 16px", fontSize: "12px", fontWeight: 700, border: "none", cursor: "pointer",
-              background: group.op === op ? "var(--brand-primary, #1C3557)" : "#fff", color: group.op === op ? "#fff" : "#666" }}>
+              background: group.op === op ? "#1A1A1A" : "#fff", color: group.op === op ? "#fff" : "#666" }}>
             {op.toUpperCase()}
           </button>
         ))}

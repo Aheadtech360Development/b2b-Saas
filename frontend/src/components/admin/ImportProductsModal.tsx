@@ -345,7 +345,7 @@ export function ImportProductsModal({ onClose, onSuccess }: Props) {
           {step === "upload" && (
             <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
               {/* Template download */}
-              <div style={{ background: "#F4F3EF", borderRadius: "10px", padding: "16px 20px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div style={{ background: "#F6F6F7", borderRadius: "10px", padding: "16px 20px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <div>
                   <div style={{ fontWeight: 700, fontSize: "13px", color: "#2A2830", marginBottom: "4px" }}>Download CSV Template</div>
                   <div style={{ fontSize: "12px", color: "#7A7880" }}>Use our template to format your data correctly</div>
@@ -360,7 +360,7 @@ export function ImportProductsModal({ onClose, onSuccess }: Props) {
 
               {/* Column guide */}
               <div style={{ border: "1px solid #E3E3E3", borderRadius: "10px", overflow: "hidden" }}>
-                <div style={{ padding: "12px 16px", background: "#F4F3EF", borderBottom: "1px solid #E3E3E3" }}>
+                <div style={{ padding: "12px 16px", background: "#F6F6F7", borderBottom: "1px solid #E3E3E3" }}>
                   <span style={{ fontSize: "12px", fontWeight: 700, color: "#7A7880", textTransform: "uppercase", letterSpacing: ".06em" }}>CSV Column Reference</span>
                 </div>
                 <div style={{ padding: "12px 16px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px 24px" }}>
@@ -439,7 +439,7 @@ export function ImportProductsModal({ onClose, onSuccess }: Props) {
                 <div style={{ overflowX: "auto" }}>
                   <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12px" }}>
                     <thead>
-                      <tr style={{ background: "#F4F3EF", borderBottom: "1px solid #E3E3E3" }}>
+                      <tr style={{ background: "#F6F6F7", borderBottom: "1px solid #E3E3E3" }}>
                         {["#", "Name", "Category", "Type", "Vendor", "Price", "MOQ", "Colors", "Sizes", "Images", "Status"].map(h => (
                           <th key={h} style={thStyle}>{h}</th>
                         ))}
@@ -465,7 +465,7 @@ export function ImportProductsModal({ onClose, onSuccess }: Props) {
                               <div style={{ display: "flex", gap: "3px", flexWrap: "wrap" }}>
                                 {row.colors.length > 0
                                   ? row.colors.slice(0, 3).map(c => (
-                                    <span key={c} style={{ background: "#F4F3EF", padding: "2px 5px", borderRadius: "3px", fontSize: "10px", fontWeight: 600, color: "#2A2830" }}>{c}</span>
+                                    <span key={c} style={{ background: "#F6F6F7", padding: "2px 5px", borderRadius: "3px", fontSize: "10px", fontWeight: 600, color: "#2A2830" }}>{c}</span>
                                   ))
                                   : <span style={{ color: "#bbb" }}>—</span>}
                                 {row.colors.length > 3 && <span style={{ color: "#7A7880", fontSize: "10px" }}>+{row.colors.length - 3}</span>}
@@ -508,7 +508,7 @@ export function ImportProductsModal({ onClose, onSuccess }: Props) {
               <div style={{ fontSize: "13px", color: "#7A7880", marginBottom: "20px" }}>
                 {importProgress}% complete · Do not close this window
               </div>
-              <div style={{ width: "100%", maxWidth: "360px", background: "#F4F3EF", borderRadius: "8px", height: "8px", overflow: "hidden" }}>
+              <div style={{ width: "100%", maxWidth: "360px", background: "#F6F6F7", borderRadius: "8px", height: "8px", overflow: "hidden" }}>
                 <div style={{ height: "100%", background: "#1A1A1A", width: `${importProgress}%`, transition: "width .3s", borderRadius: "8px" }} />
               </div>
             </div>
@@ -534,7 +534,7 @@ export function ImportProductsModal({ onClose, onSuccess }: Props) {
               {/* Created products */}
               {result.created.length > 0 && (
                 <div style={{ border: "1px solid #E3E3E3", borderRadius: "10px", overflow: "hidden" }}>
-                  <div style={{ padding: "10px 14px", background: "#F4F3EF", borderBottom: "1px solid #E3E3E3" }}>
+                  <div style={{ padding: "10px 14px", background: "#F6F6F7", borderBottom: "1px solid #E3E3E3" }}>
                     <span style={{ fontSize: "11px", fontWeight: 700, color: "#7A7880", textTransform: "uppercase", letterSpacing: ".06em" }}>Created Products</span>
                   </div>
                   <div style={{ padding: "12px 14px", display: "flex", flexDirection: "column", gap: "6px" }}>

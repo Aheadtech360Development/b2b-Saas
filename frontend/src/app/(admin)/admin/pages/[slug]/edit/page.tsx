@@ -115,7 +115,7 @@ export default function AdminPageSeoEditPage() {
         <button
           onClick={handleSave}
           disabled={saving}
-          style={{ background: saving ? "#ccc" : "#1B3A5C", color: "#fff", border: "none", borderRadius: "8px", padding: "10px 24px", fontSize: "14px", fontWeight: 700, cursor: saving ? "not-allowed" : "pointer" }}>
+          style={{ background: saving ? "#ccc" : "#1A1A1A", color: "#fff", border: "none", borderRadius: "8px", padding: "10px 24px", fontSize: "14px", fontWeight: 700, cursor: saving ? "not-allowed" : "pointer" }}>
           {saving ? "Saving…" : saved ? "Saved ✓" : "Save"}
         </button>
       </div>
@@ -177,7 +177,7 @@ export default function AdminPageSeoEditPage() {
             style={{ ...inputSt, flex: 1 }}
           />
           <button type="button" onClick={() => addTag(tagInput)}
-            style={{ background: "#1B3A5C", color: "#fff", border: "none", borderRadius: "8px", padding: "10px 16px", fontSize: "13px", fontWeight: 700, cursor: "pointer" }}>
+            style={{ background: "#1A1A1A", color: "#fff", border: "none", borderRadius: "8px", padding: "10px 16px", fontSize: "13px", fontWeight: 700, cursor: "pointer" }}>
             Add
           </button>
         </div>

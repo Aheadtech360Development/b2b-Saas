@@ -14,7 +14,7 @@ interface PageSeoRow {
 
 const thSt: React.CSSProperties = {
   padding: "10px 16px", textAlign: "left", fontSize: "11px", textTransform: "uppercase",
-  letterSpacing: ".06em", color: "#7A7880", fontWeight: 700, background: "#F9F8F4",
+  letterSpacing: ".06em", color: "#7A7880", fontWeight: 700, background: "#F6F6F7",
   borderBottom: "1px solid #E3E3E3",
 };
 const tdSt: React.CSSProperties = {
@@ -86,7 +86,7 @@ export default function AdminPagesPage() {
                   <td style={{ ...tdSt, width: "80px" }}>
                     <button
                       onClick={e => { e.stopPropagation(); router.push(`/admin/pages/${row.page_slug}/edit`); }}
-                      style={{ background: "#1B3A5C", color: "#fff", border: "none", borderRadius: "6px", padding: "6px 14px", fontSize: "12px", fontWeight: 700, cursor: "pointer" }}
+                      style={{ background: "#1A1A1A", color: "#fff", border: "none", borderRadius: "6px", padding: "6px 14px", fontSize: "12px", fontWeight: 700, cursor: "pointer" }}
                     >
                       Edit
                     </button>

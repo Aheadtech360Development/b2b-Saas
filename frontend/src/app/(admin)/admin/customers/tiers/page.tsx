@@ -588,7 +588,7 @@ export default function DiscountGroupsPage() {
             <div style={{ background: "#fff", border: "1px solid #E3E3E3", borderRadius: "10px", overflow: "hidden" }}>
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
                 <thead>
-                  <tr style={{ background: "#FAFAF8", borderBottom: "1px solid #E3E3E3" }}>
+                  <tr style={{ background: "#F6F6F7", borderBottom: "1px solid #E3E3E3" }}>
                     {["Title", "Customer Tag", "Applies To", "Min Requirement", "Shipping", "Status", ""].map(h => (
                       <th key={h} style={{ padding: "11px 16px", textAlign: "left", fontSize: "11px", fontWeight: 700, color: "#7A7880", textTransform: "uppercase", letterSpacing: ".06em" }}>{h}</th>
                     ))}
@@ -652,7 +652,7 @@ export default function DiscountGroupsPage() {
             <div style={{ background: "#fff", border: "1px solid #E3E3E3", borderRadius: "10px", overflow: "auto" }}>
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12px", minWidth: "600px" }}>
                 <thead>
-                  <tr style={{ background: "#FAFAF8", borderBottom: "1px solid #E3E3E3" }}>
+                  <tr style={{ background: "#F6F6F7", borderBottom: "1px solid #E3E3E3" }}>
                     <th style={{ padding: "11px 16px", textAlign: "left", fontSize: "11px", fontWeight: 700, color: "#7A7880", textTransform: "uppercase", letterSpacing: ".06em", minWidth: "200px" }}>Product</th>
                     <th style={{ padding: "11px 16px", textAlign: "left", fontSize: "11px", fontWeight: 700, color: "#7A7880", textTransform: "uppercase", letterSpacing: ".06em" }}>Categories</th>
                     {groups.map(group => (
@@ -726,7 +726,7 @@ export default function DiscountGroupsPage() {
                         </tr>
                         {isExp && (
                           <tr key={`${product.id}-variants`}>
-                            <td colSpan={2 + groups.length} style={{ padding: 0, background: "#FAFAF8", borderBottom: "2px solid #E8E6E0" }}>
+                            <td colSpan={2 + groups.length} style={{ padding: 0, background: "#F6F6F7", borderBottom: "2px solid #E8E6E0" }}>
                               {/* Bulk edit bar — shown when variants are selected */}
                               {vpBulkSelected.size > 0 && product.variants.some(v => vpBulkSelected.has(v.id)) && (
                                 <div style={{ padding: "10px 16px", background: "rgba(26,26,26,.06)", borderBottom: "1px solid rgba(26,26,26,.15)", display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
@@ -759,7 +759,7 @@ export default function DiscountGroupsPage() {
                               )}
                               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "11px" }}>
                                 <thead>
-                                  <tr style={{ background: "#F0EDE8" }}>
+                                  <tr style={{ background: "#F6F6F7" }}>
                                     <th style={{ padding: "5px 8px 5px 16px", width: "30px" }} />
                                     <th style={{ padding: "5px 12px", textAlign: "left", color: "#7A7880", fontWeight: 700, letterSpacing: ".05em", textTransform: "uppercase", fontSize: "10px" }}>Color</th>
                                     <th style={{ padding: "5px 12px", textAlign: "left", color: "#7A7880", fontWeight: 700, letterSpacing: ".05em", textTransform: "uppercase", fontSize: "10px" }}>Size</th>

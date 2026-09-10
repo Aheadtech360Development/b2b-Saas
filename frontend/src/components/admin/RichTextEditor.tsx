@@ -95,7 +95,7 @@ export function RichTextEditor({ value, onChange, placeholder }: Props) {
       {/* Toolbar */}
       <div style={{
         display: "flex", alignItems: "center", gap: "2px", padding: "7px 10px",
-        borderBottom: "1px solid #E3E3E3", background: "#FAFAFA", flexWrap: "wrap",
+        borderBottom: "1px solid #E3E3E3", background: "#F6F6F7", flexWrap: "wrap",
       }}>
         {/* Heading select */}
         <select
@@ -224,7 +224,7 @@ export function RichTextEditor({ value, onChange, placeholder }: Props) {
       </div>
 
       {/* Footer */}
-      <div style={{ padding: "5px 14px", borderTop: "1px solid #F4F3EF", fontSize: "11px", color: "#aaa", background: "#FAFAFA" }}>
+      <div style={{ padding: "5px 14px", borderTop: "1px solid #F4F3EF", fontSize: "11px", color: "#aaa", background: "#F6F6F7" }}>
         {charCount} characters
       </div>
     </div>

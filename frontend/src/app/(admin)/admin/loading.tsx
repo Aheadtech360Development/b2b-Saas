@@ -4,14 +4,14 @@ export default function AdminLoading() {
       {/* Header skeleton */}
       <div style={{ marginBottom: "20px" }}>
         <div style={{ width: "180px", height: "32px", background: "#E8E6E0", borderRadius: "6px", marginBottom: "8px", animation: "pulse 1.5s ease-in-out infinite" }} />
-        <div style={{ width: "260px", height: "14px", background: "#F0EDE8", borderRadius: "6px", animation: "pulse 1.5s ease-in-out infinite" }} />
+        <div style={{ width: "260px", height: "14px", background: "#F6F6F7", borderRadius: "6px", animation: "pulse 1.5s ease-in-out infinite" }} />
       </div>
 
       {/* Toolbar skeleton */}
       <div style={{ display: "flex", gap: "10px", marginBottom: "16px" }}>
-        <div style={{ flex: 1, height: "40px", background: "#F0EDE8", borderRadius: "8px", animation: "pulse 1.5s ease-in-out infinite" }} />
-        <div style={{ width: "110px", height: "40px", background: "#F0EDE8", borderRadius: "8px", animation: "pulse 1.5s ease-in-out infinite" }} />
-        <div style={{ width: "110px", height: "40px", background: "#F0EDE8", borderRadius: "8px", animation: "pulse 1.5s ease-in-out infinite" }} />
+        <div style={{ flex: 1, height: "40px", background: "#F6F6F7", borderRadius: "8px", animation: "pulse 1.5s ease-in-out infinite" }} />
+        <div style={{ width: "110px", height: "40px", background: "#F6F6F7", borderRadius: "8px", animation: "pulse 1.5s ease-in-out infinite" }} />
+        <div style={{ width: "110px", height: "40px", background: "#F6F6F7", borderRadius: "8px", animation: "pulse 1.5s ease-in-out infinite" }} />
       </div>
 
       {/* Table skeleton */}
@@ -26,15 +26,15 @@ export default function AdminLoading() {
             key={i}
             style={{ padding: "16px", display: "flex", gap: "24px", alignItems: "center", borderBottom: "1px solid #F6F6F7", animationDelay: `${i * 80}ms` }}
           >
-            <div style={{ width: "16px", height: "16px", background: "#F0EDE8", borderRadius: "3px", animation: "pulse 1.5s ease-in-out infinite" }} />
-            <div style={{ width: "48px", height: "48px", background: "#F0EDE8", borderRadius: "8px", flexShrink: 0, animation: "pulse 1.5s ease-in-out infinite" }} />
+            <div style={{ width: "16px", height: "16px", background: "#F6F6F7", borderRadius: "3px", animation: "pulse 1.5s ease-in-out infinite" }} />
+            <div style={{ width: "48px", height: "48px", background: "#F6F6F7", borderRadius: "8px", flexShrink: 0, animation: "pulse 1.5s ease-in-out infinite" }} />
             <div style={{ flex: 1 }}>
-              <div style={{ width: `${120 + (i % 3) * 40}px`, height: "14px", background: "#F0EDE8", borderRadius: "6px", marginBottom: "6px", animation: "pulse 1.5s ease-in-out infinite" }} />
+              <div style={{ width: `${120 + (i % 3) * 40}px`, height: "14px", background: "#F6F6F7", borderRadius: "6px", marginBottom: "6px", animation: "pulse 1.5s ease-in-out infinite" }} />
               <div style={{ width: "80px", height: "11px", background: "#F6F6F7", borderRadius: "6px", animation: "pulse 1.5s ease-in-out infinite" }} />
             </div>
-            <div style={{ width: "60px", height: "22px", background: "#F0EDE8", borderRadius: "20px", animation: "pulse 1.5s ease-in-out infinite" }} />
-            <div style={{ width: "70px", height: "14px", background: "#F0EDE8", borderRadius: "6px", animation: "pulse 1.5s ease-in-out infinite" }} />
-            <div style={{ width: "80px", height: "14px", background: "#F0EDE8", borderRadius: "6px", animation: "pulse 1.5s ease-in-out infinite" }} />
+            <div style={{ width: "60px", height: "22px", background: "#F6F6F7", borderRadius: "20px", animation: "pulse 1.5s ease-in-out infinite" }} />
+            <div style={{ width: "70px", height: "14px", background: "#F6F6F7", borderRadius: "6px", animation: "pulse 1.5s ease-in-out infinite" }} />
+            <div style={{ width: "80px", height: "14px", background: "#F6F6F7", borderRadius: "6px", animation: "pulse 1.5s ease-in-out infinite" }} />
           </div>
         ))}
       </div>

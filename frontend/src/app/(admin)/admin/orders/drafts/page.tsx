@@ -234,7 +234,7 @@ function CreateDraftModal({ onClose, onSuccess }: { onClose: () => void; onSucce
                     <div style={{ maxHeight: "320px", overflowY: "auto" }}>
                       <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12px" }}>
                         <thead>
-                          <tr style={{ background: "#FAFAFA" }}>
+                          <tr style={{ background: "#F6F6F7" }}>
                             {["Color", "Size", "Price", "Qty"].map(h => (
                               <th key={h} style={{ padding: "8px 12px", textAlign: "left", fontSize: "10px", textTransform: "uppercase", letterSpacing: ".06em", color: "#7A7880", fontWeight: 700 }}>{h}</th>
                             ))}
@@ -334,7 +334,7 @@ function CreateDraftModal({ onClose, onSuccess }: { onClose: () => void; onSucce
                   ))}
                 </div>
                 {lineItems.length > 0 && (
-                  <div style={{ padding: "10px 14px", borderTop: "1px solid #E3E3E3", background: "#FAFAFA" }}>
+                  <div style={{ padding: "10px 14px", borderTop: "1px solid #E3E3E3", background: "#F6F6F7" }}>
                     <div style={{ display: "flex", justifyContent: "space-between", fontSize: "13px", fontWeight: 700, color: "#2A2830" }}>
                       <span>Total</span>
                       <span>${orderTotal.toFixed(2)}</span>
@@ -357,7 +357,7 @@ function CreateDraftModal({ onClose, onSuccess }: { onClose: () => void; onSucce
                 <div style={{ border: "1px solid #E3E3E3", borderRadius: "8px", overflow: "hidden", marginBottom: "16px" }}>
                   <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12px" }}>
                     <thead>
-                      <tr style={{ background: "#FAFAFA" }}>
+                      <tr style={{ background: "#F6F6F7" }}>
                         {["Product", "Variant", "Qty", "Unit Price", "Total"].map(h => (
                           <th key={h} style={{ padding: "8px 12px", textAlign: "left", fontSize: "10px", textTransform: "uppercase", letterSpacing: ".06em", color: "#7A7880", fontWeight: 700 }}>{h}</th>
                         ))}
@@ -482,7 +482,7 @@ export default function DraftOrdersPage() {
       <div style={{ background: "#fff", border: "1px solid #E3E3E3", borderRadius: "10px", overflow: "hidden" }}>
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
           <thead>
-            <tr style={{ background: "#FAFAF8", borderBottom: "1px solid #E3E3E3" }}>
+            <tr style={{ background: "#F6F6F7", borderBottom: "1px solid #E3E3E3" }}>
               {["Order #", "Company", "Status", "PO #", "Items", "Total", "Created", "Actions"].map(h => (
                 <th key={h} style={{ padding: "11px 16px", textAlign: h === "Total" ? "right" as const : "left" as const, fontSize: "11px", fontWeight: 700, color: "#7A7880", textTransform: "uppercase" as const, letterSpacing: ".06em" }}>
                   {h}

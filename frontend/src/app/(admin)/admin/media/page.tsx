@@ -62,7 +62,7 @@ export default function MediaLibraryPage() {
         <div>
           <input ref={fileRef} type="file" accept="image/*" multiple onChange={handleUpload} style={{ display: "none" }} />
           <button onClick={() => fileRef.current?.click()} disabled={uploading || !configured}
-            style={{ background: uploading || !configured ? "#9ca3af" : "#1C3557", color: "#fff", border: "none", padding: "11px 22px", borderRadius: "8px", fontSize: "14px", fontWeight: 700, cursor: uploading || !configured ? "not-allowed" : "pointer" }}>
+            style={{ background: uploading || !configured ? "#9ca3af" : "#1A1A1A", color: "#fff", border: "none", padding: "11px 22px", borderRadius: "8px", fontSize: "14px", fontWeight: 700, cursor: uploading || !configured ? "not-allowed" : "pointer" }}>
             {uploading ? "Uploading…" : "+ Upload Images"}
           </button>
         </div>
@@ -78,7 +78,7 @@ export default function MediaLibraryPage() {
       {loading ? (
         <div style={{ padding: "40px", color: "#888", fontSize: "13px" }}>Loading…</div>
       ) : items.length === 0 ? (
-        <div style={{ padding: "48px", textAlign: "center", color: "#999", fontSize: "14px", background: "#FAFAF8", border: "1px dashed #D8D6CE", borderRadius: "12px" }}>
+        <div style={{ padding: "48px", textAlign: "center", color: "#999", fontSize: "14px", background: "#F6F6F7", border: "1px dashed #D8D6CE", borderRadius: "12px" }}>
           No files yet. Click <strong>Upload Images</strong> to add your first one.
         </div>
       ) : (
@@ -92,7 +92,7 @@ export default function MediaLibraryPage() {
               <div style={{ padding: "10px 12px" }}>
                 <div style={{ fontSize: "12px", fontWeight: 600, color: "#2A2830", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{m.name}</div>
                 <div style={{ display: "flex", gap: "6px", marginTop: "8px" }}>
-                  <button onClick={() => copyUrl(m.url, m.file_id)} style={{ flex: 1, background: "#F0F4FA", border: "1px solid #C9D6E8", color: "#1C3557", padding: "5px", borderRadius: "6px", fontSize: "11px", fontWeight: 700, cursor: "pointer" }}>
+                  <button onClick={() => copyUrl(m.url, m.file_id)} style={{ flex: 1, background: "#F6F6F7", border: "1px solid #C9D6E8", color: "#1A1A1A", padding: "5px", borderRadius: "6px", fontSize: "11px", fontWeight: 700, cursor: "pointer" }}>
                     {copied === m.file_id ? "Copied!" : "Copy URL"}
                   </button>
                   <button onClick={() => remove(m.file_id)} style={{ background: "rgba(239,68,68,.08)", border: "none", color: "#B91C1C", padding: "5px 10px", borderRadius: "6px", fontSize: "11px", fontWeight: 700, cursor: "pointer" }}>✕</button>

@@ -198,7 +198,7 @@ export default function AdminBlogEditPage() {
           <button
             onClick={handleSave}
             disabled={saving}
-            style={{ background: saving ? "#ccc" : "#1B3A5C", color: "#fff", border: "none", borderRadius: "8px", padding: "10px 24px", fontSize: "14px", fontWeight: 700, cursor: saving ? "not-allowed" : "pointer" }}>
+            style={{ background: saving ? "#ccc" : "#1A1A1A", color: "#fff", border: "none", borderRadius: "8px", padding: "10px 24px", fontSize: "14px", fontWeight: 700, cursor: saving ? "not-allowed" : "pointer" }}>
             {saving ? "Saving…" : "Save"}
           </button>
         </div>
@@ -278,7 +278,7 @@ export default function AdminBlogEditPage() {
               onKeyDown={e => { if (e.key === "Enter" || e.key === ",") { e.preventDefault(); addTag(tagInput); } }}
               placeholder="Type tag and press Enter" style={{ ...inputSt, flex: 1 }} />
             <button type="button" onClick={() => addTag(tagInput)}
-              style={{ background: "#1B3A5C", color: "#fff", border: "none", borderRadius: "8px", padding: "10px 14px", fontSize: "13px", fontWeight: 700, cursor: "pointer" }}>
+              style={{ background: "#1A1A1A", color: "#fff", border: "none", borderRadius: "8px", padding: "10px 14px", fontSize: "13px", fontWeight: 700, cursor: "pointer" }}>
               Add
             </button>
           </div>
@@ -297,7 +297,7 @@ export default function AdminBlogEditPage() {
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
           <span style={sectionTitle}>FAQ SECTION</span>
           <button type="button" onClick={addFaq}
-            style={{ background: "#1B3A5C", color: "#fff", border: "none", borderRadius: "8px", padding: "7px 14px", fontSize: "12px", fontWeight: 700, cursor: "pointer" }}>
+            style={{ background: "#1A1A1A", color: "#fff", border: "none", borderRadius: "8px", padding: "7px 14px", fontSize: "12px", fontWeight: 700, cursor: "pointer" }}>
             + Add FAQ
           </button>
         </div>
@@ -352,7 +352,7 @@ export default function AdminBlogEditPage() {
               onKeyDown={e => { if (e.key === "Enter" || e.key === ",") { e.preventDefault(); addKeyword(keywordInput); } }}
               placeholder="Type keyword and press Enter" style={{ ...inputSt, flex: 1 }} />
             <button type="button" onClick={() => addKeyword(keywordInput)}
-              style={{ background: "#1B3A5C", color: "#fff", border: "none", borderRadius: "8px", padding: "10px 14px", fontSize: "13px", fontWeight: 700, cursor: "pointer" }}>
+              style={{ background: "#1A1A1A", color: "#fff", border: "none", borderRadius: "8px", padding: "10px 14px", fontSize: "13px", fontWeight: 700, cursor: "pointer" }}>
               Add
             </button>
           </div>
@@ -377,7 +377,7 @@ export default function AdminBlogEditPage() {
         <button
           onClick={handleSave}
           disabled={saving}
-          style={{ background: saving ? "#ccc" : "#1B3A5C", color: "#fff", border: "none", borderRadius: "8px", padding: "12px 32px", fontSize: "14px", fontWeight: 700, cursor: saving ? "not-allowed" : "pointer" }}>
+          style={{ background: saving ? "#ccc" : "#1A1A1A", color: "#fff", border: "none", borderRadius: "8px", padding: "12px 32px", fontSize: "14px", fontWeight: 700, cursor: saving ? "not-allowed" : "pointer" }}>
           {saving ? "Saving…" : "Save Post"}
         </button>
       </div>

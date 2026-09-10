@@ -7,10 +7,10 @@ import { apiClient, ApiClientError } from "@/lib/api-client";
 
 const STATUS_COLORS: Record<string, { bg: string; color: string }> = {
   draft:     { bg: "#F3F4F6", color: "#6B7280" },
-  sent:      { bg: "#DBEAFE", color: "#1D4ED8" },
+  sent:      { bg: "#DBEAFE", color: "#1A1A1A" },
   partial:   { bg: "#FEF3C7", color: "#D97706" },
   received:  { bg: "#D1FAE5", color: "#065F46" },
-  closed:    { bg: "#1B3A5C", color: "#fff" },
+  closed:    { bg: "#1A1A1A", color: "#fff" },
   cancelled: { bg: "#FEE2E2", color: "#991B1B" },
 };
 
@@ -141,7 +141,7 @@ export default function PODetailPage() {
         <div>
           <button onClick={() => router.back()} style={{ background: "none", border: "none", cursor: "pointer", color: "#6B7280", fontSize: "13px", marginBottom: "8px" }}>← Back</button>
           <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-            <h1 style={{ fontSize: "22px", fontWeight: 700, color: "#1B3A5C" }}>{po.po_number}</h1>
+            <h1 style={{ fontSize: "22px", fontWeight: 700, color: "#1A1A1A" }}>{po.po_number}</h1>
             <span style={{ padding: "4px 12px", borderRadius: "20px", fontSize: "11px", fontWeight: 700, background: sc.bg, color: sc.color, textTransform: "uppercase", letterSpacing: ".06em" }}>
               {po.status}
             </span>
@@ -153,7 +153,7 @@ export default function PODetailPage() {
         <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
           {po.status === "draft" && (
             <>
-              <button onClick={handleSendEmail} disabled={emailSending} style={{ padding: "9px 18px", borderRadius: "8px", background: "#1D4ED8", color: "#fff", border: "none", fontSize: "13px", fontWeight: 600, cursor: "pointer" }}>
+              <button onClick={handleSendEmail} disabled={emailSending} style={{ padding: "9px 18px", borderRadius: "8px", background: "#1A1A1A", color: "#fff", border: "none", fontSize: "13px", fontWeight: 600, cursor: "pointer" }}>
                 {emailSending ? "Sending…" : "Send Email to Manufacturer"}
               </button>
               <button onClick={markSent} disabled={updatingStatus} style={{ padding: "9px 18px", borderRadius: "8px", border: "1px solid #D1D5DB", background: "#fff", fontSize: "13px", fontWeight: 600, cursor: "pointer", color: "#374151" }}>
@@ -164,7 +164,7 @@ export default function PODetailPage() {
           {/* QB button: Sync to QB (draft/sent) OR View in QB (after receive) */}
           {["draft", "sent"].includes(po.status) ? (
             <button onClick={syncQB} disabled={syncing}
-              style={{ padding: "9px 18px", borderRadius: "8px", background: "#1D4ED8", color: "#fff", border: "none", fontSize: "13px", fontWeight: 600, cursor: "pointer" }}>
+              style={{ padding: "9px 18px", borderRadius: "8px", background: "#1A1A1A", color: "#fff", border: "none", fontSize: "13px", fontWeight: 600, cursor: "pointer" }}>
               {syncing ? "Syncing…" : po.qb_po_id ? "Re-sync to QB" : "Sync to QB"}
             </button>
           ) : (po.qb_bill_id || po.qb_po_id) ? (
@@ -195,14 +195,14 @@ export default function PODetailPage() {
         ].map(c => (
           <div key={c.label} style={{ background: "#fff", border: "1px solid #E3E3E3", borderRadius: "10px", padding: "16px" }}>
             <div style={{ fontSize: "11px", color: "#6B7280", marginBottom: "4px", textTransform: "uppercase", letterSpacing: ".07em" }}>{c.label}</div>
-            <div style={{ fontSize: "16px", fontWeight: 700, color: "#1B3A5C" }}>{c.value}</div>
+            <div style={{ fontSize: "16px", fontWeight: 700, color: "#1A1A1A" }}>{c.value}</div>
           </div>
         ))}
       </div>
 
       {/* QB Sync Status */}
       {(po.qb_po_id || po.qb_bill_id) && (
-        <div style={{ background: "#EFF6FF", border: "1px solid #BFDBFE", borderRadius: "8px", padding: "14px 18px", marginBottom: "24px", fontSize: "13px", color: "#1D4ED8" }}>
+        <div style={{ background: "#EFF6FF", border: "1px solid #BFDBFE", borderRadius: "8px", padding: "14px 18px", marginBottom: "24px", fontSize: "13px", color: "#1A1A1A" }}>
           <strong>QuickBooks:</strong>{" "}
           {po.qb_po_id && <span>PO ID: {po.qb_po_id} </span>}
           {po.qb_bill_id && <span>Bill ID: {po.qb_bill_id}</span>}
@@ -218,12 +218,12 @@ export default function PODetailPage() {
 
       {/* Line Items */}
       <div style={{ background: "#fff", border: "1px solid #E3E3E3", borderRadius: "10px", overflow: "hidden", marginBottom: "28px" }}>
-        <div style={{ padding: "16px 20px", borderBottom: "1px solid #E3E3E3", fontWeight: 700, fontSize: "14px", color: "#1B3A5C" }}>
+        <div style={{ padding: "16px 20px", borderBottom: "1px solid #E3E3E3", fontWeight: 700, fontSize: "14px", color: "#1A1A1A" }}>
           Line Items ({po.line_items.length})
         </div>
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
-            <tr style={{ background: "#F9FAFB", borderBottom: "1px solid #E3E3E3" }}>
+            <tr style={{ background: "#F6F6F7", borderBottom: "1px solid #E3E3E3" }}>
               {["PRODUCT", "SKU", "COLOR", "SIZE", "QTY ORDERED", "UNIT COST", "TOTAL EXPECTED"].map(h => (
                 <th key={h} style={{ padding: "11px 16px", textAlign: "left", fontSize: "11px", fontWeight: 700, color: "#6B7280", letterSpacing: ".07em" }}>{h}</th>
               ))}
@@ -248,7 +248,7 @@ export default function PODetailPage() {
       {/* Receivings */}
       {po.receivings.length > 0 && (
         <div style={{ background: "#fff", border: "1px solid #E3E3E3", borderRadius: "10px", overflow: "hidden" }}>
-          <div style={{ padding: "16px 20px", borderBottom: "1px solid #E3E3E3", fontWeight: 700, fontSize: "14px", color: "#1B3A5C" }}>
+          <div style={{ padding: "16px 20px", borderBottom: "1px solid #E3E3E3", fontWeight: 700, fontSize: "14px", color: "#1A1A1A" }}>
             Receivings ({po.receivings.length})
           </div>
           {po.receivings.map((r, idx) => (
@@ -260,11 +260,11 @@ export default function PODetailPage() {
                   </span>
                   {r.notes && <span style={{ color: "#6B7280", fontSize: "12px", marginLeft: "12px" }}>{r.notes}</span>}
                 </div>
-                {r.qb_synced && <span style={{ fontSize: "11px", color: "#1D4ED8", fontWeight: 600 }}>QB Synced</span>}
+                {r.qb_synced && <span style={{ fontSize: "11px", color: "#1A1A1A", fontWeight: 600 }}>QB Synced</span>}
               </div>
               <table style={{ width: "100%", borderCollapse: "collapse" }}>
                 <thead>
-                  <tr style={{ background: "#F9FAFB" }}>
+                  <tr style={{ background: "#F6F6F7" }}>
                     {["LINE ITEM", "QTY RECEIVED", "UNIT COST", "TOTAL"].map(h => (
                       <th key={h} style={{ padding: "8px 12px", textAlign: "left", fontSize: "10px", fontWeight: 700, color: "#9CA3AF", letterSpacing: ".07em" }}>{h}</th>
                     ))}

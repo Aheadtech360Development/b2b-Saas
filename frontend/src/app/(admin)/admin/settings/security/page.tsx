@@ -65,7 +65,7 @@ export default function SecurityPage() {
           {stage === "idle" && enabled != null && (
             enabled
               ? <button onClick={() => { setStage("disabling"); setError(null); }} style={{ ...BTN, background: "#fff", color: "#B91C1C", border: "1px solid #F0C9C9" }}>Disable</button>
-              : <button onClick={startSetup} disabled={busy} style={{ ...BTN, background: "var(--brand-primary, #1C3557)" }}>{busy ? "…" : "Enable 2FA"}</button>
+              : <button onClick={startSetup} disabled={busy} style={{ ...BTN, background: "#1A1A1A" }}>{busy ? "…" : "Enable 2FA"}</button>
           )}
         </div>
 
@@ -76,12 +76,12 @@ export default function SecurityPage() {
             <div style={{ fontSize: "13px", color: "#444", marginBottom: "10px" }}>
               1. In your authenticator app (Google Authenticator, Authy, etc.) add an account and <strong>enter this setup key</strong>:
             </div>
-            <div style={{ fontFamily: "monospace", fontSize: "16px", letterSpacing: "0.12em", background: "#FBFBF9", border: "1px solid #E8E6E1", borderRadius: "8px", padding: "12px", textAlign: "center", wordBreak: "break-all", marginBottom: "8px" }}>{secret}</div>
-            <a href={otpauth} style={{ fontSize: "12px", color: "var(--brand-primary,#1C3557)", fontWeight: 600, textDecoration: "none" }}>Open in authenticator app →</a>
+            <div style={{ fontFamily: "monospace", fontSize: "16px", letterSpacing: "0.12em", background: "#F6F6F7", border: "1px solid #E8E6E1", borderRadius: "8px", padding: "12px", textAlign: "center", wordBreak: "break-all", marginBottom: "8px" }}>{secret}</div>
+            <a href={otpauth} style={{ fontSize: "12px", color: "#1A1A1A", fontWeight: 600, textDecoration: "none" }}>Open in authenticator app →</a>
             <div style={{ fontSize: "13px", color: "#444", margin: "16px 0 6px" }}>2. Enter the 6-digit code it shows:</div>
             <input value={code} onChange={(e) => setCode(e.target.value)} placeholder="123456" inputMode="numeric" style={{ ...INPUT, textAlign: "center", letterSpacing: "0.15em", fontSize: "18px" }} />
             <div style={{ display: "flex", gap: "10px", marginTop: "14px" }}>
-              <button onClick={confirmEnable} disabled={busy || code.trim().length < 6} style={{ ...BTN, background: busy || code.trim().length < 6 ? "#9ca3af" : "var(--brand-primary, #1C3557)" }}>{busy ? "Verifying…" : "Confirm & enable"}</button>
+              <button onClick={confirmEnable} disabled={busy || code.trim().length < 6} style={{ ...BTN, background: busy || code.trim().length < 6 ? "#9ca3af" : "#1A1A1A" }}>{busy ? "Verifying…" : "Confirm & enable"}</button>
               <button onClick={() => { setStage("idle"); setError(null); }} style={{ ...BTN, background: "#fff", color: "#555", border: "1px solid #E3E3E3" }}>Cancel</button>
             </div>
           </div>
@@ -91,11 +91,11 @@ export default function SecurityPage() {
           <div>
             <div style={{ fontSize: "14px", fontWeight: 700, color: "#166534", marginBottom: "8px" }}>✓ Two-factor is on. Save your backup codes.</div>
             <p style={{ fontSize: "13px", color: "#666", marginBottom: "12px" }}>Each code works once if you lose your device. Store them somewhere safe — you won&apos;t see them again.</p>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", background: "#FBFBF9", border: "1px solid #E8E6E1", borderRadius: "8px", padding: "14px", fontFamily: "monospace", fontSize: "14px" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", background: "#F6F6F7", border: "1px solid #E8E6E1", borderRadius: "8px", padding: "14px", fontFamily: "monospace", fontSize: "14px" }}>
               {backupCodes.map((c) => <div key={c} style={{ textAlign: "center" }}>{c}</div>)}
             </div>
             <button onClick={() => { navigator.clipboard?.writeText(backupCodes.join("\n")).catch(() => {}); }} style={{ ...BTN, background: "#fff", color: "#555", border: "1px solid #E3E3E3", marginTop: "12px" }}>Copy codes</button>
-            <button onClick={() => setStage("idle")} style={{ ...BTN, background: "var(--brand-primary, #1C3557)", marginTop: "12px", marginLeft: "10px" }}>Done</button>
+            <button onClick={() => setStage("idle")} style={{ ...BTN, background: "#1A1A1A", marginTop: "12px", marginLeft: "10px" }}>Done</button>
           </div>
         )}
 

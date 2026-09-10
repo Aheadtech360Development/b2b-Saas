@@ -391,7 +391,7 @@ export default function CreatePOPage() {
     <div style={{ padding: "32px", maxWidth: "1000px", margin: "0 auto" }}>
       <div style={{ display: "flex", alignItems: "center", gap: "16px", marginBottom: "28px" }}>
         <button onClick={() => router.back()} style={{ background: "none", border: "none", cursor: "pointer", color: "#6B7280", fontSize: "13px" }}>← Back</button>
-        <h1 style={{ fontSize: "22px", fontWeight: 700, color: "#1B3A5C", letterSpacing: ".04em" }}>Create Purchase Order</h1>
+        <h1 style={{ fontSize: "22px", fontWeight: 700, color: "#1A1A1A", letterSpacing: ".04em" }}>Create Purchase Order</h1>
       </div>
 
       {/* Step tabs — display only, not clickable */}
@@ -400,7 +400,7 @@ export default function CreatePOPage() {
           <div key={s} style={{
             padding: "8px 20px", borderRadius: "8px", fontSize: "13px", fontWeight: 600,
             cursor: "default", pointerEvents: "none", userSelect: "none",
-            background: step === s ? "#1B3A5C" : "#F3F4F6",
+            background: step === s ? "#1A1A1A" : "#F3F4F6",
             color: step === s ? "#fff" : "#6B7280",
           }}>
             Step {s}: {["PO Info", "Line Items", "Review"][s - 1]}
@@ -411,7 +411,7 @@ export default function CreatePOPage() {
       {/* ── Step 1: PO Info ─────────────────────────────────────────────────── */}
       {step === 1 && (
         <div style={{ background: "#fff", border: "1px solid #E3E3E3", borderRadius: "10px", padding: "28px" }}>
-          <h2 style={{ fontSize: "15px", fontWeight: 700, color: "#1B3A5C", marginBottom: "20px" }}>PO Information</h2>
+          <h2 style={{ fontSize: "15px", fontWeight: 700, color: "#1A1A1A", marginBottom: "20px" }}>PO Information</h2>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px" }}>
             <div>
               <label style={LBL}>Manufacturer *</label>
@@ -425,7 +425,7 @@ export default function CreatePOPage() {
                 <option value="__new__">+ Add New Manufacturer</option>
               </select>
               {showNewMfr && (
-                <div style={{ marginTop: "10px", border: "1px solid #E3E3E3", borderRadius: "8px", padding: "16px", background: "#F9FAFB" }}>
+                <div style={{ marginTop: "10px", border: "1px solid #E3E3E3", borderRadius: "8px", padding: "16px", background: "#F6F6F7" }}>
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "10px" }}>
                     <div><label style={LBL}>Name *</label><input value={newMfrForm.name} onChange={e => setNewMfrForm(f => ({ ...f, name: e.target.value }))} placeholder="Manufacturer name" style={INPUT} /></div>
                     <div><label style={LBL}>Contact Name *</label><input value={newMfrForm.contact_name} onChange={e => setNewMfrForm(f => ({ ...f, contact_name: e.target.value }))} placeholder="Contact person" style={INPUT} /></div>
@@ -436,7 +436,7 @@ export default function CreatePOPage() {
                   </div>
                   <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end" }}>
                     <button onClick={addManufacturer} style={BTN_SM}>Add Manufacturer</button>
-                    <button onClick={() => { setShowNewMfr(false); setNewMfrForm({ name: "", contact_name: "", email: "", phone: "", address: "", notes: "" }); }} style={{ ...BTN_SM, background: "#F3F4F6", color: "#374151" }}>Cancel</button>
+                    <button onClick={() => { setShowNewMfr(false); setNewMfrForm({ name: "", contact_name: "", email: "", phone: "", address: "", notes: "" }); }} style={{ ...BTN_SM, background: "#F6F6F7", color: "#374151" }}>Cancel</button>
                   </div>
                 </div>
               )}
@@ -486,16 +486,16 @@ export default function CreatePOPage() {
           </button>
 
           {/* Running total */}
-          <div style={{ padding: "16px 20px", background: "#F0F4FF", borderRadius: "10px", display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
+          <div style={{ padding: "16px 20px", background: "#F6F6F7", borderRadius: "10px", display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
             <span style={{ fontSize: "14px", color: "#374151" }}>Running Total ({blocks.reduce((n, b) => n + b.search_variant_rows.filter(r => r.qty_ordered > 0).length + b.new_variant_rows.filter(r => r.qty_ordered > 0).length, 0)} line items):</span>
-            <span style={{ fontSize: "22px", fontWeight: 700, color: "#1B3A5C" }}>${total.toFixed(2)}</span>
+            <span style={{ fontSize: "22px", fontWeight: 700, color: "#1A1A1A" }}>${total.toFixed(2)}</span>
           </div>
 
           {stepError && (
             <p style={{ color: "#CC0000", fontSize: "13px", marginBottom: "12px" }}>{stepError}</p>
           )}
           <div style={{ display: "flex", justifyContent: "space-between" }}>
-            <button onClick={() => { setStepError(null); setStep(1); }} style={{ ...BTN_SM, background: "#F3F4F6", color: "#374151" }}>← Back</button>
+            <button onClick={() => { setStepError(null); setStep(1); }} style={{ ...BTN_SM, background: "#F6F6F7", color: "#374151" }}>← Back</button>
             <button onClick={handleStep2Next} style={BTN_PRIMARY}>Next: Review →</button>
           </div>
         </div>
@@ -504,14 +504,14 @@ export default function CreatePOPage() {
       {/* ── Step 3: Review ──────────────────────────────────────────────────── */}
       {step === 3 && (
         <div style={{ background: "#fff", border: "1px solid #E3E3E3", borderRadius: "10px", padding: "28px" }}>
-          <h2 style={{ fontSize: "15px", fontWeight: 700, color: "#1B3A5C", marginBottom: "20px" }}>Review & Save</h2>
+          <h2 style={{ fontSize: "15px", fontWeight: 700, color: "#1A1A1A", marginBottom: "20px" }}>Review & Save</h2>
 
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px", marginBottom: "24px" }}>
-            <div style={{ background: "#F9FAFB", borderRadius: "8px", padding: "16px" }}>
+            <div style={{ background: "#F6F6F7", borderRadius: "8px", padding: "16px" }}>
               <div style={{ fontSize: "11px", color: "#6B7280", marginBottom: "4px" }}>MANUFACTURER</div>
               <div style={{ fontWeight: 600 }}>{manufacturers.find(m => m.id === manufacturerId)?.name || "—"}</div>
             </div>
-            <div style={{ background: "#F9FAFB", borderRadius: "8px", padding: "16px" }}>
+            <div style={{ background: "#F6F6F7", borderRadius: "8px", padding: "16px" }}>
               <div style={{ fontSize: "11px", color: "#6B7280", marginBottom: "4px" }}>EXPECTED DELIVERY</div>
               <div style={{ fontWeight: 600 }}>{expectedDelivery || "—"}</div>
             </div>
@@ -519,7 +519,7 @@ export default function CreatePOPage() {
 
           <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: "20px" }}>
             <thead>
-              <tr style={{ background: "#F9FAFB", borderBottom: "1px solid #E3E3E3" }}>
+              <tr style={{ background: "#F6F6F7", borderBottom: "1px solid #E3E3E3" }}>
                 {["PRODUCT / VARIANT", "COLOR", "SIZE", "QTY", "UNIT COST", "TOTAL"].map(h => (
                   <th key={h} style={{ padding: "10px 14px", textAlign: "left", fontSize: "11px", fontWeight: 700, color: "#6B7280", letterSpacing: ".07em" }}>{h}</th>
                 ))}
@@ -541,18 +541,18 @@ export default function CreatePOPage() {
             </tbody>
           </table>
 
-          <div style={{ textAlign: "right", fontSize: "18px", fontWeight: 700, color: "#1B3A5C", marginBottom: "24px" }}>
+          <div style={{ textAlign: "right", fontSize: "18px", fontWeight: 700, color: "#1A1A1A", marginBottom: "24px" }}>
             Total Expected: ${total.toFixed(2)}
           </div>
 
           <div style={{ display: "flex", justifyContent: "space-between", gap: "12px" }}>
-            <button onClick={() => setStep(2)} style={{ ...BTN_SM, background: "#F3F4F6", color: "#374151" }}>← Back</button>
+            <button onClick={() => setStep(2)} style={{ ...BTN_SM, background: "#F6F6F7", color: "#374151" }}>← Back</button>
             <div style={{ display: "flex", gap: "10px" }}>
               <button onClick={save} disabled={saving || emailSending} style={BTN_PRIMARY}>
                 {saving ? "Saving…" : "Save as Draft"}
               </button>
               <button onClick={saveAndEmail} disabled={saving || emailSending}
-                style={{ ...BTN_PRIMARY, background: "#1D4ED8" }}>
+                style={{ ...BTN_PRIMARY, background: "#1A1A1A" }}>
                 {emailSending ? "Sending…" : saving ? "Saving…" : "Save & Send to Manufacturer"}
               </button>
             </div>
@@ -593,7 +593,7 @@ function ProductBlockEditor({
     <div style={{ background: "#fff", border: "1px solid #E3E3E3", borderRadius: "10px", padding: "24px", marginBottom: "16px" }}>
       {/* Block header */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
-        <span style={{ fontSize: "14px", fontWeight: 700, color: "#1B3A5C" }}>Product {blockIndex + 1}</span>
+        <span style={{ fontSize: "14px", fontWeight: 700, color: "#1A1A1A" }}>Product {blockIndex + 1}</span>
         <button onClick={onRemove} style={{ background: "none", border: "none", cursor: "pointer", color: "#9CA3AF", fontSize: "18px" }}>×</button>
       </div>
 
@@ -603,9 +603,9 @@ function ProductBlockEditor({
           <button key={m} onClick={() => onUpdate({ mode: m })}
             style={{
               padding: "6px 16px", borderRadius: "6px", border: "1px solid", fontSize: "12px", fontWeight: 600, cursor: "pointer",
-              background: block.mode === m ? "#1B3A5C" : "#fff",
+              background: block.mode === m ? "#1A1A1A" : "#fff",
               color: block.mode === m ? "#fff" : "#6B7280",
-              borderColor: block.mode === m ? "#1B3A5C" : "#D1D5DB",
+              borderColor: block.mode === m ? "#1A1A1A" : "#D1D5DB",
             }}>
             {m === "existing" ? "Search Existing" : "New Product"}
           </button>
@@ -616,7 +616,7 @@ function ProductBlockEditor({
       {block.mode === "existing" && (
         <>
           {block.product_id ? (
-            <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "16px", padding: "10px 14px", background: "#F0F4FF", borderRadius: "8px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "16px", padding: "10px 14px", background: "#F6F6F7", borderRadius: "8px" }}>
               <span style={{ flex: 1, fontWeight: 600, fontSize: "14px" }}>{block.product_name}</span>
               <button onClick={() => onUpdate({ product_id: null, product_name: "", search_variant_rows: [], search_query: "" })}
                 style={{ background: "none", border: "none", cursor: "pointer", fontSize: "12px", color: "#6B7280" }}>
@@ -693,7 +693,7 @@ function ProductBlockEditor({
 
           <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: "8px" }}>
             <thead>
-              <tr style={{ background: "#F9FAFB", borderBottom: "1px solid #E3E3E3" }}>
+              <tr style={{ background: "#F6F6F7", borderBottom: "1px solid #E3E3E3" }}>
                 {["COLOR", "SIZE", "CURRENT STOCK", "QTY ORDERED", "UNIT COST ($)", ""].map(h => (
                   <th key={h} style={{ padding: "9px 12px", textAlign: "left", fontSize: "11px", fontWeight: 700, color: "#6B7280", letterSpacing: ".06em" }}>{h}</th>
                 ))}
@@ -776,5 +776,5 @@ function ProductBlockEditor({
 const LBL: React.CSSProperties = { fontSize: "12px", fontWeight: 600, color: "#374151", display: "block", marginBottom: "6px" };
 const INPUT: React.CSSProperties = { width: "100%", padding: "9px 12px", border: "1px solid #D1D5DB", borderRadius: "8px", fontSize: "13px", boxSizing: "border-box", outline: "none" };
 const SELECT: React.CSSProperties = { ...INPUT, background: "#fff" };
-const BTN_PRIMARY: React.CSSProperties = { padding: "10px 24px", background: "#1B3A5C", color: "#fff", border: "none", borderRadius: "8px", fontSize: "13px", fontWeight: 600, cursor: "pointer" };
-const BTN_SM: React.CSSProperties = { padding: "8px 16px", background: "#1B3A5C", color: "#fff", border: "none", borderRadius: "8px", fontSize: "12px", fontWeight: 600, cursor: "pointer" };
+const BTN_PRIMARY: React.CSSProperties = { padding: "10px 24px", background: "#1A1A1A", color: "#fff", border: "none", borderRadius: "8px", fontSize: "13px", fontWeight: 600, cursor: "pointer" };
+const BTN_SM: React.CSSProperties = { padding: "8px 16px", background: "#1A1A1A", color: "#fff", border: "none", borderRadius: "8px", fontSize: "12px", fontWeight: 600, cursor: "pointer" };

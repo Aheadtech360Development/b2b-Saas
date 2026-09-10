@@ -1103,7 +1103,7 @@ export default function AdminOrderDetailPage() {
           {(order.payment_status !== "paid" || order.items_edited) && (
           <div style={{ background: '#f8f9fa', border: '1px solid #E3E3E3', borderRadius: '8px', padding: '16px', marginTop: '16px', display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' as const }}>
             <div style={{ flex: 1 }}>
-              <p style={{ margin: 0, fontSize: '13px', fontWeight: 600, color: '#1B3A5C' }}>Invoice &amp; Payment</p>
+              <p style={{ margin: 0, fontSize: '13px', fontWeight: 600, color: '#1A1A1A' }}>Invoice &amp; Payment</p>
               <p style={{ margin: '2px 0 0', fontSize: '12px', color: '#888' }}>
                 {order.payment_status === "paid" && !order.invoice_sent_at
                   ? `Payment received via ${order.payment_method === "ach" ? "ACH / Bank Transfer" : "Card"}`
@@ -1120,7 +1120,7 @@ export default function AdminOrderDetailPage() {
             <button
               onClick={handleResendInvoice}
               disabled={isResendingInvoice}
-              style={{ background: '#fff', color: '#1B3A5C', border: '1px solid #1B3A5C', padding: '8px 16px', borderRadius: '6px', fontSize: '13px', fontWeight: 700, cursor: isResendingInvoice ? 'not-allowed' : 'pointer', opacity: isResendingInvoice ? 0.6 : 1 }}>
+              style={{ background: '#fff', color: '#1A1A1A', border: '1px solid #1A1A1A', padding: '8px 16px', borderRadius: '6px', fontSize: '13px', fontWeight: 700, cursor: isResendingInvoice ? 'not-allowed' : 'pointer', opacity: isResendingInvoice ? 0.6 : 1 }}>
               {isResendingInvoice ? 'Sending…' : (order.invoice_sent_at ? 'Resend Invoice' : 'Send Invoice')}
             </button>
             {order.payment_status !== "paid" && (
@@ -1162,7 +1162,7 @@ export default function AdminOrderDetailPage() {
               <button
                 onClick={handleResendInvoice}
                 disabled={isResendingInvoice}
-                style={{ display: "flex", alignItems: "center", gap: "8px", background: isResendingInvoice ? "#F6F6F7" : "#1B3A5C", color: isResendingInvoice ? "#7A7880" : "#fff", border: "none", padding: "10px 16px", borderRadius: "6px", fontSize: "13px", fontWeight: 700, cursor: isResendingInvoice ? "not-allowed" : "pointer", opacity: isResendingInvoice ? .6 : 1, width: "100%", justifyContent: "center" as const }}>
+                style={{ display: "flex", alignItems: "center", gap: "8px", background: isResendingInvoice ? "#F6F6F7" : "#1A1A1A", color: isResendingInvoice ? "#7A7880" : "#fff", border: "none", padding: "10px 16px", borderRadius: "6px", fontSize: "13px", fontWeight: 700, cursor: isResendingInvoice ? "not-allowed" : "pointer", opacity: isResendingInvoice ? .6 : 1, width: "100%", justifyContent: "center" as const }}>
                 {isResendingInvoice ? "Sending…" : "📄 Email Invoice to Customer"}
               </button>
               <a
@@ -1432,7 +1432,7 @@ export default function AdminOrderDetailPage() {
                       <button
                         onClick={handleSyncQB}
                         disabled={isSyncing}
-                        style={{ background: "#1B3A5C", color: "#fff", border: "none", padding: "3px 10px", borderRadius: "6px", fontSize: "11px", fontWeight: 700, cursor: isSyncing ? "not-allowed" : "pointer", opacity: isSyncing ? 0.6 : 1 }}>
+                        style={{ background: "#1A1A1A", color: "#fff", border: "none", padding: "3px 10px", borderRadius: "6px", fontSize: "11px", fontWeight: 700, cursor: isSyncing ? "not-allowed" : "pointer", opacity: isSyncing ? 0.6 : 1 }}>
                         {isSyncing ? "Syncing…" : "Sync Now"}
                       </button>
                     )}

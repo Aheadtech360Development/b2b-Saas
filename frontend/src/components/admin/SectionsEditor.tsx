@@ -31,7 +31,7 @@ const SECTION_META: Record<string, { label: string; icon: string }> = {
 const label: React.CSSProperties = { display: "block", fontSize: "12px", fontWeight: 600, color: "#555", marginBottom: "6px", textTransform: "uppercase", letterSpacing: ".04em" };
 const input: React.CSSProperties = { width: "100%", border: "1px solid #E3E3E3", borderRadius: "8px", padding: "10px 12px", fontSize: "14px", outline: "none", boxSizing: "border-box", background: "#fff" };
 const card: React.CSSProperties = { background: "#fff", border: "1px solid #E3E3E3", borderRadius: "12px", padding: "20px", marginBottom: "18px" };
-const btnGhost: React.CSSProperties = { background: "#F0F4FA", border: "1px solid #C9D6E8", color: "#1C3557", padding: "8px 14px", borderRadius: "8px", fontSize: "12px", fontWeight: 700, cursor: "pointer" };
+const btnGhost: React.CSSProperties = { background: "#F6F6F7", border: "1px solid #C9D6E8", color: "#1A1A1A", padding: "8px 14px", borderRadius: "8px", fontSize: "12px", fontWeight: 700, cursor: "pointer" };
 
 function ColorInput({ value, onChange }: { value?: string; onChange: (v: string) => void }) {
   return (
@@ -52,7 +52,7 @@ function ButtonEditor({ btn, products, categories, pages, onChange, onRemove }: 
 }) {
   const smallInput: React.CSSProperties = { ...input, padding: "8px 10px", fontSize: "13px" };
   return (
-    <div style={{ border: "1px solid #EEE", borderRadius: "8px", padding: "12px", marginBottom: "8px", background: "#FAFAF8" }}>
+    <div style={{ border: "1px solid #EEE", borderRadius: "8px", padding: "12px", marginBottom: "8px", background: "#F6F6F7" }}>
       <div style={{ display: "flex", gap: "8px", alignItems: "center", marginBottom: "8px" }}>
         <input style={{ ...smallInput, flex: 1 }} value={btn.text} onChange={(e) => onChange({ ...btn, text: e.target.value })} placeholder="Button text (e.g. Shop Now)" />
         <button onClick={onRemove} title="Remove button" style={{ background: "transparent", border: "none", color: "#B91C1C", fontSize: "18px", cursor: "pointer" }}>×</button>
@@ -207,7 +207,7 @@ export function SectionsEditor({ sections, onChange, products, categories, pages
                   <input type="number" min={2} max={30} style={input} value={s.interval ?? 5} onChange={(e) => updateSection(i, { interval: Number(e.target.value) })} />
                 </div>
                 {(s.slides ?? []).map((sl, si) => (
-                  <div key={si} style={{ border: "1px solid #E3E3E3", borderRadius: "10px", padding: "14px", marginBottom: "12px", background: "#FAFAF8" }}>
+                  <div key={si} style={{ border: "1px solid #E3E3E3", borderRadius: "10px", padding: "14px", marginBottom: "12px", background: "#F6F6F7" }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
                       <span style={{ fontSize: "13px", fontWeight: 700, color: "#555" }}>Slide {si + 1}</span>
                       <div style={{ display: "flex", gap: "6px" }}>
@@ -218,7 +218,7 @@ export function SectionsEditor({ sections, onChange, products, categories, pages
                     </div>
                     <div style={{ display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap", marginBottom: "8px" }}>
                       {sl.image_url && <img src={sl.image_url} alt="" style={{ height: "46px", width: "auto", objectFit: "cover", border: "1px solid #eee", borderRadius: "6px" }} />}
-                      <button onClick={() => setMediaPickerFor({ kind: "slide", index: i, slideIdx: si })} style={{ background: "#fff", border: "1px solid #1C3557", color: "#1C3557", padding: "8px 16px", borderRadius: "8px", fontSize: "13px", fontWeight: 600, cursor: "pointer" }}>🖼 Choose Image</button>
+                      <button onClick={() => setMediaPickerFor({ kind: "slide", index: i, slideIdx: si })} style={{ background: "#fff", border: "1px solid #1A1A1A", color: "#1A1A1A", padding: "8px 16px", borderRadius: "8px", fontSize: "13px", fontWeight: 600, cursor: "pointer" }}>🖼 Choose Image</button>
                       {sl.image_url && <button onClick={() => patchSlide(i, si, { image_url: null })} style={{ background: "transparent", border: "none", color: "#B91C1C", fontSize: "13px", cursor: "pointer" }}>Remove</button>}
                     </div>
                     <input style={{ ...input, marginBottom: "8px" }} value={sl.image_url ?? ""} onChange={(e) => patchSlide(i, si, { image_url: e.target.value || null })} placeholder="…or paste image URL" />
@@ -261,7 +261,7 @@ export function SectionsEditor({ sections, onChange, products, categories, pages
               <div style={{ marginBottom: "14px" }}>
                 <label style={label}>Features (up to 4 show per row)</label>
                 {(s.features ?? []).map((f, fi) => (
-                  <div key={fi} style={{ display: "flex", gap: "8px", alignItems: "flex-start", marginBottom: "8px", flexWrap: "wrap", background: "#FAFAF8", border: "1px solid #EEE", borderRadius: "8px", padding: "10px" }}>
+                  <div key={fi} style={{ display: "flex", gap: "8px", alignItems: "flex-start", marginBottom: "8px", flexWrap: "wrap", background: "#F6F6F7", border: "1px solid #EEE", borderRadius: "8px", padding: "10px" }}>
                     <input style={{ ...input, flex: "0 0 62px", padding: "8px", fontSize: "18px", textAlign: "center" }} value={f.icon ?? ""} onChange={(e) => setFeatures(i, (s.features ?? []).map((x, y) => y === fi ? { ...x, icon: e.target.value } : x))} placeholder="🚚" />
                     <div style={{ flex: "1 1 220px", display: "flex", flexDirection: "column", gap: "6px" }}>
                       <input style={{ ...input, padding: "8px 10px", fontSize: "13px" }} value={f.title ?? ""} onChange={(e) => setFeatures(i, (s.features ?? []).map((x, y) => y === fi ? { ...x, title: e.target.value } : x))} placeholder="Feature title" />
@@ -279,7 +279,7 @@ export function SectionsEditor({ sections, onChange, products, categories, pages
               <div style={{ marginBottom: "14px" }}>
                 <label style={label}>Testimonials (up to 3 per row)</label>
                 {(s.testimonials ?? []).map((t, ti) => (
-                  <div key={ti} style={{ background: "#FAFAF8", border: "1px solid #EEE", borderRadius: "8px", padding: "12px", marginBottom: "10px" }}>
+                  <div key={ti} style={{ background: "#F6F6F7", border: "1px solid #EEE", borderRadius: "8px", padding: "12px", marginBottom: "10px" }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
                       <span style={{ fontSize: "12px", fontWeight: 700, color: "#555" }}>Quote {ti + 1}</span>
                       <button onClick={() => setTestimonials(i, (s.testimonials ?? []).filter((_, y) => y !== ti))} style={{ background: "transparent", border: "none", color: "#B91C1C", fontSize: "18px", cursor: "pointer" }}>×</button>
@@ -305,7 +305,7 @@ export function SectionsEditor({ sections, onChange, products, categories, pages
               <div style={{ marginBottom: "14px" }}>
                 <label style={label}>Questions</label>
                 {(s.faqs ?? []).map((f, qi) => (
-                  <div key={qi} style={{ background: "#FAFAF8", border: "1px solid #EEE", borderRadius: "8px", padding: "12px", marginBottom: "8px" }}>
+                  <div key={qi} style={{ background: "#F6F6F7", border: "1px solid #EEE", borderRadius: "8px", padding: "12px", marginBottom: "8px" }}>
                     <div style={{ display: "flex", gap: "8px", alignItems: "center", marginBottom: "8px" }}>
                       <input style={{ ...input, flex: 1, padding: "8px 10px", fontSize: "13px" }} value={f.question ?? ""} onChange={(e) => setFaqs(i, (s.faqs ?? []).map((x, y) => y === qi ? { ...x, question: e.target.value } : x))} placeholder="Question" />
                       <button onClick={() => setFaqs(i, (s.faqs ?? []).filter((_, y) => y !== qi))} style={{ background: "transparent", border: "none", color: "#B91C1C", fontSize: "18px", cursor: "pointer" }}>×</button>
@@ -323,7 +323,7 @@ export function SectionsEditor({ sections, onChange, products, categories, pages
                 <label style={label}>Logos</label>
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(130px, 1fr))", gap: "10px", marginBottom: "10px" }}>
                   {(s.logos ?? []).map((l, li) => (
-                    <div key={li} style={{ border: "1px solid #EEE", borderRadius: "8px", padding: "8px", background: "#FAFAF8" }}>
+                    <div key={li} style={{ border: "1px solid #EEE", borderRadius: "8px", padding: "8px", background: "#F6F6F7" }}>
                       <div style={{ position: "relative", height: "44px", display: "flex", alignItems: "center", justifyContent: "center", background: "#fff", borderRadius: "6px", marginBottom: "6px" }}>
                         {l.url ? <img src={l.url} alt="" style={{ maxHeight: "34px", maxWidth: "100%", objectFit: "contain" }} /> : <span style={{ color: "#bbb", fontSize: "11px" }}>No logo</span>}
                         <button onClick={() => setLogos(i, (s.logos ?? []).filter((_, y) => y !== li))} style={{ position: "absolute", top: "-6px", right: "-6px", background: "rgba(0,0,0,.6)", color: "#fff", border: "none", borderRadius: "50%", width: "20px", height: "20px", cursor: "pointer", fontSize: "12px", lineHeight: 1 }}>×</button>
@@ -332,7 +332,7 @@ export function SectionsEditor({ sections, onChange, products, categories, pages
                     </div>
                   ))}
                 </div>
-                <button onClick={() => setMediaPickerFor({ kind: "logos", index: i })} style={{ background: "#fff", border: "1px solid #1C3557", color: "#1C3557", padding: "8px 16px", borderRadius: "8px", fontSize: "13px", fontWeight: 600, cursor: "pointer" }}>🖼 Add from Library</button>
+                <button onClick={() => setMediaPickerFor({ kind: "logos", index: i })} style={{ background: "#fff", border: "1px solid #1A1A1A", color: "#1A1A1A", padding: "8px 16px", borderRadius: "8px", fontSize: "13px", fontWeight: 600, cursor: "pointer" }}>🖼 Add from Library</button>
               </div>
             )}
 
@@ -341,7 +341,7 @@ export function SectionsEditor({ sections, onChange, products, categories, pages
               <div style={{ marginBottom: "14px" }}>
                 <label style={label}>Form Fields</label>
                 {(s.fields ?? []).map((f, fi) => (
-                  <div key={fi} style={{ display: "flex", gap: "8px", alignItems: "center", marginBottom: "8px", flexWrap: "wrap", background: "#FAFAF8", border: "1px solid #EEE", borderRadius: "8px", padding: "10px" }}>
+                  <div key={fi} style={{ display: "flex", gap: "8px", alignItems: "center", marginBottom: "8px", flexWrap: "wrap", background: "#F6F6F7", border: "1px solid #EEE", borderRadius: "8px", padding: "10px" }}>
                     <input style={{ ...input, flex: "1 1 150px", padding: "8px 10px", fontSize: "13px" }} value={f.label} onChange={(e) => setFields(i, (s.fields ?? []).map((x, y) => y === fi ? { ...x, label: e.target.value } : x))} placeholder="Field label (e.g. Company)" />
                     <select style={{ ...input, flex: "0 0 120px", padding: "8px 10px", fontSize: "13px" }} value={f.type} onChange={(e) => setFields(i, (s.fields ?? []).map((x, y) => y === fi ? { ...x, type: e.target.value as ContactField["type"] } : x))}>
                       <option value="text">Text</option>
@@ -376,8 +376,8 @@ export function SectionsEditor({ sections, onChange, products, categories, pages
                 <label style={label}>Images</label>
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: "12px", marginBottom: "12px" }}>
                   {(s.images ?? []).map((im, gi) => (
-                    <div key={gi} style={{ border: "1px solid #EEE", borderRadius: "8px", padding: "8px", background: "#FAFAF8" }}>
-                      <div style={{ position: "relative", aspectRatio: "1 / 1", borderRadius: "6px", overflow: "hidden", background: "#F4F3EF", marginBottom: "6px" }}>
+                    <div key={gi} style={{ border: "1px solid #EEE", borderRadius: "8px", padding: "8px", background: "#F6F6F7" }}>
+                      <div style={{ position: "relative", aspectRatio: "1 / 1", borderRadius: "6px", overflow: "hidden", background: "#F6F6F7", marginBottom: "6px" }}>
                         {im.url
                           // eslint-disable-next-line @next/next/no-img-element
                           ? <img src={im.url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
@@ -390,7 +390,7 @@ export function SectionsEditor({ sections, onChange, products, categories, pages
                   ))}
                 </div>
                 <div style={{ display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
-                  <button onClick={() => setMediaPickerFor({ kind: "gallery", index: i })} style={{ background: "#fff", border: "1px solid #1C3557", color: "#1C3557", padding: "8px 16px", borderRadius: "8px", fontSize: "13px", fontWeight: 600, cursor: "pointer" }}>🖼 Add from Library</button>
+                  <button onClick={() => setMediaPickerFor({ kind: "gallery", index: i })} style={{ background: "#fff", border: "1px solid #1A1A1A", color: "#1A1A1A", padding: "8px 16px", borderRadius: "8px", fontSize: "13px", fontWeight: 600, cursor: "pointer" }}>🖼 Add from Library</button>
                   <button onClick={() => setGallery(i, [...(s.images ?? []), { url: "", caption: "" }])} style={{ ...btnGhost }}>+ Add by URL</button>
                 </div>
               </div>
@@ -410,7 +410,7 @@ export function SectionsEditor({ sections, onChange, products, categories, pages
                 <label style={label}>Image</label>
                 <div style={{ display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
                   {s.image_url && <img src={s.image_url} alt="" style={{ height: "46px", width: "auto", objectFit: "cover", border: "1px solid #eee", borderRadius: "6px" }} />}
-                  <button onClick={() => setMediaPickerFor({ kind: "section", index: i })} style={{ background: "#fff", border: "1px solid #1C3557", color: "#1C3557", padding: "8px 16px", borderRadius: "8px", fontSize: "13px", fontWeight: 600, cursor: "pointer" }}>🖼 Choose Image</button>
+                  <button onClick={() => setMediaPickerFor({ kind: "section", index: i })} style={{ background: "#fff", border: "1px solid #1A1A1A", color: "#1A1A1A", padding: "8px 16px", borderRadius: "8px", fontSize: "13px", fontWeight: 600, cursor: "pointer" }}>🖼 Choose Image</button>
                   {s.image_url && <button onClick={() => updateSection(i, { image_url: null })} style={{ background: "transparent", border: "none", color: "#B91C1C", fontSize: "13px", cursor: "pointer" }}>Remove</button>}
                 </div>
                 <input style={{ ...input, marginTop: "10px" }} value={s.image_url ?? ""} onChange={(e) => updateSection(i, { image_url: e.target.value || null })} placeholder="…or paste an image URL" />
@@ -423,7 +423,7 @@ export function SectionsEditor({ sections, onChange, products, categories, pages
                 <label style={label}>Layout</label>
                 <div style={{ display: "flex", gap: "8px" }}>
                   {(["image_left", "image_right"] as const).map((opt) => (
-                    <button key={opt} onClick={() => updateSection(i, { layout: opt })} style={{ flex: 1, padding: "10px", borderRadius: "8px", fontSize: "13px", fontWeight: 600, cursor: "pointer", border: (s.layout ?? "image_right") === opt ? "2px solid #1C3557" : "1px solid #E3E3E3", background: (s.layout ?? "image_right") === opt ? "#F0F4FA" : "#fff", color: "#2A2830" }}>
+                    <button key={opt} onClick={() => updateSection(i, { layout: opt })} style={{ flex: 1, padding: "10px", borderRadius: "8px", fontSize: "13px", fontWeight: 600, cursor: "pointer", border: (s.layout ?? "image_right") === opt ? "2px solid #1A1A1A" : "1px solid #E3E3E3", background: (s.layout ?? "image_right") === opt ? "#F0F4FA" : "#fff", color: "#2A2830" }}>
                       {opt === "image_left" ? "◧ Image left · Text right" : "Text left · Image right ◨"}
                     </button>
                   ))}

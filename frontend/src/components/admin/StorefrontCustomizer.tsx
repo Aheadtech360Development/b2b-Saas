@@ -53,7 +53,7 @@ function PickerModal({ title, options, selected, onClose, onSave }: {
             <label key={o.id} style={{ display: "flex", alignItems: "center", gap: "12px", padding: "10px 14px", borderBottom: "1px solid #F2F1EC", cursor: "pointer", background: sel.includes(o.id) ? "#F0F4FA" : "#fff" }}>
               <input type="checkbox" checked={sel.includes(o.id)} onChange={() => toggle(o.id)} />
               {o.image !== undefined && (
-                <div style={{ width: "38px", height: "38px", borderRadius: "6px", background: "#F4F3EF", overflow: "hidden", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <div style={{ width: "38px", height: "38px", borderRadius: "6px", background: "#F6F6F7", overflow: "hidden", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
                   {o.image ? <img src={o.image} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <span style={{ fontSize: "9px", color: "#bbb" }}>—</span>}
                 </div>
               )}
@@ -66,7 +66,7 @@ function PickerModal({ title, options, selected, onClose, onSave }: {
         </div>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "14px" }}>
           <span style={{ fontSize: "13px", color: "#7A7880" }}>{sel.length} selected</span>
-          <button onClick={() => onSave(sel)} style={{ background: "#1C3557", color: "#fff", border: "none", padding: "10px 22px", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: "pointer" }}>Done</button>
+          <button onClick={() => onSave(sel)} style={{ background: "#1A1A1A", color: "#fff", border: "none", padding: "10px 22px", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: "pointer" }}>Done</button>
         </div>
       </div>
     </div>
@@ -221,9 +221,9 @@ export default function StorefrontCustomizer() {
           <p style={{ fontSize: "13px", color: "#7A7880", marginTop: "4px" }}>Design your store — logo, menu, hero, sections, colors. This is what customers see.</p>
         </div>
         <div style={{ display: "flex", gap: "10px" }}>
-          <button onClick={openStore} style={{ background: "#fff", border: "1px solid #1C3557", color: "#1C3557", padding: "10px 18px", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: "pointer" }}>Preview Store ↗</button>
+          <button onClick={openStore} style={{ background: "#fff", border: "1px solid #1A1A1A", color: "#1A1A1A", padding: "10px 18px", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: "pointer" }}>Preview Store ↗</button>
           {!readOnly && (
-            <button onClick={handleSave} disabled={saving} style={{ background: saving ? "#9ca3af" : "#1C3557", color: "#fff", border: "none", padding: "10px 22px", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: saving ? "not-allowed" : "pointer" }}>{saving ? "Saving…" : "Save Changes"}</button>
+            <button onClick={handleSave} disabled={saving} style={{ background: saving ? "#9ca3af" : "#1A1A1A", color: "#fff", border: "none", padding: "10px 22px", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: saving ? "not-allowed" : "pointer" }}>{saving ? "Saving…" : "Save Changes"}</button>
           )}
         </div>
       </div>
@@ -251,7 +251,7 @@ export default function StorefrontCustomizer() {
               <ThemePreview theme={t} />
               <div style={{ fontSize: "16px", fontWeight: 800, color: "#2A2830", marginTop: "12px" }}>{t.name}</div>
               <p style={{ fontSize: "12.5px", color: "#7A7880", marginTop: "4px", lineHeight: 1.5, flex: 1 }}>{t.description}</p>
-              <button onClick={() => activateTheme(t)} disabled={activating !== null} style={{ marginTop: "12px", width: "100%", background: isLive ? "#F0FDF4" : "#1C3557", color: isLive ? "#16A34A" : "#fff", border: isLive ? "1px solid #BBF7D0" : "none", padding: "10px", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: activating !== null ? "not-allowed" : "pointer", opacity: activating !== null && activating !== t.id ? 0.6 : 1 }}>
+              <button onClick={() => activateTheme(t)} disabled={activating !== null} style={{ marginTop: "12px", width: "100%", background: isLive ? "#F0FDF4" : "#1A1A1A", color: isLive ? "#16A34A" : "#fff", border: isLive ? "1px solid #BBF7D0" : "none", padding: "10px", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: activating !== null ? "not-allowed" : "pointer", opacity: activating !== null && activating !== t.id ? 0.6 : 1 }}>
                 {activating === t.id ? "Applying…" : isLive ? "✓ Active theme — re-apply" : "Activate this theme"}
               </button>
             </div>
@@ -271,7 +271,7 @@ export default function StorefrontCustomizer() {
           <label style={label}>Logo</label>
           <div style={{ display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
             {form.logo_url && <img src={form.logo_url} alt="logo" style={{ height: "40px", width: "auto", objectFit: "contain", border: "1px solid #eee", borderRadius: "6px", padding: "4px", background: "#fff" }} />}
-            <button onClick={() => setMediaPickerFor("logo")} style={{ background: "#fff", border: "1px solid #1C3557", color: "#1C3557", padding: "8px 16px", borderRadius: "8px", fontSize: "13px", fontWeight: 600, cursor: "pointer" }}>🖼 Choose Logo</button>
+            <button onClick={() => setMediaPickerFor("logo")} style={{ background: "#fff", border: "1px solid #1A1A1A", color: "#1A1A1A", padding: "8px 16px", borderRadius: "8px", fontSize: "13px", fontWeight: 600, cursor: "pointer" }}>🖼 Choose Logo</button>
             {form.logo_url && <button onClick={() => set("logo_url", null)} style={{ background: "transparent", border: "none", color: "#B91C1C", fontSize: "13px", cursor: "pointer" }}>Remove</button>}
           </div>
           <input style={{ ...input, marginTop: "10px" }} value={form.logo_url ?? ""} onChange={(e) => set("logo_url", e.target.value || null)} placeholder="…or paste a logo image URL" />
@@ -319,7 +319,7 @@ export default function StorefrontCustomizer() {
             {FONT_PAIRINGS.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
           </select>
         </div>
-        <div style={{ marginTop: "14px", padding: "16px", border: "1px solid #EEE", borderRadius: "10px", background: "#FAFAF8" }}>
+        <div style={{ marginTop: "14px", padding: "16px", border: "1px solid #EEE", borderRadius: "10px", background: "#F6F6F7" }}>
           <div style={{ fontFamily: form.font_heading, fontSize: "24px", fontWeight: 700, color: "#2A2830" }}>The quick brown fox</div>
           <div style={{ fontFamily: form.font_body, fontSize: "14px", color: "#6B6B6B", marginTop: "4px" }}>Body text preview — jumps over the lazy dog. 1234567890</div>
         </div>
@@ -339,7 +339,7 @@ export default function StorefrontCustomizer() {
           ] as const).map((opt) => {
             const on = (form.card_style || "bordered") === opt.v;
             return (
-              <button key={opt.v} onClick={() => set("card_style", opt.v)} style={{ padding: "12px 10px", borderRadius: "8px", cursor: "pointer", textAlign: "center", border: on ? "2px solid #1C3557" : "1px solid #E3E3E3", background: on ? "#F0F4FA" : "#fff" }}>
+              <button key={opt.v} onClick={() => set("card_style", opt.v)} style={{ padding: "12px 10px", borderRadius: "8px", cursor: "pointer", textAlign: "center", border: on ? "2px solid #1A1A1A" : "1px solid #E3E3E3", background: on ? "#F0F4FA" : "#fff" }}>
                 <div style={{ height: "34px", margin: "0 auto 8px", width: "70%", background: opt.v === "flat" ? "transparent" : "#fff", border: opt.v === "flat" ? "none" : "1px solid #E2E2DE", borderRadius: "6px", boxShadow: opt.v === "elevated" ? "0 4px 12px rgba(0,0,0,.14)" : "none" }} />
                 <div style={{ fontSize: "12.5px", fontWeight: 700, color: "#2A2830" }}>{opt.label}</div>
                 <div style={{ fontSize: "11px", color: "#999" }}>{opt.hint}</div>
@@ -352,7 +352,7 @@ export default function StorefrontCustomizer() {
           <div>
             <label style={label}>Button shape — {form.button_radius >= 999 ? "Pill" : form.button_radius === 0 ? "Square" : `${form.button_radius}px`}</label>
             <input type="range" min={0} max={24} value={Math.min(form.button_radius ?? 4, 24)} onChange={(e) => set("button_radius", Number(e.target.value))} style={{ width: "100%" }} />
-            <button onClick={() => set("button_radius", form.button_radius >= 999 ? 4 : 999)} style={{ marginTop: "6px", background: form.button_radius >= 999 ? "#1C3557" : "#F0F4FA", color: form.button_radius >= 999 ? "#fff" : "#1C3557", border: "1px solid #C9D6E8", padding: "6px 14px", borderRadius: "999px", fontSize: "12px", fontWeight: 700, cursor: "pointer" }}>Pill</button>
+            <button onClick={() => set("button_radius", form.button_radius >= 999 ? 4 : 999)} style={{ marginTop: "6px", background: form.button_radius >= 999 ? "#1A1A1A" : "#F0F4FA", color: form.button_radius >= 999 ? "#fff" : "#1A1A1A", border: "1px solid #C9D6E8", padding: "6px 14px", borderRadius: "999px", fontSize: "12px", fontWeight: 700, cursor: "pointer" }}>Pill</button>
           </div>
           <div>
             <label style={label}>Corner roundness — {form.corner_radius ?? 6}px</label>
@@ -365,7 +365,7 @@ export default function StorefrontCustomizer() {
           {(["compact", "normal", "spacious"] as const).map((sp) => {
             const on = (form.section_spacing || "normal") === sp;
             return (
-              <button key={sp} onClick={() => set("section_spacing", sp)} style={{ flex: 1, padding: "10px", borderRadius: "8px", fontSize: "13px", fontWeight: 600, cursor: "pointer", textTransform: "capitalize", border: on ? "2px solid #1C3557" : "1px solid #E3E3E3", background: on ? "#F0F4FA" : "#fff", color: "#2A2830" }}>{sp}</button>
+              <button key={sp} onClick={() => set("section_spacing", sp)} style={{ flex: 1, padding: "10px", borderRadius: "8px", fontSize: "13px", fontWeight: 600, cursor: "pointer", textTransform: "capitalize", border: on ? "2px solid #1A1A1A" : "1px solid #E3E3E3", background: on ? "#F0F4FA" : "#fff", color: "#2A2830" }}>{sp}</button>
             );
           })}
         </div>
@@ -386,7 +386,7 @@ export default function StorefrontCustomizer() {
       <div style={card}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
           <div style={title}>NAVIGATION</div>
-          <Link href="/admin/storefront/menus" style={{ fontSize: "13px", fontWeight: 700, color: "#1C3557", textDecoration: "none" }}>Manage menus →</Link>
+          <Link href="/admin/storefront/menus" style={{ fontSize: "13px", fontWeight: 700, color: "#1A1A1A", textDecoration: "none" }}>Manage menus →</Link>
         </div>
         <p style={{ fontSize: "13px", color: "#7A7880", marginBottom: "16px" }}>Build menus under <strong>Manage menus</strong>, then choose which one appears where. Pages only show in a menu if you add them.</p>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
@@ -418,7 +418,7 @@ export default function StorefrontCustomizer() {
             { v: "logo_center", label: "Logo center", hint: "Menu · Logo · Actions" },
             { v: "logo_center_below", label: "Logo center, menu below", hint: "Logo on top row" },
           ] as const).map((opt) => (
-            <button key={opt.v} onClick={() => set("header_layout", opt.v)} style={{ padding: "16px 10px", borderRadius: "8px", cursor: "pointer", textAlign: "center", border: (form.header_layout || "logo_left") === opt.v ? "2px solid #1C3557" : "1px solid #E3E3E3", background: (form.header_layout || "logo_left") === opt.v ? "#F0F4FA" : "#fff" }}>
+            <button key={opt.v} onClick={() => set("header_layout", opt.v)} style={{ padding: "16px 10px", borderRadius: "8px", cursor: "pointer", textAlign: "center", border: (form.header_layout || "logo_left") === opt.v ? "2px solid #1A1A1A" : "1px solid #E3E3E3", background: (form.header_layout || "logo_left") === opt.v ? "#F0F4FA" : "#fff" }}>
               <div style={{ fontSize: "13px", fontWeight: 700, color: "#2A2830", marginBottom: "4px" }}>{opt.label}</div>
               <div style={{ fontSize: "11px", color: "#999" }}>{opt.hint}</div>
             </button>
@@ -449,7 +449,7 @@ export default function StorefrontCustomizer() {
           <label style={label}>Hero Image (optional)</label>
           <div style={{ display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
             {form.hero_image_url && <img src={form.hero_image_url} alt="hero" style={{ height: "48px", width: "auto", objectFit: "cover", border: "1px solid #eee", borderRadius: "6px" }} />}
-            <button onClick={() => setMediaPickerFor("hero")} style={{ background: "#fff", border: "1px solid #1C3557", color: "#1C3557", padding: "8px 16px", borderRadius: "8px", fontSize: "13px", fontWeight: 600, cursor: "pointer" }}>🖼 Choose Image</button>
+            <button onClick={() => setMediaPickerFor("hero")} style={{ background: "#fff", border: "1px solid #1A1A1A", color: "#1A1A1A", padding: "8px 16px", borderRadius: "8px", fontSize: "13px", fontWeight: 600, cursor: "pointer" }}>🖼 Choose Image</button>
             {form.hero_image_url && <button onClick={() => set("hero_image_url", null)} style={{ background: "transparent", border: "none", color: "#B91C1C", fontSize: "13px", cursor: "pointer" }}>Remove</button>}
           </div>
           <input style={{ ...input, marginTop: "10px" }} value={form.hero_image_url ?? ""} onChange={(e) => set("hero_image_url", e.target.value || null)} placeholder="…or paste an image URL" />
@@ -485,14 +485,14 @@ export default function StorefrontCustomizer() {
         <div style={{ marginBottom: "14px" }}>
           <label style={label}>Products to feature</label>
           <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap", marginBottom: "8px" }}>
-            <button onClick={() => setPicker("products")} style={{ background: "#F0F4FA", border: "1px solid #C9D6E8", color: "#1C3557", padding: "8px 16px", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: "pointer" }}>Select Products</button>
+            <button onClick={() => setPicker("products")} style={{ background: "#F6F6F7", border: "1px solid #C9D6E8", color: "#1A1A1A", padding: "8px 16px", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: "pointer" }}>Select Products</button>
             <span style={{ fontSize: "13px", color: "#7A7880" }}>{form.featured_product_ids.length} selected</span>
           </div>
           <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
             {form.featured_product_ids.map((id) => {
               const p = allProducts.find((x) => x.id === id);
               return (
-                <span key={id} style={{ display: "inline-flex", alignItems: "center", gap: "6px", background: "#F4F3EF", border: "1px solid #E3E3E3", borderRadius: "20px", padding: "4px 10px", fontSize: "12px" }}>
+                <span key={id} style={{ display: "inline-flex", alignItems: "center", gap: "6px", background: "#F6F6F7", border: "1px solid #E3E3E3", borderRadius: "20px", padding: "4px 10px", fontSize: "12px" }}>
                   {p?.name ?? "product"}
                   <button onClick={() => set("featured_product_ids", form.featured_product_ids.filter((x) => x !== id))} style={{ background: "none", border: "none", color: "#B91C1C", cursor: "pointer", fontSize: "14px", lineHeight: 1 }}>×</button>
                 </span>
@@ -524,14 +524,14 @@ export default function StorefrontCustomizer() {
         <div style={{ marginBottom: "14px" }}>
           <label style={label}>Categories to feature</label>
           <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap", marginBottom: "8px" }}>
-            <button onClick={() => setPicker("categories")} style={{ background: "#F0F4FA", border: "1px solid #C9D6E8", color: "#1C3557", padding: "8px 16px", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: "pointer" }}>Select Categories</button>
+            <button onClick={() => setPicker("categories")} style={{ background: "#F6F6F7", border: "1px solid #C9D6E8", color: "#1A1A1A", padding: "8px 16px", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: "pointer" }}>Select Categories</button>
             <span style={{ fontSize: "13px", color: "#7A7880" }}>{form.featured_category_ids.length} selected</span>
           </div>
           <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
             {form.featured_category_ids.map((id) => {
               const c = allCategories.find((x) => x.id === id);
               return (
-                <span key={id} style={{ display: "inline-flex", alignItems: "center", gap: "6px", background: "#F4F3EF", border: "1px solid #E3E3E3", borderRadius: "20px", padding: "4px 10px", fontSize: "12px" }}>
+                <span key={id} style={{ display: "inline-flex", alignItems: "center", gap: "6px", background: "#F6F6F7", border: "1px solid #E3E3E3", borderRadius: "20px", padding: "4px 10px", fontSize: "12px" }}>
                   {c?.name ?? "category"}
                   <button onClick={() => set("featured_category_ids", form.featured_category_ids.filter((x) => x !== id))} style={{ background: "none", border: "none", color: "#B91C1C", cursor: "pointer", fontSize: "14px", lineHeight: 1 }}>×</button>
                 </span>
@@ -626,7 +626,7 @@ export default function StorefrontCustomizer() {
 
       {!readOnly && (
         <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "40px" }}>
-          <button onClick={handleSave} disabled={saving} style={{ background: saving ? "#9ca3af" : "#1C3557", color: "#fff", border: "none", padding: "12px 28px", borderRadius: "8px", fontSize: "14px", fontWeight: 700, cursor: saving ? "not-allowed" : "pointer" }}>{saving ? "Saving…" : "Save Changes"}</button>
+          <button onClick={handleSave} disabled={saving} style={{ background: saving ? "#9ca3af" : "#1A1A1A", color: "#fff", border: "none", padding: "12px 28px", borderRadius: "8px", fontSize: "14px", fontWeight: 700, cursor: saving ? "not-allowed" : "pointer" }}>{saving ? "Saving…" : "Save Changes"}</button>
         </div>
       )}
       </fieldset>

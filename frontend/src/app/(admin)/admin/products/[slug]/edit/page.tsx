@@ -604,7 +604,7 @@ export default function AdminProductEditPage() {
                                   title="Move down">▼</button>
                               </div>
                               {/* Thumbnail */}
-                              <div style={{ width: "64px", height: "64px", borderRadius: "6px", overflow: "hidden", flexShrink: 0, border: "1px solid #E3E3E3", background: "#f5f5f5" }}>
+                              <div style={{ width: "64px", height: "64px", borderRadius: "6px", overflow: "hidden", flexShrink: 0, border: "1px solid #E3E3E3", background: "#F6F6F7" }}>
                                 <img src={img.url_medium} alt={img.alt_text ?? ""} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                               </div>
                               {/* Controls */}
@@ -651,7 +651,7 @@ export default function AdminProductEditPage() {
             {/* Upload tile */}
             <div
               onClick={() => fileInputRef.current?.click()}
-              style={{ borderRadius: "8px", border: "2px dashed #E3E3E3", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", cursor: "pointer", background: "#FAFAFA", padding: "16px", transition: "border-color .2s" }}
+              style={{ borderRadius: "8px", border: "2px dashed #E3E3E3", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", cursor: "pointer", background: "#F6F6F7", padding: "16px", transition: "border-color .2s" }}
               onMouseEnter={e => (e.currentTarget.style.borderColor = "#1A5CFF")}
               onMouseLeave={e => (e.currentTarget.style.borderColor = "#E3E3E3")}
             >
@@ -757,7 +757,7 @@ export default function AdminProductEditPage() {
                   <div style={{ overflowX: "auto" }}>
                   <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px", minWidth: "600px" }}>
                     <thead>
-                      <tr style={{ borderBottom: "1px solid #E3E3E3", background: "#FAFAFA" }}>
+                      <tr style={{ borderBottom: "1px solid #E3E3E3", background: "#F6F6F7" }}>
                         <th style={{ ...thStyle, width: "36px" }}>
                           <input
                             type="checkbox"
@@ -1197,7 +1197,7 @@ export default function AdminProductEditPage() {
                 </div>
               </div>
             ) : (
-              <div style={{ border: "1px solid #E3E3E3", borderRadius: "8px", padding: "14px 16px", background: "#FAFAFA" }}>
+              <div style={{ border: "1px solid #E3E3E3", borderRadius: "8px", padding: "14px 16px", background: "#F6F6F7" }}>
                 <div style={{ fontSize: "11px", color: "#059669", marginBottom: "3px" }}>
                   af-apparel.com/products/{product.slug}
                 </div>
@@ -1219,7 +1219,7 @@ export default function AdminProductEditPage() {
               return (
                 <>
                   {flyer && (
-                    <div style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 12px", border: "1px solid #E3E3E3", borderRadius: "8px", background: "#FAFAFA", marginBottom: "12px" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 12px", border: "1px solid #E3E3E3", borderRadius: "8px", background: "#F6F6F7", marginBottom: "12px" }}>
                       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#E8242A" strokeWidth={2}><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontSize: "13px", fontWeight: 600, color: "#2A2830", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{flyer.file_name}</div>

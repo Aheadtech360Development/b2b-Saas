@@ -90,7 +90,7 @@ export function MediaPicker({ onSelect, onSelectMultiple, onClose, multiple }: {
           </div>
           <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
             <input ref={fileRef} type="file" accept="image/*" multiple={multiple} onChange={upload} style={{ display: "none" }} />
-            <button onClick={() => fileRef.current?.click()} disabled={uploading || !configured} style={{ ...btn, background: "#1C3557", color: "#fff", opacity: uploading || !configured ? 0.6 : 1 }}>
+            <button onClick={() => fileRef.current?.click()} disabled={uploading || !configured} style={{ ...btn, background: "#1A1A1A", color: "#fff", opacity: uploading || !configured ? 0.6 : 1 }}>
               {uploading ? "Uploading…" : "⬆ Upload from device"}
             </button>
             <button onClick={onClose} style={{ background: "none", border: "none", fontSize: "24px", cursor: "pointer", color: "#999", lineHeight: 1 }}>×</button>
@@ -119,8 +119,8 @@ export function MediaPicker({ onSelect, onSelectMultiple, onClose, multiple }: {
                 const isSel = selected.includes(m.url);
                 return (
                   <button key={m.file_id} onClick={() => toggle(m.url)} title={m.name}
-                    style={{ position: "relative", padding: 0, border: isSel ? "2px solid #1A1A1A" : "1px solid #E3E3E3", borderRadius: "8px", overflow: "hidden", cursor: "pointer", background: "#F4F3EF", aspectRatio: "1 / 1" }}
-                    onMouseOver={(e) => { if (!isSel) e.currentTarget.style.borderColor = "#1C3557"; }}
+                    style={{ position: "relative", padding: 0, border: isSel ? "2px solid #1A1A1A" : "1px solid #E3E3E3", borderRadius: "8px", overflow: "hidden", cursor: "pointer", background: "#F6F6F7", aspectRatio: "1 / 1" }}
+                    onMouseOver={(e) => { if (!isSel) e.currentTarget.style.borderColor = "#1A1A1A"; }}
                     onMouseOut={(e) => { if (!isSel) e.currentTarget.style.borderColor = "#E3E3E3"; }}>
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src={m.thumbnail_url || m.url} alt={m.name} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block", opacity: isSel ? 0.85 : 1 }} />
@@ -144,12 +144,12 @@ export function MediaPicker({ onSelect, onSelectMultiple, onClose, multiple }: {
               else { onSelect?.(u); onClose(); }
             }}
             disabled={!urlInput.trim()}
-            style={{ ...btn, background: "#F0F4FA", border: "1px solid #C9D6E8", color: "#1C3557", opacity: urlInput.trim() ? 1 : 0.5 }}
+            style={{ ...btn, background: "#F6F6F7", border: "1px solid #C9D6E8", color: "#1A1A1A", opacity: urlInput.trim() ? 1 : 0.5 }}
           >
             {multiple ? "Add URL" : "Use URL"}
           </button>
           {multiple && (
-            <button onClick={done} disabled={selected.length === 0} style={{ ...btn, background: selected.length ? "#1C3557" : "#9ca3af", color: "#fff", cursor: selected.length ? "pointer" : "not-allowed" }}>
+            <button onClick={done} disabled={selected.length === 0} style={{ ...btn, background: selected.length ? "#1A1A1A" : "#9ca3af", color: "#fff", cursor: selected.length ? "pointer" : "not-allowed" }}>
               Add {selected.length > 0 ? `${selected.length} ` : ""}image{selected.length === 1 ? "" : "s"}
             </button>
           )}

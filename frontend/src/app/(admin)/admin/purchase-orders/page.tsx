@@ -6,10 +6,10 @@ import { apiClient } from "@/lib/api-client";
 
 const STATUS_COLORS: Record<string, { bg: string; color: string }> = {
   draft:      { bg: "#F3F4F6", color: "#6B7280" },
-  sent:       { bg: "#DBEAFE", color: "#1D4ED8" },
+  sent:       { bg: "#DBEAFE", color: "#1A1A1A" },
   partial:    { bg: "#FEF3C7", color: "#D97706" },
   received:   { bg: "#D1FAE5", color: "#065F46" },
-  closed:     { bg: "#1B3A5C", color: "#fff" },
+  closed:     { bg: "#1A1A1A", color: "#fff" },
   cancelled:  { bg: "#FEE2E2", color: "#991B1B" },
 };
 
@@ -45,7 +45,7 @@ export default function PurchaseOrdersPage() {
     <div style={{ padding: "32px", maxWidth: "1200px", margin: "0 auto" }}>
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "28px", flexWrap: "wrap", gap: "12px" }}>
-        <h1 style={{ fontSize: "22px", fontWeight: 700, color: "#1B3A5C", letterSpacing: ".04em" }}>
+        <h1 style={{ fontSize: "22px", fontWeight: 700, color: "#1A1A1A", letterSpacing: ".04em" }}>
           PURCHASE ORDERS
         </h1>
         <div style={{ display: "flex", gap: "10px" }}>
@@ -57,7 +57,7 @@ export default function PurchaseOrdersPage() {
             Manufacturers
           </Link>
           <Link href="/admin/purchase-orders/create" style={{
-            padding: "9px 18px", borderRadius: "8px", background: "#1B3A5C",
+            padding: "9px 18px", borderRadius: "8px", background: "#1A1A1A",
             color: "#fff", fontSize: "13px", fontWeight: 600, textDecoration: "none",
           }}>
             + Create PO
@@ -74,7 +74,7 @@ export default function PurchaseOrdersPage() {
         ].map(card => (
           <div key={card.label} style={{ background: "#fff", border: "1px solid #E3E3E3", borderRadius: "10px", padding: "20px" }}>
             <div style={{ fontSize: "12px", color: "#6B7280", marginBottom: "6px", textTransform: "uppercase", letterSpacing: ".07em" }}>{card.label}</div>
-            <div style={{ fontSize: "24px", fontWeight: 700, color: "#1B3A5C" }}>{card.value}</div>
+            <div style={{ fontSize: "24px", fontWeight: 700, color: "#1A1A1A" }}>{card.value}</div>
           </div>
         ))}
       </div>
@@ -83,7 +83,7 @@ export default function PurchaseOrdersPage() {
       <div style={{ background: "#fff", border: "1px solid #E3E3E3", borderRadius: "10px", overflow: "hidden" }}>
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
-            <tr style={{ background: "#F9FAFB", borderBottom: "1px solid #E3E3E3" }}>
+            <tr style={{ background: "#F6F6F7", borderBottom: "1px solid #E3E3E3" }}>
               {["PO NUMBER", "MANUFACTURER", "DATE", "EXP. DELIVERY", "ITEMS", "TOTAL", "STATUS", ""].map(h => (
                 <th key={h} style={{ padding: "12px 16px", textAlign: "left", fontSize: "11px", fontWeight: 700, color: "#6B7280", letterSpacing: ".07em" }}>{h}</th>
               ))}
@@ -102,7 +102,7 @@ export default function PurchaseOrdersPage() {
                   onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = "#F9FAFB"}
                   onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = "transparent"}
                 >
-                  <td style={{ padding: "14px 16px", fontWeight: 700, color: "#1B3A5C", fontSize: "13px" }}>{po.po_number}</td>
+                  <td style={{ padding: "14px 16px", fontWeight: 700, color: "#1A1A1A", fontSize: "13px" }}>{po.po_number}</td>
                   <td style={{ padding: "14px 16px", fontSize: "13px", color: "#374151" }}>{po.manufacturer_name || "—"}</td>
                   <td style={{ padding: "14px 16px", fontSize: "13px", color: "#6B7280" }}>{po.order_date ? new Date(po.order_date).toLocaleDateString() : "—"}</td>
                   <td style={{ padding: "14px 16px", fontSize: "13px", color: "#6B7280" }}>{po.expected_delivery ? new Date(po.expected_delivery).toLocaleDateString() : "—"}</td>

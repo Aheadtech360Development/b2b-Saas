@@ -226,12 +226,12 @@ function BlockEditor({
           <thead>
             <tr>
               {rows[0]?.map((_, ci) => (
-                <th key={ci} style={{ padding: "4px", border: "1px solid #E3E3E3", background: "#F9F8F4" }}>
+                <th key={ci} style={{ padding: "4px", border: "1px solid #E3E3E3", background: "#F6F6F7" }}>
                   <button type="button" onClick={() => tableRemoveCol(rows, ci)}
                     style={{ ...btnSt, color: "#E8242A", fontSize: "10px", width: "100%" }}>✕ Col</button>
                 </th>
               ))}
-              <th style={{ padding: "4px", border: "1px solid #E3E3E3", background: "#F9F8F4" }}>
+              <th style={{ padding: "4px", border: "1px solid #E3E3E3", background: "#F6F6F7" }}>
                 <button type="button" onClick={() => tableAddCol(rows)} style={{ ...btnSt, fontSize: "10px" }}>+ Col</button>
               </th>
             </tr>
@@ -262,7 +262,7 @@ function BlockEditor({
 
   return (
     <div style={{ border: "1.5px solid #E3E3E3", borderRadius: "8px", background: "#fff", marginBottom: "8px" }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px", background: "#F9F8F4", borderBottom: "1px solid #E3E3E3", borderRadius: "8px 8px 0 0" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px", background: "#F6F6F7", borderBottom: "1px solid #E3E3E3", borderRadius: "8px 8px 0 0" }}>
         <span style={{ fontSize: "12px", fontWeight: 700, color: "#555", display: "flex", alignItems: "center", gap: "6px" }}>
           <span style={{ fontSize: "14px" }}>{typeInfo?.icon}</span>
           {typeInfo?.label}

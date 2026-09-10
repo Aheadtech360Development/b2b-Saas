@@ -162,7 +162,7 @@ export default function ShippingLabelsPage() {
       <div style={{ background: "#fff", border: "1px solid #E3E3E3", borderRadius: "10px", overflow: "hidden" }}>
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
           <thead>
-            <tr style={{ background: "#FAFAF8", borderBottom: "1px solid #E3E3E3" }}>
+            <tr style={{ background: "#F6F6F7", borderBottom: "1px solid #E3E3E3" }}>
               {["Order #", "Company", "Package Type", "Weight (lbs)", "Courier", "Tracking #", "Label", "Delivery", "Shipped", "Actions"].map(h => (
                 <th key={h} style={{ padding: "11px 14px", textAlign: "left" as const, fontSize: "11px", fontWeight: 700, color: "#7A7880", textTransform: "uppercase" as const, letterSpacing: ".06em", whiteSpace: "nowrap" as const }}>
                   {h}

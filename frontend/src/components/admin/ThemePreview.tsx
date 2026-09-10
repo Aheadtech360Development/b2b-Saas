@@ -8,7 +8,7 @@ import type { StoreTheme } from "@/lib/storeThemes";
 
 export function ThemePreview({ theme }: { theme: StoreTheme }) {
   const b = theme.branding;
-  const primary = b.primary_color || "#1C3557";
+  const primary = b.primary_color || "#1A1A1A";
   const heroBg = b.hero_bg_color || b.secondary_color || "#F4F6FA";
   const heroText = b.hero_text_color || "#1A1A1A";
   const heading = b.font_heading || "'Fraunces', serif";

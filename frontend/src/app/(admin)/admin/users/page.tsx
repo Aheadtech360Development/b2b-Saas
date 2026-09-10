@@ -177,7 +177,7 @@ function UserModal({
                 {form.role.startsWith("custom:")
                   ? customRoles.find(r => `custom:${r.id}` === form.role)?.scopes.join(", ")
                   : ASSIGNABLE_ROLES.find(r => r.value === form.role)?.desc}
-                {" · "}<Link href="/admin/users/roles" style={{ color: "var(--brand-primary,#1C3557)", fontWeight: 600 }}>Manage roles</Link>
+                {" · "}<Link href="/admin/users/roles" style={{ color: "#1A1A1A", fontWeight: 600 }}>Manage roles</Link>
               </div>
             </div>
             {isEdit && (

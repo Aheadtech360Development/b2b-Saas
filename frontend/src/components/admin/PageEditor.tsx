@@ -16,7 +16,7 @@ import type { Category } from "@/types/product.types";
 const label: React.CSSProperties = { display: "block", fontSize: "12px", fontWeight: 600, color: "#555", marginBottom: "6px", textTransform: "uppercase", letterSpacing: ".04em" };
 const input: React.CSSProperties = { width: "100%", border: "1px solid #E3E3E3", borderRadius: "8px", padding: "10px 12px", fontSize: "14px", outline: "none", boxSizing: "border-box", background: "#fff" };
 const card: React.CSSProperties = { background: "#fff", border: "1px solid #E3E3E3", borderRadius: "12px", padding: "20px", marginBottom: "18px" };
-const btnPrimary: React.CSSProperties = { background: "#1C3557", color: "#fff", border: "none", padding: "10px 22px", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: "pointer" };
+const btnPrimary: React.CSSProperties = { background: "#1A1A1A", color: "#fff", border: "none", padding: "10px 22px", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: "pointer" };
 
 export default function PageEditor({ id, onBack }: { id: string; onBack: () => void }) {
   const { user } = useAuthStore();
@@ -70,12 +70,12 @@ export default function PageEditor({ id, onBack }: { id: string; onBack: () => v
       {/* Header */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: "22px", flexWrap: "wrap", gap: "12px" }}>
         <div>
-          <button onClick={onBack} style={{ background: "none", border: "none", color: "#1C3557", fontSize: "13px", fontWeight: 700, cursor: "pointer", padding: 0, marginBottom: "6px" }}>← All Pages</button>
+          <button onClick={onBack} style={{ background: "none", border: "none", color: "#1A1A1A", fontSize: "13px", fontWeight: 700, cursor: "pointer", padding: 0, marginBottom: "6px" }}>← All Pages</button>
           <h1 style={{ fontFamily: "var(--font-bebas), sans-serif", fontSize: "30px", color: "#2A2830", letterSpacing: "-0.01em", lineHeight: 1 }}>{page.title || "Untitled"}</h1>
           <p style={{ fontSize: "12px", color: "#7A7880", marginTop: "4px" }}>/{page.slug}</p>
         </div>
         <div style={{ display: "flex", gap: "10px" }}>
-          <button onClick={() => window.open(window.location.origin + "/" + page.slug, "_blank")} style={{ background: "#fff", border: "1px solid #1C3557", color: "#1C3557", padding: "10px 18px", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: "pointer" }}>Preview ↗</button>
+          <button onClick={() => window.open(window.location.origin + "/" + page.slug, "_blank")} style={{ background: "#fff", border: "1px solid #1A1A1A", color: "#1A1A1A", padding: "10px 18px", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: "pointer" }}>Preview ↗</button>
           {!readOnly && <button onClick={handleSave} disabled={saving} style={{ ...btnPrimary, opacity: saving ? 0.6 : 1 }}>{saving ? "Saving…" : "Save Page"}</button>}
         </div>
       </div>

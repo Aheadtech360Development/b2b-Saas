@@ -13,7 +13,7 @@ import PageEditor from "@/components/admin/PageEditor";
 /** Mini stacked-blocks thumbnail representing a template's section layout. */
 function TemplatePreview({ blocks }: { blocks: PageTemplate["preview"] }) {
   const style: Record<string, React.CSSProperties> = {
-    hero: { height: "22px", background: "linear-gradient(90deg,#1C3557,#3E5C82)" },
+    hero: { height: "22px", background: "linear-gradient(90deg,#1A1A1A,#3E5C82)" },
     image_text: { height: "16px", background: "#D9E2EF" },
     rich_text: { height: "12px", background: "#ECEBE5" },
   };
@@ -94,7 +94,7 @@ export default function PagesManager() {
 
   const card: React.CSSProperties = { background: "#fff", border: "1px solid #E3E3E3", borderRadius: "12px" };
   const input: React.CSSProperties = { border: "1px solid #E3E3E3", borderRadius: "8px", padding: "10px 12px", fontSize: "14px", outline: "none", boxSizing: "border-box" };
-  const btnPrimary: React.CSSProperties = { background: "#1C3557", color: "#fff", border: "none", padding: "10px 20px", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: "pointer" };
+  const btnPrimary: React.CSSProperties = { background: "#1A1A1A", color: "#fff", border: "none", padding: "10px 20px", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: "pointer" };
 
   return (
     <div style={{ fontFamily: "var(--font-jakarta), sans-serif", maxWidth: "920px" }}>
@@ -174,7 +174,7 @@ export default function PagesManager() {
                   {p.is_published ? "Published" : "Draft"}
                 </button>
               )}
-              <button onClick={() => setEditingId(p.id)} style={{ background: "#F0F4FA", border: "1px solid #C9D6E8", color: "#1C3557", padding: "7px 16px", borderRadius: "8px", fontSize: "12px", fontWeight: 700, cursor: "pointer" }}>
+              <button onClick={() => setEditingId(p.id)} style={{ background: "#F6F6F7", border: "1px solid #C9D6E8", color: "#1A1A1A", padding: "7px 16px", borderRadius: "8px", fontSize: "12px", fontWeight: 700, cursor: "pointer" }}>
                 {readOnly ? "View" : "Edit"}
               </button>
               {!readOnly && (

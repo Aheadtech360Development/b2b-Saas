@@ -241,7 +241,7 @@ export default function DiscountsPage() {
       <div style={{ background: "#fff", border: "1.5px solid #E3E3E3", borderRadius: "10px", overflow: "hidden" }}>
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
           <thead>
-            <tr style={{ background: "#F9F8F5", borderBottom: "1.5px solid #E3E3E3" }}>
+            <tr style={{ background: "#F6F6F7", borderBottom: "1.5px solid #E3E3E3" }}>
               {["Code", "Type / Value", "Usage", "Expiry", "Eligibility", "Status", ""].map(h => (
                 <th key={h} style={{ padding: "11px 16px", textAlign: "left", fontWeight: 700, fontSize: "11px", textTransform: "uppercase", letterSpacing: ".06em", color: "#7A7880", whiteSpace: "nowrap" }}>{h}</th>
               ))}

@@ -152,7 +152,7 @@ export default function AdminProductSpecsPage() {
         <div style={{ background: "#fff", border: "1.5px solid #E3E3E3", borderRadius: "12px", overflow: "hidden" }}>
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
-              <tr style={{ borderBottom: "1px solid #E3E3E3", background: "#F9F8F5" }}>
+              <tr style={{ borderBottom: "1px solid #E3E3E3", background: "#F6F6F7" }}>
                 {["Title", "Description", "PDF", "Sort", "Active", ""].map(h => (
                   <th key={h} style={{ padding: "12px 16px", textAlign: "left", fontSize: "11px", fontWeight: 700, color: "#888", textTransform: "uppercase", letterSpacing: ".06em" }}>{h}</th>
                 ))}

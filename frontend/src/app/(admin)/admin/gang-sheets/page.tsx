@@ -44,7 +44,7 @@ const LABEL: React.CSSProperties = {
   marginBottom: "4px",
 };
 const BTN: React.CSSProperties = {
-  background: "var(--brand-primary, #1C3557)",
+  background: "#1A1A1A",
   color: "#fff",
   border: "none",
   padding: "9px 16px",
@@ -117,8 +117,8 @@ export default function AdminGangSheetsPage() {
             style={{
               padding: "8px 16px",
               borderRadius: "6px",
-              border: "1px solid " + (tab === t ? "var(--brand-primary, #1C3557)" : "#E8E6E1"),
-              background: tab === t ? "var(--brand-primary, #1C3557)" : "#fff",
+              border: "1px solid " + (tab === t ? "#1A1A1A" : "#E8E6E1"),
+              background: tab === t ? "#1A1A1A" : "#fff",
               color: tab === t ? "#fff" : "#555",
               fontSize: "13px",
               fontWeight: 600,
@@ -326,7 +326,7 @@ function ProductsTab({ onGoToSizes }: { onGoToSizes: () => void }) {
         <div style={{ ...CARD, padding: 0, overflow: "hidden" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
             <thead>
-              <tr style={{ background: "#FAFAF8", borderBottom: "1px solid #E8E6E1" }}>
+              <tr style={{ background: "#F6F6F7", borderBottom: "1px solid #E8E6E1" }}>
                 {["Product", "Builder", "Type", "Sizes", ""].map((h) => (
                   <th key={h} style={{ padding: "10px 14px", textAlign: "left", fontSize: "11px", fontWeight: 700, color: "#6B6B6B", textTransform: "uppercase" }}>{h}</th>
                 ))}
@@ -360,7 +360,7 @@ function ProductsTab({ onGoToSizes }: { onGoToSizes: () => void }) {
                   <td style={{ padding: "11px 14px", textAlign: "right", whiteSpace: "nowrap" }}>
                     <a href={`/products/${p.slug}`} target="_blank" rel="noopener noreferrer" title="View on store" style={{ textDecoration: "none", fontSize: "15px", marginRight: "12px" }}>👁</a>
                     <button title="Copy store link" onClick={() => { try { navigator.clipboard?.writeText(`${window.location.origin}/products/${p.slug}`); } catch { /* ignore */ } }} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "14px", marginRight: "12px" }}>🔗</button>
-                    <button title="Edit builder & sizes" onClick={() => setEditing(p)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "14px", color: "var(--brand-primary, #1C3557)", fontWeight: 700 }}>✎</button>
+                    <button title="Edit builder & sizes" onClick={() => setEditing(p)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "14px", color: "#1A1A1A", fontWeight: 700 }}>✎</button>
                   </td>
                 </tr>
               ))}
@@ -464,7 +464,7 @@ function ProductEditor({ product, onBack, onGoToSizes }: { product: GangSheetPro
         <div style={{ ...CARD }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px", flexWrap: "wrap", gap: "8px" }}>
             <div style={{ fontSize: "14px", fontWeight: 700 }}>Sizes &amp; Prices</div>
-            <button onClick={addStandardFeet} style={{ ...BTN, background: "#fff", color: "var(--brand-primary, #1C3557)", border: "1px solid #E3E3E3" }}>
+            <button onClick={addStandardFeet} style={{ ...BTN, background: "#fff", color: "#1A1A1A", border: "1px solid #E3E3E3" }}>
               + Add standard sizes (2–20 ft)
             </button>
           </div>
@@ -474,7 +474,7 @@ function ProductEditor({ product, onBack, onGoToSizes }: { product: GangSheetPro
           <div style={{ overflowX: "auto" }}>
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px", minWidth: "520px" }}>
               <thead>
-                <tr style={{ background: "#FAFAF8" }}>
+                <tr style={{ background: "#F6F6F7" }}>
                   {["Size name", "Width (in)", "Height (in)", "Price ($)", ""].map((h) => (
                     <th key={h} style={{ padding: "7px 10px", textAlign: "left", fontSize: "10px", fontWeight: 700, color: "#6B6B6B", textTransform: "uppercase" }}>{h}</th>
                   ))}
@@ -519,7 +519,7 @@ function ProductEditor({ product, onBack, onGoToSizes }: { product: GangSheetPro
           <div style={{ overflowX: "auto" }}>
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px", minWidth: "560px" }}>
               <thead>
-                <tr style={{ background: "#FAFAF8" }}>
+                <tr style={{ background: "#F6F6F7" }}>
                   {["~Max height (in)", "Max area (sq in)", "Price ($/sq in)", "Discount (%)", ""].map((h) => (
                     <th key={h} style={{ padding: "7px 10px", textAlign: "left", fontSize: "10px", fontWeight: 700, color: "#6B6B6B", textTransform: "uppercase" }}>{h}</th>
                   ))}
@@ -587,7 +587,7 @@ function OrdersTab() {
         <div style={{ ...CARD, padding: 0, overflow: "hidden" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
             <thead>
-              <tr style={{ background: "#FAFAF8", borderBottom: "1px solid #E8E6E1" }}>
+              <tr style={{ background: "#F6F6F7", borderBottom: "1px solid #E8E6E1" }}>
                 {["Reference", "Customer", "Sheet", "Qty", "Total", "Status", ""].map((h) => (
                   <th key={h} style={{ padding: "10px 14px", textAlign: "left", fontSize: "11px", fontWeight: 700, color: "#6B6B6B", textTransform: "uppercase" }}>{h}</th>
                 ))}
@@ -614,7 +614,7 @@ function OrdersTab() {
                       ) : o.order_id ? (
                         <span style={{ marginLeft: "6px", background: "#FEF3C7", color: "#92400E", padding: "2px 8px", borderRadius: "20px", fontSize: "10px", fontWeight: 700 }}>ORDERED</span>
                       ) : (
-                        <span style={{ marginLeft: "6px", background: "#F3F4F6", color: "#6B7280", padding: "2px 8px", borderRadius: "20px", fontSize: "10px", fontWeight: 700 }}>DRAFT</span>
+                        <span style={{ marginLeft: "6px", background: "#F6F6F7", color: "#6B7280", padding: "2px 8px", borderRadius: "20px", fontSize: "10px", fontWeight: 700 }}>DRAFT</span>
                       )}
                       {o.revision_count > 0 && (
                         <span style={{ marginLeft: "6px", fontSize: "11px", color: "#9A3412" }}>
@@ -625,7 +625,7 @@ function OrdersTab() {
                     <td style={{ padding: "11px 14px", textAlign: "right" }}>
                       <button
                         onClick={() => gangSheetsService.adminOrder(o.id).then(setSelected).catch(() => {})}
-                        style={{ background: "none", border: "none", color: "var(--brand-primary, #1C3557)", fontWeight: 700, cursor: "pointer", fontSize: "13px" }}
+                        style={{ background: "none", border: "none", color: "#1A1A1A", fontWeight: 700, cursor: "pointer", fontSize: "13px" }}
                       >
                         Review →
                       </button>
@@ -704,14 +704,14 @@ function ReviewModal({ order, onClose, onChanged }: { order: GangSheetOrder; onC
               ) : order.order_id ? (
                 <span style={{ marginLeft: "10px", background: "#FEF3C7", color: "#92400E", padding: "2px 10px", borderRadius: "20px", fontSize: "11px", fontWeight: 700, verticalAlign: "middle" }}>ORDERED · unpaid</span>
               ) : (
-                <span style={{ marginLeft: "10px", background: "#F3F4F6", color: "#6B7280", padding: "2px 10px", borderRadius: "20px", fontSize: "11px", fontWeight: 700, verticalAlign: "middle" }}>DRAFT · not checked out</span>
+                <span style={{ marginLeft: "10px", background: "#F6F6F7", color: "#6B7280", padding: "2px 10px", borderRadius: "20px", fontSize: "11px", fontWeight: 700, verticalAlign: "middle" }}>DRAFT · not checked out</span>
               )}
             </h2>
             <div style={{ fontSize: "12px", color: "#888" }}>
               {order.sheet_name} · {order.sheet_width_in}″ × {order.sheet_height_in}″ · {order.sheet_quantity} sheet(s) · ${order.subtotal.toFixed(2)}
             </div>
             {order.order_id && (
-              <a href={`/admin/orders/${order.order_id}`} style={{ fontSize: "12px", color: "var(--brand-primary, #1C3557)", fontWeight: 700, textDecoration: "none" }}>
+              <a href={`/admin/orders/${order.order_id}`} style={{ fontSize: "12px", color: "#1A1A1A", fontWeight: 700, textDecoration: "none" }}>
                 View linked order →
               </a>
             )}
@@ -731,7 +731,7 @@ function ReviewModal({ order, onClose, onChanged }: { order: GangSheetOrder; onC
         ) : null}
 
         {order.customer_notes && (
-          <div style={{ background: "#FAFAF8", border: "1px solid #EFEDE8", borderRadius: "8px", padding: "12px", fontSize: "13px", marginBottom: "16px" }}>
+          <div style={{ background: "#F6F6F7", border: "1px solid #EFEDE8", borderRadius: "8px", padding: "12px", fontSize: "13px", marginBottom: "16px" }}>
             <div style={{ ...LABEL, marginBottom: "6px" }}>Customer notes</div>
             {order.customer_notes}
           </div>
@@ -742,7 +742,7 @@ function ReviewModal({ order, onClose, onChanged }: { order: GangSheetOrder; onC
           {(order.artworks ?? []).map((a, i) => (
             <div key={a.id ?? i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 12px", borderBottom: i < (order.artworks?.length ?? 0) - 1 ? "1px solid #F1EFEB" : "none", fontSize: "13px" }}>
               <div style={{ minWidth: 0 }}>
-                <a href={a.file_url} target="_blank" rel="noopener noreferrer" style={{ color: "var(--brand-primary, #1C3557)", fontWeight: 600, textDecoration: "none", wordBreak: "break-all" }}>
+                <a href={a.file_url} target="_blank" rel="noopener noreferrer" style={{ color: "#1A1A1A", fontWeight: 600, textDecoration: "none", wordBreak: "break-all" }}>
                   {a.file_name}
                 </a>
                 <div style={{ color: "#888", fontSize: "12px" }}>
@@ -767,12 +767,12 @@ function ReviewModal({ order, onClose, onChanged }: { order: GangSheetOrder; onC
               onChange={(l) => { setLayout(l); setLayoutMsg(null); }}
             />
             <div style={{ display: "flex", alignItems: "center", gap: "10px", marginTop: "12px" }}>
-              <button onClick={saveLayout} disabled={savingLayout} style={{ ...BTN, background: "#1B3A5C" }}>
+              <button onClick={saveLayout} disabled={savingLayout} style={{ ...BTN, background: "#1A1A1A" }}>
                 {savingLayout ? "Saving…" : "Save layout"}
               </button>
               <button
                 onClick={() => openSheetPdf({ reference: order.reference, customerName: order.contact_name, sheet: { width_in: order.sheet_width_in, height_in: order.sheet_height_in, bleed_in: size.bleed_in }, artworks: order.artworks ?? [], layout })}
-                style={{ ...BTN, background: "#fff", color: "#1B3A5C", border: "1px solid #E3E3E3" }}
+                style={{ ...BTN, background: "#fff", color: "#1A1A1A", border: "1px solid #E3E3E3" }}
               >
                 Download PDF
               </button>
@@ -807,7 +807,7 @@ function ReviewModal({ order, onClose, onChanged }: { order: GangSheetOrder; onC
         {/* Version history */}
         {(order.versions?.length ?? 0) > 1 && (
           <div style={{ marginBottom: "16px" }}>
-            <button onClick={() => setShowVersions((v) => !v)} style={{ background: "none", border: "none", color: "var(--brand-primary, #1C3557)", fontWeight: 700, fontSize: "13px", cursor: "pointer", padding: 0 }}>
+            <button onClick={() => setShowVersions((v) => !v)} style={{ background: "none", border: "none", color: "#1A1A1A", fontWeight: 700, fontSize: "13px", cursor: "pointer", padding: 0 }}>
               {showVersions ? "▾" : "▸"} Version history ({order.versions!.length})
             </button>
             {showVersions && (
@@ -949,7 +949,7 @@ function SizesTab() {
       <div style={{ ...CARD, marginBottom: "18px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px", flexWrap: "wrap", gap: "8px" }}>
           <div style={{ fontSize: "14px", fontWeight: 700 }}>Add a sheet size</div>
-          <button onClick={seedStandard} disabled={busy} style={{ ...BTN, background: "#fff", color: "var(--brand-primary, #1C3557)", border: "1px solid #E3E3E3" }}>
+          <button onClick={seedStandard} disabled={busy} style={{ ...BTN, background: "#fff", color: "#1A1A1A", border: "1px solid #E3E3E3" }}>
             + Add 7 standard DTF sizes
           </button>
         </div>
@@ -961,8 +961,8 @@ function SizesTab() {
             {([["fixed", "Fixed size & price"], ["custom_length", "Custom length (per inch)"]] as const).map(([mode, lbl]) => (
               <button key={mode} type="button" onClick={() => setDraft({ ...draft, pricing_mode: mode })}
                 style={{ padding: "8px 14px", borderRadius: "8px", fontSize: "13px", fontWeight: 600, cursor: "pointer",
-                  border: "1px solid " + (draft.pricing_mode === mode ? "var(--brand-primary, #1C3557)" : "#E3E3E3"),
-                  background: draft.pricing_mode === mode ? "var(--brand-primary, #1C3557)" : "#fff",
+                  border: "1px solid " + (draft.pricing_mode === mode ? "#1A1A1A" : "#E3E3E3"),
+                  background: draft.pricing_mode === mode ? "#1A1A1A" : "#fff",
                   color: draft.pricing_mode === mode ? "#fff" : "#555" }}>
                 {lbl}
               </button>
@@ -1027,7 +1027,7 @@ function SizesTab() {
         <div style={{ ...CARD, padding: 0, overflow: "hidden" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
             <thead>
-              <tr style={{ background: "#FAFAF8", borderBottom: "1px solid #E8E6E1" }}>
+              <tr style={{ background: "#F6F6F7", borderBottom: "1px solid #E8E6E1" }}>
                 {["Name", "Size", "Price", "Bleed / Spacing", "Active", ""].map((h) => (
                   <th key={h} style={{ padding: "10px 14px", textAlign: "left", fontSize: "11px", fontWeight: 700, color: "#6B6B6B", textTransform: "uppercase" }}>{h}</th>
                 ))}
@@ -1057,7 +1057,7 @@ function SizesTab() {
                       </td>
                       <td style={cell} />
                       <td style={{ ...cell, textAlign: "right", whiteSpace: "nowrap" }}>
-                        <button disabled={busy} onClick={() => saveEdit(s.id)} style={{ background: "var(--brand-primary, #1C3557)", color: "#fff", border: "none", padding: "5px 12px", borderRadius: "6px", fontSize: "12px", fontWeight: 700, cursor: "pointer", marginRight: "6px" }}>Save</button>
+                        <button disabled={busy} onClick={() => saveEdit(s.id)} style={{ background: "#1A1A1A", color: "#fff", border: "none", padding: "5px 12px", borderRadius: "6px", fontSize: "12px", fontWeight: 700, cursor: "pointer", marginRight: "6px" }}>Save</button>
                         <button onClick={() => setEditId(null)} style={{ background: "none", border: "none", color: "#666", cursor: "pointer", fontSize: "12px" }}>Cancel</button>
                       </td>
                     </tr>
@@ -1081,7 +1081,7 @@ function SizesTab() {
                       </button>
                     </td>
                     <td style={{ padding: "11px 14px", textAlign: "right", whiteSpace: "nowrap" }}>
-                      <button onClick={() => startEdit(s)} style={{ background: "none", border: "none", color: "var(--brand-primary, #1C3557)", cursor: "pointer", fontSize: "12px", fontWeight: 700, marginRight: "12px" }}>Edit</button>
+                      <button onClick={() => startEdit(s)} style={{ background: "none", border: "none", color: "#1A1A1A", cursor: "pointer", fontSize: "12px", fontWeight: 700, marginRight: "12px" }}>Edit</button>
                       <button onClick={() => remove(s)} style={{ background: "none", border: "none", color: "#B91C1C", cursor: "pointer", fontSize: "12px" }}>Delete</button>
                     </td>
                   </tr>
@@ -1188,7 +1188,7 @@ function SettingsTab() {
         <div style={{ display: "flex", gap: "20px", flexWrap: "wrap" }}>
           <div>
             <label style={LABEL}>Primary colour</label>
-            <input type="color" value={s.theme_primary ?? "#1C3557"} onChange={(e) => set("theme_primary", e.target.value)} style={{ width: "56px", height: "34px", border: "1px solid #E3E3E3", borderRadius: "6px", cursor: "pointer", display: "block" }} />
+            <input type="color" value={s.theme_primary ?? "#1A1A1A"} onChange={(e) => set("theme_primary", e.target.value)} style={{ width: "56px", height: "34px", border: "1px solid #E3E3E3", borderRadius: "6px", cursor: "pointer", display: "block" }} />
           </div>
           <div>
             <label style={LABEL}>Text colour</label>
@@ -1263,7 +1263,7 @@ function LibraryTab() {
         </div>
         <label style={{ display: "inline-block" }}>
           <input type="file" multiple accept=".png,.jpg,.jpeg,.webp,.gif,.svg" onChange={(e) => onFiles(e.target.files)} style={{ display: "none" }} />
-          <span style={{ display: "inline-block", background: "var(--brand-primary, #1C3557)", color: "#fff", padding: "10px 18px", borderRadius: "6px", fontSize: "13px", fontWeight: 700, cursor: "pointer" }}>
+          <span style={{ display: "inline-block", background: "#1A1A1A", color: "#fff", padding: "10px 18px", borderRadius: "6px", fontSize: "13px", fontWeight: 700, cursor: "pointer" }}>
             {uploading ? "Uploading…" : "＋ Upload designs"}
           </span>
         </label>
