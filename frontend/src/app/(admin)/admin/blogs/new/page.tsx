@@ -85,7 +85,7 @@ export default function AdminBlogNewPage() {
                 onClick={() => setStatus(s)}
                 style={{
                   padding: "8px 20px", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: "pointer",
-                  background: status === s ? "#1B3A5C" : "#F4F3EF",
+                  background: status === s ? "#1B3A5C" : "#F6F6F7",
                   color: status === s ? "#fff" : "#555",
                   border: "1.5px solid " + (status === s ? "#1B3A5C" : "#E2E0DA"),
                 }}>

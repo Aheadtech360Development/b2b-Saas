@@ -457,7 +457,7 @@ export default function AdminProductEditPage() {
         <div style={{ marginTop: "16px", display: "flex", gap: "10px", justifyContent: "center" }}>
           <button
             onClick={() => load()}
-            style={{ padding: "10px 20px", background: "#F4F3EF", color: "#2A2830", border: "1px solid #E2E0DA", borderRadius: "8px", cursor: "pointer", fontWeight: 600 }}
+            style={{ padding: "10px 20px", background: "#F6F6F7", color: "#2A2830", border: "1px solid #E2E0DA", borderRadius: "8px", cursor: "pointer", fontWeight: 600 }}
           >
             Retry
           </button>
@@ -583,7 +583,7 @@ export default function AdminProductEditPage() {
                     return (
                       <div key={color || "__none"} style={{ marginBottom: "14px" }}>
                         {/* Color group header */}
-                        <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "7px", padding: "5px 10px", background: "#F4F3EF", borderRadius: "6px" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "7px", padding: "5px 10px", background: "#F6F6F7", borderRadius: "6px" }}>
                           {color && COLOR_MAP[color] && (
                             <div style={{ width: "12px", height: "12px", borderRadius: "50%", background: COLOR_MAP[color], border: "1px solid rgba(0,0,0,.12)", flexShrink: 0 }} />
                           )}
@@ -597,10 +597,10 @@ export default function AdminProductEditPage() {
                               {/* Up/down sort buttons */}
                               <div style={{ display: "flex", flexDirection: "column", gap: "3px", flexShrink: 0 }}>
                                 <button type="button" onClick={() => moveImageInGroup(img.id, "up")} disabled={groupIdx === 0}
-                                  style={{ width: "24px", height: "22px", border: "1px solid #E2E0DA", borderRadius: "4px", background: groupIdx === 0 ? "#fafafa" : "#F4F3EF", cursor: groupIdx === 0 ? "default" : "pointer", color: groupIdx === 0 ? "#ccc" : "#7A7880", fontSize: "10px", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}
+                                  style={{ width: "24px", height: "22px", border: "1px solid #E2E0DA", borderRadius: "4px", background: groupIdx === 0 ? "#fafafa" : "#F6F6F7", cursor: groupIdx === 0 ? "default" : "pointer", color: groupIdx === 0 ? "#ccc" : "#7A7880", fontSize: "10px", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}
                                   title="Move up">▲</button>
                                 <button type="button" onClick={() => moveImageInGroup(img.id, "down")} disabled={groupIdx === groupImages.length - 1}
-                                  style={{ width: "24px", height: "22px", border: "1px solid #E2E0DA", borderRadius: "4px", background: groupIdx === groupImages.length - 1 ? "#fafafa" : "#F4F3EF", cursor: groupIdx === groupImages.length - 1 ? "default" : "pointer", color: groupIdx === groupImages.length - 1 ? "#ccc" : "#7A7880", fontSize: "10px", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}
+                                  style={{ width: "24px", height: "22px", border: "1px solid #E2E0DA", borderRadius: "4px", background: groupIdx === groupImages.length - 1 ? "#fafafa" : "#F6F6F7", cursor: groupIdx === groupImages.length - 1 ? "default" : "pointer", color: groupIdx === groupImages.length - 1 ? "#ccc" : "#7A7880", fontSize: "10px", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}
                                   title="Move down">▼</button>
                               </div>
                               {/* Thumbnail */}
@@ -614,7 +614,7 @@ export default function AdminProductEditPage() {
                                     <span style={{ background: "#1A5CFF", color: "#fff", fontSize: "9px", fontWeight: 700, padding: "2px 8px", borderRadius: "3px" }}>★ PRIMARY</span>
                                   ) : (
                                     <button onClick={() => handleSetPrimary(img.id)}
-                                      style={{ background: "#F4F3EF", border: "1px solid #E2E0DA", color: "#7A7880", fontSize: "10px", fontWeight: 700, padding: "2px 8px", borderRadius: "3px", cursor: "pointer" }}
+                                      style={{ background: "#F6F6F7", border: "1px solid #E2E0DA", color: "#7A7880", fontSize: "10px", fontWeight: 700, padding: "2px 8px", borderRadius: "3px", cursor: "pointer" }}
                                     >☆ Set Primary</button>
                                   )}
                                 </div>
@@ -691,7 +691,7 @@ export default function AdminProductEditPage() {
 
             {/* Apply to All / Selected bar */}
             {groupedVariants.length > 0 && (
-              <div style={{ display: "flex", gap: "8px", alignItems: "center", marginBottom: "14px", padding: "12px 14px", background: "#F4F3EF", borderRadius: "8px", flexWrap: "wrap" }}>
+              <div style={{ display: "flex", gap: "8px", alignItems: "center", marginBottom: "14px", padding: "12px 14px", background: "#F6F6F7", borderRadius: "8px", flexWrap: "wrap" }}>
                 <span style={{ fontSize: "12px", fontWeight: 700, color: "#7A7880", whiteSpace: "nowrap" }}>BULK EDIT:</span>
                 <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
                   <span style={{ fontSize: "12px", color: "#aaa" }}>Price $</span>
@@ -741,7 +741,7 @@ export default function AdminProductEditPage() {
                 {/* Color header */}
                 <div
                   onClick={() => toggleGroup(group.color)}
-                  style={{ display: "flex", alignItems: "center", gap: "12px", padding: "12px 16px", cursor: "pointer", background: "#F4F3EF", userSelect: "none" }}
+                  style={{ display: "flex", alignItems: "center", gap: "12px", padding: "12px 16px", cursor: "pointer", background: "#F6F6F7", userSelect: "none" }}
                 >
                   <div style={{ width: "20px", height: "20px", borderRadius: "50%", background: COLOR_MAP[group.color] ?? "#888", border: "1.5px solid rgba(0,0,0,.1)", flexShrink: 0 }} />
                   <span style={{ fontWeight: 700, fontSize: "14px", color: "#2A2830" }}>{group.color}</span>
@@ -779,7 +779,7 @@ export default function AdminProductEditPage() {
                     </thead>
                     <tbody>
                       {group.variants.map(variant => (
-                        <tr key={variant.id} style={{ borderBottom: "1px solid #F4F3EF", background: selectedVariantIds.has(variant.id) ? "rgba(26,92,255,.04)" : undefined }}>
+                        <tr key={variant.id} style={{ borderBottom: "1px solid #F6F6F7", background: selectedVariantIds.has(variant.id) ? "rgba(26,92,255,.04)" : undefined }}>
                           <td style={{ padding: "10px 16px", width: "36px" }}>
                             <input
                               type="checkbox"
@@ -1020,7 +1020,7 @@ export default function AdminProductEditPage() {
                 onClick={e => (e.currentTarget.querySelector("input") as HTMLInputElement)?.focus()}
               >
                 {(product.tags ?? []).map(tag => (
-                  <span key={tag} style={{ background: "#F4F3EF", padding: "3px 10px", borderRadius: "20px", fontSize: "12px", fontWeight: 600, display: "flex", alignItems: "center", gap: "4px" }}>
+                  <span key={tag} style={{ background: "#F6F6F7", padding: "3px 10px", borderRadius: "20px", fontSize: "12px", fontWeight: 600, display: "flex", alignItems: "center", gap: "4px" }}>
                     {tag}
                     <button
                       onClick={() => removeTag(tag)}
@@ -1115,7 +1115,7 @@ export default function AdminProductEditPage() {
                 <div style={{ overflowX: "auto" }}>
                   <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
                     <thead>
-                      <tr style={{ background: "#F4F3EF" }}>
+                      <tr style={{ background: "#F6F6F7" }}>
                         {["Size", "Chest (in)", "Length (in)", "Sleeve (in)", ""].map(h => (
                           <th key={h} style={{ padding: "8px 10px", textAlign: "left", fontSize: "10px", textTransform: "uppercase", letterSpacing: ".06em", color: "#7A7880", fontWeight: 700, whiteSpace: "nowrap" }}>{h}</th>
                         ))}
@@ -1123,7 +1123,7 @@ export default function AdminProductEditPage() {
                     </thead>
                     <tbody>
                       {(((product as any).size_chart_data as any[]) ?? []).map((row: any, i: number) => (
-                        <tr key={i} style={{ borderBottom: "1px solid #F4F3EF" }}>
+                        <tr key={i} style={{ borderBottom: "1px solid #F6F6F7" }}>
                           {(["size", "chest", "length", "sleeve"] as const).map(field => (
                             <td key={field} style={{ padding: "4px 6px" }}>
                               <input

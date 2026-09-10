@@ -230,7 +230,7 @@ function UserModal({
 
           {/* Reset password (edit only) */}
           {isEdit && (
-            <div style={{ marginBottom: "16px", padding: "12px 14px", background: "#F4F3EF", borderRadius: "8px", border: "1px solid #E2E0DA" }}>
+            <div style={{ marginBottom: "16px", padding: "12px 14px", background: "#F6F6F7", borderRadius: "8px", border: "1px solid #E2E0DA" }}>
               <div style={{ fontSize: "12px", fontWeight: 700, color: "#2A2830", marginBottom: "6px" }}>Password Reset</div>
               <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
                 <button
@@ -431,7 +431,7 @@ export default function AdminUsersPage() {
       <div style={{ background: "#fff", border: "1px solid #E2E0DA", borderRadius: "10px", overflow: "hidden" }}>
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
-            <tr style={{ background: "#F4F3EF", borderBottom: "2px solid #E2E0DA" }}>
+            <tr style={{ background: "#F6F6F7", borderBottom: "2px solid #E2E0DA" }}>
               <th style={thStyle}>Name</th>
               <th style={thStyle}>Email</th>
               <th style={thStyle}>Role</th>
@@ -451,7 +451,7 @@ export default function AdminUsersPage() {
               const roleCfg = ROLE_BADGE[user.role] ?? { bg: "rgba(156,163,175,.15)", color: "#9CA3AF" };
               const isToggling = togglingId === user.id;
               return (
-                <tr key={user.id} style={{ borderBottom: "1px solid #F4F3EF" }}>
+                <tr key={user.id} style={{ borderBottom: "1px solid #F6F6F7" }}>
 
                   {/* Name */}
                   <td style={{ padding: "13px 14px" }}>

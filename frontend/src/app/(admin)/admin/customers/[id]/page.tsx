@@ -412,7 +412,7 @@ export default function CustomerDetailPage() {
 
         {/* Suspend form */}
         {showSuspend && (
-          <div style={{ marginTop: "16px", paddingTop: "16px", borderTop: "1px solid #F4F3EF" }}>
+          <div style={{ marginTop: "16px", paddingTop: "16px", borderTop: "1px solid #F6F6F7" }}>
             <div style={{ fontSize: "13px", fontWeight: 700, color: "#E8242A", marginBottom: "8px" }}>Suspend Company</div>
             <textarea
               rows={2}
@@ -518,7 +518,7 @@ export default function CustomerDetailPage() {
               <div style={{ overflowX: "auto" }}>
                 <table style={{ width: "100%", borderCollapse: "collapse" }}>
                   <thead>
-                    <tr style={{ background: "#F4F3EF", borderBottom: "1.5px solid #E2E0DA" }}>
+                    <tr style={{ background: "#F6F6F7", borderBottom: "1.5px solid #E2E0DA" }}>
                       <th style={thSt}>Order #</th>
                       <th style={thSt}>Date</th>
                       <th style={{ ...thSt, textAlign: "right" }}>Items</th>
@@ -532,7 +532,7 @@ export default function CustomerDetailPage() {
                       const oCfg = ORDER_STATUS[o.status] ?? { bg: "rgba(156,163,175,.15)", color: "#9CA3AF" };
                       return (
                         <tr key={o.id}
-                          style={{ borderBottom: "1px solid #F4F3EF", cursor: "pointer", transition: "background .1s" }}
+                          style={{ borderBottom: "1px solid #F6F6F7", cursor: "pointer", transition: "background .1s" }}
                           onMouseEnter={e => (e.currentTarget.style.background = "#FAFAF8")}
                           onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
                           onClick={() => router.push(`/admin/orders/${o.id}`)}>
@@ -686,7 +686,7 @@ export default function CustomerDetailPage() {
             </div>
 
             {/* Pricing & Shipping — Discount Group */}
-            <div style={{ borderTop: "1px solid #F4F3EF", paddingTop: "14px" }}>
+            <div style={{ borderTop: "1px solid #F6F6F7", paddingTop: "14px" }}>
               <div style={{ ...sectionTitle, marginBottom: "10px" }}>Pricing &amp; Shipping</div>
               {(() => {
                 const matched = discountGroups.filter(g => g.customer_tag && tags.includes(g.customer_tag));

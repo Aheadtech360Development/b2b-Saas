@@ -231,7 +231,7 @@ export default function DiscountsPage() {
         />
         <button
           onClick={() => { setPage(1); load(1, search); }}
-          style={{ marginLeft: "8px", padding: "9px 16px", background: "#F4F3EF", border: "1.5px solid #E2E0DA", borderRadius: "8px", fontSize: "13px", fontWeight: 600, cursor: "pointer" }}
+          style={{ marginLeft: "8px", padding: "9px 16px", background: "#F6F6F7", border: "1.5px solid #E2E0DA", borderRadius: "8px", fontSize: "13px", fontWeight: 600, cursor: "pointer" }}
         >
           Search
         </button>
@@ -262,7 +262,7 @@ export default function DiscountsPage() {
                   {/* Code + copy */}
                   <td style={{ padding: "12px 16px" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                      <span style={{ fontWeight: 700, fontFamily: "monospace", fontSize: "13px", color: "#2A2830", background: "#F4F3EF", padding: "3px 8px", borderRadius: "5px" }}>{dc.code}</span>
+                      <span style={{ fontWeight: 700, fontFamily: "monospace", fontSize: "13px", color: "#2A2830", background: "#F6F6F7", padding: "3px 8px", borderRadius: "5px" }}>{dc.code}</span>
                       <button
                         onClick={() => handleCopy(dc.code, dc.id)}
                         title="Copy code"

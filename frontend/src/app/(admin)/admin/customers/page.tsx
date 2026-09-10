@@ -338,7 +338,7 @@ export default function AdminCustomersPage() {
       <div style={{ background: "#fff", border: "1px solid #E2E0DA", borderRadius: "10px", overflow: "hidden" }}>
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
-            <tr style={{ background: "#F4F3EF", borderBottom: "2px solid #E2E0DA" }}>
+            <tr style={{ background: "#F6F6F7", borderBottom: "2px solid #E2E0DA" }}>
               <th style={thStyle}>Company</th>
               <th style={thStyle}>Contact</th>
               <th style={{ ...thStyle, textAlign: "right" }}>Orders</th>
@@ -359,7 +359,7 @@ export default function AdminCustomersPage() {
               return (
                 <tr key={co.id}
                   onClick={() => router.push(`/admin/customers/${co.id}`)}
-                  style={{ borderBottom: "1px solid #F4F3EF", cursor: "pointer", transition: "background .12s" }}
+                  style={{ borderBottom: "1px solid #F6F6F7", cursor: "pointer", transition: "background .12s" }}
                   onMouseEnter={e => (e.currentTarget.style.background = "#FAFAF8")}
                   onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
                   <td style={{ padding: "13px 14px" }}>

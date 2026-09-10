@@ -161,9 +161,9 @@ export default function TaxesPage() {
             </thead>
             <tbody>
               {rates.map((t, i) => (
-                <tr key={t.id} style={{ borderBottom: i < rates.length - 1 ? "1px solid #F4F3EF" : "none" }}>
+                <tr key={t.id} style={{ borderBottom: i < rates.length - 1 ? "1px solid #F6F6F7" : "none" }}>
                   <td style={{ padding: "14px 16px" }}>
-                    <span style={{ background: "#F4F3EF", padding: "2px 8px", borderRadius: "4px", fontSize: "12px", fontWeight: 700, fontFamily: "monospace" }}>{t.region}</span>
+                    <span style={{ background: "#F6F6F7", padding: "2px 8px", borderRadius: "4px", fontSize: "12px", fontWeight: 700, fontFamily: "monospace" }}>{t.region}</span>
                   </td>
                   <td style={{ padding: "14px 16px", fontSize: "13px", color: "#2A2830", fontWeight: 600 }}>{t.name}</td>
                   <td style={{ padding: "14px 16px", fontSize: "13px", color: "#2A2830", fontFamily: "monospace" }}>{t.rate}%</td>

@@ -415,7 +415,7 @@ export default function NewProductPage() {
                       <img src={url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                     </div>
                     <div style={{ flex: 1 }}>
-                      <span style={{ background: i === 0 ? "#1A5CFF" : "#F4F3EF", color: i === 0 ? "#fff" : "#7A7880", fontSize: "9px", fontWeight: 700, padding: "2px 8px", borderRadius: "3px" }}>
+                      <span style={{ background: i === 0 ? "#1A5CFF" : "#F6F6F7", color: i === 0 ? "#fff" : "#7A7880", fontSize: "9px", fontWeight: 700, padding: "2px 8px", borderRadius: "3px" }}>
                         {i === 0 ? "★ PRIMARY" : `Image ${i + 1}`}
                       </span>
                       <div style={{ fontSize: "11px", color: "#aaa", marginTop: "4px" }}>{pendingImages[i]?.name}</div>
@@ -466,7 +466,7 @@ export default function NewProductPage() {
                   {Object.entries(variantsByColor).map(([color, rows]) => (
                     <div key={color} style={{ border: "1px solid #E2E0DA", borderRadius: "8px", marginBottom: "10px", overflow: "hidden" }}>
                       {/* Color header */}
-                      <div style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 14px", background: "#F4F3EF" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 14px", background: "#F6F6F7" }}>
                         <div style={{ width: "18px", height: "18px", borderRadius: "50%", background: COLOR_MAP[color] ?? "#888", border: "1.5px solid rgba(0,0,0,.1)", flexShrink: 0 }} />
                         <span style={{ fontWeight: 700, fontSize: "13px", color: "#2A2830" }}>{color}</span>
                         <span style={{ fontSize: "12px", color: "#7A7880" }}>({rows.length} size{rows.length !== 1 ? "s" : ""})</span>
@@ -482,7 +482,7 @@ export default function NewProductPage() {
                         </thead>
                         <tbody>
                           {rows.map(v => (
-                            <tr key={v.id} style={{ borderBottom: "1px solid #F4F3EF" }}>
+                            <tr key={v.id} style={{ borderBottom: "1px solid #F6F6F7" }}>
                               <td style={{ padding: "8px 12px", fontWeight: 700 }}>{v.size}</td>
                               <td style={{ padding: "8px 12px", color: "#7A7880", fontSize: "12px" }}>{v.sku}</td>
                               <td style={{ padding: "8px 12px" }}>{v.price ? `$${v.price}` : "—"}</td>
@@ -580,7 +580,7 @@ export default function NewProductPage() {
                   onClick={e => (e.currentTarget.querySelector("input") as HTMLInputElement)?.focus()}
                 >
                   {form.tags.map(tag => (
-                    <span key={tag} style={{ background: "#F4F3EF", padding: "3px 10px", borderRadius: "20px", fontSize: "12px", fontWeight: 600, display: "flex", alignItems: "center", gap: "4px" }}>
+                    <span key={tag} style={{ background: "#F6F6F7", padding: "3px 10px", borderRadius: "20px", fontSize: "12px", fontWeight: 600, display: "flex", alignItems: "center", gap: "4px" }}>
                       {tag}
                       <button type="button" onClick={() => removeTag(tag)} style={{ background: "none", border: "none", cursor: "pointer", color: "#aaa", fontSize: "14px", lineHeight: 1, padding: 0 }}>×</button>
                     </span>
@@ -661,7 +661,7 @@ export default function NewProductPage() {
                   <div style={{ overflowX: "auto" }}>
                     <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
                       <thead>
-                        <tr style={{ background: "#F4F3EF" }}>
+                        <tr style={{ background: "#F6F6F7" }}>
                           {["Size", "Chest (in)", "Length (in)", "Sleeve (in)", ""].map(h => (
                             <th key={h} style={{ padding: "8px 10px", textAlign: "left", fontSize: "10px", textTransform: "uppercase", letterSpacing: ".06em", color: "#7A7880", fontWeight: 700, whiteSpace: "nowrap" }}>{h}</th>
                           ))}
@@ -669,7 +669,7 @@ export default function NewProductPage() {
                       </thead>
                       <tbody>
                         {form.size_chart_data.map((row, i) => (
-                          <tr key={i} style={{ borderBottom: "1px solid #F4F3EF" }}>
+                          <tr key={i} style={{ borderBottom: "1px solid #F6F6F7" }}>
                             {(["size", "chest", "length", "sleeve"] as const).map(field => (
                               <td key={field} style={{ padding: "4px 6px" }}>
                                 <input

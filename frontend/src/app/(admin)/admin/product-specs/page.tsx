@@ -160,7 +160,7 @@ export default function AdminProductSpecsPage() {
             </thead>
             <tbody>
               {specs.map((p, i) => (
-                <tr key={p.id} style={{ borderBottom: i < specs.length - 1 ? "1px solid #F4F3EF" : "none" }}>
+                <tr key={p.id} style={{ borderBottom: i < specs.length - 1 ? "1px solid #F6F6F7" : "none" }}>
                   <td style={{ padding: "12px 16px", fontSize: "13px", fontWeight: 700, color: "#2A2830", maxWidth: "200px" }}>{p.title}</td>
                   <td style={{ padding: "12px 16px", fontSize: "12px", color: "#7A7880", maxWidth: "240px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                     {p.description ?? "—"}
@@ -216,7 +216,7 @@ export default function AdminProductSpecsPage() {
                 <div style={{ display: "flex", gap: "8px" }}>
                   <input style={{ ...inp, flex: 1 }} value={form.pdf_url} onChange={e => setForm(f => ({ ...f, pdf_url: e.target.value }))} placeholder="https://... or upload below" />
                   <button type="button" onClick={() => pdfRef.current?.click()} disabled={uploadingPdf}
-                    style={{ flexShrink: 0, padding: "9px 14px", border: "1.5px solid #E2E0DA", borderRadius: "8px", background: "#F4F3EF", fontSize: "12px", fontWeight: 700, cursor: "pointer" }}>
+                    style={{ flexShrink: 0, padding: "9px 14px", border: "1.5px solid #E2E0DA", borderRadius: "8px", background: "#F6F6F7", fontSize: "12px", fontWeight: 700, cursor: "pointer" }}>
                     {uploadingPdf ? "…" : "Upload"}
                   </button>
                   <input ref={pdfRef} type="file" accept="application/pdf" style={{ display: "none" }} onChange={e => { if (e.target.files?.[0]) uploadFile(e.target.files[0]); }} />

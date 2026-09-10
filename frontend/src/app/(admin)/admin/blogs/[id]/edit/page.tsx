@@ -229,7 +229,7 @@ export default function AdminBlogEditPage() {
           <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
             <input value={coverUrl} onChange={e => setCoverUrl(e.target.value)} placeholder="Image URL" style={{ ...inputSt, flex: 1 }} />
             <button type="button" onClick={() => coverRef.current?.click()}
-              style={{ background: "#F4F3EF", border: "1.5px solid #E2E0DA", borderRadius: "8px", padding: "10px 14px", fontSize: "13px", fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap", color: "#2A2830" }}>
+              style={{ background: "#F6F6F7", border: "1.5px solid #E2E0DA", borderRadius: "8px", padding: "10px 14px", fontSize: "13px", fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap", color: "#2A2830" }}>
               {uploadingCover ? "…" : "Upload"}
             </button>
             <input ref={coverRef} type="file" accept="image/*" style={{ display: "none" }} onChange={handleCoverUpload} />
@@ -341,7 +341,7 @@ export default function AdminBlogEditPage() {
           <label style={labelSt}>Keywords</label>
           <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginBottom: "8px" }}>
             {keywordList.map(kw => (
-              <span key={kw} style={{ display: "inline-flex", alignItems: "center", gap: "5px", background: "#F4F3EF", color: "#555", padding: "3px 10px", borderRadius: "20px", fontSize: "12px", fontWeight: 600 }}>
+              <span key={kw} style={{ display: "inline-flex", alignItems: "center", gap: "5px", background: "#F6F6F7", color: "#555", padding: "3px 10px", borderRadius: "20px", fontSize: "12px", fontWeight: 600 }}>
                 {kw}
                 <button type="button" onClick={() => removeKeyword(kw)} style={{ background: "none", border: "none", color: "#555", cursor: "pointer", padding: 0 }}>×</button>
               </span>
@@ -362,7 +362,7 @@ export default function AdminBlogEditPage() {
           <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
             <input value={ogImageUrl} onChange={e => setOgImageUrl(e.target.value)} placeholder="URL or upload" style={{ ...inputSt, flex: 1 }} />
             <button type="button" onClick={() => ogRef.current?.click()}
-              style={{ background: "#F4F3EF", border: "1.5px solid #E2E0DA", borderRadius: "8px", padding: "10px 14px", fontSize: "13px", fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap", color: "#2A2830" }}>
+              style={{ background: "#F6F6F7", border: "1.5px solid #E2E0DA", borderRadius: "8px", padding: "10px 14px", fontSize: "13px", fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap", color: "#2A2830" }}>
               {uploadingOg ? "…" : "Upload"}
             </button>
             <input ref={ogRef} type="file" accept="image/*" style={{ display: "none" }} onChange={handleOgUpload} />

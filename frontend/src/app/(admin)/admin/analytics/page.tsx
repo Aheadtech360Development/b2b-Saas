@@ -78,7 +78,7 @@ function StatCard({
 
 function SkeletonCard() {
   return (
-    <div style={{ ...card, height: "100px", background: "#F4F3EF", animation: "pulse 1.5s ease-in-out infinite" }} />
+    <div style={{ ...card, height: "100px", background: "#F6F6F7", animation: "pulse 1.5s ease-in-out infinite" }} />
   );
 }
 
@@ -313,11 +313,11 @@ export default function AnalyticsPage() {
         </div>
 
         {loading ? (
-          <div style={{ height: "280px", background: "#F4F3EF", borderRadius: "8px" }} />
+          <div style={{ height: "280px", background: "#F6F6F7", borderRadius: "8px" }} />
         ) : (
           <ResponsiveContainer width="100%" height={280}>
             <ComposedChart data={chartData} margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#F4F3EF" />
+              <CartesianGrid strokeDasharray="3 3" stroke="#F6F6F7" />
               <XAxis
                 dataKey="date"
                 tick={{ fontSize: 11, fill: "#7A7880" }}
@@ -353,7 +353,7 @@ export default function AnalyticsPage() {
         <div style={card}>
           <div style={{ fontFamily: "var(--font-bebas)", fontSize: "16px", letterSpacing: ".08em", color: "#2A2830", marginBottom: "16px" }}>ORDER STATUS BREAKDOWN</div>
           {loading ? (
-            <div style={{ height: "200px", background: "#F4F3EF", borderRadius: "8px" }} />
+            <div style={{ height: "200px", background: "#F6F6F7", borderRadius: "8px" }} />
           ) : data && data.order_status_breakdown.length > 0 ? (
             <>
               <ResponsiveContainer width="100%" height={180}>
@@ -401,7 +401,7 @@ export default function AnalyticsPage() {
         <div style={card}>
           <div style={{ fontFamily: "var(--font-bebas)", fontSize: "16px", letterSpacing: ".08em", color: "#2A2830", marginBottom: "16px" }}>NEW VS RETURNING CUSTOMERS</div>
           {loading ? (
-            <div style={{ height: "200px", background: "#F4F3EF", borderRadius: "8px" }} />
+            <div style={{ height: "200px", background: "#F6F6F7", borderRadius: "8px" }} />
           ) : data ? (() => {
             const total = data.new_vs_returning.new + data.new_vs_returning.returning;
             const pieData = [
@@ -442,7 +442,7 @@ export default function AnalyticsPage() {
       <div style={{ ...card, marginBottom: "20px" }}>
         <div style={{ fontFamily: "var(--font-bebas)", fontSize: "16px", letterSpacing: ".08em", color: "#2A2830", marginBottom: "16px" }}>TOP PRODUCTS</div>
         {loading ? (
-          <div style={{ height: "200px", background: "#F4F3EF", borderRadius: "8px" }} />
+          <div style={{ height: "200px", background: "#F6F6F7", borderRadius: "8px" }} />
         ) : data && data.top_products.length > 0 ? (
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
             <thead>
@@ -454,7 +454,7 @@ export default function AnalyticsPage() {
             </thead>
             <tbody>
               {data.top_products.map((p, i) => (
-                <tr key={i} style={{ borderBottom: "1px solid #F4F3EF", background: i % 2 === 0 ? "#fff" : "#FAFAFA" }}>
+                <tr key={i} style={{ borderBottom: "1px solid #F6F6F7", background: i % 2 === 0 ? "#fff" : "#FAFAFA" }}>
                   <td style={{ padding: "10px 12px", fontWeight: 700, color: "#aaa", width: "32px" }}>{i + 1}</td>
                   <td style={{ padding: "10px 12px", fontWeight: 600, color: "#2A2830" }}>{p.product_name}</td>
                   <td style={{ padding: "10px 12px", textAlign: "right", color: "#2A2830" }}>{p.units_sold.toLocaleString()}</td>
@@ -485,7 +485,7 @@ export default function AnalyticsPage() {
         <div style={card}>
           <div style={{ fontFamily: "var(--font-bebas)", fontSize: "16px", letterSpacing: ".08em", color: "#2A2830", marginBottom: "16px" }}>TOP CUSTOMERS</div>
           {loading ? (
-            <div style={{ height: "200px", background: "#F4F3EF", borderRadius: "8px" }} />
+            <div style={{ height: "200px", background: "#F6F6F7", borderRadius: "8px" }} />
           ) : data && data.top_customers.length > 0 ? (
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
               <thead>
@@ -499,7 +499,7 @@ export default function AnalyticsPage() {
                 {data.top_customers.map((c, i) => (
                   <tr
                     key={i}
-                    style={{ borderBottom: "1px solid #F4F3EF", cursor: "pointer", background: i % 2 === 0 ? "#fff" : "#FAFAFA" }}
+                    style={{ borderBottom: "1px solid #F6F6F7", cursor: "pointer", background: i % 2 === 0 ? "#fff" : "#FAFAFA" }}
                     onClick={() => router.push(`/admin/customers/${c.company_id}`)}
                     onMouseEnter={e => (e.currentTarget.style.background = "rgba(26,92,255,.04)")}
                     onMouseLeave={e => (e.currentTarget.style.background = i % 2 === 0 ? "#fff" : "#FAFAFA")}
@@ -520,7 +520,7 @@ export default function AnalyticsPage() {
         <div style={card}>
           <div style={{ fontFamily: "var(--font-bebas)", fontSize: "16px", letterSpacing: ".08em", color: "#2A2830", marginBottom: "16px" }}>ORDERS BY STATE</div>
           {loading ? (
-            <div style={{ height: "200px", background: "#F4F3EF", borderRadius: "8px" }} />
+            <div style={{ height: "200px", background: "#F6F6F7", borderRadius: "8px" }} />
           ) : data && data.orders_by_state.length > 0 ? (
             <ResponsiveContainer width="100%" height={Math.max(200, data.orders_by_state.length * 32)}>
               <BarChart
@@ -528,7 +528,7 @@ export default function AnalyticsPage() {
                 layout="vertical"
                 margin={{ top: 0, right: 16, left: 8, bottom: 0 }}
               >
-                <CartesianGrid strokeDasharray="3 3" stroke="#F4F3EF" horizontal={false} />
+                <CartesianGrid strokeDasharray="3 3" stroke="#F6F6F7" horizontal={false} />
                 <XAxis type="number" tick={{ fontSize: 11, fill: "#7A7880" }} />
                 <YAxis type="category" dataKey="state" tick={{ fontSize: 11, fill: "#7A7880" }} width={36} />
                 <Tooltip

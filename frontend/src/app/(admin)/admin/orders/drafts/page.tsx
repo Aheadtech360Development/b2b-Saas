@@ -196,7 +196,7 @@ function CreateDraftModal({ onClose, onSuccess }: { onClose: () => void; onSucce
                       } catch { setCompanyDiscount(0); }
                     }}
                       style={{ padding: "10px 12px", fontSize: "13px", cursor: "pointer", color: "#2A2830" }}
-                      onMouseEnter={e => (e.currentTarget.style.background = "#F4F3EF")}
+                      onMouseEnter={e => (e.currentTarget.style.background = "#F6F6F7")}
                       onMouseLeave={e => (e.currentTarget.style.background = "#fff")}
                     >{c.name}</div>
                   ))}
@@ -220,7 +220,7 @@ function CreateDraftModal({ onClose, onSuccess }: { onClose: () => void; onSucce
 
                 {selectedProduct ? (
                   <div style={{ border: "1px solid #E2E0DA", borderRadius: "8px", overflow: "hidden" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: "10px", padding: "12px 14px", background: "#F4F3EF", borderBottom: "1px solid #E2E0DA" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "10px", padding: "12px 14px", background: "#F6F6F7", borderBottom: "1px solid #E2E0DA" }}>
                       {selectedProduct.primary_image?.url_thumbnail && (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img src={selectedProduct.primary_image.url_thumbnail} alt="" style={{ width: "36px", height: "36px", objectFit: "contain", borderRadius: "4px", background: "#fff" }} />
@@ -258,7 +258,7 @@ function CreateDraftModal({ onClose, onSuccess }: { onClose: () => void; onSucce
                             const discounted = applyDiscount(retail);
                             const hasDiscount = companyDiscount > 0;
                             return (
-                            <tr key={v.id} style={{ borderBottom: "1px solid #F4F3EF" }}>
+                            <tr key={v.id} style={{ borderBottom: "1px solid #F6F6F7" }}>
                               <td style={{ padding: "8px 12px", color: "#2A2830" }}>{v.color ?? "—"}</td>
                               <td style={{ padding: "8px 12px", color: "#2A2830" }}>{v.size ?? "—"}</td>
                               <td style={{ padding: "8px 12px", color: "#2A2830" }}>
@@ -294,8 +294,8 @@ function CreateDraftModal({ onClose, onSuccess }: { onClose: () => void; onSucce
                       <div style={{ padding: "32px", textAlign: "center", color: "#aaa", fontSize: "13px" }}>No products found</div>
                     ) : products.map((p, i) => (
                       <div key={p.id} onClick={() => { setSelectedProduct(p); setVariantQtys({}); }}
-                        style={{ display: "flex", alignItems: "center", gap: "12px", padding: "10px 14px", cursor: "pointer", borderBottom: i < products.length - 1 ? "1px solid #F4F3EF" : "none", background: "#fff" }}
-                        onMouseEnter={e => (e.currentTarget.style.background = "#F4F3EF")}
+                        style={{ display: "flex", alignItems: "center", gap: "12px", padding: "10px 14px", cursor: "pointer", borderBottom: i < products.length - 1 ? "1px solid #F6F6F7" : "none", background: "#fff" }}
+                        onMouseEnter={e => (e.currentTarget.style.background = "#F6F6F7")}
                         onMouseLeave={e => (e.currentTarget.style.background = "#fff")}
                       >
                         <div style={{ flex: 1, minWidth: 0 }}>
@@ -311,7 +311,7 @@ function CreateDraftModal({ onClose, onSuccess }: { onClose: () => void; onSucce
 
               {/* Right: cart summary */}
               <div style={{ border: "1px solid #E2E0DA", borderRadius: "8px", display: "flex", flexDirection: "column" }}>
-                <div style={{ padding: "12px 14px", borderBottom: "1px solid #E2E0DA", background: "#F4F3EF" }}>
+                <div style={{ padding: "12px 14px", borderBottom: "1px solid #E2E0DA", background: "#F6F6F7" }}>
                   <div style={{ fontFamily: "var(--font-bebas)", fontSize: "15px", letterSpacing: ".06em", color: "#2A2830" }}>ORDER ITEMS</div>
                   <div style={{ fontSize: "11px", color: "#7A7880" }}>{lineItems.length} line items</div>
                 </div>
@@ -319,7 +319,7 @@ function CreateDraftModal({ onClose, onSuccess }: { onClose: () => void; onSucce
                   {lineItems.length === 0 ? (
                     <div style={{ padding: "24px 14px", textAlign: "center", color: "#aaa", fontSize: "12px" }}>No items added yet</div>
                   ) : lineItems.map((item, i) => (
-                    <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: "8px", padding: "8px 14px", borderBottom: "1px solid #F4F3EF" }}>
+                    <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: "8px", padding: "8px 14px", borderBottom: "1px solid #F6F6F7" }}>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontSize: "12px", fontWeight: 600, color: "#2A2830", lineHeight: 1.3 }}>{item.productName}</div>
                         <div style={{ fontSize: "11px", color: "#7A7880" }}>{[item.color, item.size].filter(Boolean).join(" / ")}</div>
@@ -348,7 +348,7 @@ function CreateDraftModal({ onClose, onSuccess }: { onClose: () => void; onSucce
           {/* ── Step 3: Review ── */}
           {step === 3 && (
             <div>
-              <div style={{ background: "#F4F3EF", border: "1px solid #E2E0DA", borderRadius: "8px", padding: "14px 16px", marginBottom: "16px" }}>
+              <div style={{ background: "#F6F6F7", border: "1px solid #E2E0DA", borderRadius: "8px", padding: "14px 16px", marginBottom: "16px" }}>
                 <div style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: ".06em", color: "#7A7880", marginBottom: "4px" }}>Company</div>
                 <div style={{ fontSize: "14px", fontWeight: 600, color: "#2A2830" }}>{companyName}</div>
               </div>
@@ -365,7 +365,7 @@ function CreateDraftModal({ onClose, onSuccess }: { onClose: () => void; onSucce
                     </thead>
                     <tbody>
                       {lineItems.map((item, i) => (
-                        <tr key={i} style={{ borderBottom: "1px solid #F4F3EF" }}>
+                        <tr key={i} style={{ borderBottom: "1px solid #F6F6F7" }}>
                           <td style={{ padding: "8px 12px", color: "#2A2830", fontWeight: 600 }}>{item.productName}</td>
                           <td style={{ padding: "8px 12px", color: "#7A7880" }}>{[item.color, item.size].filter(Boolean).join(" / ")}</td>
                           <td style={{ padding: "8px 12px", color: "#2A2830" }}>{item.qty}</td>
@@ -375,7 +375,7 @@ function CreateDraftModal({ onClose, onSuccess }: { onClose: () => void; onSucce
                       ))}
                     </tbody>
                     <tfoot>
-                      <tr style={{ background: "#F4F3EF" }}>
+                      <tr style={{ background: "#F6F6F7" }}>
                         <td colSpan={4} style={{ padding: "10px 12px", fontWeight: 700, textAlign: "right", fontSize: "13px" }}>Order Total</td>
                         <td style={{ padding: "10px 12px", fontWeight: 700, fontSize: "14px", color: "#1A5CFF" }}>${orderTotal.toFixed(2)}</td>
                       </tr>
@@ -527,7 +527,7 @@ export default function DraftOrdersPage() {
                       </button>
                     )}
                     <Link href={`/admin/orders/${o.id}`}
-                      style={{ background: "#F4F3EF", color: "#2A2830", border: "1px solid #E2E0DA", padding: "5px 12px", borderRadius: "5px", fontSize: "11px", fontWeight: 700, textDecoration: "none" }}>
+                      style={{ background: "#F6F6F7", color: "#2A2830", border: "1px solid #E2E0DA", padding: "5px 12px", borderRadius: "5px", fontSize: "11px", fontWeight: 700, textDecoration: "none" }}>
                       Edit
                     </Link>
                   </div>

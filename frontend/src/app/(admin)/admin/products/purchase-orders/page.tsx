@@ -105,7 +105,7 @@ function ReceiveModal({
         <div style={{ border: '1px solid #E2E0DA', borderRadius: '8px', overflow: 'hidden', marginBottom: '22px' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
-              <tr style={{ background: '#F4F3EF' }}>
+              <tr style={{ background: '#F6F6F7' }}>
                 {['Product', 'Color / Size', 'Ordered', 'Qty Received'].map(h => (
                   <th key={h} style={{ padding: '10px 14px', textAlign: 'left', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '.06em', color: '#7A7880', fontWeight: 700 }}>{h}</th>
                 ))}
@@ -113,7 +113,7 @@ function ReceiveModal({
             </thead>
             <tbody>
               {po.items.map(item => (
-                <tr key={item.id} style={{ borderTop: '1px solid #F4F3EF' }}>
+                <tr key={item.id} style={{ borderTop: '1px solid #F6F6F7' }}>
                   <td style={{ padding: '12px 14px' }}>
                     <div style={{ fontWeight: 600, fontSize: '13px' }}>{item.product_name}</div>
                     <div style={{ fontSize: '11px', color: '#aaa', fontFamily: 'monospace' }}>{item.sku}</div>
@@ -298,7 +298,7 @@ export default function PurchaseOrdersPage() {
         <div style={{ background: '#fff', border: '1px solid #E2E0DA', borderRadius: '10px', overflow: 'hidden' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
-              <tr style={{ background: '#F4F3EF', borderBottom: '2px solid #E2E0DA' }}>
+              <tr style={{ background: '#F6F6F7', borderBottom: '2px solid #E2E0DA' }}>
                 {['PO Number', 'Supplier', 'Items', 'Expected Date', 'Total', 'Status', 'Actions'].map(h => (
                   <th key={h} style={{ padding: '12px 16px', textAlign: 'left', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '.06em', color: '#7A7880', fontWeight: 700 }}>{h}</th>
                 ))}
@@ -306,7 +306,7 @@ export default function PurchaseOrdersPage() {
             </thead>
             <tbody>
               {orders.map(po => (
-                <tr key={po.id} style={{ borderBottom: '1px solid #F4F3EF' }}>
+                <tr key={po.id} style={{ borderBottom: '1px solid #F6F6F7' }}>
                   <td style={{ padding: '14px 16px' }}>
                     <div style={{ fontWeight: 700, color: '#1A5CFF', fontSize: '14px', cursor: 'pointer' }} onClick={() => setSelectedPO(po)}>
                       {po.po_number}
@@ -359,7 +359,7 @@ export default function PurchaseOrdersPage() {
             </div>
 
             {/* Supplier */}
-            <div style={{ background: '#F4F3EF', borderRadius: '8px', padding: '18px', marginBottom: '20px' }}>
+            <div style={{ background: '#F6F6F7', borderRadius: '8px', padding: '18px', marginBottom: '20px' }}>
               <div style={{ fontFamily: 'var(--font-bebas)', fontSize: '14px', letterSpacing: '.1em', color: '#7A7880', marginBottom: '14px' }}>SUPPLIER INFORMATION</div>
               <div className="checkout-form-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '14px' }}>
                 <div>
@@ -392,7 +392,7 @@ export default function PurchaseOrdersPage() {
               <div style={{ border: '1px solid #E2E0DA', borderRadius: '8px', overflow: 'hidden' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                   <thead>
-                    <tr style={{ background: '#F4F3EF' }}>
+                    <tr style={{ background: '#F6F6F7' }}>
                       {['SKU', 'Product Name', 'Color', 'Size', 'Qty', 'Unit Cost', 'Total', ''].map(h => (
                         <th key={h} style={{ padding: '10px 12px', textAlign: 'left', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '.06em', color: '#7A7880', fontWeight: 700 }}>{h}</th>
                       ))}
@@ -400,7 +400,7 @@ export default function PurchaseOrdersPage() {
                   </thead>
                   <tbody>
                     {form.items.map((item, i) => (
-                      <tr key={i} style={{ borderTop: '1px solid #F4F3EF' }}>
+                      <tr key={i} style={{ borderTop: '1px solid #F6F6F7' }}>
                         <td style={{ padding: '8px 12px' }}>
                           <input value={item.sku} onChange={e => updateItem(i, 'sku', e.target.value)}
                             placeholder="BPS-NVY-M" style={{ ...cellInput, width: '100px' }} />
@@ -448,7 +448,7 @@ export default function PurchaseOrdersPage() {
                 </table>
               </div>
               <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '12px' }}>
-                <div style={{ background: '#F4F3EF', borderRadius: '8px', padding: '14px 20px', minWidth: '240px' }}>
+                <div style={{ background: '#F6F6F7', borderRadius: '8px', padding: '14px 20px', minWidth: '240px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', color: '#7A7880', marginBottom: '6px' }}>
                     <span>Subtotal</span><span>${subtotal.toFixed(2)}</span>
                   </div>
@@ -506,7 +506,7 @@ export default function PurchaseOrdersPage() {
               </div>
             </div>
 
-            <div className="checkout-form-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px', background: '#F4F3EF', borderRadius: '8px', padding: '16px', marginBottom: '20px' }}>
+            <div className="checkout-form-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px', background: '#F6F6F7', borderRadius: '8px', padding: '16px', marginBottom: '20px' }}>
               {[
                 { label: 'Supplier', value: selectedPO.supplier_name },
                 { label: 'Expected Date', value: selectedPO.expected_date ? new Date(selectedPO.expected_date).toLocaleDateString() : '—' },
@@ -522,7 +522,7 @@ export default function PurchaseOrdersPage() {
             <div style={{ border: '1px solid #E2E0DA', borderRadius: '8px', overflow: 'hidden', marginBottom: '20px' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead>
-                  <tr style={{ background: '#F4F3EF' }}>
+                  <tr style={{ background: '#F6F6F7' }}>
                     {['SKU', 'Product', 'Color', 'Size', 'Ordered', 'Received', 'Unit Cost', 'Total'].map(h => (
                       <th key={h} style={{ padding: '10px 14px', textAlign: 'left', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '.06em', color: '#7A7880', fontWeight: 700 }}>{h}</th>
                     ))}
@@ -530,12 +530,12 @@ export default function PurchaseOrdersPage() {
                 </thead>
                 <tbody>
                   {selectedPO.items.map(item => (
-                    <tr key={item.id} style={{ borderTop: '1px solid #F4F3EF' }}>
+                    <tr key={item.id} style={{ borderTop: '1px solid #F6F6F7' }}>
                       <td style={{ padding: '12px 14px', fontSize: '12px', fontFamily: 'monospace', color: '#7A7880' }}>{item.sku}</td>
                       <td style={{ padding: '12px 14px', fontWeight: 600, fontSize: '13px' }}>{item.product_name}</td>
                       <td style={{ padding: '12px 14px', fontSize: '13px' }}>{item.color}</td>
                       <td style={{ padding: '12px 14px' }}>
-                        <span style={{ background: '#F4F3EF', padding: '2px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 700 }}>{item.size}</span>
+                        <span style={{ background: '#F6F6F7', padding: '2px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 700 }}>{item.size}</span>
                       </td>
                       <td style={{ padding: '12px 14px', fontWeight: 700, fontSize: '14px' }}>{item.quantity_ordered}</td>
                       <td style={{ padding: '12px 14px' }}>
@@ -552,14 +552,14 @@ export default function PurchaseOrdersPage() {
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-              <div style={{ background: '#F4F3EF', borderRadius: '8px', padding: '14px 20px', minWidth: '220px' }}>
+              <div style={{ background: '#F6F6F7', borderRadius: '8px', padding: '14px 20px', minWidth: '220px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '16px', fontFamily: 'var(--font-bebas)', color: '#2A2830' }}>
                   <span>TOTAL</span><span>${selectedPO.total.toFixed(2)}</span>
                 </div>
               </div>
             </div>
             {selectedPO.notes && (
-              <div style={{ marginTop: '16px', padding: '12px 16px', background: '#F4F3EF', borderRadius: '8px', fontSize: '13px', color: '#7A7880' }}>
+              <div style={{ marginTop: '16px', padding: '12px 16px', background: '#F6F6F7', borderRadius: '8px', fontSize: '13px', color: '#7A7880' }}>
                 <strong>Notes:</strong> {selectedPO.notes}
               </div>
             )}

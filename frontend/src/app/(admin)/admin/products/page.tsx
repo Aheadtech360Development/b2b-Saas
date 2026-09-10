@@ -228,7 +228,7 @@ export default function AdminProductsPage() {
       <div style={{ background: "#fff", border: "1px solid #E2E0DA", borderRadius: "10px", overflow: "hidden" }}>
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
-            <tr style={{ background: "#F4F3EF", borderBottom: "2px solid #E2E0DA" }}>
+            <tr style={{ background: "#F6F6F7", borderBottom: "2px solid #E2E0DA" }}>
               <th style={{ width: "40px", padding: "12px 16px" }}>
                 <input
                   type="checkbox"
@@ -263,7 +263,7 @@ export default function AdminProductsPage() {
             ) : products.map(product => (
               <tr
                 key={product.id}
-                style={{ borderBottom: "1px solid #F4F3EF", cursor: "pointer", transition: "background .15s" }}
+                style={{ borderBottom: "1px solid #F6F6F7", cursor: "pointer", transition: "background .15s" }}
                 onMouseEnter={e => (e.currentTarget.style.background = "#FAFAFA")}
                 onMouseLeave={e => (e.currentTarget.style.background = "#fff")}
               >
@@ -367,7 +367,7 @@ export default function AdminProductsPage() {
               </p>
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
                 <thead>
-                  <tr style={{ background: "#F4F3EF", borderBottom: "2px solid #E2E0DA" }}>
+                  <tr style={{ background: "#F6F6F7", borderBottom: "2px solid #E2E0DA" }}>
                     {["Product", "Status", "Vendor", "Type"].map(h => (
                       <th key={h} style={thStyle}>{h}</th>
                     ))}
@@ -395,7 +395,7 @@ export default function AdminProductsPage() {
                   }}
                 >
                   {selectedProducts.map(p => (
-                    <tr key={p.id} style={{ borderBottom: "1px solid #F4F3EF" }}>
+                    <tr key={p.id} style={{ borderBottom: "1px solid #F6F6F7" }}>
                       <td style={{ padding: "10px 12px", fontWeight: 600, fontSize: "13px", color: "#2A2830" }}>{p.name}</td>
                       <td style={{ padding: "10px 12px" }}>
                         <select

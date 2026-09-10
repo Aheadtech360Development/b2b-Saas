@@ -259,7 +259,7 @@ export default function CollectionsPage() {
             <div style={{ marginBottom: "16px" }}>
               <label style={labelStyle}>Slug (URL)</label>
               <div style={{ display: "flex", alignItems: "center", border: "1.5px solid #E2E0DA", borderRadius: "8px", overflow: "hidden" }}>
-                <span style={{ padding: "10px 12px", background: "#F4F3EF", fontSize: "13px", color: "#aaa", borderRight: "1px solid #E2E0DA", whiteSpace: "nowrap", flexShrink: 0 }}>
+                <span style={{ padding: "10px 12px", background: "#F6F6F7", fontSize: "13px", color: "#aaa", borderRight: "1px solid #E2E0DA", whiteSpace: "nowrap", flexShrink: 0 }}>
                   /products?category=
                 </span>
                 <input

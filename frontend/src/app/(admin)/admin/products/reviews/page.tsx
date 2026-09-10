@@ -122,7 +122,7 @@ export default function AdminReviewsPage() {
       <div style={{ background: "#fff", border: "1px solid #E2E0DA", borderRadius: "10px", overflow: "hidden" }}>
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
-            <tr style={{ background: "#F4F3EF", borderBottom: "2px solid #E2E0DA" }}>
+            <tr style={{ background: "#F6F6F7", borderBottom: "2px solid #E2E0DA" }}>
               <th style={thStyle}>Reviewer</th>
               <th style={thStyle}>Product</th>
               <th style={thStyle}>Rating</th>
@@ -153,7 +153,7 @@ export default function AdminReviewsPage() {
             ) : reviews.map(review => (
               <tr
                 key={review.id}
-                style={{ borderBottom: "1px solid #F4F3EF" }}
+                style={{ borderBottom: "1px solid #F6F6F7" }}
                 onMouseEnter={e => (e.currentTarget.style.background = "#FAFAFA")}
                 onMouseLeave={e => (e.currentTarget.style.background = "#fff")}
               >

@@ -497,7 +497,7 @@ function ProductEditor({ product, onBack, onGoToSizes }: { product: GangSheetPro
             </table>
           </div>
           <div style={{ display: "flex", gap: "10px", alignItems: "center", marginTop: "10px", flexWrap: "wrap" }}>
-            <button onClick={addRow} style={{ ...BTN, background: "#F4F3EF", color: "#2A2830" }}>+ Add size</button>
+            <button onClick={addRow} style={{ ...BTN, background: "#F6F6F7", color: "#2A2830" }}>+ Add size</button>
             <button onClick={onGoToSizes} style={{ background: "none", border: "none", color: "#9CA3AF", fontSize: "12px", cursor: "pointer", textDecoration: "underline" }}>Open full Sheet Sizes manager →</button>
           </div>
           <p style={{ fontSize: "11px", color: "#9CA3AF", marginTop: "8px" }}>Save (top-right) to apply. Buyers see the size name + an auto “Save %” based on these prices.</p>
@@ -541,7 +541,7 @@ function ProductEditor({ product, onBack, onGoToSizes }: { product: GangSheetPro
               </tbody>
             </table>
           </div>
-          <button onClick={addTier} style={{ marginTop: "10px", ...BTN, background: "#F4F3EF", color: "#2A2830" }}>+ Add tier</button>
+          <button onClick={addTier} style={{ marginTop: "10px", ...BTN, background: "#F6F6F7", color: "#2A2830" }}>+ Add tier</button>
         </div>
       )}
     </div>

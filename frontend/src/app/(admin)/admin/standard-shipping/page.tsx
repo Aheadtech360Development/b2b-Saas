@@ -57,7 +57,7 @@ function BracketEditor({
       <div style={{ overflowX: "auto", border: "1px solid #E2E0DA", borderRadius: "7px", background: "#fff" }}>
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px", minWidth: "420px" }}>
           <thead>
-            <tr style={{ background: "#F4F3EF", borderBottom: "1px solid #E2E0DA" }}>
+            <tr style={{ background: "#F6F6F7", borderBottom: "1px solid #E2E0DA" }}>
               {calcType === "units" ? (
                 <><th style={thS}>Min Units</th><th style={thS}>Max Units (blank = no limit)</th></>
               ) : (
@@ -69,7 +69,7 @@ function BracketEditor({
           </thead>
           <tbody>
             {brackets.map((b, i) => (
-              <tr key={i} style={{ borderBottom: "1px solid #F4F3EF" }}>
+              <tr key={i} style={{ borderBottom: "1px solid #F6F6F7" }}>
                 {calcType === "units" ? (
                   <>
                     <td style={{ padding: "7px 10px" }}>
@@ -134,7 +134,7 @@ function BracketEditor({
       </div>
       <button onClick={() => onChange([...brackets, emptyBracket()])}
         style={{
-          marginTop: "8px", padding: "6px 14px", background: "#F4F3EF", border: "1px solid #E2E0DA",
+          marginTop: "8px", padding: "6px 14px", background: "#F6F6F7", border: "1px solid #E2E0DA",
           borderRadius: "6px", fontSize: "12px", fontWeight: 700, cursor: "pointer", color: "#2A2830"
         }}>
         + Add Bracket

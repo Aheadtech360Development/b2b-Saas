@@ -163,16 +163,16 @@ export default function AdminStyleSheetsPage() {
             </thead>
             <tbody>
               {sheets.map((s, i) => (
-                <tr key={s.id} style={{ borderBottom: i < sheets.length - 1 ? "1px solid #F4F3EF" : "none" }}>
+                <tr key={s.id} style={{ borderBottom: i < sheets.length - 1 ? "1px solid #F6F6F7" : "none" }}>
                   <td style={{ padding: "12px 16px" }}>
                     {s.image_url ? (
                       <img src={s.image_url} alt={s.style_number} style={{ width: "48px", height: "48px", objectFit: "cover", borderRadius: "6px", border: "1px solid #E2E0DA" }} />
                     ) : (
-                      <div style={{ width: "48px", height: "48px", background: "#F4F3EF", borderRadius: "6px", border: "1px solid #E2E0DA", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "18px" }}>—</div>
+                      <div style={{ width: "48px", height: "48px", background: "#F6F6F7", borderRadius: "6px", border: "1px solid #E2E0DA", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "18px" }}>—</div>
                     )}
                   </td>
                   <td style={{ padding: "12px 16px" }}>
-                    <span style={{ background: "#F4F3EF", padding: "2px 8px", borderRadius: "4px", fontSize: "13px", fontWeight: 700, fontFamily: "monospace" }}>{s.style_number}</span>
+                    <span style={{ background: "#F6F6F7", padding: "2px 8px", borderRadius: "4px", fontSize: "13px", fontWeight: 700, fontFamily: "monospace" }}>{s.style_number}</span>
                   </td>
                   <td style={{ padding: "12px 16px" }}>
                     {s.pdf_url ? (
@@ -220,7 +220,7 @@ export default function AdminStyleSheetsPage() {
                 <div style={{ display: "flex", gap: "8px" }}>
                   <input style={{ ...inp, flex: 1 }} value={form.image_url} onChange={e => setForm(f => ({ ...f, image_url: e.target.value }))} placeholder="https://... or upload below" />
                   <button type="button" onClick={() => imageRef.current?.click()} disabled={uploadingImage}
-                    style={{ flexShrink: 0, padding: "9px 14px", border: "1.5px solid #E2E0DA", borderRadius: "8px", background: "#F4F3EF", fontSize: "12px", fontWeight: 700, cursor: "pointer" }}>
+                    style={{ flexShrink: 0, padding: "9px 14px", border: "1.5px solid #E2E0DA", borderRadius: "8px", background: "#F6F6F7", fontSize: "12px", fontWeight: 700, cursor: "pointer" }}>
                     {uploadingImage ? "…" : "Upload"}
                   </button>
                   <input ref={imageRef} type="file" accept="image/*" style={{ display: "none" }} onChange={e => { if (e.target.files?.[0]) uploadFile(e.target.files[0], "image_url"); }} />
@@ -233,7 +233,7 @@ export default function AdminStyleSheetsPage() {
                 <div style={{ display: "flex", gap: "8px" }}>
                   <input style={{ ...inp, flex: 1 }} value={form.pdf_url} onChange={e => setForm(f => ({ ...f, pdf_url: e.target.value }))} placeholder="https://... or upload below" />
                   <button type="button" onClick={() => pdfRef.current?.click()} disabled={uploadingPdf}
-                    style={{ flexShrink: 0, padding: "9px 14px", border: "1.5px solid #E2E0DA", borderRadius: "8px", background: "#F4F3EF", fontSize: "12px", fontWeight: 700, cursor: "pointer" }}>
+                    style={{ flexShrink: 0, padding: "9px 14px", border: "1.5px solid #E2E0DA", borderRadius: "8px", background: "#F6F6F7", fontSize: "12px", fontWeight: 700, cursor: "pointer" }}>
                     {uploadingPdf ? "…" : "Upload"}
                   </button>
                   <input ref={pdfRef} type="file" accept="application/pdf" style={{ display: "none" }} onChange={e => { if (e.target.files?.[0]) uploadFile(e.target.files[0], "pdf_url"); }} />

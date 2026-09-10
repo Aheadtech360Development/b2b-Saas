@@ -194,7 +194,7 @@ export default function AdminPageSeoEditPage() {
             style={{ ...inputSt, flex: 1 }}
           />
           <button type="button" onClick={() => ogFileRef.current?.click()}
-            style={{ background: "#F4F3EF", border: "1.5px solid #E2E0DA", borderRadius: "8px", padding: "10px 16px", fontSize: "13px", fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap", color: "#2A2830" }}>
+            style={{ background: "#F6F6F7", border: "1.5px solid #E2E0DA", borderRadius: "8px", padding: "10px 16px", fontSize: "13px", fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap", color: "#2A2830" }}>
             {uploadingOg ? "Uploading…" : "Upload"}
           </button>
           <input ref={ogFileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={handleOgUpload} />

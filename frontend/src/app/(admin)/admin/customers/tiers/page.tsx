@@ -83,7 +83,7 @@ const inputStyle: React.CSSProperties = {
 };
 
 const sectionBox: React.CSSProperties = {
-  background: "#F4F3EF", borderRadius: "8px", padding: "18px", marginBottom: "16px",
+  background: "#F6F6F7", borderRadius: "8px", padding: "18px", marginBottom: "16px",
 };
 
 // ─── Bracket Editor (mirrors shipping-tiers UI) ───────────────────────────────
@@ -117,7 +117,7 @@ function BracketEditor({
       <div style={{ overflowX: "auto", border: "1px solid #E2E0DA", borderRadius: "7px", background: "#fff" }}>
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px", minWidth: "420px" }}>
           <thead>
-            <tr style={{ background: "#F4F3EF", borderBottom: "1px solid #E2E0DA" }}>
+            <tr style={{ background: "#F6F6F7", borderBottom: "1px solid #E2E0DA" }}>
               {calcType === "units" ? (
                 <><th style={thS}>Min Units</th><th style={thS}>Max Units (blank = no limit)</th></>
               ) : (
@@ -129,7 +129,7 @@ function BracketEditor({
           </thead>
           <tbody>
             {brackets.map((b, i) => (
-              <tr key={i} style={{ borderBottom: "1px solid #F4F3EF" }}>
+              <tr key={i} style={{ borderBottom: "1px solid #F6F6F7" }}>
                 {calcType === "units" ? (
                   <>
                     <td style={{ padding: "7px 10px" }}>
@@ -194,7 +194,7 @@ function BracketEditor({
       </div>
       <button onClick={() => onChange([...brackets, emptyBracket()])}
         style={{
-          marginTop: "8px", padding: "6px 14px", background: "#F4F3EF", border: "1px solid #E2E0DA",
+          marginTop: "8px", padding: "6px 14px", background: "#F6F6F7", border: "1px solid #E2E0DA",
           borderRadius: "6px", fontSize: "12px", fontWeight: 700, cursor: "pointer", color: "#2A2830"
         }}>
         + Add Bracket
@@ -599,7 +599,7 @@ export default function DiscountGroupsPage() {
                     <tr key={g.id} style={{ borderBottom: i < filteredGroups.length - 1 ? "1px solid #F0EDE8" : "none" }}>
                       <td style={{ padding: "13px 16px", fontWeight: 700, color: "#2A2830" }}>{g.title}</td>
                       <td style={{ padding: "13px 16px" }}>
-                        <span style={{ background: "#F4F3EF", padding: "2px 8px", borderRadius: "20px", fontSize: "11px", fontWeight: 600 }}>{g.customer_tag || "—"}</span>
+                        <span style={{ background: "#F6F6F7", padding: "2px 8px", borderRadius: "20px", fontSize: "11px", fontWeight: 600 }}>{g.customer_tag || "—"}</span>
                       </td>
                       <td style={{ padding: "13px 16px", color: "#7A7880", textTransform: "capitalize" }}>
                         {g.applies_to.replace("_", " ")}
@@ -620,7 +620,7 @@ export default function DiscountGroupsPage() {
                       </td>
                       <td style={{ padding: "13px 16px" }}>
                         <div style={{ display: "flex", gap: "6px" }}>
-                          <button onClick={() => openEditGroup(g)} style={{ background: "#F4F3EF", border: "1px solid #E2E0DA", padding: "5px 10px", borderRadius: "5px", fontSize: "11px", fontWeight: 700, cursor: "pointer", color: "#2A2830" }}>Edit</button>
+                          <button onClick={() => openEditGroup(g)} style={{ background: "#F6F6F7", border: "1px solid #E2E0DA", padding: "5px 10px", borderRadius: "5px", fontSize: "11px", fontWeight: 700, cursor: "pointer", color: "#2A2830" }}>Edit</button>
                           <button onClick={() => handleDeleteGroup(g.id, g.title)} style={{ background: "rgba(232,36,42,.06)", border: "1px solid rgba(232,36,42,.2)", padding: "5px 10px", borderRadius: "5px", fontSize: "11px", fontWeight: 700, cursor: "pointer", color: "#E8242A" }}>Delete</button>
                         </div>
                       </td>
@@ -688,7 +688,7 @@ export default function DiscountGroupsPage() {
                           <td style={{ padding: "10px 16px" }}>
                             <div style={{ display: "flex", flexWrap: "wrap", gap: "4px" }}>
                               {(product.categories ?? []).slice(0, 3).map(cat => (
-                                <span key={cat} style={{ background: "#F4F3EF", padding: "1px 6px", borderRadius: "10px", fontSize: "10px", color: "#7A7880" }}>{cat}</span>
+                                <span key={cat} style={{ background: "#F6F6F7", padding: "1px 6px", borderRadius: "10px", fontSize: "10px", color: "#7A7880" }}>{cat}</span>
                               ))}
                             </div>
                           </td>
@@ -912,7 +912,7 @@ export default function DiscountGroupsPage() {
                 ) : groupCustomers.length > 0 ? (
                   <div style={{ border: "1px solid #E2E0DA", borderRadius: "7px", background: "#fff", maxHeight: "150px", overflowY: "auto" }}>
                     {groupCustomers.map(c => (
-                      <div key={c.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 12px", borderBottom: "1px solid #F4F3EF" }}>
+                      <div key={c.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 12px", borderBottom: "1px solid #F6F6F7" }}>
                         <span style={{ fontSize: "13px", fontWeight: 600, color: "#2A2830" }}>{c.name}</span>
                         <button
                           onClick={() => toggleCustomerAssignment(c, false)}
@@ -928,7 +928,7 @@ export default function DiscountGroupsPage() {
                 {/* Add panel — visible when "+ Add" is clicked */}
                 {showAddPanel && (
                   <div style={{ border: "1px solid #E2E0DA", borderRadius: "8px", background: "#fff", overflow: "hidden", marginTop: "10px" }}>
-                    <div style={{ padding: "8px 12px", borderBottom: "1px solid #F4F3EF" }}>
+                    <div style={{ padding: "8px 12px", borderBottom: "1px solid #F6F6F7" }}>
                       <input
                         value={customerAssignSearch}
                         onChange={e => setCustomerAssignSearch(e.target.value)}
@@ -952,7 +952,7 @@ export default function DiscountGroupsPage() {
                           );
                         }
                         return unassigned.slice(0, 20).map(c => (
-                          <div key={c.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 12px", borderBottom: "1px solid #F4F3EF" }}>
+                          <div key={c.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 12px", borderBottom: "1px solid #F6F6F7" }}>
                             <span style={{ fontSize: "13px", fontWeight: 600, color: "#2A2830" }}>{c.name}</span>
                             <button
                               onClick={() => toggleCustomerAssignment(c, true)}
@@ -995,14 +995,14 @@ export default function DiscountGroupsPage() {
                           {browseLoading ? (
                             <div style={{ padding: "20px", textAlign: "center", color: "#bbb", fontSize: "12px" }}>Loading…</div>
                           ) : browseList.filter(item => !browseSearch || item.name.toLowerCase().includes(browseSearch.toLowerCase())).map(item => (
-                            <label key={item.id} style={{ display: "flex", alignItems: "center", gap: "10px", padding: "9px 14px", cursor: "pointer", borderBottom: "1px solid #F4F3EF", background: browseIds.includes(item.id) ? "rgba(26,92,255,.04)" : "transparent" }}>
+                            <label key={item.id} style={{ display: "flex", alignItems: "center", gap: "10px", padding: "9px 14px", cursor: "pointer", borderBottom: "1px solid #F6F6F7", background: browseIds.includes(item.id) ? "rgba(26,92,255,.04)" : "transparent" }}>
                               <input type="checkbox" checked={browseIds.includes(item.id)} onChange={e => setBrowseIds(prev => e.target.checked ? [...prev, item.id] : prev.filter(id => id !== item.id))} style={{ accentColor: "#1A5CFF", width: "15px", height: "15px", flexShrink: 0 }} />
                               <span style={{ fontSize: "13px", color: "#2A2830" }}>{item.name}</span>
                             </label>
                           ))}
                         </div>
                         {browseIds.length > 0 && (
-                          <div style={{ padding: "8px 14px", borderTop: "1px solid #E2E0DA", background: "#F4F3EF", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                          <div style={{ padding: "8px 14px", borderTop: "1px solid #E2E0DA", background: "#F6F6F7", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                             <span style={{ fontSize: "12px", color: "#2A2830", fontWeight: 600 }}>{browseIds.length} {opt === "collections" ? "collection" : "product"}{browseIds.length !== 1 ? "s" : ""} selected</span>
                             <button onClick={() => setBrowseIds([])} style={{ background: "none", border: "none", fontSize: "12px", color: "#E8242A", cursor: "pointer", fontWeight: 600 }}>Clear all</button>
                           </div>

@@ -49,6 +49,30 @@
   ::-webkit-scrollbar { width: 4px; height: 4px; }
   ::-webkit-scrollbar-track { background: #f0f0f0; }
   ::-webkit-scrollbar-thumb { background: #ccc; border-radius: 2px; }
+
+  /* ── Admin: clean, Shopify-style typography ──────────────────────────────────
+     The admin (everything under .admin-layout-root) drops the serif display
+     font for one neutral sans — like Shopify's UI — without touching any page.
+     `--font-bebas` is redefined here so every inline `var(--font-bebas)` title
+     resolves to the clean sans; h1–h3 are overridden for headings that use tags.
+     Storefront pages keep their Fraunces branding (they aren't in this scope). */
+  .admin-layout-root { --font-bebas: "Inter", "DM Sans", system-ui, sans-serif; }
+  .admin-layout-root,
+  .admin-layout-root input,
+  .admin-layout-root select,
+  .admin-layout-root textarea,
+  .admin-layout-root button {
+    font-family: "Inter", "DM Sans", system-ui, sans-serif;
+  }
+  .admin-layout-root h1,
+  .admin-layout-root h2,
+  .admin-layout-root h3,
+  .admin-layout-root h4,
+  .admin-layout-root h5,
+  .admin-layout-root h6 {
+    font-family: "Inter", "DM Sans", system-ui, sans-serif;
+    letter-spacing: -0.006em;
+  }
 }
 
 @layer components {

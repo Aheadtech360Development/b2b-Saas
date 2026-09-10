@@ -91,7 +91,7 @@ function BracketEditor({
       <div style={{ overflowX: "auto" }}>
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px", minWidth: "520px" }}>
           <thead>
-            <tr style={{ background: "#F4F3EF", borderBottom: "1px solid #E2E0DA" }}>
+            <tr style={{ background: "#F6F6F7", borderBottom: "1px solid #E2E0DA" }}>
               {calcType === "units" ? (
                 <><th style={thS}>Min Units</th><th style={thS}>Max Units (blank = no limit)</th></>
               ) : (
@@ -103,7 +103,7 @@ function BracketEditor({
           </thead>
           <tbody>
             {brackets.map((b, i) => (
-              <tr key={i} style={{ borderBottom: "1px solid #F4F3EF" }}>
+              <tr key={i} style={{ borderBottom: "1px solid #F6F6F7" }}>
                 {calcType === "units" ? (
                   <>
                     <td style={{ padding: "8px 10px" }}>
@@ -167,7 +167,7 @@ function BracketEditor({
         </table>
       </div>
       <button onClick={() => onChange([...brackets, emptyBracket()])}
-        style={{ marginTop: "10px", padding: "6px 16px", background: "#F4F3EF", border: "1px solid #E2E0DA",
+        style={{ marginTop: "10px", padding: "6px 16px", background: "#F6F6F7", border: "1px solid #E2E0DA",
           borderRadius: "6px", fontSize: "12px", fontWeight: 700, cursor: "pointer", color: "#2A2830" }}>
         + Add Bracket
       </button>
@@ -453,7 +453,7 @@ function TierCard({ tier, onEdit, onDelete }: {
               {badge.label}
             </span>
             {tier.cutoff_time && (
-              <span style={{ fontSize: "11px", color: "#7A7880", background: "#F4F3EF",
+              <span style={{ fontSize: "11px", color: "#7A7880", background: "#F6F6F7",
                 padding: "2px 8px", borderRadius: "4px" }}>
                 ⏰ Cutoff {tier.cutoff_time}
               </span>
@@ -481,7 +481,7 @@ function TierCard({ tier, onEdit, onDelete }: {
             <div style={{ overflowX: "auto", marginBottom: "16px" }}>
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
                 <thead>
-                  <tr style={{ background: "#F4F3EF" }}>
+                  <tr style={{ background: "#F6F6F7" }}>
                     <th style={{ padding: "9px 14px", textAlign: "left", fontSize: "10px",
                       textTransform: "uppercase", letterSpacing: ".06em", color: "#7A7880", fontWeight: 700 }}>
                       {tier.calculation_type === "order_value" ? "Order Value Range" : "Unit Range"}
@@ -494,7 +494,7 @@ function TierCard({ tier, onEdit, onDelete }: {
                 </thead>
                 <tbody>
                   {sortedBrackets.map((b, i) => (
-                    <tr key={i} style={{ borderBottom: "1px solid #F4F3EF" }}>
+                    <tr key={i} style={{ borderBottom: "1px solid #F6F6F7" }}>
                       <td style={{ padding: "10px 14px", fontWeight: 600, color: "#2A2830" }}>
                         {tier.calculation_type === "order_value" ? (
                           <>

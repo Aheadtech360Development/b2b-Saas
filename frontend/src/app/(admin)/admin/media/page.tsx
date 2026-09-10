@@ -85,7 +85,7 @@ export default function MediaLibraryPage() {
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: "16px" }}>
           {items.map((m) => (
             <div key={m.file_id} style={{ background: "#fff", border: "1px solid #E2E0DA", borderRadius: "10px", overflow: "hidden" }}>
-              <div style={{ aspectRatio: "1 / 1", background: "#F4F3EF", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
+              <div style={{ aspectRatio: "1 / 1", background: "#F6F6F7", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={m.thumbnail_url || m.url} alt={m.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
               </div>

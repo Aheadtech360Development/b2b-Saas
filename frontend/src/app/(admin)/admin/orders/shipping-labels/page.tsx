@@ -124,7 +124,7 @@ export default function ShippingLabelsPage() {
           <p style={{ fontSize: "13px", color: "#7A7880", marginTop: "4px" }}>Manage shipments, print labels & packing slips · {stats.total} shipped orders</p>
         </div>
         <div style={{ display: "flex", gap: "10px" }}>
-          <button style={{ background: "#F4F3EF", color: "#2A2830", border: "1px solid #E2E0DA", padding: "10px 18px", borderRadius: "6px", fontWeight: 700, cursor: "pointer", fontSize: "13px" }}>
+          <button style={{ background: "#F6F6F7", color: "#2A2830", border: "1px solid #E2E0DA", padding: "10px 18px", borderRadius: "6px", fontWeight: 700, cursor: "pointer", fontSize: "13px" }}>
             ↓ Export CSV
           </button>
           <button style={{ background: "#1A5CFF", color: "#fff", border: "none", padding: "10px 18px", borderRadius: "6px", fontWeight: 700, cursor: "pointer", fontSize: "13px", display: "inline-flex", alignItems: "center", gap: "6px" }}>
@@ -149,11 +149,11 @@ export default function ShippingLabelsPage() {
       </div>
 
       {/* Filter Tabs */}
-      <div style={{ display: "flex", gap: "4px", marginBottom: "16px", background: "#F4F3EF", padding: "4px", borderRadius: "8px", width: "fit-content" }}>
+      <div style={{ display: "flex", gap: "4px", marginBottom: "16px", background: "#F6F6F7", padding: "4px", borderRadius: "8px", width: "fit-content" }}>
         {TABS.map(t => (
           <button key={t.key} onClick={() => setTab(t.key)}
             style={{ background: tab === t.key ? "#fff" : "transparent", color: tab === t.key ? "#2A2830" : "#7A7880", border: "none", padding: "7px 16px", borderRadius: "6px", fontWeight: 700, fontSize: "12px", cursor: "pointer", boxShadow: tab === t.key ? "0 1px 3px rgba(0,0,0,.08)" : "none", transition: "all .15s" }}>
-            {t.label} <span style={{ marginLeft: "4px", background: tab === t.key ? "#F4F3EF" : "rgba(0,0,0,.08)", color: "#7A7880", padding: "1px 6px", borderRadius: "10px", fontSize: "10px", fontWeight: 700 }}>{t.count}</span>
+            {t.label} <span style={{ marginLeft: "4px", background: tab === t.key ? "#F6F6F7" : "rgba(0,0,0,.08)", color: "#7A7880", padding: "1px 6px", borderRadius: "10px", fontSize: "10px", fontWeight: 700 }}>{t.count}</span>
           </button>
         ))}
       </div>
@@ -227,7 +227,7 @@ export default function ShippingLabelsPage() {
                 {/* Tracking */}
                 <td style={{ padding: "12px 14px" }}>
                   {l.tracking_number ? (
-                    <span style={{ fontFamily: "monospace", fontSize: "11px", color: "#2A2830", background: "#F4F3EF", padding: "2px 6px", borderRadius: "4px" }}>{l.tracking_number}</span>
+                    <span style={{ fontFamily: "monospace", fontSize: "11px", color: "#2A2830", background: "#F6F6F7", padding: "2px 6px", borderRadius: "4px" }}>{l.tracking_number}</span>
                   ) : (
                     <span style={{ color: "#bbb", fontSize: "12px" }}>—</span>
                   )}
@@ -261,7 +261,7 @@ export default function ShippingLabelsPage() {
                       <PrinterIcon size={11} color="#1A5CFF" /> Label
                     </button>
                     <button
-                      style={{ background: "#F4F3EF", color: "#2A2830", border: "1px solid #E2E0DA", padding: "5px 11px", borderRadius: "5px", fontSize: "11px", fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" as const, display: "inline-flex", alignItems: "center", gap: "4px" }}
+                      style={{ background: "#F6F6F7", color: "#2A2830", border: "1px solid #E2E0DA", padding: "5px 11px", borderRadius: "5px", fontSize: "11px", fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" as const, display: "inline-flex", alignItems: "center", gap: "4px" }}
                       onClick={() => window.print()}
                     >
                       <FileTextIcon size={11} color="#2A2830" /> Slip

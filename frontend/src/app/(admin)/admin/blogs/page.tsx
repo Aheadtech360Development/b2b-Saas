@@ -111,7 +111,7 @@ export default function AdminBlogsPage() {
                   <td style={tdSt}>
                     <div style={{ display: "flex", flexWrap: "wrap", gap: "4px" }}>
                       {(post.tags || []).slice(0, 3).map(tag => (
-                        <span key={tag} style={{ background: "#F4F3EF", color: "#555", padding: "2px 8px", borderRadius: "4px", fontSize: "11px" }}>{tag}</span>
+                        <span key={tag} style={{ background: "#F6F6F7", color: "#555", padding: "2px 8px", borderRadius: "4px", fontSize: "11px" }}>{tag}</span>
                       ))}
                     </div>
                   </td>

@@ -972,7 +972,7 @@ export default function AdminOrderDetailPage() {
                 ) : (
                   <button
                     onClick={() => setEditingItems(true)}
-                    style={{ display: "flex", alignItems: "center", gap: "5px", background: "#F4F3EF", border: "1px solid #E2E0DA", borderRadius: "6px", padding: "6px 12px", fontSize: "12px", fontWeight: 700, cursor: "pointer", color: "#2A2830" }}>
+                    style={{ display: "flex", alignItems: "center", gap: "5px", background: "#F6F6F7", border: "1px solid #E2E0DA", borderRadius: "6px", padding: "6px 12px", fontSize: "12px", fontWeight: 700, cursor: "pointer", color: "#2A2830" }}>
                     ✎ Edit
                   </button>
                 )
@@ -981,7 +981,7 @@ export default function AdminOrderDetailPage() {
 
             {/* Add Items — only in edit mode */}
             {editingItems && (
-              <div style={{ background: "#F4F3EF", borderRadius: "8px", padding: "16px", marginBottom: "20px" }}>
+              <div style={{ background: "#F6F6F7", borderRadius: "8px", padding: "16px", marginBottom: "20px" }}>
                 <div style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: ".08em", color: "#7A7880", marginBottom: "10px" }}>Add Product</div>
                 <div style={{ display: "flex", gap: "8px", marginBottom: "8px" }}>
                   <div style={{ flex: 1, position: "relative" }}>
@@ -997,8 +997,8 @@ export default function AdminOrderDetailPage() {
                           <div
                             key={v.variant_id}
                             onClick={() => { setSelectedVariant(v); setItemSearch(`${v.product_name} — ${[v.color, v.size].filter(Boolean).join(" / ")}`); setItemResults([]); }}
-                            style={{ padding: "9px 12px", fontSize: "13px", cursor: "pointer", borderBottom: "1px solid #F4F3EF" }}
-                            onMouseEnter={e => (e.currentTarget.style.background = "#F4F3EF")}
+                            style={{ padding: "9px 12px", fontSize: "13px", cursor: "pointer", borderBottom: "1px solid #F6F6F7" }}
+                            onMouseEnter={e => (e.currentTarget.style.background = "#F6F6F7")}
                             onMouseLeave={e => (e.currentTarget.style.background = "#fff")}
                           >
                             <span style={{ fontWeight: 600, color: "#2A2830" }}>{v.product_name}</span>
@@ -1048,12 +1048,12 @@ export default function AdminOrderDetailPage() {
               </thead>
               <tbody>
                 {order.items.map((item, i) => (
-                  <tr key={item.id} style={{ borderBottom: i < order.items.length - 1 ? "1px solid #F4F3EF" : "none" }}>
+                  <tr key={item.id} style={{ borderBottom: i < order.items.length - 1 ? "1px solid #F6F6F7" : "none" }}>
                     <td style={{ padding: "14px 12px", fontWeight: 700, fontSize: "14px", color: "#2A2830" }}>{item.product_name}</td>
                     <td style={{ padding: "14px 12px", fontSize: "12px", color: "#7A7880", fontFamily: "monospace" }}>{item.sku}</td>
                     <td style={{ padding: "14px 12px" }}>
                       {item.color && <span style={{ fontSize: "13px", color: "#2A2830", marginRight: "6px" }}>{item.color}</span>}
-                      {item.size && <span style={{ background: "#F4F3EF", padding: "2px 8px", borderRadius: "4px", fontSize: "11px", fontWeight: 700, color: "#2A2830" }}>{item.size}</span>}
+                      {item.size && <span style={{ background: "#F6F6F7", padding: "2px 8px", borderRadius: "4px", fontSize: "11px", fontWeight: 700, color: "#2A2830" }}>{item.size}</span>}
                       {!item.color && !item.size && <span style={{ color: "#aaa" }}>—</span>}
                     </td>
                     <td style={{ padding: "14px 12px", textAlign: "right" as const, fontWeight: 700, color: "#2A2830" }}>{item.quantity}</td>
@@ -1162,14 +1162,14 @@ export default function AdminOrderDetailPage() {
               <button
                 onClick={handleResendInvoice}
                 disabled={isResendingInvoice}
-                style={{ display: "flex", alignItems: "center", gap: "8px", background: isResendingInvoice ? "#F4F3EF" : "#1B3A5C", color: isResendingInvoice ? "#7A7880" : "#fff", border: "none", padding: "10px 16px", borderRadius: "6px", fontSize: "13px", fontWeight: 700, cursor: isResendingInvoice ? "not-allowed" : "pointer", opacity: isResendingInvoice ? .6 : 1, width: "100%", justifyContent: "center" as const }}>
+                style={{ display: "flex", alignItems: "center", gap: "8px", background: isResendingInvoice ? "#F6F6F7" : "#1B3A5C", color: isResendingInvoice ? "#7A7880" : "#fff", border: "none", padding: "10px 16px", borderRadius: "6px", fontSize: "13px", fontWeight: 700, cursor: isResendingInvoice ? "not-allowed" : "pointer", opacity: isResendingInvoice ? .6 : 1, width: "100%", justifyContent: "center" as const }}>
                 {isResendingInvoice ? "Sending…" : "📄 Email Invoice to Customer"}
               </button>
               <a
                 href={`/api/v1/orders/${id}/pdf/invoice`}
                 target="_blank"
                 rel="noopener noreferrer"
-                style={{ display: "flex", alignItems: "center", justifyContent: "center" as const, gap: "8px", background: "#F4F3EF", color: "#2A2830", border: "1px solid #E2E0DA", padding: "10px 16px", borderRadius: "6px", fontSize: "13px", fontWeight: 700, textDecoration: "none" }}>
+                style={{ display: "flex", alignItems: "center", justifyContent: "center" as const, gap: "8px", background: "#F6F6F7", color: "#2A2830", border: "1px solid #E2E0DA", padding: "10px 16px", borderRadius: "6px", fontSize: "13px", fontWeight: 700, textDecoration: "none" }}>
                 ⬇ Download Invoice PDF
               </a>
             </div>
@@ -1206,7 +1206,7 @@ export default function AdminOrderDetailPage() {
             )}
 
             {(order.po_number || order.qb_invoice_id) && (
-              <div style={{ marginTop: "14px", paddingTop: "14px", borderTop: "1px solid #F4F3EF" }}>
+              <div style={{ marginTop: "14px", paddingTop: "14px", borderTop: "1px solid #F6F6F7" }}>
                 <div style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase" as const, letterSpacing: ".08em", color: "#aaa", marginBottom: "8px" }}>Additional Details</div>
                 {order.po_number && (
                   <div style={{ display: "flex", justifyContent: "space-between", fontSize: "13px", marginBottom: "5px" }}>
@@ -1254,7 +1254,7 @@ export default function AdminOrderDetailPage() {
             )}
 
             {/* All orders link */}
-            <div style={{ background: "#F4F3EF", borderRadius: "6px", padding: "10px 14px", marginBottom: "14px", fontSize: "13px" }}>
+            <div style={{ background: "#F6F6F7", borderRadius: "6px", padding: "10px 14px", marginBottom: "14px", fontSize: "13px" }}>
               <span style={{ color: "#7A7880" }}>Orders from this company: </span>
               <span onClick={() => router.push(`/admin/orders?company=${order.company_id}`)}
                 style={{ fontWeight: 700, color: "#1A5CFF", cursor: "pointer" }}>
@@ -1264,7 +1264,7 @@ export default function AdminOrderDetailPage() {
 
             {/* Shipping Address */}
             {addr && (
-              <div style={{ borderTop: "1px solid #F4F3EF", paddingTop: "14px", marginBottom: "14px" }}>
+              <div style={{ borderTop: "1px solid #F6F6F7", paddingTop: "14px", marginBottom: "14px" }}>
                 <div style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase" as const, letterSpacing: ".08em", color: "#aaa", marginBottom: "8px" }}>Shipping Address</div>
                 <div style={{ fontSize: "13px", color: "#2A2830", lineHeight: 1.7 }}>
                   {addr.full_name && <div style={{ fontWeight: 600 }}>{addr.full_name}</div>}
@@ -1283,14 +1283,14 @@ export default function AdminOrderDetailPage() {
               </div>
             )}
 
-            <div style={{ borderTop: "1px solid #F4F3EF", paddingTop: "14px" }}>
+            <div style={{ borderTop: "1px solid #F6F6F7", paddingTop: "14px" }}>
               <div style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase" as const, letterSpacing: ".08em", color: "#aaa", marginBottom: "8px" }}>Billing Address</div>
               <div style={{ fontSize: "13px", color: "#7A7880" }}>Same as shipping address</div>
             </div>
 
             {/* Company Registration Info */}
             {companyReg && (companyReg.company_email || companyReg.address_line1 || companyReg.city || companyReg.secondary_business || companyReg.ppac_number || companyReg.how_heard) && (
-              <div style={{ borderTop: "1px solid #F4F3EF", paddingTop: "14px", marginTop: "4px" }}>
+              <div style={{ borderTop: "1px solid #F6F6F7", paddingTop: "14px", marginTop: "4px" }}>
                 <div style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase" as const, letterSpacing: ".08em", color: "#aaa", marginBottom: "10px" }}>Company Registration Info</div>
                 <div style={{ display: "flex", flexDirection: "column" as const, gap: "6px", fontSize: "13px" }}>
                   {companyReg.company_email && (
@@ -1337,7 +1337,7 @@ export default function AdminOrderDetailPage() {
 
             {/* Key metrics */}
             <div style={{ display: "flex", flexDirection: "column" as const, gap: "10px", marginBottom: "16px" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 12px", background: "#F4F3EF", borderRadius: "8px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 12px", background: "#F6F6F7", borderRadius: "8px" }}>
                 <span style={{ fontSize: "18px" }}>🛒</span>
                 <div>
                   <div style={{ fontSize: "13px", fontWeight: 700, color: "#2A2830" }}>
@@ -1346,7 +1346,7 @@ export default function AdminOrderDetailPage() {
                   <div style={{ fontSize: "11px", color: "#7A7880" }}>from this customer</div>
                 </div>
               </div>
-              <div style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 12px", background: "#F4F3EF", borderRadius: "8px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 12px", background: "#F6F6F7", borderRadius: "8px" }}>
                 <span style={{ fontSize: "18px" }}>💰</span>
                 <div>
                   <div style={{ fontSize: "13px", fontWeight: 700, color: "#2A2830" }}>
@@ -1355,7 +1355,7 @@ export default function AdminOrderDetailPage() {
                   <div style={{ fontSize: "11px", color: "#7A7880" }}>total revenue from customer</div>
                 </div>
               </div>
-              <div style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 12px", background: "#F4F3EF", borderRadius: "8px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 12px", background: "#F6F6F7", borderRadius: "8px" }}>
                 <span style={{ fontSize: "18px" }}>📅</span>
                 <div>
                   <div style={{ fontSize: "13px", fontWeight: 700, color: "#2A2830" }}>
@@ -1369,7 +1369,7 @@ export default function AdminOrderDetailPage() {
             </div>
 
             {/* Order source */}
-            <div style={{ borderTop: "1px solid #F4F3EF", paddingTop: "14px", marginBottom: "14px" }}>
+            <div style={{ borderTop: "1px solid #F6F6F7", paddingTop: "14px", marginBottom: "14px" }}>
               <div style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase" as const, letterSpacing: ".08em", color: "#aaa", marginBottom: "10px" }}>Order Source</div>
               <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "13px", color: "#2A2830", marginBottom: "6px" }}>
                 <span>🌐</span><span>Online Store — Direct</span>
@@ -1381,7 +1381,7 @@ export default function AdminOrderDetailPage() {
 
             {/* Pricing tier */}
             {order.pricing_tier && (
-              <div style={{ borderTop: "1px solid #F4F3EF", paddingTop: "14px", marginBottom: "14px" }}>
+              <div style={{ borderTop: "1px solid #F6F6F7", paddingTop: "14px", marginBottom: "14px" }}>
                 <div style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase" as const, letterSpacing: ".08em", color: "#aaa", marginBottom: "8px" }}>Pricing Tier</div>
                 <span style={{ background: "rgba(26,92,255,.1)", color: "#1A5CFF", padding: "4px 12px", borderRadius: "20px", fontSize: "12px", fontWeight: 700 }}>
                   {order.pricing_tier}
@@ -1390,7 +1390,7 @@ export default function AdminOrderDetailPage() {
             )}
 
             {/* Payment */}
-            <div style={{ borderTop: "1px solid #F4F3EF", paddingTop: "14px" }}>
+            <div style={{ borderTop: "1px solid #F6F6F7", paddingTop: "14px" }}>
               <div style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase" as const, letterSpacing: ".08em", color: "#aaa", marginBottom: "8px" }}>Payment</div>
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: "13px", marginBottom: "5px" }}>
                 <span style={{ color: "#7A7880" }}>Method</span>
@@ -1403,7 +1403,7 @@ export default function AdminOrderDetailPage() {
                 </span>
               </div>
               {order.payment_method === "ach" && (
-                <div style={{ marginTop: "10px", padding: "12px 14px", background: "#F4F3EF", borderRadius: "8px", fontSize: "12px", display: "flex", flexDirection: "column" as const, gap: "4px" }}>
+                <div style={{ marginTop: "10px", padding: "12px 14px", background: "#F6F6F7", borderRadius: "8px", fontSize: "12px", display: "flex", flexDirection: "column" as const, gap: "4px" }}>
                   {order.ach_bank_name && <div><span style={{ color: "#7A7880" }}>Bank: </span><span style={{ fontWeight: 600, color: "#2A2830" }}>{order.ach_bank_name}</span></div>}
                   {order.ach_account_holder && <div><span style={{ color: "#7A7880" }}>Holder: </span><span style={{ fontWeight: 600, color: "#2A2830" }}>{order.ach_account_holder}</span></div>}
                   {order.ach_account_last4 && <div><span style={{ color: "#7A7880" }}>Account: </span><span style={{ fontWeight: 600, color: "#2A2830" }}>****{order.ach_account_last4}</span></div>}

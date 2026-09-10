@@ -58,7 +58,7 @@ export default function RolesPage() {
           <div style={{ fontSize: "12px", fontWeight: 700, color: "#6B6B6B", textTransform: "uppercase", letterSpacing: ".05em", marginBottom: "10px" }}>Built-in roles</div>
           <div style={{ display: "grid", gap: "6px" }}>
             {catalog.fixed_roles.filter((r) => r.key !== "platform_admin").map((r) => (
-              <div key={r.key} style={{ display: "flex", justifyContent: "space-between", gap: "12px", fontSize: "13px", padding: "6px 0", borderBottom: "1px solid #F4F3EF" }}>
+              <div key={r.key} style={{ display: "flex", justifyContent: "space-between", gap: "12px", fontSize: "13px", padding: "6px 0", borderBottom: "1px solid #F6F6F7" }}>
                 <span style={{ fontWeight: 600 }}>{r.label}</span>
                 <span style={{ color: "#999", fontSize: "12px", textAlign: "right" }}>{r.key === "tenant_admin" ? "Everything" : r.scopes.join(", ")}</span>
               </div>
