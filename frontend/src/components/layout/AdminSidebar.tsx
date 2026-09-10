@@ -7,9 +7,12 @@ import { useAuthStore } from "@/stores/auth.store";
 import { hasScope, type Scope } from "@/lib/permissions";
 import { contactService } from "@/services/contact.service";
 import {
-  BarChartIcon, PackageIcon, BuildingIcon, ShirtIcon,
-  SettingsIcon, BookIcon, SearchIcon, RefreshIcon, UsersIcon, TrendingUpIcon, TruckIcon, ShoppingCartIcon,
-} from "@/components/ui/icons";
+  LayoutDashboard, ShoppingBag, RotateCcw, ClipboardList, Shirt, Boxes, LayoutGrid,
+  Users, MessageSquare, Percent, Truck, FileText, Store, File, Image as ImageIcon,
+  Settings, Compass,
+} from "lucide-react";
+
+const ICON_PROPS = { size: 17, strokeWidth: 1.75 } as const;
 
 const SECTION_HEAD: React.CSSProperties = {
   fontSize: "10px", fontWeight: 700, textTransform: "uppercase",
@@ -122,7 +125,7 @@ export function AdminSidebar() {
 
       {/* ── HOME ── */}
       <div style={SECTION_HEAD}>Home</div>
-      <NavLink href="/admin/dashboard" label="Dashboard" icon={<BarChartIcon size={15} color="currentColor" />} />
+      <NavLink href="/admin/dashboard" label="Dashboard" icon={<LayoutDashboard {...ICON_PROPS} />} />
 
       {/* ── ORDERS ── */}
       {can("orders") && <>
@@ -142,7 +145,7 @@ export function AdminSidebar() {
         onMouseLeave={e => { if (!isOrdersActive) (e.currentTarget as HTMLElement).style.background = isOrdersActive ? "rgba(26,92,255,.08)" : "transparent"; }}
       >
         <span style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-          <PackageIcon size={15} color="currentColor" />
+          <ShoppingBag {...ICON_PROPS} />
           <span>Orders</span>
         </span>
         <span style={{ fontSize: "10px", color: "#aaa", transition: "transform .2s", transform: ordersOpen ? "rotate(180deg)" : "rotate(0deg)", display: "inline-block" }}>▼</span>
@@ -157,9 +160,9 @@ export function AdminSidebar() {
         </div>
       )}
 
-      <NavLink href="/admin/returns" label="Returns (RMA)" icon={<RefreshIcon size={15} color="currentColor" />} />
+      <NavLink href="/admin/returns" label="Returns (RMA)" icon={<RotateCcw {...ICON_PROPS} />} />
       </>}
-      {can("inventory") && <NavLink href="/admin/purchase-orders" label="Purchase Orders" icon={<ShoppingCartIcon size={15} color="currentColor" />} />}
+      {can("inventory") && <NavLink href="/admin/purchase-orders" label="Purchase Orders" icon={<ClipboardList {...ICON_PROPS} />} />}
 
       {/* ── PRODUCTS ── */}
       {can("products") && <>
@@ -179,7 +182,7 @@ export function AdminSidebar() {
         onMouseLeave={e => { if (!isProductsActive) (e.currentTarget as HTMLElement).style.background = isProductsActive ? "rgba(26,92,255,.08)" : "transparent"; }}
       >
         <span style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-          <ShirtIcon size={15} color="currentColor" />
+          <Shirt {...ICON_PROPS} />
           <span>Products</span>
         </span>
         <span style={{ fontSize: "10px", color: "#aaa", transition: "transform .2s", transform: productsOpen ? "rotate(180deg)" : "rotate(0deg)", display: "inline-block" }}>▼</span>
@@ -194,8 +197,8 @@ export function AdminSidebar() {
         </div>
       )}
 
-      <NavLink href="/admin/supplier-catalog" label="Supplier Catalog" icon={<PackageIcon size={15} color="currentColor" />} />
-      <NavLink href="/admin/gang-sheets" label="Gang Sheets" icon={<span style={{ fontSize: "14px" }}>🧩</span>} />
+      <NavLink href="/admin/supplier-catalog" label="Supplier Catalog" icon={<Boxes {...ICON_PROPS} />} />
+      <NavLink href="/admin/gang-sheets" label="Gang Sheets" icon={<LayoutGrid {...ICON_PROPS} />} />
       </>}
 
       {/* ── CUSTOMERS ── */}
@@ -216,7 +219,7 @@ export function AdminSidebar() {
         onMouseLeave={e => { if (!isCustomersActive) (e.currentTarget as HTMLElement).style.background = isCustomersActive ? "rgba(26,92,255,.08)" : "transparent"; }}
       >
         <span style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-          <BuildingIcon size={15} color="currentColor" />
+          <Users {...ICON_PROPS} />
           <span>Customers</span>
         </span>
         <span style={{ fontSize: "10px", color: "#aaa", transition: "transform .2s", transform: customersOpen ? "rotate(180deg)" : "rotate(0deg)", display: "inline-block" }}>▼</span>
@@ -232,14 +235,14 @@ export function AdminSidebar() {
         </div>
       )}
 
-      <NavLink href="/admin/messages" label="Messages" icon={<span style={{ fontSize: "14px" }}>✉️</span>} badge={unreadMsgs} />
+      <NavLink href="/admin/messages" label="Messages" icon={<MessageSquare {...ICON_PROPS} />} badge={unreadMsgs} />
       </>}
 
       {/* ── DISCOUNTS ── */}
       {(can("discounts") || can("settings")) && <>
       <div style={SECTION_HEAD}>Discounts</div>
-      {can("discounts") && <NavLink href="/admin/discounts" label="Discounts" icon={<span style={{ fontSize: "15px" }}>%</span>} />}
-      {can("settings") && <NavLink href="/admin/standard-shipping" label="Standard Shipping" icon={<TruckIcon size={15} color="currentColor" />} />}
+      {can("discounts") && <NavLink href="/admin/discounts" label="Discounts" icon={<Percent {...ICON_PROPS} />} />}
+      {can("settings") && <NavLink href="/admin/standard-shipping" label="Standard Shipping" icon={<Truck {...ICON_PROPS} />} />}
       </>}
 
       {/* ── CONTENT ── */}
@@ -258,7 +261,7 @@ export function AdminSidebar() {
         onMouseLeave={e => { if (!isContentActive) (e.currentTarget as HTMLElement).style.background = isContentActive ? "rgba(26,92,255,.08)" : "transparent"; }}
       >
         <span style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-          <BookIcon size={15} color="currentColor" />
+          <FileText {...ICON_PROPS} />
           <span>Content</span>
         </span>
         <span style={{ fontSize: "10px", color: "#aaa", transition: "transform .2s", transform: contentOpen ? "rotate(180deg)" : "rotate(0deg)", display: "inline-block" }}>▼</span>
@@ -276,10 +279,10 @@ export function AdminSidebar() {
       {/* ── ONLINE STORE ── */}
       {(can("storefront") || can("media")) && <>
       <div style={SECTION_HEAD}>Online Store</div>
-      {can("storefront") && <NavLink href="/admin/storefront" label="Storefront" icon={<BuildingIcon size={15} color="currentColor" />} exact />}
-      {can("storefront") && <NavLink href="/admin/storefront/pages" label="Pages" icon={<BookIcon size={15} color="currentColor" />} />}
-      {can("storefront") && <NavLink href="/admin/storefront/menus" label="Menus" icon={<span style={{ fontSize: "14px" }}>🧭</span>} />}
-      {can("media") && <NavLink href="/admin/media" label="Media Library" icon={<BookIcon size={15} color="currentColor" />} />}
+      {can("storefront") && <NavLink href="/admin/storefront" label="Storefront" icon={<Store {...ICON_PROPS} />} exact />}
+      {can("storefront") && <NavLink href="/admin/storefront/pages" label="Pages" icon={<File {...ICON_PROPS} />} />}
+      {can("storefront") && <NavLink href="/admin/storefront/menus" label="Menus" icon={<Compass {...ICON_PROPS} />} />}
+      {can("media") && <NavLink href="/admin/media" label="Media Library" icon={<ImageIcon {...ICON_PROPS} />} />}
       </>}
 
       {/* ── SETTINGS ── */}
@@ -300,7 +303,7 @@ export function AdminSidebar() {
         onMouseLeave={e => { if (!isSettingsActive) (e.currentTarget as HTMLElement).style.background = isSettingsActive ? "rgba(26,92,255,.08)" : "transparent"; }}
       >
         <span style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-          <SettingsIcon size={15} color="currentColor" />
+          <Settings {...ICON_PROPS} />
           <span>Settings</span>
         </span>
         <span style={{ fontSize: "10px", color: "#aaa", transition: "transform .2s", transform: settingsOpen ? "rotate(180deg)" : "rotate(0deg)", display: "inline-block" }}>▼</span>

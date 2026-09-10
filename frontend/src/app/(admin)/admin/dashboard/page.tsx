@@ -3,6 +3,16 @@
 import { useEffect, useState } from "react";
 import { apiClient } from "@/lib/api-client";
 import Link from "next/link";
+import { useAuthStore } from "@/stores/auth.store";
+
+/** Time-of-day greeting (shop-local) for a warm dashboard welcome. */
+function greeting(): string {
+  const h = new Date().getHours();
+  if (h < 12) return "Good morning";
+  if (h < 17) return "Good afternoon";
+  if (h < 21) return "Good evening";
+  return "Working late";
+}
 import { PackageIcon, ClipboardIcon, AlertTriangleIcon } from "@/components/ui/icons";
 
 interface RecentOrder {
@@ -108,6 +118,7 @@ function AlertCard({ icon, count, label, color, href }: { icon: React.ReactNode;
 const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 export default function AdminDashboard() {
+  const { user } = useAuthStore();
   const [state, setState] = useState<Partial<DashboardState>>({});
   const [loading, setLoading] = useState(true);
 
@@ -239,10 +250,12 @@ export default function AdminDashboard() {
 
   return (
     <div style={{ fontFamily: "var(--font-jakarta)", maxWidth: "1200px" }}>
-      {/* Header */}
+      {/* Header — warm, time-aware welcome */}
       <div style={{ marginBottom: "28px" }}>
-        <h1 style={{ fontFamily: "var(--font-bebas)", fontSize: "32px", color: "#2A2830", letterSpacing: ".03em", lineHeight: 1 }}>Dashboard</h1>
-        <p style={{ fontSize: "13px", color: "#7A7880", marginTop: "4px" }}>Last 7 days overview</p>
+        <h1 style={{ fontSize: "30px", fontWeight: 700, color: "#1A1A1A", letterSpacing: "-0.01em", lineHeight: 1.1 }}>
+          {greeting()}{user?.first_name ? `, ${user.first_name}` : ""} 👋
+        </h1>
+        <p style={{ fontSize: "14px", color: "#6B6B6B", marginTop: "6px" }}>Here&apos;s what&apos;s happening with your store today.</p>
       </div>
 
       {/* Stat Cards */}
