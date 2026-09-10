@@ -80,16 +80,16 @@ export function AdminSidebar() {
     return (
       <Link href={href} style={{
         ...NAV_LINK_BASE,
-        background: active ? "rgba(26,92,255,.08)" : "transparent",
-        color: active ? "#1A5CFF" : "#555",
+        background: active ? "#ECECEB" : "transparent",
+        color: active ? "#1A1A1A" : "#555",
       }}
-        onMouseEnter={e => { if (!active) (e.currentTarget as HTMLElement).style.background = "#F4F3EF"; }}
+        onMouseEnter={e => { if (!active) (e.currentTarget as HTMLElement).style.background = "#F6F6F7"; }}
         onMouseLeave={e => { if (!active) (e.currentTarget as HTMLElement).style.background = "transparent"; }}
       >
         <span style={{ fontSize: "15px", flexShrink: 0 }}>{icon}</span>
         <span>{label}</span>
         {badge !== undefined && badge > 0 && (
-          <span style={{ marginLeft: "auto", background: "#1A5CFF", color: "#fff", fontSize: "11px", fontWeight: 700, minWidth: "18px", height: "18px", borderRadius: "10px", display: "flex", alignItems: "center", justifyContent: "center", padding: "0 5px" }}>
+          <span style={{ marginLeft: "auto", background: "#E5E5E4", color: "#4A4A4A", fontSize: "11px", fontWeight: 700, minWidth: "18px", height: "18px", borderRadius: "10px", display: "flex", alignItems: "center", justifyContent: "center", padding: "0 5px" }}>
             {badge > 99 ? "99+" : badge}
           </span>
         )}
@@ -107,12 +107,12 @@ export function AdminSidebar() {
     return (
       <Link href={href} style={{
         ...SUB_LINK_BASE,
-        background: active ? "rgba(26,92,255,.06)" : "transparent",
-        color: active ? "#1A5CFF" : "#7A7880",
-        borderLeftColor: active ? "#1A5CFF" : "#E2E0DA",
+        background: active ? "#F1F1F0" : "transparent",
+        color: active ? "#1A1A1A" : "#7A7880",
+        borderLeftColor: active ? "#1A1A1A" : "#E2E0DA",
         fontWeight: active ? 700 : 500,
       }}
-        onMouseEnter={e => { if (!active) (e.currentTarget as HTMLElement).style.background = "#F4F3EF"; }}
+        onMouseEnter={e => { if (!active) (e.currentTarget as HTMLElement).style.background = "#F6F6F7"; }}
         onMouseLeave={e => { if (!active) (e.currentTarget as HTMLElement).style.background = "transparent"; }}
       >
         {label}
@@ -137,12 +137,12 @@ export function AdminSidebar() {
         style={{
           ...NAV_LINK_BASE,
           justifyContent: "space-between",
-          background: isOrdersActive ? "rgba(26,92,255,.08)" : "transparent",
-          color: isOrdersActive ? "#1A5CFF" : "#555",
+          background: isOrdersActive ? "#ECECEB" : "transparent",
+          color: isOrdersActive ? "#1A1A1A" : "#555",
           userSelect: "none",
         }}
-        onMouseEnter={e => { if (!isOrdersActive) (e.currentTarget as HTMLElement).style.background = "#F4F3EF"; }}
-        onMouseLeave={e => { if (!isOrdersActive) (e.currentTarget as HTMLElement).style.background = isOrdersActive ? "rgba(26,92,255,.08)" : "transparent"; }}
+        onMouseEnter={e => { if (!isOrdersActive) (e.currentTarget as HTMLElement).style.background = "#F6F6F7"; }}
+        onMouseLeave={e => { if (!isOrdersActive) (e.currentTarget as HTMLElement).style.background = isOrdersActive ? "#ECECEB" : "transparent"; }}
       >
         <span style={{ display: "flex", alignItems: "center", gap: "10px" }}>
           <ShoppingBag {...ICON_PROPS} />
@@ -174,12 +174,12 @@ export function AdminSidebar() {
         style={{
           ...NAV_LINK_BASE,
           justifyContent: "space-between",
-          background: isProductsActive ? "rgba(26,92,255,.08)" : "transparent",
-          color: isProductsActive ? "#1A5CFF" : "#555",
+          background: isProductsActive ? "#ECECEB" : "transparent",
+          color: isProductsActive ? "#1A1A1A" : "#555",
           userSelect: "none",
         }}
-        onMouseEnter={e => { if (!isProductsActive) (e.currentTarget as HTMLElement).style.background = "#F4F3EF"; }}
-        onMouseLeave={e => { if (!isProductsActive) (e.currentTarget as HTMLElement).style.background = isProductsActive ? "rgba(26,92,255,.08)" : "transparent"; }}
+        onMouseEnter={e => { if (!isProductsActive) (e.currentTarget as HTMLElement).style.background = "#F6F6F7"; }}
+        onMouseLeave={e => { if (!isProductsActive) (e.currentTarget as HTMLElement).style.background = isProductsActive ? "#ECECEB" : "transparent"; }}
       >
         <span style={{ display: "flex", alignItems: "center", gap: "10px" }}>
           <Shirt {...ICON_PROPS} />
@@ -211,12 +211,12 @@ export function AdminSidebar() {
         style={{
           ...NAV_LINK_BASE,
           justifyContent: "space-between",
-          background: isCustomersActive ? "rgba(26,92,255,.08)" : "transparent",
-          color: isCustomersActive ? "#1A5CFF" : "#555",
+          background: isCustomersActive ? "#ECECEB" : "transparent",
+          color: isCustomersActive ? "#1A1A1A" : "#555",
           userSelect: "none",
         }}
-        onMouseEnter={e => { if (!isCustomersActive) (e.currentTarget as HTMLElement).style.background = "#F4F3EF"; }}
-        onMouseLeave={e => { if (!isCustomersActive) (e.currentTarget as HTMLElement).style.background = isCustomersActive ? "rgba(26,92,255,.08)" : "transparent"; }}
+        onMouseEnter={e => { if (!isCustomersActive) (e.currentTarget as HTMLElement).style.background = "#F6F6F7"; }}
+        onMouseLeave={e => { if (!isCustomersActive) (e.currentTarget as HTMLElement).style.background = isCustomersActive ? "#ECECEB" : "transparent"; }}
       >
         <span style={{ display: "flex", alignItems: "center", gap: "10px" }}>
           <Users {...ICON_PROPS} />
@@ -253,12 +253,12 @@ export function AdminSidebar() {
         style={{
           ...NAV_LINK_BASE,
           justifyContent: "space-between",
-          background: isContentActive ? "rgba(26,92,255,.08)" : "transparent",
-          color: isContentActive ? "#1A5CFF" : "#555",
+          background: isContentActive ? "#ECECEB" : "transparent",
+          color: isContentActive ? "#1A1A1A" : "#555",
           userSelect: "none",
         }}
-        onMouseEnter={e => { if (!isContentActive) (e.currentTarget as HTMLElement).style.background = "#F4F3EF"; }}
-        onMouseLeave={e => { if (!isContentActive) (e.currentTarget as HTMLElement).style.background = isContentActive ? "rgba(26,92,255,.08)" : "transparent"; }}
+        onMouseEnter={e => { if (!isContentActive) (e.currentTarget as HTMLElement).style.background = "#F6F6F7"; }}
+        onMouseLeave={e => { if (!isContentActive) (e.currentTarget as HTMLElement).style.background = isContentActive ? "#ECECEB" : "transparent"; }}
       >
         <span style={{ display: "flex", alignItems: "center", gap: "10px" }}>
           <FileText {...ICON_PROPS} />
@@ -295,12 +295,12 @@ export function AdminSidebar() {
         style={{
           ...NAV_LINK_BASE,
           justifyContent: "space-between",
-          background: isSettingsActive ? "rgba(26,92,255,.08)" : "transparent",
-          color: isSettingsActive ? "#1A5CFF" : "#555",
+          background: isSettingsActive ? "#ECECEB" : "transparent",
+          color: isSettingsActive ? "#1A1A1A" : "#555",
           userSelect: "none",
         }}
-        onMouseEnter={e => { if (!isSettingsActive) (e.currentTarget as HTMLElement).style.background = "#F4F3EF"; }}
-        onMouseLeave={e => { if (!isSettingsActive) (e.currentTarget as HTMLElement).style.background = isSettingsActive ? "rgba(26,92,255,.08)" : "transparent"; }}
+        onMouseEnter={e => { if (!isSettingsActive) (e.currentTarget as HTMLElement).style.background = "#F6F6F7"; }}
+        onMouseLeave={e => { if (!isSettingsActive) (e.currentTarget as HTMLElement).style.background = isSettingsActive ? "#ECECEB" : "transparent"; }}
       >
         <span style={{ display: "flex", alignItems: "center", gap: "10px" }}>
           <Settings {...ICON_PROPS} />

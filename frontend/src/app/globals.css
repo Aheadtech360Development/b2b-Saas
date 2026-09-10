@@ -56,23 +56,27 @@
      `--font-bebas` is redefined here so every inline `var(--font-bebas)` title
      resolves to the clean sans; h1–h3 are overridden for headings that use tags.
      Storefront pages keep their Fraunces branding (they aren't in this scope). */
-  .admin-layout-root { --font-bebas: "Inter", "DM Sans", system-ui, sans-serif; }
+  .admin-layout-root { --font-bebas: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
   .admin-layout-root,
   .admin-layout-root input,
   .admin-layout-root select,
   .admin-layout-root textarea,
   .admin-layout-root button {
-    font-family: "Inter", "DM Sans", system-ui, sans-serif;
+    font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   }
+  /* Headings: clean but bold like Shopify — page titles extra-bold. */
   .admin-layout-root h1,
   .admin-layout-root h2,
   .admin-layout-root h3,
   .admin-layout-root h4,
   .admin-layout-root h5,
   .admin-layout-root h6 {
-    font-family: "Inter", "DM Sans", system-ui, sans-serif;
-    letter-spacing: -0.006em;
+    font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    letter-spacing: -0.011em;
+    font-weight: 700;
   }
+  .admin-layout-root h1,
+  .admin-layout-root h2 { font-weight: 800; }
 }
 
 @layer components {
