@@ -76,17 +76,23 @@ beat_schedule = {
         "task": "app.tasks.inventory_tasks.check_low_stock_levels",
         "schedule": crontab(hour="6", minute="0"),  # daily at 6am UTC
     },
-    # ── S&S Activewear sync ───────────────────────────────────────────────────
+    # ── Supplier sync ─────────────────────────────────────────────────────────
+    # Each job fans out to one task per brand that has connected its own supplier
+    # account; a schedule can't name a brand, and running it without one would
+    # read the platform's account on everyone's behalf.
     "ss-sync-inventory": {
-        "task": "app.tasks.supplier_sync_tasks.sync_ss_inventory",
+        "task": "app.tasks.supplier_sync_tasks.sync_ss_all_tenants",
         "schedule": crontab(minute="*/15"),  # every 15 min — inventory only
+        "kwargs": {"sync_type": "inventory"},
     },
     "ss-sync-products": {
-        "task": "app.tasks.supplier_sync_tasks.sync_ss_products",
+        "task": "app.tasks.supplier_sync_tasks.sync_ss_all_tenants",
         "schedule": crontab(hour="*/6", minute="0"),  # every 6 h — product batch
+        "kwargs": {"sync_type": "products"},
     },
     "ss-sync-categories": {
-        "task": "app.tasks.supplier_sync_tasks.sync_ss_categories",
+        "task": "app.tasks.supplier_sync_tasks.sync_ss_all_tenants",
         "schedule": crontab(hour="2", minute="0"),  # daily at 02:00 UTC
+        "kwargs": {"sync_type": "categories"},
     },
 }

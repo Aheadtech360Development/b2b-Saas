@@ -616,7 +616,8 @@ async def get_sync_status(
 
 @router.post("/sync/trigger")
 async def trigger_manual_sync(sync_type: str = Query("products")):
-    """Enqueue an immediate Celery sync task."""
+    """Enqueue an immediate sync of THIS brand's supplier catalogue."""
+    from app.core.tenant_context import get_current_tenant_id
     allowed = {"categories", "products", "inventory"}
     if sync_type not in allowed:
         raise HTTPException(status_code=400, detail=f"sync_type must be one of {allowed}")
@@ -632,8 +633,14 @@ async def trigger_manual_sync(sync_type: str = Query("products")):
         "products": sync_ss_products,
         "inventory": sync_ss_inventory,
     }
+    # The worker has no request context, so the brand travels with the task —
+    # it decides both which S&S account is read and who the rows belong to.
+    tenant_id = get_current_tenant_id()
+    if not tenant_id:
+        raise HTTPException(status_code=400, detail="No store context on this request")
+
     task = task_map[sync_type]
-    result = task.delay()
+    result = task.delay(str(tenant_id))
 
     return {"status": "queued", "task_id": result.id, "sync_type": sync_type}
 

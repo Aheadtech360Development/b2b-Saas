@@ -921,7 +921,8 @@ async def generate_shipping_label(
     if result is None and saved_rate_id:
         try:
             from shippo.models import components as _comp
-            client = get_client()
+            from app.core.tenant_context import get_current_tenant_id as _gtid
+            client = get_client(await shippo_service.get_shippo_key(db, _gtid()))
             txn = client.transactions.create(
                 _comp.TransactionCreateRequest(
                     rate=saved_rate_id,
@@ -1015,10 +1016,15 @@ async def fetch_order_rates(
         raise HTTPException(status_code=422, detail="Incomplete shipping address on order (missing state or ZIP)")
 
     weight_lbs = max(payload.weight_lbs, 0.5)
-    wh = WAREHOUSE_ADDRESS
+    # Quote from THIS brand's warehouse, not the platform default — the origin
+    # changes the price, so a brand in NY must not be rated from Dallas.
+    from app.core.tenant_context import get_current_tenant_id as _gtid_wh
+    from app.services import shippo_service as _ship_wh
+    wh = await _ship_wh.get_ship_from(db, _gtid_wh()) or WAREHOUSE_ADDRESS
 
     try:
-        client = get_client()
+        from app.core.tenant_context import get_current_tenant_id as _gtid
+        client = get_client(await shippo_service.get_shippo_key(db, _gtid()))
         shipment = client.shipments.create(
             _comp.ShipmentCreateRequest(
                 address_from=_comp.AddressCreateRequest(
@@ -1105,10 +1111,12 @@ async def generate_label_manual(
 
     if payload.rate_id:
         # Purchase the specific rate the admin selected from fetch-rates
+        from app.services import shippo_service as _ship_svc2
         from app.services.shippo_service import get_client
         from shippo.models import components as _comp2
+        from app.core.tenant_context import get_current_tenant_id as _gtid
         try:
-            client = get_client()
+            client = get_client(await _ship_svc2.get_shippo_key(db, _gtid()))
             txn = client.transactions.create(
                 _comp2.TransactionCreateRequest(
                     rate=payload.rate_id,

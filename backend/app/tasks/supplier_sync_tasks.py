@@ -66,7 +66,7 @@ def _apply_markup(
 # ── Task: sync categories ─────────────────────────────────────────────────────
 
 @celery_app.task(bind=True, max_retries=3, name="app.tasks.supplier_sync_tasks.sync_ss_categories")
-def sync_ss_categories(self) -> dict:
+def sync_ss_categories(self, tenant_id: str | None = None) -> dict:
     """Daily: refresh S&S category list in local DB."""
 
     async def _run() -> dict:
@@ -74,9 +74,15 @@ def sync_ss_categories(self) -> dict:
 
         from app.core.database import AsyncSessionLocal
         from app.models.supplier import SSCategory, SSSyncLog
-        from app.services.ss_activewear_service import SSActivewearService
+        from app.core.tenant_context import set_current_tenant
+        from app.services.ss_activewear_service import for_tenant as ss_for_tenant
 
-        svc = SSActivewearService()
+        # A brand syncs its OWN S&S account: the credentials and the rows written
+        # both belong to it. Without this the worker would pull the platform's
+        # catalogue and pricing no matter who pressed Sync.
+        set_current_tenant(tenant_id)
+        async with AsyncSessionLocal() as _cred_db:
+            svc = await ss_for_tenant(_cred_db, tenant_id)
         started = datetime.now(timezone.utc)
 
         async with AsyncSessionLocal() as db:
@@ -138,7 +144,7 @@ def sync_ss_categories(self) -> dict:
 # ── Task: sync products ───────────────────────────────────────────────────────
 
 @celery_app.task(bind=True, max_retries=3, name="app.tasks.supplier_sync_tasks.sync_ss_products")
-def sync_ss_products(self) -> dict:
+def sync_ss_products(self, tenant_id: str | None = None) -> dict:
     """Every 6 h: batch-sync the full S&S product catalog (style-level data)."""
 
     async def _run() -> dict:
@@ -146,9 +152,15 @@ def sync_ss_products(self) -> dict:
 
         from app.core.database import AsyncSessionLocal
         from app.models.supplier import SSProduct, SSSyncLog
-        from app.services.ss_activewear_service import SSActivewearService
+        from app.core.tenant_context import set_current_tenant
+        from app.services.ss_activewear_service import for_tenant as ss_for_tenant
 
-        svc = SSActivewearService()
+        # A brand syncs its OWN S&S account: the credentials and the rows written
+        # both belong to it. Without this the worker would pull the platform's
+        # catalogue and pricing no matter who pressed Sync.
+        set_current_tenant(tenant_id)
+        async with AsyncSessionLocal() as _cred_db:
+            svc = await ss_for_tenant(_cred_db, tenant_id)
         started = datetime.now(timezone.utc)
 
         async with AsyncSessionLocal() as db:
@@ -249,7 +261,7 @@ def sync_ss_products(self) -> dict:
 # ── Task: sync inventory ──────────────────────────────────────────────────────
 
 @celery_app.task(bind=True, max_retries=3, name="app.tasks.supplier_sync_tasks.sync_ss_inventory")
-def sync_ss_inventory(self) -> dict:
+def sync_ss_inventory(self, tenant_id: str | None = None) -> dict:
     """Every 15 min: refresh inventory quantities for all imported S&S products."""
 
     async def _run() -> dict:
@@ -258,9 +270,15 @@ def sync_ss_inventory(self) -> dict:
 
         from app.core.database import AsyncSessionLocal
         from app.models.supplier import SSProduct, SSVariant, SSSyncLog
-        from app.services.ss_activewear_service import SSActivewearService
+        from app.core.tenant_context import set_current_tenant
+        from app.services.ss_activewear_service import for_tenant as ss_for_tenant
 
-        svc = SSActivewearService()
+        # A brand syncs its OWN S&S account: the credentials and the rows written
+        # both belong to it. Without this the worker would pull the platform's
+        # catalogue and pricing no matter who pressed Sync.
+        set_current_tenant(tenant_id)
+        async with AsyncSessionLocal() as _cred_db:
+            svc = await ss_for_tenant(_cred_db, tenant_id)
         started = datetime.now(timezone.utc)
 
         async with AsyncSessionLocal() as db:
@@ -323,3 +341,52 @@ def sync_ss_inventory(self) -> dict:
         return asyncio.get_event_loop().run_until_complete(_run())
     except Exception as exc:
         raise self.retry(exc=exc, countdown=120)
+
+
+@celery_app.task(bind=True, name="app.tasks.supplier_sync_tasks.sync_ss_all_tenants")
+def sync_ss_all_tenants(self, sync_type: str = "inventory") -> dict:
+    """Run a supplier sync once per brand that has connected its own account.
+
+    The scheduled jobs can't name a brand, and running them without one would
+    read the platform's S&S account for everybody — the exact thing per-brand
+    credentials exist to stop. So the schedule fans out instead: every brand
+    with a stored connection gets its own task, and a brand that hasn't
+    connected one is simply skipped.
+    """
+    import asyncio as _asyncio
+
+    task_map = {
+        "categories": sync_ss_categories,
+        "products": sync_ss_products,
+        "inventory": sync_ss_inventory,
+    }
+    task = task_map.get(sync_type)
+    if task is None:
+        return {"status": "error", "detail": f"unknown sync_type {sync_type}"}
+
+    async def _tenants() -> list[str]:
+        from sqlalchemy import select
+        from app.core.database import AsyncSessionLocal
+        from app.core.tenant_context import set_bypass_scoping
+        from app.models.system import Settings
+
+        set_bypass_scoping(True)          # this row set spans every brand
+        async with AsyncSessionLocal() as db:
+            rows = (await db.execute(
+                select(Settings.key, Settings.value)
+                .where(Settings.key.like("integrations@%"))
+            )).all()
+
+        out: list[str] = []
+        for key, value in rows:
+            if not value or "ss_activewear" not in value:
+                continue
+            tid = key.split("@", 1)[1].strip()
+            if tid:
+                out.append(tid)
+        return out
+
+    tenants = _asyncio.run(_tenants())
+    for tid in tenants:
+        task.delay(tid)
+    return {"status": "queued", "sync_type": sync_type, "tenants": len(tenants)}
