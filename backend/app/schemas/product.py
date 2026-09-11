@@ -2,7 +2,7 @@
 from uuid import UUID
 from decimal import Decimal
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 from pydantic import BaseModel, Field
 
 
@@ -188,6 +188,10 @@ class ProductCreate(BaseModel):
     gender: str | None = None
     category_ids: list[UUID] = []
     gang_sheet_enabled: bool = False
+    # How this product is sold, chosen when it is created:
+    #   'variant'      — stocked Colour × Size combinations (apparel)
+    #   'configurable' — unlimited option groups priced on demand (print, signage)
+    pricing_mode: Literal["variant", "configurable"] = "variant"
 
 
 class ProductUpdate(BaseModel):

@@ -345,7 +345,16 @@ export function ProductOptionsBuilder({ productId }: { productId: string }) {
                               )}
                             </div>
                           </td>
-                          <td style={TD}><input type="color" value={v.swatch_hex ?? "#cccccc"} onChange={e => patchVal(oi, vi, { swatch_hex: e.target.value })} style={{ width: "34px", height: "30px", border: "1px solid #E3E3E3", borderRadius: "6px", background: "none", padding: 0, cursor: "pointer" }} /></td>
+                          <td style={TD}>
+                            {/* Round swatch: the colour input paints its own square
+                                well, so the circle is the wrapper and the input is
+                                oversized inside it and clipped. */}
+                            <label title="Swatch colour" style={SWATCH_WELL(v.swatch_hex ?? "#cccccc")}>
+                              <input type="color" value={v.swatch_hex ?? "#cccccc"}
+                                onChange={e => patchVal(oi, vi, { swatch_hex: e.target.value })}
+                                style={SWATCH_INPUT} />
+                            </label>
+                          </td>
                           <td style={{ ...TD, textAlign: "center" }}><input type="radio" name={`def-${oi}`} checked={v.is_default} onChange={() => patchVal(oi, vi, { is_default: true })} style={{ accentColor: "#1A1A1A" }} /></td>
                           <td style={{ ...TD, textAlign: "center" }}><button onClick={() => removeVal(oi, vi)} style={{ ...ICON_BTN, color: "#B91C1C" }}>✕</button></td>
                         </tr>
@@ -458,4 +467,13 @@ const CHECK: React.CSSProperties = { display: "inline-flex", alignItems: "center
 const ICON_BTN: React.CSSProperties = { width: "30px", height: "30px", border: "1px solid #E3E3E3", background: "#fff", borderRadius: "8px", cursor: "pointer", fontSize: "13px", lineHeight: 1, color: "#444" };
 const BTN_DARK: React.CSSProperties = { padding: "9px 18px", background: "#1A1A1A", color: "#fff", border: "none", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: "pointer" };
 const BTN_LIGHT: React.CSSProperties = { padding: "9px 16px", background: "#fff", color: "#1A1A1A", border: "1px solid #E3E3E3", borderRadius: "8px", fontSize: "13px", fontWeight: 600, cursor: "pointer" };
+const SWATCH_WELL = (hex: string): React.CSSProperties => ({
+  width: "30px", height: "30px", borderRadius: "50%", display: "inline-block",
+  background: hex, border: "1.5px solid rgba(0,0,0,.14)", boxShadow: "inset 0 0 0 2px #fff",
+  cursor: "pointer", overflow: "hidden", position: "relative",
+});
+const SWATCH_INPUT: React.CSSProperties = {
+  position: "absolute", inset: "-8px", width: "calc(100% + 16px)", height: "calc(100% + 16px)",
+  border: "none", padding: 0, background: "none", cursor: "pointer", opacity: 0,
+};
 const RULE_WORD: React.CSSProperties = { fontSize: "12px", fontWeight: 700, color: "#6B6B6B" };

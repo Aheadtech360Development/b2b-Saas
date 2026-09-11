@@ -123,6 +123,15 @@ export default function NewProductPage() {
 
   // Variant modal
   const [showAddVariant, setShowAddVariant] = useState(false);
+  /**
+   * How this product is sold, asked before anything else.
+   *
+   * A t-shirt is Colour × Size and nothing more; a yard sign has its own set of
+   * fields entirely. Choosing up front is what keeps the simple case simple —
+   * an apparel product never sees the options builder, and a print product is
+   * never asked for variants it doesn't have.
+   */
+  const [pricingMode, setPricingMode] = useState<"variant" | "configurable">("variant");
   const [pendingVariants, setPendingVariants] = useState<PendingVariant[]>([]);
 
   const [form, setForm] = useState({
@@ -276,6 +285,7 @@ export default function NewProductPage() {
         care_instructions: form.care_instructions || null,
         print_guide: form.print_guide_methods.length ? { methods: form.print_guide_methods } : null,
         size_chart_data: form.size_chart_data.length ? form.size_chart_data : null,
+        pricing_mode: pricingMode,
       };
 
       const product = await adminService.createProduct(payload) as { id: string; slug: string };
@@ -305,7 +315,14 @@ export default function NewProductPage() {
       }
 
       setSuccess(true);
-      setTimeout(() => router.push("/admin/products"), 1200);
+      setTimeout(
+        () => router.push(
+          pricingMode === "configurable"
+            ? `/admin/products/${product.slug}/edit#options`
+            : "/admin/products"
+        ),
+        1200,
+      );
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Failed to create product");
       setSaving(false);
@@ -369,6 +386,46 @@ export default function NewProductPage() {
 
           {/* ── LEFT COLUMN ── */}
           <div style={{ minWidth: 0 }}>
+
+            {/* ── What kind of product is this? Asked first, because it decides
+                   whether the rest of the form is about variants or options. ── */}
+            <div style={sectionCard}>
+              <span style={sectionTitle}>WHAT KIND OF PRODUCT IS THIS?</span>
+              <p style={{ fontSize: "12px", color: "#7A7880", marginTop: "-4px", marginBottom: "14px" }}>
+                This decides how customers buy it. You can change it later.
+              </p>
+              <div style={{ display: "grid", gap: "10px", gridTemplateColumns: "repeat(auto-fit,minmax(250px,1fr))" }}>
+                {([
+                  ["variant", "Apparel / stocked item", "Colour × Size, each with its own SKU and stock. T-shirts, hoodies, caps."],
+                  ["configurable", "Made to order — custom options", "Add any fields you like and price them live. Yard signs, banners, business cards."],
+                ] as const).map(([val, title, desc]) => {
+                  const active = pricingMode === val;
+                  return (
+                    <label
+                      key={val}
+                      style={{
+                        display: "flex", gap: "10px", alignItems: "flex-start", cursor: "pointer",
+                        padding: "14px 16px", borderRadius: "10px",
+                        border: `1.5px solid ${active ? "#1A1A1A" : "#E3E3E3"}`,
+                        background: active ? "#F6F6F7" : "#fff",
+                      }}
+                    >
+                      <input
+                        type="radio"
+                        name="pricing_mode"
+                        checked={active}
+                        onChange={() => setPricingMode(val)}
+                        style={{ marginTop: "3px", accentColor: "#1A1A1A" }}
+                      />
+                      <span>
+                        <span style={{ display: "block", fontSize: "13px", fontWeight: 700, color: "#2A2830" }}>{title}</span>
+                        <span style={{ display: "block", fontSize: "12px", color: "#7A7880", marginTop: "3px", lineHeight: 1.5 }}>{desc}</span>
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
 
             {/* Title & Description */}
             <div style={sectionCard}>
@@ -441,7 +498,23 @@ export default function NewProductPage() {
               <p style={{ fontSize: "11px", color: "#aaa", marginTop: "8px" }}>Images are uploaded after creation. First image becomes primary.</p>
             </div>
 
-            {/* Variants */}
+            {/* Variants — only for stocked apparel. A configurable product's
+                fields are defined in the options builder after it exists. */}
+            {pricingMode === "configurable" ? (
+              <div style={sectionCard}>
+                <span style={sectionTitle}>OPTIONS &amp; PRICING</span>
+                <div style={{ padding: "22px", textAlign: "center", border: "1.5px dashed #E3E3E3", borderRadius: "8px" }}>
+                  <div style={{ fontSize: "13px", fontWeight: 700, color: "#2A2830", marginBottom: "6px" }}>
+                    You&apos;ll build the fields next
+                  </div>
+                  <p style={{ fontSize: "12px", color: "#7A7880", lineHeight: 1.6, margin: "0 auto", maxWidth: "420px" }}>
+                    Create the product, and it opens straight into the options builder — add any
+                    fields you need (size, material, finishing…), price each choice, and set
+                    quantity breaks. Nothing here is fixed: add or remove whatever you like.
+                  </p>
+                </div>
+              </div>
+            ) : (
             <div style={sectionCard}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
                 <span style={{ ...sectionTitle, marginBottom: 0 }}>VARIANTS</span>
@@ -505,11 +578,13 @@ export default function NewProductPage() {
                 </div>
               )}
             </div>
+            )}
 
           </div>
 
           {/* ── RIGHT SIDEBAR ── */}
           <div>
+
 
             {/* Status */}
             <div style={sectionCard}>

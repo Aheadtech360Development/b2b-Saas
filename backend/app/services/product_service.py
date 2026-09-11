@@ -360,6 +360,7 @@ class ProductService:
             meta_title=data.meta_title,
             meta_description=data.meta_description,
             gang_sheet_enabled=getattr(data, "gang_sheet_enabled", False),
+            pricing_mode=getattr(data, "pricing_mode", "variant") or "variant",
         )
         self.db.add(product)
         await self.db.flush()

@@ -68,7 +68,25 @@ export function VariantOptionsEditor({
       <div>
         <div style={L}>Color — add each colour value</div>
         <div style={{ display: "flex", gap: "8px", alignItems: "center", marginBottom: "10px", flexWrap: "wrap" }}>
-          <input type="color" value={colorHex} onChange={(e) => setColorHex(e.target.value)} title="Swatch colour" style={{ width: "38px", height: "38px", border: "1px solid #E3E3E3", borderRadius: "8px", background: "none", cursor: "pointer", padding: 0 }} />
+          {/* A colour input paints its own square well that no border-radius can
+              reach, so the round swatch is the wrapper and the input sits inside
+              it, oversized and clipped — what shows is a circle of the colour. */}
+          <label
+            title="Swatch colour"
+            style={{
+              width: "38px", height: "38px", borderRadius: "50%", flexShrink: 0,
+              background: colorHex, border: "1.5px solid rgba(0,0,0,.14)",
+              boxShadow: "inset 0 0 0 2px #fff", cursor: "pointer",
+              overflow: "hidden", position: "relative", display: "inline-block",
+            }}
+          >
+            <input
+              type="color"
+              value={colorHex}
+              onChange={(e) => setColorHex(e.target.value)}
+              style={{ position: "absolute", inset: "-8px", width: "calc(100% + 16px)", height: "calc(100% + 16px)", border: "none", padding: 0, background: "none", cursor: "pointer", opacity: 0 }}
+            />
+          </label>
           <input
             value={colorInput}
             onChange={(e) => { setColorInput(e.target.value); const k = KNOWN[e.target.value.trim().toLowerCase()]; if (k) setColorHex(k); }}

@@ -203,6 +203,18 @@ export default function AdminProductEditPage() {
 
   useEffect(() => { load(); }, [slug]); // eslint-disable-line
 
+  // A product created as "made to order" arrives here on #options. The browser
+  // resolves that hash before this page has fetched anything, so the jump has to
+  // happen once the product is actually on screen.
+  useEffect(() => {
+    if (!product || window.location.hash !== "#options") return;
+    const t = setTimeout(
+      () => document.getElementById("options")?.scrollIntoView({ behavior: "smooth", block: "start" }),
+      120,
+    );
+    return () => clearTimeout(t);
+  }, [product]);
+
   const groupedVariants = useMemo<VariantGroup[]>(() => {
     if (!product?.variants) return [];
     const map: Record<string, ProductVariant[]> = {};
@@ -895,8 +907,11 @@ export default function AdminProductEditPage() {
             ))}
           </div>
 
-          {/* Options & pricing — stocked variants vs unlimited configurable options */}
-          <ProductOptionsBuilder productId={product.id} />
+          {/* Options & pricing — stocked variants vs unlimited configurable options.
+              The id is the anchor a freshly created configurable product lands on. */}
+          <div id="options" style={{ scrollMarginTop: "80px" }}>
+            <ProductOptionsBuilder productId={product.id} />
+          </div>
 
         </div>
 
