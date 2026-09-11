@@ -50,7 +50,7 @@ const cellInput: React.CSSProperties = {
 
 const STATUS_CONFIG: Record<string, { label: string; bg: string; color: string }> = {
   draft:     { label: 'Draft',     bg: 'rgba(156,163,175,.15)', color: '#9CA3AF' },
-  sent:      { label: 'Sent',      bg: 'rgba(26,26,26,.1)',    color: '#1A5CFF' },
+  sent:      { label: 'Sent',      bg: 'rgba(26,26,26,.1)',    color: '#1A1A1A' },
   partial:   { label: 'Partial',   bg: 'rgba(217,119,6,.1)',    color: '#D97706' },
   received:  { label: 'Received',  bg: 'rgba(5,150,105,.1)',    color: '#059669' },
   cancelled: { label: 'Cancelled', bg: 'rgba(232,36,42,.1)',    color: '#E8242A' },
@@ -257,7 +257,7 @@ export default function PurchaseOrdersPage() {
             <DownloadIcon size={14} color="#2A2830" /> Export
           </button>
           <button onClick={() => setShowCreate(true)}
-            style={{ background: '#1A5CFF', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', fontSize: '14px' }}>
+            style={{ background: '#1A1A1A', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', fontSize: '14px' }}>
             + Create Purchase Order
           </button>
         </div>
@@ -266,7 +266,7 @@ export default function PurchaseOrdersPage() {
       {/* Stats */}
       <div className="admin-stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: '12px', marginBottom: '24px' }}>
         {([
-          { label: 'Open POs',        value: String(stats.open),     icon: <ClipboardIcon size={24} color="#1A5CFF" />, color: '#1A5CFF' },
+          { label: 'Open POs',        value: String(stats.open),     icon: <ClipboardIcon size={24} color="#1A1A1A" />, color: '#1A1A1A' },
           { label: 'Pending Receipt', value: String(stats.pending),  icon: <TruckIcon size={24} color="#D97706" />, color: '#D97706' },
           { label: 'Received',        value: String(stats.received), icon: <CheckCircleIcon size={24} color="#059669" />, color: '#059669' },
           { label: 'Total Value',     value: `$${stats.total_value.toLocaleString('en-US', { minimumFractionDigits: 2 })}`, icon: <DollarSignIcon size={24} color="#2A2830" />, color: '#2A2830' },
@@ -290,7 +290,7 @@ export default function PurchaseOrdersPage() {
           <h3 style={{ fontFamily: 'var(--font-bebas)', fontSize: '22px', color: '#2A2830', marginBottom: '8px' }}>No Purchase Orders Yet</h3>
           <p style={{ fontSize: '14px', color: '#7A7880', marginBottom: '20px' }}>Create your first purchase order to track incoming inventory</p>
           <button onClick={() => setShowCreate(true)}
-            style={{ background: '#1A5CFF', color: '#fff', border: 'none', padding: '12px 24px', borderRadius: '8px', fontWeight: 700, cursor: 'pointer' }}>
+            style={{ background: '#1A1A1A', color: '#fff', border: 'none', padding: '12px 24px', borderRadius: '8px', fontWeight: 700, cursor: 'pointer' }}>
             + Create Purchase Order
           </button>
         </div>
@@ -308,7 +308,7 @@ export default function PurchaseOrdersPage() {
               {orders.map(po => (
                 <tr key={po.id} style={{ borderBottom: '1px solid #F6F6F7' }}>
                   <td style={{ padding: '14px 16px' }}>
-                    <div style={{ fontWeight: 700, color: '#1A5CFF', fontSize: '14px', cursor: 'pointer' }} onClick={() => setSelectedPO(po)}>
+                    <div style={{ fontWeight: 700, color: '#1A1A1A', fontSize: '14px', cursor: 'pointer' }} onClick={() => setSelectedPO(po)}>
                       {po.po_number}
                     </div>
                     <div style={{ fontSize: '11px', color: '#aaa' }}>{new Date(po.created_at).toLocaleDateString()}</div>
@@ -385,7 +385,7 @@ export default function PurchaseOrdersPage() {
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
                 <div style={{ fontFamily: 'var(--font-bebas)', fontSize: '14px', letterSpacing: '.1em', color: '#7A7880' }}>ORDER ITEMS</div>
                 <button onClick={addItem}
-                  style={{ padding: '6px 14px', background: '#1A5CFF', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}>
+                  style={{ padding: '6px 14px', background: '#1A1A1A', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}>
                   + Add Item
                 </button>
               </div>
@@ -477,7 +477,7 @@ export default function PurchaseOrdersPage() {
                 Save as Draft
               </button>
               <button onClick={() => handleCreate('sent')}
-                style={{ padding: '11px 22px', background: '#1A5CFF', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: 'pointer' }}>
+                style={{ padding: '11px 22px', background: '#1A1A1A', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: 'pointer' }}>
                 Send to Supplier →
               </button>
             </div>

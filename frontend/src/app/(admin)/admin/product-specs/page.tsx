@@ -167,7 +167,7 @@ export default function AdminProductSpecsPage() {
                   </td>
                   <td style={{ padding: "12px 16px" }}>
                     {p.pdf_url ? (
-                      <a href={p.pdf_url} target="_blank" rel="noopener noreferrer" style={{ fontSize: "12px", color: "#005BD3", fontWeight: 600 }}>View PDF</a>
+                      <a href={p.pdf_url} target="_blank" rel="noopener noreferrer" style={{ fontSize: "12px", color: "#1A1A1A", fontWeight: 600 }}>View PDF</a>
                     ) : (
                       <span style={{ fontSize: "12px", color: "#bbb" }}>—</span>
                     )}
@@ -183,7 +183,7 @@ export default function AdminProductSpecsPage() {
                   </td>
                   <td style={{ padding: "12px 16px" }}>
                     <div style={{ display: "flex", gap: "8px" }}>
-                      <button onClick={() => openEdit(p)} style={{ fontSize: "12px", color: "#005BD3", background: "none", border: "none", cursor: "pointer", fontWeight: 600 }}>Edit</button>
+                      <button onClick={() => openEdit(p)} style={{ fontSize: "12px", color: "#1A1A1A", background: "none", border: "none", cursor: "pointer", fontWeight: 600 }}>Edit</button>
                       <button onClick={() => handleDelete(p.id)} style={{ fontSize: "12px", color: "#E8242A", background: "none", border: "none", cursor: "pointer", fontWeight: 600 }}>Delete</button>
                     </div>
                   </td>
@@ -221,7 +221,7 @@ export default function AdminProductSpecsPage() {
                   </button>
                   <input ref={pdfRef} type="file" accept="application/pdf" style={{ display: "none" }} onChange={e => { if (e.target.files?.[0]) uploadFile(e.target.files[0]); }} />
                 </div>
-                {form.pdf_url && <a href={form.pdf_url} target="_blank" rel="noopener noreferrer" style={{ fontSize: "12px", color: "#005BD3", display: "inline-block", marginTop: "6px" }}>View uploaded PDF</a>}
+                {form.pdf_url && <a href={form.pdf_url} target="_blank" rel="noopener noreferrer" style={{ fontSize: "12px", color: "#1A1A1A", display: "inline-block", marginTop: "6px" }}>View uploaded PDF</a>}
               </div>
 
               <div style={{ marginBottom: "14px" }}>

@@ -174,7 +174,7 @@ function BlockEditor({
   } else if (block.type === "info_box") {
     editor = (
       <div style={{ background: "rgba(59,130,246,.06)", border: "1.5px solid rgba(59,130,246,.25)", borderRadius: "8px", padding: "12px" }}>
-        <label style={{ ...labelSt, color: "#3B82F6" }}>ℹ Info Box</label>
+        <label style={{ ...labelSt, color: "#1A1A1A" }}>ℹ Info Box</label>
         <textarea value={(c.text as string) || ""} onChange={e => set("text", e.target.value)}
           placeholder="Info box content..." rows={3} style={{ ...inputSt, resize: "vertical" }} />
       </div>

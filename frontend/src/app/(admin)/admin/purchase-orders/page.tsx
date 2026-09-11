@@ -93,7 +93,7 @@ export default function PurchaseOrdersPage() {
             {loading ? (
               <tr><td colSpan={8} style={{ padding: "40px", textAlign: "center", color: "#9CA3AF" }}><div className="at-skel" style={{ height: "14px", width: "60%", margin: "0 auto" }} /></td></tr>
             ) : pos.length === 0 ? (
-              <tr><td colSpan={8} style={{ padding: "40px", textAlign: "center", color: "#9CA3AF" }}>No purchase orders yet. <Link href="/admin/purchase-orders/create" style={{ color: "#005BD3" }}>Create one →</Link></td></tr>
+              <tr><td colSpan={8} style={{ padding: "40px", textAlign: "center", color: "#9CA3AF" }}>No purchase orders yet. <Link href="/admin/purchase-orders/create" style={{ color: "#1A1A1A" }}>Create one →</Link></td></tr>
             ) : pos.map(po => {
               const sc = STATUS_COLORS[po.status] ?? STATUS_COLORS.draft!;
               return (
@@ -114,7 +114,7 @@ export default function PurchaseOrdersPage() {
                     </span>
                   </td>
                   <td style={{ padding: "14px 16px" }}>
-                    <Link href={`/admin/purchase-orders/${po.id}`} style={{ fontSize: "12px", color: "#005BD3", textDecoration: "none", fontWeight: 600 }} onClick={e => e.stopPropagation()}>
+                    <Link href={`/admin/purchase-orders/${po.id}`} style={{ fontSize: "12px", color: "#1A1A1A", textDecoration: "none", fontWeight: 600 }} onClick={e => e.stopPropagation()}>
                       View →
                     </Link>
                   </td>

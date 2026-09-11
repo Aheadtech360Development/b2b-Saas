@@ -755,7 +755,7 @@ function ProductBlockEditor({
           </table>
 
           <button onClick={onAddNewVariant}
-            style={{ fontSize: "12px", color: "#005BD3", background: "none", border: "1px dashed #93C5FD", borderRadius: "6px", padding: "6px 14px", cursor: "pointer", width: "100%", marginBottom: "4px" }}>
+            style={{ fontSize: "12px", color: "#1A1A1A", background: "none", border: "1px dashed #93C5FD", borderRadius: "6px", padding: "6px 14px", cursor: "pointer", width: "100%", marginBottom: "4px" }}>
             + Add New Variant (New Color or Size)
           </button>
         </>

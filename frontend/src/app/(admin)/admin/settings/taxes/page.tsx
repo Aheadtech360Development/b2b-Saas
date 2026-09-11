@@ -239,7 +239,7 @@ export default function TaxesPage() {
                   </td>
                   <td style={{ padding: "14px 16px" }}>
                     <div style={{ display: "flex", gap: "8px" }}>
-                      <button onClick={() => openEdit(t)} style={{ fontSize: "12px", color: "#005BD3", background: "none", border: "none", cursor: "pointer", fontWeight: 600 }}>Edit</button>
+                      <button onClick={() => openEdit(t)} style={{ fontSize: "12px", color: "#1A1A1A", background: "none", border: "none", cursor: "pointer", fontWeight: 600 }}>Edit</button>
                       <button onClick={() => handleDelete(t.id)} style={{ fontSize: "12px", color: "#E8242A", background: "none", border: "none", cursor: "pointer", fontWeight: 600 }}>Delete</button>
                     </div>
                   </td>

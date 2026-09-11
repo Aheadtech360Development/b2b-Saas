@@ -267,9 +267,9 @@ export default function AdminBlogEditPage() {
           <label style={labelSt}>Tags / Keywords</label>
           <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginBottom: "8px" }}>
             {tags.map(tag => (
-              <span key={tag} style={{ display: "inline-flex", alignItems: "center", gap: "5px", background: "rgba(26,26,26,.08)", color: "#005BD3", padding: "3px 10px", borderRadius: "20px", fontSize: "12px", fontWeight: 600 }}>
+              <span key={tag} style={{ display: "inline-flex", alignItems: "center", gap: "5px", background: "rgba(26,26,26,.08)", color: "#1A1A1A", padding: "3px 10px", borderRadius: "20px", fontSize: "12px", fontWeight: 600 }}>
                 {tag}
-                <button type="button" onClick={() => removeTag(tag)} style={{ background: "none", border: "none", color: "#005BD3", cursor: "pointer", padding: 0, fontSize: "13px" }}>×</button>
+                <button type="button" onClick={() => removeTag(tag)} style={{ background: "none", border: "none", color: "#1A1A1A", cursor: "pointer", padding: 0, fontSize: "13px" }}>×</button>
               </span>
             ))}
           </div>

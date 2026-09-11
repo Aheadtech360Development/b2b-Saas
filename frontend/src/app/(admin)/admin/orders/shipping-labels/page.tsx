@@ -27,7 +27,7 @@ const COURIERS = ["FedEx", "UPS", "USPS", "DHL", "Other"];
 const LABEL_STYLE: Record<string, { bg: string; color: string }> = {
   printed: { bg: "rgba(5,150,105,.1)", color: "#059669" },
   pending: { bg: "rgba(217,119,6,.1)", color: "#D97706" },
-  in_transit: { bg: "rgba(26,26,26,.1)", color: "#005BD3" },
+  in_transit: { bg: "rgba(26,26,26,.1)", color: "#1A1A1A" },
   delivered: { bg: "rgba(5,150,105,.1)", color: "#059669" },
 };
 
@@ -109,8 +109,8 @@ export default function ShippingLabelsPage() {
   ];
 
   const STAT_CARDS = [
-    { label: "Total Shipments", value: stats.total, icon: <PackageIcon size={20} color="#1A5CFF" />, color: "#005BD3" },
-    { label: "In Transit", value: stats.in_transit, icon: <TruckIcon size={20} color="#1A5CFF" />, color: "#005BD3" },
+    { label: "Total Shipments", value: stats.total, icon: <PackageIcon size={20} color="#1A1A1A" />, color: "#1A1A1A" },
+    { label: "In Transit", value: stats.in_transit, icon: <TruckIcon size={20} color="#1A1A1A" />, color: "#1A1A1A" },
     { label: "Delivered", value: stats.delivered, icon: <CheckCircleIcon size={20} color="#059669" />, color: "#059669" },
     { label: "Pending Label", value: stats.pending_label, icon: <TagIcon size={20} color="#D97706" />, color: "#D97706" },
   ];
@@ -188,7 +188,7 @@ export default function ShippingLabelsPage() {
                 onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
               >
                 <td style={{ padding: "12px 14px" }}>
-                  <Link href={`/admin/orders/${l.id}`} style={{ color: "#005BD3", textDecoration: "none", fontFamily: "monospace", fontSize: "12px", fontWeight: 700 }}>
+                  <Link href={`/admin/orders/${l.id}`} style={{ color: "#1A1A1A", textDecoration: "none", fontFamily: "monospace", fontSize: "12px", fontWeight: 700 }}>
                     {l.order_number}
                   </Link>
                 </td>
@@ -255,10 +255,10 @@ export default function ShippingLabelsPage() {
                 <td style={{ padding: "12px 14px" }}>
                   <div style={{ display: "flex", gap: "5px", flexWrap: "nowrap" as const }}>
                     <button
-                      style={{ background: "rgba(26,26,26,.08)", color: "#005BD3", border: "none", padding: "5px 11px", borderRadius: "6px", fontSize: "11px", fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" as const, display: "inline-flex", alignItems: "center", gap: "4px" }}
+                      style={{ background: "rgba(26,26,26,.08)", color: "#1A1A1A", border: "none", padding: "5px 11px", borderRadius: "6px", fontSize: "11px", fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" as const, display: "inline-flex", alignItems: "center", gap: "4px" }}
                       onClick={() => window.print()}
                     >
-                      <PrinterIcon size={11} color="#1A5CFF" /> Label
+                      <PrinterIcon size={11} color="#1A1A1A" /> Label
                     </button>
                     <button
                       style={{ background: "#F6F6F7", color: "#2A2830", border: "1px solid #E3E3E3", padding: "5px 11px", borderRadius: "6px", fontSize: "11px", fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" as const, display: "inline-flex", alignItems: "center", gap: "4px" }}

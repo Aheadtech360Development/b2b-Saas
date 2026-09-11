@@ -69,7 +69,7 @@ interface DiscountGroup { id: string; title: string; customer_tag: string; appli
 
 const ORDER_STATUS: Record<string, { bg: string; color: string }> = {
   pending:    { bg: "rgba(217,119,6,.1)",   color: "#D97706" },
-  confirmed:  { bg: "rgba(26,26,26,.1)",   color: "#005BD3" },
+  confirmed:  { bg: "rgba(26,26,26,.1)",   color: "#1A1A1A" },
   processing: { bg: "rgba(8,145,178,.1)",   color: "#0891B2" },
   shipped:    { bg: "rgba(124,58,237,.1)",  color: "#7C3AED" },
   delivered:  { bg: "rgba(5,150,105,.1)",   color: "#059669" },
@@ -328,7 +328,7 @@ export default function CustomerDetailPage() {
     return (
       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "220px", gap: "12px", fontFamily: "var(--font-jakarta)" }}>
         <div style={{ fontSize: "14px", color: "#E8242A" }}>Customer not found</div>
-        <button onClick={() => router.back()} style={{ fontSize: "13px", color: "#005BD3", background: "none", border: "none", cursor: "pointer", fontWeight: 600 }}>← Back</button>
+        <button onClick={() => router.back()} style={{ fontSize: "13px", color: "#1A1A1A", background: "none", border: "none", cursor: "pointer", fontWeight: 600 }}>← Back</button>
       </div>
     );
   }
@@ -354,7 +354,7 @@ export default function CustomerDetailPage() {
       {/* Back */}
       <button
         onClick={() => router.back()}
-        style={{ fontSize: "13px", color: "#005BD3", fontWeight: 600, background: "none", border: "none", cursor: "pointer", padding: 0, marginBottom: "18px" }}
+        style={{ fontSize: "13px", color: "#1A1A1A", fontWeight: 600, background: "none", border: "none", cursor: "pointer", padding: 0, marginBottom: "18px" }}
       >
         ← Back to Customers
       </button>
@@ -367,7 +367,7 @@ export default function CustomerDetailPage() {
           <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
             <div style={{
               width: "56px", height: "56px", borderRadius: "50%",
-              background: "linear-gradient(135deg,#1A5CFF,#7C3AED)",
+              background: "linear-gradient(135deg,#1A1A1A,#3A3A3A)",
               display: "flex", alignItems: "center", justifyContent: "center",
               color: "#fff", fontFamily: "var(--font-bebas)", fontSize: "22px", flexShrink: 0,
             }}>
@@ -446,8 +446,8 @@ export default function CustomerDetailPage() {
           </div>
         </div>
         <div style={{ background: "#fff", border: "1px solid #E3E3E3", borderRadius: "10px", padding: "16px 18px" }}>
-          <div style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: ".06em", color: "#005BD3", marginBottom: "6px" }}>Total Orders</div>
-          <div style={{ fontFamily: "var(--font-bebas)", fontSize: "28px", color: "#005BD3", lineHeight: 1 }}>
+          <div style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: ".06em", color: "#1A1A1A", marginBottom: "6px" }}>Total Orders</div>
+          <div style={{ fontFamily: "var(--font-bebas)", fontSize: "28px", color: "#1A1A1A", lineHeight: 1 }}>
             {orders.length}
           </div>
         </div>
@@ -584,7 +584,7 @@ export default function CustomerDetailPage() {
                 date: o.created_at,
                 label: `Order #${o.order_number} placed`,
                 sub: `${o.item_count} item${o.item_count !== 1 ? "s" : ""} · $${Number(o.total).toLocaleString("en-US", { minimumFractionDigits: 2 })}`,
-                color: "#005BD3",
+                color: "#1A1A1A",
                 key: `order-placed-${oi}`,
               });
               (o.timeline ?? []).forEach((e, ei) => {
@@ -698,7 +698,7 @@ export default function CustomerDetailPage() {
                 }
                 return matched.map(g => (
                   <div key={g.id} style={{ padding: "10px 12px", background: "rgba(26,26,26,.05)", border: "1px solid rgba(26,26,26,.15)", borderRadius: "8px", marginBottom: "8px" }}>
-                    <div style={{ fontWeight: 700, fontSize: "13px", color: "#005BD3" }}>{g.title}</div>
+                    <div style={{ fontWeight: 700, fontSize: "13px", color: "#1A1A1A" }}>{g.title}</div>
                     <div style={{ fontSize: "11px", color: "#7A7880", marginTop: "3px" }}>
                       Tag: <strong style={{ color: "#2A2830" }}>@{g.customer_tag}</strong>
                       {" · "}
@@ -757,7 +757,7 @@ export default function CustomerDetailPage() {
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "4px" }}>
                 <div style={sectionTitle}>Net 30 Payment Terms</div>
                 {net30Enabled && (
-                  <span style={{ fontSize: "10px", fontWeight: 700, padding: "2px 8px", borderRadius: "20px", background: "rgba(26,26,26,.1)", color: "#005BD3" }}>
+                  <span style={{ fontSize: "10px", fontWeight: 700, padding: "2px 8px", borderRadius: "20px", background: "rgba(26,26,26,.1)", color: "#1A1A1A" }}>
                     ACTIVE
                   </span>
                 )}
@@ -772,7 +772,7 @@ export default function CustomerDetailPage() {
               >
                 <div style={{
                   position: "relative", width: "44px", height: "24px", borderRadius: "12px",
-                  background: net30Enabled ? "#1A5CFF" : "#E3E3E3",
+                  background: net30Enabled ? "#1A1A1A" : "#E3E3E3",
                   transition: "background .2s", flexShrink: 0,
                 }}>
                   <div style={{
@@ -783,7 +783,7 @@ export default function CustomerDetailPage() {
                     boxShadow: "0 1px 4px rgba(0,0,0,.2)",
                   }} />
                 </div>
-                <span style={{ fontSize: "13px", fontWeight: 600, color: net30Enabled ? "#1A5CFF" : "#7A7880" }}>
+                <span style={{ fontSize: "13px", fontWeight: 600, color: net30Enabled ? "#1A1A1A" : "#7A7880" }}>
                   {savingNet30 ? "Saving…" : net30Enabled ? "Net 30 enabled — pay within 30 days" : "Net 30 disabled"}
                 </span>
               </label>
@@ -796,11 +796,11 @@ export default function CustomerDetailPage() {
             <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", minHeight: "28px", marginBottom: "10px" }}>
               {tags.length === 0 && <span style={{ fontSize: "12px", color: "#bbb" }}>No tags yet</span>}
               {tags.map(tag => (
-                <span key={tag} style={{ display: "inline-flex", alignItems: "center", gap: "4px", padding: "3px 10px", background: "rgba(26,26,26,.08)", color: "#005BD3", borderRadius: "20px", fontSize: "12px", fontWeight: 600 }}>
+                <span key={tag} style={{ display: "inline-flex", alignItems: "center", gap: "4px", padding: "3px 10px", background: "rgba(26,26,26,.08)", color: "#1A1A1A", borderRadius: "20px", fontSize: "12px", fontWeight: 600 }}>
                   {tag}
                   <button
                     onClick={() => handleRemoveTag(tag)}
-                    style={{ background: "none", border: "none", cursor: "pointer", color: "#005BD3", padding: 0, fontSize: "14px", lineHeight: 1, marginLeft: "2px" }}>
+                    style={{ background: "none", border: "none", cursor: "pointer", color: "#1A1A1A", padding: 0, fontSize: "14px", lineHeight: 1, marginLeft: "2px" }}>
                     ×
                   </button>
                 </span>
@@ -912,7 +912,7 @@ export default function CustomerDetailPage() {
               {!editingNote && (
                 <button
                   onClick={() => { setNoteText(note); setEditingNote(true); }}
-                  style={{ fontSize: "12px", color: "#005BD3", fontWeight: 600, background: "none", border: "none", cursor: "pointer", padding: 0 }}>
+                  style={{ fontSize: "12px", color: "#1A1A1A", fontWeight: 600, background: "none", border: "none", cursor: "pointer", padding: 0 }}>
                   Edit
                 </button>
               )}

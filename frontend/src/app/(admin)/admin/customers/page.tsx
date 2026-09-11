@@ -185,7 +185,7 @@ function AddCustomerModal({ pricingTiers, onClose, onSuccess }: {
               Cancel
             </button>
             <button type="submit" disabled={saving}
-              style={{ flex: 2, padding: "10px", background: saving ? "#E3E3E3" : "#1A5CFF", color: saving ? "#aaa" : "#fff", border: "none", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: saving ? "not-allowed" : "pointer" }}>
+              style={{ flex: 2, padding: "10px", background: saving ? "#E3E3E3" : "#1A1A1A", color: saving ? "#aaa" : "#fff", border: "none", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: saving ? "not-allowed" : "pointer" }}>
               {saving ? "Creating…" : "Create Customer"}
             </button>
           </div>
@@ -296,7 +296,7 @@ export default function AdminCustomersPage() {
         {[
           { label: "Total Customers", value: stats.total, icon: <UsersIcon size={22} color="#2A2830" />, color: "#2A2830" },
           { label: "Active Accounts", value: stats.active, icon: <CheckCircleIcon size={22} color="#059669" />, color: "#059669" },
-          { label: "Avg Order Value", value: `$${stats.avg_spend.toLocaleString("en-US", { minimumFractionDigits: 2 })}`, icon: <BarChartIcon size={22} color="#1A5CFF" />, color: "#005BD3" },
+          { label: "Avg Order Value", value: `$${stats.avg_spend.toLocaleString("en-US", { minimumFractionDigits: 2 })}`, icon: <BarChartIcon size={22} color="#1A1A1A" />, color: "#1A1A1A" },
           { label: "Total Revenue", value: `$${stats.total_revenue.toLocaleString("en-US", { minimumFractionDigits: 2 })}`, icon: <DollarSignIcon size={22} color="#D97706" />, color: "#D97706" },
         ].map(s => (
           <div key={s.label} style={{ background: "#fff", border: "1px solid #E3E3E3", borderRadius: "10px", padding: "16px 18px", display: "flex", alignItems: "center", gap: "12px" }}>
@@ -364,13 +364,13 @@ export default function AdminCustomersPage() {
                   onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
                   <td style={{ padding: "13px 14px" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                      <div style={{ width: "34px", height: "34px", borderRadius: "50%", background: isRetail ? "#7C3AED" : "#1A5CFF", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontFamily: "var(--font-bebas)", fontSize: "15px", flexShrink: 0 }}>
+                      <div style={{ width: "34px", height: "34px", borderRadius: "50%", background: isRetail ? "#7C3AED" : "#1A1A1A", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontFamily: "var(--font-bebas)", fontSize: "15px", flexShrink: 0 }}>
                         {co.name[0]?.toUpperCase()}
                       </div>
                       <div>
                         <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
                           <span style={{ fontWeight: 700, fontSize: "13px", color: "#2A2830" }}>{co.name}</span>
-                          <span style={{ padding: "1px 7px", borderRadius: "20px", fontSize: "10px", fontWeight: 700, background: isRetail ? "rgba(124,58,237,.1)" : "rgba(26,26,26,.1)", color: isRetail ? "#7C3AED" : "#1A5CFF", textTransform: "uppercase", letterSpacing: ".04em", flexShrink: 0 }}>
+                          <span style={{ padding: "1px 7px", borderRadius: "20px", fontSize: "10px", fontWeight: 700, background: isRetail ? "rgba(124,58,237,.1)" : "rgba(26,26,26,.1)", color: isRetail ? "#7C3AED" : "#1A1A1A", textTransform: "uppercase", letterSpacing: ".04em", flexShrink: 0 }}>
                             {isRetail ? "Retail" : "Wholesale"}
                           </span>
                         </div>

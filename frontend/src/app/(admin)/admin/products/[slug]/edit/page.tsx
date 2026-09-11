@@ -511,7 +511,7 @@ export default function AdminProductEditPage() {
           <button
             onClick={handleSave}
             disabled={isSaving || saveSuccess}
-            style={{ padding: "10px 24px", background: saveSuccess ? "#059669" : "#1A5CFF", color: "#fff", border: "none", borderRadius: "8px", fontWeight: 700, cursor: (isSaving || saveSuccess) ? "not-allowed" : "pointer", opacity: isSaving ? 0.7 : 1, fontSize: "14px" }}
+            style={{ padding: "10px 24px", background: saveSuccess ? "#059669" : "#1A1A1A", color: "#fff", border: "none", borderRadius: "8px", fontWeight: 700, cursor: (isSaving || saveSuccess) ? "not-allowed" : "pointer", opacity: isSaving ? 0.7 : 1, fontSize: "14px" }}
           >
             {isSaving ? "Saving…" : saveSuccess ? "Saved!" : "Save"}
           </button>
@@ -665,7 +665,7 @@ export default function AdminProductEditPage() {
             <div
               onClick={() => fileInputRef.current?.click()}
               style={{ borderRadius: "8px", border: "2px dashed #E3E3E3", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", cursor: "pointer", background: "#F6F6F7", padding: "16px", transition: "border-color .2s" }}
-              onMouseEnter={e => (e.currentTarget.style.borderColor = "#1A5CFF")}
+              onMouseEnter={e => (e.currentTarget.style.borderColor = "#1A1A1A")}
               onMouseLeave={e => (e.currentTarget.style.borderColor = "#E3E3E3")}
             >
               <span style={{ fontSize: "20px", color: "#aaa" }}>+</span>
@@ -934,7 +934,7 @@ export default function AdminProductEditPage() {
               <button
                 onClick={handleSave}
                 disabled={isSaving || saveSuccess}
-                style={{ flex: 1, padding: "10px", background: saveSuccess ? "#059669" : "#1A5CFF", color: "#fff", border: "none", borderRadius: "8px", fontWeight: 700, cursor: (isSaving || saveSuccess) ? "not-allowed" : "pointer", fontSize: "14px", opacity: isSaving ? 0.7 : 1 }}
+                style={{ flex: 1, padding: "10px", background: saveSuccess ? "#059669" : "#1A1A1A", color: "#fff", border: "none", borderRadius: "8px", fontWeight: 700, cursor: (isSaving || saveSuccess) ? "not-allowed" : "pointer", fontSize: "14px", opacity: isSaving ? 0.7 : 1 }}
               >
                 {isSaving ? "Saving…" : saveSuccess ? "Saved!" : "Save"}
               </button>
@@ -1091,7 +1091,7 @@ export default function AdminProductEditPage() {
                   const methods: string[] = ((product as any).print_guide as any)?.methods ?? [];
                   const checked = methods.includes(method);
                   return (
-                    <label key={method} style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "13px", color: "#2A2830", cursor: "pointer", padding: "6px 10px", border: `1.5px solid ${checked ? "#1A5CFF" : "#E3E3E3"}`, borderRadius: "8px", background: checked ? "rgba(26,26,26,.05)" : "#fff", transition: "all .15s" }}>
+                    <label key={method} style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "13px", color: "#2A2830", cursor: "pointer", padding: "6px 10px", border: `1.5px solid ${checked ? "#1A1A1A" : "#E3E3E3"}`, borderRadius: "8px", background: checked ? "rgba(26,26,26,.05)" : "#fff", transition: "all .15s" }}>
                       <input
                         type="checkbox"
                         checked={checked}
@@ -1120,7 +1120,7 @@ export default function AdminProductEditPage() {
                     const rows: any[] = ((product as any).size_chart_data as any) ?? [];
                     setProduct(p => p ? { ...p, size_chart_data: [...rows, { size: "", chest: "", length: "", sleeve: "" }] } as any : p);
                   }}
-                  style={{ fontSize: "12px", color: "#005BD3", fontWeight: 700, background: "none", border: "none", cursor: "pointer", padding: 0 }}
+                  style={{ fontSize: "12px", color: "#1A1A1A", fontWeight: 700, background: "none", border: "none", cursor: "pointer", padding: 0 }}
                 >
                   + Add Row
                 </button>
@@ -1183,7 +1183,7 @@ export default function AdminProductEditPage() {
               <span style={{ ...sectionTitle, marginBottom: 0 }}>SEARCH ENGINE LISTING</span>
               <button
                 onClick={() => setEditSEO(v => !v)}
-                style={{ fontSize: "12px", color: "#005BD3", fontWeight: 700, background: "none", border: "none", cursor: "pointer" }}
+                style={{ fontSize: "12px", color: "#1A1A1A", fontWeight: 700, background: "none", border: "none", cursor: "pointer" }}
               >
                 {editSEO ? "Preview" : "Edit"}
               </button>
@@ -1244,7 +1244,7 @@ export default function AdminProductEditPage() {
                         <div style={{ fontSize: "13px", fontWeight: 600, color: "#2A2830", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{flyer.file_name}</div>
                         <div style={{ fontSize: "11px", color: "#7A7880" }}>PDF Flyer</div>
                       </div>
-                      <a href={flyer.url} target="_blank" rel="noreferrer" style={{ fontSize: "11px", color: "#005BD3", fontWeight: 700, whiteSpace: "nowrap" }}>View</a>
+                      <a href={flyer.url} target="_blank" rel="noreferrer" style={{ fontSize: "11px", color: "#1A1A1A", fontWeight: 700, whiteSpace: "nowrap" }}>View</a>
                       <button onClick={handleDeleteFlyer} style={{ background: "none", border: "none", cursor: "pointer", color: "#E8242A", padding: "2px 4px", fontSize: "16px", lineHeight: 1 }}>×</button>
                     </div>
                   )}
@@ -1252,7 +1252,7 @@ export default function AdminProductEditPage() {
                   <button
                     onClick={() => flyerInputRef.current?.click()}
                     disabled={uploadingFlyer}
-                    style={{ width: "100%", padding: "10px", border: "1.5px dashed #E3E3E3", borderRadius: "8px", background: uploadingFlyer ? "#f9fafb" : "#fff", cursor: uploadingFlyer ? "not-allowed" : "pointer", fontSize: "13px", fontWeight: 600, color: uploadingFlyer ? "#aaa" : "#1A5CFF", fontFamily: "var(--font-jakarta)" }}
+                    style={{ width: "100%", padding: "10px", border: "1.5px dashed #E3E3E3", borderRadius: "8px", background: uploadingFlyer ? "#f9fafb" : "#fff", cursor: uploadingFlyer ? "not-allowed" : "pointer", fontSize: "13px", fontWeight: 600, color: uploadingFlyer ? "#aaa" : "#1A1A1A", fontFamily: "var(--font-jakarta)" }}
                   >
                     {uploadingFlyer ? "Uploading…" : flyer ? "Replace Flyer (PDF)" : "Upload Flyer (PDF)"}
                   </button>

@@ -171,7 +171,7 @@ const COURIERS = [
 
 const STATUS_STYLE: Record<string, { bg: string; color: string }> = {
   pending:           { bg: "rgba(217,119,6,.1)",   color: "#D97706" },
-  confirmed:         { bg: "rgba(26,26,26,.1)",   color: "#005BD3" },
+  confirmed:         { bg: "rgba(26,26,26,.1)",   color: "#1A1A1A" },
   processing:        { bg: "rgba(99,102,241,.1)",  color: "#6366F1" },
   ready_for_pickup:  { bg: "rgba(8,145,178,.1)",   color: "#0891B2" },
   shipped:           { bg: "rgba(139,92,246,.1)",  color: "#8B5CF6" },
@@ -646,7 +646,7 @@ export default function AdminOrderDetailPage() {
     return (
       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "320px", gap: "12px" }}>
         <div style={{ fontSize: "14px", color: "#E8242A", fontWeight: 600 }}>{orderError || "Order not found."}</div>
-        <button onClick={() => router.back()} style={{ fontSize: "13px", color: "#005BD3", background: "none", border: "none", cursor: "pointer", fontWeight: 700 }}>← Back to Orders</button>
+        <button onClick={() => router.back()} style={{ fontSize: "13px", color: "#1A1A1A", background: "none", border: "none", cursor: "pointer", fontWeight: 700 }}>← Back to Orders</button>
       </div>
     );
   }
@@ -675,7 +675,7 @@ export default function AdminOrderDetailPage() {
       text: "Order placed",
       sub: `${order.company_name || order.customer_name || "Customer"} · ${order.payment_status}`,
       time: order.created_at,
-      color: "#005BD3",
+      color: "#1A1A1A",
     },
     // Append all backend-recorded status changes in chronological order
     ...backendTimeline.map(entry => ({
@@ -692,7 +692,7 @@ export default function AdminOrderDetailPage() {
   return (
     <div style={{ fontFamily: "var(--font-jakarta)", maxWidth: "1200px" }}>
       {/* Back */}
-      <button onClick={() => router.back()} style={{ background: "none", border: "none", color: "#005BD3", cursor: "pointer", fontSize: "13px", fontWeight: 700, padding: 0, marginBottom: "20px", display: "flex", alignItems: "center", gap: "6px" }}>
+      <button onClick={() => router.back()} style={{ background: "none", border: "none", color: "#1A1A1A", cursor: "pointer", fontSize: "13px", fontWeight: 700, padding: 0, marginBottom: "20px", display: "flex", alignItems: "center", gap: "6px" }}>
         ← Back to Orders
       </button>
 
@@ -771,7 +771,7 @@ export default function AdminOrderDetailPage() {
             {/* CASE 3: Will Call Pickup */}
             {isWillCallPickup ? (
               <div style={{ background: "rgba(26,26,26,.05)", border: "1.5px solid rgba(26,26,26,.2)", borderRadius: "10px", padding: "18px 20px" }}>
-                <div style={{ fontSize: "13px", fontWeight: 700, color: "#005BD3", marginBottom: "10px" }}>📦 Customer selected: Will Call Pickup</div>
+                <div style={{ fontSize: "13px", fontWeight: 700, color: "#1A1A1A", marginBottom: "10px" }}>📦 Customer selected: Will Call Pickup</div>
                 <div style={{ fontSize: "13px", color: "#2A2830", fontWeight: 600, marginBottom: "6px" }}>Warehouse Address:</div>
                 <div style={{ fontSize: "13px", color: "#7A7880", lineHeight: 1.7 }}>
                   AF Apparels<br />
@@ -791,8 +791,8 @@ export default function AdminOrderDetailPage() {
                 {/* Customer selection info banner */}
                 {order.shipping_method && (
                   <div style={{ background: "rgba(26,26,26,.06)", border: "1px solid rgba(26,26,26,.2)", borderRadius: "8px", padding: "10px 14px", marginBottom: "12px" }}>
-                    <div style={{ fontSize: "12px", color: "#005BD3", fontWeight: 700, marginBottom: "2px" }}>Customer Selected:</div>
-                    <div style={{ fontSize: "12px", color: "#005BD3", fontWeight: 600 }}>
+                    <div style={{ fontSize: "12px", color: "#1A1A1A", fontWeight: 700, marginBottom: "2px" }}>Customer Selected:</div>
+                    <div style={{ fontSize: "12px", color: "#1A1A1A", fontWeight: 600 }}>
                       {hasLiveRate && order.carrier
                         ? `${order.carrier} — ${order.courier_service ?? ""} — $${Number(order.shipping_cost).toFixed(2)}`
                         : `${order.shipping_method} — Flat Rate — $${Number(order.shipping_cost).toFixed(2)}`
@@ -839,7 +839,7 @@ export default function AdminOrderDetailPage() {
                                   style={{
                                     display: "flex", alignItems: "center", justifyContent: "space-between",
                                     padding: "10px 14px", cursor: "pointer",
-                                    border: `1px solid ${isRateSelected ? "#1A5CFF" : "#E3E3E3"}`,
+                                    border: `1px solid ${isRateSelected ? "#1A1A1A" : "#E3E3E3"}`,
                                     borderRadius: "6px",
                                     background: isRateSelected ? "rgba(26,26,26,.04)" : "#fff",
                                     transition: "all .1s",
@@ -847,8 +847,8 @@ export default function AdminOrderDetailPage() {
                                   <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
                                     <div style={{
                                       width: "14px", height: "14px", borderRadius: "50%", flexShrink: 0,
-                                      border: `2px solid ${isRateSelected ? "#1A5CFF" : "#E3E3E3"}`,
-                                      background: isRateSelected ? "#1A5CFF" : "#fff",
+                                      border: `2px solid ${isRateSelected ? "#1A1A1A" : "#E3E3E3"}`,
+                                      background: isRateSelected ? "#1A1A1A" : "#fff",
                                       display: "flex", alignItems: "center", justifyContent: "center",
                                     }}>
                                       {isRateSelected && <div style={{ width: "4px", height: "4px", borderRadius: "50%", background: "#fff" }} />}
@@ -879,7 +879,7 @@ export default function AdminOrderDetailPage() {
 
                         {/* Generate Label button */}
                         <button onClick={handleGenerateManualLabel} disabled={!adminSelectedRateId || manualLabelLoading}
-                          style={{ background: adminSelectedRateId ? "#1A5CFF" : "#E3E3E3", color: "#fff", border: "none", padding: "12px 24px", borderRadius: "6px", fontSize: "14px", fontWeight: 700, cursor: adminSelectedRateId ? "pointer" : "not-allowed", opacity: manualLabelLoading ? .65 : 1, marginBottom: "14px" }}>
+                          style={{ background: adminSelectedRateId ? "#1A1A1A" : "#E3E3E3", color: "#fff", border: "none", padding: "12px 24px", borderRadius: "6px", fontSize: "14px", fontWeight: 700, cursor: adminSelectedRateId ? "pointer" : "not-allowed", opacity: manualLabelLoading ? .65 : 1, marginBottom: "14px" }}>
                           {manualLabelLoading ? "Generating label…" : adminSelectedRateId ? "Generate Label" : "Select a rate first"}
                         </button>
                       </>
@@ -889,7 +889,7 @@ export default function AdminOrderDetailPage() {
                   /* CASE 1 (Live Rate): customer's rate already known — generate label directly */
                   <>
                     <button onClick={handleGenerateLabel} disabled={!selectedCarrier || labelLoading}
-                      style={{ background: selectedCarrier ? "#1A5CFF" : "#E3E3E3", color: "#fff", border: "none", padding: "12px 24px", borderRadius: "6px", fontSize: "14px", fontWeight: 700, cursor: selectedCarrier ? "pointer" : "not-allowed", opacity: labelLoading ? .65 : 1, marginBottom: "14px" }}>
+                      style={{ background: selectedCarrier ? "#1A1A1A" : "#E3E3E3", color: "#fff", border: "none", padding: "12px 24px", borderRadius: "6px", fontSize: "14px", fontWeight: 700, cursor: selectedCarrier ? "pointer" : "not-allowed", opacity: labelLoading ? .65 : 1, marginBottom: "14px" }}>
                       {labelLoading ? "Generating label…" : `Generate ${(order.carrier ?? selectedCarrier ?? "").toUpperCase()} Label`}
                     </button>
                   </>
@@ -914,7 +914,7 @@ export default function AdminOrderDetailPage() {
                       )}
                       {labelResult.tracking_url && (
                         <a href={labelResult.tracking_url} target="_blank" rel="noreferrer"
-                          style={{ background: "#fff", color: "#005BD3", padding: "8px 16px", borderRadius: "6px", fontSize: "13px", fontWeight: 700, textDecoration: "none", border: "1.5px solid #1A1A1A" }}>
+                          style={{ background: "#fff", color: "#1A1A1A", padding: "8px 16px", borderRadius: "6px", fontSize: "13px", fontWeight: 700, textDecoration: "none", border: "1.5px solid #1A1A1A" }}>
                           Track Package →
                         </a>
                       )}
@@ -1001,7 +1001,7 @@ export default function AdminOrderDetailPage() {
                             <span style={{ color: "#7A7880", marginLeft: "8px" }}>
                               {[v.color, v.size].filter(Boolean).join(" / ")}
                             </span>
-                            <span style={{ color: "#005BD3", marginLeft: "8px", fontFamily: "monospace", fontSize: "11px" }}>{v.sku}</span>
+                            <span style={{ color: "#1A1A1A", marginLeft: "8px", fontFamily: "monospace", fontSize: "11px" }}>{v.sku}</span>
                             <span style={{ color: "#059669", marginLeft: "8px", fontWeight: 700 }}>${v.price.toFixed(2)}</span>
                           </div>
                         ))}
@@ -1222,7 +1222,7 @@ export default function AdminOrderDetailPage() {
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px" }}>
               <h3 style={SectionHead}>Customer</h3>
               <span onClick={() => router.push(`/admin/customers/${order.company_id}`)}
-                style={{ fontSize: "12px", color: "#005BD3", fontWeight: 700, cursor: "pointer" }}>
+                style={{ fontSize: "12px", color: "#1A1A1A", fontWeight: 700, cursor: "pointer" }}>
                 View Profile →
               </span>
             </div>
@@ -1241,7 +1241,7 @@ export default function AdminOrderDetailPage() {
             {/* Contact */}
             {(order.customer_email || order.customer_phone) && (
               <div style={{ fontSize: "13px", marginBottom: "14px" }}>
-                {order.customer_email && <div style={{ color: "#005BD3", marginBottom: "4px" }}>📧 {order.customer_email}</div>}
+                {order.customer_email && <div style={{ color: "#1A1A1A", marginBottom: "4px" }}>📧 {order.customer_email}</div>}
                 {order.customer_phone && <div style={{ color: "#7A7880" }}>📞 {order.customer_phone}</div>}
               </div>
             )}
@@ -1250,7 +1250,7 @@ export default function AdminOrderDetailPage() {
             <div style={{ background: "#F6F6F7", borderRadius: "6px", padding: "10px 14px", marginBottom: "14px", fontSize: "13px" }}>
               <span style={{ color: "#7A7880" }}>Orders from this company: </span>
               <span onClick={() => router.push(`/admin/orders?company=${order.company_id}`)}
-                style={{ fontWeight: 700, color: "#005BD3", cursor: "pointer" }}>
+                style={{ fontWeight: 700, color: "#1A1A1A", cursor: "pointer" }}>
                 View all →
               </span>
             </div>
@@ -1269,7 +1269,7 @@ export default function AdminOrderDetailPage() {
                 {mapQuery && (
                   <a href={`https://maps.google.com/?q=${encodeURIComponent(mapQuery)}`}
                     target="_blank" rel="noopener noreferrer"
-                    style={{ fontSize: "12px", color: "#005BD3", fontWeight: 700, textDecoration: "none", display: "inline-block", marginTop: "6px" }}>
+                    style={{ fontSize: "12px", color: "#1A1A1A", fontWeight: 700, textDecoration: "none", display: "inline-block", marginTop: "6px" }}>
                     View map →
                   </a>
                 )}
@@ -1376,7 +1376,7 @@ export default function AdminOrderDetailPage() {
             {order.pricing_tier && (
               <div style={{ borderTop: "1px solid #F6F6F7", paddingTop: "14px", marginBottom: "14px" }}>
                 <div style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase" as const, letterSpacing: ".08em", color: "#aaa", marginBottom: "8px" }}>Pricing Tier</div>
-                <span style={{ background: "rgba(26,26,26,.1)", color: "#005BD3", padding: "4px 12px", borderRadius: "20px", fontSize: "12px", fontWeight: 700 }}>
+                <span style={{ background: "rgba(26,26,26,.1)", color: "#1A1A1A", padding: "4px 12px", borderRadius: "20px", fontSize: "12px", fontWeight: 700 }}>
                   {order.pricing_tier}
                 </span>
               </div>

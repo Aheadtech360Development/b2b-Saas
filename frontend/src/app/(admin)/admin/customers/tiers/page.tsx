@@ -560,7 +560,7 @@ export default function DiscountGroupsPage() {
             style={{
               padding: "10px 20px", border: "none", background: "none", cursor: "pointer",
               fontSize: "13px", fontWeight: activeTab === tab.key ? 700 : 500,
-              color: activeTab === tab.key ? "#1A5CFF" : "#7A7880",
+              color: activeTab === tab.key ? "#1A1A1A" : "#7A7880",
               borderBottom: activeTab === tab.key ? "2px solid #1A1A1A" : "2px solid transparent",
               marginBottom: "-2px", whiteSpace: "nowrap",
             }}>
@@ -603,7 +603,7 @@ export default function DiscountGroupsPage() {
                       </td>
                       <td style={{ padding: "13px 16px", color: "#7A7880", textTransform: "capitalize" }}>
                         {g.applies_to.replace("_", " ")}
-                        {g.applies_to_ids?.length > 0 && <span style={{ marginLeft: "4px", fontSize: "11px", color: "#005BD3" }}>({g.applies_to_ids.length})</span>}
+                        {g.applies_to_ids?.length > 0 && <span style={{ marginLeft: "4px", fontSize: "11px", color: "#1A1A1A" }}>({g.applies_to_ids.length})</span>}
                       </td>
                       <td style={{ padding: "13px 16px", color: "#7A7880" }}>
                         {g.min_req_type === "none" ? "None" : g.min_req_type === "amount" ? `$${g.min_req_value}` : `${g.min_req_value} units`}
@@ -656,7 +656,7 @@ export default function DiscountGroupsPage() {
                     <th style={{ padding: "11px 16px", textAlign: "left", fontSize: "11px", fontWeight: 700, color: "#7A7880", textTransform: "uppercase", letterSpacing: ".06em", minWidth: "200px" }}>Product</th>
                     <th style={{ padding: "11px 16px", textAlign: "left", fontSize: "11px", fontWeight: 700, color: "#7A7880", textTransform: "uppercase", letterSpacing: ".06em" }}>Categories</th>
                     {groups.map(group => (
-                      <th key={group.id} style={{ padding: "11px 12px", textAlign: "center", fontSize: "11px", fontWeight: 700, color: "#005BD3", textTransform: "uppercase", letterSpacing: ".06em", minWidth: "140px", borderLeft: "1px solid #E3E3E3" }}>
+                      <th key={group.id} style={{ padding: "11px 12px", textAlign: "center", fontSize: "11px", fontWeight: 700, color: "#1A1A1A", textTransform: "uppercase", letterSpacing: ".06em", minWidth: "140px", borderLeft: "1px solid #E3E3E3" }}>
                         {group.title}
                         <div style={{ fontSize: "10px", color: "#7A7880", fontWeight: 500, marginTop: "1px", textTransform: "none" }}>
                           {group.customer_tag ? `@${group.customer_tag}` : group.applies_to}
@@ -730,7 +730,7 @@ export default function DiscountGroupsPage() {
                               {/* Bulk edit bar — shown when variants are selected */}
                               {vpBulkSelected.size > 0 && product.variants.some(v => vpBulkSelected.has(v.id)) && (
                                 <div style={{ padding: "10px 16px", background: "rgba(26,26,26,.06)", borderBottom: "1px solid rgba(26,26,26,.15)", display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
-                                  <span style={{ fontSize: "12px", fontWeight: 700, color: "#005BD3" }}>
+                                  <span style={{ fontSize: "12px", fontWeight: 700, color: "#1A1A1A" }}>
                                     {vpBulkSelected.size} variant{vpBulkSelected.size !== 1 ? "s" : ""} selected
                                   </span>
                                   <span style={{ fontSize: "11px", color: "#7A7880" }}>Set price for each group:</span>
@@ -765,7 +765,7 @@ export default function DiscountGroupsPage() {
                                     <th style={{ padding: "5px 12px", textAlign: "left", color: "#7A7880", fontWeight: 700, letterSpacing: ".05em", textTransform: "uppercase", fontSize: "10px" }}>Size</th>
                                     <th style={{ padding: "5px 12px", textAlign: "right", color: "#7A7880", fontWeight: 700, letterSpacing: ".05em", textTransform: "uppercase", fontSize: "10px" }}>MSRP</th>
                                     {groups.map(g => (
-                                      <th key={g.id} style={{ padding: "5px 12px", textAlign: "center", color: "#005BD3", fontWeight: 700, letterSpacing: ".05em", textTransform: "uppercase", fontSize: "10px" }}>
+                                      <th key={g.id} style={{ padding: "5px 12px", textAlign: "center", color: "#1A1A1A", fontWeight: 700, letterSpacing: ".05em", textTransform: "uppercase", fontSize: "10px" }}>
                                         {g.title}
                                         <div style={{ fontSize: "9px", color: "#aaa", fontWeight: 500, textTransform: "none" }}>Price ($)</div>
                                       </th>
@@ -812,7 +812,7 @@ export default function DiscountGroupsPage() {
                                                     const gOv = vpOverrides[product.id]?.[g.id] ?? { price: "", discount: "" };
                                                     return gOv.price || "0.00";
                                                   })()}
-                                                  style={{ width: "70px", padding: "4px 6px", border: `1px solid ${variantPrice ? "#1A5CFF" : "#E3E3E3"}`, borderRadius: "6px", fontSize: "12px", textAlign: "center", background: variantPrice ? "rgba(26,26,26,.04)" : "#fff" }}
+                                                  style={{ width: "70px", padding: "4px 6px", border: `1px solid ${variantPrice ? "#1A1A1A" : "#E3E3E3"}`, borderRadius: "6px", fontSize: "12px", textAlign: "center", background: variantPrice ? "rgba(26,26,26,.04)" : "#fff" }}
                                                 />
                                               </div>
                                               {variantPrice && (
@@ -903,7 +903,7 @@ export default function DiscountGroupsPage() {
                   <button
                     type="button"
                     onClick={() => { setShowAddPanel(p => !p); if (!showAddPanel) { loadAllCustomers(); setCustomerAssignSearch(""); } }}
-                    style={{ padding: "5px 12px", background: showAddPanel ? "#E3E3E3" : "rgba(26,26,26,.08)", border: `1px solid ${showAddPanel ? "#ccc" : "rgba(26,26,26,.2)"}`, color: showAddPanel ? "#7A7880" : "#1A5CFF", borderRadius: "6px", fontSize: "12px", fontWeight: 700, cursor: "pointer" }}
+                    style={{ padding: "5px 12px", background: showAddPanel ? "#E3E3E3" : "rgba(26,26,26,.08)", border: `1px solid ${showAddPanel ? "#ccc" : "rgba(26,26,26,.2)"}`, color: showAddPanel ? "#7A7880" : "#1A1A1A", borderRadius: "6px", fontSize: "12px", fontWeight: 700, cursor: "pointer" }}
                   >{showAddPanel ? "✕ Close" : "+ Add"}</button>
                 </div>
 
@@ -956,7 +956,7 @@ export default function DiscountGroupsPage() {
                             <span style={{ fontSize: "13px", fontWeight: 600, color: "#2A2830" }}>{c.name}</span>
                             <button
                               onClick={() => toggleCustomerAssignment(c, true)}
-                              style={{ background: "rgba(26,26,26,.08)", border: "1px solid rgba(26,26,26,.2)", color: "#005BD3", padding: "4px 10px", borderRadius: "6px", fontSize: "12px", fontWeight: 700, cursor: "pointer" }}
+                              style={{ background: "rgba(26,26,26,.08)", border: "1px solid rgba(26,26,26,.2)", color: "#1A1A1A", padding: "4px 10px", borderRadius: "6px", fontSize: "12px", fontWeight: 700, cursor: "pointer" }}
                             >Add</button>
                           </div>
                         ));
@@ -973,7 +973,7 @@ export default function DiscountGroupsPage() {
               <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
                 {(["store", "collections", "products"] as const).map(opt => (
                   <div key={opt}>
-                    <label style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 14px", background: groupForm.applies_to === opt ? "rgba(26,26,26,.06)" : "#fff", border: `1.5px solid ${groupForm.applies_to === opt ? "#1A5CFF" : "#E3E3E3"}`, borderRadius: "8px", cursor: "pointer" }}>
+                    <label style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 14px", background: groupForm.applies_to === opt ? "rgba(26,26,26,.06)" : "#fff", border: `1.5px solid ${groupForm.applies_to === opt ? "#1A1A1A" : "#E3E3E3"}`, borderRadius: "8px", cursor: "pointer" }}>
                       <input type="radio" name="applies_to" value={opt} checked={groupForm.applies_to === opt} onChange={() => handleAppliesTo(opt)} style={{ accentColor: "#1A1A1A" }} />
                       <div>
                         <div style={{ fontSize: "13px", fontWeight: 600, color: "#2A2830" }}>
@@ -989,7 +989,7 @@ export default function DiscountGroupsPage() {
                         <div style={{ padding: "8px 12px", borderBottom: "1px solid #E3E3E3", display: "flex", alignItems: "center", gap: "6px" }}>
                           <span style={{ fontSize: "13px", color: "#aaa" }}>🔍</span>
                           <input value={browseSearch} onChange={e => setBrowseSearch(e.target.value)} placeholder={`Search ${opt}…`} style={{ flex: 1, border: "none", outline: "none", fontSize: "13px", fontFamily: "var(--font-jakarta)" }} />
-                          {browseIds.length > 0 && <span style={{ fontSize: "11px", fontWeight: 700, color: "#005BD3", whiteSpace: "nowrap" }}>{browseIds.length} selected</span>}
+                          {browseIds.length > 0 && <span style={{ fontSize: "11px", fontWeight: 700, color: "#1A1A1A", whiteSpace: "nowrap" }}>{browseIds.length} selected</span>}
                         </div>
                         <div style={{ maxHeight: "180px", overflowY: "auto" }}>
                           {browseLoading ? (
@@ -1019,7 +1019,7 @@ export default function DiscountGroupsPage() {
               <div style={{ fontFamily: "var(--font-bebas)", fontSize: "13px", letterSpacing: "-0.01em", color: "#7A7880", marginBottom: "12px" }}>Minimum Requirements</div>
               <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
                 {(["none", "amount", "quantity"] as const).map(opt => (
-                  <label key={opt} style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 14px", background: groupForm.min_req_type === opt ? "rgba(26,26,26,.06)" : "#fff", border: `1.5px solid ${groupForm.min_req_type === opt ? "#1A5CFF" : "#E3E3E3"}`, borderRadius: "8px", cursor: "pointer" }}>
+                  <label key={opt} style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 14px", background: groupForm.min_req_type === opt ? "rgba(26,26,26,.06)" : "#fff", border: `1.5px solid ${groupForm.min_req_type === opt ? "#1A1A1A" : "#E3E3E3"}`, borderRadius: "8px", cursor: "pointer" }}>
                     <input type="radio" name="min_req" value={opt} checked={groupForm.min_req_type === opt} onChange={() => setGroupForm(f => ({ ...f, min_req_type: opt }))} style={{ accentColor: "#1A1A1A" }} />
                     <div style={{ flex: 1 }}>
                       <div style={{ fontSize: "13px", fontWeight: 600, color: "#2A2830" }}>
@@ -1045,7 +1045,7 @@ export default function DiscountGroupsPage() {
 
                 {/* Store Default */}
                 <div>
-                  <label style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 14px", background: groupForm.shipping_type === "store_default" ? "rgba(26,26,26,.06)" : "#fff", border: `1.5px solid ${groupForm.shipping_type === "store_default" ? "#1A5CFF" : "#E3E3E3"}`, borderRadius: "8px", cursor: "pointer" }}>
+                  <label style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 14px", background: groupForm.shipping_type === "store_default" ? "rgba(26,26,26,.06)" : "#fff", border: `1.5px solid ${groupForm.shipping_type === "store_default" ? "#1A1A1A" : "#E3E3E3"}`, borderRadius: "8px", cursor: "pointer" }}>
                     <input type="radio" name="shipping_type" value="store_default" checked={groupForm.shipping_type === "store_default"} onChange={() => setGroupForm(f => ({ ...f, shipping_type: "store_default" }))} style={{ accentColor: "#1A1A1A" }} />
                     <div>
                       <div style={{ fontSize: "13px", fontWeight: 600, color: "#2A2830" }}>Store Default</div>
@@ -1079,7 +1079,7 @@ export default function DiscountGroupsPage() {
 
                 {/* Flat Rate (full shipping tier UI) */}
                 <div>
-                  <label style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 14px", background: groupForm.shipping_type === "flat_rate" ? "rgba(26,26,26,.06)" : "#fff", border: `1.5px solid ${groupForm.shipping_type === "flat_rate" ? "#1A5CFF" : "#E3E3E3"}`, borderRadius: "8px", cursor: "pointer" }}>
+                  <label style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 14px", background: groupForm.shipping_type === "flat_rate" ? "rgba(26,26,26,.06)" : "#fff", border: `1.5px solid ${groupForm.shipping_type === "flat_rate" ? "#1A1A1A" : "#E3E3E3"}`, borderRadius: "8px", cursor: "pointer" }}>
                     <input type="radio" name="shipping_type" value="flat_rate" checked={groupForm.shipping_type === "flat_rate"} onChange={() => setGroupForm(f => ({ ...f, shipping_type: "flat_rate" }))} style={{ accentColor: "#1A1A1A" }} />
                     <div>
                       <div style={{ fontSize: "13px", fontWeight: 600, color: "#2A2830" }}>Custom Shipping Rate</div>
@@ -1097,10 +1097,10 @@ export default function DiscountGroupsPage() {
                             <button key={t} type="button"
                               onClick={() => { setFlatCalcType(t); setFlatBrackets([]); }}
                               style={{
-                                flex: 1, padding: "9px 12px", border: `2px solid ${flatCalcType === t ? "#1A5CFF" : "#E3E3E3"}`,
+                                flex: 1, padding: "9px 12px", border: `2px solid ${flatCalcType === t ? "#1A1A1A" : "#E3E3E3"}`,
                                 borderRadius: "8px", fontSize: "12px", fontWeight: 700, cursor: "pointer",
                                 background: flatCalcType === t ? "rgba(26,26,26,.06)" : "#fff",
-                                color: flatCalcType === t ? "#1A5CFF" : "#7A7880",
+                                color: flatCalcType === t ? "#1A1A1A" : "#7A7880",
                               }}>
                               {t === "units" ? "📦 Per Unit Count" : "💰 Per Order Value"}
                             </button>
@@ -1145,7 +1145,7 @@ export default function DiscountGroupsPage() {
 
                 {/* Live Shippo Rates */}
                 <div>
-                  <label style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 14px", background: groupForm.shipping_type === "live_shippo" ? "rgba(26,26,26,.06)" : "#fff", border: `1.5px solid ${groupForm.shipping_type === "live_shippo" ? "#1A5CFF" : "#E3E3E3"}`, borderRadius: "8px", cursor: "pointer" }}>
+                  <label style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 14px", background: groupForm.shipping_type === "live_shippo" ? "rgba(26,26,26,.06)" : "#fff", border: `1.5px solid ${groupForm.shipping_type === "live_shippo" ? "#1A1A1A" : "#E3E3E3"}`, borderRadius: "8px", cursor: "pointer" }}>
                     <input type="radio" name="shipping_type" value="live_shippo" checked={groupForm.shipping_type === "live_shippo"} onChange={() => setGroupForm(f => ({ ...f, shipping_type: "live_shippo" }))} style={{ accentColor: "#1A1A1A" }} />
                     <div>
                       <div style={{ fontSize: "13px", fontWeight: 600, color: "#2A2830" }}>Live Shipping Rates (via Shippo)</div>
@@ -1166,7 +1166,7 @@ export default function DiscountGroupsPage() {
 
             <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
               <button onClick={() => setShowGroupModal(false)} style={{ padding: "11px 22px", border: "1px solid #E3E3E3", borderRadius: "8px", background: "#fff", cursor: "pointer", fontWeight: 600, fontSize: "13px" }}>Cancel</button>
-              <button onClick={handleSaveGroup} disabled={savingGroup} style={{ padding: "11px 22px", background: savingGroup ? "#aaa" : "#1A5CFF", color: "#fff", border: "none", borderRadius: "8px", fontWeight: 700, fontSize: "13px", cursor: savingGroup ? "not-allowed" : "pointer" }}>
+              <button onClick={handleSaveGroup} disabled={savingGroup} style={{ padding: "11px 22px", background: savingGroup ? "#aaa" : "#1A1A1A", color: "#fff", border: "none", borderRadius: "8px", fontWeight: 700, fontSize: "13px", cursor: savingGroup ? "not-allowed" : "pointer" }}>
                 {savingGroup ? "Saving…" : editingGroupId ? "Save Changes" : "Create Group"}
               </button>
             </div>

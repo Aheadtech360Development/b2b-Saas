@@ -348,7 +348,7 @@ export default function DiscountsPage() {
             <button
               key={p}
               onClick={() => { setPage(p); load(p, search); }}
-              style={{ padding: "6px 12px", borderRadius: "6px", border: "1.5px solid #E3E3E3", background: p === page ? "#1A5CFF" : "#fff", color: p === page ? "#fff" : "#2A2830", fontWeight: 700, fontSize: "13px", cursor: "pointer" }}
+              style={{ padding: "6px 12px", borderRadius: "6px", border: "1.5px solid #E3E3E3", background: p === page ? "#1A1A1A" : "#fff", color: p === page ? "#fff" : "#2A2830", fontWeight: 700, fontSize: "13px", cursor: "pointer" }}
             >
               {p}
             </button>
@@ -479,7 +479,7 @@ export default function DiscountsPage() {
               <button
                 onClick={handleSave}
                 disabled={saving}
-                style={{ padding: "10px 24px", background: saving ? "#E3E3E3" : "#1A5CFF", color: saving ? "#aaa" : "#fff", border: "none", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: saving ? "not-allowed" : "pointer" }}
+                style={{ padding: "10px 24px", background: saving ? "#E3E3E3" : "#1A1A1A", color: saving ? "#aaa" : "#fff", border: "none", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: saving ? "not-allowed" : "pointer" }}
               >
                 {saving ? "Saving…" : editId ? "Save Changes" : "Create Code"}
               </button>

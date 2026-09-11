@@ -171,7 +171,7 @@ export default function AdminReviewsPage() {
                 <td style={{ padding: "14px 16px" }}>
                   <a
                     href={`/admin/products/${review.product_slug}/edit`}
-                    style={{ fontSize: "13px", color: "#005BD3", textDecoration: "none", fontWeight: 600 }}
+                    style={{ fontSize: "13px", color: "#1A1A1A", textDecoration: "none", fontWeight: 600 }}
                     onClick={e => { e.preventDefault(); router.push(`/admin/products/${review.product_slug}/edit`); }}
                   >
                     {review.product_name}
@@ -190,7 +190,7 @@ export default function AdminReviewsPage() {
                   </div>
                   {review.image_url && (
                     <div style={{ marginTop: "4px" }}>
-                      <a href={review.image_url} target="_blank" rel="noopener noreferrer" style={{ fontSize: "11px", color: "#005BD3" }}>📷 View image</a>
+                      <a href={review.image_url} target="_blank" rel="noopener noreferrer" style={{ fontSize: "11px", color: "#1A1A1A" }}>📷 View image</a>
                     </div>
                   )}
                 </td>

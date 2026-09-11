@@ -584,7 +584,7 @@ export default function StorefrontCustomizer() {
         <p style={{ fontSize: "13px", color: "#7A7880", marginBottom: "12px" }}>Reorder with the arrows — this is the order customers see. Your <strong>Addons</strong> appear here too (added at the end; move them anywhere).</p>
         {(() => { const fo = fullOrder(); return fo.map((key, i) => (
           <div key={key} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 14px", border: "1px solid #E3E3E3", borderRadius: "8px", marginBottom: "8px", background: key.startsWith("addon:") ? "#F0F4FA" : "#FAFAF8" }}>
-            <span style={{ fontSize: "14px", fontWeight: 600, color: "#2A2830" }}>{i + 1}. {orderLabel(key)} {key.startsWith("addon:") && <span style={{ fontSize: "11px", color: "#005BD3", fontWeight: 700 }}>· addon</span>}</span>
+            <span style={{ fontSize: "14px", fontWeight: 600, color: "#2A2830" }}>{i + 1}. {orderLabel(key)} {key.startsWith("addon:") && <span style={{ fontSize: "11px", color: "#1A1A1A", fontWeight: 700 }}>· addon</span>}</span>
             <div style={{ display: "flex", gap: "6px" }}>
               <button onClick={() => moveSection(i, -1)} disabled={i === 0} style={{ background: "#fff", border: "1px solid #E3E3E3", borderRadius: "6px", padding: "4px 10px", cursor: i === 0 ? "not-allowed" : "pointer", opacity: i === 0 ? 0.4 : 1 }}>↑</button>
               <button onClick={() => moveSection(i, 1)} disabled={i === fo.length - 1} style={{ background: "#fff", border: "1px solid #E3E3E3", borderRadius: "6px", padding: "4px 10px", cursor: i === fo.length - 1 ? "not-allowed" : "pointer", opacity: i === fo.length - 1 ? 0.4 : 1 }}>↓</button>

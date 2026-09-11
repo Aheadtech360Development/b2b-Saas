@@ -301,7 +301,7 @@ export default function StandardShippingPage() {
 
             {/* Flat Rate option */}
             <div>
-              <label style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 14px", background: shippingType === "store_default" ? "rgba(26,26,26,.06)" : "#fff", border: `1.5px solid ${shippingType === "store_default" ? "#1A5CFF" : "#E3E3E3"}`, borderRadius: "8px", cursor: "pointer" }}>
+              <label style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 14px", background: shippingType === "store_default" ? "rgba(26,26,26,.06)" : "#fff", border: `1.5px solid ${shippingType === "store_default" ? "#1A1A1A" : "#E3E3E3"}`, borderRadius: "8px", cursor: "pointer" }}>
                 <input type="radio" name="shipping_type" value="store_default" checked={shippingType === "store_default"} onChange={() => setShippingType("store_default")} style={{ accentColor: "#1A1A1A" }} />
                 <div>
                   <div style={{ fontSize: "13px", fontWeight: 600, color: "#2A2830" }}>Flat Rate</div>
@@ -351,7 +351,7 @@ export default function StandardShippingPage() {
 
             {/* Bracket-based option */}
             <div>
-              <label style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 14px", background: shippingType === "flat_rate" ? "rgba(26,26,26,.06)" : "#fff", border: `1.5px solid ${shippingType === "flat_rate" ? "#1A5CFF" : "#E3E3E3"}`, borderRadius: "8px", cursor: "pointer" }}>
+              <label style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 14px", background: shippingType === "flat_rate" ? "rgba(26,26,26,.06)" : "#fff", border: `1.5px solid ${shippingType === "flat_rate" ? "#1A1A1A" : "#E3E3E3"}`, borderRadius: "8px", cursor: "pointer" }}>
                 <input type="radio" name="shipping_type" value="flat_rate" checked={shippingType === "flat_rate"} onChange={() => setShippingType("flat_rate")} style={{ accentColor: "#1A1A1A" }} />
                 <div>
                   <div style={{ fontSize: "13px", fontWeight: 600, color: "#2A2830" }}>Bracket-Based Rate</div>
@@ -368,10 +368,10 @@ export default function StandardShippingPage() {
                         <button key={t} type="button"
                           onClick={() => { setCalcType(t); setBrackets([]); }}
                           style={{
-                            flex: 1, padding: "9px 12px", border: `2px solid ${calcType === t ? "#1A5CFF" : "#E3E3E3"}`,
+                            flex: 1, padding: "9px 12px", border: `2px solid ${calcType === t ? "#1A1A1A" : "#E3E3E3"}`,
                             borderRadius: "8px", fontSize: "12px", fontWeight: 700, cursor: "pointer",
                             background: calcType === t ? "rgba(26,26,26,.06)" : "#fff",
-                            color: calcType === t ? "#1A5CFF" : "#7A7880",
+                            color: calcType === t ? "#1A1A1A" : "#7A7880",
                           }}>
                           {t === "units" ? "Per Unit Count" : "Per Order Value"}
                         </button>

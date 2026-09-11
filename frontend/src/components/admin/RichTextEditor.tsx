@@ -36,7 +36,7 @@ function ToolbarBtn({
         border: "none",
         borderRadius: "6px",
         cursor: "pointer",
-        background: active ? "#1A5CFF" : "transparent",
+        background: active ? "#1A1A1A" : "transparent",
         color: active ? "#fff" : "#2A2830",
         fontSize: "13px",
         lineHeight: 1,

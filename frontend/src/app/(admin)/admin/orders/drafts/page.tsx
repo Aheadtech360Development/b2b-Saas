@@ -23,7 +23,7 @@ interface CompanyOption { id: string; name: string; }
 
 const STATUS_STYLE: Record<string, { bg: string; color: string }> = {
   pending:   { bg: "rgba(217,119,6,.1)",  color: "#D97706" },
-  confirmed: { bg: "rgba(26,26,26,.1)",  color: "#005BD3" },
+  confirmed: { bg: "rgba(26,26,26,.1)",  color: "#1A1A1A" },
   cancelled: { bg: "rgba(232,36,42,.1)",  color: "#E8242A" },
 };
 
@@ -163,10 +163,10 @@ function CreateDraftModal({ onClose, onSuccess }: { onClose: () => void; onSucce
             <div style={{ display: "flex", gap: "6px" }}>
               {STEPS.map((label, i) => (
                 <div key={label} style={{ display: "flex", alignItems: "center", gap: "5px" }}>
-                  <div style={{ width: "22px", height: "22px", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "11px", fontWeight: 700, background: step === i + 1 ? "#1A5CFF" : step > i + 1 ? "#059669" : "#E3E3E3", color: step >= i + 1 ? "#fff" : "#aaa" }}>
+                  <div style={{ width: "22px", height: "22px", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "11px", fontWeight: 700, background: step === i + 1 ? "#1A1A1A" : step > i + 1 ? "#059669" : "#E3E3E3", color: step >= i + 1 ? "#fff" : "#aaa" }}>
                     {step > i + 1 ? "✓" : i + 1}
                   </div>
-                  <span style={{ fontSize: "11px", fontWeight: 600, color: step === i + 1 ? "#1A5CFF" : "#aaa" }}>{label}</span>
+                  <span style={{ fontSize: "11px", fontWeight: 600, color: step === i + 1 ? "#1A1A1A" : "#aaa" }}>{label}</span>
                   {i < 2 && <span style={{ color: "#E3E3E3", fontSize: "12px" }}>›</span>}
                 </div>
               ))}
@@ -377,7 +377,7 @@ function CreateDraftModal({ onClose, onSuccess }: { onClose: () => void; onSucce
                     <tfoot>
                       <tr style={{ background: "#F6F6F7" }}>
                         <td colSpan={4} style={{ padding: "10px 12px", fontWeight: 700, textAlign: "right", fontSize: "13px" }}>Order Total</td>
-                        <td style={{ padding: "10px 12px", fontWeight: 700, fontSize: "14px", color: "#005BD3" }}>${orderTotal.toFixed(2)}</td>
+                        <td style={{ padding: "10px 12px", fontWeight: 700, fontSize: "14px", color: "#1A1A1A" }}>${orderTotal.toFixed(2)}</td>
                       </tr>
                     </tfoot>
                   </table>
@@ -406,12 +406,12 @@ function CreateDraftModal({ onClose, onSuccess }: { onClose: () => void; onSucce
             <button
               disabled={step === 1 && !companyId}
               onClick={() => setStep(s => (s + 1) as 2 | 3)}
-              style={{ flex: 2, padding: "10px", background: (step === 1 && !companyId) ? "#E3E3E3" : "#1A5CFF", color: (step === 1 && !companyId) ? "#aaa" : "#fff", border: "none", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: (step === 1 && !companyId) ? "not-allowed" : "pointer" }}>
+              style={{ flex: 2, padding: "10px", background: (step === 1 && !companyId) ? "#E3E3E3" : "#1A1A1A", color: (step === 1 && !companyId) ? "#aaa" : "#fff", border: "none", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: (step === 1 && !companyId) ? "not-allowed" : "pointer" }}>
               Continue →
             </button>
           ) : (
             <button onClick={handleCreate} disabled={saving}
-              style={{ flex: 2, padding: "10px", background: saving ? "#E3E3E3" : "#1A5CFF", color: saving ? "#aaa" : "#fff", border: "none", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: saving ? "not-allowed" : "pointer" }}>
+              style={{ flex: 2, padding: "10px", background: saving ? "#E3E3E3" : "#1A1A1A", color: saving ? "#aaa" : "#fff", border: "none", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: saving ? "not-allowed" : "pointer" }}>
               {saving ? "Creating…" : "Create Draft Order"}
             </button>
           )}
@@ -508,7 +508,7 @@ export default function DraftOrdersPage() {
                 onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
               >
                 <td style={{ padding: "13px 16px" }}>
-                  <Link href={`/admin/orders/${o.id}`} style={{ color: "#005BD3", textDecoration: "none", fontFamily: "monospace", fontSize: "12px", fontWeight: 700 }}>
+                  <Link href={`/admin/orders/${o.id}`} style={{ color: "#1A1A1A", textDecoration: "none", fontFamily: "monospace", fontSize: "12px", fontWeight: 700 }}>
                     {o.order_number}
                   </Link>
                 </td>

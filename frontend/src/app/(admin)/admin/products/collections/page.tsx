@@ -207,7 +207,7 @@ export default function CollectionsPage() {
                     href={`/products?category=${col.slug}`}
                     target="_blank"
                     rel="noreferrer"
-                    style={{ fontSize: "12px", color: "#005BD3", fontWeight: 700, textDecoration: "none" }}
+                    style={{ fontSize: "12px", color: "#1A1A1A", fontWeight: 700, textDecoration: "none" }}
                   >
                     View in store →
                   </a>
@@ -304,7 +304,7 @@ export default function CollectionsPage() {
                   style={{
                     padding: "9px 18px", border: "1.5px dashed #E3E3E3", borderRadius: "8px",
                     background: uploading ? "#f9fafb" : "#fff", cursor: uploading ? "not-allowed" : "pointer",
-                    fontSize: "13px", fontWeight: 600, color: uploading ? "#aaa" : "#1A5CFF",
+                    fontSize: "13px", fontWeight: 600, color: uploading ? "#aaa" : "#1A1A1A",
                     fontFamily: "var(--font-jakarta)",
                   }}
                 >
@@ -345,7 +345,7 @@ export default function CollectionsPage() {
               <button
                 onClick={handleSave}
                 disabled={saving || !form.name.trim()}
-                style={{ padding: "11px 22px", background: saving ? "#aaa" : "#1A5CFF", color: "#fff", border: "none", borderRadius: "8px", fontWeight: 700, cursor: saving ? "not-allowed" : "pointer", fontSize: "14px", opacity: (!form.name.trim()) ? 0.5 : 1 }}
+                style={{ padding: "11px 22px", background: saving ? "#aaa" : "#1A1A1A", color: "#fff", border: "none", borderRadius: "8px", fontWeight: 700, cursor: saving ? "not-allowed" : "pointer", fontSize: "14px", opacity: (!form.name.trim()) ? 0.5 : 1 }}
               >
                 {saving ? "Saving…" : editingId ? "Save Changes" : "Create Collection"}
               </button>

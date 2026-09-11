@@ -363,7 +363,7 @@ export default function NewProductPage() {
             form="new-product-form"
             type="submit"
             disabled={saving || success || !form.name.trim() || !form.slug.trim()}
-            style={{ padding: "10px 24px", background: success ? "#059669" : "#1A5CFF", color: "#fff", border: "none", borderRadius: "8px", fontWeight: 700, cursor: (saving || success || !form.name.trim() || !form.slug.trim()) ? "not-allowed" : "pointer", opacity: (saving || success || !form.name.trim() || !form.slug.trim()) ? 0.6 : 1, fontSize: "14px" }}
+            style={{ padding: "10px 24px", background: success ? "#059669" : "#1A1A1A", color: "#fff", border: "none", borderRadius: "8px", fontWeight: 700, cursor: (saving || success || !form.name.trim() || !form.slug.trim()) ? "not-allowed" : "pointer", opacity: (saving || success || !form.name.trim() || !form.slug.trim()) ? 0.6 : 1, fontSize: "14px" }}
           >
             {saving ? "Creating…" : success ? "Created!" : "Create Product"}
           </button>
@@ -472,7 +472,7 @@ export default function NewProductPage() {
                       <img src={url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                     </div>
                     <div style={{ flex: 1 }}>
-                      <span style={{ background: i === 0 ? "#1A5CFF" : "#F6F6F7", color: i === 0 ? "#fff" : "#7A7880", fontSize: "9px", fontWeight: 700, padding: "2px 8px", borderRadius: "3px" }}>
+                      <span style={{ background: i === 0 ? "#1A1A1A" : "#F6F6F7", color: i === 0 ? "#fff" : "#7A7880", fontSize: "9px", fontWeight: 700, padding: "2px 8px", borderRadius: "3px" }}>
                         {i === 0 ? "★ PRIMARY" : `Image ${i + 1}`}
                       </span>
                       <div style={{ fontSize: "11px", color: "#aaa", marginTop: "4px" }}>{pendingImages[i]?.name}</div>
@@ -488,7 +488,7 @@ export default function NewProductPage() {
               <div
                 onClick={() => fileInputRef.current?.click()}
                 style={{ borderRadius: "8px", border: "2px dashed #E3E3E3", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", cursor: "pointer", background: "#F6F6F7", padding: "16px", transition: "border-color .2s" }}
-                onMouseEnter={e => (e.currentTarget.style.borderColor = "#1A5CFF")}
+                onMouseEnter={e => (e.currentTarget.style.borderColor = "#1A1A1A")}
                 onMouseLeave={e => (e.currentTarget.style.borderColor = "#E3E3E3")}
               >
                 <span style={{ fontSize: "20px", color: "#aaa" }}>+</span>
@@ -598,7 +598,7 @@ export default function NewProductPage() {
                   form="new-product-form"
                   type="submit"
                   disabled={saving || success || !form.name.trim() || !form.slug.trim()}
-                  style={{ width: "100%", padding: "10px", background: success ? "#059669" : "#1A5CFF", color: "#fff", border: "none", borderRadius: "8px", fontWeight: 700, cursor: (saving || success || !form.name.trim() || !form.slug.trim()) ? "not-allowed" : "pointer", fontSize: "14px", opacity: (saving || success || !form.name.trim() || !form.slug.trim()) ? 0.6 : 1 }}
+                  style={{ width: "100%", padding: "10px", background: success ? "#059669" : "#1A1A1A", color: "#fff", border: "none", borderRadius: "8px", fontWeight: 700, cursor: (saving || success || !form.name.trim() || !form.slug.trim()) ? "not-allowed" : "pointer", fontSize: "14px", opacity: (saving || success || !form.name.trim() || !form.slug.trim()) ? 0.6 : 1 }}
                 >
                   {saving ? "Creating…" : success ? "Created!" : "Create Product"}
                 </button>
@@ -701,7 +701,7 @@ export default function NewProductPage() {
                   {["DTF (Direct to Film)", "Screen Printing", "Embroidery", "DTG (Direct to Garment)", "Heat Transfer", "Sublimation", "Vinyl / HTV", "Laser Engraving"].map(method => {
                     const checked = form.print_guide_methods.includes(method);
                     return (
-                      <label key={method} style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "13px", color: "#2A2830", cursor: "pointer", padding: "6px 10px", border: `1.5px solid ${checked ? "#1A5CFF" : "#E3E3E3"}`, borderRadius: "8px", background: checked ? "rgba(26,26,26,.05)" : "#fff", transition: "all .15s" }}>
+                      <label key={method} style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "13px", color: "#2A2830", cursor: "pointer", padding: "6px 10px", border: `1.5px solid ${checked ? "#1A1A1A" : "#E3E3E3"}`, borderRadius: "8px", background: checked ? "rgba(26,26,26,.05)" : "#fff", transition: "all .15s" }}>
                         <input
                           type="checkbox"
                           checked={checked}
@@ -723,7 +723,7 @@ export default function NewProductPage() {
                   <button
                     type="button"
                     onClick={addSizeChartRow}
-                    style={{ fontSize: "12px", color: "#005BD3", fontWeight: 700, background: "none", border: "none", cursor: "pointer", padding: 0 }}
+                    style={{ fontSize: "12px", color: "#1A1A1A", fontWeight: 700, background: "none", border: "none", cursor: "pointer", padding: 0 }}
                   >
                     + Add Row
                   </button>
@@ -779,7 +779,7 @@ export default function NewProductPage() {
                 <button
                   type="button"
                   onClick={() => setEditSEO(v => !v)}
-                  style={{ fontSize: "12px", color: "#005BD3", fontWeight: 700, background: "none", border: "none", cursor: "pointer" }}
+                  style={{ fontSize: "12px", color: "#1A1A1A", fontWeight: 700, background: "none", border: "none", cursor: "pointer" }}
                 >
                   {editSEO ? "Preview" : "Edit"}
                 </button>
@@ -845,7 +845,7 @@ export default function NewProductPage() {
               <button
                 type="button"
                 onClick={() => flyerInputRef.current?.click()}
-                style={{ width: "100%", padding: "10px", border: "1.5px dashed #E3E3E3", borderRadius: "8px", background: "#fff", cursor: "pointer", fontSize: "13px", fontWeight: 600, color: "#005BD3", fontFamily: "var(--font-jakarta)" }}
+                style={{ width: "100%", padding: "10px", border: "1.5px dashed #E3E3E3", borderRadius: "8px", background: "#fff", cursor: "pointer", fontSize: "13px", fontWeight: 600, color: "#1A1A1A", fontFamily: "var(--font-jakarta)" }}
               >
                 {pendingFlyer ? "Replace Flyer (PDF)" : "Upload Flyer (PDF)"}
               </button>

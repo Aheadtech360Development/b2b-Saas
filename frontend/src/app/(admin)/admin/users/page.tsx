@@ -27,12 +27,12 @@ const thStyle: React.CSSProperties = {
 const ROLE_BADGE: Record<string, { bg: string; color: string }> = {
   administrator: { bg: "rgba(232,36,42,.1)",  color: "#E8242A" },
   manager:       { bg: "rgba(139,92,246,.12)", color: "#7C3AED" },
-  editor:        { bg: "rgba(26,26,26,.1)",   color: "#005BD3" },
+  editor:        { bg: "rgba(26,26,26,.1)",   color: "#1A1A1A" },
   order_manager: { bg: "rgba(217,119,6,.12)",  color: "#D97706" },
   viewer:        { bg: "rgba(107,114,128,.12)", color: "#4B5563" },
   customer:      { bg: "rgba(5,150,105,.1)",   color: "#059669" },
   admin:         { bg: "rgba(232,36,42,.1)",   color: "#E8242A" },
-  staff:         { bg: "rgba(26,26,26,.1)",   color: "#005BD3" },
+  staff:         { bg: "rgba(26,26,26,.1)",   color: "#1A1A1A" },
 };
 
 function autoPassword() {
@@ -207,7 +207,7 @@ function UserModal({
                 <button
                   type="button"
                   onClick={() => setAutoGen(v => !v)}
-                  style={{ flexShrink: 0, padding: "8px 12px", border: `1.5px solid ${autoGen ? "#1A5CFF" : "#E3E3E3"}`, borderRadius: "8px", fontSize: "11px", fontWeight: 700, cursor: "pointer", background: autoGen ? "rgba(26,26,26,.08)" : "#fff", color: autoGen ? "#1A5CFF" : "#7A7880", whiteSpace: "nowrap" }}
+                  style={{ flexShrink: 0, padding: "8px 12px", border: `1.5px solid ${autoGen ? "#1A1A1A" : "#E3E3E3"}`, borderRadius: "8px", fontSize: "11px", fontWeight: 700, cursor: "pointer", background: autoGen ? "rgba(26,26,26,.08)" : "#fff", color: autoGen ? "#1A1A1A" : "#7A7880", whiteSpace: "nowrap" }}
                 >
                   Auto-generate
                 </button>
@@ -256,7 +256,7 @@ function UserModal({
               Cancel
             </button>
             <button type="submit" disabled={saving}
-              style={{ flex: 2, padding: "10px", background: saving ? "#E3E3E3" : "#1A5CFF", color: saving ? "#aaa" : "#fff", border: "none", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: saving ? "not-allowed" : "pointer" }}>
+              style={{ flex: 2, padding: "10px", background: saving ? "#E3E3E3" : "#1A1A1A", color: saving ? "#aaa" : "#fff", border: "none", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: saving ? "not-allowed" : "pointer" }}>
               {saving ? "Saving…" : isEdit ? "Save Changes" : "Create User"}
             </button>
           </div>
@@ -456,7 +456,7 @@ export default function AdminUsersPage() {
                   {/* Name */}
                   <td style={{ padding: "13px 14px" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: "9px" }}>
-                      <div style={{ width: "32px", height: "32px", borderRadius: "50%", background: user.is_admin ? "#E8242A" : "#1A5CFF", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontFamily: "var(--font-bebas)", fontSize: "14px", flexShrink: 0 }}>
+                      <div style={{ width: "32px", height: "32px", borderRadius: "50%", background: user.is_admin ? "#E8242A" : "#1A1A1A", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontFamily: "var(--font-bebas)", fontSize: "14px", flexShrink: 0 }}>
                         {(user.first_name[0] ?? "?").toUpperCase()}
                       </div>
                       <div style={{ fontWeight: 700, fontSize: "13px", color: "#2A2830" }}>{user.full_name}</div>

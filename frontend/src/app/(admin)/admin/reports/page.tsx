@@ -8,19 +8,19 @@ const REPORT_CARDS = [
     href: "/reports/sales",
     title: "Sales Report",
     description: "Revenue by period, category breakdown, top products",
-    icon: <TrendingUpIcon size={36} color="#1A5CFF" />,
+    icon: <TrendingUpIcon size={36} color="#1A1A1A" />,
   },
   {
     href: "/reports/inventory",
     title: "Inventory Report",
     description: "Stock levels, low-stock alerts, movement history",
-    icon: <PackageIcon size={36} color="#1A5CFF" />,
+    icon: <PackageIcon size={36} color="#1A1A1A" />,
   },
   {
     href: "/reports/customers",
     title: "Customer Report",
     description: "New registrations, approval rate, AOV by tier",
-    icon: <UsersIcon size={36} color="#1A5CFF" />,
+    icon: <UsersIcon size={36} color="#1A1A1A" />,
   },
 ];
 

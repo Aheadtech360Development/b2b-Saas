@@ -158,7 +158,7 @@ export default function AnalyticsPage() {
     padding: "7px 16px", borderRadius: "20px", fontSize: "12px", fontWeight: 600,
     border: `1.5px solid ${active ? "#1A1A1A" : "#E3E3E3"}`,
     background: active ? "rgba(26,26,26,.08)" : "#fff",
-    color: active ? "#1A5CFF" : "#555",
+    color: active ? "#1A1A1A" : "#555",
     cursor: "pointer", transition: "all .15s",
   });
 
@@ -237,7 +237,7 @@ export default function AnalyticsPage() {
               label="Total Orders"
               value={data.overview.total_orders}
               change={data.overview.orders_change_percent}
-              color="#1A5CFF"
+              color="#1A1A1A"
             />
             <StatCard
               label="Avg Order Value"
@@ -267,7 +267,7 @@ export default function AnalyticsPage() {
               </div>
               <div style={{ display: "flex", gap: "16px" }}>
                 <div>
-                  <div style={{ fontFamily: "var(--font-bebas)", fontSize: "26px", color: "#005BD3", lineHeight: 1 }}>{data.overview.wholesale_orders}</div>
+                  <div style={{ fontFamily: "var(--font-bebas)", fontSize: "26px", color: "#1A1A1A", lineHeight: 1 }}>{data.overview.wholesale_orders}</div>
                   <div style={{ fontSize: "11px", color: "#7A7880", marginTop: "2px" }}>Wholesale</div>
                 </div>
                 <div style={{ width: "1px", background: "#E3E3E3" }} />
@@ -300,9 +300,9 @@ export default function AnalyticsPage() {
                 onClick={() => setChartView(v)}
                 style={{
                   padding: "5px 12px", borderRadius: "6px", fontSize: "11px", fontWeight: 600,
-                  border: `1.5px solid ${chartView === v ? "#1A5CFF" : "#E3E3E3"}`,
+                  border: `1.5px solid ${chartView === v ? "#1A1A1A" : "#E3E3E3"}`,
                   background: chartView === v ? "rgba(26,26,26,.08)" : "#fff",
-                  color: chartView === v ? "#1A5CFF" : "#555",
+                  color: chartView === v ? "#1A1A1A" : "#555",
                   cursor: "pointer",
                 }}
               >
@@ -340,7 +340,7 @@ export default function AnalyticsPage() {
                 contentStyle={{ fontSize: "12px", border: "1px solid #E3E3E3", borderRadius: "6px" }}
               />
               <Bar yAxisId="right" dataKey="orders" fill="rgba(26,26,26,.15)" radius={[3, 3, 0, 0]} name="orders" />
-              <Line yAxisId="left" type="monotone" dataKey="revenue" stroke="#1A5CFF" strokeWidth={2} dot={false} name="revenue" />
+              <Line yAxisId="left" type="monotone" dataKey="revenue" stroke="#1A1A1A" strokeWidth={2} dot={false} name="revenue" />
             </ComposedChart>
           </ResponsiveContainer>
         )}
@@ -413,7 +413,7 @@ export default function AnalyticsPage() {
                 <ResponsiveContainer width="100%" height={180}>
                   <PieChart>
                     <Pie data={pieData} dataKey="value" cx="50%" cy="50%" innerRadius={50} outerRadius={80}>
-                      <Cell fill="#1A5CFF" />
+                      <Cell fill="#1A1A1A" />
                       <Cell fill="#059669" />
                     </Pie>
                     <Tooltip
@@ -425,7 +425,7 @@ export default function AnalyticsPage() {
                 <div style={{ display: "flex", gap: "24px", justifyContent: "center", marginTop: "12px" }}>
                   {pieData.map((item, i) => (
                     <div key={item.name} style={{ textAlign: "center" }}>
-                      <div style={{ fontFamily: "var(--font-bebas)", fontSize: "26px", color: i === 0 ? "#1A5CFF" : "#059669", lineHeight: 1 }}>{item.value}</div>
+                      <div style={{ fontFamily: "var(--font-bebas)", fontSize: "26px", color: i === 0 ? "#1A1A1A" : "#059669", lineHeight: 1 }}>{item.value}</div>
                       <div style={{ fontSize: "11px", color: "#7A7880", marginTop: "2px" }}>
                         {item.name} · {total ? ((item.value / total) * 100).toFixed(0) : 0}%
                       </div>
@@ -463,7 +463,7 @@ export default function AnalyticsPage() {
                     {p.slug && (
                       <a
                         href={`/admin/products/${p.slug}/edit`}
-                        style={{ fontSize: "11px", color: "#005BD3", fontWeight: 600, textDecoration: "none" }}
+                        style={{ fontSize: "11px", color: "#1A1A1A", fontWeight: 600, textDecoration: "none" }}
                       >
                         View →
                       </a>
@@ -504,7 +504,7 @@ export default function AnalyticsPage() {
                     onMouseEnter={e => (e.currentTarget.style.background = "rgba(26,26,26,.04)")}
                     onMouseLeave={e => (e.currentTarget.style.background = i % 2 === 0 ? "#fff" : "#FAFAFA")}
                   >
-                    <td style={{ padding: "8px 8px", fontWeight: 600, color: "#005BD3" }}>{c.company_name}</td>
+                    <td style={{ padding: "8px 8px", fontWeight: 600, color: "#1A1A1A" }}>{c.company_name}</td>
                     <td style={{ padding: "8px 8px", textAlign: "right", color: "#7A7880" }}>{c.orders}</td>
                     <td style={{ padding: "8px 8px", textAlign: "right", fontWeight: 700, color: "#059669" }}>{fmt(c.total_spend)}</td>
                   </tr>
@@ -535,7 +535,7 @@ export default function AnalyticsPage() {
                   formatter={(v) => [v + " orders", "Orders"]}
                   contentStyle={{ fontSize: "12px", border: "1px solid #E3E3E3", borderRadius: "6px" }}
                 />
-                <Bar dataKey="orders" fill="#1A5CFF" radius={[0, 4, 4, 0]} />
+                <Bar dataKey="orders" fill="#1A1A1A" radius={[0, 4, 4, 0]} />
               </BarChart>
             </ResponsiveContainer>
           ) : (

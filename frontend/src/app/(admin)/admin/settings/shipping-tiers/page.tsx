@@ -38,7 +38,7 @@ const inputStyle: React.CSSProperties = {
 };
 
 const TYPE_BADGE: Record<CalcType, { bg: string; color: string; label: string }> = {
-  units:       { bg: "rgba(26,26,26,.08)",   color: "#005BD3", label: "Per Unit Count" },
+  units:       { bg: "rgba(26,26,26,.08)",   color: "#1A1A1A", label: "Per Unit Count" },
   order_value: { bg: "rgba(5,150,105,.08)",   color: "#059669", label: "Per Order Value" },
 };
 
@@ -220,10 +220,10 @@ function TierFormFields({
               <button key={t} type="button"
                 onClick={() => setForm(f => ({ ...f, calculation_type: t, brackets: [] }))}
                 style={{
-                  flex: 1, padding: "9px 12px", border: `2px solid ${form.calculation_type === t ? "#1A5CFF" : "#E3E3E3"}`,
+                  flex: 1, padding: "9px 12px", border: `2px solid ${form.calculation_type === t ? "#1A1A1A" : "#E3E3E3"}`,
                   borderRadius: "8px", fontSize: "12px", fontWeight: 700, cursor: "pointer",
                   background: form.calculation_type === t ? "rgba(26,26,26,.06)" : "#fff",
-                  color: form.calculation_type === t ? "#1A5CFF" : "#7A7880",
+                  color: form.calculation_type === t ? "#1A1A1A" : "#7A7880",
                 }}>
                 {t === "units" ? "📦 Per Unit Count" : "💰 Per Order Value"}
               </button>
@@ -603,7 +603,7 @@ export default function ShippingTiersPage() {
         <strong>How tiers work:</strong> Each company is assigned a shipping tier.
         When an order is placed, the cost is automatically calculated from the tier's brackets.
         <br />
-        <span style={{ color: "#005BD3", fontWeight: 600 }}>📦 Per Unit Count</span> — cost based on total pieces in the order.{" "}
+        <span style={{ color: "#1A1A1A", fontWeight: 600 }}>📦 Per Unit Count</span> — cost based on total pieces in the order.{" "}
         <span style={{ color: "#059669", fontWeight: 600 }}>💰 Per Order Value</span> — cost based on order dollar total.
         Set cost to <strong>$0.00</strong> on a bracket for free shipping above a threshold.
       </div>

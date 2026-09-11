@@ -18,11 +18,11 @@ import { apiClient } from "@/lib/api-client";
 
 function Spinner() {
   return (
-    <div style={{ display: "inline-block", width: 18, height: 18, border: "2px solid #E3E3E3", borderTopColor: "#1A5CFF", borderRadius: "50%", animation: "spin 0.7s linear infinite" }} />
+    <div style={{ display: "inline-block", width: 18, height: 18, border: "2px solid #E3E3E3", borderTopColor: "#1A1A1A", borderRadius: "50%", animation: "spin 0.7s linear infinite" }} />
   );
 }
 
-function Badge({ text, color = "#1A5CFF" }: { text: string; color?: string }) {
+function Badge({ text, color = "#1A1A1A" }: { text: string; color?: string }) {
   return (
     <span style={{ display: "inline-block", padding: "2px 8px", borderRadius: 12, fontSize: 11, fontWeight: 700, background: `${color}18`, color }}>
       {text}
@@ -315,7 +315,7 @@ function CatalogTab() {
                       className="sc-btn"
                       disabled={!s.style_id || importing === s.style_id || s.is_imported}
                       onClick={() => s.style_id && handleImport(s.style_id)}
-                      style={{ padding: "6px 14px", borderRadius: 7, border: "none", fontSize: 12, fontWeight: 700, cursor: "pointer", background: s.is_imported ? "#d1fae5" : "#1A5CFF", color: s.is_imported ? "#065f46" : "#fff", flexShrink: 0 }}
+                      style={{ padding: "6px 14px", borderRadius: 7, border: "none", fontSize: 12, fontWeight: 700, cursor: "pointer", background: s.is_imported ? "#d1fae5" : "#1A1A1A", color: s.is_imported ? "#065f46" : "#fff", flexShrink: 0 }}
                     >
                       {importing === s.style_id ? <Spinner /> : s.is_imported ? "✓ Imported" : "Import"}
                     </button>
@@ -482,7 +482,7 @@ function ProductCard({
             fontSize: 12,
             fontWeight: 700,
             cursor: product.is_imported ? "default" : "pointer",
-            background: product.is_imported ? "#d1fae5" : "#1A5CFF",
+            background: product.is_imported ? "#d1fae5" : "#1A1A1A",
             color: product.is_imported ? "#065f46" : "#fff",
             transition: "opacity .15s",
           }}
@@ -649,7 +649,7 @@ function ProductDetailDrawer({
                 fontSize: 14,
                 fontWeight: 700,
                 cursor: product.is_imported ? "default" : "pointer",
-                background: product.is_imported ? "#d1fae5" : "#1A5CFF",
+                background: product.is_imported ? "#d1fae5" : "#1A1A1A",
                 color: product.is_imported ? "#065f46" : "#fff",
               }}
             >
@@ -658,7 +658,7 @@ function ProductDetailDrawer({
             {product.imported_product_id && (
               <a
                 href={`/admin/products/${product.imported_product_id}`}
-                style={{ display: "block", textAlign: "center", marginTop: 10, fontSize: 12, color: "#005BD3" }}
+                style={{ display: "block", textAlign: "center", marginTop: 10, fontSize: 12, color: "#1A1A1A" }}
               >
                 View in Products →
               </a>
@@ -862,7 +862,7 @@ function MarkupTab() {
               {rules.map((r) => (
                 <tr key={r.id} className="sc-row">
                   <td style={{ padding: "10px 14px", borderBottom: "1px solid #f3f4f6" }}>
-                    <Badge text={RULE_TYPE_LABELS[r.rule_type] ?? r.rule_type} color={r.rule_type === "global" ? "#7c3aed" : "#1A5CFF"} />
+                    <Badge text={RULE_TYPE_LABELS[r.rule_type] ?? r.rule_type} color={r.rule_type === "global" ? "#7c3aed" : "#1A1A1A"} />
                   </td>
                   <td style={{ padding: "10px 14px", borderBottom: "1px solid #f3f4f6", color: "#374151" }}>
                     {r.target_value ?? <span style={{ color: "#9ca3af" }}>—</span>}
@@ -989,7 +989,7 @@ function SyncTab() {
                 onClick={() => handleTrigger(type)}
                 disabled={triggering === type}
                 className="sc-btn"
-                style={{ marginTop: 8, width: "100%", padding: "7px 12px", border: "1px solid #1A1A1A", borderRadius: 7, background: "transparent", color: "#005BD3", fontSize: 12, fontWeight: 700, cursor: "pointer" }}
+                style={{ marginTop: 8, width: "100%", padding: "7px 12px", border: "1px solid #1A1A1A", borderRadius: 7, background: "transparent", color: "#1A1A1A", fontSize: 12, fontWeight: 700, cursor: "pointer" }}
               >
                 {triggering === type ? <Spinner /> : `Sync ${label} Now`}
               </button>

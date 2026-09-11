@@ -148,7 +148,7 @@ function DashboardTab() {
   if (!data) return <div style={{ ...CARD, color: "#888", fontSize: "13px" }}>Could not load dashboard.</div>;
 
   const stats = [
-    { label: "Total Sheets", value: data.total_sheets.toLocaleString(), sub: `${data.total_jobs.toLocaleString()} designs`, color: "#4338CA" },
+    { label: "Total Sheets", value: data.total_sheets.toLocaleString(), sub: `${data.total_jobs.toLocaleString()} designs`, color: "#1A1A1A" },
     { label: "Total Orders", value: data.total_orders.toLocaleString(), sub: "checked out", color: "#166534" },
     { label: "Total Order Amount", value: `$${data.total_amount.toFixed(2)}`, sub: "from placed orders", color: "#075985" },
   ];
@@ -820,7 +820,7 @@ function ReviewModal({ order, onClose, onChanged }: { order: GangSheetOrder; onC
                     </div>
                     {v.artworks.map((a, k) => (
                       <div key={k} style={{ color: "#666", display: "flex", justifyContent: "space-between", gap: "8px" }}>
-                        <a href={a.file_url} target="_blank" rel="noopener noreferrer" style={{ color: "#4338CA", textDecoration: "none", wordBreak: "break-all" }}>{a.file_name}</a>
+                        <a href={a.file_url} target="_blank" rel="noopener noreferrer" style={{ color: "#1A1A1A", textDecoration: "none", wordBreak: "break-all" }}>{a.file_name}</a>
                         <span style={{ whiteSpace: "nowrap" }}>{a.width_in}″×{a.height_in}″ · q{a.quantity}</span>
                       </div>
                     ))}
