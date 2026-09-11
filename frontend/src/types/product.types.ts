@@ -80,6 +80,8 @@ export interface ProductDetail {
   review_count?: number;
   avg_rating?: number;
   gang_sheet_enabled?: boolean;
+  pricing_mode?: "variant" | "configurable";
+  base_price?: number | null;
   gang_sheet_type?: "gang_sheet" | "upload_by_size" | null;
   gang_sheet_config?: {
     printer_width?: number;

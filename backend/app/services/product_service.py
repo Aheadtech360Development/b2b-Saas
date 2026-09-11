@@ -608,6 +608,10 @@ def _product_to_dict(product: Product) -> dict:
         "gang_sheet_enabled": getattr(product, "gang_sheet_enabled", False),
         "gang_sheet_type": getattr(product, "gang_sheet_type", None),
         "gang_sheet_config": getattr(product, "gang_sheet_config", None),
+        # Which buying UI the storefront should render: stocked variants or
+        # the dynamic option configurator (options fetched separately).
+        "pricing_mode": getattr(product, "pricing_mode", "variant") or "variant",
+        "base_price": float(product.base_price) if getattr(product, "base_price", None) is not None else None,
     }
 
 

@@ -171,6 +171,10 @@ class OrderItem(TenantMixin, BaseModel):
     sku: Mapped[str] = mapped_column(String(100), nullable=False)
     color: Mapped[str | None] = mapped_column(String(100))
     size: Mapped[str | None] = mapped_column(String(50))
+    # Snapshot of a configurable product's chosen options, so the order stays
+    # readable even if the brand later edits those options. See migration 0033.
+    product_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    configuration: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
 
     order: Mapped["Order"] = relationship("Order", back_populates="items")
     variant: Mapped[Optional["ProductVariant"]] = relationship("ProductVariant")
@@ -223,6 +227,10 @@ class CartItem(TenantMixin, BaseModel):
     # Non-variant line support (gang sheets, and any future custom line item)
     item_type: Mapped[str] = mapped_column(String(20), default="variant", nullable=False)
     gang_sheet_order_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    # Configurable products: the chosen options are the line's identity (no
+    # variant row exists). See migration 0033.
+    product_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    configuration: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     label: Mapped[str | None] = mapped_column(String(300), nullable=True)
     image_url: Mapped[str | None] = mapped_column(String(1000), nullable=True)
 

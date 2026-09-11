@@ -12,6 +12,7 @@ import { cartService } from "@/services/cart.service";
 import { productsService } from "@/services/products.service";
 import { UploadBySizeModal } from "@/components/storefront/UploadBySizeModal";
 import { gangSheetsService, type GangSheetSize } from "@/services/gangSheets.service";
+import { ProductConfigurator } from "@/components/storefront/ProductConfigurator";
 
 function formatWeightGrams(raw: string | null | undefined): string | null {
   if (!raw) return null;
@@ -527,6 +528,8 @@ export function ProductDetailClient({ slug }: ProductDetailClientProps) {
   // "Upload by size" products get the simple single-design flow; everything else
   // (or an unset type) opens the full gang-sheet builder.
   const isUploadBySize = product.gang_sheet_enabled && product.gang_sheet_type === "upload_by_size";
+  // Configurable products buy through their own option set, not the variant matrix.
+  const isConfigurable = product.pricing_mode === "configurable";
 
   // Link to the builder for this product, preserving the ?tenant= fallback used
   // on hosts without wildcard subdomains so the brand survives the navigation.
@@ -869,8 +872,14 @@ export function ProductDetailClient({ slug }: ProductDetailClientProps) {
               </div>
             )}
 
+            {/* Configurable product — the brand's own option set, rendered
+                generically. Replaces the variant matrix for these products. */}
+            {isConfigurable && (
+              <ProductConfigurator productId={product.id} productName={product.name} />
+            )}
+
             {/* COLOR label + swatches */}
-            {colorGroups.length > 0 && (
+            {!isConfigurable && colorGroups.length > 0 && (
               <>
                 <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "11px", letterSpacing: "0.1em", textTransform: "uppercase", color: "#6B6B6B", fontWeight: 600, marginBottom: "10px" }}>
                   Color

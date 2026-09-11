@@ -2,6 +2,7 @@ from decimal import Decimal
 from uuid import UUID
 
 from fastapi import APIRouter, Body, Depends, Request, status
+from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -56,6 +57,30 @@ async def add_gang_sheet(
     company_id = _require_company(request)
     svc = CartService(db)
     result = await svc.add_gang_sheet(company_id, payload.gang_sheet_order_id, _discount(request), _group_id(request))
+    await db.commit()
+    return result
+
+
+class ConfiguredAddRequest(BaseModel):
+    product_id: UUID
+    selections: dict[str, object] = {}
+    quantity: int = 1
+
+
+@router.post("/add-configured", response_model=CartResponse, status_code=status.HTTP_200_OK)
+async def add_configured(
+    payload: ConfiguredAddRequest,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """Add a configurable product. Price is resolved server-side from the chosen
+    options; any figure the client sends is ignored."""
+    company_id = _require_company(request)
+    svc = CartService(db)
+    result = await svc.add_configured(
+        company_id, payload.product_id, payload.selections, payload.quantity,
+        _discount(request), _group_id(request),
+    )
     await db.commit()
     return result
 

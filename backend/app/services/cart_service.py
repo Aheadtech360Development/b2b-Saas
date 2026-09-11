@@ -156,6 +156,85 @@ class CartService:
         await self.db.flush()
         return await self.get_cart_with_pricing(company_id, discount_percent, group_id)
 
+    async def add_configured(
+        self,
+        company_id: UUID,
+        product_id: UUID,
+        selections: dict,
+        quantity: int,
+        discount_percent: Decimal = Decimal("0"),
+        group_id: str | None = None,
+    ) -> CartResponse:
+        """Add a configurable product to the cart.
+
+        The price is resolved server-side from the chosen options — whatever the
+        client claimed is ignored — and the resolved configuration is snapshotted
+        on the line so the order stays readable if the brand later edits those
+        options. Each distinct configuration is its own line.
+        """
+        from sqlalchemy import select as _select
+
+        from app.models.product import Product
+        from app.services.configurator_service import ConfigurationError, price_configuration
+
+        product = (await self.db.execute(
+            _select(Product).where(Product.id == product_id)
+        )).scalar_one_or_none()
+        if not product:
+            raise NotFoundError("Product not found")
+        if (getattr(product, "pricing_mode", "variant") or "variant") != "configurable":
+            raise ValidationError("This product is not configurable")
+
+        try:
+            priced = await price_configuration(self.db, product_id, selections, quantity)
+        except ConfigurationError as exc:
+            raise ValidationError(str(exc))
+
+        snapshot = {
+            "selections": {str(k): v for k, v in (selections or {}).items()},
+            "breakdown": priced["breakdown"],
+            "unit_price": priced["unit_price"],
+            "setup_fees": priced["setup_fees"],
+            "sku_suffix": priced.get("sku_suffix"),
+        }
+        # Summarise the choices for the cart line label — "Paper Stock: C2S · Coating: Matte".
+        chosen = " · ".join(f'{b["option"]}: {b["value"]}' for b in priced["breakdown"][:4])
+        label = f"{product.name}{' — ' + chosen if chosen else ''}"
+
+        # An identical configuration should top up the existing line, not stack.
+        existing = None
+        for row in (await self.db.execute(
+            select(CartItem).where(
+                CartItem.company_id == company_id,
+                CartItem.item_type == "configured",
+                CartItem.product_id == product_id,
+            )
+        )).scalars().all():
+            if (row.configuration or {}).get("selections") == snapshot["selections"]:
+                existing = row
+                break
+
+        if existing:
+            existing.quantity = (existing.quantity or 0) + priced["quantity"]
+            reprice = await price_configuration(self.db, product_id, selections, existing.quantity)
+            existing.unit_price = Decimal(str(reprice["unit_price"]))  # quantity break may have changed
+            existing.configuration = {**snapshot, "unit_price": reprice["unit_price"]}
+            existing.label = label
+        else:
+            self.db.add(CartItem(
+                company_id=company_id,
+                variant_id=None,
+                item_type="configured",
+                product_id=product_id,
+                quantity=priced["quantity"],
+                unit_price=Decimal(str(priced["unit_price"])),
+                label=label,
+                configuration=snapshot,
+            ))
+
+        await self.db.flush()
+        return await self.get_cart_with_pricing(company_id, discount_percent, group_id)
+
     # ------------------------------------------------------------------
     # Update item quantity
     # ------------------------------------------------------------------
