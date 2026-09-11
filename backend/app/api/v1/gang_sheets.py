@@ -1290,6 +1290,42 @@ async def admin_order_detail(
     return _order_row(order, await _load_artworks(db, order.id), admin=True)
 
 
+@admin_router.get("/by-order/{sales_order_id}")
+async def admin_sheets_for_order(
+    sales_order_id: uuid.UUID,
+    _: None = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Every gang sheet paid for on a sales order, with artwork and layout.
+
+    A paid gang sheet arrives as an order line with no variant behind it, so the
+    order page has nothing to show on its own. This is the bridge: the sheets
+    link back through `order_id`, and production needs the artwork and placements
+    from right there rather than hunting for the reference on another screen.
+    """
+    rows = (await db.execute(
+        select(GangSheetOrder)
+        .where(GangSheetOrder.order_id == sales_order_id)
+        .order_by(GangSheetOrder.created_at)
+    )).scalars().all()
+
+    sheets = []
+    for o in rows:
+        row = _order_row(o, await _load_artworks(db, o.id), admin=True)
+        # The size record carries bleed/spacing, which the preview needs to draw
+        # the safe area the same way the buyer saw it.
+        if o.sheet_size_id:
+            size = (await db.execute(
+                select(GangSheetSize).where(GangSheetSize.id == o.sheet_size_id)
+            )).scalar_one_or_none()
+            if size:
+                row["bleed_in"] = float(getattr(size, "bleed_in", 0) or 0)
+                row["spacing_in"] = float(getattr(size, "spacing_in", 0) or 0)
+        sheets.append(row)
+
+    return {"sheets": sheets, "count": len(sheets)}
+
+
 @admin_router.patch("/orders/{order_id}/status")
 async def admin_set_status(
     order_id: uuid.UUID,

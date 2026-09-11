@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { adminService } from "@/services/admin.service";
 import { apiClient } from "@/lib/api-client";
 import { ConfigurationDetail } from "@/components/shared/ConfigurationDetail";
+import { OrderGangSheets } from "@/components/admin/OrderGangSheets";
 import type { LineConfiguration } from "@/types/order.types";
 
 interface OrderItem {
@@ -961,6 +962,9 @@ export default function AdminOrderDetailPage() {
               </button>
             </form>
           </div>
+
+          {/* GANG SHEETS — renders itself only when this order has any */}
+          <OrderGangSheets orderId={order.id} />
 
           {/* ORDER ITEMS */}
           <div style={{ ...CardStyle, padding: "24px" }}>

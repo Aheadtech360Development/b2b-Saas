@@ -16,6 +16,14 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  ChevronDown, ClipboardPaste, Copy, CopyPlus, Crop, Droplet, Eye, Grid3x3, Hand,
+  Layers, Maximize, Minus, Plus, Redo2, Scissors, Trash2, Undo2, Wand2, Zap,
+} from "lucide-react";
+
+/** Icon sizing — one place each, so every tool button and menu row matches. */
+const TOOL_ICON = { size: 15, strokeWidth: 2.1 } as const;
+const MENU_ICON = { size: 14, strokeWidth: 2, color: "#2A2F3A" } as const;
+import {
   gangSheetsService,
   type GangSheetArtwork,
   type GangSheetLibraryDesign,
@@ -1152,7 +1160,15 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
       // Each sheet is its own order (its own review + print job); adding them all
       // to the cart means one checkout can contain many sheets.
       const orders: GangSheetOrder[] = [];
-      for (const s of toSubmit) orders.push(await submitSheet(s));
+      // Remember which sheet produced which order, so pressing Save again
+      // rebuilds that same order instead of filing a second one.
+      const savedIds = new Map<string, string>();
+      for (const s of toSubmit) {
+        const o = await submitSheet(s);
+        orders.push(o);
+        savedIds.set(s.key, o.id);
+      }
+      setSheets((prev) => prev.map((s) => savedIds.has(s.key) ? { ...s, orderId: savedIds.get(s.key)! } : s));
       if (toCart) {
         try {
           for (const o of orders) await cartService.addGangSheet(o.id);
@@ -1228,7 +1244,7 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
             <input type="number" min={1} value={qty} onChange={(e) => setQty(Math.max(1, Number(e.target.value) || 1))}
               style={{ width: "58px", padding: "6px 8px", border: "1px solid #DDD9D2", borderRadius: "6px", fontSize: "13px" }} />
           </label>
-          <button onClick={preview} style={S.ghostBtn} title="Open a full-resolution preview in a new tab">👁 Preview</button>
+          <button onClick={preview} style={{ ...S.ghostBtn, display: "inline-flex", alignItems: "center", gap: "6px" }} title="Open a full-resolution preview in a new tab"><Eye size={14} strokeWidth={2.1} /> Preview</button>
           <button onClick={() => save(true)} disabled={saving} style={{ ...S.primaryBtn, opacity: saving ? 0.6 : 1 }}>
             {saving ? "Saving…" : "Save & Add to Cart"}
           </button>
@@ -1260,20 +1276,20 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
       {ctxMenu && (
         <div style={{ position: "fixed", top: ctxMenu.y, left: ctxMenu.x, zIndex: 450, background: "#fff", borderRadius: "10px", boxShadow: "0 8px 30px rgba(0,0,0,.22)", padding: "6px", minWidth: "190px" }} onClick={(e) => e.stopPropagation()}>
           {([
-            ["⧉ Copy", () => copyPlacement(ctxMenu.id), true],
-            ["📋 Paste", () => pastePlacement(), !!clipRef.current],
-            ["🗑 Delete", () => { remove(ctxMenu.id); setCtxMenu(null); }, true],
-            ["⧉ Duplicate", () => { duplicate(ctxMenu.id); setCtxMenu(null); }, true],
-            ["＋ Add Quantity", () => openDupModal(ctxMenu.id), true],
-            ["🎯 Remove Color", () => openEditorFor(ctxMenu.id, "removecolor"), true],
-            ["⛶ Crop", () => openEditorFor(ctxMenu.id, "crop"), true],
-            ["✨ Edit image", () => openEditorFor(ctxMenu.id, "enhance"), true],
-          ] as const).map(([label, fn, enabled]) => (
+            ["Copy", <Copy key="i" {...MENU_ICON} />, () => copyPlacement(ctxMenu.id), true],
+            ["Paste", <ClipboardPaste key="i" {...MENU_ICON} />, () => pastePlacement(), !!clipRef.current],
+            ["Delete", <Trash2 key="i" {...MENU_ICON} />, () => { remove(ctxMenu.id); setCtxMenu(null); }, true],
+            ["Duplicate", <CopyPlus key="i" {...MENU_ICON} />, () => { duplicate(ctxMenu.id); setCtxMenu(null); }, true],
+            ["Add Quantity", <Layers key="i" {...MENU_ICON} />, () => openDupModal(ctxMenu.id), true],
+            ["Remove Color", <Droplet key="i" {...MENU_ICON} />, () => openEditorFor(ctxMenu.id, "removecolor"), true],
+            ["Crop", <Crop key="i" {...MENU_ICON} />, () => openEditorFor(ctxMenu.id, "crop"), true],
+            ["Edit image", <Wand2 key="i" {...MENU_ICON} />, () => openEditorFor(ctxMenu.id, "enhance"), true],
+          ] as const).map(([label, icon, fn, enabled]) => (
             <button key={label} onClick={enabled ? fn : undefined} disabled={!enabled}
               style={{ display: "block", width: "100%", textAlign: "left", background: "none", border: "none", padding: "9px 12px", fontSize: "13px", fontWeight: 600, color: enabled ? "#222" : "#BBB", cursor: enabled ? "pointer" : "default", borderRadius: "6px" }}
               onMouseEnter={(e) => { if (enabled) e.currentTarget.style.background = "#F2F4F8"; }}
               onMouseLeave={(e) => (e.currentTarget.style.background = "none")}>
-              {label}
+              <span style={{ display: "inline-flex", alignItems: "center", gap: "9px" }}>{icon}{label}</span>
             </button>
           ))}
         </div>
@@ -1572,23 +1588,50 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
               </div>
             )}
             <div style={S.toolDivider} />
-            <button onClick={() => setPanTool((v) => !v)} title="Pan / hand tool" style={{ ...S.iconBtn, background: panTool ? "#E8EEF9" : "#fff", borderColor: panTool ? "var(--brand-primary,#1C3557)" : "#DDD9D2" }}>✋</button>
-            <button onClick={() => setShowGrid((v) => !v)} title="Toggle grid" style={{ ...S.iconBtn, background: showGrid ? "#E8EEF9" : "#fff", borderColor: showGrid ? "var(--brand-primary,#1C3557)" : "#DDD9D2" }}>▦</button>
+            <button onClick={() => setPanTool((v) => !v)} title="Pan / hand tool" style={{ ...S.iconBtn, ...(panTool ? S.iconBtnOn : null) }}><Hand {...TOOL_ICON} /></button>
+            <button onClick={() => setShowGrid((v) => !v)} title="Toggle grid" style={{ ...S.iconBtn, ...(showGrid ? S.iconBtnOn : null) }}><Grid3x3 {...TOOL_ICON} /></button>
+            {/* View options live in the toolbar, not floating over the sheet where
+                they covered the artwork the buyer is trying to place. */}
+            <div style={{ position: "relative" }}>
+              <button onClick={() => setShowViewPanel((v) => !v)} title="View options"
+                style={{ ...S.iconBtn, ...(showViewPanel ? S.iconBtnOn : null), width: "auto", padding: "0 10px", display: "inline-flex", alignItems: "center", gap: "5px", fontSize: "12px" }}>
+                <Eye {...TOOL_ICON} /> View <ChevronDown size={12} strokeWidth={2.4} />
+              </button>
+              {showViewPanel && (
+                <div style={S.viewPanel}>
+                  <label style={S.canvasCheck}>
+                    <input type="checkbox" checked={showOverlap} onChange={(e) => setShowOverlap(e.target.checked)} /> Show Overlapping Lines
+                  </label>
+                  <label style={S.canvasCheck}>
+                    <input type="checkbox" checked={showRes} onChange={(e) => setShowRes(e.target.checked)} /> Show Resolution Lines
+                  </label>
+                  {showRes && (
+                    <div style={{ marginTop: "6px", display: "flex", flexDirection: "column", gap: "3px" }}>
+                      {[["#16A34A", "Optimal ≥ 300 dpi"], ["#CA8A04", "Good ≥ 250 dpi"], ["#EA580C", "Fair ≥ 200 dpi"], ["#DC2626", "Low < 200 dpi"], ["#2563EB", "Overlapping images"]].map(([c, t]) => (
+                        <span key={t} style={{ display: "inline-flex", alignItems: "center", gap: "5px", fontSize: "10px", color: "#555" }}>
+                          <span style={{ width: "9px", height: "9px", borderRadius: "2px", background: c as string }} /> {t}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
             <div style={S.toolDivider} />
             <label style={{ fontSize: "12px", color: "#555", display: "flex", alignItems: "center", gap: "5px" }}>
               Margin
               <input type="number" min={0} step="0.25" value={imageMargin} onWheel={(e) => e.currentTarget.blur()} onChange={(e) => setImageMargin(Math.max(0, Number(e.target.value) || 0))} style={{ width: "52px", padding: "6px", border: "1px solid #DDD9D2", borderRadius: "6px", fontSize: "12px" }} /> in
             </label>
-            <button onClick={() => autoNest()} style={S.nestBtn}>⚡ Auto Nest</button>
-            <button onClick={() => autoNest(0.5)} style={S.nestBtn} title="Nest with extra spacing so each design can be cut out">✂ Auto Nest for Cutting</button>
+            <button onClick={() => autoNest()} style={S.nestBtn}><Zap size={14} strokeWidth={2.4} /> Auto Nest</button>
+            <button onClick={() => autoNest(0.5)} style={S.nestBtn} title="Nest with extra spacing so each design can be cut out"><Scissors size={14} strokeWidth={2.4} /> Auto Nest for Cutting</button>
             <div style={S.toolDivider} />
-            <button onClick={undo} disabled={!canUndo} style={{ ...S.iconBtn, opacity: canUndo ? 1 : 0.4, cursor: canUndo ? "pointer" : "default" }} title="Undo (Ctrl+Z)">↶</button>
-            <button onClick={redo} disabled={!canRedo} style={{ ...S.iconBtn, opacity: canRedo ? 1 : 0.4, cursor: canRedo ? "pointer" : "default" }} title="Redo (Ctrl+Shift+Z)">↷</button>
+            <button onClick={undo} disabled={!canUndo} style={{ ...S.iconBtn, opacity: canUndo ? 1 : 0.4, cursor: canUndo ? "pointer" : "default" }} title="Undo (Ctrl+Z)"><Undo2 {...TOOL_ICON} /></button>
+            <button onClick={redo} disabled={!canRedo} style={{ ...S.iconBtn, opacity: canRedo ? 1 : 0.4, cursor: canRedo ? "pointer" : "default" }} title="Redo (Ctrl+Shift+Z)"><Redo2 {...TOOL_ICON} /></button>
             <div style={{ display: "flex", alignItems: "center", gap: "4px", marginLeft: "auto" }}>
-              <button onClick={() => zoomBy(1 / 1.2)} style={S.iconBtn} title="Zoom out">−</button>
+              <button onClick={() => zoomBy(1 / 1.2)} style={S.iconBtn} title="Zoom out"><Minus {...TOOL_ICON} /></button>
               <span style={{ fontSize: "12px", color: "#666", width: "44px", textAlign: "center" }}>{Math.round(zoom * 100)}%</span>
-              <button onClick={() => zoomBy(1.2)} style={S.iconBtn} title="Zoom in">+</button>
-              <button onClick={fitScreen} style={S.iconBtn} title="Fit to screen">⊡</button>
+              <button onClick={() => zoomBy(1.2)} style={S.iconBtn} title="Zoom in"><Plus {...TOOL_ICON} /></button>
+              <button onClick={fitScreen} style={S.iconBtn} title="Fit to screen"><Maximize {...TOOL_ICON} /></button>
             </div>
           </div>
 
@@ -1664,33 +1707,6 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
                 );
               })}
                 </div>
-              </div>
-
-              {/* Collapsible view controls (top-left) — a small chip so it never
-                  blocks the canvas; expands to the overlap/resolution options. */}
-              <div style={{ position: "absolute", top: "10px", left: "10px", zIndex: 4 }}>
-                <button onClick={() => setShowViewPanel((v) => !v)} title="View options" style={S.viewChip}>
-                  👁 View <span style={{ fontSize: "9px" }}>{showViewPanel ? "▲" : "▼"}</span>
-                </button>
-                {showViewPanel && (
-                  <div style={S.canvasControls}>
-                    <label style={S.canvasCheck}>
-                      <input type="checkbox" checked={showOverlap} onChange={(e) => setShowOverlap(e.target.checked)} /> Show Overlapping Lines
-                    </label>
-                    <label style={S.canvasCheck}>
-                      <input type="checkbox" checked={showRes} onChange={(e) => setShowRes(e.target.checked)} /> Show Resolution Lines
-                    </label>
-                    {showRes && (
-                      <div style={{ marginTop: "6px", display: "flex", flexDirection: "column", gap: "3px" }}>
-                        {[["#16A34A", "Optimal ≥ 300 dpi"], ["#CA8A04", "Good ≥ 250 dpi"], ["#EA580C", "Fair ≥ 200 dpi"], ["#DC2626", "Low < 200 dpi"], ["#2563EB", "Overlapping images"]].map(([c, t]) => (
-                          <span key={t} style={{ display: "inline-flex", alignItems: "center", gap: "5px", fontSize: "10px", color: "#555" }}>
-                            <span style={{ width: "9px", height: "9px", borderRadius: "2px", background: c as string }} /> {t}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )}
               </div>
 
               {/* Floating warnings (top-right) — advisory, never blocks saving. */}
@@ -1799,16 +1815,17 @@ const S: Record<string, React.CSSProperties> = {
   toolbar: { height: "50px", flexShrink: 0, background: "#fff", borderBottom: "1px solid #E5E3DE", display: "flex", alignItems: "center", gap: "10px", padding: "0 14px", flexWrap: "wrap" },
   sizeSelect: { padding: "7px 10px", border: "1px solid #DDD9D2", borderRadius: "6px", fontSize: "13px", minWidth: "150px", background: "#fff" },
   toolDivider: { width: "1px", height: "24px", background: "#E5E3DE" },
-  nestBtn: { background: "#B91C1C", color: "#fff", border: "none", padding: "7px 14px", borderRadius: "7px", fontSize: "13px", fontWeight: 700, cursor: "pointer" },
-  iconBtn: { width: "30px", height: "30px", border: "1px solid #BEC4CE", background: "#fff", color: "#2A2F3A", borderRadius: "6px", fontSize: "15px", fontWeight: 700, cursor: "pointer", lineHeight: 1 },
+  nestBtn: { background: "#B91C1C", color: "#fff", border: "none", padding: "7px 14px", borderRadius: "7px", fontSize: "13px", fontWeight: 700, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "6px" },
+  iconBtn: { width: "30px", height: "30px", border: "1px solid #BEC4CE", background: "#fff", color: "#2A2F3A", borderRadius: "6px", fontSize: "15px", fontWeight: 700, cursor: "pointer", lineHeight: 1, display: "inline-flex", alignItems: "center", justifyContent: "center" },
+  // Pressed state for a toggle tool — dark, so it reads as "on" at a glance.
+  iconBtnOn: { background: "#1A1A1A", borderColor: "#1A1A1A", color: "#fff" },
+  viewPanel: { position: "absolute", top: "calc(100% + 6px)", left: 0, zIndex: 20, minWidth: "215px", background: "#fff", border: "1px solid #D8DCE3", borderRadius: "8px", padding: "10px 12px", display: "flex", flexDirection: "column", gap: "5px", boxShadow: "0 6px 20px rgba(0,0,0,.14)" },
   canvasScroll: { position: "absolute", inset: 0, overflow: "auto", padding: "24px" },
   legend: { position: "sticky", top: 0, display: "flex", gap: "12px", flexWrap: "wrap", fontSize: "11px", color: "#777", marginBottom: "14px", background: "rgba(244,243,241,.9)", padding: "4px 0", zIndex: 2 },
   rulerGrid: { flex: 1, minHeight: 0, display: "grid", gridTemplateColumns: "26px 1fr", gridTemplateRows: "22px 1fr", background: "#F4F3F1" },
   rulerCorner: { borderRight: "1px solid #ECEAE5", borderBottom: "1px solid #ECEAE5", background: "#FAFAF8" },
   rulerTopWrap: { overflow: "hidden", borderBottom: "1px solid #ECEAE5", background: "#fff", position: "relative" },
   rulerLeftWrap: { overflow: "hidden", borderRight: "1px solid #ECEAE5", background: "#fff", position: "relative" },
-  canvasControls: { marginTop: "6px", background: "rgba(255,255,255,.98)", border: "1px solid #D8DCE3", borderRadius: "8px", padding: "9px 11px", display: "flex", flexDirection: "column", gap: "5px", boxShadow: "0 4px 14px rgba(0,0,0,.12)" },
-  viewChip: { display: "inline-flex", alignItems: "center", gap: "5px", background: "rgba(255,255,255,.98)", border: "1px solid #C4C9D2", borderRadius: "8px", padding: "6px 11px", fontSize: "12px", fontWeight: 700, color: "#2A2F3A", cursor: "pointer", boxShadow: "0 1px 4px rgba(0,0,0,.08)" },
   canvasCheck: { display: "flex", alignItems: "center", gap: "6px", fontSize: "12px", fontWeight: 600, color: "#444", cursor: "pointer" },
   canvasWarn: { position: "absolute", top: "10px", right: "10px", zIndex: 4, display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap", background: "#FFF7ED", border: "1px solid #FED7AA", color: "#9A3412", borderRadius: "8px", padding: "7px 11px", fontSize: "12px", maxWidth: "55%", justifyContent: "flex-end", boxShadow: "0 1px 4px rgba(0,0,0,.06)" },
   rightPanel: { width: "240px", flexShrink: 0, background: "#fff", borderLeft: "1px solid #E5E3DE", padding: "16px", display: "flex", flexDirection: "column", gap: "10px" },
