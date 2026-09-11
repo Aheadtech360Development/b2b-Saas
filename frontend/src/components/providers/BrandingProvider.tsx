@@ -19,6 +19,43 @@ export interface MenuItem {
 
 export type SectionKey = "hero" | "featured_categories" | "featured_products";
 
+/**
+ * Put this brand's icon in the tab — and always put *something* there.
+ *
+ * Brands share one origin (tenant comes from the subdomain, or `?tenant=` on a
+ * preview host), so the tab carries whatever the last brand set. Skipping the
+ * update when a brand has no icon of its own therefore left the previous
+ * brand's icon sitting on it. A brand without an uploaded favicon gets a drawn
+ * one from its own initial and colour instead, so every brand is distinct and
+ * nothing carries over.
+ */
+function applyFavicon(b: { favicon_url: string | null; store_name: string; primary_color: string }) {
+  const href = b.favicon_url || letterFavicon(b.store_name, b.primary_color);
+
+  // Replace every icon link, not just the first: the browser is free to pick any
+  // of them, so leaving an old one behind means an old icon can still win.
+  document.head
+    .querySelectorAll<HTMLLinkElement>("link[rel~='icon'], link[rel='shortcut icon']")
+    .forEach((el) => el.remove());
+
+  const link = document.createElement("link");
+  link.rel = "icon";
+  link.href = href;
+  document.head.appendChild(link);
+}
+
+/** A data-URI favicon: the brand's first letter on its primary colour. */
+function letterFavicon(name: string, color: string): string {
+  const letter = (name || "S").trim().charAt(0).toUpperCase() || "S";
+  const bg = /^#[0-9a-f]{3,8}$/i.test(color) ? color : "#1C3557";
+  const svg =
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">` +
+    `<rect width="64" height="64" rx="12" fill="${bg}"/>` +
+    `<text x="32" y="44" font-family="Inter,Arial,sans-serif" font-size="38" font-weight="700" ` +
+    `fill="#fff" text-anchor="middle">${letter.replace(/[<&>]/g, "")}</text></svg>`;
+  return `data:image/svg+xml,${encodeURIComponent(svg)}`;
+}
+
 export interface Branding {
   // Present in the admin branding response — the brand's subdomain slug, used to
   // open this brand's storefront reliably (?tenant=slug).
@@ -193,16 +230,10 @@ export function BrandingProvider({ children }: { children: React.ReactNode }) {
           }
           // Apply brand identity to the browser tab (title + favicon).
           if (typeof document !== "undefined") {
-            if (merged.store_name && merged.store_name !== "Store") document.title = merged.store_name;
-            if (merged.favicon_url) {
-              let link = document.querySelector<HTMLLinkElement>("link[rel~='icon']");
-              if (!link) {
-                link = document.createElement("link");
-                link.rel = "icon";
-                document.head.appendChild(link);
-              }
-              link.href = merged.favicon_url;
-            }
+            document.title = merged.store_name && merged.store_name !== "Store"
+              ? merged.store_name
+              : "Wholesale Store";
+            applyFavicon(merged);
           }
         })
         .catch(() => {
