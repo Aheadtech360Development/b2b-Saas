@@ -11,6 +11,7 @@ from app.models.base import BaseModel, TenantMixin
 if TYPE_CHECKING:
     from app.models.inventory import InventoryRecord
     from app.models.order import CartItem, OrderItem
+    from app.models.product_option import ProductOption, ProductQtyTier
 
 
 class Category(TenantMixin, BaseModel):
@@ -92,6 +93,24 @@ class Product(TenantMixin, BaseModel):
     search_vector: Mapped[str | None] = mapped_column(TSVECTOR)
 
     # ── Relationships ─────────────────────────────────────────────────────────
+    # ── Pricing mode ─────────────────────────────────────────────────────────
+    # 'variant'      → stocked matrix (Colour × Size) priced per ProductVariant.
+    # 'configurable' → unlimited options priced live from base_price + the
+    #                  selected choices' deltas (combinations are never stored).
+    # See app/models/product_option.py and migration 0032.
+    pricing_mode: Mapped[str] = mapped_column(String(20), default="variant", nullable=False)
+    # Starting unit price for a configurable product, before option deltas.
+    base_price: Mapped[float | None] = mapped_column(Numeric(12, 4), nullable=True)
+
+    options: Mapped[list["ProductOption"]] = relationship(
+        "ProductOption", back_populates="product", cascade="all, delete-orphan",
+        order_by="ProductOption.position",
+    )
+    qty_tiers: Mapped[list["ProductQtyTier"]] = relationship(
+        "ProductQtyTier", back_populates="product", cascade="all, delete-orphan",
+        order_by="ProductQtyTier.min_qty",
+    )
+
     variants: Mapped[list["ProductVariant"]] = relationship(
         "ProductVariant", back_populates="product", cascade="all, delete-orphan"
     )

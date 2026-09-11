@@ -7,6 +7,7 @@ from app.models.pricing import PricingTier  # noqa: F401
 from app.models.shipping import ShippingTier  # noqa: F401
 from app.models.company import Company, CompanyUser, UserAddress  # noqa: F401
 from app.models.product import Product, ProductVariant, ProductImage, Category  # noqa: F401
+from app.models.product_option import ProductOption, ProductOptionValue, ProductQtyTier  # noqa: F401
 from app.models.inventory import Warehouse, InventoryRecord, InventoryAdjustment  # noqa: F401
 from app.models.order import Order, OrderItem, CartItem, AbandonedCart, OrderTemplate, OrderComment  # noqa: F401
 from app.models.wholesale import WholesaleApplication  # noqa: F401
