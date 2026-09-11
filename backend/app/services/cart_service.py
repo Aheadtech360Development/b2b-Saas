@@ -118,6 +118,16 @@ class CartService:
         if order.company_id is not None and str(order.company_id) != str(company_id):
             raise NotFoundError("Gang sheet order not found")
 
+        # A sheet with no saved layout is unprintable — production would receive
+        # the artwork with nothing saying where it sits. The builder always sends
+        # the layout, so reaching here without one means it was lost on the way;
+        # refusing keeps that from becoming a paid order nobody can fulfil.
+        if not (order.layout or []):
+            raise ValidationError(
+                "This gang sheet has no saved layout yet. Open it in the builder, "
+                "arrange your designs, and save before adding it to the cart."
+            )
+
         # Already in the cart? Don't duplicate — the sheet is one job.
         existing = (await self.db.execute(
             select(CartItem).where(

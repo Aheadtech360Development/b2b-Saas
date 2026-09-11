@@ -1137,17 +1137,33 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
     const order = s.orderId
       ? await gangSheetsService.rebuild(s.orderId, { sheet_size_id: sz.id, sheet_quantity: s.qty, custom_length_in: sCustom ? s.customLength : undefined, artworks: artPayload })
       : await gangSheetsService.submit({ sheet_size_id: sz.id, sheet_quantity: s.qty, custom_length_in: sCustom ? s.customLength : undefined, artworks: artPayload, product_id: productId || undefined, contact_name: contactName || undefined, contact_email: contactEmail || undefined });
-    const idByUrl = new Map((order.artworks ?? []).map((a) => [a.file_url, a.id ?? ""]));
+    // Artwork rows come back in the order they were sent, so the id for a design
+    // is matched by position. Matching on file_url instead would collapse to one
+    // id whenever the same file was uploaded twice, quietly stacking those
+    // designs on top of each other in production.
+    const savedArts = order.artworks ?? [];
+    const idByUid = new Map<string, string>();
+    usedUids.forEach((u, i) => {
+      const id = savedArts[i]?.id;
+      if (id) idByUid.set(u, id);
+    });
+
     const layout = s.placements
       .map((p) => {
-        const up = upById(p.uid);
-        const artId = up ? idByUrl.get(up.file_url) : undefined;
+        const artId = idByUid.get(p.uid);
         if (!artId) return null;
         return { artwork_id: artId, x_in: p.x_in, y_in: p.y_in, rotation: p.rotation, w_in: p.w_in, h_in: p.h_in };
       })
       .filter((x): x is NonNullable<typeof x> => x != null);
-    if (layout.length) { try { return await gangSheetsService.saveLayout(order.id, layout); } catch { return order; } }
-    return order;
+
+    // The layout IS the print job — without it production has files but no idea
+    // where they go. Losing it quietly used to produce an order that looked fine
+    // to the buyer and was unprintable for the brand, so a failure here stops the
+    // save instead of being swallowed.
+    if (layout.length !== s.placements.length) {
+      throw new Error("Your sheet couldn't be saved correctly. Please try again — if it keeps happening, re-upload the designs.");
+    }
+    return await gangSheetsService.saveLayout(order.id, layout);
   }
 
   async function save(toCart: boolean) {
