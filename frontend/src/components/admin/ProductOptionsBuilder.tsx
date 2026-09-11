@@ -15,15 +15,18 @@
  */
 import { useCallback, useEffect, useState } from "react";
 import { apiClient } from "@/lib/api-client";
+import { MediaPicker } from "@/components/admin/MediaPicker";
 
 type PriceMode = "flat" | "per_unit" | "percent";
 type InputType = "select" | "radio" | "swatch" | "checkbox" | "number" | "text";
+type RuleAction = "hide_option" | "disable_option" | "disable_value";
 
 interface OptValue {
   id?: string;
   label: string;
   price_delta: number;
   price_mode: PriceMode;
+  image_url?: string | null;
   swatch_hex?: string | null;
   sku_suffix?: string | null;
   is_default: boolean;
@@ -40,10 +43,31 @@ interface Opt {
 }
 interface Tier { id?: string; min_qty: number; unit_price: number; }
 
+/**
+ * A rule points at options/values by **position**, not id — the group it refers
+ * to may not have been saved yet. Reordering or deleting a group therefore has
+ * to shift these indices too (see `removeOption` / `moveOption` / `removeVal`).
+ */
+interface Rule {
+  id?: string;
+  when_option: number;
+  when_value: number;
+  action: RuleAction;
+  target_option: number | null;
+  target_value: number | null;
+  note?: string | null;
+}
+
 const PRICE_MODE_LABEL: Record<PriceMode, string> = {
   per_unit: "per unit",
   flat: "one-off",
   percent: "% of unit",
+};
+
+const RULE_ACTION_LABEL: Record<RuleAction, string> = {
+  disable_option: "grey out the field",
+  hide_option: "hide the field",
+  disable_value: "grey out one choice",
 };
 
 export function ProductOptionsBuilder({ productId }: { productId: string }) {
@@ -51,22 +75,25 @@ export function ProductOptionsBuilder({ productId }: { productId: string }) {
   const [basePrice, setBasePrice] = useState<string>("");
   const [options, setOptions] = useState<Opt[]>([]);
   const [tiers, setTiers] = useState<Tier[]>([]);
+  const [rules, setRules] = useState<Rule[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null);
   const [previewQty, setPreviewQty] = useState(50);
+  const [picker, setPicker] = useState<{ oi: number; vi: number } | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
       const cfg = await apiClient.get<{
         pricing_mode: "variant" | "configurable"; base_price: number | null;
-        options: Opt[]; qty_tiers: Tier[];
+        options: Opt[]; qty_tiers: Tier[]; rules?: Rule[];
       }>(`/api/v1/admin/products/${productId}/options`);
       setMode(cfg.pricing_mode ?? "variant");
       setBasePrice(cfg.base_price != null ? String(cfg.base_price) : "");
       setOptions(cfg.options ?? []);
       setTiers(cfg.qty_tiers ?? []);
+      setRules(cfg.rules ?? []);
     } catch { /* new product / not configured yet */ }
     setLoading(false);
   }, [productId]);
@@ -80,11 +107,24 @@ export function ProductOptionsBuilder({ productId }: { productId: string }) {
     name: "", input_type: "select", required: true, is_active: true,
     values: [{ label: "", price_delta: 0, price_mode: "per_unit", is_default: true, enabled: true }],
   }]);
-  const removeOption = (i: number) => setOptions(o => o.filter((_, k) => k !== i));
-  const moveOption = (i: number, dir: -1 | 1) => setOptions(o => {
-    const j = i + dir; if (j < 0 || j >= o.length) return o;
-    const n = [...o]; [n[i], n[j]] = [n[j]!, n[i]!]; return n;
-  });
+  const removeOption = (i: number) => {
+    setOptions(o => o.filter((_, k) => k !== i));
+    // Rules that referred to this group go with it; the ones after it shift up.
+    setRules(rs => rs
+      .filter(r => r.when_option !== i && r.target_option !== i)
+      .map(r => ({
+        ...r,
+        when_option: r.when_option > i ? r.when_option - 1 : r.when_option,
+        target_option: r.target_option != null && r.target_option > i ? r.target_option - 1 : r.target_option,
+      })));
+  };
+  const moveOption = (i: number, dir: -1 | 1) => {
+    const j = i + dir;
+    if (j < 0 || j >= options.length) return;
+    setOptions(o => { const n = [...o]; [n[i], n[j]] = [n[j]!, n[i]!]; return n; });
+    const swap = (k: number | null) => (k === i ? j : k === j ? i : k);
+    setRules(rs => rs.map(r => ({ ...r, when_option: swap(r.when_option)!, target_option: swap(r.target_option) })));
+  };
 
   const patchVal = (oi: number, vi: number, p: Partial<OptValue>) =>
     setOptions(o => o.map((x, k) => k !== oi ? x : {
@@ -97,8 +137,18 @@ export function ProductOptionsBuilder({ productId }: { productId: string }) {
   const addVal = (oi: number) => setOptions(o => o.map((x, k) => k !== oi ? x : {
     ...x, values: [...x.values, { label: "", price_delta: 0, price_mode: "per_unit", is_default: x.values.length === 0, enabled: true }],
   }));
-  const removeVal = (oi: number, vi: number) =>
+  const removeVal = (oi: number, vi: number) => {
     setOptions(o => o.map((x, k) => k !== oi ? x : { ...x, values: x.values.filter((_, m) => m !== vi) }));
+    setRules(rs => rs
+      .filter(r => !(r.when_option === oi && r.when_value === vi)
+                && !(r.action === "disable_value" && r.target_option === oi && r.target_value === vi))
+      .map(r => ({
+        ...r,
+        when_value: r.when_option === oi && r.when_value > vi ? r.when_value - 1 : r.when_value,
+        target_value: r.target_option === oi && r.target_value != null && r.target_value > vi
+          ? r.target_value - 1 : r.target_value,
+      })));
+  };
 
   // ── Live preview — mirrors the server formula ──────────────────────────────
   function preview() {
@@ -124,13 +174,46 @@ export function ProductOptionsBuilder({ productId }: { productId: string }) {
   async function save() {
     setSaving(true);
     try {
+      // Unnamed groups and blank choices are dropped before saving — which
+      // renumbers everything, so the rules' index references are remapped onto
+      // the payload's positions rather than the editor's.
+      const optMap = new Map<number, number>();
+      const valMap = new Map<string, number>();
+      const payloadOptions: Opt[] = [];
+      options.forEach((o, oi) => {
+        if (!o.name.trim()) return;
+        optMap.set(oi, payloadOptions.length);
+        const values: OptValue[] = [];
+        o.values.forEach((v, vi) => {
+          if (!v.label.trim()) return;
+          valMap.set(`${oi}:${vi}`, values.length);
+          values.push(v);
+        });
+        payloadOptions.push({ ...o, values });
+      });
+
+      const payloadRules = rules.flatMap<Rule>(r => {
+        const whenO = optMap.get(r.when_option);
+        const whenV = valMap.get(`${r.when_option}:${r.when_value}`);
+        if (whenO == null || whenV == null) return [];        // trigger is gone
+        if (r.action === "disable_value") {
+          const tv = r.target_option != null && r.target_value != null
+            ? valMap.get(`${r.target_option}:${r.target_value}`) : undefined;
+          const to = r.target_option != null ? optMap.get(r.target_option) : undefined;
+          if (to == null || tv == null) return [];
+          return [{ ...r, when_option: whenO, when_value: whenV, target_option: to, target_value: tv }];
+        }
+        const to = r.target_option != null ? optMap.get(r.target_option) : undefined;
+        if (to == null || to === whenO) return [];            // no target, or itself
+        return [{ ...r, when_option: whenO, when_value: whenV, target_option: to, target_value: null }];
+      });
+
       await apiClient.put(`/api/v1/admin/products/${productId}/options`, {
         pricing_mode: mode,
         base_price: basePrice === "" ? null : Number(basePrice),
-        options: options
-          .filter(o => o.name.trim())
-          .map(o => ({ ...o, values: o.values.filter(v => v.label.trim()) })),
+        options: payloadOptions,
         qty_tiers: tiers.filter(t => t.min_qty > 0),
+        rules: payloadRules,
       });
       flash("Configuration saved");
       load();
@@ -232,7 +315,7 @@ export function ProductOptionsBuilder({ productId }: { productId: string }) {
                   <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px", minWidth: "600px" }}>
                     <thead>
                       <tr style={{ background: "#F6F6F7" }}>
-                        {["Choice", "Price effect", "Type", "Swatch", "Default", ""].map(h => (
+                        {["Choice", "Price effect", "Type", "Image", "Swatch", "Default", ""].map(h => (
                           <th key={h} style={TH}>{h}</th>
                         ))}
                       </tr>
@@ -247,13 +330,28 @@ export function ProductOptionsBuilder({ productId }: { productId: string }) {
                               {(Object.keys(PRICE_MODE_LABEL) as PriceMode[]).map(m => <option key={m} value={m}>{PRICE_MODE_LABEL[m]}</option>)}
                             </select>
                           </td>
+                          <td style={TD}>
+                            <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                              <button onClick={() => setPicker({ oi, vi })} title={v.image_url ? "Change image" : "Add an image for this choice"}
+                                style={{ width: "34px", height: "30px", border: "1px solid #E3E3E3", borderRadius: "6px", background: "#fff", padding: 0, cursor: "pointer", overflow: "hidden", display: "grid", placeItems: "center", color: "#6B6B6B", fontSize: "15px" }}>
+                                {v.image_url
+                                  // eslint-disable-next-line @next/next/no-img-element
+                                  ? <img src={v.image_url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                                  : "+"}
+                              </button>
+                              {v.image_url && (
+                                <button onClick={() => patchVal(oi, vi, { image_url: null })} title="Remove image"
+                                  style={{ border: "none", background: "none", cursor: "pointer", color: "#B91C1C", fontSize: "12px", padding: "2px" }}>✕</button>
+                              )}
+                            </div>
+                          </td>
                           <td style={TD}><input type="color" value={v.swatch_hex ?? "#cccccc"} onChange={e => patchVal(oi, vi, { swatch_hex: e.target.value })} style={{ width: "34px", height: "30px", border: "1px solid #E3E3E3", borderRadius: "6px", background: "none", padding: 0, cursor: "pointer" }} /></td>
                           <td style={{ ...TD, textAlign: "center" }}><input type="radio" name={`def-${oi}`} checked={v.is_default} onChange={() => patchVal(oi, vi, { is_default: true })} style={{ accentColor: "#1A1A1A" }} /></td>
                           <td style={{ ...TD, textAlign: "center" }}><button onClick={() => removeVal(oi, vi)} style={{ ...ICON_BTN, color: "#B91C1C" }}>✕</button></td>
                         </tr>
                       ))}
                       {o.values.length === 0 && (
-                        <tr><td colSpan={6} style={{ ...TD, color: "#9CA3AF", textAlign: "center" }}>No choices yet.</td></tr>
+                        <tr><td colSpan={7} style={{ ...TD, color: "#9CA3AF", textAlign: "center" }}>No choices yet.</td></tr>
                       )}
                     </tbody>
                   </table>
@@ -282,7 +380,68 @@ export function ProductOptionsBuilder({ productId }: { productId: string }) {
             ))}
           </div>
           <button onClick={() => setTiers(t => [...t, { min_qty: (t[t.length - 1]?.min_qty ?? 0) + 50, unit_price: 0 }])} style={{ ...BTN_LIGHT, marginTop: "10px" }}>+ Add break</button>
+
+          {/* Conditional rules */}
+          <div style={{ fontSize: "12px", fontWeight: 700, color: "#1A1A1A", textTransform: "uppercase", letterSpacing: ".05em", margin: "26px 0 8px" }}>
+            Conditional rules
+          </div>
+          <p style={HINT}>
+            Optional. Switch fields off when a choice makes them impossible — e.g. <strong>Coating = UV</strong> → grey out <strong>Laminating</strong>.
+            The customer sees your note instead, and the price ignores hidden fields.
+          </p>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginTop: "10px" }}>
+            {rules.map((r, ri) => {
+              const whenOpt = options[r.when_option];
+              const targetOpt = r.target_option != null ? options[r.target_option] : undefined;
+              const patchRule = (p: Partial<Rule>) => setRules(x => x.map((y, k) => k === ri ? { ...y, ...p } : y));
+              return (
+                <div key={r.id ?? `nr-${ri}`} style={{ border: "1px solid #E3E3E3", borderRadius: "10px", padding: "12px 14px", display: "flex", flexWrap: "wrap", gap: "8px", alignItems: "center" }}>
+                  <span style={RULE_WORD}>When</span>
+                  <select value={r.when_option} onChange={e => patchRule({ when_option: Number(e.target.value), when_value: 0 })} style={{ ...INPUT, width: "auto", maxWidth: "180px" }}>
+                    {options.map((o, i) => <option key={i} value={i}>{o.name || `Field ${i + 1}`}</option>)}
+                  </select>
+                  <span style={RULE_WORD}>is</span>
+                  <select value={r.when_value} onChange={e => patchRule({ when_value: Number(e.target.value) })} style={{ ...INPUT, width: "auto", maxWidth: "180px" }}>
+                    {(whenOpt?.values ?? []).map((v, i) => <option key={i} value={i}>{v.label || `Choice ${i + 1}`}</option>)}
+                  </select>
+                  <span style={RULE_WORD}>→</span>
+                  <select value={r.action} onChange={e => patchRule({ action: e.target.value as RuleAction, target_value: null })} style={{ ...INPUT, width: "auto" }}>
+                    {(Object.keys(RULE_ACTION_LABEL) as RuleAction[]).map(a => <option key={a} value={a}>{RULE_ACTION_LABEL[a]}</option>)}
+                  </select>
+                  <select value={r.target_option ?? ""} onChange={e => patchRule({ target_option: e.target.value === "" ? null : Number(e.target.value), target_value: null })} style={{ ...INPUT, width: "auto", maxWidth: "180px" }}>
+                    <option value="">Choose a field…</option>
+                    {options.map((o, i) => i === r.when_option ? null : <option key={i} value={i}>{o.name || `Field ${i + 1}`}</option>)}
+                  </select>
+                  {r.action === "disable_value" && (
+                    <select value={r.target_value ?? ""} onChange={e => patchRule({ target_value: e.target.value === "" ? null : Number(e.target.value) })} style={{ ...INPUT, width: "auto", maxWidth: "180px" }}>
+                      <option value="">Choose a choice…</option>
+                      {(targetOpt?.values ?? []).map((v, i) => <option key={i} value={i}>{v.label || `Choice ${i + 1}`}</option>)}
+                    </select>
+                  )}
+                  <input value={r.note ?? ""} onChange={e => patchRule({ note: e.target.value })} maxLength={200}
+                    placeholder='Note shown to the customer — e.g. "N/A with UV Coating"'
+                    style={{ ...INPUT, flex: 1, minWidth: "200px" }} />
+                  <button onClick={() => setRules(x => x.filter((_, k) => k !== ri))} style={{ ...ICON_BTN, color: "#B91C1C" }} title="Remove rule">✕</button>
+                </div>
+              );
+            })}
+          </div>
+
+          {options.length < 2 ? (
+            <div style={{ ...NOTE, marginTop: "10px" }}>Add at least two option groups to link them with a rule.</div>
+          ) : (
+            <button onClick={() => setRules(r => [...r, { when_option: 0, when_value: 0, action: "disable_option", target_option: null, target_value: null, note: "" }])}
+              style={{ ...BTN_LIGHT, marginTop: "10px" }}>+ Add rule</button>
+          )}
         </>
+      )}
+
+      {picker && (
+        <MediaPicker
+          onSelect={(url) => { patchVal(picker.oi, picker.vi, { image_url: url }); setPicker(null); }}
+          onClose={() => setPicker(null)}
+        />
       )}
     </div>
   );
@@ -299,3 +458,4 @@ const CHECK: React.CSSProperties = { display: "inline-flex", alignItems: "center
 const ICON_BTN: React.CSSProperties = { width: "30px", height: "30px", border: "1px solid #E3E3E3", background: "#fff", borderRadius: "8px", cursor: "pointer", fontSize: "13px", lineHeight: 1, color: "#444" };
 const BTN_DARK: React.CSSProperties = { padding: "9px 18px", background: "#1A1A1A", color: "#fff", border: "none", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: "pointer" };
 const BTN_LIGHT: React.CSSProperties = { padding: "9px 16px", background: "#fff", color: "#1A1A1A", border: "1px solid #E3E3E3", borderRadius: "8px", fontSize: "13px", fontWeight: 600, cursor: "pointer" };
+const RULE_WORD: React.CSSProperties = { fontSize: "12px", fontWeight: 700, color: "#6B6B6B" };

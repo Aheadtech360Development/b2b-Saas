@@ -4,6 +4,8 @@ import { useParams, useRouter } from 'next/navigation'
 import { useAuthStore } from '@/stores/auth.store'
 import { apiClient } from '@/lib/api-client'
 import { QBPaymentForm } from '@/components/checkout/QBPaymentForm'
+import { ConfigurationDetail } from '@/components/shared/ConfigurationDetail'
+import type { LineConfiguration } from '@/types/order.types'
 
 interface OrderItem {
   product_name: string
@@ -11,6 +13,9 @@ interface OrderItem {
   size: string | null
   quantity: number
   unit_price: string | number
+  /** Authoritative for the line — a configured line's one-off fees live here. */
+  line_total?: string | number
+  configuration?: LineConfiguration | null
 }
 
 interface OrderDetail {
@@ -157,10 +162,13 @@ export default function InvoicePaymentPage() {
         {order.items?.map((item, i) => (
           <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '7px 0', borderBottom: '1px solid #e5e7eb', fontSize: '13px' }}>
             <span style={{ color: '#374151' }}>
-              {item.product_name} — {item.color ?? '—'}/{item.size ?? '—'} ×{item.quantity}
+              {item.configuration?.breakdown?.length
+                ? <>{item.product_name} ×{item.quantity}</>
+                : <>{item.product_name} — {item.color ?? '—'}/{item.size ?? '—'} ×{item.quantity}</>}
+              <ConfigurationDetail configuration={item.configuration} compact />
             </span>
             <span style={{ fontWeight: 600, color: '#111827', flexShrink: 0, marginLeft: '12px' }}>
-              ${(Number(item.unit_price) * item.quantity).toFixed(2)}
+              ${(item.line_total != null ? Number(item.line_total) : Number(item.unit_price) * item.quantity).toFixed(2)}
             </span>
           </div>
         ))}

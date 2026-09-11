@@ -24,7 +24,9 @@ from app.models.product import Product
 from app.models.product_option import (
     INPUT_TYPES,
     PRICE_MODES,
+    RULE_ACTIONS,
     ProductOption,
+    ProductOptionRule,
     ProductOptionValue,
     ProductQtyTier,
 )
@@ -61,11 +63,29 @@ class TierIn(BaseModel):
     unit_price: Decimal = Field(..., ge=0)
 
 
+class RuleIn(BaseModel):
+    """A rule refers to options/values by their **position in this payload**.
+
+    A rule can point at a group or a choice that is being created in the very
+    same save, which has no id yet — so indices are the only reference that works
+    for both. The server resolves them to real ids once the rows are flushed.
+    """
+
+    id: Optional[uuid.UUID] = None
+    when_option: int = Field(..., ge=0)
+    when_value: int = Field(..., ge=0)
+    action: str = "disable_option"
+    target_option: Optional[int] = Field(None, ge=0)
+    target_value: Optional[int] = Field(None, ge=0)
+    note: Optional[str] = Field(None, max_length=200)
+
+
 class ConfigIn(BaseModel):
     pricing_mode: str = "variant"          # 'variant' | 'configurable'
     base_price: Optional[Decimal] = None
     options: list[OptionIn] = Field(default_factory=list)
     qty_tiers: list[TierIn] = Field(default_factory=list)
+    rules: list[RuleIn] = Field(default_factory=list)
 
 
 # ── Serialisers ───────────────────────────────────────────────────────────────
@@ -97,11 +117,50 @@ def _option_row(o: ProductOption) -> dict:
     }
 
 
+def _rule_rows(product: Product) -> list[dict]:
+    """Rules rendered the way the builder edits them — by index, with labels.
+
+    The stored row points at ids; the builder's dropdowns work in positions, so
+    the translation happens here rather than in the UI.
+    """
+    options = sorted(product.options or [], key=lambda x: x.position)
+    opt_idx = {str(o.id): i for i, o in enumerate(options)}
+    opt_name = {str(o.id): o.name for o in options}
+    val_idx: dict[str, tuple[int, int]] = {}
+    val_label: dict[str, str] = {}
+    for oi, o in enumerate(options):
+        for vi, v in enumerate(sorted(o.values, key=lambda x: x.position)):
+            val_idx[str(v.id)] = (oi, vi)
+            val_label[str(v.id)] = v.label
+
+    rows: list[dict] = []
+    for r in product.option_rules or []:
+        when = val_idx.get(str(r.when_value_id))
+        if when is None:
+            continue                       # trigger choice was deleted — ignore
+        target_opt = opt_idx.get(str(r.target_option_id)) if r.target_option_id else None
+        target_val = val_idx.get(str(r.target_value_id)) if r.target_value_id else None
+        rows.append({
+            "id": str(r.id),
+            "when_option": when[0],
+            "when_value": when[1],
+            "when_label": f"{opt_name.get(str(options[when[0]].id), '')} · {val_label.get(str(r.when_value_id), '')}",
+            "action": r.action,
+            "target_option": target_opt if target_opt is not None else (target_val[0] if target_val else None),
+            "target_value": target_val[1] if target_val else None,
+            "note": r.note,
+        })
+    return rows
+
+
 async def _load_product(db: AsyncSession, product_id: uuid.UUID) -> Product:
     product = (await db.execute(
         select(Product)
         .where(Product.id == product_id)
-        .options(selectinload(Product.options).selectinload(ProductOption.values))
+        .options(
+            selectinload(Product.options).selectinload(ProductOption.values),
+            selectinload(Product.option_rules),
+        )
     )).scalar_one_or_none()
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
@@ -134,6 +193,7 @@ async def get_product_config(
             {"id": str(t.id), "min_qty": int(t.min_qty), "unit_price": float(t.unit_price)}
             for t in await _tiers(db, product_id)
         ],
+        "rules": _rule_rows(product),
     }
 
 
@@ -155,6 +215,9 @@ async def save_product_config(
     # ── Options (and their values) ────────────────────────────────────────────
     existing_opts = {str(o.id): o for o in (product.options or [])}
     keep_opts: set[str] = set()
+    # position -> real id, so the rules below can resolve their index references
+    opt_ids: list[uuid.UUID] = []
+    val_ids: list[list[uuid.UUID]] = []
 
     for pos, o_in in enumerate(payload.options):
         if o_in.input_type not in INPUT_TYPES:
@@ -172,9 +235,11 @@ async def save_product_config(
         opt.position = pos
         await db.flush()                      # need opt.id for its values
         keep_opts.add(str(opt.id))
+        opt_ids.append(opt.id)
 
         existing_vals = {str(v.id): v for v in (opt.values or [])}
         keep_vals: set[str] = set()
+        this_opt_vals: list[uuid.UUID] = []
         for vpos, v_in in enumerate(o_in.values):
             if v_in.price_mode not in PRICE_MODES:
                 raise HTTPException(status_code=400, detail=f"Unknown price_mode '{v_in.price_mode}'")
@@ -193,6 +258,9 @@ async def save_product_config(
             val.position = vpos
             await db.flush()
             keep_vals.add(str(val.id))
+            this_opt_vals.append(val.id)
+
+        val_ids.append(this_opt_vals)
 
         for vid, val in existing_vals.items():
             if vid not in keep_vals:
@@ -217,6 +285,60 @@ async def save_product_config(
     for tid, tier in existing_tiers.items():
         if tid not in keep_tiers:
             await db.delete(tier)
+
+    # ── Conditional rules ─────────────────────────────────────────────────────
+    # Resolved last: every option and value now has a real id, so the payload's
+    # index references can be turned into foreign keys.
+    def _value_id(oi: int | None, vi: int | None) -> uuid.UUID:
+        if oi is None or vi is None or oi >= len(val_ids) or vi >= len(val_ids[oi]):
+            raise HTTPException(status_code=400, detail="A rule points at a choice that no longer exists")
+        return val_ids[oi][vi]
+
+    def _option_id(oi: int | None) -> uuid.UUID:
+        if oi is None or oi >= len(opt_ids):
+            raise HTTPException(status_code=400, detail="A rule points at a field that no longer exists")
+        return opt_ids[oi]
+
+    # Deleting an option cascades to the rules that referenced it, so the rules
+    # are re-read after that flush rather than trusting the collection loaded
+    # before the diff.
+    await db.flush()
+    existing_rules = {
+        str(r.id): r for r in (await db.execute(
+            select(ProductOptionRule).where(ProductOptionRule.product_id == product_id)
+        )).scalars().all()
+    }
+    keep_rules: set[str] = set()
+    for r_in in payload.rules:
+        if r_in.action not in RULE_ACTIONS:
+            raise HTTPException(status_code=400, detail=f"Unknown rule action '{r_in.action}'")
+
+        when_id = _value_id(r_in.when_option, r_in.when_value)
+        if r_in.action == "disable_value":
+            target_option_id = None
+            target_value_id = _value_id(r_in.target_option, r_in.target_value)
+        else:
+            target_option_id = _option_id(r_in.target_option)
+            target_value_id = None
+            # A field cannot switch itself off — that would be unresolvable.
+            if str(target_option_id) == str(opt_ids[r_in.when_option]):
+                raise HTTPException(status_code=400, detail="A rule cannot target its own field")
+
+        rule = existing_rules.get(str(r_in.id)) if r_in.id else None
+        if rule is None:
+            rule = ProductOptionRule(product_id=product_id)
+            db.add(rule)
+        rule.when_value_id = when_id
+        rule.action = r_in.action
+        rule.target_option_id = target_option_id
+        rule.target_value_id = target_value_id
+        rule.note = r_in.note
+        await db.flush()
+        keep_rules.add(str(rule.id))
+
+    for rid, rule in existing_rules.items():
+        if rid not in keep_rules:
+            await db.delete(rule)
 
     await db.commit()
     return await get_product_config(product_id, None, db)  # type: ignore[arg-type]

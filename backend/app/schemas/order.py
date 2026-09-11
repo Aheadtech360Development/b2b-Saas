@@ -95,7 +95,9 @@ class CheckoutConfirmRequest(BaseModel):
 
 class OrderItemOut(BaseModel):
     id: UUID
-    variant_id: UUID
+    # Null on lines that aren't a stocked variant — gang sheets and configured
+    # products, which carry their own snapshot instead.
+    variant_id: UUID | None = None
     product_name: str
     sku: str
     color: str | None
@@ -103,6 +105,9 @@ class OrderItemOut(BaseModel):
     quantity: int
     unit_price: Decimal
     line_total: Decimal
+    product_id: UUID | None = None
+    # Configured lines: the chosen options and their price effects.
+    configuration: dict | None = None
 
     model_config = {"from_attributes": True}
 

@@ -43,7 +43,10 @@ async def get_public_options(product_id: uuid.UUID, db: AsyncSession = Depends(g
     product = (await db.execute(
         select(Product)
         .where(Product.id == product_id)
-        .options(selectinload(Product.options).selectinload(ProductOption.values))
+        .options(
+            selectinload(Product.options).selectinload(ProductOption.values),
+            selectinload(Product.option_rules),
+        )
     )).scalar_one_or_none()
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
@@ -81,12 +84,27 @@ async def get_public_options(product_id: uuid.UUID, db: AsyncSession = Depends(g
             "values": values,
         })
 
+    # Rules go to the client as plain data so the form can react instantly, with
+    # no round trip. The server re-applies the same rules when pricing, so the
+    # client copy is a convenience — never the authority.
+    rules = [
+        {
+            "when_value_id": str(r.when_value_id),
+            "action": r.action,
+            "target_option_id": str(r.target_option_id) if r.target_option_id else None,
+            "target_value_id": str(r.target_value_id) if r.target_value_id else None,
+            "note": r.note,
+        }
+        for r in (product.option_rules or [])
+    ]
+
     return {
         "product_id": str(product.id),
         "pricing_mode": getattr(product, "pricing_mode", "variant") or "variant",
         "base_price": float(product.base_price) if product.base_price is not None else None,
         "options": options,
         "qty_tiers": [{"min_qty": int(t.min_qty), "unit_price": float(t.unit_price)} for t in tiers],
+        "rules": rules,
         "default_selections": default_selections(product),
     }
 

@@ -112,6 +112,48 @@ class OrderService:
         gang_sheet_ids: list = []  # gang sheet orders paid for in this checkout
 
         for cart_item in cart_items:
+            # Configured line: priced from its chosen options, not a variant. It
+            # is re-priced here so the charge reflects the product's current
+            # pricing; if the brand has since changed the options so the saved
+            # combination no longer resolves, the cart's snapshot stands rather
+            # than blocking a checkout the buyer already committed to.
+            if getattr(cart_item, "item_type", "variant") == "configured":
+                from app.services.configurator_service import (
+                    ConfigurationError as _CfgErr,
+                    price_configuration as _price_cfg,
+                )
+
+                cfg = dict(cart_item.configuration or {})
+                cfg_unit = Decimal(str(cart_item.unit_price or 0))
+                cfg_fees = Decimal(str(cfg.get("setup_fees") or 0))
+                if cart_item.product_id and cfg.get("selections"):
+                    try:
+                        repriced = await _price_cfg(
+                            self.db, cart_item.product_id, cfg["selections"], cart_item.quantity
+                        )
+                        cfg_unit = Decimal(str(repriced["unit_price"]))
+                        cfg_fees = Decimal(str(repriced["setup_fees"]))
+                        cfg = {**cfg, **{k: repriced[k] for k in ("breakdown", "unit_price", "setup_fees")}}
+                    except _CfgErr as exc:
+                        logger.warning("Configured line kept its cart price: %s", exc)
+
+                cfg_line = cfg_unit * cart_item.quantity + cfg_fees
+                subtotal += cfg_line
+                total_units += cart_item.quantity
+                order_items_data.append({
+                    "variant_id": None,
+                    "product_id": cart_item.product_id,
+                    "product_name": (getattr(cart_item, "label", None) or "Configured item")[:255],
+                    "sku": (cfg.get("sku_suffix") or "CONFIGURED")[:50],
+                    "color": None,
+                    "size": None,
+                    "quantity": cart_item.quantity,
+                    "unit_price": cfg_unit,
+                    "line_total": cfg_line,
+                    "configuration": cfg,
+                })
+                continue
+
             # Gang-sheet line: billed from its own snapshot — no variant to look
             # up, no stock to check. Snapshotted onto an OrderItem with a null
             # variant_id (allowed) for historical accuracy.

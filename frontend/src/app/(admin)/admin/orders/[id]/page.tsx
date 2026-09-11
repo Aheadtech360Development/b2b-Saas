@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { adminService } from "@/services/admin.service";
 import { apiClient } from "@/lib/api-client";
+import { ConfigurationDetail } from "@/components/shared/ConfigurationDetail";
+import type { LineConfiguration } from "@/types/order.types";
 
 interface OrderItem {
   id: string;
@@ -14,6 +16,8 @@ interface OrderItem {
   quantity: number;
   unit_price: string;
   line_total: string;
+  /** Configured products: what production needs to make this line. */
+  configuration?: LineConfiguration | null;
 }
 
 interface ShippingAddress {
@@ -1049,7 +1053,10 @@ export default function AdminOrderDetailPage() {
               <tbody>
                 {order.items.map((item, i) => (
                   <tr key={item.id} style={{ borderBottom: i < order.items.length - 1 ? "1px solid #F6F6F7" : "none" }}>
-                    <td style={{ padding: "14px 12px", fontWeight: 700, fontSize: "14px", color: "#2A2830" }}>{item.product_name}</td>
+                    <td style={{ padding: "14px 12px", fontWeight: 700, fontSize: "14px", color: "#2A2830" }}>
+                      {item.product_name}
+                      <ConfigurationDetail configuration={item.configuration} />
+                    </td>
                     <td style={{ padding: "14px 12px", fontSize: "12px", color: "#7A7880", fontFamily: "monospace" }}>{item.sku}</td>
                     <td style={{ padding: "14px 12px" }}>
                       {item.color && <span style={{ fontSize: "13px", color: "#2A2830", marginRight: "6px" }}>{item.color}</span>}

@@ -39,6 +39,12 @@ PRICE_MODES = ("flat", "per_unit", "percent")
 # How the choice is presented on the storefront.
 INPUT_TYPES = ("select", "radio", "swatch", "checkbox", "number", "text")
 
+# What a conditional rule does when its trigger choice is selected.
+#   hide_option    → the target option disappears entirely
+#   disable_option → shown but greyed with the rule's note ("N/A with UV Coating")
+#   disable_value  → one choice inside the target option becomes unpickable
+RULE_ACTIONS = ("hide_option", "disable_option", "disable_value")
+
 
 class ProductOption(TenantMixin, BaseModel):
     """One configurable field on a product — e.g. "Paper Stock"."""
@@ -106,3 +112,33 @@ class ProductQtyTier(TenantMixin, BaseModel):
     unit_price: Mapped[float] = mapped_column(Numeric(12, 4), nullable=False)
 
     product: Mapped["Product"] = relationship("Product", back_populates="qty_tiers")
+
+
+class ProductOptionRule(TenantMixin, BaseModel):
+    """A dependency between choices — "Laminating is N/A with UV Coating".
+
+    One trigger, one action, one target. Complex logic is expressed by adding
+    several rows rather than one clever rule, which keeps each one readable in
+    the admin and trivial to evaluate on both sides.
+    """
+
+    __tablename__ = "product_option_rules"
+
+    product_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("products.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    # The choice that triggers this rule.
+    when_value_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("product_option_values.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    action: Mapped[str] = mapped_column(String(20), default="disable_option", nullable=False)
+    target_option_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("product_options.id", ondelete="CASCADE"), nullable=True
+    )
+    target_value_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("product_option_values.id", ondelete="CASCADE"), nullable=True
+    )
+    # Shown to the buyer in place of the disabled field.
+    note: Mapped[str | None] = mapped_column(String(200), nullable=True)
+
+    product: Mapped["Product"] = relationship("Product", back_populates="option_rules")

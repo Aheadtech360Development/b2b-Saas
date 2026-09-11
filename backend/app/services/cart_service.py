@@ -257,6 +257,30 @@ class CartService:
             raise NotFoundError(f"Cart item {item_id} not found")
 
         item.quantity = quantity
+
+        # A configured line's unit price depends on the quantity, so editing the
+        # quantity in the cart has to re-run the pricing — otherwise the buyer
+        # keeps the price of the quantity they originally chose.
+        if getattr(item, "item_type", "variant") == "configured" and item.product_id:
+            from app.services.configurator_service import (
+                ConfigurationError as _CfgErr,
+                price_configuration as _price_cfg,
+            )
+
+            cfg = dict(item.configuration or {})
+            if cfg.get("selections"):
+                try:
+                    repriced = await _price_cfg(self.db, item.product_id, cfg["selections"], quantity)
+                    item.unit_price = Decimal(str(repriced["unit_price"]))
+                    item.configuration = {
+                        **cfg,
+                        "breakdown": repriced["breakdown"],
+                        "unit_price": repriced["unit_price"],
+                        "setup_fees": repriced["setup_fees"],
+                    }
+                except _CfgErr as exc:
+                    logger.warning("Could not re-price configured cart item %s: %s", item_id, exc)
+
         await self.db.flush()
         return await self.get_cart_with_pricing(company_id, discount_percent, group_id)
 
@@ -470,6 +494,58 @@ class CartService:
 
         items: list[CartItemOut] = []
         for item in raw_items:
+            # Configured line: its identity is the chosen options, so the snapshot
+            # travels with it for the cart, checkout and invoice to display. Any
+            # one-off fee sits on the line total, not in the unit price.
+            if getattr(item, "item_type", "variant") == "configured":
+                cfg = item.configuration or {}
+                unit_price = Decimal(str(item.unit_price or 0))
+                fees = Decimal(str(cfg.get("setup_fees") or 0))
+                product_name, product_slug, product_image = "Configured item", "", None
+                if item.product_id:
+                    prod = (await self.db.execute(
+                        select(Product).where(Product.id == item.product_id)
+                    )).scalar_one_or_none()
+                    if prod:
+                        product_name = getattr(item, "label", None) or prod.name
+                        product_slug = prod.slug or ""
+                        img = (await self.db.execute(
+                            select(ProductImage)
+                            .where(ProductImage.product_id == prod.id)
+                            .order_by(ProductImage.sort_order)
+                            .limit(1)
+                        )).scalar_one_or_none()
+                        if img:
+                            product_image = (
+                                getattr(img, "url_medium_webp", None)
+                                or getattr(img, "url_medium", None)
+                                or getattr(img, "url_thumbnail", None)
+                            )
+                items.append(
+                    CartItemOut(
+                        id=item.id,
+                        variant_id=None,
+                        product_id=item.product_id,
+                        product_name=product_name,
+                        product_slug=product_slug,
+                        product_image_url=product_image,
+                        sku=(cfg.get("sku_suffix") or ""),
+                        color=None,
+                        size=None,
+                        quantity=item.quantity,
+                        retail_price=unit_price,
+                        unit_price=unit_price,
+                        line_total=unit_price * item.quantity + fees,
+                        moq=0,
+                        moq_satisfied=True,
+                        stock_quantity=item.quantity,
+                        item_type="configured",
+                        setup_fees=fees,
+                        configuration=cfg,
+                    )
+                )
+                continue
+
             # Gang-sheet (non-variant) lines carry their own snapshot — no variant
             # or product to join, no stock or MOQ to enforce.
             if getattr(item, "item_type", "variant") == "gang_sheet" or item.variant_id is None:

@@ -40,9 +40,14 @@ class CartItemOut(BaseModel):
     moq: int
     moq_satisfied: bool
     stock_quantity: int
-    # 'variant' (default) or 'gang_sheet'
+    # 'variant' (default), 'gang_sheet' or 'configured'
     item_type: str = "variant"
     gang_sheet_order_id: UUID | None = None
+    # Configured lines only: the chosen options and their price effects, so the
+    # cart and checkout can show how the line was built. One-off fees are already
+    # included in `line_total`.
+    setup_fees: Decimal = Decimal("0")
+    configuration: dict | None = None
 
     model_config = {"from_attributes": True}
 

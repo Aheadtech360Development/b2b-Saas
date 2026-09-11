@@ -12,6 +12,7 @@ import { apiClient } from "@/lib/api-client";
 import { formatCurrency } from "@/lib/utils";
 import { StripePaymentForm } from "@/components/checkout/StripePaymentForm";
 import type { Cart } from "@/types/order.types";
+import { ConfigurationDetail } from "@/components/shared/ConfigurationDetail";
 
 type GuestCartEntry = { variant_id: string; quantity: number; product_id: string; product_name: string; slug: string; color: string | null; size: string | null; unit_price: number; image_url?: string | null };
 
@@ -485,9 +486,11 @@ export default function CheckoutReviewPage() {
                             <div style={{ fontSize: "13px", fontWeight: 600, color: "#1A1A1A" }}>{item.product_name}</div>
                             <div style={{ fontSize: "11px", color: "#6B6B6B", marginTop: "1px" }}>
                               {[item.color, item.size].filter(Boolean).join(" / ")}
-                              {" · "}SKU {item.sku}
+                              {item.sku ? ` · SKU ${item.sku}` : ""}
                               {" · "}qty {item.quantity}
                             </div>
+                            {/* What was configured — the buyer confirms it before paying. */}
+                            <ConfigurationDetail configuration={item.configuration} compact />
                           </div>
                           <span style={{ fontSize: "13px", fontWeight: 600, color: "#1A1A1A", whiteSpace: "nowrap" }}>{formatCurrency(Number(item.line_total))}</span>
                         </div>

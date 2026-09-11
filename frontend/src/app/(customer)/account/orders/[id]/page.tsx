@@ -6,6 +6,8 @@ import { useParams, useRouter } from "next/navigation";
 import { accountService } from "@/services/account.service";
 import { apiClient } from "@/lib/api-client";
 import { useAuthStore } from "@/stores/auth.store";
+import { ConfigurationDetail } from "@/components/shared/ConfigurationDetail";
+import type { LineConfiguration } from "@/types/order.types";
 
 interface OrderItem {
   id: string;
@@ -16,6 +18,8 @@ interface OrderItem {
   quantity: number;
   unit_price: string;
   line_total: string;
+  /** Configured products: the options chosen at the time of ordering. */
+  configuration?: LineConfiguration | null;
 }
 
 interface Order {
@@ -458,6 +462,7 @@ export default function OrderDetailPage() {
                       {[item.color, item.size].filter(Boolean).join(" / ")}
                     </span>
                   )}
+                  <ConfigurationDetail configuration={item.configuration} />
                 </td>
                 <td className="px-4 py-3 text-right text-gray-600">{item.quantity}</td>
                 <td className="px-4 py-3 text-right text-gray-600">${Number(item.unit_price).toFixed(2)}</td>

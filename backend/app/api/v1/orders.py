@@ -436,6 +436,11 @@ async def get_order_invoice_summary(order_id: str, db: AsyncSession = Depends(ge
                 "size": item.size,
                 "quantity": item.quantity,
                 "unit_price": float(item.unit_price),
+                "line_total": float(item.line_total or 0),
+                "sku": item.sku,
+                # Configured lines list the options that were chosen, so the
+                # invoice says what was actually ordered.
+                "configuration": getattr(item, "configuration", None),
             }
             for item in (order.items or [])
         ],

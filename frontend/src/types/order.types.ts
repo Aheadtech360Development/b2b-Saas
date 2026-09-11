@@ -19,9 +19,30 @@ export interface CartItem {
   moq: number;
   moq_satisfied: boolean;
   stock_quantity: number;
-  /** 'variant' (default) or 'gang_sheet'. */
+  /** 'variant' (default), 'gang_sheet' or 'configured'. */
   item_type?: string;
   gang_sheet_order_id?: string | null;
+  /** Configured lines: one-off fees, already included in `line_total`. */
+  setup_fees?: string | number;
+  configuration?: LineConfiguration | null;
+}
+
+/** Snapshot of the options chosen on a configurable product's line. */
+export interface LineConfiguration {
+  selections?: Record<string, string | string[]>;
+  breakdown?: ConfigLine[];
+  unit_price?: number;
+  setup_fees?: number;
+  sku_suffix?: string | null;
+}
+
+export interface ConfigLine {
+  option: string;
+  value: string;
+  price_delta: number;
+  price_mode: string;
+  option_id?: string;
+  value_id?: string;
 }
 
 /** Cart validation result — matches backend CartValidation schema. */

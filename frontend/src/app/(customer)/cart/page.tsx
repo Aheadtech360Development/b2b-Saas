@@ -9,6 +9,7 @@ import { cartService } from "@/services/cart.service";
 import { apiClient } from "@/lib/api-client";
 import { useAuthStore } from "@/stores/auth.store";
 import type { Cart, CartItem } from "@/types/order.types";
+import { ConfigurationDetail } from "@/components/shared/ConfigurationDetail";
 
 // ── Color map (same as quick-order) ──────────────────────────────────────────
 const COLOR_MAP: Record<string, string> = {
@@ -441,6 +442,8 @@ export default function CartPage() {
                                   {item.sku}
                                 </div>
                               )}
+                              {/* Configured products: name alone doesn't say what was ordered. */}
+                              <ConfigurationDetail configuration={item.configuration} compact />
                             </div>
                           </div>
                         </td>

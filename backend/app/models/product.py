@@ -11,7 +11,7 @@ from app.models.base import BaseModel, TenantMixin
 if TYPE_CHECKING:
     from app.models.inventory import InventoryRecord
     from app.models.order import CartItem, OrderItem
-    from app.models.product_option import ProductOption, ProductQtyTier
+    from app.models.product_option import ProductOption, ProductOptionRule, ProductQtyTier
 
 
 class Category(TenantMixin, BaseModel):
@@ -109,6 +109,9 @@ class Product(TenantMixin, BaseModel):
     qty_tiers: Mapped[list["ProductQtyTier"]] = relationship(
         "ProductQtyTier", back_populates="product", cascade="all, delete-orphan",
         order_by="ProductQtyTier.min_qty",
+    )
+    option_rules: Mapped[list["ProductOptionRule"]] = relationship(
+        "ProductOptionRule", back_populates="product", cascade="all, delete-orphan",
     )
 
     variants: Mapped[list["ProductVariant"]] = relationship(
