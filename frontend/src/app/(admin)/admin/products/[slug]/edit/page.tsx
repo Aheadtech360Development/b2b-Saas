@@ -22,6 +22,7 @@ const RichTextEditor = dynamic(
 );
 import type { Category, ProductDetail, ProductImage, ProductVariant } from "@/types/product.types";
 import { VariantOptionsEditor, type ColorOption } from "@/components/admin/VariantOptionsEditor";
+import { ProductOptionsBuilder } from "@/components/admin/ProductOptionsBuilder";
 
 // ── Style constants ────────────────────────────────────────────────────────
 const labelStyle: React.CSSProperties = {
@@ -893,6 +894,9 @@ export default function AdminProductEditPage() {
               </div>
             ))}
           </div>
+
+          {/* Options & pricing — stocked variants vs unlimited configurable options */}
+          <ProductOptionsBuilder productId={product.id} />
 
         </div>
 
