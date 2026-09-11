@@ -172,11 +172,6 @@ class InventoryService:
         self.db.add(adj)
         await self.db.flush()
 
-        try:
-            from app.tasks.quickbooks_tasks import sync_inventory_to_qb
-            sync_inventory_to_qb.apply_async(args=[str(variant_id)], countdown=15)
-        except Exception as _exc:
-            logger.warning("QB inventory sync dispatch failed: %s", _exc)
 
         # Invalidate Redis product detail cache so updated stock shows on all pages
         try:

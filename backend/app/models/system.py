@@ -1,4 +1,4 @@
-"""System models: Settings, AuditLog, QBSyncLog, WebhookLog, PriceListRequest, AppSettings."""
+"""System models: Settings, AuditLog, WebhookLog, PriceListRequest, AppSettings."""
 import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING
@@ -47,7 +47,7 @@ class AuditLog(BaseModel):
 
 
 class QBSyncLog(BaseModel):
-    """Tracks every QuickBooks sync attempt."""
+    """Legacy sync log from a removed integration — no longer written to."""
 
     __tablename__ = "qb_sync_log"
 

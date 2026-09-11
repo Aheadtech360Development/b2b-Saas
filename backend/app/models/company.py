@@ -47,7 +47,8 @@ class Company(TenantMixin, BaseModel):
         Numeric(10, 2), comment="Fixed shipping cost override. NULL = use tier brackets."
     )
 
-    # QuickBooks
+    # Legacy columns from a removed QuickBooks integration. Nothing writes
+    # to them any more; kept so no migration is needed to drop data.
     qb_customer_id: Mapped[str | None] = mapped_column(String(255))
     default_payment_method_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
 

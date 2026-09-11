@@ -258,12 +258,6 @@ async def add_variant(
     await db.commit()
     await db.refresh(variant)
 
-    if settings.QUICKBOOKS_ENABLED:
-        try:
-            from app.tasks.quickbooks_tasks import sync_variant_to_qb
-            sync_variant_to_qb.delay(str(variant.id))
-        except Exception as _exc:
-            logger.warning("QB variant sync dispatch failed: %s", _exc)
 
     variant.stock_quantity = 0
     return variant
@@ -279,13 +273,6 @@ async def bulk_generate_variants(
     )
     await db.commit()
 
-    if settings.QUICKBOOKS_ENABLED:
-        try:
-            from app.tasks.quickbooks_tasks import sync_variant_to_qb
-            for v in variants:
-                sync_variant_to_qb.delay(str(v.id))
-        except Exception as _exc:
-            logger.warning("QB bulk variant sync dispatch failed: %s", _exc)
 
     return {"generated": len(variants), "variants": [{"id": str(v.id), "sku": v.sku} for v in variants]}
 
@@ -318,107 +305,6 @@ async def create_variants_batch(
     await db.flush()
     await db.commit()
 
-    if settings.QUICKBOOKS_ENABLED:
-        try:
-            from app.tasks.quickbooks_tasks import sync_variant_to_qb
-            for v in created:
-                sync_variant_to_qb.delay(str(v.id))
-        except Exception as _exc:
-            logger.warning("QB batch variant sync dispatch failed: %s", _exc)
-
-    return {"created": len(created), "variants": [{"id": str(v.id), "sku": v.sku} for v in created]}
-
-
-@router.patch("/{product_id}/variants/{variant_id}")
-async def update_variant(
-    product_id: UUID,
-    variant_id: UUID,
-    payload: dict = Body(...),
-    db: AsyncSession = Depends(get_db),
-):
-    result = await db.execute(
-        select(ProductVariant).where(
-            ProductVariant.id == variant_id,
-            ProductVariant.product_id == product_id,
-        )
-    )
-    variant = result.scalar_one_or_none()
-    if not variant:
-        raise NotFoundError("Variant not found")
-
-    # Numeric fields that need type coercion
-    numeric_float = {"retail_price", "compare_price", "msrp", "cost_per_item", "weight_grams"}
-    numeric_int = {"sort_order"}
-    skip_fields = {"stock_quantity"}  # handled separately via inventory records
-
-    for field, value in payload.items():
-        if field in skip_fields:
-            continue
-        if not hasattr(variant, field):
-            continue
-        if field in numeric_float:
-            try:
-                value = float(value) if value not in (None, "") else None
-            except (TypeError, ValueError):
-                value = None
-        elif field in numeric_int:
-            try:
-                value = int(value)
-            except (TypeError, ValueError):
-                value = 0
-        setattr(variant, field, value)
-
-    # Handle stock_quantity: update inventory record in default warehouse
-    if "stock_quantity" in payload:
-        try:
-            requested_qty = max(0, int(payload["stock_quantity"]))
-        except (TypeError, ValueError):
-            requested_qty = 0
-
-        from app.models.inventory import InventoryRecord, Warehouse
-        from app.services.inventory_service import InventoryService
-
-        # Get or pick first warehouse
-        wh_result = await db.execute(
-            select(Warehouse).where(Warehouse.is_active == True).limit(1)  # noqa: E712
-        )
-        warehouse = wh_result.scalar_one_or_none()
-
-        if warehouse is None:
-            # Auto-create a default warehouse
-            warehouse = Warehouse(name="Main Warehouse", code="MAIN")
-            db.add(warehouse)
-            await db.flush()
-
-        # Get current quantity for this variant + warehouse
-        rec_result = await db.execute(
-            select(InventoryRecord).where(
-                InventoryRecord.variant_id == variant_id,
-                InventoryRecord.warehouse_id == warehouse.id,
-            )
-        )
-        rec = rec_result.scalar_one_or_none()
-        current_qty = rec.quantity if rec else 0
-        delta = requested_qty - current_qty
-
-        if delta != 0 or rec is None:
-            svc = InventoryService(db)
-            await svc.adjust_stock_with_log(
-                variant_id=variant_id,
-                warehouse_id=warehouse.id,
-                quantity_delta=delta if rec is not None else requested_qty,
-                reason="correction",
-                notes="Updated via admin product edit",
-            )
-
-    await db.commit()
-
-    if settings.QUICKBOOKS_ENABLED:
-        try:
-            from app.tasks.quickbooks_tasks import sync_variant_to_qb
-            sync_variant_to_qb.delay(str(variant.id))
-        except Exception as _exc:
-            logger.warning("QB variant sync dispatch failed: %s", _exc)
 
     return {"id": str(variant.id), "sku": variant.sku}
 

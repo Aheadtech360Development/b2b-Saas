@@ -52,7 +52,6 @@ interface CheckoutState {
   achAccountType: string;
 
   // Step 2 — payment (QB Payments)
-  qbToken: string | null;
   savedCardId: string | null;
   // Stripe (legacy)
   paymentIntentId: string | null;
@@ -85,7 +84,6 @@ interface CheckoutState {
   setAchInfo: (bankName: string, accountHolder: string, routingNumber: string, accountLast4: string, accountType: string) => void;
   setPoNumber: (po: string) => void;
   setOrderNotes: (notes: string) => void;
-  setQbToken: (token: string | null) => void;
   setSavedCardId: (id: string | null) => void;
   setPaymentIntent: (id: string, secret: string) => void;
   setConfirmedOrder: (order: {
@@ -125,7 +123,6 @@ const initialState = {
   achAccountType: "",
   poNumber: "",
   orderNotes: "",
-  qbToken: null,
   savedCardId: null,
   paymentIntentId: null,
   clientSecret: null,
@@ -160,8 +157,7 @@ export const useCheckoutStore = create<CheckoutState>()(
         set({ achBankName: bankName, achAccountHolder: accountHolder, achRoutingNumber: routingNumber, achAccountLast4: accountLast4, achAccountType: accountType }),
       setPoNumber: (po) => set({ poNumber: po }),
       setOrderNotes: (notes) => set({ orderNotes: notes }),
-      setQbToken: (token) => set({ qbToken: token, savedCardId: null }),
-      setSavedCardId: (id) => set({ savedCardId: id, qbToken: null }),
+      setSavedCardId: (id) => set({ savedCardId: id }),
       setPaymentIntent: (id, secret) => set({ paymentIntentId: id, clientSecret: secret }),
       setConfirmedOrder: ({ id, number, total, units, colorSummary, productName, shippingMethod, shippingCost, paymentMethod }) =>
         set({

@@ -393,11 +393,8 @@ class PDFService:
 
         now = order.created_at if order.created_at else datetime.utcnow()
         year = now.year
-        if order.qb_invoice_id:
-            inv_num = f"INV-{year}-{order.qb_invoice_id}"
-        else:
-            suffix = order.order_number.rsplit("-", 1)[-1] if order.order_number else "0001"
-            inv_num = f"INV-{year}-{suffix}"
+        suffix = order.order_number.rsplit("-", 1)[-1] if order.order_number else "0001"
+        inv_num = f"INV-{year}-{suffix}"
 
         invoice_date = now.strftime("%B %d, %Y")
         terms_value = getattr(order, 'payment_terms', None) or 'net_30'

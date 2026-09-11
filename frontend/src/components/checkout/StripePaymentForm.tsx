@@ -86,10 +86,14 @@ function InnerForm({
 
 export function StripePaymentForm({
   intentPayload, onPaid, buttonLabel = "Pay & Place Order",
+  intentUrl = "/api/v1/checkout/intent",
 }: {
   intentPayload: IntentPayload;
   onPaid: (paymentIntentId: string) => void;
   buttonLabel?: string;
+  /** Where to raise the PaymentIntent. Defaults to the cart; an invoice raises
+   *  its own for the balance still owed. */
+  intentUrl?: string;
 }) {
   const [stripePromise, setStripePromise] = useState<Promise<Stripe | null> | null>(null);
   const [clientSecret, setClientSecret] = useState<string | null>(null);
@@ -108,7 +112,7 @@ export function StripePaymentForm({
     started.current = true;
     (async () => {
       try {
-        const r = await apiClient.post<IntentResp>("/api/v1/checkout/intent", {
+        const r = await apiClient.post<IntentResp>(intentUrl, {
           cart_validated: true,
           ...intentPayload,
         });

@@ -108,7 +108,6 @@ export interface OrderDetail extends OrderListItem {
   carrier: string | null;
   notes: string | null;
   items: OrderItemDetail[];
-  qb_sync_status: "pending" | "synced" | "failed" | "skipped";
 }
 
 /** Order line item. */

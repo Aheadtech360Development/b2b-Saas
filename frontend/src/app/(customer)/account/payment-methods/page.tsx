@@ -502,7 +502,7 @@ export default function PaymentMethodsPage() {
           </div>
 
           <p style={{ fontSize: "11px", color: "#7A7880", marginTop: "12px" }}>
-            Card details are encrypted and processed securely via QuickBooks Payments.
+            Card details are entered at checkout and processed securely by Stripe — we never store them.
           </p>
 
           <div style={{ display: "flex", gap: "10px", marginTop: "14px" }}>

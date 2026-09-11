@@ -85,11 +85,11 @@ class Order(TenantMixin, BaseModel):
     courier_service: Mapped[str | None] = mapped_column(String(100))
     shipped_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
-    # QuickBooks Payments
+    # Legacy columns from a removed QuickBooks integration. Nothing writes
+    # to them any more; kept so no migration is needed to drop data.
     qb_payment_charge_id: Mapped[str | None] = mapped_column(String(255), index=True)
     qb_payment_status: Mapped[str | None] = mapped_column(String(50))
 
-    # QuickBooks sync
     qb_sync_status: Mapped[str] = mapped_column(
         Enum("pending", "synced", "failed", "skipped", name="qb_order_sync_status"),
         default="pending",

@@ -72,10 +72,6 @@ async def approve_application(
         admin_user_id=uuid.UUID(request.state.user_id),
     )
     from app.core.config import settings
-    if settings.QUICKBOOKS_ENABLED:
-        from app.tasks.quickbooks_tasks import sync_customer_to_qb
-        task = sync_customer_to_qb.delay(str(company.id))
-        logger.info("QB sync task queued for company %s — task_id=%s", company.id, task.id)
     return {"message": "Application approved", "company_id": str(company.id)}
 
 

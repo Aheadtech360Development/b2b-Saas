@@ -80,7 +80,8 @@ class GuestCheckoutRequest(BaseModel):
     shipping_address: AddressIn
     shipping_method: str = "standard"  # standard | expedited | will_call
     payment_method: str = "card"  # card | ach
-    qb_token: str | None = None
+    # Stripe PaymentIntent confirmed on the brand's connected account.
+    payment_intent_id: str | None = None
     ach_bank_name: str | None = None
     ach_account_holder: str | None = None
     ach_routing_number: str | None = None
@@ -192,31 +193,35 @@ async def guest_checkout(
     convenience_fee = Decimal("0.00")  # Guest/retail orders never incur a convenience fee
     total = subtotal + shipping_cost + tax_amount_val + convenience_fee
 
-    # 3. Charge card via QB Payments (skip for ACH — collected manually)
+    # 3. Verify the card payment (ACH is collected manually, so nothing to check)
     if payload.payment_method == "ach":
-        qb_charge_id = None
-        qb_payment_status = "ACH_PENDING"
         _payment_status = "paid"  # ACH / bank transfer treated as immediately paid
     else:
-        if not payload.qb_token:
-            raise ValidationError("Card token is required for card payments")
-        from app.services.qb_payments_service import QBPaymentsService
-        qb_pay = QBPaymentsService()
-        try:
-            charge_resp = qb_pay.charge_card(
-                token=payload.qb_token,
-                amount=float(total),
-                description=f"Guest order — {payload.guest_email}",
-            )
-        except RuntimeError as exc:
-            raise ValidationError(f"Payment failed: {exc}") from exc
+        if not payload.payment_intent_id:
+            raise ValidationError("Card payment is required to place this order")
 
-        qb_charge_id = charge_resp.get("id")
-        qb_payment_status = charge_resp.get("status", "UNKNOWN")
-        # Card charge succeeded (RuntimeError raised on any failure above),
-        # so the order is paid regardless of the specific status string QB returns.
-        # This mirrors order_service.create_order which uses payment_method, not
-        # qb_payment_status, to determine payment_status.
+        # The buyer's card was charged by Stripe before this call. Confirming the
+        # intent here is what stops an order being created from a payment that
+        # never completed — the client's word for it is not enough.
+        from app.core.tenant_context import get_current_tenant_id
+        from app.services.connect_service import ConnectService
+        import stripe as _stripe_lib
+
+        _tid = get_current_tenant_id()
+        _connect = await ConnectService(db).get_status(str(_tid)) if _tid else {}
+        _acct = _connect.get("account_id")
+        if not _acct:
+            raise ValidationError("This store is not set up for card payments.")
+
+        _stripe_lib.api_key = settings.STRIPE_SECRET_KEY
+        try:
+            _pi = _stripe_lib.PaymentIntent.retrieve(payload.payment_intent_id, stripe_account=_acct)
+        except Exception as _pi_exc:
+            logger.warning("Guest PI verify failed for %s: %s", payload.payment_intent_id, _pi_exc)
+            raise ValidationError("Could not verify your payment. Please contact the store.")
+        if getattr(_pi, "status", None) != "succeeded":
+            raise ValidationError("Payment was not completed. Please try again.")
+
         _payment_status = "paid"
 
     # 4. Generate order number — delegate to the single shared generator so
@@ -247,8 +252,7 @@ async def guest_checkout(
         status="pending",
         payment_status=_payment_status,
         notes=payload.order_notes,
-        qb_payment_charge_id=qb_charge_id,
-        qb_payment_status=qb_payment_status,
+        stripe_payment_intent_id=payload.payment_intent_id,
         payment_method=payload.payment_method,
         ach_bank_name=payload.ach_bank_name if payload.payment_method == "ach" else None,
         ach_account_holder=payload.ach_account_holder if payload.payment_method == "ach" else None,
@@ -317,12 +321,6 @@ async def guest_checkout(
                 )
                 qty_to_deduct -= deduct
 
-        # Sync updated stock to QB after each variant deduction
-        try:
-            from app.tasks.quickbooks_tasks import sync_inventory_to_qb as _siqb
-            _siqb.apply_async(args=[str(item_data["variant_id"])], countdown=15)
-        except Exception as _exc:
-            logger.warning("QB inventory sync dispatch failed: %s", _exc)
 
     # Bust product detail Redis cache so stock shows correctly for everyone
     try:
@@ -377,13 +375,6 @@ async def guest_checkout(
 
     await db.commit()
 
-    # ── QB invoice sync ───────────────────────────────────────────────────────
-    try:
-        from app.tasks.quickbooks_tasks import sync_order_invoice_to_qb
-        sync_order_invoice_to_qb.apply_async(args=[str(order.id)], countdown=5)
-        logger.info("QB invoice sync queued for guest order %s", order.order_number)
-    except Exception as _exc:
-        logger.warning("QB invoice sync dispatch failed for %s: %s", order.order_number, _exc)
 
     return GuestOrderOut(
         order_id=str(order.id),

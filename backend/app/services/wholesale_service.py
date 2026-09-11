@@ -158,13 +158,6 @@ class WholesaleService:
         except Exception:
             pass  # non-fatal — approval still goes through
 
-        # QB customer sync (Celery — non-fatal if Celery is down)
-        try:
-            from app.tasks.quickbooks_tasks import sync_customer_to_qb
-            sync_customer_to_qb.delay(str(company.id))
-        except Exception:
-            pass
-
         return company
 
     async def reject(

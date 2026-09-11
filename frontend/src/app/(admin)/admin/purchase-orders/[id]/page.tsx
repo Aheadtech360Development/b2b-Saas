@@ -41,8 +41,6 @@ interface Receiving {
   id: string;
   received_date: string | null;
   notes: string | null;
-  qb_bill_id: string | null;
-  qb_synced: boolean;
   created_at: string | null;
   items: ReceivingItem[];
 }
@@ -58,9 +56,6 @@ interface PO {
   notes: string | null;
   total_expected: number;
   total_received: number;
-  qb_synced: boolean;
-  qb_po_id: string | null;
-  qb_bill_id: string | null;
   created_at: string | null;
   line_items: LineItem[];
   receivings: Receiving[];
@@ -75,7 +70,6 @@ export default function PODetailPage() {
   const router = useRouter();
   const [po, setPo] = useState<PO | null>(null);
   const [loading, setLoading] = useState(true);
-  const [syncing, setSyncing] = useState(false);
   const [updatingStatus, setUpdatingStatus] = useState(false);
   const [emailSending, setEmailSending] = useState(false);
 
@@ -115,19 +109,6 @@ export default function PODetailPage() {
     }
   }
 
-  async function syncQB() {
-    setSyncing(true);
-    try {
-      const data = await apiClient.post<{ qb_id: string }>(`/api/v1/admin/purchase-orders/${id}/sync-qb`);
-      alert(`QB Purchase Order created! ID: ${data.qb_id}`);
-      await load();
-    } catch (err) {
-      alert(err instanceof ApiClientError ? err.message : "QB sync failed");
-    } finally {
-      setSyncing(false);
-    }
-  }
-
   if (loading) return <div style={{ padding: "26px" }}>{[70, 92, 58, 84].map((w, i) => (<div key={i} className="at-skel" style={{ height: "14px", width: `${w}%`, marginBottom: "12px" }} />))}</div>;
   if (!po) return <div style={{ padding: "32px", color: "#EF4444" }}>PO not found.</div>;
 
@@ -161,22 +142,6 @@ export default function PODetailPage() {
               </button>
             </>
           )}
-          {/* QB button: Sync to QB (draft/sent) OR View in QB (after receive) */}
-          {["draft", "sent"].includes(po.status) ? (
-            <button onClick={syncQB} disabled={syncing}
-              style={{ padding: "9px 18px", borderRadius: "8px", background: "#1A1A1A", color: "#fff", border: "none", fontSize: "13px", fontWeight: 600, cursor: "pointer" }}>
-              {syncing ? "Syncing…" : po.qb_po_id ? "Re-sync to QB" : "Sync to QB"}
-            </button>
-          ) : (po.qb_bill_id || po.qb_po_id) ? (
-            <a
-              href={po.qb_bill_id
-                ? `https://app.qbo.intuit.com/app/bill?txnId=${po.qb_bill_id}`
-                : `https://app.qbo.intuit.com/app/purchaseorder?txnId=${po.qb_po_id}`}
-              target="_blank" rel="noopener noreferrer"
-              style={{ padding: "9px 18px", borderRadius: "8px", background: "#059669", color: "#fff", textDecoration: "none", fontSize: "13px", fontWeight: 600 }}>
-              View in QB ↗
-            </a>
-          ) : null}
           {canReceive && (
             <Link href={`/admin/purchase-orders/${po.id}/receive`} style={{ padding: "9px 18px", borderRadius: "8px", background: "#059669", color: "#fff", textDecoration: "none", fontSize: "13px", fontWeight: 600 }}>
               Receive Items
@@ -199,15 +164,6 @@ export default function PODetailPage() {
           </div>
         ))}
       </div>
-
-      {/* QB Sync Status */}
-      {(po.qb_po_id || po.qb_bill_id) && (
-        <div style={{ background: "#EFF6FF", border: "1px solid #BFDBFE", borderRadius: "8px", padding: "14px 18px", marginBottom: "24px", fontSize: "13px", color: "#1A1A1A" }}>
-          <strong>QuickBooks:</strong>{" "}
-          {po.qb_po_id && <span>PO ID: {po.qb_po_id} </span>}
-          {po.qb_bill_id && <span>Bill ID: {po.qb_bill_id}</span>}
-        </div>
-      )}
 
       {/* Notes */}
       {po.notes && (
@@ -260,7 +216,6 @@ export default function PODetailPage() {
                   </span>
                   {r.notes && <span style={{ color: "#6B7280", fontSize: "12px", marginLeft: "12px" }}>{r.notes}</span>}
                 </div>
-                {r.qb_synced && <span style={{ fontSize: "11px", color: "#1A1A1A", fontWeight: 600 }}>QB Synced</span>}
               </div>
               <table style={{ width: "100%", borderCollapse: "collapse" }}>
                 <thead>

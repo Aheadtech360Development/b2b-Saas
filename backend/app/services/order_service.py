@@ -80,8 +80,6 @@ class OrderService:
         user_id: UUID,
         confirm: CheckoutConfirmRequest,
         discount_percent: Decimal = Decimal("0"),
-        qb_charge_id: str | None = None,
-        qb_payment_status: str | None = None,
         coupon_discount_amount: Decimal = Decimal("0"),
         group_id: str | None = None,
         is_wholesale: bool = True,
@@ -289,7 +287,7 @@ class OrderService:
 
         # 3% convenience fee for wholesale card payments only
         _payment_method_for_fee = getattr(confirm, "payment_method", None) or ""
-        if is_wholesale and _payment_method_for_fee in ("card", "credit_card", "qb_payments"):
+        if is_wholesale and _payment_method_for_fee in ("card", "credit_card"):
             convenience_fee = (subtotal * Decimal("0.03")).quantize(Decimal("0.01"))
         else:
             convenience_fee = Decimal("0.00")
@@ -321,8 +319,6 @@ class OrderService:
             po_number=confirm.po_number,
             notes=confirm.order_notes,
             stripe_payment_intent_id=confirm.payment_intent_id,
-            qb_payment_charge_id=qb_charge_id,
-            qb_payment_status=qb_payment_status,
             subtotal=subtotal,
             shipping_cost=shipping_cost,
             tax_amount=tax_amount_val,
@@ -460,13 +456,6 @@ class OrderService:
                         .values(quantity=current_qty - deduct)
                     )
                     qty_to_deduct -= deduct
-
-            # Sync updated stock to QB after each variant deduction
-            try:
-                from app.tasks.quickbooks_tasks import sync_inventory_to_qb as _siqb
-                _siqb.apply_async(args=[str(variant_id)], countdown=15)
-            except Exception as _exc:
-                logger.warning("QB inventory sync dispatch failed for variant %s: %s", variant_id, _exc)
 
         # 9.6. Invalidate product detail cache so stock shows immediately
         try:

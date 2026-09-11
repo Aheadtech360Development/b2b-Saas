@@ -62,7 +62,7 @@ export default function CheckoutReviewPage() {
     shippingAddress, companyName, contactName, shippingPhone, shippingMethod,
     shippingCost,
     addressId, poNumber, orderNotes, setPoNumber, setOrderNotes,
-    savedCardId, qbToken,
+    savedCardId,
     setConfirmedOrder,
     taxRegion: storedTaxRegion,
     taxRate: storedTaxRate,
@@ -111,12 +111,12 @@ export default function CheckoutReviewPage() {
       router.replace("/checkout/address");
     } else if (
       paymentMethod !== "card" && paymentMethod !== "ach" && paymentMethod !== "net_30" &&
-      !savedCardId && !qbToken
+      !savedCardId
     ) {
       // Stripe card is entered here on the review step, so "card" needs no token yet.
       router.replace("/checkout/payment");
     }
-  }, [shippingAddress, savedCardId, qbToken, paymentMethod, router]);
+  }, [shippingAddress, savedCardId, paymentMethod, router]);
 
   useEffect(() => {
     if (!isGuest) {
@@ -387,8 +387,6 @@ export default function CheckoutReviewPage() {
     ? "Net 30 — Pay by Invoice"
     : selectedCard
     ? `${brandDisplayName(selectedCard.brand)} •••• ${selectedCard.last4}`
-    : qbToken
-    ? "New Card (tokenized)"
     : "Credit Card";
 
   // Priority: stored tax amount → fresh re-fetch amount → rate × (subtotal-discount)

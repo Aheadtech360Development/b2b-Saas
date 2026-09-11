@@ -63,7 +63,7 @@ export default function InvoicesPage() {
           Invoices
         </h1>
         <p style={{ fontSize: "13px", color: "#6B7280", marginTop: "4px" }}>
-          Invoices synced from QuickBooks
+          Every order you've placed, with what's still owed
         </p>
       </div>
 

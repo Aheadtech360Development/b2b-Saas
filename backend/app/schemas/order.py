@@ -57,14 +57,8 @@ class CreatePaymentIntentRequest(BaseModel):
 
 
 class CheckoutConfirmRequest(BaseModel):
-    # Stripe flow (legacy — kept for backward compatibility)
+    # Stripe PaymentIntent the buyer confirmed before this call.
     payment_intent_id: str | None = None
-
-    # QuickBooks Payments flow
-    qb_token: str | None = None          # one-time charge token from QB.js or server tokenize
-    saved_card_id: str | None = None     # QB card ID from customer wallet
-    qb_customer_id: str | None = None    # QB customer ID (required when using saved card)
-    save_card: bool = False              # attach token to QB customer wallet after charge
 
     address_id: UUID | None = None
     shipping_address: AddressIn | None = None
@@ -83,7 +77,7 @@ class CheckoutConfirmRequest(BaseModel):
     ach_routing_number: str | None = None
     ach_account_last4: str | None = None
     ach_account_type: str | None = None
-    # Live Shippo rate selected at checkout
+    # Live carrier rate selected at checkout
     shipping_rate_id: str | None = None
     shipping_carrier: str | None = None
     shipping_service: str | None = None
@@ -185,7 +179,6 @@ class AdminOrderDetail(OrderOut):
     courier_service: str | None = None
     shipping_rate_id: str | None = None
     shipped_at: datetime | None = None
-    qb_invoice_id: str | None
     # Customer contact (enriched from User record or guest fields)
     customer_name: str | None = None
     customer_email: str | None = None
@@ -260,7 +253,6 @@ class CancelOrderRequest(BaseModel):
 
 class SyncResult(BaseModel):
     success: bool
-    qb_invoice_id: str | None = None
     message: str
 
 

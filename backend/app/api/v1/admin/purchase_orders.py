@@ -1,4 +1,4 @@
-"""Admin — Purchase Order management (manufacturers, POs, receiving, QB sync)."""
+"""Admin — Purchase Order management (manufacturers, POs, receiving)."""
 import logging
 from datetime import date
 from typing import Optional
@@ -11,7 +11,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.database import get_db
-from app.services.quickbooks_service import quickbooks_service
 from app.models.inventory import InventoryRecord, Warehouse
 from app.models.product import Product, ProductVariant
 from app.models.purchase_order import (
@@ -69,8 +68,6 @@ def _receiving_dict(r: POReceiving) -> dict:
         "po_id": str(r.po_id),
         "received_date": r.received_date.isoformat() if r.received_date else None,
         "notes": r.notes,
-        "qb_bill_id": r.qb_bill_id,
-        "qb_synced": r.qb_synced,
         "created_at": r.created_at.isoformat() if r.created_at else None,
         "items": [
             {
@@ -97,9 +94,6 @@ def _po_dict(po: PurchaseOrder, include_detail: bool = False) -> dict:
         "notes": po.notes,
         "total_expected": float(po.total_expected),
         "total_received": float(po.total_received),
-        "qb_synced": po.qb_synced,
-        "qb_po_id": po.qb_po_id,
-        "qb_bill_id": po.qb_bill_id,
         "created_at": po.created_at.isoformat() if po.created_at else None,
         "item_count": len(po.line_items),
     }
@@ -354,7 +348,7 @@ async def receive_items(po_id: UUID, data: ReceivingCreate, db: AsyncSession = D
     await db.flush()
 
     total_received_this_batch = 0.0
-    variants_received: list[UUID] = []  # collect for QB inventory sync after commit
+    variants_received: list[UUID] = []
     for item_data in data.items:
         receiving_item = POReceivingItem(
             receiving_id=receiving.id,
@@ -440,82 +434,8 @@ async def receive_items(po_id: UUID, data: ReceivingCreate, db: AsyncSession = D
 
     await db.commit()
 
-    # Dispatch QB sync (vendor bill + inventory/cost) — only when QB is enabled.
-    from app.core.config import settings as _qbcfg
-    if _qbcfg.QUICKBOOKS_ENABLED:
-        try:
-            from app.tasks.quickbooks_tasks import sync_po_receipt_to_qb
-            sync_po_receipt_to_qb.delay(str(po_id), str(receiving.id))
-            logger.info("Dispatched sync_po_receipt_to_qb po=%s receiving=%s", po_id, receiving.id)
-        except Exception as _e:
-            logger.warning("Could not dispatch QB sync task: %s", _e)
-
-        # Inventory+cost sync per received variant (countdown=5s so cost_per_item commit lands first)
-        if variants_received:
-            try:
-                from app.tasks.quickbooks_tasks import sync_inventory_to_qb
-                for vid in variants_received:
-                    sync_inventory_to_qb.apply_async(args=[str(vid)], countdown=5)
-                logger.info("Dispatched sync_inventory_to_qb for %d variants", len(variants_received))
-            except Exception as _e:
-                logger.warning("Could not dispatch QB inventory sync tasks: %s", _e)
-
     return {"success": True, "receiving_id": str(receiving.id)}
 
-
-# ─── QB sync ──────────────────────────────────────────────────────────────────
-
-@router.post("/{po_id}/sync-qb")
-async def sync_to_quickbooks(po_id: UUID, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(
-        select(PurchaseOrder)
-        .where(PurchaseOrder.id == po_id)
-        .options(
-            selectinload(PurchaseOrder.manufacturer),
-            selectinload(PurchaseOrder.line_items),
-            selectinload(PurchaseOrder.receivings).selectinload(POReceiving.items)
-            .selectinload(POReceivingItem.line_item),
-        )
-    )
-    po = result.scalar_one_or_none()
-    if not po:
-        raise HTTPException(status_code=404, detail="PO not found")
-
-    manufacturer = po.manufacturer
-    if not manufacturer:
-        raise HTTPException(status_code=400, detail="PO has no manufacturer")
-
-    if po.status not in ("draft", "sent"):
-        raise HTTPException(
-            status_code=400,
-            detail="QB PO sync is only available for draft/sent POs. Vendor bill is created automatically on receive.",
-        )
-
-    try:
-        qb_result = await quickbooks_service.create_purchase_order(
-            vendor_name=manufacturer.name,
-            line_items=[
-                {
-                    "description": li.new_product_name or f"SKU {li.new_product_sku or li.product_variant_id}",
-                    "qty": li.qty_ordered,
-                    "unit_price": float(li.unit_cost_expected),
-                }
-                for li in po.line_items
-            ],
-            po_number=po.po_number,
-            expected_date=str(po.expected_delivery) if po.expected_delivery else None,
-        )
-        po.qb_po_id = qb_result.get("id")
-        po.qb_synced = True
-        await db.commit()
-        return {"success": True, "qb_id": qb_result.get("id")}
-
-    except Exception as e:
-        logger.error(f"QB sync failed for PO {po_id}: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"QB sync failed: {str(e)}")
-
-
-# ─── Send email ────────────────────────────────────────────────────────────────
 
 @router.post("/{po_id}/send-email")
 async def send_po_email(po_id: UUID, db: AsyncSession = Depends(get_db)):

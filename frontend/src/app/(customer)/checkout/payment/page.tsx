@@ -3,7 +3,6 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { QBPaymentForm } from "@/components/checkout/QBPaymentForm";
 import { useCheckoutStore } from "@/stores/checkout.store";
 import { useAuthStore } from "@/stores/auth.store";
 import { apiClient } from "@/lib/api-client";
@@ -58,7 +57,7 @@ const sectionLabelStyle: React.CSSProperties = {
 export default function CheckoutPaymentPage() {
   const router = useRouter();
   const {
-    shippingAddress, shippingMethod, shippingCost, setSavedCardId, setQbToken,
+    shippingAddress, shippingMethod, shippingCost,
     taxAmount: storedTaxAmount, taxRate: storedTaxRate, taxRegion: storedTaxRegion,
     setPaymentMethod, setAchInfo, setConvenienceFee,
   } = useCheckoutStore();
@@ -171,21 +170,6 @@ export default function CheckoutPaymentPage() {
   // Compute fee here (before early return) so handlers can save it to the store
   const subtotalEarly = isGuest ? guestSubtotal : Number(cart?.subtotal ?? 0);
   const convenienceFeeEarly = (isWholesale && paymentType === "card") ? Math.round(subtotalEarly * 0.03 * 100) / 100 : 0;
-
-  function handleContinueWithSavedCard() {
-    if (!selectedCardId) return;
-    setConvenienceFee(convenienceFeeEarly);
-    setPaymentMethod("card");
-    setSavedCardId(selectedCardId);
-    router.push("/checkout/review");
-  }
-
-  function handleNewCardToken(token: string) {
-    setConvenienceFee(convenienceFeeEarly);
-    setPaymentMethod("card");
-    setQbToken(token);
-    router.push("/checkout/review");
-  }
 
   function handleAchContinue() {
     if (savedAch && !useNewAch) {

@@ -121,8 +121,7 @@
 #     settings as admin_settings,
 #     orders as admin_orders,
 #     reports as admin_reports,
-#     quickbooks as admin_quickbooks,
-#     products as admin_products,
+# #     products as admin_products,
 #     inventory as admin_inventory,
 # )
 # from app.middleware.pricing_middleware import PricingMiddleware  # noqa: E402
@@ -163,8 +162,7 @@
 # app.include_router(admin_settings.router, prefix=_V1)
 # app.include_router(admin_orders.router, prefix=_V1)
 # app.include_router(admin_reports.router, prefix=_V1)
-# app.include_router(admin_quickbooks.router, prefix=_V1)
-# app.include_router(admin_products.router, prefix=_V1)
+# # app.include_router(admin_products.router, prefix=_V1)
 # app.include_router(admin_inventory.router, prefix=_V1)
 
 # # Static files — local image uploads when S3 is not configured
@@ -613,40 +611,6 @@ async def _ensure_content_tables() -> None:
         print(f"Content tables warning (non-fatal): {exc}")
 
 
-# ── QB token seed ─────────────────────────────────────────────────────────────
-async def _seed_qb_tokens() -> None:
-    """Copy QB env-var tokens into app_settings rows that are null/absent.
-
-    Rows that already have values (e.g. set by the OAuth callback) are never
-    overwritten — COALESCE keeps the existing value.  qb_token_expires_at is
-    seeded to epoch so the service auto-refreshes on first use.
-    """
-    from sqlalchemy import text
-    from app.core.database import engine
-    try:
-        async with engine.begin() as conn:
-            seeds = [
-                ("qb_access_token",     settings.QB_ACCESS_TOKEN or None),
-                ("qb_refresh_token",    settings.QB_REFRESH_TOKEN or None),
-                ("qb_realm_id",         settings.QB_COMPANY_ID or None),
-                ("qb_token_expires_at", "1970-01-01T00:00:00+00:00"),
-            ]
-            for key, value in seeds:
-                if value is None:
-                    continue
-                await conn.execute(text("""
-                    INSERT INTO app_settings (key, value, updated_at)
-                    VALUES (:k, :v, now())
-                    ON CONFLICT (key) DO UPDATE
-                        SET value      = COALESCE(app_settings.value, EXCLUDED.value),
-                            updated_at = CASE
-                                WHEN app_settings.value IS NULL THEN now()
-                                ELSE app_settings.updated_at
-                            END
-                """), {"k": key, "v": value})
-        print("QB token rows: OK")
-    except Exception as exc:
-        print(f"QB token seed warning (non-fatal): {exc}")
 
 
 # ── Email templates seed ──────────────────────────────────────────────────────
@@ -879,7 +843,6 @@ from app.api.v1.admin import (  # noqa: E402
     settings as admin_settings,
     orders as admin_orders,
     reports as admin_reports,
-    quickbooks as admin_quickbooks,
     products as admin_products,
     inventory as admin_inventory,
     reviews as admin_reviews,
@@ -984,7 +947,6 @@ app.include_router(admin_shipping.router, prefix=_V1)
 app.include_router(admin_settings.router, prefix=_V1)
 app.include_router(admin_orders.router, prefix=_V1)
 app.include_router(admin_reports.router, prefix=_V1)
-app.include_router(admin_quickbooks.router, prefix=_V1)
 app.include_router(admin_products.router, prefix=_V1)
 app.include_router(admin_inventory.router, prefix=_V1)
 app.include_router(admin_reviews.router, prefix=_V1)

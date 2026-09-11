@@ -213,34 +213,7 @@ async def download_invoice_pdf(
 ):
     order = await _load_order_for_auth(order_id, request, db)
 
-    # Proxy QB invoice PDF when available
-    if order.qb_invoice_id:
-        try:
-            import io
-            import httpx as _httpx
-            from app.services.quickbooks_service import QuickBooksService
-
-            svc = await QuickBooksService().initialize()
-            async with _httpx.AsyncClient(timeout=30) as client:
-                resp = await client.get(
-                    svc._url(f"invoice/{order.qb_invoice_id}/pdf"),
-                    params={"minorversion": "65"},
-                    headers={
-                        "Authorization": f"Bearer {svc._access_token}",
-                        "Accept": "application/pdf",
-                    },
-                )
-            if resp.status_code == 200:
-                return StreamingResponse(
-                    io.BytesIO(resp.content),
-                    media_type="application/pdf",
-                    headers={"Content-Disposition": f'attachment; filename="invoice-{order.order_number}.pdf"'},
-                )
-            logger.warning("QB PDF returned %s for invoice %s — falling back to local PDF", resp.status_code, order.qb_invoice_id)
-        except Exception as exc:
-            logger.error("QB PDF fetch failed: %s — falling back to local PDF", exc)
-
-    # Local PDF fallback
+    # Invoice PDF is generated here from the order itself.
     from app.services.pdf_service import PDFService
     try:
         pdf = PDFService().generate_invoice(order)
@@ -305,7 +278,8 @@ class CommentOut(_BaseModel):
 
 
 class _PayInvoiceRequest(_BaseModel):
-    card_token: str
+    """A Stripe PaymentIntent the buyer has already confirmed on this invoice."""
+    payment_intent_id: str
 
 
 @router.get("/{order_id}/comments", response_model=list[CommentOut])
@@ -447,6 +421,54 @@ async def get_order_invoice_summary(order_id: str, db: AsyncSession = Depends(ge
     }
 
 
+@router.post("/{order_id}/invoice-intent")
+async def create_invoice_payment_intent(
+    order_id: UUID,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """Start a Stripe payment for what is still owed on this invoice.
+
+    The amount is the balance the server works out, never a figure the page
+    sends — an invoice link is easy to reach, so the price of paying it can't be
+    something the browser decides.
+    """
+    from decimal import Decimal as _Dec
+
+    from app.core.config import settings as _settings
+    from app.core.tenant_context import get_current_tenant_id
+    from app.services.connect_service import ConnectService
+    from app.services.payment_service import PaymentService
+
+    order = (await db.execute(select(Order).where(Order.id == order_id))).scalar_one_or_none()
+    if not order:
+        raise NotFoundError(f"Order {order_id} not found")
+
+    balance = max(_Dec("0.00"), _Dec(str(order.total or 0)) - _Dec(str(order.amount_paid or 0)))
+    if balance <= _Dec("0.00"):
+        raise HTTPException(status_code=400, detail="This invoice is already paid in full")
+
+    tenant_id = get_current_tenant_id()
+    connect = await ConnectService(db).get_status(str(tenant_id)) if tenant_id else {}
+    if not connect.get("charges_enabled"):
+        raise HTTPException(status_code=409, detail={
+            "code": "STORE_PAYMENTS_NOT_READY",
+            "message": "This store hasn't finished payment setup yet.",
+        })
+
+    intent = await PaymentService(db).create_direct_payment_intent(
+        amount_decimal=balance,
+        connected_account_id=connect["account_id"],
+        metadata={"order_id": str(order.id), "order_number": order.order_number, "kind": "invoice"},
+    )
+    return {
+        "client_secret": intent.client_secret,
+        "connected_account_id": connect["account_id"],
+        "publishable_key": _settings.STRIPE_PUBLISHABLE_KEY,
+        "amount": float(balance),
+    }
+
+
 @router.post("/{order_id}/pay-invoice")
 async def pay_invoice(
     order_id: UUID,
@@ -459,7 +481,6 @@ async def pay_invoice(
     from datetime import datetime as _dt, timezone as _tz
     from sqlalchemy import text as _text
     from sqlalchemy.orm import selectinload as _sil
-    from app.services.qb_payments_service import QBPaymentsService
 
     company_id = getattr(request.state, "company_id", None)
     user_id = getattr(request.state, "user_id", None)
@@ -489,21 +510,27 @@ async def pay_invoice(
     if _balance_due <= _Dec('0.00'):
         raise HTTPException(status_code=400, detail="Order is already paid in full")
 
-    try:
-        qb = QBPaymentsService()
-        charge_resp = qb.charge_card(
-            token=payload.card_token,
-            amount=float(_balance_due),
-            description=f"Invoice — {order.order_number}",
-        )
-    except RuntimeError as exc:
-        raise HTTPException(status_code=400, detail=f"Payment failed: {exc}") from exc
+    # The buyer paid through Stripe before calling this; confirming the intent
+    # here is what stops an invoice being marked paid on the client's say-so.
+    from app.core.config import settings
+    from app.core.tenant_context import get_current_tenant_id
+    from app.services.connect_service import ConnectService
+    import stripe as _stripe_lib
 
-    if charge_resp.get("status") != "CAPTURED":
-        raise HTTPException(
-            status_code=400,
-            detail=f"Payment not captured (status={charge_resp.get('status')})",
-        )
+    _tid = get_current_tenant_id()
+    _connect = await ConnectService(db).get_status(str(_tid)) if _tid else {}
+    _acct = _connect.get("account_id")
+    if not _acct:
+        raise HTTPException(status_code=400, detail="This store is not set up for card payments.")
+
+    _stripe_lib.api_key = settings.STRIPE_SECRET_KEY
+    try:
+        _pi = _stripe_lib.PaymentIntent.retrieve(payload.payment_intent_id, stripe_account=_acct)
+    except Exception as exc:
+        logger.warning("Invoice PI verify failed for %s: %s", payload.payment_intent_id, exc)
+        raise HTTPException(status_code=400, detail="Could not verify your payment. Please contact the store.")
+    if getattr(_pi, "status", None) != "succeeded":
+        raise HTTPException(status_code=400, detail="Payment was not completed. Please try again.")
 
     now = _dt.now(_tz.utc)
     timeline = list(order.timeline or [])
@@ -525,5 +552,5 @@ async def pay_invoice(
     return {
         "message": "Payment successful",
         "order_number": order.order_number,
-        "charge_id": charge_resp.get("id"),
+        "charge_id": payload.payment_intent_id,
     }

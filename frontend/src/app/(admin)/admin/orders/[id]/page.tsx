@@ -49,7 +49,6 @@ interface AdminOrder {
   courier: string | null;
   courier_service: string | null;
   shipped_at: string | null;
-  qb_invoice_id: string | null;
   subtotal: string;
   shipping_cost: string;
   tax_amount?: string;
@@ -229,7 +228,6 @@ export default function AdminOrderDetailPage() {
   const [status, setStatus] = useState("");
   const [tracking, setTracking] = useState("");
   const [isSaving, setIsSaving] = useState(false);
-  const [isSyncing, setIsSyncing] = useState(false);
   const [isCapturing, setIsCapturing] = useState(false);
   const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null);
 
@@ -387,16 +385,6 @@ export default function AdminOrderDetailPage() {
     } catch {
       setMsg({ text: "Failed to update order.", ok: false });
     } finally { setIsSaving(false); }
-  }
-
-  async function handleSyncQB() {
-    setIsSyncing(true); setMsg(null);
-    try {
-      await adminService.syncOrderToQb(order?.id ?? id);
-      setMsg({ text: "QuickBooks sync queued.", ok: true });
-    } catch {
-      setMsg({ text: "QB sync failed.", ok: false });
-    } finally { setIsSyncing(false); }
   }
 
   async function handleMarkShipped() {
@@ -1216,19 +1204,13 @@ export default function AdminOrderDetailPage() {
               </p>
             )}
 
-            {(order.po_number || order.qb_invoice_id) && (
+            {order.po_number && (
               <div style={{ marginTop: "14px", paddingTop: "14px", borderTop: "1px solid #F6F6F7" }}>
                 <div style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase" as const, letterSpacing: ".08em", color: "#aaa", marginBottom: "8px" }}>Additional Details</div>
                 {order.po_number && (
                   <div style={{ display: "flex", justifyContent: "space-between", fontSize: "13px", marginBottom: "5px" }}>
                     <span style={{ color: "#7A7880" }}>PO Number</span>
                     <span style={{ fontWeight: 600, color: "#2A2830" }}>{order.po_number}</span>
-                  </div>
-                )}
-                {order.qb_invoice_id && (
-                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: "13px" }}>
-                    <span style={{ color: "#7A7880" }}>QB Invoice</span>
-                    <span style={{ fontWeight: 600, color: "#059669" }}>#{order.qb_invoice_id}</span>
                   </div>
                 )}
               </div>
@@ -1427,24 +1409,6 @@ export default function AdminOrderDetailPage() {
                       <button onClick={handleVerifyAch} disabled={isVerifyingAch}
                         style={{ background: "#059669", color: "#fff", border: "none", padding: "6px 12px", borderRadius: "6px", fontSize: "12px", fontWeight: 700, cursor: "pointer", opacity: isVerifyingAch ? .6 : 1 }}>
                         {isVerifyingAch ? "Verifying…" : "Mark as Verified"}
-                      </button>
-                    )}
-                  </div>
-                </div>
-              )}
-              {order.payment_method !== "ach" && (
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "13px", marginTop: "5px" }}>
-                  <span style={{ color: "#7A7880" }}>QB Invoice</span>
-                  <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                    <span style={{ fontWeight: 600, color: order.qb_invoice_id ? "#059669" : "#aaa" }}>
-                      {order.qb_invoice_id ? `#${order.qb_invoice_id}` : "Not synced"}
-                    </span>
-                    {!order.qb_invoice_id && (
-                      <button
-                        onClick={handleSyncQB}
-                        disabled={isSyncing}
-                        style={{ background: "#1A1A1A", color: "#fff", border: "none", padding: "3px 10px", borderRadius: "6px", fontSize: "11px", fontWeight: 700, cursor: isSyncing ? "not-allowed" : "pointer", opacity: isSyncing ? 0.6 : 1 }}>
-                        {isSyncing ? "Syncing…" : "Sync Now"}
                       </button>
                     )}
                   </div>

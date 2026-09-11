@@ -38,7 +38,6 @@ interface Customer {
   shipping_tier_id: string | null;
   shipping_override_amount: string | null;
   stripe_customer_id: string | null;
-  qb_customer_id: string | null;
   admin_notes: string | null;
   tags: string[];
   tax_exempt: boolean;

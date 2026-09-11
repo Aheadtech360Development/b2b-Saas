@@ -116,19 +116,6 @@ class Settings(BaseSettings):
     STRIPE_WEBHOOK_SECRET: str = ""          # "Your account" scope destination
     STRIPE_CONNECT_WEBHOOK_SECRET: str = ""  # "Connected accounts" scope destination
 
-    # ── QuickBooks ────────────────────────────────────────────────────────────
-    # Master kill-switch for QuickBooks. Off by default — the QB integration is a
-    # single-tenant leftover (one shared QB company) and must not fire in the
-    # multi-tenant platform. Flip to True only once QB is made per-tenant.
-    QUICKBOOKS_ENABLED: bool = False
-    QB_CLIENT_ID: str = ""
-    QB_CLIENT_SECRET: str = ""
-    QB_REDIRECT_URI: str = ""
-    QB_ENVIRONMENT: Literal["sandbox", "production"] = "sandbox"
-    QB_COMPANY_ID: str = ""
-    QB_ACCESS_TOKEN: str = ""
-    QB_REFRESH_TOKEN: str = ""
-
     # ── Email (Resend) ────────────────────────────────────────────────────────
     RESEND_API_KEY: str = ""
     SENDGRID_API_KEY: str = ""  # kept for backward compat, unused

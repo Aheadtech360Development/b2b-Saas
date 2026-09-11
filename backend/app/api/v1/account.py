@@ -258,159 +258,14 @@ async def delete_address(
 
 @router.get("/payment-methods")
 async def list_payment_methods(request: Request, db: AsyncSession = Depends(get_db)):
-    company_id = getattr(request.state, "company_id", None)
-    if not company_id:
+    """No cards are stored: Stripe collects the card at checkout each time.
+
+    Kept so an older client still gets a valid empty list rather than a 404.
+    """
+    if not getattr(request.state, "company_id", None):
         raise ForbiddenError("Company account required")
-    from app.models.company import Company
-    from app.services.qb_payments_service import QBPaymentsService
+    return []
 
-    company = (await db.execute(select(Company).where(Company.id == company_id))).scalar_one_or_none()
-    if not company:
-        return []
-
-    try:
-        svc = QBPaymentsService()
-        # QB Payments customer ID is always str(company_id) — never use qb_customer_id here
-        cards = svc.list_saved_cards(str(company_id))
-        default_id = company.default_payment_method_id
-        return [
-            {
-                "id": card.get("id"),
-                "brand": card.get("cardType", "Unknown"),
-                "last4": (card.get("number") or "")[-4:] or "****",
-                "exp_month": card.get("expMonth"),
-                "exp_year": card.get("expYear"),
-                "name": card.get("name"),
-                "billing_address": card.get("address"),
-                "is_default": card.get("id") == default_id,
-                "created": card.get("created"),
-            }
-            for card in (cards if isinstance(cards, list) else [])
-        ]
-    except Exception:
-        return []
-
-
-@router.post("/payment-methods", status_code=status.HTTP_201_CREATED)
-async def add_payment_method(
-    payload: dict,
-    request: Request,
-    db: AsyncSession = Depends(get_db),
-):
-    """Save a new card to the QB customer wallet from raw card fields."""
-    company_id = getattr(request.state, "company_id", None)
-    if not company_id:
-        raise ForbiddenError("Company account required")
-    from app.models.company import Company
-    from app.services.qb_payments_service import QBPaymentsService
-    import uuid as _uuid
-
-    company = (await db.execute(select(Company).where(Company.id == company_id))).scalar_one_or_none()
-    if not company:
-        raise ForbiddenError("Company not found")
-
-    svc = QBPaymentsService()
-
-    # QB Payments customer ID is always str(company_id) — derive directly,
-    # never write to company.qb_customer_id (that column is for QB Accounting).
-    qb_payments_cust_id = svc.create_customer(str(company_id))
-
-    card = payload.get("card", {})
-    try:
-        saved = svc.save_card(
-            customer_id=qb_payments_cust_id,
-            card_number=card.get("number", ""),
-            exp_month=card.get("expMonth", ""),
-            exp_year=card.get("expYear", ""),
-            cvc=card.get("cvc", ""),
-            name=card.get("name") or None,
-        )
-        # Set as default if no default exists
-        if not company.default_payment_method_id:
-            company.default_payment_method_id = saved.get("id")
-            await db.commit()
-        result = {
-            "id": saved.get("id"),
-            "brand": saved.get("cardType", "Unknown"),
-            "last4": (saved.get("number") or "")[-4:] or "****",
-            "exp_month": saved.get("expMonth"),
-            "exp_year": saved.get("expYear"),
-            "name": saved.get("name"),
-            "is_default": not company.default_payment_method_id or company.default_payment_method_id == saved.get("id"),
-        }
-        try:
-            user_id = getattr(request.state, "user_id", None)
-            if user_id:
-                user = (await db.execute(select(User).where(User.id == user_id))).scalar_one_or_none()
-                if user:
-                    from app.services.email_service import EmailService
-                    last4 = result["last4"]
-                    brand = result["brand"]
-                    EmailService(db).send_raw(
-                        to_email=user.email,
-                        subject="Payment method added — AF Apparels",
-                        body_html=(
-                            f"<h2>Payment Method Added</h2>"
-                            f"<p>Hi {user.first_name or 'there'},</p>"
-                            f"<p>A new payment method has been added to your account: <strong>{brand} ending in {last4}</strong>.</p>"
-                            f"<p>If you did not make this change, please contact us immediately.</p>"
-                            f"<br><p>AF Apparels Team</p>"
-                        ),
-                    )
-        except Exception:
-            pass
-        return result
-    except Exception as exc:
-        raise ForbiddenError(f"Failed to save card: {exc}")
-
-
-@router.patch("/payment-methods/{payment_method_id}/set-default")
-async def set_default_payment_method(
-    payment_method_id: str,
-    request: Request,
-    db: AsyncSession = Depends(get_db),
-):
-    company_id = getattr(request.state, "company_id", None)
-    if not company_id:
-        raise ForbiddenError("Company account required")
-    from app.models.company import Company
-
-    company = (await db.execute(select(Company).where(Company.id == company_id))).scalar_one_or_none()
-    if company:
-        company.default_payment_method_id = payment_method_id
-        await db.commit()
-    return {"message": "Default payment method updated"}
-
-
-@router.delete("/payment-methods/{payment_method_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_payment_method(
-    payment_method_id: str,
-    request: Request,
-    db: AsyncSession = Depends(get_db),
-):
-    company_id = getattr(request.state, "company_id", None)
-    if not company_id:
-        raise ForbiddenError("Company account required")
-    from app.models.company import Company
-    from app.services.qb_payments_service import QBPaymentsService
-
-    company = (await db.execute(select(Company).where(Company.id == company_id))).scalar_one_or_none()
-    if not company or not company.qb_customer_id:
-        return
-
-    try:
-        svc = QBPaymentsService()
-        svc.delete_saved_card(company.qb_customer_id, payment_method_id)
-        if company.default_payment_method_id == payment_method_id:
-            company.default_payment_method_id = None
-            await db.commit()
-    except Exception:
-        pass
-
-
-# ---------------------------------------------------------------------------
-# ACH / bank account on file
-# ---------------------------------------------------------------------------
 
 @router.get("/ach-method")
 async def get_ach_method(request: Request, db: AsyncSession = Depends(get_db)):
@@ -1472,82 +1327,6 @@ async def list_statements(
     }
 
 
-@router.post("/statements/sync-qb")
-async def sync_payments_from_qb(
-    request: Request,
-    db: AsyncSession = Depends(get_db),
-):
-    """Sync payments from QuickBooks Accounting API to statement transactions."""
-    company_id = getattr(request.state, "company_id", None)
-    if not company_id:
-        raise ForbiddenError("Company account required")
-
-    from app.models.company import Company
-
-    company = (await db.execute(
-        select(Company).where(Company.id == company_id)
-    )).scalar_one_or_none()
-
-    if not company or not company.qb_customer_id:
-        return {"message": "No QuickBooks customer linked", "synced": 0}
-
-    try:
-        from app.services.quickbooks_service import QuickBooksService
-        import httpx
-
-        qb_svc = QuickBooksService()
-        access_token = qb_svc.get_access_token()
-
-        base_url = (
-            "https://sandbox-quickbooks.api.intuit.com"
-            if settings.QB_ENVIRONMENT == "sandbox"
-            else "https://quickbooks.api.intuit.com"
-        )
-        query = f"SELECT * FROM Payment WHERE CustomerRef = '{company.qb_customer_id}' MAXRESULTS 100"
-
-        async with httpx.AsyncClient(timeout=15) as client:
-            resp = await client.get(
-                f"{base_url}/v3/company/{settings.QB_COMPANY_ID}/query",
-                params={"query": query, "minorversion": "65"},
-                headers={
-                    "Authorization": f"Bearer {access_token}",
-                    "Accept": "application/json",
-                },
-            )
-
-        if resp.status_code != 200:
-            return {"message": f"QB sync failed (HTTP {resp.status_code})", "synced": 0}
-
-        payments = resp.json().get("QueryResponse", {}).get("Payment", [])
-        synced = 0
-        for payment in payments:
-            qb_id = str(payment.get("Id", ""))
-            existing = (await db.execute(
-                select(StatementTransaction).where(
-                    StatementTransaction.qb_transaction_id == qb_id,
-                    StatementTransaction.company_id == company_id,
-                )
-            )).scalar_one_or_none()
-
-            if not existing:
-                db.add(StatementTransaction(
-                    company_id=company_id,
-                    transaction_date=payment.get("TxnDate", ""),
-                    description="Payment Received",
-                    transaction_type="payment",
-                    amount=float(payment.get("TotalAmt", 0)),
-                    reference_number=payment.get("PaymentRefNum") or None,
-                    qb_transaction_id=qb_id,
-                ))
-                synced += 1
-
-        await db.commit()
-        return {"message": f"Synced {synced} new payment(s)", "synced": synced}
-
-    except Exception as exc:
-        return {"message": f"QB sync error: {exc}", "synced": 0}
-
-
 @router.get("/statements/pdf")
 async def download_statement_pdf(
     date_from: str | None = None,
@@ -1980,84 +1759,55 @@ async def get_sales_history(
 
 
 # ---------------------------------------------------------------------------
-# QuickBooks Invoices
+# Invoices
 # ---------------------------------------------------------------------------
 
 @router.get("/invoices")
-async def list_qb_invoices(
+async def list_invoices(
     request: Request,
     db: AsyncSession = Depends(get_db),
 ):
-    """Fetch all QB invoices for the authenticated company customer."""
+    """This company's invoices, built from its own orders.
+
+    Every order is its own invoice: what it came to, what has been paid, and
+    what is still owed — drawn from the orders themselves, so an invoice exists
+    the moment the order does.
+    """
     company_id = getattr(request.state, "company_id", None)
     if not company_id:
         raise ForbiddenError("Company account required")
 
-    from app.models.company import Company
+    from app.models.order import Order
 
-    company = (await db.execute(
-        select(Company).where(Company.id == company_id)
-    )).scalar_one_or_none()
+    orders = (await db.execute(
+        select(Order)
+        .where(Order.company_id == company_id)
+        .order_by(Order.created_at.desc())
+        .limit(200)
+    )).scalars().all()
 
-    if not company or not company.qb_customer_id:
-        return []
+    invoices = []
+    for o in orders:
+        total = float(o.total or 0)
+        paid = float(o.amount_paid or 0)
+        balance = max(total - paid, 0.0)
+        if balance <= 0 and total > 0:
+            inv_status = "paid"
+        elif paid > 0:
+            inv_status = "partial"
+        else:
+            inv_status = "open"
 
-    try:
-        import httpx
-        from app.services.quickbooks_service import QuickBooksService
+        invoices.append({
+            "id": str(o.id),
+            "doc_number": o.order_number,
+            "txn_date": o.created_at.isoformat() if o.created_at else None,
+            "due_date": None,
+            "total_amt": total,
+            "balance": balance,
+            "status": inv_status,
+            "order_status": o.status,
+            "payment_status": o.payment_status,
+        })
 
-        qb_svc = QuickBooksService()
-        access_token = qb_svc.get_access_token()
-
-        base_url = (
-            "https://sandbox-quickbooks.api.intuit.com"
-            if settings.QB_ENVIRONMENT == "sandbox"
-            else "https://quickbooks.api.intuit.com"
-        )
-        query = (
-            f"SELECT * FROM Invoice WHERE CustomerRef = '{company.qb_customer_id}' "
-            "ORDER BY TxnDate DESC MAXRESULTS 100"
-        )
-
-        async with httpx.AsyncClient(timeout=15) as client:
-            resp = await client.get(
-                f"{base_url}/v3/company/{settings.QB_COMPANY_ID}/query",
-                params={"query": query, "minorversion": "65"},
-                headers={
-                    "Authorization": f"Bearer {access_token}",
-                    "Accept": "application/json",
-                },
-            )
-
-        if resp.status_code != 200:
-            return []
-
-        raw_invoices = resp.json().get("QueryResponse", {}).get("Invoice", [])
-
-        invoices = []
-        for inv in raw_invoices:
-            total = float(inv.get("TotalAmt", 0))
-            balance = float(inv.get("Balance", 0))
-            if balance <= 0:
-                inv_status = "paid"
-            elif balance < total:
-                inv_status = "partial"
-            else:
-                inv_status = "open"
-
-            invoices.append({
-                "id": inv.get("Id"),
-                "doc_number": inv.get("DocNumber"),
-                "txn_date": inv.get("TxnDate"),
-                "due_date": inv.get("DueDate"),
-                "total_amt": total,
-                "balance": balance,
-                "status": inv_status,
-                "email_status": inv.get("EmailStatus"),
-                "customer_memo": (inv.get("CustomerMemo") or {}).get("value"),
-            })
-
-        return invoices
-
-    except Exception:
-        return []
+    return invoices

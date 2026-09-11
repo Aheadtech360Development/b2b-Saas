@@ -62,7 +62,6 @@ class CompanyDetail(BaseModel):
     shipping_tier_id: UUID | None
     shipping_override_amount: Decimal | None
     stripe_customer_id: str | None
-    qb_customer_id: str | None
     admin_notes: str | None = None
     tags: list[str] = []
     discount_percent: Decimal | None = None

@@ -301,10 +301,6 @@ export const adminService = {
     return apiClient.post(`/api/v1/admin/orders/${id}/cancel`, { reason });
   },
 
-  async syncOrderToQb(id: string) {
-    return apiClient.post(`/api/v1/admin/orders/${id}/sync-quickbooks`, {});
-  },
-
   // Email templates
   async listEmailTemplates() {
     return apiClient.get("/api/v1/admin/email-templates");
@@ -344,15 +340,6 @@ export const adminService = {
   async getCustomerReport(params?: { from?: string; to?: string }) {
     const query = new URLSearchParams(params as Record<string, string>);
     return apiClient.get(`/api/v1/admin/reports/customers?${query.toString()}`);
-  },
-
-  // QB
-  async getQbStatus() {
-    return apiClient.get("/api/v1/admin/quickbooks/status");
-  },
-
-  async retryQbSync(logId: string) {
-    return apiClient.post(`/api/v1/admin/quickbooks/retry/${logId}`, {});
   },
 
   // Audit log

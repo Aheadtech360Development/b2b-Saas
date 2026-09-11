@@ -588,7 +588,6 @@ async def get_admin_order(order_id: str, db: AsyncSession = Depends(get_db)):
             courier=order.courier,
             courier_service=order.courier_service,
             shipped_at=order.shipped_at,
-            qb_invoice_id=order.qb_invoice_id,
             created_at=order.created_at,
             updated_at=order.updated_at,
             items=[OrderItemOut.model_validate(i) for i in items],
@@ -1218,7 +1217,7 @@ async def refund_admin_order(
     """Refund a Stripe Direct-charge order on the brand's connected account.
 
     The order must have been paid by card via Stripe (has stripe_payment_intent_id);
-    QB Payments / Net-30 orders are refunded through their original rails, not here.
+    Net-30 orders are settled on their invoice, not refunded here.
     Order is tenant-scoped, so an admin can only refund their own brand's orders.
     """
     from decimal import Decimal
@@ -1426,20 +1425,6 @@ async def mark_order_paid(
 
     return {"message": "Order marked as paid"}
 
-
-@router.post("/orders/{order_id}/sync-quickbooks", response_model=dict)
-async def sync_order_to_quickbooks(order_id: UUID, db: AsyncSession = Depends(get_db)):
-    from app.core.config import settings
-    if not settings.QUICKBOOKS_ENABLED:
-        return {"message": "QuickBooks integration is disabled", "order_id": str(order_id)}
-    from app.tasks.quickbooks_tasks import sync_order_invoice_to_qb
-    sync_order_invoice_to_qb.delay(str(order_id))
-    return {"message": "QuickBooks sync queued", "order_id": str(order_id)}
-
-
-# ---------------------------------------------------------------------------
-# Admin RMA management
-# ---------------------------------------------------------------------------
 
 @router.get("/rma")
 async def list_admin_rma(

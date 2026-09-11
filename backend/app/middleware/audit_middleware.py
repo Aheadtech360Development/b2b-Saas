@@ -14,7 +14,7 @@ AUDITED_METHODS = {"POST", "PATCH", "PUT", "DELETE"}
 ADMIN_PATH_PREFIX = "/api/v1/admin/"
 
 # Paths that should NOT be audited (read-only or export endpoints)
-AUDIT_EXCLUSIONS = {"/api/v1/admin/quickbooks/status"}
+AUDIT_EXCLUSIONS: set[str] = set()
 
 
 class AuditMiddleware(BaseHTTPMiddleware):

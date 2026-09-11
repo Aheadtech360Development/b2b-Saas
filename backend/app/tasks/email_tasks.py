@@ -474,7 +474,7 @@ def send_invoice_email(self, order_id: str) -> dict:
                             "contact_name": contact.first_name or "Valued Customer",
                             "company_name": company_name,
                             "order_number": order.order_number,
-                            "po_number": order.po_number or order.qb_invoice_id or "",
+                            "po_number": order.po_number or "",
                             "order_date": order.created_at.strftime("%B %d, %Y"),
                             "order_total": f"${float(order.total):.2f}",
                             "items": items,

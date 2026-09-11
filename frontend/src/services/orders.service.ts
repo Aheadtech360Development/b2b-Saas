@@ -10,12 +10,7 @@ export interface CreatePaymentIntentResponse {
 }
 
 export interface ConfirmOrderPayload {
-  // QB Payments flow
-  qb_token?: string;
-  saved_card_id?: string;
-  qb_customer_id?: string;
-  save_card?: boolean;
-  // Stripe flow (legacy)
+  /** Stripe PaymentIntent the buyer confirmed before placing the order. */
   payment_intent_id?: string;
   address_id?: string;
   shipping_address?: {

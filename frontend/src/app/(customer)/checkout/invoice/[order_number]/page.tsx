@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { useAuthStore } from '@/stores/auth.store'
 import { apiClient } from '@/lib/api-client'
-import { QBPaymentForm } from '@/components/checkout/QBPaymentForm'
+import { StripePaymentForm } from '@/components/checkout/StripePaymentForm'
 import { ConfigurationDetail } from '@/components/shared/ConfigurationDetail'
 import type { LineConfiguration } from '@/types/order.types'
 
@@ -74,11 +74,13 @@ export default function InvoicePaymentPage() {
     load()
   }, [isLoading, orderNumber]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  async function handleToken(token: string) {
+  // Stripe has taken the money by the time this runs; the server then confirms
+  // the intent itself before marking the invoice paid.
+  async function handlePaid(paymentIntentId: string) {
     if (!order) return
     setPaying(true)
     try {
-      await apiClient.post(`/api/v1/orders/${order.id}/pay-invoice`, { card_token: token })
+      await apiClient.post(`/api/v1/orders/${order.id}/pay-invoice`, { payment_intent_id: paymentIntentId })
       setPaid(true)
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Payment failed. Please try again.')
@@ -225,10 +227,11 @@ export default function InvoicePaymentPage() {
           <p style={{ margin: '0 0 14px', fontSize: '11px', fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: '.08em' }}>
             Card Details
           </p>
-          <QBPaymentForm
-            onToken={handleToken}
-            onBack={() => router.push('/account/orders')}
-            submitLabel={amountPaid > 0 ? `Pay Balance $${balanceDue.toFixed(2)}` : `Pay $${balanceDue.toFixed(2)}`}
+          <StripePaymentForm
+            intentUrl={`/api/v1/orders/${order.id}/invoice-intent`}
+            intentPayload={{}}
+            onPaid={handlePaid}
+            buttonLabel={amountPaid > 0 ? `Pay Balance $${balanceDue.toFixed(2)}` : `Pay $${balanceDue.toFixed(2)}`}
           />
         </div>
       )}

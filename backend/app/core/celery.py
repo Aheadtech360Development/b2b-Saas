@@ -9,7 +9,6 @@ celery_app = Celery(
     backend=settings.CELERY_RESULT_BACKEND,
     include=[
         "app.tasks.email_tasks",
-        "app.tasks.quickbooks_tasks",
         "app.tasks.pricelist_tasks",
         "app.tasks.inventory_tasks",
         "app.tasks.cart_tasks",
