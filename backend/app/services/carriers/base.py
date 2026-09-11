@@ -91,6 +91,7 @@ async def oauth_token(
     environment: str = "production",
     basic_auth: bool = False,
     extra_data: dict | None = None,
+    extra_headers: dict | None = None,
 ) -> str:
     """Fetch (and cache) an OAuth2 client-credentials token.
 
@@ -104,6 +105,8 @@ async def oauth_token(
 
     data: dict[str, str] = {"grant_type": "client_credentials", **(extra_data or {})}
     headers = {"Content-Type": "application/x-www-form-urlencoded"}
+    # Drop blanks: a carrier can reject an empty header outright.
+    headers.update({k: v for k, v in (extra_headers or {}).items() if v})
     if basic_auth:
         raw = f"{client_id}:{client_secret}".encode()
         headers["Authorization"] = "Basic " + base64.b64encode(raw).decode()

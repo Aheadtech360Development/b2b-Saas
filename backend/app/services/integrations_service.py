@@ -119,8 +119,15 @@ PROVIDERS: dict[str, Provider] = {
             Field("client_id", "Consumer key", "text",
                   "From developer.usps.com — your app's consumer key."),
             Field("client_secret", "Consumer secret", "secret"),
-            Field("account_number", "USPS EPS account number", "text",
-                  "The Enterprise Payment account postage is drawn from.", required=False),
+            # Rates need only the key pair. Labels are paid for through the
+            # Enterprise Payment account, and USPS identifies it by all three of
+            # these together — so they're optional to connect, required to print.
+            Field("account_number", "EPS account number", "text",
+                  "Needed to buy labels. From your Business Customer Gateway account.", required=False),
+            Field("crid", "CRID", "text",
+                  "Customer Registration ID — needed to buy labels.", required=False),
+            Field("mid", "MID", "text",
+                  "Mailer ID — needed to buy labels.", required=False),
             Field("environment", "Environment", "select", options=["production", "test"],
                   required=False),
         ],

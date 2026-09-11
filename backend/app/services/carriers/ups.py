@@ -48,6 +48,9 @@ async def _token(creds: dict) -> str:
         client_secret=creds.get("client_secret") or "",
         environment=creds.get("environment") or "production",
         basic_auth=True,                      # UPS wants Basic auth on the token call
+        # UPS ties the token to the merchant it is issued for; sending the
+        # shipper number here is what gets the account's own negotiated rates.
+        extra_headers={"x-merchant-id": creds.get("account_number") or ""},
     )
 
 

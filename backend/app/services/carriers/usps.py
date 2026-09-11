@@ -52,9 +52,11 @@ async def verify(creds: dict) -> dict:
         await _token(creds)
     except CarrierError as exc:
         return {"ok": False, "message": str(exc)}
+    missing = [n for n, k in (("EPS account number", "account_number"), ("CRID", "crid"), ("MID", "mid"))
+               if not creds.get(k)]
     msg = "Connected to USPS."
-    if not creds.get("account_number"):
-        msg += " Add your EPS account number when you're ready to buy labels."
+    if missing:
+        msg += f" Rates will work now; add your {', '.join(missing)} to buy labels."
     return {"ok": True, "message": msg}
 
 
@@ -135,12 +137,42 @@ def _address(a: dict) -> dict:
     }
 
 
+async def _payment_token(creds: dict, token: str) -> str:
+    """Exchange the brand's enrolment details for a payment authorisation token.
+
+    USPS charges labels in two steps: the OAuth token proves who is calling, and
+    this second token proves which Enterprise Payment account pays. The label
+    call needs it in `X-Payment-Authorization-Token`, and rejects the label
+    outright without it.
+    """
+    crid, mid, eps = creds.get("crid"), creds.get("mid"), creds.get("account_number")
+    missing = [n for n, v in (("CRID", crid), ("MID", mid), ("EPS account number", eps)) if not v]
+    if missing:
+        raise CarrierError(
+            f"USPS needs your {', '.join(missing)} to pay for labels. "
+            "Add it on the USPS connection, from your Business Customer Gateway account."
+        )
+
+    role = {"CRID": str(crid), "MID": str(mid), "accountType": "EPS", "accountNumber": str(eps)}
+    data = await request_json(
+        "usps", "POST", f"{_host(creds)}/payments/v3/payment-authorization",
+        token=token,
+        json_body={"roles": [
+            {"roleName": "PAYER", **role},
+            {"roleName": "LABEL_OWNER", **role},
+        ]},
+    )
+    payment_token = data.get("paymentAuthorizationToken")
+    if not payment_token:
+        raise CarrierError("USPS did not return a payment authorisation. Check your EPS enrolment.")
+    return payment_token
+
+
 async def label(creds: dict, ship_from: dict, ship_to: dict, parcel: dict, service_code: str) -> LabelResult:
     """Buy a USPS label, drawn against the brand's EPS account."""
     token = await _token(creds)
+    payment_token = await _payment_token(creds, token)
     eps = creds.get("account_number")
-    if not eps:
-        raise CarrierError("A USPS EPS account number is required to buy a label.")
 
     weight, length, width, height = lbs_and_inches(parcel)
     body = {
@@ -164,6 +196,7 @@ async def label(creds: dict, ship_from: dict, ship_to: dict, parcel: dict, servi
     data = await request_json(
         "usps", "POST", f"{_host(creds)}/labels/v3/label",
         token=token, json_body=body,
+        extra_headers={"X-Payment-Authorization-Token": payment_token},
     )
 
     tracking = data.get("trackingNumber") or ""

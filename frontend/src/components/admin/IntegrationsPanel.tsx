@@ -203,11 +203,23 @@ export function IntegrationsPanel({
                         </select>
                       ) : (
                         <input
+                          // Chrome ignores autoComplete="off" on a text field and
+                          // will happily drop the admin's own email into "API key"
+                          // and their password into "Secret key" — which then fails
+                          // to connect for no visible reason. "new-password" is the
+                          // one value it honours, and a name it can't recognise
+                          // keeps its heuristics out of these fields.
                           type={f.kind === "secret" ? "password" : "text"}
+                          name={`${p.key}__${f.name}`}
                           value={values[f.name] ?? ""}
                           onChange={(e) => setValues((v) => ({ ...v, [f.name]: e.target.value }))}
                           placeholder={f.kind === "secret" && isSet ? `Saved — ${hint}. Leave blank to keep it.` : (f.placeholder || "")}
-                          autoComplete="off"
+                          autoComplete="new-password"
+                          autoCorrect="off"
+                          autoCapitalize="off"
+                          spellCheck={false}
+                          data-1p-ignore
+                          data-lpignore="true"
                           style={INPUT}
                         />
                       )}
