@@ -6,6 +6,7 @@ import { useState, useEffect } from "react";
 import { useAuthStore } from "@/stores/auth.store";
 import { hasScope, type Scope } from "@/lib/permissions";
 import { contactService } from "@/services/contact.service";
+import { apiClient } from "@/lib/api-client";
 import {
   LayoutDashboard, ShoppingBag, RotateCcw, ClipboardList, Shirt, Boxes, LayoutGrid,
   Users, MessageSquare, Percent, Truck, FileText, Store, File, Image as ImageIcon,
@@ -55,6 +56,8 @@ export function AdminSidebar() {
   const [contentOpen, setContentOpen] = useState(isContentActive);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [unreadMsgs, setUnreadMsgs] = useState(0);
+  /** Live counts beside each nav group — see the /admin/nav-counts endpoint. */
+  const [counts, setCounts] = useState<{ products?: number; orders?: number; customers?: number; returns?: number }>({});
 
   // Close mobile drawer on route change
   useEffect(() => { setMobileOpen(false); }, [pathname]);
@@ -65,6 +68,14 @@ export function AdminSidebar() {
     if (!can("customers")) return;
     contactService.list().then((r) => setUnreadMsgs(r.unread || 0)).catch(() => {});
   }, [pathname, user?.role]);
+
+  // Re-read on navigation so a new order or product shows up without a reload.
+  // A failure leaves the badges off rather than breaking the nav.
+  useEffect(() => {
+    apiClient.get<typeof counts>("/api/v1/admin/nav-counts")
+      .then(setCounts)
+      .catch(() => {});
+  }, [pathname]);
 
   useEffect(() => { if (isOrdersActive) setOrdersOpen(true); }, [isOrdersActive]);
   useEffect(() => { if (isProductsActive) setProductsOpen(true); }, [isProductsActive]);
@@ -94,6 +105,16 @@ export function AdminSidebar() {
           </span>
         )}
       </Link>
+    );
+  }
+
+  /** Count pill for a collapsible group header, sitting before the chevron. */
+  function GroupCount({ n }: { n?: number }) {
+    if (!n) return null;
+    return (
+      <span style={{ marginLeft: "auto", marginRight: "8px", background: "#E5E5E4", color: "#4A4A4A", fontSize: "11px", fontWeight: 700, minWidth: "18px", height: "18px", borderRadius: "10px", display: "flex", alignItems: "center", justifyContent: "center", padding: "0 5px" }}>
+        {n > 999 ? "999+" : n}
+      </span>
     );
   }
 
@@ -148,6 +169,7 @@ export function AdminSidebar() {
           <ShoppingBag {...ICON_PROPS} />
           <span>Orders</span>
         </span>
+        <GroupCount n={counts.orders} />
         <span style={{ fontSize: "10px", color: "#aaa", transition: "transform .2s", transform: ordersOpen ? "rotate(180deg)" : "rotate(0deg)", display: "inline-block" }}>▼</span>
       </div>
 
@@ -160,7 +182,7 @@ export function AdminSidebar() {
         </div>
       )}
 
-      <NavLink href="/admin/returns" label="Returns (RMA)" icon={<RotateCcw {...ICON_PROPS} />} />
+      <NavLink href="/admin/returns" label="Returns (RMA)" icon={<RotateCcw {...ICON_PROPS} />} badge={counts.returns} />
       </>}
       {can("inventory") && <NavLink href="/admin/purchase-orders" label="Purchase Orders" icon={<ClipboardList {...ICON_PROPS} />} />}
 
@@ -185,6 +207,7 @@ export function AdminSidebar() {
           <Shirt {...ICON_PROPS} />
           <span>Products</span>
         </span>
+        <GroupCount n={counts.products} />
         <span style={{ fontSize: "10px", color: "#aaa", transition: "transform .2s", transform: productsOpen ? "rotate(180deg)" : "rotate(0deg)", display: "inline-block" }}>▼</span>
       </div>
 
@@ -222,6 +245,7 @@ export function AdminSidebar() {
           <Users {...ICON_PROPS} />
           <span>Customers</span>
         </span>
+        <GroupCount n={counts.customers} />
         <span style={{ fontSize: "10px", color: "#aaa", transition: "transform .2s", transform: customersOpen ? "rotate(180deg)" : "rotate(0deg)", display: "inline-block" }}>▼</span>
       </div>
 
@@ -245,36 +269,9 @@ export function AdminSidebar() {
       {can("settings") && <NavLink href="/admin/standard-shipping" label="Standard Shipping" icon={<Truck {...ICON_PROPS} />} />}
       </>}
 
-      {/* ── CONTENT ── */}
-      {can("content") && <>
-      <div style={SECTION_HEAD}>Content</div>
-      <div
-        onClick={() => setContentOpen(!contentOpen)}
-        style={{
-          ...NAV_LINK_BASE,
-          justifyContent: "space-between",
-          background: isContentActive ? "#ECECEB" : "transparent",
-          color: isContentActive ? "#1A1A1A" : "#555",
-          userSelect: "none",
-        }}
-        onMouseEnter={e => { if (!isContentActive) (e.currentTarget as HTMLElement).style.background = "#F6F6F7"; }}
-        onMouseLeave={e => { if (!isContentActive) (e.currentTarget as HTMLElement).style.background = isContentActive ? "#ECECEB" : "transparent"; }}
-      >
-        <span style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-          <FileText {...ICON_PROPS} />
-          <span>Content</span>
-        </span>
-        <span style={{ fontSize: "10px", color: "#aaa", transition: "transform .2s", transform: contentOpen ? "rotate(180deg)" : "rotate(0deg)", display: "inline-block" }}>▼</span>
-      </div>
-      {contentOpen && (
-        <div style={{ paddingLeft: "18px", marginTop: "3px", marginBottom: "3px" }}>
-          <SubLink href="/admin/pages" label="Pages SEO" />
-          <SubLink href="/admin/blogs" label="Blogs" />
-          <SubLink href="/admin/style-sheets" label="Style Sheets" />
-          <SubLink href="/admin/product-specs" label="Product Specs" />
-        </div>
-      )}
-      </>}
+      {/* The Content group (Pages SEO / Blogs / Style Sheets / Product Specs) was
+          taken out of the nav — those routes still exist and can be linked again
+          by restoring this section. */}
 
       {/* ── ONLINE STORE ── */}
       {(can("storefront") || can("media")) && <>

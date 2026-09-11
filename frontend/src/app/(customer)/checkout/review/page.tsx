@@ -89,6 +89,8 @@ export default function CheckoutReviewPage() {
   const [guestEntries, setGuestEntries] = useState<GuestCartEntry[]>([]);
   const [savedCards, setSavedCards] = useState<SavedCard[]>([]);
   const [isPlacing, setIsPlacing] = useState(false);
+  /** Set the moment Stripe confirms the charge — see `handlePlaceOrder`. */
+  const [paidIntentId, setPaidIntentId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [appliedCoupon, setAppliedCoupon] = useState<{ code: string; discount_amount: number; discount_type: string } | null>(null);
   // Seed from checkout store; API fetch is a fallback in case user navigated directly here
@@ -180,8 +182,35 @@ export default function CheckoutReviewPage() {
       .join(", ");
   }
 
+  /**
+   * Place the order, retrying a transient failure.
+   *
+   * Once Stripe has taken the money, losing the confirm call would leave the
+   * buyer charged with no order. The backend maps one PaymentIntent to exactly
+   * one order, so retrying either creates it or returns the one already made —
+   * it can't double-charge or duplicate. Only network/5xx failures are retried;
+   * a validation error is final and surfaces straight away.
+   */
+  async function confirmWithRetry(payload: Parameters<typeof ordersService.confirmOrder>[0]) {
+    let lastErr: unknown;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        return await ordersService.confirmOrder(payload);
+      } catch (err) {
+        lastErr = err;
+        const status = (err as { status?: number })?.status;
+        if (status && status < 500) throw err;      // the server rejected it — don't hammer
+        await new Promise((r) => setTimeout(r, 1200 * (attempt + 1)));
+      }
+    }
+    throw lastErr;
+  }
+
   async function handlePlaceOrder(stripePaymentIntentId?: string) {
     if (!shippingAddress) return;
+    // Once the card has been charged the money is already taken, so the pay form
+    // must never come back — the only safe action left is finishing this order.
+    if (stripePaymentIntentId) setPaidIntentId(stripePaymentIntentId);
     setIsPlacing(true);
     setError(null);
 
@@ -296,7 +325,7 @@ export default function CheckoutReviewPage() {
         shipping_carrier: (basePayload as Record<string, unknown>).shipping_carrier,
         shipping_service: (basePayload as Record<string, unknown>).shipping_service,
       });
-      const order = await ordersService.confirmOrder(
+      const order = await confirmWithRetry(
         paymentMethod === "ach"
           ? {
               ...basePayload,
@@ -552,6 +581,24 @@ export default function CheckoutReviewPage() {
                 <div style={sectionLabelStyle}>Card Details</div>
                 {isPlacing ? (
                   <div style={{ padding: "16px", color: "#6B6B6B", fontSize: "13px" }}>Placing your order…</div>
+                ) : paidIntentId ? (
+                  /* Charged, but the order didn't come back. Never show the pay
+                     form again — the buyer would be charged a second time. */
+                  <div style={{ padding: "16px 18px", background: "#FFF7ED", border: "1px solid #FDBA74", borderRadius: "8px" }}>
+                    <div style={{ fontSize: "13px", fontWeight: 700, color: "#9A3412", marginBottom: "6px" }}>
+                      Your payment went through — don&apos;t pay again
+                    </div>
+                    <div style={{ fontSize: "13px", color: "#7C2D12", lineHeight: 1.6 }}>
+                      We couldn&apos;t finish creating your order just now. Your card was charged once and that
+                      payment is safe. Press the button below to finish — it will pick up the same payment.
+                    </div>
+                    <button
+                      onClick={() => handlePlaceOrder(paidIntentId)}
+                      style={{ marginTop: "12px", background: "#1A1A1A", color: "#fff", border: "none", borderRadius: "6px", padding: "11px 22px", fontSize: "13px", fontWeight: 700, cursor: "pointer" }}
+                    >
+                      Finish my order
+                    </button>
+                  </div>
                 ) : (
                   <StripePaymentForm
                     intentPayload={{

@@ -11,6 +11,8 @@ import {
   type ProductsFilter,
   type SSStyleSearchItem,
 } from "@/services/supplierCatalog.service";
+import { IntegrationsPanel } from "@/components/admin/IntegrationsPanel";
+import { apiClient } from "@/lib/api-client";
 
 // ── Mini icon helpers ─────────────────────────────────────────────────────────
 
@@ -30,9 +32,10 @@ function Badge({ text, color = "#1A5CFF" }: { text: string; color?: string }) {
 
 // ── Tabs ──────────────────────────────────────────────────────────────────────
 
-type Tab = "catalog" | "markup" | "sync";
+type Tab = "connections" | "catalog" | "markup" | "sync";
 
 const TABS: { id: Tab; label: string }[] = [
+  { id: "connections", label: "Connected Suppliers" },
   { id: "catalog", label: "Browse Catalog" },
   { id: "markup", label: "Markup Rules" },
   { id: "sync", label: "Sync Status" },
@@ -42,6 +45,20 @@ const TABS: { id: Tab; label: string }[] = [
 
 export default function SupplierCatalogPage() {
   const [activeTab, setActiveTab] = useState<Tab>("catalog");
+  // Until a supplier is connected there is no catalogue to browse, so the page
+  // opens on Connections instead of an empty grid that looks broken.
+  const [connectedCount, setConnectedCount] = useState<number | null>(null);
+
+  useEffect(() => {
+    apiClient.get<{ connected_count: number }>("/api/v1/admin/integrations?category=supplier")
+      .then((r) => {
+        setConnectedCount(r.connected_count);
+        if (!r.connected_count) setActiveTab("connections");
+      })
+      .catch(() => setConnectedCount(0));
+  }, []);
+
+  const needsConnection = connectedCount === 0;
 
   return (
     <div style={{ maxWidth: 1400 }}>
@@ -59,7 +76,7 @@ export default function SupplierCatalogPage() {
           Supplier Catalog
         </h1>
         <p style={{ color: "#6b7280", fontSize: 13, marginTop: 4 }}>
-          S&S Activewear — Browse, import, and sync the full apparel catalog
+          Connect your own supplier accounts, then browse, import and sync their catalogues.
         </p>
       </div>
 
@@ -73,7 +90,7 @@ export default function SupplierCatalogPage() {
               padding: "10px 20px",
               fontSize: 13,
               fontWeight: activeTab === t.id ? 700 : 500,
-              color: activeTab === t.id ? "#1A5CFF" : "#6b7280",
+              color: activeTab === t.id ? "#1A1A1A" : "#6b7280",
               background: "none",
               border: "none",
               borderBottom: activeTab === t.id ? "2px solid #1A1A1A" : "2px solid transparent",
@@ -88,9 +105,40 @@ export default function SupplierCatalogPage() {
       </div>
 
       {/* Tab content */}
-      {activeTab === "catalog" && <CatalogTab />}
-      {activeTab === "markup" && <MarkupTab />}
-      {activeTab === "sync" && <SyncTab />}
+      {activeTab === "connections" && (
+        <>
+          <IntegrationsPanel
+            category="supplier"
+            onChanged={(ps) => setConnectedCount(ps.filter((p) => p.connection?.connected).length)}
+          />
+          <p style={{ fontSize: 12, color: "#8A8A8A", marginTop: 16, lineHeight: 1.6, maxWidth: 620 }}>
+            Your credentials are used for your store only — catalogue, pricing and inventory all come
+            from your own supplier account, so the prices you see are the ones you actually pay.
+          </p>
+        </>
+      )}
+      {activeTab !== "connections" && needsConnection ? (
+        <div style={{ background: "#F6F6F7", border: "1px solid #E3E3E3", borderRadius: 10, padding: "32px 28px", textAlign: "center" }}>
+          <div style={{ fontSize: 28, marginBottom: 8 }}>🔌</div>
+          <div style={{ fontSize: 15, fontWeight: 700, color: "#1A1A1A", marginBottom: 6 }}>
+            Connect a supplier first
+          </div>
+          <p style={{ fontSize: 13, color: "#6B6B6B", lineHeight: 1.6, maxWidth: 440, margin: "0 auto 16px" }}>
+            Add your supplier account and this catalogue fills with their styles, colours, sizes and
+            live inventory — priced from your own account.
+          </p>
+          <button onClick={() => setActiveTab("connections")}
+            style={{ padding: "10px 20px", background: "#1A1A1A", color: "#fff", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+            Connect a supplier
+          </button>
+        </div>
+      ) : (
+        <>
+          {activeTab === "catalog" && <CatalogTab />}
+          {activeTab === "markup" && <MarkupTab />}
+          {activeTab === "sync" && <SyncTab />}
+        </>
+      )}
     </div>
   );
 }

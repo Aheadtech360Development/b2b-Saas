@@ -4,6 +4,7 @@ export const dynamic = "force-dynamic";
 
 import { useEffect, useState } from "react";
 import { apiClient } from "@/lib/api-client";
+import { IntegrationsPanel } from "@/components/admin/IntegrationsPanel";
 
 interface FullShippingBracket {
   min_units: number;
@@ -148,21 +149,18 @@ export default function StandardShippingPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
+  // "live_shippo" is kept as the stored identifier so existing saved settings
+  // keep working; it now means live rates from the brand's connected carriers.
   const [shippingType, setShippingType] = useState<"store_default" | "flat_rate" | "live_shippo">("store_default");
   const [shippingAmount, setShippingAmount] = useState(0);
   const [calcType, setCalcType] = useState<"units" | "order_value">("order_value");
   const [cutoffTime, setCutoffTime] = useState("");
   const [brackets, setBrackets] = useState<FullShippingBracket[]>([]);
-  // Ship-from (origin) — live carrier rates and Shippo labels are computed FROM
-  // this address, so each brand quotes/ships from its own warehouse.
+  // Ship-from (origin) — live carrier rates and labels are computed FROM this
+  // address, so each brand quotes and ships from its own warehouse.
   const [shipFrom, setShipFrom] = useState({
     name: "", street1: "", city: "", state: "", zip: "", phone: "",
   });
-  // The brand's own Shippo API key — its labels bill to its own account. We only
-  // ever hold a newly-typed key here; the server returns "set" + a masked hint.
-  const [shippoKey, setShippoKey] = useState("");
-  const [shippoConnected, setShippoConnected] = useState(false);
-  const [shippoHint, setShippoHint] = useState("");
 
   function showToast(msg: string, ok = true) {
     setToast({ msg, ok });
@@ -190,8 +188,6 @@ export default function StandardShippingPage() {
           });
         } catch { /* ignore malformed */ }
       }
-      setShippoConnected(Boolean((settings as Record<string, unknown>)?.shippo_api_key_set));
-      setShippoHint(String((settings as Record<string, unknown>)?.shippo_api_key_hint ?? ""));
     } catch { /* use defaults */ }
     setLoading(false);
   }
@@ -208,11 +204,8 @@ export default function StandardShippingPage() {
           brackets: shippingType === "flat_rate" ? brackets : [],
         }),
         ship_from: JSON.stringify(shipFrom),
-        // Only send the Shippo key when a new one was typed — leaving it blank
         // keeps the existing connection (the server never returns the raw key).
-        ...(shippoKey.trim() ? { shippo_api_key: shippoKey.trim() } : {}),
       });
-      if (shippoKey.trim()) { setShippoConnected(true); setShippoHint(`••••${shippoKey.trim().slice(-4)}`); setShippoKey(""); }
       showToast("Standard shipping saved");
     } catch {
       showToast("Save failed", false);
@@ -251,28 +244,22 @@ export default function StandardShippingPage() {
       {/* Info banner */}
       <div style={{ background: "rgba(26,26,26,.04)", border: "1px solid rgba(26,26,26,.15)", borderRadius: "8px", padding: "14px 18px", marginBottom: "24px", fontSize: "13px", color: "#2A2830", lineHeight: 1.7 }}>
         <strong>Standard Shipping</strong> — applies to customers who are not in any discount group and have no shipping tier assigned, including logged-out users.
-        Configure a flat rate, bracket-based rate, or live carrier rates via Shippo for these customers.
+        Configure a flat rate, bracket-based rate, or live rates from your own connected carriers.
       </div>
 
       {loading ? (
         <div style={{ padding: "26px" }}>{[70, 92, 58, 84].map((w, i) => (<div key={i} className="at-skel" style={{ height: "14px", width: `${w}%`, marginBottom: "12px" }} />))}</div>
       ) : (
         <>
-        {/* Shippo account — the brand's OWN key so its labels bill to its account */}
+        {/* Carrier accounts — each brand connects its own, so postage bills to it */}
         <div style={{ background: "#fff", border: "1.5px solid #E3E3E3", borderRadius: "12px", padding: "24px", marginBottom: "20px" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "4px" }}>
-            <h2 style={{ fontSize: "15px", fontWeight: 700, color: "#2A2830" }}>Shipping carrier account (Shippo)</h2>
-            {shippoConnected
-              ? <span style={{ fontSize: "11px", fontWeight: 700, color: "#166534", background: "#DCFCE7", padding: "3px 9px", borderRadius: "20px" }}>Connected {shippoHint}</span>
-              : <span style={{ fontSize: "11px", fontWeight: 700, color: "#92400E", background: "#FEF3C7", padding: "3px 9px", borderRadius: "20px" }}>Using platform account</span>}
-          </div>
-          <p style={{ fontSize: "12px", color: "#7A7880", marginBottom: "16px", lineHeight: 1.6 }}>
-            Paste <strong>your own Shippo API key</strong> so shipping labels you buy are charged to <strong>your</strong> Shippo account — not the platform&apos;s. Get it from Shippo → Settings → API. Leave blank to keep using the platform account.
+          <h2 style={{ fontSize: "15px", fontWeight: 700, color: "#2A2830", marginBottom: "4px" }}>Your shipping carriers</h2>
+          <p style={{ fontSize: "12px", color: "#7A7880", marginBottom: "18px", lineHeight: 1.6 }}>
+            Connect <strong>your own</strong> UPS, FedEx or USPS account. Rate quotes at checkout and every
+            label you buy go through the account you connect here, so the postage is charged to you at
+            your negotiated rates — nothing runs through the platform.
           </p>
-          <label style={labelStyle}>Shippo API key</label>
-          <input type="password" autoComplete="off" value={shippoKey} onChange={e => setShippoKey(e.target.value)}
-            placeholder={shippoConnected ? `Connected (${shippoHint}) — type a new key to replace` : "shippo_live_xxxxxxxxxxxxxxxx"} style={inputStyle} />
-          <p style={{ fontSize: "11px", color: "#9CA3AF", marginTop: "6px" }}>Stored securely; we never show it back. Both live rate quotes and every label you purchase use this account — nothing touches the platform&apos;s.</p>
+          <IntegrationsPanel category="carrier" />
         </div>
 
         {/* Ship-From (origin) address — labels & live rates are computed from this */}
@@ -340,22 +327,23 @@ export default function StandardShippingPage() {
               )}
             </div>
 
-            {/* Live Shippo Rates option */}
+            {/* Live carrier rates — priced by whichever carriers the brand connected above. */}
             <div>
-              <label style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 14px", background: shippingType === "live_shippo" ? "rgba(26,26,26,.06)" : "#fff", border: `1.5px solid ${shippingType === "live_shippo" ? "#1A5CFF" : "#E3E3E3"}`, borderRadius: "8px", cursor: "pointer" }}>
+              <label style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 14px", background: shippingType === "live_shippo" ? "rgba(26,26,26,.06)" : "#fff", border: `1.5px solid ${shippingType === "live_shippo" ? "#1A1A1A" : "#E3E3E3"}`, borderRadius: "8px", cursor: "pointer" }}>
                 <input type="radio" name="shipping_type" value="live_shippo" checked={shippingType === "live_shippo"} onChange={() => setShippingType("live_shippo")} style={{ accentColor: "#1A1A1A" }} />
                 <div>
-                  <div style={{ fontSize: "13px", fontWeight: 600, color: "#2A2830" }}>Live Shipping Rates (via Shippo)</div>
+                  <div style={{ fontSize: "13px", fontWeight: 600, color: "#2A2830" }}>Live carrier rates</div>
                   <div style={{ fontSize: "11px", color: "#7A7880" }}>Real-time carrier rates fetched at checkout based on the customer&apos;s address</div>
                 </div>
               </label>
               {shippingType === "live_shippo" && (
                 <div style={{ marginTop: "10px", marginLeft: "12px", border: "1px solid #E3E3E3", borderRadius: "8px", background: "#fff", padding: "14px 16px" }}>
                   <p style={{ fontSize: "12px", color: "#2A2830", lineHeight: 1.6, margin: 0 }}>
-                    Customers will see a list of available carrier services (USPS, UPS, FedEx) with live pricing at checkout. They can select their preferred service before placing the order.
+                    Customers see every service from the carriers you connected above — UPS, FedEx and USPS —
+                    with live pricing at checkout, and pick the one they want before placing the order.
                   </p>
                   <p style={{ fontSize: "11px", color: "#7A7880", marginTop: "8px", marginBottom: 0 }}>
-                    Requires a valid <strong>SHIPPO_API_KEY</strong> configured in your environment.
+                    Needs at least one carrier connected at the top of this page.
                   </p>
                 </div>
               )}

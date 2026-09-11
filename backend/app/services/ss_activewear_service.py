@@ -45,18 +45,44 @@ def ss_image_url(path: str | None, size: str = "large") -> str | None:
     return f"{SS_IMAGE_BASE}{p.lstrip('/')}"
 
 
+async def for_tenant(db, tenant_id=None) -> "SSActivewearService":
+    """Build a client from this brand's own connected S&S account.
+
+    Falls back to the platform env credentials when the brand hasn't connected
+    one, so an existing install keeps working until it connects its own.
+    """
+    from app.services.integrations_service import get_connection
+
+    conn = await get_connection(db, "ss_activewear", tenant_id=tenant_id)
+    if conn:
+        return SSActivewearService(conn.get("account_number"), conn.get("api_key"))
+    return SSActivewearService()
+
+
 class SSActivewearService:
     """Async REST client for S&S Activewear API v2."""
 
-    def __init__(self) -> None:
+    def __init__(self, account_number: str | None = None, api_key: str | None = None) -> None:
+        """Talk to S&S as a specific brand.
+
+        Credentials are passed in so each brand pulls its own catalogue and
+        pricing (S&S pricing is account-specific). The env values remain only as
+        a fallback for a platform-level sync where no brand is in context.
+        """
         self._last_call: float = 0.0
         self._client: httpx.AsyncClient | None = None
+        self._account_number = account_number or settings.SS_ACCOUNT_NUMBER
+        self._api_key = api_key or settings.SS_API_KEY
+
+    @property
+    def has_credentials(self) -> bool:
+        return bool(self._account_number and self._api_key)
 
     def _client_instance(self) -> httpx.AsyncClient:
         if self._client is None or self._client.is_closed:
             self._client = httpx.AsyncClient(
                 base_url=_SS_BASE,
-                auth=(settings.SS_ACCOUNT_NUMBER, settings.SS_API_KEY),
+                auth=(self._account_number, self._api_key),
                 timeout=30.0,
                 headers={"Accept": "application/json"},
                 follow_redirects=True,

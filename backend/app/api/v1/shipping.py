@@ -68,12 +68,51 @@ async def get_live_rates(payload: LiveRatesRequest, db: AsyncSession = Depends(g
     logger.info(f"Live rates: zip={to_zip}, state={to_state}, items={len(payload.cart_items)}")
     logger.info(f"Live rates weight: grams={total_grams:.1f}, oz={weight_oz:.2f}")
 
+    from app.core.tenant_context import get_current_tenant_id
+    _tid = get_current_tenant_id()
+
+    # Preferred path: the brand's own UPS / FedEx / USPS accounts, so the rate the
+    # buyer sees is this brand's negotiated price and the label later bills to it.
     try:
-        from app.core.tenant_context import get_current_tenant_id
-        _tid = get_current_tenant_id()
-        # Rate quotes come from THIS brand's own Shippo account (its key) + its own
-        # warehouse — so the rate ids the customer sees belong to the same account
-        # that later buys the label. Both fall back to the platform when unset.
+        from app.services import carrier_service
+
+        wh = await shippo_service.get_ship_from(db, _tid)
+        direct = await carrier_service.get_rates(
+            db,
+            ship_from=wh,
+            ship_to={
+                "name": to_name, "street1": to_street1, "city": to_city,
+                "state": to_state, "zip": to_zip, "country": "US",
+            },
+            parcel={"weight_lb": max(weight_oz / 16.0, 0.1), "length_in": 12, "width_in": 10, "height_in": 6},
+            tenant_id=_tid,
+        )
+        if direct["rates"]:
+            return {
+                "rates": [
+                    {
+                        "rate_id": r["rate_id"],
+                        "carrier": r["carrier"].upper(),
+                        "service": r["service_name"],
+                        "service_token": r["service_code"],
+                        "cost": r["amount"],
+                        "currency": r["currency"],
+                        "days": r["estimated_days"],
+                    }
+                    for r in direct["rates"]
+                ],
+                "source": "carrier",
+            }
+        if direct.get("connected"):
+            # Carriers are connected but none could price this — say so rather than
+            # silently falling back to a different account's rates.
+            return {"rates": [], "error": "; ".join(e["message"] for e in direct["errors"]) or
+                    "No carrier service is available for this address."}
+    except Exception as exc:
+        logger.warning("Direct carrier rating failed, falling back: %s", exc)
+
+    # Fallback for stores still on the aggregator account.
+    try:
         _key = await shippo_service.get_shippo_key(db, _tid)
         client = shippo_service.get_client(_key)
         wh = await shippo_service.get_ship_from(db, _tid)

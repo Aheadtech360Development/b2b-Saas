@@ -33,6 +33,7 @@ TENANT_SCOPED_KEYS: frozenset[str] = frozenset({
     "gs_settings",  # gang-sheet admin settings blob (JSON) — per brand
     "shippo_api_key",  # brand's own Shippo API key — its labels bill to its account
     "tax_mode",  # auto (ZipTax) | manual (brand's own rates) | none — per brand
+    "integrations",  # brand's own supplier + carrier accounts (JSON) — see integrations_service
 })
 
 _SEP = "@"
@@ -74,3 +75,30 @@ async def get_setting(
         select(Settings).where(Settings.key == key)
     )).scalar_one_or_none()
     return row.value if row is not None else default
+
+
+async def set_setting(
+    db: AsyncSession,
+    key: str,
+    value: str,
+    *,
+    tenant_id: uuid.UUID | str | None = None,
+) -> None:
+    """Write a settings value, namespaced to the brand when the key is scoped.
+
+    Writing a scoped key without a tenant would put a brand's value in the global
+    row, where every other brand would read it — so that is refused outright.
+    """
+    tid = tenant_id if tenant_id is not None else get_current_tenant_id()
+    if key in TENANT_SCOPED_KEYS and not tid:
+        raise ValueError(f"'{key}' is per-brand and needs a store context to save")
+
+    store_key = scoped_key(key, tid) if key in TENANT_SCOPED_KEYS else key
+    row = (await db.execute(
+        select(Settings).where(Settings.key == store_key)
+    )).scalar_one_or_none()
+    if row is not None:
+        row.value = value
+    else:
+        db.add(Settings(key=store_key, value=value))
+    await db.flush()

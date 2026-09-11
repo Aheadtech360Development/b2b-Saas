@@ -846,6 +846,11 @@ async def update_order_status(
 
 class _LabelRequest(BaseModel):
     carrier: str  # "usps" | "ups" | "fedex"
+    # Optional parcel override; the order page pre-fills it from item weights.
+    weight_lbs: float | None = None
+    length_in: float | None = None
+    width_in: float | None = None
+    height_in: float | None = None
 
 
 @router.post("/orders/{order_id}/labels", status_code=200)
@@ -868,7 +873,53 @@ async def generate_shipping_label(
     # Try saved rate_id from customer's checkout selection first (may be expired)
     saved_rate_id = getattr(order, "shipping_rate_id", None)
     result = None
-    if saved_rate_id:
+
+    # A direct-carrier rate is "<carrier>:<service>" — buy it on the brand's own
+    # UPS/FedEx/USPS account rather than through the aggregator.
+    if saved_rate_id and ":" in str(saved_rate_id):
+        try:
+            from app.core.tenant_context import get_current_tenant_id
+            from app.services import carrier_service, shippo_service as _ship_svc
+
+            _tid = get_current_tenant_id()
+            _from = await _ship_svc.get_ship_from(db, _tid)
+            _to = _json.loads(order.shipping_address_snapshot or "{}")
+            label = await carrier_service.buy_label(
+                db,
+                rate_id=str(saved_rate_id),
+                ship_from=_from,
+                ship_to={
+                    "name": _to.get("full_name") or _to.get("label") or "Customer",
+                    "street1": _to.get("address_line1") or _to.get("line1") or "",
+                    "street2": _to.get("address_line2") or _to.get("line2") or "",
+                    "city": _to.get("city") or "",
+                    "state": _to.get("state") or "",
+                    "zip": _to.get("postal_code") or _to.get("zip_code") or "",
+                    "country": _to.get("country") or "US",
+                    "phone": _to.get("phone") or "",
+                },
+                parcel={
+                    "weight_lb": payload.weight_lbs or 1.0,
+                    "length_in": payload.length_in or 12,
+                    "width_in": payload.width_in or 9,
+                    "height_in": payload.height_in or 3,
+                },
+                tenant_id=_tid,
+            )
+            result = {
+                "success": True,
+                "tracking_number": label.tracking_number,
+                "tracking_url": None,
+                "label_url": label.label_url,
+                "label_base64": label.label_base64,
+                "carrier": label.carrier.upper(),
+                "service": label.meta.get("service_code", ""),
+            }
+        except Exception as _dc_exc:
+            _lbl_log.warning("Direct carrier label failed: %s", _dc_exc)
+            raise HTTPException(status_code=400, detail=str(_dc_exc))
+
+    if result is None and saved_rate_id:
         try:
             from shippo.models import components as _comp
             client = get_client()

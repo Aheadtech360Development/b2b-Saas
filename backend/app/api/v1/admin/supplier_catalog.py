@@ -344,7 +344,7 @@ async def import_ss_product(style_id: str, db: AsyncSession = Depends(get_db)):
     from app.models.inventory import InventoryRecord, Warehouse
     from app.models.product import Product, ProductImage, ProductVariant
     from app.models.supplier import SSMarkupRule, SSProduct
-    from app.services.ss_activewear_service import SSActivewearService, ss_image_url
+    from app.services.ss_activewear_service import for_tenant as ss_for_tenant, ss_image_url
 
     # Per-brand guard: has THIS brand already imported this style? Product is a
     # TenantMixin model, so this query only ever sees the current brand's rows.
@@ -363,7 +363,7 @@ async def import_ss_product(style_id: str, db: AsyncSession = Depends(get_db)):
     )).scalar_one_or_none()
 
     # ── Fetch live from S&S: style header + every SKU ─────────────────────────
-    svc = SSActivewearService()
+    svc = await ss_for_tenant(db)   # this brand's own S&S account
     try:
         style = await svc.fetch_style(style_id) or {}
         skus = await svc.fetch_products_by_style(style_id)
@@ -540,9 +540,9 @@ async def search_ss_styles(
 
     Marks styles this brand has already imported (by product_code)."""
     from app.models.product import Product
-    from app.services.ss_activewear_service import SSActivewearService, ss_image_url
+    from app.services.ss_activewear_service import for_tenant as ss_for_tenant, ss_image_url
 
-    svc = SSActivewearService()
+    svc = await ss_for_tenant(db)   # this brand's own S&S account
     try:
         styles = await svc.search_styles(q)
     finally:

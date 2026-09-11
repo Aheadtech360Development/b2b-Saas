@@ -950,6 +950,12 @@ from app.api.v1.admin import media as admin_media  # noqa: E402
 app.include_router(admin_media.router, prefix=_V1)
 from app.api.v1.admin import product_options as admin_product_options  # noqa: E402
 app.include_router(admin_product_options.router, prefix=_V1)
+
+from app.api.v1.admin import nav_counts as admin_nav_counts  # noqa: E402
+app.include_router(admin_nav_counts.router, prefix=_V1)
+
+from app.api.v1.admin import integrations as admin_integrations  # noqa: E402
+app.include_router(admin_integrations.router, prefix=_V1)
 from app.api.v1 import product_configurator  # noqa: E402
 app.include_router(product_configurator.router, prefix=_V1)
 
