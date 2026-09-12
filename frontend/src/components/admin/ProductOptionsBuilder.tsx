@@ -146,10 +146,22 @@ const TEMPLATES: Template[] = [
   },
 ];
 
+/**
+ * How a choice's price effect is applied. Getting this wrong is the costliest
+ * mistake in the builder — a $45 design fee left on "per unit" becomes $22,500
+ * on an order of 500 — so each option says what it does rather than naming it.
+ */
 const PRICE_MODE_LABEL: Record<PriceMode, string> = {
-  per_unit: "per unit",
-  flat: "one-off",
-  percent: "% of unit",
+  per_unit: "Per unit — × qty",
+  flat: "One-off — once per order",
+  percent: "% of the unit price",
+};
+
+/** Worked example for each mode, shown under the choices table. */
+const PRICE_MODE_HINT: Record<PriceMode, string> = {
+  per_unit: "charged on every item — $2 on 100 = +$200",
+  flat: "charged once for the whole order — $2 whether it's 10 or 500",
+  percent: "scales with the unit price — 10% of a $9 unit = +$0.90 each",
 };
 
 const RULE_ACTION_LABEL: Record<RuleAction, string> = {
@@ -426,7 +438,7 @@ export function ProductOptionsBuilder({ productId }: { productId: string }) {
                   <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px", minWidth: "600px" }}>
                     <thead>
                       <tr style={{ background: "#F6F6F7" }}>
-                        {["Choice", "Price effect", "Type", "Image", "Swatch", "Default", ""].map(h => (
+                        {["Choice", "Price effect", "How it’s charged", "Image", "Swatch", "Default", ""].map(h => (
                           <th key={h} style={TH}>{h}</th>
                         ))}
                       </tr>
@@ -475,6 +487,18 @@ export function ProductOptionsBuilder({ productId }: { productId: string }) {
                       )}
                     </tbody>
                   </table>
+                </div>
+                {/* The modes in play on this group, so the meaning is next to the
+                    numbers rather than a step away in a tooltip. */}
+                <div style={{ fontSize: "11px", color: "#9CA3AF", lineHeight: 1.7, marginTop: "8px" }}>
+                  {(Array.from(new Set(o.values.map(v => v.price_mode))) as PriceMode[])
+                    .filter(m => PRICE_MODE_HINT[m])
+                    .map(m => (
+                      <div key={m}>
+                        <strong style={{ color: "#6B6B6B", fontWeight: 700 }}>{PRICE_MODE_LABEL[m]}</strong>
+                        {" — "}{PRICE_MODE_HINT[m]}
+                      </div>
+                    ))}
                 </div>
                 <button onClick={() => addVal(oi)} style={{ ...BTN_LIGHT, marginTop: "10px" }}>+ Add choice</button>
               </div>
