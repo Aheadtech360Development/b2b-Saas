@@ -58,6 +58,12 @@ interface Rule {
   note?: string | null;
 }
 
+/** Whatever the field currently holds, as a usable number. */
+const num = (v: string, fallback = 0) => {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : fallback;
+};
+
 const PRICE_MODE_LABEL: Record<PriceMode, string> = {
   per_unit: "per unit",
   flat: "one-off",
@@ -217,7 +223,7 @@ export function ProductOptionsBuilder({ productId }: { productId: string }) {
 
       await apiClient.put(`/api/v1/admin/products/${productId}/options`, {
         pricing_mode: mode,
-        base_price: basePrice === "" ? null : Number(basePrice),
+        base_price: basePrice.trim() === "" ? null : num(basePrice),
         options: payloadOptions,
         qty_tiers: tiers.filter(t => t.min_qty > 0),
         rules: payloadRules,
@@ -286,7 +292,7 @@ export function ProductOptionsBuilder({ productId }: { productId: string }) {
             </div>
             <div>
               <label style={LABEL}>Preview at quantity</label>
-              <input type="number" min={1} value={previewQty} onChange={e => setPreviewQty(Math.max(1, Number(e.target.value) || 1))} style={{ ...INPUT, width: "120px" }} />
+              <input type="number" min={1} value={previewQty} onChange={e => setPreviewQty(Math.max(1, num(e.target.value, 1)))} style={{ ...INPUT, width: "120px" }} />
             </div>
             <div style={{ background: "#F6F6F7", border: "1px solid #E3E3E3", borderRadius: "10px", padding: "12px 16px", minWidth: "230px" }}>
               <div style={{ fontSize: "11px", color: "#6B6B6B", fontWeight: 700, textTransform: "uppercase", letterSpacing: ".05em" }}>Live estimate</div>
@@ -339,7 +345,7 @@ export function ProductOptionsBuilder({ productId }: { productId: string }) {
                       {o.values.map((v, vi) => (
                         <tr key={v.id ?? `nv-${vi}`}>
                           <td style={TD}><input value={v.label} onChange={e => patchVal(oi, vi, { label: e.target.value })} placeholder="e.g. Coated Semigloss (C2S)" style={{ ...INPUT, width: "100%" }} /></td>
-                          <td style={TD}><input type="number" step="0.0001" value={v.price_delta} onChange={e => patchVal(oi, vi, { price_delta: Number(e.target.value) })} style={{ ...INPUT, width: "100px" }} /></td>
+                          <td style={TD}><input type="number" step="0.0001" value={v.price_delta} onChange={e => patchVal(oi, vi, { price_delta: num(e.target.value) })} style={{ ...INPUT, width: "100px" }} /></td>
                           <td style={TD}>
                             <select value={v.price_mode} onChange={e => patchVal(oi, vi, { price_mode: e.target.value as PriceMode })} style={{ ...INPUT, width: "auto" }}>
                               {(Object.keys(PRICE_MODE_LABEL) as PriceMode[]).map(m => <option key={m} value={m}>{PRICE_MODE_LABEL[m]}</option>)}
@@ -396,9 +402,9 @@ export function ProductOptionsBuilder({ productId }: { productId: string }) {
             {tiers.map((t, i) => (
               <div key={t.id ?? `nt-${i}`} style={{ display: "flex", gap: "10px", alignItems: "center" }}>
                 <span style={{ fontSize: "12px", color: "#6B6B6B", width: "60px" }}>From qty</span>
-                <input type="number" min={1} value={t.min_qty} onChange={e => setTiers(x => x.map((y, k) => k === i ? { ...y, min_qty: Number(e.target.value) } : y))} style={{ ...INPUT, width: "110px" }} />
+                <input type="number" min={1} value={t.min_qty} onChange={e => setTiers(x => x.map((y, k) => k === i ? { ...y, min_qty: Math.max(1, num(e.target.value, 1)) } : y))} style={{ ...INPUT, width: "110px" }} />
                 <span style={{ fontSize: "12px", color: "#6B6B6B" }}>unit $</span>
-                <input type="number" step="0.0001" min={0} value={t.unit_price} onChange={e => setTiers(x => x.map((y, k) => k === i ? { ...y, unit_price: Number(e.target.value) } : y))} style={{ ...INPUT, width: "130px" }} />
+                <input type="number" step="0.0001" min={0} value={t.unit_price} onChange={e => setTiers(x => x.map((y, k) => k === i ? { ...y, unit_price: Math.max(0, num(e.target.value)) } : y))} style={{ ...INPUT, width: "130px" }} />
                 <button onClick={() => setTiers(x => x.filter((_, k) => k !== i))} style={{ ...ICON_BTN, color: "#B91C1C" }}>✕</button>
               </div>
             ))}
