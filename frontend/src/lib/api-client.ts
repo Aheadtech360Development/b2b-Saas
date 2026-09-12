@@ -152,6 +152,55 @@ export class ApiClientError extends Error {
   }
 }
 
+/** The two error shapes the backend can produce. */
+interface ApiErrorBody {
+  /** From the app's own AppException handler. */
+  error?: { code: string; message: string; details?: unknown[] };
+  /** From FastAPI: a string for HTTPException, a list for a 422. */
+  detail?: string | { loc?: (string | number)[]; msg?: string }[] | Record<string, unknown>;
+}
+
+/**
+ * Pull a message a human can act on out of whichever shape came back.
+ *
+ * Only the `error` envelope used to be read, so every `HTTPException` — which
+ * FastAPI returns as `{detail: "..."}` — and every validation failure — a list
+ * under the same key — surfaced as a bare "Request failed". The reason was
+ * always in the response; nothing was reading it.
+ */
+function readApiError(body: ApiErrorBody, fallback: string) {
+  if (body.error?.message) {
+    return { code: body.error.code ?? "UNKNOWN", message: body.error.message, details: body.error.details };
+  }
+
+  const detail = body.detail;
+
+  if (typeof detail === "string" && detail.trim()) {
+    return { code: "ERROR", message: detail, details: undefined };
+  }
+
+  // 422: name the field that was rejected, not just the complaint.
+  if (Array.isArray(detail) && detail.length) {
+    const parts = detail.slice(0, 3).map((d) => {
+      const where = (d.loc ?? []).filter((p) => p !== "body").join(".");
+      return where ? `${where}: ${d.msg ?? "invalid"}` : (d.msg ?? "invalid");
+    });
+    const more = detail.length > 3 ? ` (+${detail.length - 3} more)` : "";
+    return { code: "VALIDATION_ERROR", message: parts.join("; ") + more, details: detail };
+  }
+
+  // Some endpoints raise HTTPException with a dict detail, e.g. a store that
+  // hasn't finished payment setup.
+  if (detail && typeof detail === "object" && !Array.isArray(detail)) {
+    const d = detail as Record<string, unknown>;
+    if (typeof d.message === "string") {
+      return { code: typeof d.code === "string" ? d.code : "ERROR", message: d.message, details: undefined };
+    }
+  }
+
+  return { code: "UNKNOWN", message: fallback || "Request failed", details: undefined };
+}
+
 async function request<T>(url: string, options: RequestOptions = {}): Promise<T> {
   const { skipAuth = false, ...fetchOptions } = options;
 
@@ -193,18 +242,14 @@ async function request<T>(url: string, options: RequestOptions = {}): Promise<T>
   }
 
   if (!response.ok) {
-    let errorBody: { error?: { code: string; message: string; details?: unknown[] } };
+    let body: ApiErrorBody;
     try {
-      errorBody = (await response.json()) as typeof errorBody;
+      body = (await response.json()) as ApiErrorBody;
     } catch {
-      errorBody = { error: { code: "UNKNOWN", message: response.statusText } };
+      body = { error: { code: "UNKNOWN", message: response.statusText } };
     }
-    throw new ApiClientError(
-      response.status,
-      errorBody.error?.code ?? "UNKNOWN",
-      errorBody.error?.message ?? "Request failed",
-      errorBody.error?.details
-    );
+    const { code, message, details } = readApiError(body, response.statusText);
+    throw new ApiClientError(response.status, code, message, details);
   }
 
   if (response.status === 204) return undefined as T;

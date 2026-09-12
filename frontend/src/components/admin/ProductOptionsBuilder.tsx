@@ -94,7 +94,14 @@ export function ProductOptionsBuilder({ productId }: { productId: string }) {
       setOptions(cfg.options ?? []);
       setTiers(cfg.qty_tiers ?? []);
       setRules(cfg.rules ?? []);
-    } catch { /* new product / not configured yet */ }
+    } catch (e) {
+      // A product with nothing configured yet 404s, which is normal. Anything
+      // else means the page is showing blank state that isn't real, so say so.
+      const err = e as { status?: number; message?: string };
+      if (err?.status && err.status !== 404) {
+        setMsg({ ok: false, text: `Could not load this product's options — ${err.message ?? "please reload"}` });
+      }
+    }
     setLoading(false);
   }, [productId]);
   useEffect(() => { load(); }, [load]);
@@ -217,7 +224,15 @@ export function ProductOptionsBuilder({ productId }: { productId: string }) {
       });
       flash("Configuration saved");
       load();
-    } catch { flash("Could not save", false); }
+    } catch (e) {
+      const err = e as { message?: string; status?: number; detail?: string };
+      const detail = err?.detail || err?.message || "";
+      setMsg({
+        ok: false,
+        text: detail ? `Could not save — ${detail}` : "Could not save. Please try again.",
+      });
+      // Left on screen: a save failure needs reading, not a 2.5s flash.
+    }
     setSaving(false);
   }
 
