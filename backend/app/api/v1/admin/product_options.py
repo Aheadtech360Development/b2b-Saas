@@ -224,6 +224,11 @@ async def save_product_config(
             raise HTTPException(status_code=400, detail=f"Unknown input_type '{o_in.input_type}'")
 
         opt = existing_opts.get(str(o_in.id)) if o_in.id else None
+        # A group that already existed came in through selectinload, so its
+        # values are in memory. A brand-new one has none — and asking for them
+        # after the flush would fire a lazy load, which async SQLAlchemy cannot
+        # do mid-request (MissingGreenlet).
+        is_new_option = opt is None
         if opt is None:
             opt = ProductOption(product_id=product_id)
             db.add(opt)
@@ -237,7 +242,7 @@ async def save_product_config(
         keep_opts.add(str(opt.id))
         opt_ids.append(opt.id)
 
-        existing_vals = {str(v.id): v for v in (opt.values or [])}
+        existing_vals = {} if is_new_option else {str(v.id): v for v in (opt.values or [])}
         keep_vals: set[str] = set()
         this_opt_vals: list[uuid.UUID] = []
         for vpos, v_in in enumerate(o_in.values):

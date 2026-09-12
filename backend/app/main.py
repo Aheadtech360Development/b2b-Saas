@@ -789,6 +789,27 @@ app.add_middleware(AuthMiddleware)
 app.add_middleware(TenantMiddleware)
 
 
+@app.middleware("http")
+async def _unhandled_to_json(request: Request, call_next):
+    """Turn an unhandled exception into a JSON 500 the browser can read.
+
+    A BaseHTTPMiddleware re-raises whatever the route threw, so it escapes the
+    app's exception handlers and Starlette's own error middleware answers from
+    outside the CORS layer — a response with no CORS headers. The browser then
+    reports "Failed to fetch" and the real error is only visible in the server
+    log. Answering here, inside CORS, means a 500 arrives as a 500 and says so.
+    """
+    try:
+        return await call_next(request)
+    except Exception:
+        import logging as _l
+        _l.getLogger(__name__).exception("Unhandled error on %s %s", request.method, request.url.path)
+        return JSONResponse(
+            status_code=500,
+            content={"error": {"code": "INTERNAL_ERROR", "message": "Something went wrong on our side."}},
+        )
+
+
 # ── Global exception handlers ─────────────────────────────────────────────────
 @app.exception_handler(AppException)
 async def app_exception_handler(request: Request, exc: AppException) -> JSONResponse:
