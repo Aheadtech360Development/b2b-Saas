@@ -16,23 +16,7 @@ import { ConfigurationDetail } from "@/components/shared/ConfigurationDetail";
 
 type GuestCartEntry = { variant_id: string; quantity: number; product_id: string; product_name: string; slug: string; color: string | null; size: string | null; unit_price: number; image_url?: string | null };
 
-interface SavedCard {
-  id: string;
-  brand: string;
-  last4: string;
-  exp_month: string;
-  exp_year: string;
-  is_default: boolean;
-}
 
-function brandDisplayName(brand: string): string {
-  const b = brand.toLowerCase();
-  if (b === "visa") return "Visa";
-  if (b === "mastercard") return "Mastercard";
-  if (b === "amex" || b === "american express") return "Amex";
-  if (b === "discover") return "Discover";
-  return brand.charAt(0).toUpperCase() + brand.slice(1);
-}
 
 const SHIPPING_LABELS: Record<string, string> = {
   standard: "Standard Ground",
@@ -87,7 +71,6 @@ export default function CheckoutReviewPage() {
 
   const [cart, setCart] = useState<Cart | null>(null);
   const [guestEntries, setGuestEntries] = useState<GuestCartEntry[]>([]);
-  const [savedCards, setSavedCards] = useState<SavedCard[]>([]);
   const [isPlacing, setIsPlacing] = useState(false);
   /** Set the moment Stripe confirms the charge — see `handlePlaceOrder`. */
   const [paidIntentId, setPaidIntentId] = useState<string | null>(null);
@@ -126,12 +109,6 @@ export default function CheckoutReviewPage() {
         const entries: GuestCartEntry[] = JSON.parse(localStorage.getItem("af_guest_cart") || "[]");
         setGuestEntries(entries);
       } catch { /* ignore */ }
-    }
-  }, [isGuest]);
-
-  useEffect(() => {
-    if (!isGuest) {
-      apiClient.get<SavedCard[]>("/api/v1/account/payment-methods").then(setSavedCards).catch(() => {});
     }
   }, [isGuest]);
 
@@ -380,13 +357,10 @@ export default function CheckoutReviewPage() {
     ? guestEntries.map(e => ({ name: e.product_name, color: e.color, size: e.size, qty: e.quantity, lineTotal: e.unit_price * e.quantity, imageUrl: e.image_url ?? null }))
     : (cart?.items ?? []).map(i => ({ name: i.product_name, color: i.color ?? null, size: i.size ?? null, qty: i.quantity, lineTotal: Number(i.line_total), imageUrl: i.product_image_url ?? null }));
 
-  const selectedCard = savedCards.find(c => c.id === savedCardId);
   const paymentLabel = paymentMethod === "ach"
     ? `ACH / Bank Transfer${achAccountLast4 ? ` — ****${achAccountLast4}` : ""}`
     : paymentMethod === "net_30"
     ? "Net 30 — Pay by Invoice"
-    : selectedCard
-    ? `${brandDisplayName(selectedCard.brand)} •••• ${selectedCard.last4}`
     : "Credit Card";
 
   // Priority: stored tax amount → fresh re-fetch amount → rate × (subtotal-discount)

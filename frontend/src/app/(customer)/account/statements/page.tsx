@@ -39,7 +39,6 @@ export default function StatementsPage() {
   const hasLoaded = useRef(false);
   const [data, setData] = useState<StatementData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [syncing, setSyncing] = useState(false);
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
@@ -69,23 +68,6 @@ export default function StatementsPage() {
       setMessage({ type: "error", text: "Failed to load statements." });
     } finally {
       setLoading(false);
-    }
-  }
-
-  async function handleSyncQB() {
-    setSyncing(true);
-    setMessage(null);
-    try {
-      const result = await apiClient.post<{ message: string; synced: number }>(
-        "/api/v1/account/statements/sync-qb",
-        {}
-      );
-      setMessage({ type: "success", text: result.message });
-      await loadStatements(dateFrom || undefined, dateTo || undefined);
-    } catch {
-      setMessage({ type: "error", text: "QB sync failed." });
-    } finally {
-      setSyncing(false);
     }
   }
 

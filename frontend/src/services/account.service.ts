@@ -67,12 +67,6 @@ export const accountService = {
   },
 
   // Payment methods
-  async getPaymentMethods() {
-    return apiClient.get("/api/v1/account/payment-methods");
-  },
-  async deletePaymentMethod(id: string) {
-    return apiClient.delete(`/api/v1/account/payment-methods/${id}`);
-  },
 
   // Messages
   async getMessages() {

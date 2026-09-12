@@ -12,15 +12,6 @@ import type { Cart } from "@/types/order.types";
 
 type GuestCartEntry = { unit_price: number; quantity: number; product_name?: string; color?: string | null; size?: string | null; image_url?: string | null };
 
-interface SavedCard {
-  id: string;
-  brand: string;
-  last4: string;
-  exp_month: string;
-  exp_year: string;
-  name: string | null;
-  is_default: boolean;
-}
 
 interface SavedAch {
   bank_name: string;
@@ -68,8 +59,6 @@ export default function CheckoutPaymentPage() {
   const [paymentType, setPaymentType] = useState<"card" | "ach" | "net_30">("card");
   const [net30Enabled, setNet30Enabled] = useState(false);
 
-  const [savedCards, setSavedCards] = useState<SavedCard[]>([]);
-  const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
   const [showNewCardForm, setShowNewCardForm] = useState(false);
   const [loadingCards, setLoadingCards] = useState(true);
   const [cart, setCart] = useState<Cart | null>(null);
@@ -111,20 +100,10 @@ export default function CheckoutPaymentPage() {
       return;
     }
 
-    apiClient
-      .get<SavedCard[]>("/api/v1/account/payment-methods")
-      .then((cards) => {
-        setSavedCards(cards);
-        if (cards.length > 0) {
-          const def = cards.find(c => c.is_default) ?? cards[0]!;
-          setSelectedCardId(def.id);
-          setShowNewCardForm(false);
-        } else {
-          setShowNewCardForm(true);
-        }
-      })
-      .catch(() => setShowNewCardForm(true))
-      .finally(() => setLoadingCards(false));
+    // Cards are entered at checkout through Stripe and never stored, so there is
+    // no wallet to read — the new-card form is always the one shown.
+    setShowNewCardForm(true);
+    setLoadingCards(false);
 
     apiClient
       .get<SavedAch>("/api/v1/account/ach-method")
