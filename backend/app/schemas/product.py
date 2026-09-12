@@ -143,6 +143,15 @@ class ProductDetail(BaseModel):
     review_count: int = 0
     avg_rating: float = 0.0
     gang_sheet_enabled: bool = False
+    # Per-product gang-sheet setup — the builder reads these to know which sizes
+    # and settings this product offers.
+    gang_sheet_type: str | None = None
+    gang_sheet_config: dict | None = None
+    # How the product is sold. The storefront needs this to decide between the
+    # variant matrix and the options configurator — a response_model drops any
+    # field it doesn't declare, so leaving it out hid configurable products.
+    pricing_mode: str = "variant"
+    base_price: float | None = None
 
     model_config = {"from_attributes": True}
 
