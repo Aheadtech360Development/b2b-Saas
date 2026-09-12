@@ -299,11 +299,16 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
   function clampSnap(xIn: number, yIn: number, fw: number, fh: number) {
     const { snap: s, imageMargin: g, size: sz, sheetLen: len } = stateRef.current;
     if (!sz) return { x: round3(xIn), y: round3(yIn) };
-    let x = clamp(xIn, 0, sz.width_in - fw);
-    let y = clamp(yIn, 0, len - fh);
+    // Keep the piece inside the safe area — the bleed is trimmed away, so a
+    // design dragged into it comes back from the printer with a slice missing.
+    const b = sz.bleed_in ?? 0;
+    const lo = b, hiX = Math.max(b, sz.width_in - b - fw), hiY = Math.max(b, len - b - fh);
+    let x = clamp(xIn, lo, hiX);
+    let y = clamp(yIn, lo, hiY);
     if (s && g > 0) {
-      x = clamp(Math.round(x / g) * g, 0, sz.width_in - fw);
-      y = clamp(Math.round(y / g) * g, 0, len - fh);
+      // Snap from the safe edge so the grid lines up with where printing starts.
+      x = clamp(lo + Math.round((x - lo) / g) * g, lo, hiX);
+      y = clamp(lo + Math.round((y - lo) / g) * g, lo, hiY);
     }
     return { x: round3(x), y: round3(y) };
   }
@@ -316,12 +321,13 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
   function firstFreeSpot(w: number, h: number): { x: number; y: number } {
     const g = Math.max(imageMargin, 0.25);
     const { placements: pl } = stateRef.current;
-    for (let y = 0; y + h <= sheetLen; y += g) {
-      for (let x = 0; x + w <= (size?.width_in ?? 0); x += g) {
+    const b = size?.bleed_in ?? 0;
+    for (let y = b; y + h <= sheetLen - b; y += g) {
+      for (let x = b; x + w <= (size?.width_in ?? 0) - b; x += g) {
         if (!pl.some((p) => overlaps(p, x, y, w, h, g))) return { x: round3(x), y: round3(y) };
       }
     }
-    return { x: 0, y: 0 };
+    return { x: round3(b), y: round3(b) };
   }
 
   /** Default print size for a fresh upload: aim near 300 DPI, capped to the sheet. */
@@ -783,12 +789,12 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
     if (!p || !size) return;
     const g = Math.max(imageMargin, 0.1);
     const fp = footprint(p);
-    const cols = Math.max(1, Math.floor((size.width_in + g) / (fp.w + g)));
-    const rows = Math.max(1, Math.floor((sheetLen + g) / (fp.h + g)));
+    const cols = Math.max(1, Math.floor((size.width_in - bleed * 2 + g) / (fp.w + g)));
+    const rows = Math.max(1, Math.floor((sheetLen - bleed * 2 + g) / (fp.h + g)));
     const out: Placement[] = [];
     for (let r = 0; r < rows; r++) {
       for (let c = 0; c < cols; c++) {
-        out.push({ ...p, id: nextId.current++, x_in: round3(c * (fp.w + g)), y_in: round3(r * (fp.h + g)) });
+        out.push({ ...p, id: nextId.current++, x_in: round3(bleed + c * (fp.w + g)), y_in: round3(bleed + r * (fp.h + g)) });
       }
     }
     setPlacements((list) => [...list.filter((q) => q.id !== id), ...out]);
@@ -800,7 +806,11 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
   // plotter has room to cut each piece out.
   function autoNest(extraGap = 0) {
     if (!size) return;
-    const g = imageMargin + extraGap, W = size.width_in;
+    // Bleed is trimmed off the sheet, so packing has to start inside it — a
+    // shelf beginning at the sheet edge puts the first row into the offcut.
+    const x0 = bleed, y0 = bleed;
+    const x1 = size.width_in - bleed, y1 = sheetLen - bleed;
+    const g = imageMargin + extraGap, W = x1 - x0;
     const items = stateRef.current.placements.map((p) => {
       let w = p.w_in, h = p.h_in, rot = 0;
       if (h > w && p.h_in <= W) { w = p.h_in; h = p.w_in; rot = 90; }
@@ -810,12 +820,12 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
     const out: Placement[] = [];
     for (const it of items) {
       if (it.w > W) { out.push(it.p); continue; }
-      let shelf = shelves.find((s) => s.cursorX + it.w <= W + 1e-6 && it.h <= s.height + 1e-6);
+      let shelf = shelves.find((s) => s.cursorX + it.w <= x1 + 1e-6 && it.h <= s.height + 1e-6);
       if (!shelf) {
         const prev = shelves[shelves.length - 1];
-        const y = prev ? prev.y + prev.height + g : 0;
-        if (y + it.h > sheetLen) { out.push(it.p); continue; }
-        shelf = { y, height: it.h, cursorX: 0 };
+        const y = prev ? prev.y + prev.height + g : y0;
+        if (y + it.h > y1) { out.push(it.p); continue; }
+        shelf = { y, height: it.h, cursorX: x0 };
         shelves.push(shelf);
       }
       out.push({ ...it.p, x_in: round3(shelf.cursorX), y_in: round3(shelf.y), rotation: it.rot });
@@ -830,7 +840,9 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
   function autoBuild() {
     if (!size) return;
     const g = Math.min(Math.max(imageMargin, 0.1), 3); // sane cap so a huge margin can't break the fill
-    const W = size.width_in;
+    const bx0 = bleed, by0 = bleed;
+    const bx1 = size.width_in - bleed, by1 = sheetLen - bleed;
+    const W = bx1 - bx0;
     // Base set: each unique design currently on the sheet at its size; if nothing
     // is placed yet, every upload at its default print size.
     const base: { uid: string; w: number; h: number }[] = [];
@@ -854,12 +866,12 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
       let w = b.w, h = b.h, rot = 0;
       if (h > w && b.h <= W) { w = b.h; h = b.w; rot = 90; } // rotate tall to fit width
       if (w > W) { fails++; if (fails >= base.length) break; continue; }
-      let shelf = shelves.find((s) => s.cursorX + w <= W + 1e-6 && h <= s.height + 1e-6);
+      let shelf = shelves.find((s) => s.cursorX + w <= bx1 + 1e-6 && h <= s.height + 1e-6);
       if (!shelf) {
         const prev = shelves[shelves.length - 1];
-        const y = prev ? prev.y + prev.height + g : 0;
-        if (y + h > sheetLen) { fails++; if (fails >= base.length) break; continue; }
-        shelf = { y, height: h, cursorX: 0 };
+        const y = prev ? prev.y + prev.height + g : by0;
+        if (y + h > by1) { fails++; if (fails >= base.length) break; continue; }
+        shelf = { y, height: h, cursorX: bx0 };
         shelves.push(shelf);
       }
       out.push({ id: nextId.current++, uid: b.uid, x_in: round3(shelf.cursorX), y_in: round3(shelf.y), w_in: b.w, h_in: b.h, rotation: rot });

@@ -146,14 +146,28 @@ export function GangSheetCanvas({ sheet, artworks, value, onChange, readOnly }: 
   const sheetHpx = sheet.height_in * ppi;
   const bleedPx = sheet.bleed_in * ppi;
 
+  /**
+   * The area that actually prints — the sheet minus its bleed.
+   *
+   * Bleed is trimmed off, so anything placed in it is cut away. Everything that
+   * positions a piece works in these bounds, not the sheet's, which is why the
+   * dashed line is a real edge rather than a decoration.
+   */
+  function printable(sh: { width_in: number; height_in: number; bleed_in: number }) {
+    const b = Math.max(0, sh.bleed_in || 0);
+    return { x0: b, y0: b, x1: sh.width_in - b, y1: sh.height_in - b, w: sh.width_in - 2 * b, h: sh.height_in - 2 * b };
+  }
+
   function clampSnap(xIn: number, yIn: number, fw: number, fh: number) {
     const { snap: s, sheet: sh } = stateRef.current;
-    let x = clamp(xIn, 0, sh.width_in - fw);
-    let y = clamp(yIn, 0, sh.height_in - fh);
+    const a = printable(sh);
+    let x = clamp(xIn, a.x0, Math.max(a.x0, a.x1 - fw));
+    let y = clamp(yIn, a.y0, Math.max(a.y0, a.y1 - fh));
     if (s && sh.spacing_in > 0) {
+      // Snap from the safe edge, so the grid starts where printing does.
       const g = sh.spacing_in;
-      x = clamp(Math.round(x / g) * g, 0, sh.width_in - fw);
-      y = clamp(Math.round(y / g) * g, 0, sh.height_in - fh);
+      x = clamp(a.x0 + Math.round((x - a.x0) / g) * g, a.x0, Math.max(a.x0, a.x1 - fw));
+      y = clamp(a.y0 + Math.round((y - a.y0) / g) * g, a.y0, Math.max(a.y0, a.y1 - fh));
     }
     return { x: round3(x), y: round3(y) };
   }
@@ -205,14 +219,18 @@ export function GangSheetCanvas({ sheet, artworks, value, onChange, readOnly }: 
       let baseW: number, baseH: number;
       if (ev.shiftKey) {
         // Free: width and height move independently, clamped to the sheet.
-        const newFw = clamp(origFp.w + dxIn, MIN_IN, sh.width_in - cur.x_in);
-        const newFh = clamp(origFp.h + dyIn, MIN_IN, sh.height_in - cur.y_in);
+        // Resizing must stop at the safe edge too, or a piece can be dragged
+        // small and then stretched back out into the bleed.
+        const ra = printable(sh);
+        const newFw = clamp(origFp.w + dxIn, MIN_IN, ra.x1 - cur.x_in);
+        const newFh = clamp(origFp.h + dyIn, MIN_IN, ra.y1 - cur.y_in);
         // footprint → base (undo rotation)
         baseW = rotated ? newFh : newFw;
         baseH = rotated ? newFw : newFh;
       } else {
         // Proportional: scale from the horizontal drag, capped by both axes.
-        const maxScale = Math.min((sh.width_in - cur.x_in) / origFp.w, (sh.height_in - cur.y_in) / origFp.h);
+        const sa = printable(sh);
+        const maxScale = Math.min((sa.x1 - cur.x_in) / origFp.w, (sa.y1 - cur.y_in) / origFp.h);
         const scale = clamp((origFp.w + dxIn) / origFp.w, MIN_IN / origFp.w, maxScale);
         baseW = orig.w_in * scale;
         baseH = orig.h_in * scale;
@@ -248,12 +266,13 @@ export function GangSheetCanvas({ sheet, artworks, value, onChange, readOnly }: 
   }
   function firstFreeSpot(w: number, h: number): { x: number; y: number } {
     const g = Math.max(sheet.spacing_in, 0.25);
-    for (let y = 0; y + h <= sheet.height_in; y += g) {
-      for (let x = 0; x + w <= sheet.width_in; x += g) {
+    const a = printable(sheet);
+    for (let y = a.y0; y + h <= a.y1; y += g) {
+      for (let x = a.x0; x + w <= a.x1; x += g) {
         if (!value.some((p) => overlaps(p, x, y, w, h, g))) return { x: round3(x), y: round3(y) };
       }
     }
-    return { x: 0, y: 0 };
+    return { x: round3(a.x0), y: round3(a.y0) };
   }
   function overlaps(p: Placement, x: number, y: number, w: number, h: number, gap: number): boolean {
     const fp = footprint(p);
@@ -262,7 +281,10 @@ export function GangSheetCanvas({ sheet, artworks, value, onChange, readOnly }: 
 
   // Auto-nest (Phase 3): first-fit-decreasing-height shelf packing with rotation.
   function autoNest() {
-    const g = sheet.spacing_in, W = sheet.width_in;
+    // Pack inside the printable area, not the sheet — a shelf starting at the
+    // sheet edge puts the first row straight into the bleed.
+    const area = printable(sheet);
+    const g = sheet.spacing_in, W = area.w;
     type Inst = { artwork_id: string; w: number; h: number; rot: number };
     const items: Inst[] = [];
     for (const a of artworks) {
@@ -278,12 +300,12 @@ export function GangSheetCanvas({ sheet, artworks, value, onChange, readOnly }: 
     const out: Placement[] = [];
     for (const it of items) {
       if (it.w > W) continue;
-      let shelf = shelves.find((s) => s.cursorX + it.w <= W + 1e-6 && it.h <= s.height + 1e-6);
+      let shelf = shelves.find((s) => s.cursorX + it.w <= area.x1 + 1e-6 && it.h <= s.height + 1e-6);
       if (!shelf) {
         const prev = shelves[shelves.length - 1];
-        const y = prev ? prev.y + prev.height + g : 0;
-        if (y + it.h > sheet.height_in) continue;
-        shelf = { y, height: it.h, cursorX: 0 };
+        const y = prev ? prev.y + prev.height + g : area.y0;
+        if (y + it.h > area.y1) continue;
+        shelf = { y, height: it.h, cursorX: area.x0 };
         shelves.push(shelf);
       }
       const base = it.rot % 180 === 0 ? { w: it.w, h: it.h } : { w: it.h, h: it.w };
