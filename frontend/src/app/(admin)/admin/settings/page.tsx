@@ -126,8 +126,8 @@ export default function AdminSettingsPage() {
         <div className="px-6 py-4 border-b border-gray-100">
           <h2 className="font-semibold text-gray-900">Email</h2>
           <p className="text-sm text-gray-500 mt-1">
-            Connect your own Resend account so order confirmations reach your customers from
-            your domain, and tell us where to send your own alerts — new orders, wholesale
+            Emails to your customers go out under your store&apos;s name, and replies come back
+            to you. Set the address where your own alerts should land — new orders, wholesale
             applications, contact messages and low stock.
           </p>
         </div>

@@ -199,16 +199,12 @@ class EmailService:
         reply_to: str | None = None,
         attachments: list[dict] | None = None,
     ) -> bool:
-        # The brand's own Resend account when it has connected one, so its mail
-        # leaves from its own domain and is billed to it; the platform key is the
-        # fallback for brands that haven't set one up.
         cfg = _tenant_email_cfg()
-        api_key = (cfg.get("api_key") or "").strip() or settings.RESEND_API_KEY
-        if not api_key:
-            logger.warning("No Resend key for this brand — skipping email to %s", to_email)
+        if not settings.RESEND_API_KEY:
+            logger.warning("RESEND_API_KEY not set — skipping email to %s", to_email)
             return False
 
-        resend.api_key = api_key
+        resend.api_key = settings.RESEND_API_KEY
 
         # Rebrand outbound copy to the tenant this email belongs to. The bodies were
         # written for a single store and still carry that store's name and phone;
@@ -221,13 +217,16 @@ class EmailService:
         if body_text:
             body_text = _rebrand_text(body_text, brand)
 
-        # A verified sender on the brand's own domain, when it has one. Sending
-        # every brand from the platform address is what made replies and
-        # deliverability everyone else's problem.
-        from_email = (cfg.get("from_email") or "").strip() or settings.EMAIL_FROM_ADDRESS
-        from_addr = f"{from_name} <{from_email}>"
+        # The sender address stays on the platform's verified domain — it's the
+        # only one this Resend account may send from. The brand's identity rides
+        # on the display name, and its reply-to points replies back to it.
+        from_addr = f"{from_name} <{settings.EMAIL_FROM_ADDRESS}>"
         if not reply_to:
-            reply_to = (cfg.get("reply_to") or "").strip() or None
+            reply_to = (
+                (cfg.get("reply_to") or "").strip()
+                or (cfg.get("notify_email") or "").strip()
+                or None
+            )
 
         # In dev/test: redirect all emails to admin notification address
         recipient = to_email

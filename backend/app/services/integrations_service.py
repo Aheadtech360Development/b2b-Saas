@@ -1,9 +1,13 @@
-"""Per-brand third-party connections — suppliers and shipping carriers.
+"""Per-brand third-party settings — suppliers, shipping carriers, email.
 
-Every brand connects its own accounts. Nothing is shared with the platform: a
-brand's supplier catalogue comes from its own S&S credentials, and its labels
-are bought with its own carrier account, so the postage bills to it and not to
-us.
+Suppliers and carriers are accounts each brand connects for itself: its
+catalogue comes from its own S&S credentials and its labels are bought on its
+own carrier account, so the postage bills to it and not to us.
+
+Email is deliberately the other way round. Every brand's mail leaves through the
+platform's single Resend account, because that account owns the verified sending
+domain; what a brand sets here is its identity on the message and the address
+its own alerts go to.
 
 Storage follows the pattern already used for shipping: one tenant-namespaced
 settings key holding a JSON blob, so adding a provider needs no migration.
@@ -75,26 +79,26 @@ PROVIDERS: dict[str, Provider] = {
                   "Create one in the S&S portal under Account → API Access."),
         ],
     ),
+    # Mail always leaves through the platform's own Resend account — a brand is
+    # never asked for a key, and the sender stays on our verified domain because
+    # that is the only domain this account can send from. What IS per-brand is
+    # the identity on the message and where the brand's own alerts go.
     "resend": Provider(
         key="resend",
-        name="Resend (email)",
+        name="Email notifications",
         category="email",
-        blurb="Send order confirmations and alerts from your own domain, and choose where your own notifications land.",
-        docs_url="https://resend.com/api-keys",
+        blurb="Your store's name on the emails your customers receive, and where your own alerts are sent.",
         logo="✉️",
         fields=[
-            Field("api_key", "Resend API key", "secret",
-                  "From resend.com → API Keys. Leave blank to keep using the platform's account."),
-            Field("from_email", "Send from", "text",
-                  "A verified sender on your own domain, e.g. orders@yourbrand.com.",
-                  required=False, placeholder="orders@yourbrand.com"),
-            Field("from_name", "Sender name", "text",
-                  "Defaults to your store name.", required=False),
-            Field("reply_to", "Reply-to", "text",
-                  "Where customer replies go, if different from the sender.", required=False),
-            Field("notify_email", "Notify me at", "text",
-                  "Your own alerts: new orders, wholesale applications, contact messages, low stock.",
+            Field("notify_email", "Send my alerts to", "text",
+                  "New orders, wholesale applications, contact messages and low stock come here.",
                   required=False, placeholder="you@yourbrand.com"),
+            Field("from_name", "Sender name", "text",
+                  "Shown as the sender on customer emails. Defaults to your store name.",
+                  required=False),
+            Field("reply_to", "Reply-to address", "text",
+                  "Where a customer's reply lands. Defaults to your alerts address.",
+                  required=False, placeholder="support@yourbrand.com"),
         ],
     ),
     "ups": Provider(
@@ -305,44 +309,17 @@ async def _verify_ss(values: dict) -> dict:
 
 @verifier("resend")
 async def _verify_resend(values: dict) -> dict:
-    """Ask Resend who the key belongs to — a cheap call that proves it works."""
-    import httpx
-
-    key = (values.get("api_key") or "").strip()
-    if not key:
-        return {"ok": True, "message": "No key set — this store will send through the platform account."}
-
-    async with httpx.AsyncClient(timeout=20) as client:
-        resp = await client.get(
-            "https://api.resend.com/domains",
-            headers={"Authorization": f"Bearer {key}"},
-        )
-    if resp.status_code in (401, 403):
-        return {"ok": False, "message": "Resend rejected this API key."}
-    if resp.status_code >= 400:
-        return {"ok": False, "message": f"Resend returned {resp.status_code}: {resp.text[:160]}"}
-
-    try:
-        domains = [d.get("name") for d in (resp.json().get("data") or []) if d.get("name")]
-    except Exception:
-        domains = []
-
-    sender = (values.get("from_email") or "").strip()
-    if sender and domains:
-        host = sender.rsplit("@", 1)[-1].lower()
-        if not any(host == d.lower() or host.endswith("." + d.lower()) for d in domains):
-            return {
-                "ok": False,
-                "message": (
-                    f"'{sender}' isn't on a domain verified in this Resend account "
-                    f"({', '.join(domains)}). Resend will refuse to send from it."
-                ),
-            }
-
+    """Nothing to authenticate — this is the brand's own settings, not a key."""
+    to = (values.get("notify_email") or "").strip()
+    if to and "@" not in to:
+        return {"ok": False, "message": f"'{to}' doesn't look like an email address."}
+    reply = (values.get("reply_to") or "").strip()
+    if reply and "@" not in reply:
+        return {"ok": False, "message": f"'{reply}' doesn't look like an email address."}
     return {
         "ok": True,
-        "message": "Connected to Resend"
-                   + (f" — verified: {', '.join(domains)}." if domains else ". Verify a domain to send from your own address."),
+        "message": f"Alerts will go to {to}." if to
+                   else "Saved. Add an address to receive your own order and application alerts.",
     }
 
 
