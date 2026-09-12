@@ -64,6 +64,88 @@ const num = (v: string, fallback = 0) => {
   return Number.isFinite(n) ? n : fallback;
 };
 
+
+/**
+ * Starter sets for the product types brands ask for most.
+ *
+ * Typing thirty rows by hand before you can see anything work is the slowest
+ * part of adding a product, and it's the same thirty rows every time. A
+ * template drops in a working configuration to edit rather than a blank page to
+ * fill — prices are realistic defaults, meant to be changed.
+ */
+interface Template { key: string; label: string; blurb: string; base: number; options: Opt[]; tiers: Tier[] }
+
+const V = (
+  label: string, price = 0, mode: PriceMode = "per_unit", isDefault = false,
+): OptValue => ({ label, price_delta: price, price_mode: mode, is_default: isDefault, enabled: true });
+
+const G = (name: string, input_type: InputType, values: OptValue[], required = true): Opt =>
+  ({ name, input_type, required, is_active: true, values });
+
+const TEMPLATES: Template[] = [
+  {
+    key: "yard_signs",
+    label: "Yard signs",
+    blurb: "Size, material, sides, stakes, grommets, turnaround",
+    base: 8,
+    tiers: [
+      { min_qty: 1, unit_price: 8 }, { min_qty: 5, unit_price: 6.5 },
+      { min_qty: 10, unit_price: 5.4 }, { min_qty: 25, unit_price: 4.8 },
+      { min_qty: 50, unit_price: 4.2 }, { min_qty: 100, unit_price: 3.6 },
+      { min_qty: 250, unit_price: 3.1 }, { min_qty: 500, unit_price: 2.85 },
+    ],
+    options: [
+      G("Size", "radio", [V("12 × 18", 0, "per_unit", true), V("18 × 24"), V("24 × 18"), V("24 × 36", 4)]),
+      G("Material", "radio", [V("4mm Coroplast", 0, "per_unit", true), V("10mm Coroplast", 2.5), V("3mm PVC", 6), V("Aluminium", 14)]),
+      G("Printed sides", "radio", [V("Single sided", 0, "per_unit", true), V("Double sided", 2)]),
+      G("H-Stake", "radio", [V("No stake", 0, "per_unit", true), V("1 stake per sign", 1.25)]),
+      G("Grommets", "select", [V("None", 0, "per_unit", true), V("Top 2 corners", 0.5), V("All 4 corners", 0.9)], false),
+      G("Rounded corners", "checkbox", [V("Round the corners", 0.35)], false),
+      G("Turnaround", "radio", [V("Standard (5 days)", 0, "percent", true), V("3-day rush", 25, "percent"), V("Next day", 60, "percent")]),
+      G("Artwork", "radio", [V("I'll upload my design", 0, "flat", true), V("Design it for me", 45, "flat")]),
+    ],
+  },
+  {
+    key: "business_cards",
+    label: "Business cards",
+    blurb: "Stock, coating, corners, finishing, turnaround",
+    base: 0.12,
+    tiers: [
+      { min_qty: 100, unit_price: 0.12 }, { min_qty: 250, unit_price: 0.08 },
+      { min_qty: 500, unit_price: 0.06 }, { min_qty: 1000, unit_price: 0.042 },
+      { min_qty: 2500, unit_price: 0.032 }, { min_qty: 5000, unit_price: 0.025 },
+    ],
+    options: [
+      G("Paper stock", "radio", [V("14pt Coated", 0, "per_unit", true), V("16pt Coated", 0.01), V("18pt Uncoated", 0.018), V("32pt Ultra Thick", 0.06)]),
+      G("Coating", "radio", [V("Matte", 0, "per_unit", true), V("Gloss UV", 0.008), V("Soft Touch", 0.022), V("No coating")]),
+      G("Printed sides", "radio", [V("Front only", 0, "per_unit", true), V("Both sides", 0.01)]),
+      G("Corners", "radio", [V("Square", 0, "per_unit", true), V("Rounded", 0.012)]),
+      G("Finishing", "checkbox", [V("Spot UV", 0.03), V("Foil stamping", 0.05)], false),
+      G("Turnaround", "radio", [V("Standard (5 days)", 0, "percent", true), V("3-day rush", 25, "percent"), V("Next day", 55, "percent")]),
+      G("Setup", "radio", [V("Print-ready file supplied", 0, "flat", true), V("Design service", 65, "flat")]),
+    ],
+  },
+  {
+    key: "banners",
+    label: "Vinyl banners",
+    blurb: "Size, material, hemming, grommets, turnaround",
+    base: 22,
+    tiers: [
+      { min_qty: 1, unit_price: 22 }, { min_qty: 3, unit_price: 19 },
+      { min_qty: 5, unit_price: 16.5 }, { min_qty: 10, unit_price: 14 },
+      { min_qty: 25, unit_price: 12 },
+    ],
+    options: [
+      G("Size", "radio", [V("2ft × 4ft", 0, "per_unit", true), V("3ft × 6ft", 14), V("4ft × 8ft", 32), V("4ft × 10ft", 48)]),
+      G("Material", "radio", [V("13oz Vinyl", 0, "per_unit", true), V("18oz Heavy Duty", 9), V("Mesh (windy sites)", 7)]),
+      G("Hemming", "radio", [V("Hemmed edges", 0, "per_unit", true), V("No hem", -3)]),
+      G("Grommets", "select", [V("Every 2ft", 0, "per_unit", true), V("Corners only"), V("None")], false),
+      G("Pole pockets", "checkbox", [V("Top and bottom pockets", 6)], false),
+      G("Turnaround", "radio", [V("Standard (5 days)", 0, "percent", true), V("2-day rush", 30, "percent")]),
+    ],
+  },
+];
+
 const PRICE_MODE_LABEL: Record<PriceMode, string> = {
   per_unit: "per unit",
   flat: "one-off",
@@ -116,6 +198,14 @@ export function ProductOptionsBuilder({ productId }: { productId: string }) {
 
   // ── Option mutations ───────────────────────────────────────────────────────
   const patchOpt = (i: number, p: Partial<Opt>) => setOptions(o => o.map((x, k) => k === i ? { ...x, ...p } : x));
+  /** Drop a starter set in, leaving anything already built alone. */
+  function applyTemplate(t: Template) {
+    setOptions(o => [...o, ...t.options.map(g => ({ ...g, values: g.values.map(v => ({ ...v })) }))]);
+    if (!tiers.length) setTiers(t.tiers.map(x => ({ ...x })));
+    if (!basePrice.trim()) setBasePrice(String(t.base));
+    flash(`${t.label} template added — edit anything, then save`);
+  }
+
   const addOption = () => setOptions(o => [...o, {
     name: "", input_type: "select", required: true, is_active: true,
     values: [{ label: "", price_delta: 0, price_mode: "per_unit", is_default: true, enabled: true }],
@@ -391,7 +481,15 @@ export function ProductOptionsBuilder({ productId }: { productId: string }) {
             </div>
           ))}
 
-          <button onClick={addOption} style={{ ...BTN_LIGHT, borderStyle: "dashed", fontWeight: 700 }}>+ Add option group</button>
+          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
+            <button onClick={addOption} style={{ ...BTN_LIGHT, borderStyle: "dashed", fontWeight: 700 }}>+ Add option group</button>
+            <span style={{ fontSize: "12px", color: "#9CA3AF" }}>or start from</span>
+            {TEMPLATES.map(t => (
+              <button key={t.key} onClick={() => applyTemplate(t)} title={t.blurb} style={TPL_BTN}>
+                {t.label}
+              </button>
+            ))}
+          </div>
 
           {/* Quantity tiers */}
           <div style={{ fontSize: "12px", fontWeight: 700, color: "#1A1A1A", textTransform: "uppercase", letterSpacing: ".05em", margin: "26px 0 8px" }}>
@@ -497,4 +595,5 @@ const SWATCH_INPUT: React.CSSProperties = {
   position: "absolute", inset: "-8px", width: "calc(100% + 16px)", height: "calc(100% + 16px)",
   border: "none", padding: 0, background: "none", cursor: "pointer", opacity: 0,
 };
+const TPL_BTN: React.CSSProperties = { padding: "8px 14px", background: "#F6F6F7", color: "#1A1A1A", border: "1px solid #E3E3E3", borderRadius: "20px", fontSize: "12px", fontWeight: 700, cursor: "pointer" };
 const RULE_WORD: React.CSSProperties = { fontSize: "12px", fontWeight: 700, color: "#6B6B6B" };

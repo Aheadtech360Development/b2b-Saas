@@ -162,17 +162,28 @@ export function ProductConfigurator({ productId, productName }: { productId: str
 
   return (
     <div style={{ marginTop: "20px", fontFamily: "'DM Sans', sans-serif" }}>
-      {/* Every option group the brand defined, in its configured order. */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: "16px" }}>
-        {cfg.options.map((o) => {
-          if (hidden.has(o.id)) return null;               // a rule removed this field
+      {/* Every option group the brand defined, in its configured order.
+          Fields differ wildly in height — a dropdown next to six radios — and a
+          rule can remove one at any moment. `align-items: start` stops a short
+          field being stretched to its neighbour's height, and `dense` pulls the
+          rest up into the space a hidden field leaves behind, so the form closes
+          ranks instead of keeping a hole where the field used to be. */}
+      <div style={{
+        display: "grid",
+        gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
+        gap: "18px 16px",
+        alignItems: "start",
+        gridAutoFlow: "row dense",
+      }}>
+        {/* Filtered before rendering: a hidden field shouldn't occupy a slot. */}
+        {cfg.options.filter((o) => !hidden.has(o.id)).map((o) => {
           const offNote = disabledOptions.get(o.id);
           const chosen = sel[o.id];
           // Picture-led choices read better as tiles than as a dropdown.
           const asTiles = !offNote && o.input_type !== "checkbox" && o.input_type !== "swatch"
             && o.values.some((v) => v.image_url);
           return (
-            <div key={o.id} style={offNote ? { opacity: 0.55 } : undefined}>
+            <div key={o.id} style={{ opacity: offNote ? 0.55 : 1, transition: "opacity .18s ease" }}>
               <label style={LABEL}>
                 {o.name}{o.required && !offNote && <span style={{ color: "#DC2626" }}> *</span>}
                 {o.help_text && <span title={o.help_text} style={HELP}>?</span>}
