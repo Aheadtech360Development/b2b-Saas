@@ -513,9 +513,11 @@ class OrderService:
             from app.services.email_service import EmailService
             email_svc = EmailService(self.db)
 
-            if settings.ADMIN_NOTIFICATION_EMAIL:
+            from app.services.email_service import notify_address as _notify_to
+            _alert_to = _notify_to()
+            if _alert_to:
                 email_svc.send_raw(
-                    to_email=settings.ADMIN_NOTIFICATION_EMAIL,
+                    to_email=_alert_to,
                     subject=f"New Order — {order.order_number} (${float(order.total):.2f})",
                     body_html=f"""
                         <h2>New Order Received</h2>

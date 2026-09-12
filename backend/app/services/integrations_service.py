@@ -75,6 +75,28 @@ PROVIDERS: dict[str, Provider] = {
                   "Create one in the S&S portal under Account → API Access."),
         ],
     ),
+    "resend": Provider(
+        key="resend",
+        name="Resend (email)",
+        category="email",
+        blurb="Send order confirmations and alerts from your own domain, and choose where your own notifications land.",
+        docs_url="https://resend.com/api-keys",
+        logo="✉️",
+        fields=[
+            Field("api_key", "Resend API key", "secret",
+                  "From resend.com → API Keys. Leave blank to keep using the platform's account."),
+            Field("from_email", "Send from", "text",
+                  "A verified sender on your own domain, e.g. orders@yourbrand.com.",
+                  required=False, placeholder="orders@yourbrand.com"),
+            Field("from_name", "Sender name", "text",
+                  "Defaults to your store name.", required=False),
+            Field("reply_to", "Reply-to", "text",
+                  "Where customer replies go, if different from the sender.", required=False),
+            Field("notify_email", "Notify me at", "text",
+                  "Your own alerts: new orders, wholesale applications, contact messages, low stock.",
+                  required=False, placeholder="you@yourbrand.com"),
+        ],
+    ),
     "ups": Provider(
         key="ups",
         name="UPS",
@@ -279,6 +301,49 @@ async def _verify_ss(values: dict) -> dict:
         return {"ok": False, "message": f"Could not reach S&S: {str(exc)[:200]}"}
     finally:
         await svc.close()
+
+
+@verifier("resend")
+async def _verify_resend(values: dict) -> dict:
+    """Ask Resend who the key belongs to — a cheap call that proves it works."""
+    import httpx
+
+    key = (values.get("api_key") or "").strip()
+    if not key:
+        return {"ok": True, "message": "No key set — this store will send through the platform account."}
+
+    async with httpx.AsyncClient(timeout=20) as client:
+        resp = await client.get(
+            "https://api.resend.com/domains",
+            headers={"Authorization": f"Bearer {key}"},
+        )
+    if resp.status_code in (401, 403):
+        return {"ok": False, "message": "Resend rejected this API key."}
+    if resp.status_code >= 400:
+        return {"ok": False, "message": f"Resend returned {resp.status_code}: {resp.text[:160]}"}
+
+    try:
+        domains = [d.get("name") for d in (resp.json().get("data") or []) if d.get("name")]
+    except Exception:
+        domains = []
+
+    sender = (values.get("from_email") or "").strip()
+    if sender and domains:
+        host = sender.rsplit("@", 1)[-1].lower()
+        if not any(host == d.lower() or host.endswith("." + d.lower()) for d in domains):
+            return {
+                "ok": False,
+                "message": (
+                    f"'{sender}' isn't on a domain verified in this Resend account "
+                    f"({', '.join(domains)}). Resend will refuse to send from it."
+                ),
+            }
+
+    return {
+        "ok": True,
+        "message": "Connected to Resend"
+                   + (f" — verified: {', '.join(domains)}." if domains else ". Verify a domain to send from your own address."),
+    }
 
 
 @verifier("ups")

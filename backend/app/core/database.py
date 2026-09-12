@@ -85,6 +85,45 @@ import time as _time
 _BRAND_CACHE: dict[str, tuple[str | None, float]] = {}
 _BRAND_TTL_SECONDS = 300
 
+# Same treatment for the brand's email setup: the email service is synchronous
+# and can't look this up itself, so it is resolved here and read from context.
+_EMAIL_CACHE: dict[str, tuple[dict | None, float]] = {}
+
+
+async def _resolve_tenant_email(session: AsyncSession, tenant_id: object) -> dict | None:
+    """This brand's Resend settings, or None when it hasn't connected its own."""
+    import json as _json
+    from sqlalchemy import text
+
+    key = str(tenant_id)
+    hit = _EMAIL_CACHE.get(key)
+    now = _time.monotonic()
+    if hit and hit[1] > now:
+        return hit[0]
+
+    cfg = None
+    try:
+        raw = (
+            await session.execute(
+                text("SELECT value FROM settings WHERE key = :k"),
+                {"k": f"integrations@{key}"},
+            )
+        ).scalar()
+        if raw:
+            blob = _json.loads(raw) if isinstance(raw, str) else raw
+            if isinstance(blob, dict):
+                cfg = blob.get("resend") or None
+    except Exception:
+        cfg = None
+
+    _EMAIL_CACHE[key] = (cfg, now + _BRAND_TTL_SECONDS)
+    return cfg
+
+
+def forget_tenant_email(tenant_id: object) -> None:
+    """Drop the cached email config so a just-saved change is used at once."""
+    _EMAIL_CACHE.pop(str(tenant_id), None)
+
 
 async def _resolve_brand_name(session: AsyncSession, tenant_id: object) -> str | None:
     from sqlalchemy import text
@@ -128,10 +167,12 @@ async def _apply_tenant_context(request: Request | None, session: AsyncSession) 
         set_bypass_scoping,
         set_current_brand_name,
         set_current_tenant,
+        set_current_tenant_email,
         set_current_tenant_slug,
     )
 
     set_current_brand_name(None)
+    set_current_tenant_email(None)
 
     # Fresh defaults for this request task.
     set_bypass_scoping(False)
@@ -155,6 +196,7 @@ async def _apply_tenant_context(request: Request | None, session: AsyncSession) 
     if tenant_id:
         set_current_tenant(tenant_id)
         set_current_brand_name(await _resolve_brand_name(session, tenant_id))
+        set_current_tenant_email(await _resolve_tenant_email(session, tenant_id))
         return
 
     # 3. Public storefront — resolve the subdomain slug to a tenant id.
@@ -171,6 +213,7 @@ async def _apply_tenant_context(request: Request | None, session: AsyncSession) 
         set_current_tenant(row[0] if row else NO_TENANT)
         if row:
             set_current_brand_name(await _resolve_brand_name(session, row[0]))
+            set_current_tenant_email(await _resolve_tenant_email(session, row[0]))
         return
 
     # 4. No tenant and not a platform admin — a public request to the bare root.

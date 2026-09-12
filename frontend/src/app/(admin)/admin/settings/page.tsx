@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { apiClient } from "@/lib/api-client";
+import { IntegrationsPanel } from "@/components/admin/IntegrationsPanel";
 
 const SETTING_FIELDS = [
   { key: "mov", label: "Minimum Order Value ($)", type: "number", placeholder: "e.g. 200" },
@@ -119,6 +120,21 @@ export default function AdminSettingsPage() {
           </div>
         </form>
       )}
+
+      {/* Email — the brand's own Resend account and where its alerts land. */}
+      <div className="bg-white border border-gray-200 rounded-lg">
+        <div className="px-6 py-4 border-b border-gray-100">
+          <h2 className="font-semibold text-gray-900">Email</h2>
+          <p className="text-sm text-gray-500 mt-1">
+            Connect your own Resend account so order confirmations reach your customers from
+            your domain, and tell us where to send your own alerts — new orders, wholesale
+            applications, contact messages and low stock.
+          </p>
+        </div>
+        <div className="px-6 py-6">
+          <IntegrationsPanel category="email" />
+        </div>
+      </div>
     </div>
   );
 }

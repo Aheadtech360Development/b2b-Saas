@@ -29,6 +29,28 @@ _LEGACY_PHONE = "(214) 272-7213"
 _PHONE_PHRASE_RE = _re.compile(r"\s*(?:Call(?:\s+us)?(?:\s+at)?)\s*" + _re.escape(_LEGACY_PHONE))
 
 
+def _tenant_email_cfg() -> dict:
+    """This brand's own email settings, resolved per request (see core.database)."""
+    try:
+        from app.core.tenant_context import get_current_tenant_email
+
+        return get_current_tenant_email() or {}
+    except Exception:
+        return {}
+
+
+def notify_address() -> str | None:
+    """Where a brand's own alerts go — new orders, applications, low stock.
+
+    The brand's address when it has set one, otherwise the platform's. Without
+    this every brand's alerts landed in the platform inbox and the owner never
+    heard about their own orders.
+    """
+    return (_tenant_email_cfg().get("notify_email") or "").strip() or (
+        settings.ADMIN_NOTIFICATION_EMAIL or None
+    )
+
+
 def _current_brand_from_context() -> str | None:
     try:
         from app.core.tenant_context import get_current_brand_name
@@ -177,24 +199,35 @@ class EmailService:
         reply_to: str | None = None,
         attachments: list[dict] | None = None,
     ) -> bool:
-        if not settings.RESEND_API_KEY:
-            logger.warning("RESEND_API_KEY not set — skipping email to %s", to_email)
+        # The brand's own Resend account when it has connected one, so its mail
+        # leaves from its own domain and is billed to it; the platform key is the
+        # fallback for brands that haven't set one up.
+        cfg = _tenant_email_cfg()
+        api_key = (cfg.get("api_key") or "").strip() or settings.RESEND_API_KEY
+        if not api_key:
+            logger.warning("No Resend key for this brand — skipping email to %s", to_email)
             return False
 
-        resend.api_key = settings.RESEND_API_KEY
+        resend.api_key = api_key
 
         # Rebrand outbound copy to the tenant this email belongs to. The bodies were
         # written for a single store and still carry that store's name and phone;
         # here — the one point every email passes through — they are swapped for the
         # active brand so each tenant's customers only ever see their own store.
         brand = _current_brand_from_context() or settings.EMAIL_FROM_NAME or "Our Store"
-        from_name = brand or settings.EMAIL_FROM_NAME
+        from_name = (cfg.get("from_name") or "").strip() or brand or settings.EMAIL_FROM_NAME
         subject = _rebrand_text(subject, brand)
         body_html = _rebrand_text(body_html, brand)
         if body_text:
             body_text = _rebrand_text(body_text, brand)
 
-        from_addr = f"{from_name} <{settings.EMAIL_FROM_ADDRESS}>"
+        # A verified sender on the brand's own domain, when it has one. Sending
+        # every brand from the platform address is what made replies and
+        # deliverability everyone else's problem.
+        from_email = (cfg.get("from_email") or "").strip() or settings.EMAIL_FROM_ADDRESS
+        from_addr = f"{from_name} <{from_email}>"
+        if not reply_to:
+            reply_to = (cfg.get("reply_to") or "").strip() or None
 
         # In dev/test: redirect all emails to admin notification address
         recipient = to_email
@@ -490,9 +523,10 @@ class EmailService:
 
     def send_admin_new_order_alert(self, order: "Order") -> bool:  # type: ignore[name-defined]
         """Notify admin of a new order placement."""
-        from app.core.config import settings as _s
-        if not _s.ADMIN_NOTIFICATION_EMAIL:
+        _to = notify_address()
+        if not _to:
             return False
+        from app.core.config import settings as _s
         order_url = f"{_s.FRONTEND_URL}/admin/orders/{order.id}"
         is_guest = getattr(order, "is_guest_order", False)
         customer = (
@@ -523,7 +557,7 @@ class EmailService:
             f'View Order →</a></p>'
         )
         return self._send_via_resend(
-            to_email=_s.ADMIN_NOTIFICATION_EMAIL,
+            to_email=_to,
             subject=f"New Order {order.order_number} — ${float(order.total):.2f} | AF Apparels",
             body_html=self._base_template(content_html),
         )
@@ -532,9 +566,10 @@ class EmailService:
         self, product_name: str, sku: str, qty: int
     ) -> bool:
         """Notify admin when a SKU drops below LOW_STOCK_THRESHOLD."""
-        from app.core.config import settings as _s
-        if not _s.ADMIN_NOTIFICATION_EMAIL:
+        _to = notify_address()
+        if not _to:
             return False
+        from app.core.config import settings as _s
         content_html = (
             f'<h2 style="color:#D97706;font-size:20px;font-weight:800;margin:0 0 8px">'
             f'⚠️ Low Stock Alert</h2>'
@@ -555,7 +590,7 @@ class EmailService:
             f'Manage Inventory →</a></p>'
         )
         return self._send_via_resend(
-            to_email=_s.ADMIN_NOTIFICATION_EMAIL,
+            to_email=_to,
             subject=f"Low Stock: {sku} ({qty} left) | AF Apparels",
             body_html=self._base_template(content_html),
         )

@@ -33,6 +33,11 @@ _current_brand_name: ContextVar[str | None] = ContextVar("current_brand_name", d
 # When True, tenant scoping is bypassed entirely (platform admin / system jobs).
 _bypass_scoping: ContextVar[bool] = ContextVar("bypass_tenant_scoping", default=False)
 
+# The brand's own email setup (Resend key, from address, who to notify). Resolved
+# once per request alongside the brand name and read here, because the email
+# service is synchronous and cannot await a lookup of its own.
+_current_tenant_email: ContextVar[dict | None] = ContextVar("current_tenant_email", default=None)
+
 # Sentinel used when a request names a tenant that cannot be resolved (unknown or
 # suspended subdomain, malformed JWT tenant claim). Scoping filters on it and it
 # matches no row, so such a request sees an empty store. Leaving the tenant unset
@@ -43,6 +48,15 @@ NO_TENANT: uuid.UUID = uuid.UUID(int=0)
 
 def set_current_tenant_slug(slug: str | None) -> None:
     _current_tenant_slug.set(slug or None)
+
+
+def set_current_tenant_email(cfg: dict | None) -> None:
+    _current_tenant_email.set(cfg)
+
+
+def get_current_tenant_email() -> dict | None:
+    """This brand's email settings, or None to fall back to the platform's."""
+    return _current_tenant_email.get()
 
 
 def set_current_brand_name(name: str | None) -> None:

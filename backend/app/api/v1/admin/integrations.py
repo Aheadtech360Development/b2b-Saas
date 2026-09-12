@@ -107,6 +107,12 @@ async def connect_integration(
         raise HTTPException(status_code=400, detail=str(exc))
     await db.commit()
 
+    # Email settings are cached per tenant for the send path; a save must take
+    # effect now, not when the cache happens to expire.
+    if provider == "resend":
+        from app.core.database import forget_tenant_email
+        forget_tenant_email(tid)
+
     saved = await svc.get_connection(db, provider, tenant_id=tid)
     return {
         "provider": provider,
@@ -126,6 +132,9 @@ async def disconnect_integration(
     if provider not in svc.PROVIDERS:
         raise HTTPException(status_code=404, detail="Unknown provider")
     tid = get_current_tenant_id()
+    if provider == "resend":
+        from app.core.database import forget_tenant_email
+        forget_tenant_email(tid)
     removed = await svc.delete_connection(db, provider, tenant_id=tid)
     await db.commit()
     return {"provider": provider, "disconnected": removed}

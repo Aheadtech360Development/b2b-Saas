@@ -310,7 +310,10 @@ class AuthService:
             if admin_email:
                 return admin_email
 
-        return settings.ADMIN_NOTIFICATION_EMAIL or None
+        # The brand's configured alert address, then the platform's. Without the
+        # first, a new application notified the platform and never the owner.
+        from app.services.email_service import notify_address as _notify_to
+        return _notify_to()
 
     async def send_password_reset(self, email: str) -> None:
         result = await self.db.execute(select(User).where(User.email == email.lower()))

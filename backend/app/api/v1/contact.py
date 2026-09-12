@@ -40,8 +40,10 @@ def _send_contact_email(data: ContactRequest) -> None:
         print(f"[Contact Form] {dept_label} — {data.name} <{data.email}>: {data.message[:100]}")
         return
 
-    import resend
-    resend.api_key = settings.RESEND_API_KEY
+    # Sent through EmailService so this brand's own Resend account, sender and
+    # alert address are used — this used to build its own client with the
+    # platform key, so every brand's contact form landed in the platform inbox.
+    from app.services.email_service import EmailService as _Svc, notify_address as _notify_to
 
     rows = [
         ("Name", data.name),
@@ -59,15 +61,14 @@ def _send_contact_email(data: ContactRequest) -> None:
         footer_note=f'Reply directly to <a href="mailto:{data.email}" style="color:#1B3A5C">{data.email}</a>',
     )
 
-    admin_to = getattr(settings, "ADMIN_NOTIFICATION_EMAIL", None) or settings.EMAIL_FROM_ADDRESS
+    admin_to = _notify_to() or settings.EMAIL_FROM_ADDRESS
     try:
-        resend.Emails.send({
-            "from": settings.EMAIL_FROM_ADDRESS,
-            "to": admin_to,
-            "reply_to": data.email,
-            "subject": f"[Contact] {dept_label} — {data.name} ({data.company or '—'})",
-            "html": admin_html,
-        })
+        _Svc(None)._send_via_resend(
+            to_email=admin_to,
+            subject=f"[Contact] {dept_label} — {data.name} ({data.company or '—'})",
+            body_html=admin_html,
+            reply_to=data.email,
+        )
     except Exception as exc:
         print(f"Contact email failed: {exc}")
 
@@ -80,12 +81,11 @@ def _send_contact_email(data: ContactRequest) -> None:
         f'</div>',
     )
     try:
-        resend.Emails.send({
-            "from": settings.EMAIL_FROM_ADDRESS,
-            "to": data.email,
-            "subject": "We received your message",
-            "html": confirm_html,
-        })
+        _Svc(None)._send_via_resend(
+            to_email=data.email,
+            subject="We received your message",
+            body_html=confirm_html,
+        )
     except Exception as exc:
         print(f"Contact confirmation email failed: {exc}")
 
