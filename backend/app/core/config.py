@@ -123,6 +123,13 @@ class Settings(BaseSettings):
     EMAIL_FROM_ADDRESS: str = "onboarding@resend.dev"
     EMAIL_FROM_NAME: str = "Wholesale Store"
     ADMIN_NOTIFICATION_EMAIL: str = ""
+    # Send every outbound email here instead of to its real recipient, with the
+    # intended address kept in the subject. Resend's shared onboarding@resend.dev
+    # sender only delivers to the account owner, so until a domain is verified a
+    # mail to a customer is refused outright. Redirecting makes that visible —
+    # the message arrives and says who it was for — rather than silently lost.
+    # Leave blank once a domain is verified.
+    EMAIL_REDIRECT_TO: str = ""
 
     @model_validator(mode="after")
     def _apply_resend_from_email(self) -> "Settings":

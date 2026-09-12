@@ -228,10 +228,16 @@ class EmailService:
                 or None
             )
 
-        # In dev/test: redirect all emails to admin notification address
+        # Everything to one inbox while no sending domain is verified — see
+        # EMAIL_REDIRECT_TO. The real recipient rides in the subject so nothing
+        # about the flow is hidden.
         recipient = to_email
-        if settings.APP_ENV in ("development", "test") and settings.ADMIN_NOTIFICATION_EMAIL:
-            recipient = settings.ADMIN_NOTIFICATION_EMAIL
+        redirect = (settings.EMAIL_REDIRECT_TO or "").strip()
+        if not redirect and settings.APP_ENV in ("development", "test"):
+            redirect = settings.ADMIN_NOTIFICATION_EMAIL or ""
+        if redirect and redirect.lower() != (to_email or "").lower():
+            subject = f"[to: {to_email}] {subject}"
+            recipient = redirect
 
         params: resend.Emails.SendParams = {
             "from": from_addr,
