@@ -21,7 +21,7 @@ from app.core.database import get_db
 from app.core.tenant_context import get_current_brand_name
 from app.middleware.auth_middleware import require_admin
 from app.services.copilot.agent import (
-    CopilotError, CopilotLimitReached, CopilotUnavailable, run_copilot,
+    CopilotError, CopilotLimitReached, CopilotUnavailable, copilot_configured, run_copilot,
 )
 from app.services.copilot.briefing import build_briefing
 from app.services.copilot.tools import (
@@ -95,10 +95,8 @@ def _raise_for(exc: Exception):
 
 @admin_router.get("/briefing")
 async def briefing(_: None = Depends(require_admin), db: AsyncSession = Depends(get_db)) -> dict:
-    from app.core.config import settings
-
     data = await build_briefing(db)
-    data["ai_enabled"] = bool(settings.ANTHROPIC_API_KEY)
+    data["ai_enabled"] = copilot_configured()
     return data
 
 

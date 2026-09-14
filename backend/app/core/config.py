@@ -136,8 +136,15 @@ class Settings(BaseSettings):
     # brand is held to its own daily question limit so one cannot run the bill.
     # Without a key the briefing still works — it is computed, not generated —
     # and only the chat reports itself unavailable.
+    #
+    # Set any one key. COPILOT_PROVIDER (anthropic | gemini | openai) picks one
+    # explicitly; blank uses the first key present, Claude first. COPILOT_MODEL
+    # blank uses the provider's default (required for openai).
     ANTHROPIC_API_KEY: str = ""
-    COPILOT_MODEL: str = "claude-sonnet-5"
+    GEMINI_API_KEY: str = ""
+    OPENAI_API_KEY: str = ""
+    COPILOT_PROVIDER: str = ""
+    COPILOT_MODEL: str = ""
     COPILOT_DAILY_LIMIT: int = 200
 
     @model_validator(mode="after")
