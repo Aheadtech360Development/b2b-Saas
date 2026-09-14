@@ -223,6 +223,17 @@ export function ProductConfigurator({ productId, productName }: { productId: str
                           boxShadow: active ? "0 0 0 3px rgba(0,0,0,.08)" : "none" }} />
                     );
                   })}
+                  {/* A circle has no words on it, and a phone has no hover to show
+                      the title — so name the chosen one outright. */}
+                  {(() => {
+                    const picked = o.values.find((v) => v.id === chosen);
+                    return picked ? (
+                      <div style={{ flexBasis: "100%", fontSize: "13px", color: "#4A4A4A", marginTop: "2px" }}>
+                        <strong style={{ color: "#1A1A1A" }}>{picked.label}</strong>
+                        {picked.price_delta !== 0 && <span style={{ ...DELTA, marginLeft: "8px" }}>{fmtDelta(picked)}</span>}
+                      </div>
+                    ) : null;
+                  })()}
                 </div>
               ) : o.input_type === "radio" ? (
                 <div style={{ display: "grid", gap: "8px" }}>

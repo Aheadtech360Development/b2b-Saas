@@ -164,6 +164,17 @@ const PRICE_MODE_HINT: Record<PriceMode, string> = {
   percent: "scales with the unit price — 10% of a $9 unit = +$0.90 each",
 };
 
+/**
+ * How the customer picks. Named for what they will see, because the raw values
+ * ("select", "swatch") gave no hint that only one of them uses the swatch colour.
+ */
+const INPUT_TYPE_LABEL: Record<"select" | "radio" | "swatch" | "checkbox", string> = {
+  select: "Dropdown",
+  radio: "Buttons — pick one",
+  swatch: "Colour circles",
+  checkbox: "Checkboxes — pick any",
+};
+
 const RULE_ACTION_LABEL: Record<RuleAction, string> = {
   disable_option: "grey out the field",
   hide_option: "hide the field",
@@ -422,7 +433,7 @@ export function ProductOptionsBuilder({ productId }: { productId: string }) {
                 <input value={o.name} onChange={e => patchOpt(oi, { name: e.target.value })} placeholder="Option name — e.g. Paper Stock"
                   style={{ ...INPUT, flex: 1, minWidth: "180px", fontWeight: 700 }} />
                 <select value={o.input_type} onChange={e => patchOpt(oi, { input_type: e.target.value as InputType })} style={{ ...INPUT, width: "auto" }}>
-                  {(["select", "radio", "swatch", "checkbox"] as const).map(t => <option key={t} value={t}>{t}</option>)}
+                  {(["select", "radio", "swatch", "checkbox"] as const).map(t => <option key={t} value={t}>{INPUT_TYPE_LABEL[t]}</option>)}
                 </select>
                 <label style={CHECK}><input type="checkbox" checked={o.required} onChange={e => patchOpt(oi, { required: e.target.checked })} /> Required</label>
                 <button onClick={() => moveOption(oi, -1)} disabled={oi === 0} style={ICON_BTN} title="Move up">↑</button>
@@ -438,7 +449,7 @@ export function ProductOptionsBuilder({ productId }: { productId: string }) {
                   <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px", minWidth: "600px" }}>
                     <thead>
                       <tr style={{ background: "#F6F6F7" }}>
-                        {["Choice", "Price effect", "How it’s charged", "Image", "Swatch", "Default", ""].map(h => (
+                        {["Choice", "Price effect", "How it’s charged", "Image", ...(o.input_type === "swatch" ? ["Colour"] : []), "Default", ""].map(h => (
                           <th key={h} style={TH}>{h}</th>
                         ))}
                       </tr>
@@ -468,22 +479,33 @@ export function ProductOptionsBuilder({ productId }: { productId: string }) {
                               )}
                             </div>
                           </td>
-                          <td style={TD}>
-                            {/* Round swatch: the colour input paints its own square
-                                well, so the circle is the wrapper and the input is
-                                oversized inside it and clipped. */}
-                            <label title="Swatch colour" style={SWATCH_WELL(v.swatch_hex ?? "#cccccc")}>
-                              <input type="color" value={v.swatch_hex ?? "#cccccc"}
-                                onChange={e => patchVal(oi, vi, { swatch_hex: e.target.value })}
-                                style={SWATCH_INPUT} />
-                            </label>
-                          </td>
+                          {o.input_type === "swatch" && (
+                            <td style={TD}>
+                              <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                                {/* Round swatch: the colour input paints its own square
+                                    well, so the circle is the wrapper and the input is
+                                    oversized inside it and clipped. An unset colour
+                                    shows as empty, not as a grey the customer would
+                                    never see. */}
+                                <label title={v.image_url ? "The image fills this circle — the colour is only used without one" : v.swatch_hex ? "Change colour" : "Pick a colour"}
+                                  style={v.swatch_hex ? SWATCH_WELL(v.swatch_hex) : SWATCH_EMPTY}>
+                                  <input type="color" value={v.swatch_hex ?? "#000000"}
+                                    onChange={e => patchVal(oi, vi, { swatch_hex: e.target.value })}
+                                    style={SWATCH_INPUT} />
+                                </label>
+                                {v.swatch_hex && (
+                                  <button onClick={() => patchVal(oi, vi, { swatch_hex: null })} title="Clear colour"
+                                    style={{ border: "none", background: "none", cursor: "pointer", color: "#B91C1C", fontSize: "12px", padding: "2px" }}>✕</button>
+                                )}
+                              </div>
+                            </td>
+                          )}
                           <td style={{ ...TD, textAlign: "center" }}><input type="radio" name={`def-${oi}`} checked={v.is_default} onChange={() => patchVal(oi, vi, { is_default: true })} style={{ accentColor: "#1A1A1A" }} /></td>
                           <td style={{ ...TD, textAlign: "center" }}><button onClick={() => removeVal(oi, vi)} style={{ ...ICON_BTN, color: "#B91C1C" }}>✕</button></td>
                         </tr>
                       ))}
                       {o.values.length === 0 && (
-                        <tr><td colSpan={7} style={{ ...TD, color: "#9CA3AF", textAlign: "center" }}>No choices yet.</td></tr>
+                        <tr><td colSpan={o.input_type === "swatch" ? 7 : 6} style={{ ...TD, color: "#9CA3AF", textAlign: "center" }}>No choices yet.</td></tr>
                       )}
                     </tbody>
                   </table>
@@ -491,6 +513,21 @@ export function ProductOptionsBuilder({ productId }: { productId: string }) {
                 {/* The modes in play on this group, so the meaning is next to the
                     numbers rather than a step away in a tooltip. */}
                 <div style={{ fontSize: "11px", color: "#9CA3AF", lineHeight: 1.7, marginTop: "8px" }}>
+                  <div>
+                    <strong style={{ color: "#6B6B6B", fontWeight: 700 }}>Image</strong>
+                    {" — "}
+                    {o.input_type === "swatch"
+                      ? "optional; fills the circle instead of the colour (a fabric or print texture)"
+                      : o.input_type === "checkbox"
+                        ? "optional; a small picture beside the choice"
+                        : "optional; once any choice has one, the choices show as picture tiles (paper stocks, finishes)"}
+                  </div>
+                  {o.input_type === "swatch" && (
+                    <div>
+                      <strong style={{ color: "#6B6B6B", fontWeight: 700 }}>Colour</strong>
+                      {" — the circle the customer clicks; the chosen name is written under the circles"}
+                    </div>
+                  )}
                   {(Array.from(new Set(o.values.map(v => v.price_mode))) as PriceMode[])
                     .filter(m => PRICE_MODE_HINT[m])
                     .map(m => (
@@ -615,6 +652,11 @@ const SWATCH_WELL = (hex: string): React.CSSProperties => ({
   background: hex, border: "1.5px solid rgba(0,0,0,.14)", boxShadow: "inset 0 0 0 2px #fff",
   cursor: "pointer", overflow: "hidden", position: "relative",
 });
+const SWATCH_EMPTY: React.CSSProperties = {
+  width: "30px", height: "30px", borderRadius: "50%", display: "inline-block",
+  background: "repeating-linear-gradient(45deg,#fff 0 4px,#EFEFEC 4px 8px)",
+  border: "1.5px dashed #BDBAB2", cursor: "pointer", overflow: "hidden", position: "relative",
+};
 const SWATCH_INPUT: React.CSSProperties = {
   position: "absolute", inset: "-8px", width: "calc(100% + 16px)", height: "calc(100% + 16px)",
   border: "none", padding: 0, background: "none", cursor: "pointer", opacity: 0,
