@@ -24,12 +24,14 @@ import json
 import logging
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from time import perf_counter
 
 import httpx
 
 from app.core.config import settings
 from app.core.redis import redis_increment
 from app.core.tenant_context import get_current_tenant_id
+from app.services.copilot.audit import log_tool_call
 
 logger = logging.getLogger(__name__)
 
@@ -160,15 +162,22 @@ def _raise_for_status(res: httpx.Response, p: Provider) -> None:
     raise CopilotError("The AI service returned an error. Please try again.", detail)
 
 
-async def _run_tool(name: str, args, handlers: dict, used: list[str], db) -> tuple[str, bool]:
+async def _run_tool(name: str, args, handlers: dict, used: list[str], db, scope: str = "-") -> tuple[str, bool]:
     """Run one tool. Returns (result text, is_error)."""
     used.append(name)
+    safe_args = args if isinstance(args, dict) else {}
     handler = handlers.get(name)
     if handler is None:
+        log_tool_call(scope=scope, tool=name, args=safe_args, ms=0, ok=False, note="unknown")
         return f"Unknown tool {name}.", True
+    started = perf_counter()
     try:
-        return _clip(await handler(args if isinstance(args, dict) else {})), False
+        out = _clip(await handler(safe_args))
+        log_tool_call(scope=scope, tool=name, args=safe_args, ms=int((perf_counter() - started) * 1000), ok=True)
+        return out, False
     except Exception as exc:
+        log_tool_call(scope=scope, tool=name, args=safe_args,
+                      ms=int((perf_counter() - started) * 1000), ok=False, note=type(exc).__name__)
         logger.exception("copilot tool %s failed", name)
         # A failed statement aborts the transaction; without this every later
         # lookup in the same answer fails too.
@@ -201,9 +210,9 @@ async def run_copilot(
     async with httpx.AsyncClient(timeout=httpx.Timeout(90.0, connect=10.0)) as client:
         try:
             if provider.name == "anthropic":
-                reply = await _anthropic(client, provider, system, tools, handlers, history, used, db)
+                reply = await _anthropic(client, provider, system, tools, handlers, history, used, db, scope)
             else:
-                reply = await _openai_style(client, provider, system, tools, handlers, history, used, db)
+                reply = await _openai_style(client, provider, system, tools, handlers, history, used, db, scope)
         except httpx.HTTPError as exc:
             logger.warning("copilot request failed: %s", exc)
             raise CopilotError("Couldn't reach the AI service. Please try again.") from exc
@@ -213,7 +222,7 @@ async def run_copilot(
     return {"reply": reply or "I don't have an answer for that.", "tools_used": used, "provider": provider.name}
 
 
-async def _anthropic(client, p: Provider, system, tools, handlers, convo, used, db) -> str | None:
+async def _anthropic(client, p: Provider, system, tools, handlers, convo, used, db, scope="-") -> str | None:
     headers = {"x-api-key": p.api_key, "anthropic-version": ANTHROPIC_VERSION, "content-type": "application/json"}
     for _ in range(MAX_TOOL_ROUNDS + 1):
         res = await client.post(ANTHROPIC_URL, headers=headers, json={
@@ -232,7 +241,7 @@ async def _anthropic(client, p: Provider, system, tools, handlers, convo, used, 
 
         results = []
         for call in calls:
-            text, is_error = await _run_tool(call.get("name"), call.get("input") or {}, handlers, used, db)
+            text, is_error = await _run_tool(call.get("name"), call.get("input") or {}, handlers, used, db, scope)
             block = {"type": "tool_result", "tool_use_id": call["id"], "content": text}
             if is_error:
                 block["is_error"] = True
@@ -241,7 +250,7 @@ async def _anthropic(client, p: Provider, system, tools, handlers, convo, used, 
     return None
 
 
-async def _openai_style(client, p: Provider, system, tools, handlers, history, used, db) -> str | None:
+async def _openai_style(client, p: Provider, system, tools, handlers, history, used, db, scope="-") -> str | None:
     headers = {"Authorization": f"Bearer {p.api_key}", "content-type": "application/json"}
     if p.name == "gemini":
         # Keys made in AI Studio are now "auth keys", which Google's own examples
@@ -277,6 +286,6 @@ async def _openai_style(client, p: Provider, system, tools, handlers, history, u
                 args = json.loads(fn.get("arguments") or "{}")
             except json.JSONDecodeError:
                 args = {}
-            text, _ = await _run_tool(fn.get("name"), args, handlers, used, db)
+            text, _ = await _run_tool(fn.get("name"), args, handlers, used, db, scope)
             convo.append({"role": "tool", "tool_call_id": call.get("id"), "content": text})
     return None

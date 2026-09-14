@@ -26,6 +26,7 @@ from app.services.copilot.agent import (
 from app.services.copilot.actions import (
     ACTIONS, INDEX as ACTION_INDEX, ActionError, preview_action, run_action,
 )
+from app.services.copilot.audit import log_action
 from app.services.copilot.briefing import build_briefing
 from app.services.copilot.tools import (
     CUSTOMER_TOOLS, OWNER_TOOLS, customer_handlers, owner_handlers,
@@ -182,11 +183,17 @@ async def owner_act(
 ) -> dict:
     """Run one prepared action. This is the only place the copilot's suggestions
     turn into changes, and it is reached by an admin clicking Confirm."""
+    params = dict(payload.params)
+    admin_user_id = getattr(request.state, "user_id", None)
     try:
-        done = await run_action(db, payload.action, dict(payload.params),
-                                getattr(request.state, "user_id", None))
+        done = await run_action(db, payload.action, params, admin_user_id)
     except ActionError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
+    await log_action(
+        db, action=payload.action, params=params, summary=done, admin_user_id=admin_user_id,
+        ip_address=(request.client.host if request.client else None),
+        user_agent=request.headers.get("user-agent"),
+    )
     await db.commit()
     return {"done": done}
 
