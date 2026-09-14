@@ -308,6 +308,9 @@ export function AdminSidebar() {
 
       {settingsOpen && (
         <div style={{ paddingLeft: "18px", marginTop: "3px", marginBottom: "3px" }}>
+          {/* General settings holds the store details and the email (Resend)
+              connection, and had no way in from the nav at all. */}
+          {can("settings") && <SubLink href="/admin/settings" label="General & Email" />}
           {can("settings") && <SubLink href="/admin/billing" label="Billing & Payouts" />}
           {can("settings") && <SubLink href="/admin/settings/taxes" label="Taxes & Duties" />}
           {can("analytics") && <SubLink href="/admin/analytics" label="Analytics" />}

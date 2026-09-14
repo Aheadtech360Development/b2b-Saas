@@ -28,6 +28,7 @@ from sqlalchemy.orm import selectinload
 from app.models.company import Company
 from app.models.order import Order, OrderItem
 from app.services.copilot.briefing import build_briefing
+from app.services.copilot.guide import INDEX as GUIDE_INDEX, TOPICS as GUIDE_TOPICS, lookup as guide_lookup
 
 Handler = Callable[[dict], Awaitable[Any]]
 
@@ -111,6 +112,23 @@ OWNER_TOOLS: list[dict] = [
             "any overview of the store's current state. The numbers are exact counts from the database."
         ),
         "input_schema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "how_to",
+        "description": (
+            "How to do something in this admin — the real screens, menu paths and button names. "
+            "Use it for ANY 'how do I…' or 'where do I…' question (adding a product or customer, "
+            "building product options, approving wholesale accounts, the gang sheet builder, "
+            "inventory, suppliers, shipping and carriers, email, discounts, staff users, the "
+            "storefront, purchase orders, returns, tax, billing). Never answer one of these from "
+            "memory: menu paths you have not read here are guesses and will send the owner to a "
+            "screen that does not exist.\n\nTopics:\n" + GUIDE_INDEX
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {"topic": {"type": "string", "enum": list(GUIDE_TOPICS)}},
+            "required": ["topic"],
+        },
     },
     {
         "name": "sales_summary",
@@ -289,8 +307,11 @@ def owner_handlers(db: AsyncSession) -> dict[str, Handler]:
             "total_spent": _money(spent), "last_order": _iso(last),
         } for name, status, n, spent, last in rows]}
 
+    async def how_to(args: dict):
+        return guide_lookup(str(args.get("topic") or ""))
+
     return {
-        "get_briefing": get_briefing, "sales_summary": sales_summary,
+        "get_briefing": get_briefing, "how_to": how_to, "sales_summary": sales_summary,
         "search_orders": search_orders, "get_order": get_order,
         "list_print_jobs": list_print_jobs, "find_customer": find_customer,
     }
