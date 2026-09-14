@@ -85,12 +85,15 @@ How you work:
 - Be warm and short. Reply in the language the customer writes in, including Roman Urdu."""
 
 
-def _raise_for(exc: Exception):
+def _raise_for(exc: Exception, *, verbose: bool = False):
+    """`verbose` adds what the provider said — for the owner's admin chat, where
+    the fix (a model name, a quota, a key) is theirs to make. Never for buyers."""
     if isinstance(exc, CopilotUnavailable):
         raise HTTPException(status_code=503, detail=str(exc))
     if isinstance(exc, CopilotLimitReached):
         raise HTTPException(status_code=429, detail=str(exc))
-    raise HTTPException(status_code=502, detail=str(exc))
+    said = getattr(exc, "detail", "") if verbose else ""
+    raise HTTPException(status_code=502, detail=f"{exc} ({said})" if said else str(exc))
 
 
 @admin_router.get("/briefing")
@@ -110,7 +113,7 @@ async def owner_chat(
             messages=[m.model_dump() for m in payload.messages], scope="owner", db=db,
         )
     except (CopilotUnavailable, CopilotLimitReached, CopilotError) as exc:
-        _raise_for(exc)
+        _raise_for(exc, verbose=True)
 
 
 @public_router.post("/support")

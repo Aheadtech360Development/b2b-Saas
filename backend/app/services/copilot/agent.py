@@ -58,7 +58,17 @@ class CopilotLimitReached(Exception):
 
 
 class CopilotError(Exception):
-    """The model call failed; the message is safe to show."""
+    """The model call failed; the message is safe to show.
+
+    `detail` carries what the provider actually said. It goes to the owner's own
+    admin chat, where a wrong model name or an exhausted quota is something they
+    can fix — a bare "returned an error" leaves them guessing. It is never shown
+    to a customer.
+    """
+
+    def __init__(self, message: str, detail: str = ""):
+        super().__init__(message)
+        self.detail = detail
 
 
 @dataclass
@@ -121,15 +131,33 @@ def _clip(value) -> str:
     return text
 
 
-def _raise_for_status(res: httpx.Response, provider: str) -> None:
+def _provider_message(res: httpx.Response) -> str:
+    """The provider's own explanation, dug out of whichever shape it used."""
+    try:
+        body = res.json()
+    except ValueError:
+        return res.text[:200].strip()
+    err = body.get("error") if isinstance(body, dict) else None
+    if isinstance(err, dict):
+        return str(err.get("message") or err.get("status") or err)[:300]
+    if isinstance(err, str):
+        return err[:300]
+    return str(body)[:200]
+
+
+def _raise_for_status(res: httpx.Response, p: Provider) -> None:
     if res.status_code == 200:
         return
-    logger.warning("copilot %s API %s: %s", provider, res.status_code, res.text[:500])
+    said = _provider_message(res)
+    logger.warning("copilot %s (%s) API %s: %s", p.name, p.model, res.status_code, res.text[:500])
+    detail = f"{p.name} ({p.model}) returned {res.status_code}: {said}"
     if res.status_code == 429:
-        raise CopilotError("The AI service is busy or over its quota right now. Please try again shortly.")
+        raise CopilotError("The AI service is busy or over its quota right now. Please try again shortly.", detail)
     if res.status_code in (401, 403):
-        raise CopilotError("The AI service rejected the platform's API key.")
-    raise CopilotError("The AI service returned an error. Please try again.")
+        raise CopilotError("The AI service rejected the platform's API key.", detail)
+    if res.status_code == 404:
+        raise CopilotError(f"The model \"{p.model}\" wasn't found on {p.name}. Set COPILOT_MODEL to one this key can use.", detail)
+    raise CopilotError("The AI service returned an error. Please try again.", detail)
 
 
 async def _run_tool(name: str, args, handlers: dict, used: list[str], db) -> tuple[str, bool]:
@@ -191,7 +219,7 @@ async def _anthropic(client, p: Provider, system, tools, handlers, convo, used, 
         res = await client.post(ANTHROPIC_URL, headers=headers, json={
             "model": p.model, "max_tokens": MAX_TOKENS, "system": system, "tools": tools, "messages": convo,
         })
-        _raise_for_status(res, p.name)
+        _raise_for_status(res, p)
         body = res.json()
         content = body.get("content") or []
         # The assistant turn goes back verbatim — including any thinking blocks —
@@ -227,7 +255,7 @@ async def _openai_style(client, p: Provider, system, tools, handlers, history, u
             # OpenAI's newer models refuse max_tokens; Gemini's endpoint takes it.
             ("max_completion_tokens" if p.name == "openai" else "max_tokens"): MAX_TOKENS,
         })
-        _raise_for_status(res, p.name)
+        _raise_for_status(res, p)
         choice = (res.json().get("choices") or [{}])[0]
         message = choice.get("message") or {}
         calls = message.get("tool_calls") or []
