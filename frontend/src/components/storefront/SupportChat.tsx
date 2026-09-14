@@ -9,6 +9,7 @@
  */
 import { useEffect, useRef, useState } from "react";
 import { apiClient } from "@/lib/api-client";
+import { ChatMarkdown } from "@/components/ui/ChatMarkdown";
 
 interface Turn { role: "user" | "assistant"; content: string }
 
@@ -78,7 +79,11 @@ export function SupportChat() {
             )}
           </>
         )}
-        {turns.map((t, i) => <div key={i} style={t.role === "user" ? S.user : S.bot}>{t.content}</div>)}
+        {turns.map((t, i) => (
+          <div key={i} style={t.role === "user" ? S.user : S.bot}>
+            {t.role === "user" ? t.content : <ChatMarkdown text={t.content} />}
+          </div>
+        ))}
         {asking && <div style={{ ...S.bot, color: "#6B6B6B" }}>Checking your orders…</div>}
       </div>
 
@@ -102,7 +107,7 @@ const S: Record<string, React.CSSProperties> = {
   close: { border: "none", background: "none", fontSize: "15px", cursor: "pointer", color: "#6B6B6B" },
   log: { flex: 1, overflowY: "auto", padding: "12px 14px", display: "flex", flexDirection: "column", gap: "8px" },
   user: { alignSelf: "flex-end", maxWidth: "85%", background: "#1A1A1A", color: "#fff", padding: "8px 11px", borderRadius: "12px 12px 2px 12px", fontSize: "13px", lineHeight: 1.5, whiteSpace: "pre-wrap" },
-  bot: { alignSelf: "flex-start", maxWidth: "90%", background: "#F4F4F2", color: "#1A1A1A", padding: "8px 11px", borderRadius: "12px 12px 12px 2px", fontSize: "13px", lineHeight: 1.55, whiteSpace: "pre-wrap" },
+  bot: { alignSelf: "flex-start", maxWidth: "90%", background: "#F4F4F2", color: "#1A1A1A", padding: "8px 11px", borderRadius: "12px 12px 12px 2px", fontSize: "13px", lineHeight: 1.55 },
   chip: { padding: "6px 10px", border: "1px solid #E3E3E3", background: "#fff", borderRadius: "16px", fontSize: "12px", fontWeight: 600, cursor: "pointer" },
   error: { margin: "0 14px 6px", background: "#FEF2F2", border: "1px solid #FECACA", color: "#991B1B", borderRadius: "8px", padding: "7px 10px", fontSize: "12px" },
   form: { display: "flex", gap: "6px", padding: "10px 12px", borderTop: "1px solid #EDEDEA" },

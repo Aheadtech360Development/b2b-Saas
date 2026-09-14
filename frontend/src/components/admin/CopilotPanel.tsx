@@ -11,6 +11,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { apiClient } from "@/lib/api-client";
+import { ChatMarkdown } from "@/components/ui/ChatMarkdown";
 
 type Severity = "urgent" | "attention" | "info";
 
@@ -151,7 +152,9 @@ export function CopilotPanel() {
                 </div>
               )}
               {turns.map((t, i) => (
-                <div key={i} style={t.role === "user" ? S.userBubble : S.botBubble}>{t.content}</div>
+                <div key={i} style={t.role === "user" ? S.userBubble : S.botBubble}>
+                  {t.role === "user" ? t.content : <ChatMarkdown text={t.content} />}
+                </div>
               ))}
               {asking && (
                 <div style={{ ...S.botBubble, color: "#6B6B6B" }}>
@@ -202,7 +205,7 @@ const S: Record<string, React.CSSProperties> = {
   log: { flex: 1, overflowY: "auto", maxHeight: "300px", display: "flex", flexDirection: "column", gap: "8px", paddingRight: "2px" },
   chip: { padding: "7px 12px", border: "1px solid #E3E3E3", background: "#F6F6F7", borderRadius: "20px", fontSize: "12px", fontWeight: 600, color: "#1A1A1A", cursor: "pointer" },
   userBubble: { alignSelf: "flex-end", maxWidth: "85%", background: "#1A1A1A", color: "#fff", padding: "9px 12px", borderRadius: "12px 12px 2px 12px", fontSize: "13px", lineHeight: 1.5, whiteSpace: "pre-wrap" },
-  botBubble: { alignSelf: "flex-start", maxWidth: "92%", background: "#F4F4F2", color: "#1A1A1A", padding: "9px 12px", borderRadius: "12px 12px 12px 2px", fontSize: "13px", lineHeight: 1.55, whiteSpace: "pre-wrap" },
+  botBubble: { alignSelf: "flex-start", maxWidth: "92%", background: "#F4F4F2", color: "#1A1A1A", padding: "9px 12px", borderRadius: "12px 12px 12px 2px", fontSize: "13px", lineHeight: 1.55 },
   error: { marginTop: "8px", background: "#FEF2F2", border: "1px solid #FECACA", color: "#991B1B", borderRadius: "8px", padding: "8px 10px", fontSize: "12px" },
   input: { flex: 1, minWidth: 0, padding: "10px 12px", border: "1px solid #E3E3E3", borderRadius: "8px", fontSize: "13px", outline: "none" },
   send: { padding: "10px 18px", background: "#1A1A1A", color: "#fff", border: "none", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: "pointer" },
