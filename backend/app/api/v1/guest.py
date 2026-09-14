@@ -8,7 +8,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, EmailStr
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text as _text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db

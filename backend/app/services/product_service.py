@@ -8,7 +8,7 @@ from sqlalchemy import exists, func, inspect as sa_inspect, or_, select, text
 from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.exceptions import NotFoundError
+from app.core.exceptions import NotFoundError, ValidationError
 from app.core.redis import redis_delete, redis_delete_pattern, redis_get, redis_set, tenant_cache_key
 from app.models.product import Category, Product, ProductAsset, ProductCategory, ProductVariant, ProductImage
 from app.schemas.product import FilterParams

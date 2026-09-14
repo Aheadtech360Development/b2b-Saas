@@ -633,6 +633,8 @@ async def submit_upload_by_size(
 ) -> dict:
     """One-design "Upload by size" order. Price is computed here from the
     product's area-tiered table — the client's estimate is never trusted."""
+    from app.models.product import Product
+
     product = (
         await db.execute(select(Product).where(Product.id == payload.product_id))
     ).scalar_one_or_none()
