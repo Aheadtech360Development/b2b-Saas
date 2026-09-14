@@ -43,6 +43,8 @@ interface Item {
   h: number;
   qty: number;
   lockAspect: boolean;
+  /** The chosen preset, or null for a custom size the buyer types themselves. */
+  preset: string | null;
 }
 
 /** Preset print widths, in inches — the height follows from the artwork. */
@@ -105,10 +107,9 @@ export function UploadBySizeModal({ product, onClose }: Props) {
   const orderTotal = priced.reduce((sum, p) => sum + (p.price?.total ?? 0), 0);
   const totalArea = items.reduce((sum, it) => sum + it.w * it.h * it.qty, 0);
 
-  /** The preset whose width matches, if any — otherwise the size is custom. */
-  const activePreset = active
-    ? PRESETS.find((p) => Math.abs(p.w - active.w) < 0.01)?.key ?? null
-    : null;
+  const activePreset = active?.preset ?? null;
+  // On a preset the size is the preset's; only Custom is typed into.
+  const sizeLocked = !!activePreset;
 
   const dpi = active && active.w > 0 && active.pxW
     ? Math.floor(Math.min(active.pxW / active.w, active.pxH / active.h))
@@ -160,7 +161,7 @@ export function UploadBySizeModal({ product, onClose }: Props) {
           pxW, pxH, aspect,
           w: round2(clamp(startW, 0.5, maxW)),
           h: round2(clamp(startH, 0.5, maxH)),
-          qty: 1, lockAspect: true,
+          qty: 1, lockAspect: true, preset: null,
         }]);
         setActiveId(id);
       }
@@ -188,10 +189,10 @@ export function UploadBySizeModal({ product, onClose }: Props) {
       ...(active.lockAspect ? { w: round2(clamp(nh * active.aspect, 0.5, maxW)) } : {}),
     });
   }
-  function applyPreset(widthIn: number) {
+  function applyPreset(key: string, widthIn: number) {
     if (!active) return;
     const nw = clamp(widthIn, 0.5, maxW);
-    patch(active.id, { w: round2(nw), h: round2(clamp(nw / active.aspect, 0.5, maxH)) });
+    patch(active.id, { w: round2(nw), h: round2(clamp(nw / active.aspect, 0.5, maxH)), preset: key });
   }
   /** Put the artwork back to its own proportions after a free resize. */
   function resetAspect() {
@@ -428,7 +429,13 @@ export function UploadBySizeModal({ product, onClose }: Props) {
                   <button
                     onClick={() => patch(active.id, { lockAspect: !active.lockAspect })}
                     aria-label="Toggle aspect ratio lock"
-                    style={{ ...S.switch, background: active.lockAspect ? "#1A1A1A" : "#D6D3CC" }}
+                    disabled={sizeLocked}
+                    style={{
+                      ...S.switch,
+                      background: active.lockAspect ? "#1A1A1A" : "#D6D3CC",
+                      opacity: sizeLocked ? 0.45 : 1,
+                      cursor: sizeLocked ? "not-allowed" : "pointer",
+                    }}
                   >
                     <span style={{ ...S.knob, left: active.lockAspect ? "22px" : "3px" }} />
                   </button>
@@ -440,7 +447,8 @@ export function UploadBySizeModal({ product, onClose }: Props) {
                       typing 6 by hand lights L, and nudging it off a preset
                       falls back to Custom without any extra state to keep. */}
                   <button
-                    onClick={() => { /* the size fields are already free-form */ }}
+                    onClick={() => patch(active.id, { preset: null })}
+                    title="Type your own width and height"
                     style={{ ...S.preset, ...(activePreset ? null : S.presetActive) }}
                   >
                     Custom
@@ -448,7 +456,7 @@ export function UploadBySizeModal({ product, onClose }: Props) {
                   {PRESETS.map((p) => (
                     <button
                       key={p.key}
-                      onClick={() => applyPreset(p.w)}
+                      onClick={() => applyPreset(p.key, p.w)}
                       title={`${p.w}in wide`}
                       style={{ ...S.preset, ...(activePreset === p.key ? S.presetActive : null) }}
                     >
@@ -462,14 +470,22 @@ export function UploadBySizeModal({ product, onClose }: Props) {
                   <div>
                     <label style={S.label}>Width (in)</label>
                     <input type="number" min={0.5} max={maxW} step={0.01} value={active.w}
-                      onChange={(e) => setWidth(Number(e.target.value))} style={S.input} />
-                    <div style={S.hint}>Max is {maxW} in</div>
+                      disabled={sizeLocked}
+                      onChange={(e) => setWidth(Number(e.target.value))}
+                      style={{ ...S.input, ...(sizeLocked ? S.inputOff : null) }} />
+                    <div style={S.hint}>
+                      {sizeLocked ? `Set by ${activePreset} — pick Custom to type` : `Max is ${maxW} in`}
+                    </div>
                   </div>
                   <div>
                     <label style={S.label}>Height (in)</label>
                     <input type="number" min={0.5} max={maxH} step={0.01} value={active.h}
-                      onChange={(e) => setHeight(Number(e.target.value))} style={S.input} />
-                    <div style={S.hint}>Max is {maxH} in</div>
+                      disabled={sizeLocked}
+                      onChange={(e) => setHeight(Number(e.target.value))}
+                      style={{ ...S.input, ...(sizeLocked ? S.inputOff : null) }} />
+                    <div style={S.hint}>
+                      {sizeLocked ? "Follows the artwork's proportions" : `Max is ${maxH} in`}
+                    </div>
                   </div>
                   <div>
                     <label style={S.label}>Quantity</label>
@@ -611,6 +627,7 @@ const S: Record<string, React.CSSProperties> = {
   label: { display: "block", fontSize: "12px", fontWeight: 600, color: "#4A4A4A", marginBottom: "5px" },
   input: { width: "100%", boxSizing: "border-box", padding: "10px 11px", border: "1px solid #D6D3CC", borderRadius: "8px", fontSize: "14px" },
   hint: { fontSize: "10px", color: "#9CA3AF", marginTop: "3px" },
+  inputOff: { background: "#F3F3F1", color: "#8A8A8A", cursor: "not-allowed" },
   strip: { display: "flex", gap: "10px", flexWrap: "wrap", alignItems: "flex-start", paddingTop: "4px" },
   addTile: { width: "74px", height: "74px", borderRadius: "9px", border: "1.5px dashed #D6D3CC", background: "#fff", color: "#9CA3AF", fontSize: "22px", cursor: "pointer" },
   thumb: { position: "relative", width: "74px", height: "74px", borderRadius: "9px", borderStyle: "solid", background: "#fff", padding: "5px", cursor: "pointer", overflow: "visible" },
