@@ -1321,6 +1321,12 @@ async def admin_sheets_for_order(
             if size:
                 row["bleed_in"] = float(getattr(size, "bleed_in", 0) or 0)
                 row["spacing_in"] = float(getattr(size, "spacing_in", 0) or 0)
+        else:
+            # Upload-by-size: the sheet IS the design, cut to that size. There is
+            # no margin to trim, so drawing a bleed line here would mark a
+            # correct job as running past a safe area that doesn't exist.
+            row["bleed_in"] = 0.0
+            row["spacing_in"] = 0.0
         sheets.append(row)
 
     return {"sheets": sheets, "count": len(sheets)}
