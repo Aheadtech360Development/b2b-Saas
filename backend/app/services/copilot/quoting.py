@@ -117,8 +117,50 @@ def option_catalogue(product: Product) -> list[dict]:
     return out
 
 
-async def quote_for(db: AsyncSession, product: Product, quantity: int, choices: dict | None) -> dict:
-    """The authoritative price for `quantity` of `product` with these choices."""
+async def company_pricing(db: AsyncSession, company: Company | None) -> tuple[Decimal, str | None]:
+    """A customer's own pricing: their tier's discount and their discount group.
+
+    The middleware works this out per request from the signed-in company; a quote
+    is being priced for someone else, so it is resolved here from the same
+    tables. Without it a B2B quote is a list price — right for nobody with a
+    tier, and wrong on the draft order it turns into.
+    """
+    if company is None:
+        return Decimal("0"), None
+
+    discount = Decimal("0")
+    if getattr(company, "pricing_tier_id", None):
+        from app.models.pricing import PricingTier
+
+        row = await db.scalar(
+            select(PricingTier.discount_percent).where(PricingTier.id == company.pricing_tier_id)
+        )
+        if row is not None:
+            discount = Decimal(str(row))
+
+    group_id = None
+    tags = getattr(company, "tags", None)
+    if tags:
+        from app.models.discount_group import DiscountGroup
+
+        gid = await db.scalar(
+            select(DiscountGroup.id)
+            .where(DiscountGroup.customer_tag.in_(tags), DiscountGroup.status == "enabled")
+            .limit(1)
+        )
+        if gid:
+            group_id = str(gid)
+    return discount, group_id
+
+
+async def quote_for(db: AsyncSession, product: Product, quantity: int, choices: dict | None,
+                    company: Company | None = None) -> dict:
+    """The authoritative price for `quantity` of `product` with these choices.
+
+    With a company, a stocked product is priced the way that customer would be
+    charged — their variant override, their group's override, or their tier's
+    discount — using the cart's own resolver, so a quote and a checkout agree.
+    """
     quantity = max(1, int(quantity or 1))
     moq = int(getattr(product, "moq", 1) or 1)
 
@@ -130,6 +172,7 @@ async def quote_for(db: AsyncSession, product: Product, quantity: int, choices: 
             raise QuoteError(str(exc))
         return {
             "product": product.name,
+            "quoted_for": company.name if company is not None else None,
             "type": "configurable",
             "quantity": quantity,
             "unit_price": priced["unit_price"],
@@ -138,6 +181,7 @@ async def quote_for(db: AsyncSession, product: Product, quantity: int, choices: 
             "chosen": [{"option": b["option"], "value": b["value"]} for b in priced["breakdown"]],
             "breakdown": priced["breakdown"],
             "unmatched_choices": unmatched,
+            "note": "Made-to-order pricing comes from the options themselves; tier discounts don't apply to it.",
             "below_minimum": quantity < moq,
             "minimum_order_quantity": moq,
             "admin_link": f"/admin/products/{product.slug}/edit",
@@ -161,18 +205,32 @@ async def quote_for(db: AsyncSession, product: Product, quantity: int, choices: 
                 raise QuoteError(f"No {field} “{wanted[field]}” on {product.name}. Available: {', '.join(have)}.")
             picked = narrowed
     variant = min(picked, key=lambda v: float(v.retail_price or 0))
-    unit = Decimal(str(variant.retail_price or 0))
+    list_price = Decimal(str(variant.retail_price or 0))
+    unit = list_price
+    if company is not None:
+        from app.services.cart_service import CartService
+
+        discount, group_id = await company_pricing(db, company)
+        unit = await CartService(db)._effective_price(variant, discount, group_id)
+
     return {
         "product": product.name,
+        "quoted_for": company.name if company is not None else None,
         "type": "stocked",
         "variant_sku": variant.sku,
         "color": variant.color,
         "size": variant.size,
         "quantity": quantity,
         "unit_price": _money(unit),
+        "list_price": _money(list_price),
         "setup_fees": 0.0,
         "total": _money(unit * quantity),
-        "note": "List price for this variant. A customer's own tier or group discount is applied at checkout.",
+        "note": ("This customer's own price, after their tier or group pricing."
+                 if company is not None and unit != list_price else
+                 "This customer's price — their tier makes no difference on this variant."
+                 if company is not None else
+                 "List price. A customer's tier or group pricing is applied on top, so quote against "
+                 "a named customer for their real figure."),
         "below_minimum": quantity < moq,
         "minimum_order_quantity": moq,
         "admin_link": f"/admin/products/{product.slug}/edit",
@@ -203,7 +261,7 @@ async def create_draft(db: AsyncSession, company: Company, product: Product,
     Prices are recomputed here rather than carried from the preview, so what the
     order holds is what the engine says now, not what was quoted a minute ago.
     """
-    quote = await quote_for(db, product, quantity, choices)
+    quote = await quote_for(db, product, quantity, choices, company=company)
 
     member = (await db.execute(
         select(CompanyUser).where(CompanyUser.company_id == company.id,

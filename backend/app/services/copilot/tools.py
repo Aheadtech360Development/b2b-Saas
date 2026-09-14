@@ -31,7 +31,7 @@ from app.models.order import Order, OrderItem
 from app.models.product import Product, ProductVariant
 from app.services.copilot.briefing import build_briefing
 from app.services.copilot.quoting import (
-    QuoteError, find_product, option_catalogue, quote_for,
+    QuoteError, find_company, find_product, option_catalogue, quote_for,
 )
 from app.services.copilot.guide import INDEX as GUIDE_INDEX, TOPICS as GUIDE_TOPICS, lookup as guide_lookup
 
@@ -201,6 +201,8 @@ OWNER_TOOLS: list[dict] = [
                 "quantity": {"type": "integer"},
                 "choices": {"type": "object", "additionalProperties": {"type": "string"},
                             "description": "Option name to chosen value, in the words the product uses."},
+                "customer": {"type": "string",
+                             "description": "Quote for this customer, so their tier or group pricing is used. Always pass it when you know who the quote is for."},
             },
             "required": ["product", "quantity"],
         },
@@ -444,7 +446,11 @@ def owner_handlers(db: AsyncSession) -> dict[str, Handler]:
     async def calculate_quote(args: dict):
         try:
             product = await find_product(db, str(args.get("product") or ""))
-            return await quote_for(db, product, int(args.get("quantity") or 1), args.get("choices") or {})
+            company = None
+            if (who := (args.get("customer") or "").strip()):
+                company = await find_company(db, who)
+            return await quote_for(db, product, int(args.get("quantity") or 1),
+                                   args.get("choices") or {}, company=company)
         except QuoteError as exc:
             return {"error": str(exc)}
         except (TypeError, ValueError):
@@ -701,6 +707,40 @@ def owner_handlers(db: AsyncSession) -> dict[str, Handler]:
 
 CUSTOMER_TOOLS: list[dict] = [
     {
+        "name": "product_options_and_prices",
+        "description": (
+            "What a product offers and what it costs THIS customer. For a made-to-order product it "
+            "returns the choices available (size, stock, finish, turnaround); for a stocked one, the "
+            "colours, sizes and the price this customer pays after their own account pricing. Use it "
+            "before quoting so you know what still needs asking."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {"product": {"type": "string", "description": "Product name or SKU."}},
+            "required": ["product"],
+        },
+    },
+    {
+        "name": "quote_price",
+        "description": (
+            "The real price for a quantity of a product for THIS customer — their own account "
+            "pricing, worked out by the same engine used at checkout, never your own arithmetic. "
+            "Pass their choices by name, e.g. {\"Size\": \"XL\", \"Turnaround\": \"Next day\"}; "
+            "anything not given uses that option's default, so say which defaults you used. It "
+            "reports any choice it could not match and whether the quantity is under the product's "
+            "minimum — tell the customer both rather than quoting around them."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "product": {"type": "string"},
+                "quantity": {"type": "integer"},
+                "choices": {"type": "object", "additionalProperties": {"type": "string"}},
+            },
+            "required": ["product", "quantity"],
+        },
+    },
+    {
         "name": "my_recent_orders",
         "description": (
             "Lists this customer's own most recent orders, newest first, at most 10: order number, "
@@ -736,6 +776,9 @@ CUSTOMER_TOOLS: list[dict] = [
 
 
 def customer_handlers(db: AsyncSession, *, user_id, company_id) -> dict[str, Handler]:
+    """Tools for one signed-in buyer. Pricing is resolved against their own
+    company, taken from the session — a buyer cannot ask for another account's
+    price by naming it, because there is nowhere to name one."""
     def _as_uuid(v):
         if not v:
             return None
@@ -749,6 +792,61 @@ def customer_handlers(db: AsyncSession, *, user_id, company_id) -> dict[str, Han
     def owns_order():
         # A company buyer sees the company's orders; an individual sees their own.
         return Order.company_id == cid if cid else Order.placed_by_id == uid
+
+    async def _my_company() -> Company | None:
+        if not cid:
+            return None
+        return (await db.execute(select(Company).where(Company.id == cid))).scalar_one_or_none()
+
+    async def product_options_and_prices(args: dict):
+        try:
+            product = await find_product(db, str(args.get("product") or ""))
+        except QuoteError as exc:
+            return {"error": str(exc)}
+        configurable = (getattr(product, "pricing_mode", "variant") or "variant") == "configurable"
+        data = {
+            "product": product.name,
+            "link": f"/products/{product.slug}",
+            "minimum_order_quantity": int(getattr(product, "moq", 1) or 1),
+        }
+        if configurable:
+            data["options"] = option_catalogue(product)
+            data["note"] = "Price depends on the choices — use quote_price once they are known."
+            return data
+        company = await _my_company()
+        rows = (await db.execute(
+            select(ProductVariant)
+            .where(ProductVariant.product_id == product.id, ProductVariant.status == "active")
+            .order_by(ProductVariant.sort_order).limit(MAX_ROWS)
+        )).scalars().all()
+        priced = []
+        for v in rows:
+            try:
+                quote = await quote_for(db, product, 1, {"color": v.color or "", "size": v.size or ""},
+                                        company=company)
+                priced.append({"color": v.color, "size": v.size, "price": quote["unit_price"]})
+            except QuoteError:
+                continue
+        data["variants"] = priced
+        return data
+
+    async def quote_price(args: dict):
+        try:
+            product = await find_product(db, str(args.get("product") or ""))
+            quote = await quote_for(db, product, int(args.get("quantity") or 1),
+                                    args.get("choices") or {}, company=await _my_company())
+        except QuoteError as exc:
+            return {"error": str(exc)}
+        except (TypeError, ValueError):
+            return {"error": "Quantity must be a number."}
+        # The buyer has no use for the admin's screens.
+        quote.pop("admin_link", None)
+        quote.pop("quoted_for", None)
+        quote["link"] = f"/products/{product.slug}"
+        quote["note"] = ("This is your price. Taxes and delivery are worked out at checkout."
+                         if quote["type"] == "stocked" else
+                         "Taxes and delivery are worked out at checkout.")
+        return quote
 
     async def my_recent_orders(_: dict):
         if not (uid or cid):
@@ -795,6 +893,8 @@ def customer_handlers(db: AsyncSession, *, user_id, company_id) -> dict[str, Han
         } for g in rows]}
 
     return {
+        "product_options_and_prices": product_options_and_prices,
+        "quote_price": quote_price,
         "my_recent_orders": my_recent_orders,
         "my_order_status": my_order_status,
         "my_print_jobs": my_print_jobs,

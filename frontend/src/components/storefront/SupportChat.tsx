@@ -13,7 +13,7 @@ import { ChatMarkdown } from "@/components/ui/ChatMarkdown";
 
 interface Turn { role: "user" | "assistant"; content: string }
 
-const SUGGESTIONS = ["Where is my latest order?", "Is my artwork approved?", "Track my order"];
+const SUGGESTIONS = ["Where is my latest order?", "Is my artwork approved?", "How much for 50?"];
 
 export function SupportChat() {
   const [open, setOpen] = useState(false);
@@ -52,8 +52,8 @@ export function SupportChat() {
 
   if (!open) {
     return (
-      <button onClick={() => setOpen(true)} aria-label="Ask about your orders" style={S.fab}>
-        <span aria-hidden style={{ fontSize: "16px" }}>💬</span> Ask about your orders
+      <button onClick={() => setOpen(true)} aria-label="Ask a question" style={S.fab}>
+        <span aria-hidden style={{ fontSize: "16px" }}>💬</span> Ask a question
       </button>
     );
   }
@@ -62,8 +62,8 @@ export function SupportChat() {
     <div role="dialog" aria-label="Order help" style={S.panel}>
       <div style={S.head}>
         <div>
-          <div style={{ fontSize: "14px", fontWeight: 700 }}>Order help</div>
-          <div style={{ fontSize: "11px", color: "#6B6B6B" }}>Answers from your own orders</div>
+          <div style={{ fontSize: "14px", fontWeight: 700 }}>Ask us</div>
+          <div style={{ fontSize: "11px", color: "#6B6B6B" }}>Your orders and your prices</div>
         </div>
         <button onClick={() => setOpen(false)} aria-label="Close" style={S.close}>✕</button>
       </div>
@@ -71,7 +71,7 @@ export function SupportChat() {
       <div ref={scroller} style={S.log}>
         {turns.length === 0 && (
           <>
-            <div style={S.bot}>Hi! Ask me about your orders, shipping, or your print jobs.</div>
+            <div style={S.bot}>Hi! Ask me about your orders, your print jobs, or what something costs at your prices.</div>
             {!off && (
               <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
                 {SUGGESTIONS.map((s) => <button key={s} onClick={() => ask(s)} style={S.chip}>{s}</button>)}
@@ -91,7 +91,7 @@ export function SupportChat() {
 
       <form onSubmit={(e) => { e.preventDefault(); ask(draft); }} style={S.form}>
         <input value={draft} onChange={(e) => setDraft(e.target.value)} disabled={asking || off}
-          placeholder={off ? "Order help isn't available right now" : "e.g. Where is order #1043?"}
+          placeholder={off ? "Help isn't available right now" : "e.g. How much for 50 hoodies?"}
           maxLength={4000} style={S.input} />
         <button type="submit" disabled={asking || off || !draft.trim()}
           style={{ ...S.send, opacity: asking || off || !draft.trim() ? 0.45 : 1 }}>Send</button>
