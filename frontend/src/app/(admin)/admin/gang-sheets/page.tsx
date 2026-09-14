@@ -403,7 +403,7 @@ function ProductEditor({ product, onBack, onGoToSizes }: { product: GangSheetPro
     setCfg((c) => ({ ...c, tiers: (c.tiers ?? []).map((t, idx) => (idx === i ? { ...t, [field]: val } : t)) }));
   }
   function addTier() {
-    setCfg((c) => ({ ...c, tiers: [...(c.tiers ?? []), { max_height: 0, max_area: 0, price_per_sqin: 0, discount: 0 }] }));
+    setCfg((c) => ({ ...c, tiers: [...(c.tiers ?? []), { max_height: 0, max_area: 0, price_per_sqin: 0, discount: 0 }] }));  // discount kept in the shape for stored rows; it is not priced on
   }
   function removeTier(i: number) {
     setCfg((c) => ({ ...c, tiers: (c.tiers ?? []).filter((_, idx) => idx !== i) }));
@@ -520,7 +520,7 @@ function ProductEditor({ product, onBack, onGoToSizes }: { product: GangSheetPro
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px", minWidth: "560px" }}>
               <thead>
                 <tr style={{ background: "#F6F6F7" }}>
-                  {["~Max height (in)", "Max area (sq in)", "Price ($/sq in)", "Discount (%)", ""].map((h) => (
+                  {["~Max height (in)", "Max area (sq in)", "Price ($/sq in)", ""].map((h) => (
                     <th key={h} style={{ padding: "7px 10px", textAlign: "left", fontSize: "10px", fontWeight: 700, color: "#6B6B6B", textTransform: "uppercase" }}>{h}</th>
                   ))}
                 </tr>
@@ -531,12 +531,11 @@ function ProductEditor({ product, onBack, onGoToSizes }: { product: GangSheetPro
                     <td style={{ padding: "5px 8px" }}><input type="number" step="0.01" value={t.max_height} onChange={(e) => setTier(i, "max_height", Number(e.target.value))} style={{ ...INPUT, padding: "6px 8px" }} /></td>
                     <td style={{ padding: "5px 8px" }}><input type="number" step="0.01" value={t.max_area} onChange={(e) => setTier(i, "max_area", Number(e.target.value))} style={{ ...INPUT, padding: "6px 8px" }} /></td>
                     <td style={{ padding: "5px 8px" }}><input type="number" step="0.0001" value={t.price_per_sqin} onChange={(e) => setTier(i, "price_per_sqin", Number(e.target.value))} style={{ ...INPUT, padding: "6px 8px" }} /></td>
-                    <td style={{ padding: "5px 8px" }}><input type="number" step="1" value={t.discount} onChange={(e) => setTier(i, "discount", Number(e.target.value))} style={{ ...INPUT, padding: "6px 8px" }} /></td>
                     <td style={{ padding: "5px 8px", textAlign: "center" }}><button onClick={() => removeTier(i)} style={{ background: "none", border: "none", color: "#B91C1C", cursor: "pointer", fontSize: "16px" }}>×</button></td>
                   </tr>
                 ))}
                 {tiers.length === 0 && (
-                  <tr><td colSpan={5} style={{ padding: "12px", textAlign: "center", color: "#9CA3AF", fontSize: "12px" }}>No tiers yet. Add a row below.</td></tr>
+                  <tr><td colSpan={4} style={{ padding: "12px", textAlign: "center", color: "#9CA3AF", fontSize: "12px" }}>No tiers yet. Add a row below.</td></tr>
                 )}
               </tbody>
             </table>
