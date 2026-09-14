@@ -282,7 +282,19 @@ export default function CheckoutAddressPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shippingTypeForUser, activeZip, activeState, activeCity, cartItemsForShipping]);
 
+  // Tax is billed per lookup, and this effect depends on the ZIP field, so
+  // typing a postcode used to fire one call per keystroke — and the review page
+  // asks again. Wait for a whole postcode and for typing to stop; the rate
+  // cannot change between digits.
   useEffect(() => {
+    const zipDigits = (activeZip || "").replace(/[^0-9]/g, "");
+    if (zipDigits.length > 0 && zipDigits.length < 5) return;
+    const timer = setTimeout(runTaxLookup, 500);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeState, activeZip, subtotal, selectedAddressId, couponDiscount]);
+
+  function runTaxLookup() {
     if (!activeState) {
       console.log("[Tax] Skipping — activeState is empty", { activeZip, subtotal, selectedAddressId });
       setTaxRate(null);
@@ -326,7 +338,7 @@ export default function CheckoutAddressPage() {
         setApiTaxAmount(0);
         setTaxInfo(null, 0, 0);
       });
-  }, [activeState, activeZip, subtotal, selectedAddressId, couponDiscount]);
+  }
 
 
   const taxableBase = Math.max(0, subtotal - couponDiscount); // shipping not taxed

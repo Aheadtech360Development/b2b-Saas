@@ -3,9 +3,16 @@ import logging
 import os
 import httpx
 
+from app.core.redis import redis_get, redis_set
+
 logger = logging.getLogger(__name__)
 
 ZIPTAX_BASE_URL = "https://api.zip-tax.com/request/v60"
+
+
+# A sales-tax rate changes a handful of times a year, so a day's caching is
+# generous on freshness and cuts repeat lookups of the same postcode to one.
+RATE_CACHE_TTL = 24 * 3600
 
 
 def get_ziptax_client() -> str | None:
@@ -31,6 +38,25 @@ async def calculate_tax(
         return {"rate": 0.0, "tax_amount": 0.0, "region": to_state.upper(), "source": "manual"}
 
     clean_zip = str(to_zip).strip().zfill(5) if to_zip else ""
+
+    # A postcode's rate is the same for everyone and changes a few times a year,
+    # while the same postcode is looked up on every keystroke of a ZIP field, on
+    # the review page, and again for the next customer in that town. The plan is
+    # billed per call, so the rate is cached and only the amount is recomputed.
+    cache_key = f"ziptax:rate:{clean_zip}"
+    try:
+        cached = await redis_get(cache_key)
+    except Exception:
+        cached = None
+    if cached is not None:
+        rate = float(cached)
+        return {
+            "rate": rate,
+            "tax_amount": round(subtotal * rate / 100, 2),
+            "region": to_state.upper(),
+            "source": "ziptax",
+        }
+
     logger.info("ZipTax request: state=%s zip=%r clean_zip=%r subtotal=%.2f api_key_prefix=%s",
                 to_state, to_zip, clean_zip, subtotal, api_key[:8])
 
@@ -57,6 +83,10 @@ async def calculate_tax(
         tax_amount = round(subtotal * tax_rate_decimal, 2)
 
         logger.info("ZipTax result: taxSales=%s rate=%.4f%% tax_amount=$%.2f", tax_rate_decimal, rate, tax_amount)
+        try:
+            await redis_set(cache_key, str(rate), expire=RATE_CACHE_TTL)
+        except Exception:
+            pass                      # Redis down only costs an extra lookup.
 
         return {
             "rate": rate,
