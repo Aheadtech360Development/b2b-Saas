@@ -20,6 +20,9 @@ const nextConfig: NextConfig = {
   },
   env: {
     NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000",
+    // Baked in at build so an open tab knows which build it is running; compared
+    // against /api/version to catch a tab left open across a deploy.
+    NEXT_PUBLIC_BUILD_ID: process.env.VERCEL_GIT_COMMIT_SHA || "",
   },
   images: {
     remotePatterns: [

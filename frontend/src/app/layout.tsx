@@ -4,6 +4,7 @@ import Script from "next/script";
 import "./globals.css";
 import { Providers } from "@/components/providers/Providers";
 import { Header } from "@/components/layout/Header";
+import { DeployRefresh } from "@/components/providers/DeployRefresh";
 
 export const metadata: Metadata = {
   title: "Wholesale Store",
@@ -40,6 +41,7 @@ export default function RootLayout({
           />
         )}
         <Providers>
+          <DeployRefresh />
           <Header />
           {children}
         </Providers>
