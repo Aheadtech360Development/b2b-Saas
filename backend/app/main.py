@@ -942,6 +942,9 @@ from app.api.v1.admin import integrations as admin_integrations  # noqa: E402
 app.include_router(admin_integrations.router, prefix=_V1)
 from app.api.v1 import product_configurator  # noqa: E402
 app.include_router(product_configurator.router, prefix=_V1)
+from app.api.v1 import copilot as copilot_api  # noqa: E402
+app.include_router(copilot_api.admin_router, prefix=_V1)
+app.include_router(copilot_api.public_router, prefix=_V1)
 
 # ── Legacy single-tenant routes (kept for compatibility) ──────────────────────
 app.include_router(auth.router, prefix=_V1)

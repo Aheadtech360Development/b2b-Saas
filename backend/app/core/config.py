@@ -131,6 +131,15 @@ class Settings(BaseSettings):
     # Leave blank once a domain is verified.
     EMAIL_REDIRECT_TO: str = ""
 
+    # ── AI Copilot (Anthropic) ────────────────────────────────────────────────
+    # One platform key, like Resend: every brand's copilot runs on it, and each
+    # brand is held to its own daily question limit so one cannot run the bill.
+    # Without a key the briefing still works — it is computed, not generated —
+    # and only the chat reports itself unavailable.
+    ANTHROPIC_API_KEY: str = ""
+    COPILOT_MODEL: str = "claude-sonnet-5"
+    COPILOT_DAILY_LIMIT: int = 200
+
     @model_validator(mode="after")
     def _apply_resend_from_email(self) -> "Settings":
         if self.RESEND_FROM_EMAIL:

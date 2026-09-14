@@ -14,6 +14,7 @@ function greeting(): string {
   return "Working late";
 }
 import { PackageIcon, ClipboardIcon, AlertTriangleIcon } from "@/components/ui/icons";
+import { CopilotPanel } from "@/components/admin/CopilotPanel";
 
 interface RecentOrder {
   id: string;
@@ -257,6 +258,8 @@ export default function AdminDashboard() {
         </h1>
         <p style={{ fontSize: "14px", color: "#6B6B6B", marginTop: "6px" }}>Here&apos;s what&apos;s happening with your store today.</p>
       </div>
+
+      <CopilotPanel />
 
       {/* Needs attention — action strip pinned to the top (command-centre concept) */}
       <div style={{ marginBottom: "24px" }}>

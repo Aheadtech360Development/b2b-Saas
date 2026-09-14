@@ -7,6 +7,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useAuthStore } from "@/stores/auth.store";
 import { authService } from "@/services/auth.service";
 import { useBranding } from "@/components/providers/BrandingProvider";
+import { SupportChat } from "@/components/storefront/SupportChat";
 
 const NAV_ITEMS = [
   { href: "/account", label: "Overview" },
@@ -121,6 +122,7 @@ export default function AccountLayout({ children }: { children: React.ReactNode 
 
   return (
     <>
+      <SupportChat />
       {/* ── Mobile nav bar ── */}
       <div
         className="account-sidebar-mobile"
