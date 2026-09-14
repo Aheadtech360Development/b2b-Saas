@@ -428,17 +428,23 @@ export default function DraftOrdersPage() {
   const [orders, setOrders] = useState<DraftOrder[]>([]);
   const [total, setTotal] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
 
   async function load() {
     setIsLoading(true);
     try {
+      // Filtered by the server. Pulling a page of pending orders and sifting it
+      // here meant a store with more pending orders than that page stopped
+      // seeing its own drafts.
       const data = await apiClient.get<{ items: DraftOrder[]; total: number }>(
-        "/api/v1/admin/orders?status=pending&page_size=100"
+        "/api/v1/admin/orders?drafts_only=true&status=pending&page_size=200"
       );
-      const drafts = (data?.items ?? []).filter(o => o.order_number.startsWith("DRAFT-"));
-      setOrders(drafts);
-      setTotal(drafts.length);
+      setOrders(data?.items ?? []);
+      setTotal(data?.total ?? (data?.items?.length ?? 0));
+      setLoadError(null);
+    } catch (e) {
+      setLoadError((e as { message?: string })?.message || "Could not load drafts.");
     } finally {
       setIsLoading(false);
     }
@@ -449,12 +455,22 @@ export default function DraftOrdersPage() {
   async function handleConvert(orderId: string) {
     try {
       await apiClient.patch(`/api/v1/admin/orders/${orderId}`, { status: "confirmed" });
-      setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: "confirmed" } : o));
-    } catch { /* ignore */ }
+      // Reload rather than patch in place: a converted draft is no longer
+      // pending, so the list should stop showing it as one.
+      await load();
+    } catch (e) {
+      setLoadError((e as { message?: string })?.message || "Could not convert this draft.");
+    }
   }
 
   return (
     <div style={{ fontFamily: "var(--font-jakarta)" }}>
+      {loadError && (
+        <div style={{ background: "#FEF2F2", border: "1px solid #FCA5A5", color: "#991B1B",
+                      borderRadius: "8px", padding: "10px 14px", fontSize: "13px", marginBottom: "14px" }}>
+          {loadError}
+        </div>
+      )}
       {showCreate && (
         <CreateDraftModal
           onClose={() => setShowCreate(false)}

@@ -336,6 +336,7 @@ async def list_admin_orders(
     payment_status: str | None = None,
     company_id: str | None = None,
     guest_only: bool = Query(False, description="Show only guest orders"),
+    drafts_only: bool = Query(False, description="Show only draft orders (DRAFT-…)"),
     date_from: date | None = Query(None, description="Filter orders created on or after this date"),
     date_to: date | None = Query(None, description="Filter orders created on or before this date"),
     page: int = Query(1, ge=1),
@@ -347,6 +348,13 @@ async def list_admin_orders(
     query = select(Order, Company.name.label("company_name")).select_from(
         outerjoin(Order, Company, Order.company_id == Company.id)
     )
+    # Drafts are identified by their number. Filtering here rather than in the
+    # browser means the draft list pages properly — it used to fetch one page of
+    # pending orders and sift it client-side, so a store with more pending orders
+    # than that page simply stopped showing its own drafts.
+    if drafts_only:
+        query = query.where(Order.order_number.like("DRAFT-%"))
+
     if q:
         query = query.where(
             (Order.order_number.ilike(f"%{q}%"))
