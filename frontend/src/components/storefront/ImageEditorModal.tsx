@@ -11,6 +11,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { WorkingOverlay } from "@/components/storefront/WorkingOverlay";
+import { removeImageBackground, BackgroundRemovalError } from "@/lib/backgroundRemoval";
 
 interface Props {
   src: string;
@@ -47,6 +48,7 @@ export function ImageEditorModal({ src, fileName, onClose, onApply, initialTab }
   const [tolerance, setTolerance] = useState(40);
   const [ready, setReady] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
+  const [progress, setProgress] = useState<number | null>(null);
   const [showBefore, setShowBefore] = useState(false);
   const [bgColor, setBgColor] = useState("transparent");
   const [colors, setColors] = useState({ ...DEFAULT_COLORS });
@@ -128,20 +130,26 @@ export function ImageEditorModal({ src, fileName, onClose, onApply, initialTab }
 
   // ── Enhance ───────────────────────────────────────────────────────────────────
   async function removeBg() {
-    setBusy("Removing background…"); setError(null);
+    setBusy("Removing the background"); setProgress(null); setError(null);
     try {
       bakeColors();
       const blob: Blob = await new Promise((res) => workRef.current!.toBlob((b) => res(b!), "image/png"));
-      const { removeBackground } = await import("@imgly/background-removal");
-      const out = await removeBackground(blob);
+      // Shared with the studio and the upload-by-size flow: runs off the main
+      // thread where it can, and refuses a result that erased the design.
+      const out = await removeImageBackground(
+        new File([blob], fileName || "artwork.png", { type: "image/png" }),
+        (p) => { setBusy(p.label); setProgress(p.ratio); },
+      );
       const img = await blobToImage(out);
       const c = makeCanvas(img.naturalWidth, img.naturalHeight);
       c.getContext("2d")!.drawImage(img, 0, 0);
       workRef.current = c;
       commit();
-    } catch {
-      setError("Background removal wasn't available just now.");
-    } finally { setBusy(null); }
+    } catch (e) {
+      setError(e instanceof BackgroundRemovalError
+        ? e.message
+        : "Background removal wasn't available just now.");
+    } finally { setBusy(null); setProgress(null); }
   }
 
   function upscale() {
@@ -425,8 +433,9 @@ export function ImageEditorModal({ src, fileName, onClose, onApply, initialTab }
             {busy && (
               <WorkingOverlay
                 label={`${busy}…`}
-                note={busy.toLowerCase().includes("background")
-                  ? "The first run downloads the tool, so it takes longer. Later ones are quick."
+                progress={progress}
+                note={busy.startsWith("Downloading")
+                  ? "Only the first time — after this it's quick."
                   : undefined}
               />
             )}

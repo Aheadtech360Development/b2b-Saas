@@ -34,6 +34,7 @@ import { analyzeArtwork } from "@/lib/artworkAnalysis";
 import { cartService } from "@/services/cart.service";
 import { ImageEditorModal } from "@/components/storefront/ImageEditorModal";
 import { WorkingOverlay } from "@/components/storefront/WorkingOverlay";
+import { removeImageBackground, BackgroundRemovalError } from "@/lib/backgroundRemoval";
 
 const IMAGE_TYPES = new Set(["png", "jpg", "jpeg", "webp", "gif"]);
 const MIN_IN = 0.5;
@@ -191,6 +192,8 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
   // Background-removal prompt: files awaiting a decision + the removal state.
   const [bgQueue, setBgQueue] = useState<File[]>([]);
   const [bgBusy, setBgBusy] = useState(false);
+  const [bgProgress, setBgProgress] = useState<number | null>(null);
+  const [bgLabel, setBgLabel] = useState("Removing the background");
   const [bgDontShow, setBgDontShow] = useState(false);
   const [bgPreviewUrl, setBgPreviewUrl] = useState("");
   const bgSkipRef = useRef(false);
@@ -422,15 +425,20 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
     const f = bgQueue[0]; if (!f) return;
     setBgBusy(true); setError(null);
     try {
-      const { removeBackground } = await import("@imgly/background-removal");
-      const out = await removeBackground(f);
-      const base = f.name.replace(/\.[^.]+$/, "");
-      await ingestFile(new File([out], `${base}-nobg.png`, { type: "image/png" }));
-    } catch {
-      // Fall back to keeping the original so nothing is lost.
+      const png = await removeImageBackground(f, (p) => {
+        setBgLabel(p.label);
+        setBgProgress(p.ratio);
+      });
+      await ingestFile(png);
+    } catch (e) {
+      // Keep the original either way — the buyer's design is never lost to this.
       try { await ingestFile(f); } catch { /* ignore */ }
-      setError("Background removal wasn't available just now — kept the original image.");
+      setError(e instanceof BackgroundRemovalError
+        ? `${e.message} The original was kept.`
+        : "Background removal wasn't available just now — kept the original image.");
     } finally {
+      setBgProgress(null);
+      setBgLabel("Removing the background");
       setBgBusy(false);
       shiftBg();
     }
@@ -1373,8 +1381,11 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
               )}
               {bgBusy && (
                 <WorkingOverlay
-                  label="Removing the background…"
-                  note="The first run downloads the tool, so it takes longer. Later ones are quick."
+                  label={`${bgLabel}…`}
+                  progress={bgProgress}
+                  note={bgLabel.startsWith("Downloading")
+                    ? "Only the first time — after this it's quick."
+                    : undefined}
                 />
               )}
             </div>

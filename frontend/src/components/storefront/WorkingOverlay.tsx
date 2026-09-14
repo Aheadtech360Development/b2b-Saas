@@ -15,10 +15,13 @@
 export function WorkingOverlay({
   label,
   note,
+  progress,
   absolute = true,
 }: {
   label: string;
   note?: string;
+  /** 0-1 when the step has a measurable size; a bar beats a guess. */
+  progress?: number | null;
   /** Cover the nearest positioned ancestor (default) or the whole viewport. */
   absolute?: boolean;
 }) {
@@ -54,6 +57,17 @@ export function WorkingOverlay({
         }}
       />
       <span style={{ fontSize: "14px", fontWeight: 700, color: "#1A1A1A" }}>{label}</span>
+      {typeof progress === "number" && (
+        <span style={{ width: "200px", height: "5px", borderRadius: "3px", background: "#E3E3E3", overflow: "hidden" }}>
+          <span
+            style={{
+              display: "block", height: "100%", borderRadius: "3px", background: "#1A1A1A",
+              width: `${Math.round(Math.min(1, Math.max(0, progress)) * 100)}%`,
+              transition: "width .2s ease",
+            }}
+          />
+        </span>
+      )}
       <span style={{ fontSize: "12px", color: "#6B6B6B", maxWidth: "300px", lineHeight: 1.6 }}>
         {note ?? "This can take a few seconds — please don't close this window."}
       </span>

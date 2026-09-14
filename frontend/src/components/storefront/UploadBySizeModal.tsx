@@ -19,6 +19,7 @@ import { cartService } from "@/services/cart.service";
 import { useAuthStore } from "@/stores/auth.store";
 import { ImageEditorModal } from "@/components/storefront/ImageEditorModal";
 import { WorkingOverlay } from "@/components/storefront/WorkingOverlay";
+import { removeImageBackground, BackgroundRemovalError } from "@/lib/backgroundRemoval";
 import type { ProductDetail } from "@/types/product.types";
 
 interface Props {
@@ -79,6 +80,7 @@ export function UploadBySizeModal({ product, onClose }: Props) {
   const [activeId, setActiveId] = useState<number | null>(null);
   const [uploading, setUploading] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
+  const [progress, setProgress] = useState<number | null>(null);
   const [adding, setAdding] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [bgKey, setBgKey] = useState("checker");
@@ -225,16 +227,24 @@ export function UploadBySizeModal({ product, onClose }: Props) {
 
   async function removeBg() {
     if (!active) return;
-    setBusy("Removing background");
+    setBusy("Removing the background");
+    setProgress(null);
     setError(null);
     try {
       const file = await currentAsFile(active);
-      const { removeBackground } = await import("@imgly/background-removal");
-      const out = await removeBackground(file);
-      const png = new File([out], active.file_name.replace(/\.\w+$/, "") + "-nobg.png", { type: "image/png" });
+      const png = await removeImageBackground(file, (p) => {
+        setBusy(p.label);
+        setProgress(p.ratio);
+      });
+      setProgress(null);
       await replaceArtwork(active.id, png, "Background removal");
-    } catch {
-      setError("Background removal didn't finish. The image may be too large — try a smaller file.");
+    } catch (e) {
+      // A model that found no subject has a message worth reading; anything
+      // else is a failure to finish, and the artwork is left as it was.
+      setError(e instanceof BackgroundRemovalError
+        ? e.message
+        : "Background removal didn't finish. Try a smaller file, or a different browser.");
+      setProgress(null);
       setBusy(null);
     }
   }
@@ -327,8 +337,9 @@ export function UploadBySizeModal({ product, onClose }: Props) {
                   {busy && (
                     <WorkingOverlay
                       label={`${busy}…`}
-                      note={busy.startsWith("Removing")
-                        ? "The first run downloads the tool, so it takes longer. Later ones are quick."
+                      progress={progress}
+                      note={busy.startsWith("Downloading")
+                        ? "Only the first time — after this it's quick."
                         : undefined}
                     />
                   )}
