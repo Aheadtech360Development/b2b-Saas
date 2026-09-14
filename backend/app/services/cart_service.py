@@ -143,7 +143,16 @@ class CartService:
             .limit(1)
         )).scalar_one_or_none()
 
-        label = f"Gang Sheet {order.reference} — {order.sheet_name}"
+        # An upload-by-size job is not a gang sheet to the buyer — it is one
+        # design at one size, and sheet_name already reads "<product> — 2"x1.33"".
+        # Prefixing it turns the cart line into "Gang Sheet GS-… — DTF Transfers
+        # by Size — 2"x1.33"", which names a product the buyer never chose.
+        # Builder orders always pick a preset sheet, so a null one marks the
+        # upload-by-size case.
+        label = (
+            order.sheet_name if order.sheet_size_id is None
+            else f"Gang Sheet {order.reference} — {order.sheet_name}"
+        )
         unit_price = Decimal(str(order.price_per_sheet or 0))
 
         if existing:
