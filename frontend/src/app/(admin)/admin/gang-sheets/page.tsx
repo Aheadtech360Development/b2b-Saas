@@ -662,10 +662,19 @@ function ReviewModal({ order, onClose, onChanged }: { order: GangSheetOrder; onC
   // Bleed/spacing live on the size, not the order snapshot; fetch them so the
   // canvas draws the same margins the buyer saw.
   useEffect(() => {
+    if (!order.sheet_size_id) { setSize(null); return; }
     gangSheetsService.adminListSizes()
       .then((sizes) => setSize(sizes.find((s) => s.id === order.sheet_size_id) ?? null))
       .catch(() => setSize(null));
   }, [order.sheet_size_id]);
+
+  // An upload-by-size job has no preset sheet: the design IS the sheet, cut to
+  // that size, so there is no margin to trim. Gating the layout and the print
+  // PDF on a size it will never have hid both from the review queue — the admin
+  // could read the order but never print it.
+  const margins = order.sheet_size_id
+    ? (size ? { bleed_in: size.bleed_in, spacing_in: size.spacing_in } : null)
+    : { bleed_in: 0, spacing_in: 0 };
 
   async function saveLayout() {
     setSavingLayout(true); setLayoutMsg(null);
@@ -756,11 +765,11 @@ function ReviewModal({ order, onClose, onChanged }: { order: GangSheetOrder; onC
         </div>
 
         {/* Sheet layout — supplier arranges for production */}
-        {size && (order.artworks?.length ?? 0) > 0 && (
+        {margins && (order.artworks?.length ?? 0) > 0 && (
           <div style={{ marginBottom: "18px" }}>
             <div style={{ ...LABEL, marginBottom: "8px" }}>Sheet layout</div>
             <GangSheetCanvas
-              sheet={{ width_in: order.sheet_width_in, height_in: order.sheet_height_in, bleed_in: size.bleed_in, spacing_in: size.spacing_in }}
+              sheet={{ width_in: order.sheet_width_in, height_in: order.sheet_height_in, bleed_in: margins.bleed_in, spacing_in: margins.spacing_in }}
               artworks={order.artworks ?? []}
               value={layout}
               onChange={(l) => { setLayout(l); setLayoutMsg(null); }}
@@ -770,7 +779,7 @@ function ReviewModal({ order, onClose, onChanged }: { order: GangSheetOrder; onC
                 {savingLayout ? "Saving…" : "Save layout"}
               </button>
               <button
-                onClick={() => openSheetPdf({ reference: order.reference, customerName: order.contact_name, sheet: { width_in: order.sheet_width_in, height_in: order.sheet_height_in, bleed_in: size.bleed_in }, artworks: order.artworks ?? [], layout })}
+                onClick={() => openSheetPdf({ reference: order.reference, customerName: order.contact_name, sheet: { width_in: order.sheet_width_in, height_in: order.sheet_height_in, bleed_in: margins.bleed_in }, artworks: order.artworks ?? [], layout })}
                 style={{ ...BTN, background: "#fff", color: "#1A1A1A", border: "1px solid #E3E3E3" }}
               >
                 Download PDF
