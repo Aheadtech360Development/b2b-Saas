@@ -243,6 +243,11 @@ async def _anthropic(client, p: Provider, system, tools, handlers, convo, used, 
 
 async def _openai_style(client, p: Provider, system, tools, handlers, history, used, db) -> str | None:
     headers = {"Authorization": f"Bearer {p.api_key}", "content-type": "application/json"}
+    if p.name == "gemini":
+        # Keys made in AI Studio are now "auth keys", which Google's own examples
+        # send as x-goog-api-key; the OpenAI-compatible path documents Bearer.
+        # Sending both means either kind of key is accepted.
+        headers["x-goog-api-key"] = p.api_key
     fn_tools = [{
         "type": "function",
         "function": {"name": t["name"], "description": t["description"], "parameters": t["input_schema"]},
