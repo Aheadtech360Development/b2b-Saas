@@ -295,7 +295,10 @@ export function UploadBySizeModal({ product, onClose }: Props) {
 
   return (
     <div style={S.backdrop} onClick={onClose}>
-      <div style={S.modal} onClick={(e) => e.stopPropagation()}>
+      <div
+        style={{ ...S.modal, width: items.length ? "min(1100px, 100%)" : "min(560px, 100%)" }}
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* ── Header ─────────────────────────────────────────────────────── */}
         <div style={S.header}>
           <button onClick={() => fileRef.current?.click()} disabled={uploading} style={S.uploadBtn}>
@@ -313,7 +316,7 @@ export function UploadBySizeModal({ product, onClose }: Props) {
           onChange={(e) => onFiles(e.target.files)}
         />
 
-        <div style={S.body}>
+        <div style={items.length ? S.body : S.bodyEmpty}>
           {/* ── Left: the design ─────────────────────────────────────────── */}
           <div style={S.left}>
             {active ? (
@@ -370,12 +373,15 @@ export function UploadBySizeModal({ product, onClose }: Props) {
                 onClick={() => fileRef.current?.click()}
                 style={{ ...S.dropzone, borderColor: dropActive ? "#1A1A1A" : "#D6D3CC", background: dropActive ? "#F6F6F7" : "#fff" }}
               >
-                <div style={{ fontSize: "28px", marginBottom: "8px" }}>↑</div>
-                <div style={{ fontWeight: 700, fontSize: "14px", color: "#1A1A1A" }}>
-                  Drop your designs here, or click to upload
-                </div>
-                <div style={{ fontSize: "12px", color: "#8A8A8A", marginTop: "6px" }}>
-                  PNG, JPG or SVG · you can add more than one
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "10px" }}>
+                  <span style={S.dropIcon}>↑</span>
+                  <span style={{ fontWeight: 700, fontSize: "15px", color: "#1A1A1A" }}>
+                    Drop your design here, or click to upload
+                  </span>
+                  <span style={{ fontSize: "12px", color: "#8A8A8A", lineHeight: 1.7, maxWidth: "330px" }}>
+                    PNG, JPG or SVG. Add as many as you like — each one gets its own
+                    size, quantity and price.
+                  </span>
                 </div>
                 {uploading && <WorkingOverlay label="Uploading your design…" note="Large files take a moment." />}
               </div>
@@ -383,7 +389,7 @@ export function UploadBySizeModal({ product, onClose }: Props) {
           </div>
 
           {/* ── Right: tools, size, price ────────────────────────────────── */}
-          <div style={S.right}>
+          {items.length > 0 && <div style={S.right}>
             {active && (
               <>
                 <div style={S.toolGrid}>
@@ -517,13 +523,17 @@ export function UploadBySizeModal({ product, onClose }: Props) {
                 </div>
               </div>
             )}
-          </div>
+          </div>}
         </div>
 
         {/* ── Footer ─────────────────────────────────────────────────────── */}
         <div style={S.footer}>
           <button onClick={onClose} style={S.ghost}>Cancel</button>
-          <button onClick={addToCart} disabled={adding || !items.length || !!busy} style={S.cta}>
+          <button
+            onClick={addToCart}
+            disabled={adding || !items.length || !!busy}
+            style={{ ...S.cta, ...(items.length ? null : S.ctaOff) }}
+          >
             {items.length > 0 && <span style={S.ctaCount}>{items.length}</span>}
             {adding ? "Adding…" : isAuthenticated() ? "Add To Cart" : "Sign in to order"}
           </button>
@@ -555,11 +565,12 @@ function Row({ label, value }: { label: React.ReactNode; value: React.ReactNode 
 
 const S: Record<string, React.CSSProperties> = {
   backdrop: { position: "fixed", inset: 0, background: "rgba(0,0,0,.45)", zIndex: 400, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" },
-  modal: { background: "#fff", borderRadius: "14px", width: "min(1100px, 100%)", maxHeight: "94vh", display: "flex", flexDirection: "column", overflow: "hidden", fontFamily: "'DM Sans', sans-serif" },
+  modal: { background: "#fff", borderRadius: "14px", maxHeight: "94vh", display: "flex", flexDirection: "column", overflow: "hidden", fontFamily: "'DM Sans', sans-serif" },
   header: { display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 18px", borderBottom: "1px solid #EFEFEC" },
   uploadBtn: { background: "#1A1A1A", color: "#fff", border: "none", borderRadius: "8px", padding: "10px 18px", fontSize: "13px", fontWeight: 700, cursor: "pointer" },
   close: { width: "32px", height: "32px", borderRadius: "50%", border: "1px solid #E2E2DE", background: "#fff", cursor: "pointer", fontSize: "14px", color: "#6B6B6B" },
   body: { display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,420px)", gap: "18px", padding: "18px", overflowY: "auto" },
+  bodyEmpty: { padding: "26px 22px", overflowY: "auto" },
   left: { minWidth: 0 },
   right: { minWidth: 0, display: "flex", flexDirection: "column", gap: "12px" },
   dpiRow: { fontSize: "12px", color: "#6B6B6B", textAlign: "center", marginBottom: "8px" },
@@ -568,7 +579,8 @@ const S: Record<string, React.CSSProperties> = {
   tag: { position: "absolute", background: "#1A1A1A", color: "#fff", fontSize: "10px", fontWeight: 700, padding: "2px 7px", borderRadius: "10px", zIndex: 2 },
   bgRow: { display: "flex", alignItems: "center", gap: "7px", justifyContent: "center", marginTop: "10px" },
   bgSwatch: { width: "22px", height: "22px", borderRadius: "5px", borderStyle: "solid", cursor: "pointer", padding: 0 },
-  dropzone: { position: "relative", border: "2px dashed", borderRadius: "10px", minHeight: "320px", display: "grid", placeItems: "center", textAlign: "center", cursor: "pointer", padding: "24px" },
+  dropzone: { position: "relative", border: "1.5px dashed", borderRadius: "12px", minHeight: "210px", display: "grid", placeItems: "center", textAlign: "center", cursor: "pointer", padding: "28px", transition: "border-color .15s, background .15s" },
+  dropIcon: { width: "42px", height: "42px", borderRadius: "50%", background: "#F3F3F1", color: "#1A1A1A", fontSize: "19px", display: "grid", placeItems: "center" },
   toolGrid: { display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "8px" },
   editBar: { textAlign: "center", fontSize: "10px", fontWeight: 700, letterSpacing: ".08em", color: "#8A8A8A", background: "#F6F6F7", borderRadius: "6px", padding: "5px" },
   editGrid: { display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "8px" },
@@ -597,6 +609,7 @@ const S: Record<string, React.CSSProperties> = {
   error: { background: "#FEF2F2", border: "1px solid #FCA5A5", color: "#991B1B", borderRadius: "8px", padding: "9px 12px", fontSize: "12px" },
   footer: { display: "flex", justifyContent: "flex-end", gap: "10px", padding: "14px 18px", borderTop: "1px solid #EFEFEC" },
   ghost: { padding: "12px 20px", background: "#fff", color: "#4A4A4A", border: "1px solid #D6D3CC", borderRadius: "8px", fontSize: "13px", fontWeight: 600, cursor: "pointer" },
+  ctaOff: { background: "#D6D3CC", cursor: "not-allowed" },
   cta: { position: "relative", padding: "13px 30px", background: "#1A1A1A", color: "#fff", border: "none", borderRadius: "8px", fontSize: "14px", fontWeight: 800, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "9px" },
   ctaCount: { background: "#fff", color: "#1A1A1A", borderRadius: "50%", width: "20px", height: "20px", fontSize: "11px", fontWeight: 800, display: "grid", placeItems: "center" },
 };
