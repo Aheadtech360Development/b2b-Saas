@@ -18,8 +18,24 @@ export interface GangSheetSize {
   product_id?: string | null; // which product these sizes belong to (null = global default)
 }
 
+/** What the print check found on one file, at the size it will be printed. */
+export interface ArtworkFinding {
+  level: "blocker" | "warning" | "ok";
+  code: string;
+  message: string;
+  fix?: string | null;
+}
+
+export interface ArtworkInspection {
+  ok: boolean;
+  verdict: "ready" | "check" | "blocked" | "unknown";
+  findings: ArtworkFinding[];
+  measured: Record<string, string | number | boolean>;
+}
+
 export interface GangSheetArtwork {
   id?: string;
+  inspection?: ArtworkInspection | null;
   file_url: string;
   file_name: string;
   file_type?: string | null;
@@ -235,6 +251,10 @@ export const gangSheetsService = {
   /** Sizes for a product (falls back to the brand's global set) or, with no id, every size. */
   listSizes: (productId?: string) =>
     apiClient.get<GangSheetSize[]>(`/api/v1/gang-sheets/sizes${productId ? `?product_id=${productId}` : ""}`),
+
+  /** Check an uploaded file against the size it will be printed at. */
+  inspectArtwork: (payload: { file_url: string; width_in: number; height_in: number; file_type?: string }) =>
+    apiClient.post<ArtworkInspection>("/api/v1/gang-sheets/artwork/inspect", payload),
 
   submit: (payload: SubmitGangSheetPayload) =>
     apiClient.post<GangSheetOrder>("/api/v1/gang-sheets/orders", payload),

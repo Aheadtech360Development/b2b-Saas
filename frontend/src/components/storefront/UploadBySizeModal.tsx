@@ -14,11 +14,15 @@
  * so a fix made here behaves identically there.
  */
 import { useEffect, useMemo, useRef, useState } from "react";
-import { gangSheetsService, priceUploadBySize, type GangSheetOrder } from "@/services/gangSheets.service";
+import {
+  gangSheetsService, priceUploadBySize,
+  type ArtworkInspection, type GangSheetOrder,
+} from "@/services/gangSheets.service";
 import { cartService } from "@/services/cart.service";
 import { useAuthStore } from "@/stores/auth.store";
 import { ImageEditorModal } from "@/components/storefront/ImageEditorModal";
 import { WorkingOverlay } from "@/components/storefront/WorkingOverlay";
+import { PrintCheck } from "@/components/storefront/PrintCheck";
 import { removeImageBackground, BackgroundRemovalError } from "@/lib/backgroundRemoval";
 import type { ProductDetail } from "@/types/product.types";
 
@@ -98,6 +102,10 @@ export function UploadBySizeModal({ product, onClose, revise = null, onRevised }
   const fileRef = useRef<HTMLInputElement>(null);
   const nextId = useRef(1);
   const [dropActive, setDropActive] = useState(false);
+  // The print check, per design. Keyed by design id; re-run when the file or the
+  // print size changes, because the answer depends on both.
+  const [checks, setChecks] = useState<Record<number, ArtworkInspection | null>>({});
+  const [checking, setChecking] = useState<Record<number, boolean>>({});
 
   const active = items.find((i) => i.id === activeId) ?? null;
   const bg = BG_OPTIONS.find((b) => b.key === bgKey) ?? BG_OPTIONS[0]!;
@@ -363,6 +371,25 @@ export function UploadBySizeModal({ product, onClose, revise = null, onRevised }
     }
   }
 
+  // Ask the server what will go wrong at this size. Debounced, because the size
+  // changes on every keystroke and every preset click.
+  useEffect(() => {
+    if (!active) return;
+    const { id, file_url, file_name, file_type, w, h } = active;
+    const timer = setTimeout(() => {
+      let cancelled = false;
+      setChecking((c) => ({ ...c, [id]: true }));
+      gangSheetsService.inspectArtwork({ file_url, width_in: w, height_in: h, file_type })
+        .then((result) => { if (!cancelled) setChecks((c) => ({ ...c, [id]: result })); })
+        .catch(() => { if (!cancelled) setChecks((c) => ({ ...c, [id]: null })); })
+        .finally(() => { if (!cancelled) setChecking((c) => ({ ...c, [id]: false })); });
+      return () => { cancelled = true; };
+    }, 600);
+    return () => clearTimeout(timer);
+    // file_name changes when a tool replaces the artwork, which is a new check.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active?.id, active?.file_url, active?.file_name, active?.w, active?.h]);
+
   const isImage = active && ["png", "jpg", "jpeg", "webp", "gif"].includes(active.file_type);
 
   return (
@@ -415,6 +442,15 @@ export function UploadBySizeModal({ product, onClose, revise = null, onRevised }
                   <strong style={{ color: band.color }}>
                     {dpi ? `${dpi} DPI · ${band.label}` : "—"}
                   </strong>
+                </div>
+
+                <div style={{ marginBottom: "10px" }}>
+                  <PrintCheck
+                    result={checks[active.id] ?? null}
+                    busy={!!checking[active.id]}
+                    onRemoveBackground={removeBg}
+                    onUpscale={() => setEditorTab("enhance")}
+                  />
                 </div>
                 <div style={{ ...S.stage, background: bg.css }}>
                   {/* Size callouts, the way a print shop marks a proof. */}

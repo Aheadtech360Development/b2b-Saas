@@ -14,6 +14,7 @@ import { useCallback, useEffect, useState } from "react";
 import { apiClient } from "@/lib/api-client";
 import { GangSheetCanvas } from "@/components/storefront/GangSheetCanvas";
 import { openSheetPdf } from "@/lib/gangSheetPdf";
+import type { ArtworkInspection } from "@/services/gangSheets.service";
 
 interface Artwork {
   id: string;
@@ -22,6 +23,7 @@ interface Artwork {
   width_in: number;
   height_in: number;
   quantity: number;
+  inspection?: ArtworkInspection | null;
 }
 
 interface Placement {
@@ -187,6 +189,14 @@ export function OrderGangSheets({ orderId }: { orderId: string }) {
                         <div style={{ fontSize: "11px", color: "#8A8A8A", marginTop: "2px" }}>
                           {a.width_in}″×{a.height_in}″ · qty {a.quantity}
                         </div>
+                        {a.inspection && a.inspection.verdict !== "ready" && (
+                          <div style={{
+                            marginTop: "5px", fontSize: "11px", lineHeight: 1.4,
+                            color: a.inspection.verdict === "blocked" ? "#991B1B" : "#92400E",
+                          }}>
+                            {a.inspection.findings.filter((f) => f.level !== "ok")[0]?.message}
+                          </div>
+                        )}
                       </a>
                     ))}
                   </div>

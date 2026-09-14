@@ -16,6 +16,7 @@ import {
   type GangSheetConfig,
   type GangSheetTier,
   type GangSheetSettings,
+  type ArtworkInspection,
 } from "@/services/gangSheets.service";
 import { GangSheetCanvas } from "@/components/storefront/GangSheetCanvas";
 import { GangSheetTimeline } from "@/components/storefront/GangSheetTimeline";
@@ -648,6 +649,44 @@ function OrdersTab() {
   );
 }
 
+/**
+ * What the print check found, where the print team decides.
+ *
+ * The check ran when the buyer uploaded the file, at the size they ordered. The
+ * reviewer needs the same answer without opening the file and measuring it, and
+ * a job whose artwork was never checked has to say so rather than look clean.
+ */
+function PrintCheckBadge({ inspection }: { inspection?: ArtworkInspection | null }) {
+  if (!inspection) {
+    return <div style={{ fontSize: "11px", color: "#9CA3AF", marginTop: "3px" }}>Not checked</div>;
+  }
+  const tone = ({
+    ready: { bg: "#DCFCE7", fg: "#166534", label: "Print ready" },
+    check: { bg: "#FEF3C7", fg: "#92400E", label: "Worth a look" },
+    blocked: { bg: "#FEE2E2", fg: "#991B1B", label: "Problem" },
+    unknown: { bg: "#F1F1F0", fg: "#4A4A4A", label: "Not checked" },
+  } as const)[inspection.verdict] ?? { bg: "#F1F1F0", fg: "#4A4A4A", label: "Not checked" };
+  const notes = inspection.findings.filter((f) => f.level !== "ok");
+
+  return (
+    <div style={{ marginTop: "5px" }}>
+      <span style={{ background: tone.bg, color: tone.fg, padding: "2px 8px", borderRadius: "20px", fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: ".04em" }}>
+        {tone.label}
+      </span>
+      {typeof inspection.measured?.effective_dpi === "number" && (
+        <span style={{ fontSize: "11px", color: "#888", marginLeft: "7px" }}>
+          {inspection.measured.effective_dpi} DPI · {String(inspection.measured.pixels ?? "")}
+        </span>
+      )}
+      {notes.map((f, i) => (
+        <div key={i} style={{ fontSize: "11.5px", color: f.level === "blocker" ? "#991B1B" : "#92400E", marginTop: "3px", lineHeight: 1.45 }}>
+          {f.message}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function ReviewModal({ order, onClose, onChanged }: { order: GangSheetOrder; onClose: () => void; onChanged: () => void }) {
   const [notes, setNotes] = useState(order.supplier_notes ?? "");
   const [internalNotes, setInternalNotes] = useState(order.internal_notes ?? "");
@@ -756,6 +795,7 @@ function ReviewModal({ order, onClose, onChanged }: { order: GangSheetOrder; onC
                 <div style={{ color: "#888", fontSize: "12px" }}>
                   {a.width_in}″ × {a.height_in}″ · qty {a.quantity}
                 </div>
+                <PrintCheckBadge inspection={a.inspection} />
               </div>
               <a href={a.file_url} download target="_blank" rel="noopener noreferrer" style={{ fontSize: "12px", color: "#666", whiteSpace: "nowrap", marginLeft: "12px" }}>
                 Download ↓

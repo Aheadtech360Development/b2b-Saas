@@ -123,6 +123,8 @@ class GangSheetArtwork(TenantMixin, DBBaseModel):
     height_in: Mapped[Decimal] = mapped_column(Numeric(8, 2), nullable=False)
     quantity: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
     sort_order: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    # The print check run on this file at the size it was ordered (migration 0035).
+    inspection: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
 
 
 class GangSheetLibraryDesign(TenantMixin, DBBaseModel):
@@ -284,6 +286,7 @@ def _size_row(s: GangSheetSize) -> dict:
 def _art_row(a: GangSheetArtwork) -> dict:
     return {
         "id": str(a.id),
+        "inspection": getattr(a, "inspection", None),
         "file_url": a.file_url,
         "file_name": a.file_name,
         "file_type": a.file_type,
@@ -428,6 +431,30 @@ async def _notify(db: AsyncSession, order: GangSheetOrder, event: str, extra_htm
         pass
 
 
+async def _inspect_and_store(db: AsyncSession, artworks: list[GangSheetArtwork]) -> None:
+    """Run the print check over a job's artwork and keep the result on each row.
+
+    Best-effort and in parallel: submitting an order must not fail, or crawl,
+    because a file could not be downloaded. Anything that goes wrong is recorded
+    as "not checked" by the inspector itself, which is the honest answer.
+    """
+    import asyncio
+
+    from app.services.artwork.inspect import inspect_artwork
+
+    if not artworks:
+        return
+    results = await asyncio.gather(*[
+        inspect_artwork(a.file_url, float(a.width_in or 0), float(a.height_in or 0), a.file_type or "")
+        for a in artworks
+    ], return_exceptions=True)
+    for art, result in zip(artworks, results):
+        if isinstance(result, BaseException):
+            continue
+        art.inspection = result.as_dict()
+    await db.flush()
+
+
 async def _load_artworks(db: AsyncSession, order_id: uuid.UUID) -> list[GangSheetArtwork]:
     rows = await db.execute(
         select(GangSheetArtwork)
@@ -540,6 +567,25 @@ async def my_artworks(request: Request, db: AsyncSession = Depends(get_db)) -> l
     return out
 
 
+class InspectIn(BaseModel):
+    """Checking a file the buyer has just uploaded, before it becomes an order."""
+    file_url: str
+    width_in: Decimal = Field(gt=0)
+    height_in: Decimal = Field(gt=0)
+    file_type: Optional[str] = None
+
+
+@public_router.post("/artwork/inspect")
+async def inspect_uploaded_artwork(payload: InspectIn) -> dict:
+    """What will go wrong if this file is printed at this size."""
+    from app.services.artwork.inspect import inspect_artwork
+
+    result = await inspect_artwork(
+        payload.file_url, float(payload.width_in), float(payload.height_in), payload.file_type or "",
+    )
+    return result.as_dict()
+
+
 @public_router.post("/orders", status_code=status.HTTP_201_CREATED)
 async def submit_order(
     payload: OrderIn,
@@ -624,6 +670,7 @@ async def submit_order(
         )
     await db.flush()
     arts = await _load_artworks(db, order.id)
+    await _inspect_and_store(db, arts)
     # Record the first submission as version 1 of the history.
     order.version = 1
     order.versions = [_snapshot(order, arts, 1)]
@@ -737,6 +784,7 @@ async def submit_upload_by_size(
     # review + production pipeline sees exactly what was ordered.
     order.layout = [{"artwork_id": str(art.id), "x_in": 0, "y_in": 0, "rotation": 0, "w_in": float(w), "h_in": float(h)}]
     arts = await _load_artworks(db, order.id)
+    await _inspect_and_store(db, arts)
     order.version = 1
     order.versions = [_snapshot(order, arts, 1)]
     await db.flush()
