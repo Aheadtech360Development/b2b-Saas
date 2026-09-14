@@ -8,6 +8,7 @@ import {
   type GangSheetOrder,
   type GangSheetSize,
 } from "@/services/gangSheets.service";
+import { cartService } from "@/services/cart.service";
 import { GangSheetStudio } from "@/components/storefront/GangSheetStudio";
 import { GangSheetTimeline } from "@/components/storefront/GangSheetTimeline";
 import { useAuthStore } from "@/stores/auth.store";
@@ -41,6 +42,8 @@ export default function GangSheetBuilderPage() {
   const [justSaved, setJustSaved] = useState<GangSheetOrder | null>(null);
   const [productId, setProductId] = useState<string | null>(null);
   const [selectedSizeId, setSelectedSizeId] = useState<string>("");
+  const [reordering, setReordering] = useState<string | null>(null);
+  const [reorderError, setReorderError] = useState<string | null>(null);
 
   // Read the product from the URL, then load THAT product's sizes (falls back to
   // the brand's global set server-side). Done together so we never load the
@@ -116,6 +119,21 @@ export default function GangSheetBuilderPage() {
     setResumeOrder(null);   // fresh build
     setAutoStart(auto);
     setPhase("studio");
+  }
+
+  // Reorder means "I want this again", so it has to end in the cart. Cloning the
+  // job and leaving it in the history list looked like nothing had happened.
+  async function reorder(o: GangSheetOrder) {
+    setReordering(o.id);
+    try {
+      const clone = await gangSheetsService.reorder(o.id);
+      await cartService.addGangSheet(clone.id);
+      window.location.href = "/cart";
+    } catch {
+      setReorderError("Could not reorder this job. Please try again.");
+      setReordering(null);
+      loadOrders();
+    }
   }
 
   // Reopen a saved, still-editable order in the builder.
@@ -301,6 +319,11 @@ export default function GangSheetBuilderPage() {
       {orders.length > 0 && (
         <div>
           <h2 style={{ fontSize: "17px", fontWeight: 800, marginBottom: "12px" }}>Your gang sheets</h2>
+          {reorderError && (
+            <div style={{ background: "#FEF2F2", border: "1px solid #FECACA", color: "#991B1B", borderRadius: "8px", padding: "10px 12px", fontSize: "13px", marginBottom: "12px" }}>
+              {reorderError}
+            </div>
+          )}
           <div style={{ display: "grid", gap: "14px" }}>
             {orders.map((o) => {
               const c = GANG_SHEET_STATUS_COLOR[o.status] ?? { bg: "#eee", fg: "#555" };
@@ -319,13 +342,13 @@ export default function GangSheetBuilderPage() {
                         {GANG_SHEET_STATUS_LABEL[o.status] ?? o.status}
                       </span>
                       {o.paid && <span style={{ background: "#DCFCE7", color: "#166534", padding: "3px 10px", borderRadius: "20px", fontSize: "11px", fontWeight: 700 }}>Paid ✓</span>}
-                      {(o.status === "submitted" || o.status === "revision_requested") && (
+                      {o.sheet_size_id && (o.status === "submitted" || o.status === "revision_requested") && (
                         <button onClick={() => editOrder(o)} style={{ background: "var(--brand-primary,#1C3557)", color: "#fff", border: "none", padding: "6px 12px", borderRadius: "6px", fontSize: "12px", fontWeight: 700, cursor: "pointer" }}>Edit in builder</button>
                       )}
                       {o.status === "revision_requested" && (
                         <button onClick={() => gangSheetsService.resubmit(o.id).then(loadOrders).catch(() => {})} style={{ background: "none", border: "1px solid #DDD9D2", padding: "5px 12px", borderRadius: "6px", fontSize: "12px", fontWeight: 600, cursor: "pointer" }}>Resubmit</button>
                       )}
-                      <button onClick={() => gangSheetsService.reorder(o.id).then(loadOrders).catch(() => {})} style={{ background: "none", border: "1px solid #DDD9D2", padding: "5px 12px", borderRadius: "6px", fontSize: "12px", fontWeight: 600, cursor: "pointer" }}>Reorder</button>
+                      <button onClick={() => reorder(o)} disabled={reordering === o.id} style={{ background: "none", border: "1px solid #DDD9D2", padding: "5px 12px", borderRadius: "6px", fontSize: "12px", fontWeight: 600, cursor: "pointer" }}>{reordering === o.id ? "Adding…" : "Reorder"}</button>
                     </div>
                   </div>
                   <GangSheetTimeline status={o.status} timeline={o.status_timeline} />

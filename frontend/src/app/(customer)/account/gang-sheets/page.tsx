@@ -14,11 +14,13 @@ import {
   type GangSheetOrder,
 } from "@/services/gangSheets.service";
 import { GangSheetTimeline } from "@/components/storefront/GangSheetTimeline";
+import { cartService } from "@/services/cart.service";
 
 export default function AccountGangSheetsPage() {
   const [orders, setOrders] = useState<GangSheetOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -28,7 +30,27 @@ export default function AccountGangSheetsPage() {
 
   async function act(id: string, fn: (id: string) => Promise<unknown>) {
     setBusy(id);
-    try { await fn(id); load(); } finally { setBusy(null); }
+    setErr(null);
+    try { await fn(id); load(); }
+    catch { setErr("That didn't go through. Please try again."); }
+    finally { setBusy(null); }
+  }
+
+  // "Reorder" has to end somewhere the buyer can pay. Cloning the job and
+  // refreshing the list left a new row sitting at Submitted with no way to
+  // check out — the button looked like it had done nothing.
+  async function reorder(id: string) {
+    setBusy(id);
+    setErr(null);
+    try {
+      const clone = await gangSheetsService.reorder(id);
+      await cartService.addGangSheet(clone.id);
+      window.location.href = "/cart";
+    } catch {
+      setErr("Could not reorder this job. Please try again.");
+      setBusy(null);
+      load();
+    }
   }
 
   return (
@@ -37,6 +59,12 @@ export default function AccountGangSheetsPage() {
       <p style={{ fontSize: "14px", color: "#666", marginBottom: "22px" }}>
         Track your gang sheet orders and their status here.
       </p>
+
+      {err && (
+        <div style={{ background: "#FEF2F2", border: "1px solid #FECACA", color: "#991B1B", borderRadius: "8px", padding: "10px 12px", fontSize: "13px", marginBottom: "14px" }}>
+          {err}
+        </div>
+      )}
 
       {loading ? (
         <div style={{ color: "#888", fontSize: "14px" }}>Loading…</div>
@@ -77,9 +105,9 @@ export default function AccountGangSheetsPage() {
                         {busy === o.id ? "…" : "Resubmit"}
                       </button>
                     )}
-                    <button disabled={busy === o.id} onClick={() => act(o.id, gangSheetsService.reorder)}
+                    <button disabled={busy === o.id} onClick={() => reorder(o.id)}
                       style={{ background: "none", border: "1px solid #DDD9D2", padding: "6px 14px", borderRadius: "6px", fontSize: "13px", fontWeight: 600, cursor: "pointer" }}>
-                      Reorder
+                      {busy === o.id ? "Adding…" : "Reorder"}
                     </button>
                   </div>
                 </div>

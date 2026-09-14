@@ -969,10 +969,25 @@ async def reorder(
 
     # Re-price against the live catalogue: a reorder is a new sale, so it must not
     # inherit a stale price. Falls back to the original when the size is retired.
-    size = (
-        await db.execute(select(GangSheetSize).where(GangSheetSize.id == src.sheet_size_id))
-    ).scalar_one_or_none() if src.sheet_size_id else None
-    price = size.price_per_sheet if size and size.is_active else src.price_per_sheet
+    if src.sheet_size_id:
+        size = (
+            await db.execute(select(GangSheetSize).where(GangSheetSize.id == src.sheet_size_id))
+        ).scalar_one_or_none()
+        price = size.price_per_sheet if size and size.is_active else src.price_per_sheet
+    else:
+        # Upload-by-size prices off the product's area tiers, not a sheet size.
+        # Without this branch a reorder silently billed last year's rate.
+        price = src.price_per_sheet
+        if src.product_id:
+            from app.models.product import Product
+
+            prod = (
+                await db.execute(select(Product).where(Product.id == src.product_id))
+            ).scalar_one_or_none()
+            cfg = (getattr(prod, "gang_sheet_config", None) or {}) if prod else {}
+            rate = _upload_by_size_rate(cfg, float(src.sheet_width_in) * float(src.sheet_height_in))
+            if rate is not None:
+                price = (src.sheet_width_in * src.sheet_height_in * Decimal(str(rate))).quantize(Decimal("0.01"))
 
     clone = GangSheetOrder(
         reference=await _next_reference(db),
@@ -994,21 +1009,39 @@ async def reorder(
     db.add(clone)
     await db.flush()
 
-    for art in await _load_artworks(db, src.id):
-        db.add(
-            GangSheetArtwork(
-                gang_sheet_order_id=clone.id,
-                file_url=art.file_url,
-                file_name=art.file_name,
-                file_type=art.file_type,
-                width_in=art.width_in,
-                height_in=art.height_in,
-                quantity=art.quantity,
-                sort_order=art.sort_order,
-            )
+    src_arts = await _load_artworks(db, src.id)
+    copies = []
+    for art in src_arts:
+        copy = GangSheetArtwork(
+            gang_sheet_order_id=clone.id,
+            file_url=art.file_url,
+            file_name=art.file_name,
+            file_type=art.file_type,
+            width_in=art.width_in,
+            height_in=art.height_in,
+            quantity=art.quantity,
+            sort_order=art.sort_order,
         )
+        db.add(copy)
+        copies.append(copy)
     await db.flush()
-    return _order_row(clone, await _load_artworks(db, clone.id))
+
+    # Carry the arrangement across. The copies are new rows with new ids, so each
+    # placement has to point at its copy — left alone, the layout referenced
+    # artwork that no longer belonged to this order and the cart rejected the
+    # reorder as having no layout at all.
+    id_map = {str(a.id): str(c.id) for a, c in zip(src_arts, copies)}
+    clone.layout = [
+        {**p, "artwork_id": id_map[str(p.get("artwork_id"))]}
+        for p in (src.layout or [])
+        if str(p.get("artwork_id")) in id_map
+    ]
+    arts = await _load_artworks(db, clone.id)
+    clone.version = 1
+    clone.versions = [_snapshot(clone, arts, 1)]
+    await db.flush()
+    await db.refresh(clone)
+    return _order_row(clone, arts)
 
 
 # ── Admin router ──────────────────────────────────────────────────────────────
