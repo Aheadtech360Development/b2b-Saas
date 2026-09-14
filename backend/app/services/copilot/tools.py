@@ -30,6 +30,9 @@ from app.models.inventory import InventoryRecord
 from app.models.order import Order, OrderItem
 from app.models.product import Product, ProductVariant
 from app.services.copilot.briefing import build_briefing
+from app.services.copilot.quoting import (
+    QuoteError, find_product, option_catalogue, quote_for,
+)
 from app.services.copilot.guide import INDEX as GUIDE_INDEX, TOPICS as GUIDE_TOPICS, lookup as guide_lookup
 
 Handler = Callable[[dict], Awaitable[Any]]
@@ -164,6 +167,59 @@ OWNER_TOOLS: list[dict] = [
                 "status": {"type": "string", "enum": ["active", "draft", "archived"]},
                 "low_stock_only": {"type": "boolean", "description": "Only products with a variant at or below its low-stock threshold."},
             },
+        },
+    },
+    {
+        "name": "price_product",
+        "description": (
+            "What a product costs and what can be chosen on it. For a made-to-order product it "
+            "returns the option groups and their choices (Size, Paper Stock, Turnaround…) so you "
+            "can ask which ones the customer wants; for a stocked product, its variants' colours, "
+            "sizes and prices. Use it before quoting when you don't know what the product offers."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {"product": {"type": "string", "description": "Product name, slug or a variant SKU."}},
+            "required": ["product"],
+        },
+    },
+    {
+        "name": "calculate_quote",
+        "description": (
+            "The real price for a quantity of a product, worked out by the same pricing engine the "
+            "storefront and checkout use — never your own arithmetic. Pass the customer's choices by "
+            "name, e.g. {\"Paper Stock\": \"Coated Semigloss\", \"Turnaround\": \"Next day\"}; "
+            "anything not given falls back to that option's default. Returns unit price, one-off "
+            "setup fees, the total, and a line-by-line breakdown of what each choice added. It also "
+            "reports any choice it could not match and whether the quantity is below the product's "
+            "minimum — say both out loud rather than quoting around them."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "product": {"type": "string"},
+                "quantity": {"type": "integer"},
+                "choices": {"type": "object", "additionalProperties": {"type": "string"},
+                            "description": "Option name to chosen value, in the words the product uses."},
+            },
+            "required": ["product", "quantity"],
+        },
+    },
+    {
+        "name": "check_inventory",
+        "description": (
+            "Stock on hand for a product's variants: each colour and size with its quantity, its "
+            "low-stock threshold and whether it is below it. Use it for 'do we have 40 black "
+            "hoodies', before quoting a stocked product in quantity."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "product": {"type": "string"},
+                "color": {"type": "string"},
+                "size": {"type": "string"},
+            },
+            "required": ["product"],
         },
     },
     {
@@ -360,6 +416,72 @@ def owner_handlers(db: AsyncSession) -> dict[str, Handler]:
                 item["builder"] = getattr(p, "gang_sheet_type", None) or "gang_sheet"
             out.append(item)
         return {"products": out, "shown": len(out), "limit": MAX_ROWS}
+
+    async def price_product(args: dict):
+        try:
+            product = await find_product(db, str(args.get("product") or ""))
+        except QuoteError as exc:
+            return {"error": str(exc)}
+        configurable = (getattr(product, "pricing_mode", "variant") or "variant") == "configurable"
+        data = {
+            "product": product.name,
+            "admin_link": f"/admin/products/{product.slug}/edit",
+            "type": "configurable" if configurable else "stocked",
+            "minimum_order_quantity": int(getattr(product, "moq", 1) or 1),
+        }
+        if configurable:
+            data["options"] = option_catalogue(product)
+            data["note"] = "Price depends on the choices — use calculate_quote once they are known."
+            return data
+        rows = (await db.execute(
+            select(ProductVariant.sku, ProductVariant.color, ProductVariant.size, ProductVariant.retail_price)
+            .where(ProductVariant.product_id == product.id, ProductVariant.status == "active")
+            .order_by(ProductVariant.sort_order).limit(MAX_ROWS)
+        )).all()
+        data["variants"] = [{"sku": s, "color": c, "size": z, "price": _money(p)} for s, c, z, p in rows]
+        return data
+
+    async def calculate_quote(args: dict):
+        try:
+            product = await find_product(db, str(args.get("product") or ""))
+            return await quote_for(db, product, int(args.get("quantity") or 1), args.get("choices") or {})
+        except QuoteError as exc:
+            return {"error": str(exc)}
+        except (TypeError, ValueError):
+            return {"error": "Quantity must be a number."}
+
+    async def check_inventory(args: dict):
+        try:
+            product = await find_product(db, str(args.get("product") or ""))
+        except QuoteError as exc:
+            return {"error": str(exc)}
+        stmt = (
+            select(ProductVariant.sku, ProductVariant.color, ProductVariant.size,
+                   func.coalesce(func.sum(InventoryRecord.quantity), 0),
+                   func.max(InventoryRecord.low_stock_threshold))
+            .outerjoin(InventoryRecord, InventoryRecord.variant_id == ProductVariant.id)
+            .where(ProductVariant.product_id == product.id)
+            .group_by(ProductVariant.id, ProductVariant.sku, ProductVariant.color, ProductVariant.size)
+            .order_by(ProductVariant.sort_order)
+        )
+        if (c := (args.get("color") or "").strip()):
+            stmt = stmt.where(ProductVariant.color.ilike(c))
+        if (z := (args.get("size") or "").strip()):
+            stmt = stmt.where(ProductVariant.size.ilike(z))
+        rows = (await db.execute(stmt.limit(MAX_ROWS))).all()
+        if not rows:
+            return {"product": product.name, "variants": [],
+                    "note": "No variants match that — a made-to-order product holds no stock."}
+        return {
+            "product": product.name,
+            "admin_link": "/admin/inventory",
+            "variants": [{
+                "sku": sku, "color": color, "size": size,
+                "in_stock": int(qty or 0),
+                "low_stock_threshold": int(threshold or 0),
+                "is_low": int(qty or 0) <= int(threshold or 0),
+            } for sku, color, size, qty, threshold in rows],
+        }
 
     async def sales_summary(args: dict):
         days = _days(args.get("days"), 7)
@@ -565,6 +687,8 @@ def owner_handlers(db: AsyncSession) -> dict[str, Handler]:
         "get_briefing": get_briefing, "how_to": how_to, "sales_summary": sales_summary,
         "catalog_summary": catalog_summary, "search_products": search_products,
         "get_print_job": get_print_job, "list_applications": list_applications,
+        "price_product": price_product, "calculate_quote": calculate_quote,
+        "check_inventory": check_inventory,
         "product_margins": product_margins,
         "search_orders": search_orders, "get_order": get_order,
         "list_print_jobs": list_print_jobs, "find_customer": find_customer,

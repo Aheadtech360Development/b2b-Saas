@@ -165,6 +165,66 @@ async def _approve_run(db: AsyncSession, params: dict, admin_user_id: str | None
     return f"{company.name} is approved and can now order at wholesale prices."
 
 
+# ── Quotes ───────────────────────────────────────────────────────────────────
+
+def _parse_choices(raw) -> dict:
+    """Choices arrive as one string, because a proposal's parameters are strings:
+    "Paper Stock=Coated Semigloss; Turnaround=Next day"."""
+    if isinstance(raw, dict):
+        return {str(k): str(v) for k, v in raw.items()}
+    out: dict[str, str] = {}
+    for part in str(raw or "").split(";"):
+        if "=" in part:
+            key, _, value = part.partition("=")
+            if key.strip() and value.strip():
+                out[key.strip()] = value.strip()
+    return out
+
+
+async def _quote_preview(db: AsyncSession, params: dict) -> dict:
+    from app.services.copilot.quoting import QuoteError, find_company, find_product, quote_for
+
+    try:
+        company = await find_company(db, str(params.get("customer") or ""))
+        product = await find_product(db, str(params.get("product") or ""))
+        quantity = max(1, int(params.get("quantity") or 1))
+        quote = await quote_for(db, product, quantity, _parse_choices(params.get("choices")))
+    except QuoteError as exc:
+        raise ActionError(str(exc))
+    except (TypeError, ValueError):
+        raise ActionError("Quantity must be a number.")
+
+    chosen = ", ".join(f'{c["option"]}: {c["value"]}' for c in quote.get("chosen", [])[:4])
+    warn = ""
+    if quote.get("unmatched_choices"):
+        warn = " Couldn't match: " + "; ".join(quote["unmatched_choices"]) + "."
+    if quote.get("below_minimum"):
+        warn += f" Below the product's minimum of {quote['minimum_order_quantity']}."
+    return {
+        "summary": (f"Create a draft order for {company.name}: {quantity} x {product.name}"
+                    + (f" ({chosen})" if chosen else "")
+                    + f" — ${quote['total']:.2f}"
+                    + (f" including ${quote['setup_fees']:.2f} setup" if quote.get("setup_fees") else "")),
+        "target": "/admin/orders/drafts",
+        "note": ("Saved as a DRAFT order, not charged to anyone. Prices are recalculated when it is "
+                 "created." + warn),
+    }
+
+
+async def _quote_run(db: AsyncSession, params: dict, admin_user_id: str | None) -> str:
+    from app.services.copilot.quoting import QuoteError, create_draft, find_company, find_product
+
+    try:
+        company = await find_company(db, str(params.get("customer") or ""))
+        product = await find_product(db, str(params.get("product") or ""))
+        draft = await create_draft(db, company, product, int(params.get("quantity") or 1),
+                                   _parse_choices(params.get("choices")))
+    except QuoteError as exc:
+        raise ActionError(str(exc))
+    return (f"Draft order {draft['order_number']} created for {company.name} — "
+            f"${draft['total']:.2f}. Open it to send or convert it.")
+
+
 # ── Registry ─────────────────────────────────────────────────────────────────
 
 Preview = Callable[[AsyncSession, dict], Awaitable[dict]]
@@ -224,6 +284,17 @@ ACTIONS: dict[str, dict] = {
         "params": {"reference": {"type": "string"}},
         "required": ["reference"],
         "preview": _job_complete[0], "run": _job_complete[1],
+    },
+    "quote_create": {
+        "what": "Save a quote as a draft order for a customer",
+        "params": {
+            "customer": {"type": "string"},
+            "product": {"type": "string"},
+            "quantity": {"type": "string"},
+            "choices": {"type": "string", "description": 'Option choices as "Name=Value; Name=Value".'},
+        },
+        "required": ["customer", "product", "quantity"],
+        "preview": _quote_preview, "run": _quote_run,
     },
     "application_approve": {
         "what": "Approve a pending wholesale account application",
