@@ -10,6 +10,7 @@
  * Apply returns the edited image as a transparent PNG File.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
+import { WorkingOverlay } from "@/components/storefront/WorkingOverlay";
 
 interface Props {
   src: string;
@@ -421,8 +422,15 @@ export function ImageEditorModal({ src, fileName, onClose, onApply, initialTab }
               <button onClick={() => setShowBefore(true)} style={{ ...S.baBtn, ...(showBefore ? S.baBtnActive : {}) }}>BEFORE</button>
             </div>
 
-            {busy && <div style={S.busyOverlay}><div style={{ fontWeight: 700 }}>{busy}</div></div>}
-            {!ready && !error && <div style={S.busyOverlay}><div>Loading…</div></div>}
+            {busy && (
+              <WorkingOverlay
+                label={`${busy}…`}
+                note={busy.toLowerCase().includes("background")
+                  ? "The first run downloads the tool, so it takes longer. Later ones are quick."
+                  : undefined}
+              />
+            )}
+            {!ready && !error && <WorkingOverlay label="Loading your design…" note="Just a moment." />}
           </div>
         </div>
 

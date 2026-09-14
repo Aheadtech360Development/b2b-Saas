@@ -18,6 +18,7 @@ import { gangSheetsService, priceUploadBySize } from "@/services/gangSheets.serv
 import { cartService } from "@/services/cart.service";
 import { useAuthStore } from "@/stores/auth.store";
 import { ImageEditorModal } from "@/components/storefront/ImageEditorModal";
+import { WorkingOverlay } from "@/components/storefront/WorkingOverlay";
 import type { ProductDetail } from "@/types/product.types";
 
 interface Props {
@@ -323,6 +324,14 @@ export function UploadBySizeModal({ product, onClose }: Props) {
                   </span>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={active.file_url} alt={active.file_name} style={S.art} />
+                  {busy && (
+                    <WorkingOverlay
+                      label={`${busy}…`}
+                      note={busy.startsWith("Removing")
+                        ? "The first run downloads the tool, so it takes longer. Later ones are quick."
+                        : undefined}
+                    />
+                  )}
                 </div>
 
                 <div style={S.bgRow}>
@@ -357,6 +366,7 @@ export function UploadBySizeModal({ product, onClose }: Props) {
                 <div style={{ fontSize: "12px", color: "#8A8A8A", marginTop: "6px" }}>
                   PNG, JPG or SVG · you can add more than one
                 </div>
+                {uploading && <WorkingOverlay label="Uploading your design…" note="Large files take a moment." />}
               </div>
             )}
           </div>
@@ -386,8 +396,6 @@ export function UploadBySizeModal({ product, onClose }: Props) {
                     <span style={S.toolIcon}>◑</span>Colors
                   </button>
                 </div>
-
-                {busy && <div style={S.busy}>{busy}… this can take a few seconds.</div>}
 
                 {/* Aspect ratio */}
                 <div style={S.ratioRow}>
@@ -549,7 +557,7 @@ const S: Record<string, React.CSSProperties> = {
   tag: { position: "absolute", background: "#1A1A1A", color: "#fff", fontSize: "10px", fontWeight: 700, padding: "2px 7px", borderRadius: "10px", zIndex: 2 },
   bgRow: { display: "flex", alignItems: "center", gap: "7px", justifyContent: "center", marginTop: "10px" },
   bgSwatch: { width: "22px", height: "22px", borderRadius: "5px", borderStyle: "solid", cursor: "pointer", padding: 0 },
-  dropzone: { border: "2px dashed", borderRadius: "10px", minHeight: "320px", display: "grid", placeItems: "center", textAlign: "center", cursor: "pointer", padding: "24px" },
+  dropzone: { position: "relative", border: "2px dashed", borderRadius: "10px", minHeight: "320px", display: "grid", placeItems: "center", textAlign: "center", cursor: "pointer", padding: "24px" },
   toolGrid: { display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "8px" },
   editBar: { textAlign: "center", fontSize: "10px", fontWeight: 700, letterSpacing: ".08em", color: "#8A8A8A", background: "#F6F6F7", borderRadius: "6px", padding: "5px" },
   editGrid: { display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "8px" },

@@ -33,6 +33,7 @@ import {
 import { analyzeArtwork } from "@/lib/artworkAnalysis";
 import { cartService } from "@/services/cart.service";
 import { ImageEditorModal } from "@/components/storefront/ImageEditorModal";
+import { WorkingOverlay } from "@/components/storefront/WorkingOverlay";
 
 const IMAGE_TYPES = new Set(["png", "jpg", "jpeg", "webp", "gif"]);
 const MIN_IN = 0.5;
@@ -1370,6 +1371,12 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={bgPreviewUrl} alt="Uploaded design" style={{ maxWidth: "100%", maxHeight: "46vh", objectFit: "contain", display: "block", margin: "0 auto" }} />
               )}
+              {bgBusy && (
+                <WorkingOverlay
+                  label="Removing the background…"
+                  note="The first run downloads the tool, so it takes longer. Later ones are quick."
+                />
+              )}
             </div>
             <div style={S.bgFoot}>
               <label style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12px", color: "#555", cursor: "pointer" }}>
@@ -1378,7 +1385,7 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
               <div style={{ flex: 1 }} />
               <button onClick={bgDiscard} disabled={bgBusy} style={S.ghostBtn}>Discard</button>
               <button onClick={bgContinue} disabled={bgBusy} style={S.ghostBtn}>Continue</button>
-              <button onClick={bgRemove} disabled={bgBusy} style={{ ...S.primaryBtn, background: "#2563EB", opacity: bgBusy ? 0.65 : 1 }}>
+              <button onClick={bgRemove} disabled={bgBusy} style={{ ...S.primaryBtn, background: "#1A1A1A", opacity: bgBusy ? 0.65 : 1 }}>
                 {bgBusy ? "Removing…" : "✨ Remove Background"}
               </button>
             </div>
@@ -1823,7 +1830,7 @@ const S: Record<string, React.CSSProperties> = {
   bgModal: { width: "min(560px, 94vw)", maxHeight: "92vh", display: "flex", flexDirection: "column", background: "#fff", borderRadius: "12px", overflow: "hidden", boxShadow: "0 20px 60px rgba(0,0,0,.35)" },
   bgHead: { display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 18px", borderBottom: "1px solid #EFEDE8" },
   bgWarnBar: { margin: "14px 18px 0", background: "#FEF3E2", border: "1px solid #FBD9A5", color: "#92400E", borderRadius: "8px", padding: "10px 12px", fontSize: "13px", lineHeight: 1.5 },
-  bgPreviewBox: { flex: 1, overflow: "auto", padding: "16px 18px", background: "#F7F7F5", margin: "14px 18px 0", borderRadius: "8px", border: "1px solid #EFEDE8" },
+  bgPreviewBox: { position: "relative", flex: 1, overflow: "auto", padding: "16px 18px", background: "#F7F7F5", margin: "14px 18px 0", borderRadius: "8px", border: "1px solid #EFEDE8" },
   bgFoot: { display: "flex", alignItems: "center", gap: "8px", padding: "14px 18px", borderTop: "1px solid #EFEDE8", flexWrap: "wrap" },
   body: { flex: 1, display: "flex", minHeight: 0 },
   rail: { width: "62px", flexShrink: 0, background: "#fff", borderRight: "1px solid #E5E3DE", display: "flex", flexDirection: "column", padding: "10px 0", gap: "4px" },
