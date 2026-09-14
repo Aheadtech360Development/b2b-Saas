@@ -228,7 +228,7 @@ export default function GangSheetBuilderPage() {
 
       {justSaved && (
         <div style={{ background: "#F0FDF4", border: "1px solid #BBF7D0", color: "#166534", padding: "14px 16px", borderRadius: "10px", fontSize: "14px", marginBottom: "20px" }}>
-          ✓ <strong>{justSaved.reference}</strong> saved — {justSaved.sheet_name} · {justSaved.sheet_quantity} sheet(s) · ${justSaved.subtotal.toFixed(2)}. It&apos;s in <a href="/account/gang-sheets" style={{ color: "#166534", fontWeight: 700 }}>My Gang Sheets</a>.
+          ✓ <strong>{justSaved.reference}</strong> saved — {justSaved.sheet_name} · {justSaved.sheet_quantity} sheet(s) · ${justSaved.subtotal.toFixed(2)}. It&apos;s in <a href="/account/gang-sheets" style={{ color: "#166534", fontWeight: 700 }}>My Print Jobs</a>.
         </div>
       )}
 

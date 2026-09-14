@@ -209,6 +209,20 @@ class UploadBySizeIn(BaseModel):
     customer_notes: Optional[str] = None
 
 
+class UploadBySizeEditIn(BaseModel):
+    """Revising an existing upload-by-size job: the buyer may swap the artwork,
+    change the print size, or change the quantity. The product never changes —
+    it is read from the order, so a revision cannot hop to another product's
+    price table."""
+    width_in: Decimal = Field(gt=0)
+    height_in: Decimal = Field(gt=0)
+    quantity: int = Field(default=1, ge=1)
+    file_url: str
+    file_name: str
+    file_type: Optional[str] = None
+    customer_notes: Optional[str] = None
+
+
 class StatusIn(BaseModel):
     status: str
     supplier_notes: Optional[str] = None
@@ -292,7 +306,12 @@ def _library_row(d: GangSheetLibraryDesign) -> dict:
     }
 
 
-def _order_row(o: GangSheetOrder, artworks: list[GangSheetArtwork] | None = None, admin: bool = False) -> dict:
+def _order_row(
+    o: GangSheetOrder,
+    artworks: list[GangSheetArtwork] | None = None,
+    admin: bool = False,
+    product_slug: str | None = None,
+) -> dict:
     data = {
         "id": str(o.id),
         "reference": o.reference,
@@ -317,6 +336,10 @@ def _order_row(o: GangSheetOrder, artworks: list[GangSheetArtwork] | None = None
         "layout": o.layout or [],
         "order_id": str(o.order_id) if getattr(o, "order_id", None) else None,
         "paid": bool(getattr(o, "paid_at", None)),
+        # Upload-by-size has no builder to reopen — a revision happens back on the
+        # product page, and the buyer's list needs the slug to link there.
+        "kind": "gang_sheet" if o.sheet_size_id else "upload_by_size",
+        "product_slug": product_slug,
     }
     if artworks is not None:
         data["artworks"] = [_art_row(a) for a in artworks]
@@ -336,6 +359,17 @@ def _snapshot(o: GangSheetOrder, artworks: list[GangSheetArtwork], version: int)
         "artworks": [_art_row(a) for a in artworks],
         "layout": o.layout or [],
     }
+
+
+async def _product_slugs(db: AsyncSession, product_ids) -> dict[str, str]:
+    """Slugs for a batch of product ids, in one query."""
+    ids = {pid for pid in product_ids if pid}
+    if not ids:
+        return {}
+    from app.models.product import Product
+
+    rows = await db.execute(select(Product.id, Product.slug).where(Product.id.in_(ids)))
+    return {str(i): slug for i, slug in rows.all() if slug}
 
 
 async def _next_reference(db: AsyncSession) -> str:
@@ -625,18 +659,15 @@ def _upload_by_size_rate(config: dict, area: float) -> Optional[float]:
     return norm[-1][1]
 
 
-@public_router.post("/orders/upload-by-size", status_code=status.HTTP_201_CREATED)
-async def submit_upload_by_size(
-    payload: UploadBySizeIn,
-    request: Request,
-    db: AsyncSession = Depends(get_db),
-) -> dict:
-    """One-design "Upload by size" order. Price is computed here from the
-    product's area-tiered table — the client's estimate is never trusted."""
+async def _upload_by_size_quote(db: AsyncSession, product_id: uuid.UUID, w: Decimal, h: Decimal):
+    """Resolve the product and the server-side unit price for one design at
+    w x h, refusing a size the printer cannot run. Shared by the first
+    submission and a later revision so an edited job is bounded and priced by
+    exactly the same rules as a fresh one."""
     from app.models.product import Product
 
     product = (
-        await db.execute(select(Product).where(Product.id == payload.product_id))
+        await db.execute(select(Product).where(Product.id == product_id))
     ).scalar_one_or_none()
     if not product or not getattr(product, "gang_sheet_enabled", False):
         raise HTTPException(status_code=400, detail="This product does not accept uploads by size.")
@@ -646,17 +677,27 @@ async def submit_upload_by_size(
     config = getattr(product, "gang_sheet_config", None) or {}
     printer_w = Decimal(str(config.get("printer_width") or 0))
     max_h = Decimal(str(config.get("max_height") or 0))
-    w, h = payload.width_in, payload.height_in
     if printer_w > 0 and w > printer_w:
         raise HTTPException(status_code=400, detail=f"Width must be at most {printer_w}in for this product.")
     if max_h > 0 and h > max_h:
         raise HTTPException(status_code=400, detail=f"Height must be at most {max_h}in for this product.")
 
-    area = float(w) * float(h)
-    rate = _upload_by_size_rate(config, area)
+    rate = _upload_by_size_rate(config, float(w) * float(h))
     if rate is None:
         raise HTTPException(status_code=400, detail="This product has no pricing configured yet.")
-    unit_price = (w * h * Decimal(str(rate))).quantize(Decimal("0.01"))
+    return product, (w * h * Decimal(str(rate))).quantize(Decimal("0.01"))
+
+
+@public_router.post("/orders/upload-by-size", status_code=status.HTTP_201_CREATED)
+async def submit_upload_by_size(
+    payload: UploadBySizeIn,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """One-design "Upload by size" order. Price is computed here from the
+    product's area-tiered table — the client's estimate is never trusted."""
+    w, h = payload.width_in, payload.height_in
+    product, unit_price = await _upload_by_size_quote(db, payload.product_id, w, h)
     subtotal = (unit_price * payload.quantity).quantize(Decimal("0.01"))
 
     order = GangSheetOrder(
@@ -761,8 +802,9 @@ async def my_orders(request: Request, db: AsyncSession = Depends(get_db)) -> lis
         if company_id
         else GangSheetOrder.user_id == user_id
     )
-    rows = await db.execute(stmt.order_by(GangSheetOrder.created_at.desc()))
-    return [_order_row(o) for o in rows.scalars().all()]
+    orders = (await db.execute(stmt.order_by(GangSheetOrder.created_at.desc()))).scalars().all()
+    slugs = await _product_slugs(db, [o.product_id for o in orders])
+    return [_order_row(o, product_slug=slugs.get(str(o.product_id))) for o in orders]
 
 
 @public_router.get("/orders/{order_id}")
@@ -911,6 +953,116 @@ async def rebuild_order(
     else:
         vers = [snap]
     order.versions = vers
+    await db.flush()
+    await db.refresh(order)
+    return _order_row(order, arts)
+
+
+@public_router.patch("/orders/{order_id}/upload-by-size")
+async def revise_upload_by_size(
+    order_id: uuid.UUID,
+    payload: UploadBySizeEditIn,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Replace an editable upload-by-size job's artwork, size and quantity.
+
+    The builder's /contents does the same for a sheet the buyer arranges, but it
+    is driven by a sheet size an upload-by-size order does not have. Without this
+    counterpart a revision request was a dead end: the buyer could resubmit, but
+    only ever the same file at the same size the print team had just rejected.
+    """
+    order = (
+        await db.execute(select(GangSheetOrder).where(GangSheetOrder.id == order_id))
+    ).scalar_one_or_none()
+    if not order:
+        raise HTTPException(status_code=404, detail="Gang sheet order not found")
+
+    user_id = getattr(request.state, "user_id", None)
+    company_id = getattr(request.state, "company_id", None)
+    owns = (company_id and str(order.company_id) == str(company_id)) or (
+        user_id and str(order.user_id) == str(user_id)
+    )
+    if not owns:
+        raise HTTPException(status_code=404, detail="Gang sheet order not found")
+    if order.status not in _BUYER_EDITABLE:
+        raise HTTPException(status_code=409, detail="This order can no longer be edited.")
+    if order.sheet_size_id is not None:
+        raise HTTPException(status_code=400, detail="This is a gang sheet — edit it in the builder.")
+    if not order.product_id:
+        raise HTTPException(status_code=400, detail="This order is not linked to a product.")
+
+    w, h = payload.width_in, payload.height_in
+    product, unit_price = await _upload_by_size_quote(db, order.product_id, w, h)
+    new_subtotal = (unit_price * payload.quantity).quantize(Decimal("0.01"))
+
+    # A job sent back for revision has usually been paid for already. Letting the
+    # buyer enlarge it or raise the quantity here would print more than they paid
+    # for, with nothing to collect the difference — so a paid job may change its
+    # file and shrink, but not grow.
+    if order.order_id and new_subtotal > Decimal(str(order.subtotal or 0)):
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"This job is already paid (${order.subtotal}), so it can't be made bigger or "
+                "ordered in a higher quantity here. Keep the size and quantity at or below "
+                "what you ordered, or place a new order for the extra."
+            ),
+        )
+
+    # One design per upload-by-size job, so the artwork set is replaced outright.
+    for a in await _load_artworks(db, order.id):
+        await db.delete(a)
+    await db.flush()
+
+    art = GangSheetArtwork(
+        gang_sheet_order_id=order.id,
+        file_url=payload.file_url,
+        file_name=payload.file_name,
+        file_type=payload.file_type,
+        width_in=w,
+        height_in=h,
+        quantity=payload.quantity,
+        sort_order=0,
+    )
+    db.add(art)
+    await db.flush()
+
+    order.sheet_name = f'{product.name} — {w}"×{h}"'
+    order.sheet_width_in = w
+    order.sheet_height_in = h
+    order.price_per_sheet = unit_price
+    order.sheet_quantity = payload.quantity
+    order.subtotal = new_subtotal
+    if payload.customer_notes is not None:
+        order.customer_notes = payload.customer_notes
+    order.layout = [{"artwork_id": str(art.id), "x_in": 0, "y_in": 0, "rotation": 0, "w_in": float(w), "h_in": float(h)}]
+    await db.flush()
+
+    # Keep the current version's snapshot accurate; resubmit is what opens a new
+    # version, so a plain edit must not spawn one (mirrors rebuild_order).
+    arts = await _load_artworks(db, order.id)
+    snap = _snapshot(order, arts, order.version or 1)
+    vers = list(order.versions or [])
+    if vers:
+        vers[-1] = snap
+    else:
+        vers = [snap]
+    order.versions = vers
+
+    # Not checked out yet: the cart line snapshotted the old price, label and
+    # image, and would otherwise bill the size the buyer just changed away from.
+    if not order.order_id:
+        from app.models.order import CartItem
+
+        for line in (await db.execute(
+            select(CartItem).where(CartItem.gang_sheet_order_id == order.id)
+        )).scalars().all():
+            line.quantity = order.sheet_quantity
+            line.unit_price = unit_price
+            line.label = order.sheet_name
+            line.image_url = art.file_url
+
     await db.flush()
     await db.refresh(order)
     return _order_row(order, arts)

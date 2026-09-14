@@ -88,6 +88,10 @@ export interface GangSheetOrder {
   // Checkout link: set once the buyer pays for this sheet through the cart.
   order_id?: string | null;
   paid?: boolean;
+  /** Built on a sheet in the studio, or one design printed at an exact size. */
+  kind?: "gang_sheet" | "upload_by_size";
+  /** Where an upload-by-size job is revised — the product it was ordered from. */
+  product_slug?: string | null;
   // Batch 3
   version?: number;
   status_timeline?: GangSheetStatus[];
@@ -253,6 +257,10 @@ export const gangSheetsService = {
     apiClient.patch<GangSheetOrder>(`/api/v1/gang-sheets/orders/${id}/layout`, { layout }),
 
   /** Replace an editable order's artwork/sheet/qty when reopened in the builder. */
+  /** Swap an editable upload-by-size job's artwork, size or quantity. */
+  reviseUploadBySize: (id: string, payload: Omit<UploadBySizePayload, "product_id">) =>
+    apiClient.patch<GangSheetOrder>(`/api/v1/gang-sheets/orders/${id}/upload-by-size`, payload),
+
   rebuild: (id: string, payload: { sheet_size_id: string; sheet_quantity: number; custom_length_in?: number; artworks: Omit<GangSheetArtwork, "id" | "sort_order">[] }) =>
     apiClient.patch<GangSheetOrder>(`/api/v1/gang-sheets/orders/${id}/contents`, payload),
 

@@ -14,7 +14,7 @@
  * so a fix made here behaves identically there.
  */
 import { useEffect, useMemo, useRef, useState } from "react";
-import { gangSheetsService, priceUploadBySize } from "@/services/gangSheets.service";
+import { gangSheetsService, priceUploadBySize, type GangSheetOrder } from "@/services/gangSheets.service";
 import { cartService } from "@/services/cart.service";
 import { useAuthStore } from "@/stores/auth.store";
 import { ImageEditorModal } from "@/components/storefront/ImageEditorModal";
@@ -25,6 +25,14 @@ import type { ProductDetail } from "@/types/product.types";
 interface Props {
   product: ProductDetail;
   onClose: () => void;
+  /**
+   * Reopen an existing job instead of starting a new one — how a buyer answers a
+   * revision request. The job keeps its reference and its place in the review
+   * queue; only its artwork, size and quantity change.
+   */
+  revise?: GangSheetOrder | null;
+  /** Called once a revised job is saved (and resubmitted, if it was sent back). */
+  onRevised?: () => void;
 }
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
@@ -72,7 +80,7 @@ function dpiBand(dpi: number) {
   return { color: "#DC2626", label: "Low" };
 }
 
-export function UploadBySizeModal({ product, onClose }: Props) {
+export function UploadBySizeModal({ product, onClose, revise = null, onRevised }: Props) {
   const { isAuthenticated } = useAuthStore();
   const config = product.gang_sheet_config ?? null;
   const maxW = Number(config?.printer_width) || 22;
@@ -123,6 +131,33 @@ export function UploadBySizeModal({ product, onClose }: Props) {
     return () => { document.body.style.overflow = prev; };
   }, []);
 
+  // A revision starts from what was ordered: the same file, size and quantity.
+  useEffect(() => {
+    const art = revise?.artworks?.[0];
+    if (!revise || !art) return;
+    let cancelled = false;
+    (async () => {
+      let pxW = 0, pxH = 0;
+      try { const d = await readDims(art.file_url); pxW = d.w; pxH = d.h; } catch { /* vector — dims unknown */ }
+      if (cancelled) return;
+      const w = Number(art.width_in) || 1;
+      const h = Number(art.height_in) || 1;
+      const id = nextId.current++;
+      setItems([{
+        id, file_url: art.file_url, file_name: art.file_name,
+        file_type: (art.file_type || art.file_name.split(".").pop() || "").toLowerCase(),
+        pxW, pxH, aspect: pxW && pxH ? pxW / pxH : w / h,
+        w, h, qty: Number(art.quantity) || revise.sheet_quantity || 1,
+        // The stored size was rounded or typed freely, so it may not match the
+        // artwork's ratio exactly — don't snap it back into proportion on open.
+        lockAspect: false, preset: null,
+      }]);
+      setActiveId(id);
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [revise?.id]);
+
   function readDims(src: string): Promise<{ w: number; h: number }> {
     return new Promise((res, rej) => {
       const img = new Image();
@@ -139,6 +174,12 @@ export function UploadBySizeModal({ product, onClose }: Props) {
   async function onFiles(files: FileList | null) {
     const chosen = Array.from(files ?? []);
     if (!chosen.length) return;
+    // A revised job is one design, so a new file swaps it in and keeps the size.
+    if (revise && active) {
+      await replaceArtwork(active.id, chosen[0]!, "Upload");
+      if (fileRef.current) fileRef.current.value = "";
+      return;
+    }
     setUploading(true);
     setError(null);
     try {
@@ -297,6 +338,31 @@ export function UploadBySizeModal({ product, onClose }: Props) {
     }
   }
 
+  const sentBack = revise?.status === "revision_requested";
+
+  async function saveRevision() {
+    if (!revise || !active) return;
+    setAdding(true);
+    setError(null);
+    try {
+      await gangSheetsService.reviseUploadBySize(revise.id, {
+        width_in: active.w,
+        height_in: active.h,
+        quantity: active.qty,
+        file_url: active.file_url,
+        file_name: active.file_name,
+        file_type: active.file_type,
+      });
+      // Saving alone would leave the job at "revision requested", where the print
+      // team is not looking. Sending it back is the point of the edit.
+      if (sentBack) await gangSheetsService.resubmit(revise.id);
+      onRevised?.();
+    } catch (e) {
+      setError((e as { message?: string })?.message || "Could not save your changes. Please try again.");
+      setAdding(false);
+    }
+  }
+
   const isImage = active && ["png", "jpg", "jpeg", "webp", "gif"].includes(active.file_type);
 
   return (
@@ -307,9 +373,20 @@ export function UploadBySizeModal({ product, onClose }: Props) {
       >
         {/* ── Header ─────────────────────────────────────────────────────── */}
         <div style={S.header}>
-          <button onClick={() => fileRef.current?.click()} disabled={uploading} style={S.uploadBtn}>
-            {uploading ? "Uploading…" : "＋ Uploads"}
-          </button>
+          {revise ? (
+            <div style={{ display: "flex", alignItems: "center", gap: "12px", minWidth: 0 }}>
+              <button onClick={() => fileRef.current?.click()} disabled={uploading || !active || !!busy} style={S.uploadBtn}>
+                Replace artwork
+              </button>
+              <span style={{ fontSize: "13px", color: "#6B6B6B", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                Revising <strong style={{ color: "#1A1A1A" }}>{revise.reference}</strong>
+              </span>
+            </div>
+          ) : (
+            <button onClick={() => fileRef.current?.click()} disabled={uploading} style={S.uploadBtn}>
+              {uploading ? "Uploading…" : "＋ Uploads"}
+            </button>
+          )}
           <button onClick={onClose} aria-label="Close" style={S.close}>✕</button>
         </div>
 
@@ -317,10 +394,16 @@ export function UploadBySizeModal({ product, onClose }: Props) {
           ref={fileRef}
           type="file"
           accept=".png,.jpg,.jpeg,.svg,image/*"
-          multiple
+          multiple={!revise}
           style={{ display: "none" }}
           onChange={(e) => onFiles(e.target.files)}
         />
+
+        {revise?.supplier_notes && (
+          <div style={{ margin: "0 20px 4px", background: "#FFF7ED", border: "1px solid #FED7AA", color: "#9A3412", borderRadius: "10px", padding: "10px 14px", fontSize: "13px", lineHeight: 1.55 }}>
+            <strong>What the print team asked for:</strong> {revise.supplier_notes}
+          </div>
+        )}
 
         <div style={items.length ? S.body : S.bodyEmpty}>
           {/* ── Left: the design ─────────────────────────────────────────── */}
@@ -499,7 +582,9 @@ export function UploadBySizeModal({ product, onClose }: Props) {
 
             {/* Every design on this order, with what each one costs. */}
             <div style={S.strip}>
-              <button onClick={() => fileRef.current?.click()} title="Add another design" style={S.addTile}>＋</button>
+              {!revise && (
+                <button onClick={() => fileRef.current?.click()} title="Add another design" style={S.addTile}>＋</button>
+              )}
               {items.map((it) => {
                 const p = priced.find((x) => x.id === it.id)?.price ?? null;
                 const on = it.id === activeId;
@@ -513,11 +598,13 @@ export function UploadBySizeModal({ product, onClose }: Props) {
                       <img src={it.file_url} alt="" style={{ width: "100%", height: "100%", objectFit: "contain" }} />
                       <span style={S.qtyBadge}>{it.qty}</span>
                       {p && <span style={S.priceBadge}>${p.total.toFixed(2)}</span>}
-                      <span
-                        onClick={(e) => { e.stopPropagation(); removeItem(it.id); }}
-                        title="Remove this design"
-                        style={S.removeDot}
-                      >✕</span>
+                      {!revise && (
+                        <span
+                          onClick={(e) => { e.stopPropagation(); removeItem(it.id); }}
+                          title="Remove this design"
+                          style={S.removeDot}
+                        >✕</span>
+                      )}
                     </button>
                     <div style={{ fontSize: "10px", color: "#8A8A8A", marginTop: "3px" }}>
                       {it.w}in × {it.h}in
@@ -558,14 +645,24 @@ export function UploadBySizeModal({ product, onClose }: Props) {
         {/* ── Footer ─────────────────────────────────────────────────────── */}
         <div style={S.footer}>
           <button onClick={onClose} style={S.ghost}>Cancel</button>
-          <button
-            onClick={addToCart}
-            disabled={adding || !items.length || !!busy}
-            style={{ ...S.cta, ...(items.length ? null : S.ctaOff) }}
-          >
-            {items.length > 0 && <span style={S.ctaCount}>{items.length}</span>}
-            {adding ? "Adding…" : isAuthenticated() ? "Add To Cart" : "Sign in to order"}
-          </button>
+          {revise ? (
+            <button
+              onClick={saveRevision}
+              disabled={adding || !active || !!busy || uploading}
+              style={{ ...S.cta, ...(active ? null : S.ctaOff) }}
+            >
+              {adding ? "Saving…" : sentBack ? "Save & resubmit" : "Save changes"}
+            </button>
+          ) : (
+            <button
+              onClick={addToCart}
+              disabled={adding || !items.length || !!busy}
+              style={{ ...S.cta, ...(items.length ? null : S.ctaOff) }}
+            >
+              {items.length > 0 && <span style={S.ctaCount}>{items.length}</span>}
+              {adding ? "Adding…" : isAuthenticated() ? "Add To Cart" : "Sign in to order"}
+            </button>
+          )}
         </div>
       </div>
 

@@ -11,7 +11,7 @@ import { apiClient } from "@/lib/api-client";
 import { cartService } from "@/services/cart.service";
 import { productsService } from "@/services/products.service";
 import { UploadBySizeModal } from "@/components/storefront/UploadBySizeModal";
-import { gangSheetsService, type GangSheetSize } from "@/services/gangSheets.service";
+import { gangSheetsService, type GangSheetOrder, type GangSheetSize } from "@/services/gangSheets.service";
 import { ProductConfigurator } from "@/components/storefront/ProductConfigurator";
 
 function formatWeightGrams(raw: string | null | undefined): string | null {
@@ -425,6 +425,20 @@ export function ProductDetailClient({ slug }: ProductDetailClientProps) {
   const [showImageLibrary, setShowImageLibrary] = useState(false);
   const [expandedLibraryColor, setExpandedLibraryColor] = useState<string | null>(null);
   const [showUploadBySize, setShowUploadBySize] = useState(false); // Upload-by-size modal (declared with the other hooks, before any early return)
+  // A revision link (?revise=<job id>) reopens that job in the modal instead of
+  // starting a new one — the only place an upload-by-size job can be edited.
+  const [reviseJob, setReviseJob] = useState<GangSheetOrder | null>(null);
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get("revise");
+    if (!id) return;
+    gangSheetsService.myOrder(id)
+      .then((job) => {
+        if (job.status !== "submitted" && job.status !== "revision_requested") return;
+        setReviseJob(job);
+        setShowUploadBySize(true);
+      })
+      .catch(() => { /* not theirs, or gone — just show the product */ });
+  }, []);
   const [gsSizes, setGsSizes] = useState<GangSheetSize[]>([]); // this gang-sheet product's own sizes (for the storefront size grid)
   const [gsSelectedId, setGsSelectedId] = useState("");
 
@@ -1088,7 +1102,12 @@ export function ProductDetailClient({ slug }: ProductDetailClientProps) {
         </div>
 
         {showUploadBySize && (
-          <UploadBySizeModal product={product} onClose={() => setShowUploadBySize(false)} />
+          <UploadBySizeModal
+            product={product}
+            revise={reviseJob}
+            onClose={() => { setShowUploadBySize(false); setReviseJob(null); }}
+            onRevised={() => { window.location.href = "/account/gang-sheets?revised=1"; }}
+          />
         )}
 
         {/* ── Product Tabs ───────────────────────────────────────────────── */}
