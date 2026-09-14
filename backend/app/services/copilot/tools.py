@@ -26,7 +26,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.models.company import Company
+from app.models.inventory import InventoryRecord
 from app.models.order import Order, OrderItem
+from app.models.product import Product, ProductVariant
 from app.services.copilot.briefing import build_briefing
 from app.services.copilot.guide import INDEX as GUIDE_INDEX, TOPICS as GUIDE_TOPICS, lookup as guide_lookup
 
@@ -131,6 +133,35 @@ OWNER_TOOLS: list[dict] = [
         },
     },
     {
+        "name": "catalog_summary",
+        "description": (
+            "What the store holds right now, as exact counts: products by status (active, draft, "
+            "archived), how many are stocked-variant versus made-to-order configurable, how many "
+            "have the gang sheet or upload-by-size builder switched on, total variants, how many "
+            "variants are low on stock or out of stock, total units in stock, and customer accounts "
+            "by status. Use it for 'how many products do I have', 'how many SKUs', 'how big is my "
+            "catalogue', 'how many customers' and anything else about the size of the store."
+        ),
+        "input_schema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "search_products",
+        "description": (
+            "Lists products, at most 25, newest first. Filter by part of a product name or SKU, by "
+            "status, and by whether they are low on stock. Each row gives the name, status, whether "
+            "it is a stocked or configurable product, its variant count, its price range and its "
+            "total stock. Use it to find a product or answer 'which products are out of stock'."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "query": {"type": "string", "description": "Part of a product name or a variant SKU."},
+                "status": {"type": "string", "enum": ["active", "draft", "archived"]},
+                "low_stock_only": {"type": "boolean", "description": "Only products with a variant at or below its low-stock threshold."},
+            },
+        },
+    },
+    {
         "name": "sales_summary",
         "description": (
             "Sales for the last N days: order count, revenue, average order value, orders by status, "
@@ -206,6 +237,87 @@ OWNER_TOOLS: list[dict] = [
 def owner_handlers(db: AsyncSession) -> dict[str, Handler]:
     async def get_briefing(_: dict):
         return await build_briefing(db)
+
+    async def catalog_summary(_: dict):
+        by_status = dict((await db.execute(
+            select(Product.status, func.count(Product.id)).group_by(Product.status)
+        )).all())
+        configurable = (await db.execute(
+            select(func.count(Product.id)).where(Product.pricing_mode == "configurable")
+        )).scalar_one() or 0
+        builder = dict((await db.execute(
+            select(Product.gang_sheet_type, func.count(Product.id))
+            .where(Product.gang_sheet_enabled.is_(True)).group_by(Product.gang_sheet_type)
+        )).all())
+        variants = (await db.execute(select(func.count(ProductVariant.id)))).scalar_one() or 0
+        units, low, out = (await db.execute(select(
+            func.coalesce(func.sum(InventoryRecord.quantity), 0),
+            func.count(InventoryRecord.id).filter(InventoryRecord.quantity <= InventoryRecord.low_stock_threshold),
+            func.count(InventoryRecord.id).filter(InventoryRecord.quantity <= 0),
+        ))).one()
+        customers = dict((await db.execute(
+            select(Company.status, func.count(Company.id)).group_by(Company.status)
+        )).all())
+        total = sum(int(v) for v in by_status.values())
+        return {
+            "products_total": total,
+            "products_by_status": {k: int(v) for k, v in by_status.items()},
+            "products_stocked": max(0, total - int(configurable)),
+            "products_configurable": int(configurable),
+            "products_with_builder": {(k or "gang_sheet"): int(v) for k, v in builder.items()},
+            "variants_total": int(variants),
+            "variants_low_stock": int(low or 0),
+            "variants_out_of_stock": int(out or 0),
+            "units_in_stock": int(units or 0),
+            "customer_accounts_by_status": {k: int(v) for k, v in customers.items()},
+        }
+
+    async def search_products(args: dict):
+        stock = (
+            select(
+                ProductVariant.product_id.label("pid"),
+                func.count(ProductVariant.id).label("variants"),
+                func.min(ProductVariant.retail_price).label("min_price"),
+                func.max(ProductVariant.retail_price).label("max_price"),
+                func.coalesce(func.sum(InventoryRecord.quantity), 0).label("units"),
+                func.count(InventoryRecord.id).filter(
+                    InventoryRecord.quantity <= InventoryRecord.low_stock_threshold
+                ).label("low"),
+            )
+            .outerjoin(InventoryRecord, InventoryRecord.variant_id == ProductVariant.id)
+            .group_by(ProductVariant.product_id)
+            .subquery()
+        )
+        stmt = select(Product, stock).outerjoin(stock, stock.c.pid == Product.id)
+        if args.get("status"):
+            stmt = stmt.where(Product.status == args["status"])
+        if (q := (args.get("query") or "").strip()):
+            like = f"%{q}%"
+            skus = select(ProductVariant.product_id).where(ProductVariant.sku.ilike(like))
+            stmt = stmt.where(or_(Product.name.ilike(like), Product.id.in_(skus)))
+        if args.get("low_stock_only"):
+            stmt = stmt.where(stock.c.low > 0)
+        rows = (await db.execute(stmt.order_by(Product.created_at.desc()).limit(MAX_ROWS))).all()
+
+        out = []
+        for row in rows:
+            p = row[0]
+            configurable = (getattr(p, "pricing_mode", "variant") or "variant") == "configurable"
+            item = {
+                "name": p.name,
+                "status": p.status,
+                "type": "configurable" if configurable else "stocked",
+                "variants": int(row.variants or 0),
+                "units_in_stock": int(row.units or 0),
+                "variants_low_stock": int(row.low or 0),
+            }
+            if row.min_price is not None:
+                lo, hi = _money(row.min_price), _money(row.max_price)
+                item["price"] = f"${lo:.2f}" if lo == hi else f"${lo:.2f}-${hi:.2f}"
+            if getattr(p, "gang_sheet_enabled", False):
+                item["builder"] = getattr(p, "gang_sheet_type", None) or "gang_sheet"
+            out.append(item)
+        return {"products": out, "shown": len(out), "limit": MAX_ROWS}
 
     async def sales_summary(args: dict):
         days = _days(args.get("days"), 7)
@@ -312,6 +424,7 @@ def owner_handlers(db: AsyncSession) -> dict[str, Handler]:
 
     return {
         "get_briefing": get_briefing, "how_to": how_to, "sales_summary": sales_summary,
+        "catalog_summary": catalog_summary, "search_products": search_products,
         "search_orders": search_orders, "get_order": get_order,
         "list_print_jobs": list_print_jobs, "find_customer": find_customer,
     }
