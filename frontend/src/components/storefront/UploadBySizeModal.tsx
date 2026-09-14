@@ -105,6 +105,11 @@ export function UploadBySizeModal({ product, onClose }: Props) {
   const orderTotal = priced.reduce((sum, p) => sum + (p.price?.total ?? 0), 0);
   const totalArea = items.reduce((sum, it) => sum + it.w * it.h * it.qty, 0);
 
+  /** The preset whose width matches, if any — otherwise the size is custom. */
+  const activePreset = active
+    ? PRESETS.find((p) => Math.abs(p.w - active.w) < 0.01)?.key ?? null
+    : null;
+
   const dpi = active && active.w > 0 && active.pxW
     ? Math.floor(Math.min(active.pxW / active.w, active.pxH / active.h))
     : 0;
@@ -431,14 +436,22 @@ export function UploadBySizeModal({ product, onClose }: Props) {
 
                 {/* Size presets */}
                 <div style={S.presetWrap}>
+                  {/* Which chip is lit is read back from the width itself, so
+                      typing 6 by hand lights L, and nudging it off a preset
+                      falls back to Custom without any extra state to keep. */}
                   <button
-                    onClick={() => { /* already free-form */ }}
-                    style={{ ...S.preset, ...S.presetActive }}
+                    onClick={() => { /* the size fields are already free-form */ }}
+                    style={{ ...S.preset, ...(activePreset ? null : S.presetActive) }}
                   >
                     Custom
                   </button>
                   {PRESETS.map((p) => (
-                    <button key={p.key} onClick={() => applyPreset(p.w)} title={`${p.w}in wide`} style={S.preset}>
+                    <button
+                      key={p.key}
+                      onClick={() => applyPreset(p.w)}
+                      title={`${p.w}in wide`}
+                      style={{ ...S.preset, ...(activePreset === p.key ? S.presetActive : null) }}
+                    >
                       {p.key}
                     </button>
                   ))}
