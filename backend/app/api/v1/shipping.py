@@ -1,4 +1,10 @@
-"""Public shipping endpoints — live Shippo rates and shipping type lookup."""
+"""Public shipping endpoints — live carrier rates and shipping type lookup.
+
+Rates come from the brand's own connected carriers when it has any. A store
+that hasn't connected one yet still gets live rates, quoted through the
+aggregator account, so checkout works from day one; `source` on the response
+says which of the two answered.
+"""
 import logging
 
 from fastapi import APIRouter, Depends, Request
@@ -32,10 +38,10 @@ class LiveRatesRequest(BaseModel):
 
 @router.post("/live-rates")
 async def get_live_rates(payload: LiveRatesRequest, db: AsyncSession = Depends(get_db)):
-    """Return real-time carrier rates from Shippo.
+    """Real-time rates for this brand, from its own carriers or the fallback.
 
-    Calculates shipment weight from cart_items (variant weight_grams × quantity).
-    Falls back to payload.weight_oz when no cart_items provided.
+    Shipment weight is computed from cart_items (variant weight_grams × qty),
+    falling back to payload.weight_oz when no items are supplied.
     """
     from app.services import shippo_service
     from shippo.models import components
@@ -111,7 +117,8 @@ async def get_live_rates(payload: LiveRatesRequest, db: AsyncSession = Depends(g
     except Exception as exc:
         logger.warning("Direct carrier rating failed, falling back: %s", exc)
 
-    # Fallback for stores still on the aggregator account.
+    # Fallback for a store that hasn't connected a carrier of its own: quote
+    # through the aggregator so live rates still work while it gets set up.
     try:
         _key = await shippo_service.get_shippo_key(db, _tid)
         client = shippo_service.get_client(_key)
@@ -165,11 +172,16 @@ async def get_live_rates(payload: LiveRatesRequest, db: AsyncSession = Depends(g
                 continue
 
         rates.sort(key=lambda r: r["cost"])
-        return {"rates": rates}
+        return {"rates": rates, "source": "shippo"}
 
     except Exception as exc:
-        logger.warning("Shippo live rates error: %s", exc)
-        return {"rates": [], "error": str(exc)}
+        # The detail belongs in the log, not at checkout — a buyer reading
+        # "SHIPPO_API_KEY not set" learns nothing and is told nothing useful.
+        logger.warning("Fallback live rates unavailable: %s", exc)
+        return {
+            "rates": [],
+            "error": "Live shipping rates aren't available right now. Please choose another shipping option or contact the store.",
+        }
 
 
 @router.get("/shipping-type")

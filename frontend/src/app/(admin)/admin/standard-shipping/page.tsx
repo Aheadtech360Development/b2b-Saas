@@ -343,7 +343,9 @@ export default function StandardShippingPage() {
                     with live pricing at checkout, and pick the one they want before placing the order.
                   </p>
                   <p style={{ fontSize: "11px", color: "#7A7880", marginTop: "8px", marginBottom: 0 }}>
-                    Needs at least one carrier connected at the top of this page.
+                    Connect a carrier above to quote on your own account at your negotiated rates.
+                    Until you do, live rates still work &mdash; they are quoted through the platform&rsquo;s
+                    account, so the prices shown are standard published rates rather than yours.
                   </p>
                 </div>
               )}
