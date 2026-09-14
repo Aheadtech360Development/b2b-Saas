@@ -172,7 +172,7 @@ OWNER_TOOLS: list[dict] = [
             "Sales for the last N days: order count, revenue, average order value, orders by status, "
             "the top products by revenue and the top customers by spend. Cancelled and refunded orders "
             "are excluded from revenue. Use it for questions like 'what happened this week', 'how are "
-            "sales', 'best sellers' or 'biggest customers'. It does not know costs or margins."
+            "sales', 'best sellers' or 'biggest customers'. For profit rather than revenue, use product_margins."
         ),
         "input_schema": {
             "type": "object",
@@ -221,6 +221,42 @@ OWNER_TOOLS: list[dict] = [
         "input_schema": {
             "type": "object",
             "properties": {"status": {"type": "string", "enum": ["submitted", "in_review", "approved", "production", "revision_requested", "rejected", "completed"]}},
+        },
+    },
+    {
+        "name": "get_print_job",
+        "description": (
+            "One gang sheet or upload-by-size job by its reference (for example GS-202609-0003): "
+            "what it is, its size and quantity, its price, its status, whether it is paid, the note "
+            "left for the customer, its artwork files, and the order it was paid on."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {"reference": {"type": "string"}},
+            "required": ["reference"],
+        },
+    },
+    {
+        "name": "list_applications",
+        "description": (
+            "Wholesale account applications waiting for a decision — company name, business type, "
+            "contact and when they applied. Use it for 'who is waiting for approval'. Approving one "
+            "is an action, not a lookup."
+        ),
+        "input_schema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "product_margins",
+        "description": (
+            "Profit by product over the last N days, for the products whose variants have a cost "
+            "price filled in: revenue, cost, profit and margin %, plus how many sold items had no "
+            "cost recorded. Cost is the variant's cost price as it is TODAY, not what it was when "
+            "the order was placed, so treat the figures as a guide. Say clearly when coverage is "
+            "partial — products with no cost recorded are missing from this entirely."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {"days": {"type": "integer", "description": "Look-back window in days, 1-365. Default 30."}},
         },
     },
     {
@@ -404,6 +440,102 @@ def owner_handlers(db: AsyncSession) -> dict[str, Handler]:
             "created": _iso(g.created_at),
         } for g in rows]}
 
+    async def get_print_job(args: dict):
+        from app.api.v1.gang_sheets import GangSheetArtwork, GangSheetOrder
+
+        ref = (args.get("reference") or "").strip()
+        if not ref:
+            return {"error": "Give a print job reference, e.g. GS-202609-0003."}
+        job = (await db.execute(
+            select(GangSheetOrder).where(GangSheetOrder.reference.ilike(ref))
+        )).scalar_one_or_none()
+        if not job:
+            return {"error": f"No print job {ref} in this store."}
+        arts = (await db.execute(
+            select(GangSheetArtwork)
+            .where(GangSheetArtwork.gang_sheet_order_id == job.id)
+            .order_by(GangSheetArtwork.sort_order)
+        )).scalars().all()
+        order_number = None
+        if job.order_id:
+            order_number = (await db.execute(
+                select(Order.order_number).where(Order.id == job.order_id)
+            )).scalar_one_or_none()
+        return {
+            "reference": job.reference,
+            "admin_link": "/admin/gang-sheets",
+            "kind": "gang_sheet" if job.sheet_size_id else "upload_by_size",
+            "name": job.sheet_name,
+            "size_in": f"{float(job.sheet_width_in)}x{float(job.sheet_height_in)}",
+            "quantity": job.sheet_quantity,
+            "total": _money(job.subtotal),
+            "status": job.status,
+            "paid": bool(job.paid_at),
+            "revisions": job.revision_count,
+            "customer": job.contact_name or job.contact_email,
+            "note_to_customer": job.supplier_notes,
+            "customer_notes": job.customer_notes,
+            "artworks": [{"file_name": a.file_name, "size_in": f"{float(a.width_in)}x{float(a.height_in)}",
+                          "quantity": a.quantity, "file_url": a.file_url} for a in arts],
+            "paid_on_order": order_number,
+            "order_link": f"/admin/orders/{order_number}" if order_number else None,
+        }
+
+    async def list_applications(_: dict):
+        from app.models.wholesale import WholesaleApplication as WA
+
+        rows = (await db.execute(
+            select(WA).where(WA.status == "pending").order_by(WA.created_at.desc()).limit(MAX_ROWS)
+        )).scalars().all()
+        return {"applications": [{
+            "company_name": a.company_name,
+            "admin_link": "/admin/customers/applications",
+            "business_type": getattr(a, "business_type", None),
+            "contact_email": getattr(a, "company_email", None) or getattr(a, "email", None),
+            "applied": _iso(a.created_at),
+        } for a in rows]}
+
+    async def product_margins(args: dict):
+        days = _days(args.get("days"), 30)
+        since = datetime.now(UTC) - timedelta(days=days)
+        live = (Order.created_at >= since, Order.status.notin_(("cancelled", "refunded")))
+        cost = ProductVariant.cost_per_item
+
+        rows = (await db.execute(
+            select(
+                OrderItem.product_name,
+                func.sum(OrderItem.line_total).filter(cost.isnot(None)),
+                func.sum(OrderItem.quantity * cost).filter(cost.isnot(None)),
+                func.sum(OrderItem.quantity).filter(cost.is_(None)),
+            )
+            .join(Order, Order.id == OrderItem.order_id)
+            .outerjoin(ProductVariant, ProductVariant.id == OrderItem.variant_id)
+            .where(*live)
+            .group_by(OrderItem.product_name)
+            .limit(50)
+        )).all()
+
+        priced, uncosted_units = [], 0
+        for name, revenue, item_cost, no_cost_units in rows:
+            uncosted_units += int(no_cost_units or 0)
+            if revenue is None or item_cost is None:
+                continue
+            rev, cst = _money(revenue), _money(item_cost)
+            if rev <= 0:
+                continue
+            priced.append({
+                "product": name, "revenue": rev, "cost": cst,
+                "profit": _money(rev - cst), "margin_percent": round((rev - cst) / rev * 100, 1),
+            })
+        priced.sort(key=lambda r: r["profit"], reverse=True)
+        return {
+            "days": days,
+            "products": priced[:10],
+            "units_sold_without_a_cost_price": uncosted_units,
+            "caveat": ("Uses each variant's cost price as it is today, and only covers products "
+                       "where a cost price is filled in."),
+        }
+
     async def find_customer(args: dict):
         q = (args.get("name") or "").strip()
         if not q:
@@ -432,6 +564,8 @@ def owner_handlers(db: AsyncSession) -> dict[str, Handler]:
     return {
         "get_briefing": get_briefing, "how_to": how_to, "sales_summary": sales_summary,
         "catalog_summary": catalog_summary, "search_products": search_products,
+        "get_print_job": get_print_job, "list_applications": list_applications,
+        "product_margins": product_margins,
         "search_orders": search_orders, "get_order": get_order,
         "list_print_jobs": list_print_jobs, "find_customer": find_customer,
     }

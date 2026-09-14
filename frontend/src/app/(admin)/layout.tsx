@@ -6,6 +6,7 @@ import { useAuthStore } from "@/stores/auth.store";
 import { AdminSidebar } from "@/components/layout/AdminSidebar";
 import { Footer } from "@/components/layout/Footer";
 import { isReadOnly } from "@/lib/permissions";
+import { CopilotDock } from "@/components/admin/CopilotDock";
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isAdmin, isLoading, user } = useAuthStore();
@@ -52,6 +53,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   <div className="flex justify-center bg-gray-50 min-h-screen">
     <div className="admin-layout-root flex w-full max-w-[1500px] mx-auto">
       <AdminSidebar />
+      <CopilotDock />
       <main className="flex-1 p-6 overflow-auto admin-content">
         {isReadOnly(user?.role, user?.read_only) && (
           <div style={{ background: "#FFFBEB", border: "1px solid #FDE68A", color: "#92400E", padding: "10px 16px", borderRadius: "8px", fontSize: "13px", marginBottom: "16px", display: "flex", alignItems: "center", gap: "8px" }}>

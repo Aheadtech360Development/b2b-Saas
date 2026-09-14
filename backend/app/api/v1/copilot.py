@@ -23,6 +23,9 @@ from app.middleware.auth_middleware import require_admin
 from app.services.copilot.agent import (
     CopilotError, CopilotLimitReached, CopilotUnavailable, copilot_configured, run_copilot,
 )
+from app.services.copilot.actions import (
+    ACTIONS, INDEX as ACTION_INDEX, ActionError, preview_action, run_action,
+)
 from app.services.copilot.briefing import build_briefing
 from app.services.copilot.tools import (
     CUSTOMER_TOOLS, OWNER_TOOLS, customer_handlers, owner_handlers,
@@ -40,6 +43,13 @@ class ChatTurn(BaseModel):
     content: str = Field(min_length=1, max_length=MAX_CHARS)
 
 
+class ActIn(BaseModel):
+    """What the admin clicked. The action and its target are named here, not
+    carried over from the chat, so what runs is what was shown on the button."""
+    action: str
+    params: dict[str, str] = {}
+
+
 class ChatIn(BaseModel):
     messages: list[ChatTurn] = Field(min_length=1)
 
@@ -53,6 +63,29 @@ class ChatIn(BaseModel):
         if not v or v[-1].role != "user":
             raise ValueError("The last message must be the user's question.")
         return v
+
+
+PROPOSE_TOOL = {
+    "name": "propose_action",
+    "description": (
+        "Offer to make a change to the store. You cannot make changes yourself: this checks the "
+        "target exists and is in a state the change makes sense from, and turns it into a button "
+        "the admin clicks to confirm. Call it when the admin asks for one of these, then tell them "
+        "in one line what you have prepared — do not claim it is done.\n\nActions:\n" + ACTION_INDEX
+    ),
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "action": {"type": "string", "enum": list(ACTIONS)},
+            "params": {
+                "type": "object",
+                "description": "The action's inputs, e.g. {\"order_number\": \"1043\"} or {\"reference\": \"GS-202609-0003\", \"note\": \"Logo is low resolution\"}.",
+                "additionalProperties": {"type": "string"},
+            },
+        },
+        "required": ["action", "params"],
+    },
+}
 
 
 def _brand() -> str:
@@ -70,6 +103,7 @@ How you work:
 - Every number, name, order and status you state must come from a tool result in this conversation. Never estimate, round up a guess, or fill in a figure you did not look up. If a tool can't answer it, say what you can't see.
 - You can only read. You cannot change orders, approve jobs, send emails or edit anything. When something needs doing, say exactly where in the admin to do it (Orders, Gang Sheets, Customers, Inventory, Returns, Abandoned Carts).
 - You don't have website traffic, advertising data or worked-out margins. Cost price is recorded per variant when the brand fills it in, but no tool totals it, so don't quote margins.
+- You cannot change anything yourself. To make a change, call propose_action — it prepares a button for the admin to confirm. Having proposed, say in one line what is ready to confirm; never say you have done it, and never claim a change happened without the admin clicking.
 - For any "how do I" or "where do I" question about running the store, call how_to first and answer from what it returns. Never describe a menu path, screen or button from memory — if how_to has no topic for it, say you don't have a guide for that rather than inventing one.
 - Lead with what needs action first. Be brief and concrete: short lines, counts and amounts, order numbers with #.
 - Make things openable. Tool results carry an admin_link for the screen that opens that order, product or customer; when you name one, write it as a Markdown link using that exact link, e.g. [#1043](/admin/orders/1043). Use only links a tool gave you — never build or guess one — and don't paste a bare URL as the visible text.
@@ -111,13 +145,50 @@ async def briefing(_: None = Depends(require_admin), db: AsyncSession = Depends(
 async def owner_chat(
     payload: ChatIn, _: None = Depends(require_admin), db: AsyncSession = Depends(get_db),
 ) -> dict:
+    # Whatever the model proposes lands here, and travels back to the admin as a
+    # button. Only the last proposal survives: one question, one thing to confirm.
+    proposed: dict = {}
+
+    async def propose(args: dict):
+        action = str(args.get("action") or "")
+        params = {k: str(v) for k, v in (args.get("params") or {}).items() if v is not None}
+        try:
+            preview = await preview_action(db, action, params)
+        except ActionError as exc:
+            # Back to the model as a normal result: it can ask for what's missing.
+            return {"ok": False, "problem": str(exc)}
+        proposed.clear()
+        proposed.update({"action": action, "params": params, **preview})
+        return {"ok": True, "prepared": preview["summary"],
+                "next": "Tell the admin what is ready and that they need to confirm it."}
+
+    handlers = owner_handlers(db)
+    handlers["propose_action"] = propose
     try:
-        return await run_copilot(
-            system=_owner_system(), tools=OWNER_TOOLS, handlers=owner_handlers(db),
+        result = await run_copilot(
+            system=_owner_system(), tools=[*OWNER_TOOLS, PROPOSE_TOOL], handlers=handlers,
             messages=[m.model_dump() for m in payload.messages], scope="owner", db=db,
         )
     except (CopilotUnavailable, CopilotLimitReached, CopilotError) as exc:
         _raise_for(exc, verbose=True)
+    if proposed:
+        result["action"] = proposed
+    return result
+
+
+@admin_router.post("/act")
+async def owner_act(
+    payload: ActIn, request: Request, _: None = Depends(require_admin), db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Run one prepared action. This is the only place the copilot's suggestions
+    turn into changes, and it is reached by an admin clicking Confirm."""
+    try:
+        done = await run_action(db, payload.action, dict(payload.params),
+                                getattr(request.state, "user_id", None))
+    except ActionError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    await db.commit()
+    return {"done": done}
 
 
 @public_router.post("/support")
