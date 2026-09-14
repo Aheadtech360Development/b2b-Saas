@@ -10,16 +10,16 @@
  *
  * The dashboard has the full panel already, so the dock stays out of its way.
  */
-import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { CopilotChat } from "@/components/admin/CopilotChat";
+import { useCopilotStore } from "@/stores/copilot.store";
 
 export function CopilotDock() {
   const pathname = usePathname();
-  const [open, setOpen] = useState(false);
-
-  // Close when moving to another screen; the answer belonged to the last one.
-  useEffect(() => { setOpen(false); }, [pathname]);
+  // Open/closed is remembered too: clicking an order from an answer and coming
+  // back should leave the dock as it was, not shut it.
+  const open = useCopilotStore((s) => s.open);
+  const setOpen = useCopilotStore((s) => s.setOpen);
 
   if (pathname?.startsWith("/admin/dashboard")) return null;
 

@@ -14,16 +14,7 @@
 import { useEffect, useRef, useState } from "react";
 import { apiClient } from "@/lib/api-client";
 import { ChatMarkdown } from "@/components/ui/ChatMarkdown";
-
-interface Turn { role: "user" | "assistant"; content: string }
-
-interface PreparedAction {
-  action: string;
-  params: Record<string, string>;
-  summary: string;
-  target?: string;
-  note?: string;
-}
+import { useCopilotStore, type CopilotTurn as Turn, type PreparedAction } from "@/stores/copilot.store";
 
 export const COPILOT_SUGGESTIONS = [
   "What should I do today?",
@@ -33,11 +24,16 @@ export const COPILOT_SUGGESTIONS = [
 ];
 
 export function CopilotChat({ compact = false }: { compact?: boolean }) {
-  const [turns, setTurns] = useState<Turn[]>([]);
+  // The thread lives in the store, so opening an order from an answer and
+  // coming back doesn't wipe the conversation.
+  const turns = useCopilotStore((s) => s.turns);
+  const setTurns = useCopilotStore((s) => s.setTurns);
+  const action = useCopilotStore((s) => s.pending);
+  const setAction = useCopilotStore((s) => s.setPending);
+  const clearThread = useCopilotStore((s) => s.clear);
   const [draft, setDraft] = useState("");
   const [asking, setAsking] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [action, setAction] = useState<PreparedAction | null>(null);
   const [running, setRunning] = useState(false);
   const scroller = useRef<HTMLDivElement>(null);
 
@@ -79,7 +75,7 @@ export function CopilotChat({ compact = false }: { compact?: boolean }) {
         action: action.action, params: action.params,
       });
       setAction(null);
-      setTurns((t) => [...t, { role: "assistant", content: `✓ ${res.done}` }]);
+      setTurns([...turns, { role: "assistant", content: `✓ ${res.done}` }]);
     } catch (e) {
       setError((e as { message?: string })?.message || "That didn't go through.");
     } finally {
@@ -89,6 +85,12 @@ export function CopilotChat({ compact = false }: { compact?: boolean }) {
 
   return (
     <>
+      {turns.length > 0 && (
+        <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "6px" }}>
+          <button onClick={() => { clearThread(); setError(null); }} style={S.clear}>Clear chat</button>
+        </div>
+      )}
+
       <div ref={scroller} style={{ ...S.log, maxHeight: compact ? "none" : "300px" }}>
         {turns.length === 0 && (
           <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
@@ -156,6 +158,7 @@ const S: Record<string, React.CSSProperties> = {
   error: { marginTop: "8px", background: "#FEF2F2", border: "1px solid #FECACA", color: "#991B1B", borderRadius: "8px", padding: "8px 10px", fontSize: "12px" },
   input: { flex: 1, minWidth: 0, padding: "10px 12px", border: "1px solid #E3E3E3", borderRadius: "8px", fontSize: "13px", outline: "none" },
   send: { padding: "10px 18px", background: "#1A1A1A", color: "#fff", border: "none", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: "pointer" },
+  clear: { border: "none", background: "none", color: "#8A8A8A", fontSize: "11px", fontWeight: 600, cursor: "pointer", padding: "2px 4px" },
   cancel: { padding: "10px 16px", background: "#fff", color: "#1A1A1A", border: "1px solid #E3E3E3", borderRadius: "8px", fontSize: "13px", fontWeight: 600, cursor: "pointer" },
   foot: { fontSize: "11px", color: "#9CA3AF", marginTop: "8px" },
 };
