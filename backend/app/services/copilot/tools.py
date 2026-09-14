@@ -52,9 +52,14 @@ def _days(n, default: int, cap: int = 365) -> int:
         return default
 
 
-def _order_brief(o: Order, company_name: str | None = None) -> dict:
+def _order_brief(o: Order, company_name: str | None = None, *, admin: bool = True) -> dict:
     return {
         "order_number": o.order_number,
+        # Where this order opens. Both detail pages take the order number, not
+        # the id. Handing the link over means the copilot never has to build one.
+        ("admin_link" if admin else "link"): (
+            f"/admin/orders/{o.order_number}" if admin else f"/account/orders/{o.order_number}"
+        ),
         "customer": company_name or o.guest_name or o.guest_email,
         "placed": _iso(o.created_at),
         "status": o.status,
@@ -305,6 +310,7 @@ def owner_handlers(db: AsyncSession) -> dict[str, Handler]:
             configurable = (getattr(p, "pricing_mode", "variant") or "variant") == "configurable"
             item = {
                 "name": p.name,
+                "admin_link": f"/admin/products/{p.slug}/edit",
                 "status": p.status,
                 "type": "configurable" if configurable else "stocked",
                 "variants": int(row.variants or 0),
@@ -388,6 +394,7 @@ def owner_handlers(db: AsyncSession) -> dict[str, Handler]:
         rows = (await db.execute(stmt.order_by(GangSheetOrder.created_at.desc()).limit(MAX_ROWS))).scalars().all()
         return {"print_jobs": [{
             "reference": g.reference,
+            "admin_link": "/admin/gang-sheets",
             "kind": "gang_sheet" if g.sheet_size_id else "upload_by_size",
             "name": g.sheet_name,
             "customer": g.contact_name or g.contact_email,
@@ -404,7 +411,7 @@ def owner_handlers(db: AsyncSession) -> dict[str, Handler]:
         live = Order.status.notin_(("cancelled", "refunded"))
         rows = (await db.execute(
             select(
-                Company.name, Company.status,
+                Company.id, Company.name, Company.status,
                 func.count(Order.id).filter(live),
                 func.coalesce(func.sum(Order.total).filter(live), 0),
                 func.max(Order.created_at),
@@ -415,9 +422,9 @@ def owner_handlers(db: AsyncSession) -> dict[str, Handler]:
             .limit(10)
         )).all()
         return {"customers": [{
-            "name": name, "account_status": status, "orders": int(n or 0),
-            "total_spent": _money(spent), "last_order": _iso(last),
-        } for name, status, n, spent, last in rows]}
+            "name": name, "admin_link": f"/admin/customers/{cid}", "account_status": status,
+            "orders": int(n or 0), "total_spent": _money(spent), "last_order": _iso(last),
+        } for cid, name, status, n, spent, last in rows]}
 
     async def how_to(args: dict):
         return guide_lookup(str(args.get("topic") or ""))
@@ -491,7 +498,7 @@ def customer_handlers(db: AsyncSession, *, user_id, company_id) -> dict[str, Han
         rows = (await db.execute(
             select(Order).where(owns_order()).order_by(Order.created_at.desc()).limit(10)
         )).scalars().all()
-        return {"orders": [_order_brief(o) for o in rows]}
+        return {"orders": [_order_brief(o, admin=False) for o in rows]}
 
     async def my_order_status(args: dict):
         if not (uid or cid):
@@ -506,6 +513,8 @@ def customer_handlers(db: AsyncSession, *, user_id, company_id) -> dict[str, Han
             return {"error": f"No order #{number} on this account."}
         data = await _order_detail(db, o)
         data.pop("customer", None)
+        data.pop("admin_link", None)
+        data["link"] = f"/account/orders/{o.order_number}"
         return data
 
     async def my_print_jobs(_: dict):
@@ -519,6 +528,7 @@ def customer_handlers(db: AsyncSession, *, user_id, company_id) -> dict[str, Han
         )).scalars().all()
         return {"print_jobs": [{
             "reference": g.reference,
+            "link": "/account/gang-sheets",
             "kind": "gang_sheet" if g.sheet_size_id else "upload_by_size",
             "name": g.sheet_name,
             "status": g.status,

@@ -11,11 +11,24 @@
  * output, so a reply that contains markup cannot inject anything into the page.
  */
 import { Fragment, type ReactNode } from "react";
+import Link from "next/link";
 
-/** **bold**, *italic* and `code` inside one line. */
+const LINK: React.CSSProperties = { color: "#1A1A1A", fontWeight: 700, textDecoration: "underline", textUnderlineOffset: "2px" };
+
+/**
+ * Links are rendered only when they point inside this app — a path starting
+ * with a single "/". Anything else (an off-site URL, a javascript: or data:
+ * href, "//host") stays plain text, so a reply can never become a link out of
+ * the admin, however it was worded.
+ */
+function isInternal(href: string): boolean {
+  return /^\/(?!\/)[\w\-./?=&%#]*$/.test(href);
+}
+
+/** **bold**, *italic*, `code` and [text](/path) inside one line. */
 function inline(text: string, keyBase: string): ReactNode[] {
   const out: ReactNode[] = [];
-  const pattern = /(\*\*[^*]+\*\*|__[^_]+__|`[^`]+`|(?<![*\w])\*(?!\s)([^*]+?)(?<!\s)\*(?!\w))/g;
+  const pattern = /(\[[^\]\n]+\]\([^)\s]+\)|\*\*[^*]+\*\*|__[^_]+__|`[^`]+`|(?<![*\w])\*(?!\s)([^*]+?)(?<!\s)\*(?!\w))/g;
   let last = 0;
   let m: RegExpExecArray | null;
   let i = 0;
@@ -24,7 +37,15 @@ function inline(text: string, keyBase: string): ReactNode[] {
     if (m.index > last) out.push(text.slice(last, m.index));
     const token = m[0];
     const key = `${keyBase}-i${i++}`;
-    if (token.startsWith("**") || token.startsWith("__")) {
+    const link = token.startsWith("[") ? /^\[([^\]]+)\]\(([^)\s]+)\)$/.exec(token) : null;
+    if (link) {
+      const [, label, href] = link as unknown as [string, string, string];
+      out.push(
+        isInternal(href)
+          ? <Link key={key} href={href} style={LINK}>{label}</Link>
+          : <Fragment key={key}>{label}</Fragment>,
+      );
+    } else if (token.startsWith("**") || token.startsWith("__")) {
       out.push(<strong key={key} style={{ fontWeight: 700 }}>{token.slice(2, -2)}</strong>);
     } else if (token.startsWith("`")) {
       out.push(
