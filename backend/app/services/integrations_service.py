@@ -77,6 +77,9 @@ PROVIDERS: dict[str, Provider] = {
                   placeholder="123456"),
             Field("api_key", "API key", "secret",
                   "Create one in the S&S portal under Account → API Access."),
+            Field("country", "Country", "select",
+                  "S&S Canada accounts use a separate API.", required=False,
+                  options=["United States", "Canada"]),
         ],
     ),
     # Mail always leaves through the platform's own Resend account — a brand is
@@ -289,14 +292,16 @@ async def verify(provider: str, values: dict) -> dict:
 @verifier("ss_activewear")
 async def _verify_ss(values: dict) -> dict:
     """One cheap catalogue read proves the account number and key are good."""
-    from app.services.ss_activewear_service import SSActivewearService
+    from app.services.ss_activewear_service import from_connection
 
-    svc = SSActivewearService(values.get("account_number"), values.get("api_key"))
+    svc = from_connection(values)
     try:
-        rows = await svc.fetch_categories()
+        # fetch_categories() swallows errors and returns [], so a wrong key used
+        # to "connect" with 0 categories. This call raises instead.
+        n = await svc.check_credentials()
         return {
             "ok": True,
-            "message": f"Connected to S&S — {len(rows)} categories available.",
+            "message": f"Connected to S&S — {n} categories available.",
         }
     except Exception as exc:
         status = getattr(getattr(exc, "response", None), "status_code", None)

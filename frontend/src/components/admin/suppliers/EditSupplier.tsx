@@ -1,336 +1,305 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { IntegrationsPanel } from "@/components/admin/IntegrationsPanel";
+/**
+ * Edit Supplier — every setting for one supplier, in five tabs, saved together
+ * with one "Save Supplier" (or thrown away with "Discard Changes").
+ *
+ * The draft lives here, so moving between tabs keeps unsaved edits. Credentials
+ * go to the brand's connected-accounts record (verified with S&S on save); the
+ * rest is the brand's supplier setup.
+ */
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  suppliersService, type PriceRule, type SupplierConfig, type SupplierDetail, type SupplierJob,
+  suppliersService, type SupplierConfig, type SupplierDetail, type SupplierJob,
 } from "@/services/suppliers.service";
-import { Badge, Btn, CARD, INPUT, LABEL, MUTED, Toggle, errText, fmtDate } from "./ui";
+import { ProductSettings } from "./ProductSettings";
+import { SyncSettings } from "./SyncSettings";
+import { OrderSettings } from "./OrderSettings";
+import { Btn, CARD, INPUT, LABEL, MUTED, Spinner, errText } from "./ui";
 
-type Section = "connection" | "inventory" | "pricing" | "sync" | "order" | "advanced";
+export type Draft = Pick<SupplierConfig, "name" | "inventory" | "product" | "pricing" | "automatic_sync" | "orders">;
+type Conn = { account_number: string; api_key: string; country: string; api_key_hint: string };
+type Tab = "connection" | "inventory" | "product" | "sync" | "orders";
 
-const SECTIONS: { id: Section; label: string; soon?: boolean }[] = [
-  { id: "connection", label: "Connection" },
-  { id: "inventory", label: "Inventory" },
-  { id: "pricing", label: "Product pricing" },
-  { id: "sync", label: "Automatic sync" },
-  { id: "order", label: "Order settings", soon: true },
-  { id: "advanced", label: "Advanced", soon: true },
+const TABS: { id: Tab; label: string }[] = [
+  { id: "connection", label: "Connection Settings" },
+  { id: "inventory", label: "Inventory Settings" },
+  { id: "product", label: "Product Settings" },
+  { id: "sync", label: "Automatic Sync" },
+  { id: "orders", label: "Order Settings" },
 ];
 
+const draftOf = (c: SupplierConfig): Draft => JSON.parse(JSON.stringify({
+  name: c.name, inventory: c.inventory, product: c.product, pricing: c.pricing,
+  automatic_sync: c.automatic_sync, orders: c.orders,
+}));
+
 export function EditSupplier({
-  id, detail, running, onSaved, onJobStarted, onConnectionChanged,
+  id, detail, running, onSaved, onJobStarted, onConnectionChanged, onDirtyChange,
 }: {
   id: string; detail: SupplierDetail; running: boolean; onSaved: (c: SupplierConfig) => void;
-  onJobStarted: (j: SupplierJob) => void; onConnectionChanged: () => void;
+  onJobStarted: (j: SupplierJob) => void; onConnectionChanged: () => void; onDirtyChange?: (dirty: boolean) => void;
 }) {
-  const [section, setSection] = useState<Section>(detail.connection.connected ? "inventory" : "connection");
-  const cfg = detail.config;
-
-  return (
-    <div style={{ display: "flex", gap: 16, alignItems: "flex-start", flexWrap: "wrap" }}>
-      <nav style={{ ...CARD, padding: 6, flex: "0 0 200px", display: "grid", gap: 2 }}>
-        {SECTIONS.map((s) => (
-          <button key={s.id} disabled={s.soon} onClick={() => setSection(s.id)} style={{
-            textAlign: "left", padding: "9px 10px", borderRadius: 8, border: "none", fontSize: 13,
-            cursor: s.soon ? "default" : "pointer", display: "flex", justifyContent: "space-between", alignItems: "center",
-            background: section === s.id ? "#F2F2F2" : "transparent", fontWeight: section === s.id ? 700 : 500,
-            color: s.soon ? "#B0B0B0" : "#1A1A1A",
-          }}>
-            {s.label}{s.soon && <span style={{ fontSize: 10 }}>Soon</span>}
-          </button>
-        ))}
-      </nav>
-
-      <div style={{ flex: "1 1 460px", minWidth: 0 }}>
-        {section === "connection" && <Connection id={id} detail={detail} onSaved={onSaved} onConnectionChanged={onConnectionChanged} />}
-        {section === "inventory" && <InventorySection id={id} cfg={cfg} onSaved={onSaved} />}
-        {section === "pricing" && <PricingSection id={id} cfg={cfg} onSaved={onSaved} />}
-        {section === "sync" && (
-          <SyncSection id={id} cfg={cfg} connected={detail.connection.connected} running={running}
-            onSaved={onSaved} onJobStarted={onJobStarted} />
-        )}
-      </div>
-    </div>
-  );
-}
-
-// ── Save helper ──────────────────────────────────────────────────────────────
-
-function useSaver(id: string, onSaved: (c: SupplierConfig) => void) {
-  const [busy, setBusy] = useState(false);
+  const [tab, setTab] = useState<Tab>(detail.connection.connected ? "inventory" : "connection");
+  const [draft, setDraft] = useState<Draft>(() => draftOf(detail.config));
+  const [saved, setSaved] = useState<Draft>(() => draftOf(detail.config));
+  const [conn, setConn] = useState<Conn | null>(null);
+  const [connSaved, setConnSaved] = useState<Conn | null>(null);
+  const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
-  const save = async (body: Parameters<typeof suppliersService.update>[1]) => {
-    setBusy(true);
+
+  const loadConn = useCallback(async () => {
+    try {
+      const r = await suppliersService.connection();
+      const c = r.providers.find((p) => p.key === id)?.connection ?? {};
+      const v: Conn = {
+        account_number: String(c.account_number ?? ""), api_key: "",
+        country: String(c.country ?? "United States") || "United States",
+        api_key_hint: String(c.api_key_hint ?? ""),
+      };
+      setConn(v);
+      setConnSaved(v);
+    } catch {
+      const v = { account_number: "", api_key: "", country: "United States", api_key_hint: "" };
+      setConn(v);
+      setConnSaved(v);
+    }
+  }, [id]);
+  useEffect(() => { loadConn(); }, [loadConn]);
+
+  const changed = useMemo(() => {
+    const out: Partial<Draft> = {};
+    (Object.keys(draft) as (keyof Draft)[]).forEach((k) => {
+      if (JSON.stringify(draft[k]) !== JSON.stringify(saved[k])) (out as Record<string, unknown>)[k] = draft[k];
+    });
+    return out;
+  }, [draft, saved]);
+  const connDirty = !!conn && !!connSaved && (
+    conn.account_number !== connSaved.account_number || conn.country !== connSaved.country || conn.api_key !== ""
+  );
+  const dirty = Object.keys(changed).length > 0 || connDirty;
+  useEffect(() => { onDirtyChange?.(dirty); }, [dirty, onDirtyChange]);
+
+  // Leaving the page with unsaved edits asks first.
+  useEffect(() => {
+    if (!dirty) return;
+    const h = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ""; };
+    window.addEventListener("beforeunload", h);
+    return () => window.removeEventListener("beforeunload", h);
+  }, [dirty]);
+
+  const set = <K extends keyof Draft>(k: K, v: Draft[K]) => { setDraft((d) => ({ ...d, [k]: v })); setMsg(null); };
+
+  const save = async () => {
+    setSaving(true);
     setMsg(null);
     try {
-      const { config } = await suppliersService.update(id, body);
-      onSaved(config);
-      setMsg({ ok: true, text: "Saved." });
+      if (connDirty && conn) {
+        if (!conn.account_number.trim()) throw new Error("Enter your S&S account number.");
+        if (!connSaved?.api_key_hint && !conn.api_key.trim()) throw new Error("Enter your S&S API key.");
+        await suppliersService.saveConnection({
+          account_number: conn.account_number.trim(), api_key: conn.api_key.trim(), country: conn.country,
+        });
+        await loadConn();
+        onConnectionChanged();
+      }
+      if (Object.keys(changed).length) {
+        const { config } = await suppliersService.update(id, changed);
+        onSaved(config);
+        setDraft(draftOf(config));
+        setSaved(draftOf(config));
+      }
+      setMsg({ ok: true, text: "Supplier saved." });
     } catch (e) {
       setMsg({ ok: false, text: errText(e) });
     }
-    setBusy(false);
+    setSaving(false);
   };
-  const note = msg && <span style={{ fontSize: 13, color: msg.ok ? "#16A34A" : "#B42318" }}>{msg.text}</span>;
-  return { busy, save, note };
-}
 
-function Footer({ children }: { children: React.ReactNode }) {
-  return <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", alignItems: "center", marginTop: 16, flexWrap: "wrap" }}>{children}</div>;
-}
+  const discard = () => {
+    setDraft(JSON.parse(JSON.stringify(saved)));
+    if (connSaved) setConn({ ...connSaved });
+    setMsg(null);
+  };
 
-function Head({ title, text }: { title: string; text: string }) {
   return (
-    <div style={{ marginBottom: 14 }}>
-      <div style={{ fontWeight: 700, fontSize: 15 }}>{title}</div>
-      <p style={MUTED}>{text}</p>
+    <div style={{ display: "grid", gap: 14 }}>
+      <div style={{ ...CARD, display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", position: "sticky", top: "env(safe-area-inset-top, 0px)", zIndex: 5 }}>
+        <div style={{ flex: "1 1 240px" }}>
+          <div style={{ fontSize: 18, fontWeight: 700 }}>Edit Supplier</div>
+          <p style={MUTED}>Manage supplier settings and configuration</p>
+        </div>
+        {msg && <span style={{ fontSize: 13, color: msg.ok ? "#16A34A" : "#B42318", maxWidth: 420 }}>{msg.text}</span>}
+        <Btn kind="ghost" onClick={discard} disabled={!dirty || saving}>Discard Changes</Btn>
+        <Btn onClick={save} disabled={!dirty} busy={saving}>Save Supplier</Btn>
+      </div>
+
+      <div style={{ ...CARD, padding: 0 }}>
+        <div style={{ display: "flex", gap: 2, borderBottom: "1px solid #EEE", overflowX: "auto", padding: "0 8px" }}>
+          {TABS.map((t) => (
+            <button key={t.id} onClick={() => setTab(t.id)} style={{
+              padding: "13px 14px", background: "none", border: "none", cursor: "pointer", whiteSpace: "nowrap",
+              fontSize: 13, fontWeight: tab === t.id ? 700 : 500, color: tab === t.id ? "#1A1A1A" : "#6B6B6B",
+              borderBottom: tab === t.id ? "2px solid #1A1A1A" : "2px solid transparent", marginBottom: -1,
+            }}>{t.label}</button>
+          ))}
+        </div>
+        <div style={{ padding: 18 }}>
+          {tab === "connection" && (conn
+            ? <ConnectionTab label={detail.label} name={draft.name} onName={(v) => set("name", v)} conn={conn}
+                onConn={(c) => { setConn(c); setMsg(null); }} />
+            : <div style={{ padding: 20, textAlign: "center" }}><Spinner /></div>)}
+          {tab === "inventory" && <InventoryTab id={id} value={draft.inventory} onChange={(v) => set("inventory", v)} connected={detail.connection.connected} />}
+          {tab === "product" && (
+            <ProductSettings id={id} meta={detail.meta} product={draft.product} pricing={draft.pricing}
+              onProduct={(v) => set("product", v)} onPricing={(v) => set("pricing", v)} connected={detail.connection.connected} />
+          )}
+          {tab === "sync" && (
+            <SyncSettings id={id} value={draft.automatic_sync} onChange={(v) => set("automatic_sync", v)}
+              history={detail.config.history} lastSync={detail.config.last_sync_at}
+              connected={detail.connection.connected} running={running} dirty={dirty} onJobStarted={onJobStarted} />
+          )}
+          {tab === "orders" && (
+            <OrderSettings id={id} value={draft.orders} saved={saved.orders} onChange={(v) => set("orders", v)}
+              meta={detail.meta} connected={detail.connection.connected} dirty={dirty} />
+          )}
+        </div>
+      </div>
     </div>
   );
 }
 
 // ── Connection ───────────────────────────────────────────────────────────────
 
-function Connection({ id, detail, onSaved, onConnectionChanged }: {
-  id: string; detail: SupplierDetail; onSaved: (c: SupplierConfig) => void; onConnectionChanged: () => void;
+function ConnectionTab({ label, name, onName, conn, onConn }: {
+  label: string; name: string; onName: (v: string) => void; conn: Conn; onConn: (c: Conn) => void;
 }) {
-  const [name, setName] = useState(detail.config.name);
-  const { busy, save, note } = useSaver(id, onSaved);
-  const [lastConnected, setLastConnected] = useState(detail.connection.connected);
+  const [testing, setTesting] = useState(false);
+  const [result, setResult] = useState<{ ok: boolean; text: string } | null>(null);
+
+  const test = async () => {
+    setTesting(true);
+    setResult(null);
+    try {
+      const r = await suppliersService.testConnection({
+        account_number: conn.account_number.trim(), api_key: conn.api_key.trim(), country: conn.country,
+      });
+      setResult({ ok: r.ok, text: r.message });
+    } catch (e) {
+      setResult({ ok: false, text: errText(e) });
+    }
+    setTesting(false);
+  };
 
   return (
-    <div style={{ display: "grid", gap: 14 }}>
-      <div style={CARD}>
-        <Head title="Supplier name" text="How this supplier is labelled in your admin." />
-        <input value={name} onChange={(e) => setName(e.target.value)} maxLength={80} style={{ ...INPUT, width: "100%" }} />
-        <Footer>{note}<Btn onClick={() => save({ name: name.trim() })} busy={busy} disabled={!name.trim() || name.trim() === detail.config.name}>Save</Btn></Footer>
+    <div style={{ display: "grid", gap: 18, maxWidth: 760 }}>
+      <div style={{ fontWeight: 700, fontSize: 15 }}>{label} Connection Credentials</div>
+      <Field label="Supplier Name" required help="A name to identify this supplier connection in your admin.">
+        <input value={name} maxLength={80} onChange={(e) => onName(e.target.value)} style={{ ...INPUT, width: "100%" }} />
+      </Field>
+      <Field label="Username" required help="Your S&S account number.">
+        <input value={conn.account_number} onChange={(e) => onConn({ ...conn, account_number: e.target.value })}
+          placeholder="e.g. 123456" autoComplete="off" style={{ ...INPUT, width: "100%" }} />
+      </Field>
+      <Field label="API Key" required
+        help={conn.api_key_hint ? `Saved (${conn.api_key_hint}). Leave blank to keep it; type a new key to replace it.`
+          : "Don't have one? Email api@ssactivewear.com or contact your S&S rep."}>
+        <input value={conn.api_key} onChange={(e) => onConn({ ...conn, api_key: e.target.value })} type="password"
+          placeholder={conn.api_key_hint ? "•••••••• saved" : "Paste your API key"} autoComplete="new-password"
+          style={{ ...INPUT, width: "100%" }} />
+      </Field>
+      <Field label="Country" required help="S&S Canada accounts use S&S's Canadian API, catalogue and warehouses.">
+        <select value={conn.country} onChange={(e) => onConn({ ...conn, country: e.target.value })} style={{ ...INPUT, width: "100%" }}>
+          <option>United States</option>
+          <option>Canada</option>
+        </select>
+      </Field>
+      <div style={{ borderTop: "1px solid #EEE", paddingTop: 16, display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+        <div style={{ flex: "1 1 260px" }}>
+          <div style={{ fontWeight: 700, fontSize: 14 }}>Test Supplier Connection</div>
+          <p style={MUTED}>Check that these credentials can reach S&S. Saving the supplier tests them too.</p>
+        </div>
+        <Btn kind="ghost" onClick={test} busy={testing} disabled={!conn.account_number.trim() || (!conn.api_key && !conn.api_key_hint)}>Test</Btn>
       </div>
-      <div>
-        <IntegrationsPanel category="supplier" onChanged={(ps) => {
-          const p = ps.find((x) => x.key === id);
-          const now = !!p?.connection?.connected;
-          if (now !== lastConnected) {
-            setLastConnected(now);
-            onConnectionChanged();
-          }
-        }} />
-        <p style={{ ...MUTED, fontSize: 12, marginTop: 10 }}>
-          Your account number and API key are stored for your store only. Catalogue, cost prices and stock all come
-          from your own {detail.label} account.
-        </p>
-      </div>
+      {result && <div style={{ fontSize: 13, color: result.ok ? "#16A34A" : "#B42318" }}>{result.text}</div>}
+    </div>
+  );
+}
+
+export function Field({ label, required, help, children }: { label: string; required?: boolean; help?: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <label style={LABEL}>{label}{required && <span style={{ color: "#B42318" }}> *</span>}</label>
+      {children}
+      {help && <p style={{ ...MUTED, fontSize: 12, marginTop: 6 }}>{help}</p>}
     </div>
   );
 }
 
 // ── Inventory ────────────────────────────────────────────────────────────────
 
-function InventorySection({ id, cfg, onSaved }: { id: string; cfg: SupplierConfig; onSaved: (c: SupplierConfig) => void }) {
-  const [sync, setSync] = useState(cfg.inventory.sync);
-  const [safety, setSafety] = useState(String(cfg.inventory.safety_stock));
-  const { busy, save, note } = useSaver(id, onSaved);
-  const n = Math.max(0, Math.floor(Number(safety) || 0));
-  const dirty = sync !== cfg.inventory.sync || n !== cfg.inventory.safety_stock;
-
-  return (
-    <div style={CARD}>
-      <Head title="Inventory" text="Keep the stock of imported products matched to the supplier's warehouses." />
-      <label style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 16 }}>
-        <Toggle on={sync} onChange={() => setSync(!sync)} />
-        <span style={{ fontSize: 13 }}>
-          <b>Sync inventory</b><br />
-          <span style={{ color: "#8A8A8A" }}>Each sync sets your stock to the supplier&apos;s total across all its warehouses.</span>
-        </span>
-      </label>
-      <label style={LABEL}>Safety stock (per variant)</label>
-      <input type="number" min={0} value={safety} onChange={(e) => setSafety(e.target.value)} disabled={!sync}
-        style={{ ...INPUT, width: 140 }} />
-      <p style={{ ...MUTED, fontSize: 12, marginTop: 6 }}>
-        Held back from what you show as available, so you don&apos;t sell the last few units the supplier may already have sold.
-        {n > 0 && ` Example: supplier has 52 → your store shows ${Math.max(0, 52 - n)}.`}
-      </p>
-      <Footer>{note}<Btn onClick={() => save({ inventory: { sync, safety_stock: n } })} busy={busy} disabled={!dirty}>Save</Btn></Footer>
-    </div>
-  );
-}
-
-// ── Pricing ──────────────────────────────────────────────────────────────────
-
-const SCOPES: { id: PriceRule["scope"]; label: string }[] = [
-  { id: "all", label: "All products" },
-  { id: "brand", label: "Brand" },
-  { id: "category", label: "Category" },
-  { id: "style", label: "Style" },
-];
-const ROUNDING: { v: number | null; label: string }[] = [
-  { v: null, label: "No rounding" },
-  { v: 0.99, label: "End in .99" },
-  { v: 0.95, label: "End in .95" },
-  { v: 0, label: "Whole dollars" },
-];
-
-function PricingSection({ id, cfg, onSaved }: { id: string; cfg: SupplierConfig; onSaved: (c: SupplierConfig) => void }) {
-  const [rules, setRules] = useState<PriceRule[]>(cfg.pricing.rules);
-  const [round, setRound] = useState<number | null>(cfg.pricing.round_to);
-  const { busy, save, note } = useSaver(id, onSaved);
-  useEffect(() => { setRules(cfg.pricing.rules); setRound(cfg.pricing.round_to); }, [cfg.pricing]);
-
-  const dirty = JSON.stringify({ rules, round }) !== JSON.stringify({ rules: cfg.pricing.rules, round: cfg.pricing.round_to });
-  const set = (i: number, patch: Partial<PriceRule>) => setRules(rules.map((r, j) => (j === i ? { ...r, ...patch } : r)));
-  const incomplete = rules.some((r) => r.scope !== "all" && !r.value.trim());
-
-  // Worked example with the broadest active rule.
-  const ex = rules.find((r) => r.active && r.scope === "all") ?? rules.find((r) => r.active);
-  const exPrice = ex ? roundPrice(10 * (1 + ex.markup_pct / 100) + ex.markup_fixed, round) : null;
-
-  return (
-    <div style={CARD}>
-      <Head title="Product pricing" text="Your selling price = supplier cost + markup. The most specific rule wins: style, then brand, then category, then all products." />
-      {rules.length === 0 && (
-        <div style={{ fontSize: 13, color: "#8A8A8A", padding: "10px 12px", background: "#FAFAFA", borderRadius: 8, marginBottom: 10 }}>
-          No markup rules — imported products are priced at the supplier&apos;s cost + 40% (the default).
-        </div>
-      )}
-      {rules.map((r, i) => (
-        <div key={r.id ?? `new-${i}`} style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 8, opacity: r.active ? 1 : 0.55 }}>
-          <select value={r.scope} onChange={(e) => set(i, { scope: e.target.value as PriceRule["scope"], value: e.target.value === "all" ? "" : r.value })} style={{ ...INPUT, flex: "0 1 140px" }}>
-            {SCOPES.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
-          </select>
-          {r.scope !== "all" && (
-            <input value={r.value} onChange={(e) => set(i, { value: e.target.value })}
-              placeholder={r.scope === "brand" ? "e.g. Gildan" : r.scope === "category" ? "e.g. T-Shirts" : "Style number, e.g. 3001"}
-              style={{ ...INPUT, flex: "1 1 150px" }} />
-          )}
-          <span style={{ fontSize: 13 }}>+</span>
-          <input type="number" value={r.markup_pct} onChange={(e) => set(i, { markup_pct: Number(e.target.value) || 0 })} style={{ ...INPUT, width: 80 }} />
-          <span style={{ fontSize: 13 }}>% +$</span>
-          <input type="number" step="0.01" value={r.markup_fixed} onChange={(e) => set(i, { markup_fixed: Number(e.target.value) || 0 })} style={{ ...INPUT, width: 80 }} />
-          <Toggle on={r.active} onChange={() => set(i, { active: !r.active })} title={r.active ? "Active" : "Paused"} />
-          <button type="button" onClick={() => setRules(rules.filter((_, j) => j !== i))} aria-label="Remove rule"
-            style={{ ...INPUT, width: 36, padding: 0, cursor: "pointer", color: "#B42318" }}>×</button>
-        </div>
-      ))}
-      <Btn kind="ghost" onClick={() => setRules([...rules, { scope: rules.length ? "brand" : "all", value: "", markup_pct: 50, markup_fixed: 0, active: true }])}>
-        + Add markup rule
-      </Btn>
-
-      <div style={{ marginTop: 18 }}>
-        <label style={LABEL}>Price rounding</label>
-        <select value={round === null ? "none" : String(round)} onChange={(e) => setRound(e.target.value === "none" ? null : Number(e.target.value))} style={{ ...INPUT, width: 200 }}>
-          {ROUNDING.map((o) => <option key={o.label} value={o.v === null ? "none" : String(o.v)}>{o.label}</option>)}
-        </select>
-      </div>
-      {exPrice !== null && (
-        <p style={{ ...MUTED, fontSize: 12, marginTop: 10 }}>Example: a $10.00 item sells for <b>${exPrice.toFixed(2)}</b>.</p>
-      )}
-      <p style={{ ...MUTED, fontSize: 12, marginTop: 6 }}>Applies to products imported from now on; products already in your store keep their price.</p>
-      <Footer>
-        {incomplete && <span style={{ fontSize: 13, color: "#B45309" }}>Fill in the brand, category or style for each rule.</span>}
-        {note}
-        <Btn busy={busy} disabled={!dirty || incomplete} onClick={() => save({
-          pricing: { rules: rules.map((r) => ({ ...r, value: r.value.trim() })), round_to: round },
-        })}>Save</Btn>
-      </Footer>
-    </div>
-  );
-}
-
-function roundPrice(p: number, to: number | null) {
-  if (to === null) return p;
-  if (p <= 0) return p;
-  if (to === 0) return Math.ceil(p);
-  const whole = Math.floor(p);
-  const cand = whole + to;
-  return cand >= p ? cand : whole + 1 + to;
-}
-
-// ── Automatic sync ───────────────────────────────────────────────────────────
-
-const EVERY = [1, 3, 6, 12, 24, 48, 168];
-
-function SyncSection({ id, cfg, connected, running, onSaved, onJobStarted }: {
-  id: string; cfg: SupplierConfig; connected: boolean; running: boolean;
-  onSaved: (c: SupplierConfig) => void; onJobStarted: (j: SupplierJob) => void;
+function InventoryTab({ id, value, onChange, connected }: {
+  id: string; value: Draft["inventory"]; onChange: (v: Draft["inventory"]) => void; connected: boolean;
 }) {
-  const [enabled, setEnabled] = useState(cfg.automatic_sync.enabled);
-  const [every, setEvery] = useState(cfg.automatic_sync.every_hours);
-  const [autoImport, setAutoImport] = useState(cfg.auto_import);
-  const { busy, save, note } = useSaver(id, onSaved);
-  const [starting, setStarting] = useState<"" | "stock" | "full">("");
-  const [err, setErr] = useState("");
-  const dirty = enabled !== cfg.automatic_sync.enabled || every !== cfg.automatic_sync.every_hours || autoImport !== cfg.auto_import;
+  const [data, setData] = useState<{ locations: { id: string; name: string; code: string; city: string }[]; warehouses: { code: string; label: string }[] } | null>(null);
+  const [error, setError] = useState("");
 
-  const run = async (full: boolean) => {
-    setStarting(full ? "full" : "stock");
-    setErr("");
-    try {
-      const { job } = await suppliersService.startSync(id, full);
-      onJobStarted(job);
-    } catch (e) {
-      setErr(errText(e));
-    }
-    setStarting("");
+  useEffect(() => {
+    suppliersService.locations(id).then(setData).catch((e) => setError(errText(e)));
+  }, [id]);
+
+  // Nothing saved yet means: first location gets everything but drop-ship.
+  const sourceFor = (locId: string, index: number) =>
+    Object.keys(value.locations).length ? (value.locations[locId] ?? "none") : (index === 0 ? "all_except_ds" : "none");
+
+  const setSource = (locId: string, src: string) => {
+    const base: Record<string, string> = {};
+    data?.locations.forEach((l, i) => { base[l.id] = sourceFor(l.id, i); });
+    onChange({ ...value, locations: { ...base, [locId]: src } });
   };
 
-  const next = cfg.automatic_sync.enabled && cfg.last_sync_at
-    ? new Date(new Date(cfg.last_sync_at).getTime() + cfg.automatic_sync.every_hours * 3600_000).toISOString()
-    : null;
+  const fed = data?.locations.filter((l, i) => sourceFor(l.id, i) !== "none").length ?? 0;
 
   return (
-    <div style={{ display: "grid", gap: 14 }}>
-      <div style={CARD}>
-        <Head title="Automatic sync" text="Runs on our servers on a schedule — your admin doesn't need to be open." />
-        <label style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 14 }}>
-          <Toggle on={enabled} onChange={() => setEnabled(!enabled)} />
-          <span style={{ fontSize: 13 }}><b>Sync automatically</b></span>
-        </label>
-        <label style={LABEL}>Every</label>
-        <select value={every} onChange={(e) => setEvery(Number(e.target.value))} disabled={!enabled} style={{ ...INPUT, width: 160 }}>
-          {EVERY.map((h) => <option key={h} value={h}>{h === 168 ? "week" : h === 1 ? "hour" : `${h} hours`}</option>)}
-        </select>
-        <label style={{ display: "flex", gap: 12, alignItems: "center", marginTop: 16 }}>
-          <Toggle on={autoImport} onChange={() => setAutoImport(!autoImport)} />
-          <span style={{ fontSize: 13 }}>
-            <b>Auto import</b><br />
-            <span style={{ color: "#8A8A8A" }}>Each sync also imports new supplier products that match your import filters.</span>
-          </span>
-        </label>
-        <p style={{ ...MUTED, fontSize: 12, marginTop: 12 }}>
-          Stock is updated when inventory sync is on (Inventory section).
-          {next && ` Next run around ${fmtDate(next)}.`}
-        </p>
-        <Footer>{note}<Btn busy={busy} disabled={!dirty} onClick={() => save({ automatic_sync: { enabled, every_hours: every }, auto_import: autoImport })}>Save</Btn></Footer>
+    <div style={{ display: "grid", gap: 22, maxWidth: 900 }}>
+      <div>
+        <div style={{ fontWeight: 700, fontSize: 15 }}>Import Supplier Inventory to Store Locations</div>
+        <p style={MUTED}>Supplier stock is written to your store locations — choose which S&S warehouses feed each one.</p>
       </div>
-
-      <div style={CARD}>
-        <Head title="Sync now" text="Run a sync right away instead of waiting for the schedule." />
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <Btn onClick={() => run(false)} busy={starting === "stock"} disabled={!connected || running || !!starting || !cfg.inventory.sync}
-            title={!cfg.inventory.sync ? "Inventory sync is off" : undefined}>Sync stock</Btn>
-          <Btn kind="ghost" onClick={() => run(true)} busy={starting === "full"} disabled={!connected || running || !!starting}
-            title="Stock, plus new matching products when Auto import is on">Full sync</Btn>
-        </div>
-        {!connected && <p style={{ ...MUTED, fontSize: 12, marginTop: 8 }}>Connect the supplier first.</p>}
-        {err && <p style={{ fontSize: 13, color: "#B42318", marginTop: 8 }}>{err}</p>}
-      </div>
-
-      <div style={CARD}>
-        <Head title="History" text="The last runs, newest first." />
-        {cfg.history.length === 0 ? <p style={MUTED}>No runs yet.</p> : (
-          <div style={{ display: "grid", gap: 0 }}>
-            {cfg.history.map((h, i) => (
-              <div key={i} style={{ display: "flex", gap: 10, padding: "9px 0", borderTop: i ? "1px solid #F2F2F2" : "none", alignItems: "flex-start", flexWrap: "wrap" }}>
-                <Badge text={h.status} color={h.status === "completed" ? "#16A34A" : h.status === "running" ? "#2563EB" : "#B42318"} />
-                <div style={{ flex: "1 1 240px", fontSize: 13 }}>
-                  <div><b>{h.kind === "import" ? "Import" : h.kind === "sync" ? "Full sync" : "Stock sync"}</b>
-                    <span style={{ color: "#8A8A8A" }}> · {h.trigger === "schedule" ? "scheduled" : "manual"}</span></div>
-                  {h.message && <div style={{ color: "#4A4A4A" }}>{h.message}</div>}
-                </div>
-                <div style={{ fontSize: 12, color: "#8A8A8A", whiteSpace: "nowrap" }}>{fmtDate(h.finished_at || h.started_at)}</div>
-              </div>
-            ))}
+      {error && <p style={{ color: "#B42318", fontSize: 13 }}>{error}</p>}
+      {!data && !error && <Spinner />}
+      {data && data.locations.length === 0 && (
+        <p style={MUTED}>You have no store locations yet — your first import creates a “Default Warehouse” and fills it from every S&S warehouse except drop-ship.</p>
+      )}
+      {data?.locations.map((l, i) => (
+        <div key={l.id} style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap", border: "1px solid #EEE", borderRadius: 10, padding: "10px 14px" }}>
+          <div style={{ flex: "1 1 240px", fontSize: 13 }}>
+            <b>Store location:</b> {l.name}{l.city ? ` — ${l.city}` : ""} <span style={{ color: "#8A8A8A" }}>({l.code})</span>
           </div>
-        )}
+          <span style={{ color: "#8A8A8A" }}>←</span>
+          <select value={sourceFor(l.id, i)} onChange={(e) => setSource(l.id, e.target.value)} style={{ ...INPUT, flex: "0 1 300px" }}>
+            <option value="none">Don&apos;t import stock here</option>
+            <option value="all_except_ds">Supplier inventory: All except Dropshipping</option>
+            <option value="all">Supplier inventory: All warehouses</option>
+            <option value="DS">Supplier inventory: Dropshipping</option>
+            {data.warehouses.map((w) => <option key={w.code} value={w.code}>Supplier inventory: {w.label}</option>)}
+          </select>
+        </div>
+      ))}
+      {data && data.locations.length > 0 && fed === 0 && (
+        <p style={{ fontSize: 13, color: "#B45309" }}>No location receives supplier stock — stock syncs will have nowhere to write.</p>
+      )}
+      {!connected && <p style={{ ...MUTED, fontSize: 12 }}>Connect the supplier to list its warehouses.</p>}
+
+      <div style={{ display: "flex", gap: 16, alignItems: "center", flexWrap: "wrap", borderTop: "1px solid #EEE", paddingTop: 18 }}>
+        <div style={{ flex: "1 1 320px" }}>
+          <div style={{ fontWeight: 700, fontSize: 15 }}>Inventory Adjustment Quantity</div>
+          <p style={MUTED}>Supplier inventory is reduced by this much per variant, as a buffer against overselling.
+            {value.safety_stock > 0 && ` Example: S&S has 52 → your store shows ${Math.max(0, 52 - value.safety_stock)}.`}</p>
+        </div>
+        <input type="number" min={0} value={value.safety_stock} placeholder="Adjustment Quantity"
+          onChange={(e) => onChange({ ...value, safety_stock: Math.max(0, Math.floor(Number(e.target.value) || 0)) })}
+          style={{ ...INPUT, width: 180 }} />
       </div>
     </div>
   );

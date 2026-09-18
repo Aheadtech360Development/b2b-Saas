@@ -151,6 +151,13 @@ function SupplierView({ id, initialTab, onBack }: { id: string; initialTab: Tab;
   // Bumped whenever a job finishes, so the tabs refetch what it changed.
   const [dataVersion, setDataVersion] = useState(0);
   const lastStatus = useRef<string | undefined>(undefined);
+  const editDirty = useRef(false);
+  const leaveOk = () => !editDirty.current || window.confirm("You have unsaved supplier changes. Leave without saving?");
+  const goTab = (t: Tab) => {
+    if (t === tab || (tab === "edit" && !leaveOk())) return;
+    editDirty.current = false;
+    setTab(t);
+  };
 
   const load = useCallback(async () => {
     try {
@@ -204,25 +211,25 @@ function SupplierView({ id, initialTab, onBack }: { id: string; initialTab: Tab;
           <p style={{ ...MUTED, marginBottom: 14 }}>
             Add your {detail.label} account number and API key. Products, prices and stock all come from your own account.
           </p>
-          <Btn onClick={() => setTab("edit")}>Open connection settings</Btn>
+          <Btn onClick={() => goTab("edit")}>Open connection settings</Btn>
         </div>
       );
     }
     if (tab === "import") {
       return <ProductsForImport id={id} config={detail.config} running={running} dataVersion={dataVersion}
-        onSaved={onSaved} onJobStarted={onJobStarted} onBrowse={() => setTab("browse")} />;
+        onSaved={onSaved} onJobStarted={onJobStarted} onBrowse={() => goTab("browse")} />;
     }
     if (tab === "browse") {
       return <BrowseCatalog id={id} config={detail.config} dataVersion={dataVersion} onSaved={onSaved} />;
     }
     return <EditSupplier id={id} detail={detail} running={running} onSaved={onSaved}
-      onJobStarted={onJobStarted} onConnectionChanged={load} />;
+      onJobStarted={onJobStarted} onConnectionChanged={load} onDirtyChange={(d) => { editDirty.current = d; }} />;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [detail, tab, connected, running, dataVersion, id, load]);
 
   return (
     <div style={{ maxWidth: 1180 }}>
-      <button onClick={onBack} style={{ background: "none", border: "none", padding: 0, color: "#6B6B6B", fontSize: 13, cursor: "pointer", marginBottom: 10 }}>
+      <button onClick={() => { if (leaveOk()) onBack(); }} style={{ background: "none", border: "none", padding: 0, color: "#6B6B6B", fontSize: 13, cursor: "pointer", marginBottom: 10 }}>
         ← Manage Suppliers
       </button>
 
@@ -240,7 +247,7 @@ function SupplierView({ id, initialTab, onBack }: { id: string; initialTab: Tab;
 
       <div style={{ display: "flex", gap: 2, borderBottom: "1px solid #E3E3E3", marginBottom: 16, overflowX: "auto" }}>
         {TABS.map((t) => (
-          <button key={t.id} onClick={() => setTab(t.id)} style={{
+          <button key={t.id} onClick={() => goTab(t.id)} style={{
             padding: "10px 16px", background: "none", border: "none", cursor: "pointer", whiteSpace: "nowrap",
             fontSize: 13, fontWeight: tab === t.id ? 700 : 500, color: tab === t.id ? "#1A1A1A" : "#6B6B6B",
             borderBottom: tab === t.id ? "2px solid #1A1A1A" : "2px solid transparent", marginBottom: -1,

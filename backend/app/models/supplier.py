@@ -6,7 +6,7 @@ from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, Numeric, String, 
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.models.base import BaseModel
+from app.models.base import BaseModel, TenantMixin
 
 
 class SSCategory(BaseModel):
@@ -103,3 +103,33 @@ class SSSyncLog(BaseModel):
     records_fetched: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     records_upserted: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     error_message: Mapped[str | None] = mapped_column(Text)
+
+
+class SupplierOrder(TenantMixin, BaseModel):
+    """One purchase order sent (or being sent) to a supplier for a store order.
+
+    Written as 'sending' before the supplier is called; a partial unique index
+    (migration 0036) allows one live row per order and supplier, which is what
+    stops a double send. Statuses: sending → placed → shipped, or failed; a test
+    order ends as 'test' (S&S creates and cancels it).
+    """
+    __tablename__ = "supplier_orders"
+
+    order_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("orders.id", ondelete="CASCADE"), nullable=False, index=True,
+    )
+    supplier: Mapped[str] = mapped_column(String(40), nullable=False)
+    batch_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="sending")
+    test: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    trigger: Mapped[str] = mapped_column(String(20), nullable=False, default="manual")
+    po_number: Mapped[str | None] = mapped_column(String(100))
+    supplier_order_numbers: Mapped[str | None] = mapped_column(String(500))
+    lines: Mapped[list | None] = mapped_column(JSONB)
+    request: Mapped[dict | None] = mapped_column(JSONB)
+    response: Mapped[dict | list | None] = mapped_column(JSONB)
+    error: Mapped[str | None] = mapped_column(Text)
+    tracking_number: Mapped[str | None] = mapped_column(String(255))
+    carrier: Mapped[str | None] = mapped_column(String(100))
+    shipped_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+

@@ -27,6 +27,20 @@ from app.core.config import settings
 logger = logging.getLogger(__name__)
 
 _SS_BASE = "https://api.ssactivewear.com/v2"
+# S&S Canada is a separate API host with its own accounts and warehouses.
+_SS_BASES = {"US": _SS_BASE, "CA": "https://api-ca.ssactivewear.com/v2"}
+
+
+def country_code(value: str | None) -> str:
+    """The connection stores the country as the admin picked it."""
+    v = (value or "").strip().lower()
+    return "CA" if v in ("ca", "canada") else "US"
+
+
+def from_connection(conn: dict) -> "SSActivewearService":
+    """A client for one brand's saved S&S connection, on its own country's API."""
+    return SSActivewearService(conn.get("account_number"), conn.get("api_key"),
+                               country=country_code(conn.get("country")))
 _MIN_INTERVAL = 1.5  # seconds between requests (~40 req/min)
 
 # S&S returns image paths relative to their CDN host (medium '_fm' by default).
@@ -55,14 +69,39 @@ async def for_tenant(db, tenant_id=None) -> "SSActivewearService":
 
     conn = await get_connection(db, "ss_activewear", tenant_id=tenant_id)
     if conn:
-        return SSActivewearService(conn.get("account_number"), conn.get("api_key"))
+        return from_connection(conn)
     return SSActivewearService()
+
+
+class SSOrderError(Exception):
+    """S&S refused an order request; `message` is S&S's own explanation."""
+
+    def __init__(self, status: int, message: str) -> None:
+        super().__init__(message)
+        self.status = status
+        self.message = message
+
+
+def _error_text(response) -> str:
+    try:
+        data = response.json()
+    except Exception:
+        return (response.text or f"HTTP {response.status_code}")[:500]
+    if isinstance(data, dict):
+        for k in ("message", "Message", "error", "errors", "Errors"):
+            if data.get(k):
+                v = data[k]
+                return (v if isinstance(v, str) else str(v))[:500]
+    if isinstance(data, list) and data:
+        return "; ".join(str(x.get("message") or x) if isinstance(x, dict) else str(x) for x in data)[:500]
+    return f"HTTP {response.status_code}"
 
 
 class SSActivewearService:
     """Async REST client for S&S Activewear API v2."""
 
-    def __init__(self, account_number: str | None = None, api_key: str | None = None) -> None:
+    def __init__(self, account_number: str | None = None, api_key: str | None = None,
+                 country: str = "US") -> None:
         """Talk to S&S as a specific brand.
 
         Credentials are passed in so each brand pulls its own catalogue and
@@ -73,6 +112,8 @@ class SSActivewearService:
         self._client: httpx.AsyncClient | None = None
         self._account_number = account_number or settings.SS_ACCOUNT_NUMBER
         self._api_key = api_key or settings.SS_API_KEY
+        self.country = country if country in _SS_BASES else "US"
+        self._base = _SS_BASES[self.country]
 
     @property
     def has_credentials(self) -> bool:
@@ -81,7 +122,7 @@ class SSActivewearService:
     def _client_instance(self) -> httpx.AsyncClient:
         if self._client is None or self._client.is_closed:
             self._client = httpx.AsyncClient(
-                base_url=_SS_BASE,
+                base_url=self._base,
                 auth=(self._account_number, self._api_key),
                 timeout=30.0,
                 headers={"Accept": "application/json"},
@@ -102,6 +143,38 @@ class SSActivewearService:
         response = await client.get(path, params=params or {})
         response.raise_for_status()
         return response.json()
+
+    async def _post(self, path: str, body: dict) -> Any:
+        await self._throttle()
+        response = await self._client_instance().post(path, json=body)
+        if response.status_code >= 400:
+            raise SSOrderError(response.status_code, _error_text(response))
+        return response.json()
+
+    # ── Orders ────────────────────────────────────────────────────────────────
+
+    async def place_order(self, body: dict) -> list[dict]:
+        """POST /v2/orders/. S&S splits an order by warehouse, so the answer is
+        a list of orders (one per shipping warehouse)."""
+        data = await self._post("/orders/", body)
+        if isinstance(data, dict):
+            data = data.get("orders") or data.get("Orders") or [data]
+        return data if isinstance(data, list) else []
+
+    async def recent_orders(self) -> list[dict]:
+        """Orders from the last three months, with box-level tracking."""
+        data = await self._get("/orders/", {"All": "true", "Boxes": "true"})
+        return data if isinstance(data, list) else []
+
+    async def payment_profiles(self) -> list[dict]:
+        """Cards / bank accounts saved on the S&S website for this account."""
+        data = await self._get("/paymentprofiles/")
+        return data if isinstance(data, list) else []
+
+    async def check_credentials(self) -> int:
+        """One cheap read that raises on bad credentials (unlike fetch_categories)."""
+        data = await self._get("/categories/")
+        return len(data) if isinstance(data, list) else 0
 
     # ── Public API ────────────────────────────────────────────────────────────
 

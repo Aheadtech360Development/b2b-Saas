@@ -21,7 +21,8 @@ from app.services.ss_activewear_service import ss_image_url
 
 logger = logging.getLogger(__name__)
 
-STYLES_KEY = "ss:styles:v1"
+# Per country: S&S Canada is a different catalogue on a different API.
+STYLES_KEY = "ss:styles:v2:{country}"
 STYLES_TTL = 6 * 3600
 STATS_TTL = 6 * 3600
 STATS_BATCH = 10
@@ -29,7 +30,7 @@ STATS_BATCH = 10
 # this many styles the count is left unknown rather than making the admin wait.
 COUNT_LIMIT = 250
 
-_memo: tuple[float, list[dict]] | None = None
+_memo: dict[str, tuple[float, list[dict]]] = {}
 
 
 class CatalogUnavailable(Exception):
@@ -48,7 +49,8 @@ def _trim(s: dict) -> dict | None:
         "style_name": (s.get("styleName") or "").strip(),
         "title": (s.get("title") or "").strip(),
         "category": (s.get("baseCategory") or "").strip(),
-        "description": desc[:600],
+        # Kept whole: a sync set to "update everything" writes it to products.
+        "description": desc[:8000],
         "image": ss_image_url(s.get("styleImage"), "medium"),
         "brand_image": ss_image_url(s.get("brandImage"), "small"),
     }
@@ -56,17 +58,19 @@ def _trim(s: dict) -> dict | None:
 
 async def all_styles(svc) -> list[dict]:
     """Every S&S style, trimmed. Memory, then Redis, then S&S."""
-    global _memo
-    if _memo and time.monotonic() - _memo[0] < 600:
-        return _memo[1]
+    country = getattr(svc, "country", "US")
+    key = STYLES_KEY.format(country=country)
+    hit = _memo.get(country)
+    if hit and time.monotonic() - hit[0] < 600:
+        return hit[1]
     try:
-        cached = await redis_get(STYLES_KEY)
+        cached = await redis_get(key)
     except Exception:
         cached = None
     if cached:
         try:
             styles = json.loads(cached)
-            _memo = (time.monotonic(), styles)
+            _memo[country] = (time.monotonic(), styles)
             return styles
         except ValueError:
             pass
@@ -86,10 +90,10 @@ async def all_styles(svc) -> list[dict]:
     styles.sort(key=lambda s: (s["brand"].lower(), s["style_name"].lower()))
     if styles:
         try:
-            await redis_set(STYLES_KEY, json.dumps(styles), expire=STYLES_TTL)
+            await redis_set(key, json.dumps(styles), expire=STYLES_TTL)
         except Exception:
             pass
-        _memo = (time.monotonic(), styles)
+        _memo[country] = (time.monotonic(), styles)
     return styles
 
 
@@ -154,7 +158,7 @@ async def style_stats(svc, styles: list[dict]) -> dict[str, dict]:
     missing = []
     for s in styles:
         try:
-            hit = await redis_get(f"ss:pstats:{s['style_id']}")
+            hit = await redis_get(f"ss:pstats:{getattr(svc, 'country', 'US')}:{s['style_id']}")
         except Exception:
             hit = None
         if hit:
@@ -193,7 +197,18 @@ async def style_stats(svc, styles: list[dict]) -> dict[str, dict]:
                 else {"variants": 0, "sizes": [], "colors": 0}
             out[s["style_id"]] = stat
             try:
-                await redis_set(f"ss:pstats:{s['style_id']}", json.dumps(stat), expire=STATS_TTL)
+                await redis_set(f"ss:pstats:{getattr(svc, 'country', 'US')}:{s['style_id']}", json.dumps(stat), expire=STATS_TTL)
             except Exception:
                 pass
     return out
+
+
+def as_ss(style: dict) -> dict:
+    """A trimmed style back in S&S's own field names, for Match Fields."""
+    return {
+        "styleID": style.get("style_id"), "partNumber": style.get("part_number"),
+        "brandName": style.get("brand"), "styleName": style.get("style_name"),
+        "title": style.get("title"), "baseCategory": style.get("category"),
+        "description": style.get("description"),
+    }
+

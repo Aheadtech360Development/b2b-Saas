@@ -16,7 +16,6 @@ Endpoints:
 import logging
 import re
 import uuid
-from datetime import datetime, timezone
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -351,11 +350,11 @@ async def import_ss_product(style_id: str, db: AsyncSession = Depends(get_db)):
     The "already imported" check is per-brand (Product is tenant-scoped), so two
     brands can each import the same style.
     """
-    from app.models.inventory import InventoryRecord, Warehouse
-    from app.models.product import Product, ProductImage, ProductVariant
+    from app.models.product import Product
     from app.models.supplier import SSProduct
-    from app.services.ss_activewear_service import for_tenant as ss_for_tenant, ss_image_url
+    from app.services.ss_activewear_service import for_tenant as ss_for_tenant
     from app.services.suppliers import config as supplier_cfg
+    from app.services.suppliers import ss_products
 
     # Per-brand guard: has THIS brand already imported this style? Product is a
     # TenantMixin model, so this query only ever sees the current brand's rows.
@@ -368,7 +367,7 @@ async def import_ss_product(style_id: str, db: AsyncSession = Depends(get_db)):
             message="Already imported",
         )
 
-    # Optional cached catalog row — used only for markup category/brand hints.
+    # Optional cached catalog row — marked imported below, best-effort.
     ss_product = (await db.execute(
         select(SSProduct).where(SSProduct.style_id == style_id)
     )).scalar_one_or_none()
@@ -386,131 +385,25 @@ async def import_ss_product(style_id: str, db: AsyncSession = Depends(get_db)):
             status_code=502,
             detail="Could not fetch this style's products from S&S. Check the API key / VPN and that the style ID is valid.",
         )
-
     first = skus[0]
-    brand = style.get("brandName") or first.get("brandName") or (ss_product.brand_name if ss_product else None)
-    style_name = style.get("styleName") or first.get("styleName") or style_id
-    title = style.get("title")
-    description = style.get("description") or title
-    base_category = style.get("baseCategory") or (ss_product.category_name if ss_product else None)
-    product_name = " ".join(p for p in (brand, style_name) if p).strip() or str(style_id)
+    style = {
+        **style,
+        "styleID": style.get("styleID") or style_id,
+        "brandName": style.get("brandName") or first.get("brandName"),
+        "styleName": style.get("styleName") or first.get("styleName") or style_id,
+    }
 
-    # This brand's own pricing rules. They used to come from a table with no
-    # brand column, so one brand's markup priced every other brand's imports.
-    _pricing_cfg = await supplier_cfg.load(db, "ss_activewear")
-    markup_rules = supplier_cfg.markup_rules_for_import(_pricing_cfg)
-    round_to = (_pricing_cfg.get("pricing") or {}).get("round_to")
-
-    # Unique slug (slug is globally unique on products).
-    base_slug = _slugify(f"{product_name}-{style_id}")
-    slug = base_slug
-    counter = 1
-    while (await db.execute(select(Product).where(Product.slug == slug))).scalar_one_or_none():
-        slug = f"{base_slug}-{counter}"
-        counter += 1
-
-    new_product = Product(
-        name=product_name,
-        slug=slug,
-        description=description,
-        short_description=title,
-        vendor=brand or "S&S Activewear",
-        product_code=style_id,
-        product_type=base_category,
-        status="active",
-    )
-    db.add(new_product)
-    await db.flush()
-
-    # Default warehouse for this brand (created on first import if none exists).
-    warehouse = (await db.execute(
-        select(Warehouse).where(Warehouse.is_active.is_(True)).limit(1)
-    )).scalar_one_or_none()
-    if not warehouse:
-        warehouse = Warehouse(name="Default Warehouse", code=f"WH-{str(new_product.id)[:8]}", country="US")
-        db.add(warehouse)
-        await db.flush()
-
-    # ── One image per colour + one variant per SKU ────────────────────────────
-    seen_colors: dict[str, bool] = {}
-    image_sort = 0
-    variant_sort = 0
-
-    for sku in skus:
-        color_name = sku.get("colorName") or "Default"
-
-        if color_name not in seen_colors:
-            seen_colors[color_name] = True
-            large = ss_image_url(sku.get("colorFrontImage"), "large")
-            if large:
-                db.add(ProductImage(
-                    product_id=new_product.id,
-                    url_thumbnail=ss_image_url(sku.get("colorFrontImage"), "small") or large,
-                    url_medium=ss_image_url(sku.get("colorFrontImage"), "medium") or large,
-                    url_large=large,
-                    alt_text=f"{product_name} - {color_name}",
-                    is_primary=(image_sort == 0),
-                    sort_order=image_sort,
-                ))
-                image_sort += 1
-
-        real_sku = str(
-            sku.get("sku") or sku.get("gtin")
-            or f"{style_id}-{sku.get('colorCode', '')}-{sku.get('sizeCode', '')}"
+    # Everything else — which fields, prices, variant limit, stock per
+    # location — follows the brand's supplier setup, same as its syncs.
+    cfg = await supplier_cfg.load(db, "ss_activewear")
+    try:
+        new_product = await ss_products.create_product(db, style, skus, cfg)
+    except ss_products.SkipProduct as exc:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Not imported — this style {exc}. Raise the limit in Suppliers → Edit → Automatic Sync.",
         )
-        cost = float(sku.get("customerPrice") or sku.get("piecePrice") or 0)
-        retail = supplier_cfg.apply_rounding(
-            _apply_best_markup(
-                cost, markup_rules, base_category, brand, style_id,
-                (style_name, first.get("partNumber"), f"{brand or ''} {style_name}"),
-            ), round_to,
-        )
-        msrp = float(sku.get("retailPrice") or 0) or None
 
-        weight_g = None
-        if sku.get("unitWeight"):
-            try:
-                weight_g = round(float(sku["unitWeight"]) * _LBS_TO_GRAMS, 2)
-            except (TypeError, ValueError):
-                weight_g = None
-
-        # Inventory: combined qty when present, else sum across warehouses.
-        qty = sku.get("qty")
-        if qty is None:
-            qty = sum(int(w.get("qty") or 0) for w in (sku.get("warehouses") or []))
-        qty = int(qty or 0)
-
-        # Real swatch hex from S&S (color1, e.g. "#B31B1B"); ignore empties/junk.
-        _hex = (sku.get("color1") or "").strip()
-        color_hex = _hex if _hex.startswith("#") and len(_hex) <= 9 else None
-
-        pv = ProductVariant(
-            product_id=new_product.id,
-            sku=real_sku,
-            color=color_name,
-            color_hex=color_hex,
-            size=sku.get("sizeName") or "OS",
-            retail_price=retail,
-            cost_per_item=cost,
-            msrp=msrp,
-            compare_price=msrp,
-            country_of_origin=sku.get("countryOfOrigin"),
-            weight_grams=weight_g,
-            status="active",
-            sort_order=variant_sort,
-        )
-        db.add(pv)
-        await db.flush()
-        variant_sort += 1
-
-        db.add(InventoryRecord(
-            variant_id=pv.id,
-            warehouse_id=warehouse.id,
-            quantity=qty,
-            low_stock_threshold=10,
-        ))
-
-    # Best-effort: point the global catalog cache at the first importer.
     if ss_product is not None and not ss_product.is_imported:
         ss_product.is_imported = True
         ss_product.imported_product_id = new_product.id
@@ -519,10 +412,8 @@ async def import_ss_product(style_id: str, db: AsyncSession = Depends(get_db)):
         await db.commit()
     except Exception as exc:
         await db.rollback()
-        # SKU/slug are unique PER BRAND now (migration 0028), so two brands can
-        # import the same style. A collision here means THIS brand already has a
-        # product/variant using one of these SKUs (a manual product or a partial
-        # re-import) — report it clearly rather than 500.
+        # SKU/slug are unique PER BRAND (migration 0028). A collision here means
+        # THIS brand already has a product/variant using one of these SKUs.
         logger.warning("S&S import commit failed for style %s: %s", style_id, exc)
         raise HTTPException(
             status_code=409,
@@ -535,15 +426,14 @@ async def import_ss_product(style_id: str, db: AsyncSession = Depends(get_db)):
     except Exception:
         pass
 
-    logger.info(
-        "Imported S&S style %s → product %s (%d variants, %d colours)",
-        style_id, new_product.id, variant_sort, len(seen_colors),
-    )
+    n_variants = len(ss_products.limit_skus(skus, cfg))
+    n_colors = len({r.get("colorName") for r in skus})
+    logger.info("Imported S&S style %s → product %s (%d variants)", style_id, new_product.id, n_variants)
     return ImportResult(
         success=True,
         product_id=str(new_product.id),
         product_slug=new_product.slug,
-        message=f"Imported '{product_name}' — {variant_sort} variants across {len(seen_colors)} colour(s).",
+        message=f"Imported '{new_product.name}' — {n_variants} variants across {n_colors} colour(s).",
     )
 
 

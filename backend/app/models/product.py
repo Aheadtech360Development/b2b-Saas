@@ -81,6 +81,10 @@ class Product(TenantMixin, BaseModel):
 
     fabric: Mapped[str | None] = mapped_column(String(255), nullable=True)
     product_code: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    # Which supplier style this product was imported from (e.g. "ss_activewear",
+    # S&S styleID). Null for products the brand made itself.
+    supplier: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    supplier_ref: Mapped[str | None] = mapped_column(String(100), nullable=True)
     weight: Mapped[str | None] = mapped_column(String(100), nullable=True)
     gender: Mapped[str | None] = mapped_column(String(50), nullable=True)
 
