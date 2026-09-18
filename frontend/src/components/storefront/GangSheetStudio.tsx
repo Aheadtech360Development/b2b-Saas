@@ -213,6 +213,8 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
   const [abBusy, setAbBusy] = useState<{ key: string; label: string } | null>(null);
   const [abChecks, setAbChecks] = useState<Record<string, ArtworkInspection | null | "loading">>({});
   const [abMessage, setAbMessage] = useState<string | null>(null);
+  // "Start over" wipes a sheet in one click, so it asks first.
+  const [confirmStartOver, setConfirmStartOver] = useState(false);
 
   const fileRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -1438,6 +1440,29 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
         </div>
       </div>
 
+      {confirmStartOver && (
+        <div style={S.confirmBackdrop} onClick={() => setConfirmStartOver(false)}
+          onKeyDown={(e) => { if (e.key === "Escape") setConfirmStartOver(false); }}>
+          <div role="alertdialog" aria-modal="true" aria-labelledby="gs-startover-title"
+            style={S.confirmBox} onClick={(e) => e.stopPropagation()}>
+            <div style={S.confirmIcon} aria-hidden>!</div>
+            <div id="gs-startover-title" style={{ fontSize: "17px", fontWeight: 800, color: "#1A1A1A" }}>
+              Start over this sheet?
+            </div>
+            <p style={{ fontSize: "13.5px", color: "#555", lineHeight: 1.6, margin: "8px 0 0" }}>
+              This removes all <strong>{placements.length}</strong> design{placements.length === 1 ? "" : "s"} from
+              {" "}<strong>{sheets[active]?.name ?? "this sheet"}</strong>. Your uploaded images stay in Your Uploads,
+              and you can bring the layout back with Undo (Ctrl+Z).
+            </p>
+            <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end", marginTop: "20px" }}>
+              {/* Cancel takes the focus, so a stray Enter keeps the sheet. */}
+              <button autoFocus onClick={() => setConfirmStartOver(false)} style={S.confirmCancel}>Cancel</button>
+              <button onClick={() => { startOver(); setConfirmStartOver(false); }} style={S.confirmDanger}>Yes, start over</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {error && <div style={S.errorBar}>{error}{savedOk ? "" : " "}<button onClick={() => setError(null)} style={{ background: "none", border: "none", color: "#991B1B", cursor: "pointer", fontWeight: 700 }}>✕</button></div>}
       {savedOk && !error && <div style={S.okBar}>✓ Saved. It&apos;s in your gang sheets and ready for checkout.</div>}
 
@@ -2022,7 +2047,13 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
           <button onClick={openAutoBuild} style={S.rightAction} title="Upload several designs, set their sizes and quantities, and pack them onto sheets">▦ Auto Build</button>
           <button onClick={() => autoNest()} style={S.rightAction} title="Arrange this sheet's designs compactly">⚡ Auto nest (tidy up)</button>
           <button onClick={() => autoNest(0.5)} style={S.rightAction} title="Nest with extra spacing for cutting">✂ Auto nest for cutting</button>
-          <button onClick={startOver} style={{ ...S.rightAction, color: "#B91C1C" }}>↺ Start over (this sheet)</button>
+          <button
+            onClick={() => { if (placements.length) setConfirmStartOver(true); }}
+            disabled={!placements.length}
+            title={placements.length ? "Remove every design from this sheet" : "This sheet is already empty"}
+            style={{ ...S.rightAction, color: "#B91C1C", opacity: placements.length ? 1 : 0.45, cursor: placements.length ? "pointer" : "not-allowed" }}>
+            ↺ Start over (this sheet)
+          </button>
           <div style={{ marginTop: "auto", fontSize: "11px", color: "#8A8A8A", paddingTop: "12px" }}>
             Tip: build multiple sheets, then <strong>Save &amp; Add to Cart</strong> — each sheet is its own print job.
           </div>
@@ -2065,6 +2096,11 @@ const S: Record<string, React.CSSProperties> = {
   miniInput: { width: "100%", boxSizing: "border-box", minWidth: 0, padding: "7px", border: "1px solid #DDD9D2", borderRadius: "6px", fontSize: "13px" },
   smallBtn: { flex: 1, background: "#fff", border: "1px solid #DDD9D2", borderRadius: "7px", padding: "8px 6px", fontSize: "12px", fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" },
   canvasArea: { position: "relative", flex: 1, display: "flex", flexDirection: "column", minWidth: 0 },
+  confirmBackdrop: { position: "fixed", inset: 0, zIndex: 400, background: "rgba(0,0,0,.45)", display: "flex", alignItems: "center", justifyContent: "center", padding: "20px" },
+  confirmBox: { width: "min(420px, 100%)", background: "#fff", borderRadius: "14px", padding: "24px", boxShadow: "0 20px 60px rgba(0,0,0,.3)" },
+  confirmIcon: { width: "40px", height: "40px", borderRadius: "50%", background: "#FEE2E2", color: "#B91C1C", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "20px", fontWeight: 800, marginBottom: "14px" },
+  confirmCancel: { padding: "10px 18px", background: "#fff", color: "#1A1A1A", border: "1px solid #D8D5CF", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: "pointer" },
+  confirmDanger: { padding: "10px 18px", background: "#B91C1C", color: "#fff", border: "none", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: "pointer" },
   abOverlay: { position: "absolute", inset: 0, zIndex: 30, display: "flex", background: "#fff" },
   toolbar: { height: "50px", flexShrink: 0, background: "#fff", borderBottom: "1px solid #E5E3DE", display: "flex", alignItems: "center", gap: "10px", padding: "0 14px", flexWrap: "wrap" },
   sizeSelect: { padding: "7px 10px", border: "1px solid #DDD9D2", borderRadius: "6px", fontSize: "13px", minWidth: "150px", background: "#fff" },
