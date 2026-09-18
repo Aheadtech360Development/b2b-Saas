@@ -16,7 +16,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  ChevronDown, ClipboardPaste, Copy, CopyPlus, Crop, Droplet, Eye, Grid3x3, Hand,
+  ClipboardPaste, Copy, CopyPlus, Crop, Droplet, Eye, Grid3x3, Hand,
   Layers, Maximize, Minus, Plus, Redo2, Scissors, Trash2, Undo2, Wand2, Zap,
 } from "lucide-react";
 
@@ -184,7 +184,6 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
   const [panTool, setPanTool] = useState(false);  // ✋ hand tool: drag to pan the canvas
   const [showGrid, setShowGrid] = useState(false); // ▦ grid overlay on the sheet
   const [showOverlap, setShowOverlap] = useState(true); // highlight overlapping designs
-  const [showViewPanel, setShowViewPanel] = useState(false); // collapsible overlay/resolution legend
   // Multi-sheet build: `sheets` holds every Active Gang Sheet; the one at `active`
   // is edited through the working state above and snapshotted back on switch/save.
   const [sheets, setSheets] = useState<SheetTab[]>([]);
@@ -232,6 +231,12 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
   const ppi = fitPpi * zoom;
   const sheetWpx = (size?.width_in ?? 0) * ppi;
   const sheetHpx = sheetLen * ppi;
+  // The canvas viewport. A sheet narrower (or shorter) than the screen sits in
+  // the middle of it instead of hugging the top-left corner, so the sheet reads
+  // as the object on the table rather than a strip along one edge.
+  const [viewport, setViewport] = useState({ w: 0, h: 0 });
+  const padX = Math.max(RULER_PAD, Math.round((viewport.w - sheetWpx) / 2));
+  const padY = Math.max(RULER_PAD, Math.round((viewport.h - sheetHpx) / 2));
 
   // Keep latest values available to the window pointer listeners.
   const stateRef = useRef({ placements, ppi, snap, imageMargin, size, sheetLen });
@@ -943,6 +948,16 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
     return () => el.removeEventListener("wheel", handle);
   }, [zoom]);
 
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const measure = () => setViewport({ w: el.clientWidth, h: el.clientHeight });
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
   // Keep rulers aligned after zoom/size changes made without a scroll event
   // (zoom buttons, fit-to-screen, size switch).
   useEffect(() => {
@@ -950,7 +965,7 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
     if (!el) return;
     if (topRulerRef.current) topRulerRef.current.scrollLeft = el.scrollLeft;
     if (leftRulerRef.current) leftRulerRef.current.scrollTop = el.scrollTop;
-  }, [zoom, sheetWpx, sheetHpx]);
+  }, [zoom, sheetWpx, sheetHpx, padX, padY]);
 
   // Seed the first Active Gang Sheet once sizes (or a resumed order) are known.
   useEffect(() => {
@@ -1636,33 +1651,6 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
             <div style={S.toolDivider} />
             <button onClick={() => setPanTool((v) => !v)} title="Pan / hand tool" style={{ ...S.iconBtn, ...(panTool ? S.iconBtnOn : null) }}><Hand {...TOOL_ICON} /></button>
             <button onClick={() => setShowGrid((v) => !v)} title="Toggle grid" style={{ ...S.iconBtn, ...(showGrid ? S.iconBtnOn : null) }}><Grid3x3 {...TOOL_ICON} /></button>
-            {/* View options live in the toolbar, not floating over the sheet where
-                they covered the artwork the buyer is trying to place. */}
-            <div style={{ position: "relative" }}>
-              <button onClick={() => setShowViewPanel((v) => !v)} title="View options"
-                style={{ ...S.iconBtn, ...(showViewPanel ? S.iconBtnOn : null), width: "auto", padding: "0 10px", display: "inline-flex", alignItems: "center", gap: "5px", fontSize: "12px" }}>
-                <Eye {...TOOL_ICON} /> View <ChevronDown size={12} strokeWidth={2.4} />
-              </button>
-              {showViewPanel && (
-                <div style={S.viewPanel}>
-                  <label style={S.canvasCheck}>
-                    <input type="checkbox" checked={showOverlap} onChange={(e) => setShowOverlap(e.target.checked)} /> Show Overlapping Lines
-                  </label>
-                  <label style={S.canvasCheck}>
-                    <input type="checkbox" checked={showRes} onChange={(e) => setShowRes(e.target.checked)} /> Show Resolution Lines
-                  </label>
-                  {showRes && (
-                    <div style={{ marginTop: "6px", display: "flex", flexDirection: "column", gap: "3px" }}>
-                      {[["#16A34A", "Optimal ≥ 300 dpi"], ["#CA8A04", "Good ≥ 250 dpi"], ["#EA580C", "Fair ≥ 200 dpi"], ["#DC2626", "Low < 200 dpi"], ["#2563EB", "Overlapping images"]].map(([c, t]) => (
-                        <span key={t} style={{ display: "inline-flex", alignItems: "center", gap: "5px", fontSize: "10px", color: "#555" }}>
-                          <span style={{ width: "9px", height: "9px", borderRadius: "2px", background: c as string }} /> {t}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
             <div style={S.toolDivider} />
             <label style={{ fontSize: "12px", color: "#555", display: "flex", alignItems: "center", gap: "5px" }}>
               Margin
@@ -1685,15 +1673,16 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
           <div style={S.rulerGrid}>
             <div style={S.rulerCorner} />
             <div ref={topRulerRef} style={S.rulerTopWrap}>
-              <Ruler axis="x" contentPx={sheetWpx + RULER_PAD * 2} ppi={ppi} lengthIn={size?.width_in ?? 0} pad={RULER_PAD} />
+              <Ruler axis="x" contentPx={sheetWpx + padX * 2} ppi={ppi} lengthIn={size?.width_in ?? 0} pad={padX} />
             </div>
             <div ref={leftRulerRef} style={S.rulerLeftWrap}>
-              <Ruler axis="y" contentPx={sheetHpx + RULER_PAD * 2} ppi={ppi} lengthIn={sheetLen} pad={RULER_PAD} />
+              <Ruler axis="y" contentPx={sheetHpx + padY * 2} ppi={ppi} lengthIn={sheetLen} pad={padY} />
             </div>
 
             <div style={{ position: "relative", minWidth: 0, minHeight: 0 }}>
               {/* Scrollable sheet — wheel-zoom bound natively; scroll syncs the rulers. */}
-              <div ref={scrollRef} onScroll={syncRulers} style={S.canvasScroll}>
+              <div ref={scrollRef} onScroll={syncRulers} className="gs-canvas-scroll" style={S.canvasScroll}>
+                <div style={{ padding: `${padY}px ${padX}px`, width: "max-content" }}>
                 <div
                   ref={sheetRef}
                   tabIndex={0}
@@ -1703,14 +1692,28 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
                     position: "relative", width: `${sheetWpx}px`, height: `${sheetHpx}px`, margin: 0,
                     background: "#fff", outline: "none", touchAction: "none", userSelect: "none",
                     cursor: panTool ? "grab" : "default",
-                    backgroundImage: "repeating-conic-gradient(#EFEFEF 0% 25%, #fff 0% 50%)",
-                    backgroundSize: "18px 18px",
-                    boxShadow: "0 1px 6px rgba(0,0,0,.12)",
+                    // A checker the eye can actually see, and a hard edge: the sheet
+                    // is what gets printed, so where it ends has to be obvious.
+                    backgroundImage: "repeating-conic-gradient(#D6D6D6 0% 25%, #fff 0% 50%)",
+                    backgroundSize: "16px 16px",
+                    boxShadow: "0 0 0 1px #1F2937, 0 8px 28px rgba(0,0,0,.18)",
                   }}
                 >
                   {bleed > 0 && (
-                    <div style={{ position: "absolute", left: bleed * ppi, top: bleed * ppi, right: bleed * ppi, bottom: bleed * ppi, border: "1px dashed #D08C8C", pointerEvents: "none" }} />
+                    <div title="Safe area — keep designs inside this line"
+                      style={{ position: "absolute", left: bleed * ppi, top: bleed * ppi, right: bleed * ppi, bottom: bleed * ppi, border: "1.5px dashed rgba(220,38,38,.85)", pointerEvents: "none" }} />
                   )}
+                  {/* A line at every foot, so a long sheet shows where each foot
+                      ends — the unit it is priced and cut by. */}
+                  {Array.from({ length: Math.floor(sheetLen / 12) }, (_, i) => (i + 1) * 12)
+                    .filter((inch) => inch < sheetLen)
+                    .map((inch) => (
+                      <div key={inch} style={{ position: "absolute", left: 0, right: 0, top: inch * ppi, borderTop: "1px dashed rgba(31,41,55,.45)", pointerEvents: "none" }}>
+                        <span style={{ position: "absolute", right: "4px", top: "2px", fontSize: "10px", fontWeight: 700, color: "#1F2937", background: "rgba(255,255,255,.9)", padding: "0 5px", borderRadius: "3px" }}>
+                          {inch / 12} ft
+                        </span>
+                      </div>
+                    ))}
                   {showGrid && (
                     <div style={{ position: "absolute", inset: 0, pointerEvents: "none", backgroundImage: "linear-gradient(to right, rgba(28,53,87,.13) 1px, transparent 1px), linear-gradient(to bottom, rgba(28,53,87,.13) 1px, transparent 1px)", backgroundSize: `${ppi}px ${ppi}px` }} />
                   )}
@@ -1753,6 +1756,7 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
                 );
               })}
                 </div>
+                </div>
               </div>
 
               {/* Floating warnings (top-right) — advisory, never blocks saving. */}
@@ -1767,6 +1771,36 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
               )}
             </div>
           </div>
+
+          {/* What the colours and lines mean, always on screen. It used to sit
+              in a View menu, where nobody found it — and a red outline nobody
+              can decode is just decoration. It lives under the canvas, not on
+              it, so it never covers the artwork being placed. */}
+          <div style={S.viewStrip}>
+            <label style={S.canvasCheck}>
+              <input type="checkbox" checked={showRes} onChange={(e) => setShowRes(e.target.checked)} /> Resolution colours
+            </label>
+            <label style={S.canvasCheck}>
+              <input type="checkbox" checked={showOverlap} onChange={(e) => setShowOverlap(e.target.checked)} /> Overlaps
+            </label>
+            <span style={S.stripDivider} />
+            {showRes && ([["#16A34A", "300+ dpi"], ["#CA8A04", "250+"], ["#EA580C", "200+"], ["#DC2626", "under 200"]] as const).map(([c, t]) => (
+              <span key={t} style={S.legendItem}><span style={{ ...S.legendSwatch, background: c }} /> {t}</span>
+            ))}
+            {showOverlap && <span style={S.legendItem}><span style={{ ...S.legendSwatch, background: "#2563EB" }} /> overlapping</span>}
+            <span style={{ ...S.legendItem, marginLeft: "auto" }}>
+              <span style={{ width: "18px", borderTop: "1.5px dashed rgba(220,38,38,.85)" }} /> safe area
+              <span style={{ width: "18px", borderTop: "1px dashed rgba(31,41,55,.45)", marginLeft: "10px" }} /> each foot
+            </span>
+          </div>
+          <style>{`
+            .gs-canvas-scroll { scrollbar-width: auto; scrollbar-color: var(--brand-primary,#1C3557) #DCD9D3; }
+            .gs-canvas-scroll::-webkit-scrollbar { width: 13px; height: 13px; }
+            .gs-canvas-scroll::-webkit-scrollbar-track { background: #DCD9D3; }
+            .gs-canvas-scroll::-webkit-scrollbar-thumb { background: var(--brand-primary,#1C3557); border-radius: 999px; border: 3px solid #DCD9D3; }
+            .gs-canvas-scroll::-webkit-scrollbar-thumb:hover { background: #0F2340; }
+            .gs-canvas-scroll::-webkit-scrollbar-corner { background: #DCD9D3; }
+          `}</style>
         </div>
 
         {/* ── Right panel: Active Gang Sheets ───────────────────────────────── */}
@@ -1865,10 +1899,13 @@ const S: Record<string, React.CSSProperties> = {
   iconBtn: { width: "30px", height: "30px", border: "1px solid #BEC4CE", background: "#fff", color: "#2A2F3A", borderRadius: "6px", fontSize: "15px", fontWeight: 700, cursor: "pointer", lineHeight: 1, display: "inline-flex", alignItems: "center", justifyContent: "center" },
   // Pressed state for a toggle tool — dark, so it reads as "on" at a glance.
   iconBtnOn: { background: "#1A1A1A", borderColor: "#1A1A1A", color: "#fff" },
-  viewPanel: { position: "absolute", top: "calc(100% + 6px)", left: 0, zIndex: 20, minWidth: "215px", background: "#fff", border: "1px solid #D8DCE3", borderRadius: "8px", padding: "10px 12px", display: "flex", flexDirection: "column", gap: "5px", boxShadow: "0 6px 20px rgba(0,0,0,.14)" },
-  canvasScroll: { position: "absolute", inset: 0, overflow: "auto", padding: "24px" },
-  legend: { position: "sticky", top: 0, display: "flex", gap: "12px", flexWrap: "wrap", fontSize: "11px", color: "#777", marginBottom: "14px", background: "rgba(244,243,241,.9)", padding: "4px 0", zIndex: 2 },
-  rulerGrid: { flex: 1, minHeight: 0, display: "grid", gridTemplateColumns: "26px 1fr", gridTemplateRows: "22px 1fr", background: "#F4F3F1" },
+  canvasScroll: { position: "absolute", inset: 0, overflow: "auto" },
+  // A darker table than the sheet, so the sheet stands off it.
+  rulerGrid: { flex: 1, minHeight: 0, display: "grid", gridTemplateColumns: "26px 1fr", gridTemplateRows: "22px 1fr", background: "#E6E3DE" },
+  viewStrip: { display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap", padding: "7px 12px", borderTop: "1px solid #DAD6CF", background: "#fff", fontSize: "11px", color: "#555" },
+  stripDivider: { width: "1px", height: "16px", background: "#E0DCD5" },
+  legendItem: { display: "inline-flex", alignItems: "center", gap: "5px", fontSize: "11px", color: "#444", whiteSpace: "nowrap" },
+  legendSwatch: { width: "10px", height: "10px", borderRadius: "2px", display: "inline-block" },
   rulerCorner: { borderRight: "1px solid #ECEAE5", borderBottom: "1px solid #ECEAE5", background: "#FAFAF8" },
   rulerTopWrap: { overflow: "hidden", borderBottom: "1px solid #ECEAE5", background: "#fff", position: "relative" },
   rulerLeftWrap: { overflow: "hidden", borderRight: "1px solid #ECEAE5", background: "#fff", position: "relative" },
