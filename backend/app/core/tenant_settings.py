@@ -34,6 +34,7 @@ TENANT_SCOPED_KEYS: frozenset[str] = frozenset({
     "shippo_api_key",  # brand's own Shippo API key — its labels bill to its account
     "tax_mode",  # auto (ZipTax) | manual (brand's own rates) | none — per brand
     "integrations",  # brand's own supplier + carrier accounts (JSON) — see integrations_service
+    "suppliers",  # brand's supplier setup: import filters, pricing, sync (JSON) — see services/suppliers
 })
 
 _SEP = "@"

@@ -770,7 +770,16 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     await _ensure_platform_admin()
 
+    # Supplier syncs run in-process: the deployment starts uvicorn only, with no
+    # Celery worker or beat, so scheduled syncs have to live here. Every worker
+    # runs the loop; a Redis lock lets one of them act on each tick.
+    import asyncio as _asyncio
+    from app.services.suppliers.jobs import scheduler_loop
+    _supplier_scheduler = _asyncio.create_task(scheduler_loop())
+
     yield
+
+    _supplier_scheduler.cancel()
 
 
 app = FastAPI(
@@ -942,6 +951,8 @@ from app.api.v1.admin import integrations as admin_integrations  # noqa: E402
 app.include_router(admin_integrations.router, prefix=_V1)
 from app.api.v1 import product_configurator  # noqa: E402
 app.include_router(product_configurator.router, prefix=_V1)
+from app.api.v1.admin import suppliers as admin_suppliers  # noqa: E402
+app.include_router(admin_suppliers.router, prefix=_V1)
 from app.api.v1 import copilot as copilot_api  # noqa: E402
 app.include_router(copilot_api.admin_router, prefix=_V1)
 app.include_router(copilot_api.public_router, prefix=_V1)

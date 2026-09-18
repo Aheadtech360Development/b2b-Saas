@@ -180,6 +180,29 @@ class SSActivewearService:
             logger.error("SS style search error (q=%s): %s", query, exc)
             return []
 
+    # ── Bulk calls for the supplier screens ──────────────────────────────────
+    # These raise instead of returning [] — the caller has to tell "no products"
+    # apart from "S&S said no", or a bad key reads as an empty catalogue.
+
+    async def fetch_all_styles(self) -> list[dict]:
+        """Every style S&S carries, in one call (brand, name, category, image)."""
+        data = await self._get("/styles/")
+        return data if isinstance(data, list) else []
+
+    async def fetch_products_for_parts(self, part_numbers: list[str], fields: str | None = None) -> list[dict]:
+        """SKUs for several styles at once. S&S accepts a comma list on `style`
+        (part numbers), so one call covers a batch instead of one per style."""
+        params: dict[str, Any] = {"style": ",".join(part_numbers)}
+        if fields:
+            params["fields"] = fields
+        data = await self._get("/products/", params)
+        return data if isinstance(data, list) else []
+
+    async def fetch_inventory_for_parts(self, part_numbers: list[str]) -> list[dict]:
+        """Stock for several styles at once — the light inventory payload."""
+        data = await self._get("/inventory/", {"style": ",".join(part_numbers)})
+        return data if isinstance(data, list) else []
+
     async def fetch_inventory_by_style(self, style_id: str) -> list[dict]:
         """Light inventory payload for every SKU in a style (bulk, one call)."""
         try:

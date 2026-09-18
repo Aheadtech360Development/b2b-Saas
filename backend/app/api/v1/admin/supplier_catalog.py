@@ -343,8 +343,9 @@ async def import_ss_product(style_id: str, db: AsyncSession = Depends(get_db)):
     """
     from app.models.inventory import InventoryRecord, Warehouse
     from app.models.product import Product, ProductImage, ProductVariant
-    from app.models.supplier import SSMarkupRule, SSProduct
+    from app.models.supplier import SSProduct
     from app.services.ss_activewear_service import for_tenant as ss_for_tenant, ss_image_url
+    from app.services.suppliers import config as supplier_cfg
 
     # Per-brand guard: has THIS brand already imported this style? Product is a
     # TenantMixin model, so this query only ever sees the current brand's rows.
@@ -384,9 +385,11 @@ async def import_ss_product(style_id: str, db: AsyncSession = Depends(get_db)):
     base_category = style.get("baseCategory") or (ss_product.category_name if ss_product else None)
     product_name = " ".join(p for p in (brand, style_name) if p).strip() or str(style_id)
 
-    markup_rules = (await db.execute(
-        select(SSMarkupRule).where(SSMarkupRule.is_active.is_(True))
-    )).scalars().all()
+    # This brand's own pricing rules. They used to come from a table with no
+    # brand column, so one brand's markup priced every other brand's imports.
+    _pricing_cfg = await supplier_cfg.load(db, "ss_activewear")
+    markup_rules = supplier_cfg.markup_rules_for_import(_pricing_cfg)
+    round_to = (_pricing_cfg.get("pricing") or {}).get("round_to")
 
     # Unique slug (slug is globally unique on products).
     base_slug = _slugify(f"{product_name}-{style_id}")
@@ -446,7 +449,9 @@ async def import_ss_product(style_id: str, db: AsyncSession = Depends(get_db)):
             or f"{style_id}-{sku.get('colorCode', '')}-{sku.get('sizeCode', '')}"
         )
         cost = float(sku.get("customerPrice") or sku.get("piecePrice") or 0)
-        retail = _apply_best_markup(cost, markup_rules, base_category, brand, style_id)
+        retail = supplier_cfg.apply_rounding(
+            _apply_best_markup(cost, markup_rules, base_category, brand, style_id), round_to,
+        )
         msrp = float(sku.get("retailPrice") or 0) or None
 
         weight_g = None
@@ -647,104 +652,75 @@ async def trigger_manual_sync(sync_type: str = Query("products")):
 
 # ── Markup rules CRUD ─────────────────────────────────────────────────────────
 
+# These endpoints used the global ss_markup_rules table, which has no brand
+# column: every brand saw, edited and was priced by every other brand's rules.
+# They now read and write the brand's own pricing rules in its supplier setup,
+# translating between the old rule_type names and the new scopes.
+
+_TYPE_TO_SCOPE = {"global": "all", "brand": "brand", "category": "category", "product": "style"}
+_SCOPE_TO_TYPE = {v: k for k, v in _TYPE_TO_SCOPE.items()}
+
+
+def _rule_out(r: dict) -> SSMarkupRuleOut:
+    return SSMarkupRuleOut(
+        id=r["id"], rule_type=_SCOPE_TO_TYPE.get(r["scope"], "global"),
+        target_value=r.get("value") or None,
+        markup_pct=float(r.get("markup_pct") or 0), markup_fixed=float(r.get("markup_fixed") or 0),
+        is_active=bool(r.get("active", True)), created_at="",
+    )
+
+
+def _rule_in(body: MarkupRuleCreate, rule_id: str | None = None) -> dict:
+    if body.rule_type not in _TYPE_TO_SCOPE:
+        raise HTTPException(status_code=400, detail=f"rule_type must be one of {set(_TYPE_TO_SCOPE)}")
+    return {
+        "id": rule_id or str(uuid.uuid4()), "scope": _TYPE_TO_SCOPE[body.rule_type],
+        "value": body.target_value or "", "markup_pct": body.markup_pct,
+        "markup_fixed": body.markup_fixed, "active": body.is_active,
+    }
+
+
+async def _save_rules(db: AsyncSession, rules: list[dict]) -> list[dict]:
+    from app.services.suppliers import config as supplier_cfg
+
+    cfg = await supplier_cfg.load(db, "ss_activewear")
+    cfg["pricing"] = supplier_cfg.clean_pricing({**(cfg.get("pricing") or {}), "rules": rules})
+    await supplier_cfg.save(db, "ss_activewear", cfg)
+    await db.commit()
+    return cfg["pricing"]["rules"]
+
+
+async def _load_rules(db: AsyncSession) -> list[dict]:
+    from app.services.suppliers import config as supplier_cfg
+
+    return list(((await supplier_cfg.load(db, "ss_activewear")).get("pricing") or {}).get("rules") or [])
+
+
 @router.get("/markup-rules", response_model=list[SSMarkupRuleOut])
 async def list_markup_rules(db: AsyncSession = Depends(get_db)):
-    from app.models.supplier import SSMarkupRule
-    result = await db.execute(
-        select(SSMarkupRule).order_by(SSMarkupRule.rule_type, SSMarkupRule.target_value)
-    )
-    rows = result.scalars().all()
-    return [SSMarkupRuleOut(
-        id=str(r.id),
-        rule_type=r.rule_type,
-        target_value=r.target_value,
-        markup_pct=float(r.markup_pct),
-        markup_fixed=float(r.markup_fixed),
-        is_active=r.is_active,
-        created_at=r.created_at.isoformat() if r.created_at else "",
-    ) for r in rows]
+    return [_rule_out(r) for r in await _load_rules(db)]
 
 
 @router.post("/markup-rules", response_model=SSMarkupRuleOut, status_code=201)
 async def create_markup_rule(body: MarkupRuleCreate, db: AsyncSession = Depends(get_db)):
-    from app.models.supplier import SSMarkupRule
-
-    valid_types = {"global", "category", "brand", "product"}
-    if body.rule_type not in valid_types:
-        raise HTTPException(status_code=400, detail=f"rule_type must be one of {valid_types}")
-
-    rule = SSMarkupRule(
-        rule_type=body.rule_type,
-        target_value=body.target_value,
-        markup_pct=body.markup_pct,
-        markup_fixed=body.markup_fixed,
-        is_active=body.is_active,
-    )
-    db.add(rule)
-    await db.commit()
-    await db.refresh(rule)
-
-    return SSMarkupRuleOut(
-        id=str(rule.id),
-        rule_type=rule.rule_type,
-        target_value=rule.target_value,
-        markup_pct=float(rule.markup_pct),
-        markup_fixed=float(rule.markup_fixed),
-        is_active=rule.is_active,
-        created_at=rule.created_at.isoformat() if rule.created_at else "",
-    )
+    new = _rule_in(body)
+    saved = await _save_rules(db, [*(await _load_rules(db)), new])
+    return _rule_out(next(r for r in saved if r["id"] == new["id"]))
 
 
 @router.put("/markup-rules/{rule_id}", response_model=SSMarkupRuleOut)
-async def update_markup_rule(
-    rule_id: str,
-    body: MarkupRuleCreate,
-    db: AsyncSession = Depends(get_db),
-):
-    from app.models.supplier import SSMarkupRule
-
-    try:
-        uid = uuid.UUID(rule_id)
-    except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid rule_id")
-
-    res = await db.execute(select(SSMarkupRule).where(SSMarkupRule.id == uid))
-    rule = res.scalar_one_or_none()
-    if not rule:
+async def update_markup_rule(rule_id: str, body: MarkupRuleCreate, db: AsyncSession = Depends(get_db)):
+    rules = await _load_rules(db)
+    if not any(r["id"] == rule_id for r in rules):
         raise HTTPException(status_code=404, detail="Rule not found")
-
-    rule.rule_type = body.rule_type
-    rule.target_value = body.target_value
-    rule.markup_pct = body.markup_pct
-    rule.markup_fixed = body.markup_fixed
-    rule.is_active = body.is_active
-    await db.commit()
-    await db.refresh(rule)
-
-    return SSMarkupRuleOut(
-        id=str(rule.id),
-        rule_type=rule.rule_type,
-        target_value=rule.target_value,
-        markup_pct=float(rule.markup_pct),
-        markup_fixed=float(rule.markup_fixed),
-        is_active=rule.is_active,
-        created_at=rule.created_at.isoformat() if rule.created_at else "",
-    )
+    updated = _rule_in(body, rule_id)
+    saved = await _save_rules(db, [updated if r["id"] == rule_id else r for r in rules])
+    return _rule_out(next(r for r in saved if r["id"] == rule_id))
 
 
 @router.delete("/markup-rules/{rule_id}", status_code=204)
 async def delete_markup_rule(rule_id: str, db: AsyncSession = Depends(get_db)):
-    from app.models.supplier import SSMarkupRule
-
-    try:
-        uid = uuid.UUID(rule_id)
-    except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid rule_id")
-
-    res = await db.execute(select(SSMarkupRule).where(SSMarkupRule.id == uid))
-    rule = res.scalar_one_or_none()
-    if not rule:
+    rules = await _load_rules(db)
+    if not any(r["id"] == rule_id for r in rules):
         raise HTTPException(status_code=404, detail="Rule not found")
-
-    await db.delete(rule)
-    await db.commit()
+    await _save_rules(db, [r for r in rules if r["id"] != rule_id])
