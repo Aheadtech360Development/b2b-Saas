@@ -220,7 +220,7 @@ export function AdminSidebar() {
         </div>
       )}
 
-      <NavLink href="/admin/supplier-catalog" label="Supplier Catalog" icon={<Boxes {...ICON_PROPS} />} />
+      <NavLink href="/admin/suppliers" label="Suppliers" icon={<Boxes {...ICON_PROPS} />} />
       <NavLink href="/admin/gang-sheets" label="Gang Sheets" icon={<LayoutGrid {...ICON_PROPS} />} />
       </>}
 

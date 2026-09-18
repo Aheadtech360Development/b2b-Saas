@@ -1698,7 +1698,7 @@ const NAV = [
   ]},
   { id: "products-group", label: "Products", icon: Package, children: [
     { id: "products", label: "Products" }, { id: "collections", label: "Collections" }, { id: "inventory", label: "Inventory" }, { id: "reviews", label: "Reviews" },
-    { id: "supplier", label: "Supplier catalog (S&S)" }, { id: "gangsheets", label: "Gang sheets" }, { id: "productspecs", label: "Product specs" },
+    { id: "supplier", label: "Suppliers" }, { id: "gangsheets", label: "Gang sheets" }, { id: "productspecs", label: "Product specs" },
   ]},
   { id: "customers-group", label: "Customers", icon: Users, children: [
     { id: "customers", label: "Customers" }, { id: "approvals", label: "Wholesale approvals" }, { id: "segments", label: "Segments" }, { id: "tiers", label: "Discount groups" },

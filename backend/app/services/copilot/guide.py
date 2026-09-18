@@ -72,7 +72,7 @@ Warehouses are managed at Products → Inventory → Warehouses. Low-stock warni
     ),
     "suppliers": (
         "Connect a supplier catalogue (S&S Activewear)",
-        """Products → Supplier Catalog → "Connect a supplier". Each brand connects its own S&S Activewear account with its own credentials, and imports styles from there into its own catalogue.""",
+        """Products → Suppliers → S&S Activewear → Edit → Connection: add your own S&S account number and API key. Then "Products for Import": set filters (e.g. Brand is Gildan), save, and click Import. "Browse Catalog" lets you add single styles or whole brands, or import one right away. Edit → Product pricing sets your markup rules and rounding; Inventory sets stock sync and safety stock; Automatic sync runs stock (and, with Auto import on, new matching products) on a schedule. SanMar is coming soon.""",
     ),
     "shipping": (
         "Set up shipping and connect carriers",

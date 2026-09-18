@@ -150,19 +150,29 @@ def _apply_best_markup(
     category: str | None,
     brand: str | None,
     style_id: str,
+    style_names: tuple[str | None, ...] = (),
 ) -> float:
+    """Most specific active rule wins: style, then brand, then category, then all.
+
+    Names compare case-insensitively, and a style rule may name the style by
+    S&S's internal id or by the number people actually know it by ("3001").
+    """
+    def norm(v) -> str:
+        return str(v or "").strip().lower()
+
+    styles = {norm(style_id), *(norm(n) for n in style_names if n)}
     best = None
     best_priority = -1
     for rule in rules:
         if not rule.is_active:
             continue
         rt = rule.rule_type
-        tv = rule.target_value or ""
-        if rt == "product" and tv == style_id:
+        tv = norm(rule.target_value)
+        if rt == "product" and tv and tv in styles:
             priority = 3
-        elif rt == "brand" and tv == brand:
+        elif rt == "brand" and tv and tv == norm(brand):
             priority = 2
-        elif rt == "category" and tv == category:
+        elif rt == "category" and tv and tv in {norm(c) for c in str(category or "").split(",")}:
             priority = 1
         elif rt == "global":
             priority = 0
@@ -450,7 +460,10 @@ async def import_ss_product(style_id: str, db: AsyncSession = Depends(get_db)):
         )
         cost = float(sku.get("customerPrice") or sku.get("piecePrice") or 0)
         retail = supplier_cfg.apply_rounding(
-            _apply_best_markup(cost, markup_rules, base_category, brand, style_id), round_to,
+            _apply_best_markup(
+                cost, markup_rules, base_category, brand, style_id,
+                (style_name, first.get("partNumber"), f"{brand or ''} {style_name}"),
+            ), round_to,
         )
         msrp = float(sku.get("retailPrice") or 0) or None
 

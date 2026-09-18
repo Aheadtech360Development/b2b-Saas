@@ -189,7 +189,7 @@ async def style_stats(svc, styles: list[dict]) -> dict[str, dict]:
                 g["colors"].add(r["colorName"])
         for s in batch:
             g = grouped.get(s["style_id"])
-            stat = {"variants": g["variants"], "sizes": g["sizes"][:12], "colors": len(g["colors"])} if g \
+            stat = {"variants": g["variants"], "sizes": g["sizes"], "colors": len(g["colors"])} if g \
                 else {"variants": 0, "sizes": [], "colors": 0}
             out[s["style_id"]] = stat
             try:
