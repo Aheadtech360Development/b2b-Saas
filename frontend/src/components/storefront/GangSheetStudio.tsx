@@ -304,16 +304,21 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
   const canUndo = ptrRef.current > 0;
   const canRedo = ptrRef.current < historyRef.current.length - 1;
 
-  // ── Fit-to-width sizing ──────────────────────────────────────────────────────
+  // ── Fit the sheet to the canvas ──────────────────────────────────────────────
+  const fitSheet = useCallback(() => {
+    const el = scrollRef.current;
+    const availW = (el?.clientWidth ?? 720) - RULER_PAD * 2;
+    const availH = (el?.clientHeight ?? 560) - RULER_PAD * 2;
+    const wFit = availW / (size?.width_in || 22);
+    const hFit = sheetLen > 0 ? availH / sheetLen : wFit;
+    setFitPpi(Math.max(3, Math.min(60, Math.max(Math.min(wFit, hFit), wFit * 0.3))));
+  }, [size?.width_in, sheetLen]);
+
   useEffect(() => {
-    function fit() {
-      const avail = (scrollRef.current?.clientWidth ?? 720) - 32;
-      setFitPpi(Math.max(3, Math.min(60, avail / (size?.width_in || 22))));
-    }
-    fit();
-    window.addEventListener("resize", fit);
-    return () => window.removeEventListener("resize", fit);
-  }, [size?.width_in]);
+    fitSheet();
+    window.addEventListener("resize", fitSheet);
+    return () => window.removeEventListener("resize", fitSheet);
+  }, [fitSheet]);
 
   function clampSnap(xIn: number, yIn: number, fw: number, fh: number) {
     const { snap: s, imageMargin: g, size: sz, sheetLen: len } = stateRef.current;
@@ -994,8 +999,14 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
       setAbMessage(`${built} ${tooBig.length} piece${tooBig.length === 1 ? " is" : "s are"} bigger than the sheet's printable area and ${tooBig.length === 1 ? "was" : "were"} left out — make ${tooBig.length === 1 ? "it" : "them"} smaller and apply again.`);
       return;
     }
-    // The new sheets appear in the list on the right, so the canvas is the answer.
+    // The new sheets appear in the list on the right, so the canvas is the answer —
+    // shown whole, at the fit zoom, rather than wherever the view was left.
     setAbOpen(false);
+    setZoom(1);
+    requestAnimationFrame(() => {
+      fitSheet();
+      if (scrollRef.current) { scrollRef.current.scrollTop = 0; scrollRef.current.scrollLeft = 0; }
+    });
   }
 
   function startOver() {
@@ -1738,7 +1749,8 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
 
         {/* ── Canvas area ───────────────────────────────────────────────────── */}
         <div style={S.canvasArea}>
-          {abOpen ? (
+          {abOpen && (
+            <div style={S.abOverlay}>
             <AutoBuildPanel
               uploads={uploads}
               items={abItems}
@@ -1766,7 +1778,9 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
               onApply={abApply}
               onClose={() => setAbOpen(false)}
             />
-          ) : (<>
+            </div>
+          )}
+          <>
           {/* Toolbar */}
           <div style={S.toolbar}>
             <select value={sizeId} onChange={(e) => setSizeId(e.target.value)} style={S.sizeSelect}>
@@ -1954,7 +1968,7 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
             .gs-canvas-scroll::-webkit-scrollbar-thumb:hover { background: #0F2340; }
             .gs-canvas-scroll::-webkit-scrollbar-corner { background: #DCD9D3; }
           `}</style>
-          </>)}
+          </>
         </div>
 
         {/* ── Right panel: Active Gang Sheets ───────────────────────────────── */}
@@ -2045,7 +2059,8 @@ const S: Record<string, React.CSSProperties> = {
   miniLabel: { display: "flex", flexDirection: "column", gap: "4px", fontSize: "11px", fontWeight: 700, color: "#777" },
   miniInput: { width: "100%", boxSizing: "border-box", minWidth: 0, padding: "7px", border: "1px solid #DDD9D2", borderRadius: "6px", fontSize: "13px" },
   smallBtn: { flex: 1, background: "#fff", border: "1px solid #DDD9D2", borderRadius: "7px", padding: "8px 6px", fontSize: "12px", fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" },
-  canvasArea: { flex: 1, display: "flex", flexDirection: "column", minWidth: 0 },
+  canvasArea: { position: "relative", flex: 1, display: "flex", flexDirection: "column", minWidth: 0 },
+  abOverlay: { position: "absolute", inset: 0, zIndex: 30, display: "flex", background: "#fff" },
   toolbar: { height: "50px", flexShrink: 0, background: "#fff", borderBottom: "1px solid #E5E3DE", display: "flex", alignItems: "center", gap: "10px", padding: "0 14px", flexWrap: "wrap" },
   sizeSelect: { padding: "7px 10px", border: "1px solid #DDD9D2", borderRadius: "6px", fontSize: "13px", minWidth: "150px", background: "#fff" },
   toolDivider: { width: "1px", height: "24px", background: "#E5E3DE" },

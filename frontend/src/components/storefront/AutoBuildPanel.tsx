@@ -132,6 +132,7 @@ export function AutoBuildPanel(p: Props) {
   const inset = Math.max(p.bleed, useArtboard ? artboard : 0);
 
   return (
+    <div style={S.shell}>
     <div style={S.wrap}>
       <input ref={fileRef} type="file" multiple accept="image/*,.svg,.pdf" style={{ display: "none" }}
         onChange={(e) => { if (e.target.files?.length) p.onUploadFiles(e.target.files); e.target.value = ""; }} />
@@ -273,7 +274,15 @@ export function AutoBuildPanel(p: Props) {
             })}
           </div>
 
-          <div style={S.footer}>
+        </>
+      )}
+
+      {p.message && <div style={S.message}>{p.message}</div>}
+    </div>
+
+    {/* The action bar sits below the scrolling list, so it never covers a card. */}
+    {p.items.length > 0 && (
+      <div style={S.footer}>
             <Adders onUpload={() => fileRef.current?.click()} onPick={setPicker} uploading={p.uploading} compact />
             <span style={{ marginLeft: "auto", fontSize: "13px", color: "#444" }}>
               {totalPieces} piece{totalPieces === 1 ? "" : "s"} from {p.items.length} design{p.items.length === 1 ? "" : "s"}
@@ -283,10 +292,7 @@ export function AutoBuildPanel(p: Props) {
               Apply
             </button>
           </div>
-        </>
-      )}
-
-      {p.message && <div style={S.message}>{p.message}</div>}
+    )}
 
       {picker && (
         <div style={S.pickerBackdrop} onClick={() => setPicker(null)}>
@@ -328,7 +334,8 @@ function Adders({ onUpload, onPick, uploading, compact }: {
 }
 
 const S: Record<string, React.CSSProperties> = {
-  wrap: { flex: 1, minHeight: 0, overflowY: "auto", padding: "18px 22px 28px", background: "#fff", display: "flex", flexDirection: "column", gap: "14px" },
+  shell: { flex: 1, minHeight: 0, display: "flex", flexDirection: "column", background: "#fff" },
+  wrap: { flex: 1, minHeight: 0, overflowY: "auto", padding: "18px 22px 22px", display: "flex", flexDirection: "column", gap: "14px" },
   head: { display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "12px", flexWrap: "wrap" },
   title: { fontSize: "17px", fontWeight: 800, color: "#1A1A1A" },
   sub: { fontSize: "12.5px", color: "#666", marginTop: "3px" },
@@ -357,7 +364,7 @@ const S: Record<string, React.CSSProperties> = {
   stepInput: { width: "52px", height: "30px", border: "none", textAlign: "center", fontSize: "13px" },
   small: { padding: "7px 11px", border: "1px solid #D8D5CF", background: "#fff", borderRadius: "7px", fontSize: "12px", fontWeight: 700, cursor: "pointer" },
   danger: { color: "#B91C1C", borderColor: "#FECACA" },
-  footer: { position: "sticky", bottom: "-28px", display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap", padding: "12px 0", background: "#fff", borderTop: "1px solid #EDEBE7" },
+  footer: { flexShrink: 0, display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap", padding: "12px 22px", background: "#fff", borderTop: "1px solid #EDEBE7", boxShadow: "0 -4px 12px rgba(0,0,0,.04)" },
   apply: { padding: "11px 30px", background: "#1A1A1A", color: "#fff", border: "none", borderRadius: "9px", fontSize: "14px", fontWeight: 800, cursor: "pointer" },
   primary: { padding: "10px 16px", background: "#1A1A1A", color: "#fff", border: "none", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: "pointer" },
   secondary: { padding: "10px 16px", background: "#fff", color: "#1A1A1A", border: "1px solid #D8D5CF", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: "pointer" },
