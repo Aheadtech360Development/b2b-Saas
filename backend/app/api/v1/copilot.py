@@ -18,7 +18,9 @@ from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.core.tenant_context import get_current_brand_name
+from app.core.tenant_context import (
+    NO_TENANT, get_current_brand_name, get_current_tenant_id, is_scoping_bypassed,
+)
 from app.middleware.auth_middleware import require_admin
 from app.services.copilot.agent import (
     CopilotError, CopilotLimitReached, CopilotUnavailable, copilot_configured, run_copilot,
@@ -89,6 +91,22 @@ PROPOSE_TOOL = {
 }
 
 
+async def require_brand() -> None:
+    """Every copilot answer must come from exactly one brand's data.
+
+    Tenant scoping filters every query by the current brand — but it steps
+    aside when no brand is set, or when scoping is bypassed for a platform
+    admin. Through the copilot either would mean an answer drawn from every
+    brand on the platform at once. So the copilot refuses to run at all
+    without a single brand in scope, rather than trusting it never happens.
+    """
+    if is_scoping_bypassed() or get_current_tenant_id() in (None, NO_TENANT):
+        raise HTTPException(
+            status_code=400,
+            detail="Open the copilot from a store's own admin — it answers for one store at a time.",
+        )
+
+
 def _brand() -> str:
     return get_current_brand_name() or "this store"
 
@@ -140,7 +158,9 @@ def _raise_for(exc: Exception, *, verbose: bool = False):
 
 
 @admin_router.get("/briefing")
-async def briefing(_: None = Depends(require_admin), db: AsyncSession = Depends(get_db)) -> dict:
+async def briefing(
+    _: None = Depends(require_admin), db: AsyncSession = Depends(get_db), __: None = Depends(require_brand),
+) -> dict:
     data = await build_briefing(db)
     data["ai_enabled"] = copilot_configured()
     return data
@@ -149,6 +169,7 @@ async def briefing(_: None = Depends(require_admin), db: AsyncSession = Depends(
 @admin_router.post("/chat")
 async def owner_chat(
     payload: ChatIn, _: None = Depends(require_admin), db: AsyncSession = Depends(get_db),
+    __: None = Depends(require_brand),
 ) -> dict:
     # Whatever the model proposes lands here, and travels back to the admin as a
     # button. Only the last proposal survives: one question, one thing to confirm.
@@ -184,6 +205,7 @@ async def owner_chat(
 @admin_router.post("/act")
 async def owner_act(
     payload: ActIn, request: Request, _: None = Depends(require_admin), db: AsyncSession = Depends(get_db),
+    __: None = Depends(require_brand),
 ) -> dict:
     """Run one prepared action. This is the only place the copilot's suggestions
     turn into changes, and it is reached by an admin clicking Confirm."""
@@ -203,7 +225,9 @@ async def owner_act(
 
 
 @public_router.post("/support")
-async def customer_support(payload: ChatIn, request: Request, db: AsyncSession = Depends(get_db)) -> dict:
+async def customer_support(
+    payload: ChatIn, request: Request, db: AsyncSession = Depends(get_db), __: None = Depends(require_brand),
+) -> dict:
     user_id = getattr(request.state, "user_id", None)
     company_id = getattr(request.state, "company_id", None)
     if not user_id and not company_id:

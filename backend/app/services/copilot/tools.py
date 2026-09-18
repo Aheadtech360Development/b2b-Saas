@@ -284,7 +284,9 @@ OWNER_TOOLS: list[dict] = [
     {
         "name": "search_orders",
         "description": (
-            "Lists orders, newest first, at most 25. Filter by order status, payment status, a customer "
+            "Counts and lists orders, newest first (the count covers every match; the list shows at "
+            "most 25). Statuses: pending (new), confirmed, processing, ready_for_pickup, shipped, "
+            "delivered, cancelled, refunded. Filter by order status, payment status, a customer "
             "name or email fragment, and a period (start_date/end_date as YYYY-MM-DD, or the last N days). "
             "Use it to find specific orders ('orders from Acme in March', 'what shipped yesterday'). "
             "Returns order number, customer, date, status, payment status, total and tracking. For who "
@@ -617,8 +619,15 @@ def owner_handlers(db: AsyncSession) -> dict[str, Handler]:
         if (q := (args.get("customer") or "").strip()):
             like = f"%{q}%"
             stmt = stmt.where(or_(Company.name.ilike(like), Order.guest_name.ilike(like), Order.guest_email.ilike(like)))
+        # "How many orders are shipped?" needs the count, not the 25 it can list.
+        total = (await db.execute(select(func.count()).select_from(stmt.subquery()))).scalar_one() or 0
         rows = (await db.execute(stmt.order_by(Order.created_at.desc()).limit(MAX_ROWS))).all()
-        return {"orders": [_order_brief(o, name) for o, name in rows], "shown": len(rows), "limit": MAX_ROWS}
+        return {
+            "total_matching": int(total),
+            "orders": [_order_brief(o, name) for o, name in rows],
+            "shown": len(rows),
+            "note": (f"Showing the newest {len(rows)} of {int(total)}." if total > len(rows) else None),
+        }
 
     async def outstanding_balances(args: dict):
         now = datetime.now(UTC)

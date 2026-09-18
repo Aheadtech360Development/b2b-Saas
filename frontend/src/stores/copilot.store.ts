@@ -22,7 +22,16 @@ export interface PreparedAction {
   note?: string;
 }
 
-const KEY = "at360_copilot_thread";
+/**
+ * The thread is kept per brand. A platform admin can open one brand's admin
+ * and then another's in the same tab; one shared key would show brand A's
+ * questions and answers on brand B's dashboard.
+ */
+function storageKey(): string {
+  if (typeof window === "undefined") return "at360_copilot_thread";
+  const slug = document.cookie.split("; ").find((c) => c.startsWith("tenant_slug="))?.split("=")[1];
+  return `at360_copilot_thread:${decodeURIComponent(slug || "") || window.location.hostname}`;
+}
 const MAX_TURNS = 40;
 
 interface Saved { turns: CopilotTurn[]; pending: PreparedAction | null; open: boolean }
@@ -30,7 +39,7 @@ interface Saved { turns: CopilotTurn[]; pending: PreparedAction | null; open: bo
 function load(): Saved {
   if (typeof window === "undefined") return { turns: [], pending: null, open: false };
   try {
-    const raw = sessionStorage.getItem(KEY);
+    const raw = sessionStorage.getItem(storageKey());
     if (!raw) return { turns: [], pending: null, open: false };
     const saved = JSON.parse(raw) as Partial<Saved>;
     return {
@@ -45,7 +54,7 @@ function load(): Saved {
 
 function save(state: Saved) {
   try {
-    sessionStorage.setItem(KEY, JSON.stringify({ ...state, turns: state.turns.slice(-MAX_TURNS) }));
+    sessionStorage.setItem(storageKey(), JSON.stringify({ ...state, turns: state.turns.slice(-MAX_TURNS) }));
   } catch {
     // Private window or storage full — the thread just won't survive a reload.
   }
