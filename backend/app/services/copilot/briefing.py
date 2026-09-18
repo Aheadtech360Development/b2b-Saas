@@ -88,10 +88,15 @@ async def build_briefing(db: AsyncSession) -> dict:
 
     # ── Money not collected ──────────────────────────────────────────────────
     async def unpaid():
+        # Delivered orders stay in: an order on net-30 is delivered first and paid
+        # after, so leaving "delivered" out hid exactly the money a B2B store is
+        # waiting on. Part-payments count for what is left, not the full total.
+        owed = Order.total - func.coalesce(Order.amount_paid, 0)
         row = (await db.execute(
-            select(func.count(Order.id), func.coalesce(func.sum(Order.total), 0)).where(
-                Order.payment_status.in_(("unpaid", "pending", "failed")),
-                Order.status.notin_(CLOSED_ORDER_STATES),
+            select(func.count(Order.id), func.coalesce(func.sum(owed), 0)).where(
+                Order.payment_status.notin_(("paid", "refunded")),
+                Order.status.notin_(("cancelled", "refunded")),
+                owed > 0,
             )
         )).one()
         count, amount = int(row[0] or 0), _money(row[1])
@@ -99,7 +104,7 @@ async def build_briefing(db: AsyncSession) -> dict:
             items.append({
                 "key": "unpaid_orders", "severity": "attention", "count": count, "amount": amount,
                 "title": f"{count} unpaid order{'s' if count != 1 else ''} — ${amount:,.2f} outstanding",
-                "detail": "Open orders whose payment is unpaid, pending or failed.",
+                "detail": "Orders not yet fully paid, including delivered orders on payment terms.",
                 "href": "/admin/orders",
             })
 

@@ -55,6 +55,44 @@ def _days(n, default: int, cap: int = 365) -> int:
         return default
 
 
+def _period(args: dict, default_days: int) -> tuple[datetime, datetime, str]:
+    """[start, end) for a question about a period.
+
+    Explicit dates win: "last month" or "2025" is a calendar period, and "the
+    last 30 days" is not the same thing — August has 31 days and the 30 days
+    before today straddle two months. `end_date` is inclusive, as people say it.
+    Without dates, the last N days up to now.
+    """
+    def parse(v):
+        try:
+            return datetime.strptime(str(v).strip()[:10], "%Y-%m-%d").replace(tzinfo=UTC)
+        except (TypeError, ValueError):
+            return None
+
+    start, end = parse(args.get("start_date")), parse(args.get("end_date"))
+    if start or end:
+        now = datetime.now(UTC)
+        start = start or datetime(2000, 1, 1, tzinfo=UTC)
+        open_ended = end is None
+        end = now if open_ended else end + timedelta(days=1)
+        if end <= start:
+            start, end = end - timedelta(days=1), start + timedelta(days=1)
+            open_ended = False
+        last_day = end if open_ended else end - timedelta(days=1)
+        label = f"{start:%Y-%m-%d} to {last_day:%Y-%m-%d}"
+        return start, end, label
+    days = _days(args.get("days"), default_days, cap=3650)
+    now = datetime.now(UTC)
+    return now - timedelta(days=days), now, f"last {days} days"
+
+
+# Written as "net_30", "net 45", "due_on_receipt"… → days until payment is due.
+def _terms_days(terms: str | None) -> int:
+    t = (terms or "").lower()
+    digits = "".join(ch for ch in t if ch.isdigit())
+    return int(digits) if digits else 0
+
+
 def _order_brief(o: Order, company_name: str | None = None, *, admin: bool = True) -> dict:
     return {
         "order_number": o.order_number,
@@ -227,23 +265,31 @@ OWNER_TOOLS: list[dict] = [
     {
         "name": "sales_summary",
         "description": (
-            "Sales for the last N days: order count, revenue, average order value, orders by status, "
-            "the top products by revenue and the top customers by spend. Cancelled and refunded orders "
-            "are excluded from revenue. Use it for questions like 'what happened this week', 'how are "
-            "sales', 'best sellers' or 'biggest customers'. For profit rather than revenue, use product_margins."
+            "Sales for any period: order count, revenue, average order value, orders by status, the "
+            "top products by revenue, the top customers by spend, and a month-by-month breakdown when "
+            "the period is longer than a month. Cancelled and refunded orders are excluded from revenue. "
+            "For a calendar period — 'last month', 'August', 'last year', '2025', 'this quarter' — pass "
+            "start_date and end_date (YYYY-MM-DD, end inclusive), worked out from today's date. Use days "
+            "only for 'the last N days'. For profit rather than revenue, use product_margins."
         ),
         "input_schema": {
             "type": "object",
-            "properties": {"days": {"type": "integer", "description": "Look-back window in days, 1-365. Default 7."}},
+            "properties": {
+                "start_date": {"type": "string", "description": "First day of the period, YYYY-MM-DD."},
+                "end_date": {"type": "string", "description": "Last day of the period, YYYY-MM-DD, inclusive."},
+                "days": {"type": "integer", "description": "Only when no dates are given: the last N days. Default 7."},
+            },
         },
     },
     {
         "name": "search_orders",
         "description": (
             "Lists orders, newest first, at most 25. Filter by order status, payment status, a customer "
-            "name or email fragment, and a look-back window in days. Use it to find specific orders "
-            "('unpaid orders from Acme', 'what shipped yesterday'). Returns order number, customer, "
-            "date, status, payment status, total and tracking."
+            "name or email fragment, and a period (start_date/end_date as YYYY-MM-DD, or the last N days). "
+            "Use it to find specific orders ('orders from Acme in March', 'what shipped yesterday'). "
+            "Returns order number, customer, date, status, payment status, total and tracking. For who "
+            "owes money and how much, use outstanding_balances instead — it totals every unpaid order, "
+            "not just the first 25."
         ),
         "input_schema": {
             "type": "object",
@@ -251,7 +297,29 @@ OWNER_TOOLS: list[dict] = [
                 "status": {"type": "string", "enum": ["pending", "confirmed", "processing", "ready_for_pickup", "shipped", "delivered", "cancelled", "refunded"]},
                 "payment_status": {"type": "string", "enum": ["unpaid", "pending", "paid", "refunded", "failed"]},
                 "customer": {"type": "string", "description": "Part of a company name, guest name or email."},
+                "start_date": {"type": "string", "description": "Placed on or after this day, YYYY-MM-DD."},
+                "end_date": {"type": "string", "description": "Placed on or before this day, YYYY-MM-DD."},
                 "days": {"type": "integer", "description": "Only orders placed in the last N days."},
+            },
+        },
+    },
+    {
+        "name": "outstanding_balances",
+        "description": (
+            "Money owed to the store: every order not yet fully paid (unpaid, pending, failed, or "
+            "part-paid), excluding cancelled and refunded ones, and including delivered orders on "
+            "payment terms. Returns the grand total outstanding and how much of it is overdue, then "
+            "each customer who owes money — how much, across how many orders, how much is overdue "
+            "and since when — largest first. Due dates come from each order's payment terms (net 30 "
+            "etc.) counted from when the invoice was sent, or from the order date if it wasn't. Pass "
+            "customer to see that customer's unpaid orders one by one. Use it for 'who owes us', "
+            "'outstanding balance', 'unpaid invoices', 'what is overdue', 'how much does X owe'."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "customer": {"type": "string", "description": "Part of a company name, guest name or email — lists that customer's unpaid orders."},
+                "overdue_only": {"type": "boolean", "description": "Only count orders past their due date."},
             },
         },
     },
@@ -490,16 +558,28 @@ def owner_handlers(db: AsyncSession) -> dict[str, Handler]:
         }
 
     async def sales_summary(args: dict):
-        days = _days(args.get("days"), 7)
-        since = datetime.now(UTC) - timedelta(days=days)
-        live = (Order.created_at >= since, Order.status.notin_(("cancelled", "refunded")))
+        since, until, label = _period(args, 7)
+        live = (Order.created_at >= since, Order.created_at < until,
+                Order.status.notin_(("cancelled", "refunded")))
 
         count, revenue = (await db.execute(
             select(func.count(Order.id), func.coalesce(func.sum(Order.total), 0)).where(*live)
         )).one()
         by_status = dict((await db.execute(
-            select(Order.status, func.count(Order.id)).where(Order.created_at >= since).group_by(Order.status)
+            select(Order.status, func.count(Order.id))
+            .where(Order.created_at >= since, Order.created_at < until).group_by(Order.status)
         )).all())
+        # A year is twelve numbers, not one: break long periods down by month.
+        by_month = []
+        if (until - since).days > 31:
+            month = func.date_trunc("month", Order.created_at)
+            by_month = [
+                {"month": f"{m:%Y-%m}", "orders": int(n or 0), "revenue": _money(rev)}
+                for m, n, rev in (await db.execute(
+                    select(month, func.count(Order.id), func.coalesce(func.sum(Order.total), 0))
+                    .where(*live).group_by(month).order_by(month)
+                )).all() if m is not None
+            ]
         top_products = [
             {"product": name, "units": int(units or 0), "revenue": _money(rev)}
             for name, units, rev in (await db.execute(
@@ -518,9 +598,10 @@ def owner_handlers(db: AsyncSession) -> dict[str, Handler]:
         ]
         count = int(count or 0)
         return {
-            "days": days, "orders": count, "revenue": _money(revenue),
+            "period": label, "orders": count, "revenue": _money(revenue),
             "average_order_value": _money(Decimal(str(revenue or 0)) / count) if count else 0.0,
             "orders_by_status": {k: int(v) for k, v in by_status.items()},
+            "by_month": by_month,
             "top_products": top_products, "top_customers": top_customers,
         }
 
@@ -530,13 +611,93 @@ def owner_handlers(db: AsyncSession) -> dict[str, Handler]:
             stmt = stmt.where(Order.status == args["status"])
         if args.get("payment_status"):
             stmt = stmt.where(Order.payment_status == args["payment_status"])
-        if args.get("days"):
-            stmt = stmt.where(Order.created_at >= datetime.now(UTC) - timedelta(days=_days(args["days"], 30)))
+        if args.get("start_date") or args.get("end_date") or args.get("days"):
+            since, until, _ = _period(args, 30)
+            stmt = stmt.where(Order.created_at >= since, Order.created_at < until)
         if (q := (args.get("customer") or "").strip()):
             like = f"%{q}%"
             stmt = stmt.where(or_(Company.name.ilike(like), Order.guest_name.ilike(like), Order.guest_email.ilike(like)))
         rows = (await db.execute(stmt.order_by(Order.created_at.desc()).limit(MAX_ROWS))).all()
         return {"orders": [_order_brief(o, name) for o, name in rows], "shown": len(rows), "limit": MAX_ROWS}
+
+    async def outstanding_balances(args: dict):
+        now = datetime.now(UTC)
+        paid = func.coalesce(Order.amount_paid, 0)
+        owed = Order.total - paid
+        stmt = (
+            select(Order, Company.name)
+            .outerjoin(Company, Company.id == Order.company_id)
+            .where(
+                Order.payment_status.notin_(("paid", "refunded")),
+                Order.status.notin_(("cancelled", "refunded")),
+                owed > 0,
+            )
+        )
+        if (q := (args.get("customer") or "").strip()):
+            like = f"%{q}%"
+            stmt = stmt.where(or_(Company.name.ilike(like), Order.guest_name.ilike(like), Order.guest_email.ilike(like)))
+        rows = (await db.execute(stmt.order_by(Order.created_at.asc()).limit(2000))).all()
+
+        def due_of(o: Order) -> datetime:
+            start = o.invoice_sent_at or o.created_at or now
+            return start + timedelta(days=_terms_days(o.payment_terms))
+
+        only_overdue = bool(args.get("overdue_only"))
+        total = overdue_total = Decimal("0")
+        per: dict[str, dict] = {}
+        detail = []
+        for o, company_name in rows:
+            balance = Decimal(str(o.balance_due))
+            due = due_of(o)
+            late = due < now
+            if only_overdue and not late:
+                continue
+            total += balance
+            if late:
+                overdue_total += balance
+            who = company_name or o.guest_name or o.guest_email or "Guest"
+            key = str(o.company_id) if o.company_id else f"guest:{(o.guest_email or who).lower()}"
+            row = per.setdefault(key, {
+                "customer": who,
+                "admin_link": f"/admin/customers/{o.company_id}" if o.company_id else None,
+                "orders": 0, "outstanding": Decimal("0"), "overdue": Decimal("0"),
+                "oldest_unpaid": o.created_at,
+            })
+            row["orders"] += 1
+            row["outstanding"] += balance
+            if late:
+                row["overdue"] += balance
+            if q:
+                detail.append({
+                    "order_number": o.order_number,
+                    "admin_link": f"/admin/orders/{o.order_number}",
+                    "placed": _iso(o.created_at),
+                    "status": o.status,
+                    "payment_status": o.payment_status,
+                    "total": _money(o.total),
+                    "paid_so_far": _money(o.amount_paid),
+                    "balance": _money(balance),
+                    "terms": o.payment_terms,
+                    "due": _iso(due),
+                    "overdue_days": max(0, (now - due).days) if late else 0,
+                })
+
+        customers = sorted(per.values(), key=lambda r: r["outstanding"], reverse=True)
+        out = {
+            "total_outstanding": _money(total),
+            "overdue": _money(overdue_total),
+            "unpaid_orders": sum(r["orders"] for r in customers),
+            "customers_owing": len(customers),
+            "customers": [{
+                **{k: v for k, v in r.items() if k not in ("outstanding", "overdue", "oldest_unpaid")},
+                "outstanding": _money(r["outstanding"]),
+                "overdue": _money(r["overdue"]),
+                "oldest_unpaid": _iso(r["oldest_unpaid"]),
+            } for r in customers[:MAX_ROWS]],
+        }
+        if q:
+            out["orders"] = detail[:50]
+        return out
 
     async def get_order(args: dict):
         number = str(args.get("order_number") or "").strip().lstrip("#")
@@ -691,6 +852,7 @@ def owner_handlers(db: AsyncSession) -> dict[str, Handler]:
 
     return {
         "get_briefing": get_briefing, "how_to": how_to, "sales_summary": sales_summary,
+        "outstanding_balances": outstanding_balances,
         "catalog_summary": catalog_summary, "search_products": search_products,
         "get_print_job": get_print_job, "list_applications": list_applications,
         "price_product": price_product, "calculate_quote": calculate_quote,
