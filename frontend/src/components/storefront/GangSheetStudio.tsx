@@ -14,7 +14,7 @@
  * gestures stay battle-tested. On save it maps local placements to the server's
  * artwork rows (one artwork per unique upload) and persists the layout.
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   ClipboardPaste, Copy, CopyPlus, Crop, Droplet, Eye, Grid3x3, Hand,
   Layers, Maximize, Minus, Plus, Redo2, Scissors, Trash2, Undo2, Wand2, Zap,
@@ -208,6 +208,7 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
   const fileRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const sheetRef = useRef<HTMLDivElement>(null);
+  const frameRef = useRef<HTMLDivElement>(null);
   const topRulerRef = useRef<HTMLDivElement>(null);
   const leftRulerRef = useRef<HTMLDivElement>(null);
   const nextId = useRef(1);
@@ -231,12 +232,13 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
   const ppi = fitPpi * zoom;
   const sheetWpx = (size?.width_in ?? 0) * ppi;
   const sheetHpx = sheetLen * ppi;
-  // The canvas viewport. A sheet narrower (or shorter) than the screen sits in
-  // the middle of it instead of hugging the top-left corner, so the sheet reads
-  // as the object on the table rather than a strip along one edge.
-  const [viewport, setViewport] = useState({ w: 0, h: 0 });
-  const padX = Math.max(RULER_PAD, Math.round((viewport.w - sheetWpx) / 2));
-  const padY = Math.max(RULER_PAD, Math.round((viewport.h - sheetHpx) / 2));
+  // Where the sheet actually landed inside the scroll area, read back from
+  // layout for the rulers. The sheet is centred by CSS, not by this: working the
+  // position out from the viewport's width fed back into that width — a
+  // scrollbar appearing narrowed the viewport, which moved the sheet, which took
+  // the scrollbar away again — and the whole builder shook. Reading the result
+  // only moves the rulers, which sit outside the scroll area, so nothing loops.
+  const [frame, setFrame] = useState({ x: RULER_PAD, y: RULER_PAD, w: 0, h: 0 });
 
   // Keep latest values available to the window pointer listeners.
   const stateRef = useRef({ placements, ppi, snap, imageMargin, size, sheetLen });
@@ -948,15 +950,21 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
     return () => el.removeEventListener("wheel", handle);
   }, [zoom]);
 
-  useEffect(() => {
-    const el = scrollRef.current;
-    if (!el || typeof ResizeObserver === "undefined") return;
-    const measure = () => setViewport({ w: el.clientWidth, h: el.clientHeight });
+  useLayoutEffect(() => {
+    const wrap = frameRef.current, sheet = sheetRef.current;
+    if (!wrap || !sheet) return;
+    const measure = () => {
+      const next = { x: sheet.offsetLeft, y: sheet.offsetTop, w: wrap.offsetWidth, h: wrap.offsetHeight };
+      // Only a real change re-renders; an identical reading must not.
+      setFrame((f) => (f.x === next.x && f.y === next.y && f.w === next.w && f.h === next.h ? f : next));
+    };
     measure();
+    if (typeof ResizeObserver === "undefined") return;
     const ro = new ResizeObserver(measure);
-    ro.observe(el);
+    ro.observe(wrap);
+    if (scrollRef.current) ro.observe(scrollRef.current);
     return () => ro.disconnect();
-  }, []);
+  }, [sheetWpx, sheetHpx]);
 
   // Keep rulers aligned after zoom/size changes made without a scroll event
   // (zoom buttons, fit-to-screen, size switch).
@@ -965,7 +973,7 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
     if (!el) return;
     if (topRulerRef.current) topRulerRef.current.scrollLeft = el.scrollLeft;
     if (leftRulerRef.current) leftRulerRef.current.scrollTop = el.scrollTop;
-  }, [zoom, sheetWpx, sheetHpx, padX, padY]);
+  }, [zoom, sheetWpx, sheetHpx, frame.x, frame.y]);
 
   // Seed the first Active Gang Sheet once sizes (or a resumed order) are known.
   useEffect(() => {
@@ -1277,11 +1285,18 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
 
   const warnIds = useMemo(() => new Set(warnings.map((w) => w.id)), [warnings]);
   const overlapIds = useMemo(() => new Set(warnings.filter((w) => w.kind === "overlap").map((w) => w.id)), [warnings]);
+  // Counted by design, not by finding: a design overlapping two others is one
+  // design to move, not two, and a pair shouldn't count twice.
   const warnCounts = useMemo(() => {
-    const c: Record<string, number> = {};
-    for (const w of warnings) c[w.kind] = (c[w.kind] || 0) + 1;
-    return c;
+    const byKind: Record<string, Set<number>> = {};
+    for (const w of warnings) (byKind[w.kind] ??= new Set()).add(w.id);
+    return Object.fromEntries(Object.entries(byKind).map(([k, ids]) => [k, ids.size])) as Record<string, number>;
   }, [warnings]);
+  // Everything except overlaps, which get their own banner.
+  const otherIssueIds = useMemo(
+    () => new Set(warnings.filter((w) => w.kind !== "overlap").map((w) => w.id)),
+    [warnings],
+  );
 
   return (
     <div style={S.root}>
@@ -1673,23 +1688,23 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
           <div style={S.rulerGrid}>
             <div style={S.rulerCorner} />
             <div ref={topRulerRef} style={S.rulerTopWrap}>
-              <Ruler axis="x" contentPx={sheetWpx + padX * 2} ppi={ppi} lengthIn={size?.width_in ?? 0} pad={padX} />
+              <Ruler axis="x" contentPx={frame.w || sheetWpx + RULER_PAD * 2} ppi={ppi} lengthIn={size?.width_in ?? 0} pad={frame.x} />
             </div>
             <div ref={leftRulerRef} style={S.rulerLeftWrap}>
-              <Ruler axis="y" contentPx={sheetHpx + padY * 2} ppi={ppi} lengthIn={sheetLen} pad={padY} />
+              <Ruler axis="y" contentPx={frame.h || sheetHpx + RULER_PAD * 2} ppi={ppi} lengthIn={sheetLen} pad={frame.y} />
             </div>
 
             <div style={{ position: "relative", minWidth: 0, minHeight: 0 }}>
               {/* Scrollable sheet — wheel-zoom bound natively; scroll syncs the rulers. */}
               <div ref={scrollRef} onScroll={syncRulers} className="gs-canvas-scroll" style={S.canvasScroll}>
-                <div style={{ padding: `${padY}px ${padX}px`, width: "max-content" }}>
+                <div ref={frameRef} style={S.sheetFrame}>
                 <div
                   ref={sheetRef}
                   tabIndex={0}
                   onKeyDown={onKeyDown}
                   onPointerDown={(e) => { if (panTool) { startPan(e); return; } setSelected(null); sheetRef.current?.focus(); }}
                   style={{
-                    position: "relative", width: `${sheetWpx}px`, height: `${sheetHpx}px`, margin: 0,
+                    position: "relative", width: `${sheetWpx}px`, height: `${sheetHpx}px`, margin: "auto", flexShrink: 0,
                     background: "#fff", outline: "none", touchAction: "none", userSelect: "none",
                     cursor: panTool ? "grab" : "default",
                     // A checker the eye can actually see, and a hard edge: the sheet
@@ -1759,11 +1774,24 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
                 </div>
               </div>
 
-              {/* Floating warnings (top-right) — advisory, never blocks saving. */}
-              {warnings.length > 0 && (
-                <div style={S.canvasWarn}>
-                  <span style={{ fontWeight: 800 }}>⚠ {warnings.length} issue{warnings.length === 1 ? "" : "s"}</span>
-                  {warnCounts.overlap ? <span> · {warnCounts.overlap} overlapping</span> : null}
+              {/* Overlapping designs print on top of each other and ruin both,
+                  so they get a banner of their own across the top of the canvas
+                  rather than a word in a list. */}
+              {overlapIds.size > 0 && (
+                <div role="alert" style={S.overlapBanner}>
+                  <span aria-hidden style={S.overlapIcon}>!</span>
+                  <span>
+                    <strong>Images are overlapping</strong>
+                    {" — "}{overlapIds.size} design{overlapIds.size === 1 ? "" : "s"} on top of each other.
+                    {" "}Move them apart or use Auto Nest.
+                  </span>
+                </div>
+              )}
+
+              {/* Other issues (top-right) — advisory, never blocks saving. */}
+              {otherIssueIds.size > 0 && (
+                <div style={{ ...S.canvasWarn, top: overlapIds.size > 0 ? "64px" : "10px" }}>
+                  <span style={{ fontWeight: 800 }}>⚠ {otherIssueIds.size} design{otherIssueIds.size === 1 ? "" : "s"} to check</span>
                   {warnCounts.outside ? <span> · {warnCounts.outside} past safe area</span> : null}
                   {warnCounts.dpi ? <span> · {warnCounts.dpi} low res</span> : null}
                   {warnCounts.small ? <span> · {warnCounts.small} too small</span> : null}
@@ -1900,6 +1928,7 @@ const S: Record<string, React.CSSProperties> = {
   // Pressed state for a toggle tool — dark, so it reads as "on" at a glance.
   iconBtnOn: { background: "#1A1A1A", borderColor: "#1A1A1A", color: "#fff" },
   canvasScroll: { position: "absolute", inset: 0, overflow: "auto" },
+  sheetFrame: { position: "relative", display: "flex", minWidth: "100%", minHeight: "100%", width: "max-content", boxSizing: "border-box", padding: `${RULER_PAD}px` },
   // A darker table than the sheet, so the sheet stands off it.
   rulerGrid: { flex: 1, minHeight: 0, display: "grid", gridTemplateColumns: "26px 1fr", gridTemplateRows: "22px 1fr", background: "#E6E3DE" },
   viewStrip: { display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap", padding: "7px 12px", borderTop: "1px solid #DAD6CF", background: "#fff", fontSize: "11px", color: "#555" },
@@ -1910,6 +1939,8 @@ const S: Record<string, React.CSSProperties> = {
   rulerTopWrap: { overflow: "hidden", borderBottom: "1px solid #ECEAE5", background: "#fff", position: "relative" },
   rulerLeftWrap: { overflow: "hidden", borderRight: "1px solid #ECEAE5", background: "#fff", position: "relative" },
   canvasCheck: { display: "flex", alignItems: "center", gap: "6px", fontSize: "12px", fontWeight: 600, color: "#444", cursor: "pointer" },
+  overlapBanner: { position: "absolute", top: "12px", left: "50%", transform: "translateX(-50%)", zIndex: 6, display: "flex", alignItems: "center", gap: "10px", maxWidth: "min(560px, 80%)", background: "#FFEDD5", border: "1px solid #FDBA74", color: "#9A3412", borderRadius: "8px", padding: "9px 14px", fontSize: "13px", lineHeight: 1.45, boxShadow: "0 4px 14px rgba(154,52,18,.15)" },
+  overlapIcon: { width: "20px", height: "20px", flexShrink: 0, borderRadius: "50%", border: "2px solid #C2410C", color: "#C2410C", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: "12px", fontWeight: 800 },
   canvasWarn: { position: "absolute", top: "10px", right: "10px", zIndex: 4, display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap", background: "#FFF7ED", border: "1px solid #FED7AA", color: "#9A3412", borderRadius: "8px", padding: "7px 11px", fontSize: "12px", maxWidth: "55%", justifyContent: "flex-end", boxShadow: "0 1px 4px rgba(0,0,0,.06)" },
   rightPanel: { width: "240px", flexShrink: 0, background: "#fff", borderLeft: "1px solid #E5E3DE", padding: "16px", display: "flex", flexDirection: "column", gap: "10px" },
   activeCard: { border: "1px solid #E5E3DE", borderRadius: "10px", padding: "12px" },
