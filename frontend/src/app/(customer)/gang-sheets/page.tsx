@@ -1,378 +1,139 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-  GANG_SHEET_STATUS_COLOR,
-  GANG_SHEET_STATUS_LABEL,
-  gangSheetsService,
-  type GangSheetOrder,
-  type GangSheetSize,
-} from "@/services/gangSheets.service";
-import { cartService } from "@/services/cart.service";
+/**
+ * /gang-sheets — straight into the builder.
+ *
+ * This used to be a hub between the product page and the builder: the same
+ * size grid the product page had just shown, a "Build your own" button, a
+ * welcome screen, and the buyer's past sheets. Choosing a size twice to reach
+ * one tool was a step nobody needed, and past sheets already live under My
+ * Print Jobs. So the page now only loads what the builder needs and opens it.
+ *
+ *   ?product=<id>   whose sheet sizes to use (falls back to the brand's set)
+ *   ?size=<id>      the size picked on the product page
+ *   ?edit=<id>      reopen a saved job that is still the buyer's to change
+ *   ?auto=1         open on Auto Build
+ */
+import { useEffect, useState } from "react";
+import Link from "next/link";
+import { gangSheetsService, type GangSheetOrder, type GangSheetSize } from "@/services/gangSheets.service";
 import { GangSheetStudio } from "@/components/storefront/GangSheetStudio";
-import { GangSheetTimeline } from "@/components/storefront/GangSheetTimeline";
 import { useAuthStore } from "@/stores/auth.store";
 
-const CARD: React.CSSProperties = {
-  background: "#fff",
-  border: "1px solid #E8E6E1",
-  borderRadius: "var(--brand-corner-radius, 10px)",
-  padding: "22px",
-};
-
-// Staged messages shown while the editor spins up — the "starting your builder"
-// beat the reference tools use so the jump into a full-screen canvas feels smooth.
-const LOADING_STEPS = [
-  "Starting your builder…",
-  "Preparing your canvas…",
-  "Loading design tools…",
-  "Almost there…",
-];
-
-type Phase = "idle" | "loading" | "welcome" | "studio";
+interface Launch {
+  sizes: GangSheetSize[];
+  productId: string | null;
+  sizeId: string | null;
+  resume: GangSheetOrder | null;
+  auto: boolean;
+}
 
 export default function GangSheetBuilderPage() {
-  const { isAuthenticated, user } = useAuthStore();
-  const [sizes, setSizes] = useState<GangSheetSize[]>([]);
-  const [orders, setOrders] = useState<GangSheetOrder[]>([]);
-  const [phase, setPhase] = useState<Phase>("idle");
-  const [loadStep, setLoadStep] = useState(0);
-  const [autoStart, setAutoStart] = useState(false);
-  const [resumeOrder, setResumeOrder] = useState<GangSheetOrder | null>(null);
-  const [justSaved, setJustSaved] = useState<GangSheetOrder | null>(null);
-  const [productId, setProductId] = useState<string | null>(null);
-  const [selectedSizeId, setSelectedSizeId] = useState<string>("");
-  const [reordering, setReordering] = useState<string | null>(null);
-  const [reorderError, setReorderError] = useState<string | null>(null);
+  const { isAuthenticated, isLoading, user } = useAuthStore();
+  const [launch, setLaunch] = useState<Launch | null>(null);
+  const [problem, setProblem] = useState<string | null>(null);
 
-  // Read the product from the URL, then load THAT product's sizes (falls back to
-  // the brand's global set server-side). Done together so we never load the
-  // wrong (global) sizes first when a product is in scope.
   useEffect(() => {
+    if (isLoading) return;
+    // The builder saves to the buyer's account, so it needs one. Come back here
+    // after signing in, with the same product and size.
+    if (!isAuthenticated()) {
+      const next = window.location.pathname + window.location.search;
+      window.location.href = `/login?next=${encodeURIComponent(next)}`;
+      return;
+    }
+
     const params = new URLSearchParams(window.location.search);
-    const pid = params.get("product");
-    const sid = params.get("size"); // pre-selected size from the product page grid
-    setProductId(pid);
-    gangSheetsService
-      .listSizes(pid || undefined)
-      .then((rows) => {
-        setSizes(rows);
-        setSelectedSizeId((cur) => cur || (sid && rows.some((r) => r.id === sid) ? sid : "") || rows[0]?.id || "");
-      })
-      .catch(() => setSizes([]));
-  }, []);
+    const productId = params.get("product");
+    const sizeId = params.get("size");
+    const editId = params.get("edit");
+    let cancelled = false;
 
-  const loadOrders = useCallback(() => {
-    if (!isAuthenticated()) return;
-    gangSheetsService.myOrders().then(setOrders).catch(() => setOrders([]));
-  }, [isAuthenticated]);
-  useEffect(loadOrders, [loadOrders]);
+    (async () => {
+      try {
+        const [sizes, resume] = await Promise.all([
+          gangSheetsService.listSizes(productId || undefined),
+          editId ? gangSheetsService.myOrder(editId).catch(() => null) : Promise.resolve(null),
+        ]);
+        if (cancelled) return;
+        if (!sizes.length) {
+          setProblem("This product has no sheet sizes set up yet, so there's nothing to build on.");
+          return;
+        }
+        if (editId && !resume) {
+          setProblem("That gang sheet couldn't be opened — it may belong to another account or no longer exist.");
+          return;
+        }
+        if (resume && resume.status !== "submitted" && resume.status !== "revision_requested") {
+          setProblem("That gang sheet is already with the print team, so it can't be edited any more.");
+          return;
+        }
+        setLaunch({
+          sizes,
+          productId: productId || resume?.product_id || null,
+          sizeId: sizeId && sizes.some((s) => s.id === sizeId) ? sizeId : null,
+          resume,
+          auto: params.get("auto") === "1",
+        });
+      } catch {
+        if (!cancelled) setProblem("The builder couldn't load. Please refresh the page to try again.");
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [isLoading, isAuthenticated]);
 
-  // ── Per-size "Save %" (vs the best per-foot price) + a Best-value marker ──────
-  // Mirrors the industry size grid: bigger sheets cost less per foot, so we show
-  // the discount off the priciest-per-foot size. Purely derived from the admin's
-  // sizes/prices — nothing hardcoded.
-  const { savings, bestValueId } = useMemo(() => {
-    const perFoot = (s: GangSheetSize) => {
-      const feet = s.height_in / 12;
-      return s.pricing_mode === "fixed" && s.price_per_sheet > 0 && feet > 0
-        ? s.price_per_sheet / feet
-        : null;
-    };
-    const rates = sizes.map(perFoot).filter((r): r is number => r != null);
-    const worst = rates.length ? Math.max(...rates) : 0; // priciest per-foot = the baseline
-    const save: Record<string, number> = {};
-    let bestId = "";
-    let bestPct = 0;
-    for (const s of sizes) {
-      const r = perFoot(s);
-      if (r == null || worst <= 0) continue;
-      const pct = Math.round((1 - r / worst) * 100);
-      save[s.id] = pct;
-      if (pct > bestPct) { bestPct = pct; bestId = s.id; }
-    }
-    return { savings: save, bestValueId: bestId };
-  }, [sizes]);
-
-  const selectedSize = sizes.find((s) => s.id === selectedSizeId) || sizes[0];
-
-  // ── Launch flow: idle → loading (staged) → welcome modal ─────────────────────
-  const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
-  function clearTimers() { timers.current.forEach(clearTimeout); timers.current = []; }
-  useEffect(() => clearTimers, []);
-
-  function launch() {
-    if (!isAuthenticated()) { window.location.href = "/login?next=/gang-sheets"; return; }
-    if (sizes.length === 0) return;
-    setJustSaved(null);
-    setLoadStep(0);
-    setPhase("loading");
-    // Advance the loading copy, then reveal the welcome choices.
-    LOADING_STEPS.forEach((_, i) => {
-      if (i === 0) return;
-      timers.current.push(setTimeout(() => setLoadStep(i), i * 480));
-    });
-    timers.current.push(setTimeout(() => setPhase("welcome"), LOADING_STEPS.length * 480 + 250));
+  // Close goes back to wherever the buyer came from — usually the product page.
+  function leave() {
+    if (window.history.length > 1) window.history.back();
+    else window.location.href = "/";
   }
 
-  function enterStudio(auto: boolean) {
-    setResumeOrder(null);   // fresh build
-    setAutoStart(auto);
-    setPhase("studio");
-  }
-
-  // Reorder means "I want this again", so it has to end in the cart. Cloning the
-  // job and leaving it in the history list looked like nothing had happened.
-  async function reorder(o: GangSheetOrder) {
-    setReordering(o.id);
-    try {
-      const clone = await gangSheetsService.reorder(o.id);
-      await cartService.addGangSheet(clone.id);
-      window.location.href = "/cart";
-    } catch {
-      setReorderError("Could not reorder this job. Please try again.");
-      setReordering(null);
-      loadOrders();
-    }
-  }
-
-  // Reopen a saved, still-editable order in the builder.
-  async function editOrder(o: GangSheetOrder) {
-    try {
-      const full = await gangSheetsService.myOrder(o.id); // includes artworks + layout
-      setResumeOrder(full);
-      setAutoStart(false);
-      setPhase("studio");
-    } catch { /* ignore — leave them on the list */ }
-  }
-
-  function closeStudio() {
-    setResumeOrder(null);
-    setPhase("idle");
-    loadOrders();
-  }
-  function onSaved(order: GangSheetOrder) {
-    setResumeOrder(null);
-    setJustSaved(order);
-    setPhase("idle");
-    loadOrders();
-  }
-
-  // ── Full-screen studio ───────────────────────────────────────────────────────
-  if (phase === "studio") {
+  if (problem) {
     return (
-      <GangSheetStudio
-        sizes={sizes}
-        productId={productId}
-        contactName={[user?.first_name, user?.last_name].filter(Boolean).join(" ") || undefined}
-        contactEmail={user?.email}
-        autoStart={autoStart}
-        initialSizeId={selectedSizeId}
-        resumeOrder={resumeOrder}
-        onClose={closeStudio}
-        onSaved={onSaved}
-      />
+      <div style={S.center}>
+        <div style={S.card}>
+          <div style={{ fontSize: "16px", fontWeight: 800, marginBottom: "6px" }}>Gang sheet builder</div>
+          <p style={{ fontSize: "14px", color: "#555", lineHeight: 1.6, margin: "0 0 16px" }}>{problem}</p>
+          <div style={{ display: "flex", gap: "10px", justifyContent: "center", flexWrap: "wrap" }}>
+            <button onClick={leave} style={S.primary}>Go back</button>
+            <Link href="/account/gang-sheets" style={S.secondary}>My print jobs</Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!launch) {
+    return (
+      <div style={S.center} role="status" aria-live="polite">
+        <style>{"@keyframes gsspin{to{transform:rotate(360deg)}}"}</style>
+        <div style={S.spinner} />
+        <div style={{ fontSize: "15px", fontWeight: 700, marginTop: "18px" }}>Opening your builder…</div>
+      </div>
     );
   }
 
   return (
-    <div style={{ maxWidth: "980px", margin: "0 auto", padding: "36px 20px 60px" }}>
-      {/* ── Loading overlay ──────────────────────────────────────────────────── */}
-      {phase === "loading" && (
-        <div style={overlay}>
-          <style>{"@keyframes gsspin{to{transform:rotate(360deg)}}"}</style>
-          <div style={{ textAlign: "center" }}>
-            <div style={spinner} />
-            <div style={{ fontSize: "18px", fontWeight: 800, marginTop: "26px" }}>{LOADING_STEPS[loadStep]}</div>
-            <div style={{ display: "flex", gap: "6px", justifyContent: "center", marginTop: "16px" }}>
-              {LOADING_STEPS.map((_, i) => (
-                <span key={i} style={{ width: "8px", height: "8px", borderRadius: "50%", background: i <= loadStep ? "var(--brand-primary,#1C3557)" : "#D6D3CC", transition: "background .2s" }} />
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── Welcome modal ────────────────────────────────────────────────────── */}
-      {phase === "welcome" && (
-        <div style={overlay}>
-          <div style={{ ...CARD, width: "min(460px, 92vw)", padding: "28px" }}>
-            <h2 style={{ fontSize: "20px", fontWeight: 800, marginBottom: "6px" }}>Welcome to the Gang Sheet Builder</h2>
-            <p style={{ fontSize: "13px", color: "#777", marginBottom: "20px" }}>
-              Build a print-ready sheet in minutes. Choose how you&apos;d like to start.
-            </p>
-            <div style={{ display: "grid", gap: "10px" }}>
-              <button onClick={() => enterStudio(false)} style={welcomeBtn}>
-                <span>Start a brand-new gang sheet</span><span>→</span>
-              </button>
-              <button onClick={() => enterStudio(true)} style={{ ...welcomeBtn, background: "#F4F6FB", color: "var(--brand-primary,#1C3557)", borderColor: "#D9DEE9" }}>
-                <span>Auto build (upload &amp; we arrange)</span><span>→</span>
-              </button>
-              <button onClick={() => setPhase("idle")} style={{ ...welcomeBtn, background: "#fff", color: "#888", justifyContent: "center", borderStyle: "dashed" }}>
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── Landing ──────────────────────────────────────────────────────────── */}
-      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "20px", flexWrap: "wrap", marginBottom: "22px" }}>
-        <div>
-          <h1 style={{ fontSize: "28px", fontWeight: 800, marginBottom: "6px", fontFamily: "var(--brand-font-heading, inherit)" }}>Gang Sheet Builder</h1>
-          <p style={{ color: "#666", fontSize: "14px", maxWidth: "540px" }}>
-            Drop your designs onto a sheet, arrange them with drag &amp; drop, and see live print quality — then save it straight to your cart.
-          </p>
-        </div>
-      </div>
-
-      {justSaved && (
-        <div style={{ background: "#F0FDF4", border: "1px solid #BBF7D0", color: "#166534", padding: "14px 16px", borderRadius: "10px", fontSize: "14px", marginBottom: "20px" }}>
-          ✓ <strong>{justSaved.reference}</strong> saved — {justSaved.sheet_name} · {justSaved.sheet_quantity} sheet(s) · ${justSaved.subtotal.toFixed(2)}. It&apos;s in <a href="/account/gang-sheets" style={{ color: "#166534", fontWeight: 700 }}>My Print Jobs</a>.
-        </div>
-      )}
-
-      {/* Hero / launch — size grid (price + Save %) then the big build CTA. */}
-      <div style={{ ...CARD, padding: "28px 24px 32px", marginBottom: "26px", background: "linear-gradient(135deg,#FBFBF9,#F4F6FB)" }}>
-        <div style={{ textAlign: "center" }}>
-          <div style={{ fontSize: "34px" }}>🧩</div>
-          <h2 style={{ fontSize: "20px", fontWeight: 800, margin: "8px 0 4px" }}>Build a Gang Sheet</h2>
-          <p style={{ fontSize: "13px", color: "#777", maxWidth: "440px", margin: "0 auto 6px" }}>
-            Pick a size, then drop your designs onto a to-scale sheet — resize, duplicate, auto-nest, with live print-quality checks.
-          </p>
-        </div>
-
-        {sizes.length === 0 ? (
-          <div style={{ color: "#999", fontSize: "13px", textAlign: "center", marginTop: "14px" }}>
-            Gang sheets aren&apos;t available from this store yet.
-          </div>
-        ) : (
-          <>
-            {/* Selected-size summary */}
-            {selectedSize && (
-              <div style={{ textAlign: "center", margin: "18px 0 6px" }}>
-                <div style={{ fontSize: "13px", color: "#666" }}>
-                  Size: <strong>{selectedSize.name}</strong>
-                  {selectedSize.pricing_mode === "fixed" && (
-                    <span style={{ color: "#111", fontWeight: 800, marginLeft: "8px" }}>
-                      ${selectedSize.price_per_sheet.toFixed(2)}
-                    </span>
-                  )}
-                  {selectedSize.pricing_mode === "custom_length" && (
-                    <span style={{ color: "#111", fontWeight: 800, marginLeft: "8px" }}>
-                      ${selectedSize.price_per_inch.toFixed(2)}/in · {selectedSize.min_length_in}–{selectedSize.max_length_in} in
-                    </span>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* Size grid */}
-            <div style={{ display: "flex", flexWrap: "wrap", gap: "10px", justifyContent: "center", margin: "12px 0 22px" }}>
-              {sizes.map((s) => {
-                const active = s.id === selectedSizeId;
-                const pct = savings[s.id] ?? 0;
-                const best = s.id === bestValueId && pct > 0;
-                return (
-                  <div key={s.id} style={{ position: "relative", paddingTop: best ? "12px" : 0 }}>
-                    {best && (
-                      <span style={{ position: "absolute", top: 0, left: "50%", transform: "translateX(-50%)", background: "#DC2626", color: "#fff", fontSize: "9px", fontWeight: 800, padding: "2px 8px", borderRadius: "10px", whiteSpace: "nowrap", letterSpacing: ".03em", zIndex: 1 }}>
-                        BEST VALUE
-                      </span>
-                    )}
-                    <button
-                      onClick={() => setSelectedSizeId(s.id)}
-                      style={{
-                        minWidth: "92px", padding: "12px 14px 10px", cursor: "pointer",
-                        border: active ? "2px solid var(--brand-primary,#1C3557)" : "1px solid #DDD9D2",
-                        background: active ? "#fff" : "#fff",
-                        borderRadius: "10px", textAlign: "center",
-                        boxShadow: active ? "0 2px 8px rgba(28,53,87,.12)" : "none",
-                      }}
-                    >
-                      <div style={{ fontSize: "14px", fontWeight: 800, color: "#111" }}>{s.name}</div>
-                      {s.pricing_mode === "fixed" && (
-                        <div style={{ fontSize: "11px", color: "#888", marginTop: "2px" }}>${s.price_per_sheet.toFixed(0)}</div>
-                      )}
-                      <div style={{ fontSize: "11px", fontWeight: 700, color: pct > 0 ? "#DC2626" : "transparent", marginTop: "3px" }}>
-                        {pct > 0 ? `Save ${pct}%` : "—"}
-                      </div>
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
-
-            <div style={{ textAlign: "center" }}>
-              <button
-                onClick={launch}
-                style={{ background: "var(--brand-primary,#1C3557)", color: "#fff", border: "none", padding: "15px 40px", borderRadius: "8px", fontSize: "15px", fontWeight: 800, cursor: "pointer", letterSpacing: ".02em" }}
-              >
-                {isAuthenticated() ? "BUILD YOUR OWN GANG SHEET →" : "Sign in to build →"}
-              </button>
-            </div>
-          </>
-        )}
-      </div>
-
-      {/* History */}
-      {orders.length > 0 && (
-        <div>
-          <h2 style={{ fontSize: "17px", fontWeight: 800, marginBottom: "12px" }}>Your gang sheets</h2>
-          {reorderError && (
-            <div style={{ background: "#FEF2F2", border: "1px solid #FECACA", color: "#991B1B", borderRadius: "8px", padding: "10px 12px", fontSize: "13px", marginBottom: "12px" }}>
-              {reorderError}
-            </div>
-          )}
-          <div style={{ display: "grid", gap: "14px" }}>
-            {orders.map((o) => {
-              const c = GANG_SHEET_STATUS_COLOR[o.status] ?? { bg: "#eee", fg: "#555" };
-              return (
-                <div key={o.id} style={{ ...CARD, padding: "16px 18px" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px", flexWrap: "wrap", marginBottom: "12px" }}>
-                    <div>
-                      <div style={{ fontWeight: 700, fontSize: "14px" }}>
-                        {o.reference}{(o.version ?? 1) > 1 ? <span style={{ color: "#888", fontWeight: 500 }}> · v{o.version}</span> : null}
-                      </div>
-                      <div style={{ fontSize: "12px", color: "#888" }}>{o.sheet_name} · {o.sheet_quantity} sheet(s) · ${o.subtotal.toFixed(2)}</div>
-                      {o.supplier_notes && <div style={{ fontSize: "12px", color: "#9A3412", marginTop: "4px" }}>“{o.supplier_notes}”</div>}
-                    </div>
-                    <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                      <span style={{ background: c.bg, color: c.fg, padding: "3px 10px", borderRadius: "20px", fontSize: "11px", fontWeight: 700 }}>
-                        {GANG_SHEET_STATUS_LABEL[o.status] ?? o.status}
-                      </span>
-                      {o.paid && <span style={{ background: "#DCFCE7", color: "#166534", padding: "3px 10px", borderRadius: "20px", fontSize: "11px", fontWeight: 700 }}>Paid ✓</span>}
-                      {o.sheet_size_id && (o.status === "submitted" || o.status === "revision_requested") && (
-                        <button onClick={() => editOrder(o)} style={{ background: "var(--brand-primary,#1C3557)", color: "#fff", border: "none", padding: "6px 12px", borderRadius: "6px", fontSize: "12px", fontWeight: 700, cursor: "pointer" }}>Edit in builder</button>
-                      )}
-                      {o.status === "revision_requested" && (
-                        <button onClick={() => gangSheetsService.resubmit(o.id).then(loadOrders).catch(() => {})} style={{ background: "none", border: "1px solid #DDD9D2", padding: "5px 12px", borderRadius: "6px", fontSize: "12px", fontWeight: 600, cursor: "pointer" }}>Resubmit</button>
-                      )}
-                      <button onClick={() => reorder(o)} disabled={reordering === o.id} style={{ background: "none", border: "1px solid #DDD9D2", padding: "5px 12px", borderRadius: "6px", fontSize: "12px", fontWeight: 600, cursor: "pointer" }}>{reordering === o.id ? "Adding…" : "Reorder"}</button>
-                    </div>
-                  </div>
-                  <GangSheetTimeline status={o.status} timeline={o.status_timeline} />
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-    </div>
+    <GangSheetStudio
+      sizes={launch.sizes}
+      productId={launch.productId}
+      contactName={[user?.first_name, user?.last_name].filter(Boolean).join(" ") || undefined}
+      contactEmail={user?.email}
+      autoStart={launch.auto}
+      initialSizeId={launch.sizeId}
+      resumeOrder={launch.resume}
+      onClose={leave}
+      // "Save" keeps the sheet without buying it; it is then waiting under My
+      // Print Jobs. "Save & Add to Cart" goes to the cart on its own.
+      onSaved={() => { window.location.href = "/account/gang-sheets?saved=1"; }}
+    />
   );
 }
 
-const overlay: React.CSSProperties = {
-  position: "fixed", inset: 0, zIndex: 200, background: "rgba(244,243,241,.96)",
-  display: "flex", alignItems: "center", justifyContent: "center",
-};
-const spinner: React.CSSProperties = {
-  width: "46px", height: "46px", borderRadius: "50%",
-  border: "4px solid #E2E0DA", borderTopColor: "var(--brand-primary,#1C3557)",
-  margin: "0 auto", animation: "gsspin 0.8s linear infinite",
-};
-const welcomeBtn: React.CSSProperties = {
-  display: "flex", justifyContent: "space-between", alignItems: "center",
-  background: "var(--brand-primary,#1C3557)", color: "#fff", border: "1px solid #E5E3DE",
-  padding: "14px 16px", borderRadius: "9px", fontSize: "14px", fontWeight: 700, cursor: "pointer",
+const S: Record<string, React.CSSProperties> = {
+  center: { minHeight: "70vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "24px", textAlign: "center" },
+  card: { maxWidth: "440px", background: "#fff", border: "1px solid #E8E6E1", borderRadius: "12px", padding: "26px" },
+  spinner: { width: "44px", height: "44px", borderRadius: "50%", border: "4px solid #E5E3DE", borderTopColor: "var(--brand-primary, #1C3557)", animation: "gsspin .8s linear infinite" },
+  primary: { padding: "10px 18px", background: "#1A1A1A", color: "#fff", border: "none", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: "pointer" },
+  secondary: { padding: "10px 18px", background: "#fff", color: "#1A1A1A", border: "1px solid #D8D5CF", borderRadius: "8px", fontSize: "13px", fontWeight: 700, textDecoration: "none" },
 };

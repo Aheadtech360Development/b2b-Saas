@@ -25,8 +25,11 @@ export default function AccountGangSheetsPage() {
   const [busy, setBusy] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [revised, setRevised] = useState(false);
+  const [saved, setSaved] = useState(false);
   useEffect(() => {
-    setRevised(new URLSearchParams(window.location.search).get("revised") === "1");
+    const q = new URLSearchParams(window.location.search);
+    setRevised(q.get("revised") === "1");
+    setSaved(q.get("saved") === "1");
   }, []);
 
   const load = useCallback(() => {
@@ -66,6 +69,12 @@ export default function AccountGangSheetsPage() {
       <p style={{ fontSize: "14px", color: "#666", marginBottom: "22px" }}>
         Gang sheets you built and designs you uploaded by size — track each one from review to production.
       </p>
+
+      {saved && (
+        <div style={{ background: "#F0FDF4", border: "1px solid #BBF7D0", color: "#166534", borderRadius: "8px", padding: "10px 12px", fontSize: "13px", marginBottom: "14px" }}>
+          Your gang sheet is saved. Open it with &ldquo;Edit in builder&rdquo; to keep working on it, and use Save &amp; Add to Cart there when it&apos;s ready.
+        </div>
+      )}
 
       {revised && (
         <div style={{ background: "#F0FDF4", border: "1px solid #BBF7D0", color: "#166534", borderRadius: "8px", padding: "10px 12px", fontSize: "13px", marginBottom: "14px" }}>
@@ -121,8 +130,10 @@ export default function AccountGangSheetsPage() {
                         Update &amp; resubmit
                       </Link>
                     )}
-                    {o.status === "revision_requested" && kindOf(o) === "gang_sheet" && (
-                      <Link href="/gang-sheets"
+                    {/* The builder page no longer lists past sheets, so reopening
+                        one happens from here, straight into that sheet. */}
+                    {(o.status === "submitted" || o.status === "revision_requested") && kindOf(o) === "gang_sheet" && (
+                      <Link href={`/gang-sheets?edit=${o.id}${o.product_id ? `&product=${o.product_id}` : ""}`}
                         style={{ background: "var(--brand-primary, #1C3557)", color: "#fff", padding: "7px 14px", borderRadius: "6px", fontSize: "13px", fontWeight: 700, textDecoration: "none" }}>
                         Edit in builder
                       </Link>
