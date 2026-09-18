@@ -188,6 +188,29 @@ async def request_json(
         raise CarrierError(f"{carrier.upper()} returned a response that wasn't JSON.")
 
 
+_TRACK = {
+    "ups": "https://www.ups.com/track?tracknum={n}",
+    "fedex": "https://www.fedex.com/fedextrack/?trknbr={n}",
+    "usps": "https://tools.usps.com/go/TrackConfirmAction?tLabels={n}",
+}
+
+
+def tracking_url(carrier: str, number: str | None) -> str | None:
+    """The carrier's public tracking page for a number, for the customer email."""
+    first = (number or "").split(",")[0].strip()
+    tpl = _TRACK.get((carrier or "").lower())
+    return tpl.format(n=first) if tpl and first else None
+
+
+# A real, ordinary shipment used to prove an account can actually be rated:
+# a token alone doesn't show the account number is valid or enabled.
+SAMPLE_FROM = {"name": "Verification", "street1": "350 5th Ave", "city": "New York", "state": "NY",
+               "zip": "10118", "country": "US", "phone": "2125550100"}
+SAMPLE_TO = {"name": "Verification", "street1": "9336 Civic Center Dr", "city": "Beverly Hills", "state": "CA",
+             "zip": "90210", "country": "US", "phone": "3105550100"}
+SAMPLE_PARCEL = {"weight_lb": 1, "length_in": 10, "width_in": 8, "height_in": 4}
+
+
 def lbs_and_inches(parcel: dict) -> tuple[float, float, float, float]:
     """Normalise a parcel to (weight_lb, length_in, width_in, height_in).
 

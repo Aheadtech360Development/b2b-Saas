@@ -12,9 +12,13 @@ from app.services.carriers.base import (
     CarrierError,
     LabelResult,
     RateQuote,
+    SAMPLE_FROM,
+    SAMPLE_PARCEL,
+    SAMPLE_TO,
     lbs_and_inches,
     oauth_token,
     request_json,
+    tracking_url,
 )
 
 logger = logging.getLogger(__name__)
@@ -52,13 +56,18 @@ async def _token(creds: dict) -> str:
 
 
 async def verify(creds: dict) -> dict:
+    """Get a token, then rate a sample parcel: FedEx validates the account
+    number on a rate request, so this is what proves it."""
+    if not creds.get("account_number"):
+        return {"ok": False, "message": "Enter your FedEx account number. Postage bills to it."}
     try:
         await _token(creds)
+        quotes = await rates(creds, SAMPLE_FROM, SAMPLE_TO, SAMPLE_PARCEL)
     except CarrierError as exc:
         return {"ok": False, "message": str(exc)}
-    if not creds.get("account_number"):
-        return {"ok": False, "message": "FedEx connected, but an account number is needed to rate and bill."}
-    return {"ok": True, "message": "Connected to FedEx. Rates and labels will bill to your account."}
+    if not quotes:
+        return {"ok": False, "message": "FedEx accepted the credentials but returned no rates for a test parcel."}
+    return {"ok": True, "message": f"Connected to FedEx: {len(quotes)} services priced on your account."}
 
 
 def _address(a: dict, *, residential: bool = False) -> dict:
@@ -74,14 +83,14 @@ def _address(a: dict, *, residential: bool = False) -> dict:
     }
 
 
-def _contact(a: dict) -> dict:
+def _contact(a: dict, *, residential: bool = False) -> dict:
     return {
         "contact": {
             "personName": (a.get("name") or "Shipper")[:70],
             "companyName": (a.get("company") or a.get("name") or "")[:35],
             "phoneNumber": "".join(ch for ch in str(a.get("phone") or "") if ch.isdigit())[:15] or "0000000000",
         },
-        **_address(a),
+        **_address(a, residential=residential),
     }
 
 
@@ -132,11 +141,10 @@ async def rates(creds: dict, ship_from: dict, ship_to: dict, parcel: dict) -> li
                             else (chosen.get("shipmentRateDetail") or {}).get("totalNetCharge")))
         except (TypeError, ValueError):
             continue
-        days = None
-        try:
-            days = int(str(opt.get("transitTime") or "").split("_")[0])
-        except (TypeError, ValueError):
-            pass
+        # FedEx spells transit time out ("THREE_DAYS"); express services carry
+        # a commit date instead and are left without a day count.
+        words = {"ONE": 1, "TWO": 2, "THREE": 3, "FOUR": 4, "FIVE": 5, "SIX": 6, "SEVEN": 7, "EIGHT": 8, "NINE": 9, "TEN": 10}
+        days = words.get(str(opt.get("transitTime") or (opt.get("commit") or {}).get("transitDays", {}).get("description") or "").split("_")[0].upper())
         out.append(RateQuote(
             carrier="fedex",
             service_code=code,
@@ -158,11 +166,13 @@ async def label(creds: dict, ship_from: dict, ship_to: dict, parcel: dict, servi
         raise CarrierError("A FedEx account number is required to buy a label.")
 
     body = {
-        "labelResponseOptions": "URL_ONLY",
+        # The label itself, not a link: FedEx label links expire, and the
+        # store needs to reprint it later.
+        "labelResponseOptions": "LABEL",
         "accountNumber": {"value": account},
         "requestedShipment": {
             "shipper": _contact(ship_from),
-            "recipients": [_contact(ship_to)],
+            "recipients": [_contact(ship_to, residential=bool(ship_to.get("residential")))],
             "shipDatestamp": None,
             "serviceType": service_code,
             "packagingType": "YOUR_PACKAGING",
@@ -195,12 +205,13 @@ async def label(creds: dict, ship_from: dict, ship_to: dict, parcel: dict, servi
     shipment = transactions[0]
     tracking = shipment.get("masterTrackingNumber") or ""
 
-    label_url = None
+    label_url, label_b64 = None, None
     pieces = shipment.get("pieceResponses") or []
     if pieces:
         docs = pieces[0].get("packageDocuments") or []
         if docs:
             label_url = docs[0].get("url")
+            label_b64 = docs[0].get("encodedLabel")
 
     amount = None
     try:
@@ -219,7 +230,9 @@ async def label(creds: dict, ship_from: dict, ship_to: dict, parcel: dict, servi
         carrier="fedex",
         tracking_number=tracking,
         label_url=label_url,
+        label_base64=label_b64,
         label_format="PDF",
         amount=amount,
-        meta={"service_code": service_code},
+        meta={"service_code": service_code, "service_name": SERVICES.get(service_code, service_code),
+              "tracking_url": tracking_url("fedex", tracking)},
     )

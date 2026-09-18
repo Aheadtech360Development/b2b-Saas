@@ -890,38 +890,20 @@ async def generate_shipping_label(
 
             _tid = get_current_tenant_id()
             _from = await _ship_svc.get_ship_from(db, _tid)
-            _to = _json.loads(order.shipping_address_snapshot or "{}")
             label = await carrier_service.buy_label(
                 db,
                 rate_id=str(saved_rate_id),
                 ship_from=_from,
-                ship_to={
-                    "name": _to.get("full_name") or _to.get("label") or "Customer",
-                    "street1": _to.get("address_line1") or _to.get("line1") or "",
-                    "street2": _to.get("address_line2") or _to.get("line2") or "",
-                    "city": _to.get("city") or "",
-                    "state": _to.get("state") or "",
-                    "zip": _to.get("postal_code") or _to.get("zip_code") or "",
-                    "country": _to.get("country") or "US",
-                    "phone": _to.get("phone") or "",
-                },
+                ship_to=carrier_service.ship_to_from_snapshot(order.shipping_address_snapshot),
                 parcel={
-                    "weight_lb": payload.weight_lbs or 1.0,
+                    "weight_lb": payload.weight_lbs or getattr(order, "calculated_weight_lbs", None) or 1.0,
                     "length_in": payload.length_in or 12,
                     "width_in": payload.width_in or 9,
                     "height_in": payload.height_in or 3,
                 },
                 tenant_id=_tid,
             )
-            result = {
-                "success": True,
-                "tracking_number": label.tracking_number,
-                "tracking_url": None,
-                "label_url": label.label_url,
-                "label_base64": label.label_base64,
-                "carrier": label.carrier.upper(),
-                "service": label.meta.get("service_code", ""),
-            }
+            result = carrier_service.label_result(order, label)
         except Exception as _dc_exc:
             _lbl_log.warning("Direct carrier label failed: %s", _dc_exc)
             raise HTTPException(status_code=400, detail=str(_dc_exc))
@@ -974,8 +956,10 @@ async def generate_shipping_label(
         entry = {
             "status": "shipped",
             "message": (
-                f"Shippo label generated via {result['carrier']} {result['service']}"
-                f" — Tracking: {result['tracking_number']}"
+                (f"{result['carrier']} label bought on your own account ({result['service']})"
+                 if result.get("source") == "carrier"
+                 else f"Shippo label generated via {result['carrier']} {result['service']}")
+                + f" — Tracking: {result['tracking_number']}"
             ),
             "created_by": "admin",
             "created_at": datetime.now(timezone.utc).isoformat(),
@@ -991,6 +975,31 @@ async def generate_shipping_label(
         await _send_order_status_email(order, "shipped", db)
 
     return result
+
+
+@router.get("/orders/{order_id}/label")
+async def download_order_label(order_id: UUID, db: AsyncSession = Depends(get_db)):
+    """The label file kept on the order (UPS/USPS/FedEx labels bought on the
+    brand's own account). Tenant-scoped like every order read."""
+    import base64 as _b64
+
+    from fastapi.responses import Response
+    from sqlalchemy.orm import undefer
+
+    order = (await db.execute(
+        select(Order).options(undefer(Order.label_data)).where(Order.id == order_id)
+    )).scalar_one_or_none()
+    if not order or not order.label_data:
+        raise HTTPException(status_code=404, detail="No label file on this order")
+    fmt = (order.label_format or "PDF").upper()
+    media = {"PDF": "application/pdf", "GIF": "image/gif", "PNG": "image/png", "ZPL": "application/octet-stream"}
+    try:
+        data = _b64.b64decode(order.label_data)
+    except Exception:
+        raise HTTPException(status_code=500, detail="The stored label is unreadable")
+    name = f"label-{order.order_number}-{(order.tracking_number or '').split(',')[0]}.{fmt.lower()}"
+    return Response(content=data, media_type=media.get(fmt, "application/octet-stream"),
+                    headers={"Content-Disposition": f'inline; filename="{name}"'})
 
 
 class _FetchRatesRequest(BaseModel):
@@ -1011,14 +1020,16 @@ async def fetch_order_rates(
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
 
-    addr = _json.loads(order.shipping_address_snapshot or "{}")
+    from app.services import carrier_service as _carriers
+
+    _dest = _carriers.ship_to_from_snapshot(order.shipping_address_snapshot)
     to_address = {
-        "name": addr.get("full_name") or addr.get("name") or "Customer",
-        "street1": addr.get("address_line1") or addr.get("street1") or "123 Main St",
-        "city": addr.get("city") or "Unknown",
-        "state": addr.get("state") or addr.get("state_province", ""),
-        "zip": addr.get("zip_code") or addr.get("postal_code") or addr.get("zip", ""),
-        "country": addr.get("country", "US"),
+        "name": _dest["name"],
+        "street1": _dest["street1"] or "123 Main St",
+        "city": _dest["city"] or "Unknown",
+        "state": _dest["state"],
+        "zip": _dest["zip"],
+        "country": _dest["country"],
     }
     if not to_address["state"] or not to_address["zip"]:
         raise HTTPException(status_code=422, detail="Incomplete shipping address on order (missing state or ZIP)")
@@ -1030,9 +1041,27 @@ async def fetch_order_rates(
     from app.services import shippo_service as _ship_wh
     wh = await _ship_wh.get_ship_from(db, _gtid_wh()) or WAREHOUSE_ADDRESS
 
+    # A brand with its own UPS / FedEx / USPS accounts is quoted — and later
+    # billed — on those, never on the aggregator.
+    direct = await _carriers.get_rates(
+        db, ship_from=wh, ship_to=_dest,
+        parcel={"weight_lb": weight_lbs, "length_in": 12, "width_in": 10, "height_in": 6},
+        tenant_id=_gtid_wh(),
+    )
+    if direct.get("connected"):
+        return {
+            "rates": [{
+                "rate_id": r["rate_id"], "carrier": r["carrier"].upper(), "service": r["service_name"],
+                "cost": r["amount"], "currency": r["currency"], "days": r["estimated_days"],
+            } for r in direct["rates"]],
+            "source": "carrier",
+            **({"error": "; ".join(e["message"] for e in direct["errors"])} if direct["errors"] and not direct["rates"] else {}),
+            **({"warnings": direct["errors"]} if direct["errors"] and direct["rates"] else {}),
+        }
+
     try:
         from app.core.tenant_context import get_current_tenant_id as _gtid
-        client = get_client(await shippo_service.get_shippo_key(db, _gtid()))
+        client = get_client(await _ship_wh.get_shippo_key(db, _gtid()))
         shipment = client.shipments.create(
             _comp.ShipmentCreateRequest(
                 address_from=_comp.AddressCreateRequest(
@@ -1117,7 +1146,27 @@ async def generate_label_manual(
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
 
-    if payload.rate_id:
+    if payload.rate_id and ":" in payload.rate_id:
+        # A rate from the brand's own carrier ("ups:03"): buy it there.
+        from app.core.tenant_context import get_current_tenant_id as _gtid_c
+        from app.services import carrier_service as _carriers
+        from app.services import shippo_service as _ship_c
+        from app.services.carriers.base import CarrierError as _CarrierError
+        try:
+            label = await _carriers.buy_label(
+                db, rate_id=payload.rate_id,
+                ship_from=await _ship_c.get_ship_from(db, _gtid_c()),
+                ship_to=_carriers.ship_to_from_snapshot(order.shipping_address_snapshot),
+                parcel={"weight_lb": max(payload.weight_lbs, 0.1), "length_in": 12, "width_in": 10, "height_in": 6},
+                tenant_id=_gtid_c(),
+            )
+            result = _carriers.label_result(order, label)
+        except _CarrierError as exc:
+            result = {"success": False, "error": str(exc)}
+        except Exception as exc:
+            logger.warning("direct carrier label failed: %s", exc)
+            result = {"success": False, "error": "The carrier didn't answer. No label was bought — try again."}
+    elif payload.rate_id:
         # Purchase the specific rate the admin selected from fetch-rates
         from app.services import shippo_service as _ship_svc2
         from app.services.shippo_service import get_client
@@ -1180,8 +1229,10 @@ async def generate_label_manual(
         entry = {
             "status": "shipped",
             "message": (
-                f"Shippo label generated (manual) via {result['carrier']} {result['service']}"
-                f" — Tracking: {result['tracking_number']}"
+                (f"{result['carrier']} label bought on your own account ({result['service']})"
+                 if result.get("source") == "carrier"
+                 else f"Shippo label generated (manual) via {result['carrier']} {result['service']}")
+                + f" — Tracking: {result['tracking_number']}"
             ),
             "created_by": "admin",
             "created_at": datetime.now(timezone.utc).isoformat(),

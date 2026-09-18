@@ -7,14 +7,19 @@ the brand supplies, which is the whole point of connecting per brand.
 from __future__ import annotations
 
 import logging
+import uuid
 
 from app.services.carriers.base import (
     CarrierError,
     LabelResult,
     RateQuote,
+    SAMPLE_FROM,
+    SAMPLE_PARCEL,
+    SAMPLE_TO,
     lbs_and_inches,
     oauth_token,
     request_json,
+    tracking_url,
 )
 
 logger = logging.getLogger(__name__)
@@ -54,15 +59,24 @@ async def _token(creds: dict) -> str:
     )
 
 
+def _headers() -> dict:
+    # UPS asks every call to carry a transaction id and a source name.
+    return {"transId": uuid.uuid4().hex[:32], "transactionSrc": "AT360"}
+
+
 async def verify(creds: dict) -> dict:
-    """A token exchange is enough — it proves the app and secret are live."""
+    """Get a token, then rate a sample parcel on the account: a token alone
+    doesn't prove the shipper number is right."""
+    if not creds.get("account_number"):
+        return {"ok": False, "message": "Enter your UPS account (shipper) number. Postage bills to it."}
     try:
         await _token(creds)
+        quotes = await rates(creds, SAMPLE_FROM, SAMPLE_TO, SAMPLE_PARCEL)
     except CarrierError as exc:
         return {"ok": False, "message": str(exc)}
-    if not creds.get("account_number"):
-        return {"ok": False, "message": "UPS connected, but an account number is needed to bill postage."}
-    return {"ok": True, "message": "Connected to UPS. Rates and labels will bill to your account."}
+    if not quotes:
+        return {"ok": False, "message": "UPS accepted the credentials but returned no rates for a test parcel."}
+    return {"ok": True, "message": f"Connected to UPS: {len(quotes)} services priced on your account."}
 
 
 def _address(a: dict, *, residential: bool = False) -> dict:
@@ -124,7 +138,7 @@ async def rates(creds: dict, ship_from: dict, ship_to: dict, parcel: dict) -> li
 
     data = await request_json(
         "ups", "POST", f"{_host(creds)}/api/rating/v2205/Shop",
-        token=token, json_body=body,
+        token=token, json_body=body, extra_headers=_headers(),
     )
 
     out: list[RateQuote] = []
@@ -191,7 +205,7 @@ async def label(creds: dict, ship_from: dict, ship_to: dict, parcel: dict, servi
 
     data = await request_json(
         "ups", "POST", f"{_host(creds)}/api/shipments/v2409/ship",
-        token=token, json_body=body,
+        token=token, json_body=body, extra_headers=_headers(),
     )
 
     results = (data.get("ShipmentResponse") or {}).get("ShipmentResults") or {}
@@ -215,5 +229,6 @@ async def label(creds: dict, ship_from: dict, ship_to: dict, parcel: dict, servi
         label_base64=image,
         label_format="GIF",
         amount=amount,
-        meta={"service_code": service_code},
+        meta={"service_code": service_code, "service_name": SERVICES.get(service_code, f"UPS {service_code}"),
+              "tracking_url": tracking_url("ups", tracking)},
     )

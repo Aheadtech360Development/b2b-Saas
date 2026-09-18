@@ -13,9 +13,13 @@ from app.services.carriers.base import (
     CarrierError,
     LabelResult,
     RateQuote,
+    SAMPLE_FROM,
+    SAMPLE_PARCEL,
+    SAMPLE_TO,
     lbs_and_inches,
     oauth_token,
     request_json,
+    tracking_url,
 )
 
 logger = logging.getLogger(__name__)
@@ -48,16 +52,24 @@ async def _token(creds: dict) -> str:
 
 
 async def verify(creds: dict) -> dict:
+    """Token, a sample price, and (when the label details are there) the
+    payment authorisation labels will need, so a bad CRID/MID/EPS shows now
+    rather than on the first label."""
     try:
-        await _token(creds)
+        token = await _token(creds)
+        quotes = await rates(creds, SAMPLE_FROM, SAMPLE_TO, SAMPLE_PARCEL)
     except CarrierError as exc:
         return {"ok": False, "message": str(exc)}
     missing = [n for n, k in (("EPS account number", "account_number"), ("CRID", "crid"), ("MID", "mid"))
                if not creds.get(k)]
-    msg = "Connected to USPS."
     if missing:
-        msg += f" Rates will work now; add your {', '.join(missing)} to buy labels."
-    return {"ok": True, "message": msg}
+        return {"ok": True, "message": f"Connected to USPS: {len(quotes)} services priced. "
+                                       f"Add your {', '.join(missing)} to buy labels."}
+    try:
+        await _payment_token(creds, token)
+    except CarrierError as exc:
+        return {"ok": False, "message": f"Rates work, but labels won't: {exc}"}
+    return {"ok": True, "message": f"Connected to USPS: {len(quotes)} services priced, labels bill to EPS {creds.get('account_number')}."}
 
 
 def _zip5(a: dict) -> str:
@@ -159,7 +171,8 @@ async def _payment_token(creds: dict, token: str) -> str:
         token=token,
         json_body={"roles": [
             {"roleName": "PAYER", **role},
-            {"roleName": "LABEL_OWNER", **role},
+            # The label owner also names the MID its manifests go under.
+            {"roleName": "LABEL_OWNER", **role, "manifestMID": str(mid)},
         ]},
     )
     payment_token = data.get("paymentAuthorizationToken")
@@ -196,16 +209,22 @@ async def label(creds: dict, ship_from: dict, ship_to: dict, parcel: dict, servi
     data = await request_json(
         "usps", "POST", f"{_host(creds)}/labels/v3/label",
         token=token, json_body=body,
-        extra_headers={"X-Payment-Authorization-Token": payment_token},
+        # Without this USPS answers multipart/mixed; this asks for JSON with
+        # the label inside as base64.
+        extra_headers={"X-Payment-Authorization-Token": payment_token,
+                       "Accept": "application/vnd.usps.labels+json"},
     )
 
-    tracking = data.get("trackingNumber") or ""
+    # The details sit under labelMetadata; older answers had them at the top.
+    meta = data.get("labelMetadata") or data
+    tracking = meta.get("trackingNumber") or data.get("trackingNumber") or ""
     if not tracking:
         raise CarrierError("USPS returned no tracking number.")
 
     amount = None
     try:
-        amount = float((data.get("postage") or {}).get("totalPrice") or data.get("totalPrice"))
+        postage = meta.get("postage")
+        amount = float(postage.get("totalPrice") if isinstance(postage, dict) else postage)
     except (TypeError, ValueError, AttributeError):
         pass
 
@@ -215,5 +234,6 @@ async def label(creds: dict, ship_from: dict, ship_to: dict, parcel: dict, servi
         label_base64=data.get("labelImage"),
         label_format="PDF",
         amount=amount,
-        meta={"service_code": service_code},
+        meta={"service_code": service_code, "service_name": SERVICES.get(service_code, service_code),
+              "tracking_url": tracking_url("usps", tracking)},
     )

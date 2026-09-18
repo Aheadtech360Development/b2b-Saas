@@ -138,6 +138,8 @@ async function refreshAccessToken(): Promise<string | null> {
 
 export interface RequestOptions extends RequestInit {
   skipAuth?: boolean;
+  /** Return the body as a Blob instead of parsing JSON. */
+  asBlob?: boolean;
 }
 
 export class ApiClientError extends Error {
@@ -202,7 +204,7 @@ function readApiError(body: ApiErrorBody, fallback: string) {
 }
 
 async function request<T>(url: string, options: RequestOptions = {}): Promise<T> {
-  const { skipAuth = false, ...fetchOptions } = options;
+  const { skipAuth = false, asBlob: _asBlob, ...fetchOptions } = options;
 
   const headers = new Headers(fetchOptions.headers);
 
@@ -253,6 +255,7 @@ async function request<T>(url: string, options: RequestOptions = {}): Promise<T>
   }
 
   if (response.status === 204) return undefined as T;
+  if (options.asBlob) return (await response.blob()) as T;
 
   return response.json() as Promise<T>;
 }
@@ -286,6 +289,10 @@ export const apiClient = {
 
   delete: <T>(url: string, options?: RequestOptions) =>
     request<T>(url, { ...options, method: "DELETE" }),
+
+  /** A file from the API (e.g. a shipping label), fetched with the admin's token. */
+  blob: (url: string, options?: RequestOptions) =>
+    request<Blob>(url, { ...options, method: "GET", asBlob: true }),
 
   postForm: <T>(url: string, formData: FormData, options?: RequestOptions) =>
     request<T>(url, { ...options, method: "POST", body: formData }),

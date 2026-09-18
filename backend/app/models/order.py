@@ -79,6 +79,11 @@ class Order(TenantMixin, BaseModel):
     tracking_number: Mapped[str | None] = mapped_column(String(255))
     tracking_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     label_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # The label file itself (base64) when a carrier returns the image rather
+    # than a lasting link — UPS and USPS always do. Deferred: it is only read
+    # when the label is downloaded.
+    label_data: Mapped[str | None] = mapped_column(Text, nullable=True, deferred=True)
+    label_format: Mapped[str | None] = mapped_column(String(10), nullable=True)
     carrier: Mapped[str | None] = mapped_column(String(100))
     shipping_rate_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     courier: Mapped[str | None] = mapped_column(String(100))

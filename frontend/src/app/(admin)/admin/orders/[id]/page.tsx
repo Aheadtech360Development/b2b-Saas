@@ -908,8 +908,24 @@ export default function AdminOrderDetailPage() {
                     <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" as const }}>
                       {labelResult.label_url && (
                         <a href={labelResult.label_url} target="_blank" rel="noreferrer"
+                          onClick={(e) => {
+                            // Labels bought on the brand's own carrier account are kept
+                            // on the order and served by the admin API, which needs the
+                            // admin's token — a plain link can't carry it.
+                            const url = labelResult.label_url ?? "";
+                            if (!url.startsWith("/api/")) return;
+                            e.preventDefault();
+                            const win = window.open("", "_blank");
+                            apiClient.blob(url)
+                              .then((b) => {
+                                const obj = URL.createObjectURL(b);
+                                if (win) win.location.href = obj; else window.location.href = obj;
+                                setTimeout(() => URL.revokeObjectURL(obj), 60_000);
+                              })
+                              .catch((err) => { win?.close(); alert(err instanceof Error ? err.message : "Couldn't open the label."); });
+                          }}
                           style={{ background: "#1A1A1A", color: "#fff", padding: "8px 16px", borderRadius: "6px", fontSize: "13px", fontWeight: 700, textDecoration: "none" }}>
-                          ↓ Download Label PDF
+                          ↓ Download Label
                         </a>
                       )}
                       {labelResult.tracking_url && (
