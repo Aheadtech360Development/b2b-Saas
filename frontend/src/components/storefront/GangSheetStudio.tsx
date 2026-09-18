@@ -307,11 +307,16 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
   // ── Fit the sheet to the canvas ──────────────────────────────────────────────
   const fitSheet = useCallback(() => {
     const el = scrollRef.current;
-    const availW = (el?.clientWidth ?? 720) - RULER_PAD * 2;
-    const availH = (el?.clientHeight ?? 560) - RULER_PAD * 2;
+    // A few pixels of slack: a sheet sized to exactly the space available lands a
+    // fraction of a pixel over it, and the browser answers with a scrollbar for
+    // a sheet that visibly fits.
+    const SLACK = 8;
+    const availW = (el?.clientWidth ?? 720) - RULER_PAD * 2 - SLACK;
+    const availH = (el?.clientHeight ?? 560) - RULER_PAD * 2 - SLACK;
     const wFit = availW / (size?.width_in || 22);
     const hFit = sheetLen > 0 ? availH / sheetLen : wFit;
-    setFitPpi(Math.max(3, Math.min(60, Math.max(Math.min(wFit, hFit), wFit * 0.3))));
+    const ppiFit = Math.max(3, Math.min(60, Math.max(Math.min(wFit, hFit), wFit * 0.3)));
+    setFitPpi(Math.floor(ppiFit * 100) / 100);
   }, [size?.width_in, sheetLen]);
 
   useEffect(() => {
