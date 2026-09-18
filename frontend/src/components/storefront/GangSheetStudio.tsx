@@ -34,6 +34,9 @@ import { analyzeArtwork } from "@/lib/artworkAnalysis";
 import { cartService } from "@/services/cart.service";
 import { ImageEditorModal } from "@/components/storefront/ImageEditorModal";
 import { WorkingOverlay } from "@/components/storefront/WorkingOverlay";
+import { AutoBuildPanel, type AutoBuildItem, type PickableDesign } from "@/components/storefront/AutoBuildPanel";
+import { packIntoSheets, type Layout } from "@/lib/sheetPacking";
+import type { ArtworkInspection } from "@/services/gangSheets.service";
 import { removeImageBackground, BackgroundRemovalError } from "@/lib/backgroundRemoval";
 
 const IMAGE_TYPES = new Set(["png", "jpg", "jpeg", "webp", "gif"]);
@@ -204,6 +207,12 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
   const [dupQty, setDupQty] = useState(5);
   const [dupApplyMargin, setDupApplyMargin] = useState(false);
   const [dupMargin, setDupMargin] = useState(0.5);
+  // Auto Build: upload several designs, size them, set quantities, pack sheets.
+  const [abOpen, setAbOpen] = useState(false);
+  const [abItems, setAbItems] = useState<AutoBuildItem[]>([]);
+  const [abBusy, setAbBusy] = useState<{ key: string; label: string } | null>(null);
+  const [abChecks, setAbChecks] = useState<Record<string, ArtworkInspection | null | "loading">>({});
+  const [abMessage, setAbMessage] = useState<string | null>(null);
 
   const fileRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -212,7 +221,6 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
   const topRulerRef = useRef<HTMLDivElement>(null);
   const leftRulerRef = useRef<HTMLDivElement>(null);
   const nextId = useRef(1);
-  const autoRan = useRef(false);
 
   const size = useMemo(() => sizes.find((s) => s.id === sizeId), [sizes, sizeId]);
   const isCustom = size?.pricing_mode === "custom_length";
@@ -385,6 +393,7 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
 
   async function onFiles(files: FileList | null, autoPlace = true) {
     if (!files?.length || !size) return;
+    if (abOpen) { abUploadFiles(files); return; }
     setUploading(true);
     setError(null);
     const review: File[] = [];
@@ -538,7 +547,7 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
 
   /** Add an already-hosted design (from Gallery or the store's Designs library)
    *  straight onto the sheet — no re-upload, just reference its URL. */
-  async function addFromUrl(file_url: string, file_name: string, file_type?: string | null) {
+  async function hostedUpload(file_url: string, file_name: string, file_type?: string | null): Promise<Upload> {
     const type = (file_type || file_url.split(".").pop() || "").toLowerCase();
     const isImg = IMAGE_TYPES.has(type);
     let pxW = 0, pxH = 0;
@@ -550,7 +559,11 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
       aspect: pxW && pxH ? pxW / pxH : 1,
     };
     setUploads((cur) => [...cur, u]);
-    addPlacement(u);
+    return u;
+  }
+
+  async function addFromUrl(file_url: string, file_name: string, file_type?: string | null) {
+    addPlacement(await hostedUpload(file_url, file_name, file_type));
   }
 
   // ── Add Text (rasterised to PNG so it flows through the same pipeline) ─────────
@@ -851,50 +864,138 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
     setSelected(null);
   }
 
-  // Auto-build: fill the sheet with copies of your designs (round-robin), packed
-  // top-to-bottom. Great starting point — then delete any copies you don't want.
-  function autoBuild() {
-    if (!size) return;
-    const g = Math.min(Math.max(imageMargin, 0.1), 3); // sane cap so a huge margin can't break the fill
-    const bx0 = bleed, by0 = bleed;
-    const bx1 = size.width_in - bleed, by1 = sheetLen - bleed;
-    const W = bx1 - bx0;
-    // Base set: each unique design currently on the sheet at its size; if nothing
-    // is placed yet, every upload at its default print size.
-    const base: { uid: string; w: number; h: number }[] = [];
-    const seen = new Set<string>();
-    for (const p of stateRef.current.placements) {
-      if (seen.has(p.uid)) continue;
-      seen.add(p.uid);
-      base.push({ uid: p.uid, w: p.w_in, h: p.h_in });
-    }
-    if (base.length === 0) {
-      for (const u of uploads) { const d = defaultSize(u); base.push({ uid: u.uid, w: d.w, h: d.h }); }
-    }
-    if (base.length === 0) return;
+  // ── Auto Build ───────────────────────────────────────────────────────────────
+  function abItemFor(u: Upload): AutoBuildItem {
+    const d = defaultSize(u);
+    return { key: uid(), uid: u.uid, w: d.w, h: d.h, lock: true, qty: 1, originalUid: null };
+  }
 
-    const shelves: { y: number; height: number; cursorX: number }[] = [];
-    const out: Placement[] = [];
-    const CAP = 300;
-    let fails = 0;
-    for (let attempt = 0; attempt < 5000 && out.length < CAP; attempt++) {
-      const b = base[attempt % base.length]!;
-      let w = b.w, h = b.h, rot = 0;
-      if (h > w && b.h <= W) { w = b.h; h = b.w; rot = 90; } // rotate tall to fit width
-      if (w > W) { fails++; if (fails >= base.length) break; continue; }
-      let shelf = shelves.find((s) => s.cursorX + w <= bx1 + 1e-6 && h <= s.height + 1e-6);
-      if (!shelf) {
-        const prev = shelves[shelves.length - 1];
-        const y = prev ? prev.y + prev.height + g : by0;
-        if (y + h > by1) { fails++; if (fails >= base.length) break; continue; }
-        shelf = { y, height: h, cursorX: bx0 };
-        shelves.push(shelf);
+  function openAutoBuild() {
+    // Start from what the buyer has already uploaded — they came here to use it.
+    setAbItems((cur) => (cur.length ? cur : uploads.map(abItemFor)));
+    setAbMessage(null);
+    setAbOpen(true);
+  }
+
+  async function abUploadFiles(files: FileList) {
+    setUploading(true);
+    setAbMessage(null);
+    try {
+      for (const file of Array.from(files)) {
+        const u = await ingestFile(file, false);
+        setAbItems((cur) => [...cur, abItemFor(u)]);
       }
-      out.push({ id: nextId.current++, uid: b.uid, x_in: round3(shelf.cursorX), y_in: round3(shelf.y), w_in: b.w, h_in: b.h, rotation: rot });
-      shelf.cursorX = round3(shelf.cursorX + w + g);
-      fails = 0;
+    } catch {
+      setAbMessage("A file could not be uploaded. Allowed: PNG, JPG, PDF, SVG, AI, EPS, PSD, TIFF (max 50 MB).");
+    } finally {
+      setUploading(false);
     }
-    if (out.length) { setPlacements(out); setSelected(null); }
+  }
+
+  async function abPick(d: PickableDesign) {
+    try {
+      const u = await hostedUpload(d.file_url, d.name, d.file_type);
+      setAbItems((cur) => [...cur, abItemFor(u)]);
+    } catch {
+      setAbMessage("That design could not be added.");
+    }
+  }
+
+  async function abRemoveBackground(item: AutoBuildItem) {
+    const u = uploads.find((x) => x.uid === item.uid);
+    if (!u) return;
+    setAbBusy({ key: item.key, label: "Removing background" });
+    setAbMessage(null);
+    try {
+      const blob = await (await fetch(u.file_url)).blob();
+      const file = new File([blob], u.file_name, { type: blob.type || "image/png" });
+      const png = await removeImageBackground(file, (pr) => setAbBusy({ key: item.key, label: pr.label }));
+      const cut = await ingestFile(png, false);
+      // Keep the original: the toggle can put it back.
+      setAbItems((cur) => cur.map((x) => (x.key === item.key ? { ...x, uid: cut.uid, originalUid: item.uid } : x)));
+    } catch (e) {
+      setAbMessage(e instanceof BackgroundRemovalError
+        ? `${e.message} The original was kept.`
+        : "Background removal didn't finish — the original was kept.");
+    } finally {
+      setAbBusy(null);
+    }
+  }
+
+  function abRestoreBackground(item: AutoBuildItem) {
+    if (!item.originalUid) return;
+    setAbItems((cur) => cur.map((x) => (x.key === item.key ? { ...x, uid: item.originalUid!, originalUid: null } : x)));
+  }
+
+  function abUpscale(uidToEdit: string) {
+    const u = uploads.find((x) => x.uid === uidToEdit);
+    if (!u) return;
+    setEditTab("enhance");
+    setEditUpload(u);
+  }
+
+  async function abPressCheck(item: AutoBuildItem) {
+    const u = uploads.find((x) => x.uid === item.uid);
+    if (!u) return;
+    setAbChecks((c) => ({ ...c, [item.key]: "loading" }));
+    try {
+      const result = await gangSheetsService.inspectArtwork({
+        file_url: u.file_url, width_in: item.w, height_in: item.h, file_type: u.file_type,
+      });
+      setAbChecks((c) => ({ ...c, [item.key]: result }));
+    } catch {
+      setAbChecks((c) => ({ ...c, [item.key]: null }));
+      setAbMessage("The print check couldn't run just now.");
+    }
+  }
+
+  /** Pack every piece onto this sheet, and onto new sheets for whatever is left. */
+  function abApply({ layout, inset, gap }: { layout: Layout; inset: number; gap: number }) {
+    if (!size) return;
+    const W = size.width_in - inset * 2;
+    const H = sheetLen - inset * 2;
+    if (W <= 0 || H <= 0) { setAbMessage("The margins leave no room on this sheet."); return; }
+
+    const byKey = new Map<string, AutoBuildItem>();
+    const pieces = abItems.flatMap((it) => Array.from({ length: Math.max(0, it.qty) }, (_, i) => {
+      const key = `${it.key}#${i}`;
+      byKey.set(key, it);
+      return { key, w: it.w, h: it.h };
+    }));
+    const { sheets: pages, tooBig } = packIntoSheets(pieces, W, H, gap, layout);
+    if (!pages.length) {
+      setAbMessage("None of these fit on this sheet size. Make the designs smaller, or pick a bigger sheet.");
+      return;
+    }
+
+    const toPlacements = (page: typeof pages[number]): Placement[] => page.map((pc) => {
+      const it = byKey.get(pc.key)!;
+      return {
+        id: nextId.current++, uid: it.uid,
+        x_in: round3(inset + pc.x), y_in: round3(inset + pc.y),
+        w_in: it.w, h_in: it.h, rotation: pc.rotated ? 90 : 0,
+      };
+    });
+
+    const first = toPlacements(pages[0]!);
+    const list = snapshotAll().map((sh, i) => (i === active ? { ...sh, placements: first } : sh));
+    const extra: SheetTab[] = pages.slice(1).map((page, i) => ({
+      key: uid(), name: `Gang Sheet ${list.length + i + 1}`, sizeId, qty: 1, customLength,
+      placements: toPlacements(page),
+    }));
+    setSheets([...list, ...extra]);
+    setPlacements(first);
+    setSelected(null);
+    setImageMargin(gap);
+
+    const built = pages.length === 1 ? "Built 1 sheet." : `Built ${pages.length} sheets.`;
+    if (tooBig.length) {
+      // Stay here so the buyer sees what was left out and can resize it.
+      setAbMessage(`${built} ${tooBig.length} piece${tooBig.length === 1 ? " is" : "s are"} bigger than the sheet's printable area and ${tooBig.length === 1 ? "was" : "were"} left out — make ${tooBig.length === 1 ? "it" : "them"} smaller and apply again.`);
+      return;
+    }
+    // The new sheets appear in the list on the right, so the canvas is the answer.
+    setAbOpen(false);
   }
 
   function startOver() {
@@ -902,15 +1003,10 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
     setSelected(null);
   }
 
-  // Auto-build once when launched from the welcome screen's "Auto Build" — fill
-  // the sheet as soon as the first design is uploaded.
+  // Launched from the welcome screen's "Auto Build": open straight onto it.
   useEffect(() => {
-    if (autoStart && !autoRan.current && placements.length > 0) {
-      autoRan.current = true;
-      autoBuild();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autoStart, placements.length]);
+    if (autoStart) setAbOpen(true);
+  }, [autoStart]);
 
   // ── Zoom ─────────────────────────────────────────────────────────────────────
   const zoomBy = (f: number) => setZoom((z) => clamp(round3(z * f), 0.15, 6));
@@ -1642,6 +1738,35 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
 
         {/* ── Canvas area ───────────────────────────────────────────────────── */}
         <div style={S.canvasArea}>
+          {abOpen ? (
+            <AutoBuildPanel
+              uploads={uploads}
+              items={abItems}
+              setItems={setAbItems}
+              myImages={[
+                ...uploads.map((u) => ({ file_url: u.file_url, name: u.file_name, file_type: u.file_type })),
+                ...gallery.map((g) => ({ file_url: g.file_url, name: g.file_name, file_type: g.file_type ?? null })),
+              ].filter((d, i, all) => all.findIndex((x) => x.file_url === d.file_url) === i)}
+              galleryDesigns={library.map((d) => ({ file_url: d.file_url, name: d.name, file_type: d.file_type ?? null }))}
+              imageMargin={imageMargin}
+              bleed={bleed}
+              maxW={printW}
+              maxH={printH}
+              uploading={uploading}
+              busyKey={abBusy?.key ?? null}
+              busyLabel={abBusy?.label ?? ""}
+              checks={abChecks}
+              message={abMessage}
+              onUploadFiles={abUploadFiles}
+              onPick={abPick}
+              onRemoveBackground={abRemoveBackground}
+              onRestoreBackground={abRestoreBackground}
+              onUpscale={abUpscale}
+              onPressCheck={abPressCheck}
+              onApply={abApply}
+              onClose={() => setAbOpen(false)}
+            />
+          ) : (<>
           {/* Toolbar */}
           <div style={S.toolbar}>
             <select value={sizeId} onChange={(e) => setSizeId(e.target.value)} style={S.sizeSelect}>
@@ -1829,6 +1954,7 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
             .gs-canvas-scroll::-webkit-scrollbar-thumb:hover { background: #0F2340; }
             .gs-canvas-scroll::-webkit-scrollbar-corner { background: #DCD9D3; }
           `}</style>
+          </>)}
         </div>
 
         {/* ── Right panel: Active Gang Sheets ───────────────────────────────── */}
@@ -1874,7 +2000,7 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
 
           <div style={{ borderTop: "1px solid #EEECE7", margin: "2px 0" }} />
           <button onClick={() => { setPanel("uploads"); fileRef.current?.click(); }} style={S.rightAction}>⬆ Add new design</button>
-          <button onClick={autoBuild} style={S.rightAction} title="Fill this sheet with copies of your designs">▦ Auto build (fill sheet)</button>
+          <button onClick={openAutoBuild} style={S.rightAction} title="Upload several designs, set their sizes and quantities, and pack them onto sheets">▦ Auto Build</button>
           <button onClick={() => autoNest()} style={S.rightAction} title="Arrange this sheet's designs compactly">⚡ Auto nest (tidy up)</button>
           <button onClick={() => autoNest(0.5)} style={S.rightAction} title="Nest with extra spacing for cutting">✂ Auto nest for cutting</button>
           <button onClick={startOver} style={{ ...S.rightAction, color: "#B91C1C" }}>↺ Start over (this sheet)</button>
