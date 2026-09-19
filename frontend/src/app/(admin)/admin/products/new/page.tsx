@@ -22,20 +22,19 @@ const RichTextEditor = dynamic(
 );
 
 const labelStyle: React.CSSProperties = {
-  fontSize: "11px", fontWeight: 700, textTransform: "uppercase",
-  letterSpacing: ".08em", color: "#7A7880", marginBottom: "6px", display: "block",
+  fontSize: "12.5px", fontWeight: 600, color: "#4A4850", marginBottom: "7px", display: "block",
 };
 const inputStyle: React.CSSProperties = {
-  width: "100%", padding: "10px 14px", border: "1.5px solid #E3E3E3", borderRadius: "8px",
+  width: "100%", padding: "11px 14px", border: "1px solid #E2E2E4", borderRadius: "10px", background: "#FCFCFC",
   fontSize: "14px", fontFamily: "var(--font-jakarta)", outline: "none", boxSizing: "border-box",
 };
 const sectionCard: React.CSSProperties = {
-  background: "#fff", border: "1px solid #E3E3E3", borderRadius: "10px",
-  padding: "24px", marginBottom: "16px",
+  background: "#fff", border: "1px solid #ECECEC", borderRadius: "14px",
+  padding: "22px 24px", marginBottom: "16px", boxShadow: "0 1px 2px rgba(0,0,0,.03)",
 };
 const sectionTitle: React.CSSProperties = {
-  fontFamily: "var(--font-bebas)", fontSize: "16px", letterSpacing: "-0.01em",
-  color: "#2A2830", marginBottom: "16px", display: "block",
+  fontFamily: "var(--font-jakarta)", fontSize: "15px", fontWeight: 800, letterSpacing: "-0.01em",
+  color: "#1A1A1A", marginBottom: "16px", paddingBottom: "12px", borderBottom: "1px solid #F2F2F2", display: "block",
 };
 const thStyle: React.CSSProperties = {
   padding: "10px 12px", textAlign: "left", fontSize: "11px", textTransform: "uppercase",
@@ -347,8 +346,8 @@ export default function NewProductPage() {
           >
             ← Products
           </button>
-          <h1 style={{ fontFamily: "var(--font-bebas)", fontSize: "28px", color: "#2A2830", letterSpacing: "-0.01em", lineHeight: 1 }}>
-            ADD PRODUCT
+          <h1 style={{ fontFamily: "var(--font-jakarta)", fontSize: "26px", fontWeight: 800, color: "#1A1A1A", letterSpacing: "-0.02em", lineHeight: 1.15, margin: "2px 0 0" }}>
+            Add product
           </h1>
         </div>
         <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
@@ -390,7 +389,7 @@ export default function NewProductPage() {
             {/* ── What kind of product is this? Asked first, because it decides
                    whether the rest of the form is about variants or options. ── */}
             <div style={sectionCard}>
-              <span style={sectionTitle}>WHAT KIND OF PRODUCT IS THIS?</span>
+              <span style={sectionTitle}>What kind of product is this?</span>
               <p style={{ fontSize: "12px", color: "#7A7880", marginTop: "-4px", marginBottom: "14px" }}>
                 This decides how customers buy it. You can change it later.
               </p>
@@ -464,7 +463,7 @@ export default function NewProductPage() {
 
             {/* Media */}
             <div style={sectionCard}>
-              <span style={sectionTitle}>MEDIA</span>
+              <span style={sectionTitle}>Media</span>
               <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginBottom: "12px" }}>
                 {imagePreviewUrls.map((url, i) => (
                   <div key={i} style={{ display: "flex", gap: "12px", alignItems: "center", padding: "10px 12px", border: "1px solid #E3E3E3", borderRadius: "8px", background: i === 0 ? "rgba(26,26,26,.03)" : "#fff" }}>
@@ -517,7 +516,7 @@ export default function NewProductPage() {
             ) : (
             <div style={sectionCard}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
-                <span style={{ ...sectionTitle, marginBottom: 0 }}>VARIANTS</span>
+                <span style={{ ...sectionTitle, marginBottom: 0, paddingBottom: 0, borderBottom: "none" }}>Variants</span>
                 <button
                   type="button"
                   onClick={() => setShowAddVariant(true)}
@@ -588,7 +587,7 @@ export default function NewProductPage() {
 
             {/* Status */}
             <div style={sectionCard}>
-              <span style={sectionTitle}>STATUS</span>
+              <span style={sectionTitle}>Status</span>
               <select name="status" value={form.status} onChange={handleChange} style={{ ...inputStyle, background: "#fff" }}>
                 <option value="draft">○ Draft</option>
                 <option value="active">● Active</option>
@@ -607,7 +606,7 @@ export default function NewProductPage() {
 
             {/* Product Organization */}
             <div style={sectionCard}>
-              <span style={sectionTitle}>PRODUCT ORGANIZATION</span>
+              <span style={sectionTitle}>Product organization</span>
 
               <div style={{ marginBottom: "14px" }}>
                 <label style={labelStyle}>Product Type</label>
@@ -675,7 +674,7 @@ export default function NewProductPage() {
 
             {/* Product Tabs Content */}
             <div style={sectionCard}>
-              <span style={sectionTitle}>PRODUCT TABS CONTENT</span>
+              <span style={sectionTitle}>Product tabs content</span>
               <p style={{ fontSize: "12px", color: "#7A7880", marginBottom: "20px", marginTop: "-8px" }}>
                 Appears in the Description, Print Guide, and Size Chart tabs on the product page.
               </p>
@@ -775,7 +774,7 @@ export default function NewProductPage() {
             {/* SEO */}
             <div style={sectionCard}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px" }}>
-                <span style={{ ...sectionTitle, marginBottom: 0 }}>SEARCH ENGINE LISTING</span>
+                <span style={{ ...sectionTitle, marginBottom: 0, paddingBottom: 0, borderBottom: "none" }}>Search engine listing</span>
                 <button
                   type="button"
                   onClick={() => setEditSEO(v => !v)}
@@ -830,7 +829,7 @@ export default function NewProductPage() {
 
             {/* Marketing Flyer */}
             <div style={sectionCard}>
-              <span style={sectionTitle}>MARKETING FLYER</span>
+              <span style={sectionTitle}>Marketing flyer</span>
               {pendingFlyer && (
                 <div style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 12px", border: "1px solid #E3E3E3", borderRadius: "8px", background: "#F6F6F7", marginBottom: "12px" }}>
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#E8242A" strokeWidth={2}><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
@@ -860,7 +859,7 @@ export default function NewProductPage() {
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }}>
           <div style={{ background: "#fff", borderRadius: "12px", width: "540px", maxHeight: "90vh", overflowY: "auto", padding: "28px", boxShadow: "0 20px 60px rgba(0,0,0,.2)" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
-              <h3 style={{ fontFamily: "var(--font-bebas)", fontSize: "22px", color: "#2A2830", letterSpacing: "-0.01em" }}>Add Variants</h3>
+              <h3 style={{ fontFamily: "var(--font-jakarta)", fontSize: "18px", fontWeight: 800, color: "#1A1A1A", letterSpacing: "-0.01em" }}>Add Variants</h3>
               <button type="button" onClick={() => setShowAddVariant(false)} style={{ background: "none", border: "none", fontSize: "20px", cursor: "pointer", color: "#aaa" }}>✕</button>
             </div>
             <p style={{ fontSize: "12px", color: "#7A7880", marginBottom: "18px" }}>Define your options (Color &amp; Size values), then generate every combination.</p>

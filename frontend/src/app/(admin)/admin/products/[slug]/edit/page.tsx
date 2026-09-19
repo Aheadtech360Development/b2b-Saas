@@ -26,20 +26,19 @@ import { ProductOptionsBuilder } from "@/components/admin/ProductOptionsBuilder"
 
 // ── Style constants ────────────────────────────────────────────────────────
 const labelStyle: React.CSSProperties = {
-  fontSize: "11px", fontWeight: 700, textTransform: "uppercase",
-  letterSpacing: ".08em", color: "#7A7880", marginBottom: "6px", display: "block",
+  fontSize: "12.5px", fontWeight: 600, color: "#4A4850", marginBottom: "7px", display: "block",
 };
 const inputStyle: React.CSSProperties = {
-  width: "100%", padding: "10px 14px", border: "1.5px solid #E3E3E3", borderRadius: "8px",
+  width: "100%", padding: "11px 14px", border: "1px solid #E2E2E4", borderRadius: "10px", background: "#FCFCFC",
   fontSize: "14px", fontFamily: "var(--font-jakarta)", outline: "none", boxSizing: "border-box",
 };
 const sectionCard: React.CSSProperties = {
-  background: "#fff", border: "1px solid #E3E3E3", borderRadius: "10px",
-  padding: "24px", marginBottom: "16px",
+  background: "#fff", border: "1px solid #ECECEC", borderRadius: "14px",
+  padding: "22px 24px", marginBottom: "16px", boxShadow: "0 1px 2px rgba(0,0,0,.03)",
 };
 const sectionTitle: React.CSSProperties = {
-  fontFamily: "var(--font-bebas)", fontSize: "16px", letterSpacing: "-0.01em",
-  color: "#2A2830", marginBottom: "16px", display: "block",
+  fontFamily: "var(--font-jakarta)", fontSize: "15px", fontWeight: 800, letterSpacing: "-0.01em",
+  color: "#1A1A1A", marginBottom: "16px", paddingBottom: "12px", borderBottom: "1px solid #F2F2F2", display: "block",
 };
 const thStyle: React.CSSProperties = {
   padding: "10px 16px", textAlign: "left", fontSize: "11px", textTransform: "uppercase",
@@ -495,7 +494,7 @@ export default function AdminProductEditPage() {
           >
             ← Products
           </button>
-          <h1 style={{ fontFamily: "var(--font-bebas)", fontSize: "28px", color: "#2A2830", letterSpacing: "-0.01em", lineHeight: 1 }}>
+          <h1 style={{ fontFamily: "var(--font-jakarta)", fontSize: "26px", fontWeight: 800, color: "#1A1A1A", letterSpacing: "-0.02em", lineHeight: 1.15, margin: "2px 0 0" }}>
             {product.name}
           </h1>
         </div>
@@ -565,7 +564,7 @@ export default function AdminProductEditPage() {
           {/* Media */}
           <div style={sectionCard}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
-              <span style={{ ...sectionTitle, marginBottom: 0 }}>MEDIA</span>
+              <span style={{ ...sectionTitle, marginBottom: 0, paddingBottom: 0, borderBottom: "none" }}>Media</span>
               <span style={{ fontSize: "11px", color: "#aaa" }}>Images grouped by color · ▲▼ to reorder · ★ to set primary</span>
             </div>
 
@@ -665,7 +664,7 @@ export default function AdminProductEditPage() {
           {/* Variants */}
           <div style={sectionCard}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
-              <span style={{ ...sectionTitle, marginBottom: 0 }}>VARIANTS</span>
+              <span style={{ ...sectionTitle, marginBottom: 0, paddingBottom: 0, borderBottom: "none" }}>Variants</span>
               <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
                 {selectedVariantIds.size > 0 && (
                   <button
@@ -908,7 +907,7 @@ export default function AdminProductEditPage() {
 
           {/* Status Card */}
           <div style={sectionCard}>
-            <span style={sectionTitle}>STATUS</span>
+            <span style={sectionTitle}>Status</span>
             <select
               value={product.status}
               onChange={e => setProduct(p => p ? { ...p, status: e.target.value as ProductDetail["status"] } : p)}
@@ -937,7 +936,7 @@ export default function AdminProductEditPage() {
 
           {/* Product Organization */}
           <div style={sectionCard}>
-            <span style={sectionTitle}>PRODUCT ORGANIZATION</span>
+            <span style={sectionTitle}>Product organization</span>
 
             <div style={{ marginBottom: "14px" }}>
               <label style={labelStyle}>Product Type</label>
@@ -1053,7 +1052,7 @@ export default function AdminProductEditPage() {
 
           {/* Product Tabs Content */}
           <div style={sectionCard}>
-            <span style={sectionTitle}>PRODUCT TABS CONTENT</span>
+            <span style={sectionTitle}>Product tabs content</span>
             <p style={{ fontSize: "12px", color: "#7A7880", marginBottom: "20px", marginTop: "-8px" }}>
               This content appears in the Description, Print Guide, and Size Chart tabs on the product page.
             </p>
@@ -1168,7 +1167,7 @@ export default function AdminProductEditPage() {
           {/* SEO */}
           <div style={sectionCard}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px" }}>
-              <span style={{ ...sectionTitle, marginBottom: 0 }}>SEARCH ENGINE LISTING</span>
+              <span style={{ ...sectionTitle, marginBottom: 0, paddingBottom: 0, borderBottom: "none" }}>Search engine listing</span>
               <button
                 onClick={() => setEditSEO(v => !v)}
                 style={{ fontSize: "12px", color: "#1A1A1A", fontWeight: 700, background: "none", border: "none", cursor: "pointer" }}
@@ -1220,7 +1219,7 @@ export default function AdminProductEditPage() {
 
           {/* Marketing Flyer */}
           <div style={sectionCard}>
-            <span style={sectionTitle}>MARKETING FLYER</span>
+            <span style={sectionTitle}>Marketing flyer</span>
             {(() => {
               const flyer = product?.assets?.find((a: any) => a.asset_type === "flyer");
               return (
@@ -1254,7 +1253,7 @@ export default function AdminProductEditPage() {
 
           {/* Danger Zone */}
           <div style={{ background: "#fff", border: "1px solid #FECACA", borderRadius: "10px", padding: "20px" }}>
-            <span style={{ ...sectionTitle, color: "#E8242A", marginBottom: "12px" }}>DANGER ZONE</span>
+            <span style={{ ...sectionTitle, color: "#E8242A", marginBottom: "12px" }}>Danger zone</span>
             <button
               onClick={async () => {
                 if (!product || !confirm(`Delete "${product.name}"? This cannot be undone.`)) return;
@@ -1275,7 +1274,7 @@ export default function AdminProductEditPage() {
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }}>
           <div style={{ background: "#fff", borderRadius: "12px", width: "540px", maxHeight: "90vh", overflowY: "auto", padding: "28px", boxShadow: "0 20px 60px rgba(0,0,0,.2)" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
-              <h3 style={{ fontFamily: "var(--font-bebas)", fontSize: "22px", color: "#2A2830", letterSpacing: "-0.01em" }}>Add Variants</h3>
+              <h3 style={{ fontFamily: "var(--font-jakarta)", fontSize: "18px", fontWeight: 800, color: "#1A1A1A", letterSpacing: "-0.01em" }}>Add Variants</h3>
               <button onClick={() => setShowAddVariant(false)} style={{ background: "none", border: "none", fontSize: "20px", cursor: "pointer", color: "#aaa" }}>✕</button>
             </div>
             <p style={{ fontSize: "12px", color: "#7A7880", marginBottom: "18px" }}>Define your options (Color &amp; Size values), then generate every combination. Existing combinations are skipped.</p>

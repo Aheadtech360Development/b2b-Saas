@@ -19,11 +19,10 @@ interface Collection {
 }
 
 const labelStyle: React.CSSProperties = {
-  fontSize: "11px", fontWeight: 700, textTransform: "uppercase",
-  letterSpacing: ".08em", color: "#7A7880", marginBottom: "6px", display: "block",
+  fontSize: "12.5px", fontWeight: 600, color: "#4A4850", marginBottom: "7px", display: "block",
 };
 const inputStyle: React.CSSProperties = {
-  width: "100%", padding: "10px 14px", border: "1.5px solid #E3E3E3", borderRadius: "8px",
+  width: "100%", padding: "11px 14px", border: "1px solid #E2E2E4", borderRadius: "10px", background: "#FCFCFC",
   fontSize: "14px", fontFamily: "var(--font-jakarta)", outline: "none", boxSizing: "border-box",
 };
 
@@ -126,105 +125,88 @@ export default function CollectionsPage() {
     }
   }
 
+  const primaryBtn: React.CSSProperties = {
+    background: "#1A1A1A", color: "#fff", border: "none", padding: "10px 18px", borderRadius: "10px",
+    fontWeight: 700, cursor: "pointer", fontSize: "13px", fontFamily: "var(--font-jakarta)",
+  };
+  const rowBtn: React.CSSProperties = {
+    background: "#fff", border: "1px solid #E6E6E6", borderRadius: "9px", padding: "7px 12px",
+    fontSize: "12px", fontWeight: 600, cursor: "pointer", fontFamily: "var(--font-jakarta)", color: "#1A1A1A",
+  };
+
   return (
     <div style={{ fontFamily: "var(--font-jakarta)" }}>
       {/* Header */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "24px" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: "16px", flexWrap: "wrap", marginBottom: "22px" }}>
         <div>
-          <h1 style={{ fontFamily: "var(--font-bebas)", fontSize: "32px", color: "#2A2830", letterSpacing: "-0.01em", lineHeight: 1 }}>Collections</h1>
-          <p style={{ fontSize: "13px", color: "#7A7880", marginTop: "4px" }}>Group products into collections for easy browsing · {collections.length} collections</p>
+          <div style={{ fontSize: "12px", fontWeight: 600, color: "#9A98A0", letterSpacing: ".04em", marginBottom: "6px" }}>Catalogue</div>
+          <h1 style={{ fontSize: "26px", fontWeight: 800, color: "#1A1A1A", letterSpacing: "-0.02em", lineHeight: 1.1, margin: 0 }}>Collections</h1>
+          <p style={{ fontSize: "13px", color: "#7A7880", marginTop: "6px" }}>Group products so customers can browse them together · {collections.length} collection{collections.length === 1 ? "" : "s"}</p>
         </div>
-        <button
-          onClick={openCreate}
-          style={{ background: "#1A1A1A", color: "#fff", border: "none", padding: "10px 20px", borderRadius: "8px", fontWeight: 700, cursor: "pointer", fontSize: "14px" }}
-        >
-          + Create Collection
-        </button>
+        <button onClick={openCreate} style={primaryBtn}>+ Create Collection</button>
       </div>
 
       {/* Content */}
       {isLoading && collections.length === 0 ? (
-  <div style={{ padding: "26px" }}>{[70, 92, 58, 84].map((w, i) => (<div key={i} className="at-skel" style={{ height: "14px", width: `${w}%`, marginBottom: "12px" }} />))}</div>
-) : collections.length === 0 ? (
-        <div style={{ background: "#fff", border: "1px solid #E3E3E3", borderRadius: "10px", padding: "60px", textAlign: "center" }}>
-          <div style={{ fontSize: "48px", marginBottom: "12px" }}>🗂️</div>
-          <h3 style={{ fontFamily: "var(--font-bebas)", fontSize: "22px", color: "#2A2830", marginBottom: "8px" }}>No Collections Yet</h3>
-          <p style={{ fontSize: "14px", color: "#7A7880", marginBottom: "20px" }}>Create collections to organize your products for customers.</p>
-          <button
-            onClick={openCreate}
-            style={{ background: "#1A1A1A", color: "#fff", border: "none", padding: "12px 24px", borderRadius: "8px", fontWeight: 700, cursor: "pointer", fontSize: "14px" }}
-          >
-            + Create First Collection
-          </button>
+        <div style={{ background: "#fff", border: "1px solid #ECECEC", borderRadius: "14px", padding: "22px" }}>
+          {[70, 92, 58, 84].map((w, i) => (<div key={i} className="at-skel" style={{ height: "14px", width: `${w}%`, marginBottom: "12px" }} />))}
+        </div>
+      ) : collections.length === 0 ? (
+        <div style={{ background: "#fff", border: "1px dashed #DADADA", borderRadius: "14px", padding: "56px 24px", textAlign: "center" }}>
+          <div style={{ width: "56px", height: "56px", borderRadius: "16px", background: "#F4F4F5", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 14px", fontSize: "24px" }}>🗂️</div>
+          <h3 style={{ fontSize: "16px", fontWeight: 800, color: "#1A1A1A", margin: "0 0 6px" }}>No collections yet</h3>
+          <p style={{ fontSize: "13px", color: "#7A7880", marginBottom: "18px" }}>Create collections to organise your products for customers.</p>
+          <button onClick={openCreate} style={primaryBtn}>+ Create your first collection</button>
         </div>
       ) : (
-        <div className="admin-collections-grid" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "16px" }}>
-          {collections.map(col => (
-            <div
-              key={col.id}
-              style={{ background: "#fff", border: "1px solid #E3E3E3", borderRadius: "10px", overflow: "hidden", transition: "all .2s" }}
-              onMouseEnter={e => { e.currentTarget.style.boxShadow = "0 4px 20px rgba(0,0,0,.08)"; e.currentTarget.style.borderColor = "#bbb"; }}
-              onMouseLeave={e => { e.currentTarget.style.boxShadow = "none"; e.currentTarget.style.borderColor = "#E3E3E3"; }}
-            >
-              {/* Image / placeholder */}
-              <div style={{ height: "140px", background: "linear-gradient(135deg,#f0ede8,#e8e4df)", display: "flex", alignItems: "center", justifyContent: "center", position: "relative" }}>
-                {(col.image_url ?? col.image) ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={(col.image_url ?? col.image)!} alt={col.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                ) : (
-                  <span style={{ fontSize: "40px", opacity: 0.3 }}>🗂️</span>
-                )}
-                {/* Action buttons overlay */}
-                <div style={{ position: "absolute", top: "10px", right: "10px", display: "flex", gap: "6px" }}>
-                  <button
-                    onClick={e => { e.stopPropagation(); openEdit(col); }}
-                    style={{ background: "rgba(255,255,255,.92)", border: "1px solid #E3E3E3", borderRadius: "6px", padding: "5px 10px", fontSize: "12px", fontWeight: 600, cursor: "pointer" }}
-                  >
-                    Edit
-                  </button>
-                  <button
-                    onClick={e => { e.stopPropagation(); handleDelete(col.id, col.name); }}
-                    style={{ background: "rgba(255,255,255,.92)", border: "1px solid #FECACA", borderRadius: "6px", padding: "5px 10px", fontSize: "12px", fontWeight: 600, cursor: "pointer", color: "#E8242A" }}
-                  >
-                    Delete
-                  </button>
+        <div style={{ background: "#fff", border: "1px solid #ECECEC", borderRadius: "14px", overflow: "hidden", boxShadow: "0 1px 2px rgba(0,0,0,.03)" }}>
+          {collections.map((col, i) => {
+            const img = col.image_url ?? col.image;
+            const active = col.is_active !== false;
+            return (
+              <div
+                key={col.id}
+                onClick={() => openEdit(col)}
+                style={{ display: "flex", alignItems: "center", gap: "16px", padding: "14px 18px", borderTop: i ? "1px solid #F4F4F4" : "none", cursor: "pointer", flexWrap: "wrap", transition: "background .15s" }}
+                onMouseEnter={e => { e.currentTarget.style.background = "#FAFAFA"; }}
+                onMouseLeave={e => { e.currentTarget.style.background = "#fff"; }}
+              >
+                <div style={{ width: "64px", height: "64px", borderRadius: "12px", overflow: "hidden", background: "#F4F2EE", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  {img ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={img} alt={col.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                  ) : (
+                    <span style={{ fontSize: "24px", opacity: 0.35 }}>🗂️</span>
+                  )}
                 </div>
-              </div>
-
-              {/* Info */}
-              <div style={{ padding: "16px 18px" }}>
-                <div style={{ fontFamily: "var(--font-bebas)", fontSize: "18px", color: "#2A2830", marginBottom: "4px", letterSpacing: "-0.01em" }}>{col.name}</div>
-                <div style={{ fontSize: "12px", color: "#7A7880", marginBottom: "8px" }}>
-                  {col.product_count ?? 0} products · /{col.slug}
-                </div>
-                {col.description && (
-                  <div style={{ fontSize: "12px", color: "#aaa", lineHeight: 1.5, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>
-                    {col.description}
+                <div style={{ flex: "1 1 240px", minWidth: 0 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+                    <span style={{ fontSize: "15px", fontWeight: 700, color: "#1A1A1A" }}>{col.name}</span>
+                    <span style={{
+                      padding: "3px 9px", borderRadius: "20px", fontSize: "11px", fontWeight: 700,
+                      background: active ? "rgba(5,150,105,.1)" : "rgba(156,163,175,.16)",
+                      color: active ? "#059669" : "#6B7280",
+                    }}>{active ? "Active" : "Hidden"}</span>
                   </div>
-                )}
-                <div style={{ marginTop: "12px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <a
-                    href={`/products?category=${col.slug}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    style={{ fontSize: "12px", color: "#1A1A1A", fontWeight: 700, textDecoration: "none" }}
-                  >
-                    View in store →
+                  <div style={{ fontSize: "12px", color: "#8A8890", marginTop: "3px" }}>
+                    {col.product_count ?? 0} product{(col.product_count ?? 0) === 1 ? "" : "s"} · /{col.slug}
+                  </div>
+                  {col.description && (
+                    <div style={{ fontSize: "12px", color: "#A4A2A8", marginTop: "4px", lineHeight: 1.5, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 1, WebkitBoxOrient: "vertical" }}>
+                      {col.description}
+                    </div>
+                  )}
+                </div>
+                <div style={{ display: "flex", gap: "6px", alignItems: "center" }} onClick={e => e.stopPropagation()}>
+                  <a href={`/products?category=${col.slug}`} target="_blank" rel="noreferrer" style={{ ...rowBtn, textDecoration: "none" }}>
+                    View in store ↗
                   </a>
-                  <span style={{
-                    padding: "3px 8px", borderRadius: "12px", fontSize: "11px", fontWeight: 700,
-                    background: col.is_active !== false ? "rgba(5,150,105,.1)" : "rgba(156,163,175,.15)",
-                    color: col.is_active !== false ? "#059669" : "#9CA3AF",
-                  }}>
-                    <span style={{ display: "inline-flex", alignItems: "center", gap: "4px" }}>
-                      <svg width="7" height="7" viewBox="0 0 7 7"><circle cx="3.5" cy="3.5" r="3.5" fill={col.is_active !== false ? "#059669" : "#9CA3AF"}/></svg>
-                      {col.is_active !== false ? "Active" : "Hidden"}
-                    </span>
-                  </span>
+                  <button onClick={() => openEdit(col)} style={rowBtn}>Edit</button>
+                  <button onClick={() => handleDelete(col.id, col.name)} style={{ ...rowBtn, color: "#E8242A", borderColor: "#F6D0D1" }}>Delete</button>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
@@ -235,12 +217,12 @@ export default function CollectionsPage() {
           onClick={closeModal}
         >
           <div
-            style={{ background: "#fff", borderRadius: "12px", width: "520px", padding: "28px", boxShadow: "0 20px 60px rgba(0,0,0,.2)" }}
+            style={{ background: "#fff", borderRadius: "16px", width: "520px", maxWidth: "calc(100vw - 32px)", padding: "26px", boxShadow: "0 20px 60px rgba(0,0,0,.2)" }}
             onClick={e => e.stopPropagation()}
           >
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "22px" }}>
-              <h2 style={{ fontFamily: "var(--font-bebas)", fontSize: "24px", color: "#2A2830", letterSpacing: "-0.01em" }}>
-                {editingId ? "EDIT COLLECTION" : "CREATE COLLECTION"}
+              <h2 style={{ fontFamily: "var(--font-jakarta)", fontSize: "19px", fontWeight: 800, color: "#1A1A1A", letterSpacing: "-0.01em", margin: 0 }}>
+                {editingId ? "Edit collection" : "Create collection"}
               </h2>
               <button onClick={closeModal} style={{ background: "none", border: "none", fontSize: "20px", cursor: "pointer", color: "#aaa" }}>✕</button>
             </div>

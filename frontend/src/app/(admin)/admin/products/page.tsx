@@ -17,8 +17,17 @@ const bulkBtnStyle: React.CSSProperties = {
   padding: "5px 12px", borderRadius: "6px", fontSize: "12px", fontWeight: 600, cursor: "pointer",
 };
 const pageBtn: React.CSSProperties = {
-  padding: "6px 12px", border: "1px solid #E3E3E3", borderRadius: "6px",
+  padding: "7px 12px", border: "1px solid #E6E6E6", borderRadius: "9px",
   background: "#fff", fontSize: "13px", fontWeight: 600, cursor: "pointer",
+};
+const ghostBtn: React.CSSProperties = {
+  padding: "10px 16px", border: "1px solid #E6E6E6", borderRadius: "10px", background: "#fff",
+  fontSize: "13px", fontWeight: 600, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "6px",
+  fontFamily: "var(--font-jakarta)", color: "#1A1A1A",
+};
+const primaryBtn: React.CSSProperties = {
+  padding: "10px 18px", background: "#1A1A1A", color: "#fff", border: "none", borderRadius: "10px",
+  fontSize: "13px", fontWeight: 700, cursor: "pointer", fontFamily: "var(--font-jakarta)",
 };
 
 // Bulk edit modal cell label
@@ -139,66 +148,63 @@ export default function AdminProductsPage() {
   const totalInventory = (p: ProductDetail) =>
     p.variants.reduce((s, v) => s + (v.stock_quantity ?? 0), 0);
 
+  const openProduct = (slug: string) => router.push(`/admin/products/${slug}/edit`);
+  const STATUS_TABS: { id: string; label: string }[] = [
+    { id: "", label: "All" }, { id: "active", label: "Active" },
+    { id: "draft", label: "Draft" }, { id: "archived", label: "Archived" },
+  ];
+  const statusTone = (st: string) =>
+    st === "active" ? { bg: "rgba(5,150,105,.1)", fg: "#059669", label: "Active" }
+      : st === "draft" ? { bg: "rgba(156,163,175,.16)", fg: "#6B7280", label: "Draft" }
+        : { bg: "rgba(232,36,42,.1)", fg: "#E8242A", label: "Archived" };
+  const allChecked = selectedIds.length === products.length && products.length > 0;
+
   return (
     <div style={{ fontFamily: "var(--font-jakarta)" }}>
       {/* Header */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: "16px", flexWrap: "wrap", marginBottom: "22px" }}>
         <div>
-          <h1 style={{ fontFamily: "var(--font-bebas)", fontSize: "32px", color: "#2A2830", letterSpacing: "-0.01em", lineHeight: 1 }}>Products</h1>
-          <p style={{ fontSize: "13px", color: "#7A7880", marginTop: "4px" }}>Manage your product catalog · {products.length} items</p>
+          <div style={{ fontSize: "12px", fontWeight: 600, color: "#9A98A0", letterSpacing: ".04em", marginBottom: "6px" }}>Catalogue</div>
+          <h1 style={{ fontSize: "26px", fontWeight: 800, color: "#1A1A1A", letterSpacing: "-0.02em", lineHeight: 1.1, margin: 0 }}>Products</h1>
+          <p style={{ fontSize: "13px", color: "#7A7880", marginTop: "6px" }}>{products.length} item{products.length === 1 ? "" : "s"} on this page</p>
+        </div>
+        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+          <button onClick={() => setShowImport(true)} style={ghostBtn}>
+            <DownloadIcon size={14} color="#2A2830" /> Import
+          </button>
+          <button onClick={() => adminService.exportProductsCsv()} style={ghostBtn}>↓ Export</button>
+          <button onClick={() => router.push("/admin/products/new")} style={primaryBtn}>+ Add Product</button>
         </div>
       </div>
 
-      {/* Top Bar */}
-      <div style={{ display: "flex", gap: "10px", alignItems: "center", marginBottom: "16px", flexWrap: "wrap" }}>
-        {/* Search */}
-        <div style={{ flex: 1, minWidth: "240px", position: "relative" }}>
-          <span style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)", color: "#aaa", display: "flex" }}><SearchIcon size={14} color="#aaa" /></span>
+      {/* Filters */}
+      <div style={{ background: "#fff", border: "1px solid #ECECEC", borderRadius: "14px", padding: "6px 6px 6px 8px", display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap", marginBottom: "14px", boxShadow: "0 1px 2px rgba(0,0,0,.03)" }}>
+        <div role="tablist" aria-label="Status" style={{ display: "flex", gap: "2px", flexWrap: "wrap" }}>
+          {STATUS_TABS.map(t => {
+            const on = statusFilter === t.id;
+            return (
+              <button key={t.id || "all"} role="tab" aria-selected={on} onClick={() => setStatusFilter(t.id)} style={{
+                padding: "7px 14px", borderRadius: "9px", border: "none", cursor: "pointer", fontSize: "13px",
+                fontWeight: on ? 700 : 500, background: on ? "#1A1A1A" : "transparent", color: on ? "#fff" : "#5A5860",
+                fontFamily: "var(--font-jakarta)",
+              }}>{t.label}</button>
+            );
+          })}
+        </div>
+        <div style={{ flex: 1, minWidth: "220px", position: "relative" }}>
+          <span style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)", display: "flex" }}><SearchIcon size={14} color="#aaa" /></span>
           <input
-            placeholder="Search products..."
+            placeholder="Search by name or SKU…"
             value={search}
             onChange={e => setSearch(e.target.value)}
-            style={{ width: "100%", padding: "10px 12px 10px 36px", border: "1.5px solid #E3E3E3", borderRadius: "8px", fontSize: "14px", fontFamily: "var(--font-jakarta)", boxSizing: "border-box", outline: "none" }}
+            style={{ width: "100%", padding: "10px 12px 10px 36px", border: "1px solid transparent", background: "#F6F6F7", borderRadius: "10px", fontSize: "14px", fontFamily: "var(--font-jakarta)", boxSizing: "border-box", outline: "none" }}
           />
-        </div>
-
-        {/* Filters */}
-        <select
-          value={statusFilter}
-          onChange={e => setStatusFilter(e.target.value)}
-          style={{ padding: "10px 14px", border: "1.5px solid #E3E3E3", borderRadius: "8px", fontSize: "13px", fontFamily: "var(--font-jakarta)", background: "#fff", cursor: "pointer" }}
-        >
-          <option value="">Status</option>
-          <option value="active">Active</option>
-          <option value="draft">Draft</option>
-          <option value="archived">Archived</option>
-        </select>
-
-        <div style={{ marginLeft: "auto", display: "flex", gap: "8px" }}>
-          <button
-            onClick={() => setShowImport(true)}
-            style={{ padding: "10px 16px", border: "1px solid #E3E3E3", borderRadius: "8px", background: "#fff", fontSize: "13px", fontWeight: 600, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "6px" }}
-          >
-            <DownloadIcon size={14} color="#2A2830" /> Import
-          </button>
-          <button
-            onClick={() => adminService.exportProductsCsv()}
-            style={{ padding: "10px 16px", border: "1px solid #E3E3E3", borderRadius: "8px", background: "#fff", fontSize: "13px", fontWeight: 600, cursor: "pointer" }}
-          >
-            ↓ Export
-          </button>
-          <button
-            onClick={() => router.push("/admin/products/new")}
-            style={{ padding: "10px 20px", background: "#1A1A1A", color: "#fff", border: "none", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: "pointer" }}
-          >
-            + Add Product
-          </button>
         </div>
       </div>
 
       {/* Bulk Toolbar */}
       {selectedIds.length > 0 && (
-        <div style={{ background: "#1A1A1A", color: "#fff", padding: "10px 16px", borderRadius: "8px", marginBottom: "12px", display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
+        <div style={{ position: "sticky", top: "env(safe-area-inset-top, 0px)", zIndex: 5, background: "#1A1A1A", color: "#fff", padding: "10px 16px", borderRadius: "12px", marginBottom: "12px", display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap", boxShadow: "0 6px 20px rgba(0,0,0,.15)" }}>
           <span style={{ fontWeight: 700, marginRight: "4px" }}>{selectedIds.length} selected</span>
           <button onClick={() => handleBulkAction("active")} style={bulkBtnStyle}>Set Active</button>
           <button onClick={() => handleBulkAction("draft")} style={bulkBtnStyle}>Set Draft</button>
@@ -217,6 +223,7 @@ export default function AdminProductsPage() {
           </button>
           <button
             onClick={() => setSelectedIds([])}
+            aria-label="Clear selection"
             style={{ marginLeft: "auto", background: "none", border: "none", color: "#fff", cursor: "pointer", fontSize: "18px" }}
           >
             ✕
@@ -224,144 +231,103 @@ export default function AdminProductsPage() {
         </div>
       )}
 
-      {/* Table */}
-      <div style={{ background: "#fff", border: "1px solid #E3E3E3", borderRadius: "10px", overflow: "hidden" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse" }}>
-          <thead>
-            <tr style={{ background: "#F6F6F7", borderBottom: "1px solid #E3E3E3" }}>
-              <th style={{ width: "40px", padding: "12px 16px" }}>
+      {/* List */}
+      <div style={{ background: "#fff", border: "1px solid #ECECEC", borderRadius: "14px", overflow: "hidden", boxShadow: "0 1px 2px rgba(0,0,0,.03)" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "14px", padding: "12px 18px", borderBottom: "1px solid #F0F0F0", fontSize: "12px", color: "#9A98A0", fontWeight: 600 }}>
+          <input
+            type="checkbox"
+            aria-label="Select all"
+            checked={allChecked}
+            onChange={e => setSelectedIds(e.target.checked ? products.map(p => p.id) : [])}
+          />
+          <span>{allChecked ? "All on this page selected" : "Select all"}</span>
+        </div>
+
+        {isLoading && products.length === 0 ? (
+          Array.from({ length: 6 }).map((_, i) => (
+            <div key={`sk-${i}`} style={{ display: "flex", alignItems: "center", gap: "14px", padding: "14px 18px", borderBottom: "1px solid #F4F4F4" }}>
+              <div className="at-skel" style={{ width: "14px", height: "14px" }} />
+              <div className="at-skel" style={{ width: "56px", height: "56px", borderRadius: "12px" }} />
+              <div style={{ flex: 1 }}>
+                <div className="at-skel" style={{ height: "12px", width: `${40 + (i % 3) * 12}%`, marginBottom: "8px" }} />
+                <div className="at-skel" style={{ height: "10px", width: "26%" }} />
+              </div>
+              <div className="at-skel" style={{ height: "22px", width: "70px", borderRadius: "20px" }} />
+            </div>
+          ))
+        ) : loadError ? (
+          <div style={{ padding: "48px", textAlign: "center" }}>
+            <div style={{ fontSize: "14px", color: "#E8242A", fontWeight: 600, marginBottom: "8px" }}>Failed to load products</div>
+            <div style={{ fontSize: "12px", color: "#aaa", maxWidth: "480px", margin: "0 auto 16px" }}>{loadError}</div>
+            <button onClick={() => load()} style={primaryBtn}>Retry</button>
+          </div>
+        ) : products.length === 0 ? (
+          <div style={{ padding: "64px 24px", textAlign: "center" }}>
+            <div style={{ width: "56px", height: "56px", borderRadius: "16px", background: "#F4F4F5", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 14px", fontSize: "24px" }}>👕</div>
+            <div style={{ fontSize: "15px", color: "#1A1A1A", fontWeight: 700, marginBottom: "4px" }}>
+              {search || statusFilter ? "No products match your filters" : "No products yet"}
+            </div>
+            <div style={{ fontSize: "13px", color: "#7A7880", marginBottom: "18px" }}>
+              {search || statusFilter ? "Try a different search, or clear the filters to see everything." : "Add your first product to start selling."}
+            </div>
+            {search || statusFilter ? (
+              <button onClick={() => { setSearch(""); setStatusFilter(""); }} style={ghostBtn}>Clear filters</button>
+            ) : (
+              <button onClick={() => router.push("/admin/products/new")} style={primaryBtn}>+ Add product</button>
+            )}
+          </div>
+        ) : products.map(product => {
+          const tone = statusTone(product.status);
+          const stock = totalInventory(product);
+          const checked = selectedIds.includes(product.id);
+          const meta = [product.product_type, product.vendor].filter(Boolean).join(" · ");
+          const category = [product.fabric, product.product_code, product.weight].filter(Boolean).join(" · ") || product.categories?.[0]?.name || "Apparel";
+          return (
+            <div
+              key={product.id}
+              onClick={() => openProduct(product.slug)}
+              style={{ display: "flex", alignItems: "center", gap: "14px", padding: "12px 18px", borderBottom: "1px solid #F4F4F4", cursor: "pointer", background: checked ? "#FAFAF7" : "#fff", transition: "background .15s", flexWrap: "wrap" }}
+              onMouseEnter={e => { if (!checked) e.currentTarget.style.background = "#FAFAFA"; }}
+              onMouseLeave={e => { e.currentTarget.style.background = checked ? "#FAFAF7" : "#fff"; }}
+            >
+              <span onClick={e => e.stopPropagation()} style={{ display: "flex" }}>
                 <input
                   type="checkbox"
-                  checked={selectedIds.length === products.length && products.length > 0}
-                  onChange={e => setSelectedIds(e.target.checked ? products.map(p => p.id) : [])}
+                  aria-label={`Select ${product.name}`}
+                  checked={checked}
+                  onChange={e => {
+                    if (e.target.checked) setSelectedIds(prev => [...prev, product.id]);
+                    else setSelectedIds(prev => prev.filter(id => id !== product.id));
+                  }}
                 />
-              </th>
-              <th style={{ width: "60px", ...thStyle }} />
-              {["Product", "Status", "Inventory", "Category", "Type", "Vendor"].map(col => (
-                <th key={col} style={thStyle}>{col}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {isLoading && products.length === 0 ? (
-              // Skeleton rows that mirror the real table, so the layout doesn't
-              // jump when data lands.
-              Array.from({ length: 6 }).map((_, i) => (
-                <tr key={`sk-${i}`} style={{ borderBottom: "1px solid #F1F1F1" }}>
-                  <td style={{ padding: "14px 16px" }}><div className="at-skel" style={{ width: "14px", height: "14px" }} /></td>
-                  <td style={{ padding: "14px 16px" }}><div className="at-skel" style={{ width: "38px", height: "38px", borderRadius: "8px" }} /></td>
-                  <td style={{ padding: "14px 16px" }}><div className="at-skel" style={{ height: "12px", width: `${58 + (i % 3) * 12}%` }} /></td>
-                  <td style={{ padding: "14px 16px" }}><div className="at-skel" style={{ height: "20px", width: "62px", borderRadius: "20px" }} /></td>
-                  <td style={{ padding: "14px 16px" }}><div className="at-skel" style={{ height: "12px", width: "46px" }} /></td>
-                  <td style={{ padding: "14px 16px" }}><div className="at-skel" style={{ height: "12px", width: "72px" }} /></td>
-                  <td style={{ padding: "14px 16px" }}><div className="at-skel" style={{ height: "12px", width: "58px" }} /></td>
-                  <td style={{ padding: "14px 16px" }}><div className="at-skel" style={{ height: "12px", width: "54px" }} /></td>
-                </tr>
-              ))
-            ) : loadError ? (
-              <tr>
-                <td colSpan={9} style={{ padding: "48px", textAlign: "center" }}>
-                  <div style={{ fontSize: "14px", color: "#E8242A", fontWeight: 600, marginBottom: "8px" }}>Failed to load products</div>
-                  <div style={{ fontSize: "12px", color: "#aaa", marginBottom: "16px", maxWidth: "480px", margin: "0 auto 16px" }}>{loadError}</div>
-                  <button onClick={() => load()} style={{ padding: "8px 20px", background: "#1A1A1A", color: "#fff", border: "none", borderRadius: "6px", cursor: "pointer", fontWeight: 600, fontSize: "13px" }}>Retry</button>
-                </td>
-              </tr>
-            ) : products.length === 0 ? (
-              <tr>
-                <td colSpan={9} style={{ padding: "64px 24px", textAlign: "center" }}>
-                  <div style={{ width: "52px", height: "52px", borderRadius: "14px", background: "#F4F4F5", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 14px", fontSize: "24px" }}>👕</div>
-                  <div style={{ fontSize: "15px", color: "#1A1A1A", fontWeight: 700, marginBottom: "4px" }}>
-                    {search || statusFilter ? "No products match your filters" : "No products yet"}
-                  </div>
-                  <div style={{ fontSize: "13px", color: "#7A7880", marginBottom: "18px" }}>
-                    {search || statusFilter ? "Try a different search, or clear the filters to see everything." : "Add your first product to start selling."}
-                  </div>
-                  {search || statusFilter ? (
-                    <button onClick={() => { setSearch(""); setStatusFilter(""); }}
-                      style={{ padding: "9px 18px", border: "1px solid #E3E3E3", background: "#fff", borderRadius: "8px", fontSize: "13px", fontWeight: 600, cursor: "pointer" }}>
-                      Clear filters
-                    </button>
-                  ) : (
-                    <button onClick={() => router.push("/admin/products/new")}
-                      style={{ padding: "9px 20px", background: "#1A1A1A", color: "#fff", border: "none", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: "pointer" }}>
-                      + Add product
-                    </button>
-                  )}
-                </td>
-              </tr>
-            ) : products.map(product => (
-              <tr
-                key={product.id}
-                style={{ borderBottom: "1px solid #F6F6F7", cursor: "pointer", transition: "background .15s" }}
-                onMouseEnter={e => (e.currentTarget.style.background = "#FAFAFA")}
-                onMouseLeave={e => (e.currentTarget.style.background = "#fff")}
-              >
-                {/* Checkbox */}
-                <td style={{ padding: "14px 16px" }} onClick={e => e.stopPropagation()}>
-                  <input
-                    type="checkbox"
-                    checked={selectedIds.includes(product.id)}
-                    onChange={e => {
-                      if (e.target.checked) setSelectedIds(prev => [...prev, product.id]);
-                      else setSelectedIds(prev => prev.filter(id => id !== product.id));
-                    }}
-                  />
-                </td>
-
-                {/* Image */}
-                <td style={{ padding: "10px 16px" }} onClick={() => router.push(`/admin/products/${product.slug}/edit`)}>
-                  <div style={{ width: "48px", height: "48px", borderRadius: "8px", overflow: "hidden", background: "linear-gradient(135deg,#f0ede8,#e8e4df)", display: "flex", alignItems: "center", justifyContent: "center", border: "1px solid #E3E3E3", flexShrink: 0 }}>
-                    {product.images?.[0] ? (
-                      <img src={product.images[0].url_thumbnail} alt={product.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                    ) : (
-                      <span style={{ fontSize: "20px", opacity: 0.4 }}>👕</span>
-                    )}
-                  </div>
-                </td>
-
-                {/* Product */}
-                <td style={{ padding: "14px 16px" }} onClick={() => router.push(`/admin/products/${product.slug}/edit`)}>
-                  <div style={{ fontWeight: 700, fontSize: "14px", color: "#2A2830", marginBottom: "2px" }}>{product.name}</div>
-                </td>
-
-                {/* Status */}
-                <td style={{ padding: "14px 16px" }} onClick={() => router.push(`/admin/products/${product.slug}/edit`)}>
-                  <span style={{
-                    padding: "4px 10px", borderRadius: "20px", fontSize: "11px", fontWeight: 700,
-                    background: product.status === "active" ? "rgba(5,150,105,.1)" : product.status === "draft" ? "rgba(156,163,175,.15)" : "rgba(232,36,42,.1)",
-                    color: product.status === "active" ? "#059669" : product.status === "draft" ? "#9CA3AF" : "#E8242A",
-                  }}>
-                    {product.status === "active" ? "● Active" : product.status === "draft" ? "○ Draft" : "✕ Archived"}
-                  </span>
-                </td>
-
-                {/* Inventory */}
-                <td style={{ padding: "14px 16px" }} onClick={() => router.push(`/admin/products/${product.slug}/edit`)}>
-                  <div style={{ fontSize: "13px", fontWeight: 600, color: "#2A2830" }}>{totalInventory(product)} in stock</div>
-                  <div style={{ fontSize: "11px", color: "#aaa" }}>{product.variants?.length || 0} variants</div>
-                </td>
-
-                {/* Category */}
-                <td style={{ padding: "14px 16px" }} onClick={() => router.push(`/admin/products/${product.slug}/edit`)}>
-                  <div style={{ fontSize: "13px", color: "#2A2830" }}>{[product.fabric, product.product_code, product.weight].filter(Boolean).join(" · ") || product.categories?.[0]?.name || "Apparel"}</div>
-                </td>
-
-                {/* Type */}
-                <td style={{ padding: "14px 16px" }} onClick={() => router.push(`/admin/products/${product.slug}/edit`)}>
-                  <div style={{ fontSize: "13px", color: "#7A7880" }}>{product.product_type || "—"}</div>
-                </td>
-
-                {/* Vendor */}
-                <td style={{ padding: "14px 16px" }} onClick={() => router.push(`/admin/products/${product.slug}/edit`)}>
-                  <div style={{ fontSize: "13px", color: "#7A7880" }}>{product.vendor || "—"}</div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+              </span>
+              <div style={{ width: "56px", height: "56px", borderRadius: "12px", overflow: "hidden", background: "#F4F2EE", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                {product.images?.[0] ? (
+                  <img src={product.images[0].url_thumbnail} alt={product.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                ) : (
+                  <span style={{ fontSize: "20px", opacity: 0.4 }}>👕</span>
+                )}
+              </div>
+              <div style={{ flex: "1 1 220px", minWidth: 0 }}>
+                <div style={{ fontWeight: 700, fontSize: "14px", color: "#1A1A1A", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{product.name}</div>
+                <div style={{ fontSize: "12px", color: "#8A8890", marginTop: "3px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {category}{meta ? ` · ${meta}` : ""}
+                </div>
+              </div>
+              <div style={{ flex: "0 0 150px", textAlign: "right" }}>
+                <div style={{ fontSize: "13px", fontWeight: 700, color: stock > 0 ? "#1A1A1A" : "#9A98A0" }}>{stock.toLocaleString()} in stock</div>
+                <div style={{ fontSize: "11px", color: "#9A98A0", marginTop: "2px" }}>{product.variants?.length || 0} variants</div>
+              </div>
+              <span style={{ flex: "0 0 auto", padding: "5px 11px", borderRadius: "20px", fontSize: "11px", fontWeight: 700, background: tone.bg, color: tone.fg, minWidth: "72px", textAlign: "center" }}>
+                {tone.label}
+              </span>
+              <span aria-hidden style={{ color: "#C4C2C8", fontSize: "18px", flex: "0 0 auto" }}>›</span>
+            </div>
+          );
+        })}
 
         {/* Pagination */}
-        <div style={{ padding: "14px 20px", borderTop: "1px solid #E3E3E3", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div style={{ padding: "12px 18px", display: "flex", justifyContent: "space-between", alignItems: "center", background: "#FCFCFC" }}>
           <span style={{ fontSize: "13px", color: "#7A7880" }}>{products.length} products</span>
           <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
             <button disabled={page === 1} onClick={() => setPage(p => p - 1)} style={{ ...pageBtn, opacity: page === 1 ? 0.4 : 1 }}>← Prev</button>
