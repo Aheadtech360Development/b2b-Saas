@@ -62,6 +62,9 @@ def _default(supplier: str) -> dict:
     return {
         "name": CATALOG.get(supplier, {}).get("label", supplier),
         "created_at": None,
+        # Off pauses the supplier completely — no catalogue calls, imports,
+        # syncs or orders — while keeping the connection and every setting.
+        "active": True,
         # Import
         "auto_import": False,
         "filters": {"match": "any", "rules": []},

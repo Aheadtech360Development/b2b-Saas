@@ -458,6 +458,7 @@ def owner_handlers(db: AsyncSession) -> dict[str, Handler]:
         job = await supplier_jobs.progress(get_current_tenant_id(), "ss_activewear")
         return {
             "supplier": "S&S Activewear", "name": cfg["name"], "admin_link": "/admin/suppliers",
+            "turned_on": cfg.get("active", True),
             "connected": bool(conn),
             "account": ("•" * max(0, len(acct) - 3) + acct[-3:]) if acct else None,
             "country": country_code((conn or {}).get("country")) if conn else None,

@@ -75,6 +75,8 @@ async def _client(db: AsyncSession, supplier: str):
     conn = await get_connection(db, supplier)
     if not conn:
         raise HTTPException(status_code=409, detail="Connect your S&S Activewear account first (Edit supplier → Connection).")
+    if not (await cfgmod.load(db, supplier)).get("active", True):
+        raise HTTPException(status_code=409, detail="S&S Activewear is turned off for this store. Turn it on in Manage Suppliers to use it.")
     return from_connection(conn)
 
 
@@ -131,6 +133,7 @@ async def list_suppliers(
             cfg["created_at"] = ((await get_connection(db, sid)) or {}).get("connected_at")
         out.append({
             "id": sid, "label": meta["label"], "available": True, "name": cfg["name"],
+            "active": cfg.get("active", True),
             "connected": conn["connected"], "account": conn["account"],
             "auto_import": cfg["auto_import"], "automatic_sync": cfg["automatic_sync"],
             "last_sync_at": cfg.get("last_sync_at"), "created_at": cfg.get("created_at"),
@@ -192,6 +195,7 @@ class SupplierUpdate(BaseModel):
     """Every part optional: the page saves what changed. The newer sections are
     free-form here and validated by the config module, which owns their rules."""
     name: str | None = Field(None, min_length=1, max_length=80)
+    active: bool | None = None
     auto_import: bool | None = None
     filters: Filters | None = None
     pricing: Pricing | None = None
@@ -213,6 +217,8 @@ async def update_supplier(
     try:
         if body.name is not None:
             cfg["name"] = body.name.strip()
+        if body.active is not None:
+            cfg["active"] = body.active
         if body.filters is not None:
             cfg["filters"] = cfgmod.clean_filters(body.filters.model_dump())
         if body.pricing is not None:
@@ -329,6 +335,8 @@ async def _start(db: AsyncSession, supplier: str, kind: str) -> dict:
     _known(supplier)
     if not (await _connection(db, supplier))["connected"]:
         raise HTTPException(status_code=409, detail="Connect your S&S Activewear account first (Edit supplier → Connection).")
+    if not (await cfgmod.load(db, supplier)).get("active", True):
+        raise HTTPException(status_code=409, detail="S&S Activewear is turned off for this store. Turn it on in Manage Suppliers to use it.")
     try:
         return await jobs.start(get_current_tenant_id(), supplier, kind)
     except jobs.JobBusy as exc:
@@ -403,7 +411,7 @@ async def supplier_locations(
     )).scalars().all()
     conn = await _connection(db, supplier)
     codes: list[str] = []
-    if conn["connected"]:
+    if conn["connected"] and (await cfgmod.load(db, supplier)).get("active", True):
         key = _WAREHOUSE_KEY.format(country=conn["country"])
         try:
             cached = await redis_get(key)

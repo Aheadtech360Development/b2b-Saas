@@ -367,6 +367,9 @@ async def import_ss_product(style_id: str, db: AsyncSession = Depends(get_db)):
             message="Already imported",
         )
 
+    if not (await supplier_cfg.load(db, "ss_activewear")).get("active", True):
+        raise HTTPException(status_code=409, detail="S&S Activewear is turned off for this store. Turn it on in Manage Suppliers to use it.")
+
     # Optional cached catalog row — marked imported below, best-effort.
     ss_product = (await db.execute(
         select(SSProduct).where(SSProduct.style_id == style_id)

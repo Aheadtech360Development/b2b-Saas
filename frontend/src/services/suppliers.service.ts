@@ -79,6 +79,7 @@ export interface OrderSettings {
 
 export interface SupplierConfig {
   name: string;
+  active: boolean;
   created_at: string | null;
   auto_import: boolean;
   filters: Filters;
@@ -118,6 +119,7 @@ export interface SupplierRow {
   label: string;
   available: boolean;
   name?: string;
+  active?: boolean;
   connected: boolean;
   account?: string | null;
   auto_import?: boolean;
@@ -157,7 +159,7 @@ const base = (id: string) => `/api/v1/admin/suppliers/${id}`;
 export const suppliersService = {
   list: () => apiClient.get<SupplierRow[]>("/api/v1/admin/suppliers"),
   get: (id: string) => apiClient.get<SupplierDetail>(base(id)),
-  update: (id: string, body: Partial<Pick<SupplierConfig, "name" | "auto_import" | "filters" | "pricing" | "inventory" | "product" | "automatic_sync" | "orders">>) =>
+  update: (id: string, body: Partial<Pick<SupplierConfig, "name" | "active" | "auto_import" | "filters" | "pricing" | "inventory" | "product" | "automatic_sync" | "orders">>) =>
     apiClient.put<{ config: SupplierConfig }>(base(id), body),
   brands: (id: string) => apiClient.get<{ brands: { brand: string; styles: number }[]; categories: string[] }>(`${base(id)}/brands`),
   catalog: (id: string, p: { q?: string; brand?: string; page?: number }) => {
@@ -200,6 +202,7 @@ export const suppliersService = {
     apiClient.get<{ providers: { key: string; connection: Record<string, unknown> }[] }>("/api/v1/admin/integrations?category=supplier"),
   testConnection: (values: Record<string, string>) =>
     apiClient.post<{ ok: boolean; message: string }>("/api/v1/admin/integrations/ss_activewear/test", { values }),
+  disconnect: () => apiClient.delete<{ disconnected: boolean }>("/api/v1/admin/integrations/ss_activewear"),
   saveConnection: (values: Record<string, string>) =>
     apiClient.post<{ message: string; verified: boolean }>("/api/v1/admin/integrations/ss_activewear", { values }),
 };

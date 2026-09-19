@@ -147,7 +147,8 @@ export function EditSupplier({
         <div style={{ padding: 18 }}>
           {tab === "connection" && (conn
             ? <ConnectionTab label={detail.label} name={draft.name} onName={(v) => set("name", v)} conn={conn}
-                onConn={(c) => { setConn(c); setMsg(null); }} />
+                onConn={(c) => { setConn(c); setMsg(null); }}
+                onDisconnected={async () => { await loadConn(); onConnectionChanged(); setMsg({ ok: true, text: "Disconnected. Your API key was removed." }); }} />
             : <div style={{ padding: 20, textAlign: "center" }}><Spinner /></div>)}
           {tab === "inventory" && <InventoryTab id={id} value={draft.inventory} onChange={(v) => set("inventory", v)} connected={detail.connection.connected} />}
           {tab === "product" && (
@@ -171,10 +172,32 @@ export function EditSupplier({
 
 // ── Connection ───────────────────────────────────────────────────────────────
 
-function ConnectionTab({ label, name, onName, conn, onConn }: {
+function ConnectionTab({ label, name, onName, conn, onConn, onDisconnected }: {
   label: string; name: string; onName: (v: string) => void; conn: Conn; onConn: (c: Conn) => void;
+  onDisconnected: () => Promise<void>;
 }) {
   const [testing, setTesting] = useState(false);
+  const [removing, setRemoving] = useState(false);
+  const saved = !!conn.api_key_hint;
+
+  const disconnect = async () => {
+    if (!window.confirm(
+      `Disconnect ${label}?
+
+Your account number and API key are removed from this store. Nothing is imported, synced or sent until you connect again. Imported products and your settings stay.
+
+To pause it without removing the key, turn it off in Manage Suppliers instead.`,
+    )) return;
+    setRemoving(true);
+    setResult(null);
+    try {
+      await suppliersService.disconnect();
+      await onDisconnected();
+    } catch (e) {
+      setResult({ ok: false, text: errText(e) });
+    }
+    setRemoving(false);
+  };
   const [result, setResult] = useState<{ ok: boolean; text: string } | null>(null);
 
   const test = async () => {
@@ -222,6 +245,15 @@ function ConnectionTab({ label, name, onName, conn, onConn }: {
         <Btn kind="ghost" onClick={test} busy={testing} disabled={!conn.account_number.trim() || (!conn.api_key && !conn.api_key_hint)}>Test</Btn>
       </div>
       {result && <div style={{ fontSize: 13, color: result.ok ? "#16A34A" : "#B42318" }}>{result.text}</div>}
+      {saved && (
+        <div style={{ borderTop: "1px solid #EEE", paddingTop: 16, display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+          <div style={{ flex: "1 1 260px" }}>
+            <div style={{ fontWeight: 700, fontSize: 14 }}>Disconnect Supplier</div>
+            <p style={MUTED}>Remove your account number and API key from this store. To pause without removing them, use the on/off switch in Manage Suppliers.</p>
+          </div>
+          <Btn kind="danger" onClick={disconnect} busy={removing}>Disconnect</Btn>
+        </div>
+      )}
     </div>
   );
 }

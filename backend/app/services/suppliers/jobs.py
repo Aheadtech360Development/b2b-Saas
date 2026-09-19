@@ -118,6 +118,8 @@ async def _run(tenant_id: str, supplier: str, kind: str, trigger: str, token: st
             conn = await get_connection(db, supplier, tenant_id=tenant_id)
         if not conn:
             raise RuntimeError("Connect your S&S Activewear account first (Edit supplier → Connection).")
+        if not cfg.get("active", True):
+            raise RuntimeError("S&S Activewear is turned off for this store. Turn it on in Manage Suppliers to use it.")
         # The brand's own account only — never the platform fallback, or the
         # brand would be importing someone else's prices.
         svc = from_connection(conn)
@@ -465,6 +467,8 @@ async def _tick() -> None:
         except ValueError:
             continue
         for supplier, cfg in (all_cfg or {}).items():
+            if (cfg or {}).get("active") is False:
+                continue                      # turned off: no syncs, no orders
             if supplier == "ss_activewear" and ((cfg or {}).get("orders") or {}).get("sync", "disabled") != "disabled":
                 from app.services.suppliers import orders as supplier_orders
                 full = cfgmod._merge(cfgmod._default(supplier), cfg)

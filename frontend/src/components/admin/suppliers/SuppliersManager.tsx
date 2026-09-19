@@ -52,6 +52,23 @@ function SupplierList({ onOpen }: { onOpen: (id: string, tab: Tab) => void }) {
     return () => clearInterval(t);
   }, [running, load]);
 
+  const toggleActive = async (row: SupplierRow) => {
+    const turningOff = row.active !== false;
+    if (turningOff && !window.confirm(
+      `Turn off ${row.name || row.label}?
+
+Nothing will be imported, synced or sent to S&S until you turn it back on. Your API key, settings and imported products stay as they are.`,
+    )) return;
+    setSaving(`active:${row.id}`);
+    try {
+      await suppliersService.update(row.id, { active: !turningOff });
+      await load();
+    } catch (e) {
+      setError(errText(e));
+    }
+    setSaving("");
+  };
+
   const toggleAuto = async (row: SupplierRow) => {
     setSaving(row.id);
     try {
@@ -104,11 +121,17 @@ function SupplierList({ onOpen }: { onOpen: (id: string, tab: Tab) => void }) {
                   </td>
                   <td style={{ padding: "12px 14px" }}>
                     {inactive ? <Badge text="Inactive · coming soon" color="#8A8A8A" />
-                      : r.connected ? <Badge text="Active" color="#16A34A" />
-                        : <Badge text="Not connected" color="#D97706" />}
+                      : !r.connected ? <Badge text="Not connected" color="#D97706" />
+                        : (
+                          <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                            <Toggle on={r.active !== false} busy={saving === `active:${r.id}`} onChange={() => toggleActive(r)}
+                              title={r.active !== false ? "Turn off: stops all syncs, imports and orders. Your key and settings are kept." : "Turn on"} />
+                            {r.active !== false ? <Badge text="Active" color="#16A34A" /> : <Badge text="Off" color="#6B6B6B" />}
+                          </span>
+                        )}
                   </td>
                   <td style={{ padding: "12px 14px" }}>
-                    {inactive ? <span style={{ color: "#B0B0B0" }}>—</span> : (
+                    {inactive || r.active === false ? <span style={{ color: "#B0B0B0" }}>—</span> : (
                       <Toggle on={!!r.auto_import} busy={saving === r.id} onChange={() => toggleAuto(r)}
                         title="When on, every automatic sync also imports new products that match your import filters" />
                     )}
@@ -200,10 +223,32 @@ function SupplierView({ id, initialTab, onBack }: { id: string; initialTab: Tab;
   };
 
   const connected = detail?.connection.connected;
+  const [turningOn, setTurningOn] = useState(false);
+  const turnOn = async () => {
+    setTurningOn(true);
+    try {
+      const { config } = await suppliersService.update(id, { active: true });
+      onSaved(config);
+    } catch (e) {
+      setError(errText(e));
+    }
+    setTurningOn(false);
+  };
   const running = job?.status === "running";
 
   const body = useMemo(() => {
     if (!detail) return null;
+    if (tab !== "edit" && connected && !detail.config.active) {
+      return (
+        <div style={{ ...CARD, textAlign: "center", padding: 36 }}>
+          <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 6 }}>{detail.label} is turned off</div>
+          <p style={{ ...MUTED, marginBottom: 14 }}>
+            Nothing is imported, synced or sent to S&S while it&apos;s off. Your key and settings are kept.
+          </p>
+          <Btn onClick={turnOn} busy={turningOn}>Turn on</Btn>
+        </div>
+      );
+    }
     if (tab !== "edit" && !connected) {
       return (
         <div style={{ ...CARD, textAlign: "center", padding: 36 }}>
@@ -225,7 +270,7 @@ function SupplierView({ id, initialTab, onBack }: { id: string; initialTab: Tab;
     return <EditSupplier id={id} detail={detail} running={running} onSaved={onSaved}
       onJobStarted={onJobStarted} onConnectionChanged={load} onDirtyChange={(d) => { editDirty.current = d; }} />;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [detail, tab, connected, running, dataVersion, id, load]);
+  }, [detail, tab, connected, running, dataVersion, id, load, turningOn]);
 
   return (
     <div style={{ maxWidth: 1180 }}>
@@ -235,9 +280,11 @@ function SupplierView({ id, initialTab, onBack }: { id: string; initialTab: Tab;
 
       <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 14 }}>
         <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, color: "#1A1A1A" }}>{detail?.config.name || detail?.label || "Supplier"}</h1>
-        {detail && (connected
-          ? <Badge text={`Active${detail.connection.account ? ` · ${detail.connection.account}` : ""}`} color="#16A34A" />
-          : <Badge text="Not connected" color="#D97706" />)}
+        {detail && (!connected
+          ? <Badge text="Not connected" color="#D97706" />
+          : detail.config.active
+            ? <Badge text={`Active${detail.connection.account ? ` · ${detail.connection.account}` : ""}`} color="#16A34A" />
+            : <Badge text="Off" color="#6B6B6B" />)}
         {detail?.config.last_sync_at && <span style={MUTED}>Last sync {fmtDate(detail.config.last_sync_at)}</span>}
       </div>
 
