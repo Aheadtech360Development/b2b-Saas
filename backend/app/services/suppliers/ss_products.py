@@ -153,28 +153,56 @@ def _fields(cfg: dict) -> list[dict]:
     return (cfg.get("product") or {}).get("fields") or mapping.DEFAULT_FIELDS
 
 
-def _image_rows(product, skus: list[dict], name: str) -> list:
+# Every angle S&S photographs a colour from, in the order a buyer expects to
+# see them. Any of them can be blank for a given colour.
+IMAGE_FIELDS = (
+    ("colorFrontImage", "Front"),
+    ("colorBackImage", "Back"),
+    ("colorSideImage", "Side"),
+    ("colorDirectSideImage", "Direct Side"),
+    ("colorOnModelFrontImage", "On Model Front"),
+    ("colorOnModelSideImage", "On Model Side"),
+    ("colorOnModelBackImage", "On Model Back"),
+)
+
+
+def _image_rows(product, skus: list[dict], name: str, *, angles: str = "all") -> list:
+    """The product's images, colour by colour: every angle S&S has, or just
+    the front. Only the front was ever imported before, which is why a
+    product showed one photo per colour against many on S&S's own site.
+
+    Alt text carries the colour name — the storefront uses it to show each
+    colour's own photos — and the angle."""
     from app.models.product import ProductImage
     from app.services.ss_activewear_service import ss_image_url
 
-    seen, out = set(), []
+    fields = IMAGE_FIELDS if angles == "all" else IMAGE_FIELDS[:1]
+    seen_colors, seen_paths, out = set(), set(), []
     for row in skus:
         color = row.get("colorName") or "Default"
-        path = row.get("colorFrontImage")
-        if color in seen or not path:
+        if color in seen_colors:
             continue
-        seen.add(color)
-        large = ss_image_url(path, "large")
-        out.append(ProductImage(
-            product_id=product.id,
-            url_thumbnail=ss_image_url(path, "small") or large,
-            url_medium=ss_image_url(path, "medium") or large,
-            url_large=large,
-            alt_text=f"{name} - {color}"[:255],
-            is_primary=not out,
-            sort_order=len(out),
-        ))
+        seen_colors.add(color)
+        for key, angle in fields:
+            path = (row.get(key) or "").strip()
+            if not path or path in seen_paths:
+                continue
+            seen_paths.add(path)
+            large = ss_image_url(path, "large")
+            out.append(ProductImage(
+                product_id=product.id,
+                url_thumbnail=ss_image_url(path, "small") or large,
+                url_medium=ss_image_url(path, "medium") or large,
+                url_large=large,
+                alt_text=(f"{name} - {color}" + ("" if angle == "Front" else f" - {angle}"))[:255],
+                is_primary=not out,
+                sort_order=len(out),
+            ))
     return out
+
+
+def _angles(cfg: dict) -> str:
+    return (cfg.get("product") or {}).get("images", "all")
 
 
 def _variant_values(fields, style, row, price_fn) -> dict:
@@ -223,7 +251,7 @@ async def create_product(db: AsyncSession, style: dict, skus: list[dict], cfg: d
     db.add(product)
     await db.flush()
 
-    for img in _image_rows(product, skus, name):
+    for img in _image_rows(product, skus, name, angles=_angles(cfg)):
         db.add(img)
 
     locs = await locations(db, cfg, create_default=True)
@@ -345,7 +373,7 @@ async def update_product(db: AsyncSession, product, style: dict, skus: list[dict
                 v.status = "active"
 
     if refresh_images and skus:
-        want = _image_rows(product, skus, product.name)
+        want = _image_rows(product, skus, product.name, angles=_angles(cfg))
         have = (await db.execute(
             select(ProductImage.url_large).where(ProductImage.product_id == product.id).order_by(ProductImage.sort_order)
         )).scalars().all()

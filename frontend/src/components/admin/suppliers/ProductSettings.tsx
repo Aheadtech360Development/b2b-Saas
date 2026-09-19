@@ -66,6 +66,21 @@ export function ProductSettings({ id, meta, product, pricing, onProduct, onPrici
       </section>
 
       <section>
+        <div style={{ fontWeight: 700, fontSize: 15 }}>Product Images</div>
+        <p style={MUTED}>Which of S&S&apos;s photos each colour gets. Not every colour has every angle.</p>
+        <div style={{ display: "flex", gap: 18, marginTop: 10, flexWrap: "wrap", fontSize: 13 }}>
+          <label style={{ display: "flex", gap: 8, alignItems: "center", cursor: "pointer" }}>
+            <input type="radio" checked={(product.images ?? "all") === "all"} onChange={() => onProduct({ ...product, images: "all" })} />
+            All angles — front, back, side and on-model
+          </label>
+          <label style={{ display: "flex", gap: 8, alignItems: "center", cursor: "pointer" }}>
+            <input type="radio" checked={product.images === "front"} onChange={() => onProduct({ ...product, images: "front" })} />
+            Front only
+          </label>
+        </div>
+      </section>
+
+      <section>
         <div style={{ display: "flex", gap: 10, alignItems: "flex-end", flexWrap: "wrap", marginBottom: 12 }}>
           <div style={{ flex: "1 1 320px" }}>
             <div style={{ fontWeight: 700, fontSize: 15 }}>Match Fields</div>
