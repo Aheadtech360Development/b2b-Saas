@@ -62,6 +62,10 @@ class VariantOut(BaseModel):
     id: UUID
     sku: str
     color: str | None
+    # The colour's real swatch hex (S&S sends it as color1). Without this field
+    # the response model dropped it, so storefront swatches fell back to a
+    # small name-to-colour table and every other colour showed as grey.
+    color_hex: str | None = None
     size: str | None
     retail_price: Decimal
     compare_price: Decimal | None = None

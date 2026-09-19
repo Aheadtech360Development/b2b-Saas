@@ -124,6 +124,11 @@ async def list_suppliers(
             continue
         cfg = await cfgmod.load(db, sid)
         conn = await _connection(db, sid)
+        if not cfg.get("created_at"):
+            # Connected but never saved a setting: the supplier dates from
+            # when the account was connected.
+            from app.services.integrations_service import get_connection
+            cfg["created_at"] = ((await get_connection(db, sid)) or {}).get("connected_at")
         out.append({
             "id": sid, "label": meta["label"], "available": True, "name": cfg["name"],
             "connected": conn["connected"], "account": conn["account"],

@@ -744,7 +744,7 @@ export default function AdminProductEditPage() {
                   onClick={() => toggleGroup(group.color)}
                   style={{ display: "flex", alignItems: "center", gap: "12px", padding: "12px 16px", cursor: "pointer", background: "#F6F6F7", userSelect: "none" }}
                 >
-                  <div style={{ width: "20px", height: "20px", borderRadius: "50%", background: COLOR_MAP[group.color] ?? "#888", border: "1.5px solid rgba(0,0,0,.1)", flexShrink: 0 }} />
+                  <div style={{ width: "20px", height: "20px", borderRadius: "50%", background: group.variants.find((v) => (v as { color_hex?: string | null }).color_hex)?.color_hex ?? COLOR_MAP[group.color] ?? "#888", border: "1.5px solid rgba(0,0,0,.1)", flexShrink: 0 }} />
                   <span style={{ fontWeight: 700, fontSize: "14px", color: "#2A2830" }}>{group.color}</span>
                   <span style={{ fontSize: "12px", color: "#7A7880" }}>({group.variants.length} sizes)</span>
                   <span style={{ marginLeft: "auto", fontSize: "12px", color: "#7A7880" }}>
