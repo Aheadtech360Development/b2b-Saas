@@ -253,7 +253,8 @@ export default function AdminDashboard() {
     <div style={{ fontFamily: "var(--font-jakarta)", maxWidth: "1200px" }}>
       {/* Header — warm, time-aware welcome */}
       <div style={{ marginBottom: "28px" }}>
-        <h1 style={{ fontSize: "30px", fontWeight: 700, color: "#1A1A1A", letterSpacing: "-0.01em", lineHeight: 1.1 }}>
+        <div style={{ fontSize: "12px", fontWeight: 600, color: "#9A98A0", letterSpacing: ".04em", marginBottom: "6px" }}>Command Center</div>
+        <h1 style={{ fontSize: "28px", fontWeight: 800, color: "#1A1A1A", letterSpacing: "-0.02em", lineHeight: 1.1 }}>
           {greeting()}{user?.first_name ? `, ${user.first_name}` : ""} 👋
         </h1>
         <p style={{ fontSize: "14px", color: "#6B6B6B", marginTop: "6px" }}>Here&apos;s what&apos;s happening with your store today.</p>

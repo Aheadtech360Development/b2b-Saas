@@ -16,21 +16,21 @@ import {
 const ICON_PROPS = { size: 17, strokeWidth: 1.75 } as const;
 
 const SECTION_HEAD: React.CSSProperties = {
-  fontSize: "10px", fontWeight: 700, textTransform: "uppercase",
-  letterSpacing: ".12em", color: "#bbb", padding: "14px 12px 5px",
+  fontSize: "11.5px", fontWeight: 600, color: "#A3A1A8",
+  letterSpacing: ".01em", padding: "16px 12px 6px",
 };
 
 const NAV_LINK_BASE: React.CSSProperties = {
   display: "flex", alignItems: "center", gap: "10px",
-  padding: "9px 12px", borderRadius: "8px", textDecoration: "none",
+  padding: "9px 12px", borderRadius: "10px", textDecoration: "none",
   fontSize: "13px", fontWeight: 600, transition: "all .15s", cursor: "pointer",
 };
 
 const SUB_LINK_BASE: React.CSSProperties = {
-  display: "block", padding: "7px 12px", borderRadius: "6px",
+  display: "block", padding: "7px 12px", borderRadius: "8px",
   textDecoration: "none", fontSize: "13px", fontWeight: 500,
   marginBottom: "1px", transition: "all .15s",
-  borderLeft: "2px solid #E3E3E3",
+  borderLeft: "2px solid transparent",
 };
 
 export function AdminSidebar() {
@@ -91,8 +91,8 @@ export function AdminSidebar() {
     return (
       <Link href={href} style={{
         ...NAV_LINK_BASE,
-        background: active ? "#ECECEB" : "transparent",
-        color: active ? "#1A1A1A" : "#555",
+        background: active ? "#1A1A1A" : "transparent",
+        color: active ? "#fff" : "#555",
       }}
         onMouseEnter={e => { if (!active) (e.currentTarget as HTMLElement).style.background = "#F6F6F7"; }}
         onMouseLeave={e => { if (!active) (e.currentTarget as HTMLElement).style.background = "transparent"; }}
@@ -100,7 +100,7 @@ export function AdminSidebar() {
         <span style={{ fontSize: "15px", flexShrink: 0 }}>{icon}</span>
         <span>{label}</span>
         {badge !== undefined && badge > 0 && (
-          <span style={{ marginLeft: "auto", background: "#E5E5E4", color: "#4A4A4A", fontSize: "11px", fontWeight: 700, minWidth: "18px", height: "18px", borderRadius: "10px", display: "flex", alignItems: "center", justifyContent: "center", padding: "0 5px" }}>
+          <span style={{ marginLeft: "auto", background: active ? "rgba(255,255,255,.2)" : "#E5E5E4", color: active ? "#fff" : "#4A4A4A", fontSize: "11px", fontWeight: 700, minWidth: "18px", height: "18px", borderRadius: "10px", display: "flex", alignItems: "center", justifyContent: "center", padding: "0 5px" }}>
             {badge > 99 ? "99+" : badge}
           </span>
         )}
@@ -128,9 +128,9 @@ export function AdminSidebar() {
     return (
       <Link href={href} style={{
         ...SUB_LINK_BASE,
-        background: active ? "#F1F1F0" : "transparent",
+        background: active ? "#F1F0EC" : "transparent",
         color: active ? "#1A1A1A" : "#7A7880",
-        borderLeftColor: active ? "#1A1A1A" : "#E3E3E3",
+        borderLeftColor: active ? "#1A1A1A" : "transparent",
         fontWeight: active ? 700 : 500,
       }}
         onMouseEnter={e => { if (!active) (e.currentTarget as HTMLElement).style.background = "#F6F6F7"; }}
@@ -145,12 +145,12 @@ export function AdminSidebar() {
     <div style={{ padding: "8px 10px 32px" }}>
 
       {/* ── HOME ── */}
-      <div style={SECTION_HEAD}>Home</div>
-      <NavLink href="/admin/dashboard" label="Dashboard" icon={<LayoutDashboard {...ICON_PROPS} />} />
+      <div style={SECTION_HEAD}>Workspace</div>
+      <NavLink href="/admin/dashboard" label="Command Center" icon={<LayoutDashboard {...ICON_PROPS} />} />
 
       {/* ── ORDERS ── */}
       {can("orders") && <>
-      <div style={SECTION_HEAD}>Orders</div>
+      <div style={SECTION_HEAD}>Sales</div>
 
       {/* Orders dropdown trigger */}
       <div
@@ -158,12 +158,12 @@ export function AdminSidebar() {
         style={{
           ...NAV_LINK_BASE,
           justifyContent: "space-between",
-          background: isOrdersActive ? "#ECECEB" : "transparent",
+          background: isOrdersActive ? "#F1F0EC" : "transparent",
           color: isOrdersActive ? "#1A1A1A" : "#555",
           userSelect: "none",
         }}
         onMouseEnter={e => { if (!isOrdersActive) (e.currentTarget as HTMLElement).style.background = "#F6F6F7"; }}
-        onMouseLeave={e => { if (!isOrdersActive) (e.currentTarget as HTMLElement).style.background = isOrdersActive ? "#ECECEB" : "transparent"; }}
+        onMouseLeave={e => { if (!isOrdersActive) (e.currentTarget as HTMLElement).style.background = isOrdersActive ? "#F1F0EC" : "transparent"; }}
       >
         <span style={{ display: "flex", alignItems: "center", gap: "10px" }}>
           <ShoppingBag {...ICON_PROPS} />
@@ -178,17 +178,17 @@ export function AdminSidebar() {
           <SubLink href="/admin/orders" label="All Orders" />
           <SubLink href="/admin/orders/drafts" label="Drafts" />
           <SubLink href="/admin/orders/shipping-labels" label="Shipping Labels" />
-          <SubLink href="/admin/abandoned-carts" label="Abandoned Checkouts" />
+          <SubLink href="/admin/abandoned-carts" label="Abandoned carts" />
         </div>
       )}
 
-      <NavLink href="/admin/returns" label="Returns (RMA)" icon={<RotateCcw {...ICON_PROPS} />} badge={counts.returns} />
+      <NavLink href="/admin/returns" label="Returns" icon={<RotateCcw {...ICON_PROPS} />} badge={counts.returns} />
       </>}
       {can("inventory") && <NavLink href="/admin/purchase-orders" label="Purchase Orders" icon={<ClipboardList {...ICON_PROPS} />} />}
 
       {/* ── PRODUCTS ── */}
       {can("products") && <>
-      <div style={SECTION_HEAD}>Products</div>
+      <div style={SECTION_HEAD}>Catalogue</div>
 
       {/* Products dropdown */}
       <div
@@ -196,12 +196,12 @@ export function AdminSidebar() {
         style={{
           ...NAV_LINK_BASE,
           justifyContent: "space-between",
-          background: isProductsActive ? "#ECECEB" : "transparent",
+          background: isProductsActive ? "#F1F0EC" : "transparent",
           color: isProductsActive ? "#1A1A1A" : "#555",
           userSelect: "none",
         }}
         onMouseEnter={e => { if (!isProductsActive) (e.currentTarget as HTMLElement).style.background = "#F6F6F7"; }}
-        onMouseLeave={e => { if (!isProductsActive) (e.currentTarget as HTMLElement).style.background = isProductsActive ? "#ECECEB" : "transparent"; }}
+        onMouseLeave={e => { if (!isProductsActive) (e.currentTarget as HTMLElement).style.background = isProductsActive ? "#F1F0EC" : "transparent"; }}
       >
         <span style={{ display: "flex", alignItems: "center", gap: "10px" }}>
           <Shirt {...ICON_PROPS} />
@@ -226,7 +226,7 @@ export function AdminSidebar() {
 
       {/* ── CUSTOMERS ── */}
       {can("customers") && <>
-      <div style={SECTION_HEAD}>Customers</div>
+      <div style={SECTION_HEAD}>Buyers</div>
 
       {/* Customers dropdown */}
       <div
@@ -234,12 +234,12 @@ export function AdminSidebar() {
         style={{
           ...NAV_LINK_BASE,
           justifyContent: "space-between",
-          background: isCustomersActive ? "#ECECEB" : "transparent",
+          background: isCustomersActive ? "#F1F0EC" : "transparent",
           color: isCustomersActive ? "#1A1A1A" : "#555",
           userSelect: "none",
         }}
         onMouseEnter={e => { if (!isCustomersActive) (e.currentTarget as HTMLElement).style.background = "#F6F6F7"; }}
-        onMouseLeave={e => { if (!isCustomersActive) (e.currentTarget as HTMLElement).style.background = isCustomersActive ? "#ECECEB" : "transparent"; }}
+        onMouseLeave={e => { if (!isCustomersActive) (e.currentTarget as HTMLElement).style.background = isCustomersActive ? "#F1F0EC" : "transparent"; }}
       >
         <span style={{ display: "flex", alignItems: "center", gap: "10px" }}>
           <Users {...ICON_PROPS} />
@@ -255,7 +255,7 @@ export function AdminSidebar() {
           <SubLink href="/admin/customers/segments" label="Segments" />
           <SubLink href="/admin/customers/applications" label="Applications" />
           <SubLink href="/admin/customers/tiers?tab=groups" label="Discount Groups" />
-          <SubLink href="/admin/customers/tiers?tab=variants" label="Individual Variant Pricing" />
+          <SubLink href="/admin/customers/tiers?tab=variants" label="Customer pricing" />
         </div>
       )}
 
@@ -264,9 +264,9 @@ export function AdminSidebar() {
 
       {/* ── DISCOUNTS ── */}
       {(can("discounts") || can("settings")) && <>
-      <div style={SECTION_HEAD}>Discounts</div>
+      <div style={SECTION_HEAD}>Marketing</div>
       {can("discounts") && <NavLink href="/admin/discounts" label="Discounts" icon={<Percent {...ICON_PROPS} />} />}
-      {can("settings") && <NavLink href="/admin/standard-shipping" label="Standard Shipping" icon={<Truck {...ICON_PROPS} />} />}
+      {can("settings") && <NavLink href="/admin/standard-shipping" label="Shipping" icon={<Truck {...ICON_PROPS} />} />}
       </>}
 
       {/* The Content group (Pages SEO / Blogs / Style Sheets / Product Specs) was
@@ -275,7 +275,7 @@ export function AdminSidebar() {
 
       {/* ── ONLINE STORE ── */}
       {(can("storefront") || can("media")) && <>
-      <div style={SECTION_HEAD}>Online Store</div>
+      <div style={SECTION_HEAD}>Storefront</div>
       {can("storefront") && <NavLink href="/admin/storefront" label="Storefront" icon={<Store {...ICON_PROPS} />} exact />}
       {can("storefront") && <NavLink href="/admin/storefront/pages" label="Pages" icon={<File {...ICON_PROPS} />} />}
       {can("storefront") && <NavLink href="/admin/storefront/menus" label="Menus" icon={<Compass {...ICON_PROPS} />} />}
@@ -284,7 +284,7 @@ export function AdminSidebar() {
 
       {/* ── SETTINGS ── */}
       {(can("settings") || can("staff") || can("analytics")) && <>
-      <div style={SECTION_HEAD}>Settings</div>
+      <div style={SECTION_HEAD}>Admin</div>
 
       {/* Settings dropdown */}
       <div
@@ -292,12 +292,12 @@ export function AdminSidebar() {
         style={{
           ...NAV_LINK_BASE,
           justifyContent: "space-between",
-          background: isSettingsActive ? "#ECECEB" : "transparent",
+          background: isSettingsActive ? "#F1F0EC" : "transparent",
           color: isSettingsActive ? "#1A1A1A" : "#555",
           userSelect: "none",
         }}
         onMouseEnter={e => { if (!isSettingsActive) (e.currentTarget as HTMLElement).style.background = "#F6F6F7"; }}
-        onMouseLeave={e => { if (!isSettingsActive) (e.currentTarget as HTMLElement).style.background = isSettingsActive ? "#ECECEB" : "transparent"; }}
+        onMouseLeave={e => { if (!isSettingsActive) (e.currentTarget as HTMLElement).style.background = isSettingsActive ? "#F1F0EC" : "transparent"; }}
       >
         <span style={{ display: "flex", alignItems: "center", gap: "10px" }}>
           <Settings {...ICON_PROPS} />

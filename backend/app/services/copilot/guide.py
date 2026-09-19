@@ -41,7 +41,7 @@ Save at the top right. The buyer's price is always recalculated on the server.""
 
 If they registered on the storefront, they are waiting instead: Customers → Applications. Approve or reject there. Until approved they cannot order at wholesale prices.
 
-Pricing for a customer: Customers → Discount Groups (a percentage for a group of customers) or Individual Variant Pricing (a fixed price for one customer on one variant).""",
+Pricing for a customer: Customers → Discount Groups (a percentage for a group of customers) or Customer pricing (a fixed price for one customer on one variant).""",
     ),
     "orders": (
         "Find, update and ship orders",
@@ -49,7 +49,7 @@ Pricing for a customer: Customers → Discount Groups (a percentage for a group 
 
 - Drafts (Orders → Drafts) is where you build an order for a customer yourself, then convert it to a real order.
 - Shipping Labels (Orders → Shipping Labels) buys and prints labels.
-- Abandoned Checkouts shows carts that never became orders.
+- Abandoned carts shows carts that never became orders.
 - A gang sheet or upload-by-size job on an order appears on the order page with its layout preview, print PDF and artwork files.""",
     ),
     "gang_sheets": (
@@ -114,7 +114,7 @@ Below the settings: "Orders to Send" (tick and send; failed ones wait here with 
     ),
     "shipping": (
         "Set up shipping and connect carriers (UPS, FedEx, USPS)",
-        """Standard Shipping (in the left nav) holds flat rates and shipping rules, the ship-from address, and the carrier connections. Each brand connects its own carrier accounts, so checkout shows that brand's own negotiated rates and labels bill to it.
+        """Shipping (in the left nav, under Marketing) holds flat rates and shipping rules, the ship-from address, and the carrier connections. Each brand connects its own carrier accounts, so checkout shows that brand's own negotiated rates and labels bill to it.
 
 - UPS: Client ID and Client secret (from your app at developer.ups.com) and your UPS account (shipper) number.
 - FedEx: API key and Secret key (developer.fedex.com) and your FedEx account number.
@@ -145,10 +145,10 @@ Settings → Security (2FA) covers sign-in protection, and Settings → Audit Lo
     ),
     "storefront": (
         "Change how the storefront looks and reads",
-        """Online Store → Storefront is the theme: colours, fonts, homepage sections, logo and favicon.
-- Online Store → Pages for pages like About or Contact.
-- Online Store → Menus for the navigation.
-- Online Store → Media Library for images.""",
+        """Storefront (in the left nav) is the theme: colours, fonts, homepage sections, logo and favicon.
+- Storefront → Pages for pages like About or Contact.
+- Storefront → Menus for the navigation.
+- Storefront → Media Library for images.""",
     ),
     "purchase_orders": (
         "Buy stock from a supplier",
@@ -156,7 +156,7 @@ Settings → Security (2FA) covers sign-in protection, and Settings → Audit Lo
     ),
     "returns": (
         "Handle a return",
-        """Orders → Returns (RMA). Each request shows the order, the reason and the customer. Approve or reject it there; the customer sees the decision.""",
+        """Sales → Returns. Each request shows the order, the reason and the customer. Approve or reject it there; the customer sees the decision.""",
     ),
     "taxes": (
         "Set up tax",
