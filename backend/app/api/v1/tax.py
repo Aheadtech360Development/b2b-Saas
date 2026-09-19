@@ -50,68 +50,27 @@ async def calculate_tax(
             logger.info("Tax: company %s is tax-exempt → returning 0", company_id)
             return {"tax_rate": 0.0, "tax_amount": 0.0, "region": state, "taxable": False, "source": "exempt"}
 
-    # ZipTax: use when API key is configured and we have address data
-    from app.services.tax_service import get_ziptax_client
-    api_key_present = get_ziptax_client() is not None
-    logger.info("Tax: zip_code=%r taxable_subtotal=%.2f ziptax_key_present=%s", body.zip_code, taxable_subtotal, api_key_present)
+    # The brand's own tax setting (auto ZipTax / its manual rates / no tax) —
+    # the same resolver the charge uses. This endpoint used to call ZipTax
+    # directly, so a brand set to "no tax" or to its own rates showed buyers
+    # one tax at checkout and charged another.
+    if taxable_subtotal <= 0:
+        return {"tax_rate": 0.0, "tax_amount": 0.0, "region": state, "taxable": False, "source": "none"}
+    from app.services.tax_service import resolve_tax
 
-    if clean_zip and taxable_subtotal > 0:
-        if api_key_present:
-            from app.services.tax_service import calculate_tax as ziptax_calc
-            result = await ziptax_calc(
-                to_state=state,
-                to_zip=clean_zip,
-                to_city="",
-                subtotal=taxable_subtotal,
-                shipping=0,
-            )
-            logger.info("ZipTax service returned: %s", result)
-            if result.get("source") == "ziptax":
-                logger.info(
-                    "ZipTax success: %s %s → rate=%.4f%% amount=$%.2f",
-                    state, clean_zip, result["rate"], result["tax_amount"],
-                )
-                return {
-                    "tax_rate": result["rate"],
-                    "tax_amount": result["tax_amount"],
-                    "region": result["region"],
-                    "taxable": result["tax_amount"] > 0,
-                    "source": "ziptax",
-                }
-            logger.warning("ZipTax did not return source=ziptax — result: %s", result)
-        else:
-            logger.warning("ZIPTAX_API_KEY not set in environment — skipping ZipTax")
-    else:
-        logger.info("Tax: skipping ZipTax — clean_zip=%r empty or taxable_subtotal=0", clean_zip)
-
-    # Fallback: manual tax_rates table (optional — never let it break checkout).
     try:
-        from app.api.v1.admin.taxes import TaxRate
-        r = (await db.execute(
-            select(TaxRate).where(TaxRate.region == state, TaxRate.is_enabled == True)  # noqa: E712
-        )).scalar_one_or_none()
-        if r:
-            rate = float(r.rate)
-            tax_amount = round(taxable_subtotal * rate / 100, 2)
-            logger.info("Tax: manual table match for %s → rate=%.4f%% amount=$%.2f", state, rate, tax_amount)
-            return {
-                "tax_rate": rate,
-                "tax_amount": tax_amount,
-                "region": r.region,
-                "taxable": tax_amount > 0,
-                "source": "manual",
-            }
-    except Exception as exc:
-        # Table missing / query failed — roll back the aborted tx and fall through
-        # to a 0% result so tax never crashes the checkout flow.
-        logger.warning("Tax: manual tax_rates fallback unavailable (%s) — returning 0", exc)
-        try:
-            await db.rollback()
-        except Exception:
-            pass
-
-    logger.info("Tax: no manual rate found for %s → returning 0", state)
-    return {"tax_rate": 0.0, "tax_amount": 0.0, "region": state, "taxable": False, "source": "none"}
+        result = await resolve_tax(db, state, clean_zip, "", taxable_subtotal)
+    except Exception as exc:  # tax must never break checkout
+        logger.warning("Tax: resolve failed for %s %s (%s) — returning 0", state, clean_zip, exc)
+        return {"tax_rate": 0.0, "tax_amount": 0.0, "region": state, "taxable": False, "source": "none"}
+    amount = float(result.get("tax_amount", 0) or 0)
+    return {
+        "tax_rate": float(result.get("rate", 0) or 0),
+        "tax_amount": amount,
+        "region": result.get("region") or state,
+        "taxable": amount > 0,
+        "source": result.get("source", "none"),
+    }
 
 
 @router.get("/outbound-ip")
