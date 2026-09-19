@@ -85,7 +85,8 @@ export default function CheckoutReviewPage() {
   // Derived values needed by useEffects below
   const guestSubtotalCalc = guestEntries.reduce((s, e) => s + e.unit_price * e.quantity, 0);
   const subtotal = isGuest ? guestSubtotalCalc : Number(cart?.subtotal ?? 0);
-  const shipping = shippingCost;
+  // A free-shipping code makes shipping free (the server applies it the same way).
+  const shipping = !isGuest && appliedCoupon?.discount_type === "free_shipping" ? 0 : shippingCost;
   const couponDiscount = appliedCoupon ? Number(appliedCoupon.discount_amount) : 0;
 
   // Guard: must have shipping + payment

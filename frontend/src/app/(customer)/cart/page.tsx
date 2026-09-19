@@ -496,6 +496,11 @@ export default function CartPage() {
               subtotal={subtotal}
               appliedCoupon={isGuest ? null : appliedCoupon}
               onRemoveCoupon={handleRemoveCoupon}
+              couponInput={couponInput}
+              onCouponInput={(v) => { setCouponInput(v); setCouponError(null); }}
+              onApplyCoupon={handleApplyCoupon}
+              applyingCoupon={applyingCoupon}
+              couponError={couponError}
               isValid={isCheckoutEnabled}
               disabledReason={disabledReason}
               isGuest={isGuest}
@@ -544,11 +549,17 @@ export default function CartPage() {
 
 // ── Order Summary sidebar component ──────────────────────────────────────────
 function OrderSummary({
-  subtotal, appliedCoupon, onRemoveCoupon, isValid, disabledReason, isGuest, onCheckout,
+  subtotal, appliedCoupon, onRemoveCoupon, couponInput, onCouponInput, onApplyCoupon, applyingCoupon, couponError,
+  isValid, disabledReason, isGuest, onCheckout,
 }: {
   subtotal: number;
   appliedCoupon: AppliedCoupon | null;
   onRemoveCoupon: () => void;
+  couponInput: string;
+  onCouponInput: (v: string) => void;
+  onApplyCoupon: () => void;
+  applyingCoupon: boolean;
+  couponError: string | null;
   isValid: boolean;
   disabledReason?: string;
   isGuest?: boolean;
@@ -572,13 +583,37 @@ function OrderSummary({
         <span>Tax</span>
         <span>Calculated at checkout</span>
       </div>
+      {/* The code field. The apply logic existed, but no field was ever
+          rendered, so buyers had no way to enter a discount code. */}
+      {!isGuest && !appliedCoupon && (
+        <div style={{ marginBottom: "12px" }}>
+          <div style={{ display: "flex", gap: "8px" }}>
+            <input
+              value={couponInput}
+              onChange={(e) => onCouponInput(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") onApplyCoupon(); }}
+              placeholder="Discount code"
+              aria-label="Discount code"
+              style={{ flex: 1, minWidth: 0, padding: "10px 12px", border: "1px solid #D4D4D0", fontFamily: "'DM Sans', sans-serif", fontSize: "14px", background: "#fff" }}
+            />
+            <button
+              onClick={onApplyCoupon}
+              disabled={!couponInput.trim() || applyingCoupon}
+              style={{ padding: "10px 16px", border: "1px solid #1A1A1A", background: "#fff", color: "#1A1A1A", cursor: couponInput.trim() && !applyingCoupon ? "pointer" : "not-allowed", fontFamily: "'DM Sans', sans-serif", fontSize: "14px", fontWeight: 600, opacity: couponInput.trim() ? 1 : 0.5 }}
+            >
+              {applyingCoupon ? "…" : "Apply"}
+            </button>
+          </div>
+          {couponError && <p style={{ fontSize: "12px", color: "#E8242A", marginTop: "6px", fontFamily: "'DM Sans', sans-serif" }}>{couponError}</p>}
+        </div>
+      )}
       {appliedCoupon && (
         <div style={{ ...row, color: "#059669" }}>
           <span>
             Coupon ({appliedCoupon.code})
             <button onClick={onRemoveCoupon} style={{ marginLeft: "8px", fontSize: "10px", color: "#E8242A", background: "none", border: "none", cursor: "pointer", fontWeight: 700, padding: 0 }}>✕</button>
           </span>
-          <span>-{formatCurrency(couponDiscount)}</span>
+          <span>{appliedCoupon.discount_type === "free_shipping" ? "Free shipping" : `-${formatCurrency(couponDiscount)}`}</span>
         </div>
       )}
       <div style={{ display: "flex", justifyContent: "space-between", fontFamily: "'DM Sans', sans-serif", fontSize: "16px", fontWeight: 600, color: "#1A1A1A", paddingTop: "14px", borderTop: "1px solid #E2E2DE", marginTop: "14px" }}>

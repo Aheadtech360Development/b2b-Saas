@@ -26,7 +26,7 @@ class PricingTier(TenantMixin, BaseModel):
     shipping_discount_percentage: Mapped[float | None] = mapped_column(Float, default=0, server_default="0")
     tax_exempt: Mapped[bool | None] = mapped_column(Boolean, default=False, server_default="false")
     tax_percentage: Mapped[float | None] = mapped_column(Float, default=0, server_default="0")
-    payment_terms: Mapped[str | None] = mapped_column(String(50), default="immediate", server_default="'immediate'")
+    payment_terms: Mapped[str | None] = mapped_column(String(50), default="immediate", server_default="immediate")
     credit_limit: Mapped[float | None] = mapped_column(Float, default=0, server_default="0")
     priority_support: Mapped[bool | None] = mapped_column(Boolean, default=False, server_default="false")
     volume_breaks: Mapped[list | None] = mapped_column(JSONB, default=list, server_default=text("'[]'::jsonb"))

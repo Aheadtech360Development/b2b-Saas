@@ -224,6 +224,81 @@ async def _apply_tenant_context(request: Request | None, session: AsyncSession) 
     set_current_tenant(NO_TENANT)
 
 
+async def _apply_pricing_context(request, session) -> None:
+    """Put the buyer's pricing tier discount and discount group on the request.
+
+    Products, cart, checkout and shipping read `request.state.tier_discount_percent`
+    and `request.state.discount_group_id`. They were set by PricingMiddleware,
+    which was dropped from the middleware stack when the app was rebuilt for
+    multiple brands — so every buyer got 0% and no group, and Discount Groups and
+    pricing tiers changed nothing. It can't simply go back as middleware: it runs
+    before the brand is resolved, and under row-level security its lookups would
+    find nothing. Here it runs on this request's own session, scoped to the brand.
+
+    Cached briefly in Redis under the keys the admin already clears when a
+    customer's tags change.
+    """
+    if request is None:
+        return
+    state = request.state
+    company_id = getattr(state, "company_id", None)
+    if hasattr(state, "discount_group_id") and hasattr(state, "tier_discount_percent"):
+        return
+    from decimal import Decimal
+
+    state.tier_discount_percent = Decimal("0")
+    state.discount_group_id = None
+    if not company_id or getattr(state, "is_platform_admin", False):
+        return
+    from sqlalchemy import select
+
+    from app.core.redis import redis_get, redis_set
+
+    try:
+        from app.models.company import Company
+
+        company = (await session.execute(
+            select(Company.pricing_tier_id, Company.tags).where(Company.id == company_id)
+        )).first()
+        if not company:
+            return
+        tier_id, tags = company
+
+        if tier_id:
+            key = f"pricing_tier:{tier_id}:discount"
+            cached = await redis_get(key)
+            if cached is not None:
+                state.tier_discount_percent = Decimal(str(cached))
+            else:
+                from app.models.pricing import PricingTier
+
+                pct = (await session.execute(
+                    select(PricingTier.discount_percent).where(PricingTier.id == tier_id)
+                )).scalar_one_or_none()
+                state.tier_discount_percent = Decimal(str(pct or 0))
+                await redis_set(key, str(state.tier_discount_percent), expire=300)
+
+        dg_key = f"company:{company_id}:discount_group_id"
+        cached_dg = await redis_get(dg_key)
+        if cached_dg is not None:
+            state.discount_group_id = cached_dg if cached_dg != "none" else None
+        elif tags:
+            from app.models.discount_group import DiscountGroup
+
+            dg_id = (await session.execute(
+                select(DiscountGroup.id).where(
+                    DiscountGroup.customer_tag.in_(tags), DiscountGroup.status == "enabled",
+                ).limit(1)
+            )).scalar_one_or_none()
+            state.discount_group_id = str(dg_id) if dg_id else None
+            await redis_set(dg_key, state.discount_group_id or "none", expire=300)
+        else:
+            await redis_set(dg_key, "none", expire=300)
+    except Exception as exc:  # pricing must never break the request
+        import logging
+        logging.getLogger(__name__).warning("pricing context failed: %s", exc)
+
+
 # ── FastAPI dependency ────────────────────────────────────────────────────────
 async def get_db(request: Request = None) -> AsyncGenerator[AsyncSession, None]:  # type: ignore[assignment]
     """Yield a database session scoped to the current tenant.
@@ -253,6 +328,7 @@ async def get_db(request: Request = None) -> AsyncGenerator[AsyncSession, None]:
                 )
         except Exception:
             pass
+        await _apply_pricing_context(request, session)
         try:
             yield session
             await session.commit()

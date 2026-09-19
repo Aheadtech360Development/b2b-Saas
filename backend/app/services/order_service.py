@@ -83,6 +83,7 @@ class OrderService:
         coupon_discount_amount: Decimal = Decimal("0"),
         group_id: str | None = None,
         is_wholesale: bool = True,
+        free_shipping: bool = False,
     ) -> Order:
         settings = get_settings()
 
@@ -282,6 +283,10 @@ class OrderService:
         # Client-provided shipping_cost is authoritative — single source of truth with display
         if confirm.shipping_cost and confirm.shipping_cost > 0:
             shipping_cost = Decimal(str(confirm.shipping_cost))
+        # A free-shipping discount code: base shipping is free, an expedited
+        # upgrade is still charged.
+        if free_shipping:
+            shipping_cost = Decimal("45.00") if shipping_method == "expedited" else Decimal("0.00")
 
         tax_amount_val = Decimal(str(confirm.tax_amount or 0))
 

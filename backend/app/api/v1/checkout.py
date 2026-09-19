@@ -78,17 +78,19 @@ async def create_payment_intent(
     if payload.discount_code:
         cart_total_for_coupon = float(cart.subtotal)
         coupon_dc, coupon_err = await validate_discount_code(
-            payload.discount_code, cart_total_for_coupon, user_id, "wholesale", db
+            payload.discount_code, cart_total_for_coupon, user_id, account_type or "wholesale", db
         )
         if coupon_err:
             raise ValidationError(f"Discount code invalid: {coupon_err}")
         coupon_discount_amount = Decimal(str(compute_discount_amount(coupon_dc, cart_total_for_coupon)))
+        if coupon_dc.discount_type == "free_shipping":
+            base_shipping = Decimal("0.00")
 
     # Compute tax on the BACKEND from the ship-to address (never trust the client's
     # tax_amount). Tax applies to the discounted subtotal; shipping is not taxed.
     taxable_base = cart.subtotal - coupon_discount_amount
     tax_amount_dc = Decimal("0")
-    if payload.to_state and taxable_base > 0:
+    if payload.to_state and taxable_base > 0 and not await _tax_exempt(db, company_id):
         # Brand-aware: honours this brand's tax mode (auto ZipTax / its own manual
         # rates / no tax) — the same helper the quote endpoint uses.
         from app.services.tax_service import resolve_tax as _resolve_tax
@@ -236,11 +238,53 @@ async def _confirm_checkout_inner(
     discount_percent = getattr(request.state, "tier_discount_percent", Decimal("0"))
     group_id = getattr(request.state, "discount_group_id", None)
 
+    # The discount code, applied to the order itself. It used to be applied only
+    # to the card charge (payment intent), never here: the order recorded the
+    # full price, Net 30 and ACH orders never got the discount at all, and no
+    # usage was recorded, so usage limits never took effect.
     coupon_discount_dc = None
     coupon_discount_amount = Decimal("0")
+    free_shipping = False
+    if payload.discount_code:
+        from app.services.cart_service import CartService as _CartSvc
+
+        _cart = await _CartSvc(db).get_cart_with_pricing(company_id, discount_percent, group_id)
+        _base = float(_cart.subtotal)
+        coupon_discount_dc, _err = await validate_discount_code(
+            payload.discount_code, _base, user_id, _account_type or "wholesale", db
+        )
+        if _err:
+            raise ValidationError(f"Discount code invalid: {_err}")
+        coupon_discount_amount = Decimal(str(compute_discount_amount(coupon_discount_dc, _base)))
+        free_shipping = coupon_discount_dc.discount_type == "free_shipping"
+        if free_shipping:
+            payload.shipping_cost = Decimal("0")
+
+    # ── Tax for orders not paid by card ──────────────────────────────────────
+    # A card order's tax comes from the payment intent, computed on the server.
+    # Net 30 and ACH orders took the tax the browser sent, so any client could
+    # send 0. Compute it here the same way (and none for tax-exempt buyers).
+    order_svc = OrderService(db)
+    if not has_stripe:
+        from app.services.cart_service import CartService as _CartSvc2
+        from app.services.tax_service import resolve_tax as _resolve_tax
+
+        _cart2 = await _CartSvc2(db).get_cart_with_pricing(company_id, discount_percent, group_id)
+        _taxable = _cart2.subtotal - coupon_discount_amount
+        payload.tax_amount = Decimal("0")
+        if _taxable > 0 and not await _tax_exempt(db, company_id):
+            _addr = await order_svc._resolve_address(payload, company_id)
+            _state, _zip = (_addr or {}).get("state"), (_addr or {}).get("postal_code")
+            if _state:
+                _tax = await _resolve_tax(db, _state, _zip or "", (_addr or {}).get("city") or "", float(_taxable))
+                payload.tax_amount = Decimal(str(_tax.get("tax_amount", 0) or 0))
+
+        if has_net30:
+            _ship = Decimal(str(payload.shipping_cost or 0))
+            _estimate = _cart2.subtotal - coupon_discount_amount + _ship + payload.tax_amount
+            await _check_net30_credit(db, company_id, _estimate)
 
     # ── Create order record ───────────────────────────────────────────────────
-    order_svc = OrderService(db)
     order = await order_svc.create_order(
         company_id=company_id,
         user_id=user_id,
@@ -249,6 +293,7 @@ async def _confirm_checkout_inner(
         coupon_discount_amount=coupon_discount_amount,
         group_id=group_id,
         is_wholesale=_account_type == "wholesale",
+        free_shipping=free_shipping,
     )
 
     # Record coupon usage after order is created
@@ -260,6 +305,19 @@ async def _confirm_checkout_inner(
             discount_amount_applied=coupon_discount_amount,
         )
         db.add(usage)
+    if coupon_discount_dc is not None:
+        from datetime import datetime as _dt, timezone as _tz
+        _what = ("free shipping" if free_shipping
+                 else f"-${coupon_discount_amount:.2f}")
+        order.timeline = [*(order.timeline or []), {
+            "status": order.status, "message": f"Discount code {coupon_discount_dc.code} applied: {_what}",
+            "created_by": "system", "created_at": _dt.now(_tz.utc).isoformat(),
+        }]
+        if free_shipping:
+            db.add(DiscountUsage(
+                discount_code_id=coupon_discount_dc.id, order_id=order.id, user_id=user_id,
+                discount_amount_applied=Decimal("0"),
+            ))
 
     # ── Statement transactions ────────────────────────────────────────────────
     from datetime import date as _date
@@ -317,3 +375,68 @@ async def _confirm_checkout_inner(
         _log.warning("Order confirmation email failed: %s", _exc)
 
     return order
+
+
+async def _tax_exempt(db: AsyncSession, company_id) -> bool:
+    """A buyer marked tax-exempt (resale certificate on file) is never charged tax."""
+    from sqlalchemy import select as _sel
+
+    from app.models.company import Company as _Company
+
+    return bool((await db.execute(
+        _sel(_Company.tax_exempt).where(_Company.id == company_id)
+    )).scalar_one_or_none())
+
+
+NET30_DAYS = 30
+
+
+async def _check_net30_credit(db: AsyncSession, company_id, new_total: Decimal) -> None:
+    """Refuse a Net 30 order when the buyer has an overdue Net 30 invoice, or
+    when it would take their open balance past the credit limit of their
+    pricing tier (a limit of 0 means none).
+
+    Net 30 used to have no limit at all: an approved buyer could keep ordering
+    on terms with invoices months overdue."""
+    from datetime import datetime as _dt, timedelta as _td, timezone as _tz
+
+    from sqlalchemy import func as _func, select as _sel
+
+    from app.models.company import Company as _Company
+    from app.models.order import Order as _Order
+    from app.models.pricing import PricingTier as _Tier
+
+    open_q = _sel(_Order).where(
+        _Order.company_id == company_id,
+        _Order.payment_status.in_(("unpaid", "pending")),
+        _Order.status.notin_(("cancelled", "refunded")),
+    )
+    cutoff = _dt.now(_tz.utc) - _td(days=NET30_DAYS)
+    overdue = (await db.execute(
+        open_q.where(_Order.payment_method == "net_30", _Order.created_at < cutoff)
+        .order_by(_Order.created_at).limit(1)
+    )).scalar_one_or_none()
+    if overdue:
+        raise ValidationError(
+            f"Invoice #{overdue.order_number} is past due. Please pay it before placing another "
+            "order on Net 30 terms, or pay for this order by card."
+        )
+
+    limit = (await db.execute(
+        _sel(_Tier.credit_limit).join(_Company, _Company.pricing_tier_id == _Tier.id)
+        .where(_Company.id == company_id)
+    )).scalar_one_or_none()
+    if not limit or float(limit) <= 0:
+        return
+    balance = (await db.execute(
+        _sel(_func.coalesce(_func.sum(_Order.total - _func.coalesce(_Order.amount_paid, 0)), 0))
+        .where(_Order.company_id == company_id,
+               _Order.payment_status.in_(("unpaid", "pending")),
+               _Order.status.notin_(("cancelled", "refunded")))
+    )).scalar_one()
+    if Decimal(str(balance)) + new_total > Decimal(str(limit)):
+        raise ValidationError(
+            f"This order would take your Net 30 balance past your credit limit of ${float(limit):,.2f} "
+            f"(open balance ${float(balance):,.2f}). Pay an open invoice, or pay for this order by card."
+        )
+
