@@ -6,6 +6,7 @@ from datetime import UTC, datetime, timedelta
 import logging
 logger = logging.getLogger(__name__)
 
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import get_settings, settings
@@ -195,7 +196,17 @@ class AuthService:
             tenant_id=get_current_tenant_id(),
         )
         self.db.add(user)
-        await self.db.flush()
+        try:
+            await self.db.flush()
+        except IntegrityError:
+            # Emails are unique across the whole platform, but the check above
+            # only sees this brand's accounts, so an email already registered
+            # with another store got past it and crashed the insert.
+            await self.db.rollback()
+            raise ConflictError(
+                "This email already has an account on our platform. "
+                "Log in with it, or apply with a different email address."
+            )
 
         application = WholesaleApplication(
             company_name=data.company_name,
@@ -232,22 +243,25 @@ class AuthService:
         # ✅ Yeh lagao
         from app.services.email_service import EmailService
         email_svc = EmailService(self.db)
+        # The store the buyer applied to — its own name and contact details,
+        # not one hardcoded brand's on every store's emails.
+        store, contact = await self._store_identity(application.tenant_id)
         try:
             email_svc.send_raw(
                 to_email=application.email,
-                subject="We Received Your Wholesale Application — AF Apparels",
+                subject=f"We Received Your Wholesale Application — {store}",
                 body_html=f"""
                     <div style="font-family:sans-serif;max-width:600px;margin:0 auto">
                     <div style="background:#080808;padding:24px;text-align:center">
-                        <span style="color:#fff;font-size:22px;font-weight:800;letter-spacing:.04em">AF Apparels</span>
+                        <span style="color:#fff;font-size:22px;font-weight:800;letter-spacing:.04em">{store}</span>
                     </div>
                     <div style="padding:32px;background:#fff">
                         <h2>Application Received! ✅</h2>
                         <p>Hi {data.first_name},</p>
                         <p>We received your wholesale application for <b>{data.company_name}</b>.</p>
                         <p>Our team will review within <b>1-2 business days</b> and notify you of our decision.</p>
-                        <p>Questions? Call <b>(214) 272-7213</b></p>
-                        <p>— AF Apparels Team</p>
+                        {f"<p>Questions? Contact us at <b>{contact}</b></p>" if contact else ""}
+                        <p>— {store} Team</p>
                     </div>
                     </div>
                 """,
@@ -279,6 +293,26 @@ class AuthService:
                 pass  # non-fatal
 
         return application
+
+    async def _store_identity(self, tenant_id: object) -> tuple[str, str]:
+        """This store's display name and a contact line (phone or email)."""
+        from sqlalchemy import text
+
+        if tenant_id:
+            try:
+                row = (await self.db.execute(
+                    text(
+                        "SELECT COALESCE(NULLIF(b.store_name, ''), NULLIF(b.company_name, ''), t.name), "
+                        "COALESCE(NULLIF(b.support_phone, ''), NULLIF(b.support_email, ''), '') "
+                        "FROM tenants t LEFT JOIN tenant_branding b ON b.tenant_id = t.id WHERE t.id = :t"
+                    ),
+                    {"t": str(tenant_id)},
+                )).first()
+                if row and row[0]:
+                    return str(row[0]), str(row[1] or "")
+            except Exception:
+                pass
+        return "Our store", ""
 
     async def _resolve_owner_notification_email(self, tenant_id: object) -> str | None:
         """Where a new wholesale application should notify — resolved per brand.

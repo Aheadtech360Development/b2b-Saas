@@ -838,10 +838,25 @@ async def app_exception_handler(request: Request, exc: AppException) -> JSONResp
 async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
     if settings.DEBUG:
         raise exc
-    return JSONResponse(
-        status_code=500,
-        content={"error": {"code": "INTERNAL_ERROR", "message": "An unexpected error occurred"}},
+    # Log it: this handler used to swallow every crash silently, so a failing
+    # endpoint left nothing in the server logs to find it by.
+    import logging as _logging
+    _logging.getLogger("app.unhandled").exception(
+        "Unhandled error on %s %s", request.method, request.url.path, exc_info=exc,
     )
+    response = JSONResponse(
+        status_code=500,
+        content={"error": {"code": "INTERNAL_ERROR", "message": "Something went wrong on our side. Please try again in a moment."}},
+    )
+    # A 500 is answered from outside the CORS middleware, so it carried no CORS
+    # headers and the browser hid it: the page saw a network failure instead of
+    # an error it could show. Add them for the origins CORS already allows.
+    origin = request.headers.get("origin")
+    if origin and (origin in _cors_origins or _re.match(_cors_origin_regex, origin)):
+        response.headers["Access-Control-Allow-Origin"] = origin
+        response.headers["Access-Control-Allow-Credentials"] = "true"
+        response.headers["Vary"] = "Origin"
+    return response
 
 
 # ── Health check ──────────────────────────────────────────────────────────────
