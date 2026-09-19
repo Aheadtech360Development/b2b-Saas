@@ -11,53 +11,70 @@ import { SupportChat } from "@/components/storefront/SupportChat";
 
 const NAV_ITEMS = [
   { href: "/account", label: "Overview" },
-  { href: "/account/profile", label: "Account Profile" },
-  { href: "/account/change-password", label: "Change Password" },
-  { href: "/account/addresses", label: "Address Book" },
-  { href: "/account/contacts", label: "Manage Contacts" },
-  { href: "/account/users", label: "Manage Users" },
-  { href: "/account/resend-emails", label: "Resend Registration Emails" },
-  { href: "/account/orders", label: "Orders Status" },
+  { href: "/account/profile", label: "Profile" },
+  { href: "/account/change-password", label: "Password" },
+  { href: "/account/addresses", label: "Addresses" },
+  { href: "/account/contacts", label: "Contacts" },
+  { href: "/account/users", label: "Team members" },
+  { href: "/account/resend-emails", label: "Resend invites" },
+  { href: "/account/orders", label: "Orders" },
   { href: "/account/gang-sheets", label: "My Print Jobs" },
   { href: "/account/statements", label: "Statements" },
   { href: "/account/invoices", label: "Invoices" },
-  { href: "/account/sales-history", label: "Purchase History" },
-  { href: "/account/inventory", label: "Inventory Listing Report" },
-  { href: "/account/price-list", label: "Price List" },
-  { href: "/account/abandoned-carts", label: "Abandoned Carts" },
+  { href: "/account/sales-history", label: "Purchase history" },
+  { href: "/account/inventory", label: "Inventory report" },
+  { href: "/account/price-list", label: "Price list" },
+  { href: "/account/abandoned-carts", label: "Saved carts" },
+];
+
+// The same links, grouped the way a buyer looks for them.
+const NAV_GROUPS: { title: string; hrefs: string[] }[] = [
+  { title: "", hrefs: ["/account"] },
+  { title: "Orders & billing", hrefs: ["/account/orders", "/account/gang-sheets", "/account/invoices", "/account/statements", "/account/sales-history", "/account/abandoned-carts"] },
+  { title: "Catalogue", hrefs: ["/account/price-list", "/account/inventory"] },
+  { title: "Account", hrefs: ["/account/profile", "/account/addresses", "/account/contacts", "/account/users", "/account/change-password", "/account/resend-emails"] },
 ];
 
 function NavLinks({ items, pathname, onClose }: { items: typeof NAV_ITEMS; pathname: string; onClose?: () => void }) {
+  const byHref = new Map(items.map((i) => [i.href, i]));
   return (
-    <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
-      {items.map((item) => {
-        const active =
-          pathname === item.href ||
-          (item.href !== "/account" && pathname.startsWith(item.href));
-        return (
-          <li key={item.href}>
-            <Link
-              href={item.href}
-              onClick={onClose}
-              style={{
-                display: "block",
-                padding: "9px 12px",
-                borderRadius: "6px",
-                fontSize: "13px",
-                fontWeight: active ? 700 : 500,
-                color: active ? "#1A5CFF" : "#2A2830",
-                background: active ? "rgba(26,92,255,.07)" : "transparent",
-                textDecoration: "none",
-                transition: "background .15s",
-                marginBottom: "2px",
-              }}
-            >
-              {item.label}
-            </Link>
-          </li>
-        );
-      })}
-    </ul>
+    <div>
+      {NAV_GROUPS.map((g) => (
+        <div key={g.title || "top"} style={{ marginBottom: "10px" }}>
+          {g.title && (
+            <div style={{ fontSize: "11px", fontWeight: 700, color: "#9A98A0", letterSpacing: ".06em", textTransform: "uppercase", padding: "10px 12px 6px" }}>
+              {g.title}
+            </div>
+          )}
+          <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
+            {g.hrefs.map((href) => {
+              const item = byHref.get(href);
+              if (!item) return null;
+              const active = pathname === item.href || (item.href !== "/account" && pathname.startsWith(item.href));
+              return (
+                <li key={item.href}>
+                  <Link
+                    href={item.href}
+                    onClick={onClose}
+                    style={{
+                      display: "flex", alignItems: "center", gap: "8px",
+                      padding: "8px 12px", borderRadius: "9px", fontSize: "13px",
+                      fontWeight: active ? 700 : 500,
+                      color: active ? "#1A5CFF" : "#2A2830",
+                      background: active ? "rgba(26,92,255,.08)" : "transparent",
+                      boxShadow: active ? "inset 3px 0 0 #1A5CFF" : "none",
+                      textDecoration: "none", transition: "background .15s", marginBottom: "1px",
+                    }}
+                  >
+                    {item.label}
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      ))}
+    </div>
   );
 }
 
@@ -280,49 +297,50 @@ export default function AccountLayout({ children }: { children: React.ReactNode 
         <nav
           className="account-sidebar-desktop"
           style={{
-            width: "200px",
+            width: "236px",
             flexShrink: 0,
             position: "sticky",
             top: "20px",
+            background: "#fff",
+            border: "1px solid #ECEAE4",
+            borderRadius: "16px",
+            padding: "14px 10px",
+            boxShadow: "0 1px 2px rgba(0,0,0,.03)",
           }}
         >
-          <Link
-            href="/"
-            style={{
-              display: "flex", alignItems: "center", gap: "8px",
-              padding: "11px 12px", marginBottom: "16px", borderRadius: "8px",
-              background: "var(--brand-primary, #1C3557)", color: "#fff",
-              textDecoration: "none", fontSize: "13px", fontWeight: 700,
-            }}
-          >
-            🛍 {branding?.store_name ? `Visit ${branding.store_name}` : "Visit Store"} →
-          </Link>
-          <h2
-            style={{
-              fontSize: "11px",
-              fontWeight: 700,
-              textTransform: "uppercase",
-              letterSpacing: ".1em",
-              color: "#7A7880",
-              marginBottom: "10px",
-            }}
-          >
-            My Account
-          </h2>
+          <div style={{ padding: "4px 12px 12px", borderBottom: "1px solid #F2F0EA", marginBottom: "8px" }}>
+            <div style={{ fontSize: "11px", fontWeight: 700, color: "#9A98A0", letterSpacing: ".06em", textTransform: "uppercase" }}>My account</div>
+            <div style={{ fontSize: "14px", fontWeight: 700, color: "#1A1A1A", marginTop: "4px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {user?.first_name ? `${user.first_name}${user.last_name ? ` ${user.last_name}` : ""}` : user?.email ?? ""}
+            </div>
+          </div>
           <NavLinks items={navItems} pathname={pathname} />
-          <button
-            onClick={handleSignOut}
-            style={{
-              display: "block", width: "100%", textAlign: "left",
-              marginTop: "10px", padding: "9px 12px", borderRadius: "6px",
-              fontSize: "13px", fontWeight: 600, color: "#B91C1C",
-              background: "transparent", border: "1px solid #F3D0D0", cursor: "pointer",
-            }}
-            onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "#FEF2F2"; }}
-            onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "transparent"; }}
-          >
-            Sign out
-          </button>
+          <div style={{ borderTop: "1px solid #F2F0EA", marginTop: "6px", paddingTop: "10px", display: "grid", gap: "6px" }}>
+            <Link
+              href="/"
+              style={{
+                display: "flex", alignItems: "center", justifyContent: "center", gap: "8px",
+                padding: "10px 12px", borderRadius: "10px",
+                background: "var(--brand-primary, #1C3557)", color: "#fff",
+                textDecoration: "none", fontSize: "13px", fontWeight: 700,
+              }}
+            >
+              {branding?.store_name ? `Shop ${branding.store_name}` : "Back to store"} →
+            </Link>
+            <button
+              onClick={handleSignOut}
+              style={{
+                display: "block", width: "100%", textAlign: "center",
+                padding: "9px 12px", borderRadius: "10px",
+                fontSize: "13px", fontWeight: 600, color: "#B91C1C",
+                background: "transparent", border: "1px solid #F3D0D0", cursor: "pointer",
+              }}
+              onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "#FEF2F2"; }}
+              onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "transparent"; }}
+            >
+              Sign out
+            </button>
+          </div>
         </nav>
 
         {/* Main content */}
