@@ -631,3 +631,86 @@
 .storefront-featured-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; }
 @media (max-width: 900px) { .storefront-featured-grid { grid-template-columns: repeat(2, 1fr); } }
 @media (max-width: 560px) { .storefront-featured-grid { grid-template-columns: 1fr; } }
+
+/* ── Refreshed look: customer account pages + admin orders ───────────────────
+   Styling only. These rules restyle the Tailwind markup those pages already
+   use (cards, tables, inputs, buttons); no page's markup or behaviour depends
+   on them. Scoped to .account-main (the account area) and .at-refresh. */
+.account-main h1,
+.at-refresh h1 {
+  font-size: 24px !important;
+  font-weight: 800 !important;
+  letter-spacing: -0.02em;
+  color: #1A1A1A;
+}
+.account-main h2.text-lg,
+.account-main h2.text-base {
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: #1A1A1A;
+}
+.account-main .bg-white.border,
+.account-main .bg-white.rounded-lg,
+.account-main .bg-white.rounded-xl,
+.account-main .bg-white.shadow,
+.account-main .bg-white.shadow-sm,
+.at-refresh .bg-white.border,
+.at-refresh .bg-white.rounded-lg,
+.at-refresh .bg-white.shadow,
+.at-refresh .bg-white.shadow-sm {
+  border-radius: 16px !important;
+  border-color: #ECEAE4 !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, .03) !important;
+}
+.account-main table thead tr,
+.at-refresh table thead tr {
+  background: #FAFAF8;
+}
+.account-main table thead th,
+.at-refresh table thead th {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+  color: #8A8890;
+}
+.account-main table tbody tr,
+.at-refresh table tbody tr {
+  transition: background .15s;
+}
+.account-main table tbody tr:hover,
+.at-refresh table tbody tr:hover {
+  background: #FAFAF8;
+}
+.account-main input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]),
+.account-main select,
+.account-main textarea,
+.at-refresh input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]),
+.at-refresh select,
+.at-refresh textarea {
+  border-radius: 10px !important;
+  border-color: #E2E0DA !important;
+  background-color: #FCFCFB;
+}
+.account-main input:focus,
+.account-main select:focus,
+.account-main textarea:focus,
+.at-refresh input:focus,
+.at-refresh select:focus,
+.at-refresh textarea:focus {
+  outline: none;
+  border-color: #1A5CFF !important;
+  box-shadow: 0 0 0 3px rgba(26, 92, 255, .12) !important;
+}
+.account-main .rounded-md,
+.at-refresh .rounded-md {
+  border-radius: 10px !important;
+}
+.account-main .rounded-lg,
+.at-refresh .rounded-lg {
+  border-radius: 14px !important;
+}
+.account-main button,
+.at-refresh button {
+  transition: background .15s, border-color .15s, box-shadow .15s;
+}

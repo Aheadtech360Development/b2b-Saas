@@ -202,19 +202,19 @@ function generateTrackingNumber(courier: string): string {
 }
 
 const LabelStyle: React.CSSProperties = {
-  fontSize: "11px", fontWeight: 700,
-  textTransform: "uppercase", letterSpacing: ".08em",
-  color: "#7A7880", marginBottom: "6px", display: "block",
+  fontSize: "12.5px", fontWeight: 600,
+  color: "#4A4850", marginBottom: "7px", display: "block",
 };
 
 const CardStyle: React.CSSProperties = {
-  background: "#fff", border: "1px solid #E3E3E3",
-  borderRadius: "10px", padding: "20px", marginBottom: "16px",
+  background: "#fff", border: "1px solid #ECECEC",
+  borderRadius: "14px", padding: "20px 22px", marginBottom: "16px",
+  boxShadow: "0 1px 2px rgba(0,0,0,.03)",
 };
 
 const SectionHead: React.CSSProperties = {
-  fontFamily: "var(--font-bebas)", fontSize: "16px",
-  letterSpacing: ".06em", color: "#2A2830",
+  fontFamily: "var(--font-jakarta)", fontSize: "15px", fontWeight: 800,
+  letterSpacing: "-0.01em", color: "#1A1A1A",
 };
 
 export default function AdminOrderDetailPage() {
@@ -699,7 +699,7 @@ export default function AdminOrderDetailPage() {
       {/* Header */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "24px", flexWrap: "wrap", gap: "12px" }}>
         <div>
-          <h1 style={{ fontFamily: "var(--font-bebas)", fontSize: "28px", color: "#2A2830", letterSpacing: "-0.01em", lineHeight: 1 }}>
+          <h1 style={{ fontFamily: "var(--font-jakarta)", fontSize: "26px", fontWeight: 800, color: "#1A1A1A", letterSpacing: "-0.02em", lineHeight: 1.15 }}>
             {order.order_number}
           </h1>
           <p style={{ fontSize: "13px", color: "#7A7880", marginTop: "6px", display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" as const }}>
@@ -1073,7 +1073,7 @@ export default function AdminOrderDetailPage() {
                     </td>
                     <td style={{ padding: "14px 12px", textAlign: "right" as const, fontWeight: 700, color: "#2A2830" }}>{item.quantity}</td>
                     <td style={{ padding: "14px 12px", textAlign: "right" as const, color: "#7A7880" }}>${Number(item.unit_price).toFixed(2)}</td>
-                    <td style={{ padding: "14px 12px", textAlign: "right" as const, fontWeight: 700, fontFamily: "var(--font-bebas)", fontSize: "16px", color: "#2A2830" }}>${Number(item.line_total).toFixed(2)}</td>
+                    <td style={{ padding: "14px 12px", textAlign: "right" as const, fontWeight: 800, fontFamily: "var(--font-jakarta)", fontSize: "15px", color: "#2A2830" }}>${Number(item.line_total).toFixed(2)}</td>
                     <td style={{ padding: "14px 12px", textAlign: "right" as const }}>
                       {editingItems && (
                         <button
@@ -1107,7 +1107,7 @@ export default function AdminOrderDetailPage() {
                     <span>Convenience Fee (3%)</span><span>${Number(order.convenience_fee).toFixed(2)}</span>
                   </div>
                 )}
-                <div style={{ display: "flex", justifyContent: "space-between", fontFamily: "var(--font-bebas)", fontSize: "20px", color: "#2A2830", borderTop: "1px solid #E3E3E3", paddingTop: "10px", marginTop: "4px" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", fontFamily: "var(--font-jakarta)", fontWeight: 800, fontSize: "19px", color: "#1A1A1A", borderTop: "1px solid #E3E3E3", paddingTop: "10px", marginTop: "4px" }}>
                   <span>Total</span><span>${Number(order.total).toFixed(2)}</span>
                 </div>
               </div>

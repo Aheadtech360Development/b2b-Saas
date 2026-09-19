@@ -88,7 +88,7 @@ export default function AdminOrdersPage() {
   const pages = Math.ceil(total / PAGE_SIZE);
 
   return (
-    <div className="p-6">
+    <div className="p-6 at-refresh">
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-xl font-bold text-gray-900">Orders</h1>
