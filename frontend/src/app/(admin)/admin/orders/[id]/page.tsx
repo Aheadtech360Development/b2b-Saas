@@ -32,9 +32,31 @@ interface ShippingAddress {
   country?: string;
 }
 
+interface SupplierSummary {
+  supplier: string; items: number; lines: number;
+  status: "not_sent" | "sending" | "test" | "placed" | "shipped" | "failed";
+  test: boolean; po_number: string | null; supplier_order_numbers: string | null;
+  tracking_number: string | null; carrier: string | null; error: string | null; sent_at: string | null;
+}
+
+// Where an order's S&S purchase order stands, as a short label and colour.
+function supplierBadge(sup: SupplierSummary): { text: string; bg: string; fg: string } {
+  const map: Record<string, [string, string, string]> = {
+    not_sent: ["S&S · not sent", "#FFF7ED", "#C2410C"],
+    sending: ["S&S · sending", "#EFF6FF", "#1D4ED8"],
+    test: ["S&S · test only", "#FEFCE8", "#A16207"],
+    placed: ["S&S · ordered", "#EFF6FF", "#1D4ED8"],
+    shipped: ["S&S · shipped", "#ECFDF5", "#047857"],
+    failed: ["S&S · failed", "#FEF2F2", "#B91C1C"],
+  };
+  const [text, bg, fg] = map[sup.status] ?? ["S&S", "#F4F4F5", "#52525B"];
+  return { text, bg, fg };
+}
+
 interface AdminOrder {
   id: string;
   order_number: string;
+  supplier?: SupplierSummary | null;
   company_name: string;
   company_id: string;
   status: string;
@@ -1232,6 +1254,32 @@ export default function AdminOrderDetailPage() {
               </div>
             )}
           </div>
+
+          {/* ── SUPPLIER: the purchase order behind this sale ── */}
+          {order.supplier && (() => {
+            const sup = order.supplier;
+            const b = supplierBadge(sup);
+            const row = { display: "flex", justifyContent: "space-between", gap: "12px", fontSize: "13px", marginTop: "8px" } as const;
+            return (
+              <div style={CardStyle}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px", gap: "8px", flexWrap: "wrap" }}>
+                  <h3 style={SectionHead}>Supplier</h3>
+                  <span style={{ background: b.bg, color: b.fg, fontSize: "11px", fontWeight: 700, padding: "3px 9px", borderRadius: "20px" }}>{b.text}</span>
+                </div>
+                <p style={{ fontSize: "12.5px", color: "#7A7880", margin: 0, lineHeight: 1.5 }}>
+                  {sup.items} item{sup.items === 1 ? "" : "s"} in this order {sup.items === 1 ? "is" : "are"} fulfilled by {sup.supplier}. This is the customer&apos;s order; the purchase order below is yours to {sup.supplier}.
+                </p>
+                {sup.supplier_order_numbers && <div style={row}><span style={{ color: "#7A7880" }}>S&amp;S order</span><span style={{ fontWeight: 600 }}>{sup.supplier_order_numbers}</span></div>}
+                {sup.po_number && <div style={row}><span style={{ color: "#7A7880" }}>Your PO</span><span style={{ fontWeight: 600 }}>{sup.po_number}</span></div>}
+                {sup.tracking_number && <div style={row}><span style={{ color: "#7A7880" }}>Tracking</span><span style={{ fontWeight: 600 }}>{sup.carrier ? `${sup.carrier} ` : ""}{sup.tracking_number}</span></div>}
+                {sup.sent_at && <div style={row}><span style={{ color: "#7A7880" }}>Sent</span><span>{new Date(sup.sent_at).toLocaleString()}</span></div>}
+                {sup.error && <div style={{ fontSize: "12px", color: "#B91C1C", marginTop: "8px" }}>{sup.error}</div>}
+                {sup.status === "not_sent" && <div style={{ fontSize: "12px", color: "#C2410C", marginTop: "8px" }}>Not sent to {sup.supplier} yet.</div>}
+                {sup.test && sup.status === "test" && <div style={{ fontSize: "12px", color: "#A16207", marginTop: "8px" }}>Sent as a test — S&amp;S cancelled it, nothing ships.</div>}
+                <a href="/admin/suppliers" style={{ display: "inline-block", marginTop: "12px", fontSize: "12.5px", fontWeight: 700, color: "#1A1A1A" }}>Manage in Suppliers →</a>
+              </div>
+            );
+          })()}
 
           {/* ── SECTION 2: CUSTOMER ── */}
           <div style={CardStyle}>

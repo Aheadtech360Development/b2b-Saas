@@ -17,6 +17,28 @@ interface AdminOrder {
   is_guest_order?: boolean;
   guest_email?: string | null;
   guest_name?: string | null;
+  supplier?: SupplierSummary | null;
+}
+
+interface SupplierSummary {
+  supplier: string; items: number; lines: number;
+  status: "not_sent" | "sending" | "test" | "placed" | "shipped" | "failed";
+  test: boolean; po_number: string | null; supplier_order_numbers: string | null;
+  tracking_number: string | null; carrier: string | null; error: string | null; sent_at: string | null;
+}
+
+// Where an order's S&S purchase order stands, as a short label and colour.
+function supplierBadge(sup: SupplierSummary): { text: string; bg: string; fg: string } {
+  const map: Record<string, [string, string, string]> = {
+    not_sent: ["S&S · not sent", "#FFF7ED", "#C2410C"],
+    sending: ["S&S · sending", "#EFF6FF", "#1D4ED8"],
+    test: ["S&S · test only", "#FEFCE8", "#A16207"],
+    placed: ["S&S · ordered", "#EFF6FF", "#1D4ED8"],
+    shipped: ["S&S · shipped", "#ECFDF5", "#047857"],
+    failed: ["S&S · failed", "#FEF2F2", "#B91C1C"],
+  };
+  const [text, bg, fg] = map[sup.status] ?? ["S&S", "#F4F4F5", "#52525B"];
+  return { text, bg, fg };
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -185,6 +207,15 @@ export default function AdminOrdersPage() {
                   <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
                     {o.order_number}
                     {o.is_guest_order && <span style={{ background: '#E8F4FD', color: '#1A6FA8', fontSize: '11px', fontWeight: 600, padding: '2px 8px', borderRadius: '20px' }}>Retail</span>}
+                    {o.supplier && (() => {
+                      const b = supplierBadge(o.supplier);
+                      return (
+                        <span title={o.supplier.error ?? `${o.supplier.items} item(s) fulfilled by ${o.supplier.supplier}`}
+                          style={{ background: b.bg, color: b.fg, fontSize: "11px", fontWeight: 600, padding: "2px 8px", borderRadius: "20px", fontFamily: "var(--font-jakarta)" }}>
+                          {b.text}
+                        </span>
+                      );
+                    })()}
                   </div>
                 </td>
                 <td className="px-4 py-3 text-gray-700">

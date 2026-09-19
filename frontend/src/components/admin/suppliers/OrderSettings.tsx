@@ -305,7 +305,10 @@ function OrdersPanel({ id, dirty }: { id: string; dirty: boolean }) {
       )}
 
       <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", marginTop: 6 }}>
-        <div style={{ flex: "1 1 300px", fontWeight: 700, fontSize: 15 }}>Supplier Orders</div>
+        <div style={{ flex: "1 1 300px" }}>
+          <div style={{ fontWeight: 700, fontSize: 15 }}>Purchase orders sent to S&amp;S</div>
+          <p style={MUTED}>Your orders to S&amp;S for the items customers bought. Each one belongs to a customer order — click it to open that order.</p>
+        </div>
         <Btn kind="ghost" onClick={track} busy={busy === "track"} disabled={!!busy}>Check for shipments</Btn>
       </div>
       {data.recent.length === 0 ? <p style={MUTED}>No orders sent yet.</p> : (
@@ -319,7 +322,9 @@ function OrdersPanel({ id, dirty }: { id: string; dirty: boolean }) {
             <tbody>
               {data.recent.map((r) => (
                 <tr key={r.id} style={{ borderTop: "1px solid #F2F2F2", verticalAlign: "top" }}>
-                  <td style={{ padding: 6, fontWeight: 600 }}>#{r.order_number}</td>
+                  <td style={{ padding: 6, fontWeight: 600 }}>
+                    <a href={`/admin/orders/${r.order_number}`} style={{ color: "#1A1A1A" }}>#{r.order_number}</a>
+                  </td>
                   <td style={{ padding: 6 }}>
                     <Badge text={r.status === "test" ? "test" : r.status} color={STATUS_TONE[r.status] ?? "#6B6B6B"} />
                     {r.error && <div style={{ fontSize: 12, color: "#B42318", marginTop: 4, maxWidth: 260 }}>{r.error}</div>}

@@ -382,6 +382,12 @@ async def list_admin_orders(
     )
     rows = result.all()
 
+    try:
+        from app.services.suppliers.orders import order_supplier_summary
+        _supplier = await order_supplier_summary(db, [r[0].id for r in rows])
+    except Exception:
+        _supplier = {}
+
     items = []
     for row in rows:
         order, company_name = row
@@ -406,6 +412,7 @@ async def list_admin_orders(
             guest_email=order.guest_email,
             guest_name=order.guest_name,
             timeline=order.timeline or [],
+            supplier=_supplier.get(order.id),
         ))
 
     return PaginatedResponse(items=items, total=total, page=page, page_size=page_size, pages=(total + page_size - 1) // page_size)
@@ -574,7 +581,14 @@ async def get_admin_order(order_id: str, db: AsyncSession = Depends(get_db)):
             pass
 
     try:
+        from app.services.suppliers.orders import order_supplier_summary
+        _supplier_detail = (await order_supplier_summary(db, [order.id])).get(order.id)
+    except Exception:
+        _supplier_detail = None
+
+    try:
         return AdminOrderDetail(
+            supplier=_supplier_detail,
             id=order.id,
             order_number=order.order_number,
             status=order.status,

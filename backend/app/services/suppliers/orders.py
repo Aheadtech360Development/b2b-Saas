@@ -447,3 +447,48 @@ async def tick(tenant_id: str, cfg: dict) -> None:
             await r.delete(lock)
         except Exception:
             pass
+
+
+async def order_supplier_summary(db: AsyncSession, order_ids: list[uuid.UUID]) -> dict[uuid.UUID, dict]:
+    """For each store order that contains S&S items: where its purchase order to
+    S&S stands. Orders with no S&S items are left out.
+
+    A store order and the PO sent to S&S for it are two records — the sale to
+    the customer, and the purchase from the supplier. This is what lets the
+    Orders screens show the one alongside the other."""
+    from app.models.supplier import SupplierOrder
+
+    if not order_ids:
+        return {}
+    lines = await supplier_lines(db, order_ids)
+    ids = [oid for oid in order_ids if lines.get(oid)]
+    if not ids:
+        return {}
+    rows = (await db.execute(
+        select(SupplierOrder).where(SupplierOrder.order_id.in_(ids), SupplierOrder.supplier == SUPPLIER)
+        .order_by(SupplierOrder.created_at.desc())
+    )).scalars().all()
+    latest: dict[uuid.UUID, object] = {}
+    live: dict[uuid.UUID, object] = {}
+    for r in rows:
+        latest.setdefault(r.order_id, r)
+        if r.status in LIVE:
+            live.setdefault(r.order_id, r)
+    out = {}
+    for oid in ids:
+        r = live.get(oid) or latest.get(oid)
+        out[oid] = {
+            "supplier": "S&S Activewear",
+            "items": sum(line["qty"] for line in lines[oid]),
+            "lines": len(lines[oid]),
+            "status": r.status if r else "not_sent",
+            "test": bool(r.test) if r else False,
+            "po_number": r.po_number if r else None,
+            "supplier_order_numbers": r.supplier_order_numbers if r else None,
+            "tracking_number": r.tracking_number if r else None,
+            "carrier": r.carrier if r else None,
+            "error": r.error if r else None,
+            "sent_at": r.created_at.isoformat() if r and r.created_at else None,
+        }
+    return out
+

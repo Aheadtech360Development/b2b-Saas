@@ -148,6 +148,9 @@ class AdminOrderListItem(BaseModel):
     id: UUID
     order_number: str
     company_name: str | None
+    # S&S items in the order and where their purchase order stands; null when
+    # the order has nothing from a supplier.
+    supplier: dict | None = None
     status: str
     payment_status: str
     po_number: str | None
@@ -171,6 +174,7 @@ class AdminOrderListItem(BaseModel):
 class AdminOrderDetail(OrderOut):
     company_id: UUID | None
     company_name: str | None
+    supplier: dict | None = None
     tracking_number: str | None
     tracking_url: str | None = None
     label_url: str | None = None
