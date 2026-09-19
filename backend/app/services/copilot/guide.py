@@ -71,14 +71,59 @@ A job only enters the review queue once it is paid.""",
 Warehouses are managed at Products → Inventory → Warehouses. Low-stock warnings use each variant's own low-stock threshold.""",
     ),
     "suppliers": (
-        "Connect a supplier catalogue (S&S Activewear)",
-        """Products → Suppliers → S&S Activewear → Edit → Connection: add your own S&S account number and API key. Then "Products for Import": set filters (e.g. Brand is Gildan), save, and click Import. "Browse Catalog" lets you add single styles or whole brands, or import one right away. Edit → Product pricing sets your markup rules and rounding; Inventory sets stock sync and safety stock; Automatic sync runs stock (and, with Auto import on, new matching products) on a schedule. SanMar is coming soon.""",
+        "Connect a supplier (S&S Activewear) and import its products",
+        """Products → Suppliers. The list shows each supplier: S&S Activewear (Active once connected) and SanMar (inactive, coming soon). The Auto import switch on the list is the same setting as "Auto Create Products & Variants" in Automatic Sync.
+
+Connect: click Edit on S&S → Connection Settings. Enter Supplier Name, Username (your S&S account number), API Key and Country (United States or Canada — Canadian accounts use S&S's Canadian API and catalogue). "Test" checks the credentials; "Save Supplier" (top right) saves every tab at once and checks them again. "Discard Changes" throws away unsaved edits. Each brand uses its own S&S account, so cost prices and stock are that brand's own.
+
+View opens three tabs:
+- Products for Import: add filter rules (Brand / Category / Style number or name / Product title; is, contains, is not; match any or all rules), "Save filters", then the counts show products selected, already in the store, ready to import, and variants. "Import N products" runs on the server with a progress bar; up to 500 per run, and products already imported are skipped. With no rules nothing is selected.
+- Browse Catalog: search the whole S&S catalogue or pick a brand. "+ Add to import" adds that style to the filters, "Add all <brand> to import" adds the brand, "Import now" imports one style straight away.
+- Edit Supplier: the settings tabs — Connection, Inventory, Product, Automatic Sync, Order Settings.
+
+Product Settings (Edit Supplier → Product Settings):
+- Publish Imported Products: Active (live on the storefront) or Draft (review first).
+- Match Fields: each row maps a supplier field (Source …) to a store field (Store …). "Modify" adds a template, e.g. {{ style.brandName }} {{ style.styleName }} for the title, or {{ variant.customerPrice | times: 1.25 | round: 2 }} for a price. Filters: times, plus, minus, divided_by, round, ceil, floor, at_least, at_most, prepend, append, upcase, downcase, capitalize, replace, remove, strip_html, truncate, default. "Restore Default Fields" puts the defaults back; "+ Add Field" adds a row; Variant Sku and Variant Price must stay mapped. "Preview on a real product" shows what an import would create.
+- Markup Rules: selling price = S&S cost + markup, used when the Variant Price mapping has no Modify. Most specific wins: style, then brand, then category, then all products; with no rule, cost + 40%. Price rounding: .99, .95 or whole dollars. Applies to products imported or updated from then on.""",
+    ),
+    "supplier_sync": (
+        "Supplier stock and automatic sync (S&S)",
+        """Inventory Settings (Products → Suppliers → Edit → Inventory Settings): for each of your store locations choose where its stock comes from — "All except Dropshipping", "All warehouses", "Dropshipping", one S&S warehouse, or "Don't import stock here". With nothing chosen, your first location gets everything except drop-ship. "Inventory Adjustment Quantity" is held back from every variant (S&S has 52, adjustment 5 → the store shows 47; never below 0).
+
+Automatic Sync (same page, next tab):
+- Frequency: Off, or every 1/3/6/12 hours, daily, every 2 days, weekly. Runs on the server — the admin doesn't need to be open.
+- Update Settings: Only Inventory, Inventory and Prices, Everything (all matched fields), or Nothing — what a sync changes on products already in the store.
+- Auto Create Products & Variants: Always (new products matching the import filters, and new variants), Only New Variants on Existing Products, or Don't Create.
+- Action on Unavailable Products (S&S stopped selling it): No Action, Set stock to 0, Set to Draft, or Archive. A product set aside this way goes back to active when S&S sells it again.
+- Maximum Variants Per Product (100 / 250 / 2048 / no limit) and Handle Variant Limit (keep the first N, or skip the product).
+- Always Update Variant Images: Use Update Settings, or Always.
+"Sync stock" updates quantities now; "Full sync" applies all of these now. Save first — a sync uses the saved settings. Sync History lists each run, whether manual or scheduled, with what it changed.""",
+    ),
+    "supplier_orders": (
+        "Send orders to the supplier (S&S purchase orders)",
+        """Products → Suppliers → Edit → Order Settings. Off by default.
+
+- Test mode (the switch at the top) is ON until you turn it off: S&S creates and immediately cancels test orders — nothing ships, nothing is charged. Turn it off only when you're ready to place real orders.
+- Order Sync: Disabled; Automatic (each order goes within a few minutes of being paid or confirmed); Scheduled (once a day at the hour you pick); or Manual (you choose orders in "Orders to Send" and click Send). Only orders placed after you switched sending on are ever sent — never older ones.
+- Only items that came from S&S are sent; the rest of the order is untouched.
+- Ship To Address: to the customer (dropship) or to your own address (then Combine Orders can put a whole scheduled run on one PO).
+- Store Fulfillment: mark the store order shipped when S&S ships it (tracking added, customer emailed), when the PO is placed, or never.
+- Supplier PO Number: a template, default {{ order.order_number }}; {{ order.po_number }} is the customer's PO.
+- Warehouse Selection (let S&S choose, or only some warehouses; fewest shipments or fastest), Shipping Method (Cheapest chosen by S&S is the default), Order Payment (on account / credit terms, or a card saved on the S&S website — "Load cards" lists them), Confirmation Email, Ship blind.
+Below the settings: "Orders to Send" (tick and send; failed ones wait here with S&S's reason) and "Supplier Orders" (every PO with its status — test, placed, shipped, failed — S&S order number, PO and tracking). "Check for shipments" asks S&S for tracking now; it is also checked automatically every 30 minutes. An order can never be sent twice.""",
     ),
     "shipping": (
-        "Set up shipping and connect carriers",
-        """Standard Shipping (in the left nav) is where flat rates and shipping rules live, and where UPS, FedEx and USPS are connected — each brand with its own carrier account, so labels and rates bill that brand.
+        "Set up shipping and connect carriers (UPS, FedEx, USPS)",
+        """Standard Shipping (in the left nav) holds flat rates and shipping rules, the ship-from address, and the carrier connections. Each brand connects its own carrier accounts, so checkout shows that brand's own negotiated rates and labels bill to it.
 
-With no carrier connected, live rates fall back to test rates so checkout still works.""",
+- UPS: Client ID and Client secret (from your app at developer.ups.com) and your UPS account (shipper) number.
+- FedEx: API key and Secret key (developer.fedex.com) and your FedEx account number.
+- USPS: Consumer key and secret (developer.usps.com). For labels also your EPS account number, CRID and MID (from the Business Customer Gateway) — without them USPS gives rates only.
+- Environment: "test" uses the carrier's sandbox; switch to "production" for real labels.
+Connecting checks the account for real — it prices a sample parcel (and for USPS checks label payment), so wrong details are refused with the carrier's own reason.
+
+Labels: open the order → the label section. Orders where the buyer picked a live rate at checkout buy that rate; others show live rates to choose from. The label is bought on the brand's carrier account, kept on the order ("Download Label" reprints it any time), the order is marked Shipped and the customer is emailed the tracking link.
+With no carrier connected, live rates fall back to the platform's aggregator account so checkout still works.""",
     ),
     "email": (
         "Set up the store's email",
@@ -142,9 +187,12 @@ def lookup(topic: str) -> dict:
 
     asked = words(key)
     if asked:
-        for slug, (title, steps) in TOPICS.items():
-            if asked & words(slug):
-                return {"topic": slug, "title": title, "steps": steps}
+        # The topic sharing the most words wins ("send orders to supplier" is
+        # supplier_orders, not the first topic that mentions orders).
+        best = max(TOPICS, key=lambda slug: len(asked & words(slug)))
+        if asked & words(best):
+            title, steps = TOPICS[best]
+            return {"topic": best, "title": title, "steps": steps}
     return {
         "error": f"No guide for '{topic}'.",
         "available_topics": list(TOPICS),

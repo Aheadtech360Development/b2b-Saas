@@ -179,6 +179,20 @@ OWNER_TOOLS: list[dict] = [
         },
     },
     {
+        "name": "supplier_status",
+        "description": (
+            "The store's supplier (S&S Activewear) setup and activity, read live: whether it is "
+            "connected (account masked, country), the import filters, how many products and variants "
+            "in the store came from S&S, the automatic sync settings and when the next run is due, "
+            "the last sync and recent sync history (manual or scheduled, what changed, failures), a "
+            "job running right now, and order sending — mode, test mode, orders waiting to be sent, "
+            "and recent purchase orders with their status (test, placed, shipped, failed) and errors. "
+            "Use it for any question about suppliers, S&S, imports, syncs, supplier stock, or orders "
+            "sent to the supplier. For how-to questions about these screens, use how_to instead."
+        ),
+        "input_schema": {"type": "object", "properties": {}},
+    },
+    {
         "name": "catalog_summary",
         "description": (
             "What the store holds right now, as exact counts: products by status (active, draft, "
@@ -406,6 +420,75 @@ OWNER_TOOLS: list[dict] = [
 def owner_handlers(db: AsyncSession) -> dict[str, Handler]:
     async def get_briefing(_: dict):
         return await build_briefing(db)
+
+    async def supplier_status(_: dict):
+        from app.core.tenant_context import get_current_tenant_id
+        from app.models.supplier import SupplierOrder
+        from app.services.integrations_service import get_connection
+        from app.services.ss_activewear_service import country_code
+        from app.services.suppliers import config as supplier_cfg
+        from app.services.suppliers import jobs as supplier_jobs
+        from app.services.suppliers import orders as supplier_orders
+
+        cfg = await supplier_cfg.load(db, "ss_activewear")
+        conn = await get_connection(db, "ss_activewear")
+        acct = str((conn or {}).get("account_number") or "")
+        products, variants = (await db.execute(
+            select(func.count(func.distinct(Product.id)), func.count(ProductVariant.id))
+            .select_from(Product).outerjoin(ProductVariant, ProductVariant.product_id == Product.id)
+            .where(Product.supplier == "ss_activewear")
+        )).one()
+        auto = cfg["automatic_sync"]
+        next_due = None
+        if auto.get("enabled") and (cfg.get("last_run_at") or cfg.get("last_sync_at")):
+            try:
+                next_due = (datetime.fromisoformat(cfg.get("last_run_at") or cfg["last_sync_at"])
+                            + timedelta(hours=int(auto["every_hours"]))).isoformat()
+            except (ValueError, TypeError):
+                pass
+        po_counts = dict((await db.execute(
+            select(SupplierOrder.status, func.count(SupplierOrder.id)).group_by(SupplierOrder.status)
+        )).all())
+        recent = (await db.execute(
+            select(SupplierOrder, Order.order_number).join(Order, Order.id == SupplierOrder.order_id)
+            .order_by(SupplierOrder.created_at.desc()).limit(10)
+        )).all()
+        o = cfg["orders"]
+        waiting = await supplier_orders.waiting(db, cfg, limit=25) if o["sync"] != "disabled" else []
+        job = await supplier_jobs.progress(get_current_tenant_id(), "ss_activewear")
+        return {
+            "supplier": "S&S Activewear", "name": cfg["name"], "admin_link": "/admin/suppliers",
+            "connected": bool(conn),
+            "account": ("•" * max(0, len(acct) - 3) + acct[-3:]) if acct else None,
+            "country": country_code((conn or {}).get("country")) if conn else None,
+            "sanmar": "not available yet",
+            "import_filters": cfg["filters"],
+            "products_from_supplier": int(products or 0), "variants_from_supplier": int(variants or 0),
+            "new_products_publish_as": cfg["product"]["status"],
+            "pricing": {"markup_rules": cfg["pricing"]["rules"], "round_to": cfg["pricing"]["round_to"],
+                        "note": "no rule = cost + 40%"},
+            "inventory": {"adjustment_quantity": cfg["inventory"]["safety_stock"],
+                          "locations_mapped": cfg["inventory"]["locations"] or "default: first location, all S&S warehouses except drop-ship"},
+            "automatic_sync": {**auto, "next_run_due": next_due},
+            "last_sync_at": cfg.get("last_sync_at"),
+            "recent_syncs": [{k: h.get(k) for k in ("kind", "trigger", "status", "message", "finished_at")}
+                             for h in (cfg.get("history") or [])[:5]],
+            "job_running_now": job if job and job.get("status") == "running" else None,
+            "order_sending": {
+                "mode": o["sync"], "test_mode": o["test_mode"], "since": o.get("since"),
+                "ship_to": o["ship_to"], "fulfillment": o["fulfillment"], "payment": o["payment"],
+                "orders_waiting": len(waiting),
+                "waiting": [{"order_number": w["order_number"], "pieces": w["pieces"],
+                             "last_attempt": w["last_attempt"]} for w in waiting[:10]],
+                "purchase_orders_by_status": {k: int(v) for k, v in po_counts.items()},
+                "recent_purchase_orders": [{
+                    "order_number": num, "status": so.status, "test": so.test, "po_number": so.po_number,
+                    "supplier_order_numbers": so.supplier_order_numbers, "tracking": so.tracking_number,
+                    "error": so.error, "sent_at": _iso(so.created_at), "trigger": so.trigger,
+                    "admin_link": f"/admin/orders/{so.order_id}",
+                } for so, num in recent],
+            },
+        }
 
     async def catalog_summary(_: dict):
         by_status = dict((await db.execute(
@@ -863,6 +946,7 @@ def owner_handlers(db: AsyncSession) -> dict[str, Handler]:
         "get_briefing": get_briefing, "how_to": how_to, "sales_summary": sales_summary,
         "outstanding_balances": outstanding_balances,
         "catalog_summary": catalog_summary, "search_products": search_products,
+        "supplier_status": supplier_status,
         "get_print_job": get_print_job, "list_applications": list_applications,
         "price_product": price_product, "calculate_quote": calculate_quote,
         "check_inventory": check_inventory,

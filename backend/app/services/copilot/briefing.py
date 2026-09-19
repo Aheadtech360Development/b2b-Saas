@@ -165,6 +165,36 @@ async def build_briefing(db: AsyncSession) -> dict:
                 "href": "/admin/returns",
             })
 
+    # ── Supplier problems: POs S&S refused, a failed sync ────────────────────
+    async def supplier():
+        from app.models.supplier import SupplierOrder
+        from app.services.suppliers import config as supplier_cfg
+
+        failed = (await db.execute(
+            select(func.count(func.distinct(SupplierOrder.order_id))).where(
+                SupplierOrder.status == "failed",
+                ~SupplierOrder.order_id.in_(
+                    select(SupplierOrder.order_id).where(SupplierOrder.status.in_(("sending", "placed", "shipped")))
+                ),
+            )
+        )).scalar_one() or 0
+        if failed:
+            items.append({
+                "key": "supplier_orders_failed", "severity": "urgent", "count": int(failed),
+                "title": f"{failed} order{'s' if failed != 1 else ''} not placed with S&S",
+                "detail": "S&S refused them or the send was interrupted. See why and resend in Suppliers → Edit → Order Settings.",
+                "href": "/admin/suppliers",
+            })
+        cfg = await supplier_cfg.load(db, "ss_activewear")
+        last = (cfg.get("history") or [None])[0]
+        if last and last.get("status") in ("failed", "interrupted"):
+            items.append({
+                "key": "supplier_sync_failed", "severity": "attention", "count": 1,
+                "title": "The last S&S sync did not finish",
+                "detail": (last.get("message") or "")[:200],
+                "href": "/admin/suppliers",
+            })
+
     # ── Stock running out ────────────────────────────────────────────────────
     async def low_stock():
         rows = (await db.execute(
@@ -208,7 +238,7 @@ async def build_briefing(db: AsyncSession) -> dict:
     for label, fn in (
         ("print_jobs", print_jobs), ("ship_risk", ship_risk), ("unpaid", unpaid),
         ("new_orders", new_orders), ("approvals", approvals), ("returns", returns),
-        ("low_stock", low_stock), ("abandoned", abandoned),
+        ("low_stock", low_stock), ("abandoned", abandoned), ("supplier", supplier),
     ):
         await run(label, fn)
 
