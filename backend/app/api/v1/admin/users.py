@@ -4,6 +4,7 @@ import secrets
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -129,9 +130,11 @@ async def create_user(
     if not email or not first_name:
         raise HTTPException(status_code=422, detail="email and first_name are required")
 
-    existing = await db.execute(select(User).where(User.email == email))
-    if existing.scalar_one_or_none():
-        raise HTTPException(status_code=409, detail="A user with this email already exists")
+    from app.core.database import email_taken_anywhere
+
+    existing = await db.execute(select(User).where(func.lower(User.email) == email))
+    if existing.scalar_one_or_none() or await email_taken_anywhere(email):
+        raise HTTPException(status_code=409, detail="This email address already has an account. Use a different address, or ask that person to sign in with it.")
 
     raw_password: str = payload.get("password") or secrets.token_urlsafe(12)
     custom_role_id = payload.get("custom_role_id")
@@ -150,7 +153,11 @@ async def create_user(
         custom_role_id=UUID(str(custom_role_id)) if custom_role_id else None,
     )
     db.add(user)
-    await db.commit()
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(status_code=409, detail="This email address already has an account. Use a different address, or ask that person to sign in with it.")
     await db.refresh(user)
 
     if send_welcome:

@@ -71,6 +71,7 @@ async def get_price_list_status(
 from app.schemas.order import AddressIn, AddressOut  # noqa: E402
 from app.models.company import UserAddress  # noqa: E402
 from sqlalchemy import func, select, delete, update  # noqa: E402
+from sqlalchemy.exc import IntegrityError  # noqa: E402
 
 
 @router.get("/addresses", response_model=list[AddressOut])
@@ -592,7 +593,11 @@ async def invite_user(
     if not re.match(r"^[a-zA-Z]", payload.password):
         raise ValidationError("Password must begin with a letter")
 
-    existing = (await db.execute(select(User).where(User.email == payload.email))).scalar_one_or_none()
+    from app.core.database import email_taken_anywhere
+    from app.core.tenant_context import get_current_tenant_id
+
+    invite_email = payload.email.strip().lower()
+    existing = (await db.execute(select(User).where(func.lower(User.email) == invite_email))).scalar_one_or_none()
     if existing:
         already_member = (await db.execute(
             select(CompanyUser).where(
@@ -602,43 +607,71 @@ async def invite_user(
         if already_member:
             raise ConflictError("User already belongs to this company")
         user_id = existing.id
+    elif await email_taken_anywhere(invite_email):
+        raise ConflictError("This email address already has an account. Use a different address, or ask that person to sign in with it.")
     else:
         new_user = User(
-            email=payload.email,
+            email=invite_email,
             hashed_password=hash_password(payload.password),
             first_name=payload.first_name,
             last_name=payload.last_name,
             is_active=True,
             email_verified=False,
+            # Bind the new member to this store, or they can never sign in.
+            tenant_id=get_current_tenant_id(),
         )
         db.add(new_user)
         await db.flush()
         user_id = new_user.id
 
+    # The role is a database enum; an unknown value used to fail as a 500.
+    role = (payload.role or "buyer").strip().lower()
+    if role not in ("owner", "buyer", "viewer", "finance"):
+        raise ValidationError("Role must be owner, buyer, viewer or finance.")
+
     db.add(CompanyUser(
         company_id=company_id,
         user_id=user_id,
-        role=payload.role,
+        role=role,
         user_group=payload.user_group,
         is_active=True,
         invited_by_id=inviter_id,
     ))
-    await db.commit()
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        raise ConflictError("That person is already on this account.")
 
     try:
+        from app.core.config import settings as _settings
+        from app.core.tenant_context import get_current_brand_name
         from app.services.email_service import EmailService
+
+        # This store's own name and login page — every invite used to be signed
+        # by one brand and linked to localhost.
+        store = get_current_brand_name()
+        if not store:
+            # Not resolved on this request: read the store's own name.
+            from sqlalchemy import text as _text
+            row = (await db.execute(_text(
+                "SELECT COALESCE(NULLIF(b.store_name, ''), NULLIF(b.company_name, ''), t.name) "
+                "FROM tenants t LEFT JOIN tenant_branding b ON b.tenant_id = t.id "
+                "WHERE t.id = (SELECT tenant_id FROM companies WHERE id = :c)"), {"c": str(company_id)})).first()
+            store = (row[0] if row else None) or "our wholesale store"
+        login_url = f"{_settings.FRONTEND_URL.rstrip('/')}/login"
         email_svc = EmailService(db)
         email_svc.send_raw(
-            to_email=payload.email,
-            subject="You have been invited to AF Apparels",
+            to_email=invite_email,
+            subject=f"You have been invited to {store}",
             body_html=f"""
-            <h2>Welcome to AF Apparels!</h2>
+            <h2>Welcome to {store}!</h2>
             <p>Hi {payload.first_name},</p>
-            <p>You have been invited to join the AF Apparels wholesale platform.</p>
+            <p>You have been invited to order on {store}.</p>
             <p><strong>Your login details:</strong></p>
-            <p>Email: {payload.email}<br>Password: {payload.password}</p>
-            <p><a href="http://localhost:3000/login">Click here to login</a></p>
-            <p>AF Apparels Team</p>
+            <p>Email: {invite_email}<br>Password: {payload.password}</p>
+            <p><a href="{login_url}">Sign in</a></p>
+            <p>{store}</p>
             """,
         )
     except Exception:

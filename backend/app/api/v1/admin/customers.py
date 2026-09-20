@@ -5,8 +5,9 @@ from uuid import UUID
 
 logger = logging.getLogger(__name__)
 
-from fastapi import APIRouter, Depends, Query, Request, status
+from fastapi import APIRouter, Depends, Query, Request, status, HTTPException
 from pydantic import BaseModel, EmailStr
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -128,24 +129,35 @@ async def create_company(
     # Optionally create/link a user account for the contact person
     user_created = False
     if payload.contact_email:
+        from app.core.database import email_taken_anywhere
+        from app.core.tenant_context import get_current_tenant_id
+
+        contact_email = payload.contact_email.strip().lower()
         existing = (await db.execute(
-            select(User).where(User.email == payload.contact_email)
+            select(User).where(func.lower(User.email) == contact_email)
         )).scalar_one_or_none()
 
         if existing:
             user = existing
+        elif await email_taken_anywhere(contact_email):
+            # Registered on another store: emails are unique platform-wide, and
+            # this session can only see this store's users.
+            raise HTTPException(status_code=409, detail="This email address already has an account. Use a different address, or ask that person to sign in with it.")
         else:
             # Create a new user with a temporary password (they'll need to reset it)
             import secrets
             temp_password = secrets.token_urlsafe(16)
             user = User(
-                email=payload.contact_email,
+                email=contact_email,
                 first_name=payload.contact_first_name or "",
                 last_name=payload.contact_last_name or "",
                 phone=payload.contact_phone,
                 hashed_password=get_password_hash(temp_password),
                 is_active=True,
                 email_verified=True,
+                # Buyers sign in against their own store; without this the
+                # account exists but its owner can never log in.
+                tenant_id=get_current_tenant_id(),
             )
             db.add(user)
             await db.flush()
@@ -159,7 +171,11 @@ async def create_company(
         )
         db.add(membership)
 
-    await db.commit()
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(status_code=409, detail="This email address already has an account. Use a different address, or ask that person to sign in with it.")
     return {
         "message": "Company created",
         "company_id": str(company.id),

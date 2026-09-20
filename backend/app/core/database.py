@@ -347,3 +347,34 @@ async def check_db_connection() -> bool:
         return True
     except Exception:
         return False
+
+
+async def email_taken_anywhere(email: str) -> bool:
+    """Is this login email already registered, on any store?
+
+    `users.email` is unique across the whole platform, but every duplicate
+    check ran on a tenant-scoped session, which row-level security limits to
+    the current store. An email already used by another store therefore passed
+    the check and failed on insert — a 500 the admin saw as "a problem on our
+    side". This runs its own bypassing session so the answer covers every store.
+    """
+    from sqlalchemy import text
+
+    from app.core.tenant_context import is_scoping_bypassed, set_bypass_scoping
+
+    address = (email or "").strip().lower()
+    if not address:
+        return False
+    previous = is_scoping_bypassed()
+    set_bypass_scoping(True)
+    try:
+        async with AsyncSessionLocal() as session:
+            row = (await session.execute(
+                text("SELECT 1 FROM users WHERE lower(email) = :e LIMIT 1"), {"e": address}
+            )).first()
+            return row is not None
+    except Exception:  # never block account creation on this check
+        return False
+    finally:
+        set_bypass_scoping(previous)
+
