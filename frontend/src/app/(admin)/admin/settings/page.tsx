@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { apiClient } from "@/lib/api-client";
 import { IntegrationsPanel } from "@/components/admin/IntegrationsPanel";
+import { TrackingPanel } from "@/components/admin/TrackingPanel";
 
 const SETTING_FIELDS = [
   { key: "mov", label: "Minimum Order Value ($)", type: "number", placeholder: "e.g. 200" },
@@ -133,6 +134,22 @@ export default function AdminSettingsPage() {
         </div>
         <div className="px-6 py-6">
           <IntegrationsPanel category="email" />
+        </div>
+      </div>
+
+      {/* Tracking — this store's own analytics accounts, not a shared one. */}
+      <div className="bg-white border border-gray-200 rounded-lg">
+        <div className="px-6 py-4 border-b border-gray-100">
+          <h2 className="font-semibold text-gray-900">Tracking &amp; Analytics</h2>
+          <p className="text-sm text-gray-500 mt-1">
+            Connect your own Google Analytics, Meta Pixel, Klaviyo and the rest. The data goes to
+            your accounts — no other store on this platform can see your traffic, and you can see
+            no-one else&apos;s. Orders also record which campaign brought the buyer, which you can
+            filter and export from the Orders page.
+          </p>
+        </div>
+        <div className="px-6 py-6">
+          <TrackingPanel />
         </div>
       </div>
     </div>

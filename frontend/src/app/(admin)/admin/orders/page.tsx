@@ -18,6 +18,7 @@ interface AdminOrder {
   guest_email?: string | null;
   guest_name?: string | null;
   supplier?: SupplierSummary | null;
+  attribution?: { label: string; campaign?: string | null } | null;
 }
 
 interface SupplierSummary {
@@ -67,6 +68,11 @@ export default function AdminOrdersPage() {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [page, setPage] = useState(1);
+  // Set by the "All orders from this campaign" link on an order. Read from the
+  // URL rather than useSearchParams, which would push this page into a Suspense
+  // boundary for one optional filter.
+  const [source, setSource] = useState("");
+  const [campaign, setCampaign] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [exportLoading, setExportLoading] = useState(false);
   const PAGE_SIZE = 50;
@@ -82,13 +88,21 @@ export default function AdminOrdersPage() {
         page: String(page),
       };
       if (activeTab === "guest") params.guest_only = "true";
+      if (source) params.utm_source = source;
+      if (campaign) params.utm_campaign = campaign;
       const data = await adminService.listOrders(params) as { items: AdminOrder[]; total: number };
       setOrders(data.items ?? []);
       setTotal(data.total ?? 0);
     } finally { setIsLoading(false); }
   }
 
-  useEffect(() => { load(); }, [q, statusFilter, activeTab, dateFrom, dateTo, page]);
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    setSource(params.get("utm_source") ?? "");
+    setCampaign(params.get("utm_campaign") ?? "");
+  }, []);
+
+  useEffect(() => { load(); }, [q, statusFilter, activeTab, dateFrom, dateTo, page, source, campaign]);
 
   async function handleExport() {
     setExportLoading(true);
@@ -104,9 +118,11 @@ export default function AdminOrdersPage() {
 
   function clearFilters() {
     setQ(""); setStatusFilter(""); setDateFrom(""); setDateTo(""); setPage(1);
+    setSource(""); setCampaign("");
+    window.history.replaceState(null, "", "/admin/orders");
   }
 
-  const hasFilters = q || statusFilter || dateFrom || dateTo;
+  const hasFilters = q || statusFilter || dateFrom || dateTo || source || campaign;
   const pages = Math.ceil(total / PAGE_SIZE);
 
   return (
@@ -138,6 +154,13 @@ export default function AdminOrdersPage() {
           </button>
         ))}
       </div>
+
+      {(source || campaign) && (
+        <div className="mb-4 flex items-center gap-2 rounded-md bg-violet-50 border border-violet-200 px-3 py-2 text-sm text-violet-900">
+          <span className="font-semibold">Showing orders from</span>
+          <span>{[source, campaign].filter(Boolean).join(" · ")}</span>
+        </div>
+      )}
 
       {/* Filters */}
       <div className="flex gap-3 mb-4 flex-wrap items-center">
@@ -207,6 +230,13 @@ export default function AdminOrdersPage() {
                   <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
                     {o.order_number}
                     {o.is_guest_order && <span style={{ background: '#E8F4FD', color: '#1A6FA8', fontSize: '11px', fontWeight: 600, padding: '2px 8px', borderRadius: '20px' }}>Retail</span>}
+                    {o.attribution && (
+                      <span
+                        title={o.attribution.campaign ? `Campaign: ${o.attribution.campaign}` : "Where this order came from"}
+                        style={{ background: "#F5F3FF", color: "#6D28D9", fontSize: "11px", fontWeight: 600, padding: "2px 8px", borderRadius: "20px" }}>
+                        {o.attribution.label}
+                      </span>
+                    )}
                     {o.supplier && (() => {
                       const b = supplierBadge(o.supplier);
                       return (

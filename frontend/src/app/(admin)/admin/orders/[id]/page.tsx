@@ -104,6 +104,9 @@ interface AdminOrder {
   // happened, written by the code that did it. `timeline` is the old JSONB
   // array, still sent, and only used if a backend predates the events table.
   events?: OrderEvent[];
+  // How the buyer arrived. Null when nothing was recorded — which is not the
+  // same as "they came direct".
+  attribution?: OrderAttribution | null;
   timeline?: Array<{ status: string; message: string; created_by: string; created_at: string }>;
   // Pre-calculated shipment weight from backend (used to pre-fill rate fetch)
   calculated_weight_lbs?: number;
@@ -159,6 +162,22 @@ function getAvailableStatuses(currentStatus: string): string[] {
   if (currentStatus === "delivered") return ["delivered", "refunded"];
   if (currentStatus === "cancelled") return ["cancelled", "refunded"];
   return STATUSES.filter(s => s !== "refunded");
+}
+
+interface OrderAttribution {
+  label: string;
+  utm_source?: string;
+  utm_medium?: string;
+  utm_campaign?: string | null;
+  utm_term?: string;
+  utm_content?: string;
+  campaign?: string | null;
+  referrer?: string | null;
+  landing_page?: string | null;
+  visits?: number | null;
+  device?: string | null;
+  first_seen?: string | null;
+  paid_click?: string | null;
 }
 
 interface OrderEvent {
@@ -1383,6 +1402,43 @@ export default function AdminOrderDetailPage() {
               </div>
             )}
           </div>
+
+          {/* ── WHERE THIS ORDER CAME FROM ── */}
+          {order.attribution && (() => {
+            const a = order.attribution;
+            const row = (label: string, value: React.ReactNode) => (
+              <div key={label} style={{ display: "flex", justifyContent: "space-between", gap: "12px", fontSize: "13px", marginTop: "8px" }}>
+                <span style={{ color: "#7A7880", flexShrink: 0 }}>{label}</span>
+                <span style={{ fontWeight: 600, textAlign: "right" as const, wordBreak: "break-word" as const, minWidth: 0 }}>{value}</span>
+              </div>
+            );
+            const paidClickName: Record<string, string> = {
+              gclid: "Google Ads", fbclid: "Meta Ads", msclkid: "Microsoft Ads", ttclid: "TikTok Ads",
+            };
+            return (
+              <div style={CardStyle}>
+                <h3 style={{ ...SectionHead, marginBottom: "10px" }}>Where this order came from</h3>
+                <div style={{ fontSize: "15px", fontWeight: 800, color: "#1A1A1A" }}>{a.label}</div>
+                {a.campaign && row("Campaign", a.campaign)}
+                {a.utm_term && row("Search term", a.utm_term)}
+                {a.utm_content && row("Ad / content", a.utm_content)}
+                {a.paid_click && row("Paid click", paidClickName[a.paid_click] ?? a.paid_click)}
+                {a.referrer && row("Came from", <span style={{ fontSize: "12px" }}>{a.referrer}</span>)}
+                {a.landing_page && row("First page seen", <span style={{ fontSize: "12px" }}>{a.landing_page}</span>)}
+                {!!a.visits && row("Visits before ordering", a.visits)}
+                {a.device && row("Device", a.device)}
+                {a.first_seen && row("First visit", new Date(a.first_seen).toLocaleDateString())}
+                {a.utm_source && (
+                  <a
+                    href={`/admin/orders?utm_source=${encodeURIComponent(a.utm_source)}${a.campaign ? `&utm_campaign=${encodeURIComponent(a.campaign)}` : ""}`}
+                    style={{ display: "inline-block", marginTop: "12px", fontSize: "12.5px", fontWeight: 700, color: "#1A1A1A" }}
+                  >
+                    All orders from this {a.campaign ? "campaign" : "source"} →
+                  </a>
+                )}
+              </div>
+            );
+          })()}
 
           {/* ── SUPPLIER: the purchase order behind this sale ── */}
           {order.supplier && (() => {

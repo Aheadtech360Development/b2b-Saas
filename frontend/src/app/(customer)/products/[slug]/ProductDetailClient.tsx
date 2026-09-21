@@ -13,6 +13,7 @@ import { productsService } from "@/services/products.service";
 import { UploadBySizeModal } from "@/components/storefront/UploadBySizeModal";
 import { gangSheetsService, type GangSheetOrder, type GangSheetSize } from "@/services/gangSheets.service";
 import { ProductConfigurator } from "@/components/storefront/ProductConfigurator";
+import { trackAddToCart, trackViewItem, type TrackedItem } from "@/lib/tracking";
 
 function formatWeightGrams(raw: string | null | undefined): string | null {
   if (!raw) return null;
@@ -610,6 +611,22 @@ export function ProductDetailClient({ slug }: ProductDetailClientProps) {
     try { return JSON.parse(localStorage.getItem("af_guest_cart") || "[]"); } catch { return []; }
   }
 
+  /** The chosen sizes and colours, in the shape every tracking tool wants. */
+  function trackedItems(items: { variant_id: string; quantity: number }[]): TrackedItem[] {
+    return items.flatMap(({ variant_id, quantity }) => {
+      const v = product?.variants?.find(x => x.id === variant_id);
+      if (!v) return [];
+      return [{
+        id: variant_id,
+        sku: v.sku ?? undefined,
+        name: product?.name ?? "",
+        price: Number(v.effective_price ?? v.retail_price ?? 0),
+        quantity,
+        variant: [v.color, v.size].filter(Boolean).join(" / "),
+      }];
+    });
+  }
+
   async function handleAddToCart() {
     const items = Object.entries(quantities)
       .filter(([, qty]) => qty > 0)
@@ -645,6 +662,7 @@ export function ProductDetailClient({ slug }: ProductDetailClientProps) {
       }
       localStorage.setItem("af_guest_cart", JSON.stringify(guestCart));
       window.dispatchEvent(new Event("af_guest_cart_updated"));
+      trackAddToCart(trackedItems(items));
       setQuantities({});
       setCartMsg({ type: "success", text: `${totalUnits} unit${totalUnits !== 1 ? "s" : ""} added to cart!` });
       setTimeout(() => setCartMsg(null), 4000);
@@ -658,6 +676,7 @@ export function ProductDetailClient({ slug }: ProductDetailClientProps) {
     try {
       await cartService.addMatrix(product.id, items);
       window.dispatchEvent(new Event("cart_updated"));
+      trackAddToCart(trackedItems(items));
       setQuantities({});
       setCartMsg({ type: "success", text: `${totalUnits} units added to cart!` });
       setTimeout(() => setCartMsg(null), 4000);
@@ -667,6 +686,19 @@ export function ProductDetailClient({ slug }: ProductDetailClientProps) {
       setIsSubmitting(false);
     }
   }
+
+  // Report the product view once per product, not on every re-render.
+  useEffect(() => {
+    if (!product) return;
+    const cheapest = product.variants?.[0];
+    trackViewItem({
+      id: product.id,
+      sku: cheapest?.sku ?? undefined,
+      name: product.name,
+      price: Number(cheapest?.effective_price ?? cheapest?.retail_price ?? 0),
+      category: product.categories?.[0]?.name ?? undefined,
+    });
+  }, [product?.id]);
 
   function handleDownloadStyleSheet() {
     const styleSheet = product?.assets?.find((a: any) => a.asset_type === "style_sheet");

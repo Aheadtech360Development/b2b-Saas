@@ -5,6 +5,8 @@ import "./globals.css";
 import { Providers } from "@/components/providers/Providers";
 import { Header } from "@/components/layout/Header";
 import { DeployRefresh } from "@/components/providers/DeployRefresh";
+import { AttributionTracker } from "@/components/analytics/AttributionTracker";
+import { TrackingScripts } from "@/components/analytics/TrackingScripts";
 
 export const metadata: Metadata = {
   title: "Wholesale Store",
@@ -42,6 +44,10 @@ export default function RootLayout({
         )}
         <Providers>
           <DeployRefresh />
+          {/* Remembers which campaign brought this visitor, until they order. */}
+          <AttributionTracker />
+          {/* Loads only the tracking tools this brand connected, if any. */}
+          <TrackingScripts />
           <Header />
           {children}
         </Providers>

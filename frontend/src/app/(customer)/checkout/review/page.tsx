@@ -13,6 +13,8 @@ import { formatCurrency } from "@/lib/utils";
 import { StripePaymentForm } from "@/components/checkout/StripePaymentForm";
 import type { Cart } from "@/types/order.types";
 import { ConfigurationDetail } from "@/components/shared/ConfigurationDetail";
+import { clearAttribution, getAttribution } from "@/lib/attribution";
+import { trackPurchase } from "@/lib/tracking";
 
 type GuestCartEntry = { variant_id: string; quantity: number; product_id: string; product_name: string; slug: string; color: string | null; size: string | null; unit_price: number; image_url?: string | null };
 
@@ -237,6 +239,8 @@ export default function CheckoutReviewPage() {
             shipping_carrier: selectedRate.carrier,
             shipping_service: selectedRate.service,
           } : {}),
+          // Which campaign brought this buyer, collected on their first visit.
+          attribution: getAttribution() ?? undefined,
         };
         console.log("[Review] Guest order payload:", JSON.stringify(guestPayload, null, 2));
         const order = await apiClient.post<{ order_id: string; order_number: string; total: number }>("/api/v1/guest/checkout", guestPayload);
@@ -257,6 +261,16 @@ export default function CheckoutReviewPage() {
           paymentMethod,
           isGuest: true,
         };
+        // A guest cart line carries no SKU, so the variant id is the product
+        // identifier every tool gets.
+        trackPurchase(order.order_number, order.total, guestEntries.map(e => ({
+          id: e.variant_id ?? e.product_name,
+          name: e.product_name, price: e.unit_price,
+          quantity: e.quantity, variant: [e.color, e.size].filter(Boolean).join(" / "),
+        })));
+        // The campaign has done its job; a later order is a new question.
+        clearAttribution();
+
         setConfirmedOrder(confirmedData);
         sessionStorage.setItem("af_confirmed_order", JSON.stringify(confirmedData));
         localStorage.removeItem("af_guest_cart");
@@ -280,6 +294,8 @@ export default function CheckoutReviewPage() {
       };
 
       const basePayload = {
+        // Which campaign brought this buyer, collected on their first visit.
+        attribution: getAttribution() ?? undefined,
         address_id: addressId ?? undefined,
         shipping_address: fullAddress,
         shipping_method: shippingMethod || "standard",
@@ -341,6 +357,13 @@ export default function CheckoutReviewPage() {
         shippingCost,
         paymentMethod,
       };
+      trackPurchase(order.order_number, orderTotal, (cart?.items ?? []).map(i => ({
+        id: i.variant_id ?? i.sku ?? i.product_name,
+        sku: i.sku, name: i.product_name, price: Number(i.unit_price),
+        quantity: i.quantity, variant: [i.color, i.size].filter(Boolean).join(" / "),
+      })));
+      clearAttribution();
+
       setConfirmedOrder(confirmedData);
       sessionStorage.setItem("af_confirmed_order", JSON.stringify(confirmedData));
 
