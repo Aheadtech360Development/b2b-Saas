@@ -21,7 +21,7 @@ import uuid
 from typing import TYPE_CHECKING
 
 from sqlalchemy import Boolean, ForeignKey, Integer, Numeric, String, Text
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import ARRAY, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import BaseModel, TenantMixin
@@ -62,6 +62,11 @@ class ProductOption(TenantMixin, BaseModel):
     help_text: Mapped[str | None] = mapped_column(Text, nullable=True)
     position: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    # Does price genuinely turn on this option? Size and Quantity usually do;
+    # a text field for the name to print does not. Only these take part in the
+    # combination price table — see services/combinations.py, and migration
+    # 0041 for why a product with fourteen groups needs the distinction.
+    in_price_matrix: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     product: Mapped["Product"] = relationship("Product", back_populates="options")
     values: Mapped[list["ProductOptionValue"]] = relationship(
@@ -142,3 +147,43 @@ class ProductOptionRule(TenantMixin, BaseModel):
     note: Mapped[str | None] = mapped_column(String(200), nullable=True)
 
     product: Mapped["Product"] = relationship("Product", back_populates="option_rules")
+
+
+class ProductOptionCombination(TenantMixin, BaseModel):
+    """A price of its own for one combination of choices.
+
+    Sparse by design: a row exists only for a combination somebody priced.
+    Writing a row per combination is not an option — fourteen option groups is
+    on the order of 10^8 of them — and would be pointless, because almost all
+    follow the ordinary per-choice formula anyway.
+
+    `combo_key` is the canonical "<option>:<value>|..." spelling, sorted by
+    option id so one combination always has one key. `value_ids` repeats those
+    values as an array purely so deleting an option value can clear every row
+    mentioning it in one indexed statement.
+
+    A row's pairs need only be a subset of what the buyer picked, and the row
+    naming the most pairs wins. See services/combinations.py.
+    """
+
+    __tablename__ = "product_option_combinations"
+
+    product_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("products.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    combo_key: Mapped[str] = mapped_column(Text, nullable=False)
+    value_ids: Mapped[list[uuid.UUID]] = mapped_column(
+        ARRAY(UUID(as_uuid=True)), nullable=False, default=list
+    )
+    # Null means "no override" — that part of the price falls back to the
+    # ordinary formula, so an untouched combination behaves exactly as before.
+    unit_price: Mapped[float | None] = mapped_column(Numeric(12, 4), nullable=True)
+    setup_fee: Mapped[float | None] = mapped_column(Numeric(12, 4), nullable=True)
+    sku: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    # A combination that cannot be produced: refused at pricing time rather
+    # than quietly sold.
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    note: Mapped[str | None] = mapped_column(String(200), nullable=True)
+
+    product: Mapped["Product"] = relationship("Product")
+

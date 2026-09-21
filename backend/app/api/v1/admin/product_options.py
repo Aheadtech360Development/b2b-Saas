@@ -14,7 +14,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
-from sqlalchemy import select
+from sqlalchemy import select, text as _sa_text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -26,10 +26,12 @@ from app.models.product_option import (
     PRICE_MODES,
     RULE_ACTIONS,
     ProductOption,
+    ProductOptionCombination,
     ProductOptionRule,
     ProductOptionValue,
     ProductQtyTier,
 )
+from app.services import combinations as combos
 
 router = APIRouter(prefix="/admin/products", tags=["admin", "product-options"])
 
@@ -54,6 +56,9 @@ class OptionIn(BaseModel):
     required: bool = True
     help_text: Optional[str] = None
     is_active: bool = True
+    # Does price turn on this option? Only these build the combination price
+    # table — see services/combinations.py.
+    in_price_matrix: bool = False
     values: list[ValueIn] = Field(default_factory=list)
 
 
@@ -113,6 +118,7 @@ def _option_row(o: ProductOption) -> dict:
         "help_text": o.help_text,
         "position": o.position,
         "is_active": bool(o.is_active),
+        "in_price_matrix": bool(getattr(o, "in_price_matrix", False)),
         "values": [_value_row(v) for v in sorted(o.values, key=lambda x: x.position)],
     }
 
@@ -161,6 +167,11 @@ async def _load_product(db: AsyncSession, product_id: uuid.UUID) -> Product:
             selectinload(Product.options).selectinload(ProductOption.values),
             selectinload(Product.option_rules),
         )
+        # Without this, a re-read inside the same session hands back the Product
+        # already in the identity map along with the option collection it was
+        # loaded with — so the PUT that had just created a product's first
+        # options answered with none of them.
+        .execution_options(populate_existing=True)
     )).scalar_one_or_none()
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
@@ -237,6 +248,7 @@ async def save_product_config(
         opt.required = o_in.required
         opt.help_text = o_in.help_text
         opt.is_active = o_in.is_active
+        opt.in_price_matrix = o_in.in_price_matrix
         opt.position = pos
         await db.flush()                      # need opt.id for its values
         keep_opts.add(str(opt.id))
@@ -274,6 +286,23 @@ async def save_product_config(
     for oid, opt in existing_opts.items():
         if oid not in keep_opts:
             await db.delete(opt)
+
+    # A stored combination price refers to choices by id. When a choice is
+    # deleted the rows naming it can never match again, so they are removed
+    # rather than left behind to confuse the next person who opens the grid.
+    # The option rows cascade on their own foreign key; these do not, because
+    # the reference is an array rather than a column.
+    await db.flush()
+    await db.execute(_sa_text("""
+        DELETE FROM product_option_combinations
+        WHERE product_id = :pid
+          AND NOT (value_ids <@ (
+              SELECT COALESCE(array_agg(v.id), '{}'::uuid[])
+              FROM product_option_values v
+              JOIN product_options o ON o.id = v.option_id
+              WHERE o.product_id = :pid
+          ))
+    """), {"pid": str(product_id)})
 
     # ── Quantity tiers ────────────────────────────────────────────────────────
     existing_tiers = {str(t.id): t for t in await _tiers(db, product_id)}
@@ -347,3 +376,198 @@ async def save_product_config(
 
     await db.commit()
     return await get_product_config(product_id, None, db)  # type: ignore[arg-type]
+
+
+# ── Combination pricing ──────────────────────────────────────────────────────
+
+class CombinationIn(BaseModel):
+    """One cell of the price table.
+
+    The pairs are sent rather than a key so the server can check every one of
+    them against the product before storing anything — a row naming a choice
+    that does not exist could never match a selection, and the admin would be
+    left wondering why their price did nothing.
+    """
+
+    # option_id -> value_id
+    selections: dict[uuid.UUID, uuid.UUID] = Field(default_factory=dict)
+    unit_price: Optional[Decimal] = Field(None, ge=0)
+    setup_fee: Optional[Decimal] = Field(None, ge=0)
+    sku: Optional[str] = Field(None, max_length=80)
+    enabled: bool = True
+    note: Optional[str] = Field(None, max_length=200)
+
+
+class CombinationsIn(BaseModel):
+    combinations: list[CombinationIn] = Field(default_factory=list)
+
+
+def _combo_row(row: ProductOptionCombination) -> dict:
+    return {
+        "combo_key": row.combo_key,
+        "selections": {o: v for o, v in combos.parse_key(row.combo_key)},
+        "unit_price": float(row.unit_price) if row.unit_price is not None else None,
+        "setup_fee": float(row.setup_fee) if row.setup_fee is not None else None,
+        "sku": row.sku,
+        "enabled": bool(row.enabled),
+        "note": row.note,
+    }
+
+
+@router.get("/{product_id}/combinations")
+async def get_combinations(
+    product_id: uuid.UUID,
+    offset: int = 0,
+    limit: int = 100,
+    _: None = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """One page of the price table.
+
+    Combinations are generated, never stored, so this pages through a generator
+    rather than a query — a product whose grid runs to thousands of cells costs
+    no rows at all until somebody prices one.
+
+    Each cell reports the price that would actually apply: its own if it has
+    one, an inherited one when a shorter stored combination covers it (which is
+    what keeps existing prices working after a new option is added), or none,
+    meaning the ordinary per-choice formula decides.
+    """
+    product = await _load_product(db, product_id)
+    options = list(product.options or [])
+    taking_part = combos.matrix_options(options)
+    total = combos.count_combinations(options)
+
+    stored = (await db.execute(
+        select(ProductOptionCombination)
+        .where(ProductOptionCombination.product_id == product_id)
+    )).scalars().all()
+    by_key = {row.combo_key: row for row in stored}
+    overrides = combos.rows_to_overrides(stored)
+
+    cells: list[dict] = []
+    if total and total <= combos.MAX_MATRIX:
+        for pairs in combos.page_combinations(options, offset=offset, limit=limit):
+            key = combos.combo_key((o.id, v.id) for o, v in pairs)
+            own = by_key.get(key)
+            # What this cell would be charged at today, whether or not it has a
+            # row of its own.
+            effective = combos.best_match(
+                overrides, {str(o.id): str(v.id) for o, v in pairs}
+            )
+            cells.append({
+                "combo_key": key,
+                "label": combos.describe(pairs),
+                "selections": {str(o.id): str(v.id) for o, v in pairs},
+                "values": [{"option": o.name, "value": v.label} for o, v in pairs],
+                "unit_price": float(own.unit_price) if own is not None and own.unit_price is not None else None,
+                "setup_fee": float(own.setup_fee) if own is not None and own.setup_fee is not None else None,
+                "sku": own.sku if own is not None else None,
+                "enabled": bool(own.enabled) if own is not None else True,
+                "note": own.note if own is not None else None,
+                "has_own_price": own is not None,
+                # Set when a shorter stored combination is what decides this
+                # cell — so the admin can see the price is inherited, not blank.
+                "inherited_from": (
+                    effective.key
+                    if effective is not None and (own is None or effective.key != key)
+                    else None
+                ),
+                "inherited_unit_price": (
+                    float(effective.unit_price)
+                    if effective is not None and effective.unit_price is not None
+                    and (own is None or effective.key != key)
+                    else None
+                ),
+            })
+
+    return {
+        "product_id": str(product_id),
+        "matrix_options": [
+            {"id": str(o.id), "name": o.name,
+             "values": [{"id": str(v.id), "label": v.label}
+                        for v in sorted(o.values, key=lambda x: x.position) if v.enabled]}
+            for o in taking_part
+        ],
+        "all_options": [
+            {"id": str(o.id), "name": o.name,
+             "in_price_matrix": bool(getattr(o, "in_price_matrix", False)),
+             "value_count": len([v for v in (o.values or []) if v.enabled])}
+            for o in sorted(options, key=lambda x: x.position) if o.is_active
+        ],
+        "total": total,
+        "offset": offset,
+        "limit": limit,
+        "max_matrix": combos.MAX_MATRIX,
+        # True when the chosen options multiply out to more cells than a person
+        # could work through. The admin is told the number rather than shown a
+        # grid that never finishes loading.
+        "too_large": bool(total > combos.MAX_MATRIX),
+        "combinations": cells,
+        "priced_count": len(stored),
+        # Rows that no longer line up with any generated cell, usually because
+        # they were priced before an option joined the table. They still apply.
+        "stored": [_combo_row(r) for r in stored],
+    }
+
+
+@router.put("/{product_id}/combinations")
+async def save_combinations(
+    product_id: uuid.UUID,
+    payload: CombinationsIn,
+    _: None = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Save prices for combinations, one page of the grid at a time.
+
+    Only the combinations in the payload are touched, so an admin editing page
+    three cannot wipe the prices on page one. A cell sent with nothing set on
+    it — no price, no fee, no SKU, not disabled — is deleted rather than stored
+    as a row that says nothing.
+    """
+    product = await _load_product(db, product_id)
+    options = list(product.options or [])
+
+    existing = {
+        row.combo_key: row for row in (await db.execute(
+            select(ProductOptionCombination)
+            .where(ProductOptionCombination.product_id == product_id)
+        )).scalars().all()
+    }
+
+    saved, cleared = 0, 0
+    for item in payload.combinations:
+        try:
+            pairs = combos.validate_pairs(
+                [(str(o), str(v)) for o, v in item.selections.items()], options
+            )
+        except combos.CombinationError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+
+        key = combos.combo_key(pairs)
+        row = existing.get(key)
+        empty = (
+            item.unit_price is None and item.setup_fee is None
+            and not item.sku and item.enabled and not item.note
+        )
+
+        if empty:
+            if row is not None:
+                await db.delete(row)
+                cleared += 1
+            continue
+
+        if row is None:
+            row = ProductOptionCombination(product_id=product_id, combo_key=key)
+            db.add(row)
+        row.value_ids = combos.value_ids_of(key)
+        row.unit_price = item.unit_price
+        row.setup_fee = item.setup_fee
+        row.sku = item.sku
+        row.enabled = item.enabled
+        row.note = item.note
+        saved += 1
+
+    await db.commit()
+    return {"saved": saved, "cleared": cleared, "message": "Combination prices saved."}
+

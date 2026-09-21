@@ -16,6 +16,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { apiClient } from "@/lib/api-client";
 import { MediaPicker } from "@/components/admin/MediaPicker";
+import { CombinationPricing } from "@/components/admin/CombinationPricing";
 
 type PriceMode = "flat" | "per_unit" | "percent";
 type InputType = "select" | "radio" | "swatch" | "checkbox" | "number" | "text";
@@ -39,6 +40,10 @@ interface Opt {
   required: boolean;
   help_text?: string | null;
   is_active: boolean;
+  /** Does price genuinely turn on this question? Only these build the price
+   *  table in step 4 — a fourteen-question product would otherwise produce a
+   *  grid nobody could work through. */
+  in_price_matrix?: boolean;
   values: OptValue[];
 }
 interface Tier { id?: string; min_qty: number; unit_price: number; }
@@ -218,6 +223,11 @@ export function ProductOptionsBuilder({ productId }: { productId: string }) {
   // Which groups are folded away. A long list is unreadable open; this is view
   // state only and never saved.
   const [folded, setFolded] = useState<Record<number, boolean>>({});
+  // Bumped on every successful save. The price table is generated from the
+  // options the server has, so it is rebuilt when those change — and told to
+  // wait while the editor holds changes it has not sent yet.
+  const [savedStamp, setSavedStamp] = useState(0);
+  const [dirtySinceLoad, setDirtySinceLoad] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -229,6 +239,7 @@ export function ProductOptionsBuilder({ productId }: { productId: string }) {
       setMode(cfg.pricing_mode ?? "variant");
       setBasePrice(cfg.base_price != null ? String(cfg.base_price) : "");
       setOptions(cfg.options ?? []);
+      setDirtySinceLoad(false);
       setTiers(cfg.qty_tiers ?? []);
       setRules(cfg.rules ?? []);
     } catch (e) {
@@ -246,7 +257,10 @@ export function ProductOptionsBuilder({ productId }: { productId: string }) {
   function flash(text: string, ok = true) { setMsg({ text, ok }); setTimeout(() => setMsg(null), 2500); }
 
   // ── Option mutations ───────────────────────────────────────────────────────
-  const patchOpt = (i: number, p: Partial<Opt>) => setOptions(o => o.map((x, k) => k === i ? { ...x, ...p } : x));
+  const patchOpt = (i: number, p: Partial<Opt>) => {
+    setDirtySinceLoad(true);
+    setOptions(o => o.map((x, k) => k === i ? { ...x, ...p } : x));
+  };
   /** Drop a starter set in, leaving anything already built alone. */
   function applyTemplate(t: Template) {
     setOptions(o => [...o, ...t.options.map(g => ({ ...g, values: g.values.map(v => ({ ...v })) }))]);
@@ -256,7 +270,7 @@ export function ProductOptionsBuilder({ productId }: { productId: string }) {
   }
 
   const addOption = () => setOptions(o => [...o, {
-    name: "", input_type: "select", required: true, is_active: true,
+    name: "", input_type: "select", required: true, is_active: true, in_price_matrix: false,
     values: [{ label: "", price_delta: 0, price_mode: "per_unit", is_default: true, enabled: true }],
   }]);
   const removeOption = (i: number) => {
@@ -341,7 +355,7 @@ export function ProductOptionsBuilder({ productId }: { productId: string }) {
           valMap.set(`${oi}:${vi}`, values.length);
           values.push(v);
         });
-        payloadOptions.push({ ...o, values });
+        payloadOptions.push({ ...o, in_price_matrix: !!o.in_price_matrix, values });
       });
 
       const payloadRules = rules.flatMap<Rule>(r => {
@@ -368,6 +382,7 @@ export function ProductOptionsBuilder({ productId }: { productId: string }) {
         rules: payloadRules,
       });
       flash("Configuration saved");
+      setSavedStamp(n => n + 1);   // the price table is built from what was saved
       load();
     } catch (e) {
       const err = e as { message?: string; status?: number; detail?: string };
@@ -496,6 +511,10 @@ export function ProductOptionsBuilder({ productId }: { productId: string }) {
                           </select>
                           <label style={CHECK} title="The customer cannot order without answering">
                             <input type="checkbox" checked={o.required} onChange={e => patchOpt(oi, { required: e.target.checked })} /> Must answer
+                          </label>
+                          <label style={CHECK} title="Tick when the price depends on this together with other questions — it then appears in the price table below">
+                            <input type="checkbox" checked={!!o.in_price_matrix}
+                              onChange={e => patchOpt(oi, { in_price_matrix: e.target.checked })} /> Price changes with this
                           </label>
                         </>
                       ) : (
@@ -681,6 +700,17 @@ export function ProductOptionsBuilder({ productId }: { productId: string }) {
               style={{ ...BTN_LIGHT, marginTop: "10px" }}>+ Add rule</button>
           )}
         </>
+      )}
+
+      {mode === "configurable" && (
+        <Step n={4} title="A price for a particular combination (optional)"
+          blurb="Most of the time each choice adds its own amount and that is enough. Use this when it is not — when rounded corners cost more on a large card than a small one.">
+          <CombinationPricing
+            key={savedStamp}
+            productId={productId}
+            unsaved={dirtySinceLoad}
+          />
+        </Step>
       )}
 
       {picker && (
