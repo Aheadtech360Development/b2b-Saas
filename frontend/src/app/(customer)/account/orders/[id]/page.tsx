@@ -71,6 +71,75 @@ const PAYMENT_COLORS: Record<string, string> = {
   failed: "bg-red-100 text-red-700",
 };
 
+interface OrderHistoryEvent {
+  id: string;
+  type: string;
+  label: string;
+  message: string;
+  actor_type: string;
+  actor_name: string | null;
+  occurred_at: string;
+}
+
+const HISTORY_DOT: Record<string, string> = {
+  order_created: "bg-gray-800",
+  order_confirmed: "bg-brand-600",
+  payment_received: "bg-green-600",
+  payment_authorized: "bg-cyan-600",
+  payment_failed: "bg-red-600",
+  invoice_sent: "bg-cyan-600",
+  discount_applied: "bg-violet-600",
+  processing_started: "bg-indigo-500",
+  shipped: "bg-purple-600",
+  tracking_added: "bg-purple-500",
+  delivered: "bg-green-600",
+  cancelled: "bg-red-600",
+  refund_issued: "bg-red-500",
+  return_requested: "bg-amber-500",
+  return_approved: "bg-amber-600",
+  return_rejected: "bg-red-600",
+  return_completed: "bg-green-600",
+};
+
+/** What has happened to this order, with the time each thing happened.
+ *
+ * Every row is a stored event written by the code that performed the action,
+ * so the times are records rather than a progress bar's guess. */
+function OrderHistory({ events }: { events: OrderHistoryEvent[] }) {
+  if (!events.length) return null;
+  return (
+    <div className="bg-white border border-gray-200 rounded-lg p-4 sm:p-5">
+      <h2 className="text-sm font-semibold text-gray-900 mb-4">Order history</h2>
+      <ol className="relative border-l border-gray-200 ml-2">
+        {events.map(e => {
+          const when = new Date(e.occurred_at);
+          return (
+            <li key={e.id} className="ml-5 pb-5 last:pb-0">
+              <span
+                className={`absolute -left-[5px] mt-1.5 w-2.5 h-2.5 rounded-full ring-2 ring-white ${HISTORY_DOT[e.type] ?? "bg-gray-300"}`}
+              />
+              <div className="flex flex-wrap items-baseline gap-x-2">
+                <p className="text-sm font-semibold text-gray-900">{e.label}</p>
+                <time
+                  dateTime={e.occurred_at}
+                  title={when.toLocaleString(undefined, { dateStyle: "full", timeStyle: "long" })}
+                  className="text-xs text-gray-400 tabular-nums"
+                >
+                  {when.toLocaleString(undefined, {
+                    day: "numeric", month: "short", year: "numeric",
+                    hour: "numeric", minute: "2-digit",
+                  })}
+                </time>
+              </div>
+              <p className="text-sm text-gray-600 mt-0.5 break-words">{e.message}</p>
+            </li>
+          );
+        })}
+      </ol>
+    </div>
+  );
+}
+
 function StatusTimeline({ status }: { status: string }) {
   const isCancelled = status === "cancelled" || status === "refunded";
   const currentIdx = STATUS_STEPS.indexOf(status);
@@ -150,6 +219,7 @@ export default function OrderDetailPage() {
     country: string | null;
     phone: string | null;
   } | null>(null);
+  const [history, setHistory] = useState<OrderHistoryEvent[]>([]);
   const commentEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -166,6 +236,15 @@ export default function OrderDetailPage() {
           setComments(commentsData);
         } catch {
           setComments([]);
+        }
+        // What has actually happened to this order, with the real times.
+        try {
+          const h = await apiClient.get<{ events: OrderHistoryEvent[] }>(
+            `/api/v1/orders/${orderData.id}/events`
+          );
+          setHistory(h.events ?? []);
+        } catch {
+          setHistory([]);
         }
       } catch (err) {
         setLoadError(err instanceof Error ? err.message : "Failed to load order.");
@@ -497,6 +576,9 @@ export default function OrderDetailPage() {
           <p className="text-sm text-gray-600">{order.order_notes}</p>
         </div>
       )}
+
+      {/* What has happened to this order, and when */}
+      <OrderHistory events={history} />
 
       {/* Comments */}
       <div className="bg-white rounded-lg border border-gray-200 p-5">

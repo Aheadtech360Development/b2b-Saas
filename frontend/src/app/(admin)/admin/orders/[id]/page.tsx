@@ -100,7 +100,10 @@ interface AdminOrder {
   amount_paid?: string | null;
   balance_due?: string | null;
   is_fully_paid?: boolean;
-  // Timeline
+  // Timeline. `events` is the stored history — one row per thing that actually
+  // happened, written by the code that did it. `timeline` is the old JSONB
+  // array, still sent, and only used if a backend predates the events table.
+  events?: OrderEvent[];
   timeline?: Array<{ status: string; message: string; created_by: string; created_at: string }>;
   // Pre-calculated shipment weight from backend (used to pre-fill rate fetch)
   calculated_weight_lbs?: number;
@@ -156,6 +159,76 @@ function getAvailableStatuses(currentStatus: string): string[] {
   if (currentStatus === "delivered") return ["delivered", "refunded"];
   if (currentStatus === "cancelled") return ["cancelled", "refunded"];
   return STATUSES.filter(s => s !== "refunded");
+}
+
+interface OrderEvent {
+  id: string;
+  type: string;
+  label: string;
+  message: string;
+  actor_type: string;
+  actor_name: string | null;
+  meta: Record<string, unknown>;
+  occurred_at: string;
+  recorded_at: string | null;
+}
+
+// A colour per kind of event, so a glance down the timeline separates money
+// from movement from trouble.
+const EVENT_COLOR: Record<string, string> = {
+  order_created: "#1A1A1A",
+  order_confirmed: "#1A5CFF",
+  payment_authorized: "#0891B2",
+  payment_received: "#059669",
+  payment_failed: "#E8242A",
+  invoice_sent: "#0891B2",
+  discount_applied: "#7C3AED",
+  processing_started: "#6366F1",
+  items_edited: "#6B7280",
+  status_changed: "#6B7280",
+  ready_for_pickup: "#0891B2",
+  label_purchased: "#8B5CF6",
+  tracking_added: "#8B5CF6",
+  shipped: "#8B5CF6",
+  delivered: "#059669",
+  cancelled: "#E8242A",
+  return_requested: "#D97706",
+  return_approved: "#D97706",
+  return_rejected: "#E8242A",
+  return_completed: "#059669",
+  refund_issued: "#E8242A",
+  restocked: "#6B7280",
+  note: "#9CA3AF",
+  comment: "#9CA3AF",
+  email_sent: "#9CA3AF",
+  supplier_po_sent: "#1D4ED8",
+  supplier_po_failed: "#E8242A",
+  supplier_shipped: "#047857",
+};
+
+// Who did it, in words rather than a role name.
+function actorLabel(e: OrderEvent): string {
+  if (e.actor_name) return e.actor_name;
+  const map: Record<string, string> = {
+    system: "Automatically",
+    admin: "Staff",
+    customer: "Customer",
+    supplier: "Supplier",
+    carrier: "Carrier",
+  };
+  return map[e.actor_type] ?? e.actor_type;
+}
+
+/** "Today", "Yesterday", or the date — the heading each group of events sits under. */
+function dayHeading(iso: string): string {
+  const d = new Date(iso);
+  const today = new Date();
+  const yesterday = new Date(today);
+  yesterday.setDate(today.getDate() - 1);
+  const same = (a: Date, b: Date) => a.toDateString() === b.toDateString();
+  if (same(d, today)) return "Today";
+  if (same(d, yesterday)) return "Yesterday";
+  return d.toLocaleDateString(undefined, { day: "numeric", month: "long", year: "numeric" });
 }
 
 function getStatusColor(status: string): string {
@@ -690,23 +763,37 @@ export default function AdminOrderDetailPage() {
   const addr = order.shipping_address;
   const zip = addr?.zip_code ?? addr?.postal_code ?? "";
 
-  const backendTimeline = order.timeline ?? [];
-  const timelineEvents: { text: string; sub: string; time: string; color: string }[] = [
-    // Seed the "Order placed" entry from order creation time
-    {
-      text: "Order placed",
-      sub: `${order.company_name || order.customer_name || "Customer"} · ${order.payment_status}`,
-      time: order.created_at,
-      color: "#1A1A1A",
-    },
-    // Append all backend-recorded status changes in chronological order
-    ...backendTimeline.map(entry => ({
-      text: entry.message,
-      sub: entry.created_by === "admin" ? "Admin" : entry.created_by,
-      time: entry.created_at,
-      color: getStatusColor(entry.status),
-    })),
-  ].sort((a, b) => new Date(a.time).getTime() - new Date(b.time).getTime()).reverse();
+  // The timeline shows stored events only. Nothing here is derived from a
+  // status or a date on the order: a status says where an order is, never when
+  // it got there, and a timeline that guessed would be telling the brand
+  // something untrue. A backend that predates the events table still sends the
+  // old array, so fall back to it rather than showing an empty history.
+  const storedEvents: OrderEvent[] = order.events ?? [];
+  const legacyEvents: OrderEvent[] = storedEvents.length
+    ? []
+    : (order.timeline ?? []).map((entry, i) => ({
+        id: `legacy-${i}`,
+        type: entry.status,
+        label: entry.status.replace(/_/g, " ").replace(/^./, c => c.toUpperCase()),
+        message: entry.message,
+        actor_type: entry.created_by === "system" ? "system" : "admin",
+        actor_name: entry.created_by === "admin" ? null : entry.created_by,
+        meta: {},
+        occurred_at: entry.created_at,
+        recorded_at: entry.created_at,
+      }));
+  const timelineEvents = (storedEvents.length ? storedEvents : legacyEvents)
+    .slice()
+    .sort((a, b) => new Date(b.occurred_at).getTime() - new Date(a.occurred_at).getTime());
+
+  // Grouped under a date heading, newest day first.
+  const timelineDays: { day: string; events: OrderEvent[] }[] = [];
+  for (const event of timelineEvents) {
+    const day = dayHeading(event.occurred_at);
+    const last = timelineDays[timelineDays.length - 1];
+    if (last && last.day === day) last.events.push(event);
+    else timelineDays.push({ day, events: [event] });
+  }
 
   const avatarInitial = order.customer_name?.[0]?.toUpperCase() ?? order.company_name?.[0]?.toUpperCase() ?? "C";
   const mapQuery = [addr?.address_line1, addr?.city, addr?.state].filter(Boolean).join(", ");
@@ -1171,22 +1258,64 @@ export default function AdminOrderDetailPage() {
           </div>
           )}
 
-          {/* TIMELINE */}
+          {/* TIMELINE — stored events, grouped by the day they happened */}
           <div style={{ ...CardStyle, padding: "24px", marginBottom: 0 }}>
-            <h3 style={{ ...SectionHead, fontSize: "18px", letterSpacing: ".05em", marginBottom: "20px" }}>Timeline</h3>
-            <div style={{ position: "relative", paddingLeft: "28px" }}>
-              <div style={{ position: "absolute", left: "23px", top: "8px", bottom: "8px", width: "2px", background: "#E3E3E3" }} />
-              {timelineEvents.map((event, i) => (
-                <div key={i} style={{ display: "flex", gap: "16px", marginBottom: "20px", position: "relative", alignItems: "flex-start" }}>
-                  <div style={{ width: "20px", height: "20px", borderRadius: "50%", background: event.color, border: "2px solid #fff", boxShadow: `0 0 0 2px ${event.color}`, flexShrink: 0, zIndex: 1, marginLeft: "-14px", marginTop: "2px" }} />
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: 700, fontSize: "14px", color: "#2A2830" }}>{event.text}</div>
-                    {event.sub && <div style={{ fontSize: "12px", color: "#7A7880", marginTop: "2px" }}>{event.sub}</div>}
-                    <div style={{ fontSize: "11px", color: "#bbb", marginTop: "4px" }}>{new Date(event.time).toLocaleString()}</div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: "12px", marginBottom: "18px", flexWrap: "wrap" as const }}>
+              <h3 style={{ ...SectionHead, fontSize: "18px", letterSpacing: ".05em", margin: 0 }}>Timeline</h3>
+              <span style={{ fontSize: "12px", color: "#9CA3AF" }}>
+                {timelineEvents.length} {timelineEvents.length === 1 ? "event" : "events"} · newest first
+              </span>
+            </div>
+
+            {timelineEvents.length === 0 ? (
+              <p style={{ fontSize: "13px", color: "#7A7880", margin: 0 }}>
+                Nothing has been recorded for this order yet.
+              </p>
+            ) : (
+              timelineDays.map(group => (
+                <div key={group.day} style={{ marginBottom: "18px" }}>
+                  <div style={{ fontSize: "11px", fontWeight: 800, letterSpacing: ".08em", textTransform: "uppercase" as const, color: "#9CA3AF", marginBottom: "12px" }}>
+                    {group.day}
+                  </div>
+                  <div style={{ position: "relative", paddingLeft: "28px" }}>
+                    <div style={{ position: "absolute", left: "23px", top: "8px", bottom: "8px", width: "2px", background: "#E3E3E3" }} />
+                    {group.events.map(event => {
+                      const color = EVENT_COLOR[event.type] ?? "#7A7880";
+                      const when = new Date(event.occurred_at);
+                      const tracking = typeof event.meta?.tracking_number === "string" ? event.meta.tracking_number : null;
+                      return (
+                        <div key={event.id} style={{ display: "flex", gap: "16px", marginBottom: "20px", position: "relative", alignItems: "flex-start" }}>
+                          <div style={{ width: "20px", height: "20px", borderRadius: "50%", background: color, border: "2px solid #fff", boxShadow: `0 0 0 2px ${color}`, flexShrink: 0, zIndex: 1, marginLeft: "-14px", marginTop: "2px" }} />
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ display: "flex", gap: "8px", alignItems: "baseline", flexWrap: "wrap" as const }}>
+                              <span style={{ fontWeight: 700, fontSize: "14px", color: "#2A2830" }}>{event.label}</span>
+                              <span
+                                style={{ fontSize: "11px", color: "#9CA3AF", fontVariantNumeric: "tabular-nums" as const }}
+                                title={when.toLocaleString(undefined, { dateStyle: "full", timeStyle: "long" })}
+                              >
+                                {when.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}
+                              </span>
+                            </div>
+                            <div style={{ fontSize: "13px", color: "#4B5563", marginTop: "3px", lineHeight: 1.45, wordBreak: "break-word" as const }}>
+                              {event.message}
+                            </div>
+                            <div style={{ fontSize: "11.5px", color: "#9CA3AF", marginTop: "4px" }}>
+                              {actorLabel(event)}
+                              {tracking && (
+                                <>
+                                  {" · "}
+                                  <span style={{ fontVariantNumeric: "tabular-nums" as const }}>{tracking}</span>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
-              ))}
-            </div>
+              ))
+            )}
           </div>
         </div>
 
