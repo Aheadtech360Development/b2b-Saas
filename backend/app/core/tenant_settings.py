@@ -35,6 +35,7 @@ TENANT_SCOPED_KEYS: frozenset[str] = frozenset({
     "tax_mode",  # auto (ZipTax) | manual (brand's own rates) | none — per brand
     "integrations",  # brand's own supplier + carrier accounts (JSON) — see integrations_service
     "suppliers",  # brand's supplier setup: import filters, pricing, sync (JSON) — see services/suppliers
+    "analytics",  # brand's own GA4/Pixel/Klaviyo IDs (JSON) — see services/analytics_config
 })
 
 _SEP = "@"

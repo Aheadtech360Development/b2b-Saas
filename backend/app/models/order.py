@@ -118,6 +118,16 @@ class Order(TenantMixin, BaseModel):
     marked_paid_by: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     amount_paid: Mapped[Optional[float]] = mapped_column(Numeric(10, 2), nullable=True)
 
+    # Where the buyer came from — see services/attribution.py and migration
+    # 0040. The five UTM values a brand groups and exports by get columns; the
+    # rest of the visit (referrer, landing page, ad click ids) shares one blob.
+    utm_source: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
+    utm_medium: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    utm_campaign: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
+    utm_term: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    utm_content: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    attribution: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+
     # Admin edits + fees (columns added post-deploy — use raw SQL fallback in service)
     items_edited: Mapped[Optional[bool]] = mapped_column(Boolean, nullable=True, default=False)
     convenience_fee: Mapped[Optional[float]] = mapped_column(Numeric(10, 2), nullable=True, default=0.0)

@@ -95,6 +95,8 @@ class GuestCheckoutRequest(BaseModel):
     shipping_rate_id: str | None = None
     shipping_carrier: str | None = None
     shipping_service: str | None = None
+    # How the buyer got here — see services/attribution.py.
+    attribution: dict | None = None
 
 
 class GuestOrderOut(BaseModel):
@@ -297,7 +299,10 @@ async def guest_checkout(
         except Exception as _exc:
             logger.warning("Could not save convenience_fee on guest order %s: %s", order.id, _exc)
 
+    from app.services import attribution as _attr
     from app.services import order_events as _events
+
+    _attr.apply(order, payload.attribution)
 
     await _events.record(
         db, order, "order_created",

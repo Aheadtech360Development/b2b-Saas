@@ -296,6 +296,34 @@ async def get_storefront_branding(
     return await _fetch_branding(db, row[0])
 
 
+# ── Public: this brand's own tracking tools ──────────────────────────────────
+@public_router.get("/analytics")
+async def get_storefront_analytics(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """The tracking IDs this storefront should load.
+
+    Unauthenticated on purpose: every value here is a public identifier that
+    appears in the page source of any site using it. Secrets are not kept in
+    this record — see services/analytics_config.
+
+    A brand that has set nothing up gets `enabled: false` and no tools, so the
+    storefront loads no third-party script at all.
+    """
+    from app.services import analytics_config
+
+    slug = getattr(request.state, "tenant_slug", None)
+    if not slug:
+        return analytics_config.public(analytics_config.blank())
+    row = (await db.execute(
+        text("SELECT id FROM tenants WHERE slug = :s AND status = 'active'"), {"s": slug},
+    )).first()
+    if not row:
+        return analytics_config.public(analytics_config.blank())
+    return analytics_config.public(await analytics_config.load(db, tenant_id=row[0]))
+
+
 # ── Admin: read own branding ──────────────────────────────────────────────────
 @admin_router.get("")
 async def get_admin_branding(

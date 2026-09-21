@@ -81,6 +81,10 @@ class CheckoutConfirmRequest(BaseModel):
     shipping_rate_id: str | None = None
     shipping_carrier: str | None = None
     shipping_service: str | None = None
+    # How the buyer got here: utm_*, referrer, landing page, ad click ids.
+    # Collected by the browser, sent once, cleaned server-side before it is
+    # stored — see services/attribution.py.
+    attribution: dict | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -170,6 +174,8 @@ class AdminOrderListItem(BaseModel):
     # is what the order page reads.
     timeline: list[dict] = []
     events: list[dict] = []
+    # A one-line "where this came from", so the list reads by campaign.
+    attribution: dict | None = None
 
     model_config = {"from_attributes": True}
 
@@ -219,6 +225,9 @@ class AdminOrderDetail(OrderOut):
     # Order timeline — see OrderOut: `events` is the real one.
     timeline: list[dict] = []
     events: list[dict] = []
+    # How the buyer arrived: utm_*, referrer, landing page, ad click ids.
+    # None when nothing was recorded, which is not the same as "direct".
+    attribution: dict | None = None
     # Pre-calculated shipment weight from order items (lbs), for Shippo label generation
     calculated_weight_lbs: float = 1.0
     # Admin edits flag + convenience fee

@@ -34,7 +34,7 @@ from app.schemas.order import (
     RMAUpdateRequest,
     SendInvoicePayload,
 )
-from app.services import order_events
+from app.services import attribution, order_events
 from app.types.api import PaginatedResponse
 
 router = APIRouter(prefix="/admin", tags=["admin-orders"])
@@ -387,6 +387,8 @@ async def list_admin_orders(
     payment_status: str | None = None,
     company_id: str | None = None,
     guest_only: bool = Query(False, description="Show only guest orders"),
+    utm_source: str | None = Query(None, description="Only orders from this traffic source"),
+    utm_campaign: str | None = Query(None, description="Only orders from this campaign"),
     drafts_only: bool = Query(False, description="Show only draft orders (DRAFT-…)"),
     date_from: date | None = Query(None, description="Filter orders created on or after this date"),
     date_to: date | None = Query(None, description="Filter orders created on or before this date"),
@@ -420,6 +422,12 @@ async def list_admin_orders(
         query = query.where(Order.company_id == company_id)
     if guest_only:
         query = query.where(Order.is_guest_order == True)
+    # "Show me what that campaign brought in" — the question a brand running
+    # ads actually asks of this list.
+    if utm_source:
+        query = query.where(func.lower(Order.utm_source) == utm_source.strip().lower())
+    if utm_campaign:
+        query = query.where(Order.utm_campaign == utm_campaign.strip())
     if date_from:
         query = query.where(Order.created_at >= datetime.combine(date_from, datetime.min.time()))
     if date_to:
@@ -464,6 +472,7 @@ async def list_admin_orders(
             guest_name=order.guest_name,
             timeline=order.timeline or [],
             supplier=_supplier.get(order.id),
+            attribution=attribution.summary(order),
         ))
 
     return PaginatedResponse(items=items, total=total, page=page, page_size=page_size, pages=(total + page_size - 1) // page_size)
@@ -489,13 +498,20 @@ async def export_orders_csv(
 
     output = io.StringIO()
     writer = csv.writer(output)
-    writer.writerow(["Order #", "Company / Guest", "Status", "Payment", "PO Number", "Total", "Created"])
+    writer.writerow([
+        "Order #", "Company / Guest", "Status", "Payment", "PO Number", "Total", "Created",
+        "Source", "Medium", "Campaign", "Term", "Content", "Landing page", "Referrer",
+    ])
     for row in rows:
         order, company_name = row
         display_name = company_name or (f"Guest: {order.guest_email}" if order.is_guest_order else "Unknown")
+        _attr = getattr(order, "attribution", None) or {}
         writer.writerow([
             order.order_number, display_name, order.status, order.payment_status,
             order.po_number or "", str(order.total), order.created_at.isoformat(),
+            order.utm_source or "", order.utm_medium or "", order.utm_campaign or "",
+            order.utm_term or "", order.utm_content or "",
+            _attr.get("landing_page", ""), _attr.get("referrer", ""),
         ])
     # Email the admin who triggered the export
     try:
@@ -689,6 +705,7 @@ async def get_admin_order(order_id: str, db: AsyncSession = Depends(get_db)):
             is_fully_paid=order.is_fully_paid,
             timeline=order.timeline or [],
             events=_events_rows,
+            attribution=attribution.summary(order),
             calculated_weight_lbs=calculated_weight_lbs,
             items_edited=bool(getattr(order, "items_edited", False)),
             convenience_fee=getattr(order, "convenience_fee", None),

@@ -968,6 +968,9 @@ from app.api.v1 import product_configurator  # noqa: E402
 app.include_router(product_configurator.router, prefix=_V1)
 from app.api.v1.admin import suppliers as admin_suppliers  # noqa: E402
 app.include_router(admin_suppliers.router, prefix=_V1)
+from app.api.v1.admin import analytics_settings as admin_analytics_settings  # noqa: E402
+
+app.include_router(admin_analytics_settings.router, prefix=_V1)
 from app.api.v1 import copilot as copilot_api  # noqa: E402
 app.include_router(copilot_api.admin_router, prefix=_V1)
 app.include_router(copilot_api.public_router, prefix=_V1)

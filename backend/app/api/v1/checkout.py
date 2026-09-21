@@ -297,7 +297,12 @@ async def _confirm_checkout_inner(
     )
 
     # The order exists: record that, at the moment the order says it was placed.
+    from app.services import attribution as _attr
     from app.services import order_events as _events
+
+    # Where the buyer came from. Cleaned before it is stored: it reaches us from
+    # a URL anybody can edit.
+    _attr.apply(order, payload.attribution)
 
     await _events.record(
         db, order, "order_created",
