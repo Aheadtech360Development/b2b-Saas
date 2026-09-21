@@ -91,6 +91,25 @@ async def get_order(
         raise ForbiddenError("Company account required")
 
 
+@router.get("/{order_id}/events")
+async def list_my_order_events(
+    order_id: str,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """The buyer's view of their own order's history.
+
+    Limited to the events that concern them: internal notes, staff edits and
+    the purchase order the brand sent its supplier stay out of it.
+    """
+    from app.services import order_events
+
+    order = await _load_order_for_auth(order_id, request, db)
+    return {"events": await order_events.for_order(
+        db, order.id, only=order_events.CUSTOMER_VISIBLE
+    )}
+
+
 @router.post("/{order_id}/reorder")
 async def reorder(
     order_id: UUID,
@@ -367,6 +386,14 @@ async def add_order_comment(
     if user_id:
         author = (await db.execute(select(User).where(User.id == user_id))).scalar_one_or_none()
 
+    from app.services import order_events as _events
+
+    await _events.record(
+        db, order, "comment", payload.body,
+        actor_type="customer", actor_id=user_id,
+        actor_name=(author.full_name if author else None),
+        meta={"comment_id": str(comment.id)},
+    )
     await db.commit()
     await db.refresh(comment)
 
@@ -533,20 +560,22 @@ async def pay_invoice(
         raise HTTPException(status_code=400, detail="Payment was not completed. Please try again.")
 
     now = _dt.now(_tz.utc)
-    timeline = list(order.timeline or [])
-    timeline.append({
-        "message": f"Payment received via invoice link — ${float(_balance_due):.2f}",
-        "status": "paid",
-        "created_by": "Customer",
-        "created_at": now.isoformat(),
-    })
     await db.execute(
         _text(
             "UPDATE orders SET payment_status='paid', marked_paid_at=:ts, "
-            "amount_paid=:ap, "
-            "timeline=CAST(:tl AS jsonb) WHERE id=:id"
+            "amount_paid=:ap WHERE id=:id"
         ),
-        {"ts": now, "ap": float(_order_total), "tl": _json.dumps(timeline), "id": str(order_id)},
+        {"ts": now, "ap": float(_order_total), "id": str(order_id)},
+    )
+    from app.services import order_events as _events
+
+    await _events.record(
+        db, order, "payment_received",
+        f"Payment received via invoice link — ${float(_balance_due):.2f}",
+        actor_type="customer", actor_name="Customer",
+        meta={"amount": float(_balance_due), "method": "card",
+              "payment_intent_id": payload.payment_intent_id},
+        occurred_at=now,
     )
     await db.commit()
     return {

@@ -165,8 +165,11 @@ class AdminOrderListItem(BaseModel):
     is_guest_order: bool = False
     guest_email: str | None = None
     guest_name: str | None = None
-    # Timeline entries for customer activity feed
+    # Timeline entries for customer activity feed. `timeline` is the legacy
+    # JSONB array; `events` is the stored history (services/order_events.py) and
+    # is what the order page reads.
     timeline: list[dict] = []
+    events: list[dict] = []
 
     model_config = {"from_attributes": True}
 
@@ -213,8 +216,9 @@ class AdminOrderDetail(OrderOut):
     marked_paid_by: str | None = None
     balance_due: Decimal | None = None
     is_fully_paid: bool = False
-    # Order timeline
+    # Order timeline — see OrderOut: `events` is the real one.
     timeline: list[dict] = []
+    events: list[dict] = []
     # Pre-calculated shipment weight from order items (lbs), for Shippo label generation
     calculated_weight_lbs: float = 1.0
     # Admin edits flag + convenience fee

@@ -297,6 +297,26 @@ async def guest_checkout(
         except Exception as _exc:
             logger.warning("Could not save convenience_fee on guest order %s: %s", order.id, _exc)
 
+    from app.services import order_events as _events
+
+    await _events.record(
+        db, order, "order_created",
+        f"Order {order.order_number} placed by {payload.guest_name or payload.guest_email}"
+        f" — ${float(total):.2f}",
+        actor_type="customer",
+        actor_name=payload.guest_name or payload.guest_email,
+        meta={"total": float(total), "subtotal": float(subtotal), "channel": "retail",
+              "payment_method": payload.payment_method, "guest_email": payload.guest_email},
+        occurred_at=order.created_at,
+    )
+    if _payment_status == "paid":
+        await _events.record(
+            db, order, "payment_received",
+            f"{(payload.payment_method or 'card').upper()} payment of ${float(total):.2f} received",
+            meta={"amount": float(total), "method": payload.payment_method or "card",
+                  "payment_intent_id": payload.payment_intent_id},
+        )
+
     # 6. Create OrderItem records + deduct inventory
     from sqlalchemy import update as _update
 

@@ -9,7 +9,7 @@ from app.models.company import Company, CompanyUser, UserAddress  # noqa: F401
 from app.models.product import Product, ProductVariant, ProductImage, Category  # noqa: F401
 from app.models.product_option import ProductOption, ProductOptionValue, ProductOptionRule, ProductQtyTier  # noqa: F401
 from app.models.inventory import Warehouse, InventoryRecord, InventoryAdjustment  # noqa: F401
-from app.models.order import Order, OrderItem, CartItem, AbandonedCart, OrderTemplate, OrderComment  # noqa: F401
+from app.models.order import Order, OrderItem, CartItem, AbandonedCart, OrderTemplate, OrderComment, OrderEvent  # noqa: F401
 from app.models.wholesale import WholesaleApplication  # noqa: F401
 from app.models.rma import RMARequest, RMAItem  # noqa: F401
 from app.models.system import AuditLog, Settings  # noqa: F401

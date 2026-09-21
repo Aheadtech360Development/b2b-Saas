@@ -210,15 +210,22 @@ def build_request(orders: list, lines: list[dict], cfg: dict, identifiers: dict[
 
 # ── Sending ──────────────────────────────────────────────────────────────────
 
-async def _timeline(db: AsyncSession, order, message: str, status: str | None = None) -> None:
-    from sqlalchemy import text
+async def _timeline(db: AsyncSession, order, message: str, status: str | None = None,
+                    *, event: str = "note", meta: dict | None = None,
+                    occurred_at: datetime | None = None) -> None:
+    """Put one supplier step on the order's history.
 
-    entry = {"status": status or order.status, "message": message, "created_by": "supplier",
-             "created_at": datetime.now(UTC).isoformat()}
-    current = list(order.timeline or []) + [entry]
-    await db.execute(text("UPDATE orders SET timeline = CAST(:tl AS jsonb) WHERE id = :oid"),
-                     {"tl": json.dumps(current), "oid": str(order.id)})
-    order.timeline = current
+    Goes through the shared recorder so a supplier job and an admin acting on
+    the same order at the same time can no longer overwrite each other — see
+    services/order_events.py.
+    """
+    from app.services import order_events
+
+    await order_events.record(
+        db, order, event, message,
+        actor_type="supplier", actor_name="S&S Activewear",
+        meta=meta, occurred_at=occurred_at,
+    )
 
 
 async def send(db: AsyncSession, svc, cfg: dict, order_ids: list[uuid.UUID], *, trigger: str) -> list[dict]:
@@ -289,13 +296,16 @@ async def send(db: AsyncSession, svc, cfg: dict, order_ids: list[uuid.UUID], *, 
             row.supplier_order_numbers = numbers[:500] or None
             db.add(row)
             if status == "placed":
-                await _timeline(db, x, message)
+                await _timeline(db, x, message, event="supplier_po_sent",
+                                meta={"po_number": body["poNumber"] if body else None,
+                                      "supplier_order_numbers": numbers[:500] or None, "test": test})
                 if o["fulfillment"] == "on_po":
                     await _mark_shipped(db, x, None, None, email=True)
                 elif o["fulfillment"] == "on_ship" and x.status in ("pending", "confirmed"):
                     x.status = "processing"
             elif status == "failed":
-                await _timeline(db, x, f"Not sent to S&S: {message}")
+                await _timeline(db, x, f"Not sent to S&S: {message}", event="supplier_po_failed",
+                                meta={"error": message})
             results.append({"order_number": x.order_number, "status": status, "message": message})
         await db.commit()
     return results
@@ -312,7 +322,9 @@ async def _mark_shipped(db: AsyncSession, order, tracking: str | None, carrier: 
         if not order.shipped_at:
             order.shipped_at = datetime.now(UTC)
         await _timeline(db, order, "Marked shipped — fulfilled by S&S"
-                        + (f", tracking {tracking}" if tracking else ""), "shipped")
+                        + (f", tracking {tracking}" if tracking else ""), "shipped",
+                        event="shipped", meta={"tracking_number": tracking, "carrier": carrier,
+                                               "fulfilled_by": "S&S Activewear"})
         if email:
             await db.flush()
             try:
@@ -361,9 +373,15 @@ async def refresh_tracking(db: AsyncSession, svc, cfg: dict) -> int:
             if row.tracking_number and not order.tracking_number:
                 order.tracking_number = row.tracking_number
                 order.carrier = order.carrier or row.carrier
-            await _timeline(db, order, f"S&S shipped it{f' — tracking {row.tracking_number}' if row.tracking_number else ''}")
+            await _timeline(db, order, f"S&S shipped it{f' — tracking {row.tracking_number}' if row.tracking_number else ''}",
+                            event="supplier_shipped",
+                            meta={"tracking_number": row.tracking_number, "carrier": row.carrier},
+                            occurred_at=row.shipped_at)
         else:
-            await _timeline(db, order, f"S&S shipped it{f' — tracking {row.tracking_number}' if row.tracking_number else ''}")
+            await _timeline(db, order, f"S&S shipped it{f' — tracking {row.tracking_number}' if row.tracking_number else ''}",
+                            event="supplier_shipped",
+                            meta={"tracking_number": row.tracking_number, "carrier": row.carrier},
+                            occurred_at=row.shipped_at)
         shipped += 1
     await db.commit()
     return shipped

@@ -34,6 +34,7 @@ from app.schemas.order import (
     RMAUpdateRequest,
     SendInvoicePayload,
 )
+from app.services import order_events
 from app.types.api import PaginatedResponse
 
 router = APIRouter(prefix="/admin", tags=["admin-orders"])
@@ -281,6 +282,50 @@ async def _send_order_status_email(order: Order, new_status: str, db: AsyncSessi
 # Orders
 # ---------------------------------------------------------------------------
 
+# Which stored event a status change really is. A status says where an order
+# is; the event says when it got there, so the two are not the same thing.
+_EVENT_FOR_STATUS: dict[str, str] = {
+    "confirmed": "order_confirmed",
+    "processing": "processing_started",
+    "ready_for_pickup": "ready_for_pickup",
+    "shipped": "shipped",
+    "delivered": "delivered",
+    "cancelled": "cancelled",
+    "refunded": "refund_issued",
+}
+
+_RMA_EVENT: dict[str, str] = {
+    "approved": "return_approved",
+    "rejected": "return_rejected",
+    "completed": "return_completed",
+    "pending": "return_requested",
+}
+
+
+async def _record_label_events(db, request, order, result: dict) -> None:
+    """Buying a label is two things happening: a label bought, and a parcel
+    handed over. The timeline shows both, because a brand chasing a parcel
+    wants the shipped time, and a brand chasing a charge wants the purchase."""
+    carrier = result.get("carrier") or "Carrier"
+    service = result.get("service") or ""
+    tracking = result.get("tracking_number")
+    own_account = result.get("source") == "carrier"
+
+    await order_events.record_admin(
+        db, request, order, "label_purchased",
+        f"{carrier} label bought on your own account ({service})" if own_account
+        else f"Shippo label generated via {carrier} {service}".rstrip(),
+        meta={"carrier": carrier, "service": service, "tracking_number": tracking,
+              "cost": result.get("cost"), "source": result.get("source")},
+    )
+    await order_events.record_admin(
+        db, request, order, "shipped",
+        f"Shipped via {carrier} {service}".rstrip()
+        + (f" — tracking {tracking}" if tracking else ""),
+        meta={"carrier": carrier, "service": service, "tracking_number": tracking},
+    )
+
+
 @router.post("/orders/draft", status_code=201)
 async def create_draft_order(
     payload: DraftOrderCreate,
@@ -324,6 +369,12 @@ async def create_draft_order(
         total=0,
     )
     db.add(order)
+    await db.flush()
+    await order_events.record_admin(
+        db, request, order,
+        "order_created", f"Draft order {order.order_number} created",
+        meta={"channel": "admin_draft", "company_id": str(company_id)},
+    )
     await db.commit()
     await db.refresh(order)
     return {"id": str(order.id), "order_number": order.order_number}
@@ -586,6 +637,8 @@ async def get_admin_order(order_id: str, db: AsyncSession = Depends(get_db)):
     except Exception:
         _supplier_detail = None
 
+    _events_rows = await order_events.for_order(db, order.id)
+
     try:
         return AdminOrderDetail(
             supplier=_supplier_detail,
@@ -635,6 +688,7 @@ async def get_admin_order(order_id: str, db: AsyncSession = Depends(get_db)):
             balance_due=order.balance_due,
             is_fully_paid=order.is_fully_paid,
             timeline=order.timeline or [],
+            events=_events_rows,
             calculated_weight_lbs=calculated_weight_lbs,
             items_edited=bool(getattr(order, "items_edited", False)),
             convenience_fee=getattr(order, "convenience_fee", None),
@@ -642,6 +696,20 @@ async def get_admin_order(order_id: str, db: AsyncSession = Depends(get_db)):
     except Exception as exc:
         logger.exception("get_admin_order serialization error for order %s: %s", order_id, exc)
         raise HTTPException(status_code=500, detail=str(exc))
+
+
+@router.get("/orders/{order_id}/events")
+async def list_order_events(order_id: UUID, db: AsyncSession = Depends(get_db)) -> dict:
+    """This order's history — what happened, when, and who did it.
+
+    Every row was written by the code that performed the action, so the times
+    are records rather than guesses. Newest first, which is how the order page
+    reads it.
+    """
+    order = (await db.execute(select(Order.id).where(Order.id == order_id))).scalar_one_or_none()
+    if not order:
+        raise NotFoundError(f"Order {order_id} not found")
+    return {"events": await order_events.for_order(db, order_id)}
 
 
 @router.post("/orders/{order_id}/verify-ach", status_code=200)
@@ -667,6 +735,7 @@ async def verify_ach_payment(order_id: UUID, db: AsyncSession = Depends(get_db))
 async def add_order_item(
     order_id: UUID,
     payload: dict,
+    request: Request,
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Add a line item to a pending/draft order."""
@@ -722,6 +791,14 @@ async def add_order_item(
     except Exception:
         pass
 
+    await order_events.record_admin(
+        db, request, order, "items_edited",
+        f"Added {quantity} x {item.product_name}"
+        + (f" ({item.sku})" if item.sku else "")
+        + f" — order total now ${float(order.total):.2f}",
+        meta={"action": "add", "sku": item.sku, "quantity": quantity,
+              "line_total": round(line_total, 2), "order_total": float(order.total)},
+    )
     await db.commit()
     return {"message": "Item added", "item_id": str(item.id), "subtotal": float(order.subtotal), "total": float(order.total)}
 
@@ -730,6 +807,7 @@ async def add_order_item(
 async def remove_order_item(
     order_id: UUID,
     item_id: UUID,
+    request: Request,
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Remove a line item from a pending/draft order."""
@@ -748,6 +826,15 @@ async def remove_order_item(
         except Exception:
             pass
 
+    if order is not None:
+        await order_events.record_admin(
+            db, request, order, "items_edited",
+            f"Removed {item.quantity} x {item.product_name}"
+            + (f" ({item.sku})" if item.sku else "")
+            + f" — order total now ${float(order.total or 0):.2f}",
+            meta={"action": "remove", "sku": item.sku, "quantity": item.quantity,
+                  "line_total": float(item.line_total or 0), "order_total": float(order.total or 0)},
+        )
     await db.delete(item)
     await db.commit()
     return {"message": "Item removed"}
@@ -757,6 +844,7 @@ async def remove_order_item(
 async def update_admin_order(
     order_id: UUID,
     payload: OrderUpdateRequest,
+    request: Request,
     db: AsyncSession = Depends(get_db),
 ):
     from sqlalchemy import text as _text
@@ -769,17 +857,10 @@ async def update_admin_order(
         setattr(order, field, value)
 
     if payload.status and payload.status != old_status:
-        entry = {
-            "status": payload.status,
-            "message": f"Status changed to {payload.status.replace('_', ' ').title()}",
-            "created_by": "admin",
-            "created_at": datetime.now(timezone.utc).isoformat(),
-        }
-        current = list(order.timeline or [])
-        current.append(entry)
-        await db.execute(
-            _text("UPDATE orders SET timeline = CAST(:tl AS jsonb) WHERE id = :oid"),
-            {"tl": _json.dumps(current), "oid": str(order_id)},
+        await order_events.record_admin(
+            db, request, order, _EVENT_FOR_STATUS.get(payload.status, "status_changed"),
+            f"Status changed from {old_status.replace('_', ' ')} to {payload.status.replace('_', ' ')}",
+            meta={"from": old_status, "to": payload.status},
         )
 
     await db.commit()
@@ -825,14 +906,15 @@ async def update_admin_order(
 async def update_order_status(
     order_id: UUID,
     payload: OrderStatusUpdate,
+    request: Request,
     db: AsyncSession = Depends(get_db),
 ):
-    from sqlalchemy import text as _text
     order = (await db.execute(select(Order).where(Order.id == order_id))).scalar_one_or_none()
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
 
     old_status = order.status
+    _old_tracking = order.tracking_number
     order.status = payload.status
 
     if payload.tracking_number is not None:
@@ -844,18 +926,23 @@ async def update_order_status(
     if payload.status == "shipped" and not order.shipped_at:
         order.shipped_at = datetime.now(timezone.utc)
 
-    entry = {
-        "status": payload.status,
-        "message": f"Status changed to {payload.status.replace('_', ' ').title()}",
-        "created_by": "admin",
-        "created_at": datetime.now(timezone.utc).isoformat(),
-    }
-    current = list(order.timeline or [])
-    current.append(entry)
-    await db.execute(
-        _text("UPDATE orders SET timeline = CAST(:tl AS jsonb) WHERE id = :oid"),
-        {"tl": _json.dumps(current), "oid": str(order_id)},
-    )
+    # A tracking number arriving with the status change is its own event: the
+    # brand needs to see when the parcel got a number, not only when someone
+    # moved the status.
+    if payload.tracking_number and payload.tracking_number != _old_tracking:
+        await order_events.record_admin(
+            db, request, order, "tracking_added",
+            f"Tracking {payload.tracking_number}"
+            + (f" ({payload.courier})" if payload.courier else ""),
+            meta={"tracking_number": payload.tracking_number, "carrier": payload.courier},
+        )
+
+    if payload.status != old_status:
+        await order_events.record_admin(
+            db, request, order, _EVENT_FOR_STATUS.get(payload.status, "status_changed"),
+            f"Status changed from {old_status.replace('_', ' ')} to {payload.status.replace('_', ' ')}",
+            meta={"from": old_status, "to": payload.status},
+        )
 
     await db.commit()
 
@@ -878,6 +965,7 @@ class _LabelRequest(BaseModel):
 async def generate_shipping_label(
     order_id: UUID,
     payload: _LabelRequest,
+    request: Request,
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Generate a Shippo label for an order, mark it shipped, and email the customer."""
@@ -966,24 +1054,7 @@ async def generate_shipping_label(
             {"lu": result.get("label_url"), "tu": result.get("tracking_url"), "oid": str(order_id)},
         )
 
-        # Timeline entry
-        entry = {
-            "status": "shipped",
-            "message": (
-                (f"{result['carrier']} label bought on your own account ({result['service']})"
-                 if result.get("source") == "carrier"
-                 else f"Shippo label generated via {result['carrier']} {result['service']}")
-                + f" — Tracking: {result['tracking_number']}"
-            ),
-            "created_by": "admin",
-            "created_at": datetime.now(timezone.utc).isoformat(),
-        }
-        current = list(order.timeline or [])
-        current.append(entry)
-        await db.execute(
-            _text("UPDATE orders SET timeline = CAST(:tl AS jsonb) WHERE id = :oid"),
-            {"tl": _json.dumps(current), "oid": str(order_id)},
-        )
+        await _record_label_events(db, request, order, result)
 
         await db.commit()
         await _send_order_status_email(order, "shipped", db)
@@ -1147,6 +1218,7 @@ class _ManualLabelRequest(BaseModel):
 async def generate_label_manual(
     order_id: UUID,
     payload: _ManualLabelRequest,
+    request: Request,
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Generate a Shippo label for Standard Ground orders.
@@ -1240,23 +1312,7 @@ async def generate_label_manual(
             {"lu": result.get("label_url"), "tu": result.get("tracking_url"), "oid": str(order_id)},
         )
 
-        entry = {
-            "status": "shipped",
-            "message": (
-                (f"{result['carrier']} label bought on your own account ({result['service']})"
-                 if result.get("source") == "carrier"
-                 else f"Shippo label generated (manual) via {result['carrier']} {result['service']}")
-                + f" — Tracking: {result['tracking_number']}"
-            ),
-            "created_by": "admin",
-            "created_at": datetime.now(timezone.utc).isoformat(),
-        }
-        current = list(order.timeline or [])
-        current.append(entry)
-        await db.execute(
-            _text2("UPDATE orders SET timeline = CAST(:tl AS jsonb) WHERE id = :oid"),
-            {"tl": _json.dumps(current), "oid": str(order_id)},
-        )
+        await _record_label_events(db, request, order, result)
 
         await db.commit()
         await _send_order_status_email(order, "shipped", db)
@@ -1268,14 +1324,28 @@ async def generate_label_manual(
 async def cancel_admin_order(
     order_id: UUID,
     payload: CancelOrderRequest,
+    request: Request,
     db: AsyncSession = Depends(get_db),
 ):
     order = (await db.execute(select(Order).where(Order.id == order_id))).scalar_one_or_none()
     if not order:
         raise NotFoundError(f"Order {order_id} not found")
+    if order.status == "cancelled":
+        return {"message": "Order was already cancelled"}
+
+    _was = order.status
     order.status = "cancelled"
-    if hasattr(order, "notes"):
-        order.notes = f"Cancelled: {payload.reason}"
+    # Appended, not assigned: overwriting `notes` threw away whatever the buyer
+    # or the brand had written on the order.
+    if payload.reason:
+        _existing = (order.notes or "").strip()
+        order.notes = (_existing + "\n" if _existing else "") + f"Cancelled: {payload.reason}"
+
+    await order_events.record_admin(
+        db, request, order, "cancelled",
+        f"Order cancelled — {payload.reason}" if payload.reason else "Order cancelled",
+        meta={"reason": payload.reason, "previous_status": _was},
+    )
     await db.commit()
 
     await _send_order_status_email(order, "cancelled", db)
@@ -1347,6 +1417,15 @@ async def refund_admin_order(
     is_full = amount_dec is None or amount_dec >= Decimal(str(order.total))
     if is_full:
         order.payment_status = "refunded"
+
+    _refunded = float(amount_dec) if amount_dec is not None else float(order.total)
+    await order_events.record_admin(
+        db, request, order, "refund_issued",
+        f"{'Refund' if is_full else 'Partial refund'} of ${_refunded:.2f} issued"
+        + (f" — {payload.reason.replace('_', ' ')}" if payload.reason else ""),
+        meta={"amount": round(_refunded, 2), "full": is_full, "reason": payload.reason,
+              "refund_id": getattr(refund, "id", None), "currency": "USD"},
+    )
     await db.commit()
 
     return {
@@ -1368,7 +1447,7 @@ async def list_admin_disputes(request: Request, db: AsyncSession = Depends(get_d
 
 
 @router.post("/orders/{order_id}/resend-invoice", response_model=dict)
-async def resend_invoice_email(order_id: UUID, db: AsyncSession = Depends(get_db)):
+async def resend_invoice_email(order_id: UUID, request: Request, db: AsyncSession = Depends(get_db)):
     """Generate and email the invoice PDF to the customer (or admin in dev)."""
     from sqlalchemy.orm import selectinload
     from app.services.email_service import EmailService
@@ -1405,6 +1484,7 @@ async def resend_invoice_email(order_id: UUID, db: AsyncSession = Depends(get_db
 async def send_invoice_email(
     order_id: UUID,
     payload: SendInvoicePayload,
+    request: Request,
     db: AsyncSession = Depends(get_db),
 ):
     """Send (or resend) invoice with specified payment terms to the customer."""
@@ -1442,17 +1522,16 @@ async def send_invoice_email(
     if not ok:
         raise HTTPException(status_code=502, detail="Invoice email failed to send")
 
-    _inv_timeline = list(order.timeline or [])
-    _inv_timeline.append({
-        "status": "invoice_sent",
-        "message": f"Invoice sent to {to_email}",
-        "created_by": "Admin",
-        "created_at": datetime.now(timezone.utc).isoformat(),
-    })
     from sqlalchemy import text as _t2
     await db.execute(
-        _t2("UPDATE orders SET invoice_sent_at = now(), timeline = CAST(:tl AS jsonb) WHERE id = :oid"),
-        {"tl": _json.dumps(_inv_timeline), "oid": str(order_id)},
+        _t2("UPDATE orders SET invoice_sent_at = now() WHERE id = :oid"),
+        {"oid": str(order_id)},
+    )
+    await order_events.record_admin(
+        db, request, order, "invoice_sent",
+        f"Invoice sent to {to_email}"
+        + (f" ({payload.payment_terms.replace('_', ' ')})" if payload.payment_terms else ""),
+        meta={"to": to_email, "payment_terms": payload.payment_terms},
     )
     await db.commit()
 
@@ -1482,25 +1561,23 @@ async def mark_order_paid(
 
     order.payment_status = "paid"
 
-    # Write invoice tracking fields + timeline via raw SQL to avoid ORM column issues
-    timeline = list(order.timeline or [])
-    timeline.append({
-        "status": "paid",
-        "message": f"Payment received — marked as paid (${float(order.total):.2f})",
-        "created_by": admin_name,
-        "created_at": datetime.now(timezone.utc).isoformat(),
-    })
+    # Invoice tracking fields go in via raw SQL to avoid ORM column issues.
     await db.execute(
         _t3("""
             UPDATE orders
             SET payment_status = 'paid',
                 marked_paid_at  = now(),
                 marked_paid_by  = :admin,
-                amount_paid     = COALESCE(total, 0),
-                timeline        = CAST(:tl AS jsonb)
+                amount_paid     = COALESCE(total, 0)
             WHERE id = :oid
         """),
-        {"admin": admin_name, "tl": _json.dumps(timeline), "oid": str(order_id)},
+        {"admin": admin_name, "oid": str(order_id)},
+    )
+    await order_events.record(
+        db, order, "payment_received",
+        f"Payment received — marked as paid (${float(order.total):.2f})",
+        actor_type="admin", actor_id=admin_user_id, actor_name=admin_name,
+        meta={"amount": float(order.total), "method": "manual"},
     )
     await db.commit()
 
@@ -1535,14 +1612,28 @@ async def list_admin_rma(
 async def update_rma(
     rma_id: UUID,
     payload: RMAUpdateRequest,
+    request: Request,
     db: AsyncSession = Depends(get_db),
 ):
     rma = (await db.execute(select(RMARequest).where(RMARequest.id == rma_id))).scalar_one_or_none()
     if not rma:
         raise NotFoundError(f"RMA {rma_id} not found")
+    _was = rma.status
     rma.status = payload.status
     if payload.admin_notes:
         rma.admin_notes = payload.admin_notes
+
+    # The return belongs to an order, so its history belongs on that order.
+    if payload.status != _was:
+        _order = (await db.execute(select(Order).where(Order.id == rma.order_id))).scalar_one_or_none()
+        if _order is not None:
+            await order_events.record_admin(
+                db, request, _order, _RMA_EVENT.get(payload.status, "note"),
+                f"Return {rma.rma_number} {payload.status}"
+                + (f" — {payload.admin_notes}" if payload.admin_notes else ""),
+                meta={"rma_id": str(rma.id), "rma_number": rma.rma_number,
+                      "from": _was, "to": payload.status},
+            )
     await db.commit()
 
     # Notify customer of status change

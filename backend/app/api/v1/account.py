@@ -1102,6 +1102,22 @@ async def create_rma(
             reason=item.reason,
         ))
 
+    # A return is part of its order's story, so it goes on the order's timeline.
+    from app.models.order import Order as _RMAOrder
+    from app.services import order_events as _events
+
+    _rma_order = (await db.execute(
+        select(_RMAOrder).where(_RMAOrder.id == payload.order_id)
+    )).scalar_one_or_none()
+    if _rma_order is not None:
+        await _events.record(
+            db, _rma_order, "return_requested",
+            f"Return {rma_number} requested — {payload.reason}",
+            actor_type="customer", actor_id=user_id,
+            meta={"rma_id": str(rma.id), "rma_number": rma_number,
+                  "reason": payload.reason, "items": len(payload.items)},
+        )
+
     await db.commit()
     await db.refresh(rma)
 

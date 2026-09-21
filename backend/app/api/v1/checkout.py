@@ -296,6 +296,47 @@ async def _confirm_checkout_inner(
         free_shipping=free_shipping,
     )
 
+    # The order exists: record that, at the moment the order says it was placed.
+    from app.services import order_events as _events
+
+    await _events.record(
+        db, order, "order_created",
+        f"Order {order.order_number} placed — ${float(order.total):.2f}",
+        actor_type="customer",
+        actor_id=user_id,
+        meta={
+            "total": float(order.total), "subtotal": float(order.subtotal),
+            "items": len(order.items or []), "channel": "wholesale",
+            "payment_method": payload.payment_method or ("card" if has_stripe else None),
+            "po_number": order.po_number,
+        },
+        occurred_at=order.created_at,
+    )
+    if has_stripe:
+        await _events.record(
+            db, order, "payment_received",
+            f"Card payment of ${float(order.total):.2f} received",
+            meta={"amount": float(order.total), "method": "card",
+                  "payment_intent_id": payload.payment_intent_id},
+        )
+    elif has_net30:
+        await _events.record(
+            db, order, "invoice_sent",
+            f"Placed on Net {NET30_DAYS} terms — ${float(order.total):.2f} due",
+            meta={"amount": float(order.total), "method": "net_30", "terms_days": NET30_DAYS},
+        )
+    elif has_ach:
+        await _events.record(
+            db, order, "payment_authorized",
+            f"ACH payment of ${float(order.total):.2f} submitted",
+            meta={"amount": float(order.total), "method": "ach"},
+        )
+    if order.status and order.status != "pending":
+        await _events.record(
+            db, order, "order_confirmed", "Order confirmed",
+            meta={"status": order.status},
+        )
+
     # Record coupon usage after order is created
     if coupon_discount_dc is not None and coupon_discount_amount > 0:
         usage = DiscountUsage(
@@ -309,10 +350,12 @@ async def _confirm_checkout_inner(
         from datetime import datetime as _dt, timezone as _tz
         _what = ("free shipping" if free_shipping
                  else f"-${coupon_discount_amount:.2f}")
-        order.timeline = [*(order.timeline or []), {
-            "status": order.status, "message": f"Discount code {coupon_discount_dc.code} applied: {_what}",
-            "created_by": "system", "created_at": _dt.now(_tz.utc).isoformat(),
-        }]
+        await _events.record(
+            db, order, "discount_applied",
+            f"Discount code {coupon_discount_dc.code} applied: {_what}",
+            meta={"code": coupon_discount_dc.code, "free_shipping": free_shipping,
+                  "amount": float(coupon_discount_amount)},
+        )
         if free_shipping:
             db.add(DiscountUsage(
                 discount_code_id=coupon_discount_dc.id, order_id=order.id, user_id=user_id,

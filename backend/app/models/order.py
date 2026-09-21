@@ -153,6 +153,40 @@ class Order(TenantMixin, BaseModel):
         "OrderComment", back_populates="order", cascade="all, delete-orphan",
         order_by="OrderComment.created_at"
     )
+    events: Mapped[list["OrderEvent"]] = relationship(
+        "OrderEvent", back_populates="order", cascade="all, delete-orphan",
+        order_by="OrderEvent.occurred_at", lazy="noload",
+    )
+
+
+class OrderEvent(TenantMixin, BaseModel):
+    """One thing that happened to an order, with the real moment it happened.
+
+    Append-only. `orders.timeline` held the same history as a JSONB array that
+    every writer rewrote whole, so two writers at once lost one of the two
+    entries; an INSERT cannot. See migration 0039.
+
+    `occurred_at` is when the event happened, which is not always when we heard
+    about it — a carrier's delivery time and a supplier's ship time are theirs,
+    not ours. `created_at` stays the moment we recorded it.
+    """
+
+    __tablename__ = "order_events"
+
+    order_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("orders.id", ondelete="CASCADE"),
+        nullable=False, index=True
+    )
+    type: Mapped[str] = mapped_column(String(40), nullable=False, index=True)
+    message: Mapped[str] = mapped_column(Text, nullable=False)
+    # system | admin | customer | supplier | carrier
+    actor_type: Mapped[str] = mapped_column(String(20), nullable=False, default="system")
+    actor_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    actor_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    meta: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+    order: Mapped["Order"] = relationship("Order", back_populates="events")
 
 
 class OrderItem(TenantMixin, BaseModel):
