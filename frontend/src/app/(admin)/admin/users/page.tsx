@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { adminService, type AdminUser } from "@/services/admin.service";
 import { UsersIcon } from "@/components/ui/icons";
 import { ASSIGNABLE_ROLES, ROLE_LABELS } from "@/lib/permissions";
-import { rolesService, type CustomRole } from "@/services/roles.service";
+import { rolesService, summariseScopes, type CustomRole } from "@/services/roles.service";
 import Link from "next/link";
 
 // ── Shared styles ──────────────────────────────────────────────────────────────
@@ -175,7 +175,13 @@ function UserModal({
               </select>
               <div style={{ fontSize: "11px", color: "#9A98A0", marginTop: "4px" }}>
                 {form.role.startsWith("custom:")
-                  ? customRoles.find(r => `custom:${r.id}` === form.role)?.scopes.join(", ")
+                  ? (() => {
+                      // A custom role now holds a level per section, so it is
+                      // summarised rather than listed — "Manages Orders · Views
+                      // Settings" says what the person can actually do.
+                      const picked = customRoles.find(r => `custom:${r.id}` === form.role);
+                      return picked ? summariseScopes(picked.scopes) : null;
+                    })()
                   : ASSIGNABLE_ROLES.find(r => r.value === form.role)?.desc}
                 {" · "}<Link href="/admin/users/roles" style={{ color: "#1A1A1A", fontWeight: 600 }}>Manage roles</Link>
               </div>
