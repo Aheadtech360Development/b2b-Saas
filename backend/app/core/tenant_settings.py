@@ -36,6 +36,7 @@ TENANT_SCOPED_KEYS: frozenset[str] = frozenset({
     "integrations",  # brand's own supplier + carrier accounts (JSON) — see integrations_service
     "suppliers",  # brand's supplier setup: import filters, pricing, sync (JSON) — see services/suppliers
     "analytics",  # brand's own GA4/Pixel/Klaviyo IDs (JSON) — see services/analytics_config
+    "google_reviews",  # brand's Google Business Profile connection (JSON) — see services/google_reviews
 })
 
 _SEP = "@"

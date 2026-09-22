@@ -17,11 +17,15 @@ async def list_recent_reviews(
     from app.models.product import Product, ProductReview
     from app.schemas.review import ProductReviewOut
 
+    # Outer join so store reviews — every one imported from Google — are
+    # included; they have no product. Ordered by when the review was written,
+    # which for an import is Google's date, not the moment we fetched it.
+    written = func.coalesce(ProductReview.reviewed_at, ProductReview.created_at)
     result = await db.execute(
         select(ProductReview, Product.name.label("product_name"), Product.slug.label("product_slug"))
-        .join(Product, ProductReview.product_id == Product.id)
+        .outerjoin(Product, ProductReview.product_id == Product.id)
         .where(ProductReview.is_approved == True)  # noqa: E712
-        .order_by(ProductReview.created_at.desc())
+        .order_by(written.desc())
         .limit(page_size)
     )
     rows = result.all()
@@ -44,7 +48,28 @@ async def list_recent_reviews(
     )
     avg_rating = round(float(avg_result.scalar_one() or 0), 1)
 
-    return {"reviews": reviews, "total": total, "avg_rating": avg_rating}
+    # The brand's Google standing, for the attribution and the rating badge.
+    # Google's own average and count, not ours: the storefront must not
+    # present a figure computed from a subset as if it were Google's.
+    google = None
+    try:
+        from app.core.tenant_context import get_current_tenant_id
+        from app.services import google_reviews as _g
+
+        _tid = get_current_tenant_id()
+        if _tid:
+            _data = await _g.load(db, tenant_id=_tid)
+            if _data.get("refresh_token") and _data.get("location"):
+                google = {
+                    "rating": _data.get("average_rating"),
+                    "total": _data.get("total_reviews"),
+                    "maps_url": _data.get("maps_url"),
+                    "name": _data.get("location_name"),
+                }
+    except Exception:
+        google = None
+
+    return {"reviews": reviews, "total": total, "avg_rating": avg_rating, "google": google}
 
 
 @router.post("/upload-image")

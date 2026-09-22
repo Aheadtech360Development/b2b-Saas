@@ -1,8 +1,9 @@
 """Product catalog models: Category, Product, Variant, Image, Asset."""
 import uuid
+from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, Enum, Float, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, DateTime, Enum, Float, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB, TSVECTOR, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -263,12 +264,17 @@ class ProductCategory(TenantMixin, BaseModel):
 
 
 class ProductReview(TenantMixin, BaseModel):
-    """Customer reviews for products."""
+    """A customer review — written on the site, or imported from Google.
+
+    `product_id` is null for a store review: one about the business rather than
+    a product, which is what every Google review is. See migration 0045 and
+    services/google_reviews.py.
+    """
 
     __tablename__ = "product_reviews"
 
-    product_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("products.id", ondelete="CASCADE"), nullable=False, index=True
+    product_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("products.id", ondelete="CASCADE"), nullable=True, index=True
     )
     user_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
@@ -282,4 +288,17 @@ class ProductReview(TenantMixin, BaseModel):
     is_approved: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     image_url: Mapped[str | None] = mapped_column(String(1000), nullable=True)
 
-    product: Mapped["Product"] = relationship("Product", back_populates="reviews")
+    # 'site' (written on the storefront) or 'google' (imported). An imported
+    # review keeps its id at Google so a re-sync updates it rather than adding
+    # a copy, plus what Google requires shown with it: the author's photo and
+    # profile link, and the owner's reply.
+    source: Mapped[str] = mapped_column(String(20), default="site", nullable=False)
+    external_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    reviewer_photo_url: Mapped[str | None] = mapped_column(String(1000), nullable=True)
+    source_url: Mapped[str | None] = mapped_column(String(1000), nullable=True)
+    reply_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # When the review was written, which for an import is Google's date rather
+    # than the moment we fetched it.
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    product: Mapped["Product | None"] = relationship("Product", back_populates="reviews")

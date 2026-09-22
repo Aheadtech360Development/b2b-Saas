@@ -776,10 +776,14 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     import asyncio as _asyncio
     from app.services.suppliers.jobs import scheduler_loop
     _supplier_scheduler = _asyncio.create_task(scheduler_loop())
+    # Brands' Google reviews, re-imported every few hours.
+    from app.services.google_reviews import scheduler_loop as _google_reviews_loop
+    _google_reviews_scheduler = _asyncio.create_task(_google_reviews_loop())
 
     yield
 
     _supplier_scheduler.cancel()
+    _google_reviews_scheduler.cancel()
 
 
 app = FastAPI(
@@ -997,9 +1001,12 @@ from app.api.v1.admin import suppliers as admin_suppliers  # noqa: E402
 app.include_router(admin_suppliers.router, prefix=_V1)
 from app.api.v1.admin import analytics_settings as admin_analytics_settings  # noqa: E402
 from app.api.v1.admin import collections as admin_collections  # noqa: E402
+from app.api.v1.admin import google_reviews as admin_google_reviews  # noqa: E402
 
 app.include_router(admin_analytics_settings.router, prefix=_V1)
 app.include_router(admin_collections.router, prefix=_V1)
+app.include_router(admin_google_reviews.router, prefix=_V1)
+app.include_router(admin_google_reviews.callback_router, prefix=_V1)
 from app.api.v1 import copilot as copilot_api  # noqa: E402
 app.include_router(copilot_api.admin_router, prefix=_V1)
 app.include_router(copilot_api.public_router, prefix=_V1)

@@ -221,6 +221,11 @@ class AuthMiddleware(BaseHTTPMiddleware):
         # Guest checkout and order tracking — no auth required
         if path.startswith("/api/v1/guest"):
             return True
+        # Google sends the browser back here after sign-in. It is a redirect, so
+        # it carries no admin token; the signed `state` identifies the brand and
+        # is verified by the handler before anything is stored.
+        if path == "/api/v1/integrations/google-reviews/callback":
+            return True
         # Storefront branding — public so the store chrome renders for guests
         if path.startswith("/api/v1/storefront"):
             return True

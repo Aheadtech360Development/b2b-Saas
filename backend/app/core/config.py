@@ -154,6 +154,17 @@ class Settings(BaseSettings):
         return self
     FRONTEND_URL: str = "http://localhost:3000"
 
+    # ── Google Business Profile (brands connect their own Google reviews) ────
+    # The platform's own OAuth client. Each brand signs in with the Google
+    # account that manages its Business Profile; these identify us, not them.
+    # The Google Cloud project must also be approved for the Business Profile
+    # APIs — until it is, Google refuses the review calls whatever is set here.
+    GOOGLE_OAUTH_CLIENT_ID: str = ""
+    GOOGLE_OAUTH_CLIENT_SECRET: str = ""
+    # Must match an authorised redirect URI on that OAuth client exactly, e.g.
+    # https://api.example.com/api/v1/integrations/google-reviews/callback
+    GOOGLE_OAUTH_REDIRECT_URI: str = ""
+
     # ── AWS S3 ────────────────────────────────────────────────────────────────
     AWS_ACCESS_KEY_ID: str = ""
     AWS_SECRET_ACCESS_KEY: str = ""

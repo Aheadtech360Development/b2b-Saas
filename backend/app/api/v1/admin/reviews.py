@@ -20,12 +20,17 @@ async def list_reviews(
     product_id: UUID | None = Query(None),
     approved: bool | None = Query(None),
     q: str | None = Query(None),
+    source: str | None = Query(None, description="'site' or 'google'"),
     db: AsyncSession = Depends(get_db),
 ):
+    # Outer join: a Google review is about the business, not a product, and an
+    # inner join would silently leave every one of them out of this list.
     base = (
         select(ProductReview, Product.name.label("product_name"), Product.slug.label("product_slug"))
-        .join(Product, ProductReview.product_id == Product.id)
+        .outerjoin(Product, ProductReview.product_id == Product.id)
     )
+    if source:
+        base = base.where(ProductReview.source == source)
     if product_id:
         base = base.where(ProductReview.product_id == product_id)
     if approved is not None:

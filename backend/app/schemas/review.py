@@ -14,7 +14,8 @@ class ProductReviewCreate(BaseModel):
 
 class ProductReviewOut(BaseModel):
     id: UUID
-    product_id: UUID
+    # Null for a store review — every review imported from Google is one.
+    product_id: UUID | None = None
     rating: int
     title: str | None
     body: str
@@ -23,6 +24,12 @@ class ProductReviewOut(BaseModel):
     is_verified: bool
     image_url: str | None = None
     created_at: datetime
+    # 'site' or 'google', and what Google requires shown alongside its reviews.
+    source: str = "site"
+    reviewer_photo_url: str | None = None
+    source_url: str | None = None
+    reply_text: str | None = None
+    reviewed_at: datetime | None = None
 
     model_config = {"from_attributes": True}
 

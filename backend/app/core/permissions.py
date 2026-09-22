@@ -67,6 +67,8 @@ _PATH_SCOPES: list[tuple[str, str]] = [
     # Longest first: /products/collections must not be swallowed by /products.
     ("/api/v1/admin/collections", "collections"),
     ("/api/v1/admin/products", "products"),
+    ("/api/v1/admin/reviews", "products"),
+    ("/api/v1/admin/google-reviews", "products"),
     ("/api/v1/admin/supplier-catalog", "products"),
     ("/api/v1/admin/inventory", "inventory"),
     ("/api/v1/admin/warehouses", "inventory"),

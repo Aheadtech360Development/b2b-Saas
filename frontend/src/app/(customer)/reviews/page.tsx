@@ -14,8 +14,22 @@ interface Review {
   reviewer_company: string | null;
   is_verified: boolean;
   created_at: string;
-  product_name?: string;
-  product_slug?: string;
+  product_name?: string | null;
+  product_slug?: string | null;
+  // Reviews imported from the store's Google Business Profile, and what Google
+  // requires shown with them: the author's name and photo, and a link back.
+  source?: "site" | "google";
+  reviewer_photo_url?: string | null;
+  source_url?: string | null;
+  reply_text?: string | null;
+  reviewed_at?: string | null;
+}
+
+interface GoogleSummary {
+  rating: number | null;
+  total: number | null;
+  maps_url: string | null;
+  name: string | null;
 }
 
 function StarRow({ rating }: { rating: number }) {
@@ -32,11 +46,15 @@ function StarRow({ rating }: { rating: number }) {
 
 export default function ReviewsPage() {
   const [reviews, setReviews] = useState<Review[]>([]);
+  const [google, setGoogle] = useState<GoogleSummary | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    apiClient.get<{ reviews: Review[] }>("/api/v1/reviews/recent?page_size=50")
-      .then(data => { if (data?.reviews) setReviews(data.reviews); })
+    apiClient.get<{ reviews: Review[]; google: GoogleSummary | null }>("/api/v1/reviews/recent?page_size=50")
+      .then(data => {
+        if (data?.reviews) setReviews(data.reviews);
+        setGoogle(data?.google ?? null);
+      })
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
@@ -57,6 +75,20 @@ export default function ReviewsPage() {
       </div>
 
       <div style={{ maxWidth: "1500px", margin: "0 auto", padding: "40px 32px" }}>
+        {google && google.rating != null && (
+          <a
+            href={google.maps_url ?? undefined}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ display: "inline-flex", alignItems: "center", gap: "10px", background: "#fff", border: "1px solid #E2E2DE", padding: "12px 16px", marginBottom: "20px", textDecoration: "none", color: "#1A1A1A", fontFamily: "'DM Sans', sans-serif" }}
+          >
+            <span style={{ fontSize: "22px", fontWeight: 700 }}>{Number(google.rating).toFixed(1)}</span>
+            <StarRow rating={Math.round(Number(google.rating))} />
+            <span style={{ fontSize: "13px", color: "#6B6B6B" }}>
+              {google.total ?? 0} reviews on <strong style={{ color: "#1A1A1A" }}>Google Maps</strong>
+            </span>
+          </a>
+        )}
         {loading ? (
           <div style={{ textAlign: "center", padding: "60px", color: "#6B6B6B", fontFamily: "'DM Sans', sans-serif" }}>Loading reviews…</div>
         ) : reviews.length === 0 ? (
@@ -77,18 +109,42 @@ export default function ReviewsPage() {
                     <StarRow rating={r.rating} />
                     {r.title && <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 600, fontSize: "14px", color: "#1A1A1A", marginTop: "4px" }}>{r.title}</div>}
                   </div>
-                  <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "11px", color: "#6B6B6B" }}>{new Date(r.created_at).toLocaleDateString()}</div>
+                  <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "11px", color: "#6B6B6B" }}>{new Date(r.reviewed_at ?? r.created_at).toLocaleDateString()}</div>
                 </div>
                 <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px", color: "#1A1A1A", lineHeight: 1.65, marginBottom: "12px" }}>{r.body}</p>
+                {r.reply_text && (
+                  <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px", color: "#4A4A4A", background: "#F8F8F6", borderLeft: "2px solid #E2E2DE", padding: "8px 12px", marginBottom: "12px", lineHeight: 1.55 }}>
+                    <strong style={{ fontSize: "11px", textTransform: "uppercase", letterSpacing: ".06em", color: "#6B6B6B" }}>Reply from the store</strong>
+                    <div style={{ marginTop: "3px" }}>{r.reply_text}</div>
+                  </div>
+                )}
                 {r.product_slug && (
                   <Link href={`/products/${r.product_slug}`} style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "12px", color: "var(--brand-primary, #1C3557)", fontWeight: 600, textDecoration: "none" }}>
                     → {r.product_name ?? "View Product"}
                   </Link>
                 )}
-                <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "12px", color: "#6B6B6B", marginTop: "8px", display: "flex", alignItems: "center", gap: "6px" }}>
-                  — {r.reviewer_name}{r.reviewer_company ? `, ${r.reviewer_company}` : ""}
-                  {r.is_verified && <span style={{ background: "rgba(5,150,105,.1)", color: "#059669", fontSize: "10px", fontWeight: 700, padding: "1px 5px" }}>Verified</span>}
-                </div>
+                {r.source === "google" ? (
+                  // Google requires the author's name and photo with a review,
+                  // and credit to Google Maps.
+                  <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "12px", color: "#6B6B6B", marginTop: "8px", display: "flex", alignItems: "center", gap: "8px" }}>
+                    {r.reviewer_photo_url ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={r.reviewer_photo_url} alt="" referrerPolicy="no-referrer" style={{ width: "22px", height: "22px", borderRadius: "50%", objectFit: "cover" }} />
+                    ) : (
+                      <span style={{ width: "22px", height: "22px", borderRadius: "50%", background: "#E2E2DE", display: "inline-block" }} />
+                    )}
+                    <span>{r.reviewer_name}</span>
+                    <a href={r.source_url ?? undefined} target="_blank" rel="noopener noreferrer"
+                      style={{ marginLeft: "auto", color: "#6B6B6B", fontSize: "11px", textDecoration: "none" }}>
+                      via Google Maps
+                    </a>
+                  </div>
+                ) : (
+                  <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "12px", color: "#6B6B6B", marginTop: "8px", display: "flex", alignItems: "center", gap: "6px" }}>
+                    — {r.reviewer_name}{r.reviewer_company ? `, ${r.reviewer_company}` : ""}
+                    {r.is_verified && <span style={{ background: "rgba(5,150,105,.1)", color: "#059669", fontSize: "10px", fontWeight: 700, padding: "1px 5px" }}>Verified</span>}
+                  </div>
+                )}
               </div>
             ))}
           </div>

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiClient } from "@/lib/api-client";
 import { SearchIcon, TrashIcon } from "@/components/ui/icons";
+import { GoogleReviewsConnect } from "@/components/admin/GoogleReviewsConnect";
 
 const thStyle: React.CSSProperties = {
   padding: "12px 16px", textAlign: "left", fontSize: "11px",
@@ -12,8 +13,12 @@ const thStyle: React.CSSProperties = {
 
 interface AdminReview {
   id: string;
-  product_name: string;
-  product_slug: string;
+  // Null for a store review — every review imported from Google is one.
+  product_name: string | null;
+  product_slug: string | null;
+  source?: "site" | "google";
+  source_url?: string | null;
+  reviewed_at?: string | null;
   reviewer_name: string | null;
   reviewer_company: string | null;
   rating: number;
@@ -40,6 +45,7 @@ export default function AdminReviewsPage() {
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const [approvedFilter, setApprovedFilter] = useState<"" | "true" | "false">("");
+  const [sourceFilter, setSourceFilter] = useState<"" | "site" | "google">("");
   const pageSize = 20;
 
   async function load(p = page) {
@@ -49,6 +55,7 @@ export default function AdminReviewsPage() {
       const qs = new URLSearchParams({ page: String(p), page_size: String(pageSize) });
       if (search) qs.set("q", search);
       if (approvedFilter !== "") qs.set("approved", approvedFilter);
+      if (sourceFilter) qs.set("source", sourceFilter);
       const data = await apiClient.get<{ reviews: AdminReview[]; total: number }>(
         `/api/v1/admin/reviews?${qs}`
       );
@@ -61,7 +68,7 @@ export default function AdminReviewsPage() {
     }
   }
 
-  useEffect(() => { setPage(1); load(1); }, [search, approvedFilter]); // eslint-disable-line
+  useEffect(() => { setPage(1); load(1); }, [search, approvedFilter, sourceFilter]); // eslint-disable-line
   useEffect(() => { load(page); }, [page]); // eslint-disable-line
 
   async function handleApprove(id: string, approved: boolean) {
@@ -94,6 +101,8 @@ export default function AdminReviewsPage() {
         </div>
       </div>
 
+      <GoogleReviewsConnect onChanged={() => load(1)} />
+
       {/* Filters */}
       <div style={{ display: "flex", gap: "10px", marginBottom: "16px", flexWrap: "wrap" }}>
         <div style={{ flex: 1, minWidth: "240px", position: "relative" }}>
@@ -115,6 +124,15 @@ export default function AdminReviewsPage() {
           <option value="">All Reviews</option>
           <option value="true">Approved</option>
           <option value="false">Pending Approval</option>
+        </select>
+        <select
+          value={sourceFilter}
+          onChange={e => setSourceFilter(e.target.value as "" | "site" | "google")}
+          style={{ padding: "10px 14px", border: "1.5px solid #E3E3E3", borderRadius: "8px", fontSize: "13px", fontFamily: "var(--font-jakarta)", background: "#fff", cursor: "pointer" }}
+        >
+          <option value="">All sources</option>
+          <option value="site">Written on your store</option>
+          <option value="google">From Google</option>
         </select>
       </div>
 
@@ -169,13 +187,24 @@ export default function AdminReviewsPage() {
 
                 {/* Product */}
                 <td style={{ padding: "14px 16px" }}>
-                  <a
-                    href={`/admin/products/${review.product_slug}/edit`}
-                    style={{ fontSize: "13px", color: "#1A1A1A", textDecoration: "none", fontWeight: 600 }}
-                    onClick={e => { e.preventDefault(); router.push(`/admin/products/${review.product_slug}/edit`); }}
-                  >
-                    {review.product_name}
-                  </a>
+                  {review.product_slug ? (
+                    <a
+                      href={`/admin/products/${review.product_slug}/edit`}
+                      style={{ fontSize: "13px", color: "#1A1A1A", textDecoration: "none", fontWeight: 600 }}
+                      onClick={e => { e.preventDefault(); router.push(`/admin/products/${review.product_slug}/edit`); }}
+                    >
+                      {review.product_name}
+                    </a>
+                  ) : (
+                    <span style={{ fontSize: "13px", color: "#7A7880" }}>Your store</span>
+                  )}
+                  {review.source === "google" && (
+                    <div style={{ marginTop: "4px" }}>
+                      <span style={{ padding: "2px 8px", borderRadius: "20px", fontSize: "10.5px", fontWeight: 700, background: "rgba(66,133,244,.1)", color: "#1A73E8" }}>
+                        Google
+                      </span>
+                    </div>
+                  )}
                 </td>
 
                 {/* Rating */}
@@ -198,7 +227,7 @@ export default function AdminReviewsPage() {
                 {/* Date */}
                 <td style={{ padding: "14px 16px" }}>
                   <div style={{ fontSize: "12px", color: "#7A7880" }}>
-                    {new Date(review.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                    {new Date(review.reviewed_at ?? review.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
                   </div>
                 </td>
 
