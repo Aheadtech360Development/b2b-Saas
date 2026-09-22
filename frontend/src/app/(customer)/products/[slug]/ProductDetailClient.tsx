@@ -523,6 +523,23 @@ export function ProductDetailClient({ slug }: ProductDetailClientProps) {
     return { gsSavings: save, gsBestId: bestId };
   }, [gsSizes]);
 
+  // Report the product view once per product. It sits here, with the other
+  // hooks and above the loading return below, on purpose: a hook placed after
+  // an early return runs on some renders and not others, and React throws on
+  // exactly that — which took every product page down.
+  useEffect(() => {
+    if (!product) return;
+    const cheapest = product.variants?.[0];
+    trackViewItem({
+      id: product.id,
+      sku: cheapest?.sku ?? undefined,
+      name: product.name,
+      price: Number(cheapest?.effective_price ?? cheapest?.retail_price ?? 0),
+      category: product.categories?.[0]?.name ?? undefined,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [product?.id]);
+
   if (productLoading || !product) {
     return (
       <div style={{ minHeight: "60vh", display: "flex", alignItems: "center", justifyContent: "center", color: "#7A7880" }}>
@@ -686,19 +703,6 @@ export function ProductDetailClient({ slug }: ProductDetailClientProps) {
       setIsSubmitting(false);
     }
   }
-
-  // Report the product view once per product, not on every re-render.
-  useEffect(() => {
-    if (!product) return;
-    const cheapest = product.variants?.[0];
-    trackViewItem({
-      id: product.id,
-      sku: cheapest?.sku ?? undefined,
-      name: product.name,
-      price: Number(cheapest?.effective_price ?? cheapest?.retail_price ?? 0),
-      category: product.categories?.[0]?.name ?? undefined,
-    });
-  }, [product?.id]);
 
   function handleDownloadStyleSheet() {
     const styleSheet = product?.assets?.find((a: any) => a.asset_type === "style_sheet");
