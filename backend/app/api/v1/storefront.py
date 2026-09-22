@@ -18,7 +18,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
-from sqlalchemy import text
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -298,6 +298,37 @@ async def get_storefront_page(slug: str, request: Request, db: AsyncSession = De
             sec = []
     d["sections"] = sec or []
     return d
+
+
+# ── Public: the brand's own theme ─────────────────────────────────────────────
+@public_router.get("/theme/{page_key}")
+async def get_storefront_theme(
+    page_key: str,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """One page of this brand's published theme, ready to render.
+
+    `page: null` means this brand has no published theme, and the storefront
+    then draws the page it always has — importing or editing a theme changes
+    nothing for shoppers until it is published.
+    """
+    from app.models.brand_theme import BrandTheme
+    from app.services import theme_render
+
+    tid = await _tenant_id_from_slug(db, getattr(request.state, "tenant_slug", None)) or _resolve_tenant_id(request)
+    if not tid:
+        return {"page": None}
+    theme = (await db.execute(
+        select(BrandTheme).where(
+            BrandTheme.tenant_id == tid,
+            BrandTheme.is_active.is_(True),
+            BrandTheme.published.is_not(None),
+        )
+    )).scalar_one_or_none()
+    if theme is None:
+        return {"page": None}
+    return {"page": theme_render.render_page(theme.definition, theme.published, page_key)}
 
 
 # ── Public: storefront branding by subdomain ──────────────────────────────────

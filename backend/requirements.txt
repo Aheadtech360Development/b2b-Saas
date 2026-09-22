@@ -53,6 +53,9 @@ pytest-cov==7.0.0
 factory-boy==3.3.3
 anyio==4.12.1
 
+# ── Theme import (parses a client's HTML theme into editable sections) ────────
+beautifulsoup4==4.15.0
+
 # ── Dev / Lint ────────────────────────────────────────────────────────────────
 ruff==0.15.6
 mypy==1.19.1

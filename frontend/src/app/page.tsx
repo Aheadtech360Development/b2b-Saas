@@ -20,8 +20,25 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 import { Footer } from "@/components/layout/Footer";
 import StorefrontHome from "@/components/home/StorefrontHome";
+import ThemeRenderer, { type ThemePage } from "@/components/storefront/ThemeRenderer";
+import { apiClient } from "@/lib/api-client";
 
-export default function HomePage() {
+/** This brand's published theme home page, or null when it has none. */
+async function themeHome(): Promise<ThemePage | null> {
+  try {
+    const res = await apiClient.get<{ page: ThemePage | null }>("/api/v1/storefront/theme/home", { skipAuth: true });
+    return res?.page ?? null;
+  } catch {
+    return null;  // no theme, or the API is down — the built-in home still works
+  }
+}
+
+export default async function HomePage() {
+  const page = await themeHome();
+  if (page) {
+    // The theme carries its own header and footer.
+    return <ThemeRenderer page={page} />;
+  }
   return (
     <>
       <StorefrontHome />

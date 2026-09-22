@@ -9,6 +9,7 @@ import MenusManager from "@/components/admin/MenusManager";
 import PagesManager from "@/components/admin/PagesManager";
 import { HIDDEN_ADMIN_SECTIONS } from "@/lib/constants";
 import ProductTemplatesManager from "@/components/admin/ProductTemplatesManager";
+import ThemeCustomizer from "@/components/admin/ThemeCustomizer";
 // Real, already-built admin features — reused (not rebuilt) inside this shell so
 // the new design has full parity with the old sidebar. All are self-contained
 // client screens, store-isolated at the backend.
@@ -1712,6 +1713,7 @@ const NAV = [
   { id: "store-group", label: "Online Store", icon: Store, children: [
     // Storefront theme, menus and pages are hidden for now — see HIDDEN_ADMIN_SECTIONS.
     ...(HIDDEN_ADMIN_SECTIONS.pages ? [] : [{ id: "pages", label: "Pages" }]),
+    { id: "theme", label: "Edit theme" },
     { id: "producttemplates", label: "Product templates" },
     ...(HIDDEN_ADMIN_SECTIONS.menus ? [] : [{ id: "menus", label: "Menus" }]),
     ...(HIDDEN_ADMIN_SECTIONS.storefront ? [] : [{ id: "theme", label: "Storefront theme" }]),
@@ -2246,7 +2248,7 @@ export default function App() {
   else if (view === "pages") content = <PagesManager />;
   else if (view === "producttemplates") content = <ProductTemplatesManager />;
   else if (view === "menus") content = <MenusManager />;
-  else if (view === "theme") content = <StorefrontCustomizer />;
+  else if (view === "theme") content = <ThemeCustomizer />;
   else if (view === "domains") content = <DomainsPanel />;
 
   // Real, already-built features brought to full parity with the old sidebar —

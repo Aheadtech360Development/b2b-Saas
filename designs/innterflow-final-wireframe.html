@@ -1,0 +1,1200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Innterflow: Website Wireframe</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --navy:#16233A; --navy-soft:#2E3E58;
+    --white:#FFFFFF; --offwhite:#FAFAF8; --line:#E7E9ED;
+    --teal:#14B8D4; --blue:#3E63E8; --violet:#8B3FE0; --orange:#F2792E;
+    --gradient:linear-gradient(90deg,var(--teal),var(--blue),var(--violet),var(--orange));
+    --maxw:1200px; --pad-y:88px; --pad-y-mobile:52px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  html{scroll-behavior:smooth;}
+  body{font-family:'Manrope',sans-serif;color:var(--navy);background:var(--white);line-height:1.6;font-size:16px;padding-top:48px;}
+  h1,h2,h3,h4{font-family:'Sora',sans-serif;color:var(--navy);line-height:1.2;font-weight:700;}
+  a{color:inherit;text-decoration:none;}
+  ul{list-style:none;}
+  button{font-family:inherit;cursor:pointer;border:none;background:none;}
+  :focus-visible{outline:2px solid var(--blue);outline-offset:3px;}
+  .wrap{max-width:var(--maxw);margin:0 auto;padding:0 24px;}
+  section{padding:var(--pad-y) 0;position:relative;}
+  @media (max-width:768px){section{padding:var(--pad-y-mobile) 0;}}
+  svg{display:inline-block;vertical-align:middle;}
+
+  /* toolbar + tabs */
+  .toolbar{position:fixed;top:0;left:0;right:0;z-index:999;background:var(--navy);color:var(--white);
+    display:flex;align-items:center;justify-content:space-between;padding:0 20px;font-size:13px;height:48px;flex-wrap:wrap;}
+  .toolbar-left{display:flex;align-items:center;gap:14px;height:48px;}
+  .toolbar-left strong{font-family:'Sora',sans-serif;font-size:13px;}
+  .tabs{display:flex;gap:4px;}
+  .tab-btn{color:#B9C2D4;padding:7px 12px;border-radius:5px;font-size:12.5px;font-weight:700;}
+  .tab-btn.active{background:var(--white);color:var(--navy);}
+  .notes-btn{color:var(--white);border:1px solid rgba(255,255,255,.4)!important;padding:6px 14px;border-radius:5px;font-size:12.5px;font-weight:700;}
+  .tab-panel{display:none;}
+  .tab-panel.active{display:block;}
+  .caption{font-size:12.5px;color:var(--navy-soft);font-style:italic;margin-top:-24px;margin-bottom:36px;}
+
+  .section-badge{position:absolute;top:20px;left:24px;width:26px;height:26px;border-radius:50%;
+    background:var(--navy);color:var(--white);font-family:'Sora',sans-serif;font-size:12px;font-weight:700;
+    display:flex;align-items:center;justify-content:center;z-index:5;}
+  .wn{display:none;margin:18px auto 0;max-width:var(--maxw);border:1.5px dashed #C9A400;background:#FFFBEA;
+    color:#5C4A00;padding:14px 18px;font-size:13.5px;border-radius:6px;}
+  body.show-notes .wn{display:block;}
+  .wn b{color:#3D3000;}
+
+  .placeholder{background:repeating-linear-gradient(45deg,#EEF0F3,#EEF0F3 10px,#E4E7EC 10px,#E4E7EC 20px);
+    border:1px solid var(--line);color:var(--navy-soft);display:flex;align-items:center;justify-content:center;
+    font-size:12.5px;font-weight:600;text-align:center;padding:10px;border-radius:8px;}
+
+  .btn{display:inline-block;padding:14px 26px;border-radius:8px;font-weight:700;font-size:15px;text-align:center;}
+  .btn-primary{background:var(--gradient);color:var(--white);}
+  .btn-secondary{background:transparent;color:var(--navy);border:1.5px solid var(--navy);}
+  .btn-block{width:100%;display:block;}
+
+  /* icons */
+  .icon-chip{display:flex;align-items:center;gap:8px;font-size:12.5px;font-weight:700;color:var(--navy-soft);}
+  .icon-chip svg{width:17px;height:17px;stroke:var(--teal);fill:none;stroke-width:2;flex-shrink:0;}
+  .feature-icon-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:24px;}
+  .feature-icon-grid .fi{text-align:left;}
+  .feature-icon{width:46px;height:46px;border-radius:12px;background:var(--offwhite);display:flex;align-items:center;justify-content:center;margin-bottom:12px;}
+  .feature-icon svg{width:22px;height:22px;stroke:var(--navy);fill:none;stroke-width:1.7;}
+  .fi h4{font-size:14.5px;margin-bottom:4px;}
+  .fi p{font-size:12.5px;color:var(--navy-soft);}
+  @media (max-width:768px){.feature-icon-grid{grid-template-columns:1fr 1fr;}}
+
+  .rush-callout{background:linear-gradient(135deg, rgba(20,184,212,.08), rgba(242,121,46,.08));
+    border:1.5px solid var(--teal);border-radius:10px;padding:14px 16px;display:flex;gap:12px;
+    align-items:flex-start;margin-bottom:22px;}
+  .rush-callout svg{width:22px;height:22px;stroke:var(--orange);fill:none;stroke-width:1.8;flex-shrink:0;margin-top:1px;}
+  .rush-callout strong{display:block;font-size:13.5px;margin-bottom:2px;}
+  .rush-callout span{font-size:12.5px;color:var(--navy-soft);}
+
+  .discount-ladder{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px;}
+  .discount-ladder div{border:1.5px solid var(--line);border-radius:8px;padding:10px 6px;text-align:center;}
+  .discount-ladder div.best{border-color:var(--orange);background:var(--offwhite);}
+  .discount-ladder strong{display:block;font-family:'Sora',sans-serif;font-size:15px;}
+  .discount-ladder span{font-size:10.5px;color:var(--navy-soft);}
+
+  .type-selector{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:22px;}
+  .type-pill{padding:10px 18px;border-radius:24px;border:1.5px solid var(--line);font-size:13px;font-weight:700;background:var(--white);}
+  .type-pill.active{background:var(--navy);color:var(--white);border-color:var(--navy);}
+  .type-panel{display:none;}
+  .type-panel.active{display:block;}
+
+  .stars-row svg{width:14px;height:14px;margin-right:1px;}
+  .stars-row svg.on{fill:var(--orange);stroke:none;}
+  .stars-row svg.off{fill:var(--line);stroke:none;}
+
+  .breadcrumb{font-size:13px;color:var(--navy-soft);}
+  .breadcrumb a:hover{color:var(--blue);}
+
+  /* announcement + header (shared) */
+  .announce{background:var(--navy);color:var(--white);text-align:center;font-size:13px;font-weight:600;padding:10px 20px;
+    display:flex;justify-content:center;gap:22px;flex-wrap:wrap;}
+  .announce span{display:flex;align-items:center;gap:6px;}
+  .announce svg{width:14px;height:14px;stroke:var(--white);fill:none;stroke-width:2;}
+  header.site-header{position:sticky;top:48px;z-index:200;background:var(--white);border-bottom:1px solid var(--line);}
+  .header-inner{display:flex;align-items:center;justify-content:space-between;padding:16px 24px;max-width:var(--maxw);margin:0 auto;}
+  .logo{font-family:'Sora',sans-serif;font-weight:800;font-size:20px;letter-spacing:.5px;display:flex;align-items:center;gap:8px;}
+  .logo .mark{width:26px;height:26px;border-radius:6px;background:var(--gradient);}
+  nav.main-nav ul{display:flex;gap:26px;font-size:14px;font-weight:600;}
+  nav.main-nav a{position:relative;padding:4px 0;}
+  nav.main-nav a:hover::after{content:"";position:absolute;left:0;right:0;bottom:-3px;height:2px;background:var(--gradient);}
+  .header-actions{display:flex;align-items:center;gap:16px;}
+  .header-actions svg{width:18px;height:18px;stroke:var(--navy);fill:none;stroke-width:1.8;}
+  .nav-toggle-checkbox,.nav-toggle-label{display:none;}
+  @media (max-width:900px){
+    nav.main-nav{position:absolute;top:100%;left:0;right:0;background:var(--white);border-bottom:1px solid var(--line);display:none;}
+    nav.main-nav ul{flex-direction:column;gap:0;padding:8px 24px 16px;}
+    nav.main-nav ul li{padding:12px 0;border-bottom:1px solid var(--line);}
+    .nav-toggle-checkbox:checked ~ nav.main-nav{display:block;}
+    .nav-toggle-label{display:flex;align-items:center;gap:6px;font-weight:700;font-size:14px;cursor:pointer;}
+    .nav-toggle-label svg{width:20px;height:20px;stroke:var(--navy);fill:none;stroke-width:2;}
+  }
+
+  /* hero */
+  .hero{background:var(--offwhite);}
+  .hero-inner{display:grid;grid-template-columns:1fr 1fr;gap:56px;align-items:center;}
+  .hero-copy .eyebrow-rating{font-size:13.5px;font-weight:700;color:var(--navy-soft);margin-bottom:16px;display:flex;align-items:center;gap:6px;}
+  .hero-copy h1{font-size:44px;margin-bottom:18px;}
+  .hero-copy p.sub{font-size:17px;color:var(--navy-soft);margin-bottom:24px;max-width:480px;}
+  .hero-ctas{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:28px;}
+  .hero-image .placeholder{height:380px;font-size:14px;}
+  .proof-stats{display:flex;gap:0;border-top:1px solid var(--line);padding-top:22px;}
+  .proof-stats div{flex:1;padding-right:14px;display:flex;gap:10px;align-items:flex-start;}
+  .proof-stats svg{width:22px;height:22px;stroke:var(--teal);fill:none;stroke-width:1.8;flex-shrink:0;margin-top:2px;}
+  .proof-stats strong{display:block;font-family:'Sora',sans-serif;font-size:16px;margin-bottom:1px;}
+  .proof-stats span{font-size:12.5px;color:var(--navy-soft);}
+  @media (max-width:900px){.hero-inner{grid-template-columns:1fr;gap:32px;}.hero-copy h1{font-size:30px;}.proof-stats{flex-direction:column;gap:16px;}}
+
+  .section-head{max-width:640px;margin:0 auto 40px;text-align:center;}
+  .section-head h2{font-size:30px;margin-bottom:10px;}
+  .section-head p{color:var(--navy-soft);font-size:15.5px;}
+  @media (max-width:768px){.section-head h2{font-size:24px;}}
+
+  .category-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:18px;}
+  .category-card{border:1px solid var(--line);border-radius:14px;overflow:hidden;transition:border-color .15s,transform .15s;}
+  .category-card:hover{border-color:var(--teal);transform:translateY(-3px);}
+  .category-card .placeholder{height:130px;border-radius:0;border:none;}
+  .category-card-body{padding:16px;}
+  .category-card-body h3{font-size:15px;margin-bottom:6px;}
+  .category-card-body p{font-size:12.5px;color:var(--navy-soft);}
+  @media (max-width:900px){.category-grid{grid-template-columns:repeat(2,1fr);}}
+
+  .path-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:22px;}
+  .path-card{border:1.5px solid var(--line);border-radius:14px;padding:26px;position:relative;background:var(--white);}
+  .path-card.featured{border-color:var(--violet);}
+  .path-tag{display:inline-block;font-size:11px;font-weight:700;padding:4px 10px;border-radius:20px;margin-bottom:14px;background:var(--offwhite);color:var(--navy-soft);}
+  .path-card.featured .path-tag{background:var(--gradient);color:var(--white);}
+  .path-card h3{font-size:18px;margin-bottom:8px;}
+  .path-card p{font-size:14px;color:var(--navy-soft);margin-bottom:20px;min-height:64px;}
+  .path-card .price{font-family:'Sora',sans-serif;font-weight:700;font-size:14.5px;margin-bottom:16px;display:block;}
+  @media (max-width:900px){.path-grid{grid-template-columns:1fr;}}
+
+  .product-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:16px;}
+  .product-card{border:1px solid var(--line);border-radius:12px;overflow:hidden;}
+  .product-card .placeholder{height:135px;border-radius:0;border:none;}
+  .product-card-body{padding:13px;}
+  .product-card-body .badge{display:inline-block;font-size:10px;font-weight:700;color:var(--orange);margin-bottom:5px;}
+  .product-card-body h4{font-family:'Sora',sans-serif;font-size:13px;font-weight:700;margin-bottom:4px;}
+  .product-card-body .price{font-weight:700;font-size:13.5px;}
+  @media (max-width:900px){.product-grid{grid-template-columns:repeat(2,1fr);}}
+
+  .review-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;}
+  .review-card{background:var(--offwhite);border-radius:12px;padding:22px;}
+  .review-card p.quote{font-size:13.5px;margin:10px 0 14px;}
+  .review-card .who{display:flex;align-items:center;gap:10px;}
+  .review-card .avatar{width:32px;height:32px;border-radius:50%;background:var(--gradient);}
+  .review-card .who strong{display:block;font-size:13px;}
+  .review-card .who span{font-size:11.5px;color:var(--navy-soft);}
+  @media (max-width:900px){.review-grid{grid-template-columns:1fr;}}
+
+  .steps-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:30px;}
+  .step-num{width:36px;height:36px;border-radius:50%;background:var(--navy);color:var(--white);
+    font-family:'Sora',sans-serif;font-weight:700;font-size:15px;display:flex;align-items:center;justify-content:center;margin-bottom:14px;}
+  .step h3{font-size:16.5px;margin-bottom:7px;}
+  .step p{font-size:13.5px;color:var(--navy-soft);}
+  @media (max-width:900px){.steps-grid{grid-template-columns:1fr;gap:24px;}}
+
+  .faq-item{border-bottom:1px solid var(--line);}
+  .faq-item summary{padding:18px 4px;font-family:'Sora',sans-serif;font-weight:600;font-size:15.5px;cursor:pointer;list-style:none;display:flex;justify-content:space-between;align-items:center;}
+  .faq-item summary::-webkit-details-marker{display:none;}
+  .faq-item summary::after{content:"+";font-size:19px;color:var(--navy-soft);font-weight:400;margin-left:14px;}
+  .faq-item[open] summary::after{content:"\2013";}
+  .faq-item p{padding:0 4px 18px;font-size:14px;color:var(--navy-soft);max-width:600px;}
+
+  .final-cta{background:var(--navy);color:var(--white);text-align:center;}
+  .final-cta h2{color:var(--white);font-size:32px;margin-bottom:12px;}
+  .final-cta p{color:#C7CEDA;font-size:15.5px;margin-bottom:28px;}
+
+  footer{background:var(--offwhite);border-top:1px solid var(--line);padding:64px 0 28px;}
+  .footer-grid{display:grid;grid-template-columns:1.4fr 1fr 1fr 1fr 1fr;gap:32px;margin-bottom:44px;}
+  .footer-grid h4{font-size:13px;margin-bottom:14px;}
+  .footer-grid ul li{margin-bottom:9px;font-size:13px;color:var(--navy-soft);}
+  .footer-brand p{font-size:13px;color:var(--navy-soft);max-width:240px;margin-top:12px;}
+  .footer-bottom{display:flex;justify-content:space-between;align-items:center;padding-top:22px;border-top:1px solid var(--line);font-size:12px;color:var(--navy-soft);flex-wrap:wrap;gap:10px;}
+  @media (max-width:900px){.footer-grid{grid-template-columns:1fr 1fr;}}
+
+  /* PDP shared */
+  .pdp-grid{display:grid;grid-template-columns:1fr 1fr;gap:50px;margin-top:20px;}
+  .gallery .main-img{height:400px;margin-bottom:12px;font-size:13px;}
+  .thumbs{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;}
+  .thumbs .placeholder{height:62px;font-size:10px;padding:4px;}
+  @media (max-width:900px){.pdp-grid{grid-template-columns:1fr;gap:26px;}}
+  .buybox .rating{font-size:12.5px;color:var(--navy-soft);margin-bottom:10px;display:flex;align-items:center;gap:6px;}
+  .buybox h1{font-size:27px;margin-bottom:8px;}
+  .buybox .value-line{font-size:14px;color:var(--navy-soft);margin-bottom:16px;}
+  .buybox .price-row{font-family:'Sora',sans-serif;font-size:23px;font-weight:700;margin-bottom:18px;}
+  .buybox .price-row .from{font-size:12.5px;font-family:'Manrope',sans-serif;font-weight:600;color:var(--navy-soft);display:block;margin-bottom:2px;}
+  .variant-group{margin-bottom:20px;}
+  .variant-group label.vlabel{display:block;font-size:12.5px;font-weight:700;margin-bottom:9px;}
+  .btn-select-row{display:flex;flex-wrap:wrap;gap:8px;}
+  .btn-select{padding:9px 15px;border:1.5px solid var(--line);border-radius:7px;font-size:13px;font-weight:600;background:var(--white);}
+  .btn-select.selected{border-color:var(--navy);background:var(--navy);color:var(--white);}
+  .swatch-row{display:flex;gap:10px;}
+  .swatch{width:32px;height:32px;border-radius:50%;border:2px solid var(--white);box-shadow:0 0 0 1.5px var(--line);}
+  .swatch.selected{box-shadow:0 0 0 2px var(--navy);}
+  .uv-toggle{display:flex;border:1.5px solid var(--line);border-radius:8px;overflow:hidden;width:fit-content;}
+  .uv-toggle span{padding:9px 18px;font-size:13px;font-weight:700;}
+  .uv-toggle span.selected{background:var(--gradient);color:var(--white);}
+  .qty-row{display:flex;align-items:center;gap:14px;margin-bottom:16px;}
+  .qty-box{display:flex;align-items:center;border:1.5px solid var(--line);border-radius:7px;}
+  .qty-box button{padding:9px 14px;font-weight:700;background:var(--offwhite);}
+  .qty-box span{padding:9px 18px;font-weight:700;}
+  .trust-row{display:flex;gap:18px;flex-wrap:wrap;margin-top:18px;padding-top:18px;border-top:1px solid var(--line);}
+  .mobile-atc{display:none;position:fixed;bottom:0;left:0;right:0;z-index:500;background:var(--white);
+    border-top:1px solid var(--line);padding:12px 20px;box-shadow:0 -4px 12px rgba(0,0,0,.06);align-items:center;justify-content:space-between;gap:14px;}
+  .mobile-atc .price{font-family:'Sora',sans-serif;font-weight:700;font-size:16px;}
+  .mobile-atc .btn{padding:11px 22px;font-size:14px;flex:1;}
+  @media (max-width:768px){.mobile-atc.on{display:flex;}}
+  .callout{background:var(--offwhite);border-left:3px solid var(--teal);padding:16px 18px;border-radius:6px;font-size:13.5px;margin-bottom:20px;}
+  .desc-grid{display:grid;grid-template-columns:1.3fr 1fr;gap:46px;}
+  .desc-grid h2{font-size:23px;margin-bottom:12px;}
+  .desc-grid p{font-size:14.5px;color:var(--navy-soft);margin-bottom:12px;max-width:560px;}
+  @media (max-width:900px){.desc-grid{grid-template-columns:1fr;}}
+  table.price-table{width:100%;border-collapse:collapse;margin-bottom:6px;}
+  table.price-table th{text-align:left;font-size:12px;text-transform:uppercase;letter-spacing:.3px;color:var(--navy-soft);padding:9px 11px;border-bottom:1.5px solid var(--navy);}
+  table.price-table td{padding:11px;font-size:14px;border-bottom:1px solid var(--line);}
+  table.price-table tr.best td{background:var(--offwhite);font-weight:700;}
+  .card-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;}
+  .mini-card{border:1px solid var(--line);border-radius:12px;overflow:hidden;}
+  .mini-card .placeholder{height:118px;border-radius:0;border:none;}
+  .mini-card-body{padding:12px;}
+  .mini-card-body h4{font-size:12.5px;margin-bottom:4px;}
+  .mini-card-body .price{font-weight:700;font-size:13px;}
+  @media (max-width:900px){.card-grid{grid-template-columns:repeat(2,1fr);}}
+  .rating-summary{display:flex;align-items:center;gap:22px;margin-bottom:26px;flex-wrap:wrap;}
+  .rating-summary .big{font-family:'Sora',sans-serif;font-size:38px;font-weight:800;}
+  .rating-bars{display:flex;flex-direction:column;gap:4px;min-width:170px;}
+  .rating-bars .bar-row{display:flex;align-items:center;gap:8px;font-size:11px;color:var(--navy-soft);}
+  .rating-bars .bar-track{flex:1;height:6px;background:var(--line);border-radius:4px;overflow:hidden;}
+  .rating-bars .bar-fill{height:100%;background:var(--gradient);}
+  .reorder-strip{display:flex;align-items:center;justify-content:space-between;background:var(--offwhite);
+    border:1px solid var(--line);border-radius:10px;padding:14px 18px;margin-bottom:20px;gap:12px;flex-wrap:wrap;}
+  .reorder-strip span{font-size:13px;font-weight:600;display:flex;align-items:center;gap:8px;}
+  .reorder-strip svg{width:18px;height:18px;stroke:var(--teal);fill:none;stroke-width:2;}
+</style>
+</head>
+<body>
+
+<!-- ICON SPRITE -->
+<svg width="0" height="0" style="position:absolute;">
+<defs>
+<symbol id="i-truck" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 7h11v9H2z"/><path d="M13 10h4l4 3v3h-8z"/><circle cx="6.5" cy="18" r="1.6"/><circle cx="17.5" cy="18" r="1.6"/></symbol>
+<symbol id="i-clock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.2 2"/></symbol>
+<symbol id="i-shield" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v6c0 5-3.3 7.5-7 9-3.7-1.5-7-4-7-9V6z"/><path d="M9 12l2 2 4-4"/></symbol>
+<symbol id="i-tag" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12L12 3h6v6l-9 9z"/><circle cx="14.3" cy="6.7" r="1.1"/></symbol>
+<symbol id="i-upload" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V4"/><path d="M7 9l5-5 5 5"/><path d="M4 15v3a2 2 0 002 2h12a2 2 0 002-2v-3"/></symbol>
+<symbol id="i-drop" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3s6.2 7 6.2 11.2A6.2 6.2 0 0112 20.4a6.2 6.2 0 01-6.2-6.2C5.8 10 12 3 12 3z"/></symbol>
+<symbol id="i-ruler" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="9" width="19" height="6" rx="1.2"/><path d="M6.5 9v3M10.5 9v2.4M14.5 9v3M18.5 9v2.4"/></symbol>
+<symbol id="i-pin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s7-6.7 7-12.2A7 7 0 105 8.8C5 14.3 12 21 12 21z"/><circle cx="12" cy="8.6" r="2.3"/></symbol>
+<symbol id="i-layers" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l9 5-9 5-9-5z"/><path d="M3 13l9 5 9-5"/></symbol>
+<symbol id="i-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/></symbol>
+<symbol id="i-refresh" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4v5h5"/><path d="M20 20v-5h-5"/><path d="M5 15a8 8 0 0014-4"/><path d="M19 9a8 8 0 00-14 4"/></symbol>
+<symbol id="i-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></symbol>
+<symbol id="i-cart" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="20" r="1.3"/><circle cx="18" cy="20" r="1.3"/><path d="M2 3h3l2.6 12.4A2 2 0 009.5 17H18a2 2 0 002-1.6L21.5 7H6"/></symbol>
+<symbol id="i-menu" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h16M4 18h16"/></symbol>
+<symbol id="i-star" viewBox="0 0 24 24"><path d="M12 2.5l2.9 6.6 7.1.6-5.4 4.7 1.6 7-6.2-3.9-6.2 3.9 1.6-7-5.4-4.7 7.1-.6z"/></symbol>
+<symbol id="i-swatch" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="7" height="16" rx="1.5"/><rect x="13" y="4" width="7" height="16" rx="1.5"/></symbol>
+<symbol id="i-filter" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M7 12h10M10 18h4"/></symbol>
+</defs>
+</svg>
+
+<div class="toolbar">
+  <div class="toolbar-left">
+    <strong>INNTERFLOW: WIREFRAME</strong>
+    <div class="tabs">
+      <button class="tab-btn active" onclick="showTab('home',this)">Home</button>
+      <button class="tab-btn" onclick="showTab('collection',this)">Collection</button>
+      <button class="tab-btn" onclick="showTab('a',this)">DTF/UV DTF</button>
+      <button class="tab-btn" onclick="showTab('b',this)">Blanks</button>
+      <button class="tab-btn" onclick="showTab('c',this)">Signs &amp; Banners</button>
+      <button class="tab-btn" onclick="showTab('d',this)">Promo Material</button>
+      <button class="tab-btn" onclick="showTab('e',this)">Business Cards</button>
+    </div>
+  </div>
+  <button class="notes-btn" onclick="document.body.classList.toggle('show-notes')">Toggle CRO Notes</button>
+</div>
+
+<!-- ============================================================ -->
+<!-- HOME -->
+<!-- ============================================================ -->
+<div class="tab-panel active" id="tab-home">
+
+  <div class="announce">
+    <span><svg><use href="#i-clock"/></svg>Order by 12 PM for Same-Day Production</span>
+    <span><svg><use href="#i-pin"/></svg>Same-Day Pickup Until 4 PM</span>
+    <span><svg><use href="#i-truck"/></svg>Free Shipping Over $100</span>
+  </div>
+
+  <header class="site-header">
+    <div class="header-inner">
+      <a href="#" class="logo"><span class="mark"></span>INNTERFLOW</a>
+      <input type="checkbox" id="nav-toggle" class="nav-toggle-checkbox">
+      <label for="nav-toggle" class="nav-toggle-label"><svg><use href="#i-menu"/></svg>Menu</label>
+      <nav class="main-nav">
+        <ul>
+          <li><a href="#">DTF &amp; UV DTF</a></li>
+          <li><a href="#">Blanks</a></li>
+          <li><a href="#">Signs &amp; Banners</a></li>
+          <li><a href="#">Promo Material</a></li>
+          <li><a href="#">Business Cards</a></li>
+          <li><a href="#">Contact</a></li>
+        </ul>
+      </nav>
+      <div class="header-actions">
+        <svg><use href="#i-search"/></svg>
+        <svg><use href="#i-cart"/></svg>
+        <a href="#" class="btn btn-secondary" style="padding:9px 18px;font-size:13.5px;">Get a Quote</a>
+      </div>
+    </div>
+  </header>
+
+  <section class="hero">
+    <div class="wrap hero-inner">
+      <div class="hero-copy">
+        <div class="eyebrow-rating"><svg style="width:16px;height:16px;fill:var(--orange);"><use href="#i-star"/></svg>4.9 rated · Trusted by 1,000+ shops, brands, and creators</div>
+        <h1>Custom print, delivered fast. No minimums, no guesswork.</h1>
+        <p class="sub">DTF and UV DTF transfers, blanks, signs, promotional print, and business cards. One supplier, every print need, ready same-day.</p>
+        <div class="hero-ctas">
+          <a href="#" class="btn btn-primary">Build a Gang Sheet</a>
+          <a href="#" class="btn btn-secondary">Browse All Categories</a>
+        </div>
+        <div class="proof-stats">
+          <div><svg><use href="#i-clock"/></svg><div><strong>Same-Day Production</strong><span>Order before 12 PM, ships same day</span></div></div>
+          <div><svg><use href="#i-tag"/></svg><div><strong>Zero Minimums</strong><span>Order 1 unit or 1,000, same price per item</span></div></div>
+          <div><svg><use href="#i-truck"/></svg><div><strong>Free Shipping $100+</strong><span>Or pick up same-day until 4 PM</span></div></div>
+        </div>
+      </div>
+      <div class="hero-image"><div class="placeholder">[Hero Photo: gang sheet + finished apparel, lifestyle shot]</div></div>
+    </div>
+  </section>
+  <div class="wn"><b>CRO driver:</b> Clarity + urgency. <b>Why here:</b> The 12 PM cutoff and 4 PM pickup window are now real, specific numbers instead of a vague turnaround claim, this is a stronger conversion driver than "fast shipping" ever was. <b>Key elements:</b> Icons replace the plain-text proof stats for faster scanning, no carousel, single message.</div>
+
+  <section>
+    <div class="wrap">
+      <div class="section-head"><h2>Everything you print, one place to order it</h2><p>Five collections built for how you actually work, from single gang sheets to bulk print runs.</p></div>
+      <div class="category-grid">
+        <div class="category-card"><div class="placeholder">[Photo: DTF transfer close-up]</div><div class="category-card-body"><h3>DTF &amp; UV DTF</h3><p>Gang sheets, custom sizes, and UV stickers.</p></div></div>
+        <div class="category-card"><div class="placeholder">[Photo: folded blank tee stack]</div><div class="category-card-body"><h3>Blanks</h3><p>Premium tees, hoodies, and sweatshirts.</p></div></div>
+        <div class="category-card"><div class="placeholder">[Photo: yard sign in use]</div><div class="category-card-body"><h3>Signs &amp; Banners</h3><p>Posters, yard signs, clings, banners.</p></div></div>
+        <div class="category-card"><div class="placeholder">[Photo: flyer + brochure stack]</div><div class="category-card-body"><h3>Promo Material</h3><p>Flyers, brochures, booklets, letterhead.</p></div></div>
+        <div class="category-card"><div class="placeholder">[Photo: business card finish]</div><div class="category-card-body"><h3>Business Cards</h3><p>Matte, gloss, or spot UV.</p></div></div>
+      </div>
+    </div>
+  </section>
+
+  <section style="background:var(--offwhite);">
+    <div class="wrap">
+      <div class="section-head"><h2>Not sure which DTF option fits?</h2><p>Three ways to order, pick the one that matches how you work.</p></div>
+      <div class="path-grid">
+        <div class="path-card featured"><span class="path-tag">Most Popular</span><h3>Build a Gang Sheet</h3><p>Arrange multiple designs on one sheet in our builder for the best per-design price.</p><span class="price">From [$X]/ft</span><a href="#" class="btn btn-primary btn-block">Start Building</a></div>
+        <div class="path-card"><span class="path-tag">Best for Beginners</span><h3>DTF Transfer by Size</h3><p>Upload one design, pick your size. We print, cut, and ship it ready to press.</p><span class="price">From [$X]</span><a href="#" class="btn btn-secondary btn-block">Shop by Size</a></div>
+        <div class="path-card"><span class="path-tag">For Pros</span><h3>Upload a Gang Sheet</h3><p>Already have a print-ready file? Upload it and we print same-day if in by 12 PM.</p><span class="price">From [$X]/ft</span><a href="#" class="btn btn-secondary btn-block">Upload File</a></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="section-head"><h2>Best sellers across every collection</h2></div>
+      <div class="product-grid">
+        <div class="product-card"><div class="placeholder">[Photo]</div><div class="product-card-body"><span class="badge">Best Seller</span><h4>Gang Sheet Builder</h4><div class="price">From [$X]</div></div></div>
+        <div class="product-card"><div class="placeholder">[Photo]</div><div class="product-card-body"><h4>UV DTF Gang Sheet</h4><div class="price">From [$X]</div></div></div>
+        <div class="product-card"><div class="placeholder">[Photo]</div><div class="product-card-body"><span class="badge">Best Seller</span><h4>Premium Cotton Tee</h4><div class="price">From [$X]</div></div></div>
+        <div class="product-card"><div class="placeholder">[Photo]</div><div class="product-card-body"><h4>Retractable Banner</h4><div class="price">From [$X]</div></div></div>
+        <div class="product-card"><div class="placeholder">[Photo]</div><div class="product-card-body"><span class="badge">Best Seller</span><h4>Business Cards</h4><div class="price">From [$X]</div></div></div>
+        <div class="product-card"><div class="placeholder">[Photo]</div><div class="product-card-body"><h4>Bulk Flyers</h4><div class="price">From [$X]</div></div></div>
+      </div>
+    </div>
+  </section>
+
+  <section style="background:var(--offwhite);">
+    <div class="wrap">
+      <div class="section-head"><h2>Why shops and brands switch to Innterflow</h2></div>
+      <div class="feature-icon-grid" style="grid-template-columns:repeat(4,1fr);">
+        <div class="fi"><div class="feature-icon"><svg><use href="#i-tag"/></svg></div><h4>No minimums</h4><p>Order exactly what you need, same price per unit at 1 or 1,000.</p></div>
+        <div class="fi"><div class="feature-icon"><svg><use href="#i-shield"/></svg></div><h4>Built to last</h4><p>Cold-peel DTF and durable finishes across every collection.</p></div>
+        <div class="fi"><div class="feature-icon"><svg><use href="#i-clock"/></svg></div><h4>Same-day production</h4><p>Order before 12 PM and it ships the same day.</p></div>
+        <div class="fi"><div class="feature-icon"><svg><use href="#i-layers"/></svg></div><h4>One supplier, every need</h4><p>DTF, blanks, signs, promo, and cards under one roof.</p></div>
+      </div>
+      <div style="max-width:900px;@media(max-width:768px){grid-template-columns:1fr 1fr;}"></div>
+    </div>
+  </section>
+  <div class="wn"><b>CRO driver:</b> Value communication + specificity. <b>Why here:</b> "Same-day production" now carries the actual 12 PM cutoff instead of a vague speed claim, and icons replace the old gradient-dot placeholders for real visual polish.</div>
+
+  <section>
+    <div class="wrap">
+      <div class="section-head"><h2>What customers are saying</h2></div>
+      <div class="review-grid">
+        <div class="review-card"><div class="stars-row">★★★★★</div><p class="quote">[Sample review, replace with real customer quote] "Ordered a 10ft gang sheet for a pop-up event, it fit more designs than I expected and shipped same day."</p><div class="who"><div class="avatar"></div><div><strong>[Customer Name]</strong><span>Gang Sheet Builder</span></div></div></div>
+        <div class="review-card"><div class="stars-row">★★★★★</div><p class="quote">[Sample review, replace with real customer quote] "Switched our print shop over for small runs. No setup fees changed the math completely."</p><div class="who"><div class="avatar"></div><div><strong>[Customer Name]</strong><span>DTF Transfers</span></div></div></div>
+        <div class="review-card"><div class="stars-row">★★★★★</div><p class="quote">[Sample review, replace with real customer quote] "Reordered business cards in two minutes using the saved design."</p><div class="who"><div class="avatar"></div><div><strong>[Customer Name]</strong><span>Business Cards</span></div></div></div>
+      </div>
+    </div>
+  </section>
+
+  <section style="background:var(--offwhite);">
+    <div class="wrap">
+      <div class="section-head"><h2>From upload to unboxing in three steps</h2></div>
+      <div class="steps-grid">
+        <div class="step"><div class="step-num">1</div><h3>Upload or choose your design</h3><p>PNG, JPG, PDF, or AI. Every file gets a free review before we print.</p></div>
+        <div class="step"><div class="step-num">2</div><h3>We print and ship</h3><p>In-house production. Order before 12 PM and it ships the same day.</p></div>
+        <div class="step"><div class="step-num">3</div><h3>Press, apply, or hang, and sell</h3><p>Cold peel for DTF, peel-and-stick for UV DTF and clings. No experience needed.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="section-head"><h2>Common questions</h2></div>
+      <div class="faq-list" style="max-width:760px;margin:0 auto;">
+        <details class="faq-item" open><summary>How fast will my order ship?</summary><p>Order before 12 PM and it ships the same day. Local pickup is also available same-day until 4 PM.</p></details>
+        <details class="faq-item"><summary>Is there a minimum order?</summary><p>No. Order one gang sheet, one shirt, or one banner, the price per unit stays the same whether you order 1 or 1,000.</p></details>
+        <details class="faq-item"><summary>What size gang sheet do I need?</summary><p>[Placeholder, confirm real sizing data] A 10ft sheet typically fits 60+ small chest-logo designs or 15 to 20 full-front prints.</p></details>
+        <details class="faq-item"><summary>Do I qualify for free shipping?</summary><p>Yes, orders over $100 ship free. Under $100, standard shipping rates apply at checkout.</p></details>
+        <details class="faq-item"><summary>What file format should I upload?</summary><p>PNG with a transparent background works best. We also accept JPG, PDF, AI, and PSD.</p></details>
+      </div>
+    </div>
+  </section>
+
+  <section class="final-cta">
+    <div class="wrap"><h2>Ready to print something that actually sells?</h2><p>Build your first gang sheet in minutes. Order before 12 PM for same-day production.</p><a href="#" class="btn btn-primary">Build a Gang Sheet</a></div>
+  </section>
+
+  <footer>
+    <div class="wrap">
+      <div class="footer-grid">
+        <div class="footer-brand"><a href="#" class="logo"><span class="mark"></span>INNTERFLOW</a><p>Next-gen print and promotional distribution. DTF, blanks, signs, promo material, and business cards, one supplier.</p></div>
+        <div><h4>Shop</h4><ul><li>DTF &amp; UV DTF</li><li>Blanks</li><li>Signs &amp; Banners</li><li>Promo Material</li><li>Business Cards</li></ul></div>
+        <div><h4>Company</h4><ul><li>About</li><li>Contact</li><li>FAQ</li><li>Reviews</li></ul></div>
+        <div><h4>Policies</h4><ul><li>Shipping Policy</li><li>Returns &amp; Reprints</li><li>Privacy Policy</li><li>Terms of Service</li></ul></div>
+        <div><h4>Contact</h4><ul><li>[email@innterflow.com]</li><li>[Phone Number]</li><li>[Pickup Address]</li></ul></div>
+      </div>
+      <div class="footer-bottom"><span>© 2026 Innterflow. All rights reserved.</span><span>[Payment icons: Visa, Mastercard, Amex, Shop Pay, Apple Pay]</span></div>
+    </div>
+  </footer>
+</div>
+
+<!-- ============================================================ -->
+<!-- COLLECTION TEMPLATE -->
+<!-- ============================================================ -->
+<div class="tab-panel" id="tab-collection">
+  <section style="padding-bottom:0;">
+    <div class="wrap">
+      <div class="breadcrumb"><a href="#">Home</a> / DTF &amp; UV DTF Transfers</div>
+      <p class="caption" style="margin-top:16px;">One shared template across all 5 collections. Shown here populated with DTF &amp; UV DTF, the same layout applies with Blanks, Signs &amp; Banners, Promo Material, and Business Cards content swapped in.</p>
+    </div>
+  </section>
+
+  <section style="padding-top:0;">
+    <div class="wrap">
+      <h1 style="font-size:30px;margin-bottom:8px;">DTF &amp; UV DTF Transfers</h1>
+      <p style="color:var(--navy-soft);font-size:15px;margin-bottom:8px;">Gang sheets, custom sizes, and UV stickers. Peel, press, done.</p>
+      <p style="color:var(--navy-soft);font-size:13px;">6 products</p>
+    </div>
+  </section>
+
+  <section style="padding-top:0;">
+    <div class="wrap">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;flex-wrap:wrap;gap:14px;padding-bottom:18px;border-bottom:1px solid var(--line);">
+        <div style="display:flex;gap:10px;align-items:center;">
+          <button class="btn-select" style="display:flex;gap:6px;align-items:center;"><svg style="width:15px;height:15px;"><use href="#i-filter"/></svg>Filter</button>
+          <button class="btn-select">Standard DTF</button>
+          <button class="btn-select">UV DTF</button>
+        </div>
+        <div style="font-size:13px;font-weight:600;display:flex;align-items:center;gap:8px;">Sort by: <span class="btn-select">Best Selling</span></div>
+      </div>
+
+      <div class="product-grid" style="grid-template-columns:repeat(3,1fr);">
+        <div class="product-card"><div class="placeholder" style="height:180px;">[Photo]</div><div class="product-card-body"><span class="badge">Best Seller</span><h4>Build a Gang Sheet</h4><div class="rating" style="font-size:11.5px;color:var(--navy-soft);margin:4px 0;">★★★★★ (128)</div><div class="price">From [$X]/ft</div></div></div>
+        <div class="product-card"><div class="placeholder" style="height:180px;">[Photo]</div><div class="product-card-body"><h4>Upload a Gang Sheet</h4><div class="rating" style="font-size:11.5px;color:var(--navy-soft);margin:4px 0;">★★★★★ (94)</div><div class="price">From [$X]/ft</div></div></div>
+        <div class="product-card"><div class="placeholder" style="height:180px;">[Photo]</div><div class="product-card-body"><h4>DTF Transfer by Size</h4><div class="rating" style="font-size:11.5px;color:var(--navy-soft);margin:4px 0;">★★★★★ (156)</div><div class="price">From [$X]</div></div></div>
+        <div class="product-card"><div class="placeholder" style="height:180px;">[Photo]</div><div class="product-card-body"><span class="badge">New</span><h4>Build a UV DTF Sheet</h4><div class="rating" style="font-size:11.5px;color:var(--navy-soft);margin:4px 0;">★★★★★ (41)</div><div class="price">From [$X]/ft</div></div></div>
+        <div class="product-card"><div class="placeholder" style="height:180px;">[Photo]</div><div class="product-card-body"><h4>Upload a UV DTF Sheet</h4><div class="rating" style="font-size:11.5px;color:var(--navy-soft);margin:4px 0;">★★★★☆ (37)</div><div class="price">From [$X]/ft</div></div></div>
+        <div class="product-card"><div class="placeholder" style="height:180px;">[Photo]</div><div class="product-card-body"><h4>UV DTF Transfer by Size</h4><div class="rating" style="font-size:11.5px;color:var(--navy-soft);margin:4px 0;">★★★★★ (63)</div><div class="price">From [$X]</div></div></div>
+      </div>
+
+      <div style="text-align:center;margin-top:32px;"><button class="btn btn-secondary">Load More</button></div>
+    </div>
+  </section>
+  <div class="wn"><b>CRO driver:</b> Navigation + friction reduction. <b>Why here:</b> Filter row lets a visitor narrow to Standard or UV DTF immediately in a 6-product collection. Same grid, filter bar, and sort pattern reused on all 5 collections, only the filter options and product cards change.</div>
+
+  <section style="background:var(--offwhite);">
+    <div class="wrap">
+      <div class="section-head"><h2>Questions about DTF &amp; UV DTF</h2></div>
+      <details class="faq-item" open><summary>What's the difference between Standard and UV DTF?</summary><p>Standard DTF is heat-pressed onto fabric. UV DTF is peel-and-stick, no heat press needed, and works on hard surfaces too.</p></details>
+      <details class="faq-item"><summary>Which product should I order?</summary><p>Multiple designs to fit together, build a gang sheet. One print-ready file, upload it. One design and one size, order by size.</p></details>
+    </div>
+  </section>
+</div>
+
+<!-- ============================================================ -->
+<!-- TAB A: DTF & UV DTF -->
+<!-- ============================================================ -->
+<div class="tab-panel" id="tab-a">
+
+  <section style="padding-bottom:0;">
+    <div class="wrap"><div class="breadcrumb"><a href="#">Home</a> / <a href="#">DTF &amp; UV DTF Transfers</a> / Build a Gang Sheet</div></div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="pdp-grid">
+        <div class="gallery">
+          <div class="placeholder main-img">[Main Photo: gang sheet, full sheet flat lay]</div>
+          <div class="thumbs"><div class="placeholder">[Detail]</div><div class="placeholder">[On shirt]</div><div class="placeholder">[Texture]</div><div class="placeholder">[Scale ref]</div><div class="placeholder">[Video]</div></div>
+        </div>
+        <div class="buybox">
+          <div class="rating"><span class="stars-row">★★★★★</span>4.9 (128 reviews)</div>
+          <h1>Build a Gang Sheet</h1>
+          <p class="value-line">Cold-peel DTF, arrange multiple designs on one sheet for the best per-design price.</p>
+
+          <div class="rush-callout"><svg><use href="#i-clock"/></svg><div><strong>Order by 12 PM for same-day production</strong><span>Same-day local pickup available until 4 PM.</span></div></div>
+
+          <div class="callout">A 10ft sheet fits roughly 60+ small chest-logo designs or 15 to 20 full-front prints. As low as [$0.50]/design. [Placeholder, confirm real per-unit figures.]</div>
+
+          <div class="price-row"><span class="from">Starting at</span>[$X]/ft</div>
+
+          <div class="variant-group"><label class="vlabel">Print Type</label><div class="uv-toggle"><span class="selected">Standard DTF</span><span>UV DTF</span></div></div>
+          <div class="variant-group"><label class="vlabel">Sheet Length</label><div class="btn-select-row"><div class="btn-select">2ft</div><div class="btn-select">4ft</div><div class="btn-select selected">8ft</div><div class="btn-select">10ft</div><div class="btn-select">20ft</div></div></div>
+          <div class="qty-row"><label class="vlabel" style="margin:0;">Qty</label><div class="qty-box"><button>&minus;</button><span>1</span><button>+</button></div></div>
+
+          <a href="#" class="btn btn-primary btn-block">Open Gang Sheet Builder</a>
+
+          <div class="trust-row">
+            <span class="icon-chip"><svg><use href="#i-shield"/></svg>50+ Wash Tested</span>
+            <span class="icon-chip"><svg><use href="#i-truck"/></svg>Free Ship $100+</span>
+            <span class="icon-chip"><svg><use href="#i-clock"/></svg>Same-Day if by 12 PM</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+  <div class="wn"><b>CRO driver:</b> Urgency + clarity. <b>Why here:</b> The rush callout box (adapted from Transfer Kingdom and EZDTFMaker patterns) now carries your real 12 PM cutoff and 4 PM pickup window, sitting right above price where it does the most work. Per-unit cost callout stays directly below it.</div>
+
+  <section style="padding-top:0;">
+    <div class="wrap">
+      <div class="section-head" style="text-align:left;margin-bottom:24px;"><h2 style="font-size:22px;">Buy more, save more</h2></div>
+      <div class="discount-ladder">
+        <div><strong>5+ ft</strong><span>10% off</span></div>
+        <div><strong>10+ ft</strong><span>20% off</span></div>
+        <div class="best"><strong>20+ ft</strong><span>30% off</span></div>
+        <div><strong>50+ ft</strong><span>40% off</span></div>
+      </div>
+    </div>
+  </section>
+  <div class="wn"><b>CRO driver:</b> AOV. <b>Why here:</b> Bulk discount ladder pattern pulled directly from the Transfer Kingdom benchmark, a visitor ordering 8ft can see exactly how much closer 10ft gets them to a discount tier. Percentages are placeholders, confirm real tier structure.</div>
+
+  <section style="padding-top:0;">
+    <div class="wrap desc-grid">
+      <div>
+        <h2>Built for shops that can't afford a bad print</h2>
+        <div class="feature-icon-grid" style="margin-bottom:22px;">
+          <div class="fi"><div class="feature-icon"><svg><use href="#i-drop"/></svg></div><h4>Works on any fabric</h4><p>Cotton, poly-blends, dark or light.</p></div>
+          <div class="fi"><div class="feature-icon"><svg><use href="#i-shield"/></svg></div><h4>50+ wash durability</h4><p>No cracking, no fading.</p></div>
+          <div class="fi"><div class="feature-icon"><svg><use href="#i-layers"/></svg></div><h4>Full color, no limits</h4><p>Gradients, fine lines, bright white.</p></div>
+        </div>
+        <p>Press 15 seconds at 300 to 325°F, let it cool, peel. No pretreating, no weeding, full-color with no per-color charge.</p>
+        <details class="faq-item"><summary>Full specifications</summary><p>Film: cold-peel PET. Press time: 12 to 15 seconds. Press temp: 300 to 325°F. Fabric compatibility: cotton, polyester, blends, nylon, denim.</p></details>
+      </div>
+      <div>
+        <h2>Not sure which DTF option to pick</h2>
+        <p>Building a sheet is best if you have several designs to fit together. Already have a print-ready file, use Upload a Gang Sheet. One design, one size, use DTF Transfer by Size.</p>
+        <a href="#" class="btn btn-secondary btn-block">Compare All 3 Options</a>
+      </div>
+    </div>
+  </section>
+
+  <section style="background:var(--offwhite);">
+    <div class="wrap">
+      <div class="section-head"><h2>Complete your order</h2></div>
+      <div class="card-grid">
+        <div class="mini-card"><div class="placeholder">[Photo]</div><div class="mini-card-body"><h4>Premium Cotton Tee</h4><div class="price">From [$X]</div></div></div>
+        <div class="mini-card"><div class="placeholder">[Photo]</div><div class="mini-card-body"><h4>Heat Press, 15x15</h4><div class="price">From [$X]</div></div></div>
+        <div class="mini-card"><div class="placeholder">[Photo]</div><div class="mini-card-body"><h4>UV DTF Gang Sheet</h4><div class="price">From [$X]</div></div></div>
+        <div class="mini-card"><div class="placeholder">[Photo]</div><div class="mini-card-body"><h4>Custom Sample Pack</h4><div class="price">From [$X]</div></div></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="rating-summary">
+        <span class="big">4.9</span>
+        <div class="rating-bars">
+          <div class="bar-row">5<div class="bar-track"><div class="bar-fill" style="width:89%;"></div></div>89%</div>
+          <div class="bar-row">4<div class="bar-track"><div class="bar-fill" style="width:8%;"></div></div>8%</div>
+          <div class="bar-row">3<div class="bar-track"><div class="bar-fill" style="width:2%;"></div></div>2%</div>
+          <div class="bar-row">2<div class="bar-track"><div class="bar-fill" style="width:1%;"></div></div>1%</div>
+          <div class="bar-row">1<div class="bar-track"><div class="bar-fill" style="width:0%;"></div></div>0%</div>
+        </div>
+        <span style="font-size:13px;color:var(--navy-soft);">Based on 128 reviews</span>
+      </div>
+      <div class="review-grid">
+        <div class="review-card"><div class="stars-row">★★★★★</div><p class="quote">[Sample review] "Fit way more designs on the 10ft than I expected. Zero cracking after a dozen washes."</p><div class="who"><strong>[Customer Name]</strong></div></div>
+        <div class="review-card"><div class="stars-row">★★★★★</div><p class="quote">[Sample review] "Ordered before noon and had it same day. Didn't expect that."</p><div class="who"><strong>[Customer Name]</strong></div></div>
+        <div class="review-card"><div class="stars-row">★★★★☆</div><p class="quote">[Sample review] "Great quality. Shipping took a day longer than expected but support was responsive."</p><div class="who"><strong>[Customer Name]</strong></div></div>
+      </div>
+    </div>
+  </section>
+  <div class="wn"><b>CRO driver:</b> Trust (Tier 1). <b>Why here:</b> Rating distribution bars added for visual polish and to make the 4.9 score feel earned rather than stated. Placeholder quotes, replace before launch.</div>
+
+  <section style="background:var(--offwhite);">
+    <div class="wrap">
+      <div class="section-head"><h2>Questions about gang sheets</h2></div>
+      <details class="faq-item" open><summary>Will it crack or fade?</summary><p>Every DTF transfer is tested to 50+ washes. Cold-peel application gives the strongest adhesion of any peel method.</p></details>
+      <details class="faq-item"><summary>Can I still get same-day if I order later in the day?</summary><p>Orders placed after 12 PM move to next-day production. Local customers can still arrange same-day pickup by contacting us directly.</p></details>
+      <details class="faq-item"><summary>How do I know what size to order?</summary><p>[Placeholder, confirm real sizing data] A 10ft sheet fits 60+ small logos or 15 to 20 full-front prints. The builder shows your exact layout before you pay.</p></details>
+      <details class="faq-item"><summary>How is UV DTF different?</summary><p>UV DTF is peel-and-stick, no heat press needed, and works on hard surfaces like tumblers and laptops.</p></details>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="section-head"><h2>Recently viewed</h2></div>
+      <div class="card-grid">
+        <div class="mini-card"><div class="placeholder">[Photo]</div><div class="mini-card-body"><h4>DTF Transfer by Size</h4><div class="price">From [$X]</div></div></div>
+        <div class="mini-card"><div class="placeholder">[Photo]</div><div class="mini-card-body"><h4>Upload a Gang Sheet</h4><div class="price">From [$X]</div></div></div>
+        <div class="mini-card"><div class="placeholder">[Photo]</div><div class="mini-card-body"><h4>UV DTF by Size</h4><div class="price">From [$X]</div></div></div>
+        <div class="mini-card"><div class="placeholder">[Photo]</div><div class="mini-card-body"><h4>Business Cards</h4><div class="price">From [$X]</div></div></div>
+      </div>
+    </div>
+  </section>
+
+  <div class="mobile-atc on"><div class="price">[$X]/ft</div><a href="#" class="btn btn-primary">Open Builder</a></div>
+</div>
+
+<!-- ============================================================ -->
+<!-- TAB B: BLANKS -->
+<!-- ============================================================ -->
+<div class="tab-panel" id="tab-b">
+
+  <section style="padding-bottom:0;">
+    <div class="wrap"><div class="breadcrumb"><a href="#">Home</a> / <a href="#">Blanks</a> / Premium Cotton Tee</div></div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="pdp-grid">
+        <div class="gallery">
+          <div class="placeholder main-img">[Main Photo: tee on white background]</div>
+          <div class="thumbs"><div class="placeholder">[On model]</div><div class="placeholder">[Fabric texture]</div><div class="placeholder">[Back view]</div><div class="placeholder">[Folded stack]</div><div class="placeholder">[Color range]</div></div>
+        </div>
+        <div class="buybox">
+          <div class="rating"><span class="stars-row">★★★★★</span>4.8 (211 reviews)</div>
+          <h1>Premium Cotton Tee</h1>
+          <p class="value-line">DTF-optimized 100% cotton, built to hold ink and shape wash after wash.</p>
+          <div class="price-row"><span class="from">Starting at</span>[$X]</div>
+
+          <div class="variant-group"><label class="vlabel">Color</label><div class="swatch-row">
+            <div class="swatch selected" style="background:#16233A;"></div><div class="swatch" style="background:#FFFFFF;border:1px solid var(--line);"></div>
+            <div class="swatch" style="background:#8B3FE0;"></div><div class="swatch" style="background:#F2792E;"></div><div class="swatch" style="background:#3E63E8;"></div>
+          </div></div>
+          <div class="variant-group"><label class="vlabel">Size</label><div class="btn-select-row"><div class="btn-select">XS</div><div class="btn-select">S</div><div class="btn-select selected">M</div><div class="btn-select">L</div><div class="btn-select">XL</div><div class="btn-select">2XL</div></div></div>
+          <div class="qty-row"><label class="vlabel" style="margin:0;">Qty</label><div class="qty-box"><button>&minus;</button><span>1</span><button>+</button></div></div>
+
+          <a href="#" class="btn btn-primary btn-block">Add to Cart</a>
+
+          <div class="trust-row">
+            <span class="icon-chip"><svg><use href="#i-truck"/></svg>Same-Day if by 12 PM</span>
+            <span class="icon-chip"><svg><use href="#i-refresh"/></svg>Easy Returns</span>
+            <span class="icon-chip"><svg><use href="#i-tag"/></svg>Bulk Discounts</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section style="padding-top:0;">
+    <div class="wrap desc-grid">
+      <div>
+        <h2>Fabric that prints clean</h2>
+        <div class="feature-icon-grid" style="grid-template-columns:repeat(2,1fr);margin-bottom:22px;">
+          <div class="fi"><div class="feature-icon"><svg><use href="#i-drop"/></svg></div><h4>DTF-optimized weave</h4><p>Smooth, even surface for prints.</p></div>
+          <div class="fi"><div class="feature-icon"><svg><use href="#i-ruler"/></svg></div><h4>Pre-shrunk</h4><p>Holds size after washing.</p></div>
+        </div>
+        <p>6.0 oz, 100% ring-spun cotton. Regular fit, true to size. Machine wash cold, tumble dry low.</p>
+        <details class="faq-item"><summary>Size chart</summary><p>[Size chart table placeholder, chest width and body length by size, to be confirmed with real measurements.]</p></details>
+      </div>
+      <div><h2>Pairs with your gang sheet</h2><p>Sized to match our standard DTF gang sheet dimensions, no guesswork lining up a full-front print.</p></div>
+    </div>
+  </section>
+
+  <section style="background:var(--offwhite);">
+    <div class="wrap">
+      <div class="section-head"><h2>Pairs well with</h2></div>
+      <div class="card-grid">
+        <div class="mini-card"><div class="placeholder">[Photo]</div><div class="mini-card-body"><h4>Build a Gang Sheet</h4><div class="price">From [$X]</div></div></div>
+        <div class="mini-card"><div class="placeholder">[Photo]</div><div class="mini-card-body"><h4>DTF by Size</h4><div class="price">From [$X]</div></div></div>
+        <div class="mini-card"><div class="placeholder">[Photo]</div><div class="mini-card-body"><h4>Heat Press</h4><div class="price">From [$X]</div></div></div>
+        <div class="mini-card"><div class="placeholder">[Photo]</div><div class="mini-card-body"><h4>Hoodie, Same Color Range</h4><div class="price">From [$X]</div></div></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="rating-summary"><span class="big">4.8</span><div class="rating-bars">
+        <div class="bar-row">5<div class="bar-track"><div class="bar-fill" style="width:84%;"></div></div>84%</div>
+        <div class="bar-row">4<div class="bar-track"><div class="bar-fill" style="width:11%;"></div></div>11%</div>
+        <div class="bar-row">3<div class="bar-track"><div class="bar-fill" style="width:3%;"></div></div>3%</div>
+        <div class="bar-row">2<div class="bar-track"><div class="bar-fill" style="width:1%;"></div></div>1%</div>
+        <div class="bar-row">1<div class="bar-track"><div class="bar-fill" style="width:1%;"></div></div>1%</div>
+      </div><span style="font-size:13px;color:var(--navy-soft);">Based on 211 reviews</span></div>
+      <div class="review-grid">
+        <div class="review-card"><div class="stars-row">★★★★★</div><p class="quote">[Sample review] "Holds print beautifully, ran true to size."</p><div class="who"><strong>[Customer Name]</strong></div></div>
+        <div class="review-card"><div class="stars-row">★★★★★</div><p class="quote">[Sample review] "Soft fabric, my customers keep commenting on the feel."</p><div class="who"><strong>[Customer Name]</strong></div></div>
+        <div class="review-card"><div class="stars-row">★★★★☆</div><p class="quote">[Sample review] "Great quality, wish there were more color options."</p><div class="who"><strong>[Customer Name]</strong></div></div>
+      </div>
+    </div>
+  </section>
+
+  <section style="background:var(--offwhite);">
+    <div class="wrap">
+      <div class="section-head"><h2>Questions about this blank</h2></div>
+      <details class="faq-item" open><summary>Does it shrink?</summary><p>Pre-shrunk before cutting. Expect minimal shrinkage (under 3%) when washed cold and dried low.</p></details>
+      <details class="faq-item"><summary>Will DTF stick well to this fabric?</summary><p>Yes, this blank is chosen specifically for DTF compatibility.</p></details>
+      <details class="faq-item"><summary>Do you offer bulk pricing?</summary><p>Yes, discounts apply automatically at 25, 50, and 100+ units.</p></details>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="section-head"><h2>Recently viewed</h2></div>
+      <div class="card-grid">
+        <div class="mini-card"><div class="placeholder">[Photo]</div><div class="mini-card-body"><h4>Hoodie</h4><div class="price">From [$X]</div></div></div>
+        <div class="mini-card"><div class="placeholder">[Photo]</div><div class="mini-card-body"><h4>Youth Tee</h4><div class="price">From [$X]</div></div></div>
+        <div class="mini-card"><div class="placeholder">[Photo]</div><div class="mini-card-body"><h4>Crewneck Sweatshirt</h4><div class="price">From [$X]</div></div></div>
+        <div class="mini-card"><div class="placeholder">[Photo]</div><div class="mini-card-body"><h4>Gang Sheet Builder</h4><div class="price">From [$X]</div></div></div>
+      </div>
+    </div>
+  </section>
+
+  <div class="mobile-atc"><div class="price">[$X]</div><a href="#" class="btn btn-primary">Add to Cart</a></div>
+</div>
+
+<!-- ============================================================ -->
+<!-- TAB C: SIGNS & BANNERS (rebuilt with product-type selector) -->
+<!-- ============================================================ -->
+<div class="tab-panel" id="tab-c">
+
+  <section style="padding-bottom:0;">
+    <div class="wrap"><div class="breadcrumb"><a href="#">Home</a> / <a href="#">Signs &amp; Banners</a> / <span id="c-crumb">Yard Sign</span></div></div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="pdp-grid">
+        <div class="gallery">
+          <div class="placeholder main-img" id="c-main-img">[Main Photo: yard sign in use, on a lawn]</div>
+          <div class="thumbs"><div class="placeholder">[White bg]</div><div class="placeholder">[Detail]</div><div class="placeholder">[Close-up print]</div><div class="placeholder">[Scale ref]</div><div class="placeholder">[In use]</div></div>
+        </div>
+        <div class="buybox">
+          <label class="vlabel" style="margin-bottom:10px;">Choose a product</label>
+          <div class="type-selector">
+            <button class="type-pill active" onclick="showType('c','yard',this)">Yard Signs</button>
+            <button class="type-pill" onclick="showType('c','poster',this)">Standard Posters</button>
+            <button class="type-pill" onclick="showType('c','cling',this)">Window Clings</button>
+            <button class="type-pill" onclick="showType('c','banner',this)">Retractable Banner</button>
+          </div>
+
+          <div class="rating"><span class="stars-row">★★★★☆</span>4.7 (37 reviews)</div>
+
+          <!-- YARD SIGN -->
+          <div class="type-panel active" id="c-yard">
+            <h1>Yard Sign</h1>
+            <p class="value-line">Weatherproof corrugated plastic, built for outdoor use in any season.</p>
+            <div class="price-row"><span class="from">Starting at</span>[$X]</div>
+            <div class="variant-group"><label class="vlabel">Size</label><div class="btn-select-row"><div class="btn-select selected">18x24in</div><div class="btn-select">24x36in</div><div class="btn-select">Custom</div></div></div>
+            <div class="variant-group"><label class="vlabel">Sides</label><div class="btn-select-row"><div class="btn-select selected">Single-Sided</div><div class="btn-select">Double-Sided</div></div></div>
+            <div class="variant-group"><label class="vlabel">Stake</label><div class="btn-select-row"><div class="btn-select selected">Include H-Stake</div><div class="btn-select">No Stake</div></div></div>
+          </div>
+
+          <!-- POSTER -->
+          <div class="type-panel" id="c-poster">
+            <h1>Standard Poster</h1>
+            <p class="value-line">Full-color print on premium poster stock, indoor display ready.</p>
+            <div class="price-row"><span class="from">Starting at</span>[$X]</div>
+            <div class="variant-group"><label class="vlabel">Size</label><div class="btn-select-row"><div class="btn-select selected">11x17in</div><div class="btn-select">18x24in</div><div class="btn-select">24x36in</div></div></div>
+            <div class="variant-group"><label class="vlabel">Paper Type</label><div class="btn-select-row"><div class="btn-select selected">Matte</div><div class="btn-select">Glossy</div><div class="btn-select">Poster Board</div></div></div>
+          </div>
+
+          <!-- CLING -->
+          <div class="type-panel" id="c-cling">
+            <h1>Window Cling</h1>
+            <p class="value-line">Static cling, no adhesive residue, applies to glass or smooth surfaces.</p>
+            <div class="price-row"><span class="from">Starting at</span>[$X]</div>
+            <div class="variant-group"><label class="vlabel">Size</label><div class="btn-select-row"><div class="btn-select selected">12x12in</div><div class="btn-select">18x18in</div><div class="btn-select">24x24in</div><div class="btn-select">Custom</div></div></div>
+            <div class="variant-group"><label class="vlabel">Type</label><div class="btn-select-row"><div class="btn-select selected">Static Cling</div><div class="btn-select">One-Way Vision (Perforated)</div></div></div>
+          </div>
+
+          <!-- BANNER -->
+          <div class="type-panel" id="c-banner">
+            <h1>Retractable Banner</h1>
+            <p class="value-line">Roll-up stand banner, set up in under a minute for any event.</p>
+            <div class="price-row"><span class="from">Starting at</span>[$X]</div>
+            <div class="variant-group"><label class="vlabel">Stand Size</label><div class="btn-select-row"><div class="btn-select selected">33x81in Standard</div><div class="btn-select">24x81in Compact</div></div></div>
+            <div class="variant-group"><label class="vlabel">Stand Quality</label><div class="btn-select-row"><div class="btn-select selected">Economy</div><div class="btn-select">Premium</div></div></div>
+            <div class="variant-group"><label class="vlabel">Carry Case</label><div class="btn-select-row"><div class="btn-select selected">Include Case</div><div class="btn-select">No Case</div></div></div>
+          </div>
+
+          <div class="qty-row"><label class="vlabel" style="margin:0;">Qty</label><div class="qty-box"><button>&minus;</button><span>1</span><button>+</button></div></div>
+
+          <a href="#" class="btn btn-primary btn-block">Upload Artwork &amp; Order</a>
+
+          <div class="trust-row">
+            <span class="icon-chip"><svg><use href="#i-sun"/></svg>Outdoor Rated</span>
+            <span class="icon-chip"><svg><use href="#i-shield"/></svg>Proof Before Print</span>
+            <span class="icon-chip"><svg><use href="#i-clock"/></svg>Same-Day if by 12 PM</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+  <div class="wn"><b>CRO driver:</b> Friction reduction, this is the direct fix for the "too many option pieces" problem. <b>Why here:</b> Signs &amp; Banners covers 4 genuinely different physical products (Yard Signs, Standard Posters, Window Clings, Retractable Banner), each with its own real options. Cramming all of them into one static form was the issue with the earlier draft. This version puts a product-type switcher at the top of the buybox, selecting a type reveals only that product's real variant fields (size, sides, stake for yard signs; paper type for posters; cling type for window clings; stand quality and case for banners), everything else stays hidden. One template, four distinct configurators, this is the actual mechanism, not a mockup of it.</div>
+
+  <section style="padding-top:0;">
+    <div class="wrap desc-grid">
+      <div>
+        <h2>Built for outside, not just indoors</h2>
+        <div class="feature-icon-grid" style="grid-template-columns:repeat(2,1fr);margin-bottom:22px;">
+          <div class="fi"><div class="feature-icon"><svg><use href="#i-sun"/></svg></div><h4>UV-cured ink</h4><p>Holds color for a full outdoor season.</p></div>
+          <div class="fi"><div class="feature-icon"><svg><use href="#i-shield"/></svg></div><h4>Proof before print</h4><p>Nothing ships without your approval.</p></div>
+        </div>
+        <p>4mm corrugated plastic resists rain, wind, and direct sun without fading or warping. Includes a wire H-stake for easy ground mounting.</p>
+      </div>
+      <div>
+        <h2>Upload your artwork</h2>
+        <p>PNG, PDF, or AI at 150 DPI minimum, with a 0.25 inch bleed. Every file gets a free proof before we print.</p>
+        <a href="#" class="btn btn-secondary btn-block">See File Requirements</a>
+      </div>
+    </div>
+  </section>
+
+  <section style="background:var(--offwhite);">
+    <div class="wrap">
+      <div class="section-head"><h2>Complete your setup</h2></div>
+      <div class="card-grid">
+        <div class="mini-card"><div class="placeholder">[Photo]</div><div class="mini-card-body"><h4>Extra H-Stake</h4><div class="price">From [$X]</div></div></div>
+        <div class="mini-card"><div class="placeholder">[Photo]</div><div class="mini-card-body"><h4>Retractable Banner</h4><div class="price">From [$X]</div></div></div>
+        <div class="mini-card"><div class="placeholder">[Photo]</div><div class="mini-card-body"><h4>Window Cling</h4><div class="price">From [$X]</div></div></div>
+        <div class="mini-card"><div class="placeholder">[Photo]</div><div class="mini-card-body"><h4>Standard Poster</h4><div class="price">From [$X]</div></div></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="rating-summary"><span class="big">4.7</span><div class="rating-bars">
+        <div class="bar-row">5<div class="bar-track"><div class="bar-fill" style="width:73%;"></div></div>73%</div>
+        <div class="bar-row">4<div class="bar-track"><div class="bar-fill" style="width:19%;"></div></div>19%</div>
+        <div class="bar-row">3<div class="bar-track"><div class="bar-fill" style="width:5%;"></div></div>5%</div>
+        <div class="bar-row">2<div class="bar-track"><div class="bar-fill" style="width:2%;"></div></div>2%</div>
+        <div class="bar-row">1<div class="bar-track"><div class="bar-fill" style="width:1%;"></div></div>1%</div>
+      </div><span style="font-size:13px;color:var(--navy-soft);">Based on 37 reviews</span></div>
+      <div class="review-grid">
+        <div class="review-card"><div class="stars-row">★★★★★</div><p class="quote">[Sample review] "Ordered 20 for a campaign, held up through two storms."</p><div class="who"><strong>[Customer Name]</strong></div></div>
+        <div class="review-card"><div class="stars-row">★★★★★</div><p class="quote">[Sample review] "Proof process caught a color issue before it printed."</p><div class="who"><strong>[Customer Name]</strong></div></div>
+        <div class="review-card"><div class="stars-row">★★★★☆</div><p class="quote">[Sample review] "Good quality, stake felt a little light for windy areas."</p><div class="who"><strong>[Customer Name]</strong></div></div>
+      </div>
+    </div>
+  </section>
+
+  <section style="background:var(--offwhite);">
+    <div class="wrap">
+      <div class="section-head"><h2>Questions about signs</h2></div>
+      <details class="faq-item" open><summary>Will it hold up outdoors?</summary><p>Yes, 4mm corrugated plastic with UV-cured ink is rated for a full outdoor season.</p></details>
+      <details class="faq-item"><summary>What file format do you need?</summary><p>PNG, PDF, or AI at 150 DPI minimum with a 0.25 inch bleed.</p></details>
+      <details class="faq-item"><summary>How does mounting work?</summary><p>Yard signs include a wire H-stake. Retractable banners include a stand. Window clings apply with static, no adhesive residue.</p></details>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="section-head"><h2>Recently viewed</h2></div>
+      <div class="card-grid">
+        <div class="mini-card"><div class="placeholder">[Photo]</div><div class="mini-card-body"><h4>Standard Poster</h4><div class="price">From [$X]</div></div></div>
+        <div class="mini-card"><div class="placeholder">[Photo]</div><div class="mini-card-body"><h4>Window Cling</h4><div class="price">From [$X]</div></div></div>
+        <div class="mini-card"><div class="placeholder">[Photo]</div><div class="mini-card-body"><h4>Retractable Banner</h4><div class="price">From [$X]</div></div></div>
+        <div class="mini-card"><div class="placeholder">[Photo]</div><div class="mini-card-body"><h4>Business Cards</h4><div class="price">From [$X]</div></div></div>
+      </div>
+    </div>
+  </section>
+
+  <div class="mobile-atc"><div class="price">[$X]</div><a href="#" class="btn btn-primary">Upload &amp; Order</a></div>
+</div>
+
+<!-- ============================================================ -->
+<!-- TAB D: PROMOTIONAL MATERIAL (rebuilt with product-type selector) -->
+<!-- ============================================================ -->
+<div class="tab-panel" id="tab-d">
+
+  <section style="padding-bottom:0;">
+    <div class="wrap"><div class="breadcrumb"><a href="#">Home</a> / <a href="#">Promotional Material</a> / <span id="d-crumb">Standard Brochures</span></div></div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="pdp-grid">
+        <div class="gallery">
+          <div class="placeholder main-img">[Main Photo: brochure stack, tri-fold open]</div>
+          <div class="thumbs"><div class="placeholder">[Closed]</div><div class="placeholder">[Finish detail]</div><div class="placeholder">[Fold types]</div><div class="placeholder">[Stack scale]</div><div class="placeholder">[In hand]</div></div>
+        </div>
+        <div class="buybox">
+          <label class="vlabel" style="margin-bottom:10px;">Choose a product</label>
+          <div class="type-selector">
+            <button class="type-pill" onclick="showType('d','flyer',this)">Business Flyers</button>
+            <button class="type-pill" onclick="showType('d','club',this)">Club Flyers</button>
+            <button class="type-pill active" onclick="showType('d','brochure',this)">Brochures</button>
+            <button class="type-pill" onclick="showType('d','booklet',this)">Bulk Booklets</button>
+            <button class="type-pill" onclick="showType('d','letterhead',this)">Letterhead</button>
+          </div>
+
+          <div class="rating"><span class="stars-row">★★★★★</span>4.8 (58 reviews)</div>
+
+          <!-- FLYER -->
+          <div class="type-panel" id="d-flyer">
+            <h1>Business Flyers</h1>
+            <p class="value-line">Full-color flyers on premium stock, priced by quantity.</p>
+            <table class="price-table"><tr><th>Qty</th><th>Price/Unit</th><th>Total</th></tr><tr><td>100</td><td>[$X]</td><td>[$X]</td></tr><tr class="best"><td>500</td><td>[$X]</td><td>[$X]</td></tr><tr><td>1,000</td><td>[$X]</td><td>[$X]</td></tr></table>
+            <div class="variant-group"><label class="vlabel">Size</label><div class="btn-select-row"><div class="btn-select selected">5.5x8.5in</div><div class="btn-select">8.5x11in</div></div></div>
+            <div class="variant-group"><label class="vlabel">Sides</label><div class="btn-select-row"><div class="btn-select selected">Single-Sided</div><div class="btn-select">Double-Sided</div></div></div>
+          </div>
+
+          <!-- CLUB FLYER -->
+          <div class="type-panel" id="d-club">
+            <h1>Club Flyers</h1>
+            <p class="value-line">Vibrant, nightlife-ready flyers built to stand out on a crowded table.</p>
+            <table class="price-table"><tr><th>Qty</th><th>Price/Unit</th><th>Total</th></tr><tr><td>250</td><td>[$X]</td><td>[$X]</td></tr><tr class="best"><td>1,000</td><td>[$X]</td><td>[$X]</td></tr><tr><td>2,500</td><td>[$X]</td><td>[$X]</td></tr></table>
+            <div class="variant-group"><label class="vlabel">Size</label><div class="btn-select-row"><div class="btn-select selected">4x6in</div></div></div>
+            <div class="variant-group"><label class="vlabel">Finish</label><div class="btn-select-row"><div class="btn-select selected">Glossy UV</div><div class="btn-select">Matte</div></div></div>
+          </div>
+
+          <!-- BROCHURE -->
+          <div class="type-panel active" id="d-brochure">
+            <h1>Standard Brochures</h1>
+            <p class="value-line">Full-color, professionally folded, priced by the quantity you actually order.</p>
+            <table class="price-table"><tr><th>Qty</th><th>Price/Unit</th><th>Total</th></tr><tr><td>100</td><td>[$X]</td><td>[$X]</td></tr><tr class="best"><td>500</td><td>[$X]</td><td>[$X]</td></tr><tr><td>1,000</td><td>[$X]</td><td>[$X]</td></tr></table>
+            <div class="variant-group"><label class="vlabel">Fold</label><div class="btn-select-row"><div class="btn-select selected">Tri-Fold</div><div class="btn-select">Bi-Fold</div><div class="btn-select">Z-Fold</div></div></div>
+            <div class="variant-group"><label class="vlabel">Paper Finish</label><div class="btn-select-row"><div class="btn-select selected">Matte</div><div class="btn-select">Gloss</div></div></div>
+          </div>
+
+          <!-- BOOKLET -->
+          <div class="type-panel" id="d-booklet">
+            <h1>Bulk Booklets</h1>
+            <p class="value-line">Saddle-stitched booklets for catalogs, programs, or lookbooks.</p>
+            <table class="price-table"><tr><th>Qty</th><th>Price/Unit</th><th>Total</th></tr><tr><td>50</td><td>[$X]</td><td>[$X]</td></tr><tr class="best"><td>250</td><td>[$X]</td><td>[$X]</td></tr><tr><td>500</td><td>[$X]</td><td>[$X]</td></tr></table>
+            <div class="variant-group"><label class="vlabel">Page Count</label><div class="btn-select-row"><div class="btn-select selected">8pg</div><div class="btn-select">16pg</div><div class="btn-select">24pg</div><div class="btn-select">32pg</div></div></div>
+            <div class="variant-group"><label class="vlabel">Binding</label><div class="btn-select-row"><div class="btn-select selected">Saddle-Stitch</div></div></div>
+          </div>
+
+          <!-- LETTERHEAD -->
+          <div class="type-panel" id="d-letterhead">
+            <h1>Letterhead</h1>
+            <p class="value-line">Premium stock letterhead that matches the rest of your marketing kit.</p>
+            <table class="price-table"><tr><th>Qty</th><th>Price/Unit</th><th>Total</th></tr><tr><td>250</td><td>[$X]</td><td>[$X]</td></tr><tr class="best"><td>500</td><td>[$X]</td><td>[$X]</td></tr><tr><td>1,000</td><td>[$X]</td><td>[$X]</td></tr></table>
+            <div class="variant-group"><label class="vlabel">Paper Weight</label><div class="btn-select-row"><div class="btn-select selected">24lb</div><div class="btn-select">32lb</div><div class="btn-select">70lb Cover</div></div></div>
+            <div class="variant-group"><label class="vlabel">Sides</label><div class="btn-select-row"><div class="btn-select selected">Single-Sided</div><div class="btn-select">Double-Sided</div></div></div>
+          </div>
+
+          <a href="#" class="btn btn-primary btn-block">Upload Artwork &amp; Order</a>
+
+          <div class="trust-row">
+            <span class="icon-chip"><svg><use href="#i-shield"/></svg>Proof Before Print</span>
+            <span class="icon-chip"><svg><use href="#i-clock"/></svg>Same-Day if by 12 PM</span>
+            <span class="icon-chip"><svg><use href="#i-tag"/></svg>Bulk Pricing</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+  <div class="wn"><b>CRO driver:</b> Value communication + friction reduction. <b>Why here:</b> Same product-type switcher pattern as Signs &amp; Banners, applied here for the same reason, 5 genuinely different products (flyers, club flyers, brochures, booklets, letterhead) each need their own real options (fold type only applies to brochures, page count only to booklets, paper weight only to letterhead). Bulk pricing table shows above the fold for every type, not just brochures, since this entire collection is bulk-driven.</div>
+
+  <section style="padding-top:0;">
+    <div class="wrap desc-grid">
+      <div>
+        <h2>Don't have a design ready</h2>
+        <p>Upload your own artwork or let us build it for you, from a brief to a print-ready file, same-day if submitted by 12 PM.</p>
+        <a href="#" class="btn btn-secondary btn-block">Get Design Help</a>
+      </div>
+      <div>
+        <h2>Buy more, save more</h2>
+        <div class="discount-ladder">
+          <div><strong>250+</strong><span>10% off</span></div>
+          <div><strong>500+</strong><span>20% off</span></div>
+          <div class="best"><strong>1,000+</strong><span>30% off</span></div>
+          <div><strong>2,500+</strong><span>40% off</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section style="background:var(--offwhite);">
+    <div class="wrap">
+      <div class="section-head"><h2>Complete your marketing kit</h2></div>
+      <div class="card-grid">
+        <div class="mini-card"><div class="placeholder">[Photo]</div><div class="mini-card-body"><h4>Business Cards</h4><div class="price">From [$X]</div></div></div>
+        <div class="mini-card"><div class="placeholder">[Photo]</div><div class="mini-card-body"><h4>Letterhead</h4><div class="price">From [$X]</div></div></div>
+        <div class="mini-card"><div class="placeholder">[Photo]</div><div class="mini-card-body"><h4>Bulk Booklets</h4><div class="price">From [$X]</div></div></div>
+        <div class="mini-card"><div class="placeholder">[Photo]</div><div class="mini-card-body"><h4>Retractable Banner</h4><div class="price">From [$X]</div></div></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="rating-summary"><span class="big">4.8</span><div class="rating-bars">
+        <div class="bar-row">5<div class="bar-track"><div class="bar-fill" style="width:81%;"></div></div>81%</div>
+        <div class="bar-row">4<div class="bar-track"><div class="bar-fill" style="width:14%;"></div></div>14%</div>
+        <div class="bar-row">3<div class="bar-track"><div class="bar-fill" style="width:3%;"></div></div>3%</div>
+        <div class="bar-row">2<div class="bar-track"><div class="bar-fill" style="width:1%;"></div></div>1%</div>
+        <div class="bar-row">1<div class="bar-track"><div class="bar-fill" style="width:1%;"></div></div>1%</div>
+      </div><span style="font-size:13px;color:var(--navy-soft);">Based on 58 reviews</span></div>
+      <div class="review-grid">
+        <div class="review-card"><div class="stars-row">★★★★★</div><p class="quote">[Sample review] "Ordered 500 for a trade show, price broke down exactly like the table said."</p><div class="who"><strong>[Customer Name]</strong></div></div>
+        <div class="review-card"><div class="stars-row">★★★★★</div><p class="quote">[Sample review] "Design help team turned my rough idea into something clean fast."</p><div class="who"><strong>[Customer Name]</strong></div></div>
+        <div class="review-card"><div class="stars-row">★★★★☆</div><p class="quote">[Sample review] "Good print quality, proof step added a day but worth it."</p><div class="who"><strong>[Customer Name]</strong></div></div>
+      </div>
+    </div>
+  </section>
+
+  <section style="background:var(--offwhite);">
+    <div class="wrap">
+      <div class="section-head"><h2>Questions about promo material</h2></div>
+      <details class="faq-item" open><summary>What paper weights are available?</summary><p>[Placeholder, confirm real stock options] Standard 100lb gloss or matte text stock, heavier 14pt cover stock for booklets and letterhead.</p></details>
+      <details class="faq-item"><summary>Can I get this same-day?</summary><p>Orders submitted with approved artwork by 12 PM go into same-day production. Design-help orders may need an extra day for the design step.</p></details>
+      <details class="faq-item"><summary>Is there a minimum order?</summary><p>Yes, minimums vary by product, shown at the quantity selector above.</p></details>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="section-head"><h2>Recently viewed</h2></div>
+      <div class="card-grid">
+        <div class="mini-card"><div class="placeholder">[Photo]</div><div class="mini-card-body"><h4>Business Flyers</h4><div class="price">From [$X]</div></div></div>
+        <div class="mini-card"><div class="placeholder">[Photo]</div><div class="mini-card-body"><h4>Club Flyers</h4><div class="price">From [$X]</div></div></div>
+        <div class="mini-card"><div class="placeholder">[Photo]</div><div class="mini-card-body"><h4>Letterhead</h4><div class="price">From [$X]</div></div></div>
+        <div class="mini-card"><div class="placeholder">[Photo]</div><div class="mini-card-body"><h4>Business Cards</h4><div class="price">From [$X]</div></div></div>
+      </div>
+    </div>
+  </section>
+
+  <div class="mobile-atc"><div class="price">From [$X]</div><a href="#" class="btn btn-primary">Order Now</a></div>
+</div>
+
+<!-- ============================================================ -->
+<!-- TAB E: BUSINESS CARDS -->
+<!-- ============================================================ -->
+<div class="tab-panel" id="tab-e">
+
+  <section style="padding-bottom:0;">
+    <div class="wrap"><div class="breadcrumb"><a href="#">Home</a> / <a href="#">Marketing Material</a> / Standard Business Card</div></div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="reorder-strip"><span><svg><use href="#i-refresh"/></svg>Ordered these before?</span><a href="#" class="btn btn-secondary" style="padding:8px 16px;font-size:13px;">Reorder Saved Design</a></div>
+      <div class="pdp-grid">
+        <div class="gallery">
+          <div class="placeholder main-img">[Main Photo: card mockup on white]</div>
+          <div class="thumbs"><div class="placeholder">[Finish close-up]</div><div class="placeholder">[Stack scale]</div><div class="placeholder">[Matte sample]</div><div class="placeholder">[Gloss sample]</div><div class="placeholder">[Spot UV sample]</div></div>
+        </div>
+        <div class="buybox">
+          <div class="rating"><span class="stars-row">★★★★★</span>4.9 (302 reviews)</div>
+          <h1>Standard Business Card</h1>
+          <p class="value-line">Premium stock, sharp color, and a finish that holds up in a pocket.</p>
+
+          <table class="price-table"><tr><th>Qty</th><th>Price/Unit</th><th>Total</th></tr><tr><td>100</td><td>[$X]</td><td>[$X]</td></tr><tr class="best"><td>500</td><td>[$X]</td><td>[$X]</td></tr><tr><td>1,000</td><td>[$X]</td><td>[$X]</td></tr></table>
+
+          <div class="variant-group"><label class="vlabel">Finish</label><div class="btn-select-row"><div class="btn-select selected">Matte</div><div class="btn-select">Gloss</div><div class="btn-select">Spot UV</div><div class="btn-select">Foil</div></div></div>
+
+          <a href="#" class="btn btn-primary btn-block">Upload Artwork &amp; Order</a>
+
+          <div class="trust-row">
+            <span class="icon-chip"><svg><use href="#i-shield"/></svg>Proof Before Print</span>
+            <span class="icon-chip"><svg><use href="#i-clock"/></svg>Same-Day if by 12 PM</span>
+            <span class="icon-chip"><svg><use href="#i-refresh"/></svg>2-Click Reorder</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+  <div class="wn"><b>CRO driver:</b> Friction reduction for a high-frequency reorder item. <b>Why here:</b> Reorder shortcut sits above the gallery. Price-break table above the fold matches the Promotional Material pattern.</div>
+
+  <section style="padding-top:0;">
+    <div class="wrap desc-grid">
+      <div>
+        <h2>Choose your finish</h2>
+        <table class="price-table"><tr><th>Finish</th><th>Feel</th><th>Best For</th></tr><tr><td>Matte</td><td>Soft-touch, no glare</td><td>Most professional use</td></tr><tr><td>Gloss</td><td>Vibrant, reflective</td><td>Bold colors, photography</td></tr><tr><td>Spot UV</td><td>Raised gloss accents</td><td>Logos, standout details</td></tr><tr><td>Foil</td><td>Metallic accent</td><td>Premium, luxury brands</td></tr></table>
+      </div>
+      <div>
+        <h2>Fast reorders, every time</h2>
+        <div class="feature-icon-grid" style="grid-template-columns:1fr;">
+          <div class="fi"><div class="feature-icon"><svg><use href="#i-refresh"/></svg></div><h4>Two-click reorder</h4><p>Design and specs save to your account, no re-uploading, no re-approving a proof.</p></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section style="background:var(--offwhite);">
+    <div class="wrap">
+      <div class="section-head"><h2>Complete your marketing kit</h2></div>
+      <div class="card-grid">
+        <div class="mini-card"><div class="placeholder">[Photo]</div><div class="mini-card-body"><h4>Letterhead</h4><div class="price">From [$X]</div></div></div>
+        <div class="mini-card"><div class="placeholder">[Photo]</div><div class="mini-card-body"><h4>Business Flyers</h4><div class="price">From [$X]</div></div></div>
+        <div class="mini-card"><div class="placeholder">[Photo]</div><div class="mini-card-body"><h4>Standard Brochures</h4><div class="price">From [$X]</div></div></div>
+        <div class="mini-card"><div class="placeholder">[Photo]</div><div class="mini-card-body"><h4>Retractable Banner</h4><div class="price">From [$X]</div></div></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="rating-summary"><span class="big">4.9</span><div class="rating-bars">
+        <div class="bar-row">5<div class="bar-track"><div class="bar-fill" style="width:90%;"></div></div>90%</div>
+        <div class="bar-row">4<div class="bar-track"><div class="bar-fill" style="width:7%;"></div></div>7%</div>
+        <div class="bar-row">3<div class="bar-track"><div class="bar-fill" style="width:2%;"></div></div>2%</div>
+        <div class="bar-row">2<div class="bar-track"><div class="bar-fill" style="width:1%;"></div></div>1%</div>
+        <div class="bar-row">1<div class="bar-track"><div class="bar-fill" style="width:0%;"></div></div>0%</div>
+      </div><span style="font-size:13px;color:var(--navy-soft);">Based on 302 reviews</span></div>
+      <div class="review-grid">
+        <div class="review-card"><div class="stars-row">★★★★★</div><p class="quote">[Sample review] "Reordered in two minutes using the saved design."</p><div class="who"><strong>[Customer Name]</strong></div></div>
+        <div class="review-card"><div class="stars-row">★★★★★</div><p class="quote">[Sample review] "Spot UV finish looks incredible in person, worth the upgrade."</p><div class="who"><strong>[Customer Name]</strong></div></div>
+        <div class="review-card"><div class="stars-row">★★★★★</div><p class="quote">[Sample review] "Ordered by noon, had them same day for a meeting."</p><div class="who"><strong>[Customer Name]</strong></div></div>
+      </div>
+    </div>
+  </section>
+
+  <section style="background:var(--offwhite);">
+    <div class="wrap">
+      <div class="section-head"><h2>Questions about business cards</h2></div>
+      <details class="faq-item" open><summary>What file format do you need?</summary><p>PNG, PDF, or AI at 300 DPI with a 0.125 inch bleed.</p></details>
+      <details class="faq-item"><summary>How fast is turnaround?</summary><p>Order before 12 PM and it ships same day, or pick up locally until 4 PM.</p></details>
+      <details class="faq-item"><summary>Do you have design templates?</summary><p>Yes, downloadable templates are available for each finish and size, linked at checkout.</p></details>
+      <details class="faq-item"><summary>How does reordering work?</summary><p>Your last design and specs save automatically to your account. Reordering is two clicks.</p></details>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="section-head"><h2>Recently viewed</h2></div>
+      <div class="card-grid">
+        <div class="mini-card"><div class="placeholder">[Photo]</div><div class="mini-card-body"><h4>Letterhead</h4><div class="price">From [$X]</div></div></div>
+        <div class="mini-card"><div class="placeholder">[Photo]</div><div class="mini-card-body"><h4>Standard Poster</h4><div class="price">From [$X]</div></div></div>
+        <div class="mini-card"><div class="placeholder">[Photo]</div><div class="mini-card-body"><h4>Gang Sheet Builder</h4><div class="price">From [$X]</div></div></div>
+        <div class="mini-card"><div class="placeholder">[Photo]</div><div class="mini-card-body"><h4>Club Flyers</h4><div class="price">From [$X]</div></div></div>
+      </div>
+    </div>
+  </section>
+
+  <div class="mobile-atc"><div class="price">From [$X]</div><a href="#" class="btn btn-primary">Order Now</a></div>
+</div>
+
+<script>
+function showTab(id, btn){
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('tab-' + id).classList.add('active');
+  document.querySelectorAll('.toolbar .tab-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+}
+function showType(collection, type, btn){
+  var panels = document.querySelectorAll('#tab-' + collection + ' .type-panel');
+  panels.forEach(p => p.classList.remove('active'));
+  document.getElementById(collection + '-' + type).classList.add('active');
+  var pills = btn.parentElement.querySelectorAll('.type-pill');
+  pills.forEach(p => p.classList.remove('active'));
+  btn.classList.add('active');
+  var crumb = document.getElementById(collection + '-crumb');
+  if(crumb){ crumb.innerText = btn.innerText; }
+}
+</script>
+
+</body>
+</html>

@@ -238,7 +238,7 @@ export function Header() {
       <AnnouncementBar />
 
       {/* Main header — layout depends on branding.header_layout */}
-      <header style={{ background: "#FFFFFF", borderBottom: "1px solid #E2E2DE", position: "sticky", top: 0, zIndex: 1 }}>
+      <header data-app-chrome style={{ background: "#FFFFFF", borderBottom: "1px solid #E2E2DE", position: "sticky", top: 0, zIndex: 1 }}>
         {layout === "logo_center" ? (
           // Menu left · logo centered · actions right
           <div className="header-inner" style={{ ...baseInner, display: "grid", gridTemplateColumns: "1fr auto 1fr", alignItems: "center", height: "90px", gap: "16px" }}>
