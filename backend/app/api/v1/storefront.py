@@ -422,6 +422,8 @@ async def update_admin_branding(
     updates = data.model_dump(exclude_none=True)
     if not updates:
         return await _fetch_branding(db, tenant_id)
+    if "home_sections" in updates:
+        updates["home_sections"] = _checked_sections(updates["home_sections"])
 
     # Ensure a row exists.
     await db.execute(
@@ -494,6 +496,15 @@ async def _unique_page_slug(
             return candidate
         n += 1
         candidate = f"{base}-{n}"
+
+
+def _checked_sections(sections: Any) -> list:
+    """Page-builder sections with the custom-code limits enforced (422 if not)."""
+    from app.services.product_templates import TemplateError, check_sections
+    try:
+        return check_sections(sections, strict_types=False)
+    except TemplateError as e:
+        raise HTTPException(status_code=422, detail=str(e))
 
 
 def _page_row(row: Any) -> dict[str, Any]:
@@ -583,7 +594,7 @@ async def create_admin_page(data: PageCreate, request: Request, db: AsyncSession
         "tid": str(tenant_id),
         "slug": slug,
         "title": data.title.strip() or "Untitled",
-        "sections": json.dumps(data.sections or []),
+        "sections": json.dumps(_checked_sections(data.sections or [])),
         "so": sort_order,
     })
     row = res.mappings().first()
@@ -619,7 +630,7 @@ async def update_admin_page(page_id: uuid.UUID, data: PageUpdate, request: Reque
         params["title"] = updates["title"].strip() or "Untitled"
     if "sections" in updates:
         set_parts.append("sections = CAST(:sections AS jsonb)")
-        params["sections"] = json.dumps(updates["sections"])
+        params["sections"] = json.dumps(_checked_sections(updates["sections"]))
     for flag in ("is_published", "show_in_nav", "sort_order"):
         if flag in updates:
             set_parts.append(f"{flag} = :{flag}")

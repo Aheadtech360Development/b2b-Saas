@@ -26,7 +26,45 @@ const SECTION_META: Record<string, { label: string; icon: string }> = {
   logo_strip: { label: "Logo Strip", icon: "🏷" },
   newsletter: { label: "Newsletter", icon: "✉️" },
   contact_form: { label: "Contact Form", icon: "📬" },
+  custom_code: { label: "Custom Code", icon: "</>" },
 };
+
+const codeBox: React.CSSProperties = { width: "100%", border: "1px solid #E3E3E3", borderRadius: "8px", padding: "10px 12px", fontSize: "12.5px", outline: "none", boxSizing: "border-box", background: "#FBFBFA", fontFamily: "'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace", lineHeight: 1.5, resize: "vertical", tabSize: 2 };
+const CODE_LIMIT = 100_000;
+
+/** HTML / CSS / JS editor — custom code sections and template code blocks. */
+export function CodeFields({ html, css, js, onChange, tokensHint }: {
+  html?: string; css?: string; js?: string;
+  onChange: (patch: { html?: string; css?: string; js?: string }) => void;
+  tokensHint?: boolean;
+}) {
+  const size = new Blob([html ?? "", css ?? "", js ?? ""]).size;
+  const over = size > CODE_LIMIT;
+  return (
+    <div>
+      <div style={{ marginBottom: "10px" }}>
+        <label style={label}>HTML</label>
+        <textarea spellCheck={false} style={{ ...codeBox, minHeight: "140px" }} value={html ?? ""} onChange={(e) => onChange({ html: e.target.value })} placeholder={"<div class=\"promo\">\n  <h3>Free shipping over $99</h3>\n</div>"} />
+      </div>
+      <div className="code-fields-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+        <div>
+          <label style={label}>CSS</label>
+          <textarea spellCheck={false} style={{ ...codeBox, minHeight: "110px" }} value={css ?? ""} onChange={(e) => onChange({ css: e.target.value })} placeholder={".promo { padding: 24px; text-align: center; }"} />
+        </div>
+        <div>
+          <label style={label}>JavaScript</label>
+          <textarea spellCheck={false} style={{ ...codeBox, minHeight: "110px" }} value={js ?? ""} onChange={(e) => onChange({ js: e.target.value })} placeholder={"// runs inside this section only"} />
+        </div>
+      </div>
+      <p style={{ fontSize: "12px", color: over ? "#B91C1C" : "#7A7880", marginTop: "8px", lineHeight: 1.5 }}>
+        {over ? `Too large to save (${Math.round(size / 1000)} KB of ${CODE_LIMIT / 1000} KB). ` : ""}
+        Your code runs in its own sandboxed frame: its CSS only styles this section, and its script can&apos;t read shoppers&apos; accounts or change the rest of the page. Links open in the main window.
+        {tokensHint && <> Product data works here too, e.g. <code>{"{{ product.title }}"}</code> or <code>{"{{ product.metafields.key }}"}</code>.</>}
+      </p>
+      <style>{`@media (max-width: 720px) { .code-fields-grid { grid-template-columns: 1fr !important; } }`}</style>
+    </div>
+  );
+}
 
 const label: React.CSSProperties = { display: "block", fontSize: "12px", fontWeight: 600, color: "#555", marginBottom: "6px", textTransform: "uppercase", letterSpacing: ".04em" };
 const input: React.CSSProperties = { width: "100%", border: "1px solid #E3E3E3", borderRadius: "8px", padding: "10px 12px", fontSize: "14px", outline: "none", boxSizing: "border-box", background: "#fff" };
@@ -92,13 +130,15 @@ function ButtonEditor({ btn, products, categories, pages, onChange, onRemove }: 
   );
 }
 
-export function SectionsEditor({ sections, onChange, products, categories, pages, allowedTypes }: {
+export function SectionsEditor({ sections, onChange, products, categories, pages, allowedTypes, tokensHint }: {
   sections: PageSection[];
   onChange: (sections: PageSection[]) => void;
   products: EditorProduct[];
   categories: Category[];
   pages: StorefrontPageRecord[];
   allowedTypes?: string[];
+  /** Product templates: say that {{ product.… }} tokens work in code. */
+  tokensHint?: boolean;
 }) {
   const [mediaPickerFor, setMediaPickerFor] = useState<{ kind: "section" | "gallery" | "slide" | "avatar" | "logos"; index: number; slideIdx?: number } | null>(null);
   const types = allowedTypes ?? Object.keys(SECTION_META);
@@ -149,6 +189,8 @@ export function SectionsEditor({ sections, onChange, products, categories, pages
         ] }
       : type === "logo_strip"
       ? { type, heading: "Trusted by", logos: [] }
+      : type === "custom_code"
+      ? { type, heading: "Custom section", html: "", css: "", js: "" }
       : { type, heading: "", body: "" };
     onChange([...sections, { ...base, id: genId() }]);
   }
@@ -192,10 +234,21 @@ export function SectionsEditor({ sections, onChange, products, categories, pages
             </div>
 
             {/* Heading (all types except slideshow which uses per-slide text) */}
-            {s.type !== "slideshow" && (
+            {s.type !== "slideshow" && s.type !== "custom_code" && (
               <div style={{ marginBottom: "12px" }}>
                 <label style={label}>Heading</label>
                 <input style={input} value={s.heading ?? ""} onChange={(e) => updateSection(i, { heading: e.target.value })} placeholder="Section heading" />
+              </div>
+            )}
+
+            {/* Custom code — a name for the editor, then the code itself */}
+            {s.type === "custom_code" && (
+              <div style={{ marginBottom: "14px" }}>
+                <div style={{ marginBottom: "12px" }}>
+                  <label style={label}>Section name <span style={{ textTransform: "none", letterSpacing: 0, fontWeight: 400, color: "#9A98A0" }}>(only shown here)</span></label>
+                  <input style={input} value={s.heading ?? ""} onChange={(e) => updateSection(i, { heading: e.target.value })} placeholder="e.g. Size guide widget" />
+                </div>
+                <CodeFields html={s.html} css={s.css} js={s.js} tokensHint={tokensHint} onChange={(patch) => updateSection(i, patch)} />
               </div>
             )}
 
@@ -431,11 +484,11 @@ export function SectionsEditor({ sections, onChange, products, categories, pages
               </div>
             )}
 
-            {/* Colors */}
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginBottom: "14px" }}>
+            {/* Colors — custom code styles itself */}
+            {s.type !== "custom_code" && <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginBottom: "14px" }}>
               <div><label style={label}>Background</label><ColorInput value={s.bg_color} onChange={(v) => updateSection(i, { bg_color: v })} /></div>
               <div><label style={label}>Text Color</label><ColorInput value={s.text_color} onChange={(v) => updateSection(i, { text_color: v })} /></div>
-            </div>
+            </div>}
 
             {/* Buttons */}
             {(s.type === "hero" || s.type === "image_text") && (

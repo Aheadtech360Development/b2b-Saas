@@ -10,6 +10,7 @@ from app.models.product import Product, ProductVariant, ProductImage, Category  
 from app.models.product_option import ProductOption, ProductOptionValue, ProductOptionRule, ProductQtyTier, ProductOptionCombination  # noqa: F401
 from app.models.inventory import Warehouse, InventoryRecord, InventoryAdjustment  # noqa: F401
 from app.models.collection import Collection, CollectionProduct  # noqa: F401
+from app.models.product_template import ProductTemplate  # noqa: F401
 from app.models.order import Order, OrderItem, CartItem, AbandonedCart, OrderTemplate, OrderComment, OrderEvent  # noqa: F401
 from app.models.wholesale import WholesaleApplication  # noqa: F401
 from app.models.rma import RMARequest, RMAItem  # noqa: F401

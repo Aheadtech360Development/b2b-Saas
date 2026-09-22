@@ -111,6 +111,23 @@ async def create_product(payload: ProductCreate, db: AsyncSession = Depends(get_
 async def update_product(
     product_id: UUID, payload: ProductUpdate, db: AsyncSession = Depends(get_db)
 ):
+    fields = payload.model_fields_set
+    if "metafields" in fields:
+        from app.services import product_templates as tpl
+        try:
+            payload.metafields = tpl.clean_metafields(payload.metafields)
+        except tpl.TemplateError as e:
+            raise HTTPException(status_code=422, detail=str(e))
+    if "template_id" in fields and payload.template_id is not None:
+        # Only one of this brand's own templates — the session is tenant
+        # scoped, so another brand's id is simply not found.
+        from app.models.product_template import ProductTemplate
+        found = (await db.execute(
+            select(ProductTemplate.id).where(ProductTemplate.id == payload.template_id)
+        )).scalar_one_or_none()
+        if found is None:
+            raise HTTPException(status_code=422, detail="That product template doesn't exist.")
+
     svc = ProductService(db)
     product = await svc.update_product(product_id, payload)
     await db.commit()

@@ -7,6 +7,7 @@ import { contactService } from "@/services/contact.service";
 import StorefrontCustomizer from "@/components/admin/StorefrontCustomizer";
 import MenusManager from "@/components/admin/MenusManager";
 import PagesManager from "@/components/admin/PagesManager";
+import ProductTemplatesManager from "@/components/admin/ProductTemplatesManager";
 // Real, already-built admin features — reused (not rebuilt) inside this shell so
 // the new design has full parity with the old sidebar. All are self-contained
 // client screens, store-isolated at the backend.
@@ -1708,7 +1709,7 @@ const NAV = [
     { id: "discounts", label: "Discounts" }, { id: "stdshipping", label: "Standard shipping" }, { id: "blogs", label: "Blogs" }, { id: "stylesheets", label: "Style sheets" }, { id: "seo", label: "SEO" },
   ]},
   { id: "store-group", label: "Online Store", icon: Store, children: [
-    { id: "pages", label: "Pages" }, { id: "menus", label: "Menus" }, { id: "theme", label: "Storefront theme" }, { id: "media", label: "Media library" }, { id: "domains", label: "Domains" },
+    { id: "pages", label: "Pages" }, { id: "producttemplates", label: "Product templates" }, { id: "menus", label: "Menus" }, { id: "theme", label: "Storefront theme" }, { id: "media", label: "Media library" }, { id: "domains", label: "Domains" },
   ]},
   { id: "analytics", label: "Analytics", icon: BarChart3 },
   { id: "settings", label: "Settings", icon: SettingsIcon },
@@ -2237,6 +2238,7 @@ export default function App() {
   // Storefront builders — the real, full-featured tools (sections + live
   // preview) rendered inside this shell, not the prototype's stub screens.
   else if (view === "pages") content = <PagesManager />;
+  else if (view === "producttemplates") content = <ProductTemplatesManager />;
   else if (view === "menus") content = <MenusManager />;
   else if (view === "theme") content = <StorefrontCustomizer />;
   else if (view === "domains") content = <DomainsPanel />;

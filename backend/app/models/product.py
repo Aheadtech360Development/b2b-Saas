@@ -107,6 +107,15 @@ class Product(TenantMixin, BaseModel):
     # Starting unit price for a configurable product, before option deltas.
     base_price: Mapped[float | None] = mapped_column(Numeric(12, 4), nullable=True)
 
+    # ── Product page template (migration 0047) ───────────────────────────────
+    # NULL → the brand's default template, or the plain product page if it has
+    # none. The template only adds content around the standard product info.
+    template_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("product_templates.id", ondelete="SET NULL"), nullable=True
+    )
+    # Flat key → value data a template can print: {{ product.metafields.key }}
+    metafields: Mapped[dict] = mapped_column(JSONB, default=dict, nullable=False, server_default="{}")
+
     options: Mapped[list["ProductOption"]] = relationship(
         "ProductOption", back_populates="product", cascade="all, delete-orphan",
         order_by="ProductOption.position",

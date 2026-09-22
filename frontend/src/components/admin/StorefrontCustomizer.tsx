@@ -603,7 +603,7 @@ export default function StorefrontCustomizer() {
           products={allProducts}
           categories={allCategories}
           pages={pages}
-          allowedTypes={["slideshow", "image_text", "gallery", "features", "testimonials", "faq", "logo_strip", "newsletter", "rich_text"]}
+          allowedTypes={["slideshow", "image_text", "gallery", "features", "testimonials", "faq", "logo_strip", "newsletter", "rich_text", "custom_code"]}
         />
       </div>
 

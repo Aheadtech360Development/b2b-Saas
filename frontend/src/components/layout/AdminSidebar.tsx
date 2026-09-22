@@ -10,7 +10,7 @@ import { apiClient } from "@/lib/api-client";
 import {
   LayoutDashboard, ShoppingBag, RotateCcw, ClipboardList, Shirt, Boxes, LayoutGrid,
   Users, MessageSquare, Percent, Truck, FileText, Store, File, Image as ImageIcon,
-  Settings, Compass,
+  Settings, Compass, LayoutTemplate,
 } from "lucide-react";
 
 const ICON_PROPS = { size: 17, strokeWidth: 1.75 } as const;
@@ -279,6 +279,7 @@ export function AdminSidebar() {
       <div style={SECTION_HEAD}>Storefront</div>
       {can("storefront") && <NavLink href="/admin/storefront" label="Storefront" icon={<Store {...ICON_PROPS} />} exact />}
       {can("storefront") && <NavLink href="/admin/storefront/pages" label="Pages" icon={<File {...ICON_PROPS} />} />}
+      {can("storefront") && <NavLink href="/admin/storefront/product-templates" label="Product templates" icon={<LayoutTemplate {...ICON_PROPS} />} />}
       {can("storefront") && <NavLink href="/admin/storefront/menus" label="Menus" icon={<Compass {...ICON_PROPS} />} />}
       {can("media") && <NavLink href="/admin/media" label="Media Library" icon={<ImageIcon {...ICON_PROPS} />} />}
       </>}

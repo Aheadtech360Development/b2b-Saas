@@ -2,13 +2,15 @@
 
 /**
  * SectionRenderer — renders a storefront page from its `sections` array.
- * Section types: image_text, rich_text, hero, contact_form.
+ * Section types: image_text, rich_text, hero, contact_form, gallery, slideshow,
+ * newsletter, features, testimonials, faq, logo_strip, custom_code.
  * Every button resolves its link via link_type (page / product / category / custom).
  */
 import Link from "next/link";
 import { useState, useEffect } from "react";
 import { apiClient } from "@/lib/api-client";
 import { useBranding } from "@/components/providers/BrandingProvider";
+import CustomCodeFrame from "@/components/storefront/CustomCodeFrame";
 
 export interface PageButton {
   text: string;
@@ -85,6 +87,10 @@ export interface PageSection {
   testimonials?: TestimonialItem[];
   faqs?: FaqItem[];
   logos?: LogoItem[];
+  // custom_code — the brand's own HTML/CSS/JS, run in a sandboxed frame
+  html?: string;
+  css?: string;
+  js?: string;
   // per-section visibility (false = hidden)
   enabled?: boolean;
 }
@@ -483,6 +489,15 @@ function Newsletter({ s, primary }: { s: PageSection; primary: string }) {
   );
 }
 
+function CustomCode({ s }: { s: PageSection }) {
+  // Full width, no padding of its own: the code decides its own layout.
+  return (
+    <section style={{ background: s.bg_color || "transparent" }}>
+      <CustomCodeFrame html={s.html} css={s.css} js={s.js} title={s.heading || "Custom section"} />
+    </section>
+  );
+}
+
 export default function SectionRenderer({ sections }: { sections: PageSection[] }) {
   const b = useBranding();
   const primary = b.primary_color || "#1C3557";
@@ -501,6 +516,7 @@ export default function SectionRenderer({ sections }: { sections: PageSection[] 
           case "testimonials": return <Testimonials key={i} s={s} primary={primary} />;
           case "faq": return <Faq key={i} s={s} primary={primary} />;
           case "logo_strip": return <LogoStrip key={i} s={s} />;
+          case "custom_code": return <CustomCode key={i} s={s} />;
           default: return null;
         }
       })}

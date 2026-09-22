@@ -1,7 +1,7 @@
 // frontend/src/app/%28customer%29/products/%5Bslug%5D/ProductDetailClient.tsx
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { SIZE_ORDER } from "@/lib/utils";
@@ -14,6 +14,12 @@ import { UploadBySizeModal } from "@/components/storefront/UploadBySizeModal";
 import { gangSheetsService, type GangSheetOrder, type GangSheetSize } from "@/services/gangSheets.service";
 import { ProductConfigurator } from "@/components/storefront/ProductConfigurator";
 import { trackAddToCart, trackViewItem, type TrackedItem } from "@/lib/tracking";
+import SectionRenderer from "@/components/storefront/SectionRenderer";
+import {
+  CustomBlockView, LEGACY_BLOCKS, blockVisible, isStandard, withStandardBlocks,
+  type StorefrontTemplate, type TemplateBlock,
+} from "@/components/storefront/ProductTemplateBlocks";
+import { productTokenContext, resolveSectionTokens } from "@/lib/templateTokens";
 
 function formatWeightGrams(raw: string | null | undefined): string | null {
   if (!raw) return null;
@@ -440,6 +446,18 @@ export function ProductDetailClient({ slug }: ProductDetailClientProps) {
       })
       .catch(() => { /* not theirs, or gone — just show the product */ });
   }, []);
+  // Which product template this page uses (null → the page as it has always
+  // been). ?preview_template=<id> shows an admin that template's draft.
+  const [template, setTemplate] = useState<StorefrontTemplate | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    const preview = new URLSearchParams(window.location.search).get("preview_template");
+    const qs = preview && /^[0-9a-f-]{36}$/i.test(preview) ? `?preview=${preview}` : "";
+    apiClient.get<{ layout: StorefrontTemplate | null }>(`/api/v1/products/${slug}/template${qs}`)
+      .then((r) => { if (!cancelled) setTemplate(r?.layout ?? null); })
+      .catch(() => { if (!cancelled) setTemplate(null); });
+    return () => { cancelled = true; };
+  }, [slug]);
   const [gsSizes, setGsSizes] = useState<GangSheetSize[]>([]); // this gang-sheet product's own sizes (for the storefront size grid)
   const [gsSelectedId, setGsSelectedId] = useState("");
 
@@ -804,90 +822,17 @@ export function ProductDetailClient({ slug }: ProductDetailClientProps) {
     router.push(`/products/${slug}/email-flyer`);
   }
 
-  // ── Render ────────────────────────────────────────────────────────────────
-  return (
-    <div style={{ minHeight: "100vh", background: "#F8F8F6", fontFamily: "'DM Sans', sans-serif" }}>
 
-      {/* Breadcrumb */}
-      <div style={{ background: "#FFFFFF", borderBottom: "1px solid #E2E2DE", padding: "12px 24px" }}>
-        <div className="pdp-breadcrumb-inner" style={{ maxWidth: "1500px", margin: "0 auto", display: "flex", alignItems: "center", gap: "6px", fontFamily: "'DM Sans', sans-serif", fontSize: "12px", color: "#6B6B6B", flexWrap: "wrap" }}>
-          <Link href="/" style={{ color: "#6B6B6B", textDecoration: "none" }}>Home</Link>
-          <span>›</span>
-          <Link href="/products" style={{ color: "#6B6B6B", textDecoration: "none" }}>Collections</Link>
-          {product.categories?.[0] && (
-            <>
-              <span>›</span>
-              <Link href={`/products?category=${product.categories[0].slug}`} style={{ color: "#6B6B6B", textDecoration: "none" }}>
-                {product.categories[0].name}
-              </Link>
-            </>
-          )}
-          <span>›</span>
-          <span style={{ color: "#1A1A1A" }}>{product.name}</span>
-        </div>
-      </div>
+  // ── Product template ──────────────────────────────────────────────────────
+  // The four standard blocks are the product page's own parts, unchanged; a
+  // template only decides their order and what goes between and below them.
+  const tokenCtx = productTokenContext(product as any);
+  const columnBlocks: TemplateBlock[] = template ? withStandardBlocks(template.blocks) : LEGACY_BLOCKS;
+  const templateSections = (template?.sections ?? []).map((sec) => resolveSectionTokens(sec, tokenCtx));
+  const fromPrice = tokenCtx.product.price;
 
-      {/* Main content */}
-      <div style={{ maxWidth: "1500px", margin: "0 auto", padding: "0 24px 64px" }}>
-        <div className="pdp-main-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "56px", paddingTop: "32px" }}>
-
-          {/* ── LEFT: Image Gallery ─────────────────────────────────────── */}
-          <div className="pdp-gallery-col" style={{ position: "sticky", top: "24px", alignSelf: "start" }}>
-            {/* Main image */}
-            <div className="pdp-main-img" style={{ width: "100%", height: "480px", border: "1px solid #E2E2DE", display: "flex", alignItems: "center", justifyContent: "center", background: "#FFFFFF", overflow: "hidden" }}>
-              {displayImages[activeImageIdx] ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={imgSrc(displayImages[activeImageIdx]!)}
-                  alt={displayImages[activeImageIdx]!.alt_text ?? product.name}
-                  style={{ width: "100%", height: "100%", objectFit: "contain" }}
-                />
-              ) : (
-                <span style={{ fontSize: "80px", opacity: 0.1 }}>👕</span>
-              )}
-            </div>
-
-            {/* Thumbnails */}
-            {displayImages.length > 1 && (
-              <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "12px" }}>
-                {displayImages.map((img, i) => (
-                  <button
-                    key={img.id}
-                    onClick={() => setActiveImageIdx(i)}
-                    className="pdp-thumb"
-                    style={{ width: "80px", height: "80px", flexShrink: 0, border: activeImageIdx === i ? "1px solid var(--brand-primary, #1C3557)" : "1px solid #E2E2DE", cursor: "pointer", background: "#F8F8F6", padding: 0, outline: activeImageIdx === i ? "1px solid var(--brand-primary, #1C3557)" : "none", outlineOffset: "2px", overflow: "hidden" }}
-                  >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={thumbSrc(img)} alt={img.alt_text ?? ""} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                  </button>
-                ))}
-              </div>
-            )}
-
-            {/* Gallery links */}
-            <div className="pdp-gallery-links" style={{ marginTop: "14px", display: "flex", flexDirection: "row", gap: "20px" }}>
-              <a
-                href="#"
-                onClick={e => { e.preventDefault(); handleEmailFlyer(); }}
-                style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px", color: "var(--brand-primary, #1C3557)", textDecoration: "none", cursor: "pointer" }}
-              >
-                ↓ Email Flyer
-              </a>
-              {product.images && product.images.length > 0 && (
-                <a
-                  href="#"
-                  onClick={e => { e.preventDefault(); setShowImageLibrary(true); setExpandedLibraryColor(null); }}
-                  style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px", color: "var(--brand-primary, #1C3557)", textDecoration: "none", cursor: "pointer" }}
-                >
-                  View Image Library →
-                </a>
-              )}
-            </div>
-            {assetMsg && <p style={{ marginTop: "6px", fontSize: "12px", color: "#6B6B6B" }}>{assetMsg}</p>}
-          </div>
-
-          {/* ── RIGHT: Product Info ─────────────────────────────────────── */}
-          <div>
+  const titleBlock = (
+    <>
             {/* Product code */}
             {((product as any).product_code || (product as any).code) && (
               <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: "12px", color: "#6B6B6B", marginBottom: "8px" }}>
@@ -904,7 +849,16 @@ export function ProductDetailClient({ slug }: ProductDetailClientProps) {
             <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px", color: "#6B6B6B", marginBottom: "20px" }}>
               {[(product as any).fabric, (product as any).weight, uniqueColors.length > 0 ? `${uniqueColors.length} Colors` : null].filter(Boolean).join(" · ")}
             </div>
-
+    </>
+  );
+  const priceBlock = (showFrom: boolean) => (
+    <>
+      {showFrom && fromPrice && (
+        <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "22px", fontWeight: 600, color: "#1A1A1A", marginBottom: "16px" }}>
+          {(product.variants?.length ?? 0) > 1 ? <span style={{ fontSize: "13px", fontWeight: 500, color: "#6B6B6B", marginRight: "6px" }}>From</span> : null}
+          {fromPrice}
+        </div>
+      )}
             {/* Guest state — plain inline text, no card/box */}
             {!isAuthenticated && (
               <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px", color: "#6B6B6B", marginBottom: "22px" }}>
@@ -914,14 +868,20 @@ export function ProductDetailClient({ slug }: ProductDetailClientProps) {
                 <Link href="/login" style={{ color: "var(--brand-primary, #1C3557)", fontWeight: 500, textDecoration: "none" }}>Log In</Link>
               </p>
             )}
-
+    </>
+  );
+  const highlightBlock = (
+    <>
             {/* Highlight text */}
             {(product as any).highlight_text && (
               <div style={{ background: "rgba(28,53,87,.05)", border: "1px solid rgba(28,53,87,.15)", padding: "12px 16px", marginBottom: "20px", fontSize: "13px", color: "#1A1A1A", lineHeight: 1.6 }}>
                 ✅ {(product as any).highlight_text}
               </div>
             )}
-
+    </>
+  );
+  const buyBlock = (
+    <>
             {/* Configurable product — the brand's own option set, rendered
                 generically. Replaces the variant matrix for these products. */}
             {isConfigurable && (
@@ -1134,6 +1094,113 @@ export function ProductDetailClient({ slug }: ProductDetailClientProps) {
                 </Link>
               )
             ) : null}
+    </>
+  );
+  function standardBlock(b: TemplateBlock) {
+    switch (b.type) {
+      case "title": return titleBlock;
+      case "price": return priceBlock(b.show_from_price !== false);
+      case "highlight": return highlightBlock;
+      case "buy": return buyBlock;
+      default: return null;
+    }
+  }
+
+  // ── Render ────────────────────────────────────────────────────────────────
+  return (
+    <div style={{ minHeight: "100vh", background: "#F8F8F6", fontFamily: "'DM Sans', sans-serif" }}>
+
+      {template?.preview && (
+        <div style={{ background: "#FFFBEB", borderBottom: "1px solid #FDE68A", color: "#92400E", padding: "10px 24px", fontSize: "13px", fontFamily: "'DM Sans', sans-serif", textAlign: "center" }}>
+          Previewing <strong>{template.name}</strong> — unpublished changes. Shoppers see the published version.
+        </div>
+      )}
+
+      {/* Breadcrumb */}
+      <div style={{ background: "#FFFFFF", borderBottom: "1px solid #E2E2DE", padding: "12px 24px" }}>
+        <div className="pdp-breadcrumb-inner" style={{ maxWidth: "1500px", margin: "0 auto", display: "flex", alignItems: "center", gap: "6px", fontFamily: "'DM Sans', sans-serif", fontSize: "12px", color: "#6B6B6B", flexWrap: "wrap" }}>
+          <Link href="/" style={{ color: "#6B6B6B", textDecoration: "none" }}>Home</Link>
+          <span>›</span>
+          <Link href="/products" style={{ color: "#6B6B6B", textDecoration: "none" }}>Collections</Link>
+          {product.categories?.[0] && (
+            <>
+              <span>›</span>
+              <Link href={`/products?category=${product.categories[0].slug}`} style={{ color: "#6B6B6B", textDecoration: "none" }}>
+                {product.categories[0].name}
+              </Link>
+            </>
+          )}
+          <span>›</span>
+          <span style={{ color: "#1A1A1A" }}>{product.name}</span>
+        </div>
+      </div>
+
+      {/* Main content */}
+      <div style={{ maxWidth: "1500px", margin: "0 auto", padding: "0 24px 64px" }}>
+        <div className="pdp-main-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "56px", paddingTop: "32px" }}>
+
+          {/* ── LEFT: Image Gallery ─────────────────────────────────────── */}
+          <div className="pdp-gallery-col" style={{ position: "sticky", top: "24px", alignSelf: "start" }}>
+            {/* Main image */}
+            <div className="pdp-main-img" style={{ width: "100%", height: "480px", border: "1px solid #E2E2DE", display: "flex", alignItems: "center", justifyContent: "center", background: "#FFFFFF", overflow: "hidden" }}>
+              {displayImages[activeImageIdx] ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={imgSrc(displayImages[activeImageIdx]!)}
+                  alt={displayImages[activeImageIdx]!.alt_text ?? product.name}
+                  style={{ width: "100%", height: "100%", objectFit: "contain" }}
+                />
+              ) : (
+                <span style={{ fontSize: "80px", opacity: 0.1 }}>👕</span>
+              )}
+            </div>
+
+            {/* Thumbnails */}
+            {displayImages.length > 1 && (
+              <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "12px" }}>
+                {displayImages.map((img, i) => (
+                  <button
+                    key={img.id}
+                    onClick={() => setActiveImageIdx(i)}
+                    className="pdp-thumb"
+                    style={{ width: "80px", height: "80px", flexShrink: 0, border: activeImageIdx === i ? "1px solid var(--brand-primary, #1C3557)" : "1px solid #E2E2DE", cursor: "pointer", background: "#F8F8F6", padding: 0, outline: activeImageIdx === i ? "1px solid var(--brand-primary, #1C3557)" : "none", outlineOffset: "2px", overflow: "hidden" }}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={thumbSrc(img)} alt={img.alt_text ?? ""} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Gallery links */}
+            <div className="pdp-gallery-links" style={{ marginTop: "14px", display: "flex", flexDirection: "row", gap: "20px" }}>
+              <a
+                href="#"
+                onClick={e => { e.preventDefault(); handleEmailFlyer(); }}
+                style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px", color: "var(--brand-primary, #1C3557)", textDecoration: "none", cursor: "pointer" }}
+              >
+                ↓ Email Flyer
+              </a>
+              {product.images && product.images.length > 0 && (
+                <a
+                  href="#"
+                  onClick={e => { e.preventDefault(); setShowImageLibrary(true); setExpandedLibraryColor(null); }}
+                  style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px", color: "var(--brand-primary, #1C3557)", textDecoration: "none", cursor: "pointer" }}
+                >
+                  View Image Library →
+                </a>
+              )}
+            </div>
+            {assetMsg && <p style={{ marginTop: "6px", fontSize: "12px", color: "#6B6B6B" }}>{assetMsg}</p>}
+          </div>
+
+          {/* ── RIGHT: Product Info ─────────────────────────────────────── */}
+          <div>
+            {columnBlocks.map((b) => (
+              isStandard(b.type)
+                ? <Fragment key={b.id}>{standardBlock(b)}</Fragment>
+                : blockVisible(b, tokenCtx) ? <CustomBlockView key={b.id} block={b} ctx={tokenCtx} /> : null
+            ))}
           </div>
         </div>
 
@@ -1144,6 +1211,13 @@ export function ProductDetailClient({ slug }: ProductDetailClientProps) {
             onClose={() => { setShowUploadBySize(false); setReviseJob(null); }}
             onRevised={() => { window.location.href = "/account/gang-sheets?revised=1"; }}
           />
+        )}
+
+        {/* ── Template sections ─────────────────────────────────────────── */}
+        {templateSections.length > 0 && (
+          <div style={{ margin: "40px -24px 0" }}>
+            <SectionRenderer sections={templateSections} />
+          </div>
         )}
 
         {/* ── Product Tabs ───────────────────────────────────────────────── */}

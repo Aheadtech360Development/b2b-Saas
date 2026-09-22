@@ -613,6 +613,8 @@ def _product_to_dict(product: Product) -> dict:
         # the dynamic option configurator (options fetched separately).
         "pricing_mode": getattr(product, "pricing_mode", "variant") or "variant",
         "base_price": float(product.base_price) if getattr(product, "base_price", None) is not None else None,
+        "template_id": str(product.template_id) if getattr(product, "template_id", None) else None,
+        "metafields": getattr(product, "metafields", None) or {},
     }
 
 

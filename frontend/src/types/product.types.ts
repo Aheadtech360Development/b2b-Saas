@@ -82,6 +82,9 @@ export interface ProductDetail {
   gang_sheet_enabled?: boolean;
   pricing_mode?: "variant" | "configurable";
   base_price?: number | null;
+  /** Product page template (null → the brand's default) and the data it can print. */
+  template_id?: string | null;
+  metafields?: Record<string, string>;
   gang_sheet_type?: "gang_sheet" | "upload_by_size" | null;
   gang_sheet_config?: {
     printer_width?: number;

@@ -156,6 +156,10 @@ class ProductDetail(BaseModel):
     # field it doesn't declare, so leaving it out hid configurable products.
     pricing_mode: str = "variant"
     base_price: float | None = None
+    # Which product template this product uses (None → the brand's default),
+    # and the data its templates can print.
+    template_id: UUID | None = None
+    metafields: dict[str, Any] = {}
 
     model_config = {"from_attributes": True}
 
@@ -227,6 +231,10 @@ class ProductUpdate(BaseModel):
     size_chart_data: list | None = None
     highlight_text: str | None = None
     gang_sheet_enabled: bool | None = None
+    # Product page template; send null to go back to the brand's default.
+    template_id: UUID | None = None
+    # {key: text} a template can print — {{ product.metafields.key }}
+    metafields: dict[str, Any] | None = None
 
 
 class ImageUploadResponse(BaseModel):

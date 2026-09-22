@@ -83,6 +83,66 @@ async def get_product(
     return await svc.get_by_slug_with_variants(slug, discount_percent, discount_group_id, is_guest)
 
 
+def _is_this_brands_admin(request: Request) -> bool:
+    """An admin token issued by the brand whose storefront this is.
+
+    On public product routes the auth middleware only copies `is_admin` from
+    the token, and any brand's admin has that. A draft is the brand's own
+    unpublished work, so the token's brand has to match the storefront's.
+    """
+    if not getattr(request.state, "is_admin", False):
+        return False
+    from app.core.security import decode_token
+    from app.core.tenant_context import get_current_tenant_id
+
+    auth = request.headers.get("Authorization", "")
+    if not auth.startswith("Bearer "):
+        return False
+    try:
+        claim = decode_token(auth.split(" ", 1)[1]).get("tenant_id")
+    except Exception:
+        return False
+    current = get_current_tenant_id()
+    return bool(claim and current and str(claim) == str(current))
+
+
+@router.get("/{slug}/template")
+async def get_product_template(
+    slug: str,
+    request: Request,
+    preview: uuid.UUID | None = Query(None, description="Admins only: show this template's unpublished draft"),
+    db: AsyncSession = Depends(get_db),
+):
+    """The layout the product page should use.
+
+    Uncached on purpose: publishing a template shows up on every product that
+    uses it at once, without touching each product's cached detail. `layout`
+    is null when the product has no published template and the brand has no
+    default — the storefront then draws the product page as it always has.
+    """
+    from app.models.product import Product
+    from app.models.product_template import ProductTemplate
+    from app.services import product_templates as tpl
+
+    row = (await db.execute(
+        select(Product.id, Product.template_id).where(Product.slug == slug)
+    )).first()
+    if row is None:
+        raise HTTPException(status_code=404, detail="Product not found")
+
+    if preview is not None and _is_this_brands_admin(request):
+        # The session is scoped to this brand as well, so a preview id that
+        # belongs to another brand is simply not found.
+        t = (await db.execute(
+            select(ProductTemplate).where(ProductTemplate.id == preview)
+        )).scalar_one_or_none()
+        if t is not None:
+            return {"layout": tpl.storefront_view(t, draft=True)}
+
+    t = await tpl.resolve(db, row.template_id)
+    return {"layout": tpl.storefront_view(t) if t is not None else None}
+
+
 # ── T201: Asset download endpoints ────────────────────────────────────────────
 
 @router.get("/{product_id}/download-images")

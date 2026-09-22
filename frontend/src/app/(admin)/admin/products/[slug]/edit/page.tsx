@@ -24,6 +24,9 @@ import type { Category, ProductDetail, ProductImage, ProductVariant } from "@/ty
 import { VariantOptionsEditor, type ColorOption } from "@/components/admin/VariantOptionsEditor";
 import { VariantBulkEditor } from "@/components/admin/VariantBulkEditor";
 import { ProductOptionsBuilder } from "@/components/admin/ProductOptionsBuilder";
+import { productTemplatesService, type ProductTemplateRow } from "@/services/productTemplates.service";
+
+const METAFIELD_KEY = /^[a-z][a-z0-9_]{0,39}$/;
 
 // ── Style constants ────────────────────────────────────────────────────────
 const labelStyle: React.CSSProperties = {
@@ -109,6 +112,12 @@ export default function AdminProductEditPage() {
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
   const [editSEO, setEditSEO] = useState(false);
+  // Product page template + the metafields templates can print.
+  const [templates, setTemplates] = useState<ProductTemplateRow[]>([]);
+  const [metaRows, setMetaRows] = useState<{ key: string; value: string }[]>([]);
+  useEffect(() => {
+    productTemplatesService.list().then(setTemplates).catch(() => setTemplates([]));
+  }, []);
 
   // Variant expand state
   const [expandedGroups, setExpandedGroups] = useState<string[]>([]);
@@ -196,6 +205,7 @@ export default function AdminProductEditPage() {
         return;
       }
       setProduct(p);
+      setMetaRows(Object.entries(p.metafields ?? {}).map(([key, value]) => ({ key, value: String(value) })));
       setCategories(cats ?? []);
       if (p.variants?.length) {
         const firstColor = p.variants[0]?.color ?? "No Color";
@@ -408,6 +418,15 @@ export default function AdminProductEditPage() {
 
   async function handleSave() {
     if (!product) return;
+    const badKey = metaRows.find(r => (r.key.trim() || r.value.trim()) && !METAFIELD_KEY.test(r.key.trim()));
+    if (badKey) {
+      setSaveSuccess(false);
+      setSaveMsg(`Metafield key "${badKey.key || "(empty)"}" — use lowercase letters, numbers and _, starting with a letter.`);
+      return;
+    }
+    const metafields = Object.fromEntries(
+      metaRows.filter(r => r.key.trim() && r.value.trim()).map(r => [r.key.trim(), r.value.trim()])
+    );
     setIsSaving(true);
     setSaveMsg("");
     try {
@@ -432,12 +451,17 @@ export default function AdminProductEditPage() {
         print_guide: (product as any).print_guide ?? null,
         size_chart_data: (product as any).size_chart_data ?? null,
         highlight_text: (product as any).highlight_text ?? null,
+        template_id: product.template_id ?? null,
+        metafields,
       });
       await Promise.all([...variantSaves, productSave]);
       setVariantEdits({});
       setSaveSuccess(true);
       setSaveMsg("Saved! Redirecting to products…");
       setTimeout(() => router.push("/admin/products"), 1200);
+    } catch (e) {
+      setSaveSuccess(false);
+      setSaveMsg(e instanceof Error && e.message ? `Not saved — ${e.message}` : "Not saved — please try again.");
     } finally {
       setIsSaving(false);
     }
@@ -508,7 +532,7 @@ export default function AdminProductEditPage() {
           </h1>
         </div>
         <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-          {saveMsg && <span style={{ color: "#059669", fontSize: "13px", fontWeight: 600 }}>{saveMsg}</span>}
+          {saveMsg && <span style={{ color: saveSuccess ? "#059669" : "#B91C1C", fontSize: "13px", fontWeight: 600 }}>{saveMsg}</span>}
           <button
             onClick={() => router.push(`/products/${product.slug}`)}
             style={{ padding: "10px 14px", border: "1px solid #E3E3E3", borderRadius: "8px", background: "#fff", fontSize: "13px", cursor: "pointer", fontWeight: 600 }}
@@ -568,6 +592,50 @@ export default function AdminProductEditPage() {
                 Products — where the toggle sits beside the sheet sizes and
                 builder type it depends on. Two places to switch the same thing
                 on is how they drift apart. */}
+          </div>
+
+          {/* Metafields — product data a template can print */}
+          <div style={sectionCard}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: "10px", flexWrap: "wrap" }}>
+              <span style={{ ...sectionTitle, marginBottom: 0, paddingBottom: 0, borderBottom: "none" }}>Metafields</span>
+              <span style={{ fontSize: "11px", color: "#aaa" }}>shown by product templates — {"{{ product.metafields.key }}"}</span>
+            </div>
+            <p style={{ fontSize: "12px", color: "#7A7880", margin: "8px 0 12px", lineHeight: 1.5 }}>
+              Extra details for this product only, like <code>ship_days</code> = <code>3</code> or <code>guarantee</code> = <code>Lifetime</code>. A template can print them, or show a block only when one is filled in.
+            </p>
+            {metaRows.map((row, i) => {
+              const bad = row.key.trim() !== "" && !METAFIELD_KEY.test(row.key.trim());
+              return (
+                <div key={i} style={{ display: "grid", gridTemplateColumns: "minmax(120px, 200px) 1fr 32px", gap: "8px", marginBottom: "8px", alignItems: "start" }}>
+                  <div>
+                    <input
+                      value={row.key}
+                      onChange={e => { const key = e.target.value.toLowerCase().replace(/\s+/g, "_"); setMetaRows(rs => rs.map((r, x) => x === i ? { ...r, key } : r)); }}
+                      placeholder="key"
+                      aria-label="Metafield key"
+                      style={{ ...inputStyle, fontFamily: "'IBM Plex Mono', ui-monospace, monospace", fontSize: "13px", borderColor: bad ? "#E8242A" : undefined }}
+                    />
+                    {bad && <div style={{ fontSize: "11px", color: "#E8242A", marginTop: "3px" }}>letters, numbers, _</div>}
+                  </div>
+                  <textarea
+                    value={row.value}
+                    onChange={e => setMetaRows(rs => rs.map((r, x) => x === i ? { ...r, value: e.target.value } : r))}
+                    placeholder="value"
+                    aria-label="Metafield value"
+                    rows={1}
+                    style={{ ...inputStyle, resize: "vertical", minHeight: "40px", lineHeight: 1.5 }}
+                  />
+                  <button onClick={() => setMetaRows(rs => rs.filter((_, x) => x !== i))} title="Remove" style={{ background: "transparent", border: "none", color: "#B91C1C", fontSize: "18px", cursor: "pointer", height: "40px" }}>×</button>
+                </div>
+              );
+            })}
+            <button
+              onClick={() => setMetaRows(rs => [...rs, { key: "", value: "" }])}
+              disabled={metaRows.length >= 50}
+              style={{ background: "#F6F6F7", border: "1px solid #C9D6E8", color: "#1A1A1A", padding: "8px 14px", borderRadius: "8px", fontSize: "12px", fontWeight: 700, cursor: "pointer" }}
+            >
+              + Add metafield
+            </button>
           </div>
 
           {/* Media */}
@@ -955,6 +1023,28 @@ export default function AdminProductEditPage() {
                 👁
               </button>
             </div>
+          </div>
+
+          {/* Product page template */}
+          <div style={sectionCard}>
+            <span style={sectionTitle}>Theme template</span>
+            <select
+              value={product.template_id ?? ""}
+              onChange={e => setProduct(p => p ? { ...p, template_id: e.target.value || null } : p)}
+              style={{ ...inputStyle, background: "#fff" }}
+              aria-label="Product template"
+            >
+              <option value="">
+                {(() => { const d = templates.find(t => t.is_default); return d ? `Default — ${d.name}` : "Default product page"; })()}
+              </option>
+              {templates.map(t => (
+                <option key={t.id} value={t.id}>{t.name}{t.status === "draft" ? " (not published)" : ""}</option>
+              ))}
+            </select>
+            <p style={{ fontSize: "12px", color: "#7A7880", marginTop: "8px", lineHeight: 1.5 }}>
+              Adds content around this product&apos;s title, price and add to cart. Title, images, variants and checkout keep working as they are.{" "}
+              <a href="/admin/storefront/product-templates" style={{ color: "#1A1A1A", fontWeight: 600 }}>Manage templates →</a>
+            </p>
           </div>
 
           {/* Product Organization */}
