@@ -52,6 +52,10 @@ export interface ProductListItem {
   fabric?: string | null;
   product_code?: string | null;
   weight?: string | null;
+  /** How it is bought: stocked variants, or its own options. */
+  pricing_mode?: "variant" | "configurable";
+  gang_sheet_enabled?: boolean;
+  gang_sheet_type?: string | null;
 }
 
 /** Full product detail — matches backend ProductDetail schema. */

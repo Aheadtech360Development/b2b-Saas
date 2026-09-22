@@ -32,10 +32,14 @@ export default async function ProductsPage({ searchParams }: PageProps) {
     product_code: typeof params.product_code === "string" ? params.product_code : undefined,
   };
 
-  const [categoriesResult, productsResult] = await Promise.allSettled([
+  const [categoriesResult, productsResult, facetsResult] = await Promise.allSettled([
     productsService.getCategories(),
     productsService.listProducts(filters),
+    // The sidebar is built from the whole catalogue, not the 24 products on
+    // this page — otherwise a colour that only appears on page 3 has no swatch.
+    productsService.getFilters({ q: filters.q }),
   ]);
+  const facets = facetsResult.status === "fulfilled" ? facetsResult.value : null;
 
   const categories = categoriesResult.status === "fulfilled" ? categoriesResult.value : [];
   const productData =
@@ -43,24 +47,18 @@ export default async function ProductsPage({ searchParams }: PageProps) {
       ? productsResult.value
       : { items: [], total: 0, page: 1, page_size: 24, pages: 0 };
 
+  // Facets when the API answered; otherwise fall back to what is on screen,
+  // so the sidebar still works if that call fails.
   const sizes = sortSizes(
-    Array.from(
-      new Set(
-        productData.items.flatMap((p) =>
-          p.variants?.map((v) => v.size).filter(Boolean) ?? []
-        )
-      )
-    ) as string[],
+    (facets?.sizes ?? (Array.from(
+      new Set(productData.items.flatMap((p) => p.variants?.map((v) => v.size).filter(Boolean) ?? []))
+    ) as string[])),
     s => s
   );
 
-  const colors = Array.from(
-    new Set(
-      productData.items.flatMap((p) =>
-        p.variants?.map((v) => v.color).filter(Boolean) ?? []
-      )
-    )
-  ).sort() as string[];
+  const colors = facets?.colors ?? (Array.from(
+    new Set(productData.items.flatMap((p) => p.variants?.map((v) => v.color).filter(Boolean) ?? []))
+  ).sort() as string[]).map((name) => ({ name, hex: null, products: 0 }));
 
   const collectionName = filters.category
     ? (categories.find(c => c.slug === filters.category)?.name ?? "All Products")
@@ -87,6 +85,7 @@ export default async function ProductsPage({ searchParams }: PageProps) {
           categories={categories}
           sizes={sizes}
           colors={colors}
+          categoryCounts={facets?.category_counts ?? {}}
         />
       </Suspense>
     </div>

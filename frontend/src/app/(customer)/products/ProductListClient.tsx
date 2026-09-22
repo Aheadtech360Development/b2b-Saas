@@ -7,6 +7,7 @@ import Image from "next/image";
 import { apiClient } from "@/lib/api-client";
 import { useAuthStore } from "@/stores/auth.store";
 import type { Category, ProductListItem } from "@/types/product.types";
+import type { FacetColor } from "@/services/products.service";
 import { SearchIcon, ShirtIcon } from "@/components/ui/icons";
 
 interface ProductListClientProps {
@@ -16,7 +17,9 @@ interface ProductListClientProps {
   pages: number;
   categories: Category[];
   sizes: string[];
-  colors: string[];
+  colors: FacetColor[];
+  /** How many products each category holds, by slug. */
+  categoryCounts?: Record<string, number>;
 }
 
 // Color name → hex for swatch dots
@@ -59,8 +62,22 @@ const COLOR_MAP: Record<string, string> = {
   "Decadent Chocolate": "#723638",
 };
 
-function swatchColor(name: string): string {
-  return COLOR_MAP[name] ?? "#ccc";
+/** The brand's own hex for this colour, else a known name, else grey. */
+function swatchColor(c: FacetColor): string {
+  const hex = (c.hex ?? "").trim();
+  if (/^#[0-9a-fA-F]{3,8}$/.test(hex)) return hex;
+  return COLOR_MAP[c.name] ?? COLOR_MAP[c.name?.trim()] ?? "#ccc";
+}
+
+/** Filters hold several values at once: "Tees,Signs" means either. */
+function asList(value: string): string[] {
+  return value.split(",").map((v) => v.trim()).filter(Boolean);
+}
+
+function toggleValue(current: string, value: string): string | null {
+  const list = asList(current);
+  const next = list.includes(value) ? list.filter((v) => v !== value) : [...list, value];
+  return next.length ? next.join(",") : null;
 }
 
 export function ProductListClient({
@@ -71,6 +88,7 @@ export function ProductListClient({
   categories,
   sizes,
   colors,
+  categoryCounts = {},
 }: ProductListClientProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -164,20 +182,19 @@ export function ProductListClient({
   }
 
   function handleCategoryClick(slug: string) {
-    const next = currentCategory === slug ? null : slug;
+    // "" is the All Products row: it clears the category filter.
+    const next = slug ? toggleValue(currentCategory, slug) : null;
     router.push(buildFilterUrl({ category: next }));
     setFilterOpen(false);
   }
 
   function handleSizeClick(size: string) {
-    const next = currentSize === size ? null : size;
-    router.push(buildFilterUrl({ size: next }));
+    router.push(buildFilterUrl({ size: toggleValue(currentSize, size) }));
     setFilterOpen(false);
   }
 
   function handleColorClick(color: string) {
-    const next = currentColor === color ? null : color;
-    router.push(buildFilterUrl({ color: next }));
+    router.push(buildFilterUrl({ color: toggleValue(currentColor, color) }));
     setFilterOpen(false);
   }
 
@@ -310,11 +327,14 @@ export function ProductListClient({
           <label key={cat.id} style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "13px", color: "#1A1A1A", marginBottom: "8px", cursor: "pointer", fontFamily: "'DM Sans', sans-serif" }}>
             <input
               type="checkbox"
-              checked={currentCategory === cat.slug}
+              checked={asList(currentCategory).includes(cat.slug)}
               onChange={() => handleCategoryClick(cat.slug)}
               style={{ accentColor: "var(--brand-primary, #1C3557)", cursor: "pointer" }}
             />
             {cat.name}
+            {categoryCounts[cat.slug] !== undefined && (
+              <span style={{ marginLeft: "auto", fontSize: "11px", color: "#6B6B6B" }}>{categoryCounts[cat.slug]}</span>
+            )}
           </label>
         ))}
       </div>
@@ -326,12 +346,12 @@ export function ProductListClient({
           <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
             {colors.map((color) => {
               const hex = swatchColor(color);
-              const isSelected = currentColor === color;
+              const isSelected = asList(currentColor).includes(color.name);
               return (
                 <button
-                  key={color}
-                  onClick={() => handleColorClick(color)}
-                  title={color}
+                  key={color.name}
+                  onClick={() => handleColorClick(color.name)}
+                  title={color.products ? `${color.name} · ${color.products} product${color.products === 1 ? "" : "s"}` : color.name}
                   style={{
                     width: "20px", height: "20px", borderRadius: "50%",
                     background: hex,

@@ -20,6 +20,14 @@ _DETAIL_TTL = 600     # 10 min
 _CATEGORY_TTL = 3600  # 1 hr
 
 
+from app.core.tenant_context import get_current_tenant_id  # noqa: E402
+
+
+def _csv(value: str | None) -> list[str]:
+    """"red,Royal Blue" → ["red", "Royal Blue"]; empty entries dropped."""
+    return [v.strip() for v in (value or "").split(",") if v.strip()]
+
+
 class ProductService:
     def __init__(self, db: AsyncSession):
         self.db = db
@@ -47,6 +55,126 @@ class ProductService:
     # ------------------------------------------------------------------
     # Product listing
     # ------------------------------------------------------------------
+
+    # ── Filter helpers ────────────────────────────────────────────────────
+    async def _category_ids(self, slugs: list[str]) -> list:
+        """These categories and everything under them, by slug or by name."""
+        if not slugs:
+            return []
+        # Raw SQL, so the brand has to be named here: the ORM's automatic
+        # tenant filter only rewrites ORM selects.
+        tid = get_current_tenant_id()
+        rows = await self.db.execute(
+            text("""
+                WITH RECURSIVE picked AS (
+                    SELECT id FROM categories
+                     WHERE (slug = ANY(:slugs) OR name = ANY(:slugs))
+                       AND (CAST(:tid AS uuid) IS NULL OR tenant_id = CAST(:tid AS uuid))
+                    UNION ALL
+                    SELECT c.id FROM categories c JOIN picked p ON c.parent_id = p.id
+                )
+                SELECT DISTINCT id FROM picked
+            """),
+            {"slugs": slugs, "tid": str(tid) if tid else None},
+        )
+        return [r[0] for r in rows.all()]
+
+    def _variant_conditions(self, params: FilterParams) -> list:
+        """What one variant of the product has to look like, or [] for no filter."""
+        from app.models.inventory import InventoryRecord
+
+        colors, sizes = _csv(params.color), _csv(params.size)
+        wants_stock = params.in_stock is True
+        wants_price = params.price_min is not None or params.price_max is not None
+        if not (colors or sizes or wants_stock or wants_price):
+            return []
+
+        conds = [
+            ProductVariant.product_id == Product.id,
+            ProductVariant.status == "active",
+        ]
+        if colors:
+            conds.append(or_(*[ProductVariant.color.ilike(c) for c in colors]))
+        if sizes:
+            conds.append(or_(*[ProductVariant.size.ilike(s) for s in sizes]))
+        if params.price_min is not None:
+            conds.append(ProductVariant.retail_price >= params.price_min)
+        if params.price_max is not None:
+            conds.append(ProductVariant.retail_price <= params.price_max)
+        if wants_stock:
+            # A variant nobody tracks stock for counts as available — that is
+            # what the product page shows for it. One that IS tracked has to
+            # have some left.
+            conds.append(or_(
+                exists().where(
+                    InventoryRecord.variant_id == ProductVariant.id,
+                    InventoryRecord.quantity > 0,
+                ),
+                ~exists().where(InventoryRecord.variant_id == ProductVariant.id),
+            ))
+        return conds
+
+    async def facets(self, params: FilterParams) -> dict:
+        """What the filter sidebar should offer for the current search.
+
+        Worked out over every product that matches, not just the page being
+        shown, so a colour on page 3 still has a swatch. Colours carry the
+        brand's own hex where a variant has one.
+        """
+        # Same again: this counts rows by hand, so it filters by brand by hand.
+        where = ["p.status = 'active'"]
+        args: dict = {}
+        tid = get_current_tenant_id()
+        if tid:
+            where.append("p.tenant_id = CAST(:tid AS uuid)")
+            args["tid"] = str(tid)
+        if params.q:
+            where.append("(p.name ILIKE :q OR p.product_code ILIKE :q)")
+            args["q"] = f"%{params.q}%"
+        if params.gender:
+            where.append("(p.gender = :gender OR p.gender = 'unisex')")
+            args["gender"] = params.gender.lower()
+        scope = " AND ".join(where)
+
+        colours = (await self.db.execute(text(f"""
+            SELECT v.color AS name,
+                   MAX(v.color_hex) FILTER (WHERE v.color_hex IS NOT NULL) AS hex,
+                   COUNT(DISTINCT p.id) AS products
+              FROM product_variants v JOIN products p ON p.id = v.product_id
+             WHERE v.status = 'active' AND v.color IS NOT NULL AND v.color <> '' AND {scope}
+             GROUP BY v.color ORDER BY v.color
+        """), args)).mappings().all()
+
+        sizes = (await self.db.execute(text(f"""
+            SELECT DISTINCT v.size AS name FROM product_variants v
+              JOIN products p ON p.id = v.product_id
+             WHERE v.status = 'active' AND v.size IS NOT NULL AND v.size <> '' AND {scope}
+        """), args)).scalars().all()
+
+        cats = (await self.db.execute(text(f"""
+            SELECT c.slug, COUNT(DISTINCT p.id) AS products
+              FROM categories c
+              JOIN product_categories pc ON pc.category_id = c.id
+              JOIN products p ON p.id = pc.product_id
+             WHERE {scope}
+             GROUP BY c.slug
+        """), args)).mappings().all()
+
+        price = (await self.db.execute(text(f"""
+            SELECT MIN(v.retail_price) AS low, MAX(v.retail_price) AS high
+              FROM product_variants v JOIN products p ON p.id = v.product_id
+             WHERE v.status = 'active' AND {scope}
+        """), args)).mappings().first()
+
+        return {
+            "colors": [{"name": r["name"], "hex": r["hex"], "products": r["products"]} for r in colours],
+            "sizes": list(sizes),
+            "category_counts": {r["slug"]: r["products"] for r in cats},
+            "price": {
+                "min": float(price["low"]) if price and price["low"] is not None else None,
+                "max": float(price["high"]) if price and price["high"] is not None else None,
+            },
+        }
 
     async def list_with_filters_and_search(
         self,
@@ -81,8 +209,18 @@ class ProductService:
         )
 
         if params.category:
-            query = query.join(ProductCategory).join(Category).where(
-                or_(Category.slug == params.category, Category.name == params.category)
+            # Sub-categories count as their parent: picking "Apparel" shows the
+            # products filed under "T-Shirts". EXISTS rather than a join, so a
+            # product in three of the chosen categories is still one row and the
+            # total stays right.
+            cat_ids = await self._category_ids(_csv(params.category))
+            if not cat_ids:
+                return [], 0
+            query = query.where(
+                exists().where(
+                    ProductCategory.product_id == Product.id,
+                    ProductCategory.category_id.in_(cat_ids),
+                )
             )
 
         if params.q:
@@ -96,17 +234,12 @@ class ProductService:
                 )
             )
 
-        if params.size:
-            query = query.join(ProductVariant).where(
-                ProductVariant.size == params.size,
-                ProductVariant.status == "active",
-            )
-
-        if params.color:
-            query = query.join(ProductVariant, isouter=True).where(
-                ProductVariant.color == params.color,
-                ProductVariant.status == "active",
-            )
+        # Colour, size, price and in-stock all describe ONE variant: asking for
+        # a red XL under $20 means a red XL under $20 exists, not that the
+        # product has something red and something XL somewhere.
+        variant_conds = self._variant_conditions(params)
+        if variant_conds:
+            query = query.where(exists().where(*variant_conds))
         if params.gender:
             g = params.gender.lower().replace("'", "").replace(" ", "")
             if g in ("mens", "men", "male"):
@@ -130,26 +263,10 @@ class ProductService:
         if params.weight:
             query = query.where(Product.weight == params.weight)
 
-        if params.in_stock is True:
-            query = query.join(ProductVariant, isouter=True).where(
-                ProductVariant.status == "active"
-            )
-
-        if params.price_min is not None or params.price_max is not None:
-            price_conds = [
-                ProductVariant.product_id == Product.id,
-                ProductVariant.status == "active",
-            ]
-            if params.price_min is not None:
-                price_conds.append(ProductVariant.retail_price >= params.price_min)
-            if params.price_max is not None:
-                price_conds.append(ProductVariant.retail_price <= params.price_max)
-            query = query.where(exists().where(*price_conds))
-
         if params.product_code:
             query = query.where(Product.product_code.ilike(f"%{params.product_code}%"))
 
-        # Count
+        # Count — every filter is an EXISTS, so one product is one row here.
         count_query = select(func.count()).select_from(query.subquery())
         total_result = await self.db.execute(count_query)
         total = total_result.scalar_one()

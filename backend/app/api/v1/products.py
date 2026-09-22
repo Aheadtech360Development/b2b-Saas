@@ -23,6 +23,22 @@ async def list_categories(db: AsyncSession = Depends(get_db)):
     return await svc.get_category_tree()
 
 
+@router.get("/filters")
+async def product_filters(
+    request: Request,
+    q: str | None = None,
+    gender: str | None = None,
+    db: AsyncSession = Depends(get_db),
+):
+    """Colours (with their real swatch hex), sizes, category counts and price range.
+
+    The sidebar is built from this rather than from the products on screen, so
+    filtering by something that only appears on a later page still works.
+    """
+    svc = ProductService(db)
+    return await svc.facets(FilterParams(q=q, gender=gender))
+
+
 @router.get("", response_model=PaginatedResponse[ProductListItem])
 async def list_products(
     request: Request,

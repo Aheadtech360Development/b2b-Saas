@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef } from "react";
+import { ProductConfigurator } from "@/components/storefront/ProductConfigurator";
 import Link from "next/link";
 import Image from "next/image";
 import { formatCurrency } from "@/lib/utils";
@@ -61,9 +62,32 @@ const COLOR_MAP: Record<string, string> = {
   "Decadent Chocolate": "#723638",
 };
 
-function getColorHex(color: string): string {
+function getColorHex(color: string, hex?: string | null): string {
+  const own = (hex ?? "").trim();
+  if (/^#[0-9a-fA-F]{3,8}$/.test(own)) return own;
   return COLOR_MAP[color] ?? "#888888";
 }
+
+// Products with no colour or no size still have to be orderable, so the grid
+// gets one unnamed row/column rather than "No colors".
+const ONE_COLOR = "Standard";
+const ONE_SIZE = "One size";
+
+type ProductKind = "matrix" | "configurable" | "gang_sheet";
+
+/** How this product is bought — Quick Order shows a different row for each. */
+function productKind(p: { pricing_mode?: string | null; gang_sheet_enabled?: boolean } | null): ProductKind {
+  if (!p) return "matrix";
+  if (p.gang_sheet_enabled) return "gang_sheet";
+  if (p.pricing_mode === "configurable") return "configurable";
+  return "matrix";
+}
+
+const KIND_TAG: Record<ProductKind, { label: string; bg: string; color: string } | null> = {
+  matrix: null,
+  configurable: { label: "Options", bg: "#EEF2FF", color: "#3730A3" },
+  gang_sheet: { label: "Gang sheet", bg: "#FEF3C7", color: "#92400E" },
+};
 
 function isLight(hex: string): boolean {
   return ["#FFFFFF", "#fffff0", "#fef3c7", "#f5f0e8", "#fef9c3", "#d1d5db", "#c6a67f", "#fef3c7"].includes(hex);
@@ -114,7 +138,9 @@ export default function QuickOrderPage() {
 
   function getRowColors(row: QuickOrderRow): string[] {
     if (!row.productDetail) return [];
-    return Array.from(new Set(row.productDetail.variants.map((v) => v.color).filter(Boolean))) as string[];
+    if (productKind(row.productDetail) !== "matrix") return [];
+    // A variant with no colour is still a variant: it becomes one "Standard" row.
+    return Array.from(new Set(row.productDetail.variants.map((v) => v.color?.trim() || ONE_COLOR)));
   }
 
   function getSizesForColor(row: QuickOrderRow, color: string): string[] {
@@ -122,14 +148,22 @@ export default function QuickOrderPage() {
     return sortSizes(
       Array.from(new Set(
         row.productDetail.variants
-          .filter((v) => v.color === color && v.size)
-          .map((v) => v.size!)
+          .filter((v) => (v.color?.trim() || ONE_COLOR) === color)
+          .map((v) => v.size?.trim() || ONE_SIZE)
       ))
     );
   }
 
   function getVariantForColor(row: QuickOrderRow, color: string, size: string): ProductVariant | undefined {
-    return row.productDetail?.variants.find((v) => v.color === color && v.size === size);
+    return row.productDetail?.variants.find(
+      (v) => (v.color?.trim() || ONE_COLOR) === color && (v.size?.trim() || ONE_SIZE) === size
+    );
+  }
+
+  /** The hex the brand set for this colour, when it set one. */
+  function rowColorHex(row: QuickOrderRow, color: string): string {
+    const v = row.productDetail?.variants.find((x) => (x.color?.trim() || ONE_COLOR) === color);
+    return getColorHex(color, v?.color_hex);
   }
 
   function getRowTotals(row: QuickOrderRow): { units: number; price: number } {
@@ -179,7 +213,7 @@ export default function QuickOrderPage() {
     updateRow(rowId, { selectedProduct: product, searchQuery: product.name, showDropdown: false, searchResults: [], isLoadingDetail: true, expandedColors: [], quantities: {} });
     try {
       const detail = await productsService.getProductBySlug(product.slug);
-      const colors = Array.from(new Set(detail.variants.map((v) => v.color).filter(Boolean))) as string[];
+      const colors = Array.from(new Set(detail.variants.map((v) => v.color?.trim() || ONE_COLOR)));
       setRows((prev) => prev.map((r) =>
         r.id === rowId ? { ...r, productDetail: detail, expandedColors: colors.slice(0, 1), isLoadingDetail: false } : r
       ));
@@ -192,7 +226,9 @@ export default function QuickOrderPage() {
     const qty = parseInt(value, 10);
     setRows((prev) => prev.map((r) => {
       if (r.id !== rowId) return r;
-      const maxQty = r.productDetail?.variants.find((v) => v.color === color && v.size === size)?.stock_quantity;
+      const maxQty = r.productDetail?.variants.find(
+        (v) => (v.color?.trim() || ONE_COLOR) === color && (v.size?.trim() || ONE_SIZE) === size
+      )?.stock_quantity;
       const clamped = isNaN(qty) || qty < 0 ? 0 : maxQty !== undefined ? Math.min(qty, maxQty) : qty;
       const colorQtys = { ...(r.quantities[color] ?? {}), [size]: clamped };
       return { ...r, quantities: { ...r.quantities, [color]: colorQtys } };
@@ -388,6 +424,7 @@ export default function QuickOrderPage() {
         <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
           {rows.map((row, rowIdx) => {
             const colors = getRowColors(row);
+            const kind = productKind(row.productDetail ?? row.selectedProduct);
             const { units, price } = getRowTotals(row);
             const hasProduct = !!row.selectedProduct;
             const hasColor = row.expandedColors.length > 0;
@@ -478,7 +515,12 @@ export default function QuickOrderPage() {
                                 )}
                               </div>
                               <div style={{ flex: 1, minWidth: 0 }}>
-                                <div style={{ fontSize: "13px", fontWeight: 700, color: "#2A2830", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{product.name}</div>
+                                <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                                  <span style={{ fontSize: "13px", fontWeight: 700, color: "#2A2830", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{product.name}</span>
+                                  {(() => { const t = KIND_TAG[productKind(product)]; return t ? (
+                                    <span style={{ fontSize: "9.5px", fontWeight: 800, textTransform: "uppercase", letterSpacing: ".05em", background: t.bg, color: t.color, padding: "2px 6px", borderRadius: "10px", flexShrink: 0 }}>{t.label}</span>
+                                  ) : null; })()}
+                                </div>
                                 <div style={{ fontSize: "11px", color: "#7A7880" }}>
                                   {product.variants[0]?.sku ?? product.slug}
                                   {product.categories[0] && <span style={{ marginLeft: "6px" }}>· {product.categories[0].name}</span>}
@@ -507,7 +549,7 @@ export default function QuickOrderPage() {
                     ) : colors.length > 0 ? (
                       <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
                         {colors.slice(0, 8).map((c) => {
-                          const hex = getColorHex(c);
+                          const hex = rowColorHex(row, c);
                           const light = isLight(hex);
                           const active = row.expandedColors.includes(c);
                           return (
@@ -601,6 +643,41 @@ export default function QuickOrderPage() {
                           )}
                         </div>
 
+                        {/* A product with its own options — answer them here;
+                            the configurator prices and adds it by itself. */}
+                        {kind === "configurable" && row.productDetail && (
+                          <div style={{ border: "1px solid #E2E0DA", borderRadius: "8px", padding: "4px 14px 10px", background: "#FCFCFB" }}>
+                            <div style={{ fontSize: "12px", color: "#7A7880", padding: "10px 0 2px" }}>
+                              This product is priced from its options. Choose them here and add it — the rest of your lines are unaffected.
+                            </div>
+                            <ProductConfigurator productId={row.productDetail.id} productName={row.productDetail.name} />
+                          </div>
+                        )}
+
+                        {/* A gang sheet needs artwork, so it can't be typed in here. */}
+                        {kind === "gang_sheet" && (
+                          <div style={{ display: "flex", alignItems: "center", gap: "12px", padding: "12px 14px", background: "#FFFBEB", border: "1px solid #FDE68A", borderRadius: "8px", flexWrap: "wrap" }}>
+                            <span style={{ fontSize: "13px", color: "#92400E", flex: "1 1 260px", lineHeight: 1.5 }}>
+                              Gang sheets are built from your artwork, so they can&apos;t be added by quantity. Open the builder to upload your designs and pick a sheet size.
+                            </span>
+                            <a
+                              href={`/products/${row.selectedProduct?.slug ?? ""}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              style={{ background: "#1A1A1A", color: "#fff", padding: "9px 16px", borderRadius: "7px", fontSize: "12px", fontWeight: 700, textDecoration: "none", flexShrink: 0 }}
+                            >
+                              Open builder ↗
+                            </a>
+                          </div>
+                        )}
+
+                        {/* A matrix product with nothing to pick from at all. */}
+                        {kind === "matrix" && colors.length === 0 && (
+                          <div style={{ fontSize: "13px", color: "#7A7880", padding: "10px 14px", background: "#F4F3EF", borderRadius: "8px" }}>
+                            This product has no variants to order yet. <a href={`/products/${row.selectedProduct?.slug ?? ""}`} target="_blank" rel="noreferrer" style={{ color: "#1A5CFF", fontWeight: 600 }}>Open the product page ↗</a>
+                          </div>
+                        )}
+
                         {/* Step 2 prompt: no color selected yet */}
                         {!hasColor && colors.length > 0 && (
                           <div style={{ display: "flex", alignItems: "center", gap: "8px", padding: "10px 14px", background: "#F4F3EF", borderRadius: "8px", fontSize: "13px", color: "#7A7880" }}>
@@ -609,10 +686,10 @@ export default function QuickOrderPage() {
                           </div>
                         )}
 
-                        {/* Size / quantity grids — one per expanded color */}
+                        {/* Size / quantity grids — one per expanded color (matrix products only) */}
                         {row.expandedColors.map((color) => {
                           const sizes = getSizesForColor(row, color);
-                          const colorHex = getColorHex(color);
+                          const colorHex = rowColorHex(row, color);
                           const colorUnits = sizes.reduce((s, sz) => s + (row.quantities[color]?.[sz] ?? 0), 0);
                           const colorPrice = sizes.reduce((s, sz) => {
                             const qty = row.quantities[color]?.[sz] ?? 0;

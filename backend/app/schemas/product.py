@@ -97,6 +97,11 @@ class ProductListItem(BaseModel):
     product_code: str | None = None
     weight: str | None = None
     gender: str | None = None
+    # How this product is bought — a listing has to know, or Quick Order and
+    # the search results treat a gang sheet like a stocked tee.
+    pricing_mode: str = "variant"
+    gang_sheet_enabled: bool = False
+    gang_sheet_type: str | None = None
 
     model_config = {"from_attributes": True}
 
@@ -169,6 +174,8 @@ class ProductDetail(BaseModel):
 # ---------------------------------------------------------------------------
 
 class FilterParams(BaseModel):
+    # category, size and color accept several comma-separated values: a
+    # shopper ticking two categories means "either", not "both".
     category: str | None = None
     size: str | None = None
     color: str | None = None

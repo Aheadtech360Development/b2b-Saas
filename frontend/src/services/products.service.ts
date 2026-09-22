@@ -16,6 +16,15 @@ export interface ProductFilters {
   product_code?: string;
 }
 
+export interface FacetColor { name: string; hex: string | null; products: number }
+
+export interface ProductFacets {
+  colors: FacetColor[];
+  sizes: string[];
+  category_counts: Record<string, number>;
+  price: { min: number | null; max: number | null };
+}
+
 export const productsService = {
   async listProducts(
     filters: ProductFilters = {}
@@ -43,6 +52,15 @@ export const productsService = {
 
   async getProductBySlug(slug: string): Promise<ProductDetail> {
     return apiClient.get<ProductDetail>(`/api/v1/products/${slug}`);
+  },
+
+  /** What the filter sidebar should offer: colours (with the brand's own hex),
+   *  sizes, how many products each category holds, and the price range. */
+  async getFilters(params?: { q?: string; gender?: string }): Promise<ProductFacets> {
+    const qs = new URLSearchParams();
+    if (params?.q) qs.set("q", params.q);
+    if (params?.gender) qs.set("gender", params.gender);
+    return apiClient.get<ProductFacets>(`/api/v1/products/filters${qs.toString() ? `?${qs}` : ""}`);
   },
 
   async getCategories(): Promise<Category[]> {
