@@ -10,10 +10,11 @@ and only the ones a brand actually priced are stored.
 
 Which options take part
 -----------------------
-`ProductOption.in_price_matrix` marks the options price genuinely turns on.
-Size and Quantity usually do; a text field for the name to print does not. A
-brand with fourteen groups therefore gets a grid over the three that matter
-rather than an unusable one over all fourteen.
+All of them, automatically — every active option with choices to pick from.
+Add an option and the table grows by itself. A free-typed answer (the name to
+print) is the one exception, because it has no fixed list of values to combine.
+A product whose options multiply past MAX_MATRIX is told its size rather than
+shown a table nobody could fill in.
 
 Matching is by subset, most specific first
 ------------------------------------------
@@ -101,18 +102,29 @@ def value_ids_of(key: str) -> list[uuid.UUID]:
 
 # ── Generating the grid ──────────────────────────────────────────────────────
 
-def matrix_options(options: Sequence[Any]) -> list[Any]:
-    """The options that take part in the price table, in display order.
+# Answers that are typed rather than picked. There is no list of them to
+# combine — "the name to print" has as many values as there are names — so they
+# can never be a column in the price table.
+FREE_INPUT_TYPES = ("text", "number")
 
-    An option with nothing pickable is left out: a column with no cells would
-    multiply the grid by zero and show the admin an empty table.
+
+def matrix_options(options: Sequence[Any]) -> list[Any]:
+    """The options that make up the price table, in display order.
+
+    Every active option with choices to pick from, automatically. Adding an
+    option grows the table on its own, which is what an admin expects: nobody
+    should have to opt an option in before its combinations exist.
+
+    Left out, because there is nothing to combine: an option with no enabled
+    choices (it would multiply the grid by zero and show an empty table), and a
+    free-typed answer, which has no fixed list of values.
     """
-    taking_part = [
+    return [
         option for option in sorted(options or [], key=lambda o: (o.position, str(o.id)))
-        if getattr(option, "is_active", True) and getattr(option, "in_price_matrix", False)
+        if getattr(option, "is_active", True)
+        and getattr(option, "input_type", "select") not in FREE_INPUT_TYPES
         and [v for v in (option.values or []) if getattr(v, "enabled", True)]
     ]
-    return taking_part
 
 
 def _option_values(option: Any) -> list[Any]:

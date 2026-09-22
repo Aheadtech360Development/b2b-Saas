@@ -312,12 +312,13 @@ export function AdminSidebar() {
           {/* General settings holds the store details and the email (Resend)
               connection, and had no way in from the nav at all. */}
           {can("settings") && <SubLink href="/admin/settings" label="General & Email" />}
-          {can("settings") && <SubLink href="/admin/billing" label="Billing & Payouts" />}
+          {(can("billing") || can("payouts")) && <SubLink href="/admin/billing" label="Billing & Payouts" />}
           {can("settings") && <SubLink href="/admin/settings/taxes" label="Taxes & Duties" />}
           {can("analytics") && <SubLink href="/admin/analytics" label="Analytics" />}
+          {can("settings") && <SubLink href="/admin/settings/tracking" label="Tracking & Analytics" />}
           {can("staff") && <SubLink href="/admin/users" label="Users" />}
           <SubLink href="/admin/settings/security" label="Security (2FA)" />
-          {can("settings") && <SubLink href="/admin/settings/audit-log" label="Audit Log" />}
+          {can("audit") && <SubLink href="/admin/settings/audit-log" label="Audit Log" />}
         </div>
       )}
       </>}

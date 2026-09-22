@@ -512,10 +512,7 @@ export function ProductOptionsBuilder({ productId }: { productId: string }) {
                           <label style={CHECK} title="The customer cannot order without answering">
                             <input type="checkbox" checked={o.required} onChange={e => patchOpt(oi, { required: e.target.checked })} /> Must answer
                           </label>
-                          <label style={CHECK} title="Tick when the price depends on this together with other questions — it then appears in the price table below">
-                            <input type="checkbox" checked={!!o.in_price_matrix}
-                              onChange={e => patchOpt(oi, { in_price_matrix: e.target.checked })} /> Price changes with this
-                          </label>
+
                         </>
                       ) : (
                         <span style={{ fontSize: "12px", color: "#6B6B6B" }}>
@@ -703,8 +700,8 @@ export function ProductOptionsBuilder({ productId }: { productId: string }) {
       )}
 
       {mode === "configurable" && (
-        <Step n={4} title="A price for a particular combination (optional)"
-          blurb="Most of the time each choice adds its own amount and that is enough. Use this when it is not — when rounded corners cost more on a large card than a small one.">
+        <Step n={4} title="Price for every combination"
+          blurb="Every combination of your options is listed below. Type a price for any of them. Leave one blank and it uses the amounts from step 1.">
           <CombinationPricing
             key={savedStamp}
             productId={productId}

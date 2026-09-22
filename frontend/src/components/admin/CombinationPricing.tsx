@@ -7,15 +7,11 @@
  * to equal price(Small) + price(Rounded). Real pricing often is not, because
  * rounded corners cost more on a bigger card. This is where a brand says so.
  *
- * Two things keep it usable rather than overwhelming:
- *
- * The admin picks which options price turns on. A product with fourteen option
- * groups would otherwise present a grid with more cells than atoms worth
- * caring about; over the three that matter it is a readable table.
- *
- * Cells are generated, never stored, and only the ones somebody types a price
- * into are saved. A blank cell is not missing data — it means the ordinary
- * per-choice price applies, which is what every product does today.
+ * Every option with choices is in the table automatically, so adding an option
+ * grows it on its own. Cells are generated, never stored, and only the ones
+ * somebody types a price into are saved. A blank cell is not missing data — it
+ * means the ordinary per-choice price applies, which is what every product
+ * does today.
  */
 import { useCallback, useEffect, useState } from "react";
 import { apiClient } from "@/lib/api-client";
@@ -64,12 +60,9 @@ const PAGE = 50;
 
 export function CombinationPricing({
   productId,
-  onPickOptions,
   unsaved,
 }: {
   productId: string;
-  /** Opens the option list so the admin can tick which ones price turns on. */
-  onPickOptions?: () => void;
   /** True while the builder above has edits not yet saved — the grid is built
    *  from what the server knows, so it would be showing the wrong options. */
   unsaved?: boolean;
@@ -136,8 +129,8 @@ export function CombinationPricing({
   if (unsaved) {
     return (
       <div style={NOTE}>
-        Save your options first, then set combination prices — the table is built from
-        the options as saved.
+        You have changed the options above. Press <strong>Save</strong> and the combinations
+        below will update to match.
       </div>
     );
   }
@@ -147,32 +140,12 @@ export function CombinationPricing({
   const dirty = Object.keys(edits).length > 0;
   const pages = Math.ceil(data.total / PAGE);
 
-  // Nothing ticked: explain what this is for rather than showing an empty table.
+  // No options with choices yet, so there is nothing to combine.
   if (!data.matrix_options.length) {
     return (
-      <div>
-        <p style={HINT}>
-          Normally each choice adds its own amount, whatever else is picked. Use this when
-          that is not true — when rounded corners cost more on a large card than a small
-          one, for example.
-        </p>
-        <p style={HINT}>
-          Tick <strong>&ldquo;price changes with this&rdquo;</strong> on the options price really
-          turns on, save, and every combination of them appears here to price.
-        </p>
-        {!!data.all_options.length && (
-          <div style={NOTE}>
-            <div style={{ fontWeight: 700, marginBottom: 6, color: "#1A1A1A" }}>This product&apos;s options</div>
-            {data.all_options.map(o => (
-              <div key={o.id}>{o.name} — {o.value_count} choice{o.value_count === 1 ? "" : "s"}</div>
-            ))}
-            {onPickOptions && (
-              <button type="button" onClick={onPickOptions} style={{ ...BTN_LIGHT, marginTop: 10 }}>
-                Choose which options price turns on
-              </button>
-            )}
-          </div>
-        )}
+      <div style={NOTE}>
+        Add options with choices in step 1 — Size, Quantity, Corners — and save. Every
+        combination of them will be listed here, ready for a price.
       </div>
     );
   }
@@ -184,10 +157,9 @@ export function CombinationPricing({
           That is {data.total.toLocaleString()} combinations
         </div>
         <p style={{ margin: 0 }}>
-          More than anyone could work through, so the table is not shown. Untick an option
-          or two — {data.matrix_options.map(o => `${o.name} (${o.values.length})`).join(" × ")} —
-          and price only what really changes. Everything else can keep using per-choice
-          amounts.
+          {data.matrix_options.map(o => `${o.name} (${o.values.length})`).join(" × ")} is more
+          than anyone could fill in by hand, so the table is not shown. The amounts on each choice
+          in step 1 still price every one of them correctly.
         </p>
       </div>
     );

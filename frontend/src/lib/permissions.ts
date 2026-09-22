@@ -4,17 +4,18 @@
  * backend is the real gate).
  */
 export type Scope =
-  | "products" | "orders" | "customers" | "storefront" | "media" | "content"
-  | "inventory" | "discounts" | "staff" | "settings" | "analytics";
+  | "products" | "collections" | "orders" | "customers" | "storefront" | "media"
+  | "content" | "inventory" | "discounts" | "staff" | "settings" | "analytics"
+  | "billing" | "payouts" | "audit";
 
 const ALL: Scope[] = [
-  "products", "orders", "customers", "storefront", "media", "content",
-  "inventory", "discounts", "staff", "settings", "analytics",
+  "products", "collections", "orders", "customers", "storefront", "media", "content",
+  "inventory", "discounts", "staff", "settings", "analytics", "billing", "payouts", "audit",
 ];
 
-// Operational sections (everything except staff-management + settings).
+// Operational sections (everything except staff-management, settings and money).
 const OPERATIONAL: Scope[] = [
-  "products", "orders", "customers", "storefront", "media", "content",
+  "products", "collections", "orders", "customers", "storefront", "media", "content",
   "inventory", "discounts", "analytics",
 ];
 
@@ -22,18 +23,37 @@ const ROLE_SCOPES: Record<string, Scope[]> = {
   platform_admin: ALL,
   tenant_admin: ALL,
   tenant_manager: OPERATIONAL,
-  tenant_editor: ["products", "storefront", "media", "content", "analytics"],
+  tenant_editor: ["products", "collections", "storefront", "media", "content", "analytics"],
   tenant_fulfillment: ["orders", "customers", "inventory", "discounts", "analytics"],
   tenant_viewer: OPERATIONAL, // sees operational sections, but read-only
 };
 
+/** A custom role's permissions: the older plain list of sections, or the
+ *  current {section: "read" | "write"}. Both mean "can open these". */
+export type ScopeSet = string[] | Record<string, string>;
+
 /** Can a role access (see) a section?
  *  When `scopes` is provided (a custom role), it's the source of truth; otherwise
- *  the fixed-role mapping applies. Mirrors backend can_access. */
-export function hasScope(role: string | undefined | null, scope: Scope, scopes?: string[] | null): boolean {
+ *  the fixed-role mapping applies. Mirrors backend can_access.
+ *
+ *  Accepts both shapes. Roles saved by the current screen arrive as a map, and
+ *  treating a map as "no scopes" hid every section from everyone on one. */
+export function hasScope(role: string | undefined | null, scope: Scope, scopes?: ScopeSet | null): boolean {
   const r = role ?? "";
   if (r === "tenant_admin" || r === "platform_admin") return true;
   if (Array.isArray(scopes)) return scopes.includes(scope);
+  if (scopes && typeof scopes === "object") return scope in scopes;
+  return (ROLE_SCOPES[r] ?? []).includes(scope);
+}
+
+/** May this role change things in a section, not just look? */
+export function canWrite(role: string | undefined | null, scope: Scope, scopes?: ScopeSet | null, readOnly?: boolean | null): boolean {
+  const r = role ?? "";
+  if (r === "tenant_admin" || r === "platform_admin") return true;
+  if (readOnly) return false;
+  if (scopes && !Array.isArray(scopes) && typeof scopes === "object") return scopes[scope] === "write";
+  if (Array.isArray(scopes)) return scopes.includes(scope);
+  if (r === "tenant_viewer") return false;
   return (ROLE_SCOPES[r] ?? []).includes(scope);
 }
 
