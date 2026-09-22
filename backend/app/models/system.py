@@ -33,8 +33,12 @@ class AuditLog(BaseModel):
     admin_user_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), index=True
     )
+    # LOGIN/LOGOUT/DENIED were added so a sign-in and, more importantly, a
+    # refused attempt have somewhere to go — see migration 0043.
     action: Mapped[str] = mapped_column(
-        Enum("CREATE", "UPDATE", "DELETE", name="audit_action"), nullable=False
+        Enum("CREATE", "UPDATE", "DELETE", "LOGIN", "LOGOUT", "DENIED",
+             "REFUND", "DISPUTE", "PAYOUT", name="audit_action"),
+        nullable=False,
     )
     entity_type: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
     entity_id: Mapped[str | None] = mapped_column(String(100), index=True)
@@ -42,6 +46,15 @@ class AuditLog(BaseModel):
     new_values: Mapped[str | None] = mapped_column(Text, comment="JSON of new field values")
     ip_address: Mapped[str | None] = mapped_column(String(45))
     user_agent: Mapped[str | None] = mapped_column(String(500))
+    # A sentence a person can read without decoding the path.
+    summary: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    method: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    path: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    # 403 here is a refused attempt, which is the row an investigation starts from.
+    status_code: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # Who it was, kept as text so the entry still names them after the account
+    # is deleted and admin_user_id goes null.
+    actor_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
     admin_user: Mapped["User | None"] = relationship("User")
 

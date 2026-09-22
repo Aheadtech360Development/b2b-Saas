@@ -14,16 +14,28 @@ Roles (DB `users.role` values):
 """
 from __future__ import annotations
 
-# All permission sections
+from typing import Any
+
+# All permission sections.
 SCOPES = {
-    "products", "orders", "customers", "storefront", "media", "content",
-    "inventory", "discounts", "staff", "settings", "analytics",
+    "products", "collections", "orders", "customers", "storefront", "media",
+    "content", "inventory", "discounts", "staff", "settings", "analytics",
+    "billing", "payouts", "audit",
 }
 _ALL = set(SCOPES)
 
-# Operational sections (everything except staff-management + settings).
+# Sections where a mistake costs money, leaks data, or changes who can do what.
+# A partial-access user reads these unless write is granted by name: handing
+# somebody "Settings" so they can check a tax rate should not also let them
+# rewrite the brand's payout account.
+SENSITIVE_SCOPES = {"staff", "settings", "billing", "payouts", "audit"}
+
+# Read and write, spelled once so the API, the UI and this module agree.
+READ, WRITE = "read", "write"
+
+# Operational sections (everything except staff-management, settings and money).
 _OPERATIONAL = {
-    "products", "orders", "customers", "storefront", "media",
+    "products", "collections", "orders", "customers", "storefront", "media",
     "content", "inventory", "discounts", "analytics",
 }
 
@@ -33,7 +45,7 @@ ROLE_SCOPES: dict[str, set[str]] = {
     "platform_admin": _ALL,
     "tenant_admin": _ALL,
     "tenant_manager": set(_OPERATIONAL),
-    "tenant_editor": {"products", "storefront", "media", "content", "analytics"},
+    "tenant_editor": {"products", "collections", "storefront", "media", "content", "analytics"},
     "tenant_fulfillment": {"orders", "customers", "inventory", "discounts", "analytics"},
     "tenant_viewer": set(_OPERATIONAL),  # read-only
 }
@@ -52,6 +64,8 @@ ROLE_LABELS: dict[str, str] = {
 
 # Admin path prefix → required scope. Longest/most-specific first.
 _PATH_SCOPES: list[tuple[str, str]] = [
+    # Longest first: /products/collections must not be swallowed by /products.
+    ("/api/v1/admin/collections", "collections"),
     ("/api/v1/admin/products", "products"),
     ("/api/v1/admin/supplier-catalog", "products"),
     ("/api/v1/admin/inventory", "inventory"),
@@ -78,9 +92,17 @@ _PATH_SCOPES: list[tuple[str, str]] = [
     ("/api/v1/admin/variant-level-pricing", "discounts"),
     ("/api/v1/admin/users", "staff"),
     ("/api/v1/admin/roles", "staff"),
+    # Money and history get their own sections rather than riding on
+    # "settings": reading a tax rate and moving a payout account are not the
+    # same permission, and treating them as one is how a viewer ends up able
+    # to change where the brand's money lands.
+    ("/api/v1/admin/audit-log", "audit"),
+    ("/api/v1/admin/settings/audit-log", "audit"),
+    ("/api/v1/admin/billing", "billing"),
+    ("/api/v1/admin/payouts", "payouts"),
+    ("/api/v1/admin/connect", "payouts"),
+    ("/api/v1/admin/disputes", "billing"),
     ("/api/v1/admin/settings", "settings"),
-    ("/api/v1/admin/connect", "settings"),
-    ("/api/v1/admin/billing", "settings"),
     ("/api/v1/admin/email-templates", "settings"),
     ("/api/v1/admin/taxes", "settings"),
     ("/api/v1/admin/shipping", "settings"),
@@ -100,35 +122,76 @@ def scope_for_path(path: str) -> str | None:
     return None
 
 
+def normalise_scopes(scopes: Any, read_only: bool = False) -> dict[str, str]:
+    """A permission set as {section: "read" | "write"}, however it was stored.
+
+    Roles used to hold a plain list of sections plus one `read_only` flag for
+    all of them, which cannot express the common case: let somebody work
+    through orders but only look at settings. A dict says it per section, and
+    the old list form still loads — a list under `read_only` reads everywhere,
+    otherwise it writes everywhere it names, exactly as before.
+
+    A sensitive section in the old list form is downgraded to read, because a
+    list was never an explicit grant of write over payouts or staff.
+    """
+    if isinstance(scopes, dict):
+        out: dict[str, str] = {}
+        for key, level in scopes.items():
+            if key not in SCOPES:
+                continue
+            out[key] = WRITE if str(level).lower() == WRITE and not read_only else READ
+        return out
+
+    if isinstance(scopes, (list, tuple, set)):
+        out = {}
+        for key in scopes:
+            if key not in SCOPES:
+                continue
+            if read_only or key in SENSITIVE_SCOPES:
+                out[key] = READ
+            else:
+                out[key] = WRITE
+        return out
+
+    return {}
+
+
 def can_access(
     role: str | None,
     path: str,
     method: str,
-    scopes: list[str] | None = None,
+    scopes: Any = None,
     read_only: bool = False,
 ) -> bool:
     """Can a user perform `method` on `path`?
 
-    When `scopes` is provided (a custom role), the check uses that explicit scope
-    set + `read_only`, so custom roles need no entry in ROLE_SCOPES. Otherwise the
-    fixed-role mapping applies. Enforcement is identical either way — one place.
+    One place, used by the middleware for every /api/v1/admin/* request, so a
+    permission cannot be enforced in the UI and forgotten on the API.
+
+    `scopes` describes a partial-access user: either {section: "read"|"write"}
+    or the older plain list. A section that is not named is not accessible at
+    all, and a section granted `read` allows GET and nothing else.
     """
     role = role or ""
-    # Full-access roles always win, custom scopes or not.
+    # Full access. Nothing below applies.
     if role in ("platform_admin", "tenant_admin"):
         return True
 
     is_read = method.upper() in _READ_METHODS
     scope = scope_for_path(path)
 
-    # Custom role: use the explicit scope set.
+    # Partial access: an explicit permission set.
     if scopes is not None:
-        allowed = set(scopes)
+        allowed = normalise_scopes(scopes, read_only)
         if scope is None:
-            return is_read if read_only else True
-        if scope not in allowed:
+            # An admin path nothing has mapped yet. Reading is fine; writing is
+            # refused, because an unmapped path is one nobody has decided about
+            # and guessing "allowed" is how a new endpoint ships ungated.
+            return is_read
+        level = allowed.get(scope)
+        if level is None:
             return False
-        return is_read if read_only else True
+        return is_read if level == READ else True
 
     # Fixed role.
     if scope is None:
@@ -136,6 +199,10 @@ def can_access(
     if scope not in ROLE_SCOPES.get(role, set()):
         return False
     if role in READ_ONLY_ROLES:
+        return is_read
+    # A fixed role that reaches a sensitive section still only reads it; the
+    # roles that are meant to change those settings have full access.
+    if scope in SENSITIVE_SCOPES:
         return is_read
     return True
 
@@ -146,3 +213,25 @@ def scopes_for_role(role: str | None) -> list[str]:
     if role in ("platform_admin", "tenant_admin"):
         return sorted(_ALL)
     return sorted(ROLE_SCOPES.get(role, set()))
+
+
+def permissions_for(role: str | None, scopes: Any = None,
+                    read_only: bool = False) -> dict[str, str]:
+    """What this user may do, per section — what the frontend hides by.
+
+    The frontend mirrors this to hide what somebody cannot use; the middleware
+    is what actually stops them. Both read the same function, so a screen
+    cannot quietly offer something the API will refuse.
+    """
+    role = role or ""
+    if role in ("platform_admin", "tenant_admin"):
+        return {scope: WRITE for scope in sorted(_ALL)}
+    if scopes is not None:
+        return normalise_scopes(scopes, read_only)
+    allowed = ROLE_SCOPES.get(role, set())
+    if role in READ_ONLY_ROLES:
+        return {scope: READ for scope in sorted(allowed)}
+    return {
+        scope: (READ if scope in SENSITIVE_SCOPES else WRITE)
+        for scope in sorted(allowed)
+    }

@@ -2,7 +2,7 @@
 import uuid
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, Enum, ForeignKey, Integer, String, Text
+from sqlalchemy import UniqueConstraint, Boolean, Enum, ForeignKey, Integer, String, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -15,9 +15,15 @@ if TYPE_CHECKING:
 
 class Warehouse(TenantMixin, BaseModel):
     __tablename__ = "warehouses"
+    # A code belongs to one brand, not the whole platform: the first store to
+    # call a warehouse "MAIN" used to take that name from everyone else. See
+    # migration 0042, and 0027/0028 for the same fix on order numbers and SKUs.
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "code", name="uq_warehouses_tenant_code"),
+    )
 
     name: Mapped[str] = mapped_column(String(100), nullable=False)
-    code: Mapped[str] = mapped_column(String(20), unique=True, nullable=False, index=True)
+    code: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
     address_line1: Mapped[str | None] = mapped_column(String(255))
     city: Mapped[str | None] = mapped_column(String(100))
     state: Mapped[str | None] = mapped_column(String(100))

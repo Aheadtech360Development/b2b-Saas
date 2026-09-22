@@ -183,6 +183,8 @@ async def list_audit_log(
     admin_user_id: Optional[str] = Query(None),
     entity_type: Optional[str] = Query(None),
     entity_id: Optional[str] = Query(None),
+    action: Optional[str] = Query(None, description="CREATE, UPDATE, DELETE, LOGIN, DENIED…"),
+    search: Optional[str] = Query(None, description="Match the summary, section, path or person"),
     date_from: Optional[str] = Query(None, description="ISO date YYYY-MM-DD"),
     date_to: Optional[str] = Query(None, description="ISO date YYYY-MM-DD"),
     page: int = Query(1, ge=1),
@@ -190,8 +192,15 @@ async def list_audit_log(
     _: None = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ):
-    """Paginated audit log filterable by user, entity type/id, date range."""
+    """Paginated audit log filterable by user, entity type/id, date range.
+
+    Read-only by design. There is no endpoint here that edits or removes an
+    entry: the database refuses both (migration 0043), and pruning old history
+    is a platform-level action — see /api/v1/platform/audit-log.
+    """
     from datetime import datetime
+
+    from sqlalchemy import func, select as sa_select
 
     q = select(AuditLog).order_by(AuditLog.created_at.desc())
 
@@ -209,6 +218,16 @@ async def list_audit_log(
         except ValueError:
             pass
 
+    if action:
+        q = q.where(AuditLog.action == action.upper())
+    if search:
+        like = f"%{search.strip()}%"
+        q = q.where(
+            AuditLog.summary.ilike(like)
+            | AuditLog.entity_type.ilike(like)
+            | AuditLog.path.ilike(like)
+            | AuditLog.actor_name.ilike(like)
+        )
     if entity_type:
         q = q.where(AuditLog.entity_type == entity_type)
     if entity_id:
@@ -225,12 +244,24 @@ async def list_audit_log(
             pass
 
     # Count
-    from sqlalchemy import func, select as sa_select
     count_q = sa_select(func.count()).select_from(q.subquery())
     total = (await db.execute(count_q)).scalar_one() or 0
 
     offset = (page - 1) * page_size
     rows = (await db.execute(q.offset(offset).limit(page_size))).scalars().all()
+
+    # Who each row was. One query for the page, not one per row, and the stored
+    # `actor_name` stands in when the account has since been deleted.
+    from app.models.user import User as _User
+
+    _ids = {r.admin_user_id for r in rows if r.admin_user_id}
+    _actor_names: dict = {}
+    if _ids:
+        for _uid, _first, _last, _email in (await db.execute(
+            sa_select(_User.id, _User.first_name, _User.last_name, _User.email)
+            .where(_User.id.in_(_ids))
+        )).all():
+            _actor_names[_uid] = f"{_first or ''} {_last or ''}".strip() or _email
 
     return {
         "total": total,
@@ -240,12 +271,19 @@ async def list_audit_log(
             {
                 "id": str(row.id),
                 "admin_user_id": str(row.admin_user_id) if row.admin_user_id else None,
+                "actor_name": _actor_names.get(row.admin_user_id) or row.actor_name,
                 "action": row.action,
                 "entity_type": row.entity_type,
                 "entity_id": row.entity_id,
+                # Already redacted when written — see middleware/audit_middleware.
                 "old_values": row.old_values,
                 "new_values": row.new_values,
+                "summary": row.summary,
+                "method": row.method,
+                "path": row.path,
+                "status_code": row.status_code,
                 "ip_address": row.ip_address,
+                "user_agent": row.user_agent,
                 "created_at": row.created_at.isoformat() if row.created_at else None,
             }
             for row in rows

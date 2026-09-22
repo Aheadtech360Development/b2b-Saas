@@ -42,7 +42,10 @@ def _build_claims(user_row: dict, scopes: list | None = None, read_only: bool = 
         "is_admin": role in _ADMIN_PANEL_ROLES or scopes is not None,
     }
     if scopes is not None:
-        claims["scopes"] = list(scopes)
+        # A permission set may be {section: "read"|"write"} or the older plain
+        # list. `list(scopes)` on a dict would keep the section names and throw
+        # away the levels, turning every read-only grant into a write one.
+        claims["scopes"] = dict(scopes) if isinstance(scopes, dict) else list(scopes)
         claims["read_only"] = bool(read_only)
     return claims
 
@@ -59,7 +62,28 @@ async def _resolve_custom_scopes(db, user_row: dict) -> tuple[list | None, bool]
     )).mappings().first()
     if not row:
         return None, False
-    return list(row["scopes"] or []), bool(row["read_only"])
+    stored = row["scopes"] or []
+    return (dict(stored) if isinstance(stored, dict) else list(stored)), bool(row["read_only"])
+
+
+async def _record_auth(action: str, tenant_id, user_id, email, summary: str,
+                       details: dict | None = None) -> None:
+    """Put a sign-in, or a refused one, in the brand's activity log.
+
+    Its own session, because a sign-in is not part of a request transaction and
+    a failed one is rolled back by the exception that follows it — which is
+    exactly the entry worth keeping.
+    """
+    from app.middleware.audit_middleware import record_event
+
+    await record_event(
+        action, "auth",
+        summary=summary,
+        tenant_id=tenant_id,
+        user_id=user_id,
+        actor_name=email,
+        details=details,
+    )
 
 
 class TenantAuthService:
@@ -94,9 +118,20 @@ class TenantAuthService:
         row = result.mappings().first()
 
         if not row or not verify_password(password, row["hashed_password"] or ""):
+            # Recorded without saying which half was wrong, and without the
+            # password: a run of these against one address is what a brute
+            # force looks like from the inside.
+            await _record_auth(
+                "DENIED", tenant_id, None, email,
+                f"Failed sign-in for {email}",
+            )
             raise UnauthorizedError("Invalid email or password")
 
         if not row["is_active"]:
+            await _record_auth(
+                "DENIED", row["tenant_id"], row["id"], email,
+                f"Sign-in refused — account is not active ({email})",
+            )
             raise AccountSuspendedError()
 
         user_id = str(row["id"])
@@ -137,6 +172,12 @@ class TenantAuthService:
             claims["company_role"] = _mem["cu_role"]
             if _mem["pricing_tier_id"]:
                 claims["pricing_tier_id"] = str(_mem["pricing_tier_id"])
+
+        await _record_auth(
+            "LOGIN", row.get("tenant_id"), user_id, row.get("email"),
+            f"Signed in as {row.get('email')}",
+            details={"role": row.get("role")},
+        )
 
         access_token = create_access_token(subject=user_id, extra_claims=claims)
         refresh_token = create_refresh_token(subject=user_id)

@@ -5,7 +5,7 @@ from fastapi import Depends, HTTPException, Request, Response, status
 from fastapi.responses import JSONResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError
-from sqlalchemy import select
+from sqlalchemy import select, text as _sa_text
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.core.database import AsyncSessionLocal
@@ -175,11 +175,25 @@ class AuthMiddleware(BaseHTTPMiddleware):
         # ── Role-based (RBAC) enforcement for admin sections ───────────────────
         if path.startswith("/api/v1/admin/"):
             from app.core.permissions import can_access
-            if not can_access(
-                request.state.role, path, request.method,
-                scopes=getattr(request.state, "scopes", None),
-                read_only=getattr(request.state, "read_only", False),
-            ):
+
+            # Take the permissions from the database rather than the token.
+            # A token is minted at login and lives for hours: without this,
+            # taking somebody's access away would not take effect until it
+            # expired, and the whole point of an access control screen is that
+            # it works now. Cached briefly, so this costs one query per user
+            # per half-minute rather than one per request.
+            role, scopes, read_only = await _live_permissions(
+                getattr(request.state, "user_id", None),
+                request.state.role,
+                getattr(request.state, "scopes", None),
+                getattr(request.state, "read_only", False),
+            )
+            request.state.role = role
+            request.state.scopes = scopes
+            request.state.read_only = read_only
+
+            if not can_access(role, path, request.method,
+                              scopes=scopes, read_only=read_only):
                 return JSONResponse(
                     status_code=403,
                     content={"error": {"code": "FORBIDDEN", "message": "Your role does not allow this action"}},
@@ -238,3 +252,66 @@ class AuthMiddleware(BaseHTTPMiddleware):
         if path.endswith('/invoice-summary'):
             return True
         return False
+
+# How long a user's permissions may lag behind a change. Short enough that
+# revoking access is effectively immediate, long enough that a busy admin
+# session is not one extra query per request.
+_PERM_TTL_SECONDS = 30
+_perm_cache: dict[str, tuple[float, str, object, bool]] = {}
+
+
+async def _live_permissions(user_id, token_role, token_scopes, token_read_only):
+    """This user's role and permissions as they stand now.
+
+    Falls back to what the token says if the lookup fails: a database blip
+    should not lock every admin out, and the token was signed by us, so it is
+    the last thing we knew to be true rather than something a client chose.
+    """
+    import time as _time
+
+    if not user_id:
+        return token_role, token_scopes, token_read_only
+
+    key = str(user_id)
+    hit = _perm_cache.get(key)
+    now = _time.monotonic()
+    if hit and now - hit[0] < _PERM_TTL_SECONDS:
+        return hit[1], hit[2], hit[3]
+
+    try:
+        async with AsyncSessionLocal() as session:
+            row = (await session.execute(
+                _sa_text("""
+                    SELECT u.role, u.is_active, r.scopes, r.read_only
+                    FROM users u
+                    LEFT JOIN custom_roles r ON r.id = u.custom_role_id
+                    WHERE u.id = CAST(:uid AS uuid)
+                """),
+                {"uid": key},
+            )).mappings().first()
+    except Exception:
+        return token_role, token_scopes, token_read_only
+
+    if not row:
+        return token_role, token_scopes, token_read_only
+    if not row["is_active"]:
+        # A deactivated account keeps a valid token until it expires. Nothing
+        # it can reach should be an admin section.
+        return "", {}, True
+
+    scopes = row["scopes"]
+    if scopes is None:
+        resolved = (row["role"], None, False)
+    else:
+        resolved = (row["role"],
+                    dict(scopes) if isinstance(scopes, dict) else list(scopes),
+                    bool(row["read_only"]))
+
+    _perm_cache[key] = (now, *resolved)
+    return resolved
+
+
+def forget_permissions(user_id) -> None:
+    """Drop a user's cached permissions — called when their access changes, so
+    the change lands on their very next request rather than up to 30s later."""
+    _perm_cache.pop(str(user_id), None)
