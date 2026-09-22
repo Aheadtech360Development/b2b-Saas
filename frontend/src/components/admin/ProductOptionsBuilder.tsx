@@ -700,14 +700,18 @@ export function ProductOptionsBuilder({ productId }: { productId: string }) {
       )}
 
       {mode === "configurable" && (
-        <Step n={4} title="Price for every combination"
-          blurb="Every combination of your options is listed below. Type a price for any of them. Leave one blank and it uses the amounts from step 1.">
+        <>
+          {/* Heading and table stacked, not side by side: `Step` lays its
+              children out beside the title, which is right for a button and
+              squeezed a whole table into a sliver. */}
+          <Step n={4} title="Price for every combination"
+            blurb="Each row is one combination of your options. Type its price." />
           <CombinationPricing
             key={savedStamp}
             productId={productId}
             unsaved={dirtySinceLoad}
           />
-        </Step>
+        </>
       )}
 
       {picker && (

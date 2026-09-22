@@ -167,108 +167,66 @@ export function CombinationPricing({
 
   return (
     <div>
-      <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", alignItems: "baseline", marginBottom: 12 }}>
-        <p style={{ ...HINT, marginBottom: 0 }}>
-          {data.matrix_options.map(o => `${o.name} (${o.values.length})`).join(" × ")}
-          {" = "}<strong>{data.total.toLocaleString()}</strong> combinations.
-          {" "}{data.priced_count} priced.
-        </p>
-        <span style={{ fontSize: 12, color: "#6B6B6B" }}>
-          Leave a price blank to use the per-choice amounts.
-        </span>
-      </div>
+      <p style={{ ...HINT, marginBottom: 10 }}>
+        <strong>{data.total.toLocaleString()}</strong> combination{data.total === 1 ? "" : "s"}
+      </p>
 
-      <div style={{ overflowX: "auto", border: "1px solid #E3E3E3", borderRadius: 8 }}>
-        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+      <div style={{ overflowX: "auto", border: "1px solid #E3E3E3", borderRadius: 10 }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13.5 }}>
           <thead>
             <tr style={{ background: "#FAFAFA" }}>
               {data.matrix_options.map(o => <th key={o.id} style={TH}>{o.name}</th>)}
-              <th style={TH}>Price each</th>
-              <th style={TH}>One-off fee</th>
-              <th style={TH}>SKU</th>
-              <th style={TH}>Can be ordered</th>
+              <th style={{ ...TH, width: 160 }}>Price</th>
             </tr>
           </thead>
           <tbody>
-            {data.combinations.map(cell => {
-              const off = valueOf(cell, "enabled") === false;
-              return (
-                <tr key={cell.combo_key} style={{ opacity: off ? 0.55 : 1 }}>
-                  {cell.values.map((v, i) => (
-                    <td key={i} style={{ ...TD, fontWeight: 600, whiteSpace: "nowrap" }}>{v.value}</td>
-                  ))}
-                  <td style={TD}>
+            {data.combinations.map(cell => (
+              <tr key={cell.combo_key}>
+                {cell.values.map((v, i) => (
+                  <td key={i} style={{ ...TD, fontWeight: 600, whiteSpace: "nowrap" }}>{v.value}</td>
+                ))}
+                <td style={TD}>
+                  <div style={{ display: "flex", alignItems: "center", border: "1px solid #E3E3E3", borderRadius: 8, background: "#fff", width: 140 }}>
+                    <span style={{ padding: "0 4px 0 10px", color: "#9CA3AF" }}>$</span>
                     <input
                       type="number" step="0.01" min="0"
                       value={(valueOf(cell, "unit_price") as number | null) ?? ""}
                       onChange={e => edit(cell.combo_key, {
                         unit_price: e.target.value === "" ? null : Number(e.target.value),
                       })}
-                      // A cell covered by a shorter combination shows that price
-                      // greyed, so a blank reads as "inherited", not "forgotten".
                       placeholder={
                         cell.inherited_unit_price != null
-                          ? `${cell.inherited_unit_price.toFixed(2)} (inherited)`
-                          : "per-choice"
+                          ? cell.inherited_unit_price.toFixed(2)
+                          : "0.00"
                       }
-                      style={{ ...INPUT, width: 120 }}
+                      style={{ border: "none", outline: "none", padding: "8px 10px 8px 0", width: "100%", fontSize: 13.5, background: "transparent" }}
                     />
-                  </td>
-                  <td style={TD}>
-                    <input
-                      type="number" step="0.01" min="0"
-                      value={(valueOf(cell, "setup_fee") as number | null) ?? ""}
-                      onChange={e => edit(cell.combo_key, {
-                        setup_fee: e.target.value === "" ? null : Number(e.target.value),
-                      })}
-                      placeholder="none"
-                      style={{ ...INPUT, width: 100 }}
-                    />
-                  </td>
-                  <td style={TD}>
-                    <input
-                      type="text"
-                      value={(valueOf(cell, "sku") as string | null) ?? ""}
-                      onChange={e => edit(cell.combo_key, { sku: e.target.value })}
-                      placeholder="—"
-                      style={{ ...INPUT, width: 110 }}
-                    />
-                  </td>
-                  <td style={{ ...TD, textAlign: "center" }}>
-                    <input
-                      type="checkbox"
-                      checked={valueOf(cell, "enabled") !== false}
-                      onChange={e => edit(cell.combo_key, { enabled: e.target.checked })}
-                      title="Untick a combination you cannot actually produce"
-                    />
-                  </td>
-                </tr>
-              );
-            })}
+                  </div>
+                </td>
+              </tr>
+            ))}
           </tbody>
         </table>
       </div>
 
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, marginTop: 12, flexWrap: "wrap" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <button type="button" disabled={page === 0} onClick={() => setPage(p => p - 1)} style={BTN_LIGHT}>
-            ← Previous
-          </button>
-          <span style={{ fontSize: 12, color: "#6B6B6B" }}>
-            {data.offset + 1}–{Math.min(data.offset + PAGE, data.total)} of {data.total.toLocaleString()}
-          </span>
-          <button type="button" disabled={page + 1 >= pages} onClick={() => setPage(p => p + 1)} style={BTN_LIGHT}>
-            Next →
-          </button>
-        </div>
+        {/* Paging only when there is more than one page of it. */}
+        {pages > 1 ? (
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <button type="button" disabled={page === 0} onClick={() => setPage(p => p - 1)} style={BTN_LIGHT}>← Previous</button>
+            <span style={{ fontSize: 12, color: "#6B6B6B" }}>
+              {data.offset + 1}–{Math.min(data.offset + PAGE, data.total)} of {data.total.toLocaleString()}
+            </span>
+            <button type="button" disabled={page + 1 >= pages} onClick={() => setPage(p => p + 1)} style={BTN_LIGHT}>Next →</button>
+          </div>
+        ) : <span />}
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           {msg && (
-            <span style={{ fontSize: 12, fontWeight: 600, color: msg.ok ? "#0F7B3F" : "#B91C1C" }}>
-              {msg.text}
-            </span>
+            <span style={{ fontSize: 12.5, fontWeight: 600, color: msg.ok ? "#0F7B3F" : "#B91C1C" }}>{msg.text}</span>
           )}
-          <button type="button" onClick={save} disabled={saving || !dirty} style={{ ...BTN_DARK, opacity: saving || !dirty ? 0.5 : 1 }}>
-            {saving ? "Saving…" : "Save these prices"}
+          <button type="button" onClick={save} disabled={saving || !dirty}
+            style={{ ...BTN_DARK, opacity: saving || !dirty ? 0.5 : 1 }}>
+            {saving ? "Saving…" : "Save prices"}
           </button>
         </div>
       </div>
