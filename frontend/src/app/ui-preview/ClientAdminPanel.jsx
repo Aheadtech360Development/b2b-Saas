@@ -7,6 +7,7 @@ import { contactService } from "@/services/contact.service";
 import StorefrontCustomizer from "@/components/admin/StorefrontCustomizer";
 import MenusManager from "@/components/admin/MenusManager";
 import PagesManager from "@/components/admin/PagesManager";
+import { HIDDEN_ADMIN_SECTIONS } from "@/lib/constants";
 import ProductTemplatesManager from "@/components/admin/ProductTemplatesManager";
 // Real, already-built admin features — reused (not rebuilt) inside this shell so
 // the new design has full parity with the old sidebar. All are self-contained
@@ -1709,7 +1710,12 @@ const NAV = [
     { id: "discounts", label: "Discounts" }, { id: "stdshipping", label: "Standard shipping" }, { id: "blogs", label: "Blogs" }, { id: "stylesheets", label: "Style sheets" }, { id: "seo", label: "SEO" },
   ]},
   { id: "store-group", label: "Online Store", icon: Store, children: [
-    { id: "pages", label: "Pages" }, { id: "producttemplates", label: "Product templates" }, { id: "menus", label: "Menus" }, { id: "theme", label: "Storefront theme" }, { id: "media", label: "Media library" }, { id: "domains", label: "Domains" },
+    // Storefront theme, menus and pages are hidden for now — see HIDDEN_ADMIN_SECTIONS.
+    ...(HIDDEN_ADMIN_SECTIONS.pages ? [] : [{ id: "pages", label: "Pages" }]),
+    { id: "producttemplates", label: "Product templates" },
+    ...(HIDDEN_ADMIN_SECTIONS.menus ? [] : [{ id: "menus", label: "Menus" }]),
+    ...(HIDDEN_ADMIN_SECTIONS.storefront ? [] : [{ id: "theme", label: "Storefront theme" }]),
+    { id: "media", label: "Media library" }, { id: "domains", label: "Domains" },
   ]},
   { id: "analytics", label: "Analytics", icon: BarChart3 },
   { id: "settings", label: "Settings", icon: SettingsIcon },

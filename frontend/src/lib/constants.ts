@@ -5,6 +5,18 @@ export const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000
 export const CDN_BASE_URL = process.env.NEXT_PUBLIC_CDN_BASE_URL ?? "";
 export const STRIPE_PUBLIC_KEY = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY ?? "";
 
+/**
+ * Admin screens switched off for now. Storefront design, menus and pages are
+ * set up by our team for each client, so these editors are hidden from the
+ * admin navigation. The routes and data are untouched — set a value to false
+ * to bring its screen back.
+ */
+export const HIDDEN_ADMIN_SECTIONS = {
+  storefront: true,
+  menus: true,
+  pages: true,
+} as const;
+
 /** Pagination */
 export const DEFAULT_PAGE_SIZE = 24;
 export const ADMIN_PAGE_SIZE = 50;
