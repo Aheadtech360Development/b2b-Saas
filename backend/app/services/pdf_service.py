@@ -93,7 +93,9 @@ def _header(doc_title: str) -> list:
     from reportlab.platypus import Image as _RLImage
 
     logo_element = None
-    logo_url = _cfg.LOGO_URL or f"{_cfg.FRONTEND_URL}/Af-apparel%20logo.png"
+    # Only a logo somebody configured — never one store's file on every
+    # other store's invoice.
+    logo_url = _cfg.LOGO_URL
     if logo_url:
         try:
             with _req.urlopen(logo_url, timeout=5) as resp:
@@ -354,6 +356,16 @@ def _totals_block(order: "Order") -> list:
     return [tbl, Spacer(1, 20)]
 
 
+def _brand_name() -> str:
+    """The brand this document belongs to, never a name baked in here."""
+    try:
+        from app.core.tenant_context import get_current_brand_name
+
+        return (get_current_brand_name() or "").strip()
+    except Exception:
+        return ""
+
+
 def _footer(note: str = "") -> list:
     elements: list = [
         HRFlowable(width="100%", thickness=0.5, color=MID_GRAY),
@@ -363,7 +375,10 @@ def _footer(note: str = "") -> list:
         elements.append(Paragraph(note, _small))
     elements.append(
         Paragraph(
-            f"Generated {datetime.utcnow().strftime('%Y-%m-%d %H:%M')} UTC · AF Apparels Wholesale",
+            " · ".join(filter(None, [
+                f"Generated {datetime.utcnow().strftime('%Y-%m-%d %H:%M')} UTC",
+                _brand_name(),
+            ])),
             _small,
         )
     )
@@ -480,7 +495,7 @@ class PDFService:
             + bill_to
             + [items_tbl, Spacer(1, 10)]
             + [sum_tbl, Spacer(1, 20)]
-            + _footer(f"Invoice {inv_num} · Due {due_date} · AF Apparels Wholesale Division")
+            + _footer(" · ".join(filter(None, [f"Invoice {inv_num}", f"Due {due_date}", _brand_name()])))
         )
         doc.build(story)
         return buf.getvalue()

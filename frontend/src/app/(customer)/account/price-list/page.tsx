@@ -1,5 +1,8 @@
 "use client";
 
+import { useBranding } from "@/components/providers/BrandingProvider";
+import { brandFileName } from "@/lib/brand";
+
 import React from "react";
 import { useEffect, useRef, useState } from "react";
 import { apiClient } from "@/lib/api-client";
@@ -21,6 +24,7 @@ interface PriceListResponse {
 }
 
 export default function AccountPriceListPage() {
+  const branding = useBranding();
   const { isAuthenticated, isLoading } = useAuthStore();
   const hasLoaded = useRef(false);
 
@@ -65,7 +69,7 @@ export default function AccountPriceListPage() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "af-apparel-price-list.csv";
+    a.download = brandFileName(branding.store_name, "price-list.csv");
     a.style.display = "none";
     document.body.appendChild(a);
     a.click();
@@ -153,7 +157,7 @@ export default function AccountPriceListPage() {
       {generated && items.length > 0 && (
         <div className="bg-white border border-gray-200 rounded-lg overflow-hidden" id="print-area">
           <div className="hidden print:block px-5 py-4 border-b">
-            <h2 className="text-lg font-bold">AF Apparels — Price List</h2>
+            <h2 className="text-lg font-bold">{branding.store_name} — Price List</h2>
             <p className="text-sm text-gray-500">Generated: {new Date().toLocaleDateString()}</p>
           </div>
 

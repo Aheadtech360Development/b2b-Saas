@@ -1,6 +1,8 @@
 // frontend/src/app/(customer)/account/orders/[id]/page.tsx
 "use client";
 
+import { useBranding } from "@/components/providers/BrandingProvider";
+
 import { useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { accountService } from "@/services/account.service";
@@ -196,6 +198,7 @@ function StatusTimeline({ status }: { status: string }) {
 }
 
 export default function OrderDetailPage() {
+  const { store_name: brandName } = useBranding();
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const { isAuthenticated, isLoading: authLoading } = useAuthStore();
@@ -601,7 +604,7 @@ export default function OrderDetailPage() {
                 <div className="flex items-center gap-2 mb-1">
                   {c.is_admin && (
                     <span className="text-xs bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-medium">
-                      AF Apparels
+                      {brandName}
                     </span>
                   )}
                   <span className="text-xs text-gray-400">

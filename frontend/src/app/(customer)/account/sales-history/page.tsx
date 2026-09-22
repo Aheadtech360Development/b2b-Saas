@@ -1,5 +1,8 @@
 "use client";
 
+import { useBranding } from "@/components/providers/BrandingProvider";
+import { brandFileName } from "@/lib/brand";
+
 import React from "react";
 import { useEffect, useRef, useState } from "react";
 import { apiClient } from "@/lib/api-client";
@@ -43,6 +46,7 @@ const CURRENT_YEAR = new Date().getFullYear();
 const YEAR_OPTIONS = Array.from({ length: 5 }, (_, i) => CURRENT_YEAR - i);
 
 export default function SalesHistoryPage() {
+  const branding = useBranding();
   const { isAuthenticated, isLoading } = useAuthStore();
   const hasLoaded = useRef(false);
 
@@ -114,7 +118,7 @@ export default function SalesHistoryPage() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `af-apparel-sales-${resultYear}-${resultDisplay}.csv`;
+    a.download = brandFileName(branding.store_name, `sales-${resultYear}-${resultDisplay}.csv`);
     a.style.display = "none";
     document.body.appendChild(a);
     a.click();

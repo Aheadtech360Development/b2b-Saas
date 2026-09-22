@@ -1,6 +1,8 @@
 // frontend/src/app/(auth)/login/page.tsx
 "use client";
 
+import { useBranding } from "@/components/providers/BrandingProvider";
+
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -28,6 +30,8 @@ function decodeJwtPayload(token: string): Record<string, unknown> {
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
 export default function LoginPage() {
+  const { support_phone } = useBranding();
+  const supportPhone = (support_phone ?? "").trim();
   const router = useRouter();
   const { setAuth, isAuthenticated, isLoading: authIsLoading } = useAuthStore();
   const recaptchaRef = useRef<any>(null);
@@ -212,9 +216,11 @@ export default function LoginPage() {
                   <p style={{ fontSize: "13px", color: "#d3d0d0", margin: 0, lineHeight: 1.5 }}>
                     Your wholesale application is currently being reviewed by our team. You will receive an email within 1–2 business days once a decision has been made.
                   </p>
-                  <p style={{ fontSize: "12px", color: "#7A7880", margin: "8px 0 0" }}>
-                    Questions? Call <a href="tel:+14693679753" style={{ color: "#93c5fd", textDecoration: "none" }}>+1 (469) 367-9753</a>
-                  </p>
+                  {supportPhone && (
+                    <p style={{ fontSize: "12px", color: "#7A7880", margin: "8px 0 0" }}>
+                      Questions? Call <a href={`tel:${supportPhone.replace(/[^+\d]/g, "")}`} style={{ color: "#93c5fd", textDecoration: "none" }}>{supportPhone}</a>
+                    </p>
+                  )}
                 </div>
               )}
 

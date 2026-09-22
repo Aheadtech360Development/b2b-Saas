@@ -5,11 +5,14 @@ import type { Metadata } from "next";
 import { productsService } from "@/services/products.service";
 import { ProductListClient } from "./ProductListClient";
 import { sortSizes } from "@/lib/utils";
+import { titleWithBrand } from "@/lib/brand";
 
-export const metadata: Metadata = {
-  title: "Products — AF Apparels Wholesale",
-  description: "Browse our wholesale apparel catalog",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  return {
+    title: await titleWithBrand("Products"),
+    description: "Browse our wholesale catalog",
+  };
+}
 
 interface PageProps {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;

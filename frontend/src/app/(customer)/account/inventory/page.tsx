@@ -1,5 +1,8 @@
 // frontend/src/app/(customer)/account/inventory/page.tsx
 "use client";
+
+import { useBranding } from "@/components/providers/BrandingProvider";
+import { brandFileName } from "@/lib/brand";
 import React from "react";
 import { useEffect, useRef, useState } from "react";
 import { apiClient } from "@/lib/api-client";
@@ -26,6 +29,7 @@ interface InventoryResponse {
 }
 
 export default function InventoryListingPage() {
+  const branding = useBranding();
   const { isAuthenticated, isLoading } = useAuthStore();
   const hasLoaded = useRef(false);
 
@@ -103,7 +107,7 @@ export default function InventoryListingPage() {
     // importProductsModal - downloadTemplate  
     const a = document.createElement("a");
     a.href = url;
-    a.download = "af-apparel-import-template.csv";
+    a.download = brandFileName(branding.store_name, "import-template.csv");
     a.style.display = "none";
     document.body.appendChild(a);
     a.click();
@@ -249,7 +253,7 @@ export default function InventoryListingPage() {
         >
           {/* Print-only header */}
           <div className="hidden print:block px-5 py-4 border-b">
-            <h2 className="text-lg font-bold">AF Apparels — Inventory Listing Report</h2>
+            <h2 className="text-lg font-bold">{branding.store_name} — Inventory Listing Report</h2>
             <p className="text-sm text-gray-500">
               Generated: {new Date().toLocaleDateString()}
             </p>

@@ -57,7 +57,7 @@ const seedCustomers = [
   { id: "c6", name: "Whetne Perez Hair", email: "wholesale@whetneperez.com", phone: "(404) 555-0161", address: "310 Peachtree St, Atlanta, GA 30303", tier: "Bronze", taxExempt: false, status: "pending", spend: 0, orders: 0, location: "GA", notes: "" },
   { id: "c7", name: "Karma Organic Spa", email: "purchasing@karmaspa.com", phone: "(602) 555-0119", address: "5100 N Central Ave, Phoenix, AZ 85012", tier: "Silver", taxExempt: true, status: "approved", spend: 8700, orders: 12, location: "AZ", notes: "" },
   { id: "c8", name: "Hellanbach Moto", email: "supply@hellanbach.com", phone: "(214) 555-0188", address: "3700 Commerce St, Dallas, TX 75226", tier: "Gold", taxExempt: false, status: "approved", spend: 15300, orders: 19, location: "TX", notes: "Custom colorway program." },
-  { id: "c9", name: "AF Apparels", email: "orders@afapparels.com", phone: "(718) 555-0155", address: "88 Flushing Ave, Brooklyn, NY 11205", tier: "Silver", taxExempt: false, status: "rejected", spend: 0, orders: 0, location: "NY", notes: "Missing business license." },
+  { id: "c9", name: "Northside Prints", email: "orders@northsideprints.example", phone: "(718) 555-0155", address: "88 Flushing Ave, Brooklyn, NY 11205", tier: "Silver", taxExempt: false, status: "rejected", spend: 0, orders: 0, location: "NY", notes: "Missing business license." },
   { id: "c10", name: "Trashed Punk Studio", email: "buy@trashedpunk.com", phone: "(323) 555-0171", address: "1200 S Main St, Los Angeles, CA 90015", tier: "Bronze", taxExempt: false, status: "approved", spend: 3400, orders: 6, location: "CA", notes: "" },
   { id: "c11", name: "Maniyas Wholesale", email: "orders@maniyas.com", phone: "(469) 555-0102", address: "2801 Regal Row, Dallas, TX 75235", tier: "Platinum", taxExempt: true, status: "approved", spend: 52600, orders: 63, location: "TX", notes: "PO required on every order." },
   { id: "c12", name: "Latchmin Banks Co", email: "hello@latchminbanks.com", phone: "(919) 555-0147", address: "410 W Morgan St, Raleigh, NC 27601", tier: "Silver", taxExempt: false, status: "pending", spend: 0, orders: 0, location: "NC", notes: "" },
@@ -155,7 +155,7 @@ const seedAbandoned = [
     items: [{ product: "DTF Gang Sheet Roll", size: "40in", color: "Standard", qty: 15, price: 45 }, { product: "UV DTF Sticker Sheet", size: "12in", color: "Standard", qty: 20, price: 12 }] },
   { id: "AC-899", customer: "Guest (unregistered)", email: "guest2@checkout.com", date: "2026-08-09", value: 105, itemsCount: 1, status: "open",
     items: [{ product: "Fleece Crewneck", size: "S", color: "Grey", qty: 6, price: 17.5 }] },
-  { id: "AC-898", customer: "AF Apparels", email: "orders@afapparels.com", date: "2026-08-08", value: 525, itemsCount: 1, status: "open",
+  { id: "AC-898", customer: "Northside Prints", email: "orders@northsideprints.example", date: "2026-08-08", value: 525, itemsCount: 1, status: "open",
     items: [{ product: "Heavyweight Hoodie", size: "M", color: "Navy", qty: 25, price: 21 }] },
 ];
 

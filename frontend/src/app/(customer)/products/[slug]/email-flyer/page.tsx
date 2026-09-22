@@ -1,5 +1,7 @@
 "use client";
 
+import { useBranding } from "@/components/providers/BrandingProvider";
+
 export const dynamic = "force-dynamic";
 
 import nextDynamic from "next/dynamic";
@@ -29,6 +31,10 @@ const inputStyle: React.CSSProperties = {
 const requiredStar = <span style={{ color: "#E8242A" }}>*</span>;
 
 export default function EmailFlyerPage() {
+  const branding = useBranding();
+  // The footer of the flyer the customer emails on: this brand, this store.
+  const brandLine = [branding.store_name, typeof window !== "undefined" ? window.location.host : ""]
+    .filter(Boolean).join(" · ");
   const { slug } = useParams<{ slug: string }>();
   const router = useRouter();
   const recaptchaRef = useRef<any>(null);
@@ -121,7 +127,7 @@ export default function EmailFlyerPage() {
         ${message ? `<p style="color:#374151;font-size:14px;white-space:pre-line;margin:0 0 16px">${message}</p>` : ""}
         <p style="color:#374151;font-size:14px;margin:0 0 16px">Please find the product flyer for <strong>${product.name}</strong> below:</p>
         <p><a href="${product.flyerUrl ?? "#"}" style="background:#1A5CFF;color:#fff;padding:10px 22px;border-radius:6px;text-decoration:none;font-weight:700;display:inline-block">View / Download Flyer (PDF)</a></p>
-        <p style="color:#7A7880;font-size:11px;margin:20px 0 0">AF Apparels Wholesale · af-apparel.com</p>
+        <p style="color:#7A7880;font-size:11px;margin:20px 0 0">${brandLine}</p>
       </div>
     </div>
   `;

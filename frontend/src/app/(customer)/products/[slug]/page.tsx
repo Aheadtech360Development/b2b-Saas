@@ -2,6 +2,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { productsService } from "@/services/products.service";
+import { titleWithBrand } from "@/lib/brand";
 import { ProductDetailClient } from "./ProductDetailClient";
 
 interface PageProps {
@@ -13,7 +14,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   try {
     const product = await productsService.getProductBySlug(slug);
     return {
-      title: product.meta_title ?? `${product.name} — AF Apparels Wholesale`,
+      title: product.meta_title ?? (await titleWithBrand(product.name)),
       description: product.meta_description ?? product.description ?? undefined,
       openGraph: {
         title: product.name,

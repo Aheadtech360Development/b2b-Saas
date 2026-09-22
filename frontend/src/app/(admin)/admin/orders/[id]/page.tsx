@@ -342,6 +342,15 @@ export default function AdminOrderDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const [order, setOrder] = useState<AdminOrder | null>(null);
+  // Will-call orders are collected from this brand's own warehouse.
+  const [pickupAddress, setPickupAddress] = useState<{ name?: string; street1?: string; city?: string; state?: string; zip?: string } | null>(null);
+  useEffect(() => {
+    apiClient.get<Record<string, string>>("/api/v1/admin/settings")
+      .then((s) => {
+        try { setPickupAddress(s?.ship_from ? JSON.parse(s.ship_from) : null); } catch { setPickupAddress(null); }
+      })
+      .catch(() => setPickupAddress(null));
+  }, []);
   const [orderLoading, setOrderLoading] = useState(true);
   const [orderError, setOrderError] = useState<string | null>(null);
   const [customerStats, setCustomerStats] = useState<CustomerStats | null>(null);
@@ -909,10 +918,15 @@ export default function AdminOrderDetailPage() {
                 <div style={{ fontSize: "13px", fontWeight: 700, color: "#1A1A1A", marginBottom: "10px" }}>📦 Customer selected: Will Call Pickup</div>
                 <div style={{ fontSize: "13px", color: "#2A2830", fontWeight: 600, marginBottom: "6px" }}>Warehouse Address:</div>
                 <div style={{ fontSize: "13px", color: "#7A7880", lineHeight: 1.7 }}>
-                  AF Apparels<br />
-                  10719 Turbeville Rd<br />
-                  Dallas, TX 75243<br />
-                  Mon–Fri 9am–5pm CST
+                  {pickupAddress ? (
+                    <>
+                      {pickupAddress.name && <>{pickupAddress.name}<br /></>}
+                      {pickupAddress.street1 && <>{pickupAddress.street1}<br /></>}
+                      {[pickupAddress.city, [pickupAddress.state, pickupAddress.zip].filter(Boolean).join(" ")].filter(Boolean).join(", ")}
+                    </>
+                  ) : (
+                    <>No pickup address set. Add your warehouse under <a href="/admin/standard-shipping" style={{ color: "#1A1A1A", fontWeight: 600 }}>Shipping → Ship from</a>.</>
+                  )}
                 </div>
                 <div style={{ marginTop: "12px", fontSize: "12px", color: "#059669", fontWeight: 700, background: "rgba(5,150,105,.08)", padding: "6px 10px", borderRadius: "6px", display: "inline-block" }}>
                   ✓ No shipping label required — customer will pick up

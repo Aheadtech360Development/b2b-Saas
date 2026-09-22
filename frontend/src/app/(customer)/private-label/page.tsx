@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { getBrandInfo } from "@/lib/brand";
 
 const _API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -23,7 +24,8 @@ const STEPS = [
   { n: "4", h: "Delivered to You", p: "Shipped direct to your warehouse or fulfillment center." },
 ];
 
-export default function PrivateLabelPage() {
+export default async function PrivateLabelPage() {
+  const { supportEmail, supportPhone } = await getBrandInfo();
   return (
     <div style={{ background: "#F8F8F6", minHeight: "100vh", fontFamily: "'DM Sans', sans-serif" }}>
 
@@ -127,9 +129,9 @@ export default function PrivateLabelPage() {
           </div>
           <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px", color: "#6B6B6B", marginTop: "24px" }}>
             Ready to start? Contact us.{" "}
-            <a href="mailto:info@afblanks.com" style={{ color: "var(--brand-primary, #1C3557)", textDecoration: "none" }}>info@afblanks.com</a>
-            {" "}·{" "}
-            <a href="tel:+12142727213" style={{ color: "var(--brand-primary, #1C3557)", textDecoration: "none" }}>(214) 272-7213</a>
+            <a href={`mailto:${supportEmail}`} style={{ color: "var(--brand-primary, #1C3557)", textDecoration: "none" }}>{supportEmail}</a>
+            {supportPhone && <>{" "}·{" "}
+            <a href={`tel:${supportPhone.replace(/[^+\d]/g, "")}`} style={{ color: "var(--brand-primary, #1C3557)", textDecoration: "none" }}>{supportPhone}</a></>}
           </p>
         </div>
       </div>

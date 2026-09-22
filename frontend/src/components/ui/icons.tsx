@@ -1,4 +1,4 @@
-// AF Apparels icon library — clean inline SVGs replacing all emoji usage
+// Icon library — clean inline SVGs replacing all emoji usage
 // All icons use stroke-based design for consistency (Lucide style, 1.8px stroke)
 
 interface IconProps {

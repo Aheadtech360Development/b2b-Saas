@@ -1,11 +1,13 @@
 import Link from "next/link";
 import type { Metadata } from "next";
+import { getBrandInfo, titleWithBrand } from "@/lib/brand";
 
-export const metadata: Metadata = {
-  title: "Application Under Review — AF Apparels Wholesale",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  return { title: await titleWithBrand("Application Under Review") };
+}
 
-export default function WholesalePendingPage() {
+export default async function WholesalePendingPage() {
+  const { supportEmail } = await getBrandInfo();
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
       <div className="max-w-md w-full text-center">
@@ -31,7 +33,7 @@ export default function WholesalePendingPage() {
         <h1 className="text-2xl font-bold text-gray-900 mb-3">Application Under Review</h1>
 
         <p className="text-gray-600 mb-4">
-          Thank you for applying for a wholesale account with AF Apparels. Your application is
+          Thank you for applying for a wholesale account. Your application is
           currently under review.
         </p>
 
@@ -44,8 +46,8 @@ export default function WholesalePendingPage() {
           <p className="font-medium mb-1">Questions?</p>
           <p>
             Contact us at{" "}
-            <a href="mailto:info@afblanks.com" className="text-brand-600 hover:text-brand-700">
-              info@afblanks.com
+            <a href={`mailto:${supportEmail}`} className="text-brand-600 hover:text-brand-700">
+              {supportEmail}
             </a>
           </p>
         </div>

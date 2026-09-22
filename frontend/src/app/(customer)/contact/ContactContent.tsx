@@ -1,5 +1,7 @@
 "use client";
 
+import { useBranding } from "@/components/providers/BrandingProvider";
+
 import { useState } from "react";
 import Link from "next/link";
 import { apiClient } from "@/lib/api-client";
@@ -17,6 +19,9 @@ const inp: React.CSSProperties = {
 };
 
 export default function ContactPage() {
+  const { store_name: brandName, support_email, support_phone } = useBranding();
+  const supportEmail = (support_email ?? "").trim();
+  const supportPhone = (support_phone ?? "").trim();
   const [form, setForm] = useState({ name: "", business: "", email: "", phone: "", subject: "", message: "" });
   const [status, setStatus] = useState<"idle" | "sending" | "sent" | "error">("idle");
 
@@ -131,7 +136,7 @@ export default function ContactPage() {
 
                 {status === "error" && (
                   <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px", color: "#cc0000", marginBottom: "12px" }}>
-                    Failed to send. Please try again or email us at info@afblanks.com.
+                    Failed to send. Please try again{supportEmail ? ` or email us at ${supportEmail}` : ""}.
                   </p>
                 )}
 
@@ -152,11 +157,9 @@ export default function ContactPage() {
 
             <div style={{ display: "flex", flexDirection: "column", gap: "20px", marginBottom: "28px" }}>
               {[
-                { label: "Phone", value: "(214) 272-7213" },
-                { label: "Email", value: "info@afblanks.com" },
-                { label: "Hours", value: "Mon–Fri, 8AM–5PM CT" },
-                { label: "Location", value: "Dallas, TX" },
-              ].map(item => (
+                { label: "Phone", value: supportPhone },
+                { label: "Email", value: supportEmail },
+              ].filter(item => item.value).map(item => (
                 <div key={item.label}>
                   <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.08em", color: "#6B6B6B", marginBottom: "4px" }}>{item.label}</div>
                   <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", color: "#1A1A1A" }}>{item.value}</div>
@@ -164,19 +167,6 @@ export default function ContactPage() {
               ))}
             </div>
 
-            {/* Map */}
-            <div style={{ height: "220px", border: "1px solid #E2E2DE", overflow: "hidden", marginBottom: "24px" }}>
-              <iframe
-                src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3349.8234567890!2d-96.65432109876543!3d32.94567890123456!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x864c1f1234567890%3A0xabcdef1234567890!2s10719+Turbeville+Rd%2C+Dallas%2C+TX+75243!5e0!3m2!1sen!2sus!4v1680000000000!5m2!1sen!2sus"
-                width="100%"
-                height="220"
-                style={{ border: 0 }}
-                allowFullScreen
-                loading="lazy"
-                referrerPolicy="no-referrer-when-downgrade"
-                title="AF Apparels Location"
-              />
-            </div>
 
             <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
               <Link href="/wholesale/register" style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px", color: "var(--brand-primary, #1C3557)", textDecoration: "none", fontWeight: 500 }}>

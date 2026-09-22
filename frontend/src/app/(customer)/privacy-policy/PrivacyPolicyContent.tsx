@@ -1,5 +1,7 @@
 "use client";
 
+import { useBranding } from "@/components/providers/BrandingProvider";
+
 import { useState } from "react";
 
 type PolicyId = "shipping" | "ordering" | "terms" | "privacy";
@@ -33,6 +35,10 @@ const bodyStyle: React.CSSProperties = {
 };
 
 export default function PrivacyPolicyPage() {
+  const branding = useBranding();
+  const brandName = branding.store_name;
+  // Where privacy requests go: the brand's own support address.
+  const supportEmail = branding.support_email?.trim() || "our support address";
   const [active, setActive] = useState<PolicyId>("shipping");
 
   return (
@@ -76,13 +82,13 @@ export default function PrivacyPolicyPage() {
           {active === "shipping" && (
             <div>
               <h2 style={sectionStyle}>Shipping</h2>
-              <p style={bodyStyle}>Orders placed before 12:00PM CT ship the same day from our Dallas, TX warehouse.</p>
+              <p style={bodyStyle}>Orders placed before 12:00PM CT ship the same day from our warehouse.</p>
               <p style={bodyStyle}>We ship via USPS, UPS, FedEx, or OnTrac ground. If you have your own UPS or FedEx account number, include it when ordering and we will use it.</p>
               <p style={bodyStyle}>Free shipping on orders $300 and above.</p>
               <p style={bodyStyle}>Shipping rates are calculated at checkout based on weight and destination.</p>
 
               <h2 style={sectionStyle}>Will Call (Local Pickup)</h2>
-              <p style={bodyStyle}>Available Monday–Friday, 8:30AM–4:30PM CT from our Dallas warehouse.</p>
+              <p style={bodyStyle}>Available Monday–Friday, 8:30AM–4:30PM CT from our warehouse.</p>
               <p style={bodyStyle}>Allow at least 3 hours from when you place the order before coming in.</p>
               <p style={bodyStyle}>Cutoff for same-day pickup is 12:00PM CT. Orders placed after that may not be ready until the next business day.</p>
               <p style={bodyStyle}>Wait for your &lsquo;Ready for Pickup&rsquo; email before coming in.</p>
@@ -90,7 +96,7 @@ export default function PrivacyPolicyPage() {
 
               <h2 style={sectionStyle}>Returns & Claims</h2>
               <p style={bodyStyle}>Inspect all items before washing, printing, or making any changes to the garment.</p>
-              <p style={bodyStyle}>All claims must be made within 5 days of receiving your order. Email info@afblanks.com with your order number.</p>
+              <p style={bodyStyle}>All claims must be made within 5 days of receiving your order. Email {supportEmail} with your order number.</p>
               <p style={bodyStyle}>We cannot accept returns on anything that has been washed, printed, or altered in any way.</p>
               <p style={bodyStyle}>All returns require a Return Authorization (RA). We will email you one once your claim is approved. Returns sent without an RA will be refused.</p>
               <p style={bodyStyle}>RA numbers are valid for 14 days. If we do not receive the items within that time, you will need to submit a new request.</p>
@@ -107,13 +113,13 @@ export default function PrivacyPolicyPage() {
               <p style={bodyStyle}>You do not need an account to place an order. Wholesale account holders get access to lower wholesale pricing.</p>
               <p style={bodyStyle}>There is no minimum order quantity on in-stock items.</p>
               <p style={bodyStyle}>For large orders over 1,000 units or custom configurations, use the &lsquo;Request a Quote&rsquo; option on any product page. We respond within 2 business hours.</p>
-              <p style={bodyStyle}>To submit a PO, email it to info@afblanks.com</p>
+              <p style={bodyStyle}>To submit a PO, email it to {supportEmail}</p>
 
               <h2 style={sectionStyle}>Order Confirmation</h2>
-              <p style={bodyStyle}>You will receive a confirmation email right after checkout. Check it carefully — it shows exactly what you ordered. If anything looks wrong, email info@afblanks.com within 24 hours.</p>
+              <p style={bodyStyle}>You will receive a confirmation email right after checkout. Check it carefully — it shows exactly what you ordered. If anything looks wrong, email {supportEmail} within 24 hours.</p>
 
               <h2 style={sectionStyle}>Changes & Cancellations</h2>
-              <p style={bodyStyle}>You can change or cancel an order within 2 hours of placing it. Email info@afblanks.com with your order number.</p>
+              <p style={bodyStyle}>You can change or cancel an order within 2 hours of placing it. Email {supportEmail} with your order number.</p>
               <p style={bodyStyle}>Once an order is being picked and packed it cannot be changed or cancelled.</p>
               <p style={bodyStyle}>Same-day orders cannot be changed after confirmation.</p>
 
@@ -130,20 +136,20 @@ export default function PrivacyPolicyPage() {
 
               <h2 style={sectionStyle}>Sales Tax</h2>
               <p style={bodyStyle}>We collect sales tax in states where required by law.</p>
-              <p style={bodyStyle}>If your business has a sales tax exemption certificate, email it to info@afblanks.com before your first order. We will apply it to your account within 1 business day.</p>
+              <p style={bodyStyle}>If your business has a sales tax exemption certificate, email it to {supportEmail} before your first order. We will apply it to your account within 1 business day.</p>
             </div>
           )}
 
           {active === "terms" && (
             <div>
               <h2 style={sectionStyle}>Payment Methods</h2>
-              <p style={bodyStyle}>We accept cash (will call only), credit cards, approved company or personal checks, and cashier&rsquo;s checks. NET terms are available for accounts approved by our credit department or that have built sufficient order history with us. For more information contact 469-367-9753.</p>
+              <p style={bodyStyle}>We accept cash (will call only), credit cards, approved company or personal checks, and cashier&rsquo;s checks. NET terms are available for accounts approved by our credit department or that have built sufficient order history with us. For more information contact {branding.support_phone || supportEmail}.</p>
 
               <h2 style={sectionStyle}>No Minimums</h2>
               <p style={bodyStyle}>We do not have any minimum order quantities on standard in-stock items.</p>
 
               <h2 style={sectionStyle}>Order Processing</h2>
-              <p style={bodyStyle}>Most orders placed before 12:00PM CT are completed same day. If you need an order rushed, email info@afblanks.com or call 469-367-9753.</p>
+              <p style={bodyStyle}>Most orders placed before 12:00PM CT are completed same day. If you need an order rushed, email {supportEmail}{branding.support_phone ? ` or call ${branding.support_phone}` : ""}.</p>
 
               <h2 style={sectionStyle}>Wholesale Accounts</h2>
               <p style={bodyStyle}>All wholesale accounts are for business-to-business use only. You must hold a valid resale certificate to maintain a wholesale account. We reserve the right to approve, suspend, or close any account at our discretion.</p>
@@ -155,10 +161,10 @@ export default function PrivacyPolicyPage() {
               <p style={bodyStyle}>All claims must be made within 5 days of receiving goods. Items must be unaltered. Returns require a Return Authorization. Items returned without one will be refused. A 10% restocking fee applies. Customers are responsible for return shipping unless the return is our fault.</p>
 
               <h2 style={sectionStyle}>Cancellations</h2>
-              <p style={bodyStyle}>Once you receive an order confirmation, the order cannot be cancelled. Call customer service to request any changes: 469-367-9753, Monday–Friday 8:30AM–5:00PM CT.</p>
+              <p style={bodyStyle}>Once you receive an order confirmation, the order cannot be cancelled. Contact customer service to request any changes: {branding.support_phone || supportEmail}.</p>
 
               <h2 style={sectionStyle}>Liability</h2>
-              <p style={bodyStyle}>AF Apparels is not responsible for delays caused by shipping carriers or events outside our control. Our liability is limited to the value of the order placed.</p>
+              <p style={bodyStyle}>{brandName} is not responsible for delays caused by shipping carriers or events outside our control. Our liability is limited to the value of the order placed.</p>
             </div>
           )}
 
@@ -182,14 +188,14 @@ export default function PrivacyPolicyPage() {
               <p style={bodyStyle}>We use cookies to keep the site running and to understand how people use it. You can turn cookies off in your browser settings, though some parts of the site may not work as expected.</p>
 
               <h2 style={sectionStyle}>Your Rights</h2>
-              <p style={bodyStyle}>Depending on where you live, you may have the right to access, correct, delete, or export your personal information. To make a request, email info.afapparel@gmail.com</p>
+              <p style={bodyStyle}>Depending on where you live, you may have the right to access, correct, delete, or export your personal information. To make a request, email {supportEmail}</p>
 
               <h2 style={sectionStyle}>Children</h2>
               <p style={bodyStyle}>This site is not intended for anyone under 18. We do not knowingly collect information from children.</p>
 
               <h2 style={sectionStyle}>Contact</h2>
-              <p style={bodyStyle}>Privacy questions: info.afapparel@gmail.com</p>
-              <p style={bodyStyle}>Address: 10719 Turbeville Road, Dallas, TX 75243</p>
+              <p style={bodyStyle}>Privacy questions: {supportEmail}</p>
+              {branding.pickup_address && <p style={bodyStyle}>Address: {branding.pickup_address}</p>}
             </div>
           )}
 

@@ -3,7 +3,8 @@ export const revalidate = 0;
 
 import type { MetadataRoute } from "next";
 
-const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || "https://afapparels.com";
+// Whatever this deployment is served from — never one brand's domain.
+const BASE_URL = (process.env.NEXT_PUBLIC_BASE_URL || "").replace(/\/$/, "");
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
 
 interface ProductItem {

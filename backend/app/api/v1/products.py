@@ -329,12 +329,18 @@ async def email_product_flyer(
     reply_to_line = f'<p style="font-size:12px;color:#7A7880">Reply to: {from_email}</p>' if from_email else ""
     message_block = f'<p style="margin:0 0 20px;color:#374151;font-size:14px;line-height:1.7;white-space:pre-line">{message}</p>' if message else ""
 
+    # The flyer goes out under the brand that sent it, not a name written here.
+    from app.core.tenant_context import get_current_brand_name as _brand
+    from app.core.config import settings as _cfg
+
+    brand_name = (_brand() or "").strip() or _cfg.PLATFORM_NAME
+    site = (_cfg.FRONTEND_URL or "").replace("https://", "").replace("http://", "").rstrip("/")
+    brand_footer = " · ".join(filter(None, [brand_name, site]))
+
     body_html = f"""
     <div style="font-family:sans-serif;max-width:600px;margin:0 auto">
       <div style="background:#080808;padding:24px;text-align:center">
-        <span style="font-size:36px;font-weight:900;color:#1A5CFF">A</span>
-        <span style="font-size:36px;font-weight:900;color:#E8242A">F</span>
-        <span style="color:#fff;font-size:14px;margin-left:8px;letter-spacing:.1em">APPARELS</span>
+        <span style="color:#fff;font-size:20px;font-weight:800;letter-spacing:.08em">{brand_name}</span>
       </div>
       <div style="padding:32px;background:#fff">
         <h2 style="font-family:sans-serif;color:#2A2830;margin:0 0 8px">Product Flyer — {product.name}</h2>
@@ -350,7 +356,7 @@ async def email_product_flyer(
             View / Download Flyer (PDF)
           </a>
         </p>
-        <p style="color:#7A7880;font-size:12px;margin:24px 0 0">AF Apparels Wholesale · af-apparel.com</p>
+        <p style="color:#7A7880;font-size:12px;margin:24px 0 0">{brand_footer}</p>
       </div>
     </div>
     """

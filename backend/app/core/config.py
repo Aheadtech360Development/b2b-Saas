@@ -178,6 +178,19 @@ class Settings(BaseSettings):
 
     # ── Brand / notifications ─────────────────────────────────────────────────
     LOGO_URL: str = ""
+    # What to call the platform when no brand is in context (system mail).
+    PLATFORM_NAME: str = "Wholesale Platform"
+    # Fallback ship-from, used only for a brand that has not set its own
+    # address. Empty by default: better a clear failure than shipping from
+    # some other brand's dock.
+    SHIP_FROM_NAME: str = ""
+    SHIP_FROM_STREET: str = ""
+    SHIP_FROM_CITY: str = ""
+    SHIP_FROM_STATE: str = ""
+    SHIP_FROM_ZIP: str = ""
+    SHIP_FROM_COUNTRY: str = "US"
+    SHIP_FROM_PHONE: str = ""
+    SHIP_FROM_EMAIL: str = ""
     LOW_STOCK_THRESHOLD: int = 10
 
     # ── reCAPTCHA ─────────────────────────────────────────────────────────────

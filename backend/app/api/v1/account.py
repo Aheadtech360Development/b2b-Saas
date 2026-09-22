@@ -14,6 +14,17 @@ from app.core.config import settings
 from app.core.database import get_db
 from app.core.exceptions import ForbiddenError
 
+def _brand_name() -> str:
+    """The brand this request belongs to — statements carry its name, not one
+    written into the code."""
+    try:
+        from app.core.tenant_context import get_current_brand_name
+
+        return (get_current_brand_name() or "").strip()
+    except Exception:
+        return ""
+
+
 router = APIRouter(prefix="/account", tags=["account"])
 
 
@@ -1408,7 +1419,7 @@ async def download_statement_pdf(
     company = (await db.execute(
         select(Company).where(Company.id == company_id)
     )).scalar_one_or_none()
-    company_name = company.name if company else "AF Apparels"
+    company_name = company.name if company else (_brand_name() or "")
 
     from reportlab.lib import colors
     from reportlab.lib.enums import TA_RIGHT
@@ -1428,7 +1439,7 @@ async def download_statement_pdf(
     styles = getSampleStyleSheet()
     story = []
 
-    story.append(Paragraph("AF APPARELS", ParagraphStyle("title", fontSize=18, fontName="Helvetica-Bold")))
+    story.append(Paragraph((_brand_name() or "Account").upper(), ParagraphStyle("title", fontSize=18, fontName="Helvetica-Bold")))
     story.append(Paragraph("Account Statement", ParagraphStyle("sub", fontSize=12, textColor=colors.grey)))
     story.append(Paragraph(f"Company: {company_name}", styles["Normal"]))
     if date_from or date_to:
@@ -1525,7 +1536,7 @@ async def email_statement(
     company = (await db.execute(
         select(Company).where(Company.id == company_id)
     )).scalar_one_or_none()
-    company_name = company.name if company else "AF Apparels"
+    company_name = company.name if company else (_brand_name() or "")
 
     # Prefer primary contacts; fall back to any contact
     contacts = (await db.execute(

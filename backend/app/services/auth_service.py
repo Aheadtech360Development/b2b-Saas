@@ -105,7 +105,7 @@ class AuthService:
                 elif application and application.status == "rejected":
                     raise UnauthorizedError(
                         "Your wholesale application was not approved. "
-                        "Please contact us at (214) 272-7213 for more information."
+                        "Please contact us for more information."
                     )
 
         # Update last_login

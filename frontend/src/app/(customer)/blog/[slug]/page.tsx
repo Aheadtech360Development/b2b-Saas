@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { titleWithBrand } from "@/lib/brand";
 
 const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -52,9 +53,9 @@ async function getAllPosts(): Promise<BlogPost[]> {
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params;
   const post = await getPost(slug);
-  if (!post) return { title: "Blog — AF Apparels" };
+  if (!post) return { title: await titleWithBrand("Blog") };
   return {
-    title: post.meta_title ?? `${post.title} — AF Apparels Blog`,
+    title: post.meta_title ?? (await titleWithBrand(post.title)),
     description: post.meta_description ?? post.excerpt ?? undefined,
     keywords: post.keywords ?? undefined,
     openGraph: {

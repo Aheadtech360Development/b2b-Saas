@@ -1,5 +1,7 @@
 "use client";
 
+import { useBranding } from "@/components/providers/BrandingProvider";
+
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -103,6 +105,7 @@ const req = <span style={{ color: "#E8242A" }}>*</span>;
 const RECAPTCHA_SITE_KEY = process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY ?? "";
 
 export default function WholesaleRegisterPage() {
+  const { store_name: brandName } = useBranding();
   const router = useRouter();
   const { isAuthenticated, isLoading: authIsLoading } = useAuthStore();
   const recaptchaRef = useRef<any>(null);
@@ -427,7 +430,7 @@ export default function WholesaleRegisterPage() {
                   style={{ marginTop: "2px", accentColor: "#1A5CFF", width: "16px", height: "16px", flexShrink: 0 }}
                 />
                 <span style={{ fontSize: "14px", color: "#2A2830", lineHeight: 1.5 }}>
-                  I would like to receive promotional emails, product updates, and exclusive offers from AF Apparels.
+                  I would like to receive promotional emails, product updates, and exclusive offers{brandName ? ` from ${brandName}` : ""}.
                 </span>
               </label>
             </div>
@@ -439,7 +442,7 @@ export default function WholesaleRegisterPage() {
                 By proceeding I acknowledge that I have read and agree to the following terms and conditions:
               </p>
               <div style={{ background: "#F8F8F6", border: "1px solid #E2E2DE", padding: "14px 16px", fontSize: "12px", color: "#6B6B6B", lineHeight: 1.7, marginBottom: "18px", maxHeight: "100px", overflowY: "auto", fontFamily: "'DM Sans', sans-serif" }}>
-                AF Apparels wholesale accounts are strictly for business-to-business transactions. By submitting this application you confirm that your business holds a valid resale certificate or equivalent tax exemption document. All pricing, product availability, and terms are subject to change. Accounts may be suspended for misuse. We reserve the right to approve or deny any application at our sole discretion.
+                {brandName ? `${brandName} wholesale accounts` : "Wholesale accounts"} are strictly for business-to-business transactions. By submitting this application you confirm that your business holds a valid resale certificate or equivalent tax exemption document. All pricing, product availability, and terms are subject to change. Accounts may be suspended for misuse. We reserve the right to approve or deny any application at our sole discretion.
               </div>
 
               {/* reCAPTCHA — only when a site key is configured */}

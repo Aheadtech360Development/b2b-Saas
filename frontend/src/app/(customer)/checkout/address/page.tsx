@@ -1,6 +1,8 @@
 // frontend/src/app/(customer)/checkout/address/page.tsx
 "use client";
 
+import { useBranding } from "@/components/providers/BrandingProvider";
+
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useAddressAutocomplete } from "@/hooks/useAddressAutocomplete";
 import { useRouter } from "next/navigation";
@@ -64,6 +66,8 @@ const sectionLabelStyle: React.CSSProperties = {
 const EXPEDITED_SURCHARGE = 45;
 
 export default function CheckoutAddressPage() {
+  const { pickup_address } = useBranding();
+  const pickupAddress = (pickup_address ?? "").trim();
   const router = useRouter();
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated());
   const authIsLoading = useAuthStore((s) => s.isLoading);
@@ -474,8 +478,8 @@ export default function CheckoutAddressPage() {
   }
 
   const SHIPPING_OPTIONS: { id: ShippingMethod; label: string; sub: string }[] = [
-    { id: "standard", label: "Standard Ground", sub: "3–5 business days · Ships from Dallas, TX" },
-    { id: "will_call", label: "Will Call Pickup", sub: "Pick up at our warehouse · 10719 Turbeville Rd, Dallas, TX 75243 · Orders before 12 PM → same-day pickup by 4 PM · After 12 PM → next business day by 12 PM · Sat/Sun: closed · No shipping fee" },
+    { id: "standard", label: "Standard Ground", sub: "3–5 business days" },
+    { id: "will_call", label: "Will Call Pickup", sub: `Pick up at our warehouse${pickupAddress ? ` · ${pickupAddress}` : ""} · No shipping fee` },
   ];
 
   return (
@@ -566,7 +570,7 @@ export default function CheckoutAddressPage() {
                     style={{ ...inp, borderColor: errors.company ? "#E8242A" : "#E2E2DE" }}
                     value={form.company}
                     onChange={e => setForm(p => ({ ...p, company: e.target.value }))}
-                    placeholder="AF Apparels Inc."
+                    placeholder="Your Company Inc."
                   />
                   {errors.company && <p style={{ fontSize: "11px", color: "#E8242A", marginTop: "3px" }}>{errors.company}</p>}
                 </div>
@@ -619,7 +623,7 @@ export default function CheckoutAddressPage() {
                       style={{ ...inp, borderColor: errors.city ? "#E8242A" : "#E2E2DE" }}
                       value={form.city}
                       onChange={e => setForm(p => ({ ...p, city: e.target.value }))}
-                      placeholder="Dallas"
+                      placeholder="City"
                     />
                     {errors.city && <p style={{ fontSize: "11px", color: "#E8242A", marginTop: "3px" }}>{errors.city}</p>}
                   </div>
@@ -706,12 +710,10 @@ export default function CheckoutAddressPage() {
                               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--brand-primary, #1C3557)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginTop: "1px" }}>
                                 <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" />
                               </svg>
-                              <span style={{ fontSize: "12px", fontWeight: 600, color: "#1A1A1A" }}>10719 Turbeville Rd, Dallas, TX 75243</span>
+                              <span style={{ fontSize: "12px", fontWeight: 600, color: "#1A1A1A" }}>{pickupAddress || "Pickup address is sent with your order confirmation"}</span>
                             </div>
                             <div style={{ fontSize: "11px", color: "#6B6B6B", lineHeight: 1.6, paddingLeft: "18px" }}>
-                              <div>Mon–Fri, before 12 PM → same-day pickup by 4 PM</div>
-                              <div>Mon–Fri, after 12 PM → next business day by 12 PM</div>
-                              <div>Sat / Sun: Closed</div>
+                              <div>We&apos;ll email you when your order is ready to collect.</div>
                             </div>
                           </div>
                         ) : shippingTypeForUser === "live_shippo" && opt.id === "standard" && isSelected ? (

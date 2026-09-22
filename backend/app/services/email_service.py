@@ -60,12 +60,48 @@ def _current_brand_from_context() -> str | None:
         return None
 
 
-def _rebrand_text(text: str | None, brand: str) -> str | None:
-    """Replace the legacy store's name and phone with the active brand."""
+# Everything else the single-store copy carried: its other phone, its inboxes,
+# its domains and its two addresses. None of it belongs in another brand's mail.
+_LEGACY_PHONES = [
+    "(214) 272-7213", "(214)\xa0272-7213", "(214)&nbsp;272-7213", "214-272-7213", "2142727213",
+    "+1 (469) 367-9753", "+1\xa0(469)\xa0367-9753", "(469) 367-9753", "469-367-9753", "4693679753",
+]
+_LEGACY_EMAILS = ["info@afblanks.com", "info.afapparel@gmail.com", "shipping@afapparels.com"]
+_LEGACY_DOMAINS = ["https://shop.afapparels.com", "https://afblanks.com", "https://afapparels.com",
+                   "shop.afapparels.com", "afblanks.com", "afapparels.com", "af-apparel.com"]
+_LEGACY_ADDRESSES = ["2041 Luna Rd, Carrollton, TX 75006", "10719 Turbeville Rd, Dallas, TX 75243",
+                     "10719 Turbeville Road, Dallas, TX 75243"]
+# A sentence that only existed to give out a phone number goes with it.
+_CALL_PHRASE_RE = _re.compile(
+    r"(?:Questions\?\s*)?(?:Need help getting started\?\s*)?Call(?:\s+us)?(?:\s+at)?\s*"
+    r"(?:<a[^>]*href=\"tel:[^\"]*\"[^>]*>[^<]*</a>|[+()\d\s.\-\xa0]{7,})"
+    r"(?:\s*or\s*)?",
+    _re.IGNORECASE,
+)
+
+
+def _rebrand_text(text: str | None, brand: str, *, contact_email: str | None = None,
+                  site_url: str | None = None) -> str | None:
+    """Swap the legacy store's name, phones, inboxes, domains and addresses for
+    this brand's — or drop them when the brand has nothing to put there."""
     if not text:
         return text
     text = _PHONE_PHRASE_RE.sub("", text)
-    text = text.replace(_LEGACY_PHONE, "")
+    text = _CALL_PHRASE_RE.sub("", text)
+    for phone in _LEGACY_PHONES:
+        text = text.replace(phone, "")
+    # What a removed number leaves behind: "Call  or email x" → "Email x",
+    # and a bare "Call us at." with nothing after it goes entirely.
+    text = _re.sub(r"Call(?:\s+us)?(?:\s+at)?\s+or\s+email", "Email", text, flags=_re.IGNORECASE)
+    text = _re.sub(r"Call(?:\s+us)?(?:\s+at)?\s*(?=[.<]|$)", "", text, flags=_re.IGNORECASE)
+    for email in _LEGACY_EMAILS:
+        text = text.replace(f"mailto:{email}", f"mailto:{contact_email}" if contact_email else "#")
+        text = text.replace(email, contact_email or "")
+    site = (site_url or "").rstrip("/")
+    for dom in _LEGACY_DOMAINS:
+        text = text.replace(dom, site if dom.startswith("http") else site.replace("https://", "").replace("http://", ""))
+    for addr in _LEGACY_ADDRESSES:
+        text = text.replace(addr, "")
     text = text.replace(_LEGACY_BRAND, brand)
     return text
 
@@ -124,8 +160,18 @@ class EmailService:
 
     def _file_template_vars(self, extra: dict) -> dict:
         """Merge logo_url + frontend_url into a variables dict."""
-        logo_url = getattr(settings, "LOGO_URL", None) or f"{settings.FRONTEND_URL}/Af-apparel%20logo.png"
-        return {"logo_url": logo_url, "frontend_url": settings.FRONTEND_URL, **extra}
+        cfg = _tenant_email_cfg()
+        return {
+            # Only a logo somebody configured: the fallback used to be one
+            # store's file, which then appeared on every brand's email.
+            "logo_url": (cfg.get("logo_url") or "").strip() or getattr(settings, "LOGO_URL", "") or "",
+            "frontend_url": settings.FRONTEND_URL,
+            # The sending brand — the templates print this instead of a name
+            # that used to be written into every one of them.
+            "brand_name": _current_brand_from_context() or settings.PLATFORM_NAME,
+            "brand_address": (cfg.get("address") or "").strip(),
+            **extra,
+        }
 
     def send_from_file(
         self,
@@ -212,10 +258,13 @@ class EmailService:
         # active brand so each tenant's customers only ever see their own store.
         brand = _current_brand_from_context() or settings.EMAIL_FROM_NAME or "Our Store"
         from_name = (cfg.get("from_name") or "").strip() or brand or settings.EMAIL_FROM_NAME
-        subject = _rebrand_text(subject, brand)
-        body_html = _rebrand_text(body_html, brand)
+        # Where this brand's customers should write, and where its store lives.
+        contact = (cfg.get("reply_to") or "").strip() or (cfg.get("notify_email") or "").strip() or None
+        site = settings.FRONTEND_URL
+        subject = _rebrand_text(subject, brand, contact_email=contact, site_url=site)
+        body_html = _rebrand_text(body_html, brand, contact_email=contact, site_url=site)
         if body_text:
-            body_text = _rebrand_text(body_text, brand)
+            body_text = _rebrand_text(body_text, brand, contact_email=contact, site_url=site)
 
         # The sender address stays on the platform's verified domain — it's the
         # only one this Resend account may send from. The brand's identity rides

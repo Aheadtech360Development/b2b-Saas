@@ -4,6 +4,8 @@ import logging
 import shippo
 from shippo.models import components
 
+from app.core.config import settings
+
 logger = logging.getLogger(__name__)
 
 GRAMS_PER_OZ = 28.3495
@@ -14,17 +16,19 @@ def grams_to_oz(grams: float) -> float:
     return grams / GRAMS_PER_OZ
 
 
-# Platform-level FALLBACK ship-from — used only when a brand hasn't set its own
-# warehouse address. Each tenant should configure its own (see get_ship_from).
+# Platform-level FALLBACK ship-from, from the platform's own settings. It used
+# to hold one brand's warehouse, which meant any brand that hadn't set an
+# address shipped — and printed labels — from somebody else's dock.
+# Each tenant sets its own; see get_ship_from.
 WAREHOUSE_ADDRESS = {
-    "name": "AF Apparels",
-    "street1": "10719 Turbeville Rd",
-    "city": "Dallas",
-    "state": "TX",
-    "zip": "75243",
-    "country": "US",
-    "phone": "2145550100",
-    "email": "shipping@afapparels.com",
+    "name": settings.SHIP_FROM_NAME,
+    "street1": settings.SHIP_FROM_STREET,
+    "city": settings.SHIP_FROM_CITY,
+    "state": settings.SHIP_FROM_STATE,
+    "zip": settings.SHIP_FROM_ZIP,
+    "country": settings.SHIP_FROM_COUNTRY,
+    "phone": settings.SHIP_FROM_PHONE,
+    "email": settings.SHIP_FROM_EMAIL,
 }
 
 async def get_ship_from(db, tenant_id) -> dict:

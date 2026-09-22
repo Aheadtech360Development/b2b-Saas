@@ -12,8 +12,8 @@ import { ApiClientError } from "@/lib/api-client";
 // If no color prefix just use the URL directly — it will apply to all colors.
 const SAMPLE_CSV = `name,slug,description,category,product_type,vendor,base_price,moq,status,colors,sizes,sku_prefix,images
 Classic T-Shirt,classic-t-shirt,100% cotton ring-spun tee,T-Shirts,Blank,Gildan,8.99,12,active,"White,Black,Navy,Red","S,M,L,XL,2XL",CTS,"White:https://example.com/white.jpg,Black:https://example.com/black.jpg"
-Premium Hoodie,premium-hoodie,80/20 cotton-poly fleece,Hoodies,Blank,AF Apparels,32.00,6,draft,"Black,Grey,Navy","S,M,L,XL",PMH,"Black:https://example.com/black-hoodie.jpg"
-Polo Shirt,polo-shirt,CVC performance fabric polo,Polo Shirts,Blank,AF Apparels,18.99,12,active,"White,Black,Navy","S,M,L,XL",POL,`;
+Premium Hoodie,premium-hoodie,80/20 cotton-poly fleece,Hoodies,Blank,Your Brand,32.00,6,draft,"Black,Grey,Navy","S,M,L,XL",PMH,"Black:https://example.com/black-hoodie.jpg"
+Polo Shirt,polo-shirt,CVC performance fabric polo,Polo Shirts,Blank,Your Brand,18.99,12,active,"White,Black,Navy","S,M,L,XL",POL,`;
 
 // ── CSV parser (handles quoted fields with embedded commas) ───────────────────
 function parseCsv(text: string): Record<string, string>[] {
@@ -123,7 +123,7 @@ export function ImportProductsModal({ onClose, onSuccess }: Props) {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "af-apparel-import-template.csv";
+    a.download = "product-import-template.csv";
     a.click();
     URL.revokeObjectURL(url);
   }

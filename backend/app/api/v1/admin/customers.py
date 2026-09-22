@@ -236,7 +236,6 @@ async def export_companies_csv(
                         f'<p style="margin:4px 0 0;font-size:13px;color:#2A2830">{filter_desc}</p>'
                         f'</div>'
                         f'<p style="color:#6b7280;font-size:13px">The file was downloaded directly to your browser.</p>'
-                        '<p style="color:#9ca3af;font-size:12px;margin-top:24px">Questions? Call (214)&nbsp;272-7213 or email info.afapparel@gmail.com</p>'
                         '<p style="color:#9ca3af;font-size:12px">— AF Apparels Team</p>'
                         '</div></div>'
                     ),

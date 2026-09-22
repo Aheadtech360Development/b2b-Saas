@@ -1833,6 +1833,7 @@ async def send_abandoned_cart_reminder(
     from app.models.product import ProductVariant, Product
     from app.models.company import CompanyUser
     from app.services.email_service import EmailService
+    from app.core.config import settings
 
     cutoff = datetime.now(timezone.utc) - timedelta(hours=1)
     result = await db.execute(
@@ -1900,7 +1901,7 @@ async def send_abandoned_cart_reminder(
             f'</tr></tfoot>'
             f'</table>'
             f'<p style="margin-top:24px">'
-            f'<a href="https://shop.afapparels.com/cart" style="background:#1A5CFF;color:#fff;padding:12px 28px;border-radius:6px;text-decoration:none;font-weight:700;display:inline-block">Complete Your Order</a>'
+            f'<a href="{settings.FRONTEND_URL.rstrip("/")}/cart" style="background:#1A5CFF;color:#fff;padding:12px 28px;border-radius:6px;text-decoration:none;font-weight:700;display:inline-block">Complete Your Order</a>'
             f'</p>'
         ),
     )

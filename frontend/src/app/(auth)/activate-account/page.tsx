@@ -1,5 +1,7 @@
 "use client";
 
+import { useBranding } from "@/components/providers/BrandingProvider";
+
 import { Suspense, useEffect, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
@@ -160,6 +162,9 @@ function TokenExpiredView({ prefillEmail }: { prefillEmail?: string }) {
 // ── Success view ──────────────────────────────────────────────────────────────
 
 function SuccessView({ firstName }: { firstName: string }) {
+  const { support_email, support_phone } = useBranding();
+  const supportEmail = (support_email ?? "").trim();
+  const supportPhone = (support_phone ?? "").trim();
   return (
     <div style={{ minHeight: "100vh", background: "#F4F3EF", fontFamily: "var(--font-jakarta)", display: "flex", alignItems: "center", justifyContent: "center", padding: "40px 16px" }}>
       <div style={{ maxWidth: "480px", width: "100%", textAlign: "center" }}>
@@ -179,7 +184,9 @@ function SuccessView({ firstName }: { firstName: string }) {
             We review applications within 1–2 business days. You'll receive an email once your account is approved.
           </p>
           <div style={{ background: "#F9F8F4", borderRadius: "8px", padding: "16px", marginBottom: "28px", fontSize: "13px", color: "#6b7280" }}>
-            Questions? Call <a href="tel:+14693679753" style={{ color: "#1B3A5C", fontWeight: 700, textDecoration: "none" }}>+1 (469) 367-9753</a> or email <a href="mailto:info@afblanks.com" style={{ color: "#1B3A5C", textDecoration: "none" }}>info@afblanks.com</a>
+            {(supportPhone || supportEmail) && <>Questions?{" "}</>}
+            {supportPhone && <>Call <a href={`tel:${supportPhone.replace(/[^+\d]/g, "")}`} style={{ color: "#1B3A5C", fontWeight: 700, textDecoration: "none" }}>{supportPhone}</a>{supportEmail ? " or " : ""}</>}
+            {supportEmail && <>email <a href={`mailto:${supportEmail}`} style={{ color: "#1B3A5C", textDecoration: "none" }}>{supportEmail}</a></>}
           </div>
           <Link
             href="/"

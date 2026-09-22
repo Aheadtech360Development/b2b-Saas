@@ -126,7 +126,7 @@ export default function AdminPageSeoEditPage() {
         <input
           value={form.meta_title}
           onChange={e => setForm(f => ({ ...f, meta_title: e.target.value.slice(0, 60) }))}
-          placeholder="Page title for Google (e.g. AF Apparels — Wholesale Blank Apparel)"
+          placeholder="Page title for Google (e.g. Your Brand — Wholesale Blank Apparel)"
           style={inputSt}
           maxLength={60}
         />

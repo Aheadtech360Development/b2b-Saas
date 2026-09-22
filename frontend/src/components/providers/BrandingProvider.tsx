@@ -119,6 +119,8 @@ export interface Branding {
   tagline: string;
   support_email: string;
   support_phone: string;
+  /** Where will-call orders are collected — the brand's own ship-from. */
+  pickup_address?: string;
   email_sender_name: string;
 }
 

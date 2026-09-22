@@ -25,6 +25,7 @@ import { VariantOptionsEditor, type ColorOption } from "@/components/admin/Varia
 import { VariantBulkEditor } from "@/components/admin/VariantBulkEditor";
 import { ProductOptionsBuilder } from "@/components/admin/ProductOptionsBuilder";
 import { productTemplatesService, type ProductTemplateRow } from "@/services/productTemplates.service";
+import { displayUrl } from "@/lib/brand";
 
 const METAFIELD_KEY = /^[a-z][a-z0-9_]{0,39}$/;
 
@@ -1066,7 +1067,7 @@ export default function AdminProductEditPage() {
               <input
                 value={product.vendor ?? ""}
                 onChange={e => setProduct(p => p ? { ...p, vendor: e.target.value } : p)}
-                placeholder="e.g. AF Apparels"
+                placeholder="e.g. your brand"
                 style={inputStyle}
               />
             </div>
@@ -1318,7 +1319,7 @@ export default function AdminProductEditPage() {
             ) : (
               <div style={{ border: "1px solid #E3E3E3", borderRadius: "8px", padding: "14px 16px", background: "#F6F6F7" }}>
                 <div style={{ fontSize: "11px", color: "#059669", marginBottom: "3px" }}>
-                  af-apparel.com/products/{product.slug}
+                  {displayUrl(`/products/${product.slug}`)}
                 </div>
                 <div style={{ fontSize: "16px", color: "#1a0dab", marginBottom: "4px", fontWeight: 400 }}>
                   {product.meta_title ?? product.name}

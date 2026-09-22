@@ -216,7 +216,31 @@ async def _fetch_branding(db: AsyncSession, tenant_id: uuid.UUID) -> dict[str, A
         branding["menu_items"] = header_items
     footer_items = await _menu_items(db, tenant_id, row.get("footer_menu_id"))
     branding["footer_menu_items"] = footer_items or []
+    branding["pickup_address"] = await _pickup_address(db, tenant_id)
     return branding
+
+
+async def _pickup_address(db: AsyncSession, tenant_id: uuid.UUID) -> str:
+    """Where this brand's customers collect will-call orders: its own ship-from.
+
+    Only the street address — the ship-from's phone and email are for carriers,
+    not for the storefront. Empty when the brand hasn't set one, and the
+    checkout then says the address comes with the confirmation.
+    """
+    from app.core.tenant_settings import scoped_key
+
+    raw = (await db.execute(
+        text("SELECT value FROM settings WHERE key = :k"),
+        {"k": scoped_key("ship_from", tenant_id)},
+    )).scalar()
+    try:
+        sf = json.loads(raw) if isinstance(raw, str) else (raw or {})
+    except Exception:
+        return ""
+    if not isinstance(sf, dict):
+        return ""
+    region = " ".join(filter(None, [(sf.get("state") or "").strip(), (sf.get("zip") or "").strip()]))
+    return ", ".join(filter(None, [(sf.get("street1") or "").strip(), (sf.get("city") or "").strip(), region]))
 
 
 def _resolve_tenant_id(request: Request) -> uuid.UUID | None:
