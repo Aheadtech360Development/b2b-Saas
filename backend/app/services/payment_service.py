@@ -72,20 +72,35 @@ class PaymentService:
         connected_account_id: str,
         amount_decimal: Decimal | None = None,
         reason: str | None = None,
+        idempotency_key: str | None = None,
+        metadata: dict | None = None,
     ) -> stripe.Refund:
         """Refund a Direct charge on the brand's connected account.
 
-        amount_decimal=None refunds in full. Runs on the connected account, so
-        the money comes back out of the brand's balance (they are merchant of
-        record).
+        amount_decimal=None refunds whatever is left. Runs on the connected
+        account, so the money comes back out of the brand's balance (they are
+        merchant of record).
+
+        `idempotency_key` makes a repeated request return the first refund
+        rather than create a second — without it, a double click refunded the
+        customer twice.
         """
+        from decimal import ROUND_HALF_UP
+
         s = _get_stripe()
         params: dict = {"payment_intent": payment_intent_id}
         if amount_decimal is not None:
-            params["amount"] = int(amount_decimal * 100)
+            # Rounded, not truncated: int(19.99 * 100) is 1998 in float maths.
+            params["amount"] = int((Decimal(str(amount_decimal)) * 100).quantize(
+                Decimal("1"), rounding=ROUND_HALF_UP))
         if reason in ("duplicate", "fraudulent", "requested_by_customer"):
             params["reason"] = reason
-        return s.Refund.create(stripe_account=connected_account_id, **params)
+        if metadata:
+            params["metadata"] = {k: str(v)[:500] for k, v in metadata.items() if v is not None}
+        options: dict = {"stripe_account": connected_account_id}
+        if idempotency_key:
+            options["idempotency_key"] = idempotency_key
+        return s.Refund.create(**options, **params)
 
     async def retrieve_payment_intent(self, intent_id: str) -> stripe.PaymentIntent:
         s = _get_stripe()

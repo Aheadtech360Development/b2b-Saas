@@ -69,13 +69,26 @@ async def stripe_webhook(
 
     try:
         obj = event["data"]["object"]
+        # Set on events from a brand's connected account. The refund and
+        # dispute handlers check it against the order they resolve to, so an
+        # event from one brand's account can never touch another brand's order.
+        account = event.get("account") if hasattr(event, "get") else None
         # ── Customer order payments ──
         if event_type == "payment_intent.succeeded":
             await _handle_payment_succeeded(db, obj)
         elif event_type == "payment_intent.payment_failed":
             await _handle_payment_failed(db, obj)
+        # ── Refunds ──
+        # `refund.*` carry the refund itself; `charge.refunded` fires for a
+        # partial refund too, so it is reconciled from the money rather than
+        # read as "fully refunded".
+        elif event_type in ("refund.created", "refund.updated", "refund.failed",
+                            "charge.refund.updated"):
+            from app.services.refund_service import record_refund
+            await record_refund(db, refund=obj, source="stripe", bypass_rls=True, account=account)
         elif event_type == "charge.refunded":
-            await _handle_charge_refunded(db, obj)
+            from app.services.refund_service import reconcile_charge
+            await reconcile_charge(db, obj, account=account)
         # ── Brand billing (System A — Stripe Subscriptions) ──
         elif event_type == "checkout.session.completed":
             await _handle_checkout_completed(db, obj)
@@ -100,7 +113,7 @@ async def stripe_webhook(
             "charge.dispute.funds_withdrawn",
             "charge.dispute.funds_reinstated",
         ):
-            await DisputeService(db).record_dispute(obj)
+            await DisputeService(db).record_dispute(obj, event_type, account=account)
 
         log_entry.status = "processed"
         await db.commit()
@@ -145,16 +158,6 @@ async def _handle_payment_failed(db: AsyncSession, payment_intent: dict) -> None
         .where(Order.stripe_payment_intent_id == intent_id)
         .values(payment_status="failed")
     )
-
-
-async def _handle_charge_refunded(db: AsyncSession, charge: dict) -> None:
-    intent_id = charge.get("payment_intent")
-    if intent_id:
-        await db.execute(
-            update(Order)
-            .where(Order.stripe_payment_intent_id == intent_id)
-            .values(payment_status="refunded", status="refunded")
-        )
 
 
 async def _handle_checkout_completed(db: AsyncSession, session: dict) -> None:

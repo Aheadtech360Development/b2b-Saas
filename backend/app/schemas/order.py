@@ -228,6 +228,12 @@ class AdminOrderDetail(OrderOut):
     # How the buyer arrived: utm_*, referrer, landing page, ad click ids.
     # None when nothing was recorded, which is not the same as "direct".
     attribution: dict | None = None
+    # Money that went back: every refund, what is still refundable, and any
+    # chargeback the customer opened with their bank.
+    amount_refunded: Decimal | None = None
+    refundable_remaining: Decimal | None = None
+    refunds: list[dict] = []
+    disputes: list[dict] = []
     # Pre-calculated shipment weight from order items (lbs), for Shippo label generation
     calculated_weight_lbs: float = 1.0
     # Admin edits flag + convenience fee

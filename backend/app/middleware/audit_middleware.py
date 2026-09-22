@@ -254,11 +254,21 @@ async def record_event(
     transaction, and a refund recorded by a Stripe webhook must survive
     whatever else that webhook does.
     """
+    import logging as _logging
     import uuid as _uuid
 
     from app.core.database import AsyncSessionLocal
+    from app.core.tenant_context import is_scoping_bypassed, set_bypass_scoping
     from app.models.system import AuditLog
 
+    # The row names its brand explicitly, so it is written without relying on
+    # the caller's tenant context. That context is often absent — a Stripe
+    # webhook is Stripe calling us, not a signed-in admin — and row-level
+    # security is fail-closed without it, so the insert used to be refused and
+    # the refusal swallowed: refunds and disputes made in Stripe never reached
+    # the activity log at all.
+    previous = is_scoping_bypassed()
+    set_bypass_scoping(True)
     try:
         async with AsyncSessionLocal() as session:
             session.add(AuditLog(
@@ -276,5 +286,9 @@ async def record_event(
             ))
             await session.commit()
     except Exception:
-        # The activity log must never be the reason a sign-in or a webhook fails.
-        pass
+        # The activity log must never be the reason a sign-in or a webhook
+        # fails — but it must not fail silently either, or the next gap in it
+        # goes unnoticed the way this one did.
+        _logging.getLogger(__name__).exception("Could not write activity log entry: %s", summary)
+    finally:
+        set_bypass_scoping(previous)

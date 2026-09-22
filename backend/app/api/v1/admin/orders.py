@@ -655,6 +655,17 @@ async def get_admin_order(order_id: str, db: AsyncSession = Depends(get_db)):
 
     _events_rows = await order_events.for_order(db, order.id)
 
+    from app.services import refund_service as _refunds
+    from app.services.dispute_service import DisputeService as _Disputes
+
+    _refund_rows = await _refunds.refunds_for_order(db, order.id)
+    _remaining = await _refunds.remaining_refundable(db, order.id) if order.stripe_payment_intent_id else None
+    _dispute_rows = [
+        {k: (v.isoformat() if hasattr(v, "isoformat") else (float(v) if k == "amount" and v is not None else v))
+         for k, v in d.items()}
+        for d in await _Disputes(db).for_order(order.id)
+    ]
+
     try:
         return AdminOrderDetail(
             supplier=_supplier_detail,
@@ -706,6 +717,10 @@ async def get_admin_order(order_id: str, db: AsyncSession = Depends(get_db)):
             timeline=order.timeline or [],
             events=_events_rows,
             attribution=attribution.summary(order),
+            amount_refunded=getattr(order, "amount_refunded", None),
+            refundable_remaining=_remaining,
+            refunds=_refund_rows,
+            disputes=_dispute_rows,
             calculated_weight_lbs=calculated_weight_lbs,
             items_edited=bool(getattr(order, "items_edited", False)),
             convenience_fee=getattr(order, "convenience_fee", None),
@@ -1371,8 +1386,15 @@ async def cancel_admin_order(
 
 
 class RefundOrderRequest(BaseModel):
-    amount: float | None = None   # None = full refund
+    # None refunds whatever is still paid — which after a partial refund is not
+    # the order total, and refunding the total again would overshoot it.
+    amount: float | None = None
     reason: str | None = None     # duplicate | fraudulent | requested_by_customer
+    note: str | None = None       # for the brand's own records
+    # A value the screen generates once per press of the button. Sent to Stripe
+    # as the idempotency key, so a double click, a retry after a timeout, or a
+    # page resubmit all resolve to the one refund instead of two.
+    request_id: str | None = None
 
 
 @router.post("/orders/{order_id}/refund", response_model=dict)
@@ -1382,13 +1404,22 @@ async def refund_admin_order(
     request: Request,
     db: AsyncSession = Depends(get_db),
 ):
-    """Refund a Stripe Direct-charge order on the brand's connected account.
+    """Refund a card order, in full or in part, on the brand's own Stripe account.
 
-    The order must have been paid by card via Stripe (has stripe_payment_intent_id);
-    Net-30 orders are settled on their invoice, not refunded here.
-    Order is tenant-scoped, so an admin can only refund their own brand's orders.
+    Authorisation is layered: the middleware requires the orders permission and
+    the billing permission with write access (money leaves the brand here), and
+    the session only finds this brand's orders, so an id from another brand is
+    simply not found.
+
+    The refund is recorded from Stripe's answer, never from the request: the
+    same row the webhook will later update.
     """
+    import hashlib
     from decimal import Decimal
+
+    import stripe as _stripe
+
+    from app.services import refund_service
     from app.services.connect_service import ConnectService
     from app.services.payment_service import PaymentService
 
@@ -1398,59 +1429,95 @@ async def refund_admin_order(
     if not order.stripe_payment_intent_id:
         raise HTTPException(
             status_code=400,
-            detail="This order was not paid by card via Stripe; refund it through the original payment method.",
+            detail="This order was not paid by card; refund it through the way it was paid.",
         )
     if order.payment_status != "paid":
         raise HTTPException(
             status_code=400,
-            detail=f"Order is not refundable (payment status: {order.payment_status}).",
+            detail=f"Nothing left to refund on this order (payment status: {order.payment_status}).",
         )
 
     tenant_id = getattr(request.state, "tenant_id", None)
     connect = await ConnectService(db).get_status(str(tenant_id))
     if not connect.get("account_id"):
-        raise HTTPException(status_code=400, detail="This store has no connected Stripe account.")
+        raise HTTPException(status_code=400, detail="This store has no connected payment account.")
 
-    amount_dec = None
-    if payload.amount is not None:
-        amount_dec = Decimal(str(payload.amount))
-        if amount_dec <= 0 or amount_dec > Decimal(str(order.total)):
-            raise HTTPException(status_code=400, detail="Refund amount must be > 0 and <= order total.")
+    remaining = await refund_service.remaining_refundable(db, order.id)
+    if remaining <= 0:
+        raise HTTPException(status_code=400, detail="This order has already been refunded in full.")
 
+    amount = remaining if payload.amount is None else Decimal(str(payload.amount)).quantize(Decimal("0.01"))
+    if amount <= 0:
+        raise HTTPException(status_code=400, detail="A refund must be more than $0.00.")
+    if amount > remaining:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Only ${remaining:.2f} is left to refund on this order.",
+        )
+    if payload.reason and payload.reason not in ("duplicate", "fraudulent", "requested_by_customer"):
+        raise HTTPException(status_code=400, detail="Reason is duplicate, fraudulent or requested_by_customer.")
+
+    # The key covers the order, the amount and what was left before — so the
+    # same press twice is one refund, while a genuine second partial refund of
+    # the same amount (with less left) is a new one.
+    raw_key = payload.request_id or f"{order.id}:{amount}:{remaining}"
+    idempotency_key = "refund-" + hashlib.sha256(f"{tenant_id}:{raw_key}".encode()).hexdigest()[:40]
+
+    actor_id, actor_name = await order_events.admin_actor(db, request)
     try:
         refund = await PaymentService(db).create_refund(
             payment_intent_id=order.stripe_payment_intent_id,
             connected_account_id=connect["account_id"],
-            amount_decimal=amount_dec,
+            # Always the exact amount validated above, never "whatever Stripe
+            # thinks is left": what leaves the brand's account is what was checked.
+            amount_decimal=amount,
             reason=payload.reason,
+            idempotency_key=idempotency_key,
+            metadata={"order_id": str(order.id), "order_number": order.order_number,
+                      "requested_by": actor_name},
         )
-    except HTTPException:
-        raise
-    except Exception as exc:
-        logger.exception("Stripe refund failed for order %s: %s", order_id, exc)
-        raise HTTPException(status_code=502, detail=f"Refund failed at Stripe: {exc}")
+    except _stripe.error.InvalidRequestError as exc:
+        # Stripe's own words — "charge already refunded", "amount exceeds" —
+        # are something the admin can act on; a 502 is not.
+        raise HTTPException(status_code=400, detail=getattr(exc, "user_message", None) or str(exc))
+    except _stripe.error.StripeError as exc:
+        logger.exception("Stripe refund failed for order %s", order_id)
+        raise HTTPException(status_code=502, detail="The payment provider could not process the refund. Try again shortly.")
 
-    # Full refund flips status; partial keeps 'paid' (the enum has no partial state).
-    is_full = amount_dec is None or amount_dec >= Decimal(str(order.total))
-    if is_full:
-        order.payment_status = "refunded"
-
-    _refunded = float(amount_dec) if amount_dec is not None else float(order.total)
-    await order_events.record_admin(
-        db, request, order, "refund_issued",
-        f"{'Refund' if is_full else 'Partial refund'} of ${_refunded:.2f} issued"
-        + (f" — {payload.reason.replace('_', ' ')}" if payload.reason else ""),
-        meta={"amount": round(_refunded, 2), "full": is_full, "reason": payload.reason,
-              "refund_id": getattr(refund, "id", None), "currency": "USD"},
+    result = await refund_service.record_refund(
+        db, refund=refund, source="admin",
+        initiated_by=actor_id, initiated_by_name=actor_name, note=payload.note,
     )
     await db.commit()
+    await db.refresh(order)
 
     return {
-        "message": "Refund issued" if is_full else "Partial refund issued",
-        "refund_id": refund.id,
-        "amount": float(amount_dec) if amount_dec is not None else float(order.total),
+        "message": "Refund issued" if (result or {}).get("fully_refunded") else "Partial refund issued",
+        "refund_id": getattr(refund, "id", None) or (refund or {}).get("id"),
+        "amount": float(amount),
+        "status": (result or {}).get("status"),
+        "total_refunded": (result or {}).get("total_refunded"),
+        "remaining": (result or {}).get("remaining"),
         "payment_status": order.payment_status,
     }
+
+
+@router.get("/refunds")
+async def list_admin_refunds(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=200),
+    request: Request = None,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Every refund on this brand's orders, newest first."""
+    from app.services import refund_service
+
+    tenant_id = getattr(request.state, "tenant_id", None)
+    if not tenant_id:
+        return {"items": [], "total": 0, "refunded_total": 0}
+    return await refund_service.list_refunds(
+        db, tenant_id, limit=page_size, offset=(page - 1) * page_size,
+    )
 
 
 @router.get("/disputes")

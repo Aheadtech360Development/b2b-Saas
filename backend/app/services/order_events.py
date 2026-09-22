@@ -79,6 +79,14 @@ EVENTS: dict[str, dict[str, Any]] = {
     "return_completed":    {"label": "Return completed",          "customer": True},
     "refund_issued":       {"label": "Refund issued",             "customer": True},
     "restocked":           {"label": "Items restocked",           "customer": False},
+    # Chargebacks. Internal: the customer started it at their bank and does
+    # not need the brand's side of it on their order page.
+    "dispute_opened":           {"label": "Payment disputed",          "customer": False},
+    "dispute_updated":          {"label": "Dispute updated",           "customer": False},
+    "dispute_won":              {"label": "Dispute won",               "customer": False},
+    "dispute_lost":             {"label": "Dispute lost",              "customer": False},
+    "dispute_funds_withdrawn":  {"label": "Dispute funds withdrawn",   "customer": False},
+    "dispute_funds_reinstated": {"label": "Dispute funds returned",    "customer": False},
     # Talking about it
     "note":                {"label": "Note",                      "customer": False},
     "comment":             {"label": "Comment",                   "customer": True},

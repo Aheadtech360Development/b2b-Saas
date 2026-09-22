@@ -14,6 +14,7 @@ Roles (DB `users.role` values):
 """
 from __future__ import annotations
 
+import re
 from typing import Any
 
 # All permission sections.
@@ -104,6 +105,7 @@ _PATH_SCOPES: list[tuple[str, str]] = [
     ("/api/v1/admin/payouts", "payouts"),
     ("/api/v1/admin/connect", "payouts"),
     ("/api/v1/admin/disputes", "billing"),
+    ("/api/v1/admin/refunds", "billing"),
     ("/api/v1/admin/settings", "settings"),
     ("/api/v1/admin/email-templates", "settings"),
     ("/api/v1/admin/taxes", "settings"),
@@ -114,6 +116,24 @@ _PATH_SCOPES: list[tuple[str, str]] = [
 ]
 
 _READ_METHODS = {"GET", "HEAD", "OPTIONS"}
+
+# Actions that live under one section but move money, so they also need write
+# access to a second one. A refund is an order action, but it sends the brand's
+# money back to a card; somebody allowed to ship orders is not, by that alone,
+# allowed to do that.
+_ALSO_REQUIRES: list[tuple[re.Pattern, str]] = [
+    (re.compile(r"^/api/v1/admin/orders/[^/]+/refund/?$"), "billing"),
+]
+
+
+def extra_scope_for(path: str, method: str) -> str | None:
+    """The second section a money-moving write needs, if any."""
+    if method.upper() in _READ_METHODS:
+        return None
+    for pattern, scope in _ALSO_REQUIRES:
+        if pattern.match(path):
+            return scope
+    return None
 
 
 def scope_for_path(path: str) -> str | None:
@@ -182,9 +202,13 @@ def can_access(
     is_read = method.upper() in _READ_METHODS
     scope = scope_for_path(path)
 
+    also = extra_scope_for(path, method)
+
     # Partial access: an explicit permission set.
     if scopes is not None:
         allowed = normalise_scopes(scopes, read_only)
+        if also is not None and allowed.get(also) != WRITE:
+            return False
         if scope is None:
             # An admin path nothing has mapped yet. Reading is fine; writing is
             # refused, because an unmapped path is one nobody has decided about
@@ -195,7 +219,10 @@ def can_access(
             return False
         return is_read if level == READ else True
 
-    # Fixed role.
+    # Fixed role. The second section is always a sensitive one, which a fixed
+    # role below full access only ever reads — so these actions are refused.
+    if also is not None:
+        return False
     if scope is None:
         return is_read if role in READ_ONLY_ROLES else True
     if scope not in ROLE_SCOPES.get(role, set()):

@@ -117,6 +117,10 @@ class Order(TenantMixin, BaseModel):
     marked_paid_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     marked_paid_by: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     amount_paid: Mapped[Optional[float]] = mapped_column(Numeric(10, 2), nullable=True)
+    # What has come back, summed from payment_refunds — see refund_service and
+    # migration 0046. The order is refunded when this reaches the total, not
+    # when a refund event happens to arrive.
+    amount_refunded: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False, default=0)
 
     # Where the buyer came from — see services/attribution.py and migration
     # 0040. The five UTM values a brand groups and exports by get columns; the
