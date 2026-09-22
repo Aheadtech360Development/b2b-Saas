@@ -860,15 +860,40 @@ async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONR
 
 
 # ── Health check ──────────────────────────────────────────────────────────────
+async def _schema_version() -> str | None:
+    """Which migration the database is actually on.
+
+    The deploy runs `alembic upgrade head || echo 'non-fatal'`, so a migration
+    that fails still leaves the app serving — on the old schema, quietly. This
+    is how anyone can tell from outside whether a deploy really landed, instead
+    of inferring it from a feature not appearing.
+    """
+    from sqlalchemy import text as _text
+
+    from app.core.database import AsyncSessionLocal
+
+    try:
+        async with AsyncSessionLocal() as session:
+            return (await session.execute(
+                _text("SELECT version_num FROM alembic_version LIMIT 1")
+            )).scalar_one_or_none()
+    except Exception:
+        return None
+
+
 @app.get("/health", tags=["Health"])
 async def health_check() -> dict:
     db_ok = await check_db_connection()
     redis_ok = await check_redis_connection()
+    schema = await _schema_version() if db_ok else None
     return {
         "status": "ok" if (db_ok and redis_ok) else "degraded",
         "version": "1.0.0",
         "db": "ok" if db_ok else "error",
         "redis": "ok" if redis_ok else "error",
+        # Compare against the newest file in backend/migrations/versions to see
+        # whether this deploy's migrations were applied.
+        "schema": schema,
     }
 
 
