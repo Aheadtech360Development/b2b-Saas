@@ -53,6 +53,118 @@ def _set_image(tag: Tag, url: str) -> None:
     tag.append(img)
 
 
+# ── Rows of cards ────────────────────────────────────────────────────────────
+# The design draws one card and repeats it. To show the store's own products we
+# take that card as the pattern and stamp it once per product, putting each
+# product's picture, name and price where the example's were. Nothing about the
+# card is redesigned — that is why the grid still looks like the design.
+
+def _role(card: Tag, names: list[str], classes: list[str]) -> Tag | None:
+    for cls in classes:
+        found = card.select_one(f".{cls}")
+        if found is not None:
+            return found
+    if names:
+        return card.find(names)
+    return None
+
+
+def _fill_card(template_html: str, item: dict[str, Any]) -> Tag | None:
+    soup = BeautifulSoup(template_html, "html.parser")
+    card = next((c for c in soup.children if isinstance(c, Tag)), None)
+    if card is None:
+        return None
+
+    image = card.find("img") or card.select_one(".placeholder")
+    if image is not None:
+        if item.get("image"):
+            _set_image(image, str(item["image"]))
+        elif image.name != "img":
+            # No picture yet: leave the design's own empty box, without its
+            # "[Photo]" note, so the grid keeps its shape.
+            image.clear()
+
+    title = _role(card, ["h1", "h2", "h3", "h4", "h5", "h6"], ["title", "product-title", "name"])
+    if title is not None and item.get("title"):
+        _set_text(title, str(item["title"]))
+
+    price = _role(card, [], ["price", "product-price"])
+    if price is not None:
+        if item.get("price"):
+            _set_text(price, str(item["price"]))
+        else:
+            price.decompose()
+
+    badge = _role(card, [], ["badge", "tag"])
+    if badge is not None:
+        if item.get("badge"):
+            _set_text(badge, str(item["badge"]))
+        else:
+            badge.decompose()  # the example's "Best Seller" is not a fact
+
+    # A rating belongs to the product, not the design's example.
+    for extra in card.select(".rating, .reviews"):
+        extra.decompose()
+
+    text = _role(card, ["p"], ["description", "excerpt"])
+    if text is not None:
+        if item.get("text"):
+            _set_text(text, str(item["text"]))
+        else:
+            text.decompose()
+
+    url = str(item.get("url") or "")
+    if url:
+        anchor = card if card.name == "a" else None
+        if anchor is None:
+            inner = card.find("a")
+            if inner is not None and _text_of_tag(inner) == _text_of_tag(card):
+                anchor = inner
+        if anchor is not None:
+            anchor["href"] = url
+        else:
+            # Make the whole card the link, keeping its classes and styling.
+            card.name = "a"
+            card["href"] = url
+            style = card.get("style") or ""
+            card["style"] = f"{style};display:block;color:inherit;text-decoration:none".strip(";")
+    return card
+
+
+def _text_of_tag(tag: Tag) -> str:
+    return " ".join(tag.get_text(" ", strip=True).split())
+
+
+def fill_repeaters(html: str, repeaters: list[dict[str, Any]], items_by_key: dict[str, list[dict[str, Any]]]) -> str:
+    """Put the store's own cards into this section's rows of cards."""
+    if not repeaters or not items_by_key:
+        return html
+    soup = BeautifulSoup(html, "html.parser")
+    root = next((c for c in soup.children if isinstance(c, Tag)), None)
+    if root is None:
+        return html
+
+    changed = False
+    for repeater in repeaters:
+        items = items_by_key.get(repeater.get("key", ""))
+        if items is None:
+            continue  # this row was left as the design drew it
+        container = _element_at(root, repeater.get("path", ""))
+        if container is None:
+            continue
+        children = [c for c in container.children if isinstance(c, Tag)]
+        if not children:
+            continue
+        template_html = str(children[0])
+        container.clear()
+        for item in items:
+            card = _fill_card(template_html, item)
+            if card is not None:
+                container.append(card)
+        changed = True
+    return str(soup) if changed else html
+
+
 def render_section(section: dict[str, Any], values: dict[str, Any] | None) -> str:
     """One section's HTML with this brand's values in it."""
     html = section.get("html") or ""
@@ -80,7 +192,8 @@ def render_section(section: dict[str, Any], values: dict[str, Any] | None) -> st
     return str(soup)
 
 
-def render_page(definition: dict[str, Any], state: dict[str, Any] | None, page_key: str) -> dict[str, Any] | None:
+def render_page(definition: dict[str, Any], state: dict[str, Any] | None, page_key: str,
+                items: dict[str, list[dict[str, Any]]] | None = None) -> dict[str, Any] | None:
     """A whole page: the sections this brand shows, in its order, filled in."""
     pages = (definition or {}).get("pages") or {}
     page = pages.get(page_key)
@@ -96,11 +209,20 @@ def render_page(definition: dict[str, Any], state: dict[str, Any] | None, page_k
     hidden = set(page_state.get("hidden") or [])
     values = page_state.get("values") or {}
 
-    blocks = [
-        {"id": sid, "html": render_section(by_id[sid], values.get(sid))}
-        for sid in order
-        if sid not in hidden
-    ]
+    blocks = []
+    for sid in order:
+        if sid in hidden:
+            continue
+        section = by_id[sid]
+        html = render_section(section, values.get(sid))
+        if items:
+            mine = {
+                key.split("|", 1)[1]: rows
+                for key, rows in items.items()
+                if key.startswith(f"{sid}|")
+            }
+            html = fill_repeaters(html, section.get("repeaters") or [], mine)
+        blocks.append({"id": sid, "html": html})
     return {
         "key": page_key,
         "label": page.get("label") or page_key.title(),
@@ -131,6 +253,28 @@ def clean_state(definition: dict[str, Any], state: Any) -> dict[str, Any]:
         order += [sid for sid in ids if sid not in order]
         hidden = [sid for sid in (given.get("hidden") or []) if sid in ids]
 
+        dynamic: dict[str, dict[str, Any]] = {}
+        rows_by_section = {
+            s["id"]: {r["key"] for r in s.get("repeaters", [])} for s in page.get("sections", [])
+        }
+        for sid, slots in (given.get("dynamic") or {}).items():
+            allowed_rows = rows_by_section.get(sid) or set()
+            if not allowed_rows or not isinstance(slots, dict):
+                continue
+            kept_rows = {}
+            for row_key, spec in slots.items():
+                if row_key not in allowed_rows or not isinstance(spec, dict):
+                    continue
+                kept_rows[row_key] = {
+                    "source": spec.get("source") if spec.get("source") in {"products", "collections", "none"} else "products",
+                    "collection": str(spec.get("collection") or "")[:200],
+                    "sort": str(spec.get("sort") or "newest")[:20],
+                    "limit": max(1, min(int(spec.get("limit") or 6), 24)) if str(spec.get("limit") or "6").isdigit() else 6,
+                    "ids": [str(i)[:64] for i in (spec.get("ids") or [])][:24],
+                }
+            if kept_rows:
+                dynamic[sid] = kept_rows
+
         values: dict[str, dict[str, str]] = {}
         for sid, section_values in (given.get("values") or {}).items():
             if sid not in fields_by_section or not isinstance(section_values, dict):
@@ -144,5 +288,5 @@ def clean_state(definition: dict[str, Any], state: Any) -> dict[str, Any]:
             if kept:
                 values[sid] = kept
 
-        out["pages"][key] = {"order": order, "hidden": hidden, "values": values}
+        out["pages"][key] = {"order": order, "hidden": hidden, "values": values, "dynamic": dynamic}
     return out

@@ -237,6 +237,8 @@ def import_html(html: str, *, name: str) -> dict[str, Any]:
                 "label": _section_label(child, i),
                 "html": str(child),
                 "fields": _fields_for(child),
+                # Rows of cards the store fills with its own products.
+                "repeaters": _repeaters_for(child),
             })
         if not sections:
             continue
@@ -256,12 +258,74 @@ def import_html(html: str, *, name: str) -> dict[str, Any]:
 
 
 def default_state(definition: dict[str, Any]) -> dict[str, Any]:
-    """A fresh draft: every section shown, in the order the design has them."""
+    """A fresh draft: every section shown, in the order the design has them,
+    and every row of cards showing the store's newest products."""
     pages = {}
     for key, page in (definition.get("pages") or {}).items():
+        dynamic: dict[str, Any] = {}
+        for section in page.get("sections", []):
+            slots = {
+                rep["key"]: {"source": rep["kind"], "collection": "", "ids": [], "limit": rep["count"]}
+                for rep in section.get("repeaters", [])
+            }
+            if slots:
+                dynamic[section["id"]] = slots
         pages[key] = {
             "order": [s["id"] for s in page.get("sections", [])],
             "hidden": [],
             "values": {},
+            "dynamic": dynamic,
         }
     return {"pages": pages}
+
+
+# ── Repeating card grids ─────────────────────────────────────────────────────
+# A design shows its products and collections as a row of identical cards. We
+# find those rows so the store can fill them with its own products instead of
+# the design's examples — the card itself stays exactly as it was drawn.
+
+_MONEY = re.compile(r"[$£€]\s*[\d\[]")
+MIN_REPEAT = 3
+
+
+def _signature(tag: Tag) -> str:
+    return f"{tag.name}.{'.'.join(sorted(tag.get('class') or []))}"
+
+
+def _guess_kind(container: Tag, item: Tag) -> str:
+    """Whether this row of cards is showing products or collections."""
+    words = " ".join((container.get("class") or []) + (item.get("class") or [])).lower()
+    if "categor" in words or "collection" in words:
+        return "collections"
+    if "product" in words or _MONEY.search(_text_of(item)):
+        return "products"
+    return ""
+
+
+def _repeaters_for(section: Tag) -> list[dict[str, Any]]:
+    """Rows of identical cards, and what each is probably showing."""
+    found: list[dict[str, Any]] = []
+    for container in section.find_all(True):
+        children = [c for c in container.children if isinstance(c, Tag)]
+        if len(children) < MIN_REPEAT:
+            continue
+        first = children[0]
+        if len({_signature(c) for c in children}) != 1:
+            continue
+        # A card has a picture or a heading — a row of plain <li>s is not a grid.
+        if not (first.find(["img"]) or first.select(".placeholder") or first.find(["h1", "h2", "h3", "h4", "h5"])):
+            continue
+        kind = _guess_kind(container, first)
+        if not kind:
+            continue
+        path = _path(section, container)
+        if not path:
+            continue
+        found.append({
+            "key": f"rep:{path}",
+            "path": path,
+            "kind": kind,
+            "label": "Products" if kind == "products" else "Collections",
+            "count": len(children),
+        })
+    return found

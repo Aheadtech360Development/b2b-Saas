@@ -314,7 +314,7 @@ async def get_storefront_theme(
     nothing for shoppers until it is published.
     """
     from app.models.brand_theme import BrandTheme
-    from app.services import theme_render
+    from app.services import theme_data, theme_render
 
     tid = await _tenant_id_from_slug(db, getattr(request.state, "tenant_slug", None)) or _resolve_tenant_id(request)
     if not tid:
@@ -328,7 +328,8 @@ async def get_storefront_theme(
     )).scalar_one_or_none()
     if theme is None:
         return {"page": None}
-    return {"page": theme_render.render_page(theme.definition, theme.published, page_key)}
+    items = await theme_data.page_items(db, theme.published, page_key)
+    return {"page": theme_render.render_page(theme.definition, theme.published, page_key, items)}
 
 
 # ── Public: storefront branding by subdomain ──────────────────────────────────

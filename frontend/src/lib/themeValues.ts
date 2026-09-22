@@ -17,11 +17,40 @@ export interface ThemeField {
   default: string;
 }
 
+/** A row of identical cards in the design — its products or collections. */
+export interface ThemeRepeater {
+  key: string;
+  path: string;
+  kind: "products" | "collections";
+  label: string;
+  count: number;
+}
+
+/** What one row of cards should show. */
+export interface SlotSpec {
+  source: "products" | "collections" | "none";
+  collection?: string;
+  sort?: string;
+  limit: number;
+  ids?: string[];
+}
+
+/** One card's worth of real data, as the server sends it. */
+export interface SlotItem {
+  title: string;
+  url: string;
+  image: string;
+  price: string;
+  badge: string;
+  text: string;
+}
+
 export interface ThemeSection {
   id: string;
   label: string;
   html: string;
   fields: ThemeField[];
+  repeaters?: ThemeRepeater[];
 }
 
 export interface ThemePageDefinition {
@@ -42,6 +71,8 @@ export interface ThemePageState {
   order: string[];
   hidden: string[];
   values: Record<string, Record<string, string>>;
+  /** Per section, per row of cards: what that row shows. */
+  dynamic?: Record<string, Record<string, SlotSpec>>;
 }
 
 export interface ThemeState {
@@ -104,8 +135,91 @@ export function applyValues(html: string, values: Record<string, string> | undef
   return wrapper?.innerHTML ?? html;
 }
 
+function roleOf(card: Element, selectors: string[], tags: string[]): Element | null {
+  for (const sel of selectors) {
+    const found = card.querySelector(`.${sel}`);
+    if (found) return found;
+  }
+  for (const tag of tags) {
+    const found = card.querySelector(tag);
+    if (found) return found;
+  }
+  return null;
+}
+
+/** One card of the design, carrying one real product or collection.
+ *  Mirrors backend services/theme_render._fill_card. */
+function fillCard(template: Element, item: SlotItem): Element {
+  const card = template.cloneNode(true) as Element;
+
+  const image = card.querySelector("img") ?? card.querySelector(".placeholder");
+  if (image) {
+    if (item.image) setImage(image, item.image);
+    else if (image.tagName !== "IMG") image.innerHTML = "";
+  }
+
+  const title = roleOf(card, ["title", "product-title", "name"], ["h1", "h2", "h3", "h4", "h5", "h6"]);
+  if (title && item.title) setText(title, item.title);
+
+  const price = roleOf(card, ["price", "product-price"], []);
+  if (price) { if (item.price) setText(price, item.price); else price.remove(); }
+
+  const badge = roleOf(card, ["badge", "tag"], []);
+  if (badge) { if (item.badge) setText(badge, item.badge); else badge.remove(); }
+
+  card.querySelectorAll(".rating, .reviews").forEach((n) => n.remove());
+
+  const text = roleOf(card, ["description", "excerpt"], ["p"]);
+  if (text) { if (item.text) setText(text, item.text); else text.remove(); }
+
+  if (item.url) {
+    if (card.tagName === "A") card.setAttribute("href", item.url);
+    else {
+      const link = card.ownerDocument.createElement("a");
+      link.setAttribute("href", item.url);
+      link.setAttribute("class", card.getAttribute("class") ?? "");
+      link.setAttribute("style", `${card.getAttribute("style") ?? ""};display:block;color:inherit;text-decoration:none`);
+      link.innerHTML = card.innerHTML;
+      return link;
+    }
+  }
+  return card;
+}
+
+/** Put the store's own cards into this section's rows of cards. */
+export function fillRepeaters(
+  html: string,
+  repeaters: ThemeRepeater[] | undefined,
+  itemsByKey: Record<string, SlotItem[] | undefined>,
+): string {
+  if (!repeaters?.length) return html;
+  const doc = new DOMParser().parseFromString(`<div id="__root">${html}</div>`, "text/html");
+  const wrapper = doc.getElementById("__root");
+  const root = wrapper?.firstElementChild;
+  if (!root) return html;
+
+  let changed = false;
+  for (const repeater of repeaters) {
+    const items = itemsByKey[repeater.key];
+    if (!items) continue;
+    const container = elementAt(root, repeater.path);
+    const template = container?.firstElementChild;
+    if (!container || !template) continue;
+    const pattern = template.cloneNode(true) as Element;
+    container.innerHTML = "";
+    items.forEach((item) => container.appendChild(fillCard(pattern, item)));
+    changed = true;
+  }
+  return changed ? (wrapper?.innerHTML ?? html) : html;
+}
+
 /** The sections a page shows, in its order, with values applied. */
-export function renderPage(def: ThemeDefinition, state: ThemeState, pageKey: string) {
+export function renderPage(
+  def: ThemeDefinition,
+  state: ThemeState,
+  pageKey: string,
+  items?: Record<string, SlotItem[] | undefined>,
+) {
   const page = def.pages[pageKey];
   if (!page) return null;
   const byId = new Map(page.sections.map((s) => [s.id, s]));
@@ -122,6 +236,17 @@ export function renderPage(def: ThemeDefinition, state: ThemeState, pageKey: str
     svg_defs: def.svg_defs ?? "",
     sections: order
       .filter((id) => !hidden.has(id))
-      .map((id) => ({ id, html: applyValues(byId.get(id)!.html, pageState.values?.[id]) })),
+      .map((id) => {
+        const section = byId.get(id)!;
+        let html = applyValues(section.html, pageState.values?.[id]);
+        if (items) {
+          const mine: Record<string, SlotItem[] | undefined> = {};
+          for (const [key, rows] of Object.entries(items)) {
+            if (key.startsWith(`${id}|`)) mine[key.slice(id.length + 1)] = rows;
+          }
+          html = fillRepeaters(html, section.repeaters, mine);
+        }
+        return { id, html };
+      }),
   };
 }

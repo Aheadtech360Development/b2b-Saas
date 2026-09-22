@@ -18,7 +18,10 @@ import { MediaPicker } from "@/components/admin/MediaPicker";
 import { useAuthStore } from "@/stores/auth.store";
 import { canWrite } from "@/lib/permissions";
 import { themesService, type BrandTheme } from "@/services/themes.service";
-import { renderPage, type ThemeField, type ThemeState } from "@/lib/themeValues";
+import { renderPage, type SlotItem, type SlotSpec, type ThemeField, type ThemeState } from "@/lib/themeValues";
+import { apiClient } from "@/lib/api-client";
+
+interface CollectionOption { id: string; name: string; slug: string }
 
 const MESSAGE = "at360-theme-preview";
 const LOCKED_PAGES = [
@@ -61,6 +64,9 @@ export default function ThemeCustomizer({ fullScreen = false }: { fullScreen?: b
   const frameRef = useRef<HTMLIFrameElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const [previewReady, setPreviewReady] = useState(false);
+  // What the store's own products look like in the design's card rows.
+  const [slotItems, setSlotItems] = useState<Record<string, SlotItem[]>>({});
+  const [collections, setCollections] = useState<CollectionOption[]>([]);
 
   const adopt = useCallback((t: BrandTheme) => {
     setTheme(t);
@@ -80,11 +86,43 @@ export default function ThemeCustomizer({ fullScreen = false }: { fullScreen?: b
       .finally(() => setLoading(false));
   }, [adopt]);
 
+  useEffect(() => {
+    apiClient.get<CollectionOption[]>("/api/v1/admin/collections")
+      .then((rows) => setCollections(Array.isArray(rows) ? rows : []))
+      .catch(() => setCollections([]));
+  }, []);
+
   // ── The page the preview should draw, rebuilt as you edit ──
   const preview = useMemo(() => {
     if (!theme?.definition?.pages?.[pageKey]) return null;
-    return renderPage(theme.definition, state, pageKey);
-  }, [theme, state, pageKey]);
+    return renderPage(theme.definition, state, pageKey, slotItems);
+  }, [theme, state, pageKey, slotItems]);
+
+  // The rows of cards on this page, and what each was told to show.
+  const slotSpecs = useMemo(() => {
+    const out: Record<string, SlotSpec> = {};
+    const dynamic = state.pages?.[pageKey]?.dynamic ?? {};
+    for (const [sectionId, rows] of Object.entries(dynamic)) {
+      for (const [rowKey, spec] of Object.entries(rows ?? {})) out[`${sectionId}|${rowKey}`] = spec;
+    }
+    return out;
+  }, [state, pageKey]);
+
+  // Ask the API what those rows hold — the same cards the storefront serves —
+  // after a pause, so dragging a number doesn't fire a request per keystroke.
+  const specsKey = JSON.stringify(slotSpecs);
+  useEffect(() => {
+    if (!theme) return;
+    const specs = JSON.parse(specsKey) as Record<string, SlotSpec>;
+    if (Object.keys(specs).length === 0) { setSlotItems({}); return; }
+    let cancelled = false;
+    const t = setTimeout(() => {
+      themesService.slotData(specs)
+        .then((r) => { if (!cancelled) setSlotItems(r.items ?? {}); })
+        .catch(() => { /* the preview keeps the design's own cards */ });
+    }, 350);
+    return () => { cancelled = true; clearTimeout(t); };
+  }, [specsKey, theme]);
 
   const post = useCallback((payload: Record<string, unknown>) => {
     frameRef.current?.contentWindow?.postMessage({ type: MESSAGE, ...payload }, window.location.origin);
@@ -121,6 +159,15 @@ export default function ThemeCustomizer({ fullScreen = false }: { fullScreen?: b
       pages: { ...cur.pages, [pageKey]: { ...pageState, ...patch } },
     }));
   }
+  function setSlot(sectionId: string, rowKey: string, patch: Partial<SlotSpec>) {
+    const dynamic = { ...(pageState.dynamic ?? {}) };
+    const rows = { ...(dynamic[sectionId] ?? {}) };
+    const current: SlotSpec = rows[rowKey] ?? { source: "products", limit: 6 };
+    rows[rowKey] = { ...current, ...patch };
+    dynamic[sectionId] = rows;
+    patchPage({ dynamic });
+  }
+
   function setValue(sectionId: string, fieldKey: string, value: string) {
     const values = { ...(pageState.values ?? {}) };
     values[sectionId] = { ...(values[sectionId] ?? {}), [fieldKey]: value };
@@ -304,7 +351,58 @@ export default function ThemeCustomizer({ fullScreen = false }: { fullScreen?: b
 
                 {isOpen && (
                   <div style={{ padding: "0 10px 12px", borderTop: "1px solid #F2F1EC" }}>
-                    {section.fields.length === 0 && (
+                    {(section.repeaters ?? []).map((row) => {
+                      const spec: SlotSpec = pageState.dynamic?.[id]?.[row.key] ?? { source: row.kind, limit: row.count };
+                      return (
+                        <div key={row.key} style={{ marginTop: "12px", background: "#F5F8FC", border: "1px solid #D9E2EF", borderRadius: "8px", padding: "10px" }}>
+                          <div style={{ fontSize: "12px", fontWeight: 700, color: "#3E5C82", marginBottom: "8px" }}>
+                            {row.label} in this section
+                          </div>
+                          <label style={label}>Show</label>
+                          <select disabled={!writable} style={{ ...input, marginBottom: "8px" }} value={spec.source}
+                            onChange={(e) => setSlot(id, row.key, { source: e.target.value as SlotSpec["source"] })}>
+                            <option value="products">My products</option>
+                            <option value="collections">My collections</option>
+                            <option value="none">The design&apos;s own cards</option>
+                          </select>
+
+                          {spec.source === "products" && (
+                            <>
+                              <label style={label}>From</label>
+                              <select disabled={!writable} style={{ ...input, marginBottom: "8px" }} value={spec.collection ?? ""}
+                                onChange={(e) => setSlot(id, row.key, { collection: e.target.value })}>
+                                <option value="">All products</option>
+                                {collections.map((c) => <option key={c.id} value={c.slug}>{c.name}</option>)}
+                              </select>
+                              <label style={label}>Order</label>
+                              <select disabled={!writable} style={{ ...input, marginBottom: "8px" }} value={spec.sort ?? "newest"}
+                                onChange={(e) => setSlot(id, row.key, { sort: e.target.value })}>
+                                <option value="newest">Newest first</option>
+                                <option value="name">By name</option>
+                                <option value="price_low">Price: low to high</option>
+                                <option value="price_high">Price: high to low</option>
+                              </select>
+                            </>
+                          )}
+
+                          {spec.source !== "none" && (
+                            <>
+                              <label style={label}>How many to show</label>
+                              <input disabled={!writable} type="number" min={1} max={24} style={{ ...input, maxWidth: "110px" }}
+                                value={spec.limit}
+                                onChange={(e) => setSlot(id, row.key, { limit: Math.max(1, Math.min(24, Number(e.target.value) || 1)) })} />
+                            </>
+                          )}
+                          <p style={{ fontSize: "11.5px", color: "#7A7880", marginTop: "8px", lineHeight: 1.5 }}>
+                            {spec.source === "none"
+                              ? "This row shows the design's example cards. Shoppers will see those examples — switch it to your products before publishing."
+                              : `The design drew ${row.count} cards here; the store fills them with whatever you choose. More than that wraps onto the next row.`}
+                          </p>
+                        </div>
+                      );
+                    })}
+
+                    {section.fields.length === 0 && (section.repeaters ?? []).length === 0 && (
                       <p style={{ fontSize: "12px", color: "#9A98A0", marginTop: "10px" }}>Nothing to edit in this section.</p>
                     )}
                     {section.fields.map((field: ThemeField) => {

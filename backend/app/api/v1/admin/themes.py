@@ -22,7 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.middleware.auth_middleware import require_admin
 from app.models.brand_theme import BrandTheme
-from app.services import theme_import, theme_render
+from app.services import theme_data, theme_import, theme_render
 
 router = APIRouter(prefix="/admin/storefront/theme", tags=["admin", "theme"])
 
@@ -138,6 +138,26 @@ async def discard(request: Request, _: None = Depends(require_admin),
     await db.commit()
     await db.refresh(theme)
     return {"theme": _detail(theme)}
+
+
+class SlotsIn(BaseModel):
+    """What each row of cards should show, keyed "<section>|<row>"."""
+    slots: dict[str, dict] = Field(default_factory=dict)
+
+
+@router.post("/data")
+async def slot_data(data: SlotsIn, request: Request, _: None = Depends(require_admin),
+                    db: AsyncSession = Depends(get_db)) -> dict:
+    """The cards these rows would show — the same ones the storefront serves.
+
+    The preview asks for these so an admin sees their own products while they
+    work, rather than the design's examples.
+    """
+    _tenant(request)
+    out = {}
+    for key, spec in list(data.slots.items())[:40]:
+        out[key] = await theme_data.items_for(db, spec)
+    return {"items": out}
 
 
 @router.post("/import")

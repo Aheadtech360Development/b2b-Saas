@@ -3,7 +3,7 @@
  * Save keeps a draft; publish is what changes the live storefront.
  */
 import { apiClient } from "@/lib/api-client";
-import type { ThemeDefinition, ThemeState } from "@/lib/themeValues";
+import type { SlotItem, SlotSpec, ThemeDefinition, ThemeState } from "@/lib/themeValues";
 
 export type ThemeStatus = "draft" | "changes" | "published";
 
@@ -33,7 +33,10 @@ export const themesService = {
   save: (draft: ThemeState) => apiClient.put<{ theme: BrandTheme }>(BASE, { draft }),
   publish: () => apiClient.post<{ theme: BrandTheme }>(`${BASE}/publish`, {}),
   discard: () => apiClient.post<{ theme: BrandTheme }>(`${BASE}/discard`, {}),
-  /** Platform team only: import a design file as this brand's theme. */
+  /** The cards these rows would show — the same ones the storefront serves. */
+  slotData: (slots: Record<string, SlotSpec>) =>
+    apiClient.post<{ items: Record<string, SlotItem[]> }>(`${BASE}/data`, { slots }),
+  /** An administrator imports a design file as this brand's theme. */
   importFile: (file: File) => {
     const form = new FormData();
     form.append("file", file);
