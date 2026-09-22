@@ -3,12 +3,14 @@
 import io
 import logging
 from decimal import Decimal
+from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Body, Depends, File, HTTPException, Query, Request, UploadFile, status
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import or_, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -546,6 +548,308 @@ async def delete_product(product_id: UUID, db: AsyncSession = Depends(get_db)):
 
 class _BulkVariantDeleteRequest(BaseModel):
     variant_ids: list[str]
+
+
+# ── Editing variants ─────────────────────────────────────────────────────────
+#
+# The admin screen has offered "Apply to All" and "Apply to Selected" for a
+# while, and both called PATCH .../variants/{id} — a route that did not exist.
+# Every apply, and every edit of a single cell, failed silently against a 405.
+#
+# So: the single-variant PATCH below, and a bulk endpoint that does the whole
+# selection in one request and one transaction. Sixty variants used to mean
+# sixty round trips that could half-succeed and leave the grid disagreeing with
+# the database; now it is one, and it either lands or it does not.
+
+# What an admin may change on a variant. Anything else in the payload is
+# ignored rather than written, so a stray field from a future UI cannot reach
+# the table.
+VARIANT_TEXT_FIELDS = ("sku", "color", "color_hex", "size", "country_of_origin")
+VARIANT_MONEY_FIELDS = ("retail_price", "compare_price", "msrp", "cost_per_item")
+VARIANT_NUMBER_FIELDS = ("weight_grams", "sort_order")
+VARIANT_STATUSES = ("active", "discontinued", "out_of_stock")
+# Stock is not a column on the variant — it lives per warehouse in `inventory`
+# — so it is handled separately below.
+STOCK_FIELD = "stock_quantity"
+
+_REQUIRED_MONEY = ("retail_price",)
+
+
+class VariantEditError(ValueError):
+    """A value the admin sent cannot be stored."""
+
+
+def _coerce_variant_field(field: str, raw: Any) -> Any:
+    """One field's value, checked and converted, or VariantEditError.
+
+    Blank clears an optional field and is refused on a required one: a variant
+    with no price is not something the storefront can sell.
+    """
+    from decimal import Decimal, InvalidOperation
+
+    blank = raw is None or (isinstance(raw, str) and not raw.strip())
+
+    if field in VARIANT_MONEY_FIELDS:
+        if blank:
+            if field in _REQUIRED_MONEY:
+                raise VariantEditError("Price cannot be empty.")
+            return None
+        try:
+            value = Decimal(str(raw).replace(",", "").strip())
+        except (InvalidOperation, ValueError):
+            raise VariantEditError(f'"{raw}" is not a price.')
+        if value < 0:
+            raise VariantEditError("A price cannot be negative.")
+        if value >= Decimal("100000000"):
+            raise VariantEditError("That price is larger than the column can hold.")
+        return value
+
+    if field in VARIANT_NUMBER_FIELDS:
+        if blank:
+            return None if field == "weight_grams" else 0
+        try:
+            return float(raw) if field == "weight_grams" else int(float(raw))
+        except (TypeError, ValueError):
+            raise VariantEditError(f'"{raw}" is not a number.')
+
+    if field == "status":
+        value = str(raw or "").strip().lower()
+        if value not in VARIANT_STATUSES:
+            raise VariantEditError(f'"{raw}" is not a status ({", ".join(VARIANT_STATUSES)}).')
+        return value
+
+    if field == STOCK_FIELD:
+        if blank:
+            return None
+        try:
+            qty = int(float(raw))
+        except (TypeError, ValueError):
+            raise VariantEditError(f'"{raw}" is not a quantity.')
+        if qty < 0:
+            raise VariantEditError("Stock cannot be negative.")
+        return qty
+
+    if field in VARIANT_TEXT_FIELDS:
+        if blank:
+            # A SKU is how the rest of the system finds this variant, so it is
+            # the one text field that cannot be cleared.
+            if field == "sku":
+                raise VariantEditError("SKU cannot be empty.")
+            return None
+        return str(raw).strip()[:100]
+
+    raise VariantEditError(f'"{field}" is not something you can change here.')
+
+
+def _apply_variant_fields(variant: ProductVariant, updates: dict) -> int | None:
+    """Write the accepted fields onto a variant. Returns the stock asked for,
+    if any, since that is stored elsewhere."""
+    stock: int | None = None
+    for field, raw in (updates or {}).items():
+        if field == STOCK_FIELD:
+            stock = _coerce_variant_field(field, raw)
+            continue
+        if field not in (*VARIANT_TEXT_FIELDS, *VARIANT_MONEY_FIELDS,
+                         *VARIANT_NUMBER_FIELDS, "status"):
+            continue
+        setattr(variant, field, _coerce_variant_field(field, raw))
+    return stock
+
+
+async def _set_variant_stock(db: AsyncSession, variant_id: UUID, quantity: int) -> None:
+    """Put a variant's stock at this number, across the warehouses it is in.
+
+    A variant not stocked anywhere yet gets a record at the brand's default
+    warehouse; without that, typing a number into the grid would appear to work
+    and change nothing.
+    """
+    from app.models.inventory import InventoryRecord, Warehouse
+
+    records = list((await db.execute(
+        select(InventoryRecord).where(InventoryRecord.variant_id == variant_id)
+    )).scalars().all())
+
+    if records:
+        # Spread is not ours to guess: the first record carries the number and
+        # the rest go to zero, which is what a single "stock" box can honestly
+        # mean for a variant held in several places.
+        for index, record in enumerate(records):
+            record.quantity = quantity if index == 0 else 0
+        return
+
+    warehouse = (await db.execute(
+        select(Warehouse).order_by(Warehouse.created_at).limit(1)
+    )).scalar_one_or_none()
+    if warehouse is None:
+        raise VariantEditError("Add a warehouse before setting stock.")
+    db.add(InventoryRecord(
+        variant_id=variant_id, warehouse_id=warehouse.id,
+        quantity=quantity, low_stock_threshold=10,
+    ))
+
+
+class BulkVariantEdit(BaseModel):
+    """One bulk change across a selection.
+
+    `set` puts every chosen variant at the same value. `adjust` moves the money
+    fields relative to what each one already has, which is the thing a fixed
+    value cannot express — "put all sixty up ten percent" is not a number you
+    can type into a single box. `edits` carries per-variant changes from the
+    grid, so a spreadsheet full of different values is still one request.
+    """
+
+    variant_ids: list[UUID] = Field(default_factory=list)
+    set: dict[str, Any] = Field(default_factory=dict)
+    # field -> {"mode": "percent" | "amount", "value": number}
+    adjust: dict[str, dict] = Field(default_factory=dict)
+    # variant id -> {field: value}
+    edits: dict[UUID, dict] = Field(default_factory=dict)
+    # Round money to whole units after adjusting (".99" pricing is left alone).
+    round_to: str | None = None
+
+
+def _adjusted(current: Any, rule: dict, round_to: str | None) -> Any:
+    """A money value moved by a percentage or a flat amount."""
+    from decimal import Decimal, ROUND_HALF_UP
+
+    if current is None:
+        # Nothing to move. Inventing a base here would turn "+10%" into "= 10%
+        # of nothing", which is a price of zero on a variant that had none.
+        return None
+    mode = str(rule.get("mode") or "percent").lower()
+    try:
+        amount = Decimal(str(rule.get("value") or 0))
+    except Exception:
+        raise VariantEditError("That adjustment is not a number.")
+
+    base = Decimal(str(current))
+    if mode == "percent":
+        result = base * (Decimal("1") + amount / Decimal("100"))
+    elif mode == "amount":
+        result = base + amount
+    else:
+        raise VariantEditError('An adjustment is either "percent" or "amount".')
+
+    if result < 0:
+        result = Decimal("0")
+    if round_to == "whole":
+        result = result.quantize(Decimal("1"), rounding=ROUND_HALF_UP)
+    elif round_to == "ends_99":
+        result = result.quantize(Decimal("1"), rounding=ROUND_HALF_UP) - Decimal("0.01")
+        if result < 0:
+            result = Decimal("0")
+    return result.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+
+@router.patch("/{product_id}/variants/bulk", response_model=dict)
+async def bulk_update_variants(
+    product_id: UUID,
+    payload: BulkVariantEdit,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Change many variants in one request and one transaction.
+
+    Either the whole edit lands or none of it does. A partial apply is worse
+    than a failure here: half a price rise across a colour range is the kind of
+    thing nobody notices until a customer is charged it.
+    """
+    ids = list({*payload.variant_ids, *payload.edits.keys()})
+    if not ids:
+        return {"success": True, "updated": 0, "message": "Nothing selected."}
+    if len(ids) > 1000:
+        raise HTTPException(
+            status_code=400,
+            detail="That is more than 1,000 variants in one go. Split the selection.",
+        )
+
+    variants = list((await db.execute(
+        select(ProductVariant).where(
+            ProductVariant.id.in_(ids), ProductVariant.product_id == product_id
+        )
+    )).scalars().all())
+    if not variants:
+        raise HTTPException(status_code=404, detail="None of those variants belong to this product")
+
+    stock_writes: list[tuple[UUID, int]] = []
+    try:
+        for variant in variants:
+            updates: dict[str, Any] = dict(payload.set or {})
+
+            for field, rule in (payload.adjust or {}).items():
+                if field not in VARIANT_MONEY_FIELDS:
+                    raise VariantEditError(f'"{field}" cannot be adjusted by a percentage or amount.')
+                moved = _adjusted(getattr(variant, field, None), rule, payload.round_to)
+                if moved is not None:
+                    updates[field] = moved
+
+            # A per-variant edit is the most specific thing the admin typed, so
+            # it wins over anything applied across the selection.
+            updates.update(payload.edits.get(variant.id, {}) or {})
+
+            if not updates:
+                continue
+            try:
+                stock = _apply_variant_fields(variant, updates)
+            except VariantEditError as exc:
+                label = " / ".join(p for p in (variant.color, variant.size) if p) or variant.sku
+                raise VariantEditError(f"{label}: {exc}")
+            if stock is not None:
+                stock_writes.append((variant.id, stock))
+
+        for variant_id, quantity in stock_writes:
+            await _set_variant_stock(db, variant_id, quantity)
+
+        await db.commit()
+    except VariantEditError as exc:
+        await db.rollback()
+        raise HTTPException(status_code=400, detail=str(exc))
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(
+            status_code=409,
+            detail="Two variants would end up with the same SKU. SKUs have to stay unique.",
+        )
+
+    return {
+        "success": True,
+        "updated": len(variants),
+        "message": f"{len(variants)} variant{'s' if len(variants) != 1 else ''} updated.",
+    }
+
+
+@router.patch("/{product_id}/variants/{variant_id}", response_model=dict)
+async def update_variant(
+    product_id: UUID,
+    variant_id: UUID,
+    payload: dict = Body(...),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Change one variant. The route the admin grid saves a cell through."""
+    variant = (await db.execute(
+        select(ProductVariant).where(
+            ProductVariant.id == variant_id, ProductVariant.product_id == product_id
+        )
+    )).scalar_one_or_none()
+    if not variant:
+        raise HTTPException(status_code=404, detail="Variant not found")
+
+    try:
+        stock = _apply_variant_fields(variant, payload)
+        if stock is not None:
+            await _set_variant_stock(db, variant.id, stock)
+        await db.commit()
+    except VariantEditError as exc:
+        await db.rollback()
+        raise HTTPException(status_code=400, detail=str(exc))
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(
+            status_code=409,
+            detail=f'SKU "{payload.get("sku")}" is already used by another variant.',
+        )
+
+    await db.refresh(variant)
+    return {"success": True, "id": str(variant.id)}
 
 
 @router.delete("/{product_id}/variants", status_code=200)

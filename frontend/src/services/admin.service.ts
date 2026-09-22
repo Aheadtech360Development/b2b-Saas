@@ -99,6 +99,24 @@ export const adminService = {
     return apiClient.patch(`/api/v1/admin/products/${productId}/variants/${variantId}`, data);
   },
 
+  /** Change many variants in one request and one transaction.
+   *
+   * `set` puts every chosen variant at the same value, `adjust` moves the money
+   * fields relative to what each already has, and `edits` carries per-row
+   * values from the grid. Sending sixty separate PATCHes instead meant sixty
+   * round trips that could half-succeed. */
+  async bulkUpdateVariants(productId: string, payload: {
+    variant_ids?: string[];
+    set?: Record<string, string>;
+    adjust?: Record<string, { mode: "percent" | "amount"; value: number }>;
+    edits?: Record<string, Record<string, string>>;
+    round_to?: "whole" | "ends_99" | null;
+  }) {
+    return apiClient.patch<{ success: boolean; updated: number; message: string }>(
+      `/api/v1/admin/products/${productId}/variants/bulk`, payload
+    );
+  },
+
   async deleteVariant(productId: string, variantId: string) {
     return apiClient.delete(`/api/v1/admin/products/${productId}/variants/${variantId}`);
   },

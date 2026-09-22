@@ -22,6 +22,7 @@ const RichTextEditor = dynamic(
 );
 import type { Category, ProductDetail, ProductImage, ProductVariant } from "@/types/product.types";
 import { VariantOptionsEditor, type ColorOption } from "@/components/admin/VariantOptionsEditor";
+import { VariantBulkEditor } from "@/components/admin/VariantBulkEditor";
 import { ProductOptionsBuilder } from "@/components/admin/ProductOptionsBuilder";
 
 // ── Style constants ────────────────────────────────────────────────────────
@@ -119,38 +120,42 @@ export default function AdminProductEditPage() {
   // Bulk apply to all variants
   const [bulkApply, setBulkApply] = useState({ price: "", compare: "", cost: "", origin: "", stock: "" });
 
-  async function applyToAllVariants() {
-    if (!product) return;
+  function bulkUpdates(): Record<string, string> {
     const updates: Record<string, string> = {};
     if (bulkApply.price.trim()) updates.retail_price = bulkApply.price.trim();
     if (bulkApply.compare.trim()) updates.compare_price = bulkApply.compare.trim();
     if (bulkApply.cost.trim()) updates.cost_per_item = bulkApply.cost.trim();
     if (bulkApply.origin.trim()) updates.country_of_origin = bulkApply.origin.trim();
     if (bulkApply.stock.trim()) updates.stock_quantity = bulkApply.stock.trim();
+    return updates;
+  }
+
+  /** Apply the bar's values to a set of variants — one request, one transaction.
+   *
+   * This used to fire one PATCH per variant at a route that did not exist, so
+   * sixty requests failed quietly and the admin was left looking at a grid that
+   * claimed the change had gone through. */
+  async function applyBulk(ids: string[] | null) {
+    if (!product) return;
+    const updates = bulkUpdates();
     if (!Object.keys(updates).length) return;
-    await Promise.all(
-      product.variants.map(v => adminService.updateVariant(product.id, v.id, updates))
-    );
-    setBulkApply({ price: "", compare: "", cost: "", origin: "", stock: "" });
+    const variantIds = ids ?? product.variants.map(v => v.id);
+    try {
+      const res = await adminService.bulkUpdateVariants(product.id, {
+        variant_ids: variantIds, set: updates,
+      });
+      setBulkApply({ price: "", compare: "", cost: "", origin: "", stock: "" });
+      if (ids) setSelectedVariantIds(new Set());
+      setVariantMsg({ ok: true, text: res.message });
+    } catch (e) {
+      const err = e as { detail?: string; message?: string };
+      setVariantMsg({ ok: false, text: err?.detail || err?.message || "Could not apply those changes." });
+    }
     await load();
   }
 
-  async function applyToSelectedVariants() {
-    if (!product || !selectedVariantIds.size) return;
-    const updates: Record<string, string> = {};
-    if (bulkApply.price.trim()) updates.retail_price = bulkApply.price.trim();
-    if (bulkApply.compare.trim()) updates.compare_price = bulkApply.compare.trim();
-    if (bulkApply.cost.trim()) updates.cost_per_item = bulkApply.cost.trim();
-    if (bulkApply.origin.trim()) updates.country_of_origin = bulkApply.origin.trim();
-    if (bulkApply.stock.trim()) updates.stock_quantity = bulkApply.stock.trim();
-    if (!Object.keys(updates).length) return;
-    await Promise.all(
-      product.variants.filter(v => selectedVariantIds.has(v.id)).map(v => adminService.updateVariant(product.id, v.id, updates))
-    );
-    setBulkApply({ price: "", compare: "", cost: "", origin: "", stock: "" });
-    setSelectedVariantIds(new Set());
-    await load();
-  }
+  const applyToAllVariants = () => applyBulk(null);
+  const applyToSelectedVariants = () => applyBulk([...selectedVariantIds]);
 
   async function handleBulkDeleteVariants() {
     if (!product || selectedVariantIds.size === 0) return;
@@ -173,6 +178,10 @@ export default function AdminProductEditPage() {
 
   // Variant selection for "Apply to Selected"
   const [selectedVariantIds, setSelectedVariantIds] = useState<Set<string>>(new Set());
+  const [showBulkEditor, setShowBulkEditor] = useState(false);
+  // Result of the last bulk action. Shown rather than swallowed, because the
+  // previous version failed silently.
+  const [variantMsg, setVariantMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
   async function load() {
     setIsLoading(true);
@@ -668,6 +677,14 @@ export default function AdminProductEditPage() {
               <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
                 {selectedVariantIds.size > 0 && (
                   <button
+                    onClick={() => setShowBulkEditor(true)}
+                    style={{ padding: "6px 14px", background: "#1A1A1A", color: "#fff", border: "none", borderRadius: "6px", fontSize: "12px", fontWeight: 700, cursor: "pointer" }}
+                  >
+                    Bulk edit ({selectedVariantIds.size})
+                  </button>
+                )}
+                {selectedVariantIds.size > 0 && (
+                  <button
                     onClick={handleBulkDeleteVariants}
                     style={{ padding: "6px 14px", background: "rgba(232,36,42,.08)", color: "#E8242A", border: "1px solid #FECACA", borderRadius: "6px", fontSize: "12px", fontWeight: 700, cursor: "pointer" }}
                   >
@@ -688,6 +705,12 @@ export default function AdminProductEditPage() {
                 </button>
               </div>
             </div>
+
+            {variantMsg && (
+              <div style={{ margin: "0 0 10px", fontSize: "12.5px", fontWeight: 600, color: variantMsg.ok ? "#0F7B3F" : "#B91C1C" }}>
+                {variantMsg.text}
+              </div>
+            )}
 
             {/* Apply to All / Selected bar */}
             {groupedVariants.length > 0 && (
@@ -1281,6 +1304,15 @@ export default function AdminProductEditPage() {
             <VariantOptionsEditor busy={addingVariant} onAdd={handleAddVariants} onCancel={() => setShowAddVariant(false)} />
           </div>
         </div>
+      )}
+      {/* ── Bulk edit: a spreadsheet over the selected variants ─────── */}
+      {showBulkEditor && product && (
+        <VariantBulkEditor
+          productId={product.id}
+          variants={product.variants.filter(v => selectedVariantIds.has(v.id))}
+          onClose={() => setShowBulkEditor(false)}
+          onSaved={async () => { setSelectedVariantIds(new Set()); await load(); }}
+        />
       )}
     </div>
   );
