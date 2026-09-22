@@ -215,6 +215,7 @@ export function AdminSidebar() {
         <div style={{ paddingLeft: "18px", marginTop: "3px", marginBottom: "3px" }}>
           <SubLink href="/admin/products" label="All Products" />
           <SubLink href="/admin/products/collections" label="Collections" />
+          <SubLink href="/admin/products/categories" label="Categories" />
           <SubLink href="/admin/products/reviews" label="Reviews" />
           <SubLink href="/admin/inventory" label="Inventory" />
         </div>
