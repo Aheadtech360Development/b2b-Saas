@@ -1,8 +1,9 @@
 """Admin API — the brand's website theme.
 
-The design is imported once (platform admins only — an HTML file becomes the
-brand's theme). After that a brand admin edits content: section order, which
-sections show, and the text, links and images inside them. Save keeps a draft;
+The design is imported once — an HTML file becomes the brand's theme, which
+the platform team or the brand's own administrator may do. After that any
+storefront-capable staff member edits content: section order, which sections
+show, and the text, links and images inside them. Save keeps a draft;
 only Publish changes what shoppers see.
 
 Sits under /admin/storefront so it takes the "storefront" permission, like the
@@ -148,12 +149,15 @@ async def import_theme(
 ) -> dict:
     """Import a design file as this brand's theme.
 
-    Platform admins only: the file is HTML that runs on the storefront, so it
-    is set up by us, not uploaded by the brands themselves. Re-importing keeps
-    the saved values whose fields still exist in the new design.
+    The file is HTML that runs on the storefront, so it is limited to the
+    platform team and the brand's own administrator — the staff roles below
+    that can edit a theme's content but not replace the design. Scripts and
+    inline handlers are stripped on the way in. Re-importing keeps the saved
+    values whose fields still exist in the new design.
     """
-    if not getattr(request.state, "is_platform_admin", False):
-        raise HTTPException(status_code=403, detail="Themes are set up by the platform team.")
+    role = getattr(request.state, "role", "") or ""
+    if not (getattr(request.state, "is_platform_admin", False) or role in {"platform_admin", "tenant_admin"}):
+        raise HTTPException(status_code=403, detail="Only an administrator can import a design.")
     tenant_id = _tenant(request)
 
     raw = await file.read()

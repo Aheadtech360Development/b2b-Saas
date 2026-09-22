@@ -45,7 +45,8 @@ type Device = keyof typeof DEVICES;
 export default function ThemeCustomizer() {
   const { user } = useAuthStore();
   const writable = canWrite(user?.role, "storefront", user?.scopes, user?.read_only);
-  const isPlatformAdmin = user?.role === "platform_admin";
+  // Replacing the design is an administrator's job; other staff edit its content.
+  const canImport = user?.role === "platform_admin" || user?.role === "tenant_admin";
 
   const [theme, setTheme] = useState<BrandTheme | null>(null);
   const [state, setState] = useState<ThemeState>({ pages: {} });
@@ -69,7 +70,12 @@ export default function ThemeCustomizer() {
   useEffect(() => {
     themesService.get()
       .then((r) => { if (r.theme) adopt(r.theme); })
-      .catch(() => setMsg({ ok: false, text: "Could not load this brand's theme." }))
+      .catch((e) => setMsg({
+        ok: false,
+        // Say what the API said — "no tenant", "forbidden" and "server down"
+        // are different problems and need different fixes.
+        text: e instanceof ApiClientError && e.message ? e.message : "Could not load this brand's theme.",
+      }))
       .finally(() => setLoading(false));
   }, [adopt]);
 
@@ -191,7 +197,7 @@ export default function ThemeCustomizer() {
           <p style={{ fontSize: "13px", color: "#7A7880", lineHeight: 1.6, maxWidth: "460px", margin: "0 auto 18px" }}>
             Our team sets the design up from the client&apos;s file. Once it is imported, you can edit its text, images and section order here.
           </p>
-          {isPlatformAdmin && (
+          {canImport && (
             <>
               <input ref={fileRef} type="file" accept=".html,text/html" style={{ display: "none" }}
                 onChange={(e) => { const f = e.target.files?.[0]; if (f) void importFile(f); e.target.value = ""; }} />
