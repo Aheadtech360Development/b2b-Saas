@@ -396,10 +396,11 @@ async def list_admin_orders(
     page_size: int = Query(50, ge=1, le=200),
     db: AsyncSession = Depends(get_db),
 ):
-    from sqlalchemy import outerjoin
-    # LEFT JOIN so guest orders (company_id=NULL) are included
-    query = select(Order, Company.name.label("company_name")).select_from(
-        outerjoin(Order, Company, Order.company_id == Company.id)
+    # LEFT JOIN so guest orders (company_id=NULL) are included. It has to be
+    # the ORM .outerjoin(): with the core outerjoin() the brand filter on
+    # Company lands in WHERE and silently drops every guest order.
+    query = select(Order, Company.name.label("company_name")).outerjoin(
+        Company, Order.company_id == Company.id
     )
     # Drafts are identified by their number. Filtering here rather than in the
     # browser means the draft list pages properly — it used to fetch one page of
@@ -485,9 +486,8 @@ async def export_orders_csv(
     request: Request = None,
     db: AsyncSession = Depends(get_db),
 ):
-    from sqlalchemy import outerjoin as _outerjoin
-    query = select(Order, Company.name.label("company_name")).select_from(
-        _outerjoin(Order, Company, Order.company_id == Company.id)
+    query = select(Order, Company.name.label("company_name")).outerjoin(
+        Company, Order.company_id == Company.id
     )
     if q:
         query = query.where(Order.order_number.ilike(f"%{q}%"))
@@ -555,7 +555,6 @@ async def export_orders_csv(
 @router.get("/orders/{order_id}", response_model=AdminOrderDetail)
 async def get_admin_order(order_id: str, db: AsyncSession = Depends(get_db)):
     import uuid as _uuid
-    from sqlalchemy import outerjoin
 
     # Resolve by order_number for prefixed ("AF-...", "DRAFT-...") and numeric ("1008")
     # formats; fall back to UUID only when the value looks like one.
@@ -572,7 +571,9 @@ async def get_admin_order(order_id: str, db: AsyncSession = Depends(get_db)):
 
     result = await db.execute(
         select(Order, Company.name.label("company_name"))
-        .select_from(outerjoin(Order, Company, Order.company_id == Company.id))
+        # ORM outerjoin, not the core outerjoin(): the tenant filter on Company
+        # then goes into ON, so orders with no company (guests) still match.
+        .outerjoin(Company, Order.company_id == Company.id)
         .where(where_clause)
     )
     row = result.one_or_none()

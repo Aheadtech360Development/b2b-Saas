@@ -6,6 +6,7 @@ import { adminService } from "@/services/admin.service";
 import { apiClient } from "@/lib/api-client";
 import { ConfigurationDetail } from "@/components/shared/ConfigurationDetail";
 import { OrderGangSheets } from "@/components/admin/OrderGangSheets";
+import { OrderRefunds, type DisputeRow, type RefundRow } from "@/components/admin/OrderRefunds";
 import type { LineConfiguration } from "@/types/order.types";
 
 interface OrderItem {
@@ -113,6 +114,12 @@ interface AdminOrder {
   // Admin edits
   items_edited?: boolean;
   convenience_fee?: string | null;
+  // Money that went back, and chargebacks — see OrderRefunds.
+  amount_refunded?: string | number | null;
+  refundable_remaining?: string | number | null;
+  refunds?: RefundRow[];
+  disputes?: DisputeRow[];
+  stripe_payment_intent_id?: string | null;
 }
 
 interface CustomerStats {
@@ -1276,6 +1283,21 @@ export default function AdminOrderDetailPage() {
             )}
           </div>
           )}
+
+          {/* REFUNDS & CHARGEBACKS */}
+          <OrderRefunds
+            orderId={order.id}
+            total={Number(order.total) || 0}
+            amountRefunded={Number(order.amount_refunded ?? 0) || 0}
+            remaining={order.refundable_remaining != null ? Number(order.refundable_remaining) : null}
+            refundable={order.refundable_remaining != null && order.payment_status === "paid"}
+            refunds={order.refunds ?? []}
+            disputes={order.disputes ?? []}
+            onChanged={async () => {
+              const fresh = await adminService.getOrder(order.id) as AdminOrder;
+              setOrder(fresh);
+            }}
+          />
 
           {/* TIMELINE — stored events, grouped by the day they happened */}
           <div style={{ ...CardStyle, padding: "24px", marginBottom: 0 }}>

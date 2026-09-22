@@ -41,6 +41,23 @@ type Dispute = {
   evidence_due_by: string | null;
   order_number: string | null;
   created_at: string;
+  // How it ended, and when the money actually left and came back.
+  outcome?: string | null;
+  closed_at?: string | null;
+  funds_withdrawn_at?: string | null;
+  funds_reinstated_at?: string | null;
+};
+type Refund = {
+  refund_id: string;
+  amount: number;
+  currency: string;
+  reason: string | null;
+  status: string;
+  source: string;
+  by: string | null;
+  at: string | null;
+  order_number?: string | null;
+  failure_reason?: string | null;
 };
 
 const money = (n: number, c = "usd") =>
@@ -60,20 +77,23 @@ export default function BillingPage() {
   const [billing, setBilling] = useState<BillingData | null>(null);
   const [connect, setConnect] = useState<ConnectData | null>(null);
   const [disputes, setDisputes] = useState<Dispute[]>([]);
+  const [refunds, setRefunds] = useState<{ items: Refund[]; total: number; refunded_total: number } | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
   const [toast, setToast] = useState<{ type: "success" | "error" | "info"; text: string } | null>(null);
 
   const load = useCallback(async () => {
     try {
-      const [b, c, d] = await Promise.allSettled([
+      const [b, c, d, r] = await Promise.allSettled([
         apiClient.get<BillingData>("/api/v1/admin/billing"),
         apiClient.get<ConnectData>("/api/v1/admin/connect"),
         apiClient.get<Dispute[]>("/api/v1/admin/disputes"),
+        apiClient.get<{ items: Refund[]; total: number; refunded_total: number }>("/api/v1/admin/refunds?page_size=50"),
       ]);
       if (b.status === "fulfilled") setBilling(b.value);
       if (c.status === "fulfilled") setConnect(c.value);
       if (d.status === "fulfilled") setDisputes(d.value || []);
+      if (r.status === "fulfilled") setRefunds(r.value);
     } finally {
       setLoading(false);
     }
@@ -136,7 +156,7 @@ export default function BillingPage() {
       const r = await apiClient.post<{ onboarding_url: string }>("/api/v1/admin/connect/onboard");
       window.location.href = r.onboarding_url;
     } catch {
-      setToast({ type: "error", text: "Could not reach Stripe. Try again." });
+      setToast({ type: "error", text: "Could not reach the payment provider. Try again." });
       setBusy(null);
     }
   }
@@ -191,7 +211,7 @@ export default function BillingPage() {
       <section className="bg-white border border-gray-200 rounded-xl overflow-hidden">
         <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
           <div>
-            <h2 className="font-semibold text-gray-900">Customer Payments &amp; Payouts</h2>
+            <h2 className="font-semibold text-gray-900">Payment Account</h2>
             <p className="text-xs text-gray-500 mt-0.5">Accept card payments from your customers and get paid to your bank.</p>
           </div>
           {connect?.ready_to_accept_payments
@@ -201,6 +221,7 @@ export default function BillingPage() {
               : <Badge tone="gray">Not connected</Badge>}
         </div>
         <div className="px-6 py-5">
+          <p className="text-[11px] text-gray-400 mb-3">Payments are processed securely by Stripe.</p>
           {connect?.ready_to_accept_payments ? (
             <div className="space-y-4">
               <div className="flex flex-wrap gap-3">
@@ -217,12 +238,12 @@ export default function BillingPage() {
               <p className="text-sm text-gray-600">
                 {connect?.connected
                   ? "You've started setup but haven't finished. Complete onboarding to start accepting payments."
-                  : "Connect a Stripe account so your storefront can accept card payments. Money and payouts land directly with you."}
+                  : "Connect your payment account so your store can accept card payments. Money and payouts land directly with you."}
               </p>
               <div className="flex items-center gap-3">
                 <button onClick={setupPayouts} disabled={busy === "connect"}
                   className="px-5 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50">
-                  {busy === "connect" ? "Redirecting…" : connect?.connected ? "Finish payout setup →" : "Set up payouts →"}
+                  {busy === "connect" ? "Redirecting…" : connect?.connected ? "Finish payment account setup →" : "Connect payment account →"}
                 </button>
                 {connect?.connected && (
                   <button onClick={refreshStatus} disabled={busy === "refresh"}
@@ -298,7 +319,7 @@ export default function BillingPage() {
       <section className="bg-white border border-gray-200 rounded-xl overflow-hidden">
         <div className="px-6 py-4 border-b border-gray-100">
           <h2 className="font-semibold text-gray-900">Disputes &amp; Chargebacks</h2>
-          <p className="text-xs text-gray-500 mt-0.5">Respond to disputes from your payouts dashboard. We track them here.</p>
+          <p className="text-xs text-gray-500 mt-0.5">When a customer disputes a payment with their bank. Respond from your payouts dashboard before the date shown, or the bank decides without your side.</p>
         </div>
         {disputes.length === 0 ? (
           <div className="px-6 py-8 text-center text-sm text-gray-500">No disputes. 🎉</div>
@@ -312,6 +333,7 @@ export default function BillingPage() {
                   <th className="text-left px-6 py-3 font-medium">Reason</th>
                   <th className="text-left px-6 py-3 font-medium">Status</th>
                   <th className="text-left px-6 py-3 font-medium">Respond by</th>
+                  <th className="text-left px-6 py-3 font-medium">Money</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
@@ -321,13 +343,71 @@ export default function BillingPage() {
                     <td className="px-6 py-3">{money(d.amount, d.currency)}</td>
                     <td className="px-6 py-3 text-gray-600">{d.reason?.replace(/_/g, " ")}</td>
                     <td className="px-6 py-3">
-                      <Badge tone={d.status === "won" ? "green" : d.status === "lost" ? "red" : "yellow"}>
-                        {d.status?.replace(/_/g, " ")}
+                      <Badge tone={(d.outcome ?? d.status) === "won" ? "green" : (d.outcome ?? d.status) === "lost" ? "red" : (d.outcome ?? d.status) === "warning_closed" ? "gray" : "yellow"}>
+                        {(d.outcome ?? d.status)?.replace(/_/g, " ")}
                       </Badge>
                     </td>
                     <td className="px-6 py-3 text-gray-600">
-                      {d.evidence_due_by ? new Date(d.evidence_due_by).toLocaleDateString() : "—"}
+                      {d.outcome ? "—" : d.evidence_due_by ? new Date(d.evidence_due_by).toLocaleDateString() : "—"}
                     </td>
+                    <td className="px-6 py-3 text-gray-600 text-xs">
+                      {d.funds_reinstated_at
+                        ? `Returned ${new Date(d.funds_reinstated_at).toLocaleDateString()}`
+                        : d.funds_withdrawn_at
+                          ? `Withdrawn ${new Date(d.funds_withdrawn_at).toLocaleDateString()}`
+                          : "Not yet withdrawn"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
+      {/* ── Refunds ──────────────────────────────────────────────────────────── */}
+      <section className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+          <div>
+            <h2 className="font-semibold text-gray-900">Refunds</h2>
+            <p className="text-xs text-gray-500 mt-0.5">
+              Every refund on your orders — issued here or in your payouts dashboard.
+            </p>
+          </div>
+          {refunds && refunds.total > 0 && (
+            <span className="text-sm text-gray-700">{money(refunds.refunded_total)} refunded</span>
+          )}
+        </div>
+        {!refunds || refunds.items.length === 0 ? (
+          <div className="px-6 py-8 text-center text-sm text-gray-500">No refunds yet.</div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 text-gray-500 text-xs uppercase">
+                <tr>
+                  <th className="text-left px-6 py-3 font-medium">Order</th>
+                  <th className="text-left px-6 py-3 font-medium">Amount</th>
+                  <th className="text-left px-6 py-3 font-medium">Reason</th>
+                  <th className="text-left px-6 py-3 font-medium">Status</th>
+                  <th className="text-left px-6 py-3 font-medium">By</th>
+                  <th className="text-left px-6 py-3 font-medium">Date</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {refunds.items.map((r) => (
+                  <tr key={r.refund_id}>
+                    <td className="px-6 py-3 text-gray-900">
+                      {r.order_number ? <a href={`/admin/orders/${r.order_number}`} className="underline">{r.order_number}</a> : "—"}
+                    </td>
+                    <td className="px-6 py-3">{money(r.amount, r.currency)}</td>
+                    <td className="px-6 py-3 text-gray-600">{r.reason?.replace(/_/g, " ") ?? "—"}</td>
+                    <td className="px-6 py-3">
+                      <Badge tone={r.status === "succeeded" ? "green" : r.status === "failed" || r.status === "canceled" ? "red" : "yellow"}>
+                        {r.status}
+                      </Badge>
+                    </td>
+                    <td className="px-6 py-3 text-gray-600">{r.by ?? (r.source === "stripe" ? "Payouts dashboard" : "Staff")}</td>
+                    <td className="px-6 py-3 text-gray-600">{r.at ? new Date(r.at).toLocaleDateString() : "—"}</td>
                   </tr>
                 ))}
               </tbody>
