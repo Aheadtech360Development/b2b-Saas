@@ -208,6 +208,10 @@ def import_html(html: str, *, name: str) -> dict[str, Any]:
     _clean(soup)
 
     css = "\n".join(style.get_text() for style in soup.find_all("style"))
+    # The design's own page switcher was a fixed bar across the top, and its
+    # stylesheet pushes the body down to clear it. That bar is not part of the
+    # store, so neither is the space it needed.
+    css += "\n/* the design's fixed preview toolbar is not part of the store */\nbody{padding-top:0 !important;}\n"
     # Fonts and stylesheets the design links to, kept so it looks like itself.
     links = [str(link) for link in soup.find_all("link", rel=lambda v: v and "stylesheet" in v)]
 

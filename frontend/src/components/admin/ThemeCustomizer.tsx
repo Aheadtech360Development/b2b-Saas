@@ -40,9 +40,10 @@ const STATUS: Record<string, { text: string; bg: string; color: string }> = {
 };
 
 const DEVICES = { desktop: 1280, tablet: 820, mobile: 400 } as const;
+const DEVICE_LABELS: Record<Device, string> = { desktop: "Desktop", tablet: "Tablet", mobile: "Mobile" };
 type Device = keyof typeof DEVICES;
 
-export default function ThemeCustomizer() {
+export default function ThemeCustomizer({ fullScreen = false }: { fullScreen?: boolean } = {}) {
   const { user } = useAuthStore();
   const writable = canWrite(user?.role, "storefront", user?.scopes, user?.read_only);
   // Replacing the design is an administrator's job; other staff edit its content.
@@ -215,8 +216,15 @@ export default function ThemeCustomizer() {
   const chip = STATUS[theme.status] ?? STATUS.draft!;
   const current = theme.pages.find((p) => p.key === pageKey);
 
+  // On its own screen the editor fills the window: a fixed header, the
+  // sections down one side and the storefront filling the rest — the preview
+  // is the point, so it gets the room.
+  const shell: React.CSSProperties = fullScreen
+    ? { fontFamily: "var(--font-jakarta), sans-serif", height: "100vh", display: "flex", flexDirection: "column", padding: "14px 18px", boxSizing: "border-box", background: "#F7F7F5" }
+    : { fontFamily: "var(--font-jakarta), sans-serif" };
+
   return (
-    <div style={{ fontFamily: "var(--font-jakarta), sans-serif" }}>
+    <div style={shell}>
       {/* Header */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px", flexWrap: "wrap", marginBottom: "14px" }}>
         <div>
@@ -229,9 +237,10 @@ export default function ThemeCustomizer() {
         <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
           <div style={{ display: "flex", gap: "4px", background: "#F2F1EC", borderRadius: "8px", padding: "3px" }}>
             {(Object.keys(DEVICES) as Device[]).map((d) => (
-              <button key={d} onClick={() => setDevice(d)} title={d}
-                style={{ border: "none", background: device === d ? "#fff" : "transparent", borderRadius: "6px", padding: "6px 10px", fontSize: "12px", fontWeight: 700, cursor: "pointer", color: "#2A2830" }}>
-                {d === "desktop" ? "🖥" : d === "tablet" ? "▭" : "▯"}
+              <button key={d} onClick={() => setDevice(d)} title={`${DEVICE_LABELS[d]} · ${DEVICES[d]}px`}
+                style={{ border: "none", background: device === d ? "#fff" : "transparent", boxShadow: device === d ? "0 1px 2px rgba(0,0,0,.08)" : "none", borderRadius: "6px", padding: "7px 12px", fontSize: "12.5px", fontWeight: 700, cursor: "pointer", color: device === d ? "#1A1A1A" : "#7A7880", display: "flex", alignItems: "center", gap: "6px" }}>
+                <span style={{ fontSize: "13px" }}>{d === "desktop" ? "🖥" : d === "tablet" ? "▭" : "▯"}</span>
+                <span className="device-label">{DEVICE_LABELS[d]}</span>
               </button>
             ))}
           </div>
@@ -266,9 +275,9 @@ export default function ThemeCustomizer() {
         ))}
       </div>
 
-      <div className="theme-grid" style={{ display: "grid", gridTemplateColumns: "340px minmax(0, 1fr)", gap: "16px", alignItems: "start" }}>
+      <div className="theme-grid" style={{ display: "grid", gridTemplateColumns: "340px minmax(0, 1fr)", gap: "16px", alignItems: "stretch", flex: fullScreen ? 1 : undefined, minHeight: 0 }}>
         {/* ── Sections ── */}
-        <div style={{ ...card, padding: "14px", maxHeight: "78vh", overflowY: "auto" }}>
+        <div style={{ ...card, padding: "14px", maxHeight: fullScreen ? "100%" : "78vh", overflowY: "auto" }}>
           <div style={{ fontSize: "12px", fontWeight: 700, color: "#7A7880", textTransform: "uppercase", letterSpacing: ".06em", marginBottom: "10px" }}>
             {current?.label ?? "Page"} · {order.length} sections
           </div>
@@ -338,13 +347,13 @@ export default function ThemeCustomizer() {
         </div>
 
         {/* ── Preview ── */}
-        <div style={{ ...card, padding: "12px", overflow: "hidden" }}>
-          <div style={{ background: "#F2F1EC", borderRadius: "10px", padding: "10px", display: "flex", justifyContent: "center" }}>
+        <div style={{ ...card, padding: "12px", overflow: "hidden", display: "flex", flexDirection: "column", minHeight: 0 }}>
+          <div style={{ background: "#F2F1EC", borderRadius: "10px", padding: "10px", display: "flex", justifyContent: "center", flex: 1, minHeight: 0 }}>
             <iframe
               ref={frameRef}
               title="Storefront preview"
               src="/theme-preview"
-              style={{ width: `${DEVICES[device]}px`, maxWidth: "100%", height: "74vh", border: "1px solid #E3E3E3", borderRadius: "8px", background: "#fff", transition: "width .2s" }}
+              style={{ width: `${DEVICES[device]}px`, maxWidth: "100%", height: fullScreen ? "100%" : "74vh", border: "1px solid #E3E3E3", borderRadius: "8px", background: "#fff", transition: "width .2s" }}
             />
           </div>
           <p style={{ fontSize: "11.5px", color: "#9A98A0", marginTop: "8px", textAlign: "center" }}>
@@ -360,7 +369,10 @@ export default function ThemeCustomizer() {
         />
       )}
 
-      <style>{`@media (max-width: 1100px) { .theme-grid { grid-template-columns: 1fr !important; } }`}</style>
+      <style>{`
+        @media (max-width: 1100px) { .theme-grid { grid-template-columns: 1fr !important; } }
+        @media (max-width: 720px) { .device-label { display: none; } }
+      `}</style>
     </div>
   );
 }

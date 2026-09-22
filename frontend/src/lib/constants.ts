@@ -15,6 +15,9 @@ export const HIDDEN_ADMIN_SECTIONS = {
   storefront: true,
   menus: true,
   pages: true,
+  // Product page layouts come from the theme now; the older per-product
+  // template editor stays in the code but off the menu.
+  productTemplates: true,
 } as const;
 
 /** Pagination */
