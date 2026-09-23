@@ -258,6 +258,8 @@ function ManageTenantModal({ tenant, onClose, onChanged }: { tenant: Tenant; onC
   const [purgeText, setPurgeText] = useState("");
   const [domain, setDomain] = useState(tenant.custom_domain ?? "");
   const [savingDomain, setSavingDomain] = useState(false);
+  const [brandName, setBrandName] = useState(tenant.name);
+  const [savingName, setSavingName] = useState(false);
 
   useEffect(() => {
     platformService.getFeatures(tenant.slug).then(setFeatures).catch(() => {});
@@ -292,6 +294,43 @@ function ManageTenantModal({ tenant, onClose, onChanged }: { tenant: Tenant; onC
         </div>
         <div style={{ fontSize: "12px", color: "#6B7280", marginBottom: "20px", fontFamily: "monospace" }}>{tenant.slug}</div>
         {msg && <div style={{ background: "rgba(52,211,153,.1)", color: "#34D399", padding: "8px 12px", borderRadius: "8px", fontSize: "12px", marginBottom: "14px" }}>{msg}</div>}
+
+        {/* What the brand is called — on its orders, its emails and its console. */}
+        <div style={{ marginBottom: "22px" }}>
+          <div style={{ fontSize: "12px", fontWeight: 700, color: "#A78BFA", textTransform: "uppercase", letterSpacing: ".05em", marginBottom: "10px" }}>Brand name</div>
+          <div style={{ display: "flex", gap: "8px" }}>
+            <input
+              value={brandName}
+              onChange={(e) => setBrandName(e.target.value)}
+              style={{ flex: 1, background: "#0B0D12", border: "1px solid #1E2230", borderRadius: "8px", padding: "10px 12px", color: "#E5E7EB", fontSize: "13px" }}
+            />
+            <button
+              onClick={async () => {
+                const next = brandName.trim();
+                if (!next) { setMsg("A brand needs a name."); return; }
+                setSavingName(true);
+                setMsg(null);
+                try {
+                  await platformService.updateTenant(tenant.slug, { name: next });
+                  setMsg(`Renamed to ${next}.`);
+                  onChanged();
+                } catch (err) {
+                  setMsg(err instanceof Error && err.message ? err.message : "Could not rename it.");
+                } finally {
+                  setSavingName(false);
+                }
+              }}
+              disabled={savingName || brandName.trim() === tenant.name}
+              style={{ background: "rgba(167,139,250,.12)", color: "#A78BFA", border: "1px solid rgba(167,139,250,.3)", padding: "10px 16px", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: savingName ? "wait" : "pointer", opacity: brandName.trim() === tenant.name ? 0.5 : 1 }}
+            >
+              {savingName ? "Saving…" : "Rename"}
+            </button>
+          </div>
+          <p style={{ fontSize: "11.5px", color: "#6B7280", marginTop: "8px", lineHeight: 1.6 }}>
+            The web address stays <span style={{ fontFamily: "monospace" }}>{tenant.slug}</span> — renaming
+            does not move the shop, so links that already exist keep working.
+          </p>
+        </div>
 
         {/* The address this shop is reached at. Without it, a link opened in
             a fresh browser — no cookie, no subdomain — lands on no brand. */}
