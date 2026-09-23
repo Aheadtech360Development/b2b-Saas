@@ -364,10 +364,10 @@ function ManageTenantModal({ tenant, onClose, onChanged }: { tenant: Tenant; onC
             </button>
           </div>
           <p style={{ fontSize: "11.5px", color: "#6B7280", marginTop: "8px", lineHeight: 1.6 }}>
-            The host on its own — no https://, no path. A visitor who opens this address
-            with no cookie and no subdomain gets this brand&apos;s shop. While the platform
-            runs a single brand, every address on it resolves to that brand anyway; from the
-            second brand onward each one needs its own address here.
+            This brand&apos;s <em>own</em> domain, once it has one — the host on its own,
+            no https:// and no path. Leave it empty until then: the brand is reached at
+            <span style={{ fontFamily: "monospace" }}>{`/?tenant=${tenant.slug}`}</span>, and
+            this platform&apos;s own address stays the platform&apos;s.
           </p>
         </div>
 
