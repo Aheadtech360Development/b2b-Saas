@@ -114,11 +114,10 @@ async def products(
             return []
         from app.services import collection_service
 
-        found = await collection_service.list_products(
-            db, collection, page=1, page_size=limit, active_only=True
+        rows = await collection_service.list_products(
+            db, collection, offset=0, limit=limit, active_only=True
         )
-        rows = found[0] if isinstance(found, tuple) else found
-        ids_in_order = [p.id if hasattr(p, "id") else p for p in rows]
+        ids_in_order = [p.id for p in rows]
         if not ids_in_order:
             return []
         loaded = (await db.execute(query.where(Product.id.in_(ids_in_order)))).scalars().unique().all()
@@ -160,6 +159,52 @@ async def collections(db: AsyncSession, *, limit: int = DEFAULT_LIMIT, ids: list
         .group_by(ProductCategory.category_id)
     )).all())
     return [_collection_card(c, counts.get(c.id, 0)) for c in rows]
+
+
+async def collection_page(db: AsyncSession, slug: str, *, page: int = 1, page_size: int = 12,
+                          sort: str = "") -> dict[str, Any] | None:
+    """One collection, and the page of its products a shopper asked for."""
+    from app.services import collection_service
+
+    collection = (await db.execute(
+        select(Collection).where(Collection.slug == slug, Collection.is_active.is_(True))
+    )).scalar_one_or_none()
+    if collection is None:
+        return None
+
+    page = max(1, int(page or 1))
+    page_size = max(1, min(int(page_size or 12), MAX_ITEMS))
+    total = await collection_service.count_products(db, collection, active_only=True)
+    # "Load more" adds to what is already on screen rather than replacing it,
+    # so page 2 means the first two pages' worth.
+    rows = await collection_service.list_products(
+        db, collection, offset=0, limit=page * page_size, active_only=True
+    )
+    loaded = (await db.execute(
+        select(Product)
+        .options(selectinload(Product.variants), selectinload(Product.images))
+        .where(Product.id.in_([p.id for p in rows]))
+    )).scalars().unique().all() if rows else []
+    by_id = {p.id: p for p in loaded}
+    cards = [_product_card(by_id[p.id]) for p in rows if p.id in by_id]
+    if sort == "name":
+        cards.sort(key=lambda c: c["title"].lower())
+
+    return {
+        "collection": {
+            "name": collection.name,
+            "slug": collection.slug,
+            "description": collection.description or "",
+            "image": collection.image_url or "",
+            "seo_title": collection.seo_title or collection.name,
+            "seo_description": collection.seo_description or collection.description or "",
+        },
+        "items": cards,
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+        "has_more": len(cards) < total,
+    }
 
 
 async def menu(db: AsyncSession, *, menu_id: str = "", limit: int = 12) -> list[dict[str, Any]]:

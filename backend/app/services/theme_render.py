@@ -8,6 +8,7 @@ design are untouched.
 """
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from bs4 import BeautifulSoup, Tag
@@ -206,6 +207,65 @@ def render_section(section: dict[str, Any], values: dict[str, Any] | None) -> st
         elif kind == "img":
             _set_image(target, value)
     return str(soup)
+
+
+_COUNT_RE = re.compile(r"^\s*[\d\[\]a-zA-Z]{1,6}\s+products?\s*$", re.IGNORECASE)
+
+
+def apply_collection(page: dict[str, Any], collection: dict[str, Any], total: int,
+                     next_page: int | None) -> dict[str, Any]:
+    """Name this collection where the design named its example.
+
+    The design's collection template was drawn showing one collection. The
+    same template serves every collection, so its title, description, product
+    count, breadcrumb and "load more" are filled from the one being viewed.
+    """
+    named = False
+    for block in page.get("sections", []):
+        soup = BeautifulSoup(block["html"], "html.parser")
+        touched = False
+
+        for crumb in soup.select(".breadcrumb"):
+            # "Home / DTF & UV DTF" — only the last part is the collection.
+            texts = [t for t in crumb.find_all(string=True) if t.strip()]
+            if texts:
+                texts[-1].replace_with(f" {collection.get('name', '')}")
+                touched = True
+
+        if not named:
+            heading = soup.find(["h1"])
+            if heading is not None:
+                _set_text(heading, str(collection.get("name") or ""))
+                named = True
+                touched = True
+                description = heading.find_next_sibling("p")
+                if description is not None:
+                    text = str(collection.get("description") or "")
+                    if text:
+                        _set_text(description, text)
+                    else:
+                        description.decompose()
+
+        for node in soup.find_all(["p", "span", "div"]):
+            if node.find(True) is None and _COUNT_RE.match(node.get_text() or ""):
+                _set_text(node, f"{total} product{'' if total == 1 else 's'}")
+                touched = True
+
+        for button in soup.find_all(["button", "a"]):
+            if "load more" not in (button.get_text() or "").strip().lower():
+                continue
+            if next_page:
+                # The design drew a button; it becomes the link to the next page.
+                button.name = "a"
+                button["href"] = f"?page={next_page}"
+                button["style"] = f"{button.get('style') or ''};display:inline-block".strip(";")
+            else:
+                button.decompose()
+            touched = True
+
+        if touched:
+            block["html"] = str(soup)
+    return page
 
 
 def render_page(definition: dict[str, Any], state: dict[str, Any] | None, page_key: str,

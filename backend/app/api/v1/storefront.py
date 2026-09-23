@@ -332,6 +332,63 @@ async def get_storefront_theme(
     return {"page": theme_render.render_page(theme.definition, theme.published, page_key, items)}
 
 
+@public_router.get("/theme/collection/{slug}")
+async def get_storefront_collection(
+    slug: str,
+    request: Request,
+    page: int = 1,
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """A collection, drawn in the theme's collection layout.
+
+    The design's example products are replaced by this collection's own, and
+    its title, description and count name the collection being viewed. When
+    the brand has no published theme, `page` is null and the storefront falls
+    back to its built-in catalogue.
+    """
+    from app.models.brand_theme import BrandTheme
+    from app.services import theme_data, theme_render
+
+    tid = await _tenant_id_from_slug(db, getattr(request.state, "tenant_slug", None)) or _resolve_tenant_id(request)
+    if not tid:
+        return {"page": None, "collection": None}
+
+    found = await theme_data.collection_page(db, slug, page=page)
+    if found is None:
+        raise HTTPException(status_code=404, detail="Collection not found")
+
+    theme = (await db.execute(
+        select(BrandTheme).where(
+            BrandTheme.tenant_id == tid,
+            BrandTheme.is_active.is_(True),
+            BrandTheme.published.is_not(None),
+        )
+    )).scalar_one_or_none()
+    if theme is None:
+        return {"page": None, "collection": found["collection"], "total": found["total"]}
+
+    definition = theme.definition or {}
+    key = next((k for k, p in (definition.get("pages") or {}).items() if p.get("kind") == "collection"), None)
+    if key is None:
+        return {"page": None, "collection": found["collection"], "total": found["total"]}
+
+    # Every row of cards on the collection page shows this collection.
+    items = await theme_data.page_items(db, theme.published, key)
+    for section in (definition.get("pages") or {}).get(key, {}).get("sections", []):
+        for repeater in section.get("repeaters", []):
+            if repeater.get("kind") == "products":
+                items[f"{section['id']}|{repeater['key']}"] = found["items"]
+
+    rendered = theme_render.render_page(definition, theme.published, key, items)
+    if rendered is None:
+        return {"page": None, "collection": found["collection"], "total": found["total"]}
+    rendered = theme_render.apply_collection(
+        rendered, found["collection"], found["total"],
+        found["page"] + 1 if found["has_more"] else None,
+    )
+    return {"page": rendered, "collection": found["collection"], "total": found["total"]}
+
+
 # ── Public: storefront branding by subdomain ──────────────────────────────────
 @public_router.get("/branding")
 async def get_storefront_branding(
