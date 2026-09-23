@@ -39,7 +39,7 @@ _LABELS = {
 }
 
 # 1: sections and fields · 2: rows of cards · 3: navigation and product blocks
-PARSER_VERSION = 5
+PARSER_VERSION = 6
 
 MAX_FIELDS_PER_SECTION = 60
 MAX_TEXT_LENGTH = 600
@@ -174,6 +174,32 @@ def _linkify_lists(section: Tag) -> None:
         for child in list(item.contents):
             anchor.append(child.extract())
         item.append(anchor)
+
+
+def _mobile_header(section: Tag) -> None:
+    """Put the header's call to action inside the menu it belongs in.
+
+    At phone width the header is a logo and a way into the menu; a "Get a
+    Quote" button beside them is what pushes the row off the side of the
+    screen. The design's own menu is where it goes, as one more item in the
+    list — visible only at that width, and the original left alone above it.
+    """
+    nav = section.select_one("nav ul, .main-nav ul")
+    if nav is None:
+        return
+    actions = section.select_one(".header-actions")
+    if actions is None:
+        return
+    for button in actions.find_all("a"):
+        if not (button.get_text() or "").strip():
+            continue
+        item = BeautifulSoup("", "html.parser").new_tag("li")
+        item["data-in-menu"] = "1"
+        copy = BeautifulSoup(str(button), "html.parser").find("a")
+        if copy is None:
+            continue
+        item.append(copy)
+        nav.append(item)
 
 
 def _guess_href(text: str, current: str) -> str:
@@ -338,18 +364,29 @@ def import_html(html: str, *, name: str) -> dict[str, Any]:
                 continue
             # A footer's columns are the shop's navigation, so its plain
             # list items become links before anything else reads the section.
-            if _section_role(child) == "footer":
+            role = _section_role(child)
+            # A footer's columns become links before the fields are read, so
+            # each one is editable; the header's copied button is added after,
+            # so it is not a second field saying the same thing.
+            if role == "footer":
                 _linkify_lists(child)
+            # Reading the fields is also what gives a link the design left
+            # pointing at "#" a destination, so it has to happen before the
+            # markup is taken — taking it first stored the dead links and
+            # every guess was thrown away.
+            fields = _fields_for(child)
+            if role == "header":
+                _mobile_header(child)
             sections.append({
                 "id": f"{key}-{i}",
                 "label": _section_label(child, i),
                 # The store's chrome, or (filled in below, for product pages)
                 # the one section where the product is actually bought.
-                "role": _section_role(child),
-                "html": str(child),
-                "fields": _fields_for(child),
+                "role": role,
+                "fields": fields,
                 # Rows of cards the store fills with its own products.
                 "repeaters": _repeaters_for(child),
+                "html": str(child),
             })
         if not sections:
             continue

@@ -203,6 +203,45 @@ _FLEX_DESCENDANT = re.compile(
 )
 
 
+# What a design drawn at desktop width needs in order to be a shop on a phone.
+# Deliberately short: each rule is here because a wireframe has no reason to
+# get it right and a storefront cannot be wrong about it.
+_MOBILE_CSS = """
+/* Nothing on a shop scrolls sideways. */
+html,body{max-width:100%;overflow-x:hidden;}
+.brand-theme img,.brand-theme svg,.brand-theme video,.brand-theme table{max-width:100%;}
+
+/* The menu button is a menu button, drawn here so it does not depend on an
+   icon sprite the design may not have shipped. */
+.brand-theme .nav-toggle-label svg{display:none;}
+.brand-theme .nav-toggle-label{font-size:0;gap:0;}
+.brand-theme .nav-toggle-label::before{
+  content:"";width:22px;height:2px;border-radius:2px;background:currentColor;
+  box-shadow:0 7px 0 currentColor,0 -7px 0 currentColor;display:block;
+}
+
+@media (max-width:900px){
+  /* The header has room for a logo and a way into the menu. Everything else
+     goes inside the menu, where there is room for it. */
+  .brand-theme .header-inner{gap:12px;}
+  .brand-theme .header-actions{display:none;}
+  .brand-theme [data-in-menu]{display:list-item;}
+}
+@media (min-width:901px){
+  .brand-theme [data-in-menu]{display:none;}
+}
+
+@media (max-width:760px){
+  /* A column count written into a style attribute outranks every media query,
+     so a four-up row stays four-up on a phone and runs off the side. */
+  .brand-theme [style*="grid-template-columns"]{grid-template-columns:1fr!important;}
+  /* An announcement bar wraps to three lines on a phone; at desktop spacing
+     that is a third of the screen before the shop begins. */
+  .brand-theme .announce{gap:4px 16px;font-size:12px;padding:8px 14px;}
+}
+"""
+
+
 def normalise_css(css: str) -> str:
     """The design's stylesheet, as a shop rather than a page on its own.
 
@@ -213,7 +252,8 @@ def normalise_css(css: str) -> str:
     if not css:
         return css
     css = _BODY_PAD.sub(r"\1", css)
-    return _FLEX_DESCENDANT.sub(r"\1 > \2\3", css)
+    css = _FLEX_DESCENDANT.sub(r"\1 > \2\3", css)
+    return css + _MOBILE_CSS
 
 
 def render_section(section: dict[str, Any], values: dict[str, Any] | None) -> str:

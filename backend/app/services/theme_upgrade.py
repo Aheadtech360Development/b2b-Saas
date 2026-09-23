@@ -44,9 +44,11 @@ def upgrade_in_place(definition: dict) -> dict:
             if section["role"] == "footer":
                 theme_import._linkify_lists(root)
             section["repeaters"] = theme_import._repeaters_for(root)
+            # Reading the fields is also what gives a link the design left
+            # pointing nowhere a destination, so the markup is taken after it.
             section["fields"] = theme_import._fields_for(root)
-            # Links the design left pointing nowhere are given a destination,
-            # the same way a fresh import does it.
+            if section["role"] == "header":
+                theme_import._mobile_header(root)
             section["html"] = str(soup)
 
         if kind == "product":
