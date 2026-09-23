@@ -48,7 +48,11 @@ const DEVICES = { desktop: 1280, tablet: 820, mobile: 400 } as const;
 const DEVICE_LABELS: Record<Device, string> = { desktop: "Desktop", tablet: "Tablet", mobile: "Mobile" };
 type Device = keyof typeof DEVICES;
 
-export default function ThemeCustomizer({ fullScreen = false }: { fullScreen?: boolean } = {}) {
+export default function ThemeCustomizer({ fullScreen = false, backHref }: {
+  fullScreen?: boolean;
+  /** Where "back" goes when the editor has the screen to itself. */
+  backHref?: string;
+} = {}) {
   const { user } = useAuthStore();
   const writable = canWrite(user?.role, "storefront", user?.scopes, user?.read_only);
   // Replacing the design is an administrator's job; other staff edit its content.
@@ -292,6 +296,11 @@ export default function ThemeCustomizer({ fullScreen = false }: { fullScreen?: b
       {/* Header */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px", flexWrap: "wrap", marginBottom: "14px" }}>
         <div>
+          {backHref && (
+            <a href={backHref} style={{ display: "inline-block", fontSize: "12.5px", fontWeight: 700, color: "#7A7880", textDecoration: "none", marginBottom: "6px" }}>
+              ← Admin
+            </a>
+          )}
           <h1 style={{ fontFamily: "var(--font-bebas), sans-serif", fontSize: "28px", color: "#2A2830", lineHeight: 1 }}>{theme.name}</h1>
           <div style={{ display: "flex", alignItems: "center", gap: "8px", marginTop: "6px", flexWrap: "wrap" }}>
             <span style={{ fontSize: "10.5px", fontWeight: 700, color: chip.color, background: chip.bg, padding: "3px 9px", borderRadius: "20px", textTransform: "uppercase", letterSpacing: ".04em" }}>{chip.text}</span>

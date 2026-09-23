@@ -9,7 +9,6 @@
  * editor is admin-only.
  */
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/stores/auth.store";
 import ThemeCustomizer from "@/components/admin/ThemeCustomizer";
@@ -39,10 +38,7 @@ export default function ThemeEditorPage() {
 
   return (
     <div style={{ background: "#F7F7F5" }}>
-      <div style={{ position: "absolute", top: "18px", left: "18px", zIndex: 5 }}>
-        <Link href="/admin" style={{ fontSize: "12.5px", fontWeight: 700, color: "#7A7880", textDecoration: "none" }}>← Admin</Link>
-      </div>
-      <ThemeCustomizer fullScreen />
+      <ThemeCustomizer fullScreen backHref="/admin" />
     </div>
   );
 }
