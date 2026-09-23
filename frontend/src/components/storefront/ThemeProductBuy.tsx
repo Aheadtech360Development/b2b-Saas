@@ -116,13 +116,24 @@ export default function ThemeProductBuy({ product }: { product: ThemeProductData
     groups.forEach((group) => {
       const optionId = group.dataset.optionId ?? "";
       const items = Array.from(group.querySelectorAll<HTMLElement>("[data-label]"));
-      const label = (group.querySelector(".vlabel, label")?.textContent ?? "").trim().toLowerCase();
+      const labelEl = group.querySelector<HTMLElement>(".vlabel, label");
+      // The label keeps its own wording and gains what is chosen: "Color:
+      // Forest" tells a shopper what that swatch actually is.
+      const baseLabel = (labelEl?.dataset.baseLabel ?? labelEl?.textContent ?? "").trim().replace(/:\s*$/, "");
+      if (labelEl) labelEl.dataset.baseLabel = baseLabel;
+      const label = baseLabel.toLowerCase();
+
+      const showChoice = (chosenLabel: string) => {
+        if (!labelEl || !baseLabel) return;
+        labelEl.textContent = chosenLabel ? `${baseLabel}: ${chosenLabel}` : baseLabel;
+      };
 
       items.forEach((item) => {
         if (item.classList.contains("selected")) {
           if (optionId) chosen[optionId] = item.dataset.valueId ?? "";
           else if (label.startsWith("colo")) colour = item.dataset.label ?? colour;
           else if (label.startsWith("size")) size = item.dataset.label ?? size;
+          showChoice(item.dataset.label ?? "");
         }
         const onClick = (e: Event) => {
           e.preventDefault();
@@ -131,6 +142,7 @@ export default function ThemeProductBuy({ product }: { product: ThemeProductData
           if (optionId) chosen[optionId] = item.dataset.valueId ?? "";
           else if (label.startsWith("colo")) colour = item.dataset.label ?? "";
           else if (label.startsWith("size")) size = item.dataset.label ?? "";
+          showChoice(item.dataset.label ?? "");
           setMessage(null);
           if (matrix) showPrice(); else void repriceFromServer();
         };
