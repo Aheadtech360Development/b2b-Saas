@@ -70,6 +70,10 @@ export function Header() {
   const hideStoreHeader =
     pathname?.startsWith("/platform") ||
     pathname?.startsWith("/admin") ||
+    // The theme editor and its preview show the imported design and nothing
+    // else — a second header there is not part of anybody's design.
+    pathname?.startsWith("/theme-editor") ||
+    pathname?.startsWith("/theme-preview") ||
     pathname?.startsWith("/ui-preview") ||
     pathname?.startsWith("/account") ||
     _authPrefixes.some((p) => pathname?.startsWith(p));

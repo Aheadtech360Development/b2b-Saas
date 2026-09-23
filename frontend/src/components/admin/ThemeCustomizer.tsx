@@ -63,6 +63,7 @@ export default function ThemeCustomizer({ fullScreen = false }: { fullScreen?: b
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [loading, setLoading] = useState(true);
   const [pickImageFor, setPickImageFor] = useState<{ section: string; field: string } | null>(null);
+  const [pickingLogo, setPickingLogo] = useState(false);
   const frameRef = useRef<HTMLIFrameElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const [previewReady, setPreviewReady] = useState(false);
@@ -165,6 +166,16 @@ export default function ThemeCustomizer({ fullScreen = false }: { fullScreen?: b
       pages: { ...cur.pages, [pageKey]: { ...pageState, ...patch } },
     }));
   }
+  function setLogo(patch: Partial<NonNullable<ThemeState["logo"]>>) {
+    setState((cur) => ({ ...cur, logo: { url: "", ...(cur.logo ?? {}), ...patch } }));
+  }
+  function setLogoPadding(side: "top" | "right" | "bottom" | "left", value: string) {
+    setState((cur) => ({
+      ...cur,
+      logo: { url: "", ...(cur.logo ?? {}), padding: { ...(cur.logo?.padding ?? {}), [side]: value } },
+    }));
+  }
+
   function setSlot(sectionId: string, rowKey: string, patch: Partial<SlotSpec>) {
     const dynamic = { ...(pageState.dynamic ?? {}) };
     const rows = { ...(dynamic[sectionId] ?? {}) };
@@ -331,6 +342,54 @@ export default function ThemeCustomizer({ fullScreen = false }: { fullScreen?: b
       <div className="theme-grid" style={{ display: "grid", gridTemplateColumns: "340px minmax(0, 1fr)", gap: "16px", alignItems: "stretch", flex: fullScreen ? 1 : undefined, minHeight: 0 }}>
         {/* ── Sections ── */}
         <div style={{ ...card, padding: "14px", maxHeight: fullScreen ? "100%" : "78vh", overflowY: "auto" }}>
+          {/* The brand's logo — the design's header keeps its place. */}
+          <div style={{ border: "1px solid #E3E3E3", borderRadius: "10px", padding: "10px 12px", marginBottom: "12px", background: "#FCFCFB" }}>
+            <div style={{ fontSize: "12px", fontWeight: 700, color: "#7A7880", textTransform: "uppercase", letterSpacing: ".06em", marginBottom: "8px" }}>
+              Brand logo
+            </div>
+            <div style={{ display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
+              {state.logo?.url && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={state.logo.url} alt="" style={{ height: "34px", width: "auto", maxWidth: "120px", objectFit: "contain", border: "1px solid #EEE", borderRadius: "6px", background: "#fff" }} />
+              )}
+              <button disabled={!writable} onClick={() => setPickingLogo(true)} style={{ ...btnOutline, padding: "7px 12px", fontSize: "12px" }}>
+                {state.logo?.url ? "Change logo" : "Upload logo"}
+              </button>
+              {state.logo?.url && writable && (
+                <button onClick={() => setLogo({ url: "" })} style={{ background: "none", border: "none", color: "#B91C1C", fontSize: "12px", cursor: "pointer" }}>
+                  Use the design&apos;s own
+                </button>
+              )}
+            </div>
+            {state.logo?.url && (
+              <div style={{ marginTop: "10px" }}>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
+                  <div>
+                    <label style={label}>Width</label>
+                    <input disabled={!writable} style={input} value={state.logo?.width ?? ""} placeholder="120"
+                      onChange={(e) => setLogo({ width: e.target.value })} />
+                  </div>
+                  <div>
+                    <label style={label}>Height</label>
+                    <input disabled={!writable} style={input} value={state.logo?.height ?? ""} placeholder="auto"
+                      onChange={(e) => setLogo({ height: e.target.value })} />
+                  </div>
+                </div>
+                <label style={{ ...label, marginTop: "10px" }}>Padding around it</label>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "6px" }}>
+                  {(["top", "right", "bottom", "left"] as const).map((side) => (
+                    <input key={side} disabled={!writable} style={{ ...input, padding: "7px 8px", fontSize: "12.5px" }}
+                      value={state.logo?.padding?.[side] ?? ""} placeholder={side}
+                      onChange={(e) => setLogoPadding(side, e.target.value)} />
+                  ))}
+                </div>
+                <p style={{ fontSize: "11.5px", color: "#9A98A0", marginTop: "8px" }}>
+                  Numbers are pixels. Leave a box empty to let the design decide.
+                </p>
+              </div>
+            )}
+          </div>
+
           <div style={{ fontSize: "12px", fontWeight: 700, color: "#7A7880", textTransform: "uppercase", letterSpacing: ".06em", marginBottom: "10px" }}>
             {current?.label ?? "Page"} · {order.length} sections
           </div>
@@ -493,6 +552,13 @@ export default function ThemeCustomizer({ fullScreen = false }: { fullScreen?: b
           </p>
         </div>
       </div>
+
+      {pickingLogo && (
+        <MediaPicker
+          onSelect={(url) => { setLogo({ url }); setPickingLogo(false); }}
+          onClose={() => setPickingLogo(false)}
+        />
+      )}
 
       {pickImageFor && (
         <MediaPicker

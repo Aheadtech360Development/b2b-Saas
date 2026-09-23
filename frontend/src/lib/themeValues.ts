@@ -53,6 +53,8 @@ export interface ThemeSection {
   html: string;
   fields: ThemeField[];
   repeaters?: ThemeRepeater[];
+  /** "product_block" — where the store's own buying controls go. */
+  role?: string;
 }
 
 export interface ThemePageDefinition {
@@ -77,8 +79,17 @@ export interface ThemePageState {
   dynamic?: Record<string, Record<string, SlotSpec>>;
 }
 
+/** The brand's own logo, in the place the design keeps its logo. */
+export interface ThemeLogo {
+  url: string;
+  width?: string;
+  height?: string;
+  padding?: { top?: string; right?: string; bottom?: string; left?: string };
+}
+
 export interface ThemeState {
   pages: Record<string, ThemePageState>;
+  logo?: ThemeLogo;
 }
 
 function elementAt(root: Element, path: string): Element | null {
@@ -229,6 +240,53 @@ export function fillRepeaters(
   return changed ? (wrapper?.innerHTML ?? html) : html;
 }
 
+function px(value: string | undefined): string {
+  const raw = (value ?? "").trim();
+  if (!raw || raw.toLowerCase() === "auto") return "";
+  return /(px|%|r?em|vw|vh)$/.test(raw) ? raw : `${raw}px`;
+}
+
+/** Put the brand's logo where the design keeps its own — nothing moves. */
+export function applyLogo(sections: { id: string; html: string; role?: string }[], logo?: ThemeLogo) {
+  const url = (logo?.url ?? "").trim();
+  if (!url) return sections;
+
+  const width = px(logo?.width) || "auto";
+  const height = px(logo?.height) || "auto";
+  const pad = logo?.padding ?? {};
+  const padding = ["top", "right", "bottom", "left"]
+    .map((side) => px((pad as Record<string, string | undefined>)[side]) || "0")
+    .join(" ");
+  const style = [
+    "display:block", "max-width:100%", "object-fit:contain",
+    `width:${width}`, `height:${height}`,
+    padding === "0 0 0 0" ? "" : `padding:${padding}`,
+  ].filter(Boolean).join(";");
+
+  let done = false;
+  return sections.map((section) => {
+    if (done) return section;
+    const doc = new DOMParser().parseFromString(`<div id="__root">${section.html}</div>`, "text/html");
+    const wrapper = doc.getElementById("__root");
+    const holder = wrapper?.querySelector(".logo, .site-logo, .brand-logo, .logo-wrap")
+      ?? wrapper?.querySelector("header a");
+    if (!wrapper || !holder) return section;
+
+    const img = doc.createElement("img");
+    img.src = url;
+    img.alt = "";
+    img.setAttribute("style", style);
+    if (holder.tagName === "IMG") holder.replaceWith(img);
+    else {
+      holder.innerHTML = "";
+      holder.setAttribute("style", `${holder.getAttribute("style") ?? ""};display:inline-flex;align-items:center`);
+      holder.appendChild(img);
+    }
+    done = true;
+    return { ...section, html: wrapper.innerHTML };
+  });
+}
+
 /** The sections a page shows, in its order, with values applied. */
 export function renderPage(
   def: ThemeDefinition,
@@ -245,24 +303,26 @@ export function renderPage(
     ...page.sections.map((s) => s.id).filter((id) => !(pageState.order ?? []).includes(id)),
   ];
   const hidden = new Set(pageState.hidden ?? []);
+  const sections = order
+    .filter((id) => !hidden.has(id))
+    .map((id) => {
+      const section = byId.get(id)!;
+      let html = applyValues(section.html, pageState.values?.[id]);
+      if (items) {
+        const mine: Record<string, SlotItem[] | undefined> = {};
+        for (const [key, rows] of Object.entries(items)) {
+          if (key.startsWith(`${id}|`)) mine[key.slice(id.length + 1)] = rows;
+        }
+        html = fillRepeaters(html, section.repeaters, mine);
+      }
+      return { id, html, role: section.role ?? "" };
+    });
+
   return {
     key: pageKey,
     css: def.css,
     stylesheets: def.stylesheets ?? [],
     svg_defs: def.svg_defs ?? "",
-    sections: order
-      .filter((id) => !hidden.has(id))
-      .map((id) => {
-        const section = byId.get(id)!;
-        let html = applyValues(section.html, pageState.values?.[id]);
-        if (items) {
-          const mine: Record<string, SlotItem[] | undefined> = {};
-          for (const [key, rows] of Object.entries(items)) {
-            if (key.startsWith(`${id}|`)) mine[key.slice(id.length + 1)] = rows;
-          }
-          html = fillRepeaters(html, section.repeaters, mine);
-        }
-        return { id, html };
-      }),
+    sections: applyLogo(sections, state.logo),
   };
 }

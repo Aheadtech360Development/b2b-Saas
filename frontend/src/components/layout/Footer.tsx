@@ -48,7 +48,7 @@ export function Footer() {
       ];
 
   return (
-    <footer style={{ background: "#FFFFFF", borderTop: "1px solid #E2E2DE" }}>
+    <footer data-app-chrome style={{ background: "#FFFFFF", borderTop: "1px solid #E2E2DE" }}>
       <div style={{ maxWidth: "1500px", margin: "0 auto", padding: "56px 24px 32px", display: "grid", gridTemplateColumns: `repeat(${Math.min(Math.max(cols.length, 1), 4)}, 1fr)`, gap: "32px" }} className="footer-grid-responsive">
         {cols.map(col => (
           <div key={col.h}>

@@ -182,6 +182,20 @@ def fill_repeaters(html: str, repeaters: list[dict[str, Any]], items_by_key: dic
     return str(soup) if changed else html
 
 
+# A design drawn as a preview document often reserves space at the top for a
+# fixed toolbar of its own. That toolbar is not part of the store, so neither
+# is the space: this takes the reservation out at the source rather than
+# pulling the page back up with a negative margin.
+_BODY_PAD = re.compile(r"(body\s*\{[^}]*?)padding-top\s*:\s*[^;}]+;?", re.IGNORECASE)
+
+
+def normalise_css(css: str) -> str:
+    """The design's stylesheet, with the space its own toolbar needed removed."""
+    if not css:
+        return css
+    return _BODY_PAD.sub(r"\1", css)
+
+
 def render_section(section: dict[str, Any], values: dict[str, Any] | None) -> str:
     """One section's HTML with this brand's values in it."""
     html = section.get("html") or ""
@@ -289,6 +303,60 @@ def apply_product(page: dict[str, Any], product: dict[str, Any]) -> dict[str, An
     return page
 
 
+def _px(value: Any) -> str:
+    """A number of pixels, or "" when nothing was set."""
+    raw = str(value or "").strip()
+    if not raw or raw.lower() == "auto":
+        return ""
+    return raw if raw.endswith(("px", "%", "em", "rem", "vw", "vh")) else f"{raw}px"
+
+
+def apply_logo(page: dict[str, Any], logo: dict[str, Any] | None) -> dict[str, Any]:
+    """Put the brand's own logo where the design keeps its logo.
+
+    The design already decided where a logo sits and how the header is laid
+    out around it; this only swaps the picture and, if asked, its size and the
+    space around it. Nothing is moved.
+    """
+    url = str((logo or {}).get("url") or "").strip()
+    if not url:
+        return page
+
+    width = _px((logo or {}).get("width"))
+    height = _px((logo or {}).get("height"))
+    pad = (logo or {}).get("padding") or {}
+    padding = " ".join(_px(pad.get(side)) or "0" for side in ("top", "right", "bottom", "left"))
+
+    style = ["display:block", "max-width:100%", "object-fit:contain"]
+    style.append(f"width:{width}" if width else "width:auto")
+    style.append(f"height:{height}" if height else "height:auto")
+    if padding != "0 0 0 0":
+        style.append(f"padding:{padding}")
+
+    for block in page.get("sections", []):
+        soup = BeautifulSoup(block["html"], "html.parser")
+        holder = soup.select_one(".logo, .site-logo, .brand-logo, .logo-wrap")
+        if holder is None:
+            header = soup.find("header") or (soup.find(class_="site-header"))
+            holder = header.find("a") if header is not None else None
+        if holder is None:
+            continue
+
+        img = soup.new_tag("img", src=url)
+        img["alt"] = ""
+        img["style"] = ";".join(style)
+        if holder.name == "img":
+            holder.replace_with(img)
+        else:
+            # Keep the link (and where it points) — replace what it shows.
+            holder.clear()
+            holder["style"] = f"{holder.get('style') or ''};display:inline-flex;align-items:center".strip(";")
+            holder.append(img)
+        block["html"] = str(soup)
+        break  # a store has one logo, in one place
+    return page
+
+
 def render_page(definition: dict[str, Any], state: dict[str, Any] | None, page_key: str,
                 items: dict[str, list[dict[str, Any]]] | None = None) -> dict[str, Any] | None:
     """A whole page: the sections this brand shows, in its order, filled in."""
@@ -305,6 +373,7 @@ def render_page(definition: dict[str, Any], state: dict[str, Any] | None, page_k
     order += [s["id"] for s in page.get("sections", []) if s["id"] not in order]
     hidden = set(page_state.get("hidden") or [])
     values = page_state.get("values") or {}
+    logo = (state or {}).get("logo") or {}
 
     blocks: list[dict[str, Any]] = []
     for sid in order:
@@ -320,15 +389,17 @@ def render_page(definition: dict[str, Any], state: dict[str, Any] | None, page_k
             }
             html = fill_repeaters(html, section.get("repeaters") or [], mine)
         blocks.append({"id": sid, "html": html, "role": section.get("role") or ""})
-    return {
+
+    rendered = {
         "key": page_key,
         "label": page.get("label") or page_key.title(),
         "kind": page.get("kind") or "page",
-        "css": definition.get("css") or "",
+        "css": normalise_css(definition.get("css") or ""),
         "stylesheets": definition.get("stylesheets") or [],
         "svg_defs": definition.get("svg_defs") or "",
         "sections": blocks,
     }
+    return apply_logo(rendered, logo)
 
 
 def clean_state(definition: dict[str, Any], state: Any) -> dict[str, Any]:
@@ -340,6 +411,17 @@ def clean_state(definition: dict[str, Any], state: Any) -> dict[str, Any]:
     pages_def = (definition or {}).get("pages") or {}
     incoming = ((state or {}).get("pages") or {}) if isinstance(state, dict) else {}
     out: dict[str, Any] = {"pages": {}}
+
+    # The brand's logo belongs to the theme, not to one page of it.
+    logo_in = (state or {}).get("logo") if isinstance(state, dict) else None
+    if isinstance(logo_in, dict):
+        pad_in = logo_in.get("padding") or {}
+        out["logo"] = {
+            "url": str(logo_in.get("url") or "")[:1000],
+            "width": str(logo_in.get("width") or "")[:12],
+            "height": str(logo_in.get("height") or "")[:12],
+            "padding": {side: str((pad_in or {}).get(side) or "")[:12] for side in ("top", "right", "bottom", "left")},
+        }
 
     for key, page in pages_def.items():
         ids = [s["id"] for s in page.get("sections", [])]

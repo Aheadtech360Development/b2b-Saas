@@ -10,6 +10,7 @@ function AnnouncementBarInner() {
 
   return (
     <div
+      data-app-chrome
       style={{
         background: branding.announcement_bg_color || branding.primary_color || "var(--brand-primary, #1C3557)",
         color: branding.announcement_text_color || "#fff",
