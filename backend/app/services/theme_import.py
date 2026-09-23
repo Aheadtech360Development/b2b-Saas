@@ -39,7 +39,7 @@ _LABELS = {
 }
 
 # 1: sections and fields · 2: rows of cards · 3: navigation and product blocks
-PARSER_VERSION = 6
+PARSER_VERSION = 7
 
 MAX_FIELDS_PER_SECTION = 60
 MAX_TEXT_LENGTH = 600
@@ -174,6 +174,35 @@ def _linkify_lists(section: Tag) -> None:
         for child in list(item.contents):
             anchor.append(child.extract())
         item.append(anchor)
+
+
+def _marquee_announcement(section: Tag) -> None:
+    """Put the announcement bar's items on a track that can be scrolled.
+
+    Its items move into a track, and the track carries them twice. On a wide
+    screen it is the row the design drew; on a phone the track slides by its
+    own length, forever, and the second copy makes the loop seamless.
+    """
+    bar = section if "announce" in (section.get("class") or []) else section.select_one(".announce")
+    if bar is None or bar.select_one(".at-marquee") is not None:
+        return
+    items = [c for c in bar.children if isinstance(c, Tag)]
+    if len(items) < 2:
+        return  # one line has nothing to scroll past
+
+    track = BeautifulSoup("", "html.parser").new_tag("div")
+    track["class"] = ["at-marquee"]
+    for item in items:
+        track.append(item.extract())
+    for item in list(track.children):
+        if not isinstance(item, Tag):
+            continue
+        copy = BeautifulSoup(str(item), "html.parser").find(True)
+        if copy is None:
+            continue
+        copy["aria-hidden"] = "true"
+        track.append(copy)
+    bar.append(track)
 
 
 def _mobile_header(section: Tag) -> None:
@@ -370,6 +399,8 @@ def import_html(html: str, *, name: str) -> dict[str, Any]:
             # so it is not a second field saying the same thing.
             if role == "footer":
                 _linkify_lists(child)
+            elif role == "announcement":
+                _marquee_announcement(child)
             # Reading the fields is also what gives a link the design left
             # pointing at "#" a destination, so it has to happen before the
             # markup is taken — taking it first stored the dead links and

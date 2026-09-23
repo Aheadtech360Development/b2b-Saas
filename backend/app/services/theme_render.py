@@ -235,9 +235,40 @@ html,body{max-width:100%;overflow-x:hidden;}
   /* A column count written into a style attribute outranks every media query,
      so a four-up row stays four-up on a phone and runs off the side. */
   .brand-theme [style*="grid-template-columns"]{grid-template-columns:1fr!important;}
-  /* An announcement bar wraps to three lines on a phone; at desktop spacing
-     that is a third of the screen before the shop begins. */
-  .brand-theme .announce{gap:4px 16px;font-size:12px;padding:8px 14px;}
+}
+
+/* The announcement bar's items sit on a track. On a wide screen the track is
+   the row the design drew, and the second copy of the items is not there. */
+.brand-theme .announce .at-marquee{
+  display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:inherit;
+}
+.brand-theme .announce .at-marquee > [aria-hidden="true"]{display:none;}
+/* The design styled these as direct children of the bar; the track put one
+   level between them, so that styling is given back. */
+.brand-theme .announce .at-marquee > *{display:flex;align-items:center;gap:6px;}
+
+@media (max-width:760px){
+  /* Three promises drawn as one desktop row become three tall lines on a
+     phone. They run past in a single line instead. */
+  .brand-theme .announce{
+    display:block;overflow:hidden;white-space:nowrap;padding:9px 0;font-size:12.5px;
+  }
+  .brand-theme .announce .at-marquee{
+    display:inline-flex;flex-wrap:nowrap;width:max-content;gap:34px;padding-left:34px;
+    animation:at-marquee-scroll 20s linear infinite;
+  }
+  .brand-theme .announce .at-marquee > [aria-hidden="true"]{display:flex;}
+  /* Half of the track is the second copy, so moving exactly half puts the
+     first item back where it started — no seam, no jump. */
+  @keyframes at-marquee-scroll{
+    from{transform:translateX(0);}
+    to{transform:translateX(-50%);}
+  }
+}
+
+/* Motion nobody asked for is motion somebody cannot use. */
+@media (prefers-reduced-motion:reduce){
+  .brand-theme .announce .at-marquee{animation:none!important;}
 }
 """
 

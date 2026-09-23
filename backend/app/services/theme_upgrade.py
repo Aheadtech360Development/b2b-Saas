@@ -43,6 +43,8 @@ def upgrade_in_place(definition: dict) -> dict:
             section["role"] = theme_import._section_role(root)
             if section["role"] == "footer":
                 theme_import._linkify_lists(root)
+            elif section["role"] == "announcement":
+                theme_import._marquee_announcement(root)
             section["repeaters"] = theme_import._repeaters_for(root)
             # Reading the fields is also what gives a link the design left
             # pointing nowhere a destination, so the markup is taken after it.
