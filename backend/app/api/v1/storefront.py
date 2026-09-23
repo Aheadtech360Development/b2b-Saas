@@ -493,7 +493,7 @@ async def get_storefront_product_page(
                 block["html"] = theme_product.fill_product_block(block["html"], data)
             else:
                 block["html"] = theme_product.fill_size_chart(block["html"], data["size_chart"])
-    return {"page": rendered, "layout": key, "product_id": None if data is None else data["id"]}
+    return {"page": rendered, "layout": key, "product": data}
 
 
 # ── Public: storefront branding by subdomain ──────────────────────────────────

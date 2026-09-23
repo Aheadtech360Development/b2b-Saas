@@ -6,15 +6,16 @@ import { titleWithBrand } from "@/lib/brand";
 import { ProductDetailClient } from "./ProductDetailClient";
 import ThemeProductPage from "@/components/storefront/ThemeProductPage";
 import type { ThemePage } from "@/components/storefront/ThemeRenderer";
+import type { ThemeProductData } from "@/components/storefront/ThemeProductBuy";
 import { apiClient } from "@/lib/api-client";
 
-/** This brand's theme layout for this product, when it has one. */
-async function themeProductPage(slug: string): Promise<ThemePage | null> {
+/** This brand's theme layout for this product, and the product itself. */
+async function themeProductPage(slug: string): Promise<{ page: ThemePage; product: ThemeProductData | null } | null> {
   try {
-    const res = await apiClient.get<{ page: ThemePage | null }>(
+    const res = await apiClient.get<{ page: ThemePage | null; product: ThemeProductData | null }>(
       `/api/v1/storefront/theme/product/${encodeURIComponent(slug)}`, { skipAuth: true },
     );
-    return res?.page ?? null;
+    return res?.page ? { page: res.page, product: res.product ?? null } : null;
   } catch {
     return null;
   }
@@ -84,7 +85,7 @@ export default async function ProductDetailPage({ params }: PageProps) {
   // );
   // The brand's own theme draws the page around the real buying controls;
   // without a theme, the product page is what it has always been.
-  const themePage = await themeProductPage(slug);
-  if (themePage) return <ThemeProductPage page={themePage} slug={slug} />;
+  const themed = await themeProductPage(slug);
+  if (themed) return <ThemeProductPage page={themed.page} product={themed.product} slug={slug} />;
   return <ProductDetailClient slug={slug} />;
 }

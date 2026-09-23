@@ -80,11 +80,44 @@ async def load(db: AsyncSession, product_id: Any) -> dict[str, Any] | None:
         select(ProductQtyTier).where(ProductQtyTier.product_id == product.id).order_by(ProductQtyTier.min_qty)
     )).scalars().all()
 
+    # Stock lives in the warehouses, not on the variant. A variant nobody
+    # tracks stock for is treated as available, which is what the rest of the
+    # storefront does with it.
+    from sqlalchemy import func as _func
+
+    from app.models.inventory import InventoryRecord
+
+    variant_ids = [v.id for v in (product.variants or [])]
+    on_hand: dict[Any, int] = {}
+    if variant_ids:
+        on_hand = {
+            row[0]: int(row[1] or 0)
+            for row in (await db.execute(
+                select(InventoryRecord.variant_id, _func.sum(InventoryRecord.quantity))
+                .where(InventoryRecord.variant_id.in_(variant_ids))
+                .group_by(InventoryRecord.variant_id)
+            )).all()
+        }
+
     images = sorted(product.images or [], key=lambda i: (not getattr(i, "is_primary", False), getattr(i, "sort_order", 0)))
     variants = [v for v in (product.variants or []) if v.status == "active"]
     prices = [float(v.retail_price) for v in variants if v.retail_price is not None]
     if not prices and product.base_price is not None:
         prices = [float(product.base_price)]
+
+    # Every buyable combination, so the page can price and add to cart from
+    # what the store actually stocks rather than from what the design drew.
+    combinations = [
+        {
+            "id": str(v.id),
+            "colour": v.color or "",
+            "size": v.size or "",
+            "price": float(v.retail_price) if v.retail_price is not None else None,
+            "stock": on_hand.get(v.id, 9999),
+            "sku": v.sku,
+        }
+        for v in variants
+    ]
 
     colours: list[dict[str, Any]] = []
     sizes: list[dict[str, Any]] = []
@@ -119,6 +152,7 @@ async def load(db: AsyncSession, product_id: Any) -> dict[str, Any] | None:
             for i in images
         ],
         "from_price": min(prices) if prices else None,
+        "variants": combinations,
         "colours": colours,
         "sizes": sizes,
         "options": options,
@@ -346,10 +380,30 @@ def fill_product_block(html: str, data: dict[str, Any]) -> str:
     _fill_price(root, data)
     _fill_choices(root, data)
 
-    # What the page is for, so the buying script knows without guessing.
+    # What the page is for, and which controls belong to buying it, so the
+    # script that makes them work binds to marks rather than to the design's
+    # class names.
     root["data-product-id"] = data["id"]
     root["data-product-slug"] = data["slug"]
     root["data-pricing-mode"] = data["pricing_mode"]
+
+    price_line = root.select_one(".price-row") or root.select_one(".price")
+    if price_line is not None:
+        price_line["data-theme-price"] = "1"
+
+    qty = root.select_one(".qty-box")
+    if qty is not None:
+        qty["data-theme-qty"] = "1"
+
+    for button in root.select("a.btn-primary, button.btn-primary, .btn.btn-primary"):
+        text = (button.get_text() or "").strip().lower()
+        button["data-theme-buy"] = "upload" if "upload" in text or "design" in text else "cart"
+        if button.name == "a" and not button.get("href"):
+            button["href"] = "#"
+
+    table = root.select_one(".price-table")
+    if table is not None:
+        table["data-theme-price-table"] = "1"
     return str(soup)
 
 

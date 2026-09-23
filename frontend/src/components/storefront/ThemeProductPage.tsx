@@ -10,8 +10,14 @@
  */
 import { useEffect } from "react";
 import type { ThemePage } from "@/components/storefront/ThemeRenderer";
+import ThemeProductBuy, { type ThemeProductData } from "@/components/storefront/ThemeProductBuy";
 
-export default function ThemeProductPage({ page }: { page: ThemePage; slug?: string }) {
+export default function ThemeProductPage({ page, product }: {
+  page: ThemePage;
+  /** The product the page is showing, for its buying controls. */
+  product?: ThemeProductData | null;
+  slug?: string;
+}) {
   useEffect(() => {
     document.body.dataset.themeActive = "1";
     return () => { delete document.body.dataset.themeActive; };
@@ -28,6 +34,7 @@ export default function ThemeProductPage({ page }: { page: ThemePage; slug?: str
       {page.sections.map((section) => (
         <div key={section.id} data-theme-section={section.id} dangerouslySetInnerHTML={{ __html: section.html }} />
       ))}
+      {product && <ThemeProductBuy product={product} />}
     </div>
   );
 }
