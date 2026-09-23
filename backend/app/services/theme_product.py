@@ -17,6 +17,7 @@ to next.
 """
 from __future__ import annotations
 
+import re
 from decimal import Decimal
 from typing import Any
 
@@ -46,19 +47,25 @@ def _set_text(tag: Tag, value: str) -> None:
 
 
 def _as_image(holder: Tag, url: str, alt: str = "") -> None:
-    """Put a real picture where the design drew a grey box."""
+    """Put a real picture where the design drew a grey box.
+
+    Shown whole, not cropped: a product photo is of the product, and filling
+    the design's box with the middle of a t-shirt is not a picture of a
+    t-shirt. The box keeps its size, and the photo sits inside it.
+    """
     if holder.name == "img":
         holder["src"] = url
         holder["alt"] = alt
+        holder["style"] = f"{holder.get('style') or ''};object-fit:contain".strip(";")
         return
     holder.clear()
     holder["class"] = [c for c in (holder.get("class") or []) if c != "placeholder"]
     style = holder.get("style") or ""
-    holder["style"] = f"{style};overflow:hidden;padding:0;border:0;background:none".strip(";")
+    holder["style"] = f"{style};overflow:hidden;padding:0;border:0;background:#fff".strip(";")
     img = BeautifulSoup("", "html.parser").new_tag("img", src=url)
     img["alt"] = alt
     img["loading"] = "lazy"
-    img["style"] = "width:100%;height:100%;object-fit:cover;display:block"
+    img["style"] = "width:100%;height:100%;object-fit:contain;display:block"
     holder.append(img)
 
 
@@ -405,6 +412,70 @@ def fill_product_block(html: str, data: dict[str, Any]) -> str:
     if table is not None:
         table["data-theme-price-table"] = "1"
     return str(soup)
+
+
+# ── Which of the design's layouts a product belongs in ─────────────────────
+
+def _layout_traits(html: str) -> dict[str, Any]:
+    """What a layout was drawn for, read off how it was drawn."""
+    soup = BeautifulSoup(html or "", "html.parser")
+    text = " ".join((soup.get_text(" ", strip=True) or "").lower().split())
+    labels = {
+        (label.get_text() or "").strip().lower()
+        for label in soup.select(".vlabel, .variant-group label")
+    }
+    return {
+        "swatches": soup.select_one(".swatch-row") is not None,
+        "price_table": soup.select_one(".price-table") is not None,
+        "artwork": any(word in text for word in ("gang sheet", "upload artwork", "upload your artwork", "start designing")),
+        "labels": labels,
+    }
+
+
+def choose_layout(pages: dict[str, Any], data: dict[str, Any]) -> str:
+    """The layout meant for this product.
+
+    Structure first — a stocked product belongs where colours and sizes are
+    chosen, an artwork product where artwork is uploaded — and the names of
+    the product and the layout only settle a tie.
+    """
+    candidates = {k: p for k, p in pages.items() if p.get("kind") == "product"}
+    if not candidates:
+        return ""
+
+    option_names = {o["name"].strip().lower() for o in data.get("options") or []}
+    stocked = bool(data.get("colours")) or bool(data.get("sizes"))
+    artwork = bool(data.get("gang_sheet"))
+    has_tiers = bool(data.get("qty_tiers"))
+    product_words = {w for w in re.split(r"[^a-z0-9]+", (data.get("name") or "").lower()) if len(w) > 2}
+
+    best, best_score = next(iter(candidates)), -1.0
+    for key, page in candidates.items():
+        block = next((s for s in page.get("sections", []) if s.get("role") == "product_block"), None)
+        traits = _layout_traits(block.get("html") if block else "")
+        score = 0.0
+
+        if artwork and traits["artwork"]:
+            score += 6
+        if artwork and not traits["artwork"]:
+            score -= 3
+        if stocked and traits["swatches"]:
+            score += 5
+        if stocked and traits["artwork"]:
+            score -= 4          # a tee is not built in a gang sheet builder
+        if option_names:
+            score += 2 * len(option_names & traits["labels"])
+            if traits["price_table"] and has_tiers:
+                score += 2
+        if not stocked and not artwork and traits["swatches"]:
+            score -= 1
+
+        label_words = {w for w in re.split(r"[^a-z0-9]+", (page.get("label") or "").lower()) if len(w) > 2}
+        score += 0.5 * len(product_words & label_words)
+
+        if score > best_score:
+            best, best_score = key, score
+    return best
 
 
 # ── Elsewhere on the page ───────────────────────────────────────────────────

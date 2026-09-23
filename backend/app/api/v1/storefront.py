@@ -460,19 +460,24 @@ async def get_storefront_product_page(
     product_pages = [k for k, p in pages.items() if p.get("kind") == "product"]
     if not product_pages:
         return {"page": None}
+    from app.services import theme_product
+
+    data = await theme_product.load(db, row.id)
     if row.theme_page in product_pages:
         key = row.theme_page
-    else:
-        # The product's own name, and the collections it sits in: a yard sign
-        # filed under "Signs & Banners" belongs in that layout.
-        names = [row.name] + [
+    elif data is not None:
+        # What the product is decides where it is drawn: colours and sizes
+        # belong where those are chosen, artwork where artwork is uploaded.
+        collections = [
             r[0] for r in (await db.execute(text("""
                 SELECT c.name FROM collections c
                   JOIN collection_products cp ON cp.collection_id = c.id
                  WHERE cp.product_id = CAST(:p AS uuid)
             """), {"p": str(row.id)})).all()
         ]
-        key = theme_render.layout_for(" ".join(names), {k: pages[k].get("label") or k for k in product_pages})
+        key = theme_product.choose_layout(pages, {**data, "name": " ".join([data["name"], *collections])})
+    else:
+        key = product_pages[0]
 
     items = await theme_data.page_items(db, theme.published, key)
     rendered = theme_render.render_page(definition, theme.published, key, items)
@@ -484,9 +489,6 @@ async def get_storefront_product_page(
     # words, its prices and the choices it was actually given in the admin.
     # Choices the design drew that the product doesn't offer are dropped, so
     # nothing on the page is left as an example.
-    from app.services import theme_product
-
-    data = await theme_product.load(db, row.id)
     if data is not None:
         for block in rendered.get("sections", []):
             if block.get("role") == "product_block":
