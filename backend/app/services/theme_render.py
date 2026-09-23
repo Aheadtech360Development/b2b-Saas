@@ -282,6 +282,36 @@ def apply_collection(page: dict[str, Any], collection: dict[str, Any], total: in
     return page
 
 
+def layout_for(product_name: str, layouts: dict[str, str]) -> str:
+    """The layout meant for this product, by the names both carry.
+
+    A design ships one layout per kind of thing it sells — business cards,
+    blanks, signs — and a store's products are named after the same things.
+    Matching on those words puts a business card in the business card layout
+    instead of whichever layout happened to be listed first. The admin can
+    always say otherwise on the product itself.
+    """
+    keys = list(layouts)
+    if not keys:
+        return ""
+
+    def words(text: str) -> set[str]:
+        out = set()
+        for raw in re.split(r"[^a-z0-9]+", (text or "").lower()):
+            if len(raw) > 2:
+                # "signs" and "sign" are the same word for this purpose.
+                out.add(raw[:-1] if raw.endswith("s") and len(raw) > 3 else raw)
+        return out
+
+    wanted = words(product_name)
+    best, score = keys[0], 0
+    for key, label in layouts.items():
+        shared = len(wanted & words(label))
+        if shared > score:
+            best, score = key, shared
+    return best
+
+
 def apply_product(page: dict[str, Any], product: dict[str, Any]) -> dict[str, Any]:
     """Name this product where the design named its example.
 

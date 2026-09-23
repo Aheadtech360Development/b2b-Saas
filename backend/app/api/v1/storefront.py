@@ -301,6 +301,30 @@ async def get_storefront_page(slug: str, request: Request, db: AsyncSession = De
 
 
 # ── Public: the brand's own theme ─────────────────────────────────────────────
+@public_router.get("/theme-active")
+async def theme_is_active(request: Request, db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
+    """Whether this brand's storefront is drawn by a theme.
+
+    The app's own header and footer are not rendered at all on a themed store,
+    and that has to be known before the page is sent — hiding them in the
+    browser after the fact is what made the old header flash on every
+    navigation.
+    """
+    from app.models.brand_theme import BrandTheme
+
+    tid = await _tenant_id_from_slug(db, getattr(request.state, "tenant_slug", None)) or _resolve_tenant_id(request)
+    if not tid:
+        return {"active": False}
+    found = (await db.execute(
+        select(BrandTheme.id).where(
+            BrandTheme.tenant_id == tid,
+            BrandTheme.is_active.is_(True),
+            BrandTheme.published.is_not(None),
+        )
+    )).first()
+    return {"active": found is not None}
+
+
 @public_router.get("/theme/{page_key}")
 async def get_storefront_theme(
     page_key: str,
@@ -432,20 +456,32 @@ async def get_storefront_product_page(
         return {"page": None}
 
     definition = theme.definition or {}
-    product_pages = [k for k, p in (definition.get("pages") or {}).items() if p.get("kind") == "product"]
+    pages = definition.get("pages") or {}
+    product_pages = [k for k, p in pages.items() if p.get("kind") == "product"]
     if not product_pages:
         return {"page": None}
-    key = row.theme_page if row.theme_page in product_pages else product_pages[0]
+    if row.theme_page in product_pages:
+        key = row.theme_page
+    else:
+        # The product's own name, and the collections it sits in: a yard sign
+        # filed under "Signs & Banners" belongs in that layout.
+        names = [row.name] + [
+            r[0] for r in (await db.execute(text("""
+                SELECT c.name FROM collections c
+                  JOIN collection_products cp ON cp.collection_id = c.id
+                 WHERE cp.product_id = CAST(:p AS uuid)
+            """), {"p": str(row.id)})).all()
+        ]
+        key = theme_render.layout_for(" ".join(names), {k: pages[k].get("label") or k for k in product_pages})
 
     items = await theme_data.page_items(db, theme.published, key)
     rendered = theme_render.render_page(definition, theme.published, key, items)
     if rendered is None:
         return {"page": None}
     rendered = theme_render.apply_product(rendered, {"name": row.name, "slug": row.slug})
-    # The buying section is the store's, not the design's.
-    for block in rendered.get("sections", []):
-        if block.get("role") == "product_block":
-            block["html"] = ""
+    # The design's own product page, whole. The buying section is still marked
+    # so the store can take it over later, deliberately, rather than by
+    # dropping a second product page inside this one.
     return {"page": rendered, "layout": key}
 
 

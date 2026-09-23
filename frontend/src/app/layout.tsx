@@ -13,11 +13,28 @@ export const metadata: Metadata = {
   description: "B2B wholesale storefront.",
 };
 
-export default function RootLayout({
+/**
+ * Whether this brand's storefront is drawn by its own theme. Decided here, on
+ * the server, so a themed page is sent without the app's header at all — it
+ * used to render and then hide itself, which is the flash of an old header
+ * people saw on every navigation.
+ */
+async function storeIsThemed(): Promise<boolean> {
+  try {
+    const { apiClient } = await import("@/lib/api-client");
+    const r = await apiClient.get<{ active: boolean }>("/api/v1/storefront/theme-active", { skipAuth: true });
+    return Boolean(r?.active);
+  } catch {
+    return false;
+  }
+}
+
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const themed = await storeIsThemed();
   return (
     <html lang="en">
       <head>
@@ -48,7 +65,7 @@ export default function RootLayout({
           <AttributionTracker />
           {/* Loads only the tracking tools this brand connected, if any. */}
           <TrackingScripts />
-          <Header />
+          {!themed && <Header />}
           {children}
         </Providers>
       </body>
