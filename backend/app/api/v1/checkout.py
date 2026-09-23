@@ -18,6 +18,30 @@ _log = logging.getLogger(__name__)
 router = APIRouter(prefix="/checkout", tags=["checkout"])
 
 
+@router.get("/payment-options")
+async def payment_options(request: Request, db: AsyncSession = Depends(get_db)) -> dict:
+    """Which ways this store can actually be paid.
+
+    A shopper used to pick "Credit / Debit Card", carry on, and only find out
+    at the last step that the store had never finished its card setup. The
+    checkout asks first and offers what is really there.
+    """
+    from app.services.connect_service import ConnectService
+
+    tenant_id = getattr(request.state, "tenant_id", None)
+    if not tenant_id:
+        from app.core.tenant_context import get_current_tenant_id
+
+        tenant_id = get_current_tenant_id()
+    card = False
+    if tenant_id:
+        try:
+            card = bool((await ConnectService(db).get_status(str(tenant_id))).get("charges_enabled"))
+        except Exception:
+            card = False
+    return {"card": card, "ach": True}
+
+
 # ── Stripe: create payment intent ─────────────────────────────────────────────
 
 @router.post("/intent")

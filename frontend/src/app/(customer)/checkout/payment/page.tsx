@@ -57,6 +57,18 @@ export default function CheckoutPaymentPage() {
   const isWholesale = user?.account_type === "wholesale";
   const [couponDiscount, setCouponDiscount] = useState(0);
   const [paymentType, setPaymentType] = useState<"card" | "ach" | "net_30">("card");
+  // What the store can actually be paid by. Asked here so a shopper is not
+  // offered a card, sent to the last step, and told there that the store never
+  // finished setting cards up.
+  const [cardReady, setCardReady] = useState<boolean | null>(null);
+  useEffect(() => {
+    apiClient.get<{ card: boolean }>("/api/v1/checkout/payment-options", { skipAuth: true })
+      .then((r) => setCardReady(Boolean(r?.card)))
+      .catch(() => setCardReady(null));   // unknown — leave the choice alone
+  }, []);
+  useEffect(() => {
+    if (cardReady === false && paymentType === "card") setPaymentType("ach");
+  }, [cardReady, paymentType]);
   const [net30Enabled, setNet30Enabled] = useState(false);
 
   const [showNewCardForm, setShowNewCardForm] = useState(false);
@@ -210,6 +222,16 @@ export default function CheckoutPaymentPage() {
               <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
                 {(["card", "ach"] as const).map(type => {
                   const isSelected = paymentType === type;
+                  // A card the store cannot take is not an option; saying so
+                  // here is kinder than a dead end three clicks later.
+                  if (type === "card" && cardReady === false) {
+                    return (
+                      <div key={type} style={{ padding: "14px 18px", border: "1px solid #E2E2DE", background: "#F7F6F3", color: "#6B6B6B", fontSize: "13px", lineHeight: 1.6 }}>
+                        <strong style={{ color: "#1A1A1A", fontWeight: 700 }}>Card payments aren&apos;t switched on yet</strong>
+                        <div>This store hasn&apos;t finished its card setup. Use bank transfer below, or contact the store.</div>
+                      </div>
+                    );
+                  }
                   return (
                     <div key={type}>
                       <label onClick={() => setPaymentType(type)} style={{ flex: 1, display: "flex", alignItems: "center", gap: "12px", padding: "14px 18px", border: `1px solid ${isSelected ? "var(--brand-primary, #1C3557)" : "#E2E2DE"}`, background: isSelected ? "rgba(28,53,87,.04)" : "#FAFAF8", cursor: "pointer", transition: "all .15s" }}>
