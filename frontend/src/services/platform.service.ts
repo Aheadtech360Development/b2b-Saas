@@ -27,6 +27,9 @@ export interface CreateTenantResponse {
 
 export interface UpdateTenantPayload {
   name?: string;
+  /** The brand's address on the platform: /?tenant=<slug>. Changing it moves
+   *  the shop, so links already in circulation stop working. */
+  slug?: string;
   status?: "active" | "suspended" | "cancelled";
   plan?: string;
   /** Host only — "shop.example.com", no https:// and no path. */

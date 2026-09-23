@@ -460,6 +460,7 @@ export default function AdminProductEditPage() {
         highlight_text: (product as any).highlight_text ?? null,
         template_id: product.template_id ?? null,
         theme_page: (product as any).theme_page ?? null,
+        allow_design_upload: Boolean((product as any).allow_design_upload),
         metafields,
       });
       await Promise.all([...variantSaves, productSave]);
@@ -997,6 +998,30 @@ export default function AdminProductEditPage() {
               The id is the anchor a freshly created configurable product lands on. */}
           <div id="options" style={{ scrollMarginTop: "80px" }}>
             <ProductOptionsBuilder productId={product.id} />
+          </div>
+
+          {/* Printed from a file the buyer supplies. The design already draws
+              an "Upload Artwork & Order" button on these pages; this is what
+              decides whether it is there. */}
+          <div style={{ ...sectionCard, marginTop: "16px" }}>
+            <label style={{ display: "flex", gap: "10px", alignItems: "flex-start", cursor: "pointer" }}>
+              <input
+                type="checkbox"
+                checked={Boolean((product as any).allow_design_upload)}
+                onChange={e => setProduct(p => p ? { ...p, allow_design_upload: e.target.checked } as any : p)}
+                style={{ width: "17px", height: "17px", marginTop: "2px", cursor: "pointer", flexShrink: 0 }}
+              />
+              <span>
+                <span style={{ fontSize: "14px", fontWeight: 700, color: "#2A2830", display: "block" }}>
+                  Buyers upload their own design
+                </span>
+                <span style={{ fontSize: "12.5px", color: "#7A7880", lineHeight: 1.6 }}>
+                  Puts an <strong>Upload Artwork &amp; Order</strong> button on this product.
+                  The buyer picks their options, sends the print file, and it arrives on the
+                  order with their line. Leave it off and the button is not shown.
+                </span>
+              </span>
+            </label>
           </div>
 
         </div>

@@ -78,6 +78,8 @@ class GuestCartItem(BaseModel):
     variant_id: UUID | None = None
     product_id: UUID | None = None
     selections: dict[str, str] | None = None
+    # The buyer's own file, for a product printed from one.
+    artwork: dict | None = None
     # A gang sheet the buyer already built. It carries its own price.
     gang_sheet_order_id: UUID | None = None
 
@@ -223,6 +225,11 @@ async def guest_checkout(
                     "unit_price": priced["unit_price"],
                     "setup_fees": priced["setup_fees"],
                     "sku_suffix": priced.get("sku_suffix"),
+                    **({"artwork": {
+                        "url": str((cart_item.artwork or {}).get("url") or "")[:1000],
+                        "file_name": str((cart_item.artwork or {}).get("file_name") or "")[:300],
+                        "file_type": str((cart_item.artwork or {}).get("file_type") or "")[:20],
+                    }} if cart_item.artwork and getattr(product, "allow_design_upload", False) else {}),
                 },
             })
             continue

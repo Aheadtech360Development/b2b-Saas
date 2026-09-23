@@ -166,6 +166,7 @@ class ProductDetail(BaseModel):
     template_id: UUID | None = None
     metafields: dict[str, Any] = {}
     theme_page: str | None = None
+    allow_design_upload: bool = False
 
     model_config = {"from_attributes": True}
 
@@ -245,6 +246,8 @@ class ProductUpdate(BaseModel):
     metafields: dict[str, Any] | None = None
     # Which of the theme's product layouts to draw this product in.
     theme_page: str | None = None
+    # Printed from a file the buyer supplies, so the page offers an upload.
+    allow_design_upload: bool | None = None
 
 
 class ImageUploadResponse(BaseModel):

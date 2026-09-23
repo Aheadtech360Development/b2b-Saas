@@ -183,6 +183,7 @@ class CartService:
         quantity: int,
         discount_percent: Decimal = Decimal("0"),
         group_id: str | None = None,
+        artwork: dict | None = None,
     ) -> CartResponse:
         """Add a configurable product to the cart.
 
@@ -209,6 +210,9 @@ class CartService:
         except ConfigurationError as exc:
             raise ValidationError(str(exc))
 
+        if artwork is not None and not getattr(product, "allow_design_upload", False):
+            raise ValidationError("This product is not printed from a supplied file")
+
         snapshot = {
             "selections": {str(k): v for k, v in (selections or {}).items()},
             "breakdown": priced["breakdown"],
@@ -216,6 +220,14 @@ class CartService:
             "setup_fees": priced["setup_fees"],
             "sku_suffix": priced.get("sku_suffix"),
         }
+        if artwork:
+            # The buyer's own file. It is what gets printed, so it stays with
+            # the line from here to the order.
+            snapshot["artwork"] = {
+                "url": str(artwork.get("url") or "")[:1000],
+                "file_name": str(artwork.get("file_name") or "")[:300],
+                "file_type": str(artwork.get("file_type") or "")[:20],
+            }
         # Summarise the choices for the cart line label — "Paper Stock: C2S · Coating: Matte".
         chosen = " · ".join(f'{b["option"]}: {b["value"]}' for b in priced["breakdown"][:4])
         label = f"{product.name}{' — ' + chosen if chosen else ''}"
@@ -229,7 +241,13 @@ class CartService:
                 CartItem.product_id == product_id,
             )
         )).scalars().all():
-            if (row.configuration or {}).get("selections") == snapshot["selections"]:
+            cfg = row.configuration or {}
+            # Two lines are the same line only if the same choices were made
+            # AND the same file is being printed — two designs at the same
+            # size are two different things to print.
+            if cfg.get("selections") == snapshot["selections"] and (
+                (cfg.get("artwork") or {}).get("url") == (snapshot.get("artwork") or {}).get("url")
+            ):
                 existing = row
                 break
 

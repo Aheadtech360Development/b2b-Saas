@@ -34,6 +34,8 @@ export interface LineConfiguration {
   unit_price?: number;
   setup_fees?: number;
   sku_suffix?: string | null;
+  /** The file this line is printed from, when the buyer supplied one. */
+  artwork?: { url: string; file_name: string; file_type: string } | null;
 }
 
 export interface ConfigLine {

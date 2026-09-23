@@ -28,6 +28,8 @@ export interface GuestLine {
   selections?: Record<string, string>;
   /** Set on a gang sheet the buyer already built; it carries its own price. */
   gang_sheet_order_id?: string;
+  /** The file this line is printed from, when the buyer supplied one. */
+  artwork?: { url: string; file_name: string; file_type: string };
 }
 
 /** The key that tells two configured lines apart: same choices, same line. */
@@ -62,12 +64,16 @@ export function addToGuestCart(line: GuestLine): void {
 export function guestCheckoutItem(line: GuestLine): {
   quantity: number; variant_id?: string; product_id?: string;
   selections?: Record<string, string>; gang_sheet_order_id?: string;
+  artwork?: { url: string; file_name: string; file_type: string };
 } {
   if (line.gang_sheet_order_id) {
     return { quantity: line.quantity, gang_sheet_order_id: line.gang_sheet_order_id };
   }
   if (line.selections) {
-    return { quantity: line.quantity, product_id: line.product_id, selections: line.selections };
+    return {
+      quantity: line.quantity, product_id: line.product_id, selections: line.selections,
+      ...(line.artwork ? { artwork: line.artwork } : {}),
+    };
   }
   return { quantity: line.quantity, variant_id: line.variant_id };
 }

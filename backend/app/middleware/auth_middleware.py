@@ -261,6 +261,12 @@ class AuthMiddleware(BaseHTTPMiddleware):
             return True
         if path == "/api/v1/gang-sheets/sizes":
             return True
+        # The artwork a buyer is ordering. Nobody needs an account to order,
+        # so nobody needs one to hand over the file being printed. The
+        # endpoint's own rate limit and its extension allow-list are what keep
+        # it from being a free file host.
+        if path == "/api/v1/upload/artwork":
+            return True
         # Invoice summary — public for pay-now email link access
         if path.endswith('/invoice-summary'):
             return True

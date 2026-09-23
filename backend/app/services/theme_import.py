@@ -39,7 +39,7 @@ _LABELS = {
 }
 
 # 1: sections and fields · 2: rows of cards · 3: navigation and product blocks
-PARSER_VERSION = 4
+PARSER_VERSION = 5
 
 MAX_FIELDS_PER_SECTION = 60
 MAX_TEXT_LENGTH = 600
@@ -132,16 +132,48 @@ def _section_label(tag: Tag, index: int) -> str:
     return f"Section {index + 1}"
 
 
+# Where a link the design left pointing at "#" probably meant to go. Longest
+# and most specific first: "returns & reprints" must not be read as "order".
 _GUESSED_LINKS = [
+    (("shipping policy", "delivery policy", "shipping & returns"), "/policies/shipping"),
+    (("return", "reprint", "refund", "exchange"), "/policies/returns"),
+    (("privacy",), "/policies/privacy"),
+    (("terms", "conditions"), "/policies/terms"),
+    (("get a quote", "request a quote", "quote"), "/quote"),
     (("cart", "basket", "bag"), "/cart"),
     (("home",), "/"),
     (("shop", "browse", "all products", "catalog", "catalogue", "products"), "/products"),
-    (("contact", "get a quote", "quote"), "/contact"),
+    (("contact",), "/contact"),
     (("account", "sign in", "log in", "login"), "/login"),
     (("track", "order status"), "/track-order"),
     (("blog", "news"), "/blog"),
     (("quick order",), "/quick-order"),
 ]
+
+
+def _linkify_lists(section: Tag) -> None:
+    """Make the plain items of a footer column into links.
+
+    A wireframe's footer lists what the shop has; it has nowhere to send you,
+    so it writes the words and stops. Here the words are the navigation, so
+    each item becomes an anchor — pointed at the page it names when there is
+    one, and left editable when there is not, which is how the brand points it
+    at whatever it meant.
+
+    Items that are obviously not navigation — an address, a phone number, the
+    placeholders a wireframe leaves in square brackets — are left as text.
+    """
+    for item in section.find_all("li"):
+        if item.find("a") is not None:
+            continue
+        text = _text_of(item)
+        if not text or len(text) > 60 or "[" in text or "@" in text:
+            continue
+        href = _guess_href(text, "")
+        anchor = BeautifulSoup("", "html.parser").new_tag("a", href=href)
+        for child in list(item.contents):
+            anchor.append(child.extract())
+        item.append(anchor)
 
 
 def _guess_href(text: str, current: str) -> str:
@@ -304,6 +336,10 @@ def import_html(html: str, *, name: str) -> dict[str, Any]:
         for i, child in enumerate(c for c in panel.children if isinstance(c, Tag)):
             if not _text_of(child) and not child.find(["img", "svg"]):
                 continue
+            # A footer's columns are the shop's navigation, so its plain
+            # list items become links before anything else reads the section.
+            if _section_role(child) == "footer":
+                _linkify_lists(child)
             sections.append({
                 "id": f"{key}-{i}",
                 "label": _section_label(child, i),

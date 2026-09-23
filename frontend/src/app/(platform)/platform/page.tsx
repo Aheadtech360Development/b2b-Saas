@@ -260,6 +260,8 @@ function ManageTenantModal({ tenant, onClose, onChanged }: { tenant: Tenant; onC
   const [savingDomain, setSavingDomain] = useState(false);
   const [brandName, setBrandName] = useState(tenant.name);
   const [savingName, setSavingName] = useState(false);
+  const [handle, setHandle] = useState(tenant.slug);
+  const [savingHandle, setSavingHandle] = useState(false);
 
   useEffect(() => {
     platformService.getFeatures(tenant.slug).then(setFeatures).catch(() => {});
@@ -329,6 +331,49 @@ function ManageTenantModal({ tenant, onClose, onChanged }: { tenant: Tenant; onC
           <p style={{ fontSize: "11.5px", color: "#6B7280", marginTop: "8px", lineHeight: 1.6 }}>
             The web address stays <span style={{ fontFamily: "monospace" }}>{tenant.slug}</span> — renaming
             does not move the shop, so links that already exist keep working.
+          </p>
+        </div>
+
+        {/* Where the brand lives on the platform, until it has a domain. */}
+        <div style={{ marginBottom: "22px" }}>
+          <div style={{ fontSize: "12px", fontWeight: 700, color: "#A78BFA", textTransform: "uppercase", letterSpacing: ".05em", marginBottom: "10px" }}>Platform address</div>
+          <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+            <span style={{ fontSize: "12px", color: "#6B7280", fontFamily: "monospace", whiteSpace: "nowrap" }}>/?tenant=</span>
+            <input
+              value={handle}
+              onChange={(e) => setHandle(e.target.value)}
+              style={{ flex: 1, background: "#0B0D12", border: "1px solid #1E2230", borderRadius: "8px", padding: "10px 12px", color: "#E5E7EB", fontSize: "13px", fontFamily: "monospace" }}
+            />
+            <button
+              onClick={async () => {
+                const next = handle.trim();
+                if (!next || next === tenant.slug) return;
+                if (!confirm(`Move this shop to "${next}"?
+
+Any link with the old address stops working, and anyone browsing it right now will have to open the new one.`)) return;
+                setSavingHandle(true);
+                setMsg(null);
+                try {
+                  await platformService.updateTenant(tenant.slug, { slug: next });
+                  setMsg(`Moved to /?tenant=${next}`);
+                  onChanged();
+                  onClose();
+                } catch (err) {
+                  setMsg(err instanceof Error && err.message ? err.message : "Could not move it.");
+                } finally {
+                  setSavingHandle(false);
+                }
+              }}
+              disabled={savingHandle || !handle.trim() || handle.trim() === tenant.slug}
+              style={{ background: "rgba(167,139,250,.12)", color: "#A78BFA", border: "1px solid rgba(167,139,250,.3)", padding: "10px 16px", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: savingHandle ? "wait" : "pointer", opacity: handle.trim() === tenant.slug ? 0.5 : 1 }}
+            >
+              {savingHandle ? "Moving…" : "Move"}
+            </button>
+          </div>
+          <p style={{ fontSize: "11.5px", color: "#6B7280", marginTop: "8px", lineHeight: 1.6 }}>
+            Lower-case letters, numbers and hyphens. This is where the shop is until the
+            brand has a domain of its own — moving it breaks any link that already points
+            at the old one, so it is worth doing early and not again.
           </p>
         </div>
 

@@ -91,6 +91,8 @@ export interface ProductDetail {
   metafields?: Record<string, string>;
   /** Which of the theme's product layouts this product is drawn in. */
   theme_page?: string | null;
+  /** Printed from a file the buyer supplies, so the page offers an upload. */
+  allow_design_upload?: boolean;
   gang_sheet_type?: "gang_sheet" | "upload_by_size" | null;
   gang_sheet_config?: {
     printer_width?: number;

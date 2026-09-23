@@ -17,6 +17,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiClient, ApiClientError } from "@/lib/api-client";
 import { UploadBySizeModal } from "@/components/storefront/UploadBySizeModal";
+import { DesignUploadModal, type UploadedArtwork } from "@/components/storefront/DesignUploadModal";
 import type { ProductDetail } from "@/types/product.types";
 import { cartService } from "@/services/cart.service";
 import { useAuthStore } from "@/stores/auth.store";
@@ -58,6 +59,8 @@ export interface ThemeProductData {
   options: { id: string; name: string; required: boolean; values: { id: string; label: string }[] }[];
   qty_tiers: { min_qty: number; unit_price: number }[];
   gang_sheet: boolean;
+  /** Printed from a file the buyer supplies, so the page offers an upload. */
+  design_upload?: boolean;
   gang_sheet_type?: string;
   gang_sheet_config?: ProductDetail["gang_sheet_config"];
   sheets?: ThemeSheet[];
@@ -71,6 +74,9 @@ export default function ThemeProductBuy({ product }: { product: ThemeProductData
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated());
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
   const [uploadOpen, setUploadOpen] = useState(false);
+  const [artworkOpen, setArtworkOpen] = useState(false);
+  /** What was chosen when the uploader opened, so the line is ordered with it. */
+  const chosenRef = useRef<{ selections: Record<string, string>; quantity: number }>({ selections: {}, quantity: 1 });
   const busy = useRef(false);
   const byUpload = product.gang_sheet && product.gang_sheet_type === "upload_by_size";
 
@@ -247,6 +253,15 @@ export default function ThemeProductBuy({ product }: { product: ThemeProductData
         e.preventDefault();
         if (busy.current) return;
 
+        // Printed from a file the buyer supplies: take the file first, then
+        // order the line with it attached.
+        if (button.dataset.themeBuy === "artwork") {
+          const missing = product.options.find((o) => o.required && !chosen[o.id]);
+          if (missing) { say(`Choose ${missing.name.toLowerCase()} first.`, false); return; }
+          chosenRef.current = { selections: { ...chosen }, quantity };
+          setArtworkOpen(true);
+          return;
+        }
         // A product made from artwork is ordered in its builder, carrying the
         // sheet size and quantity chosen here so nothing is asked twice.
         if (button.dataset.themeBuy === "builder" || button.dataset.themeBuy === "upload" || product.gang_sheet) {
@@ -345,6 +360,45 @@ export default function ThemeProductBuy({ product }: { product: ThemeProductData
 
   return (
     <>
+      {artworkOpen && (
+        <DesignUploadModal
+          productName={product.name}
+          onClose={() => setArtworkOpen(false)}
+          onReady={async (artwork: UploadedArtwork) => {
+            const { selections, quantity } = chosenRef.current;
+            if (isAuthenticated) {
+              await apiClient.post("/api/v1/cart/add-configured", {
+                product_id: product.id, selections, quantity, artwork,
+              });
+              window.dispatchEvent(new Event("cart_updated"));
+            } else {
+              const priced = await apiClient.post<{ unit_price: number }>(
+                `/api/v1/products/${product.id}/price`, { selections, quantity },
+              );
+              const names = product.options
+                .map((o) => o.values.find((v) => v.id === selections[o.id])?.label)
+                .filter(Boolean)
+                .join(" · ");
+              addToGuestCart({
+                variant_id: `${configuredKey(product.id, selections)}|${artwork.url}`,
+                quantity,
+                product_id: product.id,
+                product_name: names ? `${product.name} — ${names}` : product.name,
+                slug: product.slug,
+                color: null,
+                size: null,
+                unit_price: priced.unit_price,
+                image_url: product.images?.[0]?.url ?? null,
+                selections: { ...selections },
+                artwork,
+              });
+            }
+            setArtworkOpen(false);
+            window.location.href = "/cart";
+          }}
+        />
+      )}
+
       {uploadOpen && (
         <UploadBySizeModal
           product={{ id: product.id, gang_sheet_config: product.gang_sheet_config ?? null }}

@@ -733,6 +733,8 @@ def _product_to_dict(product: Product) -> dict:
         "template_id": str(product.template_id) if getattr(product, "template_id", None) else None,
         "metafields": getattr(product, "metafields", None) or {},
         "theme_page": getattr(product, "theme_page", None),
+        "allow_design_upload": bool(getattr(product, "allow_design_upload", False)),
+        "allow_design_upload": bool(getattr(product, "allow_design_upload", False)),
     }
 
 

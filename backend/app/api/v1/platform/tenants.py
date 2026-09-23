@@ -42,11 +42,21 @@ class TenantCreate(BaseModel):
 
 class TenantUpdate(BaseModel):
     name: str | None = None
+    # The brand's address on the platform: /?tenant=<slug> and, where wildcard
+    # DNS exists, <slug>.<platform>. Changing it moves the shop.
+    slug: str | None = None
     status: str | None = None   # active | suspended | cancelled
     plan: str | None = None
     # The web address this brand's shop is reached at, so a link opened in a
     # fresh browser lands on the right shop. Host only — no scheme, no path.
     custom_domain: str | None = None
+
+
+# Addresses the platform keeps for itself, so a brand can never take one.
+_RESERVED_SLUGS = {
+    "www", "api", "admin", "platform", "app", "static", "assets", "cdn",
+    "mail", "smtp", "ftp", "blog", "help", "support", "status", "docs",
+}
 
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
@@ -169,6 +179,25 @@ async def update_tenant(
     if not updates:
         raise HTTPException(status_code=400, detail="Nothing to update")
 
+    if "slug" in updates:
+        import re as _re
+
+        wanted = _re.sub(r"[^a-z0-9]+", "-", str(updates["slug"]).strip().lower()).strip("-")
+        if not _re.fullmatch(r"[a-z0-9][a-z0-9-]{1,48}[a-z0-9]", wanted or ""):
+            raise HTTPException(
+                status_code=400,
+                detail="An address is lower-case letters, numbers and hyphens, 3 characters or more.",
+            )
+        if wanted in _RESERVED_SLUGS:
+            raise HTTPException(status_code=409, detail=f"'{wanted}' is reserved by the platform")
+        taken = (await db.execute(
+            text("SELECT slug FROM tenants WHERE slug = :s AND slug <> :cur"),
+            {"s": wanted, "cur": slug},
+        )).first()
+        if taken:
+            raise HTTPException(status_code=409, detail=f"'{wanted}' is already taken")
+        updates["slug"] = wanted
+
     if "custom_domain" in updates:
         from app.services import tenant_hosts
 
@@ -181,18 +210,24 @@ async def update_tenant(
         updates["custom_domain"] = cleaned or None
 
     set_clause = ", ".join(f"{k}=:{k}" for k in updates)
-    updates["slug"] = slug
+    # The row is found by the slug it has now, under its own parameter name —
+    # sharing one with the column being set would write the old value back.
+    params = {**updates, "current_slug": slug}
 
     await db.execute(
-        text(f"UPDATE tenants SET {set_clause}, updated_at=now() WHERE slug=:slug"),
-        updates,
+        text(f"UPDATE tenants SET {set_clause}, updated_at=now() WHERE slug=:current_slug"),
+        params,
     )
     await db.commit()
     if "custom_domain" in updates:
         from app.services import tenant_hosts
 
         tenant_hosts.forget()
-    return {"message": f"Tenant '{slug}' updated", "updated": list(data.model_dump(exclude_none=True).keys())}
+    return {
+        "message": f"Tenant '{slug}' updated",
+        "slug": updates.get("slug", slug),
+        "updated": list(data.model_dump(exclude_none=True).keys()),
+    }
 
 
 @router.delete("/{slug}", status_code=204)

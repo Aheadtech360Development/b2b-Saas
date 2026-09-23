@@ -173,6 +173,11 @@ def fill_repeaters(html: str, repeaters: list[dict[str, Any]], items_by_key: dic
             continue
         template_html = str(children[0])
         is_menu = repeater.get("kind") == "menu"
+        # A menu that resolves to nothing keeps the links the design drew. A
+        # row of products may legitimately be empty — a header may not, and an
+        # empty one reads as a broken shop with no way to navigate it.
+        if is_menu and not items:
+            continue
         container.clear()
         for item in items:
             node = _fill_nav_item(template_html, item) if is_menu else _fill_card(template_html, item)

@@ -41,6 +41,8 @@ def upgrade_in_place(definition: dict) -> dict:
             if root is None:
                 continue
             section["role"] = theme_import._section_role(root)
+            if section["role"] == "footer":
+                theme_import._linkify_lists(root)
             section["repeaters"] = theme_import._repeaters_for(root)
             section["fields"] = theme_import._fields_for(root)
             # Links the design left pointing nowhere are given a destination,

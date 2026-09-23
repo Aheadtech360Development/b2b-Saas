@@ -61,10 +61,18 @@ async def add_gang_sheet(
     return result
 
 
+class ArtworkIn(BaseModel):
+    """The file the buyer supplied for this line."""
+    url: str
+    file_name: str = ""
+    file_type: str = ""
+
+
 class ConfiguredAddRequest(BaseModel):
     product_id: UUID
     selections: dict[str, object] = {}
     quantity: int = 1
+    artwork: ArtworkIn | None = None
 
 
 @router.post("/add-configured", response_model=CartResponse, status_code=status.HTTP_200_OK)
@@ -80,6 +88,7 @@ async def add_configured(
     result = await svc.add_configured(
         company_id, payload.product_id, payload.selections, payload.quantity,
         _discount(request), _group_id(request),
+        artwork=payload.artwork.model_dump() if payload.artwork else None,
     )
     await db.commit()
     return result

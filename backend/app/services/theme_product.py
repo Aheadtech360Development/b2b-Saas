@@ -201,6 +201,7 @@ async def load(db: AsyncSession, product_id: Any) -> dict[str, Any] | None:
         "avg_rating": float(getattr(product, "avg_rating", 0) or 0),
         "size_chart": product.size_chart_data or [],
         "gang_sheet": bool(product.gang_sheet_enabled),
+        "design_upload": bool(getattr(product, "allow_design_upload", False)),
         "gang_sheet_type": product.gang_sheet_type or "gang_sheet",
         "gang_sheet_config": product.gang_sheet_config or None,
         "sheets": sheets,
@@ -468,6 +469,17 @@ def fill_product_block(html: str, data: dict[str, Any]) -> str:
     builder = data.get("builder_href") or ""
     for button in root.select("a.btn-primary, button.btn-primary, .btn.btn-primary"):
         text = (button.get_text() or "").strip().lower()
+        wants_artwork = "upload" in text or "artwork" in text
+        if wants_artwork and not data.get("gang_sheet"):
+            # The design drew this button on every page of its kind. It only
+            # belongs on a product the brand prints from a supplied file.
+            if not data.get("design_upload"):
+                button.decompose()
+                continue
+            button["data-theme-buy"] = "artwork"
+            if button.name == "a" and not button.get("href"):
+                button["href"] = "#"
+            continue
         if data.get("gang_sheet"):
             # Artwork is arranged in the builder, so the design's button opens
             # it - this product's builder, at the sheet size chosen here.

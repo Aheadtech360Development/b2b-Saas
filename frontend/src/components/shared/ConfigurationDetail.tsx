@@ -24,7 +24,21 @@ export function ConfigurationDetail({
   compact?: boolean;
 }) {
   const lines = configuration?.breakdown ?? [];
-  if (!lines.length) return null;
+  const artwork = configuration?.artwork ?? null;
+  if (!lines.length && !artwork) return null;
+
+  // The file this line is printed from. On a line that has one it is the most
+  // important thing on the line: without it there is nothing to print.
+  const artworkRow = artwork ? (
+    <a
+      href={artwork.url}
+      target="_blank"
+      rel="noopener noreferrer"
+      style={{ display: "inline-flex", alignItems: "center", gap: "6px", fontSize: compact ? "11px" : "12px", fontWeight: 700, color: "#1C3557", textDecoration: "none", marginTop: "4px" }}
+    >
+      ↓ {artwork.file_name || "Buyer's artwork"}
+    </a>
+  ) : null;
 
   if (compact) {
     return (
@@ -38,6 +52,7 @@ export function ConfigurationDetail({
         {!!configuration?.setup_fees && (
           <span> · <strong style={{ fontWeight: 600 }}>${configuration.setup_fees.toFixed(2)} one-off</strong></span>
         )}
+        {artworkRow && <div>{artworkRow}</div>}
       </div>
     );
   }
@@ -58,6 +73,12 @@ export function ConfigurationDetail({
         <div style={{ display: "flex", gap: "10px", color: "#4B4B4B", borderTop: "1px dashed #E2E2DE", marginTop: "5px", paddingTop: "5px" }}>
           <span style={{ color: "#8A8A8A", minWidth: "120px" }}>One-off fees</span>
           <span style={{ flex: 1, fontWeight: 600 }}>${configuration.setup_fees.toFixed(2)}</span>
+        </div>
+      )}
+      {artworkRow && (
+        <div style={{ display: "flex", gap: "10px", borderTop: "1px dashed #E2E2DE", marginTop: "5px", paddingTop: "5px" }}>
+          <span style={{ color: "#8A8A8A", minWidth: "120px" }}>Artwork</span>
+          <span style={{ flex: 1 }}>{artworkRow}</span>
         </div>
       )}
     </div>
