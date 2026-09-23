@@ -21,19 +21,68 @@ from app.services import theme_import, theme_render
 logger = logging.getLogger(__name__)
 
 
+def upgrade_in_place(definition: dict) -> dict:
+    """Re-read what the parser can see in a theme's own stored markup.
+
+    Every section keeps the HTML it was cut from, so a theme parsed by an
+    older version can be brought forward without the original file: its
+    chrome, its rows of cards and its editable fields are all findable in
+    that markup. Section ids and positions don't move, so everything the
+    admin wrote still lands where it was written.
+    """
+    from bs4 import BeautifulSoup
+
+    pages = (definition or {}).get("pages") or {}
+    for page in pages.values():
+        kind = page.get("kind") or "page"
+        for section in page.get("sections", []):
+            soup = BeautifulSoup(section.get("html") or "", "html.parser")
+            root = next((c for c in soup.children if getattr(c, "name", None)), None)
+            if root is None:
+                continue
+            section["role"] = theme_import._section_role(root)
+            section["repeaters"] = theme_import._repeaters_for(root)
+            section["fields"] = theme_import._fields_for(root)
+            # Links the design left pointing nowhere are given a destination,
+            # the same way a fresh import does it.
+            section["html"] = str(soup)
+
+        if kind == "product":
+            scored = [
+                (theme_import._buy_block_score(
+                    BeautifulSoup(s.get("html") or "", "html.parser")), i)
+                for i, s in enumerate(page.get("sections", [])) if not s.get("role")
+            ] or [(0, 0)]
+            best_score, best = max(scored)
+            if best_score >= 5:
+                page["sections"][best]["role"] = "product_block"
+                page["sections"][best]["label"] = "Product — gallery, options, add to cart"
+
+    definition["version"] = theme_import.PARSER_VERSION
+    return definition
+
+
 async def ensure_current(db: AsyncSession, theme: BrandTheme | None) -> BrandTheme | None:
-    """Bring a theme up to the current parser, if its file is still with it."""
+    """Bring a theme up to the current parser, with or without its file."""
     if theme is None:
         return None
     version = int((theme.definition or {}).get("version") or 1)
-    if version >= theme_import.PARSER_VERSION or not theme.source_html:
+    if version >= theme_import.PARSER_VERSION:
         return theme
 
-    try:
-        definition = theme_import.import_html(theme.source_html, name=theme.name)
-    except Exception as exc:  # a file that no longer parses is left alone
-        logger.warning("theme %s could not be re-read: %s", theme.id, exc)
-        return theme
+    if theme.source_html:
+        try:
+            definition = theme_import.import_html(theme.source_html, name=theme.name)
+        except Exception as exc:  # a file that no longer parses is left alone
+            logger.warning("theme %s could not be re-read: %s", theme.id, exc)
+            return theme
+    else:
+        # Imported before the file was kept: read its own markup instead.
+        try:
+            definition = upgrade_in_place(dict(theme.definition or {}))
+        except Exception as exc:
+            logger.warning("theme %s could not be upgraded in place: %s", theme.id, exc)
+            return theme
 
     # Sections keep their positions, so what was written still lands where it
     # was written; anything the new parse doesn't have is dropped.
