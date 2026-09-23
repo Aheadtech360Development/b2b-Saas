@@ -68,8 +68,16 @@ GUEST_SHIPPING_EXPEDITED = Decimal("54.99")  # standard + expedited surcharge
 # ---------------------------------------------------------------------------
 
 class GuestCartItem(BaseModel):
-    variant_id: UUID
+    """One line of a guest's cart.
+
+    Either a variant the store stocks, or a product priced from the options
+    chosen on it — a business card in a particular stock and finish. Exactly
+    one of the two.
+    """
     quantity: int
+    variant_id: UUID | None = None
+    product_id: UUID | None = None
+    selections: dict[str, str] | None = None
 
 
 class GuestCheckoutRequest(BaseModel):
@@ -131,6 +139,56 @@ async def guest_checkout(
     for cart_item in payload.items:
         if cart_item.quantity < 1:
             raise ValidationError("Quantity must be at least 1")
+
+        # A product priced from its own options. What it costs is worked out
+        # here from the options the brand set up, so a guest pays the same as
+        # anyone else and nothing the browser claimed is trusted.
+        if cart_item.variant_id is None:
+            if cart_item.product_id is None or not cart_item.selections:
+                raise ValidationError("A cart line must say what it is")
+            from app.services.configurator_service import (
+                ConfigurationError as _CfgErr,
+                price_configuration as _price_cfg,
+            )
+
+            product = (await db.execute(
+                select(Product).where(Product.id == cart_item.product_id)
+            )).scalar_one_or_none()
+            if product is None or product.status != "active":
+                raise NotFoundError("That product is no longer available")
+            try:
+                priced = await _price_cfg(
+                    db, cart_item.product_id, cart_item.selections, cart_item.quantity
+                )
+            except _CfgErr as exc:
+                raise ValidationError(str(exc))
+
+            cfg_unit = Decimal(str(priced["unit_price"]))
+            cfg_fees = Decimal(str(priced["setup_fees"] or 0))
+            cfg_line = cfg_unit * cart_item.quantity + cfg_fees
+            subtotal += cfg_line
+            if product.slug:
+                ordered_product_slugs.add(product.slug)
+            chosen = " · ".join(f'{b["option"]}: {b["value"]}' for b in priced["breakdown"][:4])
+            order_items_data.append({
+                "variant_id": None,
+                "product_id": product.id,
+                "product_name": f"{product.name}{' — ' + chosen if chosen else ''}"[:255],
+                "sku": (priced.get("sku_suffix") or "CONFIGURED")[:50],
+                "color": None,
+                "size": None,
+                "quantity": cart_item.quantity,
+                "unit_price": cfg_unit,
+                "line_total": cfg_line,
+                "configuration": {
+                    "selections": {str(k): v for k, v in cart_item.selections.items()},
+                    "breakdown": priced["breakdown"],
+                    "unit_price": priced["unit_price"],
+                    "setup_fees": priced["setup_fees"],
+                    "sku_suffix": priced.get("sku_suffix"),
+                },
+            })
+            continue
 
         variant_result = await db.execute(
             select(ProductVariant, Product)
@@ -327,6 +385,11 @@ async def guest_checkout(
 
     for item_data in order_items_data:
         db.add(OrderItem(order_id=order.id, **item_data))
+
+        # A configured line has no variant and no stock behind it — it is made
+        # to the order — so there is nothing to take off the shelf.
+        if item_data.get("variant_id") is None:
+            continue
 
         qty_to_deduct = int(item_data["quantity"])
         inv_result = await db.execute(

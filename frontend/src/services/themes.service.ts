@@ -26,6 +26,15 @@ export interface BrandTheme {
   draft: ThemeState;
 }
 
+/** One of the shop's written pages, as the brand edits it. */
+export interface WrittenPage {
+  slug: string;
+  title: string;
+  intro: string;
+  form: string;
+  sections: { heading: string; body: string }[];
+}
+
 const BASE = "/api/v1/admin/storefront/theme";
 
 export const themesService = {
@@ -36,6 +45,10 @@ export const themesService = {
   /** The cards these rows would show — the same ones the storefront serves. */
   slotData: (slots: Record<string, SlotSpec>) =>
     apiClient.post<{ items: Record<string, SlotItem[]> }>(`${BASE}/data`, { slots }),
+  /** The shop's written pages: contact, quote, and the footer's policies. */
+  pages: () => apiClient.get<{ pages: Record<string, WrittenPage> }>(`${BASE}/pages`),
+  savePages: (pages: Record<string, WrittenPage>) =>
+    apiClient.put<{ pages: Record<string, WrittenPage> }>(`${BASE}/pages`, { pages }),
   /** An administrator imports a design file as this brand's theme. */
   importFile: (file: File) => {
     const form = new FormData();

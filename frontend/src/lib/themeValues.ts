@@ -82,6 +82,8 @@ export interface ThemePageState {
 /** The brand's own logo, in the place the design keeps its logo. */
 export interface ThemeLogo {
   url: string;
+  /** Where clicking it goes. Empty keeps the design's own link. */
+  href?: string;
   width?: string;
   height?: string;
   padding?: { top?: string; right?: string; bottom?: string; left?: string };
@@ -249,7 +251,8 @@ function px(value: string | undefined): string {
 /** Put the brand's logo where the design keeps its own — nothing moves. */
 export function applyLogo(sections: { id: string; html: string; role?: string }[], logo?: ThemeLogo) {
   const url = (logo?.url ?? "").trim();
-  if (!url) return sections;
+  const href = (logo?.href ?? "").trim();
+  if (!url && !href) return sections;
 
   const width = px(logo?.width) || "auto";
   const height = px(logo?.height) || "auto";
@@ -271,6 +274,16 @@ export function applyLogo(sections: { id: string; html: string; role?: string }[
     const holder = wrapper?.querySelector(".logo, .site-logo, .brand-logo, .logo-wrap")
       ?? wrapper?.querySelector("header a");
     if (!wrapper || !holder) return section;
+
+    // Where the logo goes, when the brand has said so.
+    if (href) {
+      const anchor = holder.tagName === "A" ? holder : (holder.closest("a") ?? holder.querySelector("a"));
+      if (anchor) anchor.setAttribute("href", href);
+    }
+    if (!url) {
+      done = true;
+      return { ...section, html: wrapper.innerHTML };
+    }
 
     const img = doc.createElement("img");
     img.src = url;

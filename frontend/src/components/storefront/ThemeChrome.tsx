@@ -11,6 +11,7 @@
  * after it.
  */
 import { cache } from "react";
+import { ANCHOR_PREFIX } from "@/components/storefront/ThemeRenderer";
 
 export interface ThemeChromeData {
   css: string;
@@ -55,7 +56,7 @@ export default function ThemeChrome({ sections }: { sections: ThemeChromeData["t
   return (
     <div className="brand-theme" data-theme-chrome>
       {sections.map((section) => (
-        <div key={section.id} data-theme-section={section.id} dangerouslySetInnerHTML={{ __html: section.html }} />
+        <div key={section.id} id={`${ANCHOR_PREFIX}${section.id}`} data-theme-section={section.id} dangerouslySetInnerHTML={{ __html: section.html }} />
       ))}
     </div>
   );

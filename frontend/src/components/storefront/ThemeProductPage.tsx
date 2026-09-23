@@ -9,7 +9,7 @@
  * product page inside this one gave it two breadcrumbs and two descriptions.
  */
 import { useEffect } from "react";
-import { pageBody, type ThemePage } from "@/components/storefront/ThemeRenderer";
+import { ANCHOR_PREFIX, pageBody, type ThemePage } from "@/components/storefront/ThemeRenderer";
 import ThemeProductBuy, { type ThemeProductData } from "@/components/storefront/ThemeProductBuy";
 
 export default function ThemeProductPage({ page, product, chromeInLayout = false }: {
@@ -34,7 +34,7 @@ export default function ThemeProductPage({ page, product, chromeInLayout = false
       <style dangerouslySetInnerHTML={{ __html: `${page.css}\nbody[data-theme-active] [data-app-chrome]{display:none!important}` }} />
       {page.svg_defs && <div aria-hidden style={{ display: "none" }} dangerouslySetInnerHTML={{ __html: page.svg_defs }} />}
       {pageBody(page, chromeInLayout).map((section) => (
-        <div key={section.id} data-theme-section={section.id} dangerouslySetInnerHTML={{ __html: section.html }} />
+        <div key={section.id} id={`${ANCHOR_PREFIX}${section.id}`} data-theme-section={section.id} dangerouslySetInnerHTML={{ __html: section.html }} />
       ))}
       {product && <ThemeProductBuy product={product} />}
     </div>

@@ -16,6 +16,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ApiClientError } from "@/lib/api-client";
 import { MediaPicker } from "@/components/admin/MediaPicker";
 import { LinkPicker } from "@/components/admin/LinkPicker";
+import ThemePagesEditor from "@/components/admin/ThemePagesEditor";
 import { useAuthStore } from "@/stores/auth.store";
 import { canWrite } from "@/lib/permissions";
 import { themesService, type BrandTheme } from "@/services/themes.service";
@@ -351,6 +352,9 @@ export default function ThemeCustomizer({ fullScreen = false, backHref }: {
       <div className="theme-grid" style={{ display: "grid", gridTemplateColumns: "340px minmax(0, 1fr)", gap: "16px", alignItems: "stretch", flex: fullScreen ? 1 : undefined, minHeight: 0 }}>
         {/* ── Sections ── */}
         <div style={{ ...card, padding: "14px", maxHeight: fullScreen ? "100%" : "78vh", overflowY: "auto" }}>
+          {/* Contact, quote and the footer's policies — words, not sections. */}
+          <ThemePagesEditor writable={writable} />
+
           {/* The brand's logo — the design's header keeps its place. */}
           <div style={{ border: "1px solid #E3E3E3", borderRadius: "10px", padding: "10px 12px", marginBottom: "12px", background: "#FCFCFB" }}>
             <div style={{ fontSize: "12px", fontWeight: 700, color: "#7A7880", textTransform: "uppercase", letterSpacing: ".06em", marginBottom: "8px" }}>
@@ -369,6 +373,14 @@ export default function ThemeCustomizer({ fullScreen = false, backHref }: {
                   Use the design&apos;s own
                 </button>
               )}
+            </div>
+            <div style={{ marginTop: "10px" }}>
+              <label style={label}>Clicking it goes to</label>
+              <LinkPicker disabled={!writable} value={state.logo?.href ?? ""}
+                onChange={(v) => setLogo({ href: v })} />
+              <p style={{ fontSize: "11.5px", color: "#9A98A0", marginTop: "6px" }}>
+                Leave it empty to keep where the design already points it.
+              </p>
             </div>
             {state.logo?.url && (
               <div style={{ marginTop: "10px" }}>

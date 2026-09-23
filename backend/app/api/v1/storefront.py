@@ -301,6 +301,26 @@ async def get_storefront_page(slug: str, request: Request, db: AsyncSession = De
 
 
 # ── Public: the brand's own theme ─────────────────────────────────────────────
+@public_router.get("/page/{slug}")
+async def get_storefront_page(
+    slug: str, request: Request, db: AsyncSession = Depends(get_db)
+) -> dict[str, Any]:
+    """One of the shop's written pages — contact, quote, or a policy.
+
+    The theme has no page for these, so they are the brand's own words drawn
+    in the theme's stylesheet. Unknown slugs 404 rather than inventing a page.
+    """
+    from app.services import storefront_pages
+
+    if slug not in storefront_pages.ORDER:
+        raise HTTPException(status_code=404, detail="No such page")
+    tid = await _tenant_id_from_slug(db, getattr(request.state, "tenant_slug", None)) or _resolve_tenant_id(request)
+    if not tid:
+        raise HTTPException(status_code=404, detail="Store not found")
+    pages = await storefront_pages.load(db, tid)
+    return {"page": pages[slug]}
+
+
 @public_router.get("/theme-active")
 async def theme_is_active(request: Request, db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
     """Whether this brand's storefront is drawn by a theme.

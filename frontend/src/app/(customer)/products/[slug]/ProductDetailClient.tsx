@@ -874,15 +874,6 @@ export function ProductDetailClient({ slug }: ProductDetailClientProps) {
           {fromPrice}
         </div>
       )}
-            {/* Guest state — plain inline text, no card/box */}
-            {!isAuthenticated && (
-              <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px", color: "#6B6B6B", marginBottom: "22px" }}>
-                Create a wholesale account to get lower prices.{" "}
-                <Link href="/wholesale/register" style={{ color: "var(--brand-primary, #1C3557)", fontWeight: 500, textDecoration: "none" }}>Create Account</Link>
-                {" · "}
-                <Link href="/login" style={{ color: "var(--brand-primary, #1C3557)", fontWeight: 500, textDecoration: "none" }}>Log In</Link>
-              </p>
-            )}
     </>
   );
   const highlightBlock = (

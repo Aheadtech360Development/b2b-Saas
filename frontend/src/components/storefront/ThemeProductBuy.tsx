@@ -21,28 +21,7 @@ import type { ProductDetail } from "@/types/product.types";
 import { cartService } from "@/services/cart.service";
 import { useAuthStore } from "@/stores/auth.store";
 import { trackAddToCart } from "@/lib/tracking";
-
-/** The cart a shopper has before they have an account — the same one the
- *  built-in product page and the cart page already use. */
-const GUEST_CART_KEY = "af_guest_cart";
-
-interface GuestLine {
-  variant_id: string; quantity: number; product_id: string; product_name: string;
-  slug: string; color: string | null; size: string | null; unit_price: number; image_url?: string | null;
-}
-
-function readGuestCart(): GuestLine[] {
-  try { return JSON.parse(localStorage.getItem(GUEST_CART_KEY) || "[]") as GuestLine[]; } catch { return []; }
-}
-
-function addToGuestCart(line: GuestLine) {
-  const cart = readGuestCart();
-  const existing = cart.find((i) => i.variant_id === line.variant_id);
-  if (existing) existing.quantity += line.quantity;
-  else cart.push(line);
-  try { localStorage.setItem(GUEST_CART_KEY, JSON.stringify(cart)); } catch { /* private mode */ }
-  window.dispatchEvent(new Event("af_guest_cart_updated"));
-}
+import { addToGuestCart, configuredKey } from "@/lib/guestCart";
 
 export interface ThemeVariant {
   id: string;
@@ -298,6 +277,7 @@ export default function ThemeProductBuy({ product }: { product: ThemeProductData
                 // product the shopper had just been looking at a photo of.
                 image_url: product.images?.[0]?.url ?? null,
               });
+              window.dispatchEvent(new Event("cart_updated"));
               trackAddToCart([{
                 id: variant.id, sku: variant.sku, name: product.name,
                 price: variant.price ?? 0, quantity,
@@ -306,18 +286,39 @@ export default function ThemeProductBuy({ product }: { product: ThemeProductData
               say("Added to your cart.");
               return;
             }
-          } else if (!isAuthenticated) {
-            // A configured product is priced and held server-side, which needs
-            // an account. Say so plainly rather than failing silently.
-            say("Sign in to order this one — it is made to order.", false);
-            window.setTimeout(() => router.push("/login"), 1400);
-            return;
           } else {
             const missing = product.options.find((o) => o.required && !chosen[o.id]);
             if (missing) { say(`Choose ${missing.name.toLowerCase()} first.`, false); return; }
-            await apiClient.post("/api/v1/cart/add-configured", {
-              product_id: product.id, selections: chosen, quantity,
-            });
+            if (isAuthenticated) {
+              await apiClient.post("/api/v1/cart/add-configured", {
+                product_id: product.id, selections: chosen, quantity,
+              });
+            } else {
+              // No account needed for a made-to-order product either: the
+              // choices travel with the line and the server prices them again
+              // at checkout, so a guest pays exactly what anyone else does.
+              const priced = await apiClient.post<{ unit_price: number }>(
+                `/api/v1/products/${product.id}/price`, { selections: chosen, quantity },
+              );
+              const names = product.options
+                .map((o) => o.values.find((v) => v.id === chosen[o.id])?.label)
+                .filter(Boolean)
+                .join(" · ");
+              addToGuestCart({
+                variant_id: configuredKey(product.id, chosen),
+                quantity,
+                product_id: product.id,
+                product_name: names ? `${product.name} — ${names}` : product.name,
+                slug: product.slug,
+                color: null,
+                size: null,
+                unit_price: priced.unit_price,
+                image_url: product.images?.[0]?.url ?? null,
+                selections: { ...chosen },
+              });
+              say("Added to your cart.");
+              return;
+            }
           }
           window.dispatchEvent(new Event("cart_updated"));
           say("Added to your cart.");

@@ -46,7 +46,7 @@ export default function ThemeRenderer({ page, chromeInLayout = false }: {
       <style dangerouslySetInnerHTML={{ __html: `${page.css}\nbody[data-theme-active] [data-app-chrome]{display:none!important}` }} />
       {page.svg_defs && <div aria-hidden style={{ display: "none" }} dangerouslySetInnerHTML={{ __html: page.svg_defs }} />}
       {pageBody(page, chromeInLayout).map((section) => (
-        <div key={section.id} data-theme-section={section.id} dangerouslySetInnerHTML={{ __html: section.html }} />
+        <div key={section.id} id={`${ANCHOR_PREFIX}${section.id}`} data-theme-section={section.id} dangerouslySetInnerHTML={{ __html: section.html }} />
       ))}
     </div>
   );
@@ -60,6 +60,11 @@ export function pageBody(page: ThemePage, chromeInLayout: boolean): ThemePage["s
 }
 
 const CHROME_ROLES = new Set(["announcement", "header", "footer"]);
+
+/** Every section answers to an id, so a menu or footer link can point at a
+ *  part of a page — "/#s-<section>" — and land on it. Matches the prefix the
+ *  admin's link picker offers (backend services/theme_render.ANCHOR_PREFIX). */
+export const ANCHOR_PREFIX = "s-";
 
 /** The href out of a <link …> the design carried (fonts, mostly). */
 function hrefOf(tag: string): string {

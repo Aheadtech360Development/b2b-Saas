@@ -349,7 +349,8 @@ def apply_logo(page: dict[str, Any], logo: dict[str, Any] | None) -> dict[str, A
     space around it. Nothing is moved.
     """
     url = str((logo or {}).get("url") or "").strip()
-    if not url:
+    href = str((logo or {}).get("href") or "").strip()
+    if not url and not href:
         return page
 
     width = _px((logo or {}).get("width"))
@@ -372,6 +373,17 @@ def apply_logo(page: dict[str, Any], logo: dict[str, Any] | None) -> dict[str, A
         if holder is None:
             continue
 
+        # Where the logo goes, when the brand has said. The design's own link
+        # stands otherwise.
+        if href:
+            anchor = holder if holder.name == "a" else (holder.find_parent("a") or holder.find("a"))
+            if anchor is not None and anchor.name == "a":
+                anchor["href"] = href
+
+        if not url:
+            block["html"] = str(soup)
+            break
+
         img = soup.new_tag("img", src=url)
         img["alt"] = ""
         img["style"] = ";".join(style)
@@ -386,6 +398,10 @@ def apply_logo(page: dict[str, Any], logo: dict[str, Any] | None) -> dict[str, A
         break  # a store has one logo, in one place
     return page
 
+
+# Every section on the storefront answers to an id built from this, so a link
+# can point at a part of a page: "/#s-<section id>".
+ANCHOR_PREFIX = "s-"
 
 _CHROME_TOP = ("announcement", "header")
 _CHROME_BOTTOM = ("footer",)
@@ -550,6 +566,8 @@ def clean_state(definition: dict[str, Any], state: Any) -> dict[str, Any]:
         pad_in = logo_in.get("padding") or {}
         out["logo"] = {
             "url": str(logo_in.get("url") or "")[:1000],
+            # Where clicking it goes. Blank means the design's own link.
+            "href": str(logo_in.get("href") or "")[:1000],
             "width": str(logo_in.get("width") or "")[:12],
             "height": str(logo_in.get("height") or "")[:12],
             "padding": {side: str((pad_in or {}).get(side) or "")[:12] for side in ("top", "right", "bottom", "left")},

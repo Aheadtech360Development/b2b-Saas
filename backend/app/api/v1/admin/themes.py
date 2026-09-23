@@ -47,6 +47,11 @@ async def _active(db: AsyncSession, tenant_id: uuid.UUID) -> BrandTheme | None:
     return await theme_upgrade.ensure_current(db, theme)
 
 
+# Sections are linkable: the storefront gives each one this id, so a menu or
+# a footer link can point at "/#s-<section>" and land on it.
+_ANCHOR_PREFIX = theme_render.ANCHOR_PREFIX
+
+
 def _status(theme: BrandTheme) -> str:
     if theme.published is None:
         return "draft"
@@ -165,6 +170,33 @@ async def slot_data(data: SlotsIn, request: Request, _: None = Depends(require_a
     return {"items": out}
 
 
+@router.get("/pages")
+async def get_written_pages(request: Request, _: None = Depends(require_admin),
+                            db: AsyncSession = Depends(get_db)) -> dict:
+    """The shop's written pages, as this brand has them."""
+    from app.services import storefront_pages
+
+    return {"pages": await storefront_pages.load(db, _tenant(request))}
+
+
+class WrittenPagesIn(BaseModel):
+    pages: dict
+
+
+@router.put("/pages")
+async def save_written_pages(payload: WrittenPagesIn, request: Request,
+                             _: None = Depends(require_admin),
+                             db: AsyncSession = Depends(get_db)) -> dict:
+    """Save the words. Which pages exist, and which carry a form, does not
+    change — the brand writes them, it does not invent them."""
+    from app.services import storefront_pages
+
+    tenant_id = _tenant(request)
+    saved = await storefront_pages.save(db, tenant_id, payload.pages)
+    await db.commit()
+    return {"pages": saved}
+
+
 @router.get("/links")
 async def link_targets(request: Request, q: str = "", _: None = Depends(require_admin),
                        db: AsyncSession = Depends(get_db)) -> dict:
@@ -182,18 +214,33 @@ async def link_targets(request: Request, q: str = "", _: None = Depends(require_
     _tenant(request)
     needle = f"%{q.strip()}%" if q.strip() else None
 
+    from app.services import storefront_pages
+
     pages = [
         {"label": "Home", "url": "/"},
         {"label": "All products", "url": "/products"},
         {"label": "Quick order", "url": "/quick-order"},
         {"label": "Cart", "url": "/cart"},
-        {"label": "Contact", "url": "/contact"},
         {"label": "Track order", "url": "/track-order"},
         {"label": "Sign in", "url": "/login"},
-        {"label": "Wholesale sign-up", "url": "/wholesale/register"},
         {"label": "My account", "url": "/account"},
         {"label": "Blog", "url": "/blog"},
     ]
+    # Contact, quote and the footer's policies.
+    pages += [{"label": p["label"], "url": p["href"]} for p in storefront_pages.links()]
+
+    # Parts of the home page, so a footer link can jump to the section that
+    # already says it rather than to a page nobody wrote.
+    theme = await _active(db, _tenant(request))
+    if theme is not None:
+        home = ((theme.definition or {}).get("pages") or {}).get("home") or {}
+        hidden = set((((theme.draft or {}).get("pages") or {}).get("home") or {}).get("hidden") or [])
+        for section in home.get("sections", []):
+            role = section.get("role") or ""
+            if role in {"announcement", "header", "footer"} or section["id"] in hidden:
+                continue
+            pages.append({"label": f'On this page — {section.get("label") or section["id"]}',
+                          "url": f'/#{_ANCHOR_PREFIX}{section["id"]}'})
     # The brand's own built pages, if it has any.
     try:
         rows = (await db.execute(_text(

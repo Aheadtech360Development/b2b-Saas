@@ -117,7 +117,7 @@ interface AppliedCoupon {
   message: string;
 }
 
-type GuestCartEntry = { variant_id: string; quantity: number; product_id: string; product_name: string; slug: string; color: string | null; size: string | null; unit_price: number; image_url?: string | null };
+import type { GuestLine as GuestCartEntry } from "@/lib/guestCart";
 
 /** A guest line that was saved without its photo gets one from the product.
  *
@@ -657,12 +657,6 @@ function OrderSummary({
       </button>
       {disabledReason && (
         <p style={{ fontSize: "11px", color: "#E8242A", textAlign: "center", marginTop: "8px" }}>{disabledReason}</p>
-      )}
-      {!isGuest && (
-        <p style={{ marginTop: "14px", fontSize: "12px", color: "#6B6B6B", fontFamily: "'DM Sans', sans-serif" }}>
-          Need a wholesale account?{" "}
-          <Link href="/wholesale/register" style={{ color: "var(--brand-primary, #1C3557)", fontWeight: 500, textDecoration: "none" }}>Apply here →</Link>
-        </p>
       )}
     </div>
   );

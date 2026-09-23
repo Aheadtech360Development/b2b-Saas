@@ -16,7 +16,7 @@ import { ConfigurationDetail } from "@/components/shared/ConfigurationDetail";
 import { clearAttribution, getAttribution } from "@/lib/attribution";
 import { trackPurchase } from "@/lib/tracking";
 
-type GuestCartEntry = { variant_id: string; quantity: number; product_id: string; product_name: string; slug: string; color: string | null; size: string | null; unit_price: number; image_url?: string | null };
+import { guestCheckoutItem, type GuestLine as GuestCartEntry } from "@/lib/guestCart";
 
 
 
@@ -210,7 +210,7 @@ export default function CheckoutReviewPage() {
           guest_name: guestData.name || contactName || "Guest",
           guest_email: guestData.email || "",
           guest_phone: guestData.phone || shippingPhone || undefined,
-          items: guestEntries.map(e => ({ variant_id: e.variant_id, quantity: e.quantity })),
+          items: guestEntries.map(guestCheckoutItem),
           shipping_address: {
             label: "Shipping",
             full_name: guestData.name,
