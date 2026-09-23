@@ -50,6 +50,18 @@ export function currentTenantSlug(): string | null {
     // sessionStorage unavailable (private mode) — fall through.
   }
 
+  // 3. The cookie the middleware writes on every request. Server rendering
+  //    already resolves the brand this way; without reading it here, a page
+  //    served for a brand made its own follow-up calls with no brand at all —
+  //    so the page arrived and then failed to load its own product.
+  try {
+    const match = document.cookie.match(/(?:^|;\s*)tenant_slug=([^;]*)/);
+    const fromCookie = match?.[1] ? decodeURIComponent(match[1]) : "";
+    if (fromCookie) return fromCookie;
+  } catch {
+    // no document (worker) — fall through.
+  }
+
   return null; // root domain — platform level, no tenant
 }
 

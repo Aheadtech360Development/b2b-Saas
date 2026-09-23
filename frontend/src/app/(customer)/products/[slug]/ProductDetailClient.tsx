@@ -413,6 +413,9 @@ export function ProductDetailClient({ slug }: ProductDetailClientProps) {
 
   const [product, setProduct] = useState<ProductDetail | null>(null);
   const [productLoading, setProductLoading] = useState(true);
+  // A failed load is not a slow load: without this the page says "Loading…"
+  // for ever when the product cannot be fetched.
+  const [loadFailed, setLoadFailed] = useState(false);
 
   // ── Image gallery state ────────────────────────────────────────────────────
   const [activeImageIdx, setActiveImageIdx] = useState(0);
@@ -484,7 +487,7 @@ export function ProductDetailClient({ slug }: ProductDetailClientProps) {
           }
         }
       })
-      .catch(() => { })
+      .catch(() => setLoadFailed(true))
       .finally(() => setProductLoading(false));
   }, [slug, isAuthenticated, authIsLoading]); // eslint-disable-line
 
@@ -558,10 +561,22 @@ export function ProductDetailClient({ slug }: ProductDetailClientProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [product?.id]);
 
-  if (productLoading || !product) {
+  if (productLoading) {
     return (
       <div style={{ minHeight: "60vh", display: "flex", alignItems: "center", justifyContent: "center", color: "#7A7880" }}>
         Loading…
+      </div>
+    );
+  }
+  if (!product) {
+    return (
+      <div style={{ minHeight: "60vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "10px", textAlign: "center", padding: "24px" }}>
+        <p style={{ fontSize: "16px", color: "#1A1A1A", fontWeight: 600 }}>
+          {loadFailed ? "This product could not be loaded." : "This product is no longer available."}
+        </p>
+        <Link href="/products" style={{ color: "var(--brand-primary, #1C3557)", fontWeight: 600, textDecoration: "none" }}>
+          Browse all products →
+        </Link>
       </div>
     );
   }
