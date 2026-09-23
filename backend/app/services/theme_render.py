@@ -135,6 +135,21 @@ def _text_of_tag(tag: Tag) -> str:
     return " ".join(tag.get_text(" ", strip=True).split())
 
 
+def _fill_nav_item(template_html: str, item: dict[str, Any]) -> Tag | None:
+    """One link of a menu, in the design's own markup."""
+    soup = BeautifulSoup(template_html, "html.parser")
+    node = next((c for c in soup.children if isinstance(c, Tag)), None)
+    if node is None:
+        return None
+    anchor = node if node.name == "a" else node.find("a")
+    if anchor is None:
+        return None
+    # A caret or icon that came with the design stays; the words are replaced.
+    _set_text(anchor, str(item.get("title") or ""))
+    anchor["href"] = str(item.get("url") or "#")
+    return node
+
+
 def fill_repeaters(html: str, repeaters: list[dict[str, Any]], items_by_key: dict[str, list[dict[str, Any]]]) -> str:
     """Put the store's own cards into this section's rows of cards."""
     if not repeaters or not items_by_key:
@@ -156,11 +171,12 @@ def fill_repeaters(html: str, repeaters: list[dict[str, Any]], items_by_key: dic
         if not children:
             continue
         template_html = str(children[0])
+        is_menu = repeater.get("kind") == "menu"
         container.clear()
         for item in items:
-            card = _fill_card(template_html, item)
-            if card is not None:
-                container.append(card)
+            node = _fill_nav_item(template_html, item) if is_menu else _fill_card(template_html, item)
+            if node is not None:
+                container.append(node)
         changed = True
     return str(soup) if changed else html
 
@@ -266,7 +282,8 @@ def clean_state(definition: dict[str, Any], state: Any) -> dict[str, Any]:
                 if row_key not in allowed_rows or not isinstance(spec, dict):
                     continue
                 kept_rows[row_key] = {
-                    "source": spec.get("source") if spec.get("source") in {"products", "collections", "none"} else "products",
+                    "source": spec.get("source") if spec.get("source") in {"products", "collections", "menu", "none"} else "products",
+                    "menu": str(spec.get("menu") or "")[:64],
                     "collection": str(spec.get("collection") or "")[:200],
                     "sort": str(spec.get("sort") or "newest")[:20],
                     "limit": max(1, min(int(spec.get("limit") or 6), 24)) if str(spec.get("limit") or "6").isdigit() else 6,

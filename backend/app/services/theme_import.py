@@ -116,6 +116,29 @@ def _section_label(tag: Tag, index: int) -> str:
     return f"Section {index + 1}"
 
 
+_GUESSED_LINKS = [
+    (("cart", "basket", "bag"), "/cart"),
+    (("home",), "/"),
+    (("shop", "browse", "all products", "catalog", "catalogue", "products"), "/products"),
+    (("contact", "get a quote", "quote"), "/contact"),
+    (("account", "sign in", "log in", "login"), "/login"),
+    (("track", "order status"), "/track-order"),
+    (("blog", "news"), "/blog"),
+    (("quick order",), "/quick-order"),
+]
+
+
+def _guess_href(text: str, current: str) -> str:
+    """Where a link that points nowhere probably meant to go."""
+    if current and current not in {"#", ""}:
+        return current
+    words = text.strip().lower()
+    for needles, href in _GUESSED_LINKS:
+        if any(n in words for n in needles):
+            return href
+    return current or "#"
+
+
 def _fields_for(section: Tag) -> list[dict[str, Any]]:
     """Every text, link and image in this section that can be edited."""
     fields: list[dict[str, Any]] = []
@@ -169,10 +192,13 @@ def _fields_for(section: Tag) -> list[dict[str, Any]]:
             link_key = f"href:{path}"
             if link_key not in seen:
                 seen.add(link_key)
+                guessed = _guess_href(text, tag.get("href") or "")
                 fields.append({
                     "key": link_key, "type": "link", "path": path,
-                    "label": "Link", "hint": text[:60], "default": tag.get("href") or "",
+                    "label": "Link", "hint": text[:60], "default": guessed,
                 })
+                if guessed != (tag.get("href") or ""):
+                    tag["href"] = guessed
     return fields
 
 
@@ -265,7 +291,12 @@ def default_state(definition: dict[str, Any]) -> dict[str, Any]:
         dynamic: dict[str, Any] = {}
         for section in page.get("sections", []):
             slots = {
-                rep["key"]: {"source": rep["kind"], "collection": "", "ids": [], "limit": rep["count"]}
+                # A menu starts as the design drew it: its links are already
+                # written, and each one can be pointed somewhere real.
+                rep["key"]: {
+                    "source": "none" if rep["kind"] == "menu" else rep["kind"],
+                    "collection": "", "menu": "", "ids": [], "limit": rep["count"],
+                }
                 for rep in section.get("repeaters", [])
             }
             if slots:
@@ -302,6 +333,29 @@ def _guess_kind(container: Tag, item: Tag) -> str:
     return ""
 
 
+def _nav_repeaters(section: Tag) -> list[dict[str, Any]]:
+    """Lists of links — the header and footer menus the store can fill."""
+    found: list[dict[str, Any]] = []
+    for container in section.find_all(["ul", "nav", "div"]):
+        children = [c for c in container.children if isinstance(c, Tag)]
+        if len(children) < 2 or len({_signature(c) for c in children}) != 1:
+            continue
+        links = [c for c in children if c.name == "a" or c.find("a")]
+        if len(links) != len(children):
+            continue
+        # A row of cards is not a menu, even though both repeat.
+        if any(c.select(".placeholder") or c.find("img") or c.find(["h1", "h2", "h3", "h4"]) for c in children):
+            continue
+        path = _path(section, container)
+        if not path:
+            continue
+        found.append({
+            "key": f"nav:{path}", "path": path, "kind": "menu",
+            "label": "Menu links", "count": len(children),
+        })
+    return found
+
+
 def _repeaters_for(section: Tag) -> list[dict[str, Any]]:
     """Rows of identical cards, and what each is probably showing."""
     found: list[dict[str, Any]] = []
@@ -328,4 +382,5 @@ def _repeaters_for(section: Tag) -> list[dict[str, Any]]:
             "label": "Products" if kind == "products" else "Collections",
             "count": len(children),
         })
+    found.extend(_nav_repeaters(section))
     return found

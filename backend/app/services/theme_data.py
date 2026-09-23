@@ -162,12 +162,46 @@ async def collections(db: AsyncSession, *, limit: int = DEFAULT_LIMIT, ids: list
     return [_collection_card(c, counts.get(c.id, 0)) for c in rows]
 
 
+async def menu(db: AsyncSession, *, menu_id: str = "", limit: int = 12) -> list[dict[str, Any]]:
+    """A store menu as link items, or the store's collections when none is picked.
+
+    Sub-menus are flattened: the design decides how a menu looks, and a list
+    that was drawn flat stays flat rather than growing a dropdown it has no
+    styling for.
+    """
+    import json as _json
+
+    from sqlalchemy import text as _text
+
+    limit = max(1, min(int(limit or 12), MAX_ITEMS))
+    rows: list[dict[str, Any]] = []
+    if menu_id:
+        raw = (await db.execute(
+            _text("SELECT items FROM tenant_menus WHERE id = CAST(:mid AS uuid)"), {"mid": str(menu_id)}
+        )).scalar()
+        items = _json.loads(raw) if isinstance(raw, str) else (raw or [])
+        for item in items if isinstance(items, list) else []:
+            if not isinstance(item, dict):
+                continue
+            rows.append({"title": str(item.get("label") or item.get("title") or ""),
+                         "url": str(item.get("href") or item.get("url") or "#")})
+            for child in (item.get("children") or []):
+                if isinstance(child, dict):
+                    rows.append({"title": str(child.get("label") or ""), "url": str(child.get("href") or "#")})
+        rows = [r for r in rows if r["title"]]
+    if not rows:
+        rows = [{"title": c["title"], "url": c["url"]} for c in await collections(db, limit=limit)]
+    return [{**r, "image": "", "price": "", "badge": "", "text": ""} for r in rows[:limit]]
+
+
 async def items_for(db: AsyncSession, spec: dict[str, Any] | None) -> list[dict[str, Any]]:
     """The cards one row should show, from what the admin chose for it."""
     spec = spec or {}
     source = spec.get("source") or "products"
     limit = spec.get("limit") or DEFAULT_LIMIT
     ids = [str(i) for i in (spec.get("ids") or [])]
+    if source == "menu":
+        return await menu(db, menu_id=str(spec.get("menu") or ""), limit=limit)
     if source == "collections":
         return await collections(db, limit=limit, ids=ids)
     if source == "none":

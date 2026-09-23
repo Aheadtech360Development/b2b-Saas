@@ -15,6 +15,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ApiClientError } from "@/lib/api-client";
 import { MediaPicker } from "@/components/admin/MediaPicker";
+import { LinkPicker } from "@/components/admin/LinkPicker";
 import { useAuthStore } from "@/stores/auth.store";
 import { canWrite } from "@/lib/permissions";
 import { themesService, type BrandTheme } from "@/services/themes.service";
@@ -22,6 +23,7 @@ import { renderPage, type SlotItem, type SlotSpec, type ThemeField, type ThemeSt
 import { apiClient } from "@/lib/api-client";
 
 interface CollectionOption { id: string; name: string; slug: string }
+interface MenuOption { id: string; label: string }
 
 const MESSAGE = "at360-theme-preview";
 const LOCKED_PAGES = [
@@ -67,6 +69,7 @@ export default function ThemeCustomizer({ fullScreen = false }: { fullScreen?: b
   // What the store's own products look like in the design's card rows.
   const [slotItems, setSlotItems] = useState<Record<string, SlotItem[]>>({});
   const [collections, setCollections] = useState<CollectionOption[]>([]);
+  const [menus, setMenus] = useState<MenuOption[]>([]);
 
   const adopt = useCallback((t: BrandTheme) => {
     setTheme(t);
@@ -90,6 +93,9 @@ export default function ThemeCustomizer({ fullScreen = false }: { fullScreen?: b
     apiClient.get<CollectionOption[]>("/api/v1/admin/collections")
       .then((rows) => setCollections(Array.isArray(rows) ? rows : []))
       .catch(() => setCollections([]));
+    apiClient.get<{ menus: MenuOption[] }>("/api/v1/admin/storefront/theme/links")
+      .then((r) => setMenus(r.menus ?? []))
+      .catch(() => setMenus([]));
   }, []);
 
   // ── The page the preview should draw, rebuilt as you edit ──
@@ -361,10 +367,31 @@ export default function ThemeCustomizer({ fullScreen = false }: { fullScreen?: b
                           <label style={label}>Show</label>
                           <select disabled={!writable} style={{ ...input, marginBottom: "8px" }} value={spec.source}
                             onChange={(e) => setSlot(id, row.key, { source: e.target.value as SlotSpec["source"] })}>
-                            <option value="products">My products</option>
-                            <option value="collections">My collections</option>
-                            <option value="none">The design&apos;s own cards</option>
+                            {row.kind === "menu" ? (
+                              <>
+                                <option value="none">The design&apos;s own links</option>
+                                <option value="menu">A menu from my store</option>
+                                <option value="collections">My collections</option>
+                              </>
+                            ) : (
+                              <>
+                                <option value="products">My products</option>
+                                <option value="collections">My collections</option>
+                                <option value="none">The design&apos;s own cards</option>
+                              </>
+                            )}
                           </select>
+
+                          {spec.source === "menu" && (
+                            <>
+                              <label style={label}>Which menu</label>
+                              <select disabled={!writable} style={{ ...input, marginBottom: "8px" }} value={spec.menu ?? ""}
+                                onChange={(e) => setSlot(id, row.key, { menu: e.target.value })}>
+                                <option value="">My collections</option>
+                                {menus.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
+                              </select>
+                            </>
+                          )}
 
                           {spec.source === "products" && (
                             <>
@@ -394,9 +421,13 @@ export default function ThemeCustomizer({ fullScreen = false }: { fullScreen?: b
                             </>
                           )}
                           <p style={{ fontSize: "11.5px", color: "#7A7880", marginTop: "8px", lineHeight: 1.5 }}>
-                            {spec.source === "none"
-                              ? "This row shows the design's example cards. Shoppers will see those examples — switch it to your products before publishing."
-                              : `The design drew ${row.count} cards here; the store fills them with whatever you choose. More than that wraps onto the next row.`}
+                            {row.kind === "menu"
+                              ? (spec.source === "none"
+                                  ? "These are the design's own links. Point each one at a page, product or collection below."
+                                  : "The store fills this menu, and each link goes to the real page it names.")
+                              : spec.source === "none"
+                                ? "This row shows the design's example cards. Shoppers will see those examples — switch it to your products before publishing."
+                                : `The design drew ${row.count} cards here; the store fills them with whatever you choose. More than that wraps onto the next row.`}
                           </p>
                         </div>
                       );
@@ -424,6 +455,9 @@ export default function ThemeCustomizer({ fullScreen = false }: { fullScreen?: b
                                 <button onClick={() => setValue(id, field.key, "")} style={{ background: "none", border: "none", color: "#B91C1C", fontSize: "12px", cursor: "pointer" }}>Reset</button>
                               )}
                             </div>
+                          ) : field.type === "link" ? (
+                            <LinkPicker disabled={!writable} value={value || field.default}
+                              onChange={(url) => setValue(id, field.key, url)} />
                           ) : (field.default.length > 90 ? (
                             <textarea disabled={!writable} style={{ ...input, minHeight: "76px", resize: "vertical", fontFamily: "inherit" }}
                               value={value} placeholder={field.default} onChange={(e) => setValue(id, field.key, e.target.value)} />

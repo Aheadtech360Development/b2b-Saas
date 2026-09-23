@@ -21,15 +21,17 @@ export interface ThemeField {
 export interface ThemeRepeater {
   key: string;
   path: string;
-  kind: "products" | "collections";
+  kind: "products" | "collections" | "menu";
   label: string;
   count: number;
 }
 
 /** What one row of cards should show. */
 export interface SlotSpec {
-  source: "products" | "collections" | "none";
+  source: "products" | "collections" | "menu" | "none";
   collection?: string;
+  /** Which store menu a menu row shows; empty means the store's collections. */
+  menu?: string;
   sort?: string;
   limit: number;
   ids?: string[];
@@ -186,6 +188,16 @@ function fillCard(template: Element, item: SlotItem): Element {
   return card;
 }
 
+/** One link of a menu, in the design's own markup. */
+function fillNavItem(template: Element, item: SlotItem): Element | null {
+  const node = template.cloneNode(true) as Element;
+  const anchor = node.tagName === "A" ? node : node.querySelector("a");
+  if (!anchor) return null;
+  setText(anchor, item.title);
+  anchor.setAttribute("href", item.url || "#");
+  return node;
+}
+
 /** Put the store's own cards into this section's rows of cards. */
 export function fillRepeaters(
   html: string,
@@ -206,8 +218,12 @@ export function fillRepeaters(
     const template = container?.firstElementChild;
     if (!container || !template) continue;
     const pattern = template.cloneNode(true) as Element;
+    const isMenu = repeater.kind === "menu";
     container.innerHTML = "";
-    items.forEach((item) => container.appendChild(fillCard(pattern, item)));
+    items.forEach((item) => {
+      const node = isMenu ? fillNavItem(pattern, item) : fillCard(pattern, item);
+      if (node) container.appendChild(node);
+    });
     changed = true;
   }
   return changed ? (wrapper?.innerHTML ?? html) : html;

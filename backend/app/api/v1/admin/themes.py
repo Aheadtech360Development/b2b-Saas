@@ -160,6 +160,66 @@ async def slot_data(data: SlotsIn, request: Request, _: None = Depends(require_a
     return {"items": out}
 
 
+@router.get("/links")
+async def link_targets(request: Request, q: str = "", _: None = Depends(require_admin),
+                       db: AsyncSession = Depends(get_db)) -> dict:
+    """Everywhere a button in this theme could point, from this store.
+
+    So an admin picks "Premium Cotton Tee" rather than typing a URL and hoping
+    it is the right one. Cart and checkout are here because a design's buttons
+    genuinely point at them; they are ordinary storefront pages.
+    """
+    from sqlalchemy import text as _text
+
+    from app.models.collection import Collection
+    from app.models.product import Product
+
+    _tenant(request)
+    needle = f"%{q.strip()}%" if q.strip() else None
+
+    pages = [
+        {"label": "Home", "url": "/"},
+        {"label": "All products", "url": "/products"},
+        {"label": "Quick order", "url": "/quick-order"},
+        {"label": "Cart", "url": "/cart"},
+        {"label": "Contact", "url": "/contact"},
+        {"label": "Track order", "url": "/track-order"},
+        {"label": "Sign in", "url": "/login"},
+        {"label": "Wholesale sign-up", "url": "/wholesale/register"},
+        {"label": "My account", "url": "/account"},
+        {"label": "Blog", "url": "/blog"},
+    ]
+    # The brand's own built pages, if it has any.
+    try:
+        rows = (await db.execute(_text(
+            "SELECT title, slug FROM tenant_pages WHERE tenant_id = CAST(:t AS uuid) AND is_published = true ORDER BY title"
+        ), {"t": str(_tenant(request))})).all()
+        pages += [{"label": r[0], "url": f"/{r[1]}"} for r in rows]
+    except Exception:
+        pass
+    if needle:
+        low = q.strip().lower()
+        pages = [p for p in pages if low in p["label"].lower() or low in p["url"].lower()]
+
+    product_q = select(Product.name, Product.slug).where(Product.status == "active").order_by(Product.name).limit(30)
+    if needle:
+        product_q = product_q.where(Product.name.ilike(needle))
+    products = [{"label": r[0], "url": f"/products/{r[1]}"} for r in (await db.execute(product_q)).all()]
+
+    collection_q = select(Collection.name, Collection.slug).where(Collection.is_active.is_(True)).order_by(Collection.name).limit(30)
+    if needle:
+        collection_q = collection_q.where(Collection.name.ilike(needle))
+    collections = [{"label": r[0], "url": f"/collections/{r[1]}"} for r in (await db.execute(collection_q)).all()]
+
+    menus = [
+        {"id": str(r[0]), "label": r[1]}
+        for r in (await db.execute(_text(
+            "SELECT id, name FROM tenant_menus WHERE tenant_id = CAST(:t AS uuid) ORDER BY name"
+        ), {"t": str(_tenant(request))})).all()
+    ]
+    return {"pages": pages, "products": products, "collections": collections, "menus": menus}
+
+
 @router.post("/import")
 async def import_theme(
     request: Request,
