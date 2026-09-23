@@ -135,15 +135,21 @@ async def resolve_tax(db, to_state: str, to_zip: str, to_city: str, taxable_subt
             return result
 
     # manual mode, or auto falling back: the brand's own regional rate table.
+    # Inside a savepoint: this runs in the middle of checkout's transaction,
+    # and a failed statement poisons a Postgres transaction for everything
+    # that follows it. Without the savepoint, a store with no rate table —
+    # or any error here — took the whole order down instead of quietly
+    # charging no tax.
     try:
         from sqlalchemy import select as _select
         from app.api.v1.admin.taxes import TaxRate
-        row = (await db.execute(
-            _select(TaxRate).where(
-                TaxRate.region == state,
-                TaxRate.is_enabled == True,  # noqa: E712
-            )
-        )).scalar_one_or_none()
+        async with db.begin_nested():
+            row = (await db.execute(
+                _select(TaxRate).where(
+                    TaxRate.region == state,
+                    TaxRate.is_enabled == True,  # noqa: E712
+                )
+            )).scalar_one_or_none()
         if row:
             rate = float(row.rate)
             return {
