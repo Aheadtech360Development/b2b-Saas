@@ -18,6 +18,7 @@ const PLATFORM_DOMAIN = process.env.NEXT_PUBLIC_PLATFORM_DOMAIN ?? "localhost";
 export const TENANT_HEADER = "x-tenant-slug";
 export const TENANT_COOKIE = "tenant_slug";
 export const PATH_HEADER = "x-pathname";
+export const HOST_HEADER = "x-storefront-host";
 
 function resolveSlug(request: NextRequest): string | null {
   const hostname = request.nextUrl.hostname;
@@ -60,6 +61,16 @@ export function middleware(request: NextRequest) {
   // the storefront (and so wears the brand's header and footer) or to the
   // admin console. Deciding it in the browser is what makes chrome flash.
   requestHeaders.set(PATH_HEADER, request.nextUrl.pathname);
+  // The address the visitor typed. When there is no subdomain, no cookie and
+  // no ?tenant=, this is the only thing that says which shop they wanted.
+  //
+  // An empty `?tenant=` is an explicit "no brand" — how a platform admin signs
+  // in at the root — so the address is withheld there, or it would put them
+  // back in a brand they were deliberately leaving.
+  const noTenantWanted = request.nextUrl.searchParams.has("tenant")
+    && !request.nextUrl.searchParams.get("tenant");
+  if (noTenantWanted) requestHeaders.delete(HOST_HEADER);
+  else requestHeaders.set(HOST_HEADER, request.nextUrl.hostname);
 
   const response = NextResponse.next({ request: { headers: requestHeaders } });
 

@@ -1,8 +1,10 @@
 """
-Tenant Middleware — extracts tenant slug from subdomain on every request.
+Tenant Middleware — works out which brand a request belongs to.
 
-Local:      http://demo.localhost:3000  → slug = "demo"
-Production: https://demo.platform.com  → slug = "demo"
+Local:      http://demo.localhost:3000     → slug = "demo"
+Production: https://demo.platform.com      → slug = "demo"
+Own domain: https://shop.example.com       → the brand that address belongs to
+Fallback:   ?tenant=demo, carried by the frontend in X-Tenant-Slug
 
 Sets request.state.tenant_slug so all downstream code can use it.
 """
@@ -14,6 +16,24 @@ from app.core.config import settings
 
 # Paths that work WITHOUT a tenant (platform-level)
 _NO_TENANT_PATHS = {"/health", "/docs", "/redoc", "/openapi.json"}
+
+
+async def _slug_for_host(host: str) -> str | None:
+    """The brand whose own address this is, looked up once a minute."""
+    from app.core.database import AsyncSessionLocal
+    from app.core.tenant_context import set_bypass_scoping
+    from app.services import tenant_hosts
+
+    if not tenant_hosts.normalise(host):
+        return None
+    try:
+        set_bypass_scoping(True)
+        async with AsyncSessionLocal() as db:
+            return await tenant_hosts.slug_for_host(db, host)
+    except Exception:
+        return None  # never let this fail a request
+    finally:
+        set_bypass_scoping(False)
 
 
 class TenantMiddleware(BaseHTTPMiddleware):
@@ -37,7 +57,15 @@ class TenantMiddleware(BaseHTTPMiddleware):
             elif hostname.endswith(f".{platform}"):
                 slug = hostname[: -(len(platform) + 1)]  # subdomain → slug
             else:
-                slug = None  # unknown host — no tenant
+                slug = None  # not a subdomain — the brand's own address, below
+
+        # 3. The brand's own web address. This is the case that used to fail:
+        #    a link opened in a fresh browser, on a host with no wildcard
+        #    subdomains, has no cookie, no ?tenant= and no subdomain — and the
+        #    visitor landed on no brand at all.
+        if not slug:
+            host = request.headers.get("x-storefront-host") or request.headers.get("host", "")
+            slug = await _slug_for_host(host)
 
         request.state.tenant_slug = slug
 

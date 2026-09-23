@@ -86,6 +86,26 @@ async function serverTenantSlug(): Promise<string | null> {
   }
 }
 
+/** The address the visitor opened. On a host with no wildcard subdomains this
+ *  is what tells the API which brand's shop was asked for.
+ *
+ *  An empty `?tenant=` means "no brand on purpose" — how a platform admin signs
+ *  in at the root — and withholds it. */
+async function serverStorefrontHost(): Promise<string | null> {
+  if (typeof window !== "undefined") {
+    const params = new URLSearchParams(window.location.search);
+    if (params.has("tenant") && !params.get("tenant")) return null;
+    return window.location.hostname;
+  }
+  try {
+    const { headers } = await import("next/headers");
+    const h = await headers();
+    return h.get("x-storefront-host") ?? h.get("host");
+  } catch {
+    return null;
+  }
+}
+
 // In-memory token store (never persisted to localStorage for XSS safety)
 let accessToken: string | null = null;
 
@@ -233,6 +253,12 @@ async function request<T>(url: string, options: RequestOptions = {}): Promise<T>
   const slug = currentTenantSlug() ?? (await serverTenantSlug());
   if (slug) {
     headers.set("X-Tenant-Slug", slug);
+  } else {
+    // No subdomain, no cookie, no ?tenant= — someone opened the shop's link in
+    // a fresh browser. The address they opened is what says which shop it is,
+    // and the API cannot see it otherwise: it is served from its own host.
+    const host = await serverStorefrontHost();
+    if (host) headers.set("X-Storefront-Host", host);
   }
 
   const fullUrl = url.startsWith("http") ? url : `${API_BASE}${url}`;

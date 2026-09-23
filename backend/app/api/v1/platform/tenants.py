@@ -44,6 +44,9 @@ class TenantUpdate(BaseModel):
     name: str | None = None
     status: str | None = None   # active | suspended | cancelled
     plan: str | None = None
+    # The web address this brand's shop is reached at, so a link opened in a
+    # fresh browser lands on the right shop. Host only — no scheme, no path.
+    custom_domain: str | None = None
 
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
@@ -56,7 +59,7 @@ async def list_tenants(
     _require_platform_admin(request)
     result = await db.execute(text("""
         SELECT t.id, t.slug, t.name, t.email, t.status, t.plan,
-               t.created_at,
+               t.custom_domain, t.created_at,
                COUNT(u.id) AS user_count
         FROM tenants t
         LEFT JOIN users u ON u.tenant_id = t.id
@@ -166,6 +169,17 @@ async def update_tenant(
     if not updates:
         raise HTTPException(status_code=400, detail="Nothing to update")
 
+    if "custom_domain" in updates:
+        from app.services import tenant_hosts
+
+        cleaned = tenant_hosts.normalise(updates["custom_domain"])
+        clash = (await db.execute(text(
+            "SELECT slug FROM tenants WHERE lower(custom_domain) = :d AND slug <> :s"
+        ), {"d": cleaned, "s": slug})).first()
+        if cleaned and clash:
+            raise HTTPException(status_code=409, detail=f"'{cleaned}' already belongs to '{clash[0]}'")
+        updates["custom_domain"] = cleaned or None
+
     set_clause = ", ".join(f"{k}=:{k}" for k in updates)
     updates["slug"] = slug
 
@@ -174,6 +188,10 @@ async def update_tenant(
         updates,
     )
     await db.commit()
+    if "custom_domain" in updates:
+        from app.services import tenant_hosts
+
+        tenant_hosts.forget()
     return {"message": f"Tenant '{slug}' updated", "updated": list(data.model_dump(exclude_none=True).keys())}
 
 

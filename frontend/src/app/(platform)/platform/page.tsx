@@ -256,6 +256,8 @@ function ManageTenantModal({ tenant, onClose, onChanged }: { tenant: Tenant; onC
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [purgeText, setPurgeText] = useState("");
+  const [domain, setDomain] = useState(tenant.custom_domain ?? "");
+  const [savingDomain, setSavingDomain] = useState(false);
 
   useEffect(() => {
     platformService.getFeatures(tenant.slug).then(setFeatures).catch(() => {});
@@ -290,6 +292,45 @@ function ManageTenantModal({ tenant, onClose, onChanged }: { tenant: Tenant; onC
         </div>
         <div style={{ fontSize: "12px", color: "#6B7280", marginBottom: "20px", fontFamily: "monospace" }}>{tenant.slug}</div>
         {msg && <div style={{ background: "rgba(52,211,153,.1)", color: "#34D399", padding: "8px 12px", borderRadius: "8px", fontSize: "12px", marginBottom: "14px" }}>{msg}</div>}
+
+        {/* The address this shop is reached at. Without it, a link opened in
+            a fresh browser — no cookie, no subdomain — lands on no brand. */}
+        <div style={{ marginBottom: "22px" }}>
+          <div style={{ fontSize: "12px", fontWeight: 700, color: "#A78BFA", textTransform: "uppercase", letterSpacing: ".05em", marginBottom: "10px" }}>Shop address</div>
+          <div style={{ display: "flex", gap: "8px" }}>
+            <input
+              value={domain}
+              onChange={(e) => setDomain(e.target.value)}
+              placeholder="shop.example.com"
+              style={{ flex: 1, background: "#0B0D12", border: "1px solid #1E2230", borderRadius: "8px", padding: "10px 12px", color: "#E5E7EB", fontSize: "13px", fontFamily: "monospace" }}
+            />
+            <button
+              onClick={async () => {
+                setSavingDomain(true);
+                setMsg(null);
+                try {
+                  await platformService.updateTenant(tenant.slug, { custom_domain: domain.trim() });
+                  setMsg(domain.trim() ? `This shop now answers at ${domain.trim()}` : "Address cleared.");
+                  onChanged();
+                } catch (err) {
+                  setMsg(err instanceof Error && err.message ? err.message : "Could not save that address.");
+                } finally {
+                  setSavingDomain(false);
+                }
+              }}
+              disabled={savingDomain}
+              style={{ background: "rgba(167,139,250,.12)", color: "#A78BFA", border: "1px solid rgba(167,139,250,.3)", padding: "10px 16px", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: savingDomain ? "wait" : "pointer" }}
+            >
+              {savingDomain ? "Saving…" : "Save"}
+            </button>
+          </div>
+          <p style={{ fontSize: "11.5px", color: "#6B7280", marginTop: "8px", lineHeight: 1.6 }}>
+            The host on its own — no https://, no path. A visitor who opens this address
+            with no cookie and no subdomain gets this brand&apos;s shop. While the platform
+            runs a single brand, every address on it resolves to that brand anyway; from the
+            second brand onward each one needs its own address here.
+          </p>
+        </div>
 
         {/* Feature flags */}
         <div style={{ marginBottom: "22px" }}>

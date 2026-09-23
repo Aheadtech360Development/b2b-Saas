@@ -29,6 +29,8 @@ export interface UpdateTenantPayload {
   name?: string;
   status?: "active" | "suspended" | "cancelled";
   plan?: string;
+  /** Host only — "shop.example.com", no https:// and no path. */
+  custom_domain?: string;
 }
 
 export interface FeatureFlag {

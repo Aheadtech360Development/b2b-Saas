@@ -27,6 +27,9 @@ export interface Tenant {
   email: string;
   status: "active" | "suspended" | "cancelled";
   plan: string;
+  /** The web address this brand's shop is reached at. A link opened in a
+   *  fresh browser lands on the right shop because of this. */
+  custom_domain?: string | null;
   created_at: string;
   user_count: number;
 }
