@@ -551,13 +551,19 @@ def render_chrome(definition: dict[str, Any], state: dict[str, Any] | None,
     if not top and not bottom:
         return None
 
+    from app.services import theme_icons
+
     rendered = apply_logo({
         "key": "chrome",
         "label": "Chrome",
         "kind": "chrome",
         "css": normalise_css(definition.get("css") or ""),
         "stylesheets": definition.get("stylesheets") or [],
-        "svg_defs": definition.get("svg_defs") or "",
+        # Icons the design points at but never shipped are drawn for it.
+        "svg_defs": theme_icons.fill_gaps(
+            definition.get("svg_defs") or "",
+            "".join(b["html"] for b in top + bottom),
+        ),
         "sections": top + bottom,
     }, (state or {}).get("logo") or {})
     cut = len(top)
@@ -629,13 +635,19 @@ def render_page(definition: dict[str, Any], state: dict[str, Any] | None, page_k
                 (top if role in _CHROME_TOP else bottom).append(block)
             blocks = top + blocks + bottom
 
+    from app.services import theme_icons
+
     rendered = {
         "key": page_key,
         "label": page.get("label") or page_key.title(),
         "kind": page.get("kind") or "page",
         "css": normalise_css(definition.get("css") or ""),
         "stylesheets": definition.get("stylesheets") or [],
-        "svg_defs": definition.get("svg_defs") or "",
+        # Icons the design points at but never shipped are drawn for it.
+        "svg_defs": theme_icons.fill_gaps(
+            definition.get("svg_defs") or "",
+            "".join(b["html"] for b in blocks),
+        ),
         "sections": blocks,
     }
     return apply_logo(rendered, logo)
