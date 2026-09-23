@@ -165,6 +165,7 @@ class ProductDetail(BaseModel):
     # and the data its templates can print.
     template_id: UUID | None = None
     metafields: dict[str, Any] = {}
+    theme_page: str | None = None
 
     model_config = {"from_attributes": True}
 
@@ -242,6 +243,8 @@ class ProductUpdate(BaseModel):
     template_id: UUID | None = None
     # {key: text} a template can print — {{ product.metafields.key }}
     metafields: dict[str, Any] | None = None
+    # Which of the theme's product layouts to draw this product in.
+    theme_page: str | None = None
 
 
 class ImageUploadResponse(BaseModel):

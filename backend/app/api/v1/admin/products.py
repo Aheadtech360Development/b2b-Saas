@@ -112,6 +112,8 @@ async def update_product(
     product_id: UUID, payload: ProductUpdate, db: AsyncSession = Depends(get_db)
 ):
     fields = payload.model_fields_set
+    if "theme_page" in fields and payload.theme_page:
+        payload.theme_page = str(payload.theme_page)[:60]
     if "metafields" in fields:
         from app.services import product_templates as tpl
         try:

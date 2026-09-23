@@ -268,6 +268,27 @@ def apply_collection(page: dict[str, Any], collection: dict[str, Any], total: in
     return page
 
 
+def apply_product(page: dict[str, Any], product: dict[str, Any]) -> dict[str, Any]:
+    """Name this product where the design named its example.
+
+    Only outside the buying section — that one is replaced wholesale by the
+    real gallery, options and add to cart, which the store already has.
+    """
+    for block in page.get("sections", []):
+        if block.get("role") == "product_block":
+            continue
+        soup = BeautifulSoup(block["html"], "html.parser")
+        touched = False
+        for crumb in soup.select(".breadcrumb"):
+            texts = [t for t in crumb.find_all(string=True) if t.strip()]
+            if texts:
+                texts[-1].replace_with(f" {product.get('name', '')}")
+                touched = True
+        if touched:
+            block["html"] = str(soup)
+    return page
+
+
 def render_page(definition: dict[str, Any], state: dict[str, Any] | None, page_key: str,
                 items: dict[str, list[dict[str, Any]]] | None = None) -> dict[str, Any] | None:
     """A whole page: the sections this brand shows, in its order, filled in."""
@@ -285,7 +306,7 @@ def render_page(definition: dict[str, Any], state: dict[str, Any] | None, page_k
     hidden = set(page_state.get("hidden") or [])
     values = page_state.get("values") or {}
 
-    blocks = []
+    blocks: list[dict[str, Any]] = []
     for sid in order:
         if sid in hidden:
             continue
@@ -298,7 +319,7 @@ def render_page(definition: dict[str, Any], state: dict[str, Any] | None, page_k
                 if key.startswith(f"{sid}|")
             }
             html = fill_repeaters(html, section.get("repeaters") or [], mine)
-        blocks.append({"id": sid, "html": html})
+        blocks.append({"id": sid, "html": html, "role": section.get("role") or ""})
     return {
         "key": page_key,
         "label": page.get("label") or page_key.title(),

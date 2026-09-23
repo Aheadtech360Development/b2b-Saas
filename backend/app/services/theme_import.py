@@ -202,6 +202,37 @@ def _fields_for(section: Tag) -> list[dict[str, Any]]:
     return fields
 
 
+_BUY_WORDS = ("add to cart", "add to bag", "buy now", "build a gang sheet", "start designing")
+
+
+def _buy_block_score(section: Tag) -> int:
+    """How much this section looks like where the product is bought.
+
+    A product page has one such place — the gallery and the buy box — and
+    several sections that merely mention buying ("Pairs well with", a closing
+    call to action). Scoring and then taking the best keeps exactly one.
+    """
+    classes = " ".join(
+        [*(section.get("class") or [])]
+        + [c for tag in section.find_all(True) for c in (tag.get("class") or [])]
+    )
+    score = 0
+    if "buybox" in classes:
+        score += 6
+    if "pdp-grid" in classes or "product-form" in classes:
+        score += 4
+    if "gallery" in classes:
+        score += 2
+    if "variant-group" in classes or "qty-row" in classes or "swatch-row" in classes:
+        score += 3
+    text = _text_of(section).lower()
+    if any(w in text for w in _BUY_WORDS):
+        score += 2
+    if section.find("h1") is not None:
+        score += 2
+    return score
+
+
 def _page_key(panel_id: str, label: str) -> tuple[str, str]:
     """A stable key for a page, and what kind of page it is."""
     slug = re.sub(r"[^a-z0-9]+", "-", (panel_id or label or "page").lower()).strip("-")
@@ -261,6 +292,9 @@ def import_html(html: str, *, name: str) -> dict[str, Any]:
             sections.append({
                 "id": f"{key}-{i}",
                 "label": _section_label(child, i),
+                # Filled in below for product pages: the one section where the
+                # product is actually bought.
+                "role": "",
                 "html": str(child),
                 "fields": _fields_for(child),
                 # Rows of cards the store fills with its own products.
@@ -268,6 +302,17 @@ def import_html(html: str, *, name: str) -> dict[str, Any]:
             })
         if not sections:
             continue
+        if kind == "product":
+            # Exactly one section is where the product is bought; the
+            # storefront replaces that one with the real thing.
+            scored = [
+                (_buy_block_score(BeautifulSoup(s["html"], "html.parser")), i)
+                for i, s in enumerate(sections)
+            ]
+            best_score, best = max(scored)
+            if best_score >= 5:
+                sections[best]["role"] = "product_block"
+                sections[best]["label"] = "Product — gallery, options, add to cart"
         pages[key] = {"label": label or key.title(), "kind": kind, "sections": sections}
 
     if not pages:

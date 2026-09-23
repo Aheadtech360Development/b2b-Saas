@@ -389,6 +389,62 @@ async def get_storefront_collection(
     return {"page": rendered, "collection": found["collection"], "total": found["total"]}
 
 
+@public_router.get("/theme/product/{slug}")
+async def get_storefront_product_page(
+    slug: str,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """A product, drawn in the theme's layout for it.
+
+    The section where the product is bought comes back marked `product_block`
+    and with no markup of its own: the storefront puts its real gallery,
+    variants, options and add to cart there, so buying works exactly as it
+    does without a theme. Everything around it is the design.
+    """
+    from app.models.brand_theme import BrandTheme
+    from app.models.product import Product
+    from app.services import theme_data, theme_render
+
+    tid = await _tenant_id_from_slug(db, getattr(request.state, "tenant_slug", None)) or _resolve_tenant_id(request)
+    if not tid:
+        return {"page": None}
+
+    row = (await db.execute(
+        select(Product.id, Product.name, Product.slug, Product.theme_page)
+        .where(Product.slug == slug, Product.status == "active")
+    )).first()
+    if row is None:
+        return {"page": None}
+
+    theme = (await db.execute(
+        select(BrandTheme).where(
+            BrandTheme.tenant_id == tid,
+            BrandTheme.is_active.is_(True),
+            BrandTheme.published.is_not(None),
+        )
+    )).scalar_one_or_none()
+    if theme is None:
+        return {"page": None}
+
+    definition = theme.definition or {}
+    product_pages = [k for k, p in (definition.get("pages") or {}).items() if p.get("kind") == "product"]
+    if not product_pages:
+        return {"page": None}
+    key = row.theme_page if row.theme_page in product_pages else product_pages[0]
+
+    items = await theme_data.page_items(db, theme.published, key)
+    rendered = theme_render.render_page(definition, theme.published, key, items)
+    if rendered is None:
+        return {"page": None}
+    rendered = theme_render.apply_product(rendered, {"name": row.name, "slug": row.slug})
+    # The buying section is the store's, not the design's.
+    for block in rendered.get("sections", []):
+        if block.get("role") == "product_block":
+            block["html"] = ""
+    return {"page": rendered, "layout": key}
+
+
 # ── Public: storefront branding by subdomain ──────────────────────────────────
 @public_router.get("/branding")
 async def get_storefront_branding(

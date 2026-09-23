@@ -67,8 +67,12 @@ def _pages_summary(theme: BrandTheme) -> list[dict]:
             "section_count": len(ids),
             "hidden_count": len([i for i in ids if i in hidden]),
         })
-    order = {"home": 0, "collection": 1}
-    rows.sort(key=lambda r: (order.get(r["key"], 2), r["label"]))
+    # Home, then the collection template, then the product layouts in the
+    # order the design file has them — the same order the storefront falls
+    # back to, so "Default" in the product editor means what it says.
+    position = {key: i for i, key in enumerate(pages)}
+    first = {"home": 0, "collection": 1}
+    rows.sort(key=lambda r: (first.get(r["key"], 2), position.get(r["key"], 0)))
     return rows
 
 

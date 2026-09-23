@@ -4,6 +4,21 @@ import { notFound } from "next/navigation";
 import { productsService } from "@/services/products.service";
 import { titleWithBrand } from "@/lib/brand";
 import { ProductDetailClient } from "./ProductDetailClient";
+import ThemeProductPage from "@/components/storefront/ThemeProductPage";
+import type { ThemePage } from "@/components/storefront/ThemeRenderer";
+import { apiClient } from "@/lib/api-client";
+
+/** This brand's theme layout for this product, when it has one. */
+async function themeProductPage(slug: string): Promise<ThemePage | null> {
+  try {
+    const res = await apiClient.get<{ page: ThemePage | null }>(
+      `/api/v1/storefront/theme/product/${encodeURIComponent(slug)}`, { skipAuth: true },
+    );
+    return res?.page ?? null;
+  } catch {
+    return null;
+  }
+}
 
 interface PageProps {
   params: Promise<{ slug: string }>;
@@ -67,5 +82,9 @@ export default async function ProductDetailPage({ params }: PageProps) {
   //     <ProductDetailClient product={product} />
   //   </>
   // );
+  // The brand's own theme draws the page around the real buying controls;
+  // without a theme, the product page is what it has always been.
+  const themePage = await themeProductPage(slug);
+  if (themePage) return <ThemeProductPage page={themePage} slug={slug} />;
   return <ProductDetailClient slug={slug} />;
 }

@@ -21,7 +21,7 @@ export interface ThemePage {
   css: string;
   stylesheets: string[];
   svg_defs: string;
-  sections: { id: string; html: string }[];
+  sections: { id: string; html: string; role?: string }[];
 }
 
 export default function ThemeRenderer({ page }: { page: ThemePage }) {

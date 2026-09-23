@@ -116,6 +116,10 @@ class Product(TenantMixin, BaseModel):
     # Flat key → value data a template can print: {{ product.metafields.key }}
     metafields: Mapped[dict] = mapped_column(JSONB, default=dict, nullable=False, server_default="{}")
 
+    # Which of the theme's product layouts this product is drawn in (migration
+    # 0049). NULL → the theme's first product layout.
+    theme_page: Mapped[str | None] = mapped_column(String(60), nullable=True)
+
     options: Mapped[list["ProductOption"]] = relationship(
         "ProductOption", back_populates="product", cascade="all, delete-orphan",
         order_by="ProductOption.position",

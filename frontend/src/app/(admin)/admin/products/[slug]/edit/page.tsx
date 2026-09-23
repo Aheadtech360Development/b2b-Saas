@@ -25,6 +25,7 @@ import { VariantOptionsEditor, type ColorOption } from "@/components/admin/Varia
 import { VariantBulkEditor } from "@/components/admin/VariantBulkEditor";
 import { ProductOptionsBuilder } from "@/components/admin/ProductOptionsBuilder";
 import { productTemplatesService, type ProductTemplateRow } from "@/services/productTemplates.service";
+import { themesService, type ThemePageSummary } from "@/services/themes.service";
 import { displayUrl } from "@/lib/brand";
 
 const METAFIELD_KEY = /^[a-z][a-z0-9_]{0,39}$/;
@@ -118,7 +119,12 @@ export default function AdminProductEditPage() {
   const [metaRows, setMetaRows] = useState<{ key: string; value: string }[]>([]);
   useEffect(() => {
     productTemplatesService.list().then(setTemplates).catch(() => setTemplates([]));
+    // The theme's product layouts, when this brand runs a theme.
+    themesService.get()
+      .then((r) => setThemeLayouts((r.theme?.pages ?? []).filter((p) => p.kind === "product")))
+      .catch(() => setThemeLayouts([]));
   }, []);
+  const [themeLayouts, setThemeLayouts] = useState<ThemePageSummary[]>([]);
 
   // Variant expand state
   const [expandedGroups, setExpandedGroups] = useState<string[]>([]);
@@ -453,6 +459,7 @@ export default function AdminProductEditPage() {
         size_chart_data: (product as any).size_chart_data ?? null,
         highlight_text: (product as any).highlight_text ?? null,
         template_id: product.template_id ?? null,
+        theme_page: (product as any).theme_page ?? null,
         metafields,
       });
       await Promise.all([...variantSaves, productSave]);
@@ -1025,6 +1032,26 @@ export default function AdminProductEditPage() {
               </button>
             </div>
           </div>
+
+          {/* Which of the theme's product layouts this product uses */}
+          {themeLayouts.length > 0 && (
+            <div style={sectionCard}>
+              <span style={sectionTitle}>Theme layout</span>
+              <select
+                value={(product as any).theme_page ?? ""}
+                onChange={e => setProduct(p => p ? { ...p, theme_page: e.target.value || null } as any : p)}
+                style={{ ...inputStyle, background: "#fff" }}
+                aria-label="Theme layout"
+              >
+                <option value="">Default ({themeLayouts[0]?.label})</option>
+                {themeLayouts.map(l => <option key={l.key} value={l.key}>{l.label}</option>)}
+              </select>
+              <p style={{ fontSize: "12px", color: "#7A7880", marginTop: "8px", lineHeight: 1.5 }}>
+                Which of your theme&apos;s product layouts this product is drawn in. The gallery,
+                options and add to cart stay the same — only what surrounds them changes.
+              </p>
+            </div>
+          )}
 
           {/* Product page template */}
           <div style={sectionCard}>

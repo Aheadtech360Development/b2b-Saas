@@ -89,6 +89,8 @@ export interface ProductDetail {
   /** Product page template (null → the brand's default) and the data it can print. */
   template_id?: string | null;
   metafields?: Record<string, string>;
+  /** Which of the theme's product layouts this product is drawn in. */
+  theme_page?: string | null;
   gang_sheet_type?: "gang_sheet" | "upload_by_size" | null;
   gang_sheet_config?: {
     printer_width?: number;

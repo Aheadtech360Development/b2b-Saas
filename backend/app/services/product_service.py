@@ -732,6 +732,7 @@ def _product_to_dict(product: Product) -> dict:
         "base_price": float(product.base_price) if getattr(product, "base_price", None) is not None else None,
         "template_id": str(product.template_id) if getattr(product, "template_id", None) else None,
         "metafields": getattr(product, "metafields", None) or {},
+        "theme_page": getattr(product, "theme_page", None),
     }
 
 
