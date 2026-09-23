@@ -26,6 +26,8 @@ export interface GuestLine {
   image_url?: string | null;
   /** Set on a line made from options; the server prices it from these. */
   selections?: Record<string, string>;
+  /** Set on a gang sheet the buyer already built; it carries its own price. */
+  gang_sheet_order_id?: string;
 }
 
 /** The key that tells two configured lines apart: same choices, same line. */
@@ -58,10 +60,32 @@ export function addToGuestCart(line: GuestLine): void {
 
 /** What the checkout sends for one line: the server prices it from this. */
 export function guestCheckoutItem(line: GuestLine): {
-  quantity: number; variant_id?: string; product_id?: string; selections?: Record<string, string>;
+  quantity: number; variant_id?: string; product_id?: string;
+  selections?: Record<string, string>; gang_sheet_order_id?: string;
 } {
+  if (line.gang_sheet_order_id) {
+    return { quantity: line.quantity, gang_sheet_order_id: line.gang_sheet_order_id };
+  }
   if (line.selections) {
     return { quantity: line.quantity, product_id: line.product_id, selections: line.selections };
   }
   return { quantity: line.quantity, variant_id: line.variant_id };
+}
+
+/** A built gang sheet, as a line in the cart a guest already has. */
+export function gangSheetLine(job: {
+  id: string; reference: string; sheet_name: string; price_per_sheet: number | string;
+  sheet_quantity: number;
+}): GuestLine {
+  return {
+    variant_id: `gs:${job.id}`,
+    quantity: job.sheet_quantity || 1,
+    product_id: "",
+    product_name: `Gang Sheet ${job.reference} — ${job.sheet_name}`,
+    slug: "",
+    color: null,
+    size: null,
+    unit_price: Number(job.price_per_sheet) || 0,
+    gang_sheet_order_id: job.id,
+  };
 }

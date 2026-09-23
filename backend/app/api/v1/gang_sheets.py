@@ -455,6 +455,22 @@ async def _inspect_and_store(db: AsyncSession, artworks: list[GangSheetArtwork])
     await db.flush()
 
 
+def _may_touch(request: Request, order: GangSheetOrder) -> bool:
+    """Whether this request is allowed to read or change this job.
+
+    A job made while signed in belongs to that account. A job made without one
+    belongs to whoever holds its id — the person it was made by, who got it
+    back when they made it and in every email about it since.
+    """
+    user_id = getattr(request.state, "user_id", None)
+    company_id = getattr(request.state, "company_id", None)
+    if order.user_id is None and order.company_id is None:
+        return True
+    if user_id and str(order.user_id) == str(user_id):
+        return True
+    return bool(company_id and str(order.company_id) == str(company_id))
+
+
 async def _load_artworks(db: AsyncSession, order_id: uuid.UUID) -> list[GangSheetArtwork]:
     rows = await db.execute(
         select(GangSheetArtwork)
@@ -809,11 +825,7 @@ async def add_artwork(
     if not order:
         raise HTTPException(status_code=404, detail="Gang sheet order not found")
 
-    user_id = getattr(request.state, "user_id", None)
-    company_id = getattr(request.state, "company_id", None)
-    owns = (company_id and str(order.company_id) == str(company_id)) or (
-        user_id and str(order.user_id) == str(user_id)
-    )
+    owns = _may_touch(request, order)
     if not owns:
         raise HTTPException(status_code=404, detail="Gang sheet order not found")
     if order.status not in _BUYER_EDITABLE:
@@ -865,11 +877,7 @@ async def my_order_detail(
     if not order:
         raise HTTPException(status_code=404, detail="Gang sheet order not found")
 
-    user_id = getattr(request.state, "user_id", None)
-    company_id = getattr(request.state, "company_id", None)
-    owns = (company_id and str(order.company_id) == str(company_id)) or (
-        user_id and str(order.user_id) == str(user_id)
-    )
+    owns = _may_touch(request, order)
     if not owns and not getattr(request.state, "is_admin", False):
         raise HTTPException(status_code=404, detail="Gang sheet order not found")
 
@@ -895,11 +903,7 @@ async def save_my_layout(
     if not order:
         raise HTTPException(status_code=404, detail="Gang sheet order not found")
 
-    user_id = getattr(request.state, "user_id", None)
-    company_id = getattr(request.state, "company_id", None)
-    owns = (company_id and str(order.company_id) == str(company_id)) or (
-        user_id and str(order.user_id) == str(user_id)
-    )
+    owns = _may_touch(request, order)
     if not owns:
         raise HTTPException(status_code=404, detail="Gang sheet order not found")
     if order.status not in _BUYER_EDITABLE:
@@ -929,11 +933,7 @@ async def rebuild_order(
     if not order:
         raise HTTPException(status_code=404, detail="Gang sheet order not found")
 
-    user_id = getattr(request.state, "user_id", None)
-    company_id = getattr(request.state, "company_id", None)
-    owns = (company_id and str(order.company_id) == str(company_id)) or (
-        user_id and str(order.user_id) == str(user_id)
-    )
+    owns = _may_touch(request, order)
     if not owns:
         raise HTTPException(status_code=404, detail="Gang sheet order not found")
     if order.status not in _BUYER_EDITABLE:
@@ -1026,11 +1026,7 @@ async def revise_upload_by_size(
     if not order:
         raise HTTPException(status_code=404, detail="Gang sheet order not found")
 
-    user_id = getattr(request.state, "user_id", None)
-    company_id = getattr(request.state, "company_id", None)
-    owns = (company_id and str(order.company_id) == str(company_id)) or (
-        user_id and str(order.user_id) == str(user_id)
-    )
+    owns = _may_touch(request, order)
     if not owns:
         raise HTTPException(status_code=404, detail="Gang sheet order not found")
     if order.status not in _BUYER_EDITABLE:
@@ -1129,11 +1125,7 @@ async def resubmit_order(
     if not order:
         raise HTTPException(status_code=404, detail="Gang sheet order not found")
 
-    user_id = getattr(request.state, "user_id", None)
-    company_id = getattr(request.state, "company_id", None)
-    owns = (company_id and str(order.company_id) == str(company_id)) or (
-        user_id and str(order.user_id) == str(user_id)
-    )
+    owns = _may_touch(request, order)
     if not owns:
         raise HTTPException(status_code=404, detail="Gang sheet order not found")
     if order.status != STATUS_REVISION:

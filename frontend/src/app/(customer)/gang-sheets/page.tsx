@@ -37,13 +37,8 @@ export default function GangSheetBuilderPage() {
 
   useEffect(() => {
     if (isLoading) return;
-    // The builder saves to the buyer's account, so it needs one. Come back here
-    // after signing in, with the same product and size.
-    if (!isAuthenticated()) {
-      const next = window.location.pathname + window.location.search;
-      window.location.href = `/login?next=${encodeURIComponent(next)}`;
-      return;
-    }
+    // No account needed. A sheet is reached by the email the buyer gives it,
+    // which the builder asks for on the way to saving.
 
     const params = new URLSearchParams(window.location.search);
     const productId = params.get("product");

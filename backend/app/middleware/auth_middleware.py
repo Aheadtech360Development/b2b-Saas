@@ -248,9 +248,17 @@ class AuthMiddleware(BaseHTTPMiddleware):
         # Blog posts — public listing and detail
         if path.startswith("/api/v1/blog-posts"):
             return True
-        # Gang sheet catalogue — public so the builder can render sizes and pricing
-        # to a visitor. Submitting a job and uploading artwork stay authenticated:
-        # they write data and accept large files, so they need an accountable user.
+        # The gang sheet builder, open to anybody.
+        #
+        # A sheet is ordered the way everything else here is ordered: no
+        # account. What identifies a job is the email the buyer gives it —
+        # every message about the job goes there — and coming back to one
+        # needs its id, which is a random uuid nobody is given but its owner.
+        # The buyer's own list of jobs still needs an account, because that is
+        # a list of everything they have ever sent and only a signed-in person
+        # may have it.
+        if path.startswith("/api/v1/gang-sheets/") and not path.startswith("/api/v1/gang-sheets/my-"):
+            return True
         if path == "/api/v1/gang-sheets/sizes":
             return True
         # Invoice summary — public for pay-now email link access

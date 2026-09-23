@@ -78,6 +78,8 @@ class GuestCartItem(BaseModel):
     variant_id: UUID | None = None
     product_id: UUID | None = None
     selections: dict[str, str] | None = None
+    # A gang sheet the buyer already built. It carries its own price.
+    gang_sheet_order_id: UUID | None = None
 
 
 class GuestCheckoutRequest(BaseModel):
@@ -134,11 +136,46 @@ async def guest_checkout(
     # 1. Validate + price each item using MSRP
     order_items_data = []
     ordered_product_slugs: set[str] = set()
+    gang_sheet_ids: list[UUID] = []
     subtotal = Decimal("0")
 
     for cart_item in payload.items:
         if cart_item.quantity < 1:
             raise ValidationError("Quantity must be at least 1")
+
+        # A gang sheet. It was priced when it was built, from the sheet sizes
+        # the brand set up, and that snapshot is what it is billed at.
+        if cart_item.gang_sheet_order_id is not None:
+            from app.api.v1.gang_sheets import GangSheetOrder as _GSOrder
+
+            job = (await db.execute(
+                select(_GSOrder).where(_GSOrder.id == cart_item.gang_sheet_order_id)
+            )).scalar_one_or_none()
+            if job is None:
+                raise NotFoundError("That gang sheet could not be found")
+            if job.order_id is not None:
+                raise ValidationError(f"Gang sheet {job.reference} has already been ordered")
+            if not job.layout:
+                raise ValidationError(
+                    f"Gang sheet {job.reference} has no saved layout yet. "
+                    "Open it in the builder, arrange your designs, and save before ordering."
+                )
+            gs_unit = Decimal(str(job.price_per_sheet or 0))
+            gs_qty = int(job.sheet_quantity or 1)
+            gs_line = gs_unit * gs_qty
+            subtotal += gs_line
+            gang_sheet_ids.append(job.id)
+            order_items_data.append({
+                "variant_id": None,
+                "product_name": f"Gang Sheet {job.reference} — {job.sheet_name}"[:255],
+                "sku": "GANG-SHEET",
+                "color": None,
+                "size": None,
+                "quantity": gs_qty,
+                "unit_price": gs_unit,
+                "line_total": gs_line,
+            })
+            continue
 
         # A product priced from its own options. What it costs is worked out
         # here from the options the brand set up, so a guest pays the same as
@@ -379,6 +416,28 @@ async def guest_checkout(
             meta={"amount": float(total), "method": payload.payment_method or "card",
                   "payment_intent_id": payload.payment_intent_id},
         )
+
+    # The sheets this checkout paid for now belong to the order, and go into
+    # the print team's review queue — the same place a signed-in order puts
+    # them.
+    if gang_sheet_ids:
+        from datetime import datetime as _dt, timezone as _tz
+
+        from app.api.v1.gang_sheets import (
+            STATUS_IN_REVIEW as _GS_IN_REVIEW,
+            STATUS_SUBMITTED as _GS_SUBMITTED,
+            GangSheetOrder as _GSOrder,
+        )
+
+        for _gsid in gang_sheet_ids:
+            _gs = (await db.execute(select(_GSOrder).where(_GSOrder.id == _gsid))).scalar_one_or_none()
+            if _gs is None:
+                continue
+            _gs.order_id = order.id
+            if order.payment_status == "paid":
+                _gs.paid_at = _dt.now(_tz.utc)
+            if _gs.status == _GS_SUBMITTED:
+                _gs.status = _GS_IN_REVIEW
 
     # 6. Create OrderItem records + deduct inventory
     from sqlalchemy import update as _update

@@ -302,7 +302,7 @@ async def get_storefront_page(slug: str, request: Request, db: AsyncSession = De
 
 # ── Public: the brand's own theme ─────────────────────────────────────────────
 @public_router.get("/page/{slug}")
-async def get_storefront_page(
+async def get_written_page(
     slug: str, request: Request, db: AsyncSession = Depends(get_db)
 ) -> dict[str, Any]:
     """One of the shop's written pages — contact, quote, or a policy.
@@ -339,7 +339,11 @@ async def theme_is_active(request: Request, db: AsyncSession = Depends(get_db)) 
 
     tid = await _tenant_id_from_slug(db, getattr(request.state, "tenant_slug", None)) or _resolve_tenant_id(request)
     if not tid:
-        return {"active": False, "chrome": None}
+        # No brand at all: this is the platform's own address, not a shop.
+        return {"active": False, "chrome": None, "brand": None}
+    brand = (await db.execute(
+        text("SELECT name FROM tenants WHERE id = :t"), {"t": str(tid)}
+    )).scalar()
     theme = (await db.execute(
         select(BrandTheme).where(
             BrandTheme.tenant_id == tid,
@@ -347,15 +351,13 @@ async def theme_is_active(request: Request, db: AsyncSession = Depends(get_db)) 
             BrandTheme.published.is_not(None),
         )
     )).scalar_one_or_none()
+    if theme is not None:
+        theme = await theme_upgrade.ensure_current(db, theme)
     if theme is None:
-        return {"active": False, "chrome": None}
-
-    theme = await theme_upgrade.ensure_current(db, theme)
-    if theme is None:
-        return {"active": False, "chrome": None}
+        return {"active": False, "chrome": None, "brand": brand}
     items = await theme_data.page_items(db, theme.published, "home")
     chrome = theme_render.render_chrome(theme.definition or {}, theme.published, items)
-    return {"active": True, "chrome": chrome}
+    return {"active": True, "chrome": chrome, "brand": brand}
 
 
 @public_router.get("/theme/{page_key}")

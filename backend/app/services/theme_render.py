@@ -188,12 +188,27 @@ def fill_repeaters(html: str, repeaters: list[dict[str, Any]], items_by_key: dic
 # pulling the page back up with a negative margin.
 _BODY_PAD = re.compile(r"(body\s*\{[^}]*?)padding-top\s*:\s*[^;}]+;?", re.IGNORECASE)
 
+# A row of items written as `.row div{display:flex}` also matches the wrapper
+# *inside* each item, so that wrapper becomes a row too and its heading and its
+# line of text end up side by side in two cramped columns. The rule was meant
+# for the items, which are the direct children — that is what it is scoped to.
+_FLEX_DESCENDANT = re.compile(
+    r"(\.[A-Za-z][\w-]*)\s+(div|span|li|p|a)(\s*\{[^}]*?display\s*:\s*flex[^}]*\})",
+    re.IGNORECASE,
+)
+
 
 def normalise_css(css: str) -> str:
-    """The design's stylesheet, with the space its own toolbar needed removed."""
+    """The design's stylesheet, as a shop rather than a page on its own.
+
+    Two things a wireframe gets away with and a storefront does not: the space
+    it left for its own toolbar, and a flex rule aimed at a row's items that
+    also lands on everything nested inside them.
+    """
     if not css:
         return css
-    return _BODY_PAD.sub(r"\1", css)
+    css = _BODY_PAD.sub(r"\1", css)
+    return _FLEX_DESCENDANT.sub(r"\1 > \2\3", css)
 
 
 def render_section(section: dict[str, Any], values: dict[str, Any] | None) -> str:

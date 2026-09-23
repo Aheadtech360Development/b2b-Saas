@@ -4,10 +4,11 @@ A shop is reached three ways: a subdomain of the platform, its own domain, or
 a `?tenant=` link. The first and the last are read straight off the request.
 This is the middle one — the brand's own address, kept in `tenants.custom_domain`.
 
-It matters most in the case that was broken: someone opens the shop's link in
-a fresh browser. There is no cookie and no `?tenant=`, and on a host without
-wildcard subdomains there is no subdomain either, so the visitor arrived at no
-brand at all and saw the platform's own bare storefront instead of the shop.
+It matters when a brand brings its own domain. Until then a brand is reached
+at the platform's address with `?tenant=<slug>`, and the platform's own address
+on its own belongs to the platform — not to whichever brand happens to be the
+only one so far. Guessing there would quietly change the day a second brand
+signed up, which is exactly when nobody would be looking.
 
 The map is tiny — one row per brand — so it is held in memory for a minute
 rather than queried on every request.
@@ -25,7 +26,7 @@ logger = logging.getLogger(__name__)
 
 TTL_SECONDS = 60
 
-_cache: dict[str, Any] = {"at": 0.0, "by_host": {}, "only": None}
+_cache: dict[str, Any] = {"at": 0.0, "by_host": {}}
 
 
 def normalise(host: str | None) -> str:
@@ -49,10 +50,6 @@ async def _load(db: AsyncSession) -> None:
         if key:
             by_host[key] = slug
     _cache["by_host"] = by_host
-    # When a platform runs one brand, every address on it is that brand's.
-    # With a second brand this stops, and each one needs its own address —
-    # guessing between two shops would be worse than showing neither.
-    _cache["only"] = rows[0][0] if len(rows) == 1 else None
     _cache["at"] = time.monotonic()
 
 
@@ -65,8 +62,4 @@ async def slug_for_host(db: AsyncSession, host: str | None) -> str | None:
             logger.warning("could not read brand domains: %s", exc)
             return None
 
-    key = normalise(host)
-    found = _cache["by_host"].get(key)
-    if found:
-        return found
-    return _cache["only"]
+    return _cache["by_host"].get(normalise(host))

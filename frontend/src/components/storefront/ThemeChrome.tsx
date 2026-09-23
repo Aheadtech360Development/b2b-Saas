@@ -24,14 +24,20 @@ export interface ThemeChromeData {
 /** The theme this brand publishes, and the chrome that goes around every page.
  *  Cached per request: the root layout and the storefront layout both ask. */
 export const loadThemeChrome = cache(async (): Promise<ThemeChromeData | null> => {
+  return (await loadStore()).chrome;
+});
+
+/** Which brand this address belongs to, and the chrome its shop wears.
+ *  `brand: null` means no brand at all — the platform's own address. */
+export const loadStore = cache(async (): Promise<{ brand: string | null; chrome: ThemeChromeData | null }> => {
   try {
     const { apiClient } = await import("@/lib/api-client");
-    const r = await apiClient.get<{ active: boolean; chrome: ThemeChromeData | null }>(
+    const r = await apiClient.get<{ active: boolean; chrome: ThemeChromeData | null; brand: string | null }>(
       "/api/v1/storefront/theme-active", { skipAuth: true },
     );
-    return r?.active ? (r.chrome ?? null) : null;
+    return { brand: r?.brand ?? null, chrome: r?.active ? (r.chrome ?? null) : null };
   } catch {
-    return null;
+    return { brand: null, chrome: null };
   }
 });
 

@@ -32,6 +32,8 @@ import {
 } from "@/services/gangSheets.service";
 import { analyzeArtwork } from "@/lib/artworkAnalysis";
 import { cartService } from "@/services/cart.service";
+import { addToGuestCart, gangSheetLine } from "@/lib/guestCart";
+import { useAuthStore } from "@/stores/auth.store";
 import { ImageEditorModal } from "@/components/storefront/ImageEditorModal";
 import { WorkingOverlay } from "@/components/storefront/WorkingOverlay";
 import { AutoBuildPanel, type AutoBuildItem, type PickableDesign } from "@/components/storefront/AutoBuildPanel";
@@ -184,6 +186,10 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
   const [savedOk, setSavedOk] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [customLength, setCustomLength] = useState(0);
+  const signedIn = useAuthStore((st) => st.isAuthenticated());
+  // Who to send this job's updates to, when there is no account behind it.
+  const [guest, setGuest] = useState({ name: contactName ?? "", email: contactEmail ?? "" });
+  const [askingWho, setAskingWho] = useState<null | { toCart: boolean }>(null);
   const [textDraft, setTextDraft] = useState({ text: "", color: "#111111", bold: true });
   const [copyN, setCopyN] = useState(1); // "add copies" quantity for the selected design
   const [panTool, setPanTool] = useState(false);  // ✋ hand tool: drag to pan the canvas
@@ -1296,7 +1302,7 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
     // Reopened sheet → replace its order's contents; otherwise submit a new one.
     const order = s.orderId
       ? await gangSheetsService.rebuild(s.orderId, { sheet_size_id: sz.id, sheet_quantity: s.qty, custom_length_in: sCustom ? s.customLength : undefined, artworks: artPayload })
-      : await gangSheetsService.submit({ sheet_size_id: sz.id, sheet_quantity: s.qty, custom_length_in: sCustom ? s.customLength : undefined, artworks: artPayload, product_id: productId || undefined, contact_name: contactName || undefined, contact_email: contactEmail || undefined });
+      : await gangSheetsService.submit({ sheet_size_id: sz.id, sheet_quantity: s.qty, custom_length_in: sCustom ? s.customLength : undefined, artworks: artPayload, product_id: productId || undefined, contact_name: guest.name.trim() || undefined, contact_email: guest.email.trim() || undefined });
     // Artwork rows come back in the order they were sent, so the id for a design
     // is matched by position. Matching on file_url instead would collapse to one
     // id whenever the same file was uploaded twice, quietly stacking those
@@ -1331,6 +1337,9 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
     setSavedOk(false);
     const toSubmit = snapshotAll().filter((s) => s.placements.length > 0);
     if (!toSubmit.length) { setError("Add at least one design to a sheet before saving."); return; }
+    // A sheet gets reviewed and sometimes sent back, so there has to be a way
+    // to reach whoever made it. An account is one way; an email is the other.
+    if (!guest.email.trim()) { setAskingWho({ toCart }); return; }
     setSaving(true);
     try {
       // Each sheet is its own order (its own review + print job); adding them all
@@ -1347,7 +1356,12 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
       setSheets((prev) => prev.map((s) => savedIds.has(s.key) ? { ...s, orderId: savedIds.get(s.key)! } : s));
       if (toCart) {
         try {
-          for (const o of orders) await cartService.addGangSheet(o.id);
+          for (const o of orders) {
+            // Signed in, the sheet joins the company's cart; otherwise the
+            // same cart every other guest line goes into.
+            if (signedIn) await cartService.addGangSheet(o.id);
+            else addToGuestCart(gangSheetLine(o));
+          }
           window.location.href = "/cart";
           return;
         } catch { /* cart unavailable — fall through to the saved state */ }
@@ -1356,7 +1370,7 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
       onSaved(orders[0]!);
     } catch (e) {
       const msg = (e as { message?: string })?.message;
-      setError(msg || "Could not save your gang sheets. Please make sure you're signed in.");
+      setError(msg || "Could not save your gang sheets. Please try again.");
     } finally {
       setSaving(false);
     }
@@ -1467,6 +1481,57 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
 
       {error && <div style={S.errorBar}>{error}{savedOk ? "" : " "}<button onClick={() => setError(null)} style={{ background: "none", border: "none", color: "#991B1B", cursor: "pointer", fontWeight: 700 }}>✕</button></div>}
       {savedOk && !error && <div style={S.okBar}>✓ Saved. It&apos;s in your gang sheets and ready for checkout.</div>}
+
+      {/* Where this job's updates go. A sheet is reviewed and sometimes sent
+          back for a change, so there has to be a way to reach whoever made it —
+          an account is one way, an email is the other. */}
+      {askingWho && (
+        <div
+          onClick={() => setAskingWho(null)}
+          style={{ position: "fixed", inset: 0, zIndex: 600, background: "rgba(0,0,0,.5)", display: "flex", alignItems: "center", justifyContent: "center", padding: "20px" }}
+        >
+          <form
+            onClick={(e) => e.stopPropagation()}
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (!guest.email.trim()) return;
+              const next = askingWho;
+              setAskingWho(null);
+              void save(next.toCart);
+            }}
+            style={{ background: "#fff", borderRadius: "12px", padding: "22px", width: "100%", maxWidth: "380px", boxShadow: "0 20px 60px rgba(0,0,0,.25)" }}
+          >
+            <div style={{ fontSize: "16px", fontWeight: 800, marginBottom: "6px", color: "#111" }}>Where should we send this?</div>
+            <p style={{ fontSize: "13px", color: "#555", lineHeight: 1.6, margin: "0 0 16px" }}>
+              We email you the confirmation, and anything the print team needs to ask
+              about this sheet. No account, no password.
+            </p>
+            <label style={{ display: "block", fontSize: "12.5px", fontWeight: 700, marginBottom: "4px", color: "#333" }}>Your name</label>
+            <input
+              value={guest.name}
+              onChange={(e) => setGuest((g) => ({ ...g, name: e.target.value }))}
+              style={{ width: "100%", boxSizing: "border-box", padding: "10px 12px", border: "1px solid #D5D2CB", borderRadius: "8px", fontSize: "14px", marginBottom: "12px" }}
+            />
+            <label style={{ display: "block", fontSize: "12.5px", fontWeight: 700, marginBottom: "4px", color: "#333" }}>Email</label>
+            <input
+              type="email"
+              required
+              autoFocus
+              value={guest.email}
+              onChange={(e) => setGuest((g) => ({ ...g, email: e.target.value }))}
+              style={{ width: "100%", boxSizing: "border-box", padding: "10px 12px", border: "1px solid #D5D2CB", borderRadius: "8px", fontSize: "14px", marginBottom: "18px" }}
+            />
+            <div style={{ display: "flex", gap: "8px" }}>
+              <button type="button" onClick={() => setAskingWho(null)} style={{ flex: 1, padding: "11px", borderRadius: "8px", border: "1px solid #D5D2CB", background: "#fff", fontSize: "14px", fontWeight: 600, cursor: "pointer" }}>
+                Back
+              </button>
+              <button type="submit" style={{ flex: 2, padding: "11px", borderRadius: "8px", border: "none", background: "#DC2626", color: "#fff", fontSize: "14px", fontWeight: 800, cursor: "pointer" }}>
+                {askingWho.toCart ? "Save & add to cart" : "Save my sheet"}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
 
       {editUpload && (
         <ImageEditorModal

@@ -21,7 +21,8 @@ export async function generateMetadata(): Promise<Metadata> {
 import { Footer } from "@/components/layout/Footer";
 import StorefrontHome from "@/components/home/StorefrontHome";
 import ThemeRenderer, { type ThemePage } from "@/components/storefront/ThemeRenderer";
-import { loadThemeChrome } from "@/components/storefront/ThemeChrome";
+import { loadStore } from "@/components/storefront/ThemeChrome";
+import PlatformLanding from "@/components/platform/PlatformLanding";
 import { apiClient } from "@/lib/api-client";
 
 /** This brand's published theme home page, or null when it has none. */
@@ -35,11 +36,15 @@ async function themeHome(): Promise<ThemePage | null> {
 }
 
 export default async function HomePage() {
+  const store = await loadStore();
+  // No brand was asked for: this is the platform's own address, not a shop.
+  if (!store.brand) return <PlatformLanding />;
+
   const page = await themeHome();
   if (page) {
     // The store's header and footer are drawn by the layout, around every page
     // of the shop; this one leaves its own copies out.
-    return <ThemeRenderer page={page} chromeInLayout={(await loadThemeChrome()) !== null} />;
+    return <ThemeRenderer page={page} chromeInLayout={store.chrome !== null} />;
   }
   return (
     <>
