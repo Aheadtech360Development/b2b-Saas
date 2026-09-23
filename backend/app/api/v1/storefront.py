@@ -479,10 +479,21 @@ async def get_storefront_product_page(
     if rendered is None:
         return {"page": None}
     rendered = theme_render.apply_product(rendered, {"name": row.name, "slug": row.slug})
-    # The design's own product page, whole. The buying section is still marked
-    # so the store can take it over later, deliberately, rather than by
-    # dropping a second product page inside this one.
-    return {"page": rendered, "layout": key}
+
+    # The design's own product page, carrying this product: its pictures, its
+    # words, its prices and the choices it was actually given in the admin.
+    # Choices the design drew that the product doesn't offer are dropped, so
+    # nothing on the page is left as an example.
+    from app.services import theme_product
+
+    data = await theme_product.load(db, row.id)
+    if data is not None:
+        for block in rendered.get("sections", []):
+            if block.get("role") == "product_block":
+                block["html"] = theme_product.fill_product_block(block["html"], data)
+            else:
+                block["html"] = theme_product.fill_size_chart(block["html"], data["size_chart"])
+    return {"page": rendered, "layout": key, "product_id": None if data is None else data["id"]}
 
 
 # ── Public: storefront branding by subdomain ──────────────────────────────────
