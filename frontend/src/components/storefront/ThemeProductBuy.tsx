@@ -16,6 +16,8 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiClient, ApiClientError } from "@/lib/api-client";
+import { UploadBySizeModal } from "@/components/storefront/UploadBySizeModal";
+import type { ProductDetail } from "@/types/product.types";
 import { cartService } from "@/services/cart.service";
 import { useAuthStore } from "@/stores/auth.store";
 import { trackAddToCart } from "@/lib/tracking";
@@ -51,6 +53,19 @@ export interface ThemeVariant {
   sku: string;
 }
 
+/** One of the sheet sizes this gang-sheet product is sold in. */
+export interface ThemeSheet {
+  sheet_id: string;
+  label: string;
+  price: number;
+  width_in: number;
+  height_in: number;
+  custom_length: boolean;
+  price_per_inch: number;
+  min_length_in: number;
+  max_length_in: number;
+}
+
 export interface ThemeProductData {
   id: string;
   slug: string;
@@ -63,6 +78,10 @@ export interface ThemeProductData {
   options: { id: string; name: string; required: boolean; values: { id: string; label: string }[] }[];
   qty_tiers: { min_qty: number; unit_price: number }[];
   gang_sheet: boolean;
+  gang_sheet_type?: string;
+  gang_sheet_config?: ProductDetail["gang_sheet_config"];
+  sheets?: ThemeSheet[];
+  builder_href?: string;
 }
 
 const money = (value: number) => `$${value.toFixed(2)}`;
@@ -71,7 +90,9 @@ export default function ThemeProductBuy({ product }: { product: ThemeProductData
   const router = useRouter();
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated());
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
+  const [uploadOpen, setUploadOpen] = useState(false);
   const busy = useRef(false);
+  const byUpload = product.gang_sheet && product.gang_sheet_type === "upload_by_size";
 
   useEffect(() => {
     const root = document.querySelector<HTMLElement>(`[data-product-id="${CSS.escape(product.id)}"]`);
@@ -82,6 +103,11 @@ export default function ThemeProductBuy({ product }: { product: ThemeProductData
     let colour = product.colours[0]?.label ?? "";
     let size = product.sizes[0]?.label ?? "";
     let quantity = 1;
+
+    // A gang sheet is chosen by the sheet, not by a variant: these are the
+    // sizes the brand set up for this product, in the order it set them.
+    const sheets = product.sheets ?? [];
+    let sheetId = sheets[0]?.sheet_id ?? "";
 
     const priceLine = root.querySelector<HTMLElement>("[data-theme-price]");
     const qtyBox = root.querySelector<HTMLElement>("[data-theme-qty]");
@@ -105,6 +131,16 @@ export default function ThemeProductBuy({ product }: { product: ThemeProductData
     /** The price of what is currently chosen, straight from the store. */
     function showPrice() {
       if (!priceLine) return;
+      if (sheets.length) {
+        // Priced by the sheet: what one costs at the size chosen, times how
+        // many of them.
+        const sheet = sheets.find((s) => s.sheet_id === sheetId) ?? sheets[0];
+        if (!sheet) return;
+        priceLine.textContent = quantity > 1
+          ? `${money(sheet.price)} each · ${money(sheet.price * quantity)}`
+          : money(sheet.price);
+        return;
+      }
       if (matrix) {
         const variant = variantFor(colour, size);
         const unit = variant?.price ?? product.from_price;
@@ -133,6 +169,30 @@ export default function ThemeProductBuy({ product }: { product: ThemeProductData
       }
     }
 
+    /** Whatever kind of product this is, show what it now costs. */
+    function refresh() {
+      if (sheets.length || matrix) showPrice();
+      else void repriceFromServer();
+    }
+
+    /** This product's builder, at the size and quantity chosen here. */
+    function builderHref() {
+      const base = product.builder_href || `/products/${product.slug}`;
+      const cut = base.indexOf("?");
+      const path = cut < 0 ? base : base.slice(0, cut);
+      const params = new URLSearchParams(cut < 0 ? "" : base.slice(cut + 1));
+      if (sheets.length) {
+        if (sheetId) params.set("size", sheetId);
+        if (quantity > 1) params.set("qty", String(quantity));
+      }
+      // Hosts without wildcard subdomains carry the brand in ?tenant=; losing
+      // it on the way to the builder would lose the brand with it.
+      const tenant = new URLSearchParams(window.location.search).get("tenant");
+      if (tenant) params.set("tenant", tenant);
+      const query = params.toString();
+      return query ? `${path}?${query}` : path;
+    }
+
     // ── Choosing ──
     const cleanups: (() => void)[] = [];
 
@@ -153,7 +213,8 @@ export default function ThemeProductBuy({ product }: { product: ThemeProductData
 
       items.forEach((item) => {
         if (item.classList.contains("selected")) {
-          if (optionId) chosen[optionId] = item.dataset.valueId ?? "";
+          if (item.dataset.sheetId) sheetId = item.dataset.sheetId;
+          else if (optionId) chosen[optionId] = item.dataset.valueId ?? "";
           else if (label.startsWith("colo")) colour = item.dataset.label ?? colour;
           else if (label.startsWith("size")) size = item.dataset.label ?? size;
           showChoice(item.dataset.label ?? "");
@@ -162,12 +223,13 @@ export default function ThemeProductBuy({ product }: { product: ThemeProductData
           e.preventDefault();
           items.forEach((other) => other.classList.remove("selected"));
           item.classList.add("selected");
-          if (optionId) chosen[optionId] = item.dataset.valueId ?? "";
+          if (item.dataset.sheetId) sheetId = item.dataset.sheetId;
+          else if (optionId) chosen[optionId] = item.dataset.valueId ?? "";
           else if (label.startsWith("colo")) colour = item.dataset.label ?? "";
           else if (label.startsWith("size")) size = item.dataset.label ?? "";
           showChoice(item.dataset.label ?? "");
           setMessage(null);
-          if (matrix) showPrice(); else void repriceFromServer();
+          refresh();
         };
         item.addEventListener("click", onClick);
         item.style.cursor = "pointer";
@@ -184,7 +246,7 @@ export default function ThemeProductBuy({ product }: { product: ThemeProductData
           if (qtyValue instanceof HTMLInputElement) qtyValue.value = String(quantity);
           else qtyValue.textContent = String(quantity);
         }
-        if (matrix) showPrice(); else void repriceFromServer();
+        refresh();
       };
       buttons.forEach((button) => {
         const down = (button.textContent ?? "").includes("−") || (button.textContent ?? "").trim() === "-";
@@ -205,9 +267,13 @@ export default function ThemeProductBuy({ product }: { product: ThemeProductData
         e.preventDefault();
         if (busy.current) return;
 
-        // A product that is made from artwork is ordered in its builder.
-        if (button.dataset.themeBuy === "upload" || product.gang_sheet) {
-          router.push(`/products/${product.slug}`);
+        // A product made from artwork is ordered in its builder, carrying the
+        // sheet size and quantity chosen here so nothing is asked twice.
+        if (button.dataset.themeBuy === "builder" || button.dataset.themeBuy === "upload" || product.gang_sheet) {
+          // One design at one size is uploaded right here; a sheet several
+          // designs share is arranged in the builder.
+          if (byUpload) setUploadOpen(true);
+          else router.push(builderHref());
           return;
         }
         busy.current = true;
@@ -270,9 +336,22 @@ export default function ThemeProductBuy({ product }: { product: ThemeProductData
 
     showPrice();
     return () => cleanups.forEach((off) => off());
-  }, [product, isAuthenticated, router]);
+  }, [product, isAuthenticated, router, byUpload]);
 
-  if (!message) return null;
+  return (
+    <>
+      {uploadOpen && (
+        <UploadBySizeModal
+          product={{ id: product.id, gang_sheet_config: product.gang_sheet_config ?? null }}
+          onClose={() => setUploadOpen(false)}
+        />
+      )}
+      {message && messageBar(message)}
+    </>
+  );
+}
+
+function messageBar(message: { ok: boolean; text: string }) {
   return (
     <div
       role="status"

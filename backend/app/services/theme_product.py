@@ -112,6 +112,39 @@ async def load(db: AsyncSession, product_id: Any) -> dict[str, Any] | None:
     if not prices and product.base_price is not None:
         prices = [float(product.base_price)]
 
+    # A gang-sheet product has no variant matrix: it is bought by the sheet, at
+    # the sizes and prices this product was given in Gang Sheets -> Sheet Sizes.
+    # Those are its real choices and its real prices, so the design's size row
+    # and price line are filled from them rather than from variants it has none
+    # of.
+    sheets: list[dict[str, Any]] = []
+    if product.gang_sheet_enabled:
+        from app.api.v1.gang_sheets import GangSheetSize
+
+        for s in (await db.execute(
+            select(GangSheetSize)
+            .where(GangSheetSize.product_id == product.id, GangSheetSize.is_active.is_(True))
+            .order_by(GangSheetSize.sort_order, GangSheetSize.name)
+        )).scalars().all():
+            custom = (getattr(s, "pricing_mode", "fixed") or "fixed") == "custom_length"
+            per_inch = float(getattr(s, "price_per_inch", 0) or 0)
+            min_len = float(getattr(s, "min_length_in", 12) or 12)
+            sheets.append({
+                "sheet_id": str(s.id),
+                "label": s.name,
+                "width_in": float(s.width_in),
+                "height_in": float(s.height_in),
+                # What one sheet costs: flat for a fixed size, and for a
+                # custom-length one the shortest length a buyer may order.
+                "price": round(per_inch * min_len, 2) if custom else float(s.price_per_sheet),
+                "custom_length": custom,
+                "price_per_inch": per_inch,
+                "min_length_in": min_len,
+                "max_length_in": float(getattr(s, "max_length_in", 240) or 240),
+            })
+        if not prices:
+            prices = [s["price"] for s in sheets if s["price"]]
+
     # Every buyable combination, so the page can price and add to cart from
     # what the store actually stocks rather than from what the design drew.
     combinations = [
@@ -168,6 +201,18 @@ async def load(db: AsyncSession, product_id: Any) -> dict[str, Any] | None:
         "avg_rating": float(getattr(product, "avg_rating", 0) or 0),
         "size_chart": product.size_chart_data or [],
         "gang_sheet": bool(product.gang_sheet_enabled),
+        "gang_sheet_type": product.gang_sheet_type or "gang_sheet",
+        "gang_sheet_config": product.gang_sheet_config or None,
+        "sheets": sheets,
+        # Where its button goes. An upload-by-size product is ordered from its
+        # own page, where that upload opens; anything else opens the builder.
+        "builder_href": (
+            ""
+            if not product.gang_sheet_enabled
+            else f"/products/{product.slug}"
+            if product.gang_sheet_type == "upload_by_size"
+            else f"/gang-sheets?product={product.id}"
+        ),
     }
 
 
@@ -267,8 +312,15 @@ def _fill_price(root: Tag, data: dict[str, Any]) -> None:
             table.decompose()  # no price breaks set up: no table of them
 
     price_row = root.select_one(".price-row") or root.select_one(".price")
+    sheets = data.get("sheets") or []
     if price_row is not None:
-        if data["from_price"] is not None:
+        if sheets and any(s["price"] for s in sheets):
+            # One sheet, at the size that starts selected: a real price for a
+            # real sheet rather than "starting at" a size nobody picked.
+            price_row.clear()
+            price_row.append(_money(sheets[0]["price"]))
+            price_row["data-from-price"] = f"{sheets[0]['price']:.2f}"
+        elif data["from_price"] is not None:
             keep = price_row.select_one(".from")
             price_row.clear()
             if keep is not None:
@@ -324,6 +376,9 @@ def _build_group(template: str, label: str, values: list[dict[str, Any]], *, swa
             item["data-value-id"] = value["id"]
         if value.get("variant_id"):
             item["data-variant-id"] = value["variant_id"]
+        if value.get("sheet_id"):
+            item["data-sheet-id"] = value["sheet_id"]
+            item["data-price"] = f"{float(value.get('price') or 0):.2f}"
         item["data-label"] = value["label"]
         if swatches:
             hex_value = value.get("hex") or ""
@@ -349,7 +404,15 @@ def _fill_choices(root: Tag, data: dict[str, Any]) -> None:
         return
 
     built: list[Tag] = []
-    if data["pricing_mode"] == "configurable" or data["options"]:
+    if data.get("sheets"):
+        # Bought by the sheet, so the one row that means anything here is the
+        # brand's own sheet sizes for this product. Whatever else the design
+        # drew beside it (a print-type toggle, an example length row) goes the
+        # way of the other examples below.
+        group = _build_group(button_template or fallback, "Sheet Size", data["sheets"], swatches=False)
+        if group is not None:
+            built.append(group)
+    elif data["pricing_mode"] == "configurable" or data["options"]:
         for option in data["options"]:
             wants_swatch = any(v.get("hex") for v in option["values"]) and swatch_template is not None
             template = swatch_template if wants_swatch else (button_template or fallback)
@@ -402,9 +465,17 @@ def fill_product_block(html: str, data: dict[str, Any]) -> str:
     if qty is not None:
         qty["data-theme-qty"] = "1"
 
+    builder = data.get("builder_href") or ""
     for button in root.select("a.btn-primary, button.btn-primary, .btn.btn-primary"):
         text = (button.get_text() or "").strip().lower()
-        button["data-theme-buy"] = "upload" if "upload" in text or "design" in text else "cart"
+        if data.get("gang_sheet"):
+            # Artwork is arranged in the builder, so the design's button opens
+            # it - this product's builder, at the sheet size chosen here.
+            button["data-theme-buy"] = "builder"
+            if button.name == "a" and builder:
+                button["href"] = builder
+        else:
+            button["data-theme-buy"] = "upload" if "upload" in text or "design" in text else "cart"
         if button.name == "a" and not button.get("href"):
             button["href"] = "#"
 

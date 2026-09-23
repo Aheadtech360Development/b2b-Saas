@@ -35,7 +35,7 @@ def _money(value: Decimal | float | None) -> str:
     return f"${float(value):,.2f}"
 
 
-def _product_card(product: Product) -> dict[str, Any]:
+def _product_card(product: Product, sheet_from: float | None = None) -> dict[str, Any]:
     prices = [
         float(v.retail_price)
         for v in (product.variants or [])
@@ -43,6 +43,8 @@ def _product_card(product: Product) -> dict[str, Any]:
     ]
     if not prices and product.base_price is not None:
         prices = [float(product.base_price)]
+    if not prices and sheet_from:
+        prices = [sheet_from]  # a gang sheet is priced by its cheapest sheet
     image = None
     images = sorted(product.images or [], key=lambda i: (not getattr(i, "is_primary", False),))
     if images:
@@ -57,6 +59,32 @@ def _product_card(product: Product) -> dict[str, Any]:
         "badge": "Sale" if on_sale else "",
         "text": product.short_description or "",
     }
+
+
+async def _cards(db: AsyncSession, items: list[Product]) -> list[dict[str, Any]]:
+    """Cards for these products, each with a price it really has.
+
+    A gang-sheet product has no variants to take a price from, so the cheapest
+    sheet the brand set up for it is fetched for the whole batch at once.
+    """
+    gang = [p.id for p in items if getattr(p, "gang_sheet_enabled", False)]
+    cheapest: dict[Any, float] = {}
+    if gang:
+        from app.api.v1.gang_sheets import GangSheetSize
+
+        for pid, per_sheet, mode, per_inch, min_len in (await db.execute(
+            select(GangSheetSize.product_id, GangSheetSize.price_per_sheet, GangSheetSize.pricing_mode,
+                   GangSheetSize.price_per_inch, GangSheetSize.min_length_in)
+            .where(GangSheetSize.product_id.in_(gang), GangSheetSize.is_active.is_(True))
+        )).all():
+            price = (
+                float(per_inch or 0) * float(min_len or 0)
+                if (mode or "fixed") == "custom_length"
+                else float(per_sheet or 0)
+            )
+            if price > 0 and price < cheapest.get(pid, float("inf")):
+                cheapest[pid] = price
+    return [_product_card(p, cheapest.get(p.id)) for p in items]
 
 
 def _collection_card(collection: Collection, count: int) -> dict[str, Any]:
@@ -104,7 +132,7 @@ async def products(
         by_id = {str(p.id): p for p in rows}
         # Hand-picked means in the order they were picked, minus anything that
         # has since been deleted or unpublished.
-        return [_product_card(by_id[str(i)]) for i in wanted if str(i) in by_id][:limit]
+        return (await _cards(db, [by_id[str(i)] for i in wanted if str(i) in by_id]))[:limit]
 
     if collection_slug:
         collection = (await db.execute(
@@ -122,7 +150,7 @@ async def products(
             return []
         loaded = (await db.execute(query.where(Product.id.in_(ids_in_order)))).scalars().unique().all()
         by_id = {p.id: p for p in loaded}
-        return [_product_card(by_id[i]) for i in ids_in_order if i in by_id][:limit]
+        return (await _cards(db, [by_id[i] for i in ids_in_order if i in by_id]))[:limit]
 
     if sort == "name":
         query = query.order_by(Product.name)
@@ -132,7 +160,7 @@ async def products(
         query = query.order_by(Product.created_at.desc())
 
     rows = (await db.execute(query.limit(limit if sort not in {"price_low", "price_high"} else MAX_ITEMS))).scalars().unique().all()
-    cards = [_product_card(p) for p in rows]
+    cards = await _cards(db, list(rows))
     if sort in {"price_low", "price_high"}:
         def key(card: dict) -> float:
             digits = "".join(ch for ch in card["price"] if ch.isdigit() or ch == ".")
@@ -186,7 +214,7 @@ async def collection_page(db: AsyncSession, slug: str, *, page: int = 1, page_si
         .where(Product.id.in_([p.id for p in rows]))
     )).scalars().unique().all() if rows else []
     by_id = {p.id: p for p in loaded}
-    cards = [_product_card(by_id[p.id]) for p in rows if p.id in by_id]
+    cards = await _cards(db, [by_id[p.id] for p in rows if p.id in by_id])
     if sort == "name":
         cards.sort(key=lambda c: c["title"].lower())
 

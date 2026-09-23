@@ -11,6 +11,7 @@
  *
  *   ?product=<id>   whose sheet sizes to use (falls back to the brand's set)
  *   ?size=<id>      the size picked on the product page
+ *   ?qty=<n>        how many of that sheet the product page asked for
  *   ?edit=<id>      reopen a saved job that is still the buyer's to change
  *   ?auto=1         open on Auto Build
  */
@@ -24,6 +25,7 @@ interface Launch {
   sizes: GangSheetSize[];
   productId: string | null;
   sizeId: string | null;
+  qty: number;
   resume: GangSheetOrder | null;
   auto: boolean;
 }
@@ -72,6 +74,7 @@ export default function GangSheetBuilderPage() {
           sizes,
           productId: productId || resume?.product_id || null,
           sizeId: sizeId && sizes.some((s) => s.id === sizeId) ? sizeId : null,
+          qty: Math.max(1, Math.min(999, parseInt(params.get("qty") || "1", 10) || 1)),
           resume,
           auto: params.get("auto") === "1",
         });
@@ -121,6 +124,7 @@ export default function GangSheetBuilderPage() {
       contactEmail={user?.email}
       autoStart={launch.auto}
       initialSizeId={launch.sizeId}
+      initialQty={launch.qty}
       resumeOrder={launch.resume}
       onClose={leave}
       // "Save" keeps the sheet without buying it; it is then waiting under My

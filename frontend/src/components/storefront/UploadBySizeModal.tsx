@@ -27,7 +27,9 @@ import { removeImageBackground, BackgroundRemovalError } from "@/lib/backgroundR
 import type { ProductDetail } from "@/types/product.types";
 
 interface Props {
-  product: ProductDetail;
+  /** Only what pricing and submitting need, so the modal can open from the
+   *  themed product page as well as from the built-in one. */
+  product: Pick<ProductDetail, "id" | "gang_sheet_config">;
   onClose: () => void;
   /**
    * Reopen an existing job instead of starting a new one — how a buyer answers a
