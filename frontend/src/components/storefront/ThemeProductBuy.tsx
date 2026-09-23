@@ -18,6 +18,29 @@ import { useRouter } from "next/navigation";
 import { apiClient, ApiClientError } from "@/lib/api-client";
 import { cartService } from "@/services/cart.service";
 import { useAuthStore } from "@/stores/auth.store";
+import { trackAddToCart } from "@/lib/tracking";
+
+/** The cart a shopper has before they have an account — the same one the
+ *  built-in product page and the cart page already use. */
+const GUEST_CART_KEY = "af_guest_cart";
+
+interface GuestLine {
+  variant_id: string; quantity: number; product_id: string; product_name: string;
+  slug: string; color: string | null; size: string | null; unit_price: number; image_url?: string | null;
+}
+
+function readGuestCart(): GuestLine[] {
+  try { return JSON.parse(localStorage.getItem(GUEST_CART_KEY) || "[]") as GuestLine[]; } catch { return []; }
+}
+
+function addToGuestCart(line: GuestLine) {
+  const cart = readGuestCart();
+  const existing = cart.find((i) => i.variant_id === line.variant_id);
+  if (existing) existing.quantity += line.quantity;
+  else cart.push(line);
+  try { localStorage.setItem(GUEST_CART_KEY, JSON.stringify(cart)); } catch { /* private mode */ }
+  window.dispatchEvent(new Event("af_guest_cart_updated"));
+}
 
 export interface ThemeVariant {
   id: string;
@@ -187,12 +210,6 @@ export default function ThemeProductBuy({ product }: { product: ThemeProductData
           router.push(`/products/${product.slug}`);
           return;
         }
-        if (!isAuthenticated) {
-          say("Sign in to your wholesale account to order.", false);
-          window.setTimeout(() => router.push("/login"), 1200);
-          return;
-        }
-
         busy.current = true;
         const original = button.textContent;
         button.textContent = "Adding…";
@@ -201,7 +218,30 @@ export default function ThemeProductBuy({ product }: { product: ThemeProductData
             const variant = variantFor(colour, size);
             if (!variant) { say("Choose a colour and size first.", false); return; }
             if (variant.stock <= 0) { say("That one is out of stock.", false); return; }
-            await cartService.addMatrix(product.id, [{ variant_id: variant.id, quantity }]);
+            if (isAuthenticated) {
+              await cartService.addMatrix(product.id, [{ variant_id: variant.id, quantity }]);
+            } else {
+              // No account needed to shop: the same guest cart the rest of the
+              // storefront keeps, and the same guest checkout at the end of it.
+              addToGuestCart({
+                variant_id: variant.id, quantity, product_id: product.id, product_name: product.name,
+                slug: product.slug, color: variant.colour || null, size: variant.size || null,
+                unit_price: variant.price ?? 0,
+              });
+              trackAddToCart([{
+                id: variant.id, sku: variant.sku, name: product.name,
+                price: variant.price ?? 0, quantity,
+                variant: [variant.colour, variant.size].filter(Boolean).join(" / "),
+              }]);
+              say("Added to your cart.");
+              return;
+            }
+          } else if (!isAuthenticated) {
+            // A configured product is priced and held server-side, which needs
+            // an account. Say so plainly rather than failing silently.
+            say("Sign in to order this one — it is made to order.", false);
+            window.setTimeout(() => router.push("/login"), 1400);
+            return;
           } else {
             const missing = product.options.find((o) => o.required && !chosen[o.id]);
             if (missing) { say(`Choose ${missing.name.toLowerCase()} first.`, false); return; }
@@ -214,8 +254,8 @@ export default function ThemeProductBuy({ product }: { product: ThemeProductData
         } catch (err) {
           const status = err instanceof ApiClientError ? err.status : 0;
           if (status === 401 || status === 403) {
-            say("Sign in to your wholesale account to order.", false);
-            window.setTimeout(() => router.push("/login"), 1200);
+            say("Please sign in again to finish that.", false);
+            window.setTimeout(() => router.push("/login"), 1400);
           } else {
             say(err instanceof ApiClientError && err.message ? err.message : "Could not add that to your cart.", false);
           }
