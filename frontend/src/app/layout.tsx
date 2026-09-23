@@ -1,7 +1,9 @@
 // frontend/src/app/layout.tsx
 import type { Metadata } from "next";
 import Script from "next/script";
+import { headers } from "next/headers";
 import "./globals.css";
+import ThemeChrome, { ThemeChromeHead, loadThemeChrome } from "@/components/storefront/ThemeChrome";
 import { Providers } from "@/components/providers/Providers";
 import { Header } from "@/components/layout/Header";
 import { DeployRefresh } from "@/components/providers/DeployRefresh";
@@ -14,27 +16,27 @@ export const metadata: Metadata = {
 };
 
 /**
- * Whether this brand's storefront is drawn by its own theme. Decided here, on
- * the server, so a themed page is sent without the app's header at all — it
- * used to render and then hide itself, which is the flash of an old header
- * people saw on every navigation.
+ * Pages that are not the shop: the consoles, the theme editor, and the bare
+ * sign-in pages. Everywhere else is the storefront and wears the brand's own
+ * header and footer.
  */
-async function storeIsThemed(): Promise<boolean> {
-  try {
-    const { apiClient } = await import("@/lib/api-client");
-    const r = await apiClient.get<{ active: boolean }>("/api/v1/storefront/theme-active", { skipAuth: true });
-    return Boolean(r?.active);
-  } catch {
-    return false;
-  }
-}
+const NOT_STOREFRONT = [
+  "/admin", "/platform", "/theme-editor", "/theme-preview", "/ui-preview", "/account",
+  "/login", "/wholesale", "/forgot-password", "/reset-password", "/activate-account",
+];
 
 export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const themed = await storeIsThemed();
+  // Decided here, on the server, so a themed page is sent with the brand's
+  // chrome already in it — rendering the app's and hiding it afterwards is the
+  // flash of an old header people saw on every navigation.
+  const pathname = (await headers()).get("x-pathname") ?? "/";
+  const storefront = !NOT_STOREFRONT.some((p) => pathname === p || pathname.startsWith(`${p}/`));
+  const chrome = storefront ? await loadThemeChrome() : null;
+  const themed = chrome !== null;
   return (
     <html lang="en">
       <head>
@@ -66,7 +68,12 @@ export default async function RootLayout({
           {/* Loads only the tracking tools this brand connected, if any. */}
           <TrackingScripts />
           {!themed && <Header />}
+          {/* The brand's own chrome, around every storefront page — the cart
+              and the checkout included, which the theme has no page for. */}
+          {chrome && <ThemeChromeHead chrome={chrome} />}
+          {chrome && <ThemeChrome sections={chrome.top} />}
           {children}
+          {chrome && <ThemeChrome sections={chrome.bottom} />}
         </Providers>
       </body>
     </html>

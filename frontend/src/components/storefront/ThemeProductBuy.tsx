@@ -72,6 +72,7 @@ export interface ThemeProductData {
   name: string;
   pricing_mode: string;
   from_price: number | null;
+  images: { url: string; alt: string }[];
   variants: ThemeVariant[];
   colours: { label: string; hex: string }[];
   sizes: { label: string }[];
@@ -293,6 +294,9 @@ export default function ThemeProductBuy({ product }: { product: ThemeProductData
                 variant_id: variant.id, quantity, product_id: product.id, product_name: product.name,
                 slug: product.slug, color: variant.colour || null, size: variant.size || null,
                 unit_price: variant.price ?? 0,
+                // Without this the cart drew a grey placeholder next to a
+                // product the shopper had just been looking at a photo of.
+                image_url: product.images?.[0]?.url ?? null,
               });
               trackAddToCart([{
                 id: variant.id, sku: variant.sku, name: product.name,

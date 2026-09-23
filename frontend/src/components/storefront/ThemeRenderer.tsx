@@ -24,7 +24,13 @@ export interface ThemePage {
   sections: { id: string; html: string; role?: string }[];
 }
 
-export default function ThemeRenderer({ page }: { page: ThemePage }) {
+export default function ThemeRenderer({ page, chromeInLayout = false }: {
+  page: ThemePage;
+  /** The layout already drew the store's header and footer, so this page
+   *  leaves its own copies out. False keeps them, which is what a page needs
+   *  if the chrome could not be loaded. */
+  chromeInLayout?: boolean;
+}) {
   useEffect(() => {
     // The theme draws its own header and footer; hide the app's while it is up.
     document.body.dataset.themeActive = "1";
@@ -39,12 +45,21 @@ export default function ThemeRenderer({ page }: { page: ThemePage }) {
       {/* The design's own stylesheet, and the app chrome it replaces. */}
       <style dangerouslySetInnerHTML={{ __html: `${page.css}\nbody[data-theme-active] [data-app-chrome]{display:none!important}` }} />
       {page.svg_defs && <div aria-hidden style={{ display: "none" }} dangerouslySetInnerHTML={{ __html: page.svg_defs }} />}
-      {page.sections.map((section) => (
+      {pageBody(page, chromeInLayout).map((section) => (
         <div key={section.id} data-theme-section={section.id} dangerouslySetInnerHTML={{ __html: section.html }} />
       ))}
     </div>
   );
 }
+
+/** The design's own header and footer are drawn once by the layout, around
+ *  every page of the shop, so a page does not carry a second copy. */
+export function pageBody(page: ThemePage, chromeInLayout: boolean): ThemePage["sections"] {
+  if (!chromeInLayout) return page.sections;
+  return page.sections.filter((s) => !CHROME_ROLES.has(s.role ?? ""));
+}
+
+const CHROME_ROLES = new Set(["announcement", "header", "footer"]);
 
 /** The href out of a <link …> the design carried (fonts, mostly). */
 function hrefOf(tag: string): string {

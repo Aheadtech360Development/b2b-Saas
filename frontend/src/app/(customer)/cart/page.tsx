@@ -119,6 +119,32 @@ interface AppliedCoupon {
 
 type GuestCartEntry = { variant_id: string; quantity: number; product_id: string; product_name: string; slug: string; color: string | null; size: string | null; unit_price: number; image_url?: string | null };
 
+/** A guest line that was saved without its photo gets one from the product.
+ *
+ *  Every place that adds to the guest cart records the picture now, but a
+ *  cart saved before that did not, and a shopper coming back to a row of grey
+ *  boxes cannot tell which shirt is which. Looked up once per product and
+ *  written back, so it costs nothing the next time. */
+async function fillMissingImages(entries: GuestCartEntry[]): Promise<void> {
+  const missing = [...new Set(entries.filter((e) => !e.image_url && e.slug).map((e) => e.slug))];
+  if (!missing.length) return;
+  const found = new Map<string, string>();
+  await Promise.all(missing.map(async (slug) => {
+    try {
+      const p = await apiClient.get<{ images?: { url_medium?: string; url_large?: string }[] }>(
+        `/api/v1/products/${encodeURIComponent(slug)}`, { skipAuth: true },
+      );
+      const url = p?.images?.[0]?.url_medium || p?.images?.[0]?.url_large;
+      if (url) found.set(slug, url);
+    } catch { /* the product may be gone — the line still shows */ }
+  }));
+  if (!found.size) return;
+  for (const entry of entries) {
+    if (!entry.image_url && found.has(entry.slug)) entry.image_url = found.get(entry.slug) ?? null;
+  }
+  try { localStorage.setItem("af_guest_cart", JSON.stringify(entries)); } catch { /* private mode */ }
+}
+
 function buildGuestCart(entries: GuestCartEntry[]): Cart {
   const items: CartItem[] = entries.map((e, i) => ({
     id: `guest-${i}`,
@@ -200,6 +226,7 @@ export default function CartPage() {
           try {
             const entries: GuestCartEntry[] = JSON.parse(localStorage.getItem("af_guest_cart") || "[]");
             if (entries.length > 0) {
+              await fillMissingImages(entries);
               const guestCart = buildGuestCart(entries);
               try {
                 const totalUnits = entries.reduce((s, e) => s + e.quantity, 0);

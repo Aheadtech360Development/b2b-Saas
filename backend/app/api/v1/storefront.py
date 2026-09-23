@@ -309,20 +309,33 @@ async def theme_is_active(request: Request, db: AsyncSession = Depends(get_db)) 
     and that has to be known before the page is sent — hiding them in the
     browser after the fact is what made the old header flash on every
     navigation.
+
+    The theme's own chrome comes back with the answer, so the layout can put
+    the store's header and footer around every page — the cart and the
+    checkout included, which the theme has no page of its own for.
     """
     from app.models.brand_theme import BrandTheme
+    from app.services import theme_data, theme_render, theme_upgrade
 
     tid = await _tenant_id_from_slug(db, getattr(request.state, "tenant_slug", None)) or _resolve_tenant_id(request)
     if not tid:
-        return {"active": False}
-    found = (await db.execute(
-        select(BrandTheme.id).where(
+        return {"active": False, "chrome": None}
+    theme = (await db.execute(
+        select(BrandTheme).where(
             BrandTheme.tenant_id == tid,
             BrandTheme.is_active.is_(True),
             BrandTheme.published.is_not(None),
         )
-    )).first()
-    return {"active": found is not None}
+    )).scalar_one_or_none()
+    if theme is None:
+        return {"active": False, "chrome": None}
+
+    theme = await theme_upgrade.ensure_current(db, theme)
+    if theme is None:
+        return {"active": False, "chrome": None}
+    items = await theme_data.page_items(db, theme.published, "home")
+    chrome = theme_render.render_chrome(theme.definition or {}, theme.published, items)
+    return {"active": True, "chrome": chrome}
 
 
 @public_router.get("/theme/{page_key}")

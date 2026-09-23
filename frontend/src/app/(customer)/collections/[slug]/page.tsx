@@ -5,6 +5,7 @@ import { notFound, redirect } from "next/navigation";
 import { apiClient } from "@/lib/api-client";
 import { titleWithBrand } from "@/lib/brand";
 import ThemeRenderer, { type ThemePage } from "@/components/storefront/ThemeRenderer";
+import { loadThemeChrome } from "@/components/storefront/ThemeChrome";
 
 interface CollectionInfo {
   name: string;
@@ -55,5 +56,5 @@ export default async function CollectionPage({ params, searchParams }: {
   // No theme yet: the built-in catalogue already lists a collection's products.
   if (!themePage) redirect(`/products?category=${encodeURIComponent(slug)}`);
 
-  return <ThemeRenderer page={themePage} />;
+  return <ThemeRenderer page={themePage} chromeInLayout={(await loadThemeChrome()) !== null} />;
 }

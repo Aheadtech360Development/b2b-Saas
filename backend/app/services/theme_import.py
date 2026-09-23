@@ -39,7 +39,7 @@ _LABELS = {
 }
 
 # 1: sections and fields · 2: rows of cards · 3: navigation and product blocks
-PARSER_VERSION = 3
+PARSER_VERSION = 4
 
 MAX_FIELDS_PER_SECTION = 60
 MAX_TEXT_LENGTH = 600
@@ -340,8 +340,14 @@ def import_html(html: str, *, name: str) -> dict[str, Any]:
         "version": PARSER_VERSION,
         "css": css,
         "stylesheets": links,
-        # An icon sprite or other <defs> the sections reference by id.
-        "svg_defs": "".join(str(s) for s in soup.select("svg[style*='display:none'], svg.sprite")),
+        # An icon sprite the sections reference by id. A design hides it in
+        # whatever way it likes — display:none, position:absolute, a zero-sized
+        # box — so what makes it a sprite is that it holds <symbol>s, not how
+        # it was hidden. Missing this left every icon on the storefront blank.
+        "svg_defs": "".join(
+            str(tag) for tag in soup.find_all("svg")
+            if tag.find("symbol") is not None or tag.find("defs") is not None
+        ),
         "pages": pages,
     }
 

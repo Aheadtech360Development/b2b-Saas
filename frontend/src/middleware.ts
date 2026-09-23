@@ -17,6 +17,7 @@ const PLATFORM_DOMAIN = process.env.NEXT_PUBLIC_PLATFORM_DOMAIN ?? "localhost";
 
 export const TENANT_HEADER = "x-tenant-slug";
 export const TENANT_COOKIE = "tenant_slug";
+export const PATH_HEADER = "x-pathname";
 
 function resolveSlug(request: NextRequest): string | null {
   const hostname = request.nextUrl.hostname;
@@ -54,6 +55,11 @@ export function middleware(request: NextRequest) {
     // Never let a stale inbound header survive resolution.
     requestHeaders.delete(TENANT_HEADER);
   }
+  // Which page is being served. A layout is not told its own path, and the
+  // root layout has to decide before it renders whether this page belongs to
+  // the storefront (and so wears the brand's header and footer) or to the
+  // admin console. Deciding it in the browser is what makes chrome flash.
+  requestHeaders.set(PATH_HEADER, request.nextUrl.pathname);
 
   const response = NextResponse.next({ request: { headers: requestHeaders } });
 

@@ -5,6 +5,7 @@ import { productsService } from "@/services/products.service";
 import { titleWithBrand } from "@/lib/brand";
 import { ProductDetailClient } from "./ProductDetailClient";
 import ThemeProductPage from "@/components/storefront/ThemeProductPage";
+import { loadThemeChrome } from "@/components/storefront/ThemeChrome";
 import type { ThemePage } from "@/components/storefront/ThemeRenderer";
 import type { ThemeProductData } from "@/components/storefront/ThemeProductBuy";
 import { apiClient } from "@/lib/api-client";
@@ -86,6 +87,15 @@ export default async function ProductDetailPage({ params }: PageProps) {
   // The brand's own theme draws the page around the real buying controls;
   // without a theme, the product page is what it has always been.
   const themed = await themeProductPage(slug);
-  if (themed) return <ThemeProductPage page={themed.page} product={themed.product} slug={slug} />;
+  if (themed) {
+    return (
+      <ThemeProductPage
+        page={themed.page}
+        product={themed.product}
+        slug={slug}
+        chromeInLayout={(await loadThemeChrome()) !== null}
+      />
+    );
+  }
   return <ProductDetailClient slug={slug} />;
 }

@@ -407,6 +407,62 @@ def _chrome_source(definition: dict[str, Any], page_key: str) -> tuple[str, dict
     return None
 
 
+def render_chrome(definition: dict[str, Any], state: dict[str, Any] | None,
+                  items: dict[str, list[dict[str, Any]]] | None = None) -> dict[str, Any] | None:
+    """The store's announcement bar, header and footer, on their own.
+
+    Every page of the storefront wears the same chrome, including the pages the
+    app draws itself — the cart, the checkout, an account. Rendering it once
+    here is what lets those pages look like the rest of the shop instead of
+    like the app they used to be.
+    """
+    found = _chrome_source(definition, "")
+    if found is None:
+        return None
+    source_key, source_page = found
+    source_state = ((state or {}).get("pages") or {}).get(source_key) or {}
+    hidden = set(source_state.get("hidden") or [])
+    values = source_state.get("values") or {}
+
+    top: list[dict[str, Any]] = []
+    bottom: list[dict[str, Any]] = []
+    for section in source_page.get("sections", []):
+        role = section.get("role") or ""
+        if role not in _CHROME_TOP + _CHROME_BOTTOM or section["id"] in hidden:
+            continue
+        html = render_section(section, values.get(section["id"]))
+        if items:
+            mine = {
+                key.split("|", 1)[1]: rows
+                for key, rows in items.items()
+                if key.startswith(f"{section['id']}|")
+            }
+            html = fill_repeaters(html, section.get("repeaters") or [], mine)
+        (top if role in _CHROME_TOP else bottom).append(
+            {"id": section["id"], "html": html, "role": role}
+        )
+    if not top and not bottom:
+        return None
+
+    rendered = apply_logo({
+        "key": "chrome",
+        "label": "Chrome",
+        "kind": "chrome",
+        "css": normalise_css(definition.get("css") or ""),
+        "stylesheets": definition.get("stylesheets") or [],
+        "svg_defs": definition.get("svg_defs") or "",
+        "sections": top + bottom,
+    }, (state or {}).get("logo") or {})
+    cut = len(top)
+    return {
+        "css": rendered["css"],
+        "stylesheets": rendered["stylesheets"],
+        "svg_defs": rendered["svg_defs"],
+        "top": rendered["sections"][:cut],
+        "bottom": rendered["sections"][cut:],
+    }
+
+
 def render_page(definition: dict[str, Any], state: dict[str, Any] | None, page_key: str,
                 items: dict[str, list[dict[str, Any]]] | None = None) -> dict[str, Any] | None:
     """A whole page: the sections this brand shows, in its order, filled in."""
