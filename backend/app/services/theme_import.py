@@ -38,6 +38,9 @@ _LABELS = {
     "td": "Cell", "th": "Cell", "dt": "Term", "dd": "Description", "em": "Label",
 }
 
+# 1: sections and fields · 2: rows of cards · 3: navigation and product blocks
+PARSER_VERSION = 3
+
 MAX_FIELDS_PER_SECTION = 60
 MAX_TEXT_LENGTH = 600
 
@@ -93,6 +96,19 @@ def _is_leafish(tag: Tag) -> bool:
         if isinstance(child, Tag) and child.name not in {"br", "b", "i", "em", "strong", "span", "svg", "use"}:
             return False
     return bool(_text_of(tag))
+
+
+def _section_role(tag: Tag) -> str:
+    """Header, announcement bar and footer are the store's, not one page's."""
+    classes = " ".join(tag.get("class") or [])
+    name = (tag.name or "").lower()
+    if name == "header" or "site-header" in classes or tag.find("header") is not None:
+        return "header"
+    if name == "footer" or "site-footer" in classes or tag.find("footer") is not None:
+        return "footer"
+    if "announce" in classes:
+        return "announcement"
+    return ""
 
 
 def _section_label(tag: Tag, index: int) -> str:
@@ -291,9 +307,9 @@ def import_html(html: str, *, name: str) -> dict[str, Any]:
             sections.append({
                 "id": f"{key}-{i}",
                 "label": _section_label(child, i),
-                # Filled in below for product pages: the one section where the
-                # product is actually bought.
-                "role": "",
+                # The store's chrome, or (filled in below, for product pages)
+                # the one section where the product is actually bought.
+                "role": _section_role(child),
                 "html": str(child),
                 "fields": _fields_for(child),
                 # Rows of cards the store fills with its own products.
@@ -306,8 +322,8 @@ def import_html(html: str, *, name: str) -> dict[str, Any]:
             # storefront replaces that one with the real thing.
             scored = [
                 (_buy_block_score(BeautifulSoup(s["html"], "html.parser")), i)
-                for i, s in enumerate(sections)
-            ]
+                for i, s in enumerate(sections) if not s["role"]
+            ] or [(0, 0)]
             best_score, best = max(scored)
             if best_score >= 5:
                 sections[best]["role"] = "product_block"
@@ -319,6 +335,9 @@ def import_html(html: str, *, name: str) -> dict[str, Any]:
 
     return {
         "name": name,
+        # Bumped whenever the parser learns to find something new, so a theme
+        # read by an older version can be re-read in place.
+        "version": PARSER_VERSION,
         "css": css,
         "stylesheets": links,
         # An icon sprite or other <defs> the sections reference by id.

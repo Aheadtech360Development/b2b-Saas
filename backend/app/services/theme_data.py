@@ -259,7 +259,13 @@ async def items_for(db: AsyncSession, spec: dict[str, Any] | None) -> list[dict[
 
 async def page_items(db: AsyncSession, state: dict[str, Any] | None, page_key: str) -> dict[str, list[dict[str, Any]]]:
     """Every row of cards on this page, filled — keyed "<section>|<row>"."""
-    page_state = ((state or {}).get("pages") or {}).get(page_key) or {}
+    pages = (state or {}).get("pages") or {}
+    # The page itself, plus wherever the header and footer live — those are
+    # rendered on every page, and their menus have to be filled too.
+    page_state = {"dynamic": {}}
+    for key in ("home", page_key):
+        for section_id, slots in ((pages.get(key) or {}).get("dynamic") or {}).items():
+            page_state["dynamic"].setdefault(section_id, {}).update(slots or {})
     out: dict[str, list[dict[str, Any]]] = {}
     for section_id, slots in (page_state.get("dynamic") or {}).items():
         if not isinstance(slots, dict):

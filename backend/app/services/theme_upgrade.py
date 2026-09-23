@@ -1,0 +1,65 @@
+"""Re-read a theme when the parser has learned something new.
+
+The importer improves — it learned to find rows of cards, then navigation,
+then where a product is bought. A theme parsed by an older version simply
+doesn't have those parts, and its storefront keeps showing the design's
+example products because there is nothing to fill.
+
+Since migration 0050 the design file is kept with the theme, so it can be read
+again in place. What the admin wrote is checked against the new definition and
+kept wherever it still fits, and a published theme stays published.
+"""
+from __future__ import annotations
+
+import logging
+
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.models.brand_theme import BrandTheme
+from app.services import theme_import, theme_render
+
+logger = logging.getLogger(__name__)
+
+
+async def ensure_current(db: AsyncSession, theme: BrandTheme | None) -> BrandTheme | None:
+    """Bring a theme up to the current parser, if its file is still with it."""
+    if theme is None:
+        return None
+    version = int((theme.definition or {}).get("version") or 1)
+    if version >= theme_import.PARSER_VERSION or not theme.source_html:
+        return theme
+
+    try:
+        definition = theme_import.import_html(theme.source_html, name=theme.name)
+    except Exception as exc:  # a file that no longer parses is left alone
+        logger.warning("theme %s could not be re-read: %s", theme.id, exc)
+        return theme
+
+    # Sections keep their positions, so what was written still lands where it
+    # was written; anything the new parse doesn't have is dropped.
+    draft = theme_render.clean_state(definition, theme.draft)
+    published = theme_render.clean_state(definition, theme.published) if theme.published is not None else None
+
+    # Rows of cards the older parse never saw: start them on the store's own
+    # products, which is what they are for.
+    defaults = theme_import.default_state(definition)
+    for key, page in (defaults.get("pages") or {}).items():
+        for target in (draft, published):
+            if target is None:
+                continue
+            slots = (target.get("pages") or {}).get(key)
+            if slots is None:
+                continue
+            for section_id, rows in (page.get("dynamic") or {}).items():
+                existing = slots.setdefault("dynamic", {}).setdefault(section_id, {})
+                for row_key, spec in rows.items():
+                    existing.setdefault(row_key, spec)
+
+    theme.definition = definition
+    theme.draft = draft
+    if published is not None:
+        theme.published = published
+    await db.commit()
+    await db.refresh(theme)
+    logger.info("theme %s re-read with parser v%s", theme.id, theme_import.PARSER_VERSION)
+    return theme

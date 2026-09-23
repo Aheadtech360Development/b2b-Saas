@@ -326,6 +326,8 @@ async def get_storefront_theme(
             BrandTheme.published.is_not(None),
         )
     )).scalar_one_or_none()
+    from app.services import theme_upgrade
+    theme = await theme_upgrade.ensure_current(db, theme)
     if theme is None:
         return {"page": None}
     items = await theme_data.page_items(db, theme.published, page_key)
@@ -424,6 +426,8 @@ async def get_storefront_product_page(
             BrandTheme.published.is_not(None),
         )
     )).scalar_one_or_none()
+    from app.services import theme_upgrade
+    theme = await theme_upgrade.ensure_current(db, theme)
     if theme is None:
         return {"page": None}
 

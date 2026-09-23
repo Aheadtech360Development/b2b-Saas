@@ -357,6 +357,26 @@ def apply_logo(page: dict[str, Any], logo: dict[str, Any] | None) -> dict[str, A
     return page
 
 
+_CHROME_TOP = ("announcement", "header")
+_CHROME_BOTTOM = ("footer",)
+
+
+def _chrome_source(definition: dict[str, Any], page_key: str) -> tuple[str, dict[str, Any]] | None:
+    """The page whose header and footer the whole store uses.
+
+    Designs draw them once — nearly always on the home page — and take for
+    granted that every other page has them.
+    """
+    pages = (definition or {}).get("pages") or {}
+    for key in ("home", *pages.keys()):
+        page = pages.get(key)
+        if not page or key == page_key:
+            continue
+        if any(s.get("role") in _CHROME_TOP + _CHROME_BOTTOM for s in page.get("sections", [])):
+            return key, page
+    return None
+
+
 def render_page(definition: dict[str, Any], state: dict[str, Any] | None, page_key: str,
                 items: dict[str, list[dict[str, Any]]] | None = None) -> dict[str, Any] | None:
     """A whole page: the sections this brand shows, in its order, filled in."""
@@ -389,6 +409,32 @@ def render_page(definition: dict[str, Any], state: dict[str, Any] | None, page_k
             }
             html = fill_repeaters(html, section.get("repeaters") or [], mine)
         blocks.append({"id": sid, "html": html, "role": section.get("role") or ""})
+
+    # A page of its own with no header: borrow the store's, from the page the
+    # design drew it on, with that page's own wording and images.
+    if not any(b.get("role") in _CHROME_TOP for b in blocks):
+        found = _chrome_source(definition, page_key)
+        if found is not None:
+            source_key, source_page = found
+            source_state = ((state or {}).get("pages") or {}).get(source_key) or {}
+            source_hidden = set(source_state.get("hidden") or [])
+            source_values = source_state.get("values") or {}
+            top, bottom = [], []
+            for section in source_page.get("sections", []):
+                role = section.get("role") or ""
+                if role not in _CHROME_TOP + _CHROME_BOTTOM or section["id"] in source_hidden:
+                    continue
+                html = render_section(section, source_values.get(section["id"]))
+                if items:
+                    mine = {
+                        key.split("|", 1)[1]: rows
+                        for key, rows in items.items()
+                        if key.startswith(f"{section['id']}|")
+                    }
+                    html = fill_repeaters(html, section.get("repeaters") or [], mine)
+                block = {"id": section["id"], "html": html, "role": role}
+                (top if role in _CHROME_TOP else bottom).append(block)
+            blocks = top + blocks + bottom
 
     rendered = {
         "key": page_key,

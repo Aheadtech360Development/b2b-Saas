@@ -5,7 +5,7 @@ services/theme_render.py (definition + values → the page a shopper gets).
 """
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, String
+from sqlalchemy import Boolean, DateTime, String, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -25,3 +25,6 @@ class BrandTheme(TenantMixin, BaseModel):
     published: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    # The design file itself, so the theme can be re-read when the parser
+    # learns something new (migration 0050).
+    source_html: Mapped[str | None] = mapped_column(Text, nullable=True)

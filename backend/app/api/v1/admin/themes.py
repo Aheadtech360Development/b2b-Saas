@@ -22,7 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.middleware.auth_middleware import require_admin
 from app.models.brand_theme import BrandTheme
-from app.services import theme_data, theme_import, theme_render
+from app.services import theme_data, theme_import, theme_render, theme_upgrade
 
 router = APIRouter(prefix="/admin/storefront/theme", tags=["admin", "theme"])
 
@@ -41,9 +41,10 @@ def _tenant(request: Request) -> uuid.UUID:
 
 
 async def _active(db: AsyncSession, tenant_id: uuid.UUID) -> BrandTheme | None:
-    return (await db.execute(
+    theme = (await db.execute(
         select(BrandTheme).where(BrandTheme.tenant_id == tenant_id, BrandTheme.is_active.is_(True))
     )).scalar_one_or_none()
+    return await theme_upgrade.ensure_current(db, theme)
 
 
 def _status(theme: BrandTheme) -> str:
@@ -260,6 +261,7 @@ async def import_theme(
             name=(file.filename or "Theme").rsplit(".", 1)[0][:160],
             definition=definition,
             draft=theme_import.default_state(definition),
+            source_html=html,
             is_active=True,
         )
         db.add(theme)
@@ -268,6 +270,7 @@ async def import_theme(
         kept = theme_render.clean_state(definition, theme.draft)
         theme.definition = definition
         theme.draft = kept
+        theme.source_html = html
         theme.updated_at = datetime.now(timezone.utc)
     await db.execute(
         update(BrandTheme)
