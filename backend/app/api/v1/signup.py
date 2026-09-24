@@ -86,6 +86,64 @@ async def availability(slug: str, db: AsyncSession = Depends(get_db)) -> Availab
                            reason="Already taken." if taken else "")
 
 
+def _welcome(shop: str, who: str, email: str, plan: str, shop_url: str) -> None:
+    """Tell the new owner where their shop is and how to get into it.
+
+    The two links are the whole point: the shop's own address, and the door to
+    its admin. Everything else they can find once they are inside.
+    """
+    from app.services.email_service import platform_inbox, send_as_platform
+
+    admin_url = f"{shop_url.rstrip('/')}/admin/dashboard"
+    support = platform_inbox() or ""
+    steps = [
+        ("Add your first product", "Products → Add product. Or import a whole "
+         "catalogue from S&amp;S Activewear in one go."),
+        ("Make your shop yours", "Design → upload your logo and colours, and set "
+         "the pages your customers will read."),
+        ("Turn payments on", "Billing → add a card. Nothing is charged until you do, "
+         "and nothing is taken from your orders before it."),
+        ("Bring your own domain", "Settings → Domain. Point it at us and your shop "
+         "answers there instead — everything else stays exactly as it is."),
+    ]
+    body = (
+        '<div style="font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;'
+        'max-width:560px;color:#111318">'
+        f'<h1 style="font-size:24px;margin:0 0 6px">Your shop is open, {who.split(" ")[0]}.</h1>'
+        f'<p style="color:#5A5F68;margin:0 0 24px;line-height:1.6">'
+        f'<strong>{shop}</strong> is live on the {plan.title()} plan. '
+        'Here is where it lives and how to get in.</p>'
+        f'<table cellpadding="0" cellspacing="0" style="width:100%;font-size:14px;'
+        'border:1px solid #E7E5E2;border-radius:10px;padding:4px 16px">'
+        f'<tr><td style="padding:12px 0;color:#5A5F68">Your shop</td>'
+        f'<td style="padding:12px 0;text-align:right"><a href="{shop_url}" '
+        f'style="color:#111318;font-weight:600">{shop_url.replace("https://", "")}</a></td></tr>'
+        f'<tr><td style="padding:12px 0;color:#5A5F68;border-top:1px solid #E7E5E2">Sign in with</td>'
+        f'<td style="padding:12px 0;text-align:right;border-top:1px solid #E7E5E2;'
+        f'font-weight:600">{email}</td></tr></table>'
+        f'<p style="margin:24px 0"><a href="{admin_url}" style="background:#111318;color:#fff;'
+        'padding:13px 26px;border-radius:9px;text-decoration:none;font-weight:700;'
+        'display:inline-block">Open your admin →</a></p>'
+        '<h2 style="font-size:15px;margin:30px 0 10px">First four things</h2>'
+        + "".join(
+            f'<p style="margin:0 0 14px;font-size:14px;line-height:1.6">'
+            f'<strong>{n}. {title}</strong><br>'
+            f'<span style="color:#5A5F68">{text}</span></p>'
+            for n, (title, text) in enumerate(steps, 1)
+        )
+        + (f'<p style="color:#5A5F68;font-size:13px;margin:26px 0 0;border-top:1px solid #E7E5E2;'
+           f'padding-top:16px">Stuck on anything, reply to this email or write to '
+           f'<a href="mailto:{support}" style="color:#111318">{support}</a>.</p>' if support else "")
+        + "</div>"
+    )
+    try:
+        send_as_platform(email, f"{shop} is live — here's how to get in", body)
+    except Exception:
+        import logging
+
+        logging.getLogger(__name__).warning("welcome mail failed for %s", email, exc_info=True)
+
+
 def _announce(shop: str, slug: str, plan: str, who: str, email: str,
               phone: str, shop_url: str) -> None:
     """Tell the platform a shop just signed up.
@@ -227,10 +285,13 @@ async def sign_up(payload: SignupIn, request: Request, background: BackgroundTas
     tenant_hosts.forget()
 
     shop_url = brand_url(slug, None, "/")
+    who = f"{payload.first_name} {payload.last_name}".strip()
     background.add_task(
         _announce, payload.shop_name.strip(), slug, payload.plan,
-        f"{payload.first_name} {payload.last_name}".strip(), email,
-        payload.phone.strip(), shop_url,
+        who, email, payload.phone.strip(), shop_url,
+    )
+    background.add_task(
+        _welcome, payload.shop_name.strip(), who, email, payload.plan, shop_url,
     )
 
     token = create_access_token(str(user_id), {

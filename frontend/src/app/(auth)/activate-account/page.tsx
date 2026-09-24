@@ -1,6 +1,7 @@
 "use client";
 
 import { useBranding } from "@/components/providers/BrandingProvider";
+import { PasswordField } from "@/components/ui/PasswordField";
 
 import { Suspense, useEffect, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
@@ -466,11 +467,11 @@ function ActivateAccountContent() {
               <div style={gridStyle}>
                 <div>
                   <label htmlFor="password" style={labelStyle}>Password {req}</label>
-                  <input id="password" name="password" type="password" required minLength={8} value={form.password} onChange={handleChange} placeholder="Min. 8 characters" style={inputStyle} />
+                  <PasswordField id="password" name="password" required minLength={8} autoComplete="new-password" value={form.password} onChange={handleChange} placeholder="Min. 8 characters" style={inputStyle} />
                 </div>
                 <div>
                   <label htmlFor="confirm_password" style={labelStyle}>Confirm Password {req}</label>
-                  <input id="confirm_password" name="confirm_password" type="password" required minLength={8} value={form.confirm_password} onChange={handleChange} placeholder="Re-enter password" style={inputStyle} />
+                  <PasswordField id="confirm_password" name="confirm_password" required minLength={8} autoComplete="new-password" value={form.confirm_password} onChange={handleChange} placeholder="Re-enter password" style={inputStyle} />
                 </div>
                 <div style={{ gridColumn: "1 / -1" }}>
                   <label htmlFor="how_heard" style={labelStyle}>How did you hear about us?</label>

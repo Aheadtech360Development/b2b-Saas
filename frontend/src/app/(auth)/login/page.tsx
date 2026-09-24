@@ -11,6 +11,7 @@ import type ReCAPTCHAType from "react-google-recaptcha";
 import { useAuthStore } from "@/stores/auth.store";
 import { authService } from "@/services/auth.service";
 import { ApiClientError, setAccessToken } from "@/lib/api-client";
+import { PasswordField } from "@/components/ui/PasswordField";
 
 const ReCAPTCHA = dynamic(() => import("react-google-recaptcha"), {
   ssr: false,
@@ -28,6 +29,7 @@ function decodeJwtPayload(token: string): Record<string, unknown> {
 }
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+const PLATFORM_DOMAIN = process.env.NEXT_PUBLIC_PLATFORM_DOMAIN ?? "localhost";
 
 export default function LoginPage() {
   const { support_phone } = useBranding();
@@ -41,6 +43,17 @@ export default function LoginPage() {
       router.replace("/account");
     }
   }, [authIsLoading, isAuthenticated, router]);
+
+  // On the platform's own address this page is a shop owner signing in, not a
+  // customer of a shop — so what it offers somebody without an account is a
+  // shop of their own, not a wholesale application to a store that isn't here.
+  // Read after mount: the server does not know the host the browser used.
+  const [onPlatform, setOnPlatform] = useState(false);
+  useEffect(() => {
+    const host = window.location.hostname;
+    setOnPlatform(PLATFORM_DOMAIN !== "localhost"
+      && (host === PLATFORM_DOMAIN || host === `www.${PLATFORM_DOMAIN}`));
+  }, []);
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -269,9 +282,8 @@ export default function LoginPage() {
                 >
                   Password *
                 </label>
-                <input
+                <PasswordField
                   id="password"
-                  type="password"
                   autoComplete="current-password"
                   required
                   value={password}
@@ -344,13 +356,15 @@ export default function LoginPage() {
                 <div style={{ position: "absolute", top: "50%", left: 0, right: 0, height: "1px", background: "#E2E2DE", zIndex: 0 }} />
               </div>
               <Link
-                href="/wholesale/register"
+                href={onPlatform ? "/signup" : "/wholesale/register"}
                 style={{ display: "block", textAlign: "center", fontFamily: "'DM Sans', sans-serif", fontSize: "14px", fontWeight: 500, color: "#1C3557", border: "1px solid #1C3557", padding: "14px", textDecoration: "none", transition: "all .15s" }}
               >
-                Create a Wholesale Account →
+                {onPlatform ? "Start your own shop →" : "Create a Wholesale Account →"}
               </Link>
               <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px", color: "#6B6B6B", textAlign: "center", marginTop: "16px" }}>
-                No account needed to place an order. Guests pay standard pricing.
+                {onPlatform
+                  ? "A plan, your details, and your shop is open in a minute."
+                  : "No account needed to place an order. Guests pay standard pricing."}
               </p>
             </div>
           </div>

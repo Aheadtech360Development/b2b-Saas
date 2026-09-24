@@ -58,17 +58,14 @@ def platform_inbox() -> str | None:
     ).strip() or None
 
 
-def notify_platform(subject: str, body_html: str) -> bool:
-    """Tell the platform something happened — a new shop, mainly.
+def send_as_platform(to_email: str, subject: str, body_html: str) -> bool:
+    """Send as the platform rather than as a brand.
 
-    Sent as the platform, not as a brand: this is the one kind of mail that is
-    ours rather than somebody's store's, so the brand name that rides on every
-    other message would be wrong here.
+    Nearly every message belongs to a shop and carries that shop's name, and
+    its links are bent towards that shop's address. These few do not: they are
+    ours — a shop signing up, a welcome to the person who just opened one — and
+    bending them would send a new owner to a store that has nothing in it yet.
     """
-    to = platform_inbox()
-    if not to:
-        logger.warning("PLATFORM_SUPPORT_EMAIL not set — skipping: %s", subject)
-        return False
     from app.core.tenant_context import (
         get_current_brand_name,
         get_current_brand_site,
@@ -80,10 +77,19 @@ def notify_platform(subject: str, body_html: str) -> bool:
     set_current_brand_name(settings.PLATFORM_NAME)
     set_current_brand_site(None)
     try:
-        return EmailService(None).send_raw(to_email=to, subject=subject, body_html=body_html)
+        return EmailService(None).send_raw(to_email=to_email, subject=subject, body_html=body_html)
     finally:
         set_current_brand_name(was_name)
         set_current_brand_site(was_site)
+
+
+def notify_platform(subject: str, body_html: str) -> bool:
+    """Tell the platform something happened — a new shop, mainly."""
+    to = platform_inbox()
+    if not to:
+        logger.warning("PLATFORM_SUPPORT_EMAIL not set — skipping: %s", subject)
+        return False
+    return send_as_platform(to, subject, body_html)
 
 
 def _current_brand_from_context() -> str | None:

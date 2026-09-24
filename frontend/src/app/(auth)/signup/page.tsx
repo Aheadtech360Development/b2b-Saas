@@ -15,6 +15,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { apiClient, ApiClientError } from "@/lib/api-client";
+import { PasswordField } from "@/components/ui/PasswordField";
 
 interface Plan {
   key: string;
@@ -82,6 +83,7 @@ export default function SignupPage() {
   }, [address]);
 
   const chosen = plans.find((p) => p.key === plan) ?? null;
+  const weak = form.password.length > 0 && form.password.length < 8;
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -181,7 +183,8 @@ export default function SignupPage() {
 
             <form onSubmit={submit} className="su-form">
               <label>Shop name
-                <input value={form.shop_name} required autoFocus
+                <input value={form.shop_name} required autoFocus autoComplete="organization"
+                  placeholder="Interflow Printing"
                   onChange={(e) => setForm({ ...form, shop_name: e.target.value })} />
               </label>
 
@@ -201,29 +204,35 @@ export default function SignupPage() {
 
               <div className="su-row">
                 <label>First name
-                  <input value={form.first_name} required
+                  <input value={form.first_name} required autoComplete="given-name"
                     onChange={(e) => setForm({ ...form, first_name: e.target.value })} />
                 </label>
                 <label>Last name
-                  <input value={form.last_name}
+                  <input value={form.last_name} autoComplete="family-name"
                     onChange={(e) => setForm({ ...form, last_name: e.target.value })} />
                 </label>
               </div>
 
               <label>Email
-                <input type="email" value={form.email} required
+                <input type="email" value={form.email} required autoComplete="email"
+                  placeholder="you@yourshop.com"
                   onChange={(e) => setForm({ ...form, email: e.target.value })} />
+                <span className="su-hint">Where we send your shop&apos;s details. This is your sign-in too.</span>
               </label>
 
               <label>Phone <span className="su-opt">(optional)</span>
-                <input value={form.phone}
+                <input type="tel" value={form.phone} autoComplete="tel"
                   onChange={(e) => setForm({ ...form, phone: e.target.value })} />
               </label>
 
               <label>Password
-                <input type="password" value={form.password} required minLength={8}
+                <PasswordField wrapperClassName="su-pw" value={form.password} required
+                  minLength={8} autoComplete="new-password"
                   onChange={(e) => setForm({ ...form, password: e.target.value })} />
-                <span className="su-hint">At least 8 characters. This is how you sign in.</span>
+                <span className={`su-hint${weak ? " su-hint-bad" : ""}`}>
+                  {weak ? "A little longer — 8 characters at least."
+                        : "This is how you sign in. Keep it somewhere safe."}
+                </span>
               </label>
 
               {error && <p className="su-error">{error}</p>}
@@ -277,7 +286,8 @@ const CSS = `
 .su-form{display:flex;flex-direction:column;gap:16px;}
 .su-form label{display:flex;flex-direction:column;gap:6px;font-size:13.5px;font-weight:700;}
 .su-form input{padding:11px 13px;font-size:15px;border:1px solid var(--line);border-radius:9px;background:#fff;
-  font-family:inherit;color:inherit;font-weight:400;}
+  font-family:inherit;color:inherit;font-weight:400;width:100%;}
+.su-pw button:hover{background:#F1EFEB;color:var(--ink);}
 .su-form input:focus{outline:2px solid var(--ink);outline-offset:-1px;}
 .su-row{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
 .su-opt{font-weight:400;color:var(--muted);}

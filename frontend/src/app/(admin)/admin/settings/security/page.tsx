@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { PasswordField } from "@/components/ui/PasswordField";
 import { authService } from "@/services/auth.service";
 
 const CARD: React.CSSProperties = { background: "#fff", border: "1px solid #E8E6E1", borderRadius: "10px", padding: "22px", maxWidth: "560px" };
@@ -102,7 +103,7 @@ export default function SecurityPage() {
         {stage === "disabling" && (
           <div>
             <p style={{ fontSize: "13px", color: "#444", marginBottom: "12px" }}>Confirm your password and a current code to turn off two-factor.</p>
-            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Your password" style={{ ...INPUT, marginBottom: "10px" }} />
+            <PasswordField value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" placeholder="Your password" style={{ ...INPUT, marginBottom: "10px" }} />
             <input value={code} onChange={(e) => setCode(e.target.value)} placeholder="6-digit or backup code" style={INPUT} />
             <div style={{ display: "flex", gap: "10px", marginTop: "14px" }}>
               <button onClick={disable} disabled={busy || !password || !code} style={{ ...BTN, background: busy || !password || !code ? "#9ca3af" : "#B91C1C" }}>{busy ? "…" : "Disable 2FA"}</button>
