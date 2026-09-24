@@ -52,12 +52,37 @@ async def login(
     response: Response,
     db: AsyncSession = Depends(get_db),
 ) -> LoginResponse:
-    """Authenticate and return an access token. Sets httpOnly refresh cookie."""
+    """Authenticate and return an access token. Sets httpOnly refresh cookie.
+
+    The older of the two sign-in paths, kept because it may be bookmarked or
+    wired into something outside this repo. It delegates now: it used to
+    authenticate on its own and knew nothing about two-factor, so an account
+    with an authenticator enrolled could be signed into here with a password
+    alone — 2FA on the screen and no 2FA in fact. One door, one set of rules.
+    """
     # Brute-force / credential-stuffing guard: per IP+email, and a broader per-IP cap.
     await enforce_rate_limit(request, "login", limit=10, window=900, extra=data.email)
     await enforce_rate_limit(request, "login_ip", limit=30, window=900)
-    service = AuthService(db)
-    login_response, refresh_token = await service.login(data.email, data.password)
+
+    import uuid as _uuid
+
+    from app.services.tenant_auth_service import TenantAuthService
+
+    _raw = getattr(request.state, "tenant_id", None)
+    _tid = None
+    if _raw:
+        _tid = _raw if isinstance(_raw, _uuid.UUID) else _uuid.UUID(str(_raw))
+    if _tid is None:
+        from app.core.tenant_context import NO_TENANT, get_current_tenant_id
+
+        _cur = get_current_tenant_id()
+        _tid = _cur if _cur and _cur != NO_TENANT else None
+    login_response, refresh_token = await TenantAuthService(db).login(
+        data.email, data.password, _tid
+    )
+    if login_response.requires_2fa:
+        # No cookie until the second factor is actually given.
+        return login_response
 
     response.set_cookie(
         key=REFRESH_COOKIE_NAME,

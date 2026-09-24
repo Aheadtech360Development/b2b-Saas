@@ -103,19 +103,38 @@ class TenantAuthService:
         """
         from sqlalchemy import text
 
-        if tenant_id is None:
-            # Platform admin — no tenant scope
-            result = await self.db.execute(
-                text("SELECT * FROM users WHERE email=:e AND tenant_id IS NULL AND is_platform_admin=true"),
-                {"e": email.lower()},
-            )
-        else:
-            result = await self.db.execute(
-                text("SELECT * FROM users WHERE email=:e AND tenant_id=:t"),
-                {"e": email.lower(), "t": str(tenant_id)},
-            )
+        from app.core.database import AsyncSessionLocal
+        from app.core.tenant_context import is_scoping_bypassed, set_bypass_scoping
 
-        row = result.mappings().first()
+        # One form serves everyone, so the address it was served from cannot
+        # decide who is allowed to exist. On the platform's own page no tenant
+        # is resolved, and this used to look only for platform admins — a
+        # brand's owner typing the right password was told it was wrong. Row
+        # level security would have hidden them from the query in any case.
+        #
+        # So the lookup runs unscoped, on its own session. Who somebody is
+        # decides what they see afterwards, from the claims this returns.
+        previous = is_scoping_bypassed()
+        set_bypass_scoping(True)
+        try:
+            async with AsyncSessionLocal() as lookup:
+                if tenant_id is None:
+                    result = await lookup.execute(text(
+                        "SELECT * FROM users WHERE lower(email) = :e "
+                        "ORDER BY is_platform_admin DESC, created_at ASC LIMIT 1"
+                    ), {"e": email.lower()})
+                else:
+                    # An address that names a shop: that shop's user, or the
+                    # platform's own admin signing in through it.
+                    result = await lookup.execute(text(
+                        "SELECT * FROM users WHERE lower(email) = :e "
+                        "AND (tenant_id = CAST(:t AS uuid) OR is_platform_admin = true) "
+                        "ORDER BY (tenant_id = CAST(:t AS uuid)) DESC LIMIT 1"
+                    ), {"e": email.lower(), "t": str(tenant_id)})
+                row = result.mappings().first()
+                row = dict(row) if row else None
+        finally:
+            set_bypass_scoping(previous)
 
         if not row or not verify_password(password, row["hashed_password"] or ""):
             # Recorded without saying which half was wrong, and without the
@@ -147,6 +166,29 @@ class TenantAuthService:
 
         return await self._issue_login(dict(row))
 
+    async def _slug_for(self, tenant_id) -> str | None:
+        """Where this person's shop lives. Signing in on the platform's own page
+        has to end at their shop, and an id does not say what that address is."""
+        if not tenant_id:
+            return None
+        from sqlalchemy import text
+
+        from app.core.database import AsyncSessionLocal
+        from app.core.tenant_context import is_scoping_bypassed, set_bypass_scoping
+
+        previous = is_scoping_bypassed()
+        set_bypass_scoping(True)
+        try:
+            async with AsyncSessionLocal() as db:
+                return (await db.execute(
+                    text("SELECT slug FROM tenants WHERE id = CAST(:t AS uuid)"),
+                    {"t": str(tenant_id)},
+                )).scalar()
+        except Exception:
+            return None
+        finally:
+            set_bypass_scoping(previous)
+
     async def _issue_login(self, row: dict) -> tuple[LoginResponse, str]:
         """Mint access + refresh tokens for a fully-authenticated user (password,
         and 2FA if enabled). Shared by login and the 2FA verify step."""
@@ -154,6 +196,12 @@ class TenantAuthService:
         user_id = str(row["id"])
         _scopes, _read_only = await _resolve_custom_scopes(self.db, row)
         claims = _build_claims(row, _scopes, _read_only)
+        # The brand's readable address, so the console knows whose shop it is
+        # without a subdomain to read it from, and so storage folders keep
+        # their name when somebody signs in on the platform's own page.
+        _slug = await self._slug_for(row.get("tenant_id"))
+        if _slug:
+            claims["tenant_slug"] = _slug
 
         # Resolve the buyer's company membership so checkout (which needs
         # company_id + account_type) works. Bypass RLS — a user resolving their
@@ -207,21 +255,42 @@ class TenantAuthService:
             raise UnauthorizedError("Invalid verification session.")
         user_id = payload.get("sub")
 
-        row = (await self.db.execute(text("SELECT * FROM users WHERE id=:id AND is_active=true"), {"id": user_id})).mappings().first()
-        if not row or not row.get("two_factor_enabled") or not row.get("two_factor_secret"):
-            raise UnauthorizedError("Two-factor is not set up for this account.")
+        # Unscoped, like the sign-in that issued this challenge. The second
+        # step is finished on whatever page the person is standing on, and on
+        # the platform's own address no tenant is resolved — row level security
+        # hid the account, and the answer came back as "two-factor is not set
+        # up", to somebody looking at their authenticator app.
+        from app.core.database import AsyncSessionLocal
+        from app.core.tenant_context import is_scoping_bypassed, set_bypass_scoping
 
-        ok, remaining_backups = verify_totp_or_backup(
-            row["two_factor_secret"], row.get("two_factor_backup_codes") or [], code
-        )
-        if not ok:
-            raise UnauthorizedError("Incorrect code. Try again.")
-        if remaining_backups is not None:  # a backup code was consumed
-            import json as _json
-            await self.db.execute(
-                text("UPDATE users SET two_factor_backup_codes = CAST(:c AS jsonb) WHERE id=:id"),
-                {"c": _json.dumps(remaining_backups), "id": user_id},
-            )
+        previous = is_scoping_bypassed()
+        set_bypass_scoping(True)
+        try:
+            async with AsyncSessionLocal() as unscoped:
+                row = (await unscoped.execute(
+                    text("SELECT * FROM users WHERE id = CAST(:id AS uuid) AND is_active = true"),
+                    {"id": user_id},
+                )).mappings().first()
+                row = dict(row) if row else None
+                if not row or not row.get("two_factor_enabled") or not row.get("two_factor_secret"):
+                    raise UnauthorizedError("Two-factor is not set up for this account.")
+
+                ok, remaining_backups = verify_totp_or_backup(
+                    row["two_factor_secret"], row.get("two_factor_backup_codes") or [], code
+                )
+                if not ok:
+                    raise UnauthorizedError("Incorrect code. Try again.")
+                if remaining_backups is not None:  # a backup code was consumed
+                    import json as _json
+
+                    await unscoped.execute(
+                        text("UPDATE users SET two_factor_backup_codes = CAST(:c AS jsonb)"
+                             " WHERE id = CAST(:id AS uuid)"),
+                        {"c": _json.dumps(remaining_backups), "id": user_id},
+                    )
+                    await unscoped.commit()
+        finally:
+            set_bypass_scoping(previous)
         return await self._issue_login(dict(row))
 
     async def get_profile(self, user_id: str) -> dict:
