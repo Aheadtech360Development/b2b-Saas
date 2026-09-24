@@ -80,8 +80,20 @@ export default function LoginPage() {
       account_type: (payload.account_type as string) || "wholesale",
     };
     setAuth(accessToken, fullProfile);
-    if (fullProfile.is_platform_admin) router.push("/platform");
-    else if (fullProfile.is_admin) router.push("/admin/dashboard");
+    if (fullProfile.is_platform_admin) { router.push("/platform"); return; }
+
+    // A shop's owner signing in on the platform's own page belongs in their
+    // own shop, not on an address where their brand does not exist. The token
+    // travels in the fragment — never the query string, which ends up in logs.
+    const slug = (payload.tenant_slug as string) || "";
+    if (slug && onPlatform && fullProfile.is_admin) {
+      window.location.href =
+        `${window.location.protocol}//${slug}.${PLATFORM_DOMAIN}/admin/dashboard` +
+        `#session=${encodeURIComponent(accessToken)}`;
+      return;
+    }
+
+    if (fullProfile.is_admin) router.push("/admin/dashboard");
     else router.push("/account");
   }
 

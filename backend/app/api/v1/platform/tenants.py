@@ -128,8 +128,8 @@ async def create_tenant(
     hashed = hash_password(data.admin_password)
     await db.execute(text("""
         INSERT INTO users (tenant_id, email, hashed_password, first_name, last_name,
-                           role, is_active, email_verified)
-        VALUES (:tid, :email, :pwd, :fn, :ln, 'tenant_admin', true, true)
+                           role, is_admin, is_active, email_verified)
+        VALUES (:tid, :email, :pwd, :fn, :ln, 'tenant_admin', true, true, true)
     """), {
         "tid": str(tenant_id),
         "email": data.admin_email.lower(),

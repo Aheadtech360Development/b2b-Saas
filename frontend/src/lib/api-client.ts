@@ -12,6 +12,12 @@ const PLATFORM_DOMAIN = process.env.NEXT_PUBLIC_PLATFORM_DOMAIN ?? "localhost";
 
 const TENANT_OVERRIDE_KEY = "tenant_slug_override";
 
+/** The platform's own address, where no shop lives. Mirrors middleware.ts. */
+export function isPlatformHost(host: string): boolean {
+  if (PLATFORM_DOMAIN === "localhost") return false;
+  return host === PLATFORM_DOMAIN || host === `www.${PLATFORM_DOMAIN}`;
+}
+
 export function currentTenantSlug(): string | null {
   if (typeof window === "undefined") return null;
 
@@ -25,6 +31,22 @@ export function currentTenantSlug(): string | null {
     host.endsWith(`.${PLATFORM_DOMAIN}`)
   ) {
     return host.slice(0, -(PLATFORM_DOMAIN.length + 1));
+  }
+
+  // The platform's own address belongs to no shop. A slug remembered here from
+  // some earlier visit is what made signing in fail with "Tenant not found" —
+  // the brand had since been renamed, and the browser was still asking for the
+  // old one. Forget it rather than send it.
+  if (isPlatformHost(host)) {
+    try {
+      sessionStorage.removeItem(TENANT_OVERRIDE_KEY);
+      if (document.cookie.includes("tenant_slug=")) {
+        document.cookie = "tenant_slug=; path=/; max-age=0";
+      }
+    } catch {
+      // storage unavailable — nothing to forget
+    }
+    return null;
   }
 
   // 2. `?tenant=<slug>` fallback — lets the app be demoed on a host that has no

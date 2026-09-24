@@ -38,12 +38,35 @@ REFRESH_COOKIE_NAME = "refresh_token"
 REFRESH_TOKEN_EXPIRE_DAYS = 7
 
 
+# Every role that works inside a brand's admin console. The middleware gates
+# /api/v1/admin/ on is_admin alone and RBAC narrows it from there, so a role
+# that reaches the console has to arrive with is_admin set.
+_CONSOLE_ROLES = {
+    "platform_admin", "tenant_admin", "tenant_manager",
+    "tenant_editor", "tenant_fulfillment", "tenant_viewer",
+}
+
+
 def _build_access_token_claims(user: User, membership: CompanyUser | None) -> dict:
-    """Build extra JWT claims from user + company membership."""
+    """Build extra JWT claims from user + company membership.
+
+    Everything the request needs has to be in here: the middleware reads the
+    token and nothing else. Without `tenant_id` a brand's own admin arrived
+    with no brand, and without `role` there was nothing for RBAC to check —
+    so an owner could sign in and then be refused by every screen they own.
+    """
+    role = getattr(user, "role", None)
     claims: dict = {
-        "is_admin": user.is_admin,
+        # A brand's owner is an admin of that brand whether or not the row that
+        # made them happened to set the column: the console creates them by
+        # role, and a role that reaches the console is what admin means here.
+        "is_admin": bool(user.is_admin) or role in _CONSOLE_ROLES,
+        "is_platform_admin": bool(getattr(user, "is_platform_admin", False)),
+        "role": role,
         "account_type": getattr(user, "account_type", "wholesale"),
     }
+    if getattr(user, "tenant_id", None):
+        claims["tenant_id"] = str(user.tenant_id)
     if membership:
         claims["company_id"] = str(membership.company_id)
         claims["company_role"] = membership.role
@@ -113,6 +136,17 @@ class AuthService:
         await self.db.flush()
 
         extra_claims = _build_access_token_claims(user, membership)
+        # Where this person's shop actually lives. Signing in on the platform's
+        # own page has to end at their shop's address, and the id alone does not
+        # say what that address is.
+        if user.tenant_id:
+            from sqlalchemy import text as _text
+
+            slug = (await self.db.execute(
+                _text("SELECT slug FROM tenants WHERE id = :t"), {"t": str(user.tenant_id)}
+            )).scalar()
+            if slug:
+                extra_claims["tenant_slug"] = slug
         access_token = create_access_token(str(user.id), extra_claims=extra_claims)
         refresh_token = create_refresh_token(str(user.id))
 
