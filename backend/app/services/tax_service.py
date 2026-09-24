@@ -64,7 +64,13 @@ async def calculate_tax(
         async with httpx.AsyncClient(timeout=5.0) as client:
             response = await client.get(
                 ZIPTAX_BASE_URL,
-                params={"postalcode": clean_zip},
+                # Both ways of presenting the key. v40 took it in the query and
+                # v60 takes a header; the URL moved to v60 and the header went
+                # with it, but the debug endpoint beside this one kept the
+                # query form — and that was the one that worked. Sending both
+                # costs nothing and stops a shop quietly charging no tax
+                # because of which scheme a version expects.
+                params={"key": api_key, "postalcode": clean_zip},
                 headers={"X-API-KEY": api_key},
             )
             logger.info("ZipTax HTTP status: %s", response.status_code)
@@ -72,10 +78,26 @@ async def calculate_tax(
             data = response.json()
             logger.info("ZipTax raw response: %s", data)
 
+        # ZipTax answers 200 even when it refuses: rCode 100 is success, 101 is
+        # a bad key, 108 a bad postcode. Reading only `results` turned every one
+        # of those into "no tax", which is indistinguishable from a state that
+        # charges none — and is how a shop can be undercharging for months.
+        r_code = data.get("rCode")
+        if r_code is not None and int(r_code) != 100:
+            reason = {101: "ZipTax rejected the API key",
+                      102: "ZipTax says the key is not authorised",
+                      108: "ZipTax could not read that postcode"}.get(int(r_code),
+                      f"ZipTax returned rCode {r_code}")
+            logger.error("ZipTax refused: %s (zip=%s) — %s", reason, clean_zip, data)
+            return {"rate": 0.0, "tax_amount": 0.0, "region": to_state.upper(),
+                    "source": "fallback", "error": reason, "r_code": int(r_code)}
+
         results = data.get("results", [])
         if not results:
             logger.warning("ZipTax returned empty results for zip=%s state=%s — data=%s", to_zip, to_state, data)
-            return {"rate": 0.0, "tax_amount": 0.0, "region": to_state.upper(), "source": "fallback"}
+            return {"rate": 0.0, "tax_amount": 0.0, "region": to_state.upper(),
+                    "source": "fallback",
+                    "error": f"ZipTax knows no rate for postcode {clean_zip}"}
 
         result = results[0]
         tax_rate_decimal = float(result.get("taxSales", 0.0))

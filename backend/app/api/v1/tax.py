@@ -3,10 +3,11 @@ import logging
 import os
 from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
+from app.middleware.auth_middleware import require_admin
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/tax")
@@ -83,6 +84,75 @@ async def outbound_ip():
         return {"outbound_ip": ip}
     except Exception as exc:
         return {"error": str(exc)}
+
+
+@router.get("/diagnose")
+async def diagnose_tax(
+    request: Request,
+    zip_code: str = "10001",
+    state: str = "NY",
+    subtotal: float = 100.0,
+    _: None = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Why this shop is or is not charging tax, in one answer.
+
+    "No tax is coming through" has five different causes that all look the
+    same from the checkout — no key, a key the provider rejects, the shop set
+    to its own rates, the shop set to none, or a postcode the provider does
+    not know. This says which one it is.
+    """
+    from app.core.tenant_settings import get_setting
+    from app.services.tax_service import get_ziptax_client, resolve_tax
+
+    key = get_ziptax_client()
+    mode = "auto"
+    try:
+        raw = await get_setting(db, "tax_mode")
+        if raw and raw.strip().lower() in ("auto", "manual", "none"):
+            mode = raw.strip().lower()
+    except Exception:
+        pass
+
+    tenant_id = getattr(request.state, "tenant_id", None)
+    own_rates = 0
+    if tenant_id:
+        try:
+            own_rates = (await db.execute(text(
+                "SELECT count(*) FROM tax_rates WHERE tenant_id = CAST(:t AS uuid)"
+            ), {"t": str(tenant_id)})).scalar() or 0
+        except Exception:
+            own_rates = -1  # unreadable — say so rather than imply zero
+
+    result = await resolve_tax(db, state.upper(), zip_code, "", subtotal)
+    amount = float(result.get("tax_amount", 0) or 0)
+
+    if mode == "none":
+        verdict = "This shop is set to charge no tax. Settings → Taxes."
+    elif amount > 0:
+        verdict = (f"Working: {result.get('rate')}% on ${subtotal:.2f} is "
+                   f"${amount:.2f}, from {result.get('source')}.")
+    elif not key and mode == "auto":
+        verdict = ("No ZIPTAX_API_KEY is set on the server, so automatic lookups "
+                   "cannot run. Either set one, or switch this shop to its own "
+                   "rates in Settings → Taxes.")
+    elif result.get("error"):
+        verdict = str(result["error"])
+    elif mode == "manual" and own_rates == 0:
+        verdict = ("This shop is set to use its own rates and has none saved yet, "
+                   "so nothing is charged. Settings → Taxes.")
+    else:
+        verdict = (f"No rate was found for {state.upper()} {zip_code}, and this shop "
+                   f"has {own_rates} rate(s) of its own to fall back on.")
+
+    return {
+        "verdict": verdict,
+        "tax_mode": mode,
+        "ziptax_key_present": bool(key),
+        "own_rate_rows": own_rates,
+        "tried": {"state": state.upper(), "zip": zip_code, "subtotal": subtotal},
+        "result": result,
+    }
 
 
 @router.get("/test-ziptax")
