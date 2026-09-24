@@ -15,6 +15,9 @@ export type IntentPayload = {
   payment_method?: string;
   to_state?: string;
   to_zip?: string;
+  /** A guest's cart travels with the request: there is no company cart on the
+   *  server to price. The server prices these lines itself. */
+  items?: unknown[];
 };
 
 type IntentResp = {

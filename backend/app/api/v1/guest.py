@@ -6,7 +6,7 @@ from datetime import datetime, timezone, timedelta
 from decimal import Decimal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, EmailStr
 from sqlalchemy import func, select, text as _text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -119,19 +119,95 @@ class GuestOrderOut(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# POST /api/v1/guest/payment-intent
+# ---------------------------------------------------------------------------
+
+@router.post("/payment-intent")
+async def guest_payment_intent(
+    payload: GuestCheckoutRequest,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Ask the card for what this guest's cart comes to.
+
+    The signed-in path (/checkout/intent) prices a company's cart and refuses
+    anyone without a company account, so a guest reaching the card step was
+    told "Authentication required" and the form never loaded. A guest's cart
+    lives in their browser, so it is priced here — by exactly the same code
+    that prices the order itself, or the card and the order would disagree.
+
+    The charge is direct on the brand's own Stripe account: the money is the
+    shop's, and we are not in the middle of it.
+    """
+    from app.core.config import get_settings
+    from app.core.tenant_context import get_current_tenant_id
+    from app.services.connect_service import ConnectService
+    from app.services.payment_service import PaymentService
+
+    tenant_id = getattr(request.state, "tenant_id", None) or get_current_tenant_id()
+    if not tenant_id:
+        raise ValidationError("No store context on this request")
+
+    try:
+        connect = await ConnectService(db).get_status(str(tenant_id))
+    except ValueError:
+        raise ValidationError("Store not found")
+    if not connect.get("charges_enabled"):
+        # Said plainly, and early: a shopper should never reach the card step
+        # of a store that cannot take one.
+        raise HTTPException(
+            status_code=409,
+            detail={"code": "STORE_PAYMENTS_NOT_READY",
+                    "message": "This store hasn't finished its card setup yet. "
+                               "Choose another way to pay, or contact the store."},
+        )
+
+    priced = await _price_guest_cart(db, payload)
+    total = priced.total.quantize(Decimal("0.01"))
+    if total <= 0:
+        raise ValidationError("Order total must be greater than zero")
+
+    intent = await PaymentService(db).create_direct_payment_intent(
+        amount_decimal=total,
+        connected_account_id=connect["account_id"],
+        metadata={"tenant_id": str(tenant_id), "guest": "true",
+                  "tax_amount": str(priced.tax_amount)},
+    )
+    return {
+        "client_secret": intent.client_secret,
+        "payment_intent_id": intent.id,
+        "connected_account_id": connect["account_id"],
+        "publishable_key": get_settings().STRIPE_PUBLISHABLE_KEY,
+        "amount": total,
+    }
+
+
+# ---------------------------------------------------------------------------
 # POST /api/v1/guest/checkout
 # ---------------------------------------------------------------------------
 
-@router.post("/checkout", status_code=201)
-async def guest_checkout(
-    payload: GuestCheckoutRequest,
-    db: AsyncSession = Depends(get_db),
-) -> GuestOrderOut:
-    """Place an order as a guest (retail pricing, no account required)."""
-    from app.core.config import get_settings
+class GuestTotals(BaseModel):
+    """What a guest's cart actually comes to, priced on our side."""
+    model_config = {"arbitrary_types_allowed": True}
 
-    settings = get_settings()
+    items: list
+    slugs: set
+    gang_sheet_ids: list
+    shipping_method: str
+    subtotal: Decimal
+    shipping_cost: Decimal
+    tax_amount: Decimal
+    convenience_fee: Decimal
+    total: Decimal
 
+
+async def _price_guest_cart(db: AsyncSession, payload: "GuestCheckoutRequest") -> GuestTotals:
+    """Price a guest's cart, server side.
+
+    Two things need this answer and they must never differ: the order we
+    create, and the amount we ask the card for. Charging a total the client
+    worked out is how a cart gets paid for at a price nobody agreed to.
+    """
     if not payload.items:
         raise ValidationError("Cart is empty")
 
@@ -296,6 +372,40 @@ async def guest_checkout(
     tax_amount_val = payload.tax_amount or Decimal("0")
     convenience_fee = Decimal("0.00")  # Guest/retail orders never incur a convenience fee
     total = subtotal + shipping_cost + tax_amount_val + convenience_fee
+    return GuestTotals(
+        items=order_items_data,
+        slugs=ordered_product_slugs,
+        gang_sheet_ids=gang_sheet_ids,
+        shipping_method=method,
+        subtotal=subtotal,
+        shipping_cost=shipping_cost,
+        tax_amount=tax_amount_val,
+        convenience_fee=convenience_fee,
+        total=total,
+    )
+
+
+
+@router.post("/checkout", status_code=201)
+async def guest_checkout(
+    payload: GuestCheckoutRequest,
+    db: AsyncSession = Depends(get_db),
+) -> GuestOrderOut:
+    """Place an order as a guest (retail pricing, no account required)."""
+    from app.core.config import get_settings
+
+    settings = get_settings()
+
+    priced = await _price_guest_cart(db, payload)
+    order_items_data = priced.items
+    ordered_product_slugs = priced.slugs
+    gang_sheet_ids = priced.gang_sheet_ids
+    method = priced.shipping_method
+    subtotal = priced.subtotal
+    shipping_cost = priced.shipping_cost
+    tax_amount_val = priced.tax_amount
+    convenience_fee = priced.convenience_fee
+    total = priced.total
 
     # 3. Verify the card payment (ACH is collected manually, so nothing to check)
     if payload.payment_method == "ach":

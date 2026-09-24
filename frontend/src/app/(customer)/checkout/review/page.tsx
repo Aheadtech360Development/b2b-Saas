@@ -597,6 +597,12 @@ export default function CheckoutReviewPage() {
                   </div>
                 ) : (
                   <StripePaymentForm
+                    // A guest's cart is in their browser, so the amount is
+                    // raised from the same items the order will be made from.
+                    // The signed-in path prices the company's cart instead and
+                    // refuses anyone without a company account — which is what
+                    // answered a guest with "Authentication required".
+                    intentUrl={isGuest ? "/api/v1/guest/payment-intent" : "/api/v1/checkout/intent"}
                     intentPayload={{
                       shipping_method: shippingMethod || "standard",
                       shipping_cost: shippingCost > 0 ? shippingCost : undefined,
@@ -605,6 +611,12 @@ export default function CheckoutReviewPage() {
                       // Ship-to → the backend computes tax itself (authoritative).
                       to_state: shippingAddress?.state || undefined,
                       to_zip: shippingAddress?.postal_code || undefined,
+                      ...(isGuest
+                        ? {
+                            items: guestEntries.map(guestCheckoutItem),
+                            tax_amount: taxAmount > 0 ? taxAmount : undefined,
+                          }
+                        : {}),
                     }}
                     onPaid={(pi) => handlePlaceOrder(pi)}
                     buttonLabel={`Pay ${formatCurrency(total)} & Place Order`}
