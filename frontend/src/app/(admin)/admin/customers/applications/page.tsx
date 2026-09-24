@@ -2,6 +2,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { UpgradeNotice } from "@/components/admin/UpgradeNotice";
+import { useLock } from "@/lib/entitlements";
 import { adminService } from "@/services/admin.service";
 import { ApprovalModal } from "@/components/admin/ApprovalModal";
 
@@ -154,6 +156,10 @@ function DetailModal({ app, onClose }: { app: Application; onClose: () => void }
 }
 
 export default function AdminApplicationsPage() {
+  // The plan decides whether this screen exists at all.
+  const lock = useLock("wholesale_accounts");
+  if (lock) return <UpgradeNotice feature="wholesale_accounts" />;
+
   const [applications, setApplications] = useState<Application[]>([]);
   const [statusFilter, setStatusFilter] = useState("pending");
   const [isLoading, setIsLoading] = useState(false);

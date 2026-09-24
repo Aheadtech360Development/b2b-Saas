@@ -3,6 +3,8 @@
 export const dynamic = "force-dynamic";
 
 import { useEffect, useState } from "react";
+import { UpgradeNotice } from "@/components/admin/UpgradeNotice";
+import { useLock } from "@/lib/entitlements";
 import { useSearchParams } from "next/navigation";
 import { adminService } from "@/services/admin.service";
 import { apiClient } from "@/lib/api-client";
@@ -206,6 +208,10 @@ function BracketEditor({
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function DiscountGroupsPage() {
+  // The plan decides whether this screen exists at all.
+  const lock = useLock("customer_tiers");
+  if (lock) return <UpgradeNotice feature="customer_tiers" />;
+
   const searchParams = useSearchParams();
   const initialTab = searchParams.get("tab");
   const [activeTab, setActiveTab] = useState<"groups" | "variants">(

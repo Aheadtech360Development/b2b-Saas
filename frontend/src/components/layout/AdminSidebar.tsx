@@ -13,8 +13,22 @@ import {
   Settings, Compass, LayoutTemplate,
 } from "lucide-react";
 import { HIDDEN_ADMIN_SECTIONS } from "@/lib/constants";
+import { useEntitlements } from "@/lib/entitlements";
 
 const ICON_PROPS = { size: 17, strokeWidth: 1.75 } as const;
+
+/** A small padlock, drawn rather than imported — the sidebar's icon set has no
+ *  lock and one shape is not worth another dependency. */
+function LockIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+         strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden
+         style={{ flexShrink: 0 }}>
+      <rect x="4" y="11" width="16" height="10" rx="2" />
+      <path d="M8 11V7a4 4 0 0 1 8 0v4" />
+    </svg>
+  );
+}
 
 const SECTION_HEAD: React.CSSProperties = {
   fontSize: "11.5px", fontWeight: 600, color: "#A3A1A8",
@@ -40,6 +54,11 @@ export function AdminSidebar() {
   const router = useRouter();
   const { user, clearAuth } = useAuthStore();
   const can = (s: Scope) => hasScope(user?.role, s, user?.scopes);
+  // What this shop's plan sells. A screen its tier does not include is shown
+  // locked, not hidden: a shop that never sees a feature never buys the tier
+  // that has it, and one that clicks into a 403 thinks the product is broken.
+  const { locked } = useEntitlements();
+  const lockOf = (feature: string) => locked.find((l) => l.feature === feature) ?? null;
 
   function handleLogout() {
     clearAuth();
@@ -117,6 +136,37 @@ export function AdminSidebar() {
         {n > 999 ? "999+" : n}
       </span>
     );
+  }
+
+  /** A sub-link the plan does not include: visible, not clickable, and it
+   *  says which tier has it. */
+  function LockedSubLink({ label, upgradeTo }: { label: string; upgradeTo: string | null }) {
+    const why = upgradeTo ? `Included from ${upgradeTo}` : "Not available on this shop";
+    return (
+      <span
+        title={why}
+        style={{
+          ...SUB_LINK_BASE, display: "flex", alignItems: "center", gap: "6px",
+          color: "#B4B2B8", cursor: "not-allowed",
+        }}
+      >
+        <LockIcon />
+        <span>{label}</span>
+        {upgradeTo && (
+          <span style={{ marginLeft: "auto", fontSize: "10px", fontWeight: 700, color: "#B45309", background: "#FFFBEB", border: "1px solid #FDE68A", borderRadius: "20px", padding: "1px 7px" }}>
+            {upgradeTo}
+          </span>
+        )}
+      </span>
+    );
+  }
+
+  /** One sub-link, locked or not, decided by the shop's plan. */
+  function PlanSubLink({ href, label, feature }: { href: string; label: string; feature: string }) {
+    const lock = lockOf(feature);
+    return lock
+      ? <LockedSubLink label={label} upgradeTo={lock.upgrade_to} />
+      : <SubLink href={href} label={label} />;
   }
 
   function SubLink({ href, label }: { href: string; label: string }) {
@@ -255,9 +305,9 @@ export function AdminSidebar() {
         <div style={{ paddingLeft: "18px", marginTop: "3px", marginBottom: "3px" }}>
           <SubLink href="/admin/customers" label="All Customers" />
           <SubLink href="/admin/customers/segments" label="Segments" />
-          <SubLink href="/admin/customers/applications" label="Applications" />
-          <SubLink href="/admin/customers/tiers?tab=groups" label="Discount Groups" />
-          <SubLink href="/admin/customers/tiers?tab=variants" label="Customer pricing" />
+          <PlanSubLink href="/admin/customers/applications" label="Applications" feature="wholesale_accounts" />
+          <PlanSubLink href="/admin/customers/tiers?tab=groups" label="Discount Groups" feature="customer_tiers" />
+          <PlanSubLink href="/admin/customers/tiers?tab=variants" label="Customer pricing" feature="customer_tiers" />
         </div>
       )}
 

@@ -9,6 +9,7 @@ import {
   type CreateTenantPayload,
   type CreateTenantResponse,
   type FeatureFlag,
+  type Commission,
 } from "@/services/platform.service";
 import { AnalyticsTab, ActivityTab, SearchTab, HealthTab } from "@/components/platform/InsightTabs";
 import type { Tenant } from "@/types/user.types";
@@ -263,6 +264,90 @@ export default function PlatformDashboard() {
   );
 }
 
+/** What the platform takes on this brand's Gang Sheet Builder orders.
+ *
+ *  Normally the plan's rate. Sometimes a brand is owed something different —
+ *  an early customer, a deal that was struck — and that has to be settable
+ *  without moving them to a tier they did not buy.
+ */
+function CommissionEditor({ slug }: { slug: string }) {
+  const [rate, setRate] = useState<Commission | null>(null);
+  const [percent, setPercent] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    platformService.getCommission(slug)
+      .then((r) => { setRate(r); setPercent(r.override_bps !== null ? String(r.override_bps / 100) : ""); })
+      .catch(() => setErr("Could not read the commission"));
+  }, [slug]);
+
+  async function save(bps: number | null) {
+    setBusy(true); setErr(null);
+    try {
+      const r = await platformService.setCommission(slug, bps);
+      setRate(r);
+      setPercent(r.override_bps !== null ? String(r.override_bps / 100) : "");
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Could not save that rate");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (!rate) return null;
+  const typed = percent.trim();
+  // Entered as a percentage, stored in basis points: 2.8 → 280.
+  const asBps = typed === "" ? null : Math.round(parseFloat(typed) * 100);
+  const valid = typed === "" || (Number.isFinite(asBps as number) && (asBps as number) >= 0 && (asBps as number) <= 1000);
+
+  return (
+    <div style={{ marginBottom: "22px" }}>
+      <div style={{ fontSize: "12px", fontWeight: 700, color: "#52525B", textTransform: "uppercase", letterSpacing: ".05em", marginBottom: "6px" }}>
+        Gang Sheet Builder commission
+      </div>
+      <div style={{ fontSize: "12px", color: "#6B7280", marginBottom: "10px" }}>
+        Taken on Gang Sheet Builder orders only. Leave blank to use this plan&apos;s
+        rate of <strong style={{ color: "#3F3F46" }}>{(rate.plan_bps / 100).toFixed(1)}%</strong>.
+      </div>
+      <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+        <div style={{ position: "relative", flex: "0 0 130px" }}>
+          <input
+            value={percent}
+            onChange={(e) => setPercent(e.target.value)}
+            placeholder={(rate.plan_bps / 100).toFixed(1)}
+            inputMode="decimal"
+            style={{ width: "100%", padding: "8px 26px 8px 11px", borderRadius: "8px", border: `1px solid ${valid ? "#E4E4E7" : "#FCA5A5"}`, fontSize: "13px", background: "#fff", color: "#18181B" }}
+          />
+          <span style={{ position: "absolute", right: "10px", top: "50%", transform: "translateY(-50%)", color: "#6B7280", fontSize: "13px" }}>%</span>
+        </div>
+        <button
+          onClick={() => save(asBps)}
+          disabled={busy || !valid}
+          style={{ background: busy || !valid ? "#D4D4D8" : "#18181B", color: "#fff", border: "none", padding: "8px 16px", borderRadius: "8px", fontSize: "12px", fontWeight: 700, cursor: busy || !valid ? "not-allowed" : "pointer" }}
+        >
+          {busy ? "Saving…" : "Save"}
+        </button>
+        {rate.override_bps !== null && (
+          <button
+            onClick={() => save(null)}
+            disabled={busy}
+            style={{ background: "#F4F4F5", color: "#52525B", border: "1px solid #E4E4E7", padding: "8px 14px", borderRadius: "8px", fontSize: "12px", fontWeight: 700, cursor: "pointer" }}
+          >
+            Use plan rate
+          </button>
+        )}
+      </div>
+      <div style={{ fontSize: "12px", marginTop: "8px", color: err ? "#B91C1C" : "#6B7280" }}>
+        {err ?? (rate.override_bps !== null
+          ? `Charging ${rate.display} — set for this brand, not by its plan.`
+          : `Charging ${rate.display}, this plan's rate.`)}
+      </div>
+      {!valid && <div style={{ fontSize: "12px", color: "#B91C1C", marginTop: "4px" }}>A commission is between 0% and 10%.</div>}
+    </div>
+  );
+}
+
 /** Whether the plan a brand is on is actually being billed. A shop can sit on
  *  Wholesale and have paid nothing, and the console said nothing about it. */
 function BillingBadge({ status }: { status?: string }) {
@@ -383,6 +468,8 @@ function ManageTenantModal({ tenant, onClose, onChanged }: { tenant: Tenant; onC
           )}
           <div style={{ marginTop: "10px" }}><BillingBadge status={tenant.billing_status} /></div>
         </div>
+
+        <CommissionEditor slug={tenant.slug} />
 
         {msg && <div style={{ background: "#ECFDF5", border: "1px solid #A7F3D0", color: "#047857", padding: "8px 12px", borderRadius: "8px", fontSize: "12px", marginBottom: "14px" }}>{msg}</div>}
 

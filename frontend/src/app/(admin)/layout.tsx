@@ -7,6 +7,7 @@ import { AdminSidebar } from "@/components/layout/AdminSidebar";
 import { Footer } from "@/components/layout/Footer";
 import { isReadOnly } from "@/lib/permissions";
 import { CopilotDock } from "@/components/admin/CopilotDock";
+import { EntitlementsProvider } from "@/lib/entitlements";
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isAdmin, isLoading, user } = useAuthStore();
@@ -50,6 +51,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   }
 
   return (
+  <EntitlementsProvider>
   <div className="flex justify-center bg-gray-50 min-h-screen">
     <div className="admin-layout-root flex w-full max-w-[1500px] mx-auto">
       <AdminSidebar />
@@ -64,5 +66,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       </main>
     </div>
   </div>
+  </EntitlementsProvider>
 );
 }

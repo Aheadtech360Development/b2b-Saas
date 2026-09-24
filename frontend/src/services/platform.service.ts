@@ -48,12 +48,32 @@ export interface FeatureFlag {
   enabled: boolean;
 }
 
+export interface Commission {
+  plan: string | null;
+  /** What the brand's plan charges, in basis points: 280 = 2.8%. */
+  plan_bps: number;
+  /** A rate set for this one brand, or null when it follows the plan. */
+  override_bps: number | null;
+  bps: number;
+  display: string;
+}
+
 export interface TenantFeatures {
   plan: string;
   features: FeatureFlag[];
 }
 
 export const platformService = {
+  /** What the platform takes on this brand's Gang Sheet Builder orders. */
+  async getCommission(slug: string): Promise<Commission> {
+    return apiClient.get<Commission>(`/api/v1/platform/tenants/${slug}/commission`);
+  },
+
+  /** Charge one brand its own rate, or (bps: null) hand it back to the plan. */
+  async setCommission(slug: string, bps: number | null): Promise<Commission> {
+    return apiClient.put<Commission>(`/api/v1/platform/tenants/${slug}/commission`, { bps });
+  },
+
   /** List all tenants (brands) with user counts. */
   async listTenants(): Promise<Tenant[]> {
     return apiClient.get<Tenant[]>("/api/v1/platform/tenants");
