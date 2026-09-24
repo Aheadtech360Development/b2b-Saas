@@ -340,10 +340,17 @@ async def theme_is_active(request: Request, db: AsyncSession = Depends(get_db)) 
     tid = await _tenant_id_from_slug(db, getattr(request.state, "tenant_slug", None)) or _resolve_tenant_id(request)
     if not tid:
         # No brand at all: this is the platform's own address, not a shop.
-        return {"active": False, "chrome": None, "brand": None}
-    brand = (await db.execute(
-        text("SELECT name FROM tenants WHERE id = :t"), {"t": str(tid)}
-    )).scalar()
+        return {"active": False, "chrome": None, "brand": None, "icon": None, "title": None}
+    # The name, and what the browser tab should say and show. Every shop wore
+    # the platform's own icon because the page had no way to ask for theirs.
+    row = (await db.execute(text(
+        "SELECT t.name, b.favicon_url, b.store_name "
+        "FROM tenants t LEFT JOIN tenant_branding b ON b.tenant_id = t.id "
+        "WHERE t.id = :t"
+    ), {"t": str(tid)})).first()
+    brand = row[0] if row else None
+    icon = (row[1] or None) if row else None
+    title = ((row[2] or row[0]) if row else None) or brand
     theme = (await db.execute(
         select(BrandTheme).where(
             BrandTheme.tenant_id == tid,
@@ -354,10 +361,10 @@ async def theme_is_active(request: Request, db: AsyncSession = Depends(get_db)) 
     if theme is not None:
         theme = await theme_upgrade.ensure_current(db, theme)
     if theme is None:
-        return {"active": False, "chrome": None, "brand": brand}
+        return {"active": False, "chrome": None, "brand": brand, "icon": icon, "title": title}
     items = await theme_data.page_items(db, theme.published, "home")
     chrome = theme_render.render_chrome(theme.definition or {}, theme.published, items)
-    return {"active": True, "chrome": chrome, "brand": brand}
+    return {"active": True, "chrome": chrome, "brand": brand, "icon": icon, "title": title}
 
 
 @public_router.get("/theme/{page_key}")

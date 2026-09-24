@@ -19,6 +19,7 @@ export async function generateMetadata(): Promise<Metadata> {
   }
 }
 import { Footer } from "@/components/layout/Footer";
+import NewShopHome from "@/components/home/NewShopHome";
 import StorefrontHome from "@/components/home/StorefrontHome";
 import ThemeRenderer, { type ThemePage } from "@/components/storefront/ThemeRenderer";
 import { loadStore } from "@/components/storefront/ThemeChrome";
@@ -35,6 +36,20 @@ async function themeHome(): Promise<ThemePage | null> {
   }
 }
 
+/** Whether this brand has anything for sale yet. */
+async function hasProducts(): Promise<boolean> {
+  try {
+    const res = await apiClient.get<{ items?: unknown[]; total?: number }>(
+      "/api/v1/products?page_size=1", { skipAuth: true },
+    );
+    return (res?.total ?? res?.items?.length ?? 0) > 0;
+  } catch {
+    // If we cannot tell, show the built-in storefront rather than tell a brand
+    // with a full catalogue that it is still being set up.
+    return true;
+  }
+}
+
 export default async function HomePage() {
   const store = await loadStore();
   // No brand was asked for: this is the platform's own address, not a shop.
@@ -46,6 +61,10 @@ export default async function HomePage() {
     // of the shop; this one leaves its own copies out.
     return <ThemeRenderer page={page} chromeInLayout={store.chrome !== null} />;
   }
+  // A shop with no theme and nothing to sell is a shop on its first day, not a
+  // broken one. The built-in storefront is for a brand that has stock but has
+  // not imported a design yet.
+  if (!(await hasProducts())) return <NewShopHome brand={store.brand} />;
   return (
     <>
       <StorefrontHome />

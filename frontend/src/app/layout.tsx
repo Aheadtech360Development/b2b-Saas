@@ -6,14 +6,37 @@ import "./globals.css";
 import ThemeChrome, { ThemeChromeHead, loadStore } from "@/components/storefront/ThemeChrome";
 import { Providers } from "@/components/providers/Providers";
 import { Header } from "@/components/layout/Header";
+import { PlatformHeader, PlatformFooter } from "@/components/platform/PlatformChrome";
 import { DeployRefresh } from "@/components/providers/DeployRefresh";
 import { AttributionTracker } from "@/components/analytics/AttributionTracker";
 import { TrackingScripts } from "@/components/analytics/TrackingScripts";
 
-export const metadata: Metadata = {
-  title: "Wholesale Store",
-  description: "B2B wholesale storefront.",
-};
+/** What the browser tab says and shows.
+ *
+ *  Every shop wore the platform's own name and icon, because this was a fixed
+ *  object. It is asked per request now: a brand's own site carries the brand's
+ *  favicon and store name, and the platform's own address — and its console —
+ *  stay the platform's.
+ */
+export async function generateMetadata(): Promise<Metadata> {
+  const pathname = (await headers()).get("x-pathname") ?? "/";
+  const platformPage = pathname === "/platform" || pathname.startsWith("/platform/");
+  const store = platformPage ? null : await loadStore();
+
+  if (store?.brand) {
+    return {
+      title: store.title || store.brand,
+      description: `${store.brand} — order online.`,
+      // Only when the brand has set one: a missing icon falls through to the
+      // file in /public rather than to a broken image.
+      icons: store.icon ? { icon: store.icon, shortcut: store.icon, apple: store.icon } : undefined,
+    };
+  }
+  return {
+    title: "PrintCopilot",
+    description: "Commerce software for print shops.",
+  };
+}
 
 /**
  * Pages that are not the shop: the consoles, the theme editor, and the bare
@@ -22,7 +45,7 @@ export const metadata: Metadata = {
  */
 const NOT_STOREFRONT = [
   "/admin", "/platform", "/theme-editor", "/theme-preview", "/ui-preview", "/account",
-  "/login", "/wholesale", "/forgot-password", "/reset-password", "/activate-account",
+  "/wholesale",
 ];
 
 export default async function RootLayout({
@@ -42,6 +65,11 @@ export default async function RootLayout({
   // and the platform's own address is not a shop at all — its page brings its
   // own header, so adding the app's put two of them on the screen.
   const appHeader = storefront && store.brand !== null && chrome === null;
+  // The platform's own pages. Its landing page and its sign-up flow draw their
+  // own header, so only what is left — signing in, resetting a password —
+  // needs one from here.
+  const platformChrome =
+    storefront && store.brand === null && pathname !== "/" && !pathname.startsWith("/signup");
   return (
     <html lang="en">
       <head>
@@ -73,12 +101,14 @@ export default async function RootLayout({
           {/* Loads only the tracking tools this brand connected, if any. */}
           <TrackingScripts />
           {appHeader && <Header />}
+          {platformChrome && <PlatformHeader />}
           {/* The brand's own chrome, around every storefront page — the cart
               and the checkout included, which the theme has no page for. */}
           {chrome && <ThemeChromeHead chrome={chrome} />}
           {chrome && <ThemeChrome sections={chrome.top} />}
           {children}
           {chrome && <ThemeChrome sections={chrome.bottom} />}
+          {platformChrome && <PlatformFooter />}
         </Providers>
       </body>
     </html>
