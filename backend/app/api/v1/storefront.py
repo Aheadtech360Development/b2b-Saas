@@ -35,6 +35,8 @@ admin_menus_router = APIRouter(prefix="/admin/storefront/menus", tags=["storefro
 
 # Neutral platform default (root domain / no tenant) — deliberately generic.
 _DEFAULT_BRANDING: dict[str, Any] = {
+    # No brand resolved: nothing to apply to.
+    "wholesale_signup": False,
     "store_name": "Wholesale Store",
     "logo_url": None,
     "favicon_url": None,
@@ -217,7 +219,23 @@ async def _fetch_branding(db: AsyncSession, tenant_id: uuid.UUID) -> dict[str, A
     footer_items = await _menu_items(db, tenant_id, row.get("footer_menu_id"))
     branding["footer_menu_items"] = footer_items or []
     branding["pickup_address"] = await _pickup_address(db, tenant_id)
+    # Whether this shop takes wholesale accounts at all. A shop on Starter is a
+    # retailer: its customers buy as guests and there is nothing to apply for,
+    # so the storefront must not offer an application the plan would refuse. A
+    # shop on Wholesale keeps the old door — apply, be approved, then sign in.
+    branding["wholesale_signup"] = await _sells_wholesale(db, tenant_id)
     return branding
+
+
+async def _sells_wholesale(db: AsyncSession, tenant_id: uuid.UUID) -> bool:
+    try:
+        from app.services import entitlements
+
+        return "wholesale_accounts" in await entitlements.for_tenant(db, tenant_id)
+    except Exception:
+        # If we cannot tell, do not offer it: an application that goes nowhere
+        # is worse than a door that isn't there.
+        return False
 
 
 async def _pickup_address(db: AsyncSession, tenant_id: uuid.UUID) -> str:

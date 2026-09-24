@@ -32,7 +32,7 @@ const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 const PLATFORM_DOMAIN = process.env.NEXT_PUBLIC_PLATFORM_DOMAIN ?? "localhost";
 
 export default function LoginPage() {
-  const { support_phone } = useBranding();
+  const { support_phone, wholesale_signup } = useBranding();
   const supportPhone = (support_phone ?? "").trim();
   const router = useRouter();
   const { setAuth, isAuthenticated, isLoading: authIsLoading } = useAuthStore();
@@ -355,30 +355,33 @@ export default function LoginPage() {
             </form>
             )}
 
-            {/* A shop's customer is not applying for anything — there is no
-                wholesale wall any more, and anyone can order as a guest. The
-                only thing left worth offering here is a shop of your own, and
-                only on the platform's own address, where that is what the
-                visitor came for. */}
+            {/* What is worth offering here depends on whose page this is. On
+                the platform's own address: a shop of your own. On a wholesale
+                shop: the application its buyers have to make before they can
+                sign in. On a retail shop: nothing — its customers buy as
+                guests, and an application would go to a screen its plan does
+                not include. */}
             <div style={{ marginTop: "20px", paddingTop: "16px", borderTop: "1px solid #E2E2DE" }}>
-              {onPlatform && (
+              {(onPlatform || wholesale_signup) && (
                 <>
                   <div style={{ position: "relative", textAlign: "center", marginBottom: "16px" }}>
                     <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "12px", color: "#6B6B6B", background: "#FFFFFF", padding: "0 12px", position: "relative", zIndex: 1 }}>or</span>
                     <div style={{ position: "absolute", top: "50%", left: 0, right: 0, height: "1px", background: "#E2E2DE", zIndex: 0 }} />
                   </div>
                   <Link
-                    href="/signup"
+                    href={onPlatform ? "/signup" : "/wholesale/register"}
                     style={{ display: "block", textAlign: "center", fontFamily: "'DM Sans', sans-serif", fontSize: "14px", fontWeight: 500, color: "#1C3557", border: "1px solid #1C3557", padding: "14px", textDecoration: "none", transition: "all .15s" }}
                   >
-                    Start your own shop →
+                    {onPlatform ? "Start your own shop →" : "Apply for a wholesale account →"}
                   </Link>
                 </>
               )}
-              <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px", color: "#6B6B6B", textAlign: "center", marginTop: onPlatform ? "16px" : "0" }}>
+              <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px", color: "#6B6B6B", textAlign: "center", marginTop: (onPlatform || wholesale_signup) ? "16px" : "0" }}>
                 {onPlatform
                   ? "A plan, your details, and your shop is open in a minute."
-                  : "No account needed to place an order. Guests pay standard pricing."}
+                  : wholesale_signup
+                    ? "Wholesale pricing needs an approved account. You can still order as a guest at standard prices."
+                    : "No account needed to place an order. Guests pay standard pricing."}
               </p>
             </div>
           </div>

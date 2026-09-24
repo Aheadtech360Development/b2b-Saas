@@ -57,6 +57,9 @@ function letterFavicon(name: string, color: string): string {
 }
 
 export interface Branding {
+  /** Whether this shop takes wholesale accounts. False on a retail shop: its
+   *  customers buy as guests and there is nothing to apply for. */
+  wholesale_signup?: boolean;
   // Present in the admin branding response — the brand's subdomain slug, used to
   // open this brand's storefront reliably (?tenant=slug).
   slug?: string | null;

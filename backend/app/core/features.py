@@ -138,6 +138,11 @@ BUYER_PATH_FEATURES: list[tuple[str, str]] = [
 ]
 
 PUBLIC_PATH_FEATURES: list[tuple[str, str]] = [
+    # Applying for a wholesale account. Open to anyone, but only at a shop that
+    # sells wholesale accounts: at a retail shop the screen that reads these
+    # applications is not in the plan, so one submitted there would sit where
+    # nobody could ever see it.
+    ("/api/v1/register-wholesale", "wholesale_accounts"),
     ("/api/v1/gang-sheets", "gang_sheet"),
     ("/api/v1/quick-order", "quick_buy"),
     ("/api/v1/copilot", "ai_agent"),
