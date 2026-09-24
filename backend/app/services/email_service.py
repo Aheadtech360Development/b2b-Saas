@@ -439,6 +439,49 @@ class EmailService:
 
     # ── High-level transactional senders ──────────────────────────────────────
 
+    async def send_password_reset_link(
+        self, to_email: str, first_name: str, reset_url: str, expiry_hours: int = 1
+    ) -> bool:
+        """Send the link that gets somebody back into their account.
+
+        The editable template is tried first, so a brand that has reworded this
+        keeps its wording. But this is the one message nobody can do without —
+        there is no other way back in — and it used to depend on a row seeded at
+        startup: on a database where that row was missing or switched off, the
+        request succeeded, no mail was sent, and nothing said so. So a built-in
+        message backs it up.
+        """
+        variables = {
+            "first_name": first_name or "there",
+            "name": first_name or to_email,
+            "reset_url": reset_url,
+            "expiry_hours": expiry_hours,
+        }
+        try:
+            if self.db is not None and await self.send("password_reset", to_email, variables):
+                return True
+        except Exception as exc:
+            logger.warning("password_reset template unusable (%s) — using the built-in", exc)
+
+        hours = "an hour" if expiry_hours == 1 else f"{expiry_hours} hours"
+        content = (
+            f'<h2 style="font-size:20px;margin:0 0 10px">Reset your password</h2>'
+            f'<p style="color:#4b5563;margin:0 0 20px;line-height:1.6">Hi {first_name or "there"}, '
+            f'somebody asked to reset the password for this account. If that was you, '
+            f'set a new one here:</p>'
+            f'<p style="margin:0 0 20px"><a href="{reset_url}" style="background:#1B3A5C;color:#fff;'
+            f'padding:12px 26px;border-radius:6px;text-decoration:none;font-weight:700;'
+            f'display:inline-block">Choose a new password</a></p>'
+            f'<p style="color:#6b7280;font-size:13px;margin:0;line-height:1.6">'
+            f'The link works once and expires in {hours}. If you did not ask for this, '
+            f'ignore this email — nothing has changed.</p>'
+        )
+        return self.send_raw(
+            to_email=to_email,
+            subject="Reset your password",
+            body_html=self._base_template(content),
+        )
+
     def send_order_confirmation(self, order: "Order", to_email: str) -> bool:  # type: ignore[name-defined]
         """Branded order confirmation with order-confirmation PDF attached."""
         from app.core.config import settings as _s

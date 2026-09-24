@@ -350,15 +350,19 @@ class AuthService:
         return _notify_to()
 
     async def send_password_reset(self, email: str) -> None:
-        result = await self.db.execute(select(User).where(User.email == email.lower()))
-        user = result.scalar_one_or_none()
+        """Send the link that gets somebody back into their account.
+
+        Looked up without tenant scoping, deliberately. An email address
+        belongs to one account across the whole platform, and this is asked for
+        from wherever the person happens to be — the platform's own page, or a
+        shop's. Scoped to the page they were on, row-level security hid their
+        own account from the query: no user found, no mail sent, and a page
+        that said "check your email" regardless.
+        """
+        token = secrets.token_urlsafe(32)
+        user = await self._claim_reset_token(email.lower(), token)
         if not user:
             return
-
-        token = secrets.token_urlsafe(32)
-        user.password_reset_token = token
-        user.password_reset_expires = datetime.now(UTC) + timedelta(hours=1)
-        await self.db.flush()
 
         reset_url = f"{settings.FRONTEND_URL}/reset-password?token={token}"
 
@@ -366,28 +370,78 @@ class AuthService:
         from app.services.email_service import EmailService
         email_svc = EmailService(self.db)
         try:
-            await email_svc.send(
-                trigger_event="password_reset",
-                to_email=user.email,
-                variables={
-                    "first_name": user.first_name or "there",
-                    "reset_url": reset_url,
-                    "expiry_hours": 1,
-                },
+            sent = await email_svc.send_password_reset_link(
+                to_email=user["email"],
+                first_name=user["first_name"] or "there",
+                reset_url=reset_url,
+                expiry_hours=1,
             )
+            if not sent:
+                logger.error("Password reset email NOT sent for %s", email)
         except Exception:
             logger.warning("Password reset email failed for %s", email)
 
-    async def reset_password(self, token: str, new_password: str) -> None:
-        result = await self.db.execute(
-            select(User).where(User.password_reset_token == token)
-        )
-        user = result.scalar_one_or_none()
-        if not user or not user.password_reset_expires:
-            raise ValidationError("Invalid or expired reset token")
-        if user.password_reset_expires < datetime.now(UTC):
-            raise ValidationError("Reset token has expired")
+    @staticmethod
+    async def _claim_reset_token(email: str, token: str) -> dict | None:
+        """Write a fresh reset token against this address, whoever it belongs to.
 
-        user.hashed_password = hash_password(new_password)
-        user.password_reset_token = None
-        user.password_reset_expires = None
+        Runs on its own unscoped session — see send_password_reset. Returns what
+        the email needs, never the account itself.
+        """
+        from sqlalchemy import text as _text
+
+        from app.core.database import AsyncSessionLocal
+        from app.core.tenant_context import is_scoping_bypassed, set_bypass_scoping
+
+        previous = is_scoping_bypassed()
+        set_bypass_scoping(True)
+        try:
+            async with AsyncSessionLocal() as db:
+                row = (await db.execute(_text("""
+                    UPDATE users SET password_reset_token = :tok,
+                                     password_reset_expires = now() + interval '1 hour'
+                    WHERE lower(email) = :em
+                    RETURNING email, first_name
+                """), {"tok": token, "em": email})).mappings().first()
+                await db.commit()
+                return dict(row) if row else None
+        except Exception:
+            logger.warning("Could not issue a reset token for %s", email, exc_info=True)
+            return None
+        finally:
+            set_bypass_scoping(previous)
+
+    async def reset_password(self, token: str, new_password: str) -> None:
+        """Spend a reset token. Unscoped for the same reason as issuing one:
+        the page the link was opened on says nothing about whose account it is."""
+        from sqlalchemy import text as _text
+
+        from app.core.database import AsyncSessionLocal
+        from app.core.tenant_context import is_scoping_bypassed, set_bypass_scoping
+
+        previous = is_scoping_bypassed()
+        set_bypass_scoping(True)
+        try:
+            async with AsyncSessionLocal() as db:
+                row = (await db.execute(_text(
+                    "SELECT id, password_reset_expires FROM users"
+                    " WHERE password_reset_token = :tok"
+                ), {"tok": token})).mappings().first()
+                if not row or not row["password_reset_expires"]:
+                    raise ValidationError("Invalid or expired reset token")
+                if row["password_reset_expires"] < datetime.now(UTC):
+                    raise ValidationError("Reset token has expired")
+
+                # Cleared in the same statement that sets the password: a token
+                # that still works after it has been used is a second key left
+                # in an inbox.
+                await db.execute(_text("""
+                    UPDATE users SET hashed_password = :pwd,
+                                     password_reset_token = NULL,
+                                     password_reset_expires = NULL
+                    WHERE id = :uid
+                """), {"pwd": hash_password(new_password), "uid": row["id"]})
+                await db.commit()
+        finally:
+            set_bypass_scoping(previous)
+

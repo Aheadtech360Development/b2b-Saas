@@ -350,18 +350,27 @@ export default function LoginPage() {
             </form>
             )}
 
+            {/* A shop's customer is not applying for anything — there is no
+                wholesale wall any more, and anyone can order as a guest. The
+                only thing left worth offering here is a shop of your own, and
+                only on the platform's own address, where that is what the
+                visitor came for. */}
             <div style={{ marginTop: "20px", paddingTop: "16px", borderTop: "1px solid #E2E2DE" }}>
-              <div style={{ position: "relative", textAlign: "center", marginBottom: "16px" }}>
-                <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "12px", color: "#6B6B6B", background: "#FFFFFF", padding: "0 12px", position: "relative", zIndex: 1 }}>or</span>
-                <div style={{ position: "absolute", top: "50%", left: 0, right: 0, height: "1px", background: "#E2E2DE", zIndex: 0 }} />
-              </div>
-              <Link
-                href={onPlatform ? "/signup" : "/wholesale/register"}
-                style={{ display: "block", textAlign: "center", fontFamily: "'DM Sans', sans-serif", fontSize: "14px", fontWeight: 500, color: "#1C3557", border: "1px solid #1C3557", padding: "14px", textDecoration: "none", transition: "all .15s" }}
-              >
-                {onPlatform ? "Start your own shop →" : "Create a Wholesale Account →"}
-              </Link>
-              <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px", color: "#6B6B6B", textAlign: "center", marginTop: "16px" }}>
+              {onPlatform && (
+                <>
+                  <div style={{ position: "relative", textAlign: "center", marginBottom: "16px" }}>
+                    <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "12px", color: "#6B6B6B", background: "#FFFFFF", padding: "0 12px", position: "relative", zIndex: 1 }}>or</span>
+                    <div style={{ position: "absolute", top: "50%", left: 0, right: 0, height: "1px", background: "#E2E2DE", zIndex: 0 }} />
+                  </div>
+                  <Link
+                    href="/signup"
+                    style={{ display: "block", textAlign: "center", fontFamily: "'DM Sans', sans-serif", fontSize: "14px", fontWeight: 500, color: "#1C3557", border: "1px solid #1C3557", padding: "14px", textDecoration: "none", transition: "all .15s" }}
+                  >
+                    Start your own shop →
+                  </Link>
+                </>
+              )}
+              <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px", color: "#6B6B6B", textAlign: "center", marginTop: onPlatform ? "16px" : "0" }}>
                 {onPlatform
                   ? "A plan, your details, and your shop is open in a minute."
                   : "No account needed to place an order. Guests pay standard pricing."}

@@ -605,9 +605,12 @@ def send_password_reset_email(self, user_id: str, reset_token: str) -> dict:
                 if not user:
                     return {"status": "skipped", "reason": "user_not_found"}
                 svc = EmailService(db)
-                reset_url = f"{settings.FRONTEND_URL}/auth/reset-password?token={reset_token}"
-                variables = {"name": user.full_name or user.email, "reset_url": reset_url}
-                ok = await svc.send("password_reset", user.email, variables)
+                reset_url = f"{settings.FRONTEND_URL}/reset-password?token={reset_token}"
+                ok = await svc.send_password_reset_link(
+                    to_email=user.email,
+                    first_name=user.first_name or user.email,
+                    reset_url=reset_url,
+                )
                 return {"status": "sent" if ok else "failed", "user_id": user_id}
         return _run(_send())
     except Exception as exc:

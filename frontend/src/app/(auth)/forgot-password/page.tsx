@@ -1,80 +1,104 @@
 "use client";
 
+/**
+ * Ask for a reset link.
+ *
+ * The answer is deliberately the same whether or not the address has an
+ * account — saying "no such account" would let anyone test which addresses
+ * are registered here. A failure that is ours, though (rate limit, server,
+ * no connection), is said plainly, because the old page claimed the email had
+ * been sent no matter what happened.
+ */
 import { useState } from "react";
 import Link from "next/link";
 import { authService } from "@/services/auth.service";
+import { ApiClientError } from "@/lib/api-client";
+import { AuthCard, authStyles as S } from "@/components/auth/AuthCard";
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
-  const [submitted, setSubmitted] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [sent, setSent] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setIsSubmitting(true);
-    await authService.forgotPassword(email);
-    setSubmitted(true);
-    setIsSubmitting(false);
+    if (busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await authService.forgotPassword(email.trim());
+      setSent(true);
+    } catch (err) {
+      if (err instanceof ApiClientError) {
+        setError(err.status === 429
+          ? "That's a few too many requests. Wait an hour and try again."
+          : err.message || "Could not send the link. Please try again.");
+      } else {
+        setError("Could not reach the server. Check your connection and try again.");
+      }
+    } finally {
+      setBusy(false);
+    }
   }
 
-  if (submitted) {
+  if (sent) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
-        <div className="max-w-md w-full text-center">
-          <h1 className="text-2xl font-bold text-gray-900 mb-3">Check your email</h1>
-          <p className="text-gray-600 mb-6">
-            If an account exists for <strong>{email}</strong>, a password reset link has been sent.
-          </p>
-          <Link href="/login" className="text-sm text-brand-600 hover:text-brand-700 font-medium">
-            Back to login
-          </Link>
-        </div>
-      </div>
+      <AuthCard title="Check your email">
+        <p style={S.note}>
+          If an account exists for <strong>{email}</strong>, a reset link is on its way. It works
+          once and expires in an hour.
+        </p>
+        <p style={{ ...S.note, fontSize: "13px" }}>
+          Nothing after a few minutes? Look in spam, then{" "}
+          <button
+            type="button"
+            onClick={() => { setSent(false); setError(null); }}
+            style={{ background: "none", border: "none", padding: 0, color: "#1C3557", cursor: "pointer", font: "inherit", textDecoration: "underline" }}
+          >
+            try again
+          </button>.
+        </p>
+        <Link href="/login" style={S.primaryLink}>Back to sign in →</Link>
+      </AuthCard>
     );
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
-      <div className="max-w-md w-full">
-        <div className="text-center mb-8">
-          <h1 className="text-2xl font-bold text-gray-900">Reset your password</h1>
-          <p className="mt-2 text-gray-600">
-            Enter your email and we will send you a reset link.
-          </p>
+    <AuthCard title="Reset your password">
+      <p style={S.note}>
+        Give us the email you sign in with and we&apos;ll send you a link to set a new password.
+      </p>
+      <form onSubmit={handleSubmit}>
+        {error && <div style={S.error}>{error}</div>}
+
+        <div style={{ marginBottom: "20px" }}>
+          <label htmlFor="email" style={S.label}>Email *</label>
+          <input
+            id="email"
+            type="email"
+            autoComplete="email"
+            autoFocus
+            required
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="you@company.com"
+            style={S.input}
+          />
         </div>
 
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8">
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
-                Email address
-              </label>
-              <input
-                id="email"
-                type="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
-              />
-            </div>
+        <button
+          type="submit"
+          disabled={busy || !email.trim()}
+          style={{ ...S.button, background: busy || !email.trim() ? "#9ca3af" : "#1C3557", cursor: busy || !email.trim() ? "not-allowed" : "pointer" }}
+        >
+          {busy ? "Sending…" : "Send reset link →"}
+        </button>
+      </form>
 
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="w-full rounded-md bg-brand-600 text-white py-2 px-4 text-sm font-medium hover:bg-brand-700 disabled:opacity-60"
-            >
-              {isSubmitting ? "Sending…" : "Send reset link"}
-            </button>
-          </form>
-
-          <div className="mt-6 text-center">
-            <Link href="/login" className="text-sm text-brand-600 hover:text-brand-700">
-              Back to login
-            </Link>
-          </div>
-        </div>
-      </div>
-    </div>
+      <p style={{ ...S.note, marginTop: "18px", marginBottom: 0, fontSize: "13px" }}>
+        Remembered it? <Link href="/login" style={{ color: "#1C3557" }}>Back to sign in</Link>
+      </p>
+    </AuthCard>
   );
 }

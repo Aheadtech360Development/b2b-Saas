@@ -14,7 +14,10 @@ import Link from "next/link";
  * is trying to read a price.
  */
 
-const CONTACT_EMAIL = "hello@printcopilot.co";
+// The inbox a shop actually reaches us on, and the same one a sign-up lands in
+// (PLATFORM_SUPPORT_EMAIL on the server). Two addresses would mean somebody
+// writes to the one nobody reads.
+const CONTACT_EMAIL = "support@printcopilot.co";
 
 const TIERS = [
   {
@@ -425,8 +428,11 @@ const CSS = `
 .pc-hero{padding:72px 24px 60px;max-width:820px;text-align:center;}
 .pc-hero h1{font-size:44px;line-height:1.14;letter-spacing:-.025em;font-weight:700;margin:0 0 18px;}
 .pc-hero p{font-size:18px;color:var(--muted);margin:0 auto;max-width:640px;}
-.pc-cta{display:flex;gap:12px;justify-content:center;margin-top:28px;flex-wrap:wrap;}
+.pc-cta{display:flex;gap:12px;justify-content:center;margin-top:30px;flex-wrap:wrap;}
 .pc-fine{font-size:13.5px;color:var(--muted);margin-top:16px;}
+/* Beats .pc-hero p, which is the more specific of the two and was flattening
+   this line onto the buttons above it. */
+.pc-hero .pc-fine{margin:22px auto 0;}
 
 .pc-band{background:#fff;border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:64px 0;}
 .pc-section{padding:64px 24px;}
