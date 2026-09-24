@@ -100,10 +100,10 @@ export default function SignupPage() {
         phone: form.phone.trim(),
       }, { skipAuth: true });
 
-      // Straight into their own admin, at the shop's own address, already
-      // signed in. The token is handed over in the fragment — the same way the
-      // platform console enters a brand — because the shop is on a different
-      // host and a token in the query string ends up in logs.
+      // Straight into their own shop, already signed in. The token is handed
+      // over in the fragment — the same way the platform console enters a
+      // brand — because the shop is on a different host and a token in the
+      // query string ends up in logs.
       const handover = `#session=${encodeURIComponent(out.access_token)}`;
       const onPlatformDomain = PLATFORM_DOMAIN !== "localhost"
         && window.location.hostname.endsWith(PLATFORM_DOMAIN);
@@ -174,7 +174,8 @@ export default function SignupPage() {
             {chosen && (
               <p className="su-lede">
                 <strong>{chosen.name}</strong> — {chosen.price_display}, {chosen.commission_display} on
-                Gang Sheet Builder orders. Your card is the next screen; nothing is charged before then.
+                Gang Sheet Builder orders. No card needed now — you add it from Billing
+                when you are ready.
               </p>
             )}
 

@@ -4,11 +4,10 @@ Until now a brand only existed because the platform typed it in. This is the
 front door: pick a plan, give your details, and the shop exists with you signed
 into its admin — the same three steps Shopify walks somebody through.
 
-No trial. The plan is chosen here and the card is taken on the next screen,
-where Stripe collects it; the card number never reaches this application, only
-the brand, the last four digits and the token that lets us charge it monthly.
-Until the platform's Stripe keys are set the shop is created with billing
-marked pending, so signing up works and nothing pretends a card was taken.
+No card at this step: a plan is chosen, the details are given, and the shop is
+made. The card is added from the shop's own Billing screen, where Stripe's page
+collects it — the number never reaches this application, only the customer we
+charge each month and the last four digits to show back.
 """
 from __future__ import annotations
 
@@ -192,12 +191,15 @@ async def sign_up(payload: SignupIn, request: Request,
         "tenant_id": str(tenant_id), "role": "tenant_admin",
         "account_type": "wholesale",
     })
+
+    # No card here. Signing up is details and nothing else, and the owner goes
+    # straight into their shop; the card is added from Billing when they are
+    # ready for it, on Stripe's own page.
     return {
         "slug": slug,
         "tenant_id": str(tenant_id),
         "plan": payload.plan,
         "access_token": token,
-        # The shop is made; the card is the next screen.
-        "next": "/admin/billing",
+        "next": "/admin/dashboard",
         "billing": "pending",
     }

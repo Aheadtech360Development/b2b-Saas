@@ -19,7 +19,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
-from app.core.billing_plans import BILLING_PLANS, ALL_FEATURES, get_plan, features_for_plan
+from app.core.billing_plans import get_plan
 
 logger = logging.getLogger(__name__)
 
@@ -60,7 +60,7 @@ class BillingService:
     # ── tenant lookup ─────────────────────────────────────────────────────────
     async def _get_tenant(self, slug: str) -> dict | None:
         row = (await self.db.execute(
-            text("SELECT id, slug, name, email, status, plan FROM tenants WHERE slug = :s"),
+            text("SELECT id, slug, name, email, status, plan, custom_domain FROM tenants WHERE slug = :s"),
             {"s": slug},
         )).mappings().first()
         return dict(row) if row else None
@@ -117,14 +117,20 @@ class BillingService:
             return {"switched": True, "plan": plan_key}
 
         customer_id = await self.get_or_create_customer(tenant)
-        frontend = get_settings().FRONTEND_URL.rstrip("/")
+        # Back to *their* admin, not the platform's. Built from the shop's own
+        # address, because a link made from the one global front-end setting
+        # drops a brand on a page that knows nothing about their shop.
+        from app.services import brand_urls
+
+        back = brand_urls.build(tenant["slug"], tenant.get("custom_domain"), "/admin/billing")
+        joiner = "&" if "?" in back else "?"
         s = _stripe()
         session = s.checkout.Session.create(
             mode="subscription",
             customer=customer_id,
             line_items=[{"price": price_id, "quantity": 1}],
-            success_url=f"{frontend}/admin/billing?status=success&session_id={{CHECKOUT_SESSION_ID}}",
-            cancel_url=f"{frontend}/admin/billing?status=cancelled",
+            success_url=f"{back}{joiner}status=success&session_id={{CHECKOUT_SESSION_ID}}",
+            cancel_url=f"{back}{joiner}status=cancelled",
             metadata={"tenant_id": str(tenant["id"]), "plan_key": plan_key},
             subscription_data={"metadata": {"tenant_id": str(tenant["id"]), "plan_key": plan_key}},
             allow_promotion_codes=True,
@@ -136,11 +142,12 @@ class BillingService:
         if not tenant:
             raise ValueError("Tenant not found")
         customer_id = await self.get_or_create_customer(tenant)
-        frontend = get_settings().FRONTEND_URL.rstrip("/")
+        from app.services import brand_urls
+
         s = _stripe()
         session = s.billing_portal.Session.create(
             customer=customer_id,
-            return_url=f"{frontend}/admin/billing",
+            return_url=brand_urls.build(tenant["slug"], tenant.get("custom_domain"), "/admin/billing"),
         )
         return {"portal_url": session.url}
 
@@ -239,17 +246,24 @@ class BillingService:
         await self._reconcile_access(tenant_id, plan_key, status)
 
     async def _reconcile_access(self, tenant_id: str, plan_key: str | None, sub_status: str | None) -> None:
-        """Flip tenant status + feature flags based on subscription health."""
+        """Put the brand on the plan it is paying for, and open or close the shop.
+
+        What that plan *includes* is not written down here. It used to write a
+        row per feature, which turned every plan default into a standing
+        decision: the platform's own grants were silently overwritten on the
+        next sync, and taking a feature back was indistinguishable from never
+        having granted it. The plan decides by itself now
+        (app/services/entitlements.py), and a row in tenant_feature_flags means
+        only what the platform decided on purpose.
+        """
         if sub_status in _ACTIVE_STATES:
             tenant_status = "active"
-            flags = features_for_plan(plan_key) if plan_key else {f: False for f in ALL_FEATURES}
         elif sub_status in _DEAD_STATES:
+            # Nothing is deleted and no feature is touched: the shop is closed,
+            # and paying reopens it exactly as it was.
             tenant_status = "suspended"
-            flags = {f: False for f in ALL_FEATURES}
         else:
-            # past_due / incomplete — grace period: keep access, don't change flags.
-            tenant_status = None
-            flags = None
+            tenant_status = None  # past_due / incomplete — a grace period.
 
         if plan_key:
             await self.db.execute(
@@ -261,14 +275,10 @@ class BillingService:
                 text("UPDATE tenants SET status = :s, updated_at = now() WHERE id = :t"),
                 {"s": tenant_status, "t": tenant_id},
             )
-        if flags is not None:
-            for feature, enabled in flags.items():
-                await self.db.execute(text("""
-                    INSERT INTO tenant_feature_flags (tenant_id, feature, is_enabled)
-                    VALUES (:t, :f, :en)
-                    ON CONFLICT (tenant_id, feature)
-                    DO UPDATE SET is_enabled = EXCLUDED.is_enabled, updated_at = now()
-                """), {"t": tenant_id, "f": feature, "en": enabled})
+
+        from app.services import entitlements
+
+        entitlements.forget(tenant_id)
 
     async def mark_past_due(self, subscription_id: str) -> None:
         """invoice.payment_failed — record past_due without yanking access yet."""
