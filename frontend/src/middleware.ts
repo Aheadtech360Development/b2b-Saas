@@ -20,6 +20,14 @@ export const TENANT_COOKIE = "tenant_slug";
 export const PATH_HEADER = "x-pathname";
 export const HOST_HEADER = "x-storefront-host";
 
+/** Whether this request arrived at the platform's own address rather than a
+ *  shop's. Only true once the platform has a domain configured — on a preview
+ *  deployment every address is the platform's and nothing here applies. */
+export function isPlatformHost(hostname: string): boolean {
+  if (PLATFORM_DOMAIN === "localhost") return false;
+  return hostname === PLATFORM_DOMAIN || hostname === `www.${PLATFORM_DOMAIN}`;
+}
+
 function resolveSlug(request: NextRequest): string | null {
   const hostname = request.nextUrl.hostname;
 
@@ -32,6 +40,12 @@ function resolveSlug(request: NextRequest): string | null {
   ) {
     return hostname.slice(0, -(PLATFORM_DOMAIN.length + 1));
   }
+
+  // The platform's own address is the platform's. A shop asked for here is
+  // redirected to where it lives (below), and a cookie from some earlier visit
+  // must not turn this page into a shop — that is what made the address the
+  // platform hands out show a different thing depending on who opened it.
+  if (isPlatformHost(hostname)) return null;
 
   // 2. `?tenant=<slug>` — for hosts without wildcard subdomains (preview deploys).
   //    Present-but-empty (`?tenant=`) is an explicit "no tenant": platform admins
@@ -47,6 +61,18 @@ function resolveSlug(request: NextRequest): string | null {
 }
 
 export function middleware(request: NextRequest) {
+  const hostname = request.nextUrl.hostname;
+
+  // A shop asked for on the platform's own address goes to its own address
+  // instead of being served here under a second one. One shop, one place.
+  const wanted = request.nextUrl.searchParams.get("tenant");
+  if (isPlatformHost(hostname) && wanted) {
+    const to = request.nextUrl.clone();
+    to.hostname = `${wanted}.${PLATFORM_DOMAIN}`;
+    to.searchParams.delete("tenant");
+    return NextResponse.redirect(to, 307);
+  }
+
   const slug = resolveSlug(request);
 
   const requestHeaders = new Headers(request.headers);
@@ -74,11 +100,16 @@ export function middleware(request: NextRequest) {
 
   const response = NextResponse.next({ request: { headers: requestHeaders } });
 
-  response.cookies.set(TENANT_COOKIE, slug ?? "", {
-    path: "/",
-    sameSite: "lax",
-    httpOnly: false, // readable by JS
-  });
+  // On a shop's address the cookie carries the brand through in-app
+  // navigation. On the platform's own address there is no brand to carry, and
+  // writing one there is how the platform's home page ended up showing a shop.
+  if (!isPlatformHost(hostname)) {
+    response.cookies.set(TENANT_COOKIE, slug ?? "", {
+      path: "/",
+      sameSite: "lax",
+      httpOnly: false, // readable by JS
+    });
+  }
 
   return response;
 }
