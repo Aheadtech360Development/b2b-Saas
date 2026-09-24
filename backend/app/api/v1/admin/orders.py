@@ -1329,7 +1329,20 @@ async def generate_label_manual(
         if not all([to_address["street1"], to_address["city"], to_address["state"], to_address["zip"]]):
             raise HTTPException(status_code=422, detail="Incomplete shipping address on order")
         carrier_token = CARRIER_TOKENS.get(payload.carrier.lower(), "usps_priority")
-        result = await create_label(str(order_id), to_address, carrier_token, weight_oz=payload.weight_lbs * 16.0)
+        # On the brand's own Shippo account, from the brand's own dock. Without
+        # these two the label was bought on the platform's account and shipped
+        # from the platform's address — we paid for the brand's postage, and
+        # the parcel said it came from somewhere the brand has never been.
+        from app.core.tenant_context import get_current_tenant_id as _label_tid
+        from app.services import shippo_service as _ship_svc
+
+        _lt = getattr(request.state, "tenant_id", None) or _label_tid()
+        result = await create_label(
+            str(order_id), to_address, carrier_token,
+            weight_oz=payload.weight_lbs * 16.0,
+            address_from=await _ship_svc.get_ship_from(db, _lt),
+            api_key=await _ship_svc.get_shippo_key(db, _lt),
+        )
 
     if result.get("success"):
         order.tracking_number = result["tracking_number"]
