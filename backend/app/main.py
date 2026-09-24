@@ -697,14 +697,21 @@ async def _ensure_platform_admin() -> None:
     log in. Runs only when SEED_PLATFORM_ADMIN_PASSWORD is set. Non-fatal — never
     blocks startup.
 
-    IMPORTANT: on an EXISTING admin this only re-asserts the platform flags — it
-    does NOT overwrite the password. Previously it reset hashed_password on every
-    startup, so each deploy clobbered a password that had been changed via the UI
-    or SQL. The password is only set when the row is first created."""
+    On an EXISTING admin this only re-asserts the platform flags — it does not
+    overwrite the password. It used to reset it on every startup, so each deploy
+    clobbered a password that had been changed since.
+
+    That left no way back in for an operator who lost theirs, and the only
+    remaining option — editing the column by hand — stores whatever is typed,
+    including a plain password the login can never verify. So the reset is
+    available, but only when asked for: set SEED_PLATFORM_ADMIN_RESET=true for
+    one deploy, then remove it, or the next deploy undoes any password changed
+    in the meantime."""
     pw = os.environ.get("SEED_PLATFORM_ADMIN_PASSWORD")
     if not pw:
         return
     email = os.environ.get("SEED_PLATFORM_ADMIN_EMAIL", "admin@b2bsaas.com")
+    reset = (os.environ.get("SEED_PLATFORM_ADMIN_RESET") or "").strip().lower() in {"1", "true", "yes", "on"}
     try:
         from sqlalchemy import text
 
@@ -727,11 +734,15 @@ async def _ensure_platform_admin() -> None:
                       SET is_platform_admin = true, is_admin = true, is_active = true,
                           email_verified = true, role = 'platform_admin'
                     """
+                    + (", hashed_password = :pw" if reset else "")
                 ),
                 {"email": email, "pw": hashed},
             )
             await db.commit()
-        print(f"Platform admin ensured: {email}")
+        print(
+            f"Platform admin ensured: {email}"
+            + (" (password reset — remove SEED_PLATFORM_ADMIN_RESET now)" if reset else "")
+        )
     except Exception as exc:  # noqa: BLE001
         print(f"Platform admin seed skipped (non-fatal): {exc}")
     finally:
