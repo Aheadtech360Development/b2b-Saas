@@ -53,6 +53,56 @@ async def require_admin(request: Request) -> None:
         )
 
 
+async def _feature_gate(request, path: str, *, public: bool):
+    """403 when this brand's plan does not include what the path needs."""
+    from app.core.features import feature_for_path
+
+    feature = feature_for_path(path, public=public)
+    if feature is None:
+        return None
+    tenant_id = getattr(request.state, "tenant_id", None)
+    slug = getattr(request.state, "tenant_slug", None)
+    if not tenant_id and not slug:
+        return None
+    try:
+        from sqlalchemy import text as _text
+
+        from app.core.database import AsyncSessionLocal
+        from app.core.tenant_context import set_bypass_scoping
+        from app.services import entitlements
+
+        set_bypass_scoping(True)
+        try:
+            async with AsyncSessionLocal() as db:
+                if not tenant_id:
+                    # A shopper with no account still belongs to a shop, and
+                    # that shop's plan is what decides — the gang sheet builder
+                    # is open to guests, so gating only signed-in requests
+                    # would gate nobody who actually uses it.
+                    tenant_id = (await db.execute(
+                        _text("SELECT id FROM tenants WHERE slug = :s AND status = 'active'"),
+                        {"s": slug},
+                    )).scalar()
+                    if not tenant_id:
+                        return None
+                if await entitlements.enabled(db, tenant_id, feature):
+                    return None
+        finally:
+            set_bypass_scoping(False)
+    except Exception:
+        return None  # a lookup that fails must not take the shop down
+
+    from app.core.features import LABELS
+
+    return JSONResponse(
+        status_code=403,
+        content={"error": {
+            "code": "FEATURE_NOT_IN_PLAN",
+            "message": f"{LABELS.get(feature, feature)} is not part of this store's plan.",
+        }},
+    )
+
+
 class AuthMiddleware(BaseHTTPMiddleware):
     """Decode JWT, inject user state, enforce rate limiting on public endpoints."""
 
@@ -104,6 +154,13 @@ class AuthMiddleware(BaseHTTPMiddleware):
                             request.state.account_type = payload.get("account_type", "wholesale")
                 except (JWTError, Exception):
                     pass  # Invalid/expired token — treat as guest, don't block
+
+            # A public path can still belong to a feature the shop's plan does
+            # not include. The gang sheet builder is open to guests, so gating
+            # only the signed-in half of it would gate almost nobody.
+            denied = await _feature_gate(request, path, public=True)
+            if denied is not None:
+                return denied
             return await call_next(request)
 
         # ── Extract Bearer token ──────────────────────────────────────────────
@@ -198,6 +255,22 @@ class AuthMiddleware(BaseHTTPMiddleware):
                     status_code=403,
                     content={"error": {"code": "FORBIDDEN", "message": "Your role does not allow this action"}},
                 )
+
+            # ── What this brand's plan actually includes ──────────────────
+            # Checked here, with the permissions, so a feature switched off in
+            # the platform console cannot still be reached through the API.
+            # The platform's own console is exempt: that is where features are
+            # switched, and gating it with them could lock the operator out.
+            if not getattr(request.state, "is_platform_admin", False):
+                denied = await _feature_gate(request, path, public=False)
+                if denied is not None:
+                    return denied
+
+        # The same for a signed-in shopper on a path that is not public.
+        elif path.startswith("/api/v1/"):
+            denied = await _feature_gate(request, path, public=True)
+            if denied is not None:
+                return denied
         # Platform-admin-only paths
         if path.startswith("/api/v1/platform/") and not request.state.is_platform_admin:
             return JSONResponse(

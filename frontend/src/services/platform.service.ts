@@ -38,7 +38,19 @@ export interface UpdateTenantPayload {
 
 export interface FeatureFlag {
   feature: string;
-  is_enabled: boolean;
+  label: string;
+  group: string;
+  /** What this brand's plan includes on its own. */
+  in_plan: boolean;
+  /** What was decided for this brand regardless of the plan, or null. */
+  override: boolean | null;
+  /** The answer: the override when there is one, else the plan. */
+  enabled: boolean;
+}
+
+export interface TenantFeatures {
+  plan: string;
+  features: FeatureFlag[];
 }
 
 export const platformService = {
@@ -67,14 +79,14 @@ export const platformService = {
     return apiClient.delete<void>(`/api/v1/platform/tenants/${slug}`);
   },
 
-  /** List a tenant's feature flags. */
-  async getFeatures(slug: string): Promise<FeatureFlag[]> {
-    return apiClient.get<FeatureFlag[]>(`/api/v1/platform/tenants/${slug}/features`);
+  /** Every feature the platform offers, and where this brand stands on each. */
+  async getFeatures(slug: string): Promise<TenantFeatures> {
+    return apiClient.get<TenantFeatures>(`/api/v1/platform/tenants/${slug}/features`);
   },
 
-  /** Enable/disable a feature for a tenant. */
-  async setFeature(slug: string, feature: string, isEnabled: boolean): Promise<FeatureFlag> {
-    return apiClient.put<FeatureFlag>(`/api/v1/platform/tenants/${slug}/features`, {
+  /** Grant (true), take away (false), or hand it back to the plan (null). */
+  async setFeature(slug: string, feature: string, isEnabled: boolean | null): Promise<TenantFeatures> {
+    return apiClient.put<TenantFeatures>(`/api/v1/platform/tenants/${slug}/features`, {
       feature,
       is_enabled: isEnabled,
     });

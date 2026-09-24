@@ -251,21 +251,28 @@ async def get_tenant_features(
     slug: str,
     request: Request,
     db: AsyncSession = Depends(get_db),
-) -> list[dict[str, Any]]:
+) -> dict[str, Any]:
+    """Every feature the platform offers, and where this brand stands on it.
+
+    Not just the rows that happen to exist: the whole catalogue, what the
+    brand's plan includes, and what has been decided for it regardless of the
+    plan — because you cannot grant something you cannot see.
+    """
     _require_platform_admin(request)
-    result = await db.execute(text("""
-        SELECT f.feature, f.is_enabled
-        FROM tenant_feature_flags f
-        JOIN tenants t ON t.id = f.tenant_id
-        WHERE t.slug = :s
-        ORDER BY f.feature
-    """), {"s": slug})
-    return [dict(r) for r in result.mappings().all()]
+    from app.services import entitlements
+
+    tid = (await db.execute(text("SELECT id FROM tenants WHERE slug=:s"), {"s": slug})).scalar()
+    if not tid:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+    return await entitlements.detail(db, tid)
 
 
 class FeatureFlagUpdate(BaseModel):
     feature: str
-    is_enabled: bool
+    # True grants it, False takes it away, and null goes back to whatever the
+    # brand's plan says — three states, because "off" and "not decided" are
+    # different answers once a plan change can move the default underneath.
+    is_enabled: bool | None = None
 
 
 @router.put("/{slug}/features")
@@ -276,17 +283,31 @@ async def update_tenant_feature(
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     _require_platform_admin(request)
+    from app.core.features import ALL_FEATURES
+    from app.services import entitlements
+
+    if data.feature not in ALL_FEATURES:
+        raise HTTPException(status_code=400, detail=f"'{data.feature}' is not a feature")
+
     tid = await db.execute(text("SELECT id FROM tenants WHERE slug=:s"), {"s": slug})
     row = tid.first()
     if not row:
         raise HTTPException(status_code=404, detail="Tenant not found")
-    await db.execute(text("""
-        INSERT INTO tenant_feature_flags (tenant_id, feature, is_enabled)
-        VALUES (:tid, :f, :en)
-        ON CONFLICT (tenant_id, feature) DO UPDATE SET is_enabled = EXCLUDED.is_enabled, updated_at = now()
-    """), {"tid": str(row[0]), "f": data.feature, "en": data.is_enabled})
+
+    if data.is_enabled is None:
+        # Back to the plan's own answer.
+        await db.execute(text(
+            "DELETE FROM tenant_feature_flags WHERE tenant_id = :tid AND feature = :f"
+        ), {"tid": str(row[0]), "f": data.feature})
+    else:
+        await db.execute(text("""
+            INSERT INTO tenant_feature_flags (tenant_id, feature, is_enabled)
+            VALUES (:tid, :f, :en)
+            ON CONFLICT (tenant_id, feature) DO UPDATE SET is_enabled = EXCLUDED.is_enabled, updated_at = now()
+        """), {"tid": str(row[0]), "f": data.feature, "en": data.is_enabled})
     await db.commit()
-    return {"feature": data.feature, "is_enabled": data.is_enabled}
+    entitlements.forget(row[0])
+    return await entitlements.detail(db, row[0])
 
 
 # ── Impersonate (enter a brand's admin dashboard) ─────────────────────────────

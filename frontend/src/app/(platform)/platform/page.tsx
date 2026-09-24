@@ -8,6 +8,7 @@ import {
   enterBrandDashboard,
   type CreateTenantPayload,
   type CreateTenantResponse,
+  type FeatureFlag,
 } from "@/services/platform.service";
 import { AnalyticsTab, ActivityTab, SearchTab, HealthTab } from "@/components/platform/InsightTabs";
 import type { Tenant } from "@/types/user.types";
@@ -251,8 +252,19 @@ export default function PlatformDashboard() {
 // ── Manage Tenant Modal (features, lifecycle) ─────────────────────────────────
 // Subscription tiers are deliberately absent: the product is sold as one flat
 // service, so exposing plan pickers here would imply a tier that does not exist.
+/** The catalogue, in the order it came, grouped the way it is grouped. */
+function groupFeatures(rows: FeatureFlag[]): [string, FeatureFlag[]][] {
+  const out: [string, FeatureFlag[]][] = [];
+  for (const row of rows) {
+    const last = out[out.length - 1];
+    if (last && last[0] === row.group) last[1].push(row);
+    else out.push([row.group, [row]]);
+  }
+  return out;
+}
+
 function ManageTenantModal({ tenant, onClose, onChanged }: { tenant: Tenant; onClose: () => void; onChanged: () => void }) {
-  const [features, setFeatures] = useState<{ feature: string; is_enabled: boolean }[]>([]);
+  const [features, setFeatures] = useState<FeatureFlag[]>([]);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [purgeText, setPurgeText] = useState("");
@@ -263,14 +275,30 @@ function ManageTenantModal({ tenant, onClose, onChanged }: { tenant: Tenant; onC
   const [handle, setHandle] = useState(tenant.slug);
   const [savingHandle, setSavingHandle] = useState(false);
 
+  const [plan, setPlan] = useState("");
+
   useEffect(() => {
-    platformService.getFeatures(tenant.slug).then(setFeatures).catch(() => {});
+    platformService.getFeatures(tenant.slug)
+      .then((r) => { setFeatures(r.features); setPlan(r.plan); })
+      .catch(() => {});
   }, [tenant.slug]);
 
-  async function toggleFeature(feature: string, enabled: boolean) {
-    setFeatures((prev) => prev.map((f) => (f.feature === feature ? { ...f, is_enabled: enabled } : f)));
-    try { await platformService.setFeature(tenant.slug, feature, enabled); }
-    catch { setFeatures((prev) => prev.map((f) => (f.feature === feature ? { ...f, is_enabled: !enabled } : f))); }
+  /** Grant it, take it away, or hand it back to the plan. */
+  async function setFeature(feature: string, next: boolean | null) {
+    const before = features;
+    setFeatures((prev) => prev.map((f) => (
+      f.feature === feature
+        ? { ...f, override: next, enabled: next === null ? f.in_plan : next }
+        : f
+    )));
+    try {
+      const r = await platformService.setFeature(tenant.slug, feature, next);
+      setFeatures(r.features);
+      setPlan(r.plan);
+    } catch {
+      setFeatures(before);
+      setMsg("Could not change that feature.");
+    }
   }
 
   async function cancelBrand() {
@@ -285,7 +313,6 @@ function ManageTenantModal({ tenant, onClose, onChanged }: { tenant: Tenant; onC
     catch { setMsg("Purge failed"); setBusy(false); }
   }
 
-  const label = (feat: string) => feat.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 
   return (
     <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.65)", display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "48px 20px", zIndex: 1000, overflowY: "auto" }}>
@@ -416,15 +443,55 @@ Any link with the old address stops working, and anyone browsing it right now wi
           </p>
         </div>
 
-        {/* Feature flags */}
+        {/* What this brand may use. The plan decides the default and anything
+            here overrides it, either way, for any feature. */}
         <div style={{ marginBottom: "22px" }}>
-          <div style={{ fontSize: "12px", fontWeight: 700, color: "#A78BFA", textTransform: "uppercase", letterSpacing: ".05em", marginBottom: "10px" }}>Feature Flags</div>
-          {features.length === 0 && <div style={{ fontSize: "13px", color: "#6B7280" }}>No feature flags.</div>}
-          {features.map((f) => (
-            <label key={f.feature} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", background: "#0B0D12", border: "1px solid #1E2230", borderRadius: "8px", marginBottom: "8px", cursor: "pointer" }}>
-              <span style={{ fontSize: "13px", color: "#E5E7EB" }}>{label(f.feature)}</span>
-              <input type="checkbox" checked={f.is_enabled} onChange={(e) => toggleFeature(f.feature, e.target.checked)} style={{ width: "18px", height: "18px", cursor: "pointer" }} />
-            </label>
+          <div style={{ fontSize: "12px", fontWeight: 700, color: "#A78BFA", textTransform: "uppercase", letterSpacing: ".05em", marginBottom: "4px" }}>
+            Features
+          </div>
+          <p style={{ fontSize: "11.5px", color: "#6B7280", margin: "0 0 12px", lineHeight: 1.6 }}>
+            Plan <strong style={{ color: "#C7CBD4" }}>{plan || "—"}</strong> decides the default.
+            Grant or remove anything regardless of it; <em>Plan</em> puts it back.
+          </p>
+          {features.length === 0 && <div style={{ fontSize: "13px", color: "#6B7280" }}>Loading…</div>}
+          {groupFeatures(features).map(([group, rows]) => (
+            <div key={group} style={{ marginBottom: "14px" }}>
+              <div style={{ fontSize: "11px", fontWeight: 700, color: "#6B7280", textTransform: "uppercase", letterSpacing: ".06em", marginBottom: "6px" }}>
+                {group}
+              </div>
+              {rows.map((f) => (
+                <div key={f.feature} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "10px", padding: "9px 12px", background: "#0B0D12", border: "1px solid #1E2230", borderRadius: "8px", marginBottom: "6px" }}>
+                  <span style={{ fontSize: "12.5px", color: f.enabled ? "#E5E7EB" : "#6B7280", lineHeight: 1.4 }}>
+                    {f.label}
+                    {f.override !== null && (
+                      <span style={{ marginLeft: "6px", fontSize: "10.5px", color: "#A78BFA", fontWeight: 700 }}>
+                        {f.override ? "GRANTED" : "REMOVED"}
+                      </span>
+                    )}
+                  </span>
+                  <span style={{ display: "flex", gap: "4px", flexShrink: 0 }}>
+                    {([["On", true], ["Off", false], ["Plan", null]] as [string, boolean | null][]).map(([text, value]) => {
+                      const active = f.override === value;
+                      return (
+                        <button
+                          key={text}
+                          onClick={() => setFeature(f.feature, value)}
+                          style={{
+                            fontSize: "11px", fontWeight: 700, padding: "4px 9px", borderRadius: "6px",
+                            cursor: "pointer",
+                            border: `1px solid ${active ? "rgba(167,139,250,.5)" : "#1E2230"}`,
+                            background: active ? "rgba(167,139,250,.14)" : "transparent",
+                            color: active ? "#A78BFA" : "#6B7280",
+                          }}
+                        >
+                          {text}
+                        </button>
+                      );
+                    })}
+                  </span>
+                </div>
+              ))}
+            </div>
           ))}
         </div>
 
