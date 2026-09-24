@@ -1,51 +1,83 @@
-"""Tier definitions for platform billing (System A — brand -> platform).
+"""What a brand pays the platform, and what that buys.
 
-Single source of truth for the subscription tiers a brand can be on. Amounts are
-in USD cents. Feature keys line up with `tenant_feature_flags.feature` so a plan
-change flips exactly the right flags (see create_tenant defaults). Stripe
-Product/Price objects are created from this config by
+Single source of truth for the tiers. Amounts are in USD cents. The features a
+plan includes live in `app/core/features.py` — one catalogue, so a plan change
+and the platform's own overrides are talking about the same things.
+
+A tier is a flat monthly plan plus a commission on Gang Sheet Builder orders
+only; nothing else on a brand's store is metered. See the pricing sheet in
+designs/Platform-Pricing-Page.html.
+
+Stripe Product/Price objects are created from this by
 scripts/setup_stripe_billing.py; the resulting price ids are stored in
 app_settings under `stripe_price_<key>` and looked up at runtime.
-
-To change pricing/tiers: edit this file, re-run setup_stripe_billing.py. In test
-mode the Stripe objects are throwaway, so iterating is cheap.
 """
 from __future__ import annotations
 
-# Cheapest -> most expensive. Drives the pricing table order in the UI.
-PLAN_ORDER = ["starter", "growth", "scale"]
+from app.core.features import ALL_FEATURES, PLAN_FEATURES
 
-# Every feature flag a plan can toggle. Must match tenant_feature_flags.feature.
-ALL_FEATURES = ["supplier_catalog", "markup_rules", "staff_accounts", "audit_logs"]
+# Cheapest -> most expensive. Drives the pricing table order in the UI.
+PLAN_ORDER = ["starter", "wholesale", "scale"]
 
 BILLING_PLANS: dict[str, dict] = {
     "starter": {
         "name": "Starter",
-        "amount_cents": 2900,
+        "amount_cents": 9700,
         "interval": "month",
-        "lookup_key": "at360_starter_monthly",
-        "features": ["staff_accounts"],
-        "limits": {"admin_seats": 1, "products": 500},
-        "description": "Get selling: storefront, catalog, 1 admin seat.",
+        "lookup_key": "printcopilot_starter_monthly",
+        # The share of a Gang Sheet Builder order, in basis points: 280 = 2.8%.
+        "commission_bps": 280,
+        "features": sorted(PLAN_FEATURES["starter"]),
+        "limits": {"orders_per_month": 300, "staff_accounts": 3, "custom_domains": 1},
+        "description": "For shops not yet running wholesale volume.",
     },
-    "growth": {
-        "name": "Growth",
-        "amount_cents": 9900,
+    "wholesale": {
+        "name": "Wholesale",
+        "amount_cents": 29700,
         "interval": "month",
-        "lookup_key": "at360_growth_monthly",
-        "features": ["staff_accounts", "supplier_catalog", "markup_rules"],
-        "limits": {"admin_seats": 5, "products": 10000},
-        "description": "Scale up: supplier catalog, markup rules, 5 admin seats.",
+        "lookup_key": "printcopilot_wholesale_monthly",
+        "commission_bps": 190,
+        "features": sorted(PLAN_FEATURES["wholesale"]),
+        "limits": {"orders_per_month": 1500, "staff_accounts": 10, "custom_domains": 3},
+        "description": "For shops running real bulk and wholesale order volume.",
     },
     "scale": {
         "name": "Scale",
-        "amount_cents": 29900,
+        "amount_cents": 49700,
         "interval": "month",
-        "lookup_key": "at360_scale_monthly",
-        "features": ["staff_accounts", "supplier_catalog", "markup_rules", "audit_logs"],
-        "limits": {"admin_seats": None, "products": None},  # None = unlimited
-        "description": "Everything: audit logs, unlimited seats, priority support.",
+        "lookup_key": "printcopilot_scale_monthly",
+        "commission_bps": 130,
+        "features": sorted(PLAN_FEATURES["scale"]),
+        # None = unlimited.
+        "limits": {"orders_per_month": None, "staff_accounts": None, "custom_domains": None},
+        "description": "For high-volume operations that have outgrown fixed limits.",
     },
+}
+
+# What each plan is sold on, in the words of the pricing sheet.
+PLAN_HIGHLIGHTS: dict[str, list[str]] = {
+    "starter": [
+        "Orders, drafts, shipping labels, abandoned checkouts, returns, purchase orders",
+        "Products, collections, reviews, inventory, multi-location inventory",
+        "Customers and segments",
+        "Storefront, theme, discounts, blog, SEO, pages, menus, custom domains",
+        "24/7 AI Data Analytics Agent",
+        "Gang Sheet Builder access",
+    ],
+    "wholesale": [
+        "Everything in Starter",
+        "Wholesale accounts, sign-up and approval",
+        "Customer tiers and discounts",
+        "Net terms and credit at checkout",
+        "Invoices for net terms accounts",
+        "Matrix ordering grid and Quick Buy reorder",
+    ],
+    "scale": [
+        "Everything in Wholesale",
+        "Lowest commission, 1.3%",
+        "Mobile app included",
+        "Priority support, faster than the standard response window",
+    ],
 }
 
 
@@ -64,9 +96,12 @@ def features_for_plan(key: str) -> dict[str, bool]:
     Used on plan change to reconcile a brand's tenant_feature_flags with what
     their tier includes.
     """
-    plan = BILLING_PLANS.get(key) or {}
-    enabled = set(plan.get("features", []))
+    enabled = set((BILLING_PLANS.get(key) or {}).get("features", []))
     return {f: (f in enabled) for f in ALL_FEATURES}
+
+
+def _limit(value: int | None) -> str:
+    return "Unlimited" if value is None else f"{value:,}"
 
 
 def public_pricing_table() -> list[dict]:
@@ -79,9 +114,16 @@ def public_pricing_table() -> list[dict]:
             "name": p["name"],
             "amount_cents": p["amount_cents"],
             "price_display": f"${p['amount_cents'] // 100}/mo",
+            "commission_display": f"{p['commission_bps'] / 100:.1f}%",
+            "commission_bps": p["commission_bps"],
             "interval": p["interval"],
             "features": p["features"],
+            "highlights": PLAN_HIGHLIGHTS.get(key, []),
             "limits": p["limits"],
+            "limits_display": (
+                f"{_limit(p['limits']['orders_per_month'])} orders/month · "
+                f"{_limit(p['limits']['staff_accounts'])} staff accounts"
+            ),
             "description": p["description"],
         })
     return out

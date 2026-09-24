@@ -1,0 +1,203 @@
+"""A shop signs itself up.
+
+Until now a brand only existed because the platform typed it in. This is the
+front door: pick a plan, give your details, and the shop exists with you signed
+into its admin — the same three steps Shopify walks somebody through.
+
+No trial. The plan is chosen here and the card is taken on the next screen,
+where Stripe collects it; the card number never reaches this application, only
+the brand, the last four digits and the token that lets us charge it monthly.
+Until the platform's Stripe keys are set the shop is created with billing
+marked pending, so signing up works and nothing pretends a card was taken.
+"""
+from __future__ import annotations
+
+import re
+import uuid
+from typing import Any
+
+from fastapi import APIRouter, Depends, HTTPException, Request
+from pydantic import BaseModel, EmailStr, Field
+from sqlalchemy import text
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.billing_plans import is_valid_plan, public_pricing_table
+from app.core.database import get_db
+from app.core.rate_limit import enforce_rate_limit
+from app.core.security import create_access_token, hash_password
+
+router = APIRouter(prefix="/signup", tags=["signup"])
+
+# Addresses the platform keeps for itself, so a shop can never take one.
+RESERVED = {
+    "www", "api", "admin", "platform", "app", "static", "assets", "cdn", "mail",
+    "smtp", "ftp", "blog", "help", "support", "status", "docs", "signup", "login",
+    "account", "billing", "dashboard", "console", "shop", "store", "test", "demo",
+}
+
+_SLUG_OK = re.compile(r"^[a-z0-9][a-z0-9-]{1,48}[a-z0-9]$")
+
+
+def slugify(value: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "-", (value or "").strip().lower()).strip("-")[:50]
+
+
+class AvailabilityOut(BaseModel):
+    slug: str
+    available: bool
+    reason: str = ""
+
+
+class SignupIn(BaseModel):
+    plan: str
+    shop_name: str = Field(min_length=2, max_length=120)
+    # Where the shop lives until it brings a domain. Derived from the name when
+    # it isn't given, because most people never think about it.
+    slug: str | None = None
+    first_name: str = Field(min_length=1, max_length=80)
+    last_name: str = Field(default="", max_length=80)
+    email: EmailStr
+    password: str = Field(min_length=8, max_length=200)
+    phone: str = Field(default="", max_length=40)
+
+
+@router.get("/plans")
+async def plans() -> dict[str, Any]:
+    """The tiers, as the sign-up page shows them."""
+    return {"plans": public_pricing_table()}
+
+
+@router.get("/availability")
+async def availability(slug: str, db: AsyncSession = Depends(get_db)) -> AvailabilityOut:
+    """Whether a shop can have this address."""
+    cleaned = slugify(slug)
+    if not _SLUG_OK.match(cleaned or ""):
+        return AvailabilityOut(slug=cleaned, available=False,
+                               reason="Use letters, numbers and hyphens — at least 3 characters.")
+    if cleaned in RESERVED:
+        return AvailabilityOut(slug=cleaned, available=False, reason="That one is reserved.")
+    taken = (await db.execute(
+        text("SELECT 1 FROM tenants WHERE slug = :s"), {"s": cleaned}
+    )).first()
+    return AvailabilityOut(slug=cleaned, available=not taken,
+                           reason="Already taken." if taken else "")
+
+
+@router.post("", status_code=201)
+async def sign_up(payload: SignupIn, request: Request,
+                  db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
+    """Create the shop and sign its owner in.
+
+    Everything happens in one transaction: a half-made shop — a tenant with no
+    admin, or an admin who owns nothing — is worse than a failed sign-up.
+    """
+    await enforce_rate_limit(request, "signup", limit=10, window=3600)
+    await enforce_rate_limit(request, "signup_email", limit=3, window=3600, extra=payload.email)
+
+    if not is_valid_plan(payload.plan):
+        raise HTTPException(status_code=400, detail="Choose one of the available plans")
+
+    slug = slugify(payload.slug or payload.shop_name)
+    if not _SLUG_OK.match(slug or "") or slug in RESERVED:
+        raise HTTPException(
+            status_code=400,
+            detail="That shop address can't be used. Letters, numbers and hyphens, at least 3 characters.",
+        )
+    email = payload.email.lower()
+    tenant_id = uuid.uuid4()
+    user_id = uuid.uuid4()
+
+    # A shop is created by somebody who does not belong to it yet, so the
+    # request carries no tenant and row-level security would refuse every row
+    # of the shop being made. This is the one place that is legitimate, and it
+    # runs on its own session so the bypass covers the whole of it and nothing
+    # else.
+    from app.core.database import AsyncSessionLocal
+    from app.core.tenant_context import is_scoping_bypassed, set_bypass_scoping
+
+    previous = is_scoping_bypassed()
+    set_bypass_scoping(True)
+    try:
+        async with AsyncSessionLocal() as new_db:
+            # Checked on the same session that does the writing, so the answer
+            # covers every shop on the platform rather than the ones this
+            # request happens to be allowed to see.
+            if (await new_db.execute(
+                text("SELECT 1 FROM tenants WHERE slug = :s"), {"s": slug}
+            )).first():
+                raise HTTPException(status_code=409, detail=f"'{slug}' is already taken")
+            if (await new_db.execute(
+                text("SELECT 1 FROM users WHERE lower(email) = :e"), {"e": email}
+            )).first():
+                raise HTTPException(
+                    status_code=409,
+                    detail="That email already has an account here. Sign in with it instead.",
+                )
+
+            await new_db.execute(text("""
+                INSERT INTO tenants (id, slug, name, email, status, plan)
+                VALUES (:tid, :slug, :name, :email, 'active', :plan)
+            """), {"tid": str(tenant_id), "slug": slug, "name": payload.shop_name.strip(),
+                   "email": email, "plan": payload.plan})
+
+            await new_db.execute(text("""
+                INSERT INTO tenant_branding (tenant_id, company_name)
+                VALUES (:tid, :name)
+            """), {"tid": str(tenant_id), "name": payload.shop_name.strip()})
+
+            # Nothing is billed until a card is on file, so the subscription
+            # starts pending rather than active — a shop that looks paid-up
+            # and never paid is how revenue quietly goes missing.
+            await new_db.execute(text("""
+                INSERT INTO tenant_subscriptions (tenant_id, plan, status)
+                VALUES (:tid, :plan, 'inactive')
+            """), {"tid": str(tenant_id), "plan": payload.plan})
+
+            # No feature rows: the plan decides, and the platform overrides
+            # what it wants to (app/core/features.py). Seeding rows here
+            # would freeze a brand's features at whatever its plan included
+            # on the day it signed up.
+
+            await new_db.execute(text("""
+                INSERT INTO users (id, tenant_id, email, hashed_password, first_name,
+                                   last_name, phone, role, is_admin, is_active,
+                                   email_verified, account_type)
+                VALUES (:uid, :tid, :email, :pwd, :fn, :ln, :phone,
+                        'tenant_admin', true, true, true, 'wholesale')
+            """), {
+                "uid": str(user_id), "tid": str(tenant_id), "email": email,
+                "pwd": hash_password(payload.password),
+                "fn": payload.first_name.strip(), "ln": payload.last_name.strip(),
+                "phone": payload.phone.strip() or None,
+            })
+            await new_db.commit()
+
+    except IntegrityError:
+        # Two people signing up with the same address or email at the same
+        # moment: the check above let both through, the constraint did not.
+        raise HTTPException(
+            status_code=409,
+            detail="That shop address or email was just taken. Please try another.",
+        )
+    finally:
+        set_bypass_scoping(previous)
+
+    from app.services import tenant_hosts
+
+    tenant_hosts.forget()
+
+    token = create_access_token(str(user_id), {
+        "is_admin": True, "is_platform_admin": False,
+        "tenant_id": str(tenant_id), "role": "tenant_admin",
+        "account_type": "wholesale",
+    })
+    return {
+        "slug": slug,
+        "tenant_id": str(tenant_id),
+        "plan": payload.plan,
+        "access_token": token,
+        # The shop is made; the card is the next screen.
+        "next": "/admin/billing",
+        "billing": "pending",
+    }

@@ -309,6 +309,9 @@ class AuthMiddleware(BaseHTTPMiddleware):
         # shopper is not offered a card the store cannot take.
         if path == "/api/v1/checkout/payment-options":
             return True
+        # Signing a new shop up. Nobody has an account yet, by definition.
+        if path.startswith("/api/v1/signup"):
+            return True
         # Public content pages — no auth required
         if path.startswith("/api/v1/style-sheets"):
             return True

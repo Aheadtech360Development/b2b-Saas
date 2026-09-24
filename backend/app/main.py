@@ -1007,6 +1007,9 @@ app.include_router(admin_nav_counts.router, prefix=_V1)
 from app.api.v1.admin import entitlements as admin_entitlements  # noqa: E402
 app.include_router(admin_entitlements.router, prefix=_V1)
 
+from app.api.v1 import signup as signup_api  # noqa: E402
+app.include_router(signup_api.router, prefix=_V1)
+
 from app.api.v1.admin import integrations as admin_integrations  # noqa: E402
 app.include_router(admin_integrations.router, prefix=_V1)
 from app.api.v1 import product_configurator  # noqa: E402

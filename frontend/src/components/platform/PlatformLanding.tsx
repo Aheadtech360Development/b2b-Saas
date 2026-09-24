@@ -18,6 +18,7 @@ const CONTACT_EMAIL = "hello@printcopilot.co";
 
 const TIERS = [
   {
+    key: "starter",
     tier: "Tier 1",
     name: "Starter",
     blurb: "For shops not yet running wholesale volume.",
@@ -38,6 +39,7 @@ const TIERS = [
     limits: "Up to 300 orders/month · 3 staff accounts · 1 domain",
   },
   {
+    key: "wholesale",
     tier: "Tier 2",
     name: "Wholesale",
     blurb: "For shops running real bulk and wholesale order volume.",
@@ -56,6 +58,7 @@ const TIERS = [
     limits: "Up to 1,500 orders/month · 10 staff accounts",
   },
   {
+    key: "scale",
     tier: "Tier 3",
     name: "Scale",
     blurb: "For high-volume operations that have outgrown fixed limits.",
@@ -192,7 +195,10 @@ const FAQ: [string, string][] = [
     "What counts as a wholesale order?",
     "Any order placed by an approved wholesale account, including ones built with the matrix ordering grid. Wholesale account sign-up and the rest of the wholesale toolset unlock starting at Tier 2.",
   ],
-  ["Is there a free trial?", "Yes, 14 days on any tier, no card required to start."],
+  [
+    "How soon can I start selling?",
+    "As soon as you sign up. The shop exists at its own address straight away, and you connect your own domain whenever you have one.",
+  ],
 ];
 
 const WHAT_YOU_GET: [string, string][] = [
@@ -223,7 +229,7 @@ export default function PlatformLanding() {
             </nav>
             <div className="pc-head-actions">
               <Link href="/login?tenant=" className="pc-link">Log in</Link>
-              <a href={`mailto:${CONTACT_EMAIL}?subject=PrintCopilot%20trial`} className="pc-btn">Start free trial</a>
+              <Link href="/signup" className="pc-btn">Get started</Link>
             </div>
           </div>
         </header>
@@ -237,10 +243,10 @@ export default function PlatformLanding() {
               your own domain.
             </p>
             <div className="pc-cta">
-              <a href="#pricing" className="pc-btn pc-btn-lg">See pricing</a>
-              <a href="#contact" className="pc-btn-ghost pc-btn-lg">Talk to us</a>
+              <Link href="/signup" className="pc-btn pc-btn-lg">Start your shop</Link>
+              <a href="#pricing" className="pc-btn-ghost pc-btn-lg">See pricing</a>
             </div>
-            <p className="pc-fine">14 days free on any tier. No card required to start.</p>
+            <p className="pc-fine">Your shop is live the moment you sign up, at its own address.</p>
           </section>
 
           <section id="what" className="pc-band">
@@ -278,9 +284,9 @@ export default function PlatformLanding() {
                   <div className="pc-rate">
                     <span className="pc-num">{t.rate}</span> on Gang Sheet Builder orders
                   </div>
-                  <a href={`mailto:${CONTACT_EMAIL}?subject=PrintCopilot%20${t.name}`} className="pc-btn pc-btn-block">
+                  <Link href={`/signup?plan=${t.key}`} className="pc-btn pc-btn-block">
                     Get started
-                  </a>
+                  </Link>
                   <ul className="pc-points">
                     {t.points.map((p) => (
                       <li key={p}>{p}</li>
@@ -362,8 +368,8 @@ export default function PlatformLanding() {
                   <strong>{CONTACT_EMAIL}</strong>
                 </a>
                 <div className="pc-contact-row">
-                  <span>Free trial</span>
-                  <strong>14 days, any tier, no card</strong>
+                  <span>Getting started</span>
+                  <strong>Sign up and your shop is live the same minute</strong>
                 </div>
               </div>
             </div>
