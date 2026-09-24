@@ -116,13 +116,21 @@ export default function LoginPage() {
         } else if (err.code === "ACCOUNT_PENDING_APPROVAL") {
           setError(null);
           setShowPendingApproval(true);
-        } else if (err.code === "UNAUTHORIZED") {
+        } else if (err.status === 429) {
+          // Too many tries. Saying "wrong password" here is what makes someone
+          // keep trying, which is what keeps them locked out.
+          setError("Too many attempts. Wait about 15 minutes and try again.");
+        } else if (err.status >= 500) {
+          setError("The server had a problem signing you in. Try again in a moment.");
+        } else if (err.status === 401 || err.code === "UNAUTHORIZED") {
           setError(err.message || "Invalid email or password. Please try again.");
         } else {
-          setError("Invalid email or password. Please try again.");
+          // Anything else is not a wrong password, and saying it is sends
+          // people looking in the wrong place.
+          setError(err.message || "Could not sign you in. Please try again.");
         }
       } else {
-        setError("An unexpected error occurred. Please try again.");
+        setError("Could not reach the server. Check your connection and try again.");
       }
     } finally {
       setIsSubmitting(false);
