@@ -19,9 +19,9 @@ import type { Tenant } from "@/types/user.types";
 const DEFAULT_PLAN = "standard";
 
 const STATUS_STYLE: Record<string, { bg: string; color: string }> = {
-  active:    { bg: "rgba(16,185,129,.15)", color: "#34D399" },
-  suspended: { bg: "rgba(245,158,11,.15)", color: "#FBBF24" },
-  cancelled: { bg: "rgba(239,68,68,.15)",  color: "#F87171" },
+  active:    { bg: "#ECFDF5", color: "#047857" },
+  suspended: { bg: "#FFFBEB", color: "#B45309" },
+  cancelled: { bg: "#FEF2F2", color: "#B42318" },
 };
 
 function slugify(v: string): string {
@@ -88,7 +88,7 @@ export default function PlatformDashboard() {
           style={{
             background: "#18181B", color: "#fff", border: "none",
             padding: "11px 20px", borderRadius: "9px", fontSize: "13px", fontWeight: 700, cursor: "pointer",
-            boxShadow: "0 2px 12px rgba(99,102,241,.35)",
+            boxShadow: "0 1px 2px rgba(0,0,0,.08)",
           }}
         >
           + Create Brand
@@ -109,8 +109,9 @@ export default function PlatformDashboard() {
             onClick={() => setTab(key)}
             style={{
               background: "transparent", border: "none", cursor: "pointer",
-              padding: "10px 16px", fontSize: "13px", fontWeight: 700,
-              color: tab === key ? "#fff" : "#6B7280",
+              padding: "10px 16px", fontSize: "13px",
+              color: tab === key ? "#18181B" : "#71717A",
+              fontWeight: tab === key ? 700 : 500,
               borderBottom: "2px solid " + (tab === key ? "#18181B" : "transparent"),
               marginBottom: "-1px",
             }}
@@ -130,9 +131,9 @@ export default function PlatformDashboard() {
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: "14px", marginBottom: "28px" }}>
         {[
           { label: "Total Brands", value: stats.total, color: "#18181B" },
-          { label: "Active", value: stats.active, color: "#34D399" },
-          { label: "Suspended", value: stats.suspended, color: "#FBBF24" },
-          { label: "Total Users", value: stats.users, color: "#52525B" },
+          { label: "Active", value: stats.active, color: "#18181B" },
+          { label: "Suspended", value: stats.suspended, color: stats.suspended > 0 ? "#B45309" : "#18181B" },
+          { label: "Total Users", value: stats.users, color: "#18181B" },
         ].map((s) => (
           <div key={s.label} style={{ background: "#FFFFFF", border: "1px solid #E4E4E7", borderRadius: "12px", padding: "18px 20px" }}>
             <div style={{ fontSize: "12px", color: "#6B7280", marginBottom: "8px" }}>{s.label}</div>
@@ -143,7 +144,7 @@ export default function PlatformDashboard() {
 
       {/* Error */}
       {error && (
-        <div style={{ background: "rgba(239,68,68,.1)", border: "1px solid rgba(239,68,68,.3)", color: "#F87171", padding: "12px 16px", borderRadius: "8px", fontSize: "13px", marginBottom: "16px" }}>
+        <div style={{ background: "#FEF2F2", border: "1px solid #FCA5A5", color: "#B42318", padding: "12px 16px", borderRadius: "8px", fontSize: "13px", marginBottom: "16px" }}>
           {error}
         </div>
       )}
@@ -198,14 +199,14 @@ export default function PlatformDashboard() {
                     <div style={{ display: "flex", gap: "8px" }}>
                       <button
                         onClick={() => setManageTenant(t)}
-                        style={{ background: "rgba(99,102,241,.15)", color: "#A5B4FC", border: "none", padding: "5px 12px", borderRadius: "6px", fontSize: "12px", fontWeight: 700, cursor: "pointer" }}
+                        style={{ background: "#F4F4F5", color: "#18181B", border: "1px solid #E4E4E7", padding: "5px 12px", borderRadius: "6px", fontSize: "12px", fontWeight: 700, cursor: "pointer" }}
                       >
                         Manage
                       </button>
                       {t.status !== "cancelled" && (
                         <button
                           onClick={() => handleToggleStatus(t)}
-                          style={{ background: t.status === "active" ? "rgba(245,158,11,.12)" : "rgba(16,185,129,.12)", color: t.status === "active" ? "#FBBF24" : "#34D399", border: "none", padding: "5px 12px", borderRadius: "6px", fontSize: "12px", fontWeight: 700, cursor: "pointer" }}
+                          style={{ background: t.status === "active" ? "#FFFBEB" : "#ECFDF5", color: t.status === "active" ? "#B45309" : "#047857", border: `1px solid ${t.status === "active" ? "#FDE68A" : "#A7F3D0"}`, padding: "5px 12px", borderRadius: "6px", fontSize: "12px", fontWeight: 700, cursor: "pointer" }}
                         >
                           {t.status === "active" ? "Suspend" : "Activate"}
                         </button>
@@ -322,7 +323,7 @@ function ManageTenantModal({ tenant, onClose, onChanged }: { tenant: Tenant; onC
           <button onClick={onClose} style={{ background: "none", border: "none", color: "#6B7280", fontSize: "22px", cursor: "pointer" }}>×</button>
         </div>
         <div style={{ fontSize: "12px", color: "#6B7280", marginBottom: "20px", fontFamily: "monospace" }}>{tenant.slug}</div>
-        {msg && <div style={{ background: "rgba(52,211,153,.1)", color: "#34D399", padding: "8px 12px", borderRadius: "8px", fontSize: "12px", marginBottom: "14px" }}>{msg}</div>}
+        {msg && <div style={{ background: "#ECFDF5", border: "1px solid #A7F3D0", color: "#047857", padding: "8px 12px", borderRadius: "8px", fontSize: "12px", marginBottom: "14px" }}>{msg}</div>}
 
         {/* What the brand is called — on its orders, its emails and its console. */}
         <div style={{ marginBottom: "22px" }}>
@@ -497,14 +498,14 @@ Any link with the old address stops working, and anyone browsing it right now wi
 
         {/* Danger zone */}
         <div style={{ borderTop: "1px solid #F0D2D2", paddingTop: "16px" }}>
-          <div style={{ fontSize: "12px", fontWeight: 700, color: "#F87171", textTransform: "uppercase", letterSpacing: ".05em", marginBottom: "10px" }}>Danger Zone</div>
+          <div style={{ fontSize: "12px", fontWeight: 700, color: "#B42318", textTransform: "uppercase", letterSpacing: ".05em", marginBottom: "10px" }}>Danger Zone</div>
           {tenant.status !== "cancelled" && (
-            <button onClick={cancelBrand} style={{ width: "100%", background: "rgba(245,158,11,.1)", color: "#FBBF24", border: "1px solid rgba(245,158,11,.3)", padding: "10px", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: "pointer", marginBottom: "12px" }}>
+            <button onClick={cancelBrand} style={{ width: "100%", background: "#FFFBEB", color: "#B45309", border: "1px solid #FDE68A", padding: "10px", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: "pointer", marginBottom: "12px" }}>
               Suspend &amp; Cancel (reversible)
             </button>
           )}
-          <div style={{ background: "rgba(239,68,68,.06)", border: "1px solid rgba(239,68,68,.25)", borderRadius: "8px", padding: "12px" }}>
-            <p style={{ fontSize: "12px", color: "#FCA5A5", margin: "0 0 8px" }}>
+          <div style={{ background: "#FEF2F2", border: "1px solid #FCA5A5", borderRadius: "8px", padding: "12px" }}>
+            <p style={{ fontSize: "12px", color: "#B42318", margin: "0 0 8px", lineHeight: 1.6 }}>
               Permanently delete this brand and <b>ALL its data</b> (products, orders, customers, users). This cannot be undone.
               Type <b style={{ fontFamily: "monospace" }}>{tenant.slug}</b> to confirm.
             </p>
@@ -583,7 +584,7 @@ function CreateBrandModal({
     padding: "10px 12px", borderRadius: "8px", fontSize: "13px", outline: "none", boxSizing: "border-box",
   };
   const labelStyle: React.CSSProperties = {
-    display: "block", fontSize: "11px", fontWeight: 600, color: "#8B90A0",
+    display: "block", fontSize: "11px", fontWeight: 600, color: "#71717A",
     textTransform: "uppercase", letterSpacing: ".04em", marginBottom: "6px",
   };
 
@@ -604,7 +605,7 @@ function CreateBrandModal({
         {/* Step indicator */}
         <div style={{ display: "flex", gap: "8px", marginBottom: "20px" }}>
           {[{ n: 1, t: "Brand & Subdomain" }, { n: 2, t: "Admin Account" }].map(({ n, t }) => (
-            <div key={n} style={{ flex: 1, padding: "8px 10px", borderRadius: "8px", background: step === n ? "rgba(99,102,241,.15)" : "#F7F7F8", border: `1px solid ${step === n ? "#18181B" : "#E4E4E7"}` }}>
+            <div key={n} style={{ flex: 1, padding: "8px 10px", borderRadius: "8px", background: step === n ? "#F4F4F5" : "#FAFAFA", border: `1px solid ${step === n ? "#18181B" : "#E4E4E7"}` }}>
               <div style={{ fontSize: "10px", color: step >= n ? "#52525B" : "#6B7280", fontWeight: 700 }}>STEP {n}</div>
               <div style={{ fontSize: "12px", color: step >= n ? "#18181B" : "#6B7280" }}>{t}</div>
             </div>
@@ -612,7 +613,7 @@ function CreateBrandModal({
         </div>
 
         {error && (
-          <div style={{ background: "rgba(239,68,68,.1)", border: "1px solid rgba(239,68,68,.3)", color: "#F87171", padding: "10px 14px", borderRadius: "8px", fontSize: "13px", marginBottom: "16px" }}>
+          <div style={{ background: "#FEF2F2", border: "1px solid #FCA5A5", color: "#B42318", padding: "10px 14px", borderRadius: "8px", fontSize: "13px", marginBottom: "16px" }}>
             {error}
           </div>
         )}
@@ -646,7 +647,7 @@ function CreateBrandModal({
 
           {step === 2 && (
             <>
-              <p style={{ fontSize: "12px", color: "#8B90A0", marginBottom: "16px" }}>Set up the brand owner's login. Share these credentials with them.</p>
+              <p style={{ fontSize: "12px", color: "#71717A", marginBottom: "16px" }}>Set up the brand owner's login. Share these credentials with them.</p>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginBottom: "14px" }}>
                 <div>
                   <label style={labelStyle}>First Name *</label>
@@ -686,9 +687,9 @@ function SuccessModal({ info, onClose }: { info: CreateTenantResponse; onClose: 
       style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.65)", display: "flex", alignItems: "center", justifyContent: "center", padding: "20px", zIndex: 1001 }}
     >
       <div onClick={(e) => e.stopPropagation()} style={{ background: "#FFFFFF", border: "1px solid #E4E4E7", borderRadius: "14px", width: "100%", maxWidth: "460px", padding: "28px", textAlign: "center" }}>
-        <div style={{ width: "52px", height: "52px", borderRadius: "50%", background: "rgba(16,185,129,.15)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "26px", margin: "0 auto 16px" }}>✓</div>
+        <div style={{ width: "52px", height: "52px", borderRadius: "50%", background: "#ECFDF5", color: "#047857", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "26px", margin: "0 auto 16px" }}>✓</div>
         <h2 style={{ fontSize: "19px", fontWeight: 800, color: "#18181B", marginBottom: "6px" }}>Brand Created!</h2>
-        <p style={{ fontSize: "13px", color: "#8B90A0", marginBottom: "20px" }}>
+        <p style={{ fontSize: "13px", color: "#71717A", marginBottom: "20px", lineHeight: 1.6 }}>
           <strong style={{ color: "#18181B" }}>{info.name}</strong> is live. Share the login below with the brand owner.
         </p>
 

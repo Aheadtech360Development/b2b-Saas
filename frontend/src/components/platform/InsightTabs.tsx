@@ -33,10 +33,10 @@ export function AnalyticsTab() {
   useEffect(() => { platformService.analytics().then(setData).catch(() => setData(null)).finally(() => setLoading(false)); }, []);
 
   if (loading) return <div style={{ color: "#6B7280", fontSize: "13px", padding: "20px" }}>Loading analytics…</div>;
-  if (!data) return <div style={{ color: "#F87171", fontSize: "13px", padding: "20px" }}>Could not load analytics.</div>;
+  if (!data) return <div style={{ color: "#B42318", fontSize: "13px", padding: "20px" }}>Could not load analytics.</div>;
 
   const cards = [
-    { label: "Revenue (paid)", value: money(data.totals.revenue), color: "#34D399" },
+    { label: "Revenue (paid)", value: money(data.totals.revenue), color: "#047857" },
     { label: "Orders", value: String(data.totals.orders), color: "#18181B" },
     { label: "Products", value: String(data.totals.products), color: "#52525B" },
     { label: "Companies", value: String(data.totals.companies), color: "#F0ABFC" },
@@ -68,7 +68,7 @@ export function AnalyticsTab() {
                   <td style={{ ...TD, textAlign: "right" }}>{b.products}</td>
                   <td style={{ ...TD, textAlign: "right" }}>{b.orders}</td>
                   <td style={{ ...TD, textAlign: "right" }}>{b.companies}</td>
-                  <td style={{ ...TD, textAlign: "right", color: b.revenue > 0 ? "#34D399" : "#6B7280", fontWeight: 700 }}>{money(b.revenue)}</td>
+                  <td style={{ ...TD, textAlign: "right", color: b.revenue > 0 ? "#047857" : "#71717A", fontWeight: 700 }}>{money(b.revenue)}</td>
                 </tr>
               ))}
             </tbody>
@@ -80,7 +80,7 @@ export function AnalyticsTab() {
 }
 
 // ── Activity log ───────────────────────────────────────────────────────────────
-const ACTION_COLOR: Record<string, string> = { CREATE: "#34D399", UPDATE: "#FBBF24", DELETE: "#F87171" };
+const ACTION_COLOR: Record<string, string> = { CREATE: "#047857", UPDATE: "#B45309", DELETE: "#B42318" };
 
 export function ActivityTab({ tenants }: { tenants: Tenant[] }) {
   const [items, setItems] = useState<ActivityEntry[]>([]);
@@ -203,8 +203,8 @@ export function SearchTab() {
 // ── Brand health ───────────────────────────────────────────────────────────────
 const STATE_STYLE: Record<string, { label: string; bg: string; fg: string }> = {
   empty:    { label: "Empty",    bg: "rgba(148,163,184,.15)", fg: "#94A3B8" },
-  no_sales: { label: "No sales", bg: "rgba(245,158,11,.15)",  fg: "#FBBF24" },
-  selling:  { label: "Selling",  bg: "rgba(16,185,129,.15)",  fg: "#34D399" },
+  no_sales: { label: "No sales", bg: "#FFFBEB",  fg: "#B45309" },
+  selling:  { label: "Selling",  bg: "#ECFDF5",  fg: "#047857" },
 };
 
 export function HealthTab({ onEnter }: { onEnter: (slug: string) => void }) {
