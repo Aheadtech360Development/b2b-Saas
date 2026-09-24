@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { ApiClientError } from "@/lib/api-client";
 import { apiClient } from "@/lib/api-client";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -135,8 +136,14 @@ export default function BillingPage() {
       }
       if (r.checkout_url) { window.location.href = r.checkout_url; return; }
       setBusy(null);
-    } catch {
-      setToast({ type: "error", text: "Could not start checkout. Try again." });
+    } catch (e) {
+      // What the server actually said. "Try again" sent people round the same
+      // loop when the answer was a missing key or the wrong Stripe mode —
+      // neither of which trying again fixes.
+      const msg = e instanceof ApiClientError && e.message
+        ? e.message
+        : "Could not start checkout. Try again.";
+      setToast({ type: "error", text: msg });
       setBusy(null);
     }
   }

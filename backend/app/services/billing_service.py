@@ -48,7 +48,58 @@ class BillingService:
             text("SELECT value FROM app_settings WHERE key = :k"),
             {"k": f"stripe_price_{plan_key}"},
         )).first()
-        return row[0] if row else None
+        if row:
+            return row[0]
+        # Nothing recorded yet. Rather than refuse — which is what turned
+        # "Switch to this" into "Could not start checkout" and left the answer
+        # in a script nobody could see — find or create the Price in Stripe and
+        # remember it. Stripe keys it by lookup_key, so this is idempotent: the
+        # same plan resolves to the same Price however many times it runs.
+        return await self._ensure_price(plan_key)
+
+    async def _ensure_price(self, plan_key: str) -> str | None:
+        from app.core.billing_plans import BILLING_PLANS
+
+        plan = BILLING_PLANS.get(plan_key)
+        if not plan:
+            return None
+        s = _stripe()
+        lookup_key = plan["lookup_key"]
+        try:
+            found = s.Price.list(lookup_keys=[lookup_key], limit=1, active=True)
+            price = found.data[0] if found.data else None
+            if price is None or price.unit_amount != plan["amount_cents"]:
+                if price is not None:
+                    # The amount changed: keep the product, make a new Price and
+                    # move the key onto it. Existing subscriptions keep theirs.
+                    product_id = price.product if isinstance(price.product, str) else price.product.id
+                    transfer = True
+                else:
+                    product_id = s.Product.create(
+                        name=plan["name"], description=plan["description"],
+                        metadata={"plan_key": plan_key, "app": "at360"},
+                    ).id
+                    transfer = False
+                price = s.Price.create(
+                    product=product_id,
+                    unit_amount=plan["amount_cents"],
+                    currency="usd",
+                    recurring={"interval": plan["interval"]},
+                    lookup_key=lookup_key,
+                    transfer_lookup_key=transfer,
+                    metadata={"plan_key": plan_key},
+                )
+            await self.db.execute(text("""
+                INSERT INTO app_settings (key, value, updated_at)
+                VALUES (:k, :v, now())
+                ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = now()
+            """), {"k": f"stripe_price_{plan_key}", "v": price.id})
+            await self.db.commit()
+            logger.info("Stripe price for %s resolved to %s", plan_key, price.id)
+            return price.id
+        except Exception as exc:
+            logger.error("Could not set up a Stripe price for %s: %s", plan_key, exc)
+            return None
 
     async def plan_for_price_id(self, price_id: str) -> str | None:
         row = (await self.db.execute(
@@ -95,7 +146,10 @@ class BillingService:
             raise ValueError(f"Unknown plan '{plan_key}'")
         price_id = await self.price_id_for_plan(plan_key)
         if not price_id:
-            raise ValueError(f"No Stripe price for plan '{plan_key}'. Run setup_stripe_billing.py.")
+            raise ValueError(
+                f"Could not set up billing for the {plan_key} plan in Stripe. "
+                "Check that STRIPE_SECRET_KEY is set and is for the right mode."
+            )
 
         # Plan SWITCH: if a subscription is already active, change its price in
         # place (with proration) instead of opening a new checkout — otherwise the

@@ -52,6 +52,14 @@ async def my_checkout(
         return result
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:  # a Stripe error is an answer, not a crash
+        import logging
+
+        logging.getLogger(__name__).error("checkout failed for %s/%s: %s", slug, data.plan, e)
+        raise HTTPException(
+            status_code=400,
+            detail=f"Stripe could not start this checkout: {e}",
+        )
 
 
 @router.post("/sync")
