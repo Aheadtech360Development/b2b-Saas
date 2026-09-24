@@ -26,13 +26,23 @@ logger = logging.getLogger(__name__)
 
 TTL_SECONDS = 60
 
-_cache: dict[str, Any] = {"at": 0.0, "by_host": {}}
+_cache: dict[str, Any] = {"at": 0.0, "by_host": {}, "slugs": None}
 
 
 def normalise(host: str | None) -> str:
-    """A hostname as it is compared: no port, no leading www, lower case."""
-    hostname = (host or "").split(",")[0].strip().split(":")[0].strip().lower()
-    return hostname[4:] if hostname.startswith("www.") else hostname
+    """A hostname as it is compared: lower case, no scheme, path, port or www.
+
+    People paste addresses, not hostnames — "https://shop.example.com/" is what
+    a browser hands you when you copy it. Splitting that on ":" to strip a port
+    left the scheme behind and stored a brand's domain as "https".
+    """
+    raw = (host or "").split(",")[0].strip().lower()
+    if "//" in raw:
+        raw = raw.split("//", 1)[1]        # drop http:// or https://
+    raw = raw.split("/", 1)[0]             # drop any path
+    raw = raw.split("@")[-1]               # drop credentials, if pasted
+    raw = raw.split(":")[0].strip()        # drop the port
+    return raw[4:] if raw.startswith("www.") else raw
 
 
 def forget() -> None:
@@ -50,6 +60,7 @@ async def _load(db: AsyncSession) -> None:
         if key:
             by_host[key] = slug
     _cache["by_host"] = by_host
+    _cache["slugs"] = {slug for slug, _ in rows}
     _cache["at"] = time.monotonic()
 
 
@@ -63,3 +74,10 @@ async def slug_for_host(db: AsyncSession, host: str | None) -> str | None:
             return None
 
     return _cache["by_host"].get(normalise(host))
+
+
+async def slugs() -> set[str] | None:
+    """Every active brand's slug, if it was read recently enough to trust."""
+    if time.monotonic() - float(_cache["at"]) > TTL_SECONDS:
+        return None
+    return _cache["slugs"]
