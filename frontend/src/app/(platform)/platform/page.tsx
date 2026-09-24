@@ -74,11 +74,11 @@ export default function PlatformDashboard() {
   }
 
   return (
-    <div style={{ color: "#E5E7EB" }}>
+    <div style={{ color: "#18181B" }}>
       {/* Header */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: "28px" }}>
         <div>
-          <h1 style={{ fontSize: "26px", fontWeight: 800, color: "#fff", letterSpacing: ".01em" }}>Brands</h1>
+          <h1 style={{ fontSize: "26px", fontWeight: 800, color: "#18181B", letterSpacing: ".01em" }}>Brands</h1>
           <p style={{ fontSize: "13px", color: "#6B7280", marginTop: "4px" }}>
             Every brand is an isolated tenant with its own store, admin, products &amp; customers.
           </p>
@@ -86,7 +86,7 @@ export default function PlatformDashboard() {
         <button
           onClick={() => setShowCreate(true)}
           style={{
-            background: "linear-gradient(135deg,#6366F1,#8B5CF6)", color: "#fff", border: "none",
+            background: "#18181B", color: "#fff", border: "none",
             padding: "11px 20px", borderRadius: "9px", fontSize: "13px", fontWeight: 700, cursor: "pointer",
             boxShadow: "0 2px 12px rgba(99,102,241,.35)",
           }}
@@ -96,7 +96,7 @@ export default function PlatformDashboard() {
       </div>
 
       {/* Tabs */}
-      <div style={{ display: "flex", gap: "4px", borderBottom: "1px solid #1E2230", marginBottom: "24px" }}>
+      <div style={{ display: "flex", gap: "4px", borderBottom: "1px solid #E4E4E7", marginBottom: "24px" }}>
         {([
           ["brands", "Brands"],
           ["analytics", "Analytics"],
@@ -111,7 +111,7 @@ export default function PlatformDashboard() {
               background: "transparent", border: "none", cursor: "pointer",
               padding: "10px 16px", fontSize: "13px", fontWeight: 700,
               color: tab === key ? "#fff" : "#6B7280",
-              borderBottom: "2px solid " + (tab === key ? "#8B5CF6" : "transparent"),
+              borderBottom: "2px solid " + (tab === key ? "#18181B" : "transparent"),
               marginBottom: "-1px",
             }}
           >
@@ -129,12 +129,12 @@ export default function PlatformDashboard() {
       {/* Stat cards */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: "14px", marginBottom: "28px" }}>
         {[
-          { label: "Total Brands", value: stats.total, color: "#818CF8" },
+          { label: "Total Brands", value: stats.total, color: "#18181B" },
           { label: "Active", value: stats.active, color: "#34D399" },
           { label: "Suspended", value: stats.suspended, color: "#FBBF24" },
-          { label: "Total Users", value: stats.users, color: "#A78BFA" },
+          { label: "Total Users", value: stats.users, color: "#52525B" },
         ].map((s) => (
-          <div key={s.label} style={{ background: "#11141C", border: "1px solid #1E2230", borderRadius: "12px", padding: "18px 20px" }}>
+          <div key={s.label} style={{ background: "#FFFFFF", border: "1px solid #E4E4E7", borderRadius: "12px", padding: "18px 20px" }}>
             <div style={{ fontSize: "12px", color: "#6B7280", marginBottom: "8px" }}>{s.label}</div>
             <div style={{ fontSize: "30px", fontWeight: 800, color: s.color, lineHeight: 1 }}>{s.value}</div>
           </div>
@@ -149,17 +149,17 @@ export default function PlatformDashboard() {
       )}
 
       {/* Brands table */}
-      <div style={{ background: "#11141C", border: "1px solid #1E2230", borderRadius: "12px", overflow: "hidden" }}>
+      <div style={{ background: "#FFFFFF", border: "1px solid #E4E4E7", borderRadius: "12px", overflow: "hidden" }}>
         {loading ? (
           <div style={{ padding: "48px", textAlign: "center", color: "#6B7280", fontSize: "13px" }}>Loading brands…</div>
         ) : tenants.length === 0 ? (
           <div style={{ padding: "48px", textAlign: "center", color: "#6B7280", fontSize: "13px" }}>
-            No brands yet. Click <strong style={{ color: "#A78BFA" }}>Create Brand</strong> to onboard your first one.
+            No brands yet. Click <strong style={{ color: "#52525B" }}>Create Brand</strong> to onboard your first one.
           </div>
         ) : (
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
             <thead>
-              <tr style={{ background: "#0E1017", borderBottom: "1px solid #1E2230" }}>
+              <tr style={{ background: "#0E1017", borderBottom: "1px solid #E4E4E7" }}>
                 {["Brand", "Open", "Users", "Status", "Actions"].map((h) => (
                   <th key={h} style={{ padding: "12px 18px", textAlign: h === "Users" ? "center" : "left", fontSize: "11px", fontWeight: 700, color: "#6B7280", textTransform: "uppercase", letterSpacing: ".06em" }}>
                     {h}
@@ -171,7 +171,7 @@ export default function PlatformDashboard() {
               {tenants.map((t, i) => (
                 <tr key={t.id} style={{ borderBottom: i < tenants.length - 1 ? "1px solid #171B26" : "none" }}>
                   <td style={{ padding: "14px 18px" }}>
-                    <div style={{ fontWeight: 700, color: "#fff" }}>{t.name}</div>
+                    <div style={{ fontWeight: 700, color: "#18181B" }}>{t.name}</div>
                     <div style={{ fontSize: "11px", color: "#6B7280" }}>{t.email}</div>
                   </td>
                   <td style={{ padding: "14px 18px" }}>
@@ -179,7 +179,7 @@ export default function PlatformDashboard() {
                       <button
                         onClick={() => enterBrandDashboard(t.slug).catch(() => alert("Could not open dashboard"))}
                         title="Enter this brand's admin dashboard"
-                        style={{ background: "transparent", border: "none", color: "#818CF8", fontSize: "13px", fontWeight: 700, cursor: "pointer", padding: 0, display: "flex", alignItems: "center", gap: "4px" }}
+                        style={{ background: "transparent", border: "none", color: "#18181B", fontSize: "13px", fontWeight: 700, cursor: "pointer", padding: 0, display: "flex", alignItems: "center", gap: "4px" }}
                       >
                         Dashboard ↗
                       </button>
@@ -188,7 +188,7 @@ export default function PlatformDashboard() {
                       </a>
                     </div>
                   </td>
-                  <td style={{ padding: "14px 18px", textAlign: "center", color: "#C7CBD4" }}>{t.user_count}</td>
+                  <td style={{ padding: "14px 18px", textAlign: "center", color: "#3F3F46" }}>{t.user_count}</td>
                   <td style={{ padding: "14px 18px" }}>
                     <span style={{ ...(STATUS_STYLE[t.status] ?? { bg: "#333", color: "#aaa" }), background: (STATUS_STYLE[t.status] ?? { bg: "#333" }).bg, padding: "3px 10px", borderRadius: "20px", fontSize: "11px", fontWeight: 700, textTransform: "capitalize" }}>
                       {t.status}
@@ -316,9 +316,9 @@ function ManageTenantModal({ tenant, onClose, onChanged }: { tenant: Tenant; onC
 
   return (
     <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.65)", display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "48px 20px", zIndex: 1000, overflowY: "auto" }}>
-      <div onClick={(e) => e.stopPropagation()} style={{ background: "#11141C", border: "1px solid #1E2230", borderRadius: "14px", width: "100%", maxWidth: "520px", padding: "26px" }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ background: "#FFFFFF", border: "1px solid #E4E4E7", borderRadius: "14px", width: "100%", maxWidth: "520px", padding: "26px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
-          <h2 style={{ fontSize: "18px", fontWeight: 800, color: "#fff" }}>Manage {tenant.name}</h2>
+          <h2 style={{ fontSize: "18px", fontWeight: 800, color: "#18181B" }}>Manage {tenant.name}</h2>
           <button onClick={onClose} style={{ background: "none", border: "none", color: "#6B7280", fontSize: "22px", cursor: "pointer" }}>×</button>
         </div>
         <div style={{ fontSize: "12px", color: "#6B7280", marginBottom: "20px", fontFamily: "monospace" }}>{tenant.slug}</div>
@@ -326,12 +326,12 @@ function ManageTenantModal({ tenant, onClose, onChanged }: { tenant: Tenant; onC
 
         {/* What the brand is called — on its orders, its emails and its console. */}
         <div style={{ marginBottom: "22px" }}>
-          <div style={{ fontSize: "12px", fontWeight: 700, color: "#A78BFA", textTransform: "uppercase", letterSpacing: ".05em", marginBottom: "10px" }}>Brand name</div>
+          <div style={{ fontSize: "12px", fontWeight: 700, color: "#52525B", textTransform: "uppercase", letterSpacing: ".05em", marginBottom: "10px" }}>Brand name</div>
           <div style={{ display: "flex", gap: "8px" }}>
             <input
               value={brandName}
               onChange={(e) => setBrandName(e.target.value)}
-              style={{ flex: 1, background: "#0B0D12", border: "1px solid #1E2230", borderRadius: "8px", padding: "10px 12px", color: "#E5E7EB", fontSize: "13px" }}
+              style={{ flex: 1, background: "#F7F7F8", border: "1px solid #E4E4E7", borderRadius: "8px", padding: "10px 12px", color: "#18181B", fontSize: "13px" }}
             />
             <button
               onClick={async () => {
@@ -350,7 +350,7 @@ function ManageTenantModal({ tenant, onClose, onChanged }: { tenant: Tenant; onC
                 }
               }}
               disabled={savingName || brandName.trim() === tenant.name}
-              style={{ background: "rgba(167,139,250,.12)", color: "#A78BFA", border: "1px solid rgba(167,139,250,.3)", padding: "10px 16px", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: savingName ? "wait" : "pointer", opacity: brandName.trim() === tenant.name ? 0.5 : 1 }}
+              style={{ background: "#F4F4F5", color: "#52525B", border: "1px solid #D4D4D8", padding: "10px 16px", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: savingName ? "wait" : "pointer", opacity: brandName.trim() === tenant.name ? 0.5 : 1 }}
             >
               {savingName ? "Saving…" : "Rename"}
             </button>
@@ -363,13 +363,13 @@ function ManageTenantModal({ tenant, onClose, onChanged }: { tenant: Tenant; onC
 
         {/* Where the brand lives on the platform, until it has a domain. */}
         <div style={{ marginBottom: "22px" }}>
-          <div style={{ fontSize: "12px", fontWeight: 700, color: "#A78BFA", textTransform: "uppercase", letterSpacing: ".05em", marginBottom: "10px" }}>Platform address</div>
+          <div style={{ fontSize: "12px", fontWeight: 700, color: "#52525B", textTransform: "uppercase", letterSpacing: ".05em", marginBottom: "10px" }}>Platform address</div>
           <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
             <span style={{ fontSize: "12px", color: "#6B7280", fontFamily: "monospace", whiteSpace: "nowrap" }}>/?tenant=</span>
             <input
               value={handle}
               onChange={(e) => setHandle(e.target.value)}
-              style={{ flex: 1, background: "#0B0D12", border: "1px solid #1E2230", borderRadius: "8px", padding: "10px 12px", color: "#E5E7EB", fontSize: "13px", fontFamily: "monospace" }}
+              style={{ flex: 1, background: "#F7F7F8", border: "1px solid #E4E4E7", borderRadius: "8px", padding: "10px 12px", color: "#18181B", fontSize: "13px", fontFamily: "monospace" }}
             />
             <button
               onClick={async () => {
@@ -392,7 +392,7 @@ Any link with the old address stops working, and anyone browsing it right now wi
                 }
               }}
               disabled={savingHandle || !handle.trim() || handle.trim() === tenant.slug}
-              style={{ background: "rgba(167,139,250,.12)", color: "#A78BFA", border: "1px solid rgba(167,139,250,.3)", padding: "10px 16px", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: savingHandle ? "wait" : "pointer", opacity: handle.trim() === tenant.slug ? 0.5 : 1 }}
+              style={{ background: "#F4F4F5", color: "#52525B", border: "1px solid #D4D4D8", padding: "10px 16px", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: savingHandle ? "wait" : "pointer", opacity: handle.trim() === tenant.slug ? 0.5 : 1 }}
             >
               {savingHandle ? "Moving…" : "Move"}
             </button>
@@ -407,13 +407,13 @@ Any link with the old address stops working, and anyone browsing it right now wi
         {/* The address this shop is reached at. Without it, a link opened in
             a fresh browser — no cookie, no subdomain — lands on no brand. */}
         <div style={{ marginBottom: "22px" }}>
-          <div style={{ fontSize: "12px", fontWeight: 700, color: "#A78BFA", textTransform: "uppercase", letterSpacing: ".05em", marginBottom: "10px" }}>Shop address</div>
+          <div style={{ fontSize: "12px", fontWeight: 700, color: "#52525B", textTransform: "uppercase", letterSpacing: ".05em", marginBottom: "10px" }}>Shop address</div>
           <div style={{ display: "flex", gap: "8px" }}>
             <input
               value={domain}
               onChange={(e) => setDomain(e.target.value)}
               placeholder="shop.example.com"
-              style={{ flex: 1, background: "#0B0D12", border: "1px solid #1E2230", borderRadius: "8px", padding: "10px 12px", color: "#E5E7EB", fontSize: "13px", fontFamily: "monospace" }}
+              style={{ flex: 1, background: "#F7F7F8", border: "1px solid #E4E4E7", borderRadius: "8px", padding: "10px 12px", color: "#18181B", fontSize: "13px", fontFamily: "monospace" }}
             />
             <button
               onClick={async () => {
@@ -430,7 +430,7 @@ Any link with the old address stops working, and anyone browsing it right now wi
                 }
               }}
               disabled={savingDomain}
-              style={{ background: "rgba(167,139,250,.12)", color: "#A78BFA", border: "1px solid rgba(167,139,250,.3)", padding: "10px 16px", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: savingDomain ? "wait" : "pointer" }}
+              style={{ background: "#F4F4F5", color: "#52525B", border: "1px solid #D4D4D8", padding: "10px 16px", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: savingDomain ? "wait" : "pointer" }}
             >
               {savingDomain ? "Saving…" : "Save"}
             </button>
@@ -446,11 +446,11 @@ Any link with the old address stops working, and anyone browsing it right now wi
         {/* What this brand may use. The plan decides the default and anything
             here overrides it, either way, for any feature. */}
         <div style={{ marginBottom: "22px" }}>
-          <div style={{ fontSize: "12px", fontWeight: 700, color: "#A78BFA", textTransform: "uppercase", letterSpacing: ".05em", marginBottom: "4px" }}>
+          <div style={{ fontSize: "12px", fontWeight: 700, color: "#52525B", textTransform: "uppercase", letterSpacing: ".05em", marginBottom: "4px" }}>
             Features
           </div>
           <p style={{ fontSize: "11.5px", color: "#6B7280", margin: "0 0 12px", lineHeight: 1.6 }}>
-            Plan <strong style={{ color: "#C7CBD4" }}>{plan || "—"}</strong> decides the default.
+            Plan <strong style={{ color: "#3F3F46" }}>{plan || "—"}</strong> decides the default.
             Grant or remove anything regardless of it; <em>Plan</em> puts it back.
           </p>
           {features.length === 0 && <div style={{ fontSize: "13px", color: "#6B7280" }}>Loading…</div>}
@@ -460,11 +460,11 @@ Any link with the old address stops working, and anyone browsing it right now wi
                 {group}
               </div>
               {rows.map((f) => (
-                <div key={f.feature} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "10px", padding: "9px 12px", background: "#0B0D12", border: "1px solid #1E2230", borderRadius: "8px", marginBottom: "6px" }}>
-                  <span style={{ fontSize: "12.5px", color: f.enabled ? "#E5E7EB" : "#6B7280", lineHeight: 1.4 }}>
+                <div key={f.feature} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "10px", padding: "9px 12px", background: "#F7F7F8", border: "1px solid #E4E4E7", borderRadius: "8px", marginBottom: "6px" }}>
+                  <span style={{ fontSize: "12.5px", color: f.enabled ? "#18181B" : "#6B7280", lineHeight: 1.4 }}>
                     {f.label}
                     {f.override !== null && (
-                      <span style={{ marginLeft: "6px", fontSize: "10.5px", color: "#A78BFA", fontWeight: 700 }}>
+                      <span style={{ marginLeft: "6px", fontSize: "10.5px", color: "#52525B", fontWeight: 700 }}>
                         {f.override ? "GRANTED" : "REMOVED"}
                       </span>
                     )}
@@ -479,9 +479,9 @@ Any link with the old address stops working, and anyone browsing it right now wi
                           style={{
                             fontSize: "11px", fontWeight: 700, padding: "4px 9px", borderRadius: "6px",
                             cursor: "pointer",
-                            border: `1px solid ${active ? "rgba(167,139,250,.5)" : "#1E2230"}`,
-                            background: active ? "rgba(167,139,250,.14)" : "transparent",
-                            color: active ? "#A78BFA" : "#6B7280",
+                            border: `1px solid ${active ? "#18181B" : "#E4E4E7"}`,
+                            background: active ? "#EFEFF1" : "transparent",
+                            color: active ? "#52525B" : "#6B7280",
                           }}
                         >
                           {text}
@@ -496,7 +496,7 @@ Any link with the old address stops working, and anyone browsing it right now wi
         </div>
 
         {/* Danger zone */}
-        <div style={{ borderTop: "1px solid #2A1518", paddingTop: "16px" }}>
+        <div style={{ borderTop: "1px solid #F0D2D2", paddingTop: "16px" }}>
           <div style={{ fontSize: "12px", fontWeight: 700, color: "#F87171", textTransform: "uppercase", letterSpacing: ".05em", marginBottom: "10px" }}>Danger Zone</div>
           {tenant.status !== "cancelled" && (
             <button onClick={cancelBrand} style={{ width: "100%", background: "rgba(245,158,11,.1)", color: "#FBBF24", border: "1px solid rgba(245,158,11,.3)", padding: "10px", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: "pointer", marginBottom: "12px" }}>
@@ -508,7 +508,7 @@ Any link with the old address stops working, and anyone browsing it right now wi
               Permanently delete this brand and <b>ALL its data</b> (products, orders, customers, users). This cannot be undone.
               Type <b style={{ fontFamily: "monospace" }}>{tenant.slug}</b> to confirm.
             </p>
-            <input value={purgeText} onChange={(e) => setPurgeText(e.target.value)} placeholder={tenant.slug} style={{ width: "100%", background: "#0B0D12", border: "1px solid #262B39", color: "#fff", padding: "9px 12px", borderRadius: "8px", fontSize: "13px", boxSizing: "border-box", marginBottom: "8px" }} />
+            <input value={purgeText} onChange={(e) => setPurgeText(e.target.value)} placeholder={tenant.slug} style={{ width: "100%", background: "#F7F7F8", border: "1px solid #E4E4E7", color: "#18181B", padding: "9px 12px", borderRadius: "8px", fontSize: "13px", boxSizing: "border-box", marginBottom: "8px" }} />
             <button onClick={purge} disabled={purgeText !== tenant.slug || busy} style={{ width: "100%", background: purgeText === tenant.slug ? "#DC2626" : "#3a1518", color: purgeText === tenant.slug ? "#fff" : "#7f4a4a", border: "none", padding: "10px", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: purgeText === tenant.slug ? "pointer" : "not-allowed" }}>
               Permanently Delete
             </button>
@@ -579,7 +579,7 @@ function CreateBrandModal({
   }
 
   const inputStyle: React.CSSProperties = {
-    width: "100%", background: "#0B0D12", border: "1px solid #262B39", color: "#fff",
+    width: "100%", background: "#F7F7F8", border: "1px solid #E4E4E7", color: "#18181B",
     padding: "10px 12px", borderRadius: "8px", fontSize: "13px", outline: "none", boxSizing: "border-box",
   };
   const labelStyle: React.CSSProperties = {
@@ -594,19 +594,19 @@ function CreateBrandModal({
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        style={{ background: "#11141C", border: "1px solid #1E2230", borderRadius: "14px", width: "100%", maxWidth: "560px", padding: "28px" }}
+        style={{ background: "#FFFFFF", border: "1px solid #E4E4E7", borderRadius: "14px", width: "100%", maxWidth: "560px", padding: "28px" }}
       >
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
-          <h2 style={{ fontSize: "19px", fontWeight: 800, color: "#fff" }}>Create New Brand</h2>
+          <h2 style={{ fontSize: "19px", fontWeight: 800, color: "#18181B" }}>Create New Brand</h2>
           <button onClick={onClose} style={{ background: "none", border: "none", color: "#6B7280", fontSize: "22px", cursor: "pointer", lineHeight: 1 }}>×</button>
         </div>
 
         {/* Step indicator */}
         <div style={{ display: "flex", gap: "8px", marginBottom: "20px" }}>
           {[{ n: 1, t: "Brand & Subdomain" }, { n: 2, t: "Admin Account" }].map(({ n, t }) => (
-            <div key={n} style={{ flex: 1, padding: "8px 10px", borderRadius: "8px", background: step === n ? "rgba(99,102,241,.15)" : "#0B0D12", border: `1px solid ${step === n ? "#6366F1" : "#1E2230"}` }}>
-              <div style={{ fontSize: "10px", color: step >= n ? "#A78BFA" : "#6B7280", fontWeight: 700 }}>STEP {n}</div>
-              <div style={{ fontSize: "12px", color: step >= n ? "#E5E7EB" : "#6B7280" }}>{t}</div>
+            <div key={n} style={{ flex: 1, padding: "8px 10px", borderRadius: "8px", background: step === n ? "rgba(99,102,241,.15)" : "#F7F7F8", border: `1px solid ${step === n ? "#18181B" : "#E4E4E7"}` }}>
+              <div style={{ fontSize: "10px", color: step >= n ? "#52525B" : "#6B7280", fontWeight: 700 }}>STEP {n}</div>
+              <div style={{ fontSize: "12px", color: step >= n ? "#18181B" : "#6B7280" }}>{t}</div>
             </div>
           ))}
         </div>
@@ -638,8 +638,8 @@ function CreateBrandModal({
                 <input style={inputStyle} type="email" value={form.email} onChange={(e) => set("email", e.target.value)} placeholder="contact@nike.com" />
               </div>
               <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
-                <button type="button" onClick={onClose} style={{ background: "transparent", border: "1px solid #2A2F3D", color: "#A5AAB8", padding: "10px 18px", borderRadius: "8px", fontSize: "13px", fontWeight: 600, cursor: "pointer" }}>Cancel</button>
-                <button type="button" onClick={goNext} style={{ background: "linear-gradient(135deg,#6366F1,#8B5CF6)", color: "#fff", border: "none", padding: "10px 22px", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: "pointer" }}>Next →</button>
+                <button type="button" onClick={onClose} style={{ background: "transparent", border: "1px solid #D4D4D8", color: "#52525B", padding: "10px 18px", borderRadius: "8px", fontSize: "13px", fontWeight: 600, cursor: "pointer" }}>Cancel</button>
+                <button type="button" onClick={goNext} style={{ background: "#18181B", color: "#fff", border: "none", padding: "10px 22px", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: "pointer" }}>Next →</button>
               </div>
             </>
           )}
@@ -666,8 +666,8 @@ function CreateBrandModal({
                 <input style={inputStyle} type="text" required value={form.admin_password} onChange={(e) => set("admin_password", e.target.value)} placeholder="min 8 characters" />
               </div>
               <div style={{ display: "flex", gap: "10px", justifyContent: "space-between" }}>
-                <button type="button" onClick={() => { setError(null); setStep(1); }} style={{ background: "transparent", border: "1px solid #2A2F3D", color: "#A5AAB8", padding: "10px 18px", borderRadius: "8px", fontSize: "13px", fontWeight: 600, cursor: "pointer" }}>← Back</button>
-                <button type="submit" disabled={submitting} style={{ background: submitting ? "#4B4F63" : "linear-gradient(135deg,#6366F1,#8B5CF6)", color: "#fff", border: "none", padding: "10px 22px", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: submitting ? "not-allowed" : "pointer" }}>{submitting ? "Creating…" : "Create Brand"}</button>
+                <button type="button" onClick={() => { setError(null); setStep(1); }} style={{ background: "transparent", border: "1px solid #D4D4D8", color: "#52525B", padding: "10px 18px", borderRadius: "8px", fontSize: "13px", fontWeight: 600, cursor: "pointer" }}>← Back</button>
+                <button type="submit" disabled={submitting} style={{ background: submitting ? "#4B4F63" : "#18181B", color: "#fff", border: "none", padding: "10px 22px", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: submitting ? "not-allowed" : "pointer" }}>{submitting ? "Creating…" : "Create Brand"}</button>
               </div>
             </>
           )}
@@ -685,19 +685,19 @@ function SuccessModal({ info, onClose }: { info: CreateTenantResponse; onClose: 
       onClick={onClose}
       style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.65)", display: "flex", alignItems: "center", justifyContent: "center", padding: "20px", zIndex: 1001 }}
     >
-      <div onClick={(e) => e.stopPropagation()} style={{ background: "#11141C", border: "1px solid #1E2230", borderRadius: "14px", width: "100%", maxWidth: "460px", padding: "28px", textAlign: "center" }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ background: "#FFFFFF", border: "1px solid #E4E4E7", borderRadius: "14px", width: "100%", maxWidth: "460px", padding: "28px", textAlign: "center" }}>
         <div style={{ width: "52px", height: "52px", borderRadius: "50%", background: "rgba(16,185,129,.15)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "26px", margin: "0 auto 16px" }}>✓</div>
-        <h2 style={{ fontSize: "19px", fontWeight: 800, color: "#fff", marginBottom: "6px" }}>Brand Created!</h2>
+        <h2 style={{ fontSize: "19px", fontWeight: 800, color: "#18181B", marginBottom: "6px" }}>Brand Created!</h2>
         <p style={{ fontSize: "13px", color: "#8B90A0", marginBottom: "20px" }}>
-          <strong style={{ color: "#fff" }}>{info.name}</strong> is live. Share the login below with the brand owner.
+          <strong style={{ color: "#18181B" }}>{info.name}</strong> is live. Share the login below with the brand owner.
         </p>
 
-        <div style={{ background: "#0B0D12", border: "1px solid #262B39", borderRadius: "10px", padding: "16px", textAlign: "left", marginBottom: "20px" }}>
+        <div style={{ background: "#F7F7F8", border: "1px solid #E4E4E7", borderRadius: "10px", padding: "16px", textAlign: "left", marginBottom: "20px" }}>
           <Row label="Store / Login URL" value={storeUrl} link={storeUrl} />
           <Row label="Admin Email" value={info.admin_email} />
         </div>
 
-        <button onClick={onClose} style={{ width: "100%", background: "linear-gradient(135deg,#6366F1,#8B5CF6)", color: "#fff", border: "none", padding: "11px", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: "pointer" }}>
+        <button onClick={onClose} style={{ width: "100%", background: "#18181B", color: "#fff", border: "none", padding: "11px", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: "pointer" }}>
           Done
         </button>
       </div>
@@ -710,9 +710,9 @@ function Row({ label, value, link }: { label: string; value: string; link?: stri
     <div style={{ marginBottom: "10px" }}>
       <div style={{ fontSize: "11px", color: "#6B7280", marginBottom: "3px", textTransform: "uppercase", letterSpacing: ".04em" }}>{label}</div>
       {link ? (
-        <a href={link} target="_blank" rel="noopener noreferrer" style={{ color: "#818CF8", fontSize: "13px", fontFamily: "monospace", textDecoration: "none", wordBreak: "break-all" }}>{value} ↗</a>
+        <a href={link} target="_blank" rel="noopener noreferrer" style={{ color: "#18181B", fontSize: "13px", fontFamily: "monospace", textDecoration: "none", wordBreak: "break-all" }}>{value} ↗</a>
       ) : (
-        <div style={{ color: "#fff", fontSize: "13px", fontFamily: "monospace", wordBreak: "break-all" }}>{value}</div>
+        <div style={{ color: "#18181B", fontSize: "13px", fontFamily: "monospace", wordBreak: "break-all" }}>{value}</div>
       )}
     </div>
   );

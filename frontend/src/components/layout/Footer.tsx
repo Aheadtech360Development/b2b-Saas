@@ -33,7 +33,7 @@ export function Footer() {
         {
           h: "Account",
           links: [
-            { label: "Apply for Wholesale", href: authed ? "/account" : "/wholesale/register" },
+            { label: authed ? "My Orders" : "Track an Order", href: authed ? "/account/orders" : "/track-order" },
             { label: authed ? "My Account" : "Log In", href: authed ? "/account" : "/login" },
             { label: "Order History", href: "/account/orders" },
           ],

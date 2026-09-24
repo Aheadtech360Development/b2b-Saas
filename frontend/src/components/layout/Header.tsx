@@ -210,8 +210,9 @@ export function Header() {
             <Link href="/login" style={{ background: "transparent", color: "var(--brand-primary, #1C3557)", padding: "8px 16px", fontSize: "18px", border: "1px solid var(--brand-primary, #1C3557)", fontWeight: 500, textDecoration: "none", transition: "all .2s", fontFamily: "var(--brand-font-body, 'DM Sans', sans-serif)" }}>
               Log In
             </Link>
-            <Link href="/wholesale/register" style={{ background: "var(--brand-primary, #1C3557)", color: "#fff", padding: "8px 18px", fontSize: "18px", fontWeight: 500, textDecoration: "none", transition: "all .2s", fontFamily: "var(--brand-font-body, 'DM Sans', sans-serif)" }}>
-              Apply Now
+            {/* There is no account to apply for any more — anyone can buy. */}
+            <Link href="/products" style={{ background: "var(--brand-primary, #1C3557)", color: "#fff", padding: "8px 18px", fontSize: "18px", fontWeight: 500, textDecoration: "none", transition: "all .2s", fontFamily: "var(--brand-font-body, 'DM Sans', sans-serif)" }}>
+              Shop Now
             </Link>
           </>
         )}
@@ -333,8 +334,8 @@ export function Header() {
                     Cart {cartCount > 0 && `(${cartCount})`}
                   </Link>
                   <div style={{ marginTop: "20px", display: "flex", flexDirection: "column", gap: "10px" }}>
-                    <Link href="/wholesale/register" onClick={() => setMenuOpen(false)} style={{ display: "block", background: "var(--brand-primary, #1C3557)", color: "#fff", padding: "12px 20px", fontWeight: 500, fontSize: "13px", textDecoration: "none", textAlign: "center", fontFamily: "var(--brand-font-body, 'DM Sans', sans-serif)" }}>
-                      Apply for Wholesale Account
+                    <Link href="/products" onClick={() => setMenuOpen(false)} style={{ display: "block", background: "var(--brand-primary, #1C3557)", color: "#fff", padding: "12px 20px", fontWeight: 500, fontSize: "13px", textDecoration: "none", textAlign: "center", fontFamily: "var(--brand-font-body, 'DM Sans', sans-serif)" }}>
+                      Shop Now
                     </Link>
                     <Link href="/login" onClick={() => setMenuOpen(false)} style={{ display: "block", background: "transparent", color: "var(--brand-primary, #1C3557)", border: "1px solid var(--brand-primary, #1C3557)", padding: "12px 20px", fontWeight: 500, fontSize: "13px", textDecoration: "none", textAlign: "center", fontFamily: "var(--brand-font-body, 'DM Sans', sans-serif)" }}>
                       Log In

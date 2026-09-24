@@ -10,9 +10,9 @@ import {
 } from "@/services/platform.service";
 import type { Tenant } from "@/types/user.types";
 
-const PANEL: React.CSSProperties = { background: "#11141C", border: "1px solid #1E2230", borderRadius: "12px" };
+const PANEL: React.CSSProperties = { background: "#FFFFFF", border: "1px solid #E4E4E7", borderRadius: "12px" };
 const TH: React.CSSProperties = { padding: "11px 16px", textAlign: "left", fontSize: "11px", fontWeight: 700, color: "#6B7280", textTransform: "uppercase", letterSpacing: ".05em" };
-const TD: React.CSSProperties = { padding: "12px 16px", fontSize: "13px", color: "#C7CBD4" };
+const TD: React.CSSProperties = { padding: "12px 16px", fontSize: "13px", color: "#3F3F46" };
 
 function money(n: number): string {
   return "$" + n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -37,8 +37,8 @@ export function AnalyticsTab() {
 
   const cards = [
     { label: "Revenue (paid)", value: money(data.totals.revenue), color: "#34D399" },
-    { label: "Orders", value: String(data.totals.orders), color: "#818CF8" },
-    { label: "Products", value: String(data.totals.products), color: "#A78BFA" },
+    { label: "Orders", value: String(data.totals.orders), color: "#18181B" },
+    { label: "Products", value: String(data.totals.products), color: "#52525B" },
     { label: "Companies", value: String(data.totals.companies), color: "#F0ABFC" },
   ];
 
@@ -53,7 +53,7 @@ export function AnalyticsTab() {
         ))}
       </div>
       <div style={{ ...PANEL, overflow: "hidden" }}>
-        <div style={{ padding: "14px 16px", borderBottom: "1px solid #1E2230", fontSize: "13px", fontWeight: 700, color: "#fff" }}>Revenue by brand</div>
+        <div style={{ padding: "14px 16px", borderBottom: "1px solid #E4E4E7", fontSize: "13px", fontWeight: 700, color: "#18181B" }}>Revenue by brand</div>
         <div style={{ overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead><tr style={{ background: "#0E1017" }}>
@@ -64,7 +64,7 @@ export function AnalyticsTab() {
             <tbody>
               {data.brands.map((b) => (
                 <tr key={b.id} style={{ borderTop: "1px solid #171B26" }}>
-                  <td style={{ ...TD, color: "#fff", fontWeight: 700 }}>{b.name}</td>
+                  <td style={{ ...TD, color: "#18181B", fontWeight: 700 }}>{b.name}</td>
                   <td style={{ ...TD, textAlign: "right" }}>{b.products}</td>
                   <td style={{ ...TD, textAlign: "right" }}>{b.orders}</td>
                   <td style={{ ...TD, textAlign: "right" }}>{b.companies}</td>
@@ -97,7 +97,7 @@ export function ActivityTab({ tenants }: { tenants: Tenant[] }) {
     <div>
       <div style={{ marginBottom: "14px" }}>
         <select value={brand} onChange={(e) => setBrand(e.target.value)}
-          style={{ background: "#0B0D12", border: "1px solid #262B39", color: "#E5E7EB", padding: "8px 12px", borderRadius: "8px", fontSize: "13px" }}>
+          style={{ background: "#F7F7F8", border: "1px solid #E4E4E7", color: "#18181B", padding: "8px 12px", borderRadius: "8px", fontSize: "13px" }}>
           <option value="">All brands</option>
           {tenants.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
         </select>
@@ -116,10 +116,10 @@ export function ActivityTab({ tenants }: { tenants: Tenant[] }) {
               <tbody>
                 {items.map((a) => (
                   <tr key={a.id} style={{ borderTop: "1px solid #171B26" }}>
-                    <td style={TD}><span style={{ color: ACTION_COLOR[a.action] ?? "#C7CBD4", fontWeight: 700, fontSize: "12px" }}>{a.action}</span></td>
-                    <td style={{ ...TD, color: "#E5E7EB" }}>{a.entity_type}{a.entity_id ? <span style={{ color: "#6B7280" }}> · {a.entity_id.slice(0, 8)}</span> : null}</td>
+                    <td style={TD}><span style={{ color: ACTION_COLOR[a.action] ?? "#3F3F46", fontWeight: 700, fontSize: "12px" }}>{a.action}</span></td>
+                    <td style={{ ...TD, color: "#18181B" }}>{a.entity_type}{a.entity_id ? <span style={{ color: "#6B7280" }}> · {a.entity_id.slice(0, 8)}</span> : null}</td>
                     <td style={TD}>{a.brand_name ?? "—"}</td>
-                    <td style={{ ...TD, color: "#9CA3AF" }}>{a.actor_email ?? "—"}</td>
+                    <td style={{ ...TD, color: "#71717A" }}>{a.actor_email ?? "—"}</td>
                     <td style={{ ...TD, color: "#6B7280", whiteSpace: "nowrap" }}>{timeAgo(a.created_at)}</td>
                   </tr>
                 ))}
@@ -138,7 +138,7 @@ const rowStyle: React.CSSProperties = { display: "flex", justifyContent: "space-
 function SearchGroup({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div style={{ ...PANEL, overflow: "hidden", marginBottom: "16px" }}>
-      <div style={{ padding: "10px 14px", fontSize: "12px", fontWeight: 700, color: "#8B5CF6", textTransform: "uppercase", letterSpacing: ".05em" }}>{title}</div>
+      <div style={{ padding: "10px 14px", fontSize: "12px", fontWeight: 700, color: "#18181B", textTransform: "uppercase", letterSpacing: ".05em" }}>{title}</div>
       {children}
     </div>
   );
@@ -159,7 +159,7 @@ export function SearchTab() {
   }, [q]);
 
   const badge = (slug: string | null) => (
-    <span style={{ background: "rgba(139,92,246,.15)", color: "#C4B5FD", padding: "2px 8px", borderRadius: "12px", fontSize: "11px", fontWeight: 700 }}>{slug ?? "—"}</span>
+    <span style={{ background: "#F4F4F5", color: "#C4B5FD", padding: "2px 8px", borderRadius: "12px", fontSize: "11px", fontWeight: 700 }}>{slug ?? "—"}</span>
   );
   const count = res ? res.orders.length + res.customers.length + res.products.length : 0;
 
@@ -167,7 +167,7 @@ export function SearchTab() {
     <div>
       <input autoFocus value={q} onChange={(e) => setQ(e.target.value)}
         placeholder="Search orders, customers, products across every brand…"
-        style={{ width: "100%", background: "#0B0D12", border: "1px solid #262B39", color: "#fff", padding: "12px 16px", borderRadius: "10px", fontSize: "14px", boxSizing: "border-box", marginBottom: "18px" }} />
+        style={{ width: "100%", background: "#F7F7F8", border: "1px solid #E4E4E7", color: "#18181B", padding: "12px 16px", borderRadius: "10px", fontSize: "14px", boxSizing: "border-box", marginBottom: "18px" }} />
 
       {q.trim().length >= 2 && (
         <>
@@ -176,21 +176,21 @@ export function SearchTab() {
           {!loading && res && res.products.length > 0 && (
             <SearchGroup title="Products">
               {res.products.map((p) => (
-                <div key={p.id} style={rowStyle}><span style={{ color: "#fff" }}>{p.name}</span>{badge(p.brand_slug)}</div>
+                <div key={p.id} style={rowStyle}><span style={{ color: "#18181B" }}>{p.name}</span>{badge(p.brand_slug)}</div>
               ))}
             </SearchGroup>
           )}
           {!loading && res && res.orders.length > 0 && (
             <SearchGroup title="Orders">
               {res.orders.map((o) => (
-                <div key={o.id} style={rowStyle}><span style={{ color: "#fff" }}>{o.order_number} <span style={{ color: "#6B7280" }}>· {o.status} · {money(o.total)}</span></span>{badge(o.brand_slug)}</div>
+                <div key={o.id} style={rowStyle}><span style={{ color: "#18181B" }}>{o.order_number} <span style={{ color: "#6B7280" }}>· {o.status} · {money(o.total)}</span></span>{badge(o.brand_slug)}</div>
               ))}
             </SearchGroup>
           )}
           {!loading && res && res.customers.length > 0 && (
             <SearchGroup title="Customers">
               {res.customers.map((c) => (
-                <div key={c.id} style={rowStyle}><span style={{ color: "#fff" }}>{c.name}</span>{badge(c.brand_slug)}</div>
+                <div key={c.id} style={rowStyle}><span style={{ color: "#18181B" }}>{c.name}</span>{badge(c.brand_slug)}</div>
               ))}
             </SearchGroup>
           )}
@@ -228,14 +228,14 @@ export function HealthTab({ onEnter }: { onEnter: (slug: string) => void }) {
               const st = STATE_STYLE[b.state] ?? STATE_STYLE.empty!;
               return (
                 <tr key={b.id} style={{ borderTop: "1px solid #171B26" }}>
-                  <td style={{ ...TD, color: "#fff", fontWeight: 700 }}>{b.name}</td>
+                  <td style={{ ...TD, color: "#18181B", fontWeight: 700 }}>{b.name}</td>
                   <td style={TD}><span style={{ background: st.bg, color: st.fg, padding: "3px 10px", borderRadius: "20px", fontSize: "11px", fontWeight: 700 }}>{st.label}</span></td>
                   <td style={{ ...TD, textAlign: "right" }}>{b.products}</td>
                   <td style={{ ...TD, textAlign: "right" }}>{b.orders}</td>
                   <td style={{ ...TD, textAlign: "right" }}>{b.users}</td>
-                  <td style={{ ...TD, color: "#9CA3AF", whiteSpace: "nowrap" }}>{timeAgo(b.last_activity)}</td>
+                  <td style={{ ...TD, color: "#71717A", whiteSpace: "nowrap" }}>{timeAgo(b.last_activity)}</td>
                   <td style={{ ...TD, textAlign: "right" }}>
-                    <button onClick={() => onEnter(b.slug)} style={{ background: "none", border: "none", color: "#818CF8", fontWeight: 700, cursor: "pointer", fontSize: "12px" }}>Open ↗</button>
+                    <button onClick={() => onEnter(b.slug)} style={{ background: "none", border: "none", color: "#18181B", fontWeight: 700, cursor: "pointer", fontSize: "12px" }}>Open ↗</button>
                   </td>
                 </tr>
               );

@@ -41,7 +41,7 @@ export default function PlatformLayout({ children }: { children: React.ReactNode
 
   if (!mounted || isLoading) {
     return (
-      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#0B0D12" }}>
+      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#F7F7F8" }}>
         <div style={{ color: "#888", fontSize: "14px" }}>Loading…</div>
       </div>
     );
@@ -57,12 +57,12 @@ export default function PlatformLayout({ children }: { children: React.ReactNode
   }
 
   return (
-    <div style={{ minHeight: "100vh", background: "#0B0D12", fontFamily: "var(--font-jakarta), system-ui, sans-serif" }}>
+    <div style={{ minHeight: "100vh", background: "#F7F7F8", fontFamily: "var(--font-jakarta), system-ui, sans-serif" }}>
       {/* Top bar */}
       <header
         style={{
-          background: "#11141C",
-          borderBottom: "1px solid #1E2230",
+          background: "#FFFFFF",
+          borderBottom: "1px solid #E4E4E7",
           padding: "0 28px",
           height: "60px",
           display: "flex",
@@ -75,19 +75,19 @@ export default function PlatformLayout({ children }: { children: React.ReactNode
             <span
               style={{
                 width: "28px", height: "28px", borderRadius: "7px",
-                background: "linear-gradient(135deg,#6366F1,#8B5CF6)",
+                background: "#18181B",
                 display: "flex", alignItems: "center", justifyContent: "center",
-                fontSize: "15px", fontWeight: 800, color: "#fff",
+                fontSize: "15px", fontWeight: 800, color: "#18181B",
               }}
             >
               ⬡
             </span>
-            <span style={{ color: "#fff", fontWeight: 700, fontSize: "15px", letterSpacing: ".02em" }}>
+            <span style={{ color: "#18181B", fontWeight: 700, fontSize: "15px", letterSpacing: ".02em" }}>
               Platform Console
             </span>
           </Link>
           <nav style={{ display: "flex", gap: "20px" }}>
-            <Link href="/platform" style={{ color: "#A5AAB8", textDecoration: "none", fontSize: "13px", fontWeight: 600 }}>
+            <Link href="/platform" style={{ color: "#52525B", textDecoration: "none", fontSize: "13px", fontWeight: 600 }}>
               Brands
             </Link>
           </nav>
@@ -99,7 +99,7 @@ export default function PlatformLayout({ children }: { children: React.ReactNode
           </span>
           <span
             style={{
-              background: "rgba(139,92,246,.15)", color: "#A78BFA",
+              background: "#F4F4F5", color: "#52525B",
               padding: "3px 10px", borderRadius: "20px", fontSize: "11px", fontWeight: 700,
             }}
           >
@@ -108,7 +108,7 @@ export default function PlatformLayout({ children }: { children: React.ReactNode
           <button
             onClick={handleLogout}
             style={{
-              background: "transparent", border: "1px solid #2A2F3D", color: "#A5AAB8",
+              background: "transparent", border: "1px solid #D4D4D8", color: "#52525B",
               padding: "6px 14px", borderRadius: "7px", fontSize: "12px", fontWeight: 600, cursor: "pointer",
             }}
           >

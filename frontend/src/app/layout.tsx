@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import Script from "next/script";
 import { headers } from "next/headers";
 import "./globals.css";
-import ThemeChrome, { ThemeChromeHead, loadThemeChrome } from "@/components/storefront/ThemeChrome";
+import ThemeChrome, { ThemeChromeHead, loadStore } from "@/components/storefront/ThemeChrome";
 import { Providers } from "@/components/providers/Providers";
 import { Header } from "@/components/layout/Header";
 import { DeployRefresh } from "@/components/providers/DeployRefresh";
@@ -35,8 +35,13 @@ export default async function RootLayout({
   // flash of an old header people saw on every navigation.
   const pathname = (await headers()).get("x-pathname") ?? "/";
   const storefront = !NOT_STOREFRONT.some((p) => pathname === p || pathname.startsWith(`${p}/`));
-  const chrome = storefront ? await loadThemeChrome() : null;
-  const themed = chrome !== null;
+  const store = storefront ? await loadStore() : { brand: null, chrome: null };
+  const chrome = store.chrome;
+  // Three cases, and only the middle one wants the app's own header: a themed
+  // shop wears the brand's chrome, a shop with no theme yet wears the app's,
+  // and the platform's own address is not a shop at all — its page brings its
+  // own header, so adding the app's put two of them on the screen.
+  const appHeader = storefront && store.brand !== null && chrome === null;
   return (
     <html lang="en">
       <head>
@@ -67,7 +72,7 @@ export default async function RootLayout({
           <AttributionTracker />
           {/* Loads only the tracking tools this brand connected, if any. */}
           <TrackingScripts />
-          {!themed && <Header />}
+          {appHeader && <Header />}
           {/* The brand's own chrome, around every storefront page — the cart
               and the checkout included, which the theme has no page for. */}
           {chrome && <ThemeChromeHead chrome={chrome} />}
