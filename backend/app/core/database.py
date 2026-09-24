@@ -222,8 +222,12 @@ async def _apply_tenant_context(request: Request | None, session: AsyncSession) 
         return
 
     state = request.state
-    # Readable storage folder key (subdomain), independent of scoping bypass.
-    set_current_tenant_slug(getattr(state, "tenant_slug", None))
+    # Readable storage folder key. The subdomain when there is one, otherwise
+    # what the token says — a brand's admin signing in on the platform's own
+    # address arrives with no subdomain at all.
+    set_current_tenant_slug(
+        getattr(state, "tenant_slug", None) or getattr(state, "tenant_slug_claim", None)
+    )
 
     # 1. Platform admin operates across all tenants.
     if getattr(state, "is_platform_admin", False):

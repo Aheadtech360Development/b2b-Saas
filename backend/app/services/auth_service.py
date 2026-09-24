@@ -80,6 +80,34 @@ class AuthService:
         self.db = db
 
     async def login(self, email: str, password: str) -> LoginResponse:
+        """Sign somebody in, wherever they happen to be standing.
+
+        One form serves everyone — the platform's own people, a brand's owner,
+        the staff that brand invited — so the address it was served from cannot
+        decide who is allowed to exist. It used to: on the platform's own page
+        no tenant is resolved, row-level security then hid every brand's users,
+        and an owner typing the right password was told it was wrong.
+
+        The whole sign-in therefore runs on an unscoped session. What the person
+        may then see is decided by the claims this returns, not by which page
+        they happened to open.
+        """
+        from app.core.database import AsyncSessionLocal
+        from app.core.tenant_context import is_scoping_bypassed, set_bypass_scoping
+
+        previous = is_scoping_bypassed()
+        set_bypass_scoping(True)
+        try:
+            async with AsyncSessionLocal() as db:
+                outer, self.db = self.db, db
+                try:
+                    return await self._authenticate(email, password)
+                finally:
+                    self.db = outer
+        finally:
+            set_bypass_scoping(previous)
+
+    async def _authenticate(self, email: str, password: str) -> LoginResponse:
         result = await self.db.execute(select(User).where(User.email == email.lower()))
         user = result.scalar_one_or_none()
 

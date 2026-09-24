@@ -200,6 +200,10 @@ class AuthMiddleware(BaseHTTPMiddleware):
         request.state.is_admin = payload.get("is_admin", False)
         request.state.is_platform_admin = payload.get("is_platform_admin", False)
         request.state.tenant_id = payload.get("tenant_id")
+        # Signing in on the platform's own address sends no subdomain, so the
+        # brand's readable name (used for storage folders) has to come from the
+        # token instead.
+        request.state.tenant_slug_claim = payload.get("tenant_slug")
         request.state.role = payload.get("role")
         request.state.scopes = payload.get("scopes")          # custom role scopes, or None
         request.state.read_only = payload.get("read_only", False)
