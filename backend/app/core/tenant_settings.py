@@ -36,6 +36,9 @@ TENANT_SCOPED_KEYS: frozenset[str] = frozenset({
     "integrations",  # brand's own supplier + carrier accounts (JSON) — see integrations_service
     "suppliers",  # brand's supplier setup: import filters, pricing, sync (JSON) — see services/suppliers
     "analytics",  # brand's own GA4/Pixel/Klaviyo IDs (JSON) — see services/analytics_config
+    # What the platform takes on this brand's Gang Sheet Builder orders, in
+    # basis points, when it is not simply the plan's rate — see services/commission
+    "gang_sheet_commission_bps",
     "google_reviews",  # brand's Google Business Profile connection (JSON) — see services/google_reviews
     "storefront_pages",  # contact, quote and the footer's policies (JSON) — see services/storefront_pages
 })

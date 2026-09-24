@@ -278,6 +278,51 @@ async def get_tenant_features(
     return await entitlements.detail(db, tid)
 
 
+# ── Gang Sheet Builder commission ─────────────────────────────────────────────
+
+@router.get("/{slug}/commission")
+async def get_tenant_commission(
+    slug: str,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """What we take on this brand's Gang Sheet Builder orders."""
+    _require_platform_admin(request)
+    from app.services import commission
+
+    tid = (await db.execute(text("SELECT id FROM tenants WHERE slug=:s"), {"s": slug})).scalar()
+    if not tid:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+    return await commission.for_tenant(db, tid)
+
+
+class CommissionUpdate(BaseModel):
+    # Basis points: 280 = 2.8%. Null hands the brand back to its plan's rate,
+    # which is different from setting it to zero — one is "whatever the tier
+    # says", the other is "this brand pays nothing".
+    bps: int | None = None
+
+
+@router.put("/{slug}/commission")
+async def set_tenant_commission(
+    slug: str,
+    data: CommissionUpdate,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Charge one brand a rate of its own, or hand it back to the plan."""
+    _require_platform_admin(request)
+    from app.services import commission
+
+    tid = (await db.execute(text("SELECT id FROM tenants WHERE slug=:s"), {"s": slug})).scalar()
+    if not tid:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+    try:
+        return await commission.set_override(db, tid, data.bps)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
 class FeatureFlagUpdate(BaseModel):
     feature: str
     # True grants it, False takes it away, and null goes back to whatever the

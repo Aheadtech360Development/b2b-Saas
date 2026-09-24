@@ -167,11 +167,20 @@ async def guest_payment_intent(
     if total <= 0:
         raise ValidationError("Order total must be greater than zero")
 
+    # The platform's share, on the Gang Sheet Builder lines only.
+    from app.services import commission as commission_svc
+
+    rate = await commission_svc.for_tenant(db, tenant_id)
+    fee_cents = commission_svc.amount_cents(priced.gang_sheet_subtotal, rate["bps"])
+
     intent = await PaymentService(db).create_direct_payment_intent(
         amount_decimal=total,
         connected_account_id=connect["account_id"],
         metadata={"tenant_id": str(tenant_id), "guest": "true",
-                  "tax_amount": str(priced.tax_amount)},
+                  "tax_amount": str(priced.tax_amount),
+                  "gang_sheet_subtotal": str(priced.gang_sheet_subtotal),
+                  "commission_bps": str(rate["bps"])},
+        application_fee_cents=fee_cents,
     )
     return {
         "client_secret": intent.client_secret,
@@ -195,6 +204,7 @@ class GuestTotals(BaseModel):
     gang_sheet_ids: list
     shipping_method: str
     subtotal: Decimal
+    gang_sheet_subtotal: Decimal
     shipping_cost: Decimal
     tax_amount: Decimal
     convenience_fee: Decimal
@@ -216,6 +226,7 @@ async def _price_guest_cart(db: AsyncSession, payload: "GuestCheckoutRequest") -
     ordered_product_slugs: set[str] = set()
     gang_sheet_ids: list[UUID] = []
     subtotal = Decimal("0")
+    gang_sheet_subtotal = Decimal("0")
 
     for cart_item in payload.items:
         if cart_item.quantity < 1:
@@ -242,6 +253,10 @@ async def _price_guest_cart(db: AsyncSession, payload: "GuestCheckoutRequest") -
             gs_qty = int(job.sheet_quantity or 1)
             gs_line = gs_unit * gs_qty
             subtotal += gs_line
+            # Kept apart: the platform's percentage applies to these lines and
+            # to nothing else on the order. Blanks and standard products are
+            # covered by the shop's flat plan.
+            gang_sheet_subtotal += gs_line
             gang_sheet_ids.append(job.id)
             order_items_data.append({
                 "variant_id": None,
@@ -378,6 +393,7 @@ async def _price_guest_cart(db: AsyncSession, payload: "GuestCheckoutRequest") -
         gang_sheet_ids=gang_sheet_ids,
         shipping_method=method,
         subtotal=subtotal,
+        gang_sheet_subtotal=gang_sheet_subtotal,
         shipping_cost=shipping_cost,
         tax_amount=tax_amount_val,
         convenience_fee=convenience_fee,

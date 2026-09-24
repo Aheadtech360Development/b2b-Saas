@@ -48,23 +48,32 @@ class PaymentService:
         connected_account_id: str,
         currency: str = "usd",
         metadata: dict | None = None,
+        application_fee_cents: int = 0,
     ) -> stripe.PaymentIntent:
         """Direct charge on a brand's connected account (customer -> brand).
 
         The `stripe_account` request option routes creation to the connected
         account, so the charge, balance, and payout all land with the brand and
-        the brand is merchant of record (disputes/refunds are theirs). No
-        application_fee — the platform earns from subscription tiers, not sales.
+        the brand is merchant of record (disputes/refunds are theirs).
+
+        `application_fee_cents` is the platform's share, and is only ever
+        non-zero on a Gang Sheet Builder order — the one thing the pricing
+        sheet says is metered. Every other order on a shop is covered by its
+        flat monthly plan, so nothing is taken from it.
         """
         s = _get_stripe()
         amount_cents = int(amount_decimal * 100)
-        return s.PaymentIntent.create(
-            amount=amount_cents,
-            currency=currency,
-            payment_method_types=["card"],
-            metadata=metadata or {},
-            stripe_account=connected_account_id,
-        )
+        params: dict = {
+            "amount": amount_cents,
+            "currency": currency,
+            "payment_method_types": ["card"],
+            "metadata": metadata or {},
+            "stripe_account": connected_account_id,
+        }
+        # Never more than the charge itself, whatever a rate was set to.
+        if application_fee_cents > 0:
+            params["application_fee_amount"] = min(int(application_fee_cents), amount_cents)
+        return s.PaymentIntent.create(**params)
 
     async def create_refund(
         self,
