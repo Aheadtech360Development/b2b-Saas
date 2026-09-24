@@ -464,9 +464,11 @@ class OrderService:
 
         # 9.6. Invalidate product detail cache so stock shows immediately
         try:
-            from app.core.redis import redis_delete_pattern as _rdp
+            from app.core.redis import redis_delete_pattern as _rdp, tenant_cache_key as _tk
             for _slug in ordered_product_slugs:
-                await _rdp(f"products:detail:{_slug}:*")
+                await _rdp(_tk(f"products:detail:{_slug}:*"))
+            if ordered_product_slugs:
+                await _rdp(_tk("products:list:*"))
         except Exception:
             pass
 

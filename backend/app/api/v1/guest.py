@@ -602,13 +602,16 @@ async def guest_checkout(
                 qty_to_deduct -= deduct
 
 
-    # Bust product detail Redis cache so stock shows correctly for everyone
+    # Bust product detail Redis cache so stock shows correctly for everyone.
+    # Under the tenant's key: the cache is written per brand, and clearing the
+    # unprefixed key matched nothing — so a product went on showing the stock
+    # it had before this order until the entry aged out.
     try:
-        from app.core.redis import redis_delete_pattern as _rdp
+        from app.core.redis import redis_delete_pattern as _rdp, tenant_cache_key as _tk
         for _slug in ordered_product_slugs:
-            await _rdp(f"products:detail:{_slug}:*")
+            await _rdp(_tk(f"products:detail:{_slug}:*"))
         if ordered_product_slugs:
-            await _rdp("products:list:*")
+            await _rdp(_tk("products:list:*"))
     except Exception:
         pass
 

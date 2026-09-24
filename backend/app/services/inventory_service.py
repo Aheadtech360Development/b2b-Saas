@@ -175,7 +175,7 @@ class InventoryService:
 
         # Invalidate Redis product detail cache so updated stock shows on all pages
         try:
-            from app.core.redis import redis_delete_pattern as _rdp
+            from app.core.redis import redis_delete_pattern as _rdp, tenant_cache_key as _tk
             from app.models.product import Product as _Product
             pv = (await self.db.execute(
                 select(ProductVariant).where(ProductVariant.id == variant_id)
@@ -185,7 +185,9 @@ class InventoryService:
                     select(_Product).where(_Product.id == pv.product_id)
                 )).scalar_one_or_none()
                 if prod:
-                    await _rdp(f"products:detail:{prod.slug}:*")
+                    # Per brand — see the note in guest checkout.
+                    await _rdp(_tk(f"products:detail:{prod.slug}:*"))
+                    await _rdp(_tk("products:list:*"))
         except Exception as _exc:
             logger.warning("Product cache invalidation failed: %s", _exc)
 

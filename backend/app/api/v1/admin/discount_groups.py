@@ -186,18 +186,24 @@ async def save_variant_pricing(body: VariantPricingIn, db: AsyncSession = Depend
 
     await db.commit()
 
-    # Bust product detail cache for every affected product
+    # Bust product detail cache for every affected product.
+    #
+    # Through the tenant's own key. The cache is written under a per-brand
+    # prefix and this cleared the unprefixed keys, which match nothing — so a
+    # price set here did not reach the catalogue at all until the entry aged
+    # out, and the shop went on showing the old price while the cart charged
+    # the new one.
     try:
         from app.models.product import Product as _Product
-        from app.core.redis import redis_delete_pattern as _rdp
+        from app.core.redis import redis_delete_pattern as _rdp, tenant_cache_key as _tk
         from sqlalchemy import select as _select
         slugs_result = await db.execute(
             _select(_Product.slug).where(_Product.id.in_(list(affected_product_ids)))
         )
         for (slug,) in slugs_result.all():
             if slug:
-                await _rdp(f"products:detail:{slug}:*")
-        await _rdp("products:list:*")
+                await _rdp(_tk(f"products:detail:{slug}:*"))
+        await _rdp(_tk("products:list:*"))
     except Exception:
         pass
 
@@ -257,10 +263,11 @@ async def save_variant_level_pricing(body: VariantLevelPricingIn, db: AsyncSessi
 
     await db.commit()
 
-    # Bust product detail cache for every product whose variants were affected
+    # Bust product detail cache for every product whose variants were affected,
+    # under the tenant's own key — see the note in save_variant_pricing.
     try:
         from app.models.product import Product as _Product, ProductVariant as _PV
-        from app.core.redis import redis_delete_pattern as _rdp
+        from app.core.redis import redis_delete_pattern as _rdp, tenant_cache_key as _tk
         from sqlalchemy import select as _select
         slugs_result = await db.execute(
             _select(_Product.slug)
@@ -270,8 +277,8 @@ async def save_variant_level_pricing(body: VariantLevelPricingIn, db: AsyncSessi
         )
         for (slug,) in slugs_result.all():
             if slug:
-                await _rdp(f"products:detail:{slug}:*")
-        await _rdp("products:list:*")
+                await _rdp(_tk(f"products:detail:{slug}:*"))
+        await _rdp(_tk("products:list:*"))
     except Exception:
         pass
 
