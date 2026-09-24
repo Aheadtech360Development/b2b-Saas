@@ -20,9 +20,13 @@ async def _brand_from_order(db, order) -> None:
     store. No-ops when the order is missing."""
     if order is None:
         return
-    from app.core.database import _resolve_brand_name
-    from app.core.tenant_context import set_current_brand_name
-    set_current_brand_name(await _resolve_brand_name(db, getattr(order, "tenant_id", None)))
+    from app.core.database import _resolve_brand_name, _resolve_brand_site
+    from app.core.tenant_context import set_current_brand_name, set_current_brand_site
+    tenant_id = getattr(order, "tenant_id", None)
+    set_current_brand_name(await _resolve_brand_name(db, tenant_id))
+    # And where that store lives, so the links in the mail go to the shop the
+    # buyer ordered from rather than to the platform.
+    set_current_brand_site(await _resolve_brand_site(db, tenant_id))
 
 
 def _fmt_items(items) -> list[dict]:

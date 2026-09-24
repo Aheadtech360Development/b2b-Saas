@@ -15,7 +15,7 @@ import re
 import uuid
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
@@ -83,8 +83,44 @@ async def availability(slug: str, db: AsyncSession = Depends(get_db)) -> Availab
                            reason="Already taken." if taken else "")
 
 
+def _announce(shop: str, slug: str, plan: str, who: str, email: str,
+              phone: str, shop_url: str) -> None:
+    """Tell the platform a shop just signed up.
+
+    Runs after the response: a sign-up must not fail, or wait, because an inbox
+    was unreachable.
+    """
+    from app.services.email_service import notify_platform
+
+    rows = [
+        ("Shop", shop), ("Address", f'<a href="{shop_url}">{shop_url}</a>'),
+        ("Plan", plan.title()), ("Owner", who),
+        ("Email", f'<a href="mailto:{email}">{email}</a>'),
+        ("Phone", phone or "—"),
+    ]
+    body = (
+        '<div style="font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif">'
+        f'<h2 style="margin:0 0 4px">New shop: {shop}</h2>'
+        '<p style="color:#6B7280;margin:0 0 20px">Signed up just now. '
+        'No card yet — billing starts when they add one.</p>'
+        '<table cellpadding="0" cellspacing="0" style="font-size:14px">'
+        + "".join(
+            f'<tr><td style="padding:6px 24px 6px 0;color:#6B7280">{k}</td>'
+            f'<td style="padding:6px 0;font-weight:600">{v}</td></tr>'
+            for k, v in rows
+        )
+        + "</table></div>"
+    )
+    try:
+        notify_platform(f"New shop signed up — {shop} ({slug})", body)
+    except Exception:  # never let a notification surface as a failed sign-up
+        import logging
+
+        logging.getLogger(__name__).warning("signup notice failed for %s", slug, exc_info=True)
+
+
 @router.post("", status_code=201)
-async def sign_up(payload: SignupIn, request: Request,
+async def sign_up(payload: SignupIn, request: Request, background: BackgroundTasks,
                   db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
     """Create the shop and sign its owner in.
 
@@ -183,8 +219,16 @@ async def sign_up(payload: SignupIn, request: Request,
         set_bypass_scoping(previous)
 
     from app.services import tenant_hosts
+    from app.services.brand_urls import build as brand_url
 
     tenant_hosts.forget()
+
+    shop_url = brand_url(slug, None, "/")
+    background.add_task(
+        _announce, payload.shop_name.strip(), slug, payload.plan,
+        f"{payload.first_name} {payload.last_name}".strip(), email,
+        payload.phone.strip(), shop_url,
+    )
 
     token = create_access_token(str(user_id), {
         "is_admin": True, "is_platform_admin": False,

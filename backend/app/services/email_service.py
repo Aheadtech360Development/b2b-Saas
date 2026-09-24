@@ -51,6 +51,41 @@ def notify_address() -> str | None:
     )
 
 
+def platform_inbox() -> str | None:
+    """The platform's own inbox — not any brand's."""
+    return (settings.PLATFORM_SUPPORT_EMAIL or "").strip() or (
+        settings.ADMIN_NOTIFICATION_EMAIL or ""
+    ).strip() or None
+
+
+def notify_platform(subject: str, body_html: str) -> bool:
+    """Tell the platform something happened — a new shop, mainly.
+
+    Sent as the platform, not as a brand: this is the one kind of mail that is
+    ours rather than somebody's store's, so the brand name that rides on every
+    other message would be wrong here.
+    """
+    to = platform_inbox()
+    if not to:
+        logger.warning("PLATFORM_SUPPORT_EMAIL not set — skipping: %s", subject)
+        return False
+    from app.core.tenant_context import (
+        get_current_brand_name,
+        get_current_brand_site,
+        set_current_brand_name,
+        set_current_brand_site,
+    )
+
+    was_name, was_site = get_current_brand_name(), get_current_brand_site()
+    set_current_brand_name(settings.PLATFORM_NAME)
+    set_current_brand_site(None)
+    try:
+        return EmailService(None).send_raw(to_email=to, subject=subject, body_html=body_html)
+    finally:
+        set_current_brand_name(was_name)
+        set_current_brand_site(was_site)
+
+
 def _current_brand_from_context() -> str | None:
     try:
         from app.core.tenant_context import get_current_brand_name
@@ -58,6 +93,31 @@ def _current_brand_from_context() -> str | None:
         return get_current_brand_name()
     except Exception:
         return None
+
+
+def _brand_site() -> str | None:
+    """Where this brand's shop lives, resolved for the current request."""
+    try:
+        from app.core.tenant_context import get_current_brand_site
+
+        return get_current_brand_site()
+    except Exception:
+        return None
+
+
+def _point_at_brand(text: str | None, site: str) -> str | None:
+    """Send every link in this message to the brand's shop.
+
+    Forty call sites build their links from FRONTEND_URL, which is the
+    platform's address — so a brand's customer clicking "track my order" landed
+    on the platform's front page instead of the shop they bought from. Rewriting
+    it here, where every message passes through, fixes all of them at once and
+    keeps working for a call site written tomorrow.
+    """
+    platform = (settings.FRONTEND_URL or "").rstrip("/")
+    if not text or not platform or not site or site == platform:
+        return text
+    return text.replace(platform, site)
 
 
 # Everything else the single-store copy carried: its other phone, its inboxes,
@@ -113,7 +173,9 @@ _file_jinja_env = Environment(loader=FileSystemLoader(_TEMPLATES_DIR), autoescap
 
 
 class EmailService:
-    def __init__(self, db: AsyncSession):
+    def __init__(self, db: AsyncSession | None = None):
+        # Optional: the raw and file-template senders never touch the database,
+        # and platform mail has no request session to hand them.
         self.db = db
 
     async def get_template(self, trigger_event: str) -> EmailTemplate:
@@ -260,11 +322,16 @@ class EmailService:
         from_name = (cfg.get("from_name") or "").strip() or brand or settings.EMAIL_FROM_NAME
         # Where this brand's customers should write, and where its store lives.
         contact = (cfg.get("reply_to") or "").strip() or (cfg.get("notify_email") or "").strip() or None
-        site = settings.FRONTEND_URL
+        site = _brand_site() or settings.FRONTEND_URL
         subject = _rebrand_text(subject, brand, contact_email=contact, site_url=site)
         body_html = _rebrand_text(body_html, brand, contact_email=contact, site_url=site)
         if body_text:
             body_text = _rebrand_text(body_text, brand, contact_email=contact, site_url=site)
+        # Links last: the rebrand above may itself have written the platform's
+        # address in, replacing a legacy domain.
+        subject = _point_at_brand(subject, site)
+        body_html = _point_at_brand(body_html, site)
+        body_text = _point_at_brand(body_text, site)
 
         # The sender address stays on the platform's verified domain — it's the
         # only one this Resend account may send from. The brand's identity rides

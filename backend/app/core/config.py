@@ -123,6 +123,10 @@ class Settings(BaseSettings):
     EMAIL_FROM_ADDRESS: str = "onboarding@resend.dev"
     EMAIL_FROM_NAME: str = "Wholesale Store"
     ADMIN_NOTIFICATION_EMAIL: str = ""
+    # The platform's own inbox — new shops signing up, platform-level alerts.
+    # A brand's alerts never come here; those go to the brand (notify_address).
+    # Falls back to ADMIN_NOTIFICATION_EMAIL when unset.
+    PLATFORM_SUPPORT_EMAIL: str = ""
     # Send every outbound email here instead of to its real recipient, with the
     # intended address kept in the subject. Resend's shared onboarding@resend.dev
     # sender only delivers to the account owner, so until a domain is verified a

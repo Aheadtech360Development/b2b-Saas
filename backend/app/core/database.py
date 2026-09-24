@@ -146,6 +146,43 @@ async def _resolve_brand_name(session: AsyncSession, tenant_id: object) -> str |
     return name
 
 
+# Where each brand's shop lives. Same treatment again: every link we mail out
+# has to land on the brand's own address, and the email service cannot look it
+# up because it is synchronous.
+_SITE_CACHE: dict[str, tuple[str | None, float]] = {}
+
+
+async def _resolve_brand_site(session: AsyncSession, tenant_id: object) -> str | None:
+    from sqlalchemy import text
+
+    key = str(tenant_id)
+    hit = _SITE_CACHE.get(key)
+    now = _time.monotonic()
+    if hit and hit[1] > now:
+        return hit[0]
+    origin = None
+    try:
+        row = (
+            await session.execute(
+                text("SELECT slug, custom_domain FROM tenants WHERE id = CAST(:t AS uuid)"),
+                {"t": key},
+            )
+        ).first()
+        if row:
+            from app.services.brand_urls import build
+
+            origin = build(row[0], row[1], "/").rstrip("/")
+    except Exception:
+        origin = None
+    _SITE_CACHE[key] = (origin, now + _BRAND_TTL_SECONDS)
+    return origin
+
+
+def forget_brand_site(tenant_id: object) -> None:
+    """Drop the cached address so a just-connected domain is used at once."""
+    _SITE_CACHE.pop(str(tenant_id), None)
+
+
 # ── Tenant context resolution ─────────────────────────────────────────────────
 async def _apply_tenant_context(request: Request | None, session: AsyncSession) -> None:
     """
@@ -166,12 +203,14 @@ async def _apply_tenant_context(request: Request | None, session: AsyncSession) 
         NO_TENANT,
         set_bypass_scoping,
         set_current_brand_name,
+        set_current_brand_site,
         set_current_tenant,
         set_current_tenant_email,
         set_current_tenant_slug,
     )
 
     set_current_brand_name(None)
+    set_current_brand_site(None)
     set_current_tenant_email(None)
 
     # Fresh defaults for this request task.
@@ -196,6 +235,7 @@ async def _apply_tenant_context(request: Request | None, session: AsyncSession) 
     if tenant_id:
         set_current_tenant(tenant_id)
         set_current_brand_name(await _resolve_brand_name(session, tenant_id))
+        set_current_brand_site(await _resolve_brand_site(session, tenant_id))
         set_current_tenant_email(await _resolve_tenant_email(session, tenant_id))
         return
 
@@ -213,6 +253,7 @@ async def _apply_tenant_context(request: Request | None, session: AsyncSession) 
         set_current_tenant(row[0] if row else NO_TENANT)
         if row:
             set_current_brand_name(await _resolve_brand_name(session, row[0]))
+            set_current_brand_site(await _resolve_brand_site(session, row[0]))
             set_current_tenant_email(await _resolve_tenant_email(session, row[0]))
         return
 

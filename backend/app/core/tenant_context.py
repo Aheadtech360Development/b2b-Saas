@@ -30,6 +30,12 @@ _current_tenant_slug: ContextVar[str | None] = ContextVar("current_tenant_slug",
 # hardcoded name. None until resolved for this request.
 _current_brand_name: ContextVar[str | None] = ContextVar("current_brand_name", default=None)
 
+# Where this brand's shop lives on the web — its own domain, or its address on
+# the platform. Resolved once per request alongside the brand name, because the
+# email service is synchronous and every link it sends has to land on the
+# brand's shop rather than on the platform's front page.
+_current_brand_site: ContextVar[str | None] = ContextVar("current_brand_site", default=None)
+
 # When True, tenant scoping is bypassed entirely (platform admin / system jobs).
 _bypass_scoping: ContextVar[bool] = ContextVar("bypass_tenant_scoping", default=False)
 
@@ -65,6 +71,15 @@ def set_current_brand_name(name: str | None) -> None:
 
 def get_current_brand_name() -> str | None:
     return _current_brand_name.get()
+
+
+def set_current_brand_site(origin: str | None) -> None:
+    _current_brand_site.set((origin or "").rstrip("/") or None)
+
+
+def get_current_brand_site() -> str | None:
+    """Where this brand's shop lives, or None to fall back to the platform's."""
+    return _current_brand_site.get()
 
 
 def get_current_tenant_slug() -> str | None:
