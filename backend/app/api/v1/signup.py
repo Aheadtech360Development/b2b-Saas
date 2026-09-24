@@ -33,6 +33,9 @@ RESERVED = {
     "www", "api", "admin", "platform", "app", "static", "assets", "cdn", "mail",
     "smtp", "ftp", "blog", "help", "support", "status", "docs", "signup", "login",
     "account", "billing", "dashboard", "console", "shop", "store", "test", "demo",
+    # Names the platform's mail already owns in DNS. A shop taking one would
+    # not just clash with a page — it would break sending for every brand.
+    "send", "rsend", "resend", "email", "mx", "dmarc", "bounce", "track",
 }
 
 _SLUG_OK = re.compile(r"^[a-z0-9][a-z0-9-]{1,48}[a-z0-9]$")
