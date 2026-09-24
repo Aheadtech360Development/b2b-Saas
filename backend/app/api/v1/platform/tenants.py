@@ -70,14 +70,25 @@ async def list_tenants(
     result = await db.execute(text("""
         SELECT t.id, t.slug, t.name, t.email, t.status, t.plan,
                t.custom_domain, t.created_at,
+               s.status AS billing_status,
                COUNT(u.id) AS user_count
         FROM tenants t
         LEFT JOIN users u ON u.tenant_id = t.id
-        GROUP BY t.id
+        LEFT JOIN tenant_subscriptions s ON s.tenant_id = t.id
+        GROUP BY t.id, s.status
         ORDER BY t.created_at DESC
     """))
-    rows = result.mappings().all()
-    return [dict(r) for r in rows]
+    from app.core.billing_plans import plan_summary
+
+    out = []
+    for r in result.mappings().all():
+        row = dict(r)
+        # What this brand pays and what we take, spelled out — the console
+        # showed a bare key, which answers neither.
+        row["plan_detail"] = plan_summary(row.get("plan"))
+        row["billing_status"] = row.get("billing_status") or "none"
+        out.append(row)
+    return out
 
 
 @router.post("", status_code=201)

@@ -32,6 +32,20 @@ export interface Tenant {
   custom_domain?: string | null;
   created_at: string;
   user_count: number;
+  /** What this brand pays and what we take, ready to print. */
+  plan_detail?: PlanSummary;
+  /** Whether that plan is actually being billed: active, inactive, none… */
+  billing_status?: string;
+}
+
+export interface PlanSummary {
+  key: string;
+  name: string;
+  price_display: string;
+  commission_display: string;
+  limits_display?: string;
+  description?: string;
+  amount_cents?: number;
 }
 
 /** Company membership with role. */

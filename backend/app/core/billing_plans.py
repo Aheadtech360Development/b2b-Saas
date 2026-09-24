@@ -104,6 +104,31 @@ def _limit(value: int | None) -> str:
     return "Unlimited" if value is None else f"{value:,}"
 
 
+def plan_summary(key: str | None) -> dict:
+    """How one brand's plan should read wherever it is shown.
+
+    The console listed brands by a bare key — "starter" — which says neither
+    what the brand pays nor what we take. One shape, so the list and the manage
+    panel can never disagree about it.
+    """
+    p = BILLING_PLANS.get((key or "").strip().lower())
+    if not p:
+        return {"key": key or "", "name": (key or "No plan").title(),
+                "price_display": "—", "commission_display": "—", "amount_cents": 0}
+    return {
+        "key": key,
+        "name": p["name"],
+        "amount_cents": p["amount_cents"],
+        "price_display": f"${p['amount_cents'] // 100}/mo",
+        "commission_display": f"{p['commission_bps'] / 100:.1f}%",
+        "limits_display": (
+            f"{_limit(p['limits']['orders_per_month'])} orders/month · "
+            f"{_limit(p['limits']['staff_accounts'])} staff accounts"
+        ),
+        "description": p["description"],
+    }
+
+
 def public_pricing_table() -> list[dict]:
     """Ordered, UI-safe view of the plans (no internal keys)."""
     out = []

@@ -161,7 +161,7 @@ export default function PlatformDashboard() {
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
             <thead>
               <tr style={{ background: "#0E1017", borderBottom: "1px solid #E4E4E7" }}>
-                {["Brand", "Open", "Users", "Status", "Actions"].map((h) => (
+                {["Brand", "Plan", "Open", "Users", "Status", "Actions"].map((h) => (
                   <th key={h} style={{ padding: "12px 18px", textAlign: h === "Users" ? "center" : "left", fontSize: "11px", fontWeight: 700, color: "#6B7280", textTransform: "uppercase", letterSpacing: ".06em" }}>
                     {h}
                   </th>
@@ -174,6 +174,19 @@ export default function PlatformDashboard() {
                   <td style={{ padding: "14px 18px" }}>
                     <div style={{ fontWeight: 700, color: "#18181B" }}>{t.name}</div>
                     <div style={{ fontSize: "11px", color: "#6B7280" }}>{t.email}</div>
+                  </td>
+                  {/* What this brand is on, and whether it is actually paying
+                      for it. A bare key said neither. */}
+                  <td style={{ padding: "14px 18px" }}>
+                    <div style={{ fontWeight: 700, color: "#18181B" }}>
+                      {t.plan_detail?.name ?? t.plan ?? "—"}
+                    </div>
+                    <div style={{ fontSize: "11px", color: "#6B7280" }}>
+                      {t.plan_detail?.price_display ?? "—"}
+                      {t.plan_detail?.commission_display
+                        ? ` · ${t.plan_detail.commission_display} commission` : ""}
+                    </div>
+                    <BillingBadge status={t.billing_status} />
                   </td>
                   <td style={{ padding: "14px 18px" }}>
                     <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
@@ -250,6 +263,25 @@ export default function PlatformDashboard() {
   );
 }
 
+/** Whether the plan a brand is on is actually being billed. A shop can sit on
+ *  Wholesale and have paid nothing, and the console said nothing about it. */
+function BillingBadge({ status }: { status?: string }) {
+  const s = (status ?? "none").toLowerCase();
+  const look =
+    s === "active" || s === "trialing"
+      ? { bg: "#ECFDF5", fg: "#047857", text: s === "trialing" ? "Trialing" : "Paid" }
+      : s === "past_due" || s === "unpaid"
+        ? { bg: "#FEF2F2", fg: "#B91C1C", text: "Past due" }
+        : s === "canceled" || s === "cancelled"
+          ? { bg: "#F4F4F5", fg: "#52525B", text: "Cancelled" }
+          : { bg: "#FFFBEB", fg: "#B45309", text: "No card yet" };
+  return (
+    <span style={{ display: "inline-block", marginTop: "4px", background: look.bg, color: look.fg, padding: "2px 8px", borderRadius: "20px", fontSize: "10px", fontWeight: 700 }}>
+      {look.text}
+    </span>
+  );
+}
+
 // ── Manage Tenant Modal (features, lifecycle) ─────────────────────────────────
 // Subscription tiers are deliberately absent: the product is sold as one flat
 // service, so exposing plan pickers here would imply a tier that does not exist.
@@ -322,7 +354,36 @@ function ManageTenantModal({ tenant, onClose, onChanged }: { tenant: Tenant; onC
           <h2 style={{ fontSize: "18px", fontWeight: 800, color: "#18181B" }}>Manage {tenant.name}</h2>
           <button onClick={onClose} style={{ background: "none", border: "none", color: "#6B7280", fontSize: "22px", cursor: "pointer" }}>×</button>
         </div>
-        <div style={{ fontSize: "12px", color: "#6B7280", marginBottom: "20px", fontFamily: "monospace" }}>{tenant.slug}</div>
+        <div style={{ fontSize: "12px", color: "#6B7280", marginBottom: "16px", fontFamily: "monospace" }}>{tenant.slug}</div>
+
+        {/* What this brand bought, first thing — before deciding anything about
+            it, the plan it is on is the thing worth knowing. */}
+        <div style={{ background: "#FAFAF9", border: "1px solid #E4E4E7", borderRadius: "10px", padding: "14px 16px", marginBottom: "20px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: "12px", flexWrap: "wrap" }}>
+            <div>
+              <div style={{ fontSize: "11px", fontWeight: 700, color: "#6B7280", textTransform: "uppercase", letterSpacing: ".06em" }}>Plan</div>
+              <div style={{ fontSize: "17px", fontWeight: 800, color: "#18181B", marginTop: "2px" }}>
+                {tenant.plan_detail?.name ?? tenant.plan ?? "—"}
+              </div>
+            </div>
+            <div style={{ textAlign: "right" }}>
+              <div style={{ fontSize: "17px", fontWeight: 800, color: "#18181B", fontFamily: "'IBM Plex Mono', monospace" }}>
+                {tenant.plan_detail?.price_display ?? "—"}
+              </div>
+              <div style={{ fontSize: "11px", color: "#6B7280" }}>
+                {tenant.plan_detail?.commission_display
+                  ? `${tenant.plan_detail.commission_display} on Gang Sheet Builder orders` : ""}
+              </div>
+            </div>
+          </div>
+          {tenant.plan_detail?.limits_display && (
+            <div style={{ fontSize: "12px", color: "#6B7280", marginTop: "10px", paddingTop: "10px", borderTop: "1px solid #E4E4E7" }}>
+              {tenant.plan_detail.limits_display}
+            </div>
+          )}
+          <div style={{ marginTop: "10px" }}><BillingBadge status={tenant.billing_status} /></div>
+        </div>
+
         {msg && <div style={{ background: "#ECFDF5", border: "1px solid #A7F3D0", color: "#047857", padding: "8px 12px", borderRadius: "8px", fontSize: "12px", marginBottom: "14px" }}>{msg}</div>}
 
         {/* What the brand is called — on its orders, its emails and its console. */}
