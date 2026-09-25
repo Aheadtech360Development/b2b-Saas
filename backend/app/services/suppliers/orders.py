@@ -298,7 +298,13 @@ async def send(db: AsyncSession, svc, cfg: dict, order_ids: list[uuid.UUID], *, 
             if status == "placed":
                 await _timeline(db, x, message, event="supplier_po_sent",
                                 meta={"po_number": body["poNumber"] if body else None,
-                                      "supplier_order_numbers": numbers[:500] or None, "test": test})
+                                      "supplier_order_numbers": numbers[:500] or None,
+                                      # Whether this went to S&S as a test order.
+                                      # `test` was never defined here, so every
+                                      # successful send raised a NameError after
+                                      # the order had already been placed with
+                                      # the supplier — the worst possible moment.
+                                      "test": bool(body["testOrder"]) if body else False})
                 if o["fulfillment"] == "on_po":
                     await _mark_shipped(db, x, None, None, email=True)
                 elif o["fulfillment"] == "on_ship" and x.status in ("pending", "confirmed"):
