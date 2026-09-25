@@ -329,9 +329,15 @@ async def _record_label_events(db, request, order, result: dict) -> None:
 @router.post("/orders/draft", status_code=201)
 async def create_draft_order(
     payload: DraftOrderCreate,
+    request: Request,
     db: AsyncSession = Depends(get_db),
 ) -> dict:
-    """Create an empty draft (pending) order for admin to fill in."""
+    """Create an empty draft (pending) order for admin to fill in.
+
+    `request` is here because the event this writes records who did it. It was
+    referenced without being a parameter, so every draft order raised a
+    NameError and came back as a 500 — the feature did not work at all.
+    """
     from uuid import UUID as _UUID
     from app.models.company import Company as _Company, CompanyUser as _CompanyUser
     import string, random

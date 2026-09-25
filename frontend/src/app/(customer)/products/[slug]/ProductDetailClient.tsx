@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { SIZE_ORDER } from "@/lib/utils";
 import type { ProductDetail, ProductVariant } from "@/types/product.types";
 import { useAuthStore } from "@/stores/auth.store";
+import { VariantMatrix } from "@/components/products/VariantMatrix";
 import { apiClient } from "@/lib/api-client";
 import { cartService } from "@/services/cart.service";
 import { productsService } from "@/services/products.service";
@@ -596,6 +597,20 @@ export function ProductDetailClient({ slug }: ProductDetailClientProps) {
   // Configurable products buy through their own option set, not the variant matrix.
   const isConfigurable = product.pricing_mode === "configurable";
 
+  // A catalogue product imported from a supplier is bought by the case: small
+  // 800, medium 900, across every colour at once. That is a grid, not a pair of
+  // dropdowns, and it is the whole of how wholesale actually orders. It is
+  // offered only where all three are true — the product came from a supplier,
+  // it really has sizes and colours to cross, and the person buying has a
+  // wholesale account, because a guest has no company to put a case order on.
+  const fromSupplier = Boolean(product.supplier);
+  const companyId = user?.company_id ?? null;
+  const matrixSizes = new Set((product.variants ?? []).map(v => v.size).filter(Boolean));
+  const matrixColors = new Set((product.variants ?? []).map(v => v.color).filter(Boolean));
+  const showMatrix =
+    fromSupplier && !isConfigurable && !product.gang_sheet_enabled
+    && matrixSizes.size > 1 && matrixColors.size > 0 && Boolean(companyId);
+
   // Link to the builder for this product, preserving the ?tenant= fallback used
   // on hosts without wildcard subdomains so the brand survives the navigation.
   const gangSheetHref = (() => {
@@ -894,8 +909,15 @@ export function ProductDetailClient({ slug }: ProductDetailClientProps) {
               <ProductConfigurator productId={product.id} productName={product.name} />
             )}
 
+            {/* A supplier's catalogue, ordered by the case. */}
+            {showMatrix && (
+              <div style={{ marginBottom: "28px" }}>
+                <VariantMatrix productId={product.id} variants={product.variants ?? []} />
+              </div>
+            )}
+
             {/* COLOR label + swatches */}
-            {!isConfigurable && colorGroups.length > 0 && (
+            {!isConfigurable && !showMatrix && colorGroups.length > 0 && (
               <>
                 <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "11px", letterSpacing: "0.1em", textTransform: "uppercase", color: "#6B6B6B", fontWeight: 600, marginBottom: "10px" }}>
                   Color

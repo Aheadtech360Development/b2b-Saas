@@ -208,6 +208,36 @@ class POCreate(BaseModel):
     line_items: list[POLineItemCreate]
 
 
+async def _next_po_number(db: AsyncSession) -> str:
+    """The next purchase order number for this brand.
+
+    The column was left to a database trigger that does not exist, so every
+    purchase order was created with a blank number — a purchase order you
+    cannot refer to, and a manufacturer with nothing to quote back at you.
+    Numbered here instead, the way orders are: per brand, from 1001, so two
+    shops never see each other's sequence.
+    """
+    from sqlalchemy import text as _text
+
+    from app.core.tenant_context import get_current_tenant_id
+
+    tid = get_current_tenant_id()
+    try:
+        row = (await db.execute(_text(
+            "SELECT po_number FROM purchase_orders "
+            "WHERE po_number ~ '^PO-[0-9]+$' "
+            "AND (CAST(:tid AS uuid) IS NULL OR tenant_id = CAST(:tid AS uuid)) "
+            "ORDER BY (substring(po_number from 4))::INTEGER DESC LIMIT 1"
+        ), {"tid": str(tid) if tid else None})).first()
+        nxt = int(row[0][3:]) + 1 if row and row[0] else 1001
+    except Exception as exc:
+        logger.warning("PO number lookup failed, falling back: %s", exc)
+        import random
+
+        nxt = random.randint(1001, 99999)
+    return f"PO-{nxt}"
+
+
 @router.post("/")
 async def create_po(data: POCreate, db: AsyncSession = Depends(get_db)):
     po = PurchaseOrder(
@@ -216,9 +246,10 @@ async def create_po(data: POCreate, db: AsyncSession = Depends(get_db)):
         expected_delivery=data.expected_delivery,
         notes=data.notes,
         status="draft",
+        po_number=await _next_po_number(db),
     )
     db.add(po)
-    await db.flush()  # trigger assigns po_number
+    await db.flush()
 
     total_expected = 0.0
     for item_data in data.line_items:
@@ -238,7 +269,8 @@ async def create_po(data: POCreate, db: AsyncSession = Depends(get_db)):
     po.total_expected = total_expected
     await db.commit()
     await db.refresh(po)
-    return {"id": str(po.id), "po_number": po.po_number}
+    return {"id": str(po.id), "po_number": po.po_number, "status": po.status,
+            "total_expected": float(po.total_expected or 0)}
 
 
 @router.patch("/{po_id}/status")
@@ -418,7 +450,13 @@ async def receive_items(po_id: UUID, data: ReceivingCreate, db: AsyncSession = D
 
     po.total_received = float(po.total_received or 0) + total_received_this_batch
 
-    # Recalculate status
+    # Recalculate status.
+    #
+    # Flushed first: this session runs with autoflush off, so the rows just
+    # added were invisible to the sum below and every receipt counted as zero.
+    # A purchase order received in full was marked "partial" and stayed there,
+    # so nothing a shop bought ever closed.
+    await db.flush()
     total_qty_ordered = sum(li.qty_ordered for li in po.line_items)
     qty_recv_result = await db.execute(
         select(func.sum(POReceivingItem.qty_received))

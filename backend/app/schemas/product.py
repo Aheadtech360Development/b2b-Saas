@@ -167,6 +167,12 @@ class ProductDetail(BaseModel):
     metafields: dict[str, Any] = {}
     theme_page: str | None = None
     allow_design_upload: bool = False
+    # Where this product came from. A catalogue imported from a supplier is
+    # bought by the case, in a size-by-colour grid — that is what wholesale
+    # ordering looks like, and the storefront cannot offer it without knowing
+    # which products are that kind.
+    supplier: str | None = None
+    supplier_ref: str | None = None
 
     model_config = {"from_attributes": True}
 

@@ -15,6 +15,10 @@ export interface UserProfile {
   read_only?: boolean;           // custom-role read-only flag; from JWT
   tenant_id?: string | null;     // null for platform admin; from JWT payload
   account_type?: string;         // Not in backend ProfileOut; added from JWT payload
+  // The wholesale company this buyer orders for, from the JWT. Its presence is
+  // what separates a trade account from a guest — a case order has to go on a
+  // company, so the size-by-colour grid is only offered when there is one.
+  company_id?: string | null;
   email_verified: boolean;
   created_at: string;
 }

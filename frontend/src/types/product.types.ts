@@ -60,6 +60,10 @@ export interface ProductListItem {
 
 /** Full product detail — matches backend ProductDetail schema. */
 export interface ProductDetail {
+  /** The supplier this product was imported from (S&S Activewear, SanMar…).
+   *  Set means it is a wholesale catalogue product, bought by the case. */
+  supplier?: string | null;
+  supplier_ref?: string | null;
   id: string;
   name: string;
   slug: string;

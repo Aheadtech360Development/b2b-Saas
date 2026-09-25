@@ -48,6 +48,8 @@ export function AuthInitializer() {
           is_platform_admin: !!payload.is_platform_admin,
           role: payload.role as string,
           tenant_id: (payload.tenant_id as string) ?? null,
+          account_type: (payload.account_type as string) ?? "wholesale",
+          company_id: (payload.company_id as string | null) ?? null,
         };
 
         // Apply the impersonated identity synchronously, before awaiting the

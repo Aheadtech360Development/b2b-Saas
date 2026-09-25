@@ -78,6 +78,7 @@ export default function LoginPage() {
       role: (payload.role as string) || undefined,
       tenant_id: (payload.tenant_id as string | null) ?? null,
       account_type: (payload.account_type as string) || "wholesale",
+      company_id: (payload.company_id as string | null) ?? null,
     };
     setAuth(accessToken, fullProfile);
 
