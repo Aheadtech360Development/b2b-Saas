@@ -597,19 +597,22 @@ export function ProductDetailClient({ slug }: ProductDetailClientProps) {
   // Configurable products buy through their own option set, not the variant matrix.
   const isConfigurable = product.pricing_mode === "configurable";
 
-  // A catalogue product imported from a supplier is bought by the case: small
-  // 800, medium 900, across every colour at once. That is a grid, not a pair of
-  // dropdowns, and it is the whole of how wholesale actually orders. It is
-  // offered only where all three are true — the product came from a supplier,
-  // it really has sizes and colours to cross, and the person buying has a
-  // wholesale account, because a guest has no company to put a case order on.
+  // A catalogue product imported from a supplier is bought by the case: 240 of
+  // the small in yellow, 20 of the black, whatever the white comes to — all in
+  // one go. That is a grid, not a pair of dropdowns, and it is the whole of how
+  // wholesale actually orders.
+  //
+  // It shows wherever the product is that kind of product: imported from a
+  // supplier, with real sizes and colours to cross. It used to also require a
+  // trade account, which meant the grid was invisible to the very person
+  // deciding whether to open one.
   const fromSupplier = Boolean(product.supplier);
   const companyId = user?.company_id ?? null;
   const matrixSizes = new Set((product.variants ?? []).map(v => v.size).filter(Boolean));
   const matrixColors = new Set((product.variants ?? []).map(v => v.color).filter(Boolean));
   const showMatrix =
     fromSupplier && !isConfigurable && !product.gang_sheet_enabled
-    && matrixSizes.size > 1 && matrixColors.size > 0 && Boolean(companyId);
+    && matrixSizes.size > 1 && matrixColors.size > 0;
 
   // Link to the builder for this product, preserving the ?tenant= fallback used
   // on hosts without wildcard subdomains so the brand survives the navigation.
@@ -913,6 +916,15 @@ export function ProductDetailClient({ slug }: ProductDetailClientProps) {
             {showMatrix && (
               <div style={{ marginBottom: "28px" }}>
                 <VariantMatrix productId={product.id} variants={product.variants ?? []} />
+                {!companyId && (
+                  <p className="ui-hint" style={{ marginTop: "10px" }}>
+                    Case quantities are ordered on a trade account.{" "}
+                    <Link href="/login" style={{ color: "var(--brand-primary, var(--ui-ink))", fontWeight: 600 }}>
+                      Sign in
+                    </Link>{" "}
+                    to add them to an order.
+                  </p>
+                )}
               </div>
             )}
 

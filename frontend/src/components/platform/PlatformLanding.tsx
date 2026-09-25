@@ -408,6 +408,10 @@ const CSS = `
 .pc-num{font-family:"IBM Plex Mono",ui-monospace,monospace;font-variant-numeric:tabular-nums;}
 
 .pc-header{border-bottom:1px solid var(--line);background:#fff;position:sticky;top:0;z-index:10;}
+/* The header is sticky, so an anchor landed with its heading underneath it —
+   jump to Pricing or FAQ and the first thing you were sent to see was hidden.
+   Every section keeps the header's height clear above it. */
+.pc section[id]{scroll-margin-top:84px;}
 .pc-header-in{display:flex;align-items:center;gap:24px;padding-top:16px;padding-bottom:16px;flex-wrap:wrap;}
 .pc-logo{display:flex;align-items:center;gap:9px;font-weight:700;font-size:18px;letter-spacing:-.02em;color:var(--ink);text-decoration:none;}
 .pc-mark{width:22px;height:22px;border-radius:5px;background:var(--ink);display:block;}

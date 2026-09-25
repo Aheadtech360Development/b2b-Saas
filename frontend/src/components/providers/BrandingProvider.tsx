@@ -131,7 +131,7 @@ export const DEFAULT_BRANDING: Branding = {
   store_name: "Store",
   logo_url: null,
   favicon_url: null,
-  primary_color: "#1C3557",
+  primary_color: "#111318",
   secondary_color: "#F8F8F6",
   accent_color: "#E8B84B",
   announcement_text: "",
@@ -203,7 +203,7 @@ export function BrandingProvider({ children }: { children: React.ReactNode }) {
           // (header, footer, every page, buttons) uses them — not just the home.
           if (typeof document !== "undefined") {
             const root = document.documentElement;
-            root.style.setProperty("--brand-primary", merged.primary_color || "#1C3557");
+            root.style.setProperty("--brand-primary", merged.primary_color || "#111318");
             root.style.setProperty("--brand-secondary", merged.secondary_color || "#F8F8F6");
             root.style.setProperty("--brand-accent", merged.accent_color || "#E8B84B");
             root.style.setProperty("--brand-font-heading", merged.font_heading || "'Fraunces', serif");

@@ -7,7 +7,7 @@
  * offers the store's own pages, products and collections by name and writes
  * the address itself. An external link is still just a URL, typed once.
  */
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { apiClient } from "@/lib/api-client";
 
 interface Target { label: string; url: string }
@@ -36,13 +36,31 @@ export function LinkPicker({ value, disabled, onChange }: {
   const [targets, setTargets] = useState<Targets>({ pages: [], products: [], collections: [] });
   const [loading, setLoading] = useState(false);
   const lastValue = useRef(value);
+  // What this picker itself last wrote. Anything else arriving in `value` came
+  // from the editor moving to a different link.
+  const ourWrite = useRef<string | null>(null);
 
-  // Follow the value when the editor jumps to another link.
+  /** Report a change, and remember we were the ones who made it. */
+  const write = useCallback((url: string) => {
+    ourWrite.current = url;
+    lastValue.current = url;
+    onChange(url);
+  }, [onChange]);
+
+  // Follow the value when the EDITOR jumps to another link — never when the
+  // change is one of ours.
+  //
+  // It used to re-derive the kind from any new value, including every
+  // keystroke this picker had just caused. So picking "External URL" and
+  // typing `h` handed back "h", which reads as a page, and the picker
+  // switched itself back to Pages mid-word: the field unmounted, the focus
+  // went, and you started again. Every link in the theme editor did it.
   useEffect(() => {
-    if (value !== lastValue.current) {
-      lastValue.current = value;
-      setKind(kindOf(value || "/"));
-    }
+    if (value === lastValue.current) return;
+    lastValue.current = value;
+    if (value === ourWrite.current) return;
+    ourWrite.current = null;
+    setKind(kindOf(value || "/"));
   }, [value]);
 
   useEffect(() => {
@@ -70,7 +88,15 @@ export function LinkPicker({ value, disabled, onChange }: {
     <div>
       <div style={{ display: "flex", gap: "6px", marginBottom: "8px", flexWrap: "wrap" }}>
         {(["page", "product", "collection", "url"] as Kind[]).map((k) => (
-          <button key={k} type="button" disabled={disabled} onClick={() => { setKind(k); setQ(""); }}
+          <button key={k} type="button" disabled={disabled}
+            onClick={() => {
+              setKind(k);
+              setQ("");
+              // Asking for an external URL when the link is a path on this shop
+              // empties the box. Otherwise the old "/" sat there and whatever
+              // you typed landed after it — "/https://…", which is neither.
+              if (k === "url" && value && kindOf(value) !== "url") write("");
+            }}
             style={{ border: "1px solid", borderColor: kind === k ? "#1A1A1A" : "#E3E3E3", background: kind === k ? "#1A1A1A" : "#fff", color: kind === k ? "#fff" : "#555", borderRadius: "7px", padding: "5px 10px", fontSize: "11.5px", fontWeight: 700, cursor: disabled ? "not-allowed" : "pointer", textTransform: "capitalize" }}>
             {k === "url" ? "External URL" : k}
           </button>
@@ -79,14 +105,14 @@ export function LinkPicker({ value, disabled, onChange }: {
 
       {kind === "url" ? (
         <input disabled={disabled} style={input} value={value} placeholder="https://example.com"
-          onChange={(e) => onChange(e.target.value)} />
+          onChange={(e) => write(e.target.value)} />
       ) : (
         <>
           <input disabled={disabled} style={{ ...input, marginBottom: "6px" }} value={q}
             placeholder={`Search ${kind === "page" ? "pages" : kind === "product" ? "products" : "collections"}…`}
             onChange={(e) => setQ(e.target.value)} />
           <select disabled={disabled} style={input} value={known ? value : ""}
-            onChange={(e) => e.target.value && onChange(e.target.value)}>
+            onChange={(e) => e.target.value && write(e.target.value)}>
             <option value="">{loading ? "Loading…" : known ? "" : `— choose a ${kind} —`}</option>
             {options.map((o) => <option key={o.url} value={o.url}>{o.label}</option>)}
           </select>

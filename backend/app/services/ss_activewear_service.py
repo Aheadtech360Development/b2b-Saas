@@ -42,6 +42,13 @@ def from_connection(conn: dict) -> "SSActivewearService":
     return SSActivewearService(conn.get("account_number"), conn.get("api_key"),
                                country=country_code(conn.get("country")))
 _MIN_INTERVAL = 1.5  # seconds between requests (~40 req/min)
+_RETRY_ON_429 = 3
+
+# The pace is kept per account, across every client built for it, and held
+# while it is read — see _throttle. Process-local: two web workers each keep
+# their own, which is why the interval sits well under the real ceiling.
+_LAST_CALL: dict[str, float] = {}
+_RATE_LOCKS: dict[str, asyncio.Lock] = {}
 
 # S&S returns image paths relative to their CDN host (medium '_fm' by default).
 # e.g. "Images/Color/17130_f_fm.jpg" → prefix + optional size swap.
@@ -108,12 +115,14 @@ class SSActivewearService:
         pricing (S&S pricing is account-specific). The env values remain only as
         a fallback for a platform-level sync where no brand is in context.
         """
-        self._last_call: float = 0.0
         self._client: httpx.AsyncClient | None = None
         self._account_number = account_number or settings.SS_ACCOUNT_NUMBER
         self._api_key = api_key or settings.SS_API_KEY
         self.country = country if country in _SS_BASES else "US"
         self._base = _SS_BASES[self.country]
+        # One pace per account and country: two brands pulling at once are two
+        # separate accounts to S&S, and must not throttle each other.
+        self._throttle_key = f"{self.country}:{self._account_number or 'platform'}"
 
     @property
     def has_credentials(self) -> bool:
@@ -131,22 +140,55 @@ class SSActivewearService:
         return self._client
 
     async def _throttle(self) -> None:
-        """Enforce minimum inter-request delay."""
-        elapsed = time.monotonic() - self._last_call
-        if elapsed < _MIN_INTERVAL:
-            await asyncio.sleep(_MIN_INTERVAL - elapsed)
-        self._last_call = time.monotonic()
+        """Keep this account under S&S's ceiling, however many callers there are.
+
+        The gap used to be measured on the instance and taken without a lock,
+        so two coroutines both read the same last-call time, both decided
+        enough had passed, and both went at once — and a client built per
+        request started from zero every time, which is no limit at all. The
+        clock is kept per account, and held, so the interval is a real one.
+        """
+        key = self._throttle_key
+        async with _RATE_LOCKS.setdefault(key, asyncio.Lock()):
+            elapsed = time.monotonic() - _LAST_CALL.get(key, 0.0)
+            if elapsed < _MIN_INTERVAL:
+                await asyncio.sleep(_MIN_INTERVAL - elapsed)
+            _LAST_CALL[key] = time.monotonic()
+
+    async def _send(self, method: str, path: str, *, params: dict | None = None,
+                    body: dict | None = None) -> httpx.Response:
+        """One request, retried when S&S says we are going too fast.
+
+        A 429 used to come back as an ordinary HTTP error and end whatever was
+        running — an import of a thousand SKUs stopping two-thirds of the way
+        through because of a burst. S&S is telling us to wait, so we wait.
+        """
+        client = self._client_instance()
+        for attempt in range(_RETRY_ON_429 + 1):
+            await self._throttle()
+            if method == "GET":
+                response = await client.get(path, params=params or {})
+            else:
+                response = await client.post(path, json=body or {})
+            if response.status_code != 429 or attempt == _RETRY_ON_429:
+                return response
+            # Honour Retry-After when it is given, and back off when it is not.
+            try:
+                wait = float(response.headers.get("Retry-After", ""))
+            except ValueError:
+                wait = 0.0
+            wait = wait or _MIN_INTERVAL * (2 ** attempt)
+            logger.warning("S&S asked us to slow down; waiting %.1fs", wait)
+            await asyncio.sleep(min(wait, 30.0))
+        return response  # unreachable, but keeps the type honest
 
     async def _get(self, path: str, params: dict[str, Any] | None = None) -> Any:
-        await self._throttle()
-        client = self._client_instance()
-        response = await client.get(path, params=params or {})
+        response = await self._send("GET", path, params=params)
         response.raise_for_status()
         return response.json()
 
     async def _post(self, path: str, body: dict) -> Any:
-        await self._throttle()
-        response = await self._client_instance().post(path, json=body)
+        response = await self._send("POST", path, body=body)
         if response.status_code >= 400:
             raise SSOrderError(response.status_code, _error_text(response))
         return response.json()

@@ -40,7 +40,10 @@ _DEFAULT_BRANDING: dict[str, Any] = {
     "store_name": "Wholesale Store",
     "logo_url": None,
     "favicon_url": None,
-    "primary_color": "#1C3557",
+    # No brand resolved means the platform's own page, and its colour is its
+    # ink. A navy placeholder here painted every button on the platform's
+    # sign-in and checkout a colour that appears nowhere else it owns.
+    "primary_color": "#111318",
     "secondary_color": "#F8F8F6",
     "accent_color": "#E8B84B",
     # Announcement bar
