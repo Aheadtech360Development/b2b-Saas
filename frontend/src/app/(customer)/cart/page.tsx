@@ -397,124 +397,102 @@ export default function CartPage() {
   const estimatedShipping = Number(cart?.validation?.estimated_shipping ?? (isGuest ? 9.99 : 0));
 
   return (
-    <div style={{ background: "var(--ui-paper)", fontFamily: "'DM Sans', sans-serif", padding: "40px 24px 64px" }}>
-      <div style={{ maxWidth: "1500px", margin: "0 auto" }}>
+    <div className="ui-page" style={{ padding: "40px 0 64px" }}>
+      <div className="ui-wrap">
 
-        {/* Title */}
-        <h1 className="ui-h1" style={{ marginBottom: "24px" }}>
-          Your Cart
-        </h1>
+        <h1 className="ui-h1" style={{ marginBottom: "6px" }}>Your cart</h1>
+        <p className="ui-lede" style={{ marginBottom: "28px" }}>
+          {isEmpty
+            ? "Nothing in it yet."
+            : `${cart.items.length} ${cart.items.length === 1 ? "line" : "lines"} ready to order.`}
+        </p>
 
         {isEmpty ? (
-          /* ── Empty state ── */
-          <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", color: "var(--ui-muted)" }}>
-            Your cart is empty.{" "}
-            <Link href="/products" style={{ color: "var(--brand-primary, var(--ui-ink))", fontWeight: 500, textDecoration: "none" }}>Shop All →</Link>
-          </p>
+          /* An empty cart is a dead end unless it points somewhere. */
+          <div className="ui-card" style={{ textAlign: "center", padding: "48px 28px", maxWidth: "460px" }}>
+            <p style={{ fontSize: "15.5px", color: "var(--ui-muted)", margin: "0 0 22px" }}>
+              Once you add something it will show up here, with its price and your total.
+            </p>
+            <Link href="/products" className="ui-btn">Browse the catalogue</Link>
+          </div>
         ) : (
-          <div className="cart-grid" style={{ display: "grid", gridTemplateColumns: "1fr 360px", gap: "48px", alignItems: "start" }}>
+          <div className="cart-grid" style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 340px", gap: "32px", alignItems: "start" }}>
 
-            {/* ── LEFT: Cart table ── */}
+            {/* ── LEFT: the lines ──────────────────────────────────────────
+                Rows, not a table. Seven columns meant a sideways scroll on a
+                phone with a "← Scroll to see all →" label above it — the cart
+                asking to be worked around. These reflow instead. */}
             <div>
-              {/* MOV warning */}
               {cart?.validation?.mov_violation && (
-                <div style={{ background: "rgba(232,36,42,.07)", border: "1.5px solid rgba(232,36,42,.25)", padding: "12px 16px", fontSize: "13px", color: "var(--ui-bad)", fontWeight: 600, marginBottom: "16px" }}>
-                  Minimum order value not met —{" "}
-                  <span style={{ fontWeight: 400, color: "var(--ui-ink)" }}>
-                    current {formatCurrency(Number(cart.validation.mov_current))}, need {formatCurrency(Number(cart.validation.mov_required))}
-                  </span>
+                <div className="ui-alert ui-alert-bad">
+                  <strong>Minimum order value not met.</strong>{" "}
+                  Currently {formatCurrency(Number(cart.validation.mov_current))} of{" "}
+                  {formatCurrency(Number(cart.validation.mov_required))}.
                 </div>
               )}
 
-              {/* Mobile scroll hint */}
-              <p className="block md:hidden" style={{ fontSize: "11px", color: "var(--ui-muted)", fontFamily: "'DM Sans', sans-serif", marginBottom: "8px", textAlign: "center" }}>
-                ← Scroll to see all →
-              </p>
+              <div className="ui-card" style={{ padding: 0, overflow: "hidden" }}>
+                {cart.items.map((item, i) => (
+                  <div
+                    key={item.id}
+                    className="cart-line"
+                    style={{ borderTop: i ? "1px solid var(--ui-line)" : "none", padding: "18px 20px" }}
+                  >
+                    <div style={{ width: "72px", height: "72px", border: "1px solid var(--ui-line)", borderRadius: "10px", flexShrink: 0, overflow: "hidden", background: "var(--ui-paper)" }}>
+                      {item.product_image_url ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={item.product_image_url} alt={item.product_name} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
+                      ) : (
+                        <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#C9C6C0" strokeWidth={1.5}><path d="M20.38 3.46L16 2a4 4 0 01-8 0L3.62 3.46a2 2 0 00-1.34 2.23l.58 3.57a1 1 0 00.99.84H6v10c0 1.1.9 2 2 2h8a2 2 0 002-2V10h2.15a1 1 0 00.99-.84l.58-3.57a2 2 0 00-1.34-2.23z" /></svg>
+                        </div>
+                      )}
+                    </div>
 
-              <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
-                <table style={{ width: "100%", minWidth: "600px", borderCollapse: "collapse", fontFamily: "'DM Sans', sans-serif", fontSize: "14px" }}>
-                  <thead>
-                    <tr>
-                      {(["Product","Color","Size"] as const).map(h => (
-                        <th key={h} style={{ fontSize: "11px", letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--ui-muted)", fontWeight: 600, padding: "0 12px 12px", borderBottom: "1px solid var(--ui-line)", textAlign: "left" }}>{h}</th>
-                      ))}
-                      {(["Qty","Price","Total"] as const).map(h => (
-                        <th key={h} style={{ fontSize: "11px", letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--ui-muted)", fontWeight: 600, padding: "0 12px 12px", borderBottom: "1px solid var(--ui-line)", textAlign: "right" }}>{h}</th>
-                      ))}
-                      <th style={{ padding: "0 12px 12px", borderBottom: "1px solid var(--ui-line)" }}></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {cart.items.map(item => (
-                      <tr key={item.id} style={{ borderBottom: "1px solid var(--ui-line)" }}>
-                        {/* Product */}
-                        <td style={{ padding: "18px 12px", verticalAlign: "middle", color: "var(--ui-ink)", width: "40%" }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
-                            <div style={{ width: "68px", height: "68px", border: "1px solid var(--ui-line)", borderRadius: "10px", flexShrink: 0, overflow: "hidden", background: "var(--ui-paper)" }}>
-                              {item.product_image_url ? (
-                                // eslint-disable-next-line @next/next/no-img-element
-                                <img src={item.product_image_url} alt={item.product_name} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
-                              ) : (
-                                <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#ccc" strokeWidth={1.5}><path d="M20.38 3.46L16 2a4 4 0 01-8 0L3.62 3.46a2 2 0 00-1.34 2.23l.58 3.57a1 1 0 00.99.84H6v10c0 1.1.9 2 2 2h8a2 2 0 002-2V10h2.15a1 1 0 00.99-.84l.58-3.57a2 2 0 00-1.34-2.23z" /></svg>
-                                </div>
-                              )}
-                            </div>
-                            <div style={{ minWidth: 0 }}>
-                              <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px", fontWeight: 500, color: "var(--ui-ink)", lineHeight: 1.3 }}>
-                                {item.product_name}
-                              </div>
-                              {item.sku && (
-                                <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: "11px", color: "var(--ui-muted)", marginTop: "3px" }}>
-                                  {item.sku}
-                                </div>
-                              )}
-                              {/* Configured products: name alone doesn't say what was ordered. */}
-                              <ConfigurationDetail configuration={item.configuration} compact />
-                            </div>
-                          </div>
-                        </td>
-                        {/* Color */}
-                        <td style={{ padding: "18px 12px", verticalAlign: "middle", color: "var(--ui-ink)", fontSize: "14px" }}>
-                          {item.color ?? "—"}
-                        </td>
-                        {/* Size */}
-                        <td style={{ padding: "18px 12px", verticalAlign: "middle", color: "var(--ui-ink)", fontSize: "14px" }}>
-                          {item.size ?? "—"}
-                        </td>
-                        {/* Qty */}
-                        <td style={{ padding: "18px 12px", verticalAlign: "middle", textAlign: "right" }}>
-                          <input
-                            type="number"
-                            min={1}
-                            value={item.quantity}
-                            onChange={e => handleUpdateItemQty(item, parseInt(e.target.value, 10) || 1)}
-                            className="cart-qty-input ui-field ui-num"
-                            style={{ width: "62px", padding: "7px 8px", textAlign: "center", fontSize: "14px" }}
-                          />
-                        </td>
-                        {/* Price */}
-                        <td style={{ padding: "18px 12px", verticalAlign: "middle", color: "var(--ui-ink)", textAlign: "right" }}>
-                          {formatCurrency(Number(item.unit_price))}
-                        </td>
-                        {/* Total */}
-                        <td style={{ padding: "18px 12px", verticalAlign: "middle", color: "var(--ui-ink)", textAlign: "right" }}>
-                          {formatCurrency(Number(item.line_total))}
-                        </td>
-                        {/* Remove */}
-                        <td style={{ padding: "18px 12px", verticalAlign: "middle", textAlign: "right" }}>
-                          <button
-                            onClick={() => handleRemoveItem(item)}
-                            className="cart-remove-btn"
-                            style={{ fontSize: "18px", color: "var(--ui-muted)", background: "none", border: "none", cursor: "pointer", padding: 0, lineHeight: 1 }}
-                          >
-                            ×
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div style={{ fontSize: "15px", fontWeight: 600, lineHeight: 1.35 }}>{item.product_name}</div>
+                      <div style={{ fontSize: "13px", color: "var(--ui-muted)", marginTop: "3px" }}>
+                        {[item.color, item.size].filter(Boolean).join(" · ") || "—"}
+                        {item.sku && (
+                          <span className="ui-num" style={{ marginLeft: "8px", fontSize: "12px" }}>{item.sku}</span>
+                        )}
+                      </div>
+                      <ConfigurationDetail configuration={item.configuration} compact />
+                      <div style={{ fontSize: "13px", color: "var(--ui-muted)", marginTop: "6px" }}>
+                        <span className="ui-num">{formatCurrency(Number(item.unit_price))}</span> each
+                      </div>
+                    </div>
+
+                    <div className="cart-line-end">
+                      <input
+                        type="number"
+                        min={1}
+                        value={item.quantity}
+                        onChange={e => handleUpdateItemQty(item, parseInt(e.target.value, 10) || 1)}
+                        aria-label={`Quantity for ${item.product_name}`}
+                        className="cart-qty-input ui-field ui-num"
+                        style={{ width: "68px", padding: "7px 8px", textAlign: "center", fontSize: "14px" }}
+                      />
+                      <div className="ui-num" style={{ fontSize: "15px", fontWeight: 700, minWidth: "88px", textAlign: "right" }}>
+                        {formatCurrency(Number(item.line_total))}
+                      </div>
+                      <button
+                        onClick={() => handleRemoveItem(item)}
+                        aria-label={`Remove ${item.product_name}`}
+                        className="cart-remove-btn ui-btn-quiet"
+                        style={{ fontSize: "20px", lineHeight: 1, padding: "0 2px" }}
+                      >
+                        ×
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div style={{ marginTop: "16px" }}>
+                <Link href="/products" className="ui-btn-quiet" style={{ textDecoration: "none" }}>
+                  ← Keep shopping
+                </Link>
               </div>
             </div>
 
@@ -597,10 +575,13 @@ function OrderSummary({
   const row: React.CSSProperties = { display: "flex", justifyContent: "space-between", fontFamily: "'DM Sans', sans-serif", fontSize: "14px", color: "var(--ui-muted)", marginBottom: "12px" };
 
   return (
-    <div style={{ alignSelf: "start", padding: "28px 0", borderTop: "1px solid var(--ui-line)" }}>
+    <div className="ui-card cart-summary">
+      <div style={{ fontSize: "12.5px", fontWeight: 700, letterSpacing: ".06em", textTransform: "uppercase", color: "var(--ui-muted)", marginBottom: "16px" }}>
+        Order summary
+      </div>
       <div style={row}>
         <span>Subtotal</span>
-        <span>{formatCurrency(subtotal)}</span>
+        <span className="ui-num">{formatCurrency(subtotal)}</span>
       </div>
       <div style={row}>
         <span>Shipping</span>
@@ -621,12 +602,14 @@ function OrderSummary({
               onKeyDown={(e) => { if (e.key === "Enter") onApplyCoupon(); }}
               placeholder="Discount code"
               aria-label="Discount code"
-              style={{ flex: 1, minWidth: 0, padding: "10px 12px", border: "1px solid #D4D4D0", fontFamily: "'DM Sans', sans-serif", fontSize: "14px", background: "#fff" }}
+              className="ui-field"
+              style={{ flex: 1, minWidth: 0, padding: "10px 12px", fontSize: "14px" }}
             />
             <button
               onClick={onApplyCoupon}
               disabled={!couponInput.trim() || applyingCoupon}
-              style={{ padding: "10px 16px", border: "1px solid var(--ui-ink)", background: "#fff", color: "var(--ui-ink)", cursor: couponInput.trim() && !applyingCoupon ? "pointer" : "not-allowed", fontFamily: "'DM Sans', sans-serif", fontSize: "14px", fontWeight: 600, opacity: couponInput.trim() ? 1 : 0.5 }}
+              className="ui-btn-ghost"
+              style={{ padding: "10px 16px", fontSize: "14px", opacity: couponInput.trim() ? 1 : .5 }}
             >
               {applyingCoupon ? "…" : "Apply"}
             </button>

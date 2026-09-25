@@ -27,9 +27,16 @@ const SHIPPING_LABELS: Record<string, string> = {
 };
 
 const sectionLabelStyle: React.CSSProperties = {
-  fontFamily: "'DM Sans', sans-serif", fontSize: "11px", letterSpacing: "0.1em",
-  textTransform: "uppercase", fontWeight: 700, color: "var(--ui-ink)",
-  marginBottom: "14px", paddingBottom: "10px", borderBottom: "1px solid var(--ui-line)",
+  fontSize: "12.5px", letterSpacing: ".06em", textTransform: "uppercase",
+  fontWeight: 700, color: "var(--ui-muted)",
+  marginBottom: "14px", paddingBottom: "12px", borderBottom: "1px solid var(--ui-line)",
+};
+
+/** "Edit" beside a section heading — same shape in all three places. */
+const editLinkStyle: React.CSSProperties = {
+  fontSize: "13px", color: "var(--brand-primary, var(--ui-ink))", background: "none",
+  border: "none", cursor: "pointer", fontWeight: 600, fontFamily: "inherit",
+  textTransform: "none", letterSpacing: 0, padding: 0,
 };
 
 const inp: React.CSSProperties = {
@@ -397,17 +404,21 @@ export default function CheckoutReviewPage() {
   const shippingLabel = SHIPPING_LABELS[shippingMethod] ?? "Standard Ground";
 
   return (
-    <div style={{ padding: "40px 24px 64px", background: "var(--ui-paper)" }}>
-      <div style={{ maxWidth: "1500px", margin: "0 auto" }}>
-        <div className="checkout-cols" style={{ display: "grid", gridTemplateColumns: "1fr 380px", gap: "48px", alignItems: "start" }}>
+    <div style={{ padding: "40px 0 64px" }}>
+      <div className="ui-wrap">
+        <h1 className="ui-h1" style={{ marginBottom: "6px" }}>Review your order</h1>
+        <p className="ui-lede" style={{ marginBottom: "28px" }}>
+          Check it over — nothing is charged until you place it.
+        </p>
+        <div className="checkout-cols" style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 360px", gap: "32px", alignItems: "start" }}>
 
           {/* LEFT COLUMN */}
           <div>
             {/* ── Shipping Address ── */}
-            <div style={{ marginBottom: "32px" }}>
+            <div className="ui-card" style={{ marginBottom: "20px" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", ...sectionLabelStyle }}>
-                <span>Shipping Address</span>
-                <button onClick={() => router.push("/checkout/address")} style={{ fontSize: "12px", color: "var(--brand-primary, var(--ui-ink))", background: "none", border: "none", cursor: "pointer", fontWeight: 600, fontFamily: "'DM Sans', sans-serif", textTransform: "none", letterSpacing: 0 }}>Edit</button>
+                <span>Shipping to</span>
+                <button onClick={() => router.push("/checkout/address")} style={editLinkStyle}>Edit</button>
               </div>
               <div style={{ fontSize: "13px", color: "var(--ui-ink)", lineHeight: 1.7 }}>
                 {companyName && <div style={{ fontWeight: 700 }}>{companyName}</div>}
@@ -431,10 +442,10 @@ export default function CheckoutReviewPage() {
             </div>
 
             {/* ── Payment ── */}
-            <div style={{ marginBottom: "32px" }}>
+            <div className="ui-card" style={{ marginBottom: "20px" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", ...sectionLabelStyle }}>
-                <span>Payment</span>
-                <button onClick={() => router.push("/checkout/payment")} style={{ fontSize: "12px", color: "var(--brand-primary, var(--ui-ink))", background: "none", border: "none", cursor: "pointer", fontWeight: 600, fontFamily: "'DM Sans', sans-serif", textTransform: "none", letterSpacing: 0 }}>Change</button>
+                <span>Paying with</span>
+                <button onClick={() => router.push("/checkout/payment")} style={editLinkStyle}>Change</button>
               </div>
               {paymentMethod === "ach" ? (
                 <div style={{ fontSize: "13px", color: "var(--ui-ink)", lineHeight: 1.8 }}>
@@ -532,8 +543,8 @@ export default function CheckoutReviewPage() {
             )}
 
             {/* ── PO Number & Notes ── */}
-            <div style={{ marginBottom: "32px" }}>
-              <div style={sectionLabelStyle}>Order Details (Optional)</div>
+            <div className="ui-card" style={{ marginBottom: "20px" }}>
+              <div style={sectionLabelStyle}>Anything to add</div>
               <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
                 <div>
                   <label style={lbl}>
@@ -573,8 +584,8 @@ export default function CheckoutReviewPage() {
             {paymentMethod === "card" ? (
               // Stripe card entry + payment. On success the confirmed PaymentIntent
               // id is handed to order creation. Money settles on the brand's account.
-              <div>
-                <div style={sectionLabelStyle}>Card Details</div>
+              <div className="ui-card">
+                <div style={sectionLabelStyle}>Card details</div>
                 {isPlacing ? (
                   <div style={{ padding: "16px", color: "var(--ui-muted)", fontSize: "13px" }}>Placing your order…</div>
                 ) : paidIntentId ? (
@@ -665,9 +676,9 @@ export default function CheckoutReviewPage() {
           </div>
 
           {/* RIGHT COLUMN — Order Summary */}
-          <div style={{ alignSelf: "start", position: "sticky", top: "24px" }}>
-            <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "11px", letterSpacing: "0.1em", textTransform: "uppercase", fontWeight: 700, color: "var(--ui-ink)", marginBottom: "18px" }}>
-              Order Summary
+          <div className="ui-card cart-summary">
+            <div style={{ fontSize: "12.5px", letterSpacing: ".06em", textTransform: "uppercase", fontWeight: 700, color: "var(--ui-muted)", marginBottom: "16px" }}>
+              Order summary
             </div>
             {/* Cart items */}
             {cartDisplayItems.length > 0 && (

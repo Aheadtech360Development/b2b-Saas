@@ -827,3 +827,29 @@
   .ui-card { padding: 22px 18px; border-radius: 12px; }
   .ui-step span:not(.ui-step-n) { display: none; }
 }
+
+/* ── The cart's lines ─────────────────────────────────────────────────────────
+ * A row of: picture, what it is, then quantity/total/remove. On a phone the
+ * end block drops under the description and spreads out, so nothing is ever
+ * reached by scrolling the page sideways.
+ */
+.cart-line { display: flex; align-items: flex-start; gap: 16px; }
+.cart-line-end { display: flex; align-items: center; gap: 14px; flex-shrink: 0; }
+
+/* The summary follows you down a long cart rather than sitting at the top of
+ * a column you have already scrolled past. */
+.cart-summary { position: sticky; top: 24px; }
+
+@media (max-width: 900px) {
+  .cart-grid { grid-template-columns: 1fr !important; }
+  .cart-summary { position: static; }
+}
+@media (max-width: 560px) {
+  .cart-line { flex-wrap: wrap; }
+  .cart-line-end { width: 100%; justify-content: space-between; padding-left: 88px; }
+}
+
+/* Checkout drops to one column before the summary gets too narrow to read. */
+@media (max-width: 900px) {
+  .checkout-cols { grid-template-columns: 1fr !important; }
+}
