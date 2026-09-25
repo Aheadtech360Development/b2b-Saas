@@ -129,13 +129,13 @@ function ResetPassword() {
           {mismatch && <p style={S.hintBad}>These two do not match yet.</p>}
         </div>
 
-        <button type="submit" disabled={!ready} style={{ ...S.button, background: ready ? "#1C3557" : "#9ca3af", cursor: ready ? "pointer" : "not-allowed" }}>
+        <button type="submit" disabled={!ready} style={{ ...S.button, background: ready ? "var(--brand-primary, var(--ui-ink))" : "#C9C6C0", cursor: ready ? "pointer" : "not-allowed" }}>
           {busy ? "Saving…" : "Set new password →"}
         </button>
       </form>
 
       <p style={{ ...S.note, marginTop: "18px", marginBottom: 0 }}>
-        Remembered it? <Link href="/login" style={{ color: "#1C3557" }}>Back to sign in</Link>
+        Remembered it? <Link href="/login" style={{ color: "var(--brand-primary, var(--ui-ink))" }}>Back to sign in</Link>
       </p>
     </Shell>
   );

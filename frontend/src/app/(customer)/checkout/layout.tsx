@@ -1,13 +1,21 @@
 "use client";
 
+/**
+ * The steps across the top of a checkout.
+ *
+ * It was a row of words joined by arrows, where the current one was
+ * underlined — no sense of how far along you were, and nothing to say which
+ * steps you had already finished. Numbered now, ticked once passed, on the
+ * platform's own tokens, with the colour coming from the shop's theme.
+ */
 import type { ReactNode } from "react";
 import { usePathname } from "next/navigation";
 
 const STEPS = [
-  { label: "Shipping", href: "/checkout/address", step: 1 },
-  { label: "Payment", href: "/checkout/payment", step: 2 },
-  { label: "Review", href: "/checkout/review", step: 3 },
-  { label: "Confirmed", href: "/checkout/confirmed", step: 4 },
+  { label: "Shipping", step: 1 },
+  { label: "Payment", step: 2 },
+  { label: "Review", step: 3 },
+  { label: "Done", step: 4 },
 ];
 
 function getActiveStep(pathname: string): number {
@@ -17,49 +25,37 @@ function getActiveStep(pathname: string): number {
   return 1;
 }
 
-interface CheckoutLayoutProps {
-  children: ReactNode;
-}
-
-export default function CheckoutLayout({ children }: CheckoutLayoutProps) {
+export default function CheckoutLayout({ children }: { children: ReactNode }) {
   const pathname = usePathname();
-  const activeStep = getActiveStep(pathname);
+  const active = getActiveStep(pathname);
+  // The invoice page is reached from an email, not from the checkout, so it
+  // has no steps behind it to show.
+  const bare = pathname.includes("/checkout/invoice");
 
   return (
-    <div style={{ minHeight: "100vh", background: "#F8F8F6", fontFamily: "'DM Sans', sans-serif" }}>
-      {/* Progress bar — hidden on invoice payment page */}
-      <div style={{ background: "#FFFFFF", borderBottom: "1px solid #E2E2DE", padding: "20px 24px", display: pathname.includes('/checkout/invoice') ? 'none' : undefined }}>
-        <div style={{ maxWidth: "1500px", margin: "0 auto", display: "flex", alignItems: "center", gap: "8px" }}>
-          {STEPS.map((step, i) => {
-            const isActive = activeStep === step.step;
-            const isDone = activeStep > step.step;
-            return (
-              <div key={step.href} style={{ display: "flex", alignItems: "center", flex: i < STEPS.length - 1 ? 1 : undefined }}>
-                <div style={{ display: "flex", alignItems: "center", gap: "6px", whiteSpace: "nowrap" }}>
-                  <span style={{
-                    fontFamily: "'DM Sans', sans-serif", fontSize: "13px",
-                    fontWeight: isActive ? 600 : 400,
-                    color: isActive ? "var(--brand-primary, #1C3557)" : isDone ? "#6B6B6B" : "#9B9B9B",
-                    textDecorationLine: isActive ? "underline" : "none",
-                    textUnderlineOffset: isActive ? "3px" : undefined,
-                  }}>
-                    {step.label}
-                  </span>
-                </div>
-                {/* Connector */}
-                {i < STEPS.length - 1 && (
-                  <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px", color: "#E2E2DE", margin: "0 8px" }}>→</span>
-                )}
-              </div>
-            );
-          })}
+    <div className="ui-page">
+      {!bare && (
+        <div style={{ background: "#fff", borderBottom: "1px solid var(--ui-line)", padding: "18px 0" }}>
+          <div className="ui-wrap">
+            <div className="ui-steps" style={{ marginBottom: 0 }}>
+              {STEPS.map((s, i) => {
+                const done = active > s.step;
+                const on = active === s.step;
+                return (
+                  <div key={s.label} style={{ display: "contents" }}>
+                    <div className={`ui-step${on ? " ui-step-on" : ""}${done ? " ui-step-done" : ""}`}>
+                      <span className="ui-step-n">{done ? "✓" : s.step}</span>
+                      <span>{s.label}</span>
+                    </div>
+                    {i < STEPS.length - 1 && <span className="ui-step-sep" />}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
         </div>
-      </div>
-
-      {/* Content */}
-      <div style={{ background: "#F8F8F6" }}>
-        {children}
-      </div>
+      )}
+      {children}
     </div>
   );
 }

@@ -13,11 +13,11 @@ import { ConfigurationDetail } from "@/components/shared/ConfigurationDetail";
 
 // ── Color map (same as quick-order) ──────────────────────────────────────────
 const COLOR_MAP: Record<string, string> = {
-  White: "#FFFFFF", Black: "#111111", Navy: "#1e3a5f", Red: "#E8242A",
+  White: "#FFFFFF", Black: "#111111", Navy: "#1e3a5f", Red: "var(--ui-bad)",
   Blue: "#1A5CFF", Royal: "#2251CC", "Royal Blue": "#2251CC",
-  Grey: "#9ca3af", Gray: "#9ca3af", "Dark Grey": "#4b5563", "Dark Gray": "#4b5563",
-  "Light Grey": "#d1d5db", "Light Gray": "#d1d5db", Charcoal: "#374151",
-  "Sport Grey": "#9ca3af", "Heather Grey": "#b0b7c3", "Athletic Heather": "#b0b7c3",
+  Grey: "#C9C6C0", Gray: "#C9C6C0", "Dark Grey": "#4b5563", "Dark Gray": "#4b5563",
+  "Light Grey": "var(--ui-line)", "Light Gray": "var(--ui-line)", Charcoal: "#374151",
+  "Sport Grey": "#C9C6C0", "Heather Grey": "#b0b7c3", "Athletic Heather": "#b0b7c3",
   Heather: "#b0b7c3", "Dark Heather": "#6b7280", Sand: "#c6a67f", Natural: "#f5f0e8",
   Tan: "#c9a96e", Brown: "#78350f", Maroon: "#7f1d1d", Burgundy: "#881337",
   Green: "#166534", Forest: "#1B4332", "Forest Green": "#14532d", "Kelly Green": "#15803d",
@@ -52,7 +52,7 @@ const COLOR_MAP: Record<string, string> = {
 };
 function colorHex(c: string) { return COLOR_MAP[c] ?? "#888888"; }
 function isLight(hex: string) {
-  return ["#FFFFFF", "#fffff0", "#fef3c7", "#f5f0e8", "#d1d5db", "#c6a67f"].includes(hex);
+  return ["#FFFFFF", "#fffff0", "#fef3c7", "#f5f0e8", "var(--ui-line)", "#c6a67f"].includes(hex);
 }
 
 // ── Group by product ─────────────────────────────────────────────────────────
@@ -381,7 +381,7 @@ export default function CartPage() {
 
   if (isLoading) {
     return (
-      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#F4F3EF" }}>
+      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "var(--ui-paper)" }}>
         <p style={{ color: "#7A7880", fontSize: "14px" }}>Loading cart…</p>
       </div>
     );
@@ -397,19 +397,19 @@ export default function CartPage() {
   const estimatedShipping = Number(cart?.validation?.estimated_shipping ?? (isGuest ? 9.99 : 0));
 
   return (
-    <div style={{ background: "#F8F8F6", fontFamily: "'DM Sans', sans-serif", padding: "40px 24px 64px" }}>
+    <div style={{ background: "var(--ui-paper)", fontFamily: "'DM Sans', sans-serif", padding: "40px 24px 64px" }}>
       <div style={{ maxWidth: "1500px", margin: "0 auto" }}>
 
         {/* Title */}
-        <h1 style={{ fontFamily: "'Fraunces', serif", fontSize: "36px", fontWeight: 600, color: "#1A1A1A", marginBottom: "28px" }}>
+        <h1 className="ui-h1" style={{ marginBottom: "24px" }}>
           Your Cart
         </h1>
 
         {isEmpty ? (
           /* ── Empty state ── */
-          <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", color: "#6B6B6B" }}>
+          <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", color: "var(--ui-muted)" }}>
             Your cart is empty.{" "}
-            <Link href="/products" style={{ color: "var(--brand-primary, #1C3557)", fontWeight: 500, textDecoration: "none" }}>Shop All →</Link>
+            <Link href="/products" style={{ color: "var(--brand-primary, var(--ui-ink))", fontWeight: 500, textDecoration: "none" }}>Shop All →</Link>
           </p>
         ) : (
           <div className="cart-grid" style={{ display: "grid", gridTemplateColumns: "1fr 360px", gap: "48px", alignItems: "start" }}>
@@ -418,16 +418,16 @@ export default function CartPage() {
             <div>
               {/* MOV warning */}
               {cart?.validation?.mov_violation && (
-                <div style={{ background: "rgba(232,36,42,.07)", border: "1.5px solid rgba(232,36,42,.25)", padding: "12px 16px", fontSize: "13px", color: "#E8242A", fontWeight: 600, marginBottom: "16px" }}>
+                <div style={{ background: "rgba(232,36,42,.07)", border: "1.5px solid rgba(232,36,42,.25)", padding: "12px 16px", fontSize: "13px", color: "var(--ui-bad)", fontWeight: 600, marginBottom: "16px" }}>
                   Minimum order value not met —{" "}
-                  <span style={{ fontWeight: 400, color: "#1A1A1A" }}>
+                  <span style={{ fontWeight: 400, color: "var(--ui-ink)" }}>
                     current {formatCurrency(Number(cart.validation.mov_current))}, need {formatCurrency(Number(cart.validation.mov_required))}
                   </span>
                 </div>
               )}
 
               {/* Mobile scroll hint */}
-              <p className="block md:hidden" style={{ fontSize: "11px", color: "#6B6B6B", fontFamily: "'DM Sans', sans-serif", marginBottom: "8px", textAlign: "center" }}>
+              <p className="block md:hidden" style={{ fontSize: "11px", color: "var(--ui-muted)", fontFamily: "'DM Sans', sans-serif", marginBottom: "8px", textAlign: "center" }}>
                 ← Scroll to see all →
               </p>
 
@@ -436,21 +436,21 @@ export default function CartPage() {
                   <thead>
                     <tr>
                       {(["Product","Color","Size"] as const).map(h => (
-                        <th key={h} style={{ fontSize: "11px", letterSpacing: "0.08em", textTransform: "uppercase", color: "#6B6B6B", fontWeight: 600, padding: "0 12px 12px", borderBottom: "1px solid #E2E2DE", textAlign: "left" }}>{h}</th>
+                        <th key={h} style={{ fontSize: "11px", letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--ui-muted)", fontWeight: 600, padding: "0 12px 12px", borderBottom: "1px solid var(--ui-line)", textAlign: "left" }}>{h}</th>
                       ))}
                       {(["Qty","Price","Total"] as const).map(h => (
-                        <th key={h} style={{ fontSize: "11px", letterSpacing: "0.08em", textTransform: "uppercase", color: "#6B6B6B", fontWeight: 600, padding: "0 12px 12px", borderBottom: "1px solid #E2E2DE", textAlign: "right" }}>{h}</th>
+                        <th key={h} style={{ fontSize: "11px", letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--ui-muted)", fontWeight: 600, padding: "0 12px 12px", borderBottom: "1px solid var(--ui-line)", textAlign: "right" }}>{h}</th>
                       ))}
-                      <th style={{ padding: "0 12px 12px", borderBottom: "1px solid #E2E2DE" }}></th>
+                      <th style={{ padding: "0 12px 12px", borderBottom: "1px solid var(--ui-line)" }}></th>
                     </tr>
                   </thead>
                   <tbody>
                     {cart.items.map(item => (
-                      <tr key={item.id} style={{ borderBottom: "1px solid #E2E2DE" }}>
+                      <tr key={item.id} style={{ borderBottom: "1px solid var(--ui-line)" }}>
                         {/* Product */}
-                        <td style={{ padding: "18px 12px", verticalAlign: "middle", color: "#1A1A1A", width: "40%" }}>
+                        <td style={{ padding: "18px 12px", verticalAlign: "middle", color: "var(--ui-ink)", width: "40%" }}>
                           <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
-                            <div style={{ width: "64px", height: "64px", border: "1px solid #E2E2DE", flexShrink: 0, overflow: "hidden", background: "#F8F8F6" }}>
+                            <div style={{ width: "68px", height: "68px", border: "1px solid var(--ui-line)", borderRadius: "10px", flexShrink: 0, overflow: "hidden", background: "var(--ui-paper)" }}>
                               {item.product_image_url ? (
                                 // eslint-disable-next-line @next/next/no-img-element
                                 <img src={item.product_image_url} alt={item.product_name} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
@@ -461,11 +461,11 @@ export default function CartPage() {
                               )}
                             </div>
                             <div style={{ minWidth: 0 }}>
-                              <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px", fontWeight: 500, color: "#1A1A1A", lineHeight: 1.3 }}>
+                              <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "14px", fontWeight: 500, color: "var(--ui-ink)", lineHeight: 1.3 }}>
                                 {item.product_name}
                               </div>
                               {item.sku && (
-                                <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: "11px", color: "#6B6B6B", marginTop: "3px" }}>
+                                <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: "11px", color: "var(--ui-muted)", marginTop: "3px" }}>
                                   {item.sku}
                                 </div>
                               )}
@@ -475,11 +475,11 @@ export default function CartPage() {
                           </div>
                         </td>
                         {/* Color */}
-                        <td style={{ padding: "18px 12px", verticalAlign: "middle", color: "#1A1A1A", fontSize: "14px" }}>
+                        <td style={{ padding: "18px 12px", verticalAlign: "middle", color: "var(--ui-ink)", fontSize: "14px" }}>
                           {item.color ?? "—"}
                         </td>
                         {/* Size */}
-                        <td style={{ padding: "18px 12px", verticalAlign: "middle", color: "#1A1A1A", fontSize: "14px" }}>
+                        <td style={{ padding: "18px 12px", verticalAlign: "middle", color: "var(--ui-ink)", fontSize: "14px" }}>
                           {item.size ?? "—"}
                         </td>
                         {/* Qty */}
@@ -489,16 +489,16 @@ export default function CartPage() {
                             min={1}
                             value={item.quantity}
                             onChange={e => handleUpdateItemQty(item, parseInt(e.target.value, 10) || 1)}
-                            className="cart-qty-input"
-                            style={{ width: "56px", border: "1px solid #E2E2DE", padding: "6px 8px", textAlign: "center", fontFamily: "'DM Sans', sans-serif", fontSize: "13px", outline: "none" }}
+                            className="cart-qty-input ui-field ui-num"
+                            style={{ width: "62px", padding: "7px 8px", textAlign: "center", fontSize: "14px" }}
                           />
                         </td>
                         {/* Price */}
-                        <td style={{ padding: "18px 12px", verticalAlign: "middle", color: "#1A1A1A", textAlign: "right" }}>
+                        <td style={{ padding: "18px 12px", verticalAlign: "middle", color: "var(--ui-ink)", textAlign: "right" }}>
                           {formatCurrency(Number(item.unit_price))}
                         </td>
                         {/* Total */}
-                        <td style={{ padding: "18px 12px", verticalAlign: "middle", color: "#1A1A1A", textAlign: "right" }}>
+                        <td style={{ padding: "18px 12px", verticalAlign: "middle", color: "var(--ui-ink)", textAlign: "right" }}>
                           {formatCurrency(Number(item.line_total))}
                         </td>
                         {/* Remove */}
@@ -506,7 +506,7 @@ export default function CartPage() {
                           <button
                             onClick={() => handleRemoveItem(item)}
                             className="cart-remove-btn"
-                            style={{ fontSize: "18px", color: "#6B6B6B", background: "none", border: "none", cursor: "pointer", padding: 0, lineHeight: 1 }}
+                            style={{ fontSize: "18px", color: "var(--ui-muted)", background: "none", border: "none", cursor: "pointer", padding: 0, lineHeight: 1 }}
                           >
                             ×
                           </button>
@@ -555,7 +555,7 @@ export default function CartPage() {
                 Cancel
               </button>
               <button onClick={handleSaveTemplate} disabled={savingTemplate || !templateName.trim()}
-                style={{ padding: "9px 20px", background: "var(--brand-primary, #1C3557)", color: "#fff", border: "none", borderRadius: "7px", fontSize: "13px", fontWeight: 700, cursor: !templateName.trim() ? "not-allowed" : "pointer", opacity: !templateName.trim() ? 0.4 : 1 }}>
+                style={{ padding: "9px 20px", background: "var(--brand-primary, var(--ui-ink))", color: "#fff", border: "none", borderRadius: "7px", fontSize: "13px", fontWeight: 700, cursor: !templateName.trim() ? "not-allowed" : "pointer", opacity: !templateName.trim() ? 0.4 : 1 }}>
                 {savingTemplate ? "Saving…" : "Save"}
               </button>
             </div>
@@ -564,8 +564,8 @@ export default function CartPage() {
       )}
 
       <style>{`
-        .cart-qty-input:focus { outline: 1px solid var(--brand-primary, #1C3557) !important; }
-        .cart-remove-btn:hover { color: #1A1A1A !important; }
+        .cart-qty-input:focus { outline: 1px solid var(--brand-primary, var(--ui-ink)) !important; }
+        .cart-remove-btn:hover { color: var(--ui-ink) !important; }
         @media (max-width: 900px) {
           .cart-grid { display: block !important; }
         }
@@ -594,10 +594,10 @@ function OrderSummary({
 }) {
   const couponDiscount = appliedCoupon?.discount_amount ?? 0;
   const total = subtotal - couponDiscount;
-  const row: React.CSSProperties = { display: "flex", justifyContent: "space-between", fontFamily: "'DM Sans', sans-serif", fontSize: "14px", color: "#6B6B6B", marginBottom: "12px" };
+  const row: React.CSSProperties = { display: "flex", justifyContent: "space-between", fontFamily: "'DM Sans', sans-serif", fontSize: "14px", color: "var(--ui-muted)", marginBottom: "12px" };
 
   return (
-    <div style={{ alignSelf: "start", padding: "28px 0", borderTop: "1px solid #E2E2DE" }}>
+    <div style={{ alignSelf: "start", padding: "28px 0", borderTop: "1px solid var(--ui-line)" }}>
       <div style={row}>
         <span>Subtotal</span>
         <span>{formatCurrency(subtotal)}</span>
@@ -626,37 +626,38 @@ function OrderSummary({
             <button
               onClick={onApplyCoupon}
               disabled={!couponInput.trim() || applyingCoupon}
-              style={{ padding: "10px 16px", border: "1px solid #1A1A1A", background: "#fff", color: "#1A1A1A", cursor: couponInput.trim() && !applyingCoupon ? "pointer" : "not-allowed", fontFamily: "'DM Sans', sans-serif", fontSize: "14px", fontWeight: 600, opacity: couponInput.trim() ? 1 : 0.5 }}
+              style={{ padding: "10px 16px", border: "1px solid var(--ui-ink)", background: "#fff", color: "var(--ui-ink)", cursor: couponInput.trim() && !applyingCoupon ? "pointer" : "not-allowed", fontFamily: "'DM Sans', sans-serif", fontSize: "14px", fontWeight: 600, opacity: couponInput.trim() ? 1 : 0.5 }}
             >
               {applyingCoupon ? "…" : "Apply"}
             </button>
           </div>
-          {couponError && <p style={{ fontSize: "12px", color: "#E8242A", marginTop: "6px", fontFamily: "'DM Sans', sans-serif" }}>{couponError}</p>}
+          {couponError && <p style={{ fontSize: "12px", color: "var(--ui-bad)", marginTop: "6px", fontFamily: "'DM Sans', sans-serif" }}>{couponError}</p>}
         </div>
       )}
       {appliedCoupon && (
-        <div style={{ ...row, color: "#059669" }}>
+        <div style={{ ...row, color: "var(--ui-ok)" }}>
           <span>
             Coupon ({appliedCoupon.code})
-            <button onClick={onRemoveCoupon} style={{ marginLeft: "8px", fontSize: "10px", color: "#E8242A", background: "none", border: "none", cursor: "pointer", fontWeight: 700, padding: 0 }}>✕</button>
+            <button onClick={onRemoveCoupon} style={{ marginLeft: "8px", fontSize: "10px", color: "var(--ui-bad)", background: "none", border: "none", cursor: "pointer", fontWeight: 700, padding: 0 }}>✕</button>
           </span>
           <span>{appliedCoupon.discount_type === "free_shipping" ? "Free shipping" : `-${formatCurrency(couponDiscount)}`}</span>
         </div>
       )}
-      <div style={{ display: "flex", justifyContent: "space-between", fontFamily: "'DM Sans', sans-serif", fontSize: "16px", fontWeight: 600, color: "#1A1A1A", paddingTop: "14px", borderTop: "1px solid #E2E2DE", marginTop: "14px" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", fontSize: "17px", fontWeight: 700, paddingTop: "14px", borderTop: "1px solid var(--ui-line)", marginTop: "14px" }}>
         <span>Total</span>
-        <span>{formatCurrency(total)}</span>
+        <span className="ui-num" style={{ fontSize: "20px" }}>{formatCurrency(total)}</span>
       </div>
       <button
         onClick={onCheckout}
         disabled={!isValid}
         title={disabledReason}
-        style={{ width: "100%", marginTop: "16px", padding: "14px", background: isValid ? "var(--brand-primary, #1C3557)" : "#E2E2DE", color: isValid ? "#fff" : "#aaa", border: "none", cursor: isValid ? "pointer" : "not-allowed", fontFamily: "'DM Sans', sans-serif", fontSize: "15px", fontWeight: 500, transition: "background .2s" }}
+        className="ui-btn ui-btn-block"
+        style={{ marginTop: "18px" }}
       >
-        Proceed to Checkout →
+        Checkout
       </button>
       {disabledReason && (
-        <p style={{ fontSize: "11px", color: "#E8242A", textAlign: "center", marginTop: "8px" }}>{disabledReason}</p>
+        <p className="ui-hint ui-hint-bad" style={{ textAlign: "center" }}>{disabledReason}</p>
       )}
     </div>
   );

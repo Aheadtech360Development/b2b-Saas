@@ -1,35 +1,47 @@
 /**
- * The small white card the sign-in pages are built out of.
+ * The card every sign-in screen is built out of.
  *
- * Shared so that asking for a reset link, following it, and signing in
- * afterwards look like three steps of one thing rather than three pages
- * written on different days.
+ * It used to carry a navy that appears nowhere else on the platform and a
+ * serif heading the rest of the product does not use, so the way in looked
+ * like it came from a different company than the page that sent you there.
+ * It is the platform's own look now — the tokens in globals.css, the same
+ * ones the home page is built from — and on a brand's shop the colour comes
+ * from that brand's theme.
  */
-export function AuthCard({ title, children }: { title?: string; children: React.ReactNode }) {
+export function AuthCard({
+  title,
+  lede,
+  children,
+}: {
+  title?: string;
+  lede?: string;
+  children: React.ReactNode;
+}) {
   return (
-    <div style={authStyles.page}>
-      <div style={{ width: "100%", maxWidth: "400px" }}>
-        {title && <h1 style={authStyles.h1}>{title}</h1>}
-        <div style={authStyles.card}>{children}</div>
+    <div className="ui-page" style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: "56px 24px" }}>
+      <div className="ui-narrow" style={{ width: "100%" }}>
+        {title && <h1 className="ui-h1">{title}</h1>}
+        {lede && <p className="ui-lede">{lede}</p>}
+        <div className="ui-card">{children}</div>
       </div>
     </div>
   );
 }
 
-const font = "'DM Sans', sans-serif";
-
+/** Kept for the screens that still position a few things by hand. New work
+ *  should reach for the `ui-` classes instead of these. */
 export const authStyles: Record<string, React.CSSProperties> = {
-  page: { minHeight: "100vh", background: "#F8F8F6", fontFamily: font, display: "flex", alignItems: "center", justifyContent: "center", padding: "48px 24px" },
-  h1: { fontFamily: "'Fraunces', serif", fontSize: "31px", fontWeight: 600, color: "#1A1A1A", lineHeight: 1.15, margin: "0 0 28px" },
-  card: { background: "#FFFFFF", border: "1px solid #E2E2DE", padding: "36px" },
-  label: { display: "block", fontFamily: font, fontSize: "12px", fontWeight: 500, textTransform: "uppercase", letterSpacing: ".05em", color: "#1A1A1A", marginBottom: "6px" },
-  input: { width: "100%", background: "#fff", border: "1px solid #E2E2DE", padding: "11px 14px", fontSize: "14px", color: "#1A1A1A", outline: "none", boxSizing: "border-box", fontFamily: font },
-  button: { width: "100%", color: "#fff", padding: "14px", fontSize: "14px", fontWeight: 500, border: "none", fontFamily: font },
-  note: { fontSize: "14px", color: "#6B6B6B", lineHeight: 1.6, margin: "0 0 18px" },
-  hintBad: { fontSize: "12.5px", color: "#B42318", margin: "6px 0 0" },
-  error: { background: "#fff0f0", border: "1px solid #fcc", padding: "12px 14px", fontSize: "13px", color: "#cc0000", marginBottom: "16px", fontFamily: font, lineHeight: 1.5 },
-  errorLink: { display: "block", marginTop: "6px", color: "#cc0000", fontWeight: 600 },
-  primaryLink: { display: "block", textAlign: "center", fontSize: "14px", fontWeight: 500, color: "#1C3557", border: "1px solid #1C3557", padding: "13px", textDecoration: "none", fontFamily: font },
+  page: { minHeight: "100vh", background: "var(--ui-paper)", display: "flex", alignItems: "center", justifyContent: "center", padding: "56px 24px" },
+  h1: { fontSize: "30px", fontWeight: 700, letterSpacing: "-.025em", lineHeight: 1.15, margin: "0 0 10px" },
+  card: { background: "#fff", border: "1px solid var(--ui-line)", borderRadius: "14px", padding: "28px" },
+  label: { display: "block", fontSize: "12.5px", fontWeight: 600, marginBottom: "6px" },
+  input: { width: "100%", background: "#fff", border: "1px solid var(--ui-line)", borderRadius: "10px", padding: "11px 13px", fontSize: "15px", boxSizing: "border-box", fontFamily: "inherit" },
+  button: { width: "100%", background: "var(--brand-primary, var(--ui-ink))", color: "#fff", padding: "12px 24px", fontSize: "15px", fontWeight: 600, border: "none", borderRadius: "10px", fontFamily: "inherit", cursor: "pointer" },
+  note: { fontSize: "14.5px", color: "var(--ui-muted)", lineHeight: 1.6, margin: "0 0 18px" },
+  hintBad: { fontSize: "12.5px", color: "var(--ui-bad)", margin: "6px 0 0" },
+  error: { background: "#FEF3F2", border: "1px solid #FECDCA", color: "var(--ui-bad)", padding: "12px 14px", fontSize: "13.5px", borderRadius: "10px", marginBottom: "18px", lineHeight: 1.55 },
+  errorLink: { display: "block", marginTop: "6px", color: "var(--ui-bad)", fontWeight: 600 },
+  primaryLink: { display: "block", textAlign: "center", fontSize: "15px", fontWeight: 600, color: "#fff", background: "var(--brand-primary, var(--ui-ink))", padding: "12px", borderRadius: "10px", textDecoration: "none" },
 };
 
 export default AuthCard;

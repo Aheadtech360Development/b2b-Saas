@@ -31,18 +31,18 @@ function brandDisplayName(brand: string): string {
 }
 
 const inp: React.CSSProperties = {
-  width: "100%", padding: "11px 14px", border: "1px solid #E2E2DE",
+  width: "100%", padding: "11px 14px", border: "1px solid var(--ui-line)",
   fontSize: "14px", fontFamily: "'DM Sans', sans-serif",
-  outline: "none", boxSizing: "border-box", color: "#1A1A1A", background: "#fff",
+  outline: "none", boxSizing: "border-box", color: "var(--ui-ink)", background: "#fff",
 };
 const lbl: React.CSSProperties = {
-  display: "block", fontSize: "12px", fontWeight: 600, color: "#1A1A1A",
+  display: "block", fontSize: "12px", fontWeight: 600, color: "var(--ui-ink)",
   textTransform: "uppercase", letterSpacing: ".07em", marginBottom: "7px",
 };
 const sectionLabelStyle: React.CSSProperties = {
   fontFamily: "'DM Sans', sans-serif", fontSize: "11px", letterSpacing: "0.1em",
-  textTransform: "uppercase", fontWeight: 700, color: "#1A1A1A",
-  marginBottom: "14px", paddingBottom: "10px", borderBottom: "1px solid #E2E2DE",
+  textTransform: "uppercase", fontWeight: 700, color: "var(--ui-ink)",
+  marginBottom: "14px", paddingBottom: "10px", borderBottom: "1px solid var(--ui-line)",
 };
 
 export default function CheckoutPaymentPage() {
@@ -191,7 +191,7 @@ export default function CheckoutPaymentPage() {
 
   if (loadingCards) {
     return (
-      <div style={{ textAlign: "center", padding: "60px 0", color: "#6B6B6B", fontSize: "14px" }}>
+      <div style={{ textAlign: "center", padding: "60px 0", color: "var(--ui-muted)", fontSize: "14px" }}>
         Loading payment methods…
       </div>
     );
@@ -210,7 +210,7 @@ export default function CheckoutPaymentPage() {
   };
 
   return (
-    <div style={{ padding: "40px 24px 64px", background: "#F8F8F6" }}>
+    <div style={{ padding: "40px 24px 64px", background: "var(--ui-paper)" }}>
       <div style={{ maxWidth: "1500px", margin: "0 auto" }}>
         <div className="checkout-cols" style={{ display: "grid", gridTemplateColumns: "1fr 380px", gap: "48px", alignItems: "start" }}>
 
@@ -226,21 +226,21 @@ export default function CheckoutPaymentPage() {
                   // here is kinder than a dead end three clicks later.
                   if (type === "card" && cardReady === false) {
                     return (
-                      <div key={type} style={{ padding: "14px 18px", border: "1px solid #E2E2DE", background: "#F7F6F3", color: "#6B6B6B", fontSize: "13px", lineHeight: 1.6 }}>
-                        <strong style={{ color: "#1A1A1A", fontWeight: 700 }}>Card payments aren&apos;t switched on yet</strong>
+                      <div key={type} style={{ padding: "14px 18px", border: "1px solid var(--ui-line)", background: "#F7F6F3", color: "var(--ui-muted)", fontSize: "13px", lineHeight: 1.6 }}>
+                        <strong style={{ color: "var(--ui-ink)", fontWeight: 700 }}>Card payments aren&apos;t switched on yet</strong>
                         <div>This store hasn&apos;t finished its card setup. Use bank transfer below, or contact the store.</div>
                       </div>
                     );
                   }
                   return (
                     <div key={type}>
-                      <label onClick={() => setPaymentType(type)} style={{ flex: 1, display: "flex", alignItems: "center", gap: "12px", padding: "14px 18px", border: `1px solid ${isSelected ? "var(--brand-primary, #1C3557)" : "#E2E2DE"}`, background: isSelected ? "rgba(28,53,87,.04)" : "#FAFAF8", cursor: "pointer", transition: "all .15s" }}>
-                        <div style={{ width: "18px", height: "18px", borderRadius: "50%", flexShrink: 0, border: `2px solid ${isSelected ? "var(--brand-primary, #1C3557)" : "#E2E2DE"}`, background: isSelected ? "var(--brand-primary, #1C3557)" : "#fff", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      <label onClick={() => setPaymentType(type)} style={{ flex: 1, display: "flex", alignItems: "center", gap: "12px", padding: "14px 18px", border: `1px solid ${isSelected ? "var(--brand-primary, var(--ui-ink))" : "var(--ui-line)"}`, background: isSelected ? "rgba(28,53,87,.04)" : "var(--ui-paper)", cursor: "pointer", transition: "all .15s" }}>
+                        <div style={{ width: "18px", height: "18px", borderRadius: "50%", flexShrink: 0, border: `2px solid ${isSelected ? "var(--brand-primary, var(--ui-ink))" : "var(--ui-line)"}`, background: isSelected ? "var(--brand-primary, var(--ui-ink))" : "#fff", display: "flex", alignItems: "center", justifyContent: "center" }}>
                           {isSelected && <div style={{ width: "6px", height: "6px", borderRadius: "50%", background: "#fff" }} />}
                         </div>
                         <div>
-                          <div style={{ fontSize: "13px", fontWeight: 700, color: "#1A1A1A" }}>{type === "card" ? "Credit / Debit Card" : "ACH / Bank Transfer"}</div>
-                          <div style={{ fontSize: "11px", color: "#6B6B6B", marginTop: "2px" }}>{type === "card" ? "Visa, Mastercard, Amex, Discover" : "Checking or savings account"}</div>
+                          <div style={{ fontSize: "13px", fontWeight: 700, color: "var(--ui-ink)" }}>{type === "card" ? "Credit / Debit Card" : "ACH / Bank Transfer"}</div>
+                          <div style={{ fontSize: "11px", color: "var(--ui-muted)", marginTop: "2px" }}>{type === "card" ? "Visa, Mastercard, Amex, Discover" : "Checking or savings account"}</div>
                         </div>
                       </label>
                       {type === "card" && isSelected && isWholesale && (
@@ -254,13 +254,13 @@ export default function CheckoutPaymentPage() {
                 {!isGuest && isWholesale && net30Enabled && (() => {
                   const isSelected = paymentType === "net_30";
                   return (
-                    <label onClick={() => setPaymentType("net_30")} style={{ flex: 1, display: "flex", alignItems: "center", gap: "12px", padding: "14px 18px", border: `1px solid ${isSelected ? "var(--brand-primary, #1C3557)" : "#E2E2DE"}`, background: isSelected ? "rgba(28,53,87,.04)" : "#FAFAF8", cursor: "pointer", transition: "all .15s" }}>
-                      <div style={{ width: "18px", height: "18px", borderRadius: "50%", flexShrink: 0, border: `2px solid ${isSelected ? "var(--brand-primary, #1C3557)" : "#E2E2DE"}`, background: isSelected ? "var(--brand-primary, #1C3557)" : "#fff", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <label onClick={() => setPaymentType("net_30")} style={{ flex: 1, display: "flex", alignItems: "center", gap: "12px", padding: "14px 18px", border: `1px solid ${isSelected ? "var(--brand-primary, var(--ui-ink))" : "var(--ui-line)"}`, background: isSelected ? "rgba(28,53,87,.04)" : "var(--ui-paper)", cursor: "pointer", transition: "all .15s" }}>
+                      <div style={{ width: "18px", height: "18px", borderRadius: "50%", flexShrink: 0, border: `2px solid ${isSelected ? "var(--brand-primary, var(--ui-ink))" : "var(--ui-line)"}`, background: isSelected ? "var(--brand-primary, var(--ui-ink))" : "#fff", display: "flex", alignItems: "center", justifyContent: "center" }}>
                         {isSelected && <div style={{ width: "6px", height: "6px", borderRadius: "50%", background: "#fff" }} />}
                       </div>
                       <div>
-                        <div style={{ fontSize: "13px", fontWeight: 700, color: "#1A1A1A" }}>Net 30 — Pay by Invoice</div>
-                        <div style={{ fontSize: "11px", color: "#6B6B6B", marginTop: "2px" }}>Invoice sent to your account; payment due within 30 days</div>
+                        <div style={{ fontSize: "13px", fontWeight: 700, color: "var(--ui-ink)" }}>Net 30 — Pay by Invoice</div>
+                        <div style={{ fontSize: "11px", color: "var(--ui-muted)", marginTop: "2px" }}>Invoice sent to your account; payment due within 30 days</div>
                       </div>
                     </label>
                   );
@@ -282,32 +282,32 @@ export default function CheckoutPaymentPage() {
                       style={{
                         display: "flex", alignItems: "center", gap: "14px",
                         padding: "14px 18px",
-                        border: `1px solid ${!useNewAch ? "var(--brand-primary, #1C3557)" : "#E2E2DE"}`,
-                        background: !useNewAch ? "rgba(28,53,87,.04)" : "#FAFAF8",
+                        border: `1px solid ${!useNewAch ? "var(--brand-primary, var(--ui-ink))" : "var(--ui-line)"}`,
+                        background: !useNewAch ? "rgba(28,53,87,.04)" : "var(--ui-paper)",
                         cursor: "pointer", transition: "all .15s",
                       }}
                     >
                       <div style={{
                         width: "18px", height: "18px", borderRadius: "50%", flexShrink: 0,
-                        border: `2px solid ${!useNewAch ? "var(--brand-primary, #1C3557)" : "#E2E2DE"}`,
-                        background: !useNewAch ? "var(--brand-primary, #1C3557)" : "#fff",
+                        border: `2px solid ${!useNewAch ? "var(--brand-primary, var(--ui-ink))" : "var(--ui-line)"}`,
+                        background: !useNewAch ? "var(--brand-primary, var(--ui-ink))" : "#fff",
                         display: "flex", alignItems: "center", justifyContent: "center",
                       }}>
                         {!useNewAch && <div style={{ width: "6px", height: "6px", borderRadius: "50%", background: "#fff" }} />}
                       </div>
                       {/* Bank icon */}
                       <svg width="32" height="22" viewBox="0 0 32 22" fill="none" style={{ flexShrink: 0 }}>
-                        <rect width="32" height="22" rx="3" fill="#F4F3EF" stroke="#E2E2DE" />
-                        <rect x="4" y="5" width="24" height="3" rx="1" fill="#E2E2DE" />
-                        <rect x="6" y="10" width="3" height="6" rx="0.5" fill="#E2E2DE" />
-                        <rect x="14" y="10" width="3" height="6" rx="0.5" fill="#E2E2DE" />
-                        <rect x="22" y="10" width="3" height="6" rx="0.5" fill="#E2E2DE" />
+                        <rect width="32" height="22" rx="3" fill="var(--ui-paper)" stroke="var(--ui-line)" />
+                        <rect x="4" y="5" width="24" height="3" rx="1" fill="var(--ui-line)" />
+                        <rect x="6" y="10" width="3" height="6" rx="0.5" fill="var(--ui-line)" />
+                        <rect x="14" y="10" width="3" height="6" rx="0.5" fill="var(--ui-line)" />
+                        <rect x="22" y="10" width="3" height="6" rx="0.5" fill="var(--ui-line)" />
                       </svg>
                       <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: "13px", fontWeight: 700, color: "#1A1A1A" }}>
+                        <div style={{ fontSize: "13px", fontWeight: 700, color: "var(--ui-ink)" }}>
                           {savedAch.bank_name} •••• {savedAch.account_last4}
                         </div>
-                        <div style={{ fontSize: "11px", color: "#6B6B6B", marginTop: "2px" }}>
+                        <div style={{ fontSize: "11px", color: "var(--ui-muted)", marginTop: "2px" }}>
                           {savedAch.account_holder} · {savedAch.account_type.charAt(0).toUpperCase() + savedAch.account_type.slice(1)}
                         </div>
                       </div>
@@ -319,16 +319,16 @@ export default function CheckoutPaymentPage() {
                       style={{
                         display: "flex", alignItems: "center", gap: "14px",
                         padding: "12px 18px",
-                        border: `1px solid ${useNewAch ? "var(--brand-primary, #1C3557)" : "#E2E2DE"}`,
-                        background: useNewAch ? "rgba(28,53,87,.04)" : "#FAFAF8",
-                        cursor: "pointer", fontSize: "13px", fontWeight: 600, color: "#1A1A1A",
+                        border: `1px solid ${useNewAch ? "var(--brand-primary, var(--ui-ink))" : "var(--ui-line)"}`,
+                        background: useNewAch ? "rgba(28,53,87,.04)" : "var(--ui-paper)",
+                        cursor: "pointer", fontSize: "13px", fontWeight: 600, color: "var(--ui-ink)",
                         transition: "all .15s",
                       }}
                     >
                       <div style={{
                         width: "18px", height: "18px", borderRadius: "50%", flexShrink: 0,
-                        border: `2px solid ${useNewAch ? "var(--brand-primary, #1C3557)" : "#E2E2DE"}`,
-                        background: useNewAch ? "var(--brand-primary, #1C3557)" : "#fff",
+                        border: `2px solid ${useNewAch ? "var(--brand-primary, var(--ui-ink))" : "var(--ui-line)"}`,
+                        background: useNewAch ? "var(--brand-primary, var(--ui-ink))" : "#fff",
                         display: "flex", alignItems: "center", justifyContent: "center",
                       }}>
                         {useNewAch && <div style={{ width: "6px", height: "6px", borderRadius: "50%", background: "#fff" }} />}
@@ -340,34 +340,34 @@ export default function CheckoutPaymentPage() {
 
                 {/* Manual ACH form — shown when no saved ACH, or user chose "use different account" */}
                 {(isGuest || !savedAch || useNewAch) && (
-                  <div style={{ borderTop: savedAch && useNewAch ? "1px solid #E2E2DE" : "none", paddingTop: savedAch && useNewAch ? "16px" : "0" }}>
+                  <div style={{ borderTop: savedAch && useNewAch ? "1px solid var(--ui-line)" : "none", paddingTop: savedAch && useNewAch ? "16px" : "0" }}>
                     <div className="checkout-form-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px" }}>
                       <div>
-                        <label style={lbl}>Bank Name <span style={{ color: "#E8242A" }}>*</span></label>
-                        <input style={{ ...inp, borderColor: achErrors.bankName ? "#E8242A" : "#E2E2DE" }} value={achForm.bankName} onChange={e => { setAchForm(p => ({ ...p, bankName: e.target.value })); setAchErrors(p => ({ ...p, bankName: undefined })); }} placeholder="Chase, Wells Fargo, etc." />
-                        {achErrors.bankName && <p style={{ fontSize: "11px", color: "#E8242A", marginTop: "3px" }}>{achErrors.bankName}</p>}
+                        <label style={lbl}>Bank Name <span style={{ color: "var(--ui-bad)" }}>*</span></label>
+                        <input style={{ ...inp, borderColor: achErrors.bankName ? "var(--ui-bad)" : "var(--ui-line)" }} value={achForm.bankName} onChange={e => { setAchForm(p => ({ ...p, bankName: e.target.value })); setAchErrors(p => ({ ...p, bankName: undefined })); }} placeholder="Chase, Wells Fargo, etc." />
+                        {achErrors.bankName && <p style={{ fontSize: "11px", color: "var(--ui-bad)", marginTop: "3px" }}>{achErrors.bankName}</p>}
                       </div>
                       <div>
-                        <label style={lbl}>Account Holder Name <span style={{ color: "#E8242A" }}>*</span></label>
-                        <input style={{ ...inp, borderColor: achErrors.accountHolder ? "#E8242A" : "#E2E2DE" }} value={achForm.accountHolder} onChange={e => { setAchForm(p => ({ ...p, accountHolder: e.target.value })); setAchErrors(p => ({ ...p, accountHolder: undefined })); }} placeholder="Full name on account" />
-                        {achErrors.accountHolder && <p style={{ fontSize: "11px", color: "#E8242A", marginTop: "3px" }}>{achErrors.accountHolder}</p>}
+                        <label style={lbl}>Account Holder Name <span style={{ color: "var(--ui-bad)" }}>*</span></label>
+                        <input style={{ ...inp, borderColor: achErrors.accountHolder ? "var(--ui-bad)" : "var(--ui-line)" }} value={achForm.accountHolder} onChange={e => { setAchForm(p => ({ ...p, accountHolder: e.target.value })); setAchErrors(p => ({ ...p, accountHolder: undefined })); }} placeholder="Full name on account" />
+                        {achErrors.accountHolder && <p style={{ fontSize: "11px", color: "var(--ui-bad)", marginTop: "3px" }}>{achErrors.accountHolder}</p>}
                       </div>
                       <div>
-                        <label style={lbl}>Routing Number <span style={{ color: "#E8242A" }}>*</span></label>
-                        <input style={{ ...inp, borderColor: achErrors.routingNumber ? "#E8242A" : "#E2E2DE" }} value={achForm.routingNumber} onChange={e => { setAchForm(p => ({ ...p, routingNumber: e.target.value.replace(/\D/g, "").slice(0, 9) })); setAchErrors(p => ({ ...p, routingNumber: undefined })); }} placeholder="9-digit routing number" maxLength={9} />
-                        {achErrors.routingNumber && <p style={{ fontSize: "11px", color: "#E8242A", marginTop: "3px" }}>{achErrors.routingNumber}</p>}
+                        <label style={lbl}>Routing Number <span style={{ color: "var(--ui-bad)" }}>*</span></label>
+                        <input style={{ ...inp, borderColor: achErrors.routingNumber ? "var(--ui-bad)" : "var(--ui-line)" }} value={achForm.routingNumber} onChange={e => { setAchForm(p => ({ ...p, routingNumber: e.target.value.replace(/\D/g, "").slice(0, 9) })); setAchErrors(p => ({ ...p, routingNumber: undefined })); }} placeholder="9-digit routing number" maxLength={9} />
+                        {achErrors.routingNumber && <p style={{ fontSize: "11px", color: "var(--ui-bad)", marginTop: "3px" }}>{achErrors.routingNumber}</p>}
                       </div>
                       <div>
-                        <label style={lbl}>Account Number <span style={{ color: "#E8242A" }}>*</span></label>
-                        <input style={{ ...inp, borderColor: achErrors.accountNumber ? "#E8242A" : "#E2E2DE" }} value={achForm.accountNumber} onChange={e => { setAchForm(p => ({ ...p, accountNumber: e.target.value.replace(/\D/g, "") })); setAchErrors(p => ({ ...p, accountNumber: undefined })); }} placeholder="Account number" type="text" />
-                        {achErrors.accountNumber && <p style={{ fontSize: "11px", color: "#E8242A", marginTop: "3px" }}>{achErrors.accountNumber}</p>}
+                        <label style={lbl}>Account Number <span style={{ color: "var(--ui-bad)" }}>*</span></label>
+                        <input style={{ ...inp, borderColor: achErrors.accountNumber ? "var(--ui-bad)" : "var(--ui-line)" }} value={achForm.accountNumber} onChange={e => { setAchForm(p => ({ ...p, accountNumber: e.target.value.replace(/\D/g, "") })); setAchErrors(p => ({ ...p, accountNumber: undefined })); }} placeholder="Account number" type="text" />
+                        {achErrors.accountNumber && <p style={{ fontSize: "11px", color: "var(--ui-bad)", marginTop: "3px" }}>{achErrors.accountNumber}</p>}
                       </div>
                       <div style={{ gridColumn: "1 / -1" }}>
-                        <label style={lbl}>Account Type <span style={{ color: "#E8242A" }}>*</span></label>
+                        <label style={lbl}>Account Type <span style={{ color: "var(--ui-bad)" }}>*</span></label>
                         <div style={{ display: "flex", gap: "10px" }}>
                           {(["checking", "savings"] as const).map(t => (
-                            <label key={t} onClick={() => setAchForm(p => ({ ...p, accountType: t }))} style={{ display: "flex", alignItems: "center", gap: "8px", padding: "10px 16px", border: `1px solid ${achForm.accountType === t ? "var(--brand-primary, #1C3557)" : "#E2E2DE"}`, cursor: "pointer", fontSize: "13px", fontWeight: 600, color: "#1A1A1A", background: achForm.accountType === t ? "rgba(28,53,87,.04)" : "#FAFAF8" }}>
-                              <div style={{ width: "16px", height: "16px", borderRadius: "50%", border: `2px solid ${achForm.accountType === t ? "var(--brand-primary, #1C3557)" : "#E2E2DE"}`, background: achForm.accountType === t ? "var(--brand-primary, #1C3557)" : "#fff", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                            <label key={t} onClick={() => setAchForm(p => ({ ...p, accountType: t }))} style={{ display: "flex", alignItems: "center", gap: "8px", padding: "10px 16px", border: `1px solid ${achForm.accountType === t ? "var(--brand-primary, var(--ui-ink))" : "var(--ui-line)"}`, cursor: "pointer", fontSize: "13px", fontWeight: 600, color: "var(--ui-ink)", background: achForm.accountType === t ? "rgba(28,53,87,.04)" : "var(--ui-paper)" }}>
+                              <div style={{ width: "16px", height: "16px", borderRadius: "50%", border: `2px solid ${achForm.accountType === t ? "var(--brand-primary, var(--ui-ink))" : "var(--ui-line)"}`, background: achForm.accountType === t ? "var(--brand-primary, var(--ui-ink))" : "#fff", display: "flex", alignItems: "center", justifyContent: "center" }}>
                                 {achForm.accountType === t && <div style={{ width: "5px", height: "5px", borderRadius: "50%", background: "#fff" }} />}
                               </div>
                               {t.charAt(0).toUpperCase() + t.slice(1)}
@@ -379,19 +379,19 @@ export default function CheckoutPaymentPage() {
                   </div>
                 )}
 
-                <div style={{ marginTop: "14px", padding: "12px 14px", background: "#F4F3EF", fontSize: "12px", color: "#6B6B6B", lineHeight: 1.6 }}>
+                <div style={{ marginTop: "14px", padding: "12px 14px", background: "var(--ui-paper)", fontSize: "12px", color: "var(--ui-muted)", lineHeight: 1.6 }}>
                   ACH payments are verified manually. Your order will be processed within 1–2 business days after payment is confirmed.
                 </div>
                 <div style={{ display: "flex", gap: "10px", marginTop: "16px" }}>
                   <a
                     href="/checkout/address"
-                    style={{ display: "inline-block", fontSize: "13px", color: "#6B6B6B", textDecoration: "none", fontFamily: "'DM Sans', sans-serif", padding: "14px 0" }}
-                    onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.color = "var(--brand-primary, #1C3557)"; }}
-                    onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.color = "#6B6B6B"; }}
+                    style={{ display: "inline-block", fontSize: "13px", color: "var(--ui-muted)", textDecoration: "none", fontFamily: "'DM Sans', sans-serif", padding: "14px 0" }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.color = "var(--brand-primary, var(--ui-ink))"; }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.color = "var(--ui-muted)"; }}
                   >
                     ← Back to Shipping
                   </a>
-                  <button type="button" onClick={handleAchContinue} style={{ flex: 1, padding: "14px", background: "var(--brand-primary, #1C3557)", color: "#fff", border: "none", fontFamily: "'DM Sans', sans-serif", fontSize: "15px", fontWeight: 500, cursor: "pointer", transition: "opacity .15s" }}
+                  <button type="button" onClick={handleAchContinue} style={{ flex: 1, padding: "14px", background: "var(--brand-primary, var(--ui-ink))", color: "#fff", border: "none", fontFamily: "'DM Sans', sans-serif", fontSize: "15px", fontWeight: 500, cursor: "pointer", transition: "opacity .15s" }}
                     onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.opacity = "0.88"; }}
                     onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.opacity = "1"; }}
                   >
@@ -405,7 +405,7 @@ export default function CheckoutPaymentPage() {
             {paymentType === "net_30" && (
               <div style={{ marginBottom: "32px" }}>
                 <div style={sectionLabelStyle}>Net 30 — Pay by Invoice</div>
-                <div style={{ fontSize: "13px", color: "#1A1A1A", lineHeight: 1.7, marginBottom: "14px" }}>
+                <div style={{ fontSize: "13px", color: "var(--ui-ink)", lineHeight: 1.7, marginBottom: "14px" }}>
                   Your order will be processed immediately. An invoice will be emailed to your account within 1 business day. Payment is due within 30 days of the invoice date.
                 </div>
                 <div style={{ padding: "12px 14px", background: "rgba(217,119,6,.08)", fontSize: "12px", color: "#D97706", fontWeight: 600, marginBottom: "16px" }}>
@@ -414,13 +414,13 @@ export default function CheckoutPaymentPage() {
                 <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
                   <a
                     href="/checkout/address"
-                    style={{ display: "inline-block", fontSize: "13px", color: "#6B6B6B", textDecoration: "none", fontFamily: "'DM Sans', sans-serif", padding: "14px 0" }}
-                    onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.color = "var(--brand-primary, #1C3557)"; }}
-                    onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.color = "#6B6B6B"; }}
+                    style={{ display: "inline-block", fontSize: "13px", color: "var(--ui-muted)", textDecoration: "none", fontFamily: "'DM Sans', sans-serif", padding: "14px 0" }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.color = "var(--brand-primary, var(--ui-ink))"; }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.color = "var(--ui-muted)"; }}
                   >
                     ← Back to Shipping
                   </a>
-                  <button type="button" onClick={handleNet30Continue} style={{ flex: 1, padding: "14px", background: "var(--brand-primary, #1C3557)", color: "#fff", border: "none", fontFamily: "'DM Sans', sans-serif", fontSize: "15px", fontWeight: 500, cursor: "pointer", transition: "opacity .15s" }}
+                  <button type="button" onClick={handleNet30Continue} style={{ flex: 1, padding: "14px", background: "var(--brand-primary, var(--ui-ink))", color: "#fff", border: "none", fontFamily: "'DM Sans', sans-serif", fontSize: "15px", fontWeight: 500, cursor: "pointer", transition: "opacity .15s" }}
                     onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.opacity = "0.88"; }}
                     onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.opacity = "1"; }}
                   >
@@ -434,16 +434,16 @@ export default function CheckoutPaymentPage() {
             {paymentType === "card" && (
               <div style={{ marginBottom: "32px" }}>
                 {!isGuest && <div style={sectionLabelStyle}>Card Payment</div>}
-                <div style={{ display: "flex", gap: "12px", alignItems: "flex-start", padding: "14px 18px", border: "1px solid #E2E2DE", background: "#FAFAF8", marginBottom: "16px" }}>
+                <div style={{ display: "flex", gap: "12px", alignItems: "flex-start", padding: "14px 18px", border: "1px solid var(--ui-line)", background: "var(--ui-paper)", marginBottom: "16px" }}>
                   <svg width="32" height="22" viewBox="0 0 32 22" fill="none" style={{ flexShrink: 0, marginTop: "2px" }}>
-                    <rect width="32" height="22" rx="3" fill="#F4F3EF" stroke="#E2E2DE" />
-                    <rect x="4" y="8" width="10" height="6" rx="1.5" fill="#E2E2DE" />
-                    <rect x="4" y="16" width="5" height="2" rx="0.5" fill="#E2E2DE" />
-                    <rect x="11" y="16" width="5" height="2" rx="0.5" fill="#E2E2DE" />
+                    <rect width="32" height="22" rx="3" fill="var(--ui-paper)" stroke="var(--ui-line)" />
+                    <rect x="4" y="8" width="10" height="6" rx="1.5" fill="var(--ui-line)" />
+                    <rect x="4" y="16" width="5" height="2" rx="0.5" fill="var(--ui-line)" />
+                    <rect x="11" y="16" width="5" height="2" rx="0.5" fill="var(--ui-line)" />
                   </svg>
                   <div>
-                    <div style={{ fontSize: "13px", fontWeight: 700, color: "#1A1A1A" }}>Pay securely by card</div>
-                    <div style={{ fontSize: "12px", color: "#6B6B6B", marginTop: "3px", lineHeight: 1.5 }}>
+                    <div style={{ fontSize: "13px", fontWeight: 700, color: "var(--ui-ink)" }}>Pay securely by card</div>
+                    <div style={{ fontSize: "12px", color: "var(--ui-muted)", marginTop: "3px", lineHeight: 1.5 }}>
                       Enter your card on the next step — processed securely by Stripe. Visa, Mastercard, Amex, Discover.
                     </div>
                   </div>
@@ -451,9 +451,9 @@ export default function CheckoutPaymentPage() {
                 <div style={{ display: "flex", gap: "16px", alignItems: "center" }}>
                   <a
                     href="/checkout/address"
-                    style={{ display: "inline-block", fontSize: "13px", color: "#6B6B6B", textDecoration: "none", fontFamily: "'DM Sans', sans-serif" }}
-                    onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.color = "var(--brand-primary, #1C3557)"; }}
-                    onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.color = "#6B6B6B"; }}
+                    style={{ display: "inline-block", fontSize: "13px", color: "var(--ui-muted)", textDecoration: "none", fontFamily: "'DM Sans', sans-serif" }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.color = "var(--brand-primary, var(--ui-ink))"; }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.color = "var(--ui-muted)"; }}
                   >
                     ← Back to Shipping
                   </a>
@@ -465,7 +465,7 @@ export default function CheckoutPaymentPage() {
                       router.push("/checkout/review");
                     }}
                     style={{
-                      flex: 1, padding: "14px", background: "var(--brand-primary, #1C3557)",
+                      flex: 1, padding: "14px", background: "var(--brand-primary, var(--ui-ink))",
                       color: "#fff", border: "none",
                       fontFamily: "'DM Sans', sans-serif", fontSize: "15px", fontWeight: 500,
                       cursor: "pointer", transition: "opacity .15s",
@@ -482,28 +482,28 @@ export default function CheckoutPaymentPage() {
 
           {/* RIGHT COLUMN — Order Summary */}
           <div style={{ alignSelf: "start", position: "sticky", top: "24px" }}>
-            <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "11px", letterSpacing: "0.1em", textTransform: "uppercase", fontWeight: 700, color: "#1A1A1A", marginBottom: "18px" }}>
+            <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "11px", letterSpacing: "0.1em", textTransform: "uppercase", fontWeight: 700, color: "var(--ui-ink)", marginBottom: "18px" }}>
               Order Summary
             </div>
             {/* Cart items */}
             {cartDisplayItems.length > 0 && (
               <div>
                 {cartDisplayItems.map((item, i) => (
-                  <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: "12px", marginBottom: "16px", paddingBottom: "16px", borderBottom: "1px solid #E2E2DE" }}>
-                    <div style={{ width: "52px", height: "52px", border: "1px solid #E2E2DE", flexShrink: 0, background: "#FFFFFF", overflow: "hidden" }}>
+                  <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: "12px", marginBottom: "16px", paddingBottom: "16px", borderBottom: "1px solid var(--ui-line)" }}>
+                    <div style={{ width: "52px", height: "52px", border: "1px solid var(--ui-line)", flexShrink: 0, background: "#FFFFFF", overflow: "hidden" }}>
                       {item.imageUrl
                         // eslint-disable-next-line @next/next/no-img-element
                         ? <img src={item.imageUrl} alt={item.name} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
-                        : <div style={{ width: "100%", height: "100%", background: "#F8F8F6" }} />
+                        : <div style={{ width: "100%", height: "100%", background: "var(--ui-paper)" }} />
                       }
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px", fontWeight: 500, color: "#1A1A1A", lineHeight: 1.3 }}>{item.name}</div>
-                      <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "11px", color: "#6B6B6B", marginTop: "2px" }}>
+                      <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px", fontWeight: 500, color: "var(--ui-ink)", lineHeight: 1.3 }}>{item.name}</div>
+                      <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "11px", color: "var(--ui-muted)", marginTop: "2px" }}>
                         {[item.color, item.size].filter(Boolean).join(" / ")}{item.qty > 0 ? ` × ${item.qty}` : ""}
                       </div>
                     </div>
-                    <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px", fontWeight: 500, color: "#1A1A1A", whiteSpace: "nowrap", flexShrink: 0 }}>
+                    <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px", fontWeight: 500, color: "var(--ui-ink)", whiteSpace: "nowrap", flexShrink: 0 }}>
                       {formatCurrency(item.lineTotal)}
                     </div>
                   </div>
@@ -512,39 +512,39 @@ export default function CheckoutPaymentPage() {
             )}
             {(cart || isGuest) && (
               <div style={{ display: "flex", flexDirection: "column" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", fontSize: "13px", color: "#6B6B6B", padding: "8px 0", borderBottom: "1px solid #E2E2DE" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: "13px", color: "var(--ui-muted)", padding: "8px 0", borderBottom: "1px solid var(--ui-line)" }}>
                   <span>Subtotal{cart ? ` (${cart.total_units} units)` : ""}</span>
-                  <span style={{ fontWeight: 600, color: "#1A1A1A" }}>{formatCurrency(subtotal)}</span>
+                  <span style={{ fontWeight: 600, color: "var(--ui-ink)" }}>{formatCurrency(subtotal)}</span>
                 </div>
                 {cart && Number(cart.discount_percent) > 0 && (
-                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: "13px", color: "#059669", padding: "8px 0", borderBottom: "1px solid #E2E2DE" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: "13px", color: "var(--ui-ok)", padding: "8px 0", borderBottom: "1px solid var(--ui-line)" }}>
                     <span style={{ fontWeight: 600 }}>Tier Discount ({cart.discount_percent}% applied)</span>
                     <span style={{ fontWeight: 700 }}>&#10003; Included</span>
                   </div>
                 )}
-                <div style={{ display: "flex", justifyContent: "space-between", fontSize: "13px", color: "#6B6B6B", padding: "8px 0", borderBottom: "1px solid #E2E2DE" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: "13px", color: "var(--ui-muted)", padding: "8px 0", borderBottom: "1px solid var(--ui-line)" }}>
                   <span>Shipping ({SHIPPING_LABELS[shippingMethod] ?? "Standard"})</span>
-                  <span style={{ color: shipping === 0 ? "#059669" : "#1A1A1A", fontWeight: 600 }}>
+                  <span style={{ color: shipping === 0 ? "var(--ui-ok)" : "var(--ui-ink)", fontWeight: 600 }}>
                     {shipping === 0 ? "FREE" : formatCurrency(shipping)}
                   </span>
                 </div>
                 {couponDiscount > 0 && (
-                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: "13px", color: "#059669", padding: "8px 0", borderBottom: "1px solid #E2E2DE" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: "13px", color: "var(--ui-ok)", padding: "8px 0", borderBottom: "1px solid var(--ui-line)" }}>
                     <span style={{ fontWeight: 600 }}>Coupon Applied</span>
                     <span style={{ fontWeight: 700 }}>-{formatCurrency(couponDiscount)}</span>
                   </div>
                 )}
-                <div style={{ display: "flex", justifyContent: "space-between", fontSize: "13px", color: "#6B6B6B", padding: "8px 0", borderBottom: "1px solid #E2E2DE" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: "13px", color: "var(--ui-muted)", padding: "8px 0", borderBottom: "1px solid var(--ui-line)" }}>
                   <span>{storedTaxRegion && storedTaxRate > 0 ? `Tax (${storedTaxRegion} ${storedTaxRate}%)` : "Tax"}</span>
-                  <span style={{ fontWeight: 600, color: "#1A1A1A" }}>{formatCurrency(taxAmountDisplay)}</span>
+                  <span style={{ fontWeight: 600, color: "var(--ui-ink)" }}>{formatCurrency(taxAmountDisplay)}</span>
                 </div>
                 {convenienceFee > 0 && (
-                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: "13px", color: "#92400e", padding: "8px 0", borderBottom: "1px solid #E2E2DE" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: "13px", color: "#92400e", padding: "8px 0", borderBottom: "1px solid var(--ui-line)" }}>
                     <span style={{ fontWeight: 600 }}>Convenience Fee (3%)</span>
                     <span style={{ fontWeight: 600 }}>{formatCurrency(convenienceFee)}</span>
                   </div>
                 )}
-                <div style={{ display: "flex", justifyContent: "space-between", fontSize: "15px", fontWeight: 600, color: "#1A1A1A", padding: "14px 0 0" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: "15px", fontWeight: 600, color: "var(--ui-ink)", padding: "14px 0 0" }}>
                   <span>Total</span>
                   <span>{formatCurrency(total)}</span>
                 </div>

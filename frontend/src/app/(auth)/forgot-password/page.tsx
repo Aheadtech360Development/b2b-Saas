@@ -54,7 +54,7 @@ export default function ForgotPasswordPage() {
           <button
             type="button"
             onClick={() => { setSent(false); setError(null); }}
-            style={{ background: "none", border: "none", padding: 0, color: "#1C3557", cursor: "pointer", font: "inherit", textDecoration: "underline" }}
+            style={{ background: "none", border: "none", padding: 0, color: "var(--brand-primary, var(--ui-ink))", cursor: "pointer", font: "inherit", textDecoration: "underline" }}
           >
             try again
           </button>.
@@ -90,14 +90,14 @@ export default function ForgotPasswordPage() {
         <button
           type="submit"
           disabled={busy || !email.trim()}
-          style={{ ...S.button, background: busy || !email.trim() ? "#9ca3af" : "#1C3557", cursor: busy || !email.trim() ? "not-allowed" : "pointer" }}
+          style={{ ...S.button, background: busy || !email.trim() ? "#C9C6C0" : "var(--brand-primary, var(--ui-ink))", cursor: busy || !email.trim() ? "not-allowed" : "pointer" }}
         >
           {busy ? "Sending…" : "Send reset link →"}
         </button>
       </form>
 
       <p style={{ ...S.note, marginTop: "18px", marginBottom: 0, fontSize: "13px" }}>
-        Remembered it? <Link href="/login" style={{ color: "#1C3557" }}>Back to sign in</Link>
+        Remembered it? <Link href="/login" style={{ color: "var(--brand-primary, var(--ui-ink))" }}>Back to sign in</Link>
       </p>
     </AuthCard>
   );

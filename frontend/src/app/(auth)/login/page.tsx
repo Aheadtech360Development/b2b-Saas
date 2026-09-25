@@ -171,64 +171,56 @@ export default function LoginPage() {
   }
 
   return (
-    <div style={{ minHeight: "100vh", background: "#F8F8F6", fontFamily: "'DM Sans', sans-serif", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "48px 24px" }}>
-      {/* Main */}
-      <div style={{ width: "100%", maxWidth: "400px" }}>
-          {/* Heading */}
-          <div style={{ marginBottom: "28px" }}>
-            <h1 style={{ fontFamily: "'Fraunces', serif", fontSize: "34px", fontWeight: 600, color: "#1A1A1A", lineHeight: 1.15, marginBottom: "0" }}>
-              Log In
-            </h1>
-          </div>
+    <div className="ui-page" style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: "56px 24px" }}>
+      <div className="ui-narrow" style={{ width: "100%" }}>
+          <h1 className="ui-h1">Sign in</h1>
+          <p className="ui-lede">
+            {onPlatform
+              ? "Your shop's console, or the platform's."
+              : "Your account, your orders and your pricing."}
+          </p>
 
-          {/* Card */}
-          <div style={{ background: "#FFFFFF", border: "1px solid #E2E2DE", padding: "36px" }}>
+          <div className="ui-card">
             {twoFaChallenge ? (
               <form onSubmit={handleVerify2fa}>
-                <h2 style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "18px", fontWeight: 700, color: "#1A1A1A", margin: "0 0 6px" }}>Two-factor verification</h2>
-                <p style={{ fontSize: "13px", color: "#6B6B6B", margin: "0 0 18px" }}>Enter the 6-digit code from your authenticator app. You can also use a backup code.</p>
+                <h2 style={{ fontSize: "18px", fontWeight: 700, margin: "0 0 6px" }}>Two-factor verification</h2>
+                <p className="ui-lede" style={{ fontSize: "14px", marginBottom: "18px" }}>Enter the 6-digit code from your authenticator app. You can also use a backup code.</p>
                 {error && (
-                  <div style={{ background: "rgba(232,36,42,.08)", border: "1px solid rgba(232,36,42,.2)", borderRadius: "6px", padding: "10px 14px", fontSize: "13px", color: "#E8242A", marginBottom: "16px" }}>{error}</div>
+                  <div className="ui-alert ui-alert-bad">{error}</div>
                 )}
                 <input
                   autoFocus inputMode="text" autoComplete="one-time-code" value={twoFaCode}
                   onChange={(e) => setTwoFaCode(e.target.value)} placeholder="123456"
-                  style={{ width: "100%", background: "#fff", border: "1px solid #E2E2DE", padding: "12px 14px", fontSize: "18px", letterSpacing: "0.15em", textAlign: "center", color: "#1A1A1A", outline: "none", boxSizing: "border-box", fontFamily: "'DM Sans', sans-serif", marginBottom: "16px" }}
+                  className="ui-field ui-num" style={{ fontSize: "20px", letterSpacing: ".2em", textAlign: "center", marginBottom: "16px" }}
                 />
                 <button type="submit" disabled={isSubmitting || twoFaCode.trim().length < 6}
-                  style={{ width: "100%", background: (isSubmitting || twoFaCode.trim().length < 6) ? "#9ca3af" : "#1C3557", color: "#fff", border: "none", padding: "13px", fontSize: "14px", fontWeight: 700, cursor: (isSubmitting || twoFaCode.trim().length < 6) ? "not-allowed" : "pointer", fontFamily: "'DM Sans', sans-serif" }}>
-                  {isSubmitting ? "Verifying…" : "Verify →"}
+                  className="ui-btn ui-btn-block">
+                  {isSubmitting ? "Verifying…" : "Verify"}
                 </button>
                 <button type="button" onClick={() => { setTwoFaChallenge(null); setTwoFaCode(""); setError(null); }}
-                  style={{ width: "100%", background: "none", border: "none", color: "#6B6B6B", fontSize: "13px", cursor: "pointer", marginTop: "12px", fontFamily: "'DM Sans', sans-serif" }}>
+                  className="ui-btn-quiet" style={{ width: "100%", marginTop: "12px" }}>
                   ← Back to sign in
                 </button>
               </form>
             ) : (
             <form onSubmit={handleSubmit}>
               {error && (
-                <div style={{ background: "#fff0f0", border: "1px solid #fcc", padding: "12px 14px", fontSize: "13px", color: "#cc0000", marginBottom: "12px", fontFamily: "'DM Sans', sans-serif" }}>
-                  {error}
-                </div>
+                <div className="ui-alert ui-alert-bad">{error}</div>
               )}
 
               {showResendActivation && (
-                <div style={{ marginBottom: "20px", padding: "14px 16px", background: "rgba(255,248,225,.06)", border: "1px solid rgba(255,224,130,.25)", borderRadius: "8px" }}>
+                <div className="ui-alert ui-alert-note" style={{ marginBottom: "20px" }}>
                   {resendSent ? (
-                    <p style={{ fontSize: "13px", color: "#86efac", margin: 0 }}>
-                      Activation email sent! Check your inbox.
-                    </p>
+                    <p style={{ margin: 0 }}>Activation email sent — check your inbox.</p>
                   ) : (
                     <>
-                      <p style={{ fontSize: "13px", color: "#d3d0d0", margin: "0 0 10px" }}>
-                        {"Didn't receive the activation email?"}
-                      </p>
+                      <p style={{ margin: "0 0 10px" }}>{"Didn't receive the activation email?"}</p>
                       <button
                         type="button"
                         onClick={handleResendActivation}
-                        style={{ background: "#1B3A5C", color: "#fff", border: "none", padding: "9px 18px", borderRadius: "6px", fontSize: "13px", cursor: "pointer", fontWeight: 600 }}
+                        className="ui-btn" style={{ padding: "9px 18px", fontSize: "13.5px" }}
                       >
-                        Resend Activation Email
+                        Resend activation email
                       </button>
                     </>
                   )}
@@ -236,16 +228,14 @@ export default function LoginPage() {
               )}
 
               {showPendingApproval && (
-                <div style={{ marginBottom: "20px", padding: "16px", background: "rgba(26,92,255,.08)", border: "1px solid rgba(26,92,255,.3)", borderRadius: "8px" }}>
-                  <p style={{ fontSize: "13px", fontWeight: 700, color: "#93c5fd", margin: "0 0 6px" }}>
-                    Application Under Review
-                  </p>
-                  <p style={{ fontSize: "13px", color: "#d3d0d0", margin: 0, lineHeight: 1.5 }}>
+                <div className="ui-alert ui-alert-note" style={{ marginBottom: "20px" }}>
+                  <p style={{ fontWeight: 700, margin: "0 0 6px" }}>Application under review</p>
+                  <p style={{ margin: 0 }}>
                     Your wholesale application is currently being reviewed by our team. You will receive an email within 1–2 business days once a decision has been made.
                   </p>
                   {supportPhone && (
-                    <p style={{ fontSize: "12px", color: "#7A7880", margin: "8px 0 0" }}>
-                      Questions? Call <a href={`tel:${supportPhone.replace(/[^+\d]/g, "")}`} style={{ color: "#93c5fd", textDecoration: "none" }}>{supportPhone}</a>
+                    <p style={{ margin: "8px 0 0" }}>
+                      Questions? Call <a href={`tel:${supportPhone.replace(/[^+\d]/g, "")}`} style={{ color: "inherit", fontWeight: 600 }}>{supportPhone}</a>
                     </p>
                   )}
                 </div>
@@ -254,9 +244,9 @@ export default function LoginPage() {
               <div style={{ marginBottom: "16px" }}>
                 <label
                   htmlFor="email"
-                  style={{ display: "block", fontFamily: "'DM Sans', sans-serif", fontSize: "12px", fontWeight: 500, textTransform: "uppercase", letterSpacing: ".05em", color: "#1A1A1A", marginBottom: "6px" }}
+                  className="ui-label"
                 >
-                  Email *
+                  Email
                 </label>
                 <input
                   id="email"
@@ -266,27 +256,16 @@ export default function LoginPage() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="you@company.com"
-                  style={{
-                    width: "100%",
-                    background: "#fff",
-                    border: "1px solid #E2E2DE",
-                    padding: "11px 14px",
-                    fontSize: "14px",
-                    color: "#1A1A1A",
-                    outline: "none",
-                    boxSizing: "border-box",
-                    transition: "border-color .2s",
-                    fontFamily: "'DM Sans', sans-serif",
-                  }}
+                  className="ui-field"
                 />
               </div>
 
               <div style={{ marginBottom: "8px" }}>
                 <label
                   htmlFor="password"
-                  style={{ display: "block", fontFamily: "'DM Sans', sans-serif", fontSize: "12px", fontWeight: 500, textTransform: "uppercase", letterSpacing: ".05em", color: "#1A1A1A", marginBottom: "6px" }}
+                  className="ui-label"
                 >
-                  Password *
+                  Password
                 </label>
                 <PasswordField
                   id="password"
@@ -295,22 +274,11 @@ export default function LoginPage() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Your password"
-                  style={{
-                    width: "100%",
-                    background: "#fff",
-                    border: "1px solid #E2E2DE",
-                    padding: "11px 14px",
-                    fontSize: "14px",
-                    color: "#1A1A1A",
-                    outline: "none",
-                    boxSizing: "border-box",
-                    transition: "border-color .2s",
-                    fontFamily: "'DM Sans', sans-serif",
-                  }}
+                  className="ui-field"
                 />
                 <Link
                   href="/forgot-password"
-                  style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "12px", color: "#1C3557", textDecoration: "none", display: "inline-block", marginTop: "6px" }}
+                  className="ui-hint" style={{ color: "var(--brand-primary, var(--ui-ink))", fontWeight: 600, textDecoration: "none", display: "inline-block" }}
                 >
                   Forgot your password?
                 </Link>
@@ -337,21 +305,10 @@ export default function LoginPage() {
               <button
                 type="submit"
                 disabled={isSubmitting || (!!process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY && !recaptchaToken)}
-                style={{
-                  width: "100%",
-                  background: (isSubmitting || (!!process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY && !recaptchaToken)) ? "#9ca3af" : "#1C3557",
-                  color: "#fff",
-                  padding: "14px",
-                  fontSize: "14px",
-                  fontWeight: 500,
-                  border: "none",
-                  cursor: (isSubmitting || (!!process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY && !recaptchaToken)) ? "not-allowed" : "pointer",
-                  transition: "background .2s",
-                  fontFamily: "'DM Sans', sans-serif",
-                  marginTop: "8px",
-                }}
+                className="ui-btn ui-btn-block"
+                style={{ marginTop: "12px" }}
               >
-                {isSubmitting ? "Signing in…" : "Log In →"}
+                {isSubmitting ? "Signing in…" : "Sign in"}
               </button>
             </form>
             )}
@@ -362,22 +319,22 @@ export default function LoginPage() {
                 sign in. On a retail shop: nothing — its customers buy as
                 guests, and an application would go to a screen its plan does
                 not include. */}
-            <div style={{ marginTop: "20px", paddingTop: "16px", borderTop: "1px solid #E2E2DE" }}>
+            <div style={{ marginTop: "22px", paddingTop: "18px", borderTop: "1px solid var(--ui-line)" }}>
               {(onPlatform || wholesale_signup) && (
                 <>
                   <div style={{ position: "relative", textAlign: "center", marginBottom: "16px" }}>
-                    <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "12px", color: "#6B6B6B", background: "#FFFFFF", padding: "0 12px", position: "relative", zIndex: 1 }}>or</span>
-                    <div style={{ position: "absolute", top: "50%", left: 0, right: 0, height: "1px", background: "#E2E2DE", zIndex: 0 }} />
+                    <span style={{ fontSize: "12.5px", color: "var(--ui-muted)", background: "#fff", padding: "0 12px", position: "relative", zIndex: 1 }}>or</span>
+                    <div style={{ position: "absolute", top: "50%", left: 0, right: 0, height: "1px", background: "var(--ui-line)", zIndex: 0 }} />
                   </div>
                   <Link
                     href={onPlatform ? "/signup" : "/wholesale/register"}
-                    style={{ display: "block", textAlign: "center", fontFamily: "'DM Sans', sans-serif", fontSize: "14px", fontWeight: 500, color: "#1C3557", border: "1px solid #1C3557", padding: "14px", textDecoration: "none", transition: "all .15s" }}
+                    className="ui-btn-ghost ui-btn-block"
                   >
-                    {onPlatform ? "Start your own shop →" : "Apply for a wholesale account →"}
+                    {onPlatform ? "Start your own shop" : "Apply for a wholesale account"}
                   </Link>
                 </>
               )}
-              <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px", color: "#6B6B6B", textAlign: "center", marginTop: (onPlatform || wholesale_signup) ? "16px" : "0" }}>
+              <p className="ui-hint" style={{ textAlign: "center", marginTop: (onPlatform || wholesale_signup) ? "16px" : "0" }}>
                 {onPlatform
                   ? "A plan, your details, and your shop is open in a minute."
                   : wholesale_signup

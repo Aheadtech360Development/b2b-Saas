@@ -49,18 +49,18 @@ interface SavedAddress {
 }
 
 const inp: React.CSSProperties = {
-  width: "100%", padding: "11px 14px", border: "1px solid #E2E2DE",
+  width: "100%", padding: "11px 14px", border: "1px solid var(--ui-line)",
   fontSize: "14px", fontFamily: "'DM Sans', sans-serif",
-  outline: "none", boxSizing: "border-box", color: "#1A1A1A", background: "#fff",
+  outline: "none", boxSizing: "border-box", color: "var(--ui-ink)", background: "#fff",
 };
 const lbl: React.CSSProperties = {
-  display: "block", fontSize: "12px", fontWeight: 600, color: "#1A1A1A",
+  display: "block", fontSize: "12px", fontWeight: 600, color: "var(--ui-ink)",
   textTransform: "uppercase", letterSpacing: ".07em", marginBottom: "7px",
 };
 const sectionLabelStyle: React.CSSProperties = {
   fontFamily: "'DM Sans', sans-serif", fontSize: "11px", letterSpacing: "0.1em",
-  textTransform: "uppercase", fontWeight: 700, color: "#1A1A1A",
-  marginBottom: "14px", paddingBottom: "10px", borderBottom: "1px solid #E2E2DE",
+  textTransform: "uppercase", fontWeight: 700, color: "var(--ui-ink)",
+  marginBottom: "14px", paddingBottom: "10px", borderBottom: "1px solid var(--ui-line)",
 };
 
 const EXPEDITED_SURCHARGE = 45;
@@ -483,7 +483,7 @@ export default function CheckoutAddressPage() {
   ];
 
   return (
-    <div style={{ padding: "40px 24px 64px", background: "#F8F8F6" }}>
+    <div style={{ padding: "40px 24px 64px", background: "var(--ui-paper)" }}>
       <div style={{ maxWidth: "1500px", margin: "0 auto" }}>
         <div className="checkout-cols" style={{ display: "grid", gridTemplateColumns: "1fr 380px", gap: "48px", alignItems: "start" }}>
 
@@ -504,35 +504,35 @@ export default function CheckoutAddressPage() {
                         style={{
                           display: "flex", alignItems: "flex-start", gap: "14px",
                           padding: "14px 18px",
-                          border: `1px solid ${isSelected ? "var(--brand-primary, #1C3557)" : "#E2E2DE"}`,
-                          background: isSelected ? "rgba(28,53,87,.03)" : "#FAFAF8",
+                          border: `1px solid ${isSelected ? "var(--brand-primary, var(--ui-ink))" : "var(--ui-line)"}`,
+                          background: isSelected ? "rgba(28,53,87,.03)" : "var(--ui-paper)",
                           cursor: "pointer", transition: "all .15s",
                         }}
                       >
                         <div style={{
                           width: "18px", height: "18px", borderRadius: "50%", flexShrink: 0, marginTop: "2px",
-                          border: `2px solid ${isSelected ? "var(--brand-primary, #1C3557)" : "#E2E2DE"}`,
-                          background: isSelected ? "var(--brand-primary, #1C3557)" : "#fff",
+                          border: `2px solid ${isSelected ? "var(--brand-primary, var(--ui-ink))" : "var(--ui-line)"}`,
+                          background: isSelected ? "var(--brand-primary, var(--ui-ink))" : "#fff",
                           display: "flex", alignItems: "center", justifyContent: "center",
                         }}>
                           {isSelected && <div style={{ width: "6px", height: "6px", borderRadius: "50%", background: "#fff" }} />}
                         </div>
                         <div style={{ flex: 1 }}>
                           <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "2px" }}>
-                            <span style={{ fontSize: "13px", fontWeight: 700, color: "#1A1A1A" }}>
+                            <span style={{ fontSize: "13px", fontWeight: 700, color: "var(--ui-ink)" }}>
                               {addr.label || "Address"}
                             </span>
                             {addr.is_default && (
-                              <span style={{ fontSize: "10px", fontWeight: 700, padding: "1px 6px", background: "rgba(28,53,87,.1)", color: "var(--brand-primary, #1C3557)" }}>
+                              <span style={{ fontSize: "10px", fontWeight: 700, padding: "1px 6px", background: "rgba(28,53,87,.1)", color: "var(--brand-primary, var(--ui-ink))" }}>
                                 Default
                               </span>
                             )}
                           </div>
-                          {addr.full_name && <div style={{ fontSize: "12px", color: "#6B6B6B" }}>{addr.full_name}</div>}
-                          <div style={{ fontSize: "12px", color: "#6B6B6B" }}>
+                          {addr.full_name && <div style={{ fontSize: "12px", color: "var(--ui-muted)" }}>{addr.full_name}</div>}
+                          <div style={{ fontSize: "12px", color: "var(--ui-muted)" }}>
                             {addr.line1}{addr.line2 ? `, ${addr.line2}` : ""}, {addr.city}, {addr.state} {addr.postal_code}
                           </div>
-                          {addr.phone && <div style={{ fontSize: "11px", color: "#6B6B6B", marginTop: "2px" }}>{addr.phone}</div>}
+                          {addr.phone && <div style={{ fontSize: "11px", color: "var(--ui-muted)", marginTop: "2px" }}>{addr.phone}</div>}
                         </div>
                       </label>
                     );
@@ -543,16 +543,16 @@ export default function CheckoutAddressPage() {
                     style={{
                       display: "flex", alignItems: "center", gap: "14px",
                       padding: "12px 18px",
-                      border: `1px solid ${showNewForm ? "var(--brand-primary, #1C3557)" : "#E2E2DE"}`,
-                      background: showNewForm ? "rgba(28,53,87,.03)" : "#FAFAF8",
-                      cursor: "pointer", fontSize: "13px", fontWeight: 600, color: "#1A1A1A",
+                      border: `1px solid ${showNewForm ? "var(--brand-primary, var(--ui-ink))" : "var(--ui-line)"}`,
+                      background: showNewForm ? "rgba(28,53,87,.03)" : "var(--ui-paper)",
+                      cursor: "pointer", fontSize: "13px", fontWeight: 600, color: "var(--ui-ink)",
                       transition: "all .15s",
                     }}
                   >
                     <div style={{
                       width: "18px", height: "18px", borderRadius: "50%", flexShrink: 0,
-                      border: `2px solid ${showNewForm ? "var(--brand-primary, #1C3557)" : "#E2E2DE"}`,
-                      background: showNewForm ? "var(--brand-primary, #1C3557)" : "#fff",
+                      border: `2px solid ${showNewForm ? "var(--brand-primary, var(--ui-ink))" : "var(--ui-line)"}`,
+                      background: showNewForm ? "var(--brand-primary, var(--ui-ink))" : "#fff",
                       display: "flex", alignItems: "center", justifyContent: "center",
                     }}>
                       {showNewForm && <div style={{ width: "6px", height: "6px", borderRadius: "50%", background: "#fff" }} />}
@@ -565,96 +565,96 @@ export default function CheckoutAddressPage() {
               {/* Company name — wholesale only */}
               {!isGuest && (
                 <div style={{ marginBottom: "14px" }}>
-                  <label style={lbl}>Company Name <span style={{ color: "#E8242A" }}>*</span></label>
+                  <label style={lbl}>Company Name <span style={{ color: "var(--ui-bad)" }}>*</span></label>
                   <input
-                    style={{ ...inp, borderColor: errors.company ? "#E8242A" : "#E2E2DE" }}
+                    style={{ ...inp, borderColor: errors.company ? "var(--ui-bad)" : "var(--ui-line)" }}
                     value={form.company}
                     onChange={e => setForm(p => ({ ...p, company: e.target.value }))}
                     placeholder="Your Company Inc."
                   />
-                  {errors.company && <p style={{ fontSize: "11px", color: "#E8242A", marginTop: "3px" }}>{errors.company}</p>}
+                  {errors.company && <p style={{ fontSize: "11px", color: "var(--ui-bad)", marginTop: "3px" }}>{errors.company}</p>}
                 </div>
               )}
 
               {showNewForm && (
                 <div className="checkout-form-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px" }}>
                   <div style={{ gridColumn: "1 / -1" }}>
-                    <label style={lbl}>{isGuest ? "Full Name" : "Contact Name"} <span style={{ color: "#E8242A" }}>*</span></label>
+                    <label style={lbl}>{isGuest ? "Full Name" : "Contact Name"} <span style={{ color: "var(--ui-bad)" }}>*</span></label>
                     <input
-                      style={{ ...inp, borderColor: errors.contact ? "#E8242A" : "#E2E2DE" }}
+                      style={{ ...inp, borderColor: errors.contact ? "var(--ui-bad)" : "var(--ui-line)" }}
                       value={form.contact}
                       onChange={e => setForm(p => ({ ...p, contact: e.target.value }))}
                       placeholder={isGuest ? "Jane Smith" : "John Smith"}
                     />
-                    {errors.contact && <p style={{ fontSize: "11px", color: "#E8242A", marginTop: "3px" }}>{errors.contact}</p>}
+                    {errors.contact && <p style={{ fontSize: "11px", color: "var(--ui-bad)", marginTop: "3px" }}>{errors.contact}</p>}
                   </div>
 
                   {/* Guest email field */}
                   {isGuest && (
                     <div style={{ gridColumn: "1 / -1" }}>
-                      <label style={lbl}>Email Address <span style={{ color: "#E8242A" }}>*</span></label>
+                      <label style={lbl}>Email Address <span style={{ color: "var(--ui-bad)" }}>*</span></label>
                       <input
                         type="email"
-                        style={{ ...inp, borderColor: errors.email ? "#E8242A" : "#E2E2DE" }}
+                        style={{ ...inp, borderColor: errors.email ? "var(--ui-bad)" : "var(--ui-line)" }}
                         value={form.email}
                         onChange={e => setForm(p => ({ ...p, email: e.target.value }))}
                         placeholder="you@example.com"
                       />
-                      {errors.email && <p style={{ fontSize: "11px", color: "#E8242A", marginTop: "3px" }}>{errors.email}</p>}
-                      <p style={{ fontSize: "11px", color: "#6B6B6B", marginTop: "3px" }}>Order confirmation will be sent to this email.</p>
+                      {errors.email && <p style={{ fontSize: "11px", color: "var(--ui-bad)", marginTop: "3px" }}>{errors.email}</p>}
+                      <p style={{ fontSize: "11px", color: "var(--ui-muted)", marginTop: "3px" }}>Order confirmation will be sent to this email.</p>
                     </div>
                   )}
 
                   <div style={{ gridColumn: "1 / -1" }}>
-                    <label style={lbl}>Street Address <span style={{ color: "#E8242A" }}>*</span></label>
+                    <label style={lbl}>Street Address <span style={{ color: "var(--ui-bad)" }}>*</span></label>
                     <input
                       ref={streetInputRef}
-                      style={{ ...inp, borderColor: errors.street ? "#E8242A" : "#E2E2DE" }}
+                      style={{ ...inp, borderColor: errors.street ? "var(--ui-bad)" : "var(--ui-line)" }}
                       value={form.street}
                       onChange={e => setForm(p => ({ ...p, street: e.target.value }))}
                       placeholder="123 Commerce Blvd, Suite 400"
                     />
-                    {errors.street && <p style={{ fontSize: "11px", color: "#E8242A", marginTop: "3px" }}>{errors.street}</p>}
+                    {errors.street && <p style={{ fontSize: "11px", color: "var(--ui-bad)", marginTop: "3px" }}>{errors.street}</p>}
                   </div>
 
                   <div>
-                    <label style={lbl}>City <span style={{ color: "#E8242A" }}>*</span></label>
+                    <label style={lbl}>City <span style={{ color: "var(--ui-bad)" }}>*</span></label>
                     <input
-                      style={{ ...inp, borderColor: errors.city ? "#E8242A" : "#E2E2DE" }}
+                      style={{ ...inp, borderColor: errors.city ? "var(--ui-bad)" : "var(--ui-line)" }}
                       value={form.city}
                       onChange={e => setForm(p => ({ ...p, city: e.target.value }))}
                       placeholder="City"
                     />
-                    {errors.city && <p style={{ fontSize: "11px", color: "#E8242A", marginTop: "3px" }}>{errors.city}</p>}
+                    {errors.city && <p style={{ fontSize: "11px", color: "var(--ui-bad)", marginTop: "3px" }}>{errors.city}</p>}
                   </div>
 
                   <div>
-                    <label style={lbl}>State <span style={{ color: "#E8242A" }}>*</span></label>
+                    <label style={lbl}>State <span style={{ color: "var(--ui-bad)" }}>*</span></label>
                     <select
-                      style={{ ...inp, cursor: "pointer", borderColor: errors.state ? "#E8242A" : "#E2E2DE" }}
+                      style={{ ...inp, cursor: "pointer", borderColor: errors.state ? "var(--ui-bad)" : "var(--ui-line)" }}
                       value={form.state}
                       onChange={e => setForm(p => ({ ...p, state: e.target.value }))}
                     >
                       <option value="">Select state</option>
                       {US_STATES.map(s => <option key={s} value={s}>{s}</option>)}
                     </select>
-                    {errors.state && <p style={{ fontSize: "11px", color: "#E8242A", marginTop: "3px" }}>{errors.state}</p>}
+                    {errors.state && <p style={{ fontSize: "11px", color: "var(--ui-bad)", marginTop: "3px" }}>{errors.state}</p>}
                   </div>
 
                   <div>
-                    <label style={lbl}>ZIP Code <span style={{ color: "#E8242A" }}>*</span></label>
+                    <label style={lbl}>ZIP Code <span style={{ color: "var(--ui-bad)" }}>*</span></label>
                     <input
-                      style={{ ...inp, borderColor: errors.zip ? "#E8242A" : "#E2E2DE" }}
+                      style={{ ...inp, borderColor: errors.zip ? "var(--ui-bad)" : "var(--ui-line)" }}
                       value={form.zip}
                       onChange={e => setForm(p => ({ ...p, zip: e.target.value }))}
                       placeholder="75001"
                       maxLength={10}
                     />
-                    {errors.zip && <p style={{ fontSize: "11px", color: "#E8242A", marginTop: "3px" }}>{errors.zip}</p>}
+                    {errors.zip && <p style={{ fontSize: "11px", color: "var(--ui-bad)", marginTop: "3px" }}>{errors.zip}</p>}
                   </div>
 
                   <div>
-                    <label style={lbl}>Phone <span style={{ fontSize: "10px", color: "#6B6B6B", textTransform: "none", letterSpacing: 0 }}>(for shipping updates)</span></label>
+                    <label style={lbl}>Phone <span style={{ fontSize: "10px", color: "var(--ui-muted)", textTransform: "none", letterSpacing: 0 }}>(for shipping updates)</span></label>
                     <input
                       style={inp}
                       type="tel"
@@ -684,43 +684,43 @@ export default function CheckoutAddressPage() {
                       style={{
                         display: "flex", alignItems: "flex-start", gap: "14px",
                         padding: "16px 18px",
-                        border: `1px solid ${isSelected ? "var(--brand-primary, #1C3557)" : "#E2E2DE"}`,
-                        background: isSelected ? "rgba(28,53,87,.03)" : "#FAFAF8",
+                        border: `1px solid ${isSelected ? "var(--brand-primary, var(--ui-ink))" : "var(--ui-line)"}`,
+                        background: isSelected ? "rgba(28,53,87,.03)" : "var(--ui-paper)",
                         cursor: "pointer", transition: "border-color .15s, background .15s",
                       }}
                     >
                       <div style={{
                         width: "18px", height: "18px", borderRadius: "50%", flexShrink: 0, marginTop: "1px",
-                        border: `2px solid ${isSelected ? "var(--brand-primary, #1C3557)" : "#E2E2DE"}`,
-                        background: isSelected ? "var(--brand-primary, #1C3557)" : "#fff",
+                        border: `2px solid ${isSelected ? "var(--brand-primary, var(--ui-ink))" : "var(--ui-line)"}`,
+                        background: isSelected ? "var(--brand-primary, var(--ui-ink))" : "#fff",
                         display: "flex", alignItems: "center", justifyContent: "center",
                       }}>
                         {isSelected && <div style={{ width: "6px", height: "6px", borderRadius: "50%", background: "#fff" }} />}
                       </div>
                       <div style={{ flex: 1 }}>
                         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px" }}>
-                          <span style={{ fontSize: "14px", fontWeight: 700, color: "#1A1A1A" }}>{opt.label}</span>
-                          <span style={{ fontSize: "14px", fontWeight: 800, color: isFree ? "#059669" : "#1A1A1A" }}>
+                          <span style={{ fontSize: "14px", fontWeight: 700, color: "var(--ui-ink)" }}>{opt.label}</span>
+                          <span style={{ fontSize: "14px", fontWeight: 800, color: isFree ? "var(--ui-ok)" : "var(--ui-ink)" }}>
                             {priceDisplay}
                           </span>
                         </div>
                         {opt.id === "will_call" ? (
                           <div style={{ marginTop: "6px" }}>
                             <div style={{ display: "flex", alignItems: "flex-start", gap: "5px", marginBottom: "5px" }}>
-                              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--brand-primary, #1C3557)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginTop: "1px" }}>
+                              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--brand-primary, var(--ui-ink))" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginTop: "1px" }}>
                                 <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" />
                               </svg>
-                              <span style={{ fontSize: "12px", fontWeight: 600, color: "#1A1A1A" }}>{pickupAddress || "Pickup address is sent with your order confirmation"}</span>
+                              <span style={{ fontSize: "12px", fontWeight: 600, color: "var(--ui-ink)" }}>{pickupAddress || "Pickup address is sent with your order confirmation"}</span>
                             </div>
-                            <div style={{ fontSize: "11px", color: "#6B6B6B", lineHeight: 1.6, paddingLeft: "18px" }}>
+                            <div style={{ fontSize: "11px", color: "var(--ui-muted)", lineHeight: 1.6, paddingLeft: "18px" }}>
                               <div>We&apos;ll email you when your order is ready to collect.</div>
                             </div>
                           </div>
                         ) : shippingTypeForUser === "live_shippo" && opt.id === "standard" && isSelected ? (
                           <div style={{ marginTop: "8px" }}>
-                            <div style={{ fontSize: "12px", color: "#6B6B6B", marginBottom: "8px" }}>{opt.sub}</div>
+                            <div style={{ fontSize: "12px", color: "var(--ui-muted)", marginBottom: "8px" }}>{opt.sub}</div>
                             {liveRatesLoading && (
-                              <div style={{ fontSize: "12px", color: "#6B6B6B", padding: "8px 0" }}>Fetching live carrier rates…</div>
+                              <div style={{ fontSize: "12px", color: "var(--ui-muted)", padding: "8px 0" }}>Fetching live carrier rates…</div>
                             )}
                             {!liveRatesLoading && liveRates.length > 0 && (
                               <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
@@ -737,15 +737,15 @@ export default function CheckoutAddressPage() {
                                       style={{
                                         display: "flex", alignItems: "center", justifyContent: "space-between",
                                         padding: "10px 14px", cursor: "pointer",
-                                        border: `1px solid ${isRateSelected ? "var(--brand-primary, #1C3557)" : "#E2E2DE"}`,
+                                        border: `1px solid ${isRateSelected ? "var(--brand-primary, var(--ui-ink))" : "var(--ui-line)"}`,
                                         background: isRateSelected ? "rgba(28,53,87,.03)" : "#fff",
                                       }}
                                     >
                                       <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
                                         <div style={{
                                           width: "14px", height: "14px", borderRadius: "50%", flexShrink: 0,
-                                          border: `2px solid ${isRateSelected ? "var(--brand-primary, #1C3557)" : "#E2E2DE"}`,
-                                          background: isRateSelected ? "var(--brand-primary, #1C3557)" : "#fff",
+                                          border: `2px solid ${isRateSelected ? "var(--brand-primary, var(--ui-ink))" : "var(--ui-line)"}`,
+                                          background: isRateSelected ? "var(--brand-primary, var(--ui-ink))" : "#fff",
                                           display: "flex", alignItems: "center", justifyContent: "center",
                                         }}>
                                           {isRateSelected && <div style={{ width: "4px", height: "4px", borderRadius: "50%", background: "#fff" }} />}
@@ -759,27 +759,27 @@ export default function CheckoutAddressPage() {
                                           />
                                         )}
                                         <div>
-                                          <div style={{ fontSize: "12px", fontWeight: 700, color: "#1A1A1A" }}>{rate.service}</div>
-                                          {rate.days != null && <div style={{ fontSize: "11px", color: "#6B6B6B", marginTop: "1px" }}>{rate.days} business day{rate.days !== 1 ? "s" : ""}</div>}
+                                          <div style={{ fontSize: "12px", fontWeight: 700, color: "var(--ui-ink)" }}>{rate.service}</div>
+                                          {rate.days != null && <div style={{ fontSize: "11px", color: "var(--ui-muted)", marginTop: "1px" }}>{rate.days} business day{rate.days !== 1 ? "s" : ""}</div>}
                                         </div>
                                       </div>
-                                      <span style={{ fontSize: "13px", fontWeight: 800, color: "#1A1A1A" }}>{formatCurrency(rate.cost)}</span>
+                                      <span style={{ fontSize: "13px", fontWeight: 800, color: "var(--ui-ink)" }}>{formatCurrency(rate.cost)}</span>
                                     </label>
                                   );
                                 })}
                               </div>
                             )}
                             {!liveRatesLoading && liveRates.length === 0 && activeZip.length >= 5 && (
-                              <div style={{ fontSize: "12px", color: "#6B6B6B", padding: "6px 0" }}>
+                              <div style={{ fontSize: "12px", color: "var(--ui-muted)", padding: "6px 0" }}>
                                 No rates available for this address. Please verify your ZIP and state.
                               </div>
                             )}
                           </div>
                         ) : (
-                          <div style={{ fontSize: "12px", color: "#6B6B6B", marginTop: "3px" }}>{opt.sub}</div>
+                          <div style={{ fontSize: "12px", color: "var(--ui-muted)", marginTop: "3px" }}>{opt.sub}</div>
                         )}
                         {note && (
-                          <div style={{ fontSize: "11px", color: isFree ? "#059669" : "#6B6B6B", marginTop: "4px", fontWeight: isFree ? 600 : 400 }}>
+                          <div style={{ fontSize: "11px", color: isFree ? "var(--ui-ok)" : "var(--ui-muted)", marginTop: "4px", fontWeight: isFree ? 600 : 400 }}>
                             {note}
                           </div>
                         )}
@@ -799,7 +799,7 @@ export default function CheckoutAddressPage() {
             <button
               onClick={handleContinue}
               disabled={shippingTypeForUser === "live_shippo" && shippingMethod === "standard" && liveRatesLoading}
-              style={{ width: "100%", padding: "14px", background: "var(--brand-primary, #1C3557)", color: "#fff", border: "none", fontFamily: "'DM Sans', sans-serif", fontSize: "15px", fontWeight: 500, cursor: (shippingTypeForUser === "live_shippo" && shippingMethod === "standard" && liveRatesLoading) ? "not-allowed" : "pointer", transition: "opacity .15s", opacity: (shippingTypeForUser === "live_shippo" && shippingMethod === "standard" && liveRatesLoading) ? 0.6 : 1 }}
+              style={{ width: "100%", padding: "14px", background: "var(--brand-primary, var(--ui-ink))", color: "#fff", border: "none", fontFamily: "'DM Sans', sans-serif", fontSize: "15px", fontWeight: 500, cursor: (shippingTypeForUser === "live_shippo" && shippingMethod === "standard" && liveRatesLoading) ? "not-allowed" : "pointer", transition: "opacity .15s", opacity: (shippingTypeForUser === "live_shippo" && shippingMethod === "standard" && liveRatesLoading) ? 0.6 : 1 }}
               onMouseEnter={e => { if (!(shippingTypeForUser === "live_shippo" && shippingMethod === "standard" && liveRatesLoading)) (e.currentTarget as HTMLButtonElement).style.opacity = "0.88"; }}
               onMouseLeave={e => { if (!(shippingTypeForUser === "live_shippo" && shippingMethod === "standard" && liveRatesLoading)) (e.currentTarget as HTMLButtonElement).style.opacity = "1"; }}
             >
@@ -807,9 +807,9 @@ export default function CheckoutAddressPage() {
             </button>
             <a
               href="/cart"
-              style={{ display: "inline-block", fontSize: "13px", color: "#6B6B6B", textDecoration: "none", marginTop: "14px", fontFamily: "'DM Sans', sans-serif" }}
-              onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.color = "var(--brand-primary, #1C3557)"; }}
-              onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.color = "#6B6B6B"; }}
+              style={{ display: "inline-block", fontSize: "13px", color: "var(--ui-muted)", textDecoration: "none", marginTop: "14px", fontFamily: "'DM Sans', sans-serif" }}
+              onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.color = "var(--brand-primary, var(--ui-ink))"; }}
+              onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.color = "var(--ui-muted)"; }}
             >
               ← Return to Cart
             </a>
@@ -817,7 +817,7 @@ export default function CheckoutAddressPage() {
 
           {/* RIGHT COLUMN — Order Summary */}
           <div style={{ alignSelf: "start", position: "sticky", top: "24px" }}>
-            <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "11px", letterSpacing: "0.1em", textTransform: "uppercase", fontWeight: 700, color: "#1A1A1A", marginBottom: "18px" }}>
+            <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "11px", letterSpacing: "0.1em", textTransform: "uppercase", fontWeight: 700, color: "var(--ui-ink)", marginBottom: "18px" }}>
               Order Summary
             </div>
 
@@ -825,21 +825,21 @@ export default function CheckoutAddressPage() {
             {cartDisplayItems.length > 0 && (
               <div>
                 {cartDisplayItems.map((item, i) => (
-                  <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: "12px", marginBottom: "16px", paddingBottom: "16px", borderBottom: "1px solid #E2E2DE" }}>
-                    <div style={{ width: "52px", height: "52px", border: "1px solid #E2E2DE", flexShrink: 0, background: "#FFFFFF", overflow: "hidden" }}>
+                  <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: "12px", marginBottom: "16px", paddingBottom: "16px", borderBottom: "1px solid var(--ui-line)" }}>
+                    <div style={{ width: "52px", height: "52px", border: "1px solid var(--ui-line)", flexShrink: 0, background: "#FFFFFF", overflow: "hidden" }}>
                       {item.imageUrl
                         // eslint-disable-next-line @next/next/no-img-element
                         ? <img src={item.imageUrl} alt={item.name} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
-                        : <div style={{ width: "100%", height: "100%", background: "#F8F8F6" }} />
+                        : <div style={{ width: "100%", height: "100%", background: "var(--ui-paper)" }} />
                       }
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px", fontWeight: 500, color: "#1A1A1A", lineHeight: 1.3 }}>{item.name}</div>
-                      <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "11px", color: "#6B6B6B", marginTop: "2px" }}>
+                      <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px", fontWeight: 500, color: "var(--ui-ink)", lineHeight: 1.3 }}>{item.name}</div>
+                      <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "11px", color: "var(--ui-muted)", marginTop: "2px" }}>
                         {[item.color, item.size].filter(Boolean).join(" / ")}{item.qty > 0 ? ` × ${item.qty}` : ""}
                       </div>
                     </div>
-                    <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px", fontWeight: 500, color: "#1A1A1A", whiteSpace: "nowrap", flexShrink: 0 }}>
+                    <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px", fontWeight: 500, color: "var(--ui-ink)", whiteSpace: "nowrap", flexShrink: 0 }}>
                       {formatCurrency(item.lineTotal)}
                     </div>
                   </div>
@@ -848,39 +848,39 @@ export default function CheckoutAddressPage() {
             )}
 
             <div style={{ display: "flex", flexDirection: "column" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: "13px", color: "#6B6B6B", padding: "8px 0", borderBottom: "1px solid #E2E2DE" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: "13px", color: "var(--ui-muted)", padding: "8px 0", borderBottom: "1px solid var(--ui-line)" }}>
                 <span>Subtotal</span>
-                <span style={{ fontWeight: 600, color: "#1A1A1A" }}>{formatCurrency(subtotal)}</span>
+                <span style={{ fontWeight: 600, color: "var(--ui-ink)" }}>{formatCurrency(subtotal)}</span>
               </div>
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: "13px", color: "#6B6B6B", padding: "8px 0", borderBottom: "1px solid #E2E2DE" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: "13px", color: "var(--ui-muted)", padding: "8px 0", borderBottom: "1px solid var(--ui-line)" }}>
                 <span>Shipping ({shippingTypeForUser === "live_shippo" && shippingMethod === "standard" && selectedLiveRate ? `${selectedLiveRate.carrier} ${selectedLiveRate.service}` : SHIPPING_OPTIONS.find(o => o.id === shippingMethod)?.label})</span>
-                <span style={{ fontWeight: 600, color: (shippingMethod === "will_call" || (tierShipping !== null && selectedCost === 0)) ? "#059669" : "#1A1A1A" }}>
+                <span style={{ fontWeight: 600, color: (shippingMethod === "will_call" || (tierShipping !== null && selectedCost === 0)) ? "var(--ui-ok)" : "var(--ui-ink)" }}>
                   {shippingMethod === "will_call"
                     ? "FREE"
                     : shippingTypeForUser === "live_shippo" && shippingMethod === "standard"
                       ? selectedLiveRate
                         ? formatCurrency(selectedLiveRate.cost)
-                        : <span style={{ color: "#6B6B6B", fontWeight: 400 }}>Select a carrier above</span>
+                        : <span style={{ color: "var(--ui-muted)", fontWeight: 400 }}>Select a carrier above</span>
                       : tierShipping === null
-                        ? <span style={{ color: "#6B6B6B", fontWeight: 400 }}>Calculated at checkout</span>
+                        ? <span style={{ color: "var(--ui-muted)", fontWeight: 400 }}>Calculated at checkout</span>
                         : selectedCost === 0
                           ? "FREE"
                           : formatCurrency(selectedCost)}
                 </span>
               </div>
               {couponDiscount > 0 && (
-                <div style={{ display: "flex", justifyContent: "space-between", fontSize: "13px", color: "#059669", padding: "8px 0", borderBottom: "1px solid #E2E2DE" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: "13px", color: "var(--ui-ok)", padding: "8px 0", borderBottom: "1px solid var(--ui-line)" }}>
                   <span style={{ fontWeight: 600 }}>Coupon Applied</span>
                   <span style={{ fontWeight: 700 }}>-{formatCurrency(couponDiscount)}</span>
                 </div>
               )}
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: "13px", color: "#6B6B6B", padding: "8px 0", borderBottom: "1px solid #E2E2DE" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: "13px", color: "var(--ui-muted)", padding: "8px 0", borderBottom: "1px solid var(--ui-line)" }}>
                 <span>{taxRate ? `Tax (${taxRate.region} ${taxRate.rate}%)` : "Tax"}</span>
-                <span style={{ fontWeight: 600, color: "#1A1A1A" }}>
+                <span style={{ fontWeight: 600, color: "var(--ui-ink)" }}>
                   {activeState ? formatCurrency(taxAmount) : <span style={{ fontWeight: 400 }}>Calculated at checkout</span>}
                 </span>
               </div>
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: "15px", fontWeight: 600, color: "#1A1A1A", padding: "14px 0 0" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: "15px", fontWeight: 600, color: "var(--ui-ink)", padding: "14px 0 0" }}>
                 <span>Total</span>
                 <span>
                   {(tierShipping !== null || shippingMethod === "will_call" || (shippingTypeForUser === "live_shippo" && selectedLiveRate)) ? formatCurrency(orderTotal) : `${formatCurrency(subtotal)}+`}

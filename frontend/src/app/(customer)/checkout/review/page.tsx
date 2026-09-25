@@ -28,17 +28,17 @@ const SHIPPING_LABELS: Record<string, string> = {
 
 const sectionLabelStyle: React.CSSProperties = {
   fontFamily: "'DM Sans', sans-serif", fontSize: "11px", letterSpacing: "0.1em",
-  textTransform: "uppercase", fontWeight: 700, color: "#1A1A1A",
-  marginBottom: "14px", paddingBottom: "10px", borderBottom: "1px solid #E2E2DE",
+  textTransform: "uppercase", fontWeight: 700, color: "var(--ui-ink)",
+  marginBottom: "14px", paddingBottom: "10px", borderBottom: "1px solid var(--ui-line)",
 };
 
 const inp: React.CSSProperties = {
-  width: "100%", padding: "11px 14px", border: "1px solid #E2E2DE",
+  width: "100%", padding: "11px 14px", border: "1px solid var(--ui-line)",
   fontSize: "14px", fontFamily: "'DM Sans', sans-serif",
-  outline: "none", boxSizing: "border-box", color: "#1A1A1A", background: "#fff",
+  outline: "none", boxSizing: "border-box", color: "var(--ui-ink)", background: "#fff",
 };
 const lbl: React.CSSProperties = {
-  display: "block", fontSize: "12px", fontWeight: 600, color: "#1A1A1A",
+  display: "block", fontSize: "12px", fontWeight: 600, color: "var(--ui-ink)",
   textTransform: "uppercase", letterSpacing: ".07em", marginBottom: "7px",
 };
 
@@ -397,7 +397,7 @@ export default function CheckoutReviewPage() {
   const shippingLabel = SHIPPING_LABELS[shippingMethod] ?? "Standard Ground";
 
   return (
-    <div style={{ padding: "40px 24px 64px", background: "#F8F8F6" }}>
+    <div style={{ padding: "40px 24px 64px", background: "var(--ui-paper)" }}>
       <div style={{ maxWidth: "1500px", margin: "0 auto" }}>
         <div className="checkout-cols" style={{ display: "grid", gridTemplateColumns: "1fr 380px", gap: "48px", alignItems: "start" }}>
 
@@ -407,9 +407,9 @@ export default function CheckoutReviewPage() {
             <div style={{ marginBottom: "32px" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", ...sectionLabelStyle }}>
                 <span>Shipping Address</span>
-                <button onClick={() => router.push("/checkout/address")} style={{ fontSize: "12px", color: "var(--brand-primary, #1C3557)", background: "none", border: "none", cursor: "pointer", fontWeight: 600, fontFamily: "'DM Sans', sans-serif", textTransform: "none", letterSpacing: 0 }}>Edit</button>
+                <button onClick={() => router.push("/checkout/address")} style={{ fontSize: "12px", color: "var(--brand-primary, var(--ui-ink))", background: "none", border: "none", cursor: "pointer", fontWeight: 600, fontFamily: "'DM Sans', sans-serif", textTransform: "none", letterSpacing: 0 }}>Edit</button>
               </div>
-              <div style={{ fontSize: "13px", color: "#1A1A1A", lineHeight: 1.7 }}>
+              <div style={{ fontSize: "13px", color: "var(--ui-ink)", lineHeight: 1.7 }}>
                 {companyName && <div style={{ fontWeight: 700 }}>{companyName}</div>}
                 {contactName && <div>{contactName}</div>}
                 {shippingAddress && (
@@ -419,12 +419,12 @@ export default function CheckoutReviewPage() {
                     <div>{shippingAddress.city}, {shippingAddress.state} {shippingAddress.postal_code}</div>
                   </>
                 )}
-                {shippingPhone && <div style={{ color: "#6B6B6B" }}>{shippingPhone}</div>}
+                {shippingPhone && <div style={{ color: "var(--ui-muted)" }}>{shippingPhone}</div>}
               </div>
-              <div style={{ borderTop: "1px solid #E2E2DE", margin: "12px 0" }} />
+              <div style={{ borderTop: "1px solid var(--ui-line)", margin: "12px 0" }} />
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: "13px" }}>
-                <span style={{ color: "#6B6B6B" }}>Shipping Method</span>
-                <span style={{ fontWeight: 600, color: "#1A1A1A" }}>
+                <span style={{ color: "var(--ui-muted)" }}>Shipping Method</span>
+                <span style={{ fontWeight: 600, color: "var(--ui-ink)" }}>
                   {shippingLabel} — {shipping === 0 ? "FREE" : formatCurrency(shipping)}
                 </span>
               </div>
@@ -434,21 +434,21 @@ export default function CheckoutReviewPage() {
             <div style={{ marginBottom: "32px" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", ...sectionLabelStyle }}>
                 <span>Payment</span>
-                <button onClick={() => router.push("/checkout/payment")} style={{ fontSize: "12px", color: "var(--brand-primary, #1C3557)", background: "none", border: "none", cursor: "pointer", fontWeight: 600, fontFamily: "'DM Sans', sans-serif", textTransform: "none", letterSpacing: 0 }}>Change</button>
+                <button onClick={() => router.push("/checkout/payment")} style={{ fontSize: "12px", color: "var(--brand-primary, var(--ui-ink))", background: "none", border: "none", cursor: "pointer", fontWeight: 600, fontFamily: "'DM Sans', sans-serif", textTransform: "none", letterSpacing: 0 }}>Change</button>
               </div>
               {paymentMethod === "ach" ? (
-                <div style={{ fontSize: "13px", color: "#1A1A1A", lineHeight: 1.8 }}>
+                <div style={{ fontSize: "13px", color: "var(--ui-ink)", lineHeight: 1.8 }}>
                   <div style={{ fontWeight: 700, marginBottom: "6px" }}>ACH / Bank Transfer</div>
-                  {achBankName && <div style={{ color: "#6B6B6B" }}>Bank: <span style={{ color: "#1A1A1A", fontWeight: 600 }}>{achBankName}</span></div>}
-                  {achAccountHolder && <div style={{ color: "#6B6B6B" }}>Account Holder: <span style={{ color: "#1A1A1A", fontWeight: 600 }}>{achAccountHolder}</span></div>}
-                  {achAccountLast4 && <div style={{ color: "#6B6B6B" }}>Account: <span style={{ color: "#1A1A1A", fontWeight: 600 }}>****{achAccountLast4}</span></div>}
-                  {achAccountType && <div style={{ color: "#6B6B6B" }}>Type: <span style={{ color: "#1A1A1A", fontWeight: 600 }}>{achAccountType.charAt(0).toUpperCase() + achAccountType.slice(1)}</span></div>}
+                  {achBankName && <div style={{ color: "var(--ui-muted)" }}>Bank: <span style={{ color: "var(--ui-ink)", fontWeight: 600 }}>{achBankName}</span></div>}
+                  {achAccountHolder && <div style={{ color: "var(--ui-muted)" }}>Account Holder: <span style={{ color: "var(--ui-ink)", fontWeight: 600 }}>{achAccountHolder}</span></div>}
+                  {achAccountLast4 && <div style={{ color: "var(--ui-muted)" }}>Account: <span style={{ color: "var(--ui-ink)", fontWeight: 600 }}>****{achAccountLast4}</span></div>}
+                  {achAccountType && <div style={{ color: "var(--ui-muted)" }}>Type: <span style={{ color: "var(--ui-ink)", fontWeight: 600 }}>{achAccountType.charAt(0).toUpperCase() + achAccountType.slice(1)}</span></div>}
                   <div style={{ marginTop: "8px", padding: "8px 12px", background: "rgba(217,119,6,.08)", fontSize: "12px", color: "#D97706", fontWeight: 600 }}>
                     Order pending — payment verified within 1–2 business days
                   </div>
                 </div>
               ) : paymentMethod === "net_30" ? (
-                <div style={{ fontSize: "13px", color: "#1A1A1A", lineHeight: 1.8 }}>
+                <div style={{ fontSize: "13px", color: "var(--ui-ink)", lineHeight: 1.8 }}>
                   <div style={{ fontWeight: 700, marginBottom: "6px" }}>Net 30 — Pay by Invoice</div>
                   <div style={{ marginTop: "8px", padding: "8px 12px", background: "rgba(217,119,6,.08)", fontSize: "12px", color: "#D97706", fontWeight: 600 }}>
                     An invoice will be sent to your account. Payment due within 30 days.
@@ -457,12 +457,12 @@ export default function CheckoutReviewPage() {
               ) : (
                 <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
                   <svg width="32" height="22" viewBox="0 0 32 22" fill="none">
-                    <rect width="32" height="22" rx="3" fill="#F4F3EF" stroke="#E2E2DE" />
-                    <rect x="4" y="8" width="10" height="6" rx="1.5" fill="#E2E2DE" />
-                    <rect x="4" y="16" width="5" height="2" rx="0.5" fill="#E2E2DE" />
-                    <rect x="11" y="16" width="5" height="2" rx="0.5" fill="#E2E2DE" />
+                    <rect width="32" height="22" rx="3" fill="var(--ui-paper)" stroke="var(--ui-line)" />
+                    <rect x="4" y="8" width="10" height="6" rx="1.5" fill="var(--ui-line)" />
+                    <rect x="4" y="16" width="5" height="2" rx="0.5" fill="var(--ui-line)" />
+                    <rect x="11" y="16" width="5" height="2" rx="0.5" fill="var(--ui-line)" />
                   </svg>
-                  <span style={{ fontSize: "13px", fontWeight: 700, color: "#1A1A1A" }}>{paymentLabel}</span>
+                  <span style={{ fontSize: "13px", fontWeight: 700, color: "var(--ui-ink)" }}>{paymentLabel}</span>
                 </div>
               )}
             </div>
@@ -472,7 +472,7 @@ export default function CheckoutReviewPage() {
               <div style={{ marginBottom: "32px" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", ...sectionLabelStyle }}>
                   <span>Items in Your Order</span>
-                  <span style={{ fontSize: "11px", color: "#6B6B6B", textTransform: "none", letterSpacing: 0, fontWeight: 400 }}>
+                  <span style={{ fontSize: "11px", color: "var(--ui-muted)", textTransform: "none", letterSpacing: 0, fontWeight: 400 }}>
                     {isGuest
                       ? `${guestEntries.reduce((s, e) => s + e.quantity, 0)} units`
                       : `${cart!.total_units} units`}
@@ -482,7 +482,7 @@ export default function CheckoutReviewPage() {
                   {isGuest
                     ? guestEntries.map((item, idx) => (
                         <div key={idx} style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                          <div style={{ width: "38px", height: "38px", flexShrink: 0, background: "#F4F3EF", border: "1px solid #E2E2DE", overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "16px" }}>
+                          <div style={{ width: "38px", height: "38px", flexShrink: 0, background: "var(--ui-paper)", border: "1px solid var(--ui-line)", overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "16px" }}>
                             {item.image_url
                               // eslint-disable-next-line @next/next/no-img-element
                               ? <img src={item.image_url} alt={item.product_name} style={{ width: "100%", height: "100%", objectFit: "cover" }} onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
@@ -490,26 +490,26 @@ export default function CheckoutReviewPage() {
                             }
                           </div>
                           <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ fontSize: "13px", fontWeight: 600, color: "#1A1A1A" }}>{item.product_name}</div>
-                            <div style={{ fontSize: "11px", color: "#6B6B6B", marginTop: "1px" }}>
+                            <div style={{ fontSize: "13px", fontWeight: 600, color: "var(--ui-ink)" }}>{item.product_name}</div>
+                            <div style={{ fontSize: "11px", color: "var(--ui-muted)", marginTop: "1px" }}>
                               {[item.color, item.size].filter(Boolean).join(" / ")}
                               {" · "}qty {item.quantity}
                             </div>
                           </div>
-                          <span style={{ fontSize: "13px", fontWeight: 600, color: "#1A1A1A", whiteSpace: "nowrap" }}>{formatCurrency(item.unit_price * item.quantity)}</span>
+                          <span style={{ fontSize: "13px", fontWeight: 600, color: "var(--ui-ink)", whiteSpace: "nowrap" }}>{formatCurrency(item.unit_price * item.quantity)}</span>
                         </div>
                       ))
                     : cart!.items.map(item => (
                         <div key={item.id} style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                          <div style={{ width: "38px", height: "38px", flexShrink: 0, background: "#F4F3EF", border: "1px solid #E2E2DE", overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                          <div style={{ width: "38px", height: "38px", flexShrink: 0, background: "var(--ui-paper)", border: "1px solid var(--ui-line)", overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center" }}>
                             {item.product_image_url
                               ? <img src={item.product_image_url} alt={item.product_name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                               : <span style={{ fontSize: "16px" }}>👕</span>
                             }
                           </div>
                           <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ fontSize: "13px", fontWeight: 600, color: "#1A1A1A" }}>{item.product_name}</div>
-                            <div style={{ fontSize: "11px", color: "#6B6B6B", marginTop: "1px" }}>
+                            <div style={{ fontSize: "13px", fontWeight: 600, color: "var(--ui-ink)" }}>{item.product_name}</div>
+                            <div style={{ fontSize: "11px", color: "var(--ui-muted)", marginTop: "1px" }}>
                               {[item.color, item.size].filter(Boolean).join(" / ")}
                               {item.sku ? ` · SKU ${item.sku}` : ""}
                               {" · "}qty {item.quantity}
@@ -517,7 +517,7 @@ export default function CheckoutReviewPage() {
                             {/* What was configured — the buyer confirms it before paying. */}
                             <ConfigurationDetail configuration={item.configuration} compact />
                           </div>
-                          <span style={{ fontSize: "13px", fontWeight: 600, color: "#1A1A1A", whiteSpace: "nowrap" }}>{formatCurrency(Number(item.line_total))}</span>
+                          <span style={{ fontSize: "13px", fontWeight: 600, color: "var(--ui-ink)", whiteSpace: "nowrap" }}>{formatCurrency(Number(item.line_total))}</span>
                         </div>
                       ))
                   }
@@ -526,7 +526,7 @@ export default function CheckoutReviewPage() {
             )}
             {/* Loading state for wholesale cart */}
             {!isGuest && !cart && (
-              <div style={{ textAlign: "center", color: "#6B6B6B", fontSize: "13px", marginBottom: "32px" }}>
+              <div style={{ textAlign: "center", color: "var(--ui-muted)", fontSize: "13px", marginBottom: "32px" }}>
                 Loading order items…
               </div>
             )}
@@ -564,7 +564,7 @@ export default function CheckoutReviewPage() {
 
             {/* ── Error ── */}
             {error && (
-              <div style={{ padding: "12px 16px", background: "rgba(232,36,42,.07)", border: "1px solid rgba(232,36,42,.25)", color: "#E8242A", fontSize: "13px", fontWeight: 600, marginBottom: "14px" }}>
+              <div style={{ padding: "12px 16px", background: "rgba(232,36,42,.07)", border: "1px solid rgba(232,36,42,.25)", color: "var(--ui-bad)", fontSize: "13px", fontWeight: 600, marginBottom: "14px" }}>
                 {error}
               </div>
             )}
@@ -576,7 +576,7 @@ export default function CheckoutReviewPage() {
               <div>
                 <div style={sectionLabelStyle}>Card Details</div>
                 {isPlacing ? (
-                  <div style={{ padding: "16px", color: "#6B6B6B", fontSize: "13px" }}>Placing your order…</div>
+                  <div style={{ padding: "16px", color: "var(--ui-muted)", fontSize: "13px" }}>Placing your order…</div>
                 ) : paidIntentId ? (
                   /* Charged, but the order didn't come back. Never show the pay
                      form again — the buyer would be charged a second time. */
@@ -590,7 +590,7 @@ export default function CheckoutReviewPage() {
                     </div>
                     <button
                       onClick={() => handlePlaceOrder(paidIntentId)}
-                      style={{ marginTop: "12px", background: "#1A1A1A", color: "#fff", border: "none", borderRadius: "6px", padding: "11px 22px", fontSize: "13px", fontWeight: 700, cursor: "pointer" }}
+                      style={{ marginTop: "12px", background: "var(--ui-ink)", color: "#fff", border: "none", borderRadius: "6px", padding: "11px 22px", fontSize: "13px", fontWeight: 700, cursor: "pointer" }}
                     >
                       Finish my order
                     </button>
@@ -624,7 +624,7 @@ export default function CheckoutReviewPage() {
                 )}
                 <a
                   href="/checkout/payment"
-                  style={{ display: "inline-block", marginTop: "14px", fontSize: "13px", color: "#6B6B6B", textDecoration: "none", fontFamily: "'DM Sans', sans-serif" }}
+                  style={{ display: "inline-block", marginTop: "14px", fontSize: "13px", color: "var(--ui-muted)", textDecoration: "none", fontFamily: "'DM Sans', sans-serif" }}
                 >
                   ← Back to Payment
                 </a>
@@ -633,9 +633,9 @@ export default function CheckoutReviewPage() {
               <div style={{ display: "flex", gap: "16px", alignItems: "center" }}>
                 <a
                   href="/checkout/payment"
-                  style={{ display: "inline-block", fontSize: "13px", color: "#6B6B6B", textDecoration: "none", fontFamily: "'DM Sans', sans-serif" }}
-                  onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.color = "var(--brand-primary, #1C3557)"; }}
-                  onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.color = "#6B6B6B"; }}
+                  style={{ display: "inline-block", fontSize: "13px", color: "var(--ui-muted)", textDecoration: "none", fontFamily: "'DM Sans', sans-serif" }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.color = "var(--brand-primary, var(--ui-ink))"; }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.color = "var(--ui-muted)"; }}
                 >
                   ← Back to Payment
                 </a>
@@ -645,7 +645,7 @@ export default function CheckoutReviewPage() {
                   disabled={isPlacing}
                   style={{
                     flex: 1, padding: "14px",
-                    background: isPlacing ? "#E2E2DE" : "var(--brand-primary, #1C3557)",
+                    background: isPlacing ? "var(--ui-line)" : "var(--brand-primary, var(--ui-ink))",
                     color: isPlacing ? "#aaa" : "#fff",
                     border: "none",
                     fontFamily: "'DM Sans', sans-serif", fontSize: "15px", fontWeight: 500,
@@ -659,35 +659,35 @@ export default function CheckoutReviewPage() {
               </div>
             )}
 
-            <p style={{ textAlign: "center", fontSize: "12px", color: "#6B6B6B", marginTop: "12px", fontFamily: "'DM Sans', sans-serif" }}>
+            <p style={{ textAlign: "center", fontSize: "12px", color: "var(--ui-muted)", marginTop: "12px", fontFamily: "'DM Sans', sans-serif" }}>
               By placing your order you agree to our Terms of Service and wholesale pricing agreement.
             </p>
           </div>
 
           {/* RIGHT COLUMN — Order Summary */}
           <div style={{ alignSelf: "start", position: "sticky", top: "24px" }}>
-            <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "11px", letterSpacing: "0.1em", textTransform: "uppercase", fontWeight: 700, color: "#1A1A1A", marginBottom: "18px" }}>
+            <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "11px", letterSpacing: "0.1em", textTransform: "uppercase", fontWeight: 700, color: "var(--ui-ink)", marginBottom: "18px" }}>
               Order Summary
             </div>
             {/* Cart items */}
             {cartDisplayItems.length > 0 && (
               <div>
                 {cartDisplayItems.map((item, i) => (
-                  <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: "12px", marginBottom: "16px", paddingBottom: "16px", borderBottom: "1px solid #E2E2DE" }}>
-                    <div style={{ width: "52px", height: "52px", border: "1px solid #E2E2DE", flexShrink: 0, background: "#FFFFFF", overflow: "hidden" }}>
+                  <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: "12px", marginBottom: "16px", paddingBottom: "16px", borderBottom: "1px solid var(--ui-line)" }}>
+                    <div style={{ width: "52px", height: "52px", border: "1px solid var(--ui-line)", flexShrink: 0, background: "#FFFFFF", overflow: "hidden" }}>
                       {item.imageUrl
                         // eslint-disable-next-line @next/next/no-img-element
                         ? <img src={item.imageUrl} alt={item.name} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
-                        : <div style={{ width: "100%", height: "100%", background: "#F8F8F6" }} />
+                        : <div style={{ width: "100%", height: "100%", background: "var(--ui-paper)" }} />
                       }
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px", fontWeight: 500, color: "#1A1A1A", lineHeight: 1.3 }}>{item.name}</div>
-                      <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "11px", color: "#6B6B6B", marginTop: "2px" }}>
+                      <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px", fontWeight: 500, color: "var(--ui-ink)", lineHeight: 1.3 }}>{item.name}</div>
+                      <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "11px", color: "var(--ui-muted)", marginTop: "2px" }}>
                         {[item.color, item.size].filter(Boolean).join(" / ")}{item.qty > 0 ? ` × ${item.qty}` : ""}
                       </div>
                     </div>
-                    <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px", fontWeight: 500, color: "#1A1A1A", whiteSpace: "nowrap", flexShrink: 0 }}>
+                    <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "13px", fontWeight: 500, color: "var(--ui-ink)", whiteSpace: "nowrap", flexShrink: 0 }}>
                       {formatCurrency(item.lineTotal)}
                     </div>
                   </div>
@@ -695,43 +695,43 @@ export default function CheckoutReviewPage() {
               </div>
             )}
             <div style={{ display: "flex", flexDirection: "column" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: "13px", color: "#6B6B6B", padding: "8px 0", borderBottom: "1px solid #E2E2DE" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: "13px", color: "var(--ui-muted)", padding: "8px 0", borderBottom: "1px solid var(--ui-line)" }}>
                 <span>Subtotal ({isGuest ? guestEntries.reduce((s, e) => s + e.quantity, 0) : (cart?.total_units ?? 0)} units)</span>
-                <span style={{ fontWeight: 600, color: "#1A1A1A" }}>{formatCurrency(subtotal)}</span>
+                <span style={{ fontWeight: 600, color: "var(--ui-ink)" }}>{formatCurrency(subtotal)}</span>
               </div>
               {Number(cart?.discount_percent ?? 0) > 0 && (
-                <div style={{ display: "flex", justifyContent: "space-between", fontSize: "13px", color: "#059669", padding: "8px 0", borderBottom: "1px solid #E2E2DE" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: "13px", color: "var(--ui-ok)", padding: "8px 0", borderBottom: "1px solid var(--ui-line)" }}>
                   <span style={{ fontWeight: 600 }}>Tier Discount ({cart?.discount_percent}% applied)</span>
                   <span style={{ fontWeight: 700 }}>&#10003; Included</span>
                 </div>
               )}
               {appliedCoupon && (
-                <div style={{ display: "flex", justifyContent: "space-between", fontSize: "13px", color: "#059669", padding: "8px 0", borderBottom: "1px solid #E2E2DE" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: "13px", color: "var(--ui-ok)", padding: "8px 0", borderBottom: "1px solid var(--ui-line)" }}>
                   <span style={{ fontWeight: 600 }}>Coupon ({appliedCoupon.code})</span>
                   <span style={{ fontWeight: 700 }}>-{formatCurrency(couponDiscount)}</span>
                 </div>
               )}
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: "13px", color: "#6B6B6B", padding: "8px 0", borderBottom: "1px solid #E2E2DE" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: "13px", color: "var(--ui-muted)", padding: "8px 0", borderBottom: "1px solid var(--ui-line)" }}>
                 <span>Shipping ({shippingLabel})</span>
-                <span style={{ color: shipping === 0 ? "#059669" : "#1A1A1A", fontWeight: 600 }}>
+                <span style={{ color: shipping === 0 ? "var(--ui-ok)" : "var(--ui-ink)", fontWeight: 600 }}>
                   {shipping === 0 ? "FREE" : formatCurrency(shipping)}
                 </span>
               </div>
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: "13px", color: "#6B6B6B", padding: "8px 0", borderBottom: "1px solid #E2E2DE" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: "13px", color: "var(--ui-muted)", padding: "8px 0", borderBottom: "1px solid var(--ui-line)" }}>
                 <span>
                   {taxRate ? `Tax (${taxRate.region} ${taxRate.rate}%)` : "Tax"}
                 </span>
-                <span style={{ color: "#1A1A1A", fontWeight: 600 }}>
+                <span style={{ color: "var(--ui-ink)", fontWeight: 600 }}>
                   {formatCurrency(taxAmount)}
                 </span>
               </div>
               {convenienceFee > 0 && (
-                <div style={{ display: "flex", justifyContent: "space-between", fontSize: "13px", color: "#92400e", padding: "8px 0", borderBottom: "1px solid #E2E2DE" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: "13px", color: "#92400e", padding: "8px 0", borderBottom: "1px solid var(--ui-line)" }}>
                   <span style={{ fontWeight: 600 }}>Convenience Fee (3%)</span>
                   <span style={{ fontWeight: 600 }}>{formatCurrency(convenienceFee)}</span>
                 </div>
               )}
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: "15px", fontWeight: 600, color: "#1A1A1A", padding: "14px 0 0" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: "15px", fontWeight: 600, color: "var(--ui-ink)", padding: "14px 0 0" }}>
                 <span>Total</span>
                 <span>{formatCurrency(total)}</span>
               </div>

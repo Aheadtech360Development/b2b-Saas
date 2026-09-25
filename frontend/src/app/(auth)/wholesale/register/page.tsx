@@ -58,10 +58,10 @@ const SALES_REP_OPTIONS = [
 
 const inputStyle: React.CSSProperties = {
   width: "100%",
-  border: "1px solid #E2E2DE",
+  border: "1px solid var(--ui-line)",
   padding: "11px 14px",
   fontSize: "14px",
-  color: "#1A1A1A",
+  color: "var(--ui-ink)",
   background: "#fff",
   outline: "none",
   transition: "border-color .2s",
@@ -75,7 +75,7 @@ const labelStyle: React.CSSProperties = {
   fontWeight: 500,
   textTransform: "uppercase",
   letterSpacing: ".05em",
-  color: "#1A1A1A",
+  color: "var(--ui-ink)",
   marginBottom: "6px",
   fontFamily: "'DM Sans', sans-serif",
 };
@@ -86,10 +86,10 @@ const sectionHeadStyle: React.CSSProperties = {
   fontWeight: 600,
   letterSpacing: ".1em",
   textTransform: "uppercase",
-  color: "#1C3557",
+  color: "var(--brand-primary, var(--ui-ink))",
   marginBottom: "16px",
   paddingBottom: "10px",
-  borderBottom: "1px solid #1C3557",
+  borderBottom: "1px solid var(--brand-primary, var(--ui-ink))",
 };
 
 const gridStyle: React.CSSProperties = {
@@ -98,7 +98,7 @@ const gridStyle: React.CSSProperties = {
   gap: "16px",
 };
 
-const req = <span style={{ color: "#E8242A" }}>*</span>;
+const req = <span style={{ color: "var(--ui-bad)" }}>*</span>;
 
 // reCAPTCHA renders only when a site key is configured. With no key the widget
 // throws "Missing required parameters: sitekey" and takes the whole page down, so
@@ -250,13 +250,13 @@ function WholesaleRegisterForm() {
   }
 
   return (
-    <div style={{ minHeight: "100vh", background: "#F8F8F6", fontFamily: "'DM Sans', sans-serif" }}>
+    <div style={{ minHeight: "100vh", background: "var(--ui-paper)", fontFamily: "'DM Sans', sans-serif" }}>
       {/* Page header */}
       <div className="register-header" style={{ maxWidth: "760px", margin: "0 auto", padding: "56px 24px 0", textAlign: "center" }}>
-        <h1 style={{ fontFamily: "'Fraunces', serif", fontSize: "38px", fontWeight: 600, color: "#1A1A1A", lineHeight: 1.2, marginBottom: "12px" }}>
+        <h1 className="ui-h1" style={{ marginBottom: "12px" }}>
           Apply for a Wholesale Account
         </h1>
-        <p className="register-sub" style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", color: "#6B6B6B", maxWidth: "460px", margin: "0 auto 40px" }}>
+        <p className="register-sub" style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", color: "var(--ui-muted)", maxWidth: "460px", margin: "0 auto 40px" }}>
           Apply once. Get lower prices, better terms, and faster fulfillment.
         </p>
       </div>
@@ -265,7 +265,7 @@ function WholesaleRegisterForm() {
       <div className="register-content-wrap" style={{ maxWidth: "760px", margin: "0 auto", padding: "32px 24px 64px" }}>
 
         {/* Form card */}
-        <div className="register-form-card" style={{ background: "#fff", border: "1px solid #E2E2DE", padding: "40px" }}>
+        <div className="register-form-card" style={{ background: "#fff", border: "1px solid var(--ui-line)", padding: "40px" }}>
           <form onSubmit={handleSubmit}>
             {error && (
               <div style={{ background: "#FFF0F0", border: "1px solid #fcc", borderRadius: "6px", padding: "12px 16px", fontSize: "13px", color: "#c0392b", marginBottom: "24px" }}>
@@ -465,7 +465,7 @@ function WholesaleRegisterForm() {
               <p style={{ fontSize: "13px", color: "#4A4850", lineHeight: 1.65, marginBottom: "14px" }}>
                 By proceeding I acknowledge that I have read and agree to the following terms and conditions:
               </p>
-              <div style={{ background: "#F8F8F6", border: "1px solid #E2E2DE", padding: "14px 16px", fontSize: "12px", color: "#6B6B6B", lineHeight: 1.7, marginBottom: "18px", maxHeight: "100px", overflowY: "auto", fontFamily: "'DM Sans', sans-serif" }}>
+              <div style={{ background: "var(--ui-paper)", border: "1px solid var(--ui-line)", padding: "14px 16px", fontSize: "12px", color: "var(--ui-muted)", lineHeight: 1.7, marginBottom: "18px", maxHeight: "100px", overflowY: "auto", fontFamily: "'DM Sans', sans-serif" }}>
                 {brandName ? `${brandName} wholesale accounts` : "Wholesale accounts"} are strictly for business-to-business transactions. By submitting this application you confirm that your business holds a valid resale certificate or equivalent tax exemption document. All pricing, product availability, and terms are subject to change. Accounts may be suspended for misuse. We reserve the right to approve or deny any application at our sole discretion.
               </div>
 
@@ -503,7 +503,7 @@ function WholesaleRegisterForm() {
               disabled={isSubmitting || (captchaEnabled && !recaptchaToken)}
               style={{
                 width: "100%",
-                background: (isSubmitting || (captchaEnabled && !recaptchaToken)) ? "#9ca3af" : "#1C3557",
+                background: (isSubmitting || (captchaEnabled && !recaptchaToken)) ? "#C9C6C0" : "var(--brand-primary, var(--ui-ink))",
                 color: "#fff",
                 padding: "16px",
                 fontSize: "15px",
@@ -517,9 +517,9 @@ function WholesaleRegisterForm() {
               {isSubmitting ? "Submitting Application…" : "Submit Application →"}
             </button>
 
-            <p style={{ textAlign: "center", fontFamily: "'DM Sans', sans-serif", fontSize: "13px", color: "#6B6B6B", marginTop: "16px" }}>
+            <p style={{ textAlign: "center", fontFamily: "'DM Sans', sans-serif", fontSize: "13px", color: "var(--ui-muted)", marginTop: "16px" }}>
               Already have an account?{" "}
-              <Link href="/login" style={{ color: "#1C3557", fontWeight: 500, textDecoration: "none" }}>
+              <Link href="/login" style={{ color: "var(--brand-primary, var(--ui-ink))", fontWeight: 500, textDecoration: "none" }}>
                 Sign in →
               </Link>
             </p>

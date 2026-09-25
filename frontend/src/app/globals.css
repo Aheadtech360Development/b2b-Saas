@@ -714,3 +714,116 @@
 .at-refresh button {
   transition: background .15s, border-color .15s, box-shadow .15s;
 }
+
+/* ── One look, everywhere someone buys something ──────────────────────────────
+ *
+ * The sign-in, application, cart, checkout and confirmation screens were each
+ * styled on their own day: a navy that appears nowhere else on the platform,
+ * a serif heading on one page and a sans on the next, four different button
+ * shapes. Put side by side they read as four products.
+ *
+ * These are the platform's own tokens — the ones its home page is built from.
+ * Colour is the one thing that bends: on a brand's shop `--brand-primary` is
+ * set by its theme, so the shapes and the spacing stay ours while the colour
+ * stays theirs.
+ */
+:root {
+  --ui-ink: #111318;
+  --ui-muted: #5A5F68;
+  --ui-paper: #FAFAF9;
+  --ui-line: #E7E5E2;
+  --ui-bad: #B42318;
+  --ui-ok: #16A34A;
+  --ui-radius: 10px;
+}
+
+.ui-page {
+  min-height: 100vh;
+  background: var(--ui-paper);
+  color: var(--ui-ink);
+  font-family: "DM Sans", system-ui, sans-serif;
+  line-height: 1.6;
+}
+.ui-wrap { max-width: 1080px; margin: 0 auto; padding: 0 24px; }
+.ui-narrow { max-width: 440px; margin: 0 auto; }
+
+.ui-h1 {
+  font-size: 30px; font-weight: 700; letter-spacing: -.025em;
+  line-height: 1.15; margin: 0 0 10px; color: var(--ui-ink);
+}
+.ui-lede { font-size: 15.5px; color: var(--ui-muted); margin: 0 0 28px; }
+.ui-label {
+  display: block; font-size: 12.5px; font-weight: 600;
+  color: var(--ui-ink); margin-bottom: 6px;
+}
+.ui-hint { font-size: 12.5px; color: var(--ui-muted); margin: 6px 0 0; }
+.ui-hint-bad { color: var(--ui-bad); }
+/* Quantities, money and totals line up column-wise when they are tabular. */
+.ui-num { font-family: "IBM Plex Mono", ui-monospace, monospace; font-variant-numeric: tabular-nums; }
+
+.ui-card {
+  background: #fff; border: 1px solid var(--ui-line);
+  border-radius: 14px; padding: 28px;
+}
+
+.ui-field {
+  width: 100%; background: #fff; border: 1px solid var(--ui-line);
+  border-radius: var(--ui-radius); padding: 11px 13px; font-size: 15px;
+  color: var(--ui-ink); font-family: inherit; box-sizing: border-box;
+  transition: border-color .15s, box-shadow .15s;
+}
+.ui-field:focus {
+  outline: none; border-color: var(--brand-primary, var(--ui-ink));
+  box-shadow: 0 0 0 3px rgba(17, 19, 24, .07);
+}
+.ui-field::placeholder { color: #A9ADB4; }
+
+.ui-btn {
+  display: inline-block; text-align: center; text-decoration: none;
+  background: var(--brand-primary, var(--ui-ink)); color: #fff; border: none;
+  border-radius: var(--ui-radius); padding: 12px 24px;
+  font-family: inherit; font-size: 15px; font-weight: 600; cursor: pointer;
+  transition: opacity .15s;
+}
+.ui-btn:hover { opacity: .9; }
+.ui-btn:disabled { background: #C9C6C0; cursor: not-allowed; opacity: 1; }
+.ui-btn-ghost {
+  display: inline-block; text-align: center; text-decoration: none;
+  background: #fff; color: var(--ui-ink); border: 1px solid var(--ui-line);
+  border-radius: var(--ui-radius); padding: 12px 24px;
+  font-family: inherit; font-size: 15px; font-weight: 600; cursor: pointer;
+}
+.ui-btn-ghost:hover { border-color: #C9C6C0; }
+.ui-btn-block { display: block; width: 100%; }
+.ui-btn-quiet {
+  background: none; border: none; color: var(--ui-muted);
+  font-family: inherit; font-size: 14px; cursor: pointer; padding: 6px 0;
+}
+.ui-btn-quiet:hover { color: var(--ui-ink); }
+
+.ui-alert {
+  border-radius: var(--ui-radius); padding: 12px 14px; font-size: 13.5px;
+  line-height: 1.55; margin-bottom: 18px;
+}
+.ui-alert-bad { background: #FEF3F2; border: 1px solid #FECDCA; color: var(--ui-bad); }
+.ui-alert-ok { background: #ECFDF5; border: 1px solid #A7F3D0; color: #047857; }
+.ui-alert-note { background: #FFFBEB; border: 1px solid #FDE68A; color: #B45309; }
+
+/* The row of steps across a checkout. */
+.ui-steps { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 28px; }
+.ui-step { display: flex; align-items: center; gap: 7px; font-size: 13px; color: var(--ui-muted); }
+.ui-step-n {
+  width: 22px; height: 22px; border-radius: 50%; display: flex;
+  align-items: center; justify-content: center; font-size: 11.5px; font-weight: 700;
+  background: #fff; border: 1px solid var(--ui-line); color: var(--ui-muted);
+}
+.ui-step-on { color: var(--ui-ink); font-weight: 600; }
+.ui-step-on .ui-step-n { background: var(--brand-primary, var(--ui-ink)); border-color: transparent; color: #fff; }
+.ui-step-done .ui-step-n { background: #fff; border-color: var(--ui-ok); color: var(--ui-ok); }
+.ui-step-sep { flex: 1; height: 1px; background: var(--ui-line); min-width: 12px; }
+
+@media (max-width: 640px) {
+  .ui-h1 { font-size: 25px; }
+  .ui-card { padding: 22px 18px; border-radius: 12px; }
+  .ui-step span:not(.ui-step-n) { display: none; }
+}

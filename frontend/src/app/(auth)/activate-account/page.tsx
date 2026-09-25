@@ -63,7 +63,7 @@ const gridStyle: React.CSSProperties = {
   gap: "16px",
 };
 
-const req = <span style={{ color: "#E8242A" }}>*</span>;
+const req = <span style={{ color: "var(--ui-bad)" }}>*</span>;
 
 const PRIMARY_BUSINESS_OPTIONS = [
   "Screen Printer",
@@ -114,9 +114,9 @@ function TokenExpiredView({ prefillEmail }: { prefillEmail?: string }) {
   }
 
   return (
-    <div style={{ minHeight: "100vh", background: "#F4F3EF", fontFamily: "var(--font-jakarta)", display: "flex", alignItems: "center", justifyContent: "center", padding: "40px 16px" }}>
+    <div style={{ minHeight: "100vh", background: "var(--ui-paper)", fontFamily: "var(--font-jakarta)", display: "flex", alignItems: "center", justifyContent: "center", padding: "40px 16px" }}>
       <div style={{ maxWidth: "440px", width: "100%", textAlign: "center" }}>
-        <div style={{ background: "#1B3A5C", padding: "24px 32px", borderRadius: "12px 12px 0 0", borderBottom: "3px solid #E8242A", marginBottom: "0" }}>
+        <div style={{ background: "#1B3A5C", padding: "24px 32px", borderRadius: "12px 12px 0 0", borderBottom: "3px solid var(--ui-bad)", marginBottom: "0" }}>
           <span style={{ fontSize: "26px", fontWeight: 900, color: "#fff", letterSpacing: "-.5px" }}>AF</span>
           <span style={{ color: "rgba(255,255,255,.55)", fontSize: "13px", marginLeft: "8px", letterSpacing: ".18em", textTransform: "uppercase", fontWeight: 600 }}>APPARELS</span>
         </div>
@@ -167,9 +167,9 @@ function SuccessView({ firstName }: { firstName: string }) {
   const supportEmail = (support_email ?? "").trim();
   const supportPhone = (support_phone ?? "").trim();
   return (
-    <div style={{ minHeight: "100vh", background: "#F4F3EF", fontFamily: "var(--font-jakarta)", display: "flex", alignItems: "center", justifyContent: "center", padding: "40px 16px" }}>
+    <div style={{ minHeight: "100vh", background: "var(--ui-paper)", fontFamily: "var(--font-jakarta)", display: "flex", alignItems: "center", justifyContent: "center", padding: "40px 16px" }}>
       <div style={{ maxWidth: "480px", width: "100%", textAlign: "center" }}>
-        <div style={{ background: "#1B3A5C", padding: "24px 32px", borderRadius: "12px 12px 0 0", borderBottom: "3px solid #E8242A" }}>
+        <div style={{ background: "#1B3A5C", padding: "24px 32px", borderRadius: "12px 12px 0 0", borderBottom: "3px solid var(--ui-bad)" }}>
           <span style={{ fontSize: "26px", fontWeight: 900, color: "#fff", letterSpacing: "-.5px" }}>AF</span>
           <span style={{ color: "rgba(255,255,255,.55)", fontSize: "13px", marginLeft: "8px", letterSpacing: ".18em", textTransform: "uppercase", fontWeight: 600 }}>APPARELS</span>
         </div>
@@ -191,7 +191,7 @@ function SuccessView({ firstName }: { firstName: string }) {
           </div>
           <Link
             href="/"
-            style={{ display: "inline-block", background: "#E8242A", color: "#fff", padding: "12px 28px", borderRadius: "6px", fontWeight: 700, textDecoration: "none", fontSize: "14px" }}
+            style={{ display: "inline-block", background: "var(--ui-bad)", color: "#fff", padding: "12px 28px", borderRadius: "6px", fontWeight: 700, textDecoration: "none", fontSize: "14px" }}
           >
             Back to Home
           </Link>
@@ -302,7 +302,7 @@ function ActivateAccountContent() {
 
   if (tokenState === "loading") {
     return (
-      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#F4F3EF" }}>
+      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "var(--ui-paper)" }}>
         <p style={{ color: "#6b7280", fontSize: "15px" }}>Validating link…</p>
       </div>
     );
@@ -311,9 +311,9 @@ function ActivateAccountContent() {
   if (tokenState === "expired") return <TokenExpiredView prefillEmail={prefill?.email} />;
   if (tokenState === "invalid") {
     return (
-      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#F4F3EF", fontFamily: "var(--font-jakarta)" }}>
+      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "var(--ui-paper)", fontFamily: "var(--font-jakarta)" }}>
         <div style={{ textAlign: "center", maxWidth: "400px" }}>
-          <p style={{ color: "#E8242A", fontWeight: 700, fontSize: "16px", marginBottom: "12px" }}>Invalid activation link.</p>
+          <p style={{ color: "var(--ui-bad)", fontWeight: 700, fontSize: "16px", marginBottom: "12px" }}>Invalid activation link.</p>
           <p style={{ color: "#6b7280", marginBottom: "20px", fontSize: "14px" }}>This link may have already been used or is not valid.</p>
           <Link href="/login" style={{ color: "#1A5CFF", fontWeight: 700, textDecoration: "none" }}>Back to Login</Link>
         </div>
@@ -324,9 +324,9 @@ function ActivateAccountContent() {
   if (submitted) return <SuccessView firstName={submittedName} />;
 
   return (
-    <div style={{ minHeight: "100vh", background: "#F4F3EF", fontFamily: "var(--font-jakarta)" }}>
+    <div style={{ minHeight: "100vh", background: "var(--ui-paper)", fontFamily: "var(--font-jakarta)" }}>
       {/* Header */}
-      <div style={{ background: "#1B3A5C", padding: "28px 32px", textAlign: "center", borderBottom: "3px solid #E8242A" }}>
+      <div style={{ background: "#1B3A5C", padding: "28px 32px", textAlign: "center", borderBottom: "3px solid var(--ui-bad)" }}>
         <Link href="/" style={{ textDecoration: "none" }}>
           <span style={{ fontSize: "28px", fontWeight: 900, color: "#fff", letterSpacing: "-.5px" }}>AF</span>
           <span style={{ color: "rgba(255,255,255,.55)", fontSize: "13px", marginLeft: "8px", letterSpacing: ".18em", textTransform: "uppercase", fontWeight: 600 }}>APPARELS</span>
@@ -370,7 +370,7 @@ function ActivateAccountContent() {
                 </div>
                 <div>
                   <label style={labelStyle}>Email Address</label>
-                  <input type="email" value={prefill?.email ?? ""} disabled style={{ ...inputStyle, background: "#F9F8F4", color: "#9ca3af" }} />
+                  <input type="email" value={prefill?.email ?? ""} disabled style={{ ...inputStyle, background: "#F9F8F4", color: "#C9C6C0" }} />
                 </div>
                 <div>
                   <label htmlFor="phone" style={labelStyle}>Phone Number {req}</label>
@@ -488,7 +488,7 @@ function ActivateAccountContent() {
               disabled={isSubmitting}
               style={{
                 width: "100%",
-                background: isSubmitting ? "#ccc" : "#E8242A",
+                background: isSubmitting ? "#ccc" : "var(--ui-bad)",
                 color: "#fff",
                 padding: "14px",
                 fontSize: "14px",
@@ -517,7 +517,7 @@ function ActivateAccountContent() {
 export default function ActivateAccountPage() {
   return (
     <Suspense fallback={
-      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#F4F3EF" }}>
+      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "var(--ui-paper)" }}>
         <p style={{ color: "#6b7280" }}>Loading…</p>
       </div>
     }>
