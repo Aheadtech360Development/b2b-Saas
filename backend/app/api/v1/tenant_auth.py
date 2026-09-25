@@ -99,5 +99,36 @@ async def get_profile(
 
 
 @router.post("/logout", status_code=204)
-async def logout(response: Response) -> None:
+async def logout(request: Request, response: Response) -> None:
+    """Sign out — and mean it.
+
+    This deleted the refresh cookie and nothing else, so the access token in
+    the tab's hands went on working. That token is good for seven days, so
+    "sign out" left a key that opened the account for the rest of the week —
+    on a shared machine, in a copied handover link, in anything that had ever
+    held it.
+
+    The token is now revoked for exactly as long as it had left to live, and
+    the refresh token it would have been renewed with is dropped too.
+    """
     response.delete_cookie(REFRESH_COOKIE, path="/api/v1/auth/refresh")
+
+    import time
+
+    from app.core.redis import redis_delete, redis_set
+    from app.core.security import decode_token
+
+    auth = request.headers.get("Authorization", "")
+    if auth.startswith("Bearer "):
+        try:
+            payload = decode_token(auth.split(" ", 1)[1])
+            jti = payload.get("jti")
+            # However long it had left, and no longer: a blacklist entry that
+            # outlives its token is only taking up room.
+            ttl = int(payload.get("exp", 0)) - int(time.time())
+            if jti and ttl > 0:
+                await redis_set(f"blacklist:{jti}", "1", expire=ttl)
+            if payload.get("sub"):
+                await redis_delete(f"refresh:{payload['sub']}")
+        except Exception:  # an expired or unreadable token is already no use
+            pass

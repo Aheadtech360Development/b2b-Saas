@@ -74,18 +74,6 @@ async def calculate_tax(
     }
 
 
-@router.get("/outbound-ip")
-async def outbound_ip():
-    """Debug endpoint — returns this service's outbound IP. Remove after use."""
-    import httpx
-    try:
-        async with httpx.AsyncClient(timeout=5.0) as client:
-            ip = (await client.get("https://ifconfig.me/ip")).text.strip()
-        return {"outbound_ip": ip}
-    except Exception as exc:
-        return {"error": str(exc)}
-
-
 @router.get("/diagnose")
 async def diagnose_tax(
     request: Request,
@@ -153,34 +141,3 @@ async def diagnose_tax(
         "tried": {"state": state.upper(), "zip": zip_code, "subtotal": subtotal},
         "result": result,
     }
-
-
-@router.get("/test-ziptax")
-async def test_ziptax(zip_code: str = "75215"):
-    """Debug endpoint — tests ZipTax API directly. Remove after debugging."""
-    import httpx
-    from app.services.tax_service import ZIPTAX_BASE_URL
-
-    api_key = os.getenv("ZIPTAX_API_KEY", "")
-    key_status = f"{api_key[:8]}..." if len(api_key) >= 8 else ("SET_BUT_SHORT" if api_key else "NOT_SET")
-
-    logger.info("test-ziptax: key_status=%s zip=%s", key_status, zip_code)
-
-    if not api_key:
-        return {"error": "ZIPTAX_API_KEY is not set", "key_status": key_status}
-
-    try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            resp = await client.get(
-                ZIPTAX_BASE_URL,
-                params={"key": api_key, "postalcode": zip_code},
-            )
-        return {
-            "key_status": key_status,
-            "zip_code": zip_code,
-            "http_status": resp.status_code,
-            "response": resp.json(),
-        }
-    except Exception as exc:
-        logger.error("test-ziptax error: %s", exc)
-        return {"key_status": key_status, "zip_code": zip_code, "error": str(exc)}

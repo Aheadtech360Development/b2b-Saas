@@ -142,6 +142,14 @@ async def resolve_tax(db, to_state: str, to_zip: str, to_city: str, taxable_subt
         raw = await get_setting(db, "tax_mode")
         if raw and raw.strip().lower() in ("auto", "manual", "none"):
             mode = raw.strip().lower()
+        # "My own rates" is no longer offered. It read as the careful choice and
+        # did the opposite: a shop picked it, never added a rate, and charged
+        # nothing on every order — which is how a shop ends up owing tax it
+        # never collected. Automatic already falls back to the shop's own rates
+        # when the lookup has no answer, so a shop left on the old setting is
+        # simply moved to it rather than left silently charging zero.
+        if mode == "manual":
+            mode = "auto"
     except Exception as exc:  # never block checkout on a settings read
         logger.warning("tax_mode lookup failed, defaulting to auto: %s", exc)
 

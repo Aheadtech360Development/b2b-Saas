@@ -167,8 +167,11 @@ export default function TaxesPage() {
         </p>
         <div style={{ display: "grid", gap: "10px" }}>
           {([
-            ["auto", "Automatic (recommended)", "Looks up the correct sales-tax rate for each customer's ZIP automatically. Nothing to set up."],
-            ["manual", "My own rates", "Ignore the automatic lookup and use only the regional rates you add below."],
+            // "My own rates" is gone. It read as the careful choice and did the
+            // opposite: a shop picked it, added no regional rates, and quietly
+            // charged nothing. Automatic already falls back to the rates below
+            // when the lookup has no answer, so nothing is lost by dropping it.
+            ["auto", "Automatic (recommended)", "Looks up the correct sales-tax rate for each customer's ZIP automatically. Falls back to any regional rates you add below."],
             ["none", "Don't charge tax", "No tax is added at checkout."],
           ] as const).map(([val, title, desc]) => {
             const active = taxMode === val;

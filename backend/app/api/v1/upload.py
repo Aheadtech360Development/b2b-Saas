@@ -15,6 +15,9 @@ router = APIRouter(prefix="/upload")
 _ALLOWED_IMAGE = {"image/jpeg", "image/jpg", "image/png", "image/webp", "image/gif"}
 _ALLOWED_PDF = {"application/pdf"}
 
+# Artwork for a gang sheet is the biggest thing anyone legitimately sends here.
+_MAX_UPLOAD_BYTES = 64 * 1024 * 1024  # 64 MB
+
 # Print-ready artwork formats accepted by the gang sheet builder. These are
 # design source files, not web images — browsers cannot render AI/PSD/EPS, so
 # they are stored and handed to the supplier as-is rather than previewed.
@@ -50,7 +53,23 @@ async def upload_file(file: UploadFile = File(...), request: Request = None, db:
         else:
             raise HTTPException(status_code=400, detail="Only images and PDFs are allowed")
 
-    content = await file.read()
+    # Read with a ceiling. This endpoint is open — a storefront guest uploads
+    # artwork through it — and it read whatever arrived straight into memory,
+    # so one caller could hand the process a file as large as they liked, sixty
+    # times a minute, and the rate limit would be satisfied the whole time.
+    content = b""
+    while True:
+        chunk = await file.read(1 << 20)  # 1 MiB at a time
+        if not chunk:
+            break
+        content += chunk
+        if len(content) > _MAX_UPLOAD_BYTES:
+            raise HTTPException(
+                status_code=413,
+                detail=f"That file is larger than {_MAX_UPLOAD_BYTES // (1 << 20)} MB.",
+            )
+    if not content:
+        raise HTTPException(status_code=400, detail="That file is empty.")
     asset_id = str(uuid.uuid4())
     original_name = file.filename or ("file.pdf" if is_pdf else "image.jpg")
 
@@ -141,14 +160,23 @@ async def upload_artwork(file: UploadFile = File(...), request: Request = None, 
             detail=f"Unsupported artwork type. Allowed: {', '.join(sorted(_ARTWORK_EXTENSIONS))}",
         )
 
-    content = await file.read()
+    # Checked while reading, not after. The limit was right and arrived too
+    # late: the whole file was already in memory before its size was looked at,
+    # so a file far past the limit still had to be held before being refused —
+    # on an endpoint open to anyone.
+    content = b""
+    while True:
+        chunk = await file.read(1 << 20)
+        if not chunk:
+            break
+        content += chunk
+        if len(content) > _ARTWORK_MAX_BYTES:
+            raise HTTPException(
+                status_code=413,
+                detail=f"File is too large (max {_ARTWORK_MAX_BYTES // (1024 * 1024)} MB)",
+            )
     if not content:
         raise HTTPException(status_code=400, detail="File is empty")
-    if len(content) > _ARTWORK_MAX_BYTES:
-        raise HTTPException(
-            status_code=400,
-            detail=f"File is too large (max {_ARTWORK_MAX_BYTES // (1024 * 1024)} MB)",
-        )
 
     from app.services import imagekit_service
 
