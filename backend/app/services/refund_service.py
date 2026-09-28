@@ -57,7 +57,8 @@ async def _order_for_intent(db: AsyncSession, payment_intent: str | None) -> dic
     if not payment_intent:
         return None
     return (await db.execute(text("""
-        SELECT o.id, o.tenant_id, o.total, o.order_number, t.stripe_connect_account_id
+        SELECT o.id, o.tenant_id, o.total, o.order_number,
+               t.stripe_connect_account_id, t.stripe_connect_account_id_test
         FROM orders o
         LEFT JOIN tenants t ON t.id = o.tenant_id
         WHERE o.stripe_payment_intent_id = :pi
@@ -75,8 +76,14 @@ def account_matches(order: dict | None, account: str | None) -> bool:
     """
     if order is None or not account:
         return True
-    owner = order.get("stripe_connect_account_id")
-    return owner is None or owner == account
+    # Either world: the brand owns both of its accounts, and an order may
+    # have been paid under whichever mode was current at the time. Reading
+    # only the live column would leave this check passing vacuously for
+    # every brand that onboarded in test, which is all of them today.
+    owners = [order.get("stripe_connect_account_id"),
+              order.get("stripe_connect_account_id_test")]
+    known = [o for o in owners if o]
+    return not known or account in known
 
 
 async def record_refund(

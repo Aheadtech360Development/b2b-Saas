@@ -491,7 +491,10 @@ async def create_invoice_payment_intent(
     return {
         "client_secret": intent.client_secret,
         "connected_account_id": connect["account_id"],
-        "publishable_key": _settings.STRIPE_PUBLISHABLE_KEY,
+        # The key the browser confirms with has to come from the same world
+        # as the intent just created, or Stripe.js refuses it. Read from
+        # the mode rather than the environment for exactly that reason.
+        "publishable_key": await stripe_mode.publishable_key(db),
         "amount": float(balance),
     }
 

@@ -151,7 +151,10 @@ async def create_payment_intent(
         "client_secret": intent.client_secret,
         "payment_intent_id": intent.id,
         "connected_account_id": connected_account_id,
-        "publishable_key": settings.STRIPE_PUBLISHABLE_KEY,
+        # The key the browser confirms with has to come from the same world
+        # as the intent just created, or Stripe.js refuses it. Read from
+        # the mode rather than the environment for exactly that reason.
+        "publishable_key": await stripe_mode.publishable_key(db),
         "amount": total,
     }
 

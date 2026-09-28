@@ -53,7 +53,8 @@ class DisputeService:
         order = None
         if pi_id:
             order = (await self.db.execute(text("""
-                SELECT o.id, o.tenant_id, o.order_number, t.stripe_connect_account_id
+                SELECT o.id, o.tenant_id, o.order_number,
+                       t.stripe_connect_account_id, t.stripe_connect_account_id_test
                 FROM orders o LEFT JOIN tenants t ON t.id = o.tenant_id
                 WHERE o.stripe_payment_intent_id = :pi
             """), {"pi": pi_id})).mappings().first()

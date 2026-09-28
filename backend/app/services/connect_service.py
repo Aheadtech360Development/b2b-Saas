@@ -60,18 +60,48 @@ class ConnectService:
         a brand's tenants row then needs RLS bypass — see BillingService._bypass_rls."""
         await self.db.execute(text("SELECT set_config('app.bypass_rls', 'on', true)"))
 
+    async def _suffix(self) -> str:
+        """"" in live mode, "_test" in test mode.
+
+        A connected account belongs to the world it was created in, so each
+        mode keeps its own columns. Without this a brand onboarded in test
+        reads as connected and ready under a live key, and every charge on
+        it fails with "No such account" — a green dashboard over a checkout
+        that cannot take money.
+        """
+        from app.services import stripe_mode
+
+        return "" if await stripe_mode.current(self.db) == stripe_mode.LIVE else "_test"
+
     async def _get_tenant(self, tenant_id: str) -> dict | None:
-        row = (await self.db.execute(text("""
-            SELECT id, slug, name, email, stripe_connect_account_id,
-                   connect_charges_enabled, connect_payouts_enabled,
-                   connect_details_submitted, connect_onboarded_at
+        """The brand, with this mode's Connect columns under the plain names.
+
+        Callers read `stripe_connect_account_id` and get whichever world the
+        platform is in, so none of them has to know the mode.
+        """
+        sfx = await self._suffix()
+        row = (await self.db.execute(text(f"""
+            SELECT id, slug, name, email,
+                   stripe_connect_account_id{sfx} AS stripe_connect_account_id,
+                   connect_charges_enabled{sfx}   AS connect_charges_enabled,
+                   connect_payouts_enabled{sfx}   AS connect_payouts_enabled,
+                   connect_details_submitted{sfx} AS connect_details_submitted,
+                   connect_onboarded_at{sfx}      AS connect_onboarded_at
             FROM tenants WHERE id = :t
         """), {"t": str(tenant_id)})).mappings().first()
         return dict(row) if row else None
 
     async def _get_tenant_by_account(self, account_id: str) -> dict | None:
+        """Owner of a connected account, looked up in either world.
+
+        An account.updated arriving for the mode we are not currently in is
+        still that brand's account, and dropping it would leave the flags
+        stale for whenever the platform switches back.
+        """
         row = (await self.db.execute(text("""
-            SELECT id, slug FROM tenants WHERE stripe_connect_account_id = :a
+            SELECT id, slug FROM tenants
+            WHERE stripe_connect_account_id = :a
+               OR stripe_connect_account_id_test = :a
         """), {"a": account_id})).mappings().first()
         return dict(row) if row else None
 
@@ -96,8 +126,9 @@ class ConnectService:
             business_profile={"name": tenant.get("name")},
             metadata={"tenant_id": str(tenant["id"]), "tenant_slug": tenant["slug"], "app": "at360"},
         )
-        await self.db.execute(text("""
-            UPDATE tenants SET stripe_connect_account_id = :a, updated_at = now()
+        sfx = await self._suffix()
+        await self.db.execute(text(f"""
+            UPDATE tenants SET stripe_connect_account_id{sfx} = :a, updated_at = now()
             WHERE id = :t
         """), {"a": account.id, "t": str(tenant_id)})
         return account.id
@@ -128,8 +159,14 @@ class ConnectService:
         tenant = await self._get_tenant(tenant_id)
         if not tenant:
             raise ValueError("Tenant not found")
+        from app.services import stripe_mode
+
         onboarded = tenant.get("connect_onboarded_at")
         return {
+            # Said out loud, because "not connected" right after the platform
+            # switched mode is confusing otherwise — the brand did onboard,
+            # just in the other world.
+            "mode": await stripe_mode.current(self.db),
             "connected": bool(tenant.get("stripe_connect_account_id")),
             "account_id": tenant.get("stripe_connect_account_id"),
             "charges_enabled": bool(tenant.get("connect_charges_enabled")),
@@ -166,12 +203,27 @@ class ConnectService:
         details = bool(account.get("details_submitted"))
         # Stamp onboarded_at the first time details are submitted.
         onboarded_at = datetime.now(timezone.utc) if details else None
-        await self.db.execute(text("""
+
+        # Which world's flags these are is decided by the account the event is
+        # about, not by the mode the platform happens to be in. A webhook for
+        # a test account can arrive while the platform is live — writing it to
+        # the live columns would mark a brand ready to take real cards on the
+        # strength of a test onboarding.
+        account_id = account.get("id")
+        sfx = "_test" if account_id and await self._is_test_account(tenant_id, account_id) else ""
+        await self.db.execute(text(f"""
             UPDATE tenants SET
-                connect_charges_enabled = :c,
-                connect_payouts_enabled = :p,
-                connect_details_submitted = :d,
-                connect_onboarded_at = COALESCE(connect_onboarded_at, :oa),
+                connect_charges_enabled{sfx} = :c,
+                connect_payouts_enabled{sfx} = :p,
+                connect_details_submitted{sfx} = :d,
+                connect_onboarded_at{sfx} = COALESCE(connect_onboarded_at{sfx}, :oa),
                 updated_at = now()
             WHERE id = :t
         """), {"c": charges, "p": payouts, "d": details, "oa": onboarded_at, "t": tenant_id})
+
+    async def _is_test_account(self, tenant_id: str, account_id: str) -> bool:
+        """Whether this account is the brand's test one rather than its live one."""
+        return bool((await self.db.execute(text("""
+            SELECT 1 FROM tenants
+            WHERE id = :t AND stripe_connect_account_id_test = :a
+        """), {"t": str(tenant_id), "a": account_id})).first())
