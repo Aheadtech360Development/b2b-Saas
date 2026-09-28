@@ -8,6 +8,7 @@ Endpoints:
   PUT  /platform/tenants/{slug}   — update tenant (status, plan)
   DELETE /platform/tenants/{slug} — soft-delete tenant
 """
+import logging
 import uuid
 from typing import Any
 
@@ -19,6 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.core.security import create_access_token, hash_password
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/platform/tenants", tags=["platform"])
 
 
@@ -403,6 +405,103 @@ async def update_tenant_feature(
     await db.commit()
     entitlements.forget(row[0])
     return await entitlements.detail(db, row[0])
+
+
+# ── Hand a brand's owner their login ──────────────────────────────────────────
+class SetAdminPassword(BaseModel):
+    # Left out, a strong one is generated. Chosen passwords are for handing to
+    # somebody over the phone, so they are allowed but not encouraged.
+    password: str | None = None
+
+
+@router.post("/{slug}/admin-password")
+async def set_tenant_admin_password(
+    slug: str,
+    data: SetAdminPassword,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Set the brand admin's password and return it once.
+
+    A stored password cannot be read back — it is a hash, and that is the
+    point of it. So when the owner of a brand has lost theirs, the only
+    honest answer is a new one, set deliberately and handed over.
+
+    This exists so that is not done with an UPDATE typed into a production
+    database console, where a mistyped WHERE changes every brand's password
+    and nothing records that it happened.
+    """
+    _require_platform_admin(request)
+
+    row = (await db.execute(
+        text("SELECT id, name FROM tenants WHERE slug=:s"), {"s": slug}
+    )).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+    tenant_id, tenant_name = row[0], row[1]
+
+    admin = (await db.execute(text("""
+        SELECT id, email FROM users
+        WHERE tenant_id = :tid AND role = 'tenant_admin' AND is_active = true
+        ORDER BY created_at ASC LIMIT 1
+    """), {"tid": str(tenant_id)})).mappings().first()
+    if not admin:
+        raise HTTPException(status_code=404, detail="This brand has no active admin user")
+
+    password = (data.password or "").strip()
+    if password:
+        if len(password) < 8:
+            raise HTTPException(status_code=400, detail="Password must be at least 8 characters.")
+    else:
+        password = _readable_password()
+
+    await db.execute(text("""
+        UPDATE users SET
+            hashed_password = :h,
+            password_reset_token = NULL,
+            password_reset_expires = NULL,
+            updated_at = now()
+        WHERE id = :u
+    """), {"h": hash_password(password), "u": str(admin["id"])})
+
+    # Taking over an account is exactly the kind of thing that has to leave a
+    # trace, so the commit carries the audit row with it rather than after it.
+    try:
+        from app.middleware.audit_middleware import write_audit_log
+
+        await write_audit_log(
+            db,
+            admin_user_id=getattr(request.state, "user_id", None),
+            action="UPDATE",
+            entity_type="tenant_admin_password",
+            entity_id=slug,
+            old_values=None,
+            new_values={"brand": tenant_name, "admin_email": admin["email"]},
+            ip_address=getattr(getattr(request, "client", None), "host", None),
+            user_agent=request.headers.get("user-agent"),
+        )
+    except Exception:
+        logger.exception("Could not write the audit row for a password reset on %s", slug)
+    await db.commit()
+
+    # Returned once and never stored anywhere readable. Reloading the console
+    # will not show it again.
+    return {"email": admin["email"], "password": password, "brand": tenant_name}
+
+
+def _readable_password() -> str:
+    """A password strong enough to matter and plain enough to read aloud.
+
+    No l/I/1 or O/0, because this gets dictated over a phone or copied out of
+    a chat message, and a password that cannot be transcribed just becomes a
+    second support call.
+    """
+    import secrets
+
+    alphabet = "ABCDEFGHJKMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789"
+    return "-".join(
+        "".join(secrets.choice(alphabet) for _ in range(5)) for _ in range(3)
+    )
 
 
 # ── Impersonate (enter a brand's admin dashboard) ─────────────────────────────

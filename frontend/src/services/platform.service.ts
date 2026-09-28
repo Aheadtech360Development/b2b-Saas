@@ -88,6 +88,21 @@ export const platformService = {
     return apiClient.put<StripeMode>("/api/v1/platform/tenants/stripe-mode", { mode });
   },
 
+  /**
+   * Give this brand's owner a working login again.
+   *
+   * A stored password is a hash and cannot be read back, so the only honest
+   * answer to "what is their password" is a new one. Returned once — there is
+   * nowhere to look it up afterwards.
+   */
+  async setAdminPassword(slug: string, password?: string): Promise<{
+    email: string; password: string; brand: string;
+  }> {
+    return apiClient.post(`/api/v1/platform/tenants/${slug}/admin-password`, {
+      password: password || null,
+    });
+  },
+
   /** What the platform takes on this brand's Gang Sheet Builder orders. */
   async getCommission(slug: string): Promise<Commission> {
     return apiClient.get<Commission>(`/api/v1/platform/tenants/${slug}/commission`);

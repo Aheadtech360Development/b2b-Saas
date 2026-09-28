@@ -372,6 +372,88 @@ function BillingBadge({ status }: { status?: string }) {
   );
 }
 
+/**
+ * The credentials to hand a brand's owner.
+ *
+ * The email can be shown because it is stored as itself. The password cannot:
+ * it is a hash, and being unable to read it back is the whole point. So the
+ * only honest answer to "what is their password" is a new one, set here and
+ * shown once — which also keeps it out of an UPDATE typed into a production
+ * database console, where a mistyped WHERE reaches every brand.
+ */
+function OwnerLogin({ slug }: { slug: string }) {
+  const [issued, setIssued] = useState<{ email: string; password: string } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  async function reset() {
+    if (!window.confirm(
+      "Set a new password for this brand's owner?\n\n" +
+      "Their current password stops working immediately, and the new one is " +
+      "shown only once."
+    )) return;
+    setBusy(true);
+    setErr(null);
+    try {
+      setIssued(await platformService.setAdminPassword(slug));
+    } catch (e) {
+      setErr(e instanceof ApiClientError && e.message ? e.message : "Could not set a new password.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function copy() {
+    if (!issued) return;
+    try {
+      await navigator.clipboard.writeText(`Email: ${issued.email}\nPassword: ${issued.password}`);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      setErr("Could not copy — select the text instead.");
+    }
+  }
+
+  return (
+    <div style={{ background: "#fff", border: "1px solid #E4E4E7", borderRadius: "12px", padding: "16px 18px", marginBottom: "22px" }}>
+      <div style={{ fontSize: "11px", fontWeight: 700, color: "#6B7280", textTransform: "uppercase", letterSpacing: ".06em" }}>
+        Owner login
+      </div>
+
+      {issued ? (
+        <>
+          <div style={{ marginTop: "10px", background: "#F7F7F8", border: "1px solid #E4E4E7", borderRadius: "8px", padding: "12px 14px", fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", fontSize: "13px", lineHeight: 1.8, wordBreak: "break-all" }}>
+            <div><span style={{ color: "#6B7280" }}>Email</span>&nbsp;&nbsp;{issued.email}</div>
+            <div><span style={{ color: "#6B7280" }}>Pass</span>&nbsp;&nbsp;&nbsp;{issued.password}</div>
+          </div>
+          <div style={{ display: "flex", gap: "8px", marginTop: "10px" }}>
+            <button onClick={copy} style={{ background: "#18181B", color: "#fff", border: "none", padding: "8px 16px", borderRadius: "8px", fontSize: "13px", fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
+              {copied ? "Copied" : "Copy both"}
+            </button>
+          </div>
+          <p style={{ fontSize: "12px", color: "#B45309", margin: "10px 0 0", lineHeight: 1.6 }}>
+            Shown once. Closing this panel does not bring it back — you would have to
+            set another one.
+          </p>
+        </>
+      ) : (
+        <>
+          <p style={{ fontSize: "12.5px", color: "#6B7280", margin: "8px 0 12px", lineHeight: 1.6 }}>
+            Passwords are stored as hashes, so an existing one cannot be looked up —
+            only replaced. The new one is shown here once, to pass on to the owner.
+          </p>
+          <button onClick={reset} disabled={busy} style={{ background: "#fff", color: "#18181B", border: "1px solid #E4E4E7", padding: "8px 16px", borderRadius: "8px", fontSize: "13px", fontWeight: 600, cursor: busy ? "default" : "pointer", fontFamily: "inherit" }}>
+            {busy ? "Setting…" : "Set a new password"}
+          </button>
+        </>
+      )}
+
+      {err && <p style={{ fontSize: "12.5px", color: "#B91C1C", margin: "10px 0 0" }}>{err}</p>}
+    </div>
+  );
+}
+
 // ── Manage Tenant Modal (features, lifecycle) ─────────────────────────────────
 // Subscription tiers are deliberately absent: the product is sold as one flat
 // service, so exposing plan pickers here would imply a tier that does not exist.
@@ -475,6 +557,8 @@ function ManageTenantModal({ tenant, onClose, onChanged }: { tenant: Tenant; onC
         </div>
 
         <CommissionEditor slug={tenant.slug} />
+
+        <OwnerLogin slug={tenant.slug} />
 
         {msg && <div style={{ background: "#ECFDF5", border: "1px solid #A7F3D0", color: "#047857", padding: "8px 12px", borderRadius: "8px", fontSize: "12px", marginBottom: "14px" }}>{msg}</div>}
 
