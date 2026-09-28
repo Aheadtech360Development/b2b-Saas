@@ -581,6 +581,30 @@ async def get_storefront_branding(
     return await _fetch_branding(db, row[0])
 
 
+# ── Public: which shop a code belongs to ─────────────────────────────────────
+@public_router.get("/by-code/{code}")
+async def shop_by_code(
+    code: str,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Which shop a code belongs to.
+
+    The first thing the mobile app asks: one app serves every brand, and a
+    buyer types the code their supplier gave them. Open by necessity — nobody
+    has signed in yet — and rate limited, because a lookup that answers
+    freely is a way to go looking for codes.
+    """
+    from app.core.rate_limit import enforce_rate_limit
+    from app.services import shop_code as codes
+
+    await enforce_rate_limit(request, "shop_code", limit=20, window=300)
+    found = await codes.resolve(db, code)
+    if not found:
+        raise HTTPException(status_code=404, detail="No shop has that code.")
+    return found
+
+
 # ── Public: this brand's own tracking tools ──────────────────────────────────
 @public_router.get("/analytics")
 async def get_storefront_analytics(
@@ -607,6 +631,47 @@ async def get_storefront_analytics(
     if not row:
         return analytics_config.public(analytics_config.blank())
     return analytics_config.public(await analytics_config.load(db, tenant_id=row[0]))
+
+
+# ── Admin: the code this shop hands its buyers ───────────────────────────────
+@admin_router.get("/shop-code")
+async def get_shop_code(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """This shop's code for the mobile app, minted on first asking."""
+    from app.services import shop_code as codes
+
+    tenant_id = _resolve_tenant_id(request)
+    if not tenant_id:
+        from app.core.exceptions import UnauthorizedError
+
+        raise UnauthorizedError("No tenant context")
+    return {"code": await codes.for_tenant(db, tenant_id)}
+
+
+@admin_router.post("/shop-code/rotate")
+async def rotate_shop_code(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Issue a new code and retire the old one.
+
+    For when a code has reached people it was not meant for. Buyers already
+    using the app are unaffected — the app remembers the shop, not the code —
+    so this only closes the door to anyone who has not come through it yet.
+    """
+    from app.services import shop_code as codes
+
+    tenant_id = _resolve_tenant_id(request)
+    if not tenant_id:
+        from app.core.exceptions import UnauthorizedError
+
+        raise UnauthorizedError("No tenant context")
+    code = await codes.rotate(db, tenant_id)
+    if not code:
+        raise HTTPException(status_code=500, detail="Could not issue a new code. Try again.")
+    return {"code": code}
 
 
 # ── Admin: read own branding ──────────────────────────────────────────────────
