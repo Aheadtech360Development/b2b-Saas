@@ -59,6 +59,18 @@ async def stripe_webhook(
     event_id = event["id"]
     event_type = event["type"]
 
+    # A "thin payload" destination sends the event's name and ids and leaves
+    # the object out; everything below reads the full object, so there is
+    # nothing here to act on. Answered 200 and dropped rather than failed,
+    # because a 500 tells Stripe to send it again — and it would keep
+    # arriving just as empty, for days, burying the deliveries that matter.
+    if not isinstance((event.get("data") or {}).get("object"), dict):
+        logger.warning(
+            "Ignoring %s (%s): no object in the payload. This endpoint needs a "
+            "snapshot-payload destination.", event_type, event_id,
+        )
+        return {"status": "ignored_thin_payload"}
+
     # Idempotency check
     existing = await db.execute(
         select(WebhookLog).where(WebhookLog.event_id == event_id)
