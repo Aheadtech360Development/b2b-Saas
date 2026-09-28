@@ -110,7 +110,7 @@ async def stripe_webhook(
         ):
             await BillingService(db).sync_subscription(obj)
         elif event_type == "invoice.payment_failed":
-            sub_id = obj.get("subscription")
+            sub_id = _invoice_subscription(obj)
             if sub_id:
                 await BillingService(db).mark_past_due(sub_id)
         # ── Connect onboarding (System B) ──
@@ -136,6 +136,29 @@ async def stripe_webhook(
         raise HTTPException(status_code=500, detail="Webhook processing failed")
 
     return {"status": "ok"}
+
+
+def _invoice_subscription(invoice: dict) -> str | None:
+    """Which subscription an invoice is for, in either payload shape.
+
+    Stripe moved this off the invoice and under `parent` in the 2025 API
+    versions. A webhook destination is pinned to whichever version it was
+    created with, and ours will outlive that choice, so both are read rather
+    than betting on one. Reading the wrong one is silent: the invoice fails,
+    nothing is marked past due, and the brand keeps its plan for free.
+    """
+    direct = invoice.get("subscription")
+    if direct:
+        return direct if isinstance(direct, str) else direct.get("id")
+    details = ((invoice.get("parent") or {}).get("subscription_details") or {})
+    sub = details.get("subscription")
+    if sub:
+        return sub if isinstance(sub, str) else sub.get("id")
+    for line in (invoice.get("lines") or {}).get("data") or []:
+        item = ((line.get("parent") or {}).get("subscription_item_details") or {})
+        if item.get("subscription"):
+            return item["subscription"]
+    return None
 
 
 async def _handle_payment_succeeded(db: AsyncSession, payment_intent: dict) -> None:
