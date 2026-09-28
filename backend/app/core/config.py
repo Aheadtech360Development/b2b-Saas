@@ -127,6 +127,27 @@ class Settings(BaseSettings):
     STRIPE_WEBHOOK_SECRET_TEST: str = ""
     STRIPE_CONNECT_WEBHOOK_SECRET_TEST: str = ""
 
+    @field_validator(
+        "STRIPE_SECRET_KEY", "STRIPE_PUBLISHABLE_KEY",
+        "STRIPE_SECRET_KEY_TEST", "STRIPE_PUBLISHABLE_KEY_TEST",
+        "STRIPE_WEBHOOK_SECRET", "STRIPE_CONNECT_WEBHOOK_SECRET",
+        "STRIPE_WEBHOOK_SECRET_TEST", "STRIPE_CONNECT_WEBHOOK_SECRET_TEST",
+        mode="before",
+    )
+    @classmethod
+    def strip_key(cls, v: object) -> object:
+        """Trim whitespace and stray quotes off a pasted key.
+
+        These are copied by hand into a hosting dashboard, and a trailing
+        space survives the paste invisibly. It goes into the Authorization
+        header as part of the key, so Stripe answers 401 and every payment
+        refuses — with nothing on screen to suggest the key is anything but
+        correct. Cheaper to absorb here than to debug at a checkout.
+        """
+        if isinstance(v, str):
+            return v.strip().strip('"').strip("'").strip()
+        return v
+
     # ── Email (Resend) ────────────────────────────────────────────────────────
     RESEND_API_KEY: str = ""
     SENDGRID_API_KEY: str = ""  # kept for backward compat, unused
