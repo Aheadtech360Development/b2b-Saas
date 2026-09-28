@@ -331,7 +331,9 @@ def _order_row(
         "supplier_notes": o.supplier_notes,
         "revision_count": o.revision_count,
         "contact_email": o.contact_email,
-        "contact_name": o.contact_name,
+        # Who to put on the review screen. A submission with nobody's name on
+        # it is a reference number the shop cannot act on.
+        "contact_name": o.contact_name or "Guest",
         "product_id": str(o.product_id) if o.product_id else None,
         "sheet_size_id": str(o.sheet_size_id) if o.sheet_size_id else None,
         "created_at": o.created_at.isoformat() if o.created_at else None,
@@ -373,6 +375,53 @@ async def _product_slugs(db: AsyncSession, product_ids) -> dict[str, str]:
 
     rows = await db.execute(select(Product.id, Product.slug).where(Product.id.in_(ids)))
     return {str(i): slug for i, slug in rows.all() if slug}
+
+
+async def _submitter(request, db: AsyncSession, payload) -> tuple[str | None, str | None]:
+    """Who sent this sheet in, for the shop that has to look at it.
+
+    The form only asks a guest for a name — a signed-in buyer has already told
+    us who they are and is not asked again. So the name arrived empty for every
+    customer with an account, and the shop's review queue was a list of
+    references with nobody attached to them.
+
+    Taken from whoever is signed in when the form did not carry one, and the
+    company is preferred over the person: a wholesale shop thinks in accounts,
+    and "Bilal Printing" is what it needs to see, not "Bilal".
+    """
+    name = (getattr(payload, "contact_name", None) or "").strip() or None
+    email = (getattr(payload, "contact_email", None) or "").strip() or None
+    if name and email:
+        return name, email
+
+    from sqlalchemy import text as _t
+
+    company_id = getattr(request.state, "company_id", None)
+    user_id = getattr(request.state, "user_id", None)
+
+    if not name and company_id:
+        try:
+            name = (await db.execute(
+                _t("SELECT name FROM companies WHERE id = CAST(:c AS uuid)"),
+                {"c": str(company_id)},
+            )).scalar() or None
+        except Exception:
+            pass
+
+    if (not name or not email) and user_id:
+        try:
+            row = (await db.execute(_t(
+                "SELECT first_name, last_name, email FROM users WHERE id = CAST(:u AS uuid)"
+            ), {"u": str(user_id)})).first()
+            if row:
+                if not name:
+                    person = " ".join(x for x in (row[0], row[1]) if x).strip()
+                    name = person or None
+                email = email or row[2]
+        except Exception:
+            pass
+
+    return name, email
 
 
 async def _next_reference(db: AsyncSession) -> str:
@@ -651,12 +700,13 @@ async def submit_order(
 
     subtotal = unit_price * payload.sheet_quantity
 
+    who_name, who_email = await _submitter(request, db, payload)
     order = GangSheetOrder(
         reference=await _next_reference(db),
         company_id=getattr(request.state, "company_id", None),
         user_id=getattr(request.state, "user_id", None),
-        contact_email=payload.contact_email,
-        contact_name=payload.contact_name,
+        contact_email=who_email,
+        contact_name=who_name,
         product_id=payload.product_id,
         sheet_size_id=size.id,
         sheet_name=(f"{size.name} ({sheet_height}\")" if getattr(size, "pricing_mode", "fixed") == "custom_length" else size.name),
@@ -763,12 +813,13 @@ async def submit_upload_by_size(
     product, unit_price = await _upload_by_size_quote(db, payload.product_id, w, h)
     subtotal = (unit_price * payload.quantity).quantize(Decimal("0.01"))
 
+    who_name, who_email = await _submitter(request, db, payload)
     order = GangSheetOrder(
         reference=await _next_reference(db),
         company_id=getattr(request.state, "company_id", None),
         user_id=getattr(request.state, "user_id", None),
-        contact_email=payload.contact_email,
-        contact_name=payload.contact_name,
+        contact_email=who_email,
+        contact_name=who_name,
         product_id=product.id,
         sheet_size_id=None,  # upload-by-size has no preset sheet
         sheet_name=f'{product.name} — {w}"×{h}"',

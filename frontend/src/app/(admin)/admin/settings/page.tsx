@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { apiClient } from "@/lib/api-client";
 import { IntegrationsPanel } from "@/components/admin/IntegrationsPanel";
 import { ShopCodePanel } from "@/components/admin/ShopCodePanel";
+import { DomainPanel } from "@/components/admin/DomainPanel";
 
 const SETTING_FIELDS = [
   { key: "mov", label: "Minimum Order Value ($)", type: "number", placeholder: "e.g. 200" },
@@ -134,6 +135,20 @@ export default function AdminSettingsPage() {
         </div>
         <div className="px-6 py-6">
           <IntegrationsPanel category="email" />
+        </div>
+      </div>
+
+      {/* The shop's own domain, once it has bought one. */}
+      <div className="bg-white border border-gray-200 rounded-lg">
+        <div className="px-6 py-4 border-b border-gray-100">
+          <h2 className="font-semibold text-gray-900">Your domain</h2>
+          <p className="text-sm text-gray-500 mt-1">
+            Bought a domain of your own? Point it here and your whole shop answers
+            there — same products, same orders, same customers.
+          </p>
+        </div>
+        <div className="px-6 py-6">
+          <DomainPanel />
         </div>
       </div>
 

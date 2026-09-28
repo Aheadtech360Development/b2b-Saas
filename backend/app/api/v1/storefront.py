@@ -633,6 +633,70 @@ async def get_storefront_analytics(
     return analytics_config.public(await analytics_config.load(db, tenant_id=row[0]))
 
 
+# ── Admin: this shop's own domain ────────────────────────────────────────────
+class DomainIn(BaseModel):
+    # Empty gives the domain up and sends the shop back to its address on the
+    # platform, which never stopped working.
+    domain: str | None = None
+
+
+@admin_router.get("/domain")
+async def get_brand_domain(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """This shop's own domain, the DNS it needs, and whether it is live yet."""
+    from app.services import brand_domain
+
+    tenant_id = _resolve_tenant_id(request)
+    if not tenant_id:
+        from app.core.exceptions import UnauthorizedError
+
+        raise UnauthorizedError("No tenant context")
+    return await brand_domain.get(db, tenant_id)
+
+
+@admin_router.put("/domain")
+async def set_brand_domain(
+    data: DomainIn,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Claim a domain for this shop, or give it up."""
+    from app.services import brand_domain
+
+    tenant_id = _resolve_tenant_id(request)
+    if not tenant_id:
+        from app.core.exceptions import UnauthorizedError
+
+        raise UnauthorizedError("No tenant context")
+    try:
+        return await brand_domain.save(db, tenant_id, data.domain)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@admin_router.post("/domain/check")
+async def check_brand_domain(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Ask the address itself whether it is answering yet.
+
+    Its own button rather than part of reading the page: it costs a request
+    over the internet, and a settings screen that waits on one — and fails
+    when it times out — is a settings screen nobody can open.
+    """
+    from app.services import brand_domain
+
+    tenant_id = _resolve_tenant_id(request)
+    if not tenant_id:
+        from app.core.exceptions import UnauthorizedError
+
+        raise UnauthorizedError("No tenant context")
+    return await brand_domain.verify(db, tenant_id)
+
+
 # ── Admin: the code this shop hands its buyers ───────────────────────────────
 @admin_router.get("/shop-code")
 async def get_shop_code(
