@@ -30,7 +30,25 @@ _DEAD_STATES = {"canceled", "incomplete_expired", "unpaid"}
 
 
 def _stripe():
+    """Stripe with the platform's key.
+
+    The mode-aware form is `_stripe_for(db)`; this stays for the few paths
+    that have no session to ask with.
+    """
     stripe.api_key = get_settings().STRIPE_SECRET_KEY
+    return stripe
+
+
+async def _stripe_for(db):
+    """Stripe, keyed for whichever mode the platform is in.
+
+    Test and live are separate worlds in Stripe — a customer, a price or a
+    Connect account made in one does not exist in the other — so which key is
+    in use decides which world every id here belongs to.
+    """
+    from app.services import stripe_mode
+
+    stripe.api_key = await stripe_mode.secret_key(db)
     return stripe
 
 
@@ -63,7 +81,7 @@ class BillingService:
         plan = BILLING_PLANS.get(plan_key)
         if not plan:
             return None
-        s = _stripe()
+        s = await _stripe_for(self.db)
         lookup_key = plan["lookup_key"]
         try:
             found = s.Price.list(lookup_keys=[lookup_key], limit=1, active=True)
@@ -125,7 +143,7 @@ class BillingService:
         if row and row[0]:
             return row[0]
 
-        s = _stripe()
+        s = await _stripe_for(self.db)
         customer = s.Customer.create(
             email=tenant.get("email"),
             name=tenant.get("name"),
@@ -158,7 +176,7 @@ class BillingService:
             "SELECT stripe_subscription_id, status FROM tenant_subscriptions WHERE tenant_id = :t"
         ), {"t": str(tenant["id"])})).first()
         if sub_row and sub_row[0] and sub_row[1] in ("active", "trialing", "past_due"):
-            s = _stripe()
+            s = await _stripe_for(self.db)
             sub = s.Subscription.retrieve(sub_row[0])
             item_id = sub["items"]["data"][0]["id"]
             s.Subscription.modify(
@@ -178,7 +196,7 @@ class BillingService:
 
         back = brand_urls.build(tenant["slug"], tenant.get("custom_domain"), "/admin/billing")
         joiner = "&" if "?" in back else "?"
-        s = _stripe()
+        s = await _stripe_for(self.db)
         session = s.checkout.Session.create(
             mode="subscription",
             customer=customer_id,
@@ -198,7 +216,7 @@ class BillingService:
         customer_id = await self.get_or_create_customer(tenant)
         from app.services import brand_urls
 
-        s = _stripe()
+        s = await _stripe_for(self.db)
         session = s.billing_portal.Session.create(
             customer=customer_id,
             return_url=brand_urls.build(tenant["slug"], tenant.get("custom_domain"), "/admin/billing"),
@@ -236,7 +254,7 @@ class BillingService:
         )).first()
         customer_id = row[0] if row else None
         if customer_id:
-            s = _stripe()
+            s = await _stripe_for(self.db)
             subs = s.Subscription.list(customer=customer_id, status="all", limit=1)
             if subs.data:
                 await self.sync_subscription(subs.data[0])

@@ -112,6 +112,12 @@ class Settings(BaseSettings):
 
     # ── Stripe ────────────────────────────────────────────────────────────────
     STRIPE_SECRET_KEY: str = ""
+    # The other world. Stripe keeps test and live entirely apart — a customer,
+    # a Connect account or a price made in one does not exist in the other —
+    # so both keys live here and the platform picks which is in use. See
+    # services/stripe_mode. Secrets stay in the environment, never in a table.
+    STRIPE_SECRET_KEY_TEST: str = ""
+    STRIPE_PUBLISHABLE_KEY_TEST: str = ""
     STRIPE_PUBLISHABLE_KEY: str = ""
     STRIPE_WEBHOOK_SECRET: str = ""          # "Your account" scope destination
     STRIPE_CONNECT_WEBHOOK_SECRET: str = ""  # "Connected accounts" scope destination

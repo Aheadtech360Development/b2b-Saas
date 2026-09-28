@@ -241,7 +241,9 @@ async def _confirm_checkout_inner(
         if not _acct:
             raise ValidationError("This store is not set up for card payments.")
         import stripe as _stripe_lib
-        _stripe_lib.api_key = settings.STRIPE_SECRET_KEY
+        from app.services import stripe_mode as _mode
+
+        _stripe_lib.api_key = await _mode.secret_key(db)
         try:
             _pi = _stripe_lib.PaymentIntent.retrieve(payload.payment_intent_id, stripe_account=_acct)
         except Exception as _pi_exc:

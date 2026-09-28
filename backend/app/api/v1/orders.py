@@ -550,7 +550,9 @@ async def pay_invoice(
     if not _acct:
         raise HTTPException(status_code=400, detail="This store is not set up for card payments.")
 
-    _stripe_lib.api_key = settings.STRIPE_SECRET_KEY
+    from app.services import stripe_mode as _mode
+
+    _stripe_lib.api_key = await _mode.secret_key(db)
     try:
         _pi = _stripe_lib.PaymentIntent.retrieve(payload.payment_intent_id, stripe_account=_acct)
     except Exception as exc:

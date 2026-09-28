@@ -171,6 +171,8 @@ async def _handle_checkout_completed(db: AsyncSession, session: dict) -> None:
     sub_id = session.get("subscription")
     if not sub_id:
         return
-    stripe.api_key = get_settings().STRIPE_SECRET_KEY
+    from app.services import stripe_mode as _mode
+
+    stripe.api_key = await _mode.secret_key(db)
     subscription = stripe.Subscription.retrieve(sub_id)
     await BillingService(db).sync_subscription(subscription)

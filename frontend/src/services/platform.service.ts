@@ -63,7 +63,27 @@ export interface TenantFeatures {
   features: FeatureFlag[];
 }
 
+export interface StripeMode {
+  mode: "live" | "test";
+  ready: boolean;
+  publishable_key: string | null;
+  live_configured: boolean;
+  test_configured: boolean;
+  /** A live key sitting in the test variable, or the other way round. */
+  mismatch: boolean;
+}
+
 export const platformService = {
+  /** Whether the platform is taking real money or pretending to. */
+  async getStripeMode(): Promise<StripeMode> {
+    return apiClient.get<StripeMode>("/api/v1/platform/tenants/stripe-mode");
+  },
+
+  /** Switch between Stripe's test and live worlds. */
+  async setStripeMode(mode: "live" | "test"): Promise<StripeMode> {
+    return apiClient.put<StripeMode>("/api/v1/platform/tenants/stripe-mode", { mode });
+  },
+
   /** What the platform takes on this brand's Gang Sheet Builder orders. */
   async getCommission(slug: string): Promise<Commission> {
     return apiClient.get<Commission>(`/api/v1/platform/tenants/${slug}/commission`);

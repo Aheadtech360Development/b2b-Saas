@@ -278,6 +278,45 @@ async def get_tenant_features(
     return await entitlements.detail(db, tid)
 
 
+# ── Which Stripe world the platform is in ────────────────────────────────────
+
+@router.get("/stripe-mode")
+async def get_stripe_mode(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Whether the platform is taking real money or pretending to."""
+    _require_platform_admin(request)
+    from app.services import stripe_mode
+
+    return await stripe_mode.status(db)
+
+
+class StripeModeUpdate(BaseModel):
+    mode: str  # "live" | "test"
+
+
+@router.put("/stripe-mode")
+async def set_stripe_mode(
+    data: StripeModeUpdate,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Switch the platform between Stripe's test and live worlds.
+
+    The platform's alone to change: both keys sit in the environment, and one
+    brand flipping this would put every other brand's checkout into test mode
+    with it.
+    """
+    _require_platform_admin(request)
+    from app.services import stripe_mode
+
+    try:
+        return await stripe_mode.set_mode(db, data.mode)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
 # ── Gang Sheet Builder commission ─────────────────────────────────────────────
 
 @router.get("/{slug}/commission")

@@ -12,6 +12,7 @@ import {
   type Commission,
 } from "@/services/platform.service";
 import { AnalyticsTab, ActivityTab, SearchTab, HealthTab } from "@/components/platform/InsightTabs";
+import { StripeModePanel } from "@/components/platform/StripeModePanel";
 import type { Tenant } from "@/types/user.types";
 
 // The service is sold as a single flat offering — there are no tiers to choose
@@ -128,6 +129,10 @@ export default function PlatformDashboard() {
       {tab === "health" && <HealthTab onEnter={(slug) => enterBrandDashboard(slug).catch(() => alert("Could not open dashboard"))} />}
 
       {tab === "brands" && <>
+      {/* Which Stripe world every shop's checkout is in. First thing on the
+          page, because it is the one setting that is true of all of them. */}
+      <StripeModePanel />
+
       {/* Stat cards */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: "14px", marginBottom: "28px" }}>
         {[

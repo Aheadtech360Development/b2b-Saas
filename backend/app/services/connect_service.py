@@ -32,7 +32,22 @@ logger = logging.getLogger(__name__)
 
 
 def _stripe():
+    """Stripe with the platform's key. See `_stripe_for(db)` for the
+    mode-aware form used wherever a session is at hand."""
     stripe.api_key = get_settings().STRIPE_SECRET_KEY
+    return stripe
+
+
+async def _stripe_for(db):
+    """Stripe, keyed for whichever mode the platform is in.
+
+    Test and live are separate worlds in Stripe — a customer, a price or a
+    Connect account made in one does not exist in the other — so which key is
+    in use decides which world every id here belongs to.
+    """
+    from app.services import stripe_mode
+
+    stripe.api_key = await stripe_mode.secret_key(db)
     return stripe
 
 
@@ -69,7 +84,7 @@ class ConnectService:
         if tenant.get("stripe_connect_account_id"):
             return tenant["stripe_connect_account_id"]
 
-        s = _stripe()
+        s = await _stripe_for(self.db)
         account = s.Account.create(
             type="express",
             country="US",
@@ -91,7 +106,7 @@ class ConnectService:
     async def create_onboarding_link(self, tenant_id: str) -> dict:
         account_id = await self.create_or_get_account(tenant_id)
         frontend = get_settings().FRONTEND_URL.rstrip("/")
-        s = _stripe()
+        s = await _stripe_for(self.db)
         link = s.AccountLink.create(
             account=account_id,
             refresh_url=f"{frontend}/admin/billing?status=refresh",
@@ -104,7 +119,7 @@ class ConnectService:
         tenant = await self._get_tenant(tenant_id)
         if not tenant or not tenant.get("stripe_connect_account_id"):
             raise ValueError("Brand has not started Connect onboarding yet")
-        s = _stripe()
+        s = await _stripe_for(self.db)
         link = s.Account.create_login_link(tenant["stripe_connect_account_id"])
         return {"dashboard_url": link.url}
 
@@ -130,7 +145,7 @@ class ConnectService:
         tenant = await self._get_tenant(tenant_id)
         if not tenant or not tenant.get("stripe_connect_account_id"):
             raise ValueError("Brand has not started Connect onboarding yet")
-        s = _stripe()
+        s = await _stripe_for(self.db)
         account = s.Account.retrieve(tenant["stripe_connect_account_id"])
         await self._apply_account(str(tenant["id"]), account)
         return await self.get_status(tenant_id)

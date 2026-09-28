@@ -12,8 +12,22 @@ logger = logging.getLogger(__name__)
 
 
 def _get_stripe():
+    """Stripe, keyed for whichever mode the platform is in.
+
+    Synchronous, and every caller here already has a session, so the mode is
+    resolved by the service methods below and handed in. This stays as the
+    fallback for the few paths with nothing to ask.
+    """
     settings = get_settings()
     stripe.api_key = settings.STRIPE_SECRET_KEY
+    return stripe
+
+
+async def stripe_for(db: AsyncSession):
+    """Stripe, keyed for the mode this platform is set to."""
+    from app.services import stripe_mode
+
+    stripe.api_key = await stripe_mode.secret_key(db)
     return stripe
 
 
@@ -28,7 +42,7 @@ class PaymentService:
         customer_stripe_id: str | None = None,
         metadata: dict | None = None,
     ) -> stripe.PaymentIntent:
-        s = _get_stripe()
+        s = await stripe_for(self.db)
         amount_cents = int(amount_decimal * 100)  # Stripe uses cents
         params: dict = {
             "amount": amount_cents,
@@ -61,7 +75,7 @@ class PaymentService:
         sheet says is metered. Every other order on a shop is covered by its
         flat monthly plan, so nothing is taken from it.
         """
-        s = _get_stripe()
+        s = await stripe_for(self.db)
         amount_cents = int(amount_decimal * 100)
         params: dict = {
             "amount": amount_cents,
@@ -96,7 +110,7 @@ class PaymentService:
         """
         from decimal import ROUND_HALF_UP
 
-        s = _get_stripe()
+        s = await stripe_for(self.db)
         params: dict = {"payment_intent": payment_intent_id}
         if amount_decimal is not None:
             # Rounded, not truncated: int(19.99 * 100) is 1998 in float maths.
@@ -112,27 +126,27 @@ class PaymentService:
         return s.Refund.create(**options, **params)
 
     async def retrieve_payment_intent(self, intent_id: str) -> stripe.PaymentIntent:
-        s = _get_stripe()
+        s = await stripe_for(self.db)
         return s.PaymentIntent.retrieve(intent_id)
 
     async def save_payment_method(
         self, payment_method_id: str, customer_stripe_id: str
     ) -> stripe.PaymentMethod:
-        s = _get_stripe()
+        s = await stripe_for(self.db)
         pm = s.PaymentMethod.attach(payment_method_id, customer=customer_stripe_id)
         return pm
 
     async def list_saved_payment_methods(
         self, customer_stripe_id: str
     ) -> list[stripe.PaymentMethod]:
-        s = _get_stripe()
+        s = await stripe_for(self.db)
         result = s.PaymentMethod.list(customer=customer_stripe_id, type="card")
         return result.data
 
     async def detach_payment_method(
         self, payment_method_id: str
     ) -> stripe.PaymentMethod:
-        s = _get_stripe()
+        s = await stripe_for(self.db)
         return s.PaymentMethod.detach(payment_method_id)
 
     async def get_or_create_stripe_customer(
@@ -149,7 +163,7 @@ class PaymentService:
         if existing:
             return existing
 
-        s = _get_stripe()
+        s = await stripe_for(self.db)
         customer = s.Customer.create(
             email=email,
             name=name,
