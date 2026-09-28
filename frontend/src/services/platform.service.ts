@@ -69,6 +69,10 @@ export interface StripeMode {
   publishable_key: string | null;
   live_configured: boolean;
   test_configured: boolean;
+  /** Signing secrets for this mode's two Stripe destinations. Without them
+   *  the charge still happens and the app never hears about it. */
+  webhook_configured: boolean;
+  connect_webhook_configured: boolean;
   /** A live key sitting in the test variable, or the other way round. */
   mismatch: boolean;
 }

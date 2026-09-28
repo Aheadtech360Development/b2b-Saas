@@ -98,6 +98,19 @@ export function StripeModePanel() {
           No usable key for {state.mode} mode, so payments will refuse. Set it on the server.
         </p>
       )}
+      {(!state.webhook_configured || !state.connect_webhook_configured) && (
+        <p style={{ ...S.note, color: "#B45309" }}>
+          {state.mode} mode has no{" "}
+          {!state.webhook_configured && !state.connect_webhook_configured
+            ? "webhook signing secrets"
+            : !state.webhook_configured
+              ? "account webhook signing secret"
+              : "connected-accounts webhook signing secret"}
+          . Cards will be charged and nothing here will know: orders stay unpaid and
+          subscriptions never activate. Add the destination in Stripe and put its secret on
+          the server.
+        </p>
+      )}
       {!state.live_configured && (
         <p style={S.note}>
           Live is unavailable until <code>STRIPE_SECRET_KEY</code> and{" "}

@@ -47,6 +47,19 @@ def _keys(mode: str) -> tuple[str, str]:
     return s.STRIPE_SECRET_KEY, s.STRIPE_PUBLISHABLE_KEY
 
 
+def _hooks(mode: str) -> tuple[str, str]:
+    """The signing secrets for this mode's two destinations.
+
+    A destination belongs to one world, so switching mode changes which
+    secrets can verify what arrives. Missing one is quiet and expensive: the
+    payment goes through at Stripe and the order never hears about it.
+    """
+    s = get_settings()
+    if mode == TEST:
+        return s.STRIPE_WEBHOOK_SECRET_TEST, s.STRIPE_CONNECT_WEBHOOK_SECRET_TEST
+    return s.STRIPE_WEBHOOK_SECRET, s.STRIPE_CONNECT_WEBHOOK_SECRET
+
+
 def mode_of(secret: str | None) -> str:
     """Which world a key belongs to, read off the key itself."""
     return TEST if (secret or "").startswith("sk_test") else LIVE
@@ -124,10 +137,15 @@ async def status(db) -> dict:
     s = get_settings()
     mode = await current(db)
     secret, pub = _keys(mode)
+    hook, connect_hook = _hooks(mode)
     return {
         "mode": mode,
         "ready": bool(secret and pub),
         "publishable_key": pub or None,
+        # Without these the money still moves and nothing in the app finds
+        # out — orders stay unpaid, subscriptions never activate.
+        "webhook_configured": bool(hook),
+        "connect_webhook_configured": bool(connect_hook),
         # Which of the two can be switched to at all.
         "live_configured": bool(s.STRIPE_SECRET_KEY and s.STRIPE_PUBLISHABLE_KEY),
         "test_configured": bool(s.STRIPE_SECRET_KEY_TEST and s.STRIPE_PUBLISHABLE_KEY_TEST),

@@ -27,11 +27,22 @@ async def stripe_webhook(
     settings = get_settings()
     payload = await request.body()
 
-    # Verify the signature against EITHER configured secret. A Stripe "Your
+    # Verify the signature against ANY configured secret. A Stripe "Your
     # account" destination (platform billing) and a "Connected accounts"
     # destination (Direct charges, disputes, onboarding) each have their own
-    # signing secret, but both deliver to this one endpoint.
-    _secrets = [s for s in (settings.STRIPE_WEBHOOK_SECRET, settings.STRIPE_CONNECT_WEBHOOK_SECRET) if s]
+    # signing secret, and test and live destinations have their own again —
+    # but all four deliver to this one endpoint.
+    #
+    # Every secret is tried rather than only the ones for the current mode,
+    # because switching mode does not stop the other world from delivering:
+    # a retry of an event from before the switch still has to be accepted or
+    # Stripe keeps re-sending it.
+    _secrets = [s for s in (
+        settings.STRIPE_WEBHOOK_SECRET,
+        settings.STRIPE_CONNECT_WEBHOOK_SECRET,
+        settings.STRIPE_WEBHOOK_SECRET_TEST,
+        settings.STRIPE_CONNECT_WEBHOOK_SECRET_TEST,
+    ) if s]
     event = None
     for _secret in _secrets:
         try:

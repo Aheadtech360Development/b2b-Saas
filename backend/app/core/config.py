@@ -121,6 +121,11 @@ class Settings(BaseSettings):
     STRIPE_PUBLISHABLE_KEY: str = ""
     STRIPE_WEBHOOK_SECRET: str = ""          # "Your account" scope destination
     STRIPE_CONNECT_WEBHOOK_SECRET: str = ""  # "Connected accounts" scope destination
+    # A test destination and a live one sign with different secrets, so both
+    # sets are kept. The handler tries each rather than trusting the current
+    # mode: a webhook can arrive from the world we just switched away from.
+    STRIPE_WEBHOOK_SECRET_TEST: str = ""
+    STRIPE_CONNECT_WEBHOOK_SECRET_TEST: str = ""
 
     # ── Email (Resend) ────────────────────────────────────────────────────────
     RESEND_API_KEY: str = ""
