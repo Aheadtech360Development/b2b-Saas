@@ -74,6 +74,35 @@ function Badge({ tone, children }: { tone: "green" | "yellow" | "red" | "gray"; 
   return <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${map[tone]}`}>{children}</span>;
 }
 
+/** A message with its links clickable.
+ *
+ *  Stripe's messages often end in the page that fixes the problem —
+ *  "activate your accounts at https://…" — and as plain text that is an
+ *  address to retype by hand off a screen. Only http(s) links are made
+ *  clickable, and trailing punctuation is left out of the href so a URL at
+ *  the end of a sentence still opens.
+ */
+function Linkified({ text }: { text: string }) {
+  const parts = text.split(/(https?:\/\/[^\s]+)/g);
+  return (
+    <>
+      {parts.map((part, i) => {
+        if (!/^https?:\/\//.test(part)) return <span key={i}>{part}</span>;
+        const href = part.replace(/[.,;:)\]]+$/, "");
+        const tail = part.slice(href.length);
+        return (
+          <span key={i}>
+            <a href={href} target="_blank" rel="noopener noreferrer" style={{ textDecoration: "underline", fontWeight: 600 }}>
+              {href}
+            </a>
+            {tail}
+          </span>
+        );
+      })}
+    </>
+  );
+}
+
 /** What the server said went wrong, when it said anything worth reading.
  *
  *  Stripe's own messages name the setting to change — Connect not enabled on
@@ -221,7 +250,7 @@ export default function BillingPage() {
           toast.type === "success" ? "bg-green-50 border-green-200 text-green-800"
           : toast.type === "error" ? "bg-red-50 border-red-200 text-red-800"
           : "bg-blue-50 border-blue-200 text-blue-800"}`}>
-          {toast.text}
+          <Linkified text={toast.text} />
         </div>
       )}
 
