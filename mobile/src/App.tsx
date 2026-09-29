@@ -15,7 +15,7 @@ import { Fraunces_400Regular, Fraunces_600SemiBold } from "@expo-google-fonts/fr
 import { readSession, type Session } from "@/session/store";
 import { refresh } from "@/api/client";
 import { AccountScreen } from "@/screens/AccountScreen";
-import { AdminHome } from "@/screens/AdminHome";
+import { AdminApp } from "@/admin/AdminApp";
 import { ApplyScreen } from "@/screens/ApplyScreen";
 import { SignInScreen } from "@/screens/SignInScreen";
 import { palette } from "@/ui/theme";
@@ -72,7 +72,7 @@ export default function App() {
         <ApplyScreen onDone={() => setScreen("signIn")} />
       ) : session ? (
         session.isAdmin ? (
-          <AdminHome
+          <AdminApp
             session={session}
             onSignedOut={() => { setSession(null); setScreen("signIn"); }}
           />
