@@ -6,7 +6,7 @@
  * names the shop, which is how the app knows whose branding to wear.
  */
 import { call } from "@/api/client";
-import { readClaims, writeSession, type Session } from "@/session/store";
+import { clearSession, readClaims, writeSession, type Session } from "@/session/store";
 
 export interface LoginResult {
   /** A 2FA code is needed before this is a session. */
@@ -80,7 +80,6 @@ export async function signOut(): Promise<void> {
   } catch {
     // Offline, or already expired. Clearing locally is what matters.
   }
-  const { clearSession } = await import("@/session/store");
   await clearSession();
 }
 

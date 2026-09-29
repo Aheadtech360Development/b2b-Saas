@@ -7,10 +7,18 @@
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
-    "ios": { "supportsTablet": true, "bundleIdentifier": "co.printcopilot.app" },
-    "android": { "package": "co.printcopilot.app" },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "co.printcopilot.app"
+    },
+    "android": {
+      "package": "co.printcopilot.app"
+    },
     "extra": {
       "apiUrl": "https://b2b-saas-production.up.railway.app"
-    }
+    },
+    "plugins": [
+      "expo-asset"
+    ]
   }
 }
