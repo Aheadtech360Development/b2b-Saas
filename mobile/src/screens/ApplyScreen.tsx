@@ -10,13 +10,13 @@
  */
 import { useState } from "react";
 import {
-  KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View,
+  KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View,
 } from "react-native";
 
 import { ApiError, call } from "@/api/client";
 import { findByCode, type Shop } from "@/api/shop";
-import { Button, Field, Heading, Lede, Notice } from "@/ui/components";
-import { accentFor, palette } from "@/ui/theme";
+import { Button, Field, Hero, Lede, Notice, TextButton } from "@/ui/components";
+import { accentFor, palette, space, type } from "@/ui/theme";
 
 export function ApplyScreen({ onDone }: { onDone: () => void }) {
   const [shop, setShop] = useState<Shop | null>(null);
@@ -78,7 +78,7 @@ export function ApplyScreen({ onDone }: { onDone: () => void }) {
   if (submitted) {
     return (
       <View style={s.done}>
-        <Heading>Application sent</Heading>
+        <Hero>Application sent</Hero>
         <Lede>
           {shop?.name} will review it and email you. Once approved, sign in with the
           email and password you just set.
@@ -92,7 +92,7 @@ export function ApplyScreen({ onDone }: { onDone: () => void }) {
   return (
     <KeyboardAvoidingView style={s.flex} behavior={Platform.OS === "ios" ? "padding" : undefined}>
       <ScrollView contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled">
-        <Heading>{shop ? `Apply to ${shop.name}` : "Find your shop"}</Heading>
+        <Hero>{shop ? `Apply to ${shop.name}` : "Find your shop"}</Hero>
         <Lede>
           {shop
             ? "They will review this and email you when it is approved."
@@ -134,9 +134,12 @@ export function ApplyScreen({ onDone }: { onDone: () => void }) {
           </>
         )}
 
-        <Pressable onPress={shop ? () => setShop(null) : onDone} hitSlop={8}>
-          <Text style={s.link}>{shop ? "Use a different shop code" : "Back to sign in"}</Text>
-        </Pressable>
+        <View style={s.centreRow}>
+          <TextButton
+            title={shop ? "Use a different shop code" : "Back to sign in"}
+            onPress={shop ? () => setShop(null) : onDone}
+          />
+        </View>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -148,9 +151,9 @@ function reason(e: unknown, fallback: string): string {
 
 const s = StyleSheet.create({
   flex: { flex: 1, backgroundColor: palette.page },
-  scroll: { padding: 24, paddingTop: 72, paddingBottom: 48 },
-  done: { flex: 1, backgroundColor: palette.page, padding: 24, paddingTop: 120 },
-  gap: { height: 16 },
-  hint: { fontSize: 13, color: palette.muted, marginTop: -8, marginBottom: 4 },
-  link: { fontSize: 14, fontWeight: "600", color: palette.muted, textAlign: "center", marginTop: 20 },
+  scroll: { padding: space.lg, paddingTop: 72, paddingBottom: space.xl },
+  done: { flex: 1, backgroundColor: palette.page, padding: space.lg, paddingTop: 120 },
+  gap: { height: space.md },
+  hint: { ...type.small, color: palette.muted, marginTop: -space.xs, marginBottom: space.xs },
+  centreRow: { alignItems: "center", marginTop: space.md },
 });

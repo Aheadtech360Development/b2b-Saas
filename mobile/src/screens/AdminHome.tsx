@@ -1,9 +1,8 @@
 /**
- * What a buyer sees.
+ * What the shop's own people see.
  *
- * The shop's name sits at the top because on a phone there is no address bar
- * to say whose shop this is, and one person may buy from several suppliers on
- * this platform.
+ * Orders first, because that is what somebody opens a phone to check. The
+ * numbers sit above them for context, not as the point of the screen.
  */
 import { useCallback, useEffect, useState } from "react";
 import {
@@ -11,33 +10,35 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { orders as fetchOrders, profile as fetchProfile, type OrderSummary, type Profile } from "@/api/account";
-import { currentShop, type Shop } from "@/api/shop";
+import { analytics, counts, orders as fetchOrders, type AdminOrder, type Analytics, type Counts } from "@/api/admin";
 import { signOut } from "@/api/auth";
+import { currentShop, type Shop } from "@/api/shop";
 import type { Session } from "@/session/store";
-import { Button, Card, Hero, Notice, Pill, Row, SectionLabel } from "@/ui/components";
+import { Button, Card, Hero, Pill, Row, SectionLabel, Stat } from "@/ui/components";
 import { accentFor, palette, space, type } from "@/ui/theme";
 
-export function AccountScreen({ session, onSignedOut }: { session: Session; onSignedOut: () => void }) {
+export function AdminHome({ session, onSignedOut }: { session: Session; onSignedOut: () => void }) {
   const insets = useSafeAreaInsets();
   const [shop, setShop] = useState<Shop | null>(null);
-  const [profile, setProfile] = useState<Profile | null>(null);
-  const [orders, setOrders] = useState<OrderSummary[]>([]);
+  const [nums, setNums] = useState<Counts | null>(null);
+  const [stats, setStats] = useState<Analytics | null>(null);
+  const [rows, setRows] = useState<AdminOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    setError(null);
-    const [shopRes, profileRes, ordersRes] = await Promise.allSettled([
+    // Each panel stands on its own: a shop whose plan leaves analytics out
+    // should still see its orders.
+    const [shopRes, countRes, statRes, orderRes] = await Promise.allSettled([
       session.tenantSlug ? currentShop(session.tenantSlug) : Promise.resolve(null),
-      fetchProfile(),
+      counts(),
+      analytics(),
       fetchOrders(),
     ]);
     if (shopRes.status === "fulfilled" && shopRes.value) setShop(shopRes.value);
-    if (profileRes.status === "fulfilled") setProfile(profileRes.value);
-    else setError("Could not load your account.");
-    if (ordersRes.status === "fulfilled") setOrders(ordersRes.value);
+    if (countRes.status === "fulfilled") setNums(countRes.value);
+    if (statRes.status === "fulfilled") setStats(statRes.value);
+    if (orderRes.status === "fulfilled") setRows(orderRes.value);
   }, [session.tenantSlug]);
 
   useEffect(() => {
@@ -46,11 +47,6 @@ export function AccountScreen({ session, onSignedOut }: { session: Session; onSi
 
   const accent = accentFor(shop?.primaryColor);
 
-  // Only a buyer can be waiting for approval. An admin has no company either,
-  // which is why reading companyId alone showed a shop's owner a message
-  // about an application they never made.
-  const awaitingApproval = !session.isAdmin && session.companyId === null;
-
   if (loading) {
     return (
       <View style={s.centre}>
@@ -58,8 +54,6 @@ export function AccountScreen({ session, onSignedOut }: { session: Session; onSi
       </View>
     );
   }
-
-  const name = [profile?.firstName, profile?.lastName].filter(Boolean).join(" ");
 
   return (
     <ScrollView
@@ -78,44 +72,44 @@ export function AccountScreen({ session, onSignedOut }: { session: Session; onSi
     >
       <View style={[s.head, { paddingTop: insets.top + space.lg }]}>
         <Text style={s.shopName}>{(shop?.name ?? "Your shop").toUpperCase()}</Text>
-        <Hero>{profile?.firstName ? `Hello, ${profile.firstName}` : "Your account"}</Hero>
+        <Hero>Orders</Hero>
       </View>
 
       <View style={s.body}>
-        {error ? <Notice tone="bad">{error}</Notice> : null}
-
-        {awaitingApproval ? (
-          <Notice tone="warn">
-            Your wholesale application is with {shop?.name ?? "the shop"}. You will be
-            able to order as soon as they approve it.
-          </Notice>
-        ) : null}
-
-        <SectionLabel>Your details</SectionLabel>
-        <Card>
-          <Row label="Email" value={profile?.email ?? session.email ?? "—"} />
-          <Row label="Name" value={name || "—"} />
-          {profile?.phone ? <Row label="Phone" value={profile.phone} /> : null}
-        </Card>
+        <View style={s.statRow}>
+          <Stat label="Orders" value={String(nums?.orders ?? 0)} />
+          <Stat label="Customers" value={String(nums?.customers ?? 0)} />
+        </View>
+        <View style={s.statRow}>
+          <Stat label="Products" value={String(nums?.products ?? 0)} />
+          <Stat
+            label={stats ? "Revenue, 30 days" : "Returns"}
+            value={stats ? money(stats.revenue) : String(nums?.returns ?? 0)}
+          />
+        </View>
 
         <View style={s.gap} />
-        <SectionLabel>Your orders</SectionLabel>
+        <SectionLabel>Recent orders</SectionLabel>
 
-        {orders.length === 0 ? (
+        {rows.length === 0 ? (
           <Card>
-            <Text style={s.empty}>
-              {awaitingApproval ? "Ordering opens once you are approved." : "No orders yet."}
-            </Text>
+            <Text style={s.empty}>No orders yet.</Text>
           </Card>
         ) : (
-          orders.map((o) => (
+          rows.map((o) => (
             <Card key={o.id}>
               <View style={s.orderTop}>
                 <Text style={s.orderNumber}>{o.number || "Order"}</Text>
                 <Text style={s.orderTotal}>{money(o.total)}</Text>
               </View>
-              <View style={s.pills}>{o.status ? <Pill text={o.status} /> : null}</View>
+              <Text style={s.orderCustomer} numberOfLines={1}>{o.customer}</Text>
+              <View style={s.pills}>
+                {o.status ? <Pill text={o.status} /> : null}
+                {o.paymentStatus ? <Pill text={o.paymentStatus} /> : null}
+              </View>
+              <Row label="Items" value={String(o.itemCount)} />
               {o.placedAt ? <Row label="Placed" value={dateOf(o.placedAt)} /> : null}
+              {o.trackingNumber ? <Row label="Tracking" value={o.trackingNumber} /> : null}
             </Card>
           ))
         )}
@@ -151,10 +145,12 @@ const s = StyleSheet.create({
   head: { paddingHorizontal: space.lg, paddingBottom: space.lg },
   shopName: { ...type.section, color: palette.muted, marginBottom: space.xs },
   body: { paddingHorizontal: space.lg },
+  statRow: { flexDirection: "row", gap: space.sm, marginBottom: space.sm },
   gap: { height: space.lg },
   empty: { ...type.small, color: palette.muted },
   orderTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "baseline" },
   orderNumber: { ...type.bodyMedium, color: palette.ink },
   orderTotal: { ...type.number, color: palette.ink },
-  pills: { flexDirection: "row", gap: space.xs, marginTop: space.sm },
+  orderCustomer: { ...type.small, color: palette.muted, marginTop: 1 },
+  pills: { flexDirection: "row", gap: space.xs, marginTop: space.sm, marginBottom: space.xs, flexWrap: "wrap" },
 });

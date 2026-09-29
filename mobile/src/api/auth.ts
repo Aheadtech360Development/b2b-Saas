@@ -22,15 +22,23 @@ interface LoginResponse {
   challenge_token?: string | null;
 }
 
+/** Roles that run a shop rather than buy from one. */
+const ADMIN_ROLES = ["tenant_admin", "tenant_staff", "platform_admin"];
+
 function sessionFrom(res: LoginResponse, email: string): Session {
   const claims = readClaims(res.access_token ?? "");
   const str = (v: unknown) => (typeof v === "string" && v ? v : null);
+  const role = str(claims.role);
   return {
     accessToken: res.access_token ?? "",
     refreshToken: res.refresh_token ?? null,
     tenantSlug: str(claims.tenant_slug),
     tenantId: str(claims.tenant_id),
     email,
+    // The claim first, since the server derives it; the role is read as well
+    // so a token minted before that claim existed still lands the right way.
+    isAdmin: claims.is_admin === true || (role !== null && ADMIN_ROLES.includes(role)),
+    role,
     companyId: str(claims.company_id),
   };
 }

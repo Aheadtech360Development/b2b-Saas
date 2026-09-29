@@ -18,7 +18,9 @@
       "apiUrl": "https://b2b-saas-production.up.railway.app"
     },
     "plugins": [
-      "expo-asset"
+      "expo-asset",
+      "expo-font",
+      "expo-splash-screen"
     ]
   }
 }

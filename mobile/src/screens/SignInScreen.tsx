@@ -1,20 +1,22 @@
 /**
- * One door, as on the web.
+ * One door for everyone, as on the web.
  *
- * No question about which shop: the email finds the account and the token
- * that comes back names the brand. Asking somebody to remember their shop's
- * code before they can sign in would be a question the server can answer.
+ * No question about which shop and no question about who you are: the email
+ * finds the account, and the token that comes back says both. Asking somebody
+ * to pick "I am a buyer" or "I am staff" would be asking them a question the
+ * server has already answered.
  */
 import { useState } from "react";
 import {
-  KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View, Pressable,
+  KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ApiError } from "@/api/client";
 import { requestPasswordReset, signIn, verifyTwoFactor } from "@/api/auth";
 import type { Session } from "@/session/store";
-import { Button, Field, Heading, Lede, Notice } from "@/ui/components";
-import { palette } from "@/ui/theme";
+import { Button, Field, Hero, Lede, Notice, TextButton } from "@/ui/components";
+import { palette, space, type } from "@/ui/theme";
 
 export function SignInScreen({
   onSignedIn, onApply,
@@ -22,6 +24,7 @@ export function SignInScreen({
   onSignedIn: (session: Session) => void;
   onApply: () => void;
 }) {
+  const insets = useSafeAreaInsets();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [code, setCode] = useState("");
@@ -35,13 +38,11 @@ export function SignInScreen({
   async function submit() {
     setBusy(true);
     setError(null);
+    setSentReset(false);
     try {
       const result = await signIn(email, password);
-      if (result.requiresTwoFactor) {
-        setChallenge(result.challengeToken);
-      } else if (result.session) {
-        onSignedIn(result.session);
-      }
+      if (result.requiresTwoFactor) setChallenge(result.challengeToken);
+      else if (result.session) onSignedIn(result.session);
     } catch (e) {
       setError(reason(e, "Could not sign in. Check your email and password."));
     } finally {
@@ -71,37 +72,36 @@ export function SignInScreen({
     setError(null);
     try {
       await requestPasswordReset(email);
-      // Said the same way whether or not the address is known, so this screen
-      // cannot be used to find out who has an account.
-      setSentReset(true);
     } catch {
-      setSentReset(true);
+      // Ignored on purpose: answered the same way whether or not the address
+      // is known, so this screen cannot be used to find out who has an account.
     } finally {
+      setSentReset(true);
       setBusy(false);
     }
   }
 
   return (
-    <KeyboardAvoidingView
-      style={s.flex}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
-    >
-      <ScrollView contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled">
-        <View style={s.header}>
-          <Heading>{challenge ? "One more step" : "Sign in"}</Heading>
+    <KeyboardAvoidingView style={s.flex} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+      <ScrollView
+        contentContainerStyle={[s.scroll, { paddingTop: insets.top + 64, paddingBottom: insets.bottom + space.xl }]}
+        keyboardShouldPersistTaps="handled"
+      >
+        <Text style={s.wordmark}>PRINTCOPILOT</Text>
+
+        <View style={s.head}>
+          <Hero>{challenge ? "One more step" : "Sign in"}</Hero>
           <Lede>
             {challenge
-              ? "Enter the six-digit code from your authenticator app."
-              : "Your shop account, wherever you bought from."}
+              ? "Enter the six digit code from your authenticator app."
+              : "Your shop account, whether you run a shop or buy from one."}
           </Lede>
         </View>
 
-        {error && <Notice tone="bad">{error}</Notice>}
-        {sentReset && !error && (
-          <Notice tone="ok">
-            If that address has an account, a reset link is on its way.
-          </Notice>
-        )}
+        {error ? <Notice tone="bad">{error}</Notice> : null}
+        {sentReset && !error ? (
+          <Notice tone="ok">If that address has an account, a reset link is on its way.</Notice>
+        ) : null}
 
         {challenge ? (
           <>
@@ -113,9 +113,12 @@ export function SignInScreen({
               keyboard="number-pad"
             />
             <Button title="Continue" onPress={submitCode} busy={busy} accent={accent} />
-            <Pressable onPress={() => { setChallenge(null); setCode(""); setError(null); }} hitSlop={8}>
-              <Text style={s.link}>Back</Text>
-            </Pressable>
+            <View style={s.centreRow}>
+              <TextButton
+                title="Back"
+                onPress={() => { setChallenge(null); setCode(""); setError(null); }}
+              />
+            </View>
           </>
         ) : (
           <>
@@ -127,22 +130,17 @@ export function SignInScreen({
               keyboard="email-address"
               autoComplete="email"
             />
-            <Field
-              label="Password"
-              value={password}
-              onChange={setPassword}
-              secure
-              autoComplete="password"
-            />
-            <Pressable onPress={forgot} hitSlop={8}>
-              <Text style={s.link}>Forgot your password?</Text>
-            </Pressable>
-            <View style={s.gap} />
+            <Field label="Password" value={password} onChange={setPassword} secure autoComplete="password" />
+
+            <View style={s.forgotRow}>
+              <TextButton title="Forgot your password?" onPress={forgot} />
+            </View>
+
             <Button title="Sign in" onPress={submit} busy={busy} accent={accent} />
 
             <View style={s.divider}>
               <View style={s.rule} />
-              <Text style={s.dividerText}>or</Text>
+              <Text style={s.dividerText}>new here</Text>
               <View style={s.rule} />
             </View>
 
@@ -152,9 +150,7 @@ export function SignInScreen({
               accent={accent}
               variant="quiet"
             />
-            <Text style={s.hint}>
-              You will need the shop code your supplier gave you.
-            </Text>
+            <Text style={s.footHint}>You will need the shop code your supplier gave you.</Text>
           </>
         )}
       </ScrollView>
@@ -162,19 +158,19 @@ export function SignInScreen({
   );
 }
 
-/** What the server said, when it said something worth reading. */
 function reason(e: unknown, fallback: string): string {
   return e instanceof ApiError && e.message ? e.message : fallback;
 }
 
 const s = StyleSheet.create({
   flex: { flex: 1, backgroundColor: palette.page },
-  scroll: { padding: 24, paddingTop: 72, paddingBottom: 48 },
-  header: { marginBottom: 28 },
-  gap: { height: 8 },
-  link: { fontSize: 14, fontWeight: "600", color: palette.muted, marginTop: 4, marginBottom: 8 },
-  divider: { flexDirection: "row", alignItems: "center", marginVertical: 24, gap: 12 },
+  scroll: { paddingHorizontal: space.lg },
+  wordmark: { ...type.section, color: palette.muted, marginBottom: space.xl },
+  head: { marginBottom: space.lg },
+  forgotRow: { alignItems: "flex-end", marginTop: -space.sm, marginBottom: space.xs },
+  centreRow: { alignItems: "center" },
+  divider: { flexDirection: "row", alignItems: "center", marginVertical: space.lg, gap: space.sm },
   rule: { flex: 1, height: 1, backgroundColor: palette.line },
-  dividerText: { fontSize: 13, color: palette.muted },
-  hint: { fontSize: 13, color: palette.muted, textAlign: "center", marginTop: 12, lineHeight: 19 },
+  dividerText: { ...type.small, color: palette.muted },
+  footHint: { ...type.small, color: palette.muted, textAlign: "center", marginTop: space.sm },
 });

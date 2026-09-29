@@ -22,8 +22,19 @@ export interface Session {
   tenantSlug: string | null;
   tenantId: string | null;
   email: string | null;
-  /** Null until a wholesale application is approved. Its absence is what
-   *  stops the buy screens being offered to somebody still waiting. */
+  /**
+   * Whether this person runs the shop or buys from it. The two get entirely
+   * different apps, so this is the first thing read after signing in.
+   */
+  isAdmin: boolean;
+  role: string | null;
+  /**
+   * The buyer's company, once their wholesale application is approved.
+   *
+   * Null for an admin as well, who never has one, so this says nothing on its
+   * own about whether somebody is waiting for approval. Reading it that way
+   * is what showed a shop's owner a message about their own application.
+   */
   companyId: string | null;
 }
 
