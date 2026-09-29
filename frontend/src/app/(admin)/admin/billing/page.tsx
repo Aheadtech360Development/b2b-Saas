@@ -74,6 +74,17 @@ function Badge({ tone, children }: { tone: "green" | "yellow" | "red" | "gray"; 
   return <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${map[tone]}`}>{children}</span>;
 }
 
+/** What the server said went wrong, when it said anything worth reading.
+ *
+ *  Stripe's own messages name the setting to change — Connect not enabled on
+ *  the live account, a platform profile left unfinished. Replacing them with
+ *  "try again" sent people to retry something that would never start working.
+ */
+function reason(e: unknown, fallback: string): string {
+  return e instanceof ApiClientError && e.message ? e.message : fallback;
+}
+
+
 export default function BillingPage() {
   const [billing, setBilling] = useState<BillingData | null>(null);
   const [connect, setConnect] = useState<ConnectData | null>(null);
@@ -152,8 +163,8 @@ export default function BillingPage() {
     try {
       const r = await apiClient.post<{ portal_url: string }>("/api/v1/admin/billing/portal");
       window.location.href = r.portal_url;
-    } catch {
-      setToast({ type: "error", text: "Could not open billing portal." });
+    } catch (e) {
+      setToast({ type: "error", text: reason(e, "Could not open billing portal.") });
       setBusy(null);
     }
   }
@@ -162,8 +173,8 @@ export default function BillingPage() {
     try {
       const r = await apiClient.post<{ onboarding_url: string }>("/api/v1/admin/connect/onboard");
       window.location.href = r.onboarding_url;
-    } catch {
-      setToast({ type: "error", text: "Could not reach the payment provider. Try again." });
+    } catch (e) {
+      setToast({ type: "error", text: reason(e, "Could not reach the payment provider. Try again.") });
       setBusy(null);
     }
   }
@@ -175,8 +186,8 @@ export default function BillingPage() {
       await apiClient.post("/api/v1/admin/connect/refresh");
       await load();
       setToast({ type: "success", text: "Payout status updated." });
-    } catch {
-      setToast({ type: "error", text: "Could not refresh status. Try again." });
+    } catch (e) {
+      setToast({ type: "error", text: reason(e, "Could not refresh status. Try again.") });
     } finally {
       setBusy(null);
     }
@@ -186,8 +197,8 @@ export default function BillingPage() {
     try {
       const r = await apiClient.post<{ dashboard_url: string }>("/api/v1/admin/connect/dashboard");
       window.open(r.dashboard_url, "_blank");
-    } catch {
-      setToast({ type: "error", text: "Could not open payouts dashboard." });
+    } catch (e) {
+      setToast({ type: "error", text: reason(e, "Could not open payouts dashboard.") });
     } finally {
       setBusy(null);
     }

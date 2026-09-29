@@ -23,6 +23,42 @@ def _tenant_id(request: Request) -> str:
     return str(tid)
 
 
+def _stripe_failure(exc: Exception, what: str) -> HTTPException:
+    """Turn a Stripe failure into something the person reading it can act on.
+
+    Every one of these used to come back as "Could not reach Stripe. Try
+    again." Retrying is the right advice for a network blip and useless
+    advice for the rest, which is most of them: Connect not enabled on the
+    live account, a platform profile that was never completed, a key from the
+    wrong mode. Stripe says exactly which, in a sentence written to be read —
+    and we were logging it where only we would look while telling the brand
+    to try again.
+
+    Stripe's own wording is passed through for the errors that are settings
+    to fix. Authentication is answered separately, because the brand cannot
+    do anything about the platform's key and should not be sent to look.
+    """
+    import stripe
+
+    if isinstance(exc, stripe.AuthenticationError):
+        logger.error("%s failed: the platform's Stripe key was rejected: %s", what, exc)
+        return HTTPException(
+            status_code=502,
+            detail="The platform's payment settings are not accepting this key. "
+                   "Nothing for you to fix here — please tell support.",
+        )
+    if isinstance(exc, (stripe.APIConnectionError, stripe.RateLimitError)):
+        logger.warning("%s failed, retryable: %s", what, exc)
+        return HTTPException(status_code=502, detail="Could not reach Stripe. Try again.")
+    if isinstance(exc, stripe.StripeError):
+        message = getattr(exc, "user_message", None) or str(getattr(exc, "message", "") or exc)
+        logger.error("%s failed: %s", what, message)
+        return HTTPException(status_code=502, detail=message.strip() or "Stripe refused the request.")
+
+    logger.exception("%s failed: %s", what, exc)
+    return HTTPException(status_code=502, detail="Could not reach Stripe. Try again.")
+
+
 @router.get("")
 async def connect_status(request: Request, db: AsyncSession = Depends(get_db)) -> dict:
     """Current payout-readiness for the brand (DB-cached — no Stripe call)."""
@@ -44,8 +80,7 @@ async def start_onboarding(request: Request, db: AsyncSession = Depends(get_db))
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        logger.exception("Connect onboarding link failed: %s", e)
-        raise HTTPException(status_code=502, detail="Could not reach Stripe. Try again.")
+        raise _stripe_failure(e, "Connect onboarding link")
 
 
 @router.post("/dashboard")
@@ -56,8 +91,7 @@ async def express_dashboard(request: Request, db: AsyncSession = Depends(get_db)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        logger.exception("Connect dashboard link failed: %s", e)
-        raise HTTPException(status_code=502, detail="Could not reach Stripe. Try again.")
+        raise _stripe_failure(e, "Connect dashboard link")
 
 
 @router.post("/refresh")
@@ -72,5 +106,4 @@ async def refresh_status(request: Request, db: AsyncSession = Depends(get_db)) -
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        logger.exception("Connect refresh failed: %s", e)
-        raise HTTPException(status_code=502, detail="Could not reach Stripe. Try again.")
+        raise _stripe_failure(e, "Connect refresh")
