@@ -14,22 +14,22 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ApiError, call } from "@/api/client";
 import type { Row, Section } from "@/admin/sections";
+import { actionsFor } from "@/admin/actions";
+import { ActionSheet } from "@/admin/ActionSheet";
 import { Notice, Pill } from "@/ui/components";
 import { palette, radius, space, type } from "@/ui/theme";
 
-export function ListScreen({
-  section, onOpenMenu, onOpenRow,
-}: {
-  section: Section;
-  onOpenMenu: () => void;
-  onOpenRow?: (row: Row) => void;
-}) {
+export function ListScreen({ section }: { section: Section }) {
   const insets = useSafeAreaInsets();
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
+  // The row whose actions are open, and what the last one did.
+  const [acting, setActing] = useState<Row | null>(null);
+  const [said, setSaid] = useState<string | null>(null);
+  const actions = actionsFor(section.key);
 
   const load = useCallback(async () => {
     if (!section.path || !section.row || !section.pick) {
@@ -72,11 +72,6 @@ export function ListScreen({
   return (
     <View style={s.page}>
       <View style={[s.head, { paddingTop: insets.top + space.sm }]}>
-        <Pressable onPress={onOpenMenu} hitSlop={12} style={s.menuButton} accessibilityRole="button" accessibilityLabel="Open menu">
-          <View style={s.bar} />
-          <View style={s.bar} />
-          <View style={s.bar} />
-        </Pressable>
         <Text style={s.title}>{section.label}</Text>
         <Text style={s.count}>
           {loading ? "" : shown.length === rows.length ? `${rows.length}` : `${shown.length}/${rows.length}`}
@@ -125,9 +120,32 @@ export function ListScreen({
               <Text style={s.empty}>{section.empty ?? "Nothing here yet."}</Text>
             )
           }
-          renderItem={({ item }) => <RowCard row={item} onPress={onOpenRow} />}
+          renderItem={({ item }) => (
+            <RowCard row={item} onPress={actions.length ? setActing : undefined} />
+          )}
         />
       )}
+      {said ? (
+        <View style={s.said} pointerEvents="none">
+          <Text style={s.saidText}>{said}</Text>
+        </View>
+      ) : null}
+
+      {acting ? (
+        <ActionSheet
+          rowId={acting.id}
+          title={acting.title}
+          subtitle={acting.subtitle}
+          actions={actions}
+          onClose={() => setActing(null)}
+          onDone={(message) => {
+            setActing(null);
+            setSaid(message);
+            setTimeout(() => setSaid(null), 2600);
+            load();
+          }}
+        />
+      ) : null}
     </View>
   );
 }
@@ -196,6 +214,12 @@ const s = StyleSheet.create({
   },
   centre: { flex: 1, alignItems: "center", justifyContent: "center" },
   empty: { ...type.small, color: palette.muted, textAlign: "center", marginTop: space.xl },
+  said: {
+    position: "absolute", left: space.lg, right: space.lg, bottom: space.lg,
+    backgroundColor: palette.ink, borderRadius: radius.md,
+    paddingHorizontal: 16, paddingVertical: 13,
+  },
+  saidText: { ...type.small, color: "#fff" },
 
   card: {
     backgroundColor: palette.paper, borderRadius: radius.lg,
