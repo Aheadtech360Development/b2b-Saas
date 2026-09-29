@@ -318,12 +318,27 @@ class TenantAuthService:
         if not user_id:
             raise UnauthorizedError("Invalid token")
 
+        # Unscoped, like the login this continues. A refresh carries no access
+        # token, so nothing has resolved a tenant for this request: on a
+        # subdomain the host still names one, but a native client has no host
+        # to speak of and the scoped lookup would return nothing at all —
+        # reported as "user not found" and logging the app out every time its
+        # access token expired.
+        from app.core.database import AsyncSessionLocal
+        from app.core.tenant_context import is_scoping_bypassed, set_bypass_scoping
         from sqlalchemy import text
-        result = await self.db.execute(
-            text("SELECT * FROM users WHERE id=:id AND is_active=true"),
-            {"id": user_id},
-        )
-        row = result.mappings().first()
+
+        previous = is_scoping_bypassed()
+        set_bypass_scoping(True)
+        try:
+            async with AsyncSessionLocal() as lookup:
+                result = await lookup.execute(
+                    text("SELECT * FROM users WHERE id = CAST(:id AS uuid) AND is_active = true"),
+                    {"id": user_id},
+                )
+                row = result.mappings().first()
+        finally:
+            set_bypass_scoping(previous)
         if not row:
             raise UnauthorizedError("User not found or inactive")
 

@@ -14,6 +14,16 @@ class LoginResponse(BaseModel):
     # short-lived challenge the client exchanges at /auth/2fa/verify with a code.
     requires_2fa: bool = False
     challenge_token: str | None = None
+    # Only ever filled for a native client, which has no cookie jar and does
+    # have the Keychain. A browser keeps getting the httpOnly cookie, where
+    # script cannot read it. See core/native_client.
+    refresh_token: str | None = None
+
+
+class TokenRefreshRequest(BaseModel):
+    """A native client's refresh token, since it has no cookie to send."""
+
+    refresh_token: str | None = None
 
 
 class RegisterWholesaleRequest(BaseModel):
@@ -53,6 +63,10 @@ class RegisterWholesaleRequest(BaseModel):
 class TokenRefreshResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
+    # Refreshing rotates the refresh token. A browser receives the new one as a
+    # cookie; a native client has to be handed it, or its next refresh would
+    # present the spent one and be logged out.
+    refresh_token: str | None = None
 
 
 class ForgotPasswordRequest(BaseModel):

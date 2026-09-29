@@ -9,7 +9,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.tenant import get_current_tenant
-from app.schemas.auth import LoginRequest, LoginResponse, TokenRefreshResponse
+from app.core.native_client import is_native
+from app.schemas.auth import (
+    LoginRequest, LoginResponse, TokenRefreshRequest, TokenRefreshResponse,
+)
 from app.services.tenant_auth_service import TenantAuthService
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -44,16 +47,22 @@ async def login(
     # No refresh token yet when a 2FA challenge is returned — set the cookie only
     # once the login is actually complete.
     if refresh_token:
-        response.set_cookie(
-            key=REFRESH_COOKIE,
-            value=refresh_token,
-            max_age=REFRESH_MAX_AGE,
-            httponly=True,
-            secure=settings.COOKIE_SECURE,
-            samesite=settings.COOKIE_SAMESITE,  # type: ignore[arg-type]
-            path="/api/v1/auth/refresh",
-            domain=settings.COOKIE_DOMAIN,
-        )
+        # A phone has no cookie jar but does have the Keychain, so it is handed
+        # the token instead. A browser keeps the httpOnly cookie, where script
+        # cannot read it. See core/native_client.
+        if is_native(request):
+            login_resp.refresh_token = refresh_token
+        else:
+            response.set_cookie(
+                key=REFRESH_COOKIE,
+                value=refresh_token,
+                max_age=REFRESH_MAX_AGE,
+                httponly=True,
+                secure=settings.COOKIE_SECURE,
+                samesite=settings.COOKIE_SAMESITE,  # type: ignore[arg-type]
+                path="/api/v1/auth/refresh",
+                domain=settings.COOKIE_DOMAIN,
+            )
     return login_resp
 
 
@@ -61,26 +70,36 @@ async def login(
 async def refresh(
     request: Request,
     response: Response,
+    body: TokenRefreshRequest | None = None,
     db: AsyncSession = Depends(get_db),
 ) -> TokenRefreshResponse:
     from app.core.exceptions import UnauthorizedError
-    refresh_token = request.cookies.get(REFRESH_COOKIE)
+
+    # The cookie first, so a browser behaves exactly as before. The body is for
+    # a native client, which never had a cookie to send and would otherwise be
+    # signed out the moment its access token expired.
+    refresh_token = request.cookies.get(REFRESH_COOKIE) or (body.refresh_token if body else None)
     if not refresh_token:
         raise UnauthorizedError("Refresh token not found")
 
     service = TenantAuthService(db)
     token_resp, new_refresh = await service.refresh_tokens(refresh_token)
 
-    response.set_cookie(
-        key=REFRESH_COOKIE,
-        value=new_refresh,
-        max_age=REFRESH_MAX_AGE,
-        httponly=True,
-        secure=settings.COOKIE_SECURE,
-        samesite=settings.COOKIE_SAMESITE,  # type: ignore[arg-type]
-        path="/api/v1/auth/refresh",
-        domain=settings.COOKIE_DOMAIN,
-    )
+    # Refreshing rotates the token, so whoever sent it has to be given the new
+    # one — in the same place they keep the old.
+    if is_native(request):
+        token_resp.refresh_token = new_refresh
+    else:
+        response.set_cookie(
+            key=REFRESH_COOKIE,
+            value=new_refresh,
+            max_age=REFRESH_MAX_AGE,
+            httponly=True,
+            secure=settings.COOKIE_SECURE,
+            samesite=settings.COOKIE_SAMESITE,  # type: ignore[arg-type]
+            path="/api/v1/auth/refresh",
+            domain=settings.COOKIE_DOMAIN,
+        )
     return token_resp
 
 

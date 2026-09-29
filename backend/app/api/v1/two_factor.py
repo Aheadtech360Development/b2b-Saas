@@ -110,9 +110,16 @@ async def verify_2fa(payload: VerifyIn, request: Request, response: Response, db
     svc = TenantAuthService(db)
     login_resp, refresh_token = await svc.verify_2fa_and_login(payload.challenge_token, payload.code)
     if refresh_token:
-        response.set_cookie(
-            key=REFRESH_COOKIE, value=refresh_token, max_age=REFRESH_MAX_AGE, httponly=True,
-            secure=settings.COOKIE_SECURE, samesite=settings.COOKIE_SAMESITE,  # type: ignore[arg-type]
-            path="/api/v1/auth/refresh", domain=settings.COOKIE_DOMAIN,
-        )
+        # Second step of the same login, so it ends where the first would have:
+        # a phone is handed the token, a browser gets the httpOnly cookie.
+        from app.core.native_client import is_native
+
+        if is_native(request):
+            login_resp.refresh_token = refresh_token
+        else:
+            response.set_cookie(
+                key=REFRESH_COOKIE, value=refresh_token, max_age=REFRESH_MAX_AGE, httponly=True,
+                secure=settings.COOKIE_SECURE, samesite=settings.COOKIE_SAMESITE,  # type: ignore[arg-type]
+                path="/api/v1/auth/refresh", domain=settings.COOKIE_DOMAIN,
+            )
     return login_resp
