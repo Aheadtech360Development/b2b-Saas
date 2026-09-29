@@ -23,6 +23,7 @@ import NewShopHome from "@/components/home/NewShopHome";
 import StorefrontHome from "@/components/home/StorefrontHome";
 import ThemeRenderer, { type ThemePage } from "@/components/storefront/ThemeRenderer";
 import { loadStore } from "@/components/storefront/ThemeChrome";
+import StorefrontShell from "@/components/storefront/StorefrontShell";
 import PlatformLanding from "@/components/platform/PlatformLanding";
 import { apiClient } from "@/lib/api-client";
 
@@ -53,22 +54,38 @@ async function hasProducts(): Promise<boolean> {
 export default async function HomePage() {
   const store = await loadStore();
   // No brand was asked for: this is the platform's own address, not a shop.
+  // PlatformLanding draws its own header, and deliberately gets no shop
+  // chrome around it.
   if (!store.brand) return <PlatformLanding />;
 
+  // This page sits above the (customer) segment, so it wraps itself in the
+  // same shell that segment uses. Both mount and unmount with the route,
+  // which the root layout could not do — it is shared by the console too and
+  // is never re-rendered on the way there.
   const page = await themeHome();
   if (page) {
-    // The store's header and footer are drawn by the layout, around every page
-    // of the shop; this one leaves its own copies out.
-    return <ThemeRenderer page={page} chromeInLayout={store.chrome !== null} />;
+    // The store's header and footer come from the shell around this page;
+    // the theme's own copies of them are left out.
+    return (
+      <StorefrontShell>
+        <ThemeRenderer page={page} chromeInLayout={store.chrome !== null} />
+      </StorefrontShell>
+    );
   }
   // A shop with no theme and nothing to sell is a shop on its first day, not a
   // broken one. The built-in storefront is for a brand that has stock but has
   // not imported a design yet.
-  if (!(await hasProducts())) return <NewShopHome brand={store.brand} />;
+  if (!(await hasProducts())) {
+    return (
+      <StorefrontShell>
+        <NewShopHome brand={store.brand} />
+      </StorefrontShell>
+    );
+  }
   return (
-    <>
+    <StorefrontShell>
       <StorefrontHome />
       <Footer />
-    </>
+    </StorefrontShell>
   );
 }

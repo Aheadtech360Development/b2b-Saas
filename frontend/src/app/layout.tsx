@@ -3,10 +3,8 @@ import type { Metadata } from "next";
 import Script from "next/script";
 import { headers } from "next/headers";
 import "./globals.css";
-import ThemeChrome, { ThemeChromeHead, loadStore } from "@/components/storefront/ThemeChrome";
+import { loadStore } from "@/components/storefront/ThemeChrome";
 import { Providers } from "@/components/providers/Providers";
-import { Header } from "@/components/layout/Header";
-import { PlatformHeader, PlatformFooter } from "@/components/platform/PlatformChrome";
 import { DeployRefresh } from "@/components/providers/DeployRefresh";
 import { AttributionTracker } from "@/components/analytics/AttributionTracker";
 import { TrackingScripts } from "@/components/analytics/TrackingScripts";
@@ -38,38 +36,17 @@ export async function generateMetadata(): Promise<Metadata> {
   };
 }
 
-/**
- * Pages that are not the shop: the consoles, the theme editor, and the bare
- * sign-in pages. Everywhere else is the storefront and wears the brand's own
- * header and footer.
- */
-const NOT_STOREFRONT = [
-  "/admin", "/platform", "/theme-editor", "/theme-preview", "/ui-preview", "/account",
-  "/wholesale",
-];
-
 export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  // Decided here, on the server, so a themed page is sent with the brand's
-  // chrome already in it — rendering the app's and hiding it afterwards is the
-  // flash of an old header people saw on every navigation.
-  const pathname = (await headers()).get("x-pathname") ?? "/";
-  const storefront = !NOT_STOREFRONT.some((p) => pathname === p || pathname.startsWith(`${p}/`));
-  const store = storefront ? await loadStore() : { brand: null, chrome: null };
-  const chrome = store.chrome;
-  // Three cases, and only the middle one wants the app's own header: a themed
-  // shop wears the brand's chrome, a shop with no theme yet wears the app's,
-  // and the platform's own address is not a shop at all — its page brings its
-  // own header, so adding the app's put two of them on the screen.
-  const appHeader = storefront && store.brand !== null && chrome === null;
-  // The platform's own pages. Its landing page and its sign-up flow draw their
-  // own header, so only what is left — signing in, resetting a password —
-  // needs one from here.
-  const platformChrome =
-    storefront && store.brand === null && pathname !== "/" && !pathname.startsWith("/signup");
+  // No storefront chrome is decided here any more. This layout is shared by
+  // every route, and the App Router keeps a shared layout mounted across
+  // client-side navigation instead of re-rendering it — so a header chosen
+  // here for the shop stayed on screen when the same tab moved into the admin
+  // console, and no amount of path-matching in this file could notice. Each
+  // segment draws its own now: see components/storefront/StorefrontShell.
   return (
     <html lang="en">
       <head>
@@ -100,15 +77,7 @@ export default async function RootLayout({
           <AttributionTracker />
           {/* Loads only the tracking tools this brand connected, if any. */}
           <TrackingScripts />
-          {appHeader && <Header />}
-          {platformChrome && <PlatformHeader />}
-          {/* The brand's own chrome, around every storefront page — the cart
-              and the checkout included, which the theme has no page for. */}
-          {chrome && <ThemeChromeHead chrome={chrome} />}
-          {chrome && <ThemeChrome sections={chrome.top} />}
           {children}
-          {chrome && <ThemeChrome sections={chrome.bottom} />}
-          {platformChrome && <PlatformFooter />}
         </Providers>
       </body>
     </html>

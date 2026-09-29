@@ -419,6 +419,18 @@
   .hero-stats-strip > *:nth-last-child(-n+2) { border-bottom: none; }
 }
 
+/* ── Admin content: room to breathe beside the sidebar ──────────────────
+   A flat 24px gutter put a page heading almost against the sidebar's border,
+   so the two read as one column instead of a menu and a page. The gap grows
+   with the window and stays modest on a phone, where the sidebar is an
+   overlay and every pixel of width is the content's. */
+.admin-content {
+  padding: clamp(20px, 2.2vw, 40px) clamp(16px, 2.6vw, 48px) 64px !important;
+}
+@media (max-width: 768px) {
+  .admin-content { padding: 18px 16px 88px !important; }
+}
+
 /* ── Admin sidebar: hide on mobile, show via JS overlay ─────────────── */
 .admin-sidebar-desktop { display: block; }
 .admin-mobile-menu-btn { display: none; }
