@@ -13,16 +13,20 @@ import { StyleSheet, View } from "react-native";
 import { signOut } from "@/api/auth";
 import { currentShop } from "@/api/shop";
 import { Dashboard } from "@/admin/Dashboard";
+import { DetailScreen } from "@/admin/DetailScreen";
 import { ListScreen } from "@/admin/ListScreen";
 import { MoreScreen } from "@/admin/MoreScreen";
 import { TabBar } from "@/admin/TabBar";
-import { sectionByKey } from "@/admin/sections";
+import { sectionByKey, type Row } from "@/admin/sections";
 import type { Session } from "@/session/store";
 import { palette } from "@/ui/theme";
 
 export function AdminApp({ session, onSignedOut }: { session: Session; onSignedOut: () => void }) {
   const [current, setCurrent] = useState("dashboard");
   const [shopName, setShopName] = useState("Your shop");
+  // The record being read, if any. Cleared whenever the section changes, so
+  // going to a new list never opens under the previous list's record.
+  const [open, setOpen] = useState<Row | null>(null);
 
   useEffect(() => {
     if (!session.tenantSlug) return;
@@ -42,16 +46,18 @@ export function AdminApp({ session, onSignedOut }: { session: Session; onSignedO
     <View style={s.root}>
       <View style={s.body}>
         {current === "dashboard" ? (
-          <Dashboard shopName={shopName} onGo={setCurrent} />
+          <Dashboard shopName={shopName} onGo={(key) => { setOpen(null); setCurrent(key); }} />
         ) : current === "more" ? (
-          <MoreScreen shopName={shopName} onPick={setCurrent} onSignOut={leave} />
+          <MoreScreen shopName={shopName} onPick={(key) => { setOpen(null); setCurrent(key); }} onSignOut={leave} />
+        ) : section && open ? (
+          <DetailScreen section={section} row={open} onBack={() => setOpen(null)} />
         ) : section ? (
           // Keyed by section so moving between lists remounts rather than
           // showing the previous list's rows under the new list's title.
-          <ListScreen key={section.key} section={section} />
+          <ListScreen key={section.key} section={section} onOpenRow={setOpen} />
         ) : null}
       </View>
-      <TabBar current={current} onPick={setCurrent} />
+      <TabBar current={current} onPick={(key) => { setOpen(null); setCurrent(key); }} />
     </View>
   );
 }

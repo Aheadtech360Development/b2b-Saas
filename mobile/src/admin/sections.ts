@@ -18,6 +18,20 @@ export interface Row {
   meta?: Array<{ label: string; value: string }>;
 }
 
+/** One block of a detail screen: a heading, and either fields or lines. */
+export interface DetailBlock {
+  title: string;
+  rows?: Array<{ label: string; value: string }>;
+  lines?: Array<{ title: string; sub?: string; qty?: number; amount?: number }>;
+  text?: string;
+}
+
+export interface Detail {
+  /** Where the one record comes from. */
+  path: (id: string) => string;
+  render: (raw: any) => DetailBlock[];
+}
+
 export interface Section {
   key: string;
   label: string;
@@ -32,6 +46,8 @@ export interface Section {
   empty?: string;
   /** Honest about the ones a phone is the wrong shape for. */
   desktopOnly?: string;
+  /** Opening a row, for the sections that have a record behind it. */
+  detail?: Detail;
 }
 
 const num = (v: unknown): number =>
@@ -329,11 +345,19 @@ export const SECTIONS: Section[] = [
   },
 ];
 
+import { DETAILS } from "@/admin/details";
+
 export const GROUPS: string[] = SECTIONS.reduce<string[]>((acc, s) => {
   if (!acc.includes(s.group)) acc.push(s.group);
   return acc;
 }, []);
 
 export function sectionByKey(key: string): Section | undefined {
-  return SECTIONS.find((s) => s.key === key);
+  const found = SECTIONS.find((s) => s.key === key);
+  // Attached here rather than written into each entry, so the list config
+  // stays about lists and a section without a record behind it simply has
+  // no detail.
+  return found && !found.detail && DETAILS[key]
+    ? { ...found, detail: DETAILS[key] }
+    : found;
 }
