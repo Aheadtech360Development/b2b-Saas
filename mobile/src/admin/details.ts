@@ -124,25 +124,58 @@ export const PRODUCT_DETAIL: Detail = {
   path: (id) => `/api/v1/admin/products/${id}`,
   render: (p: any): DetailBlock[] => {
     const blocks: DetailBlock[] = [];
+
+    // Pictures first. A shop opening one of its own products is looking for
+    // the thing it sells, not for a field called name.
+    const images = (p.images ?? [])
+      .map((i: any) => str(i.url_medium) || str(i.url_large) || str(i.url_thumbnail))
+      .filter(Boolean);
+    if (images.length) blocks.push({ title: `Media (${images.length})`, images });
+
+    const variants: any[] = Array.isArray(p.variants) ? p.variants : [];
+    const stock = variants.reduce((sum, v) => sum + num(v.stock_quantity), 0);
+    const prices = variants.map((v) => num(v.retail_price)).filter((n) => n > 0);
+    const low = prices.length ? Math.min(...prices) : 0;
+    const high = prices.length ? Math.max(...prices) : 0;
+
     blocks.push({
       title: "Product",
       rows: rows([
-        ["Name", str(p.name)],
-        ["SKU", str(p.sku)],
         ["Status", str(p.status)],
-        ["Price", p.price != null ? money(p.price) : ""],
-        ["Category", str(p.category_name) || str(p.category)],
+        ["Code", str(p.product_code)],
+        // A range where the variants disagree, one price where they do not.
+        ["Price", prices.length ? (low === high ? money(low) : `${money(low)} – ${money(high)}`) : ""],
+        ["Available", variants.length ? String(stock) : ""],
+        ["Variants", variants.length ? String(variants.length) : ""],
+        ["MOQ", p.moq > 1 ? String(num(p.moq)) : ""],
+        ["Vendor", str(p.vendor)],
+        ["Type", str(p.product_type)],
+        ["Fabric", str(p.fabric)],
+        ["Gender", str(p.gender)],
+        ["Weight", str(p.weight)],
         ["Created", when(p.created_at)],
       ]),
     });
-    const variants = (p.variants ?? []).map((v: any) => ({
-      title: [str(v.color), str(v.size)].filter(Boolean).join(" · ") || str(v.sku) || "Variant",
-      sub: str(v.sku),
-      qty: num(v.stock_quantity ?? v.quantity),
-      amount: num(v.price),
-    }));
-    if (variants.length) blocks.push({ title: `Variants (${variants.length})`, lines: variants });
+
+    const categories = (p.categories ?? []).map((c: any) => str(c.name)).filter(Boolean);
+    const tags = [...categories, ...(Array.isArray(p.tags) ? p.tags.map(str) : [])].filter(Boolean);
+    if (tags.length) blocks.push({ title: "Categories and tags", tags });
+
+    if (variants.length) {
+      blocks.push({
+        title: `Variants (${variants.length})`,
+        lines: variants.map((v) => ({
+          title: [str(v.color), str(v.size)].filter(Boolean).join(" · ") || str(v.sku) || "Variant",
+          // The SKU is what somebody reads a variant row for, and the stock
+          // is what tells them whether they can sell it.
+          sub: [str(v.sku), `${num(v.stock_quantity)} in stock`].filter(Boolean).join("  ·  "),
+          amount: num(v.retail_price),
+        })),
+      });
+    }
+
     if (str(p.description)) blocks.push({ title: "Description", text: str(p.description) });
+    if (str(p.care_instructions)) blocks.push({ title: "Care", text: str(p.care_instructions) });
     return blocks;
   },
 };

@@ -17,6 +17,7 @@ import { briefing, sectionForHref, type Briefing, type Severity } from "@/api/co
 import { profile as fetchProfile } from "@/api/account";
 import { AskStore } from "@/admin/AskStore";
 import { Icon, IconTile, tints, type IconName, type Tint } from "@/ui/Icon";
+import { TAB_BAR_SPACE } from "@/admin/tabs";
 import { palette, radius, space, type } from "@/ui/theme";
 
 export function Dashboard({
@@ -54,7 +55,7 @@ export function Dashboard({
   return (
     <ScrollView
       style={s.page}
-      contentContainerStyle={{ paddingBottom: insets.bottom + space.xl }}
+      contentContainerStyle={{ paddingBottom: insets.bottom + TAB_BAR_SPACE }}
       refreshControl={
         <RefreshControl
           refreshing={refreshing}

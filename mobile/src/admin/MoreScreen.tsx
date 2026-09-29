@@ -9,7 +9,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { GROUPS, SECTIONS } from "@/admin/sections";
-import { TABS } from "@/admin/tabs";
+import { TABS, TAB_BAR_SPACE } from "@/admin/tabs";
 import { Icon, IconTile, type IconName, type Tint } from "@/ui/Icon";
 import { palette, radius, space, type } from "@/ui/theme";
 
@@ -58,7 +58,10 @@ export function MoreScreen({
       </View>
 
       <ScrollView
-        contentContainerStyle={{ paddingHorizontal: space.lg, paddingBottom: space.xl }}
+        contentContainerStyle={{
+          paddingHorizontal: space.lg,
+          paddingBottom: insets.bottom + TAB_BAR_SPACE,
+        }}
         showsVerticalScrollIndicator={false}
       >
         {GROUPS.map((group) => {

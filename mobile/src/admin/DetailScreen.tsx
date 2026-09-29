@@ -8,7 +8,7 @@
  */
 import { useCallback, useEffect, useState } from "react";
 import {
-  ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View,
+  ActivityIndicator, Image, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -18,6 +18,7 @@ import { actionsFor } from "@/admin/actions";
 import { ActionSheet } from "@/admin/ActionSheet";
 import type { DetailBlock, Row, Section } from "@/admin/sections";
 import { Notice, Pill } from "@/ui/components";
+import { TAB_BAR_SPACE } from "@/admin/tabs";
 import { palette, radius, space, type } from "@/ui/theme";
 
 export function DetailScreen({
@@ -70,7 +71,7 @@ export function DetailScreen({
         <View style={s.centre}><ActivityIndicator color={palette.muted} /></View>
       ) : (
         <ScrollView
-          contentContainerStyle={{ paddingHorizontal: space.lg, paddingBottom: insets.bottom + space.xl }}
+          contentContainerStyle={{ paddingHorizontal: space.lg, paddingBottom: insets.bottom + TAB_BAR_SPACE }}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
@@ -88,6 +89,27 @@ export function DetailScreen({
           {blocks.map((block, bi) => (
             <View key={bi} style={s.block}>
               <Text style={s.blockTitle}>{block.title.toUpperCase()}</Text>
+              {block.images?.length ? (
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={s.gallery}
+                >
+                  {block.images.map((uri, ii) => (
+                    <Image key={ii} source={{ uri }} style={s.photo} resizeMode="cover" />
+                  ))}
+                </ScrollView>
+              ) : null}
+
+              {block.tags?.length ? (
+                <View style={s.tags}>
+                  {block.tags.map((t, ti) => (
+                    <View key={ti} style={s.tag}><Text style={s.tagText}>{t}</Text></View>
+                  ))}
+                </View>
+              ) : null}
+
+              {block.images?.length || block.tags?.length ? null : (
               <View style={s.card}>
                 {block.lines?.map((line, li) => (
                   <View key={li} style={[s.line, li > 0 && s.divided]}>
@@ -107,6 +129,7 @@ export function DetailScreen({
                   </View>
                 ))}
               </View>
+              )}
             </View>
           ))}
 
@@ -128,7 +151,7 @@ export function DetailScreen({
       )}
 
       {said ? (
-        <View style={[s.said, { bottom: insets.bottom + space.lg }]} pointerEvents="none">
+        <View style={[s.said, { bottom: insets.bottom + TAB_BAR_SPACE }]} pointerEvents="none">
           <Text style={s.saidText}>{said}</Text>
         </View>
       ) : null}
@@ -171,6 +194,18 @@ const s = StyleSheet.create({
   pills: { flexDirection: "row", gap: space.xs, marginBottom: space.md, flexWrap: "wrap" },
 
   block: { marginBottom: space.md },
+  gallery: { gap: space.sm, paddingRight: space.lg },
+  photo: {
+    width: 150, height: 150, borderRadius: radius.md,
+    backgroundColor: palette.lineSoft,
+    borderWidth: 1, borderColor: palette.line,
+  },
+  tags: { flexDirection: "row", flexWrap: "wrap", gap: space.xs },
+  tag: {
+    borderWidth: 1, borderColor: palette.line, borderRadius: 100,
+    paddingHorizontal: 12, paddingVertical: 6, backgroundColor: palette.paper,
+  },
+  tagText: { ...type.small, fontSize: 12.5, color: palette.ink70 },
   blockTitle: { ...type.section, color: palette.muted, marginBottom: space.xs },
   card: {
     backgroundColor: palette.paper, borderRadius: radius.lg,

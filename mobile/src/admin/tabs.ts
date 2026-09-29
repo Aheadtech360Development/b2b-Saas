@@ -31,3 +31,12 @@ export function isTabActive(tabKey: string, current: string): boolean {
   if (tabKey === current) return true;
   return tabKey === "more" && !TABS.some((t) => t.key === current);
 }
+
+/**
+ * How much room a scrolling screen leaves at its bottom.
+ *
+ * The bar floats over the content, so every screen has to clear it. One
+ * number here rather than a guess per screen, which is how the last row ends
+ * up half hidden on one of them.
+ */
+export const TAB_BAR_SPACE = 78;
