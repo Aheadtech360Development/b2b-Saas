@@ -65,6 +65,7 @@ export default function ThemeCustomizer({ fullScreen = false, backHref }: {
   const [openSection, setOpenSection] = useState<string | null>(null);
   const [device, setDevice] = useState<Device>("desktop");
   const [busy, setBusy] = useState<null | "save" | "publish" | "discard" | "import">(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [loading, setLoading] = useState(true);
   const [pickImageFor, setPickImageFor] = useState<{ section: string; field: string } | null>(null);
@@ -85,13 +86,15 @@ export default function ThemeCustomizer({ fullScreen = false, backHref }: {
 
   useEffect(() => {
     themesService.get()
-      .then((r) => { if (r.theme) adopt(r.theme); })
-      .catch((e) => setMsg({
-        ok: false,
-        // Say what the API said — "no tenant", "forbidden" and "server down"
-        // are different problems and need different fixes.
-        text: e instanceof ApiClientError && e.message ? e.message : "Could not load this brand's theme.",
-      }))
+      .then((r) => { if (r.theme) adopt(r.theme); setLoadError(null); })
+      // Held apart from msg, because a brand with no theme and a brand whose
+      // theme could not be loaded looked identical: both fell through to
+      // "no theme yet", with the reason in a line under a card that says
+      // the opposite. "No tenant", "forbidden" and "server down" are
+      // different problems and need different fixes.
+      .catch((e) => setLoadError(
+        e instanceof ApiClientError && e.message ? e.message : "Could not load this brand's theme.",
+      ))
       .finally(() => setLoading(false));
   }, [adopt]);
 
@@ -256,6 +259,32 @@ export default function ThemeCustomizer({ fullScreen = false, backHref }: {
   }
 
   if (loading) return <div style={{ padding: "40px", color: "#888", fontSize: "14px" }}>Loading theme…</div>;
+
+  // ── The theme could not be read ──
+  // Separate from having none: one is a brand waiting for its design, the
+  // other is something wrong, and offering "Import a design file" to
+  // somebody whose session has no brand on it sends them down the wrong path.
+  if (!theme && loadError) {
+    return (
+      <div style={{ fontFamily: "var(--font-jakarta), sans-serif", maxWidth: "720px" }}>
+        <h1 style={{ fontFamily: "var(--font-bebas), sans-serif", fontSize: "32px", color: "#2A2830" }}>Theme</h1>
+        <div style={{ ...card, padding: "32px 28px", marginTop: "18px" }}>
+          <p style={{ fontSize: "15px", color: "#B91C1C", marginBottom: "8px", fontWeight: 600 }}>
+            This brand&apos;s theme could not be loaded.
+          </p>
+          <p style={{ fontSize: "13px", color: "#7A7880", lineHeight: 1.6, marginBottom: "16px" }}>
+            {loadError}
+          </p>
+          <button onClick={() => { setLoading(true); setLoadError(null); themesService.get()
+            .then((r) => { if (r.theme) adopt(r.theme); })
+            .catch((e) => setLoadError(e instanceof ApiClientError && e.message ? e.message : "Still could not load it."))
+            .finally(() => setLoading(false)); }} style={btnPrimary}>
+            Try again
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   // ── No theme yet ──
   if (!theme) {
