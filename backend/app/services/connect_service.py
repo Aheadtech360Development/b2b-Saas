@@ -54,17 +54,23 @@ async def _stripe_for(db):
 # What kind of connected account a brand gets, said in full rather than as the
 # single word "express".
 #
-# `type="express"` is the old shorthand, and Stripe refuses it outright once a
-# platform's profile says the platform collects losses: it answers "use
-# Accounts v2", which would mean a different API for creation, onboarding
-# links, dashboard links and the account.updated webhook. Spelling the same
-# thing out here asks for the Express behaviour and says plainly that losses
-# are Stripe's, which is what our arrangement actually is — a brand takes its
-# own payments as merchant of record and carries its own disputes, and the
-# platform takes a commission, not a risk.
+# `type="express"` is the old shorthand for exactly this set, and Stripe now
+# refuses the shorthand for platforms whose profile has been filled in. Its
+# first answer suggested Accounts v2, which would mean a different API for
+# creation, onboarding links, dashboard links and the account.updated
+# webhook, none of which the pinned SDK has. Saying the same thing in full is
+# accepted in v1 and changes nothing else.
+#
+# The parts are not free to choose: an Express dashboard requires that the
+# platform controls losses, which Stripe enforces and which is what Express
+# has always meant. A brand is still merchant of record on its own direct
+# charges and carries its own disputes; what sits with the platform is a
+# connected account going negative, which is the risk of running a platform
+# at all.
 _EXPRESS_CONTROLLER = {
-    # Stripe covers negative balances, not us.
-    "losses": {"payments": "stripe"},
+    # Required to be the application while the dashboard is express. Stripe
+    # refuses the combination outright otherwise.
+    "losses": {"payments": "application"},
     # Stripe collects what the brand has to provide, through its hosted
     # onboarding, which is what create_onboarding_link opens.
     "requirement_collection": "stripe",
