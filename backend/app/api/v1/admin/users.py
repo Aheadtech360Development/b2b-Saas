@@ -116,6 +116,39 @@ async def list_users(
     return {"items": [_user_to_dict(u) for u in users], "total": total}
 
 
+def _taken_message(owner: dict, email: str) -> str:
+    """What to tell an admin whose new user's email is already in use."""
+    from app.core.tenant_context import get_current_tenant_id
+
+    here = get_current_tenant_id()
+    theirs = owner.get("tenant_id")
+    name = " ".join(x for x in (owner.get("first_name"), owner.get("last_name")) if x).strip()
+    who = f"{name} ({email})" if name else email
+
+    if owner.get("is_platform_admin"):
+        return (
+            f"{email} is the platform's own admin account, which cannot also be a "
+            "user of a shop. Use a different address."
+        )
+    if here is not None and theirs is not None and str(theirs) == str(here):
+        if (owner.get("role") or "") == "buyer":
+            return (
+                f"{who} is already a customer of your shop, and one address cannot be "
+                "both a customer and a staff login. Add this person with a different "
+                "address, or change theirs on the customer record first."
+            )
+        if not owner.get("is_active"):
+            return (
+                f"{who} is already a user of your shop but is deactivated. Reactivate "
+                "them from the list instead of adding them again."
+            )
+        return f"{who} is already a user of your shop."
+    # Another brand's account. Said plainly, and without naming them.
+    return (
+        f"{email} is already registered elsewhere on the platform, so it cannot be "
+        "used again here. Add this person with a different address."
+    )
+
 @router.post("", status_code=201)
 async def create_user(
     payload: dict,
@@ -130,11 +163,16 @@ async def create_user(
     if not email or not first_name:
         raise HTTPException(status_code=422, detail="email and first_name are required")
 
-    from app.core.database import email_taken_anywhere
+    from app.core.database import email_owner
 
-    existing = await db.execute(select(User).where(func.lower(User.email) == email))
-    if existing.scalar_one_or_none() or await email_taken_anywhere(email):
-        raise HTTPException(status_code=409, detail="This email address already has an account. Use a different address, or ask that person to sign in with it.")
+    # "That email is taken" is not something an admin can act on: they cannot
+    # see the account and have no idea where it is. So the answer says which
+    # of the three cases it is — their own staff, their own customer, or an
+    # account on a store that is not theirs — and only the first two name any
+    # detail, because the third is somebody else's data.
+    owner = await email_owner(email)
+    if owner:
+        raise HTTPException(status_code=409, detail=_taken_message(owner, email))
 
     raw_password: str = payload.get("password") or secrets.token_urlsafe(12)
     custom_role_id = payload.get("custom_role_id")

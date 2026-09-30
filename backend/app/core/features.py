@@ -12,6 +12,10 @@ brand has a row for it; rename the label instead.
 """
 from __future__ import annotations
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 # ── The catalogue ──────────────────────────────────────────────────────────
 # (key, label, group). The order is the order the platform console shows.
 FEATURES: list[tuple[str, str, str]] = [
@@ -83,9 +87,22 @@ PLAN_ALIASES = {"growth": "wholesale", "free": "starter", "": "starter"}
 
 
 def plan_defaults(plan: str | None) -> set[str]:
-    """What this plan includes before any per-brand decision."""
+    """What this plan includes before any per-brand decision.
+
+    A name nobody recognises falls back to starter, which is the safe answer
+    but a quiet one: a brand paying for the wholesale toolset and carrying a
+    misspelt or legacy plan name loses it with nothing anywhere saying so.
+    The screens simply read "your plan does not include this". So the fallback
+    is logged, loudly enough to find.
+    """
     key = (plan or "starter").strip().lower()
     key = PLAN_ALIASES.get(key, key)
+    if key not in PLAN_FEATURES:
+        logger.warning(
+            "Unknown plan %r — falling back to starter, so this brand loses the "
+            "wholesale toolset. Set it to one of: %s",
+            plan, ", ".join(sorted(PLAN_FEATURES)),
+        )
     return set(PLAN_FEATURES.get(key, PLAN_FEATURES["starter"]))
 
 

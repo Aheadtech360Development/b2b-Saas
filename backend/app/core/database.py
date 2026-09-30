@@ -1,4 +1,5 @@
 """Async SQLAlchemy engine and session factory."""
+import logging
 import ssl
 from collections.abc import AsyncGenerator
 
@@ -10,6 +11,8 @@ from sqlalchemy.ext.asyncio import (
 )
 
 from app.core.config import settings
+
+logger = logging.getLogger(__name__)
 
 # ── Engine ────────────────────────────────────────────────────────────────────
 _db_url = settings.DATABASE_URL.replace("?ssl=true", "").replace("?sslmode=require", "")
@@ -394,14 +397,20 @@ async def check_db_connection() -> bool:
         return False
 
 
-async def email_taken_anywhere(email: str) -> bool:
-    """Is this login email already registered, on any store?
+async def email_owner(email: str) -> dict | None:
+    """Who already holds this login email, anywhere on the platform.
 
-    `users.email` is unique across the whole platform, but every duplicate
-    check ran on a tenant-scoped session, which row-level security limits to
-    the current store. An email already used by another store therefore passed
-    the check and failed on insert — a 500 the admin saw as "a problem on our
-    side". This runs its own bypassing session so the answer covers every store.
+    `users.email` is unique across every store, but a duplicate check run on a
+    tenant-scoped session only ever sees the current one, so an address used
+    by another store passed the check and failed on insert. This runs its own
+    bypassing session.
+
+    It returns the row rather than a yes or no, because "that email is taken"
+    is not something an admin can act on. Knowing it belongs to a customer of
+    their own shop, or to somebody they deactivated, or to a store that is not
+    theirs, tells them what to do next. What is said back to them is decided
+    at the call site, which is where the difference between their own data and
+    somebody else's is known.
     """
     from sqlalchemy import text
 
@@ -409,17 +418,25 @@ async def email_taken_anywhere(email: str) -> bool:
 
     address = (email or "").strip().lower()
     if not address:
-        return False
+        return None
     previous = is_scoping_bypassed()
     set_bypass_scoping(True)
     try:
         async with AsyncSessionLocal() as session:
-            row = (await session.execute(
-                text("SELECT 1 FROM users WHERE lower(email) = :e LIMIT 1"), {"e": address}
-            )).first()
-            return row is not None
+            row = (await session.execute(text(
+                "SELECT id, tenant_id, role, is_active, is_platform_admin, "
+                "       first_name, last_name "
+                "FROM users WHERE lower(email) = :e LIMIT 1"
+            ), {"e": address})).mappings().first()
+            return dict(row) if row else None
     except Exception:  # never block account creation on this check
-        return False
+        logger.exception("Could not check whether %s is already taken", address)
+        return None
     finally:
         set_bypass_scoping(previous)
+
+
+async def email_taken_anywhere(email: str) -> bool:
+    """Whether this login email is registered on any store."""
+    return await email_owner(email) is not None
 
