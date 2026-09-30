@@ -51,6 +51,30 @@ async def _stripe_for(db):
     return stripe
 
 
+# What kind of connected account a brand gets, said in full rather than as the
+# single word "express".
+#
+# `type="express"` is the old shorthand, and Stripe refuses it outright once a
+# platform's profile says the platform collects losses: it answers "use
+# Accounts v2", which would mean a different API for creation, onboarding
+# links, dashboard links and the account.updated webhook. Spelling the same
+# thing out here asks for the Express behaviour and says plainly that losses
+# are Stripe's, which is what our arrangement actually is — a brand takes its
+# own payments as merchant of record and carries its own disputes, and the
+# platform takes a commission, not a risk.
+_EXPRESS_CONTROLLER = {
+    # Stripe covers negative balances, not us.
+    "losses": {"payments": "stripe"},
+    # Stripe collects what the brand has to provide, through its hosted
+    # onboarding, which is what create_onboarding_link opens.
+    "requirement_collection": "stripe",
+    # The platform pays Stripe's processing fees, as Express has always done.
+    "fees": {"payer": "application"},
+    # The brand gets the Express dashboard for its payouts and balance.
+    "stripe_dashboard": {"type": "express"},
+}
+
+
 class ConnectService:
     def __init__(self, db: AsyncSession):
         self.db = db
@@ -115,17 +139,26 @@ class ConnectService:
             return tenant["stripe_connect_account_id"]
 
         s = await _stripe_for(self.db)
-        account = s.Account.create(
-            type="express",
-            country="US",
-            email=tenant.get("email"),
-            capabilities={
+        common = {
+            "country": "US",
+            "email": tenant.get("email"),
+            "capabilities": {
                 "card_payments": {"requested": True},
                 "transfers": {"requested": True},
             },
-            business_profile={"name": tenant.get("name")},
-            metadata={"tenant_id": str(tenant["id"]), "tenant_slug": tenant["slug"], "app": "at360"},
-        )
+            "business_profile": {"name": tenant.get("name")},
+            "metadata": {"tenant_id": str(tenant["id"]), "tenant_slug": tenant["slug"], "app": "at360"},
+        }
+        try:
+            account = s.Account.create(controller=_EXPRESS_CONTROLLER, **common)
+        except stripe.InvalidRequestError as exc:
+            # A platform configured before `controller` existed can still only
+            # be asked the old way. Falling back keeps such a platform working
+            # rather than making this change a migration everybody has to do.
+            if "controller" not in str(exc).lower():
+                raise
+            logger.info("controller form refused, creating an Express account the old way: %s", exc)
+            account = s.Account.create(type="express", **common)
         sfx = await self._suffix()
         await self.db.execute(text(f"""
             UPDATE tenants SET stripe_connect_account_id{sfx} = :a, updated_at = now()
