@@ -51,34 +51,53 @@ async def _stripe_for(db):
     return stripe
 
 
-# What kind of connected account a brand gets, said in full rather than as the
-# single word "express".
+# What kind of connected account a brand gets.
 #
-# `type="express"` is the old shorthand for exactly this set, and Stripe now
-# refuses the shorthand for platforms whose profile has been filled in. Its
-# first answer suggested Accounts v2, which would mean a different API for
-# creation, onboarding links, dashboard links and the account.updated
-# webhook, none of which the pinned SDK has. Saying the same thing in full is
-# accepted in v1 and changes nothing else.
+# `type="express"` is the old shorthand for a whole arrangement, and Stripe
+# refuses the shorthand for platforms whose profile has been filled in, so the
+# parts are spelled out. They are not free to choose: Stripe enforces which
+# combinations exist, and which a platform may create at all depends on what
+# its own Connect profile says.
 #
-# The parts are not free to choose: an Express dashboard requires that the
-# platform controls losses, which Stripe enforces and which is what Express
-# has always meant. A brand is still merchant of record on its own direct
-# charges and carries its own disputes; what sits with the platform is a
-# connected account going negative, which is the risk of running a platform
-# at all.
-_EXPRESS_CONTROLLER = {
-    # Required to be the application while the dashboard is express. Stripe
-    # refuses the combination outright otherwise.
-    "losses": {"payments": "application"},
-    # Stripe collects what the brand has to provide, through its hosted
-    # onboarding, which is what create_onboarding_link opens.
-    "requirement_collection": "stripe",
-    # The platform pays Stripe's processing fees, as Express has always done.
-    "fees": {"payer": "application"},
-    # The brand gets the Express dashboard for its payouts and balance.
-    "stripe_dashboard": {"type": "express"},
+# Two are offered because a platform is provisioned for one or the other and
+# the only way to find out is to be told no. Express, where the platform
+# carries negative balances and the brand gets the cut-down dashboard. Or
+# standard, where Stripe carries them and the brand gets the full one — which
+# is what a profile answering "Stripe" to negative balance liability is set up
+# for. Picking between them is a setting rather than an edit, so finding out
+# costs a redeploy and not a guess in the code.
+_CONTROLLERS = {
+    "express": {
+        # Required to be the application while the dashboard is express:
+        # Stripe refuses the other combination outright.
+        "losses": {"payments": "application"},
+        "requirement_collection": "stripe",
+        # The platform pays Stripe's processing fees, as Express has always done.
+        "fees": {"payer": "application"},
+        "stripe_dashboard": {"type": "express"},
+    },
+    "standard": {
+        # Stripe carries negative balances here, which is what a platform
+        # profile saying "Stripe" to that question is provisioned for.
+        "losses": {"payments": "stripe"},
+        "requirement_collection": "stripe",
+        # And the brand pays its own processing fees, as Standard does.
+        "fees": {"payer": "account"},
+        "stripe_dashboard": {"type": "full"},
+    },
 }
+
+
+def _controller() -> dict:
+    """The shape this platform is allowed to create, from STRIPE_CONNECT_STYLE."""
+    style = (get_settings().STRIPE_CONNECT_STYLE or "express").strip().lower()
+    if style not in _CONTROLLERS:
+        logger.warning(
+            "STRIPE_CONNECT_STYLE is %r, which is not one of %s — using express.",
+            style, ", ".join(sorted(_CONTROLLERS)),
+        )
+        style = "express"
+    return _CONTROLLERS[style]
 
 
 class ConnectService:
@@ -156,7 +175,7 @@ class ConnectService:
             "metadata": {"tenant_id": str(tenant["id"]), "tenant_slug": tenant["slug"], "app": "at360"},
         }
         try:
-            account = s.Account.create(controller=_EXPRESS_CONTROLLER, **common)
+            account = s.Account.create(controller=_controller(), **common)
         except stripe.InvalidRequestError as exc:
             # A platform configured before `controller` existed can still only
             # be asked the old way. Falling back keeps such a platform working

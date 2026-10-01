@@ -126,6 +126,11 @@ class Settings(BaseSettings):
     # mode: a webhook can arrive from the world we just switched away from.
     STRIPE_WEBHOOK_SECRET_TEST: str = ""
     STRIPE_CONNECT_WEBHOOK_SECRET_TEST: str = ""
+    # Which kind of connected account this platform may create: "express" or
+    # "standard". Stripe provisions a platform for one of them, and refuses
+    # the other with a message that names neither, so this is a setting rather
+    # than something to find out by editing code. See services/connect_service.
+    STRIPE_CONNECT_STYLE: str = "express"
 
     @field_validator(
         "STRIPE_SECRET_KEY", "STRIPE_PUBLISHABLE_KEY",
