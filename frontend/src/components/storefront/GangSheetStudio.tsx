@@ -15,6 +15,7 @@
  * artwork rows (one artwork per unique upload) and persists the layout.
  */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   ClipboardPaste, Copy, CopyPlus, Crop, Droplet, Eye, Grid3x3, Hand,
   Layers, Lightbulb, Maximize, Minus, Plus, Redo2, RotateCcw, RotateCw, Save,
@@ -277,6 +278,20 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
   // these move everything at once, so they are shown before they happen.
   const [pendingNest, setPendingNest] = useState<null | { plan: NestPlan; extraGap: number }>(null);
   const [pendingFill, setPendingFill] = useState<null | { id: number; spots: { x: number; y: number; rotated: boolean }[] }>(null);
+  // The document only exists in the browser, so the first render stays in
+  // place and the portal takes over once mounted.
+  const [portalReady, setPortalReady] = useState(false);
+  useEffect(() => setPortalReady(true), []);
+
+  // Hold the page still underneath. The builder covers the whole window, so a
+  // scroll that reaches past it moves a shop nobody can see — and on a
+  // trackpad that is easy to do by accident at the edge of the canvas.
+  useEffect(() => {
+    const body = document.body;
+    const was = body.style.overflow;
+    body.style.overflow = "hidden";
+    return () => { body.style.overflow = was; };
+  }, []);
   const [grewTo, setGrewTo] = useState<number | null>(null);
   const [sheetFull, setSheetFull] = useState(false);
   // The growth note takes itself away; it is news, not a state of affairs.
@@ -1303,6 +1318,12 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
     const el = scrollRef.current;
     if (!el) return;
     function handle(e: WheelEvent) {
+      // A two-finger swipe on a trackpad is a wheel event, and so is a pinch —
+      // the difference is that the browser sets ctrlKey on the pinch. Treating
+      // every wheel as a zoom is why scrolling the sheet changed its size
+      // instead of moving it. Plain wheel is left alone so the canvas scrolls
+      // natively, which the rulers already follow.
+      if (!e.ctrlKey && !e.metaKey) return;
       e.preventDefault();
       const factor = e.deltaY < 0 ? 1.1 : 1 / 1.1;
       const next = clamp(round3(zoom * factor), 0.15, 6);
@@ -1726,7 +1747,12 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
     [warnings],
   );
 
-  return (
+  // Put up against the document, not inside the shop's page. A brand's theme
+  // brings its own stylesheet, and the builder is a full-screen application —
+  // it should not be at the mercy of whatever that stylesheet does to the
+  // element it happens to be nested in. Rendered on the client only, since
+  // there is no document to portal into on the server.
+  const tree = (
     <div style={S.root}>
       {/* ── Top bar ─────────────────────────────────────────────────────────── */}
       <div style={S.topbar}>
@@ -2645,6 +2671,8 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
       <ToastContainer />
     </div>
   );
+
+  return portalReady ? createPortal(tree, document.body) : tree;
 }
 
 // ── The builder's look ────────────────────────────────────────────────────────
@@ -2667,7 +2695,12 @@ const C = {
 } as const;
 
 const S: Record<string, React.CSSProperties> = {
-  root: { position: "fixed", inset: 0, zIndex: 200, background: C.page, color: C.ink, display: "flex", flexDirection: "column", fontFamily: "'Inter', 'DM Sans', system-ui, sans-serif" },
+  // Height is stated rather than inferred from `inset`. A brand's theme styles
+  // the page this opens over, and one of them sets `overflow-x: hidden` on
+  // html and body — enough to leave the builder standing in the top part of
+  // the window with the shop showing underneath. `dvh` also keeps it right on
+  // a phone, where the browser's own bars come and go.
+  root: { position: "fixed", inset: 0, width: "100vw", height: "100dvh", zIndex: 200, background: C.page, color: C.ink, display: "flex", flexDirection: "column", overflow: "hidden", fontFamily: "'Inter', 'DM Sans', system-ui, sans-serif" },
   topbar: { height: "62px", flexShrink: 0, background: C.card, borderBottom: `1px solid ${C.line}`, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 18px", gap: "16px" },
   logoMark: { width: "32px", height: "32px", borderRadius: "9px", background: C.go, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 },
   logo: { fontSize: "18px", fontWeight: 800, letterSpacing: "-.02em", lineHeight: 1.1, color: C.ink },
