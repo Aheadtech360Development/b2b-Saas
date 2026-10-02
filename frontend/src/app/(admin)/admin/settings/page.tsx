@@ -5,6 +5,7 @@ import { apiClient } from "@/lib/api-client";
 import { IntegrationsPanel } from "@/components/admin/IntegrationsPanel";
 import { ShopCodePanel } from "@/components/admin/ShopCodePanel";
 import { DomainPanel } from "@/components/admin/DomainPanel";
+import { StoreNamePanel } from "@/components/admin/StoreNamePanel";
 
 const SETTING_FIELDS = [
   { key: "mov", label: "Minimum Order Value ($)", type: "number", placeholder: "e.g. 200" },
@@ -72,6 +73,20 @@ export default function AdminSettingsPage() {
           {message.text}
         </div>
       )}
+
+      {/* What the shop calls itself. First, because it is the one setting a
+          customer sees on every page and in every email. */}
+      <div className="bg-white border border-gray-200 rounded-lg">
+        <div className="px-6 py-4 border-b border-gray-100">
+          <h2 className="font-semibold text-gray-900">Store name</h2>
+          <p className="text-sm text-gray-500 mt-1">
+            The name your customers see. Change it here if your shop has been renamed.
+          </p>
+        </div>
+        <div className="px-6 py-6">
+          <StoreNamePanel />
+        </div>
+      </div>
 
       {loading ? (
         <div className="text-center py-12 text-gray-500">Loading...</div>

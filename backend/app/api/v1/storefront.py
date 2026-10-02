@@ -873,6 +873,12 @@ async def update_admin_branding(
         params,
     )
     await db.commit()
+    if "store_name" in updates:
+        # Emails read the brand's name from a cache, so a rename that is not
+        # forgotten here goes out under the old name for the next few minutes.
+        from app.core.database import forget_brand_name
+
+        forget_brand_name(tenant_id)
     return await _fetch_branding(db, tenant_id)
 
 

@@ -128,6 +128,16 @@ def forget_tenant_email(tenant_id: object) -> None:
     _EMAIL_CACHE.pop(str(tenant_id), None)
 
 
+def forget_brand_name(tenant_id: object) -> None:
+    """Drop the cached store name, so a rename reaches the next email sent.
+
+    Without this the old name sat here for the rest of the TTL, which is long
+    enough for a brand to change its name, send itself a test and be told it
+    had not worked.
+    """
+    _BRAND_CACHE.pop(str(tenant_id), None)
+
+
 async def _resolve_brand_name(session: AsyncSession, tenant_id: object) -> str | None:
     from sqlalchemy import text
 

@@ -179,6 +179,25 @@ async def get_tenant(
     return dict(row)
 
 
+def _shop_name_follows(
+    tenant_name: str | None, store_name: str | None, company_name: str | None
+) -> bool:
+    """Whether renaming the brand should rename the shop too.
+
+    Yes while the shop is still called what the platform calls it, or nothing
+    at all — then the two names were never meant to differ and leaving one
+    behind is the bug. No once the shop trades under a name of its own, which
+    is a decision the brand made and this console has no business undoing.
+    """
+    was = (tenant_name or "").strip().lower()
+    if not was:
+        return False
+    return all(
+        (chosen or "").strip().lower() in ("", was)
+        for chosen in (store_name, company_name)
+    )
+
+
 @router.put("/{slug}")
 async def update_tenant(
     slug: str,
@@ -222,6 +241,25 @@ async def update_tenant(
             raise HTTPException(status_code=409, detail=f"'{cleaned}' already belongs to '{clash[0]}'")
         updates["custom_domain"] = cleaned or None
 
+    # Renaming a brand here changed the name the platform files it under and
+    # nothing the brand's own customers ever see — so a shop renamed in this
+    # console kept its old name in the browser tab, in its emails and on its
+    # order pages. The shop's name follows, but only while it was still the
+    # same name: a brand that deliberately trades under something else keeps it.
+    rename_shop = False
+    if "name" in updates:
+        before = (await db.execute(
+            text("SELECT name FROM tenants WHERE slug = :s"), {"s": slug}
+        )).scalar()
+        shop = (await db.execute(text(
+            "SELECT store_name, company_name FROM tenant_branding "
+            " WHERE tenant_id = (SELECT id FROM tenants WHERE slug = :s)"
+        ), {"s": slug})).mappings().first()
+        if shop is not None:
+            rename_shop = _shop_name_follows(
+                before, shop["store_name"], shop["company_name"]
+            )
+
     set_clause = ", ".join(f"{k}=:{k}" for k in updates)
     # The row is found by the slug it has now, under its own parameter name —
     # sharing one with the column being set would write the old value back.
@@ -231,7 +269,20 @@ async def update_tenant(
         text(f"UPDATE tenants SET {set_clause}, updated_at=now() WHERE slug=:current_slug"),
         params,
     )
+    if rename_shop:
+        await db.execute(text(
+            "UPDATE tenant_branding SET store_name = :n, company_name = :n, updated_at = now() "
+            " WHERE tenant_id = (SELECT id FROM tenants WHERE slug = :s)"
+        ), {"n": updates["name"], "s": updates.get("slug", slug)})
     await db.commit()
+    if rename_shop:
+        from app.core.database import forget_brand_name
+
+        tid = (await db.execute(
+            text("SELECT id FROM tenants WHERE slug = :s"), {"s": updates.get("slug", slug)}
+        )).scalar()
+        if tid:
+            forget_brand_name(tid)
     if "custom_domain" in updates:
         from app.services import tenant_hosts
 
