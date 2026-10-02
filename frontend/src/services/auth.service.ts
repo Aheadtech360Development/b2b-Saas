@@ -45,8 +45,22 @@ export interface WholesaleApplicationResponse {
   created_at: string;
 }
 
+export interface RegisterCustomerPayload {
+  first_name: string;
+  last_name?: string;
+  email: string;
+  password: string;
+  phone?: string;
+  company_name?: string;
+}
+
 export const authService = {
   /** Log in and receive an access token. Refresh token is set as httpOnly cookie. */
+  /** Open a buyer's account with this shop, signed in on the way out. */
+  async registerCustomer(payload: RegisterCustomerPayload): Promise<AuthTokens> {
+    return apiClient.post<AuthTokens>("/api/v1/register-customer", payload, { skipAuth: true });
+  },
+
   async login(payload: LoginPayload): Promise<AuthTokens> {
     return apiClient.post<AuthTokens>("/api/v1/auth/login", payload, { skipAuth: true });
   },

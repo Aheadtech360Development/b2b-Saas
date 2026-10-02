@@ -26,6 +26,27 @@ class TokenRefreshRequest(BaseModel):
     refresh_token: str | None = None
 
 
+class RegisterCustomerRequest(BaseModel):
+    """An ordinary buyer opening an account with one shop.
+
+    Shorter than the wholesale form on purpose: this is somebody who has a
+    design ready and wants it printed, and every extra field between them and
+    that is a reason to leave. The shop still gets a real customer out of it —
+    a company record, a login, and an address to send the proof to — rather
+    than an order from a name and an email nobody can follow up with.
+    """
+
+    first_name: str = Field(..., min_length=1, max_length=80)
+    last_name: str = Field(default="", max_length=80)
+    email: EmailStr
+    password: str = Field(..., min_length=8, max_length=200)
+    phone: str | None = Field(default=None, max_length=50)
+    # Most buyers here are a small print shop. When they do not give one, their
+    # own name stands in, because the shop's customer list is a list of
+    # accounts and an empty one is worse than a person's name.
+    company_name: str | None = Field(default=None, max_length=255)
+
+
 class RegisterWholesaleRequest(BaseModel):
     # Company info
     company_name: str = Field(..., min_length=2, max_length=255)

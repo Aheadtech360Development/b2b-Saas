@@ -18,6 +18,7 @@ from app.schemas.auth import (
     ForgotPasswordRequest,
     LoginRequest,
     LoginResponse,
+    RegisterCustomerRequest,
     RegisterWholesaleRequest,
     ResendActivationSchema,
     ResetPasswordRequest,
@@ -43,6 +44,58 @@ async def register_wholesale(
     service = AuthService(db)
     application = await service.register_wholesale(data)
     return WholesaleApplicationOut.model_validate(application)
+
+
+@router.post("/register-customer", response_model=LoginResponse, status_code=201)
+async def register_customer(
+    data: RegisterCustomerRequest,
+    request: Request,
+    response: Response,
+    db: AsyncSession = Depends(get_db),
+) -> LoginResponse:
+    """Open a buyer's account with this shop and sign them straight in.
+
+    Signing in is part of the same step on purpose: this is called from the
+    middle of checkout, and an account that then asks the buyer to go and log
+    in has put a wall exactly where the sale was.
+    """
+    await enforce_rate_limit(request, "register_customer", limit=5, window=3600)
+    await enforce_rate_limit(request, "register_customer_ip", limit=20, window=3600)
+
+    import uuid as _uuid
+
+    from app.services.tenant_auth_service import TenantAuthService
+
+    service = AuthService(db)
+    await service.register_customer(data)
+
+    _raw = getattr(request.state, "tenant_id", None)
+    _tid = None
+    if _raw:
+        _tid = _raw if isinstance(_raw, _uuid.UUID) else _uuid.UUID(str(_raw))
+    if _tid is None:
+        from app.core.tenant_context import NO_TENANT, get_current_tenant_id
+
+        _cur = get_current_tenant_id()
+        _tid = _cur if _cur and _cur != NO_TENANT else None
+
+    # Through the ordinary door rather than minting a token here, so a buyer
+    # made this way is subject to every rule a buyer who signed in is.
+    login_response, refresh_token = await TenantAuthService(db).login(
+        data.email, data.password, _tid
+    )
+    if refresh_token:
+        response.set_cookie(
+            key=REFRESH_COOKIE_NAME,
+            value=refresh_token,
+            max_age=REFRESH_COOKIE_MAX_AGE,
+            httponly=True,
+            secure=settings.COOKIE_SECURE,
+            samesite=settings.COOKIE_SAMESITE,  # type: ignore[arg-type]
+            path="/api/v1/refresh",
+            domain=settings.COOKIE_DOMAIN,
+        )
+    return login_response
 
 
 @router.post("/login", response_model=LoginResponse)

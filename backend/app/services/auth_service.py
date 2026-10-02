@@ -31,7 +31,12 @@ from app.core.security import (
 )
 from app.models.company import Company, CompanyUser
 from app.models.user import User
-from app.schemas.auth import LoginResponse, RegisterWholesaleRequest, TokenRefreshResponse
+from app.schemas.auth import (
+    LoginResponse,
+    RegisterCustomerRequest,
+    RegisterWholesaleRequest,
+    TokenRefreshResponse,
+)
 from app.models.wholesale import WholesaleApplication
 
 REFRESH_COOKIE_NAME = "refresh_token"
@@ -235,6 +240,130 @@ class AuthService:
         )
 
         return TokenRefreshResponse(access_token=new_access_token), new_refresh_token
+
+    async def register_customer(self, data: RegisterCustomerRequest) -> User:
+        """Open an account for a buyer, ready to order straight away.
+
+        The only way to buy here without one was to type a name and an email at
+        the end, which left the shop an order it could not tie to anybody: no
+        login to come back to, no customer in the list, nothing to send a proof
+        or a reprint to. This makes a real account — a company, a user, and the
+        link between them — and it is active from the start, because a buyer
+        with artwork ready is not going to wait on an approval.
+
+        It is deliberately not the wholesale form. That one asks about tax IDs
+        and annual volume and ends in a queue; this is a till.
+        """
+        email = data.email.lower().strip()
+        tenant_id = get_current_tenant_id()
+
+        existing = await self.db.execute(select(User).where(User.email == email))
+        if existing.scalar_one_or_none():
+            raise ConflictError("An account with this email already exists. Please sign in.")
+
+        who = f"{data.first_name} {data.last_name}".strip() or email
+        company = Company(
+            name=(data.company_name or "").strip() or who,
+            phone=data.phone,
+            company_email=email,
+            # Active, not pending: nothing here needs approving, and a pending
+            # company cannot order — which would defeat the whole point.
+            status="active",
+        )
+        self.db.add(company)
+
+        user = User(
+            email=email,
+            hashed_password=hash_password(data.password),
+            first_name=data.first_name,
+            last_name=data.last_name,
+            phone=data.phone,
+            role="buyer",
+            is_admin=False,
+            is_active=True,
+            email_verified=False,
+            # User is not a TenantMixin, so it is not stamped automatically —
+            # bind the buyer to this shop or their login can never find them.
+            tenant_id=tenant_id,
+        )
+        self.db.add(user)
+        try:
+            await self.db.flush()
+        except IntegrityError:
+            # Emails are unique across the platform, but the check above only
+            # sees this shop's accounts, so one registered with another shop
+            # gets this far and breaks the insert.
+            await self.db.rollback()
+            raise ConflictError(
+                "This email already has an account on our platform. "
+                "Sign in with it, or use a different email address."
+            )
+
+        self.db.add(CompanyUser(company_id=company.id, user_id=user.id, role="owner"))
+        await self.db.commit()
+        await self.db.refresh(user)
+
+        await self._welcome_customer(user, company, tenant_id)
+        return user
+
+    async def _welcome_customer(self, user: User, company: object, tenant_id: object) -> None:
+        """Tell the buyer their account exists, and the shop that it does.
+
+        Both are best-effort: an email that will not send is not a reason to
+        lose an account somebody just created.
+        """
+        from app.services.email_service import EmailService
+
+        email_svc = EmailService(self.db)
+        store, contact = await self._store_identity(tenant_id)
+        first = (user.first_name or "").split(" ")[0] or "there"
+        try:
+            email_svc.send_raw(
+                to_email=user.email,
+                subject=f"Your {store} account is ready",
+                body_html=f"""
+                    <div style="font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;max-width:560px;margin:0 auto;color:#111318">
+                      <div style="background:#080808;padding:22px;text-align:center">
+                        <span style="color:#fff;font-size:21px;font-weight:800;letter-spacing:.04em">{store}</span>
+                      </div>
+                      <div style="padding:30px;background:#fff">
+                        <h2 style="margin:0 0 10px;font-size:21px">You're all set, {first}.</h2>
+                        <p style="color:#5A5F68;line-height:1.6;margin:0 0 18px">
+                          Your account with <b>{store}</b> is open. Sign in any time to track your
+                          print jobs, reorder a sheet you have run before, and pick up where you
+                          left off.
+                        </p>
+                        <p style="color:#5A5F68;line-height:1.6;margin:0 0 18px">
+                          We'll email you as each job moves — when it is reviewed, when it goes to
+                          print, and when it ships.
+                        </p>
+                        {f'<p style="color:#5A5F68;line-height:1.6;margin:0">Questions? Reach us at <b>{contact}</b>.</p>' if contact else ''}
+                      </div>
+                    </div>
+                """,
+            )
+        except Exception:
+            logger.warning("Could not send the welcome email to %s", user.email, exc_info=True)
+
+        owner_email = await self._resolve_owner_notification_email(tenant_id)
+        if owner_email:
+            try:
+                email_svc.send_raw(
+                    to_email=owner_email,
+                    subject=f"New customer — {getattr(company, 'name', user.email)}",
+                    body_html=f"""
+                        <h2 style="font-family:sans-serif">New customer account</h2>
+                        <p style="font-family:sans-serif"><b>Account:</b> {getattr(company, 'name', '—')}</p>
+                        <p style="font-family:sans-serif"><b>Name:</b> {user.first_name} {user.last_name}</p>
+                        <p style="font-family:sans-serif"><b>Email:</b> {user.email}</p>
+                        {f'<p style="font-family:sans-serif"><b>Phone:</b> {user.phone}</p>' if user.phone else ''}
+                        <p style="font-family:sans-serif">
+                          <a href="{settings.FRONTEND_URL}/admin/customers">Open your customers →</a>
+                        </p>
+                    """,
+                )
+            except Exception:
+                logger.warning("Could not tell the shop about %s", user.email, exc_info=True)
 
     async def register_wholesale(self, data: RegisterWholesaleRequest) -> WholesaleApplication:
         """Create a user account and wholesale application with 'pending' status."""

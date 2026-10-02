@@ -37,6 +37,8 @@ import { analyzeArtwork } from "@/lib/artworkAnalysis";
 import { cartService } from "@/services/cart.service";
 import { addToGuestCart, gangSheetLine } from "@/lib/guestCart";
 import { useAuthStore } from "@/stores/auth.store";
+import { authService } from "@/services/auth.service";
+import { establishSession } from "@/lib/session";
 import { ImageEditorModal } from "@/components/storefront/ImageEditorModal";
 import { WorkingOverlay } from "@/components/storefront/WorkingOverlay";
 import { AutoBuildPanel, type AutoBuildItem, type PickableDesign } from "@/components/storefront/AutoBuildPanel";
@@ -45,6 +47,11 @@ import {
   freeSpotOn, spotFor as placeOnSheet,
   type Box, type Sheet, type Spot,
 } from "@/lib/sheetPlacement";
+import { planFill, planNest, type NestItem, type NestPlan } from "@/lib/sheetNesting";
+import { NestPreview } from "@/components/storefront/NestPreview";
+import { say } from "@/lib/toast";
+import { ToastContainer } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
 import type { ArtworkInspection } from "@/services/gangSheets.service";
 import { removeImageBackground, BackgroundRemovalError } from "@/lib/backgroundRemoval";
 
@@ -209,6 +216,18 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
   // Who to send this job's updates to, when there is no account behind it.
   const [guest, setGuest] = useState({ name: contactName ?? "", email: contactEmail ?? "" });
   const [askingWho, setAskingWho] = useState<null | { toCart: boolean }>(null);
+  // Opening an account from inside the builder, rather than sending somebody
+  // to a sign-up page and losing the sheet they just spent ten minutes on.
+  const [mode, setMode] = useState<"join" | "signin">("join");
+  const [join, setJoin] = useState({
+    first_name: (contactName ?? "").split(" ")[0] ?? "",
+    last_name: (contactName ?? "").split(" ").slice(1).join(" "),
+    email: contactEmail ?? "",
+    password: "",
+    company_name: "",
+  });
+  const [joining, setJoining] = useState(false);
+  const [joinError, setJoinError] = useState<string | null>(null);
   const [textDraft, setTextDraft] = useState({ text: "", color: "#111111", bold: true });
   const [copyN, setCopyN] = useState(1); // "add copies" quantity for the selected design
   const [panTool, setPanTool] = useState(false);  // ✋ hand tool: drag to pan the canvas
@@ -254,11 +273,16 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
   // Said on screen when the sheet grows to take a design, and when it cannot.
   // Growing silently is almost as confusing as stacking silently: the price
   // follows the length, so a buyer has to see it happen.
+  // A rearrangement that has been worked out but not yet accepted. Both of
+  // these move everything at once, so they are shown before they happen.
+  const [pendingNest, setPendingNest] = useState<null | { plan: NestPlan; extraGap: number }>(null);
+  const [pendingFill, setPendingFill] = useState<null | { id: number; spots: { x: number; y: number; rotated: boolean }[] }>(null);
   const [grewTo, setGrewTo] = useState<number | null>(null);
   const [sheetFull, setSheetFull] = useState(false);
   // The growth note takes itself away; it is news, not a state of affairs.
   useEffect(() => {
     if (grewTo === null) return;
+    say.note(`Sheet grew to ${round2(grewTo)}" to fit your design.`);
     const t = window.setTimeout(() => setGrewTo(null), 6000);
     return () => window.clearTimeout(t);
   }, [grewTo]);
@@ -467,7 +491,11 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
   function addPlacement(u: Upload) {
     const { w, h } = defaultSize(u);
     const spot = spotFor(w, h);
-    if (!spot) { setSheetFull(true); return; }
+    if (!spot) {
+      setSheetFull(true);
+      say.warn("This sheet is full — your design needs another sheet.");
+      return;
+    }
     const id = nextId.current++;
     const placement: Placement = { id, uid: u.uid, x_in: spot.x, y_in: spot.y, w_in: w, h_in: h, rotation: 0 };
     takeSpot(spot, placement);
@@ -525,6 +553,8 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
       setUploadStep(null);
       if (fileRef.current) fileRef.current.value = "";
     }
+    const added = list.length - review.length;
+    if (added > 0) say.done(added === 1 ? "Design uploaded" : `${added} designs uploaded`);
     if (review.length) setBgQueue((q) => [...q, ...review]);
   }
 
@@ -873,6 +903,7 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
     });
     setUploads((cur) => cur.filter((x) => x.uid !== u.uid));
     setSheetFull(false);
+    say.done(copies > 0 ? "Design deleted, and its copies" : "Design deleted");
   }
   function duplicate(id: number) {
     const p = stateRef.current.placements.find((q) => q.id === id);
@@ -978,55 +1009,130 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
   }
 
   /** Fill the whole sheet with copies of one design (shelf pack). */
+  /**
+   * Fill what is left of this sheet with copies of one design.
+   *
+   * It used to lay a full grid across the sheet without looking at what was on
+   * it, which buried every other design under a row of copies. Now it only
+   * uses space that is genuinely free, and it asks first — this can add dozens
+   * of copies, and that is not something to discover afterwards.
+   */
   function autoFill(id: number) {
     const p = stateRef.current.placements.find((q) => q.id === id);
     if (!p || !size) return;
-    const g = Math.max(imageMargin, 0.1);
     const fp = footprint(p);
-    const cols = Math.max(1, Math.floor((size.width_in - bleed * 2 + g) / (fp.w + g)));
-    const rows = Math.max(1, Math.floor((sheetLen - bleed * 2 + g) / (fp.h + g)));
-    const out: Placement[] = [];
-    for (let r = 0; r < rows; r++) {
-      for (let c = 0; c < cols; c++) {
-        out.push({ ...p, id: nextId.current++, x_in: round3(bleed + c * (fp.w + g)), y_in: round3(bleed + r * (fp.h + g)) });
-      }
+    const spots = planFill(sheetSpec(sheetLen), boxesOf(stateRef.current.placements),
+      { key: String(id), w: fp.w, h: fp.h });
+    if (!spots.length) {
+      say.note("No room left on this sheet for another copy.");
+      return;
     }
-    setPlacements((list) => [...list.filter((q) => q.id !== id), ...out]);
-    setSelected(null);
+    setPendingFill({ id, spots });
   }
 
-  // Auto-nest every placement: first-fit-decreasing-height shelf packing.
-  // extraGap adds cut-around spacing for the "Auto Nest for Cutting" variant so a
-  // plotter has room to cut each piece out.
+  /** Put the copies down, once somebody has seen how many there will be. */
+  function applyFill() {
+    const job = pendingFill;
+    if (!job) return;
+    const p = stateRef.current.placements.find((q) => q.id === job.id);
+    if (!p) { setPendingFill(null); return; }
+    const copies: Placement[] = job.spots.map((spot) => ({
+      ...p,
+      id: nextId.current++,
+      x_in: spot.x,
+      y_in: spot.y,
+      rotation: spot.rotated ? (p.rotation % 180 === 0 ? 90 : 0) : p.rotation,
+    }));
+    setPlacements((list) => [...list, ...copies]);
+    setSelected(null);
+    setPendingFill(null);
+    say.done(`Auto Fill completed — ${copies.length} more added.`);
+  }
+
+  /**
+   * Tidy the whole job, across as many sheets as it takes.
+   *
+   * The old one packed this canvas with shelves and, when a design did not
+   * fit, left it exactly where it was — on top of whatever was already there.
+   * So the button whose only job is to tidy a sheet was itself a way to make
+   * an overlapping one, which is what a buyer found.
+   *
+   * It plans first and shows the plan: how many sheets, what goes on each, and
+   * anything too big for the roll at all. Nothing moves until that is
+   * accepted. `extraGap` is the cut-around spacing for the "for cutting"
+   * variant, where a plotter needs room around each piece.
+   */
   function autoNest(extraGap = 0) {
     if (!size) return;
-    // Bleed is trimmed off the sheet, so packing has to start inside it — a
-    // shelf beginning at the sheet edge puts the first row into the offcut.
-    const x0 = bleed, y0 = bleed;
-    const x1 = size.width_in - bleed, y1 = sheetLen - bleed;
-    const g = imageMargin + extraGap, W = x1 - x0;
-    const items = stateRef.current.placements.map((p) => {
-      let w = p.w_in, h = p.h_in, rot = 0;
-      if (h > w && p.h_in <= W) { w = p.h_in; h = p.w_in; rot = 90; }
-      return { p, w, h, rot };
-    }).sort((a, b) => b.h - a.h);
-    const shelves: { y: number; height: number; cursorX: number }[] = [];
-    const out: Placement[] = [];
-    for (const it of items) {
-      if (it.w > W) { out.push(it.p); continue; }
-      let shelf = shelves.find((s) => s.cursorX + it.w <= x1 + 1e-6 && it.h <= s.height + 1e-6);
-      if (!shelf) {
-        const prev = shelves[shelves.length - 1];
-        const y = prev ? prev.y + prev.height + g : y0;
-        if (y + it.h > y1) { out.push(it.p); continue; }
-        shelf = { y, height: it.h, cursorX: x0 };
-        shelves.push(shelf);
-      }
-      out.push({ ...it.p, x_in: round3(shelf.cursorX), y_in: round3(shelf.y), rotation: it.rot });
-      shelf.cursorX = round3(shelf.cursorX + it.w + g);
+    const all = snapshotAll();
+    const everything = all.flatMap((sh) => sh.placements);
+    if (!everything.length) { say.note("Nothing to arrange yet."); return; }
+
+    const spec = { ...sheetSpec(sheetLen), gap: imageMargin + extraGap };
+    // Everything may be turned. Text is added here as an image like anything
+    // else, so there is nothing to tell apart — and a design the buyer did not
+    // want turned can be turned back, which is cheaper than a wasted sheet.
+    const items: NestItem[] = everything.map((q) => ({ key: String(q.id), w: q.w_in, h: q.h_in }));
+    setPendingNest({ plan: planNest(spec, items), extraGap });
+  }
+
+  /**
+   * Lay the planned job out: this sheet first, then as many more as it needs.
+   *
+   * Sheets the plan does not need are kept rather than deleted — a sheet can
+   * carry a name, a quantity and an order of its own, and throwing those away
+   * because a rearrangement came out shorter is not this button's decision.
+   * They are left empty, and emptying a sheet is already undoable.
+   */
+  function applyNest() {
+    const job = pendingNest;
+    if (!job || !size) return;
+    const { plan } = job;
+
+    const all = snapshotAll();
+    const byId = new Map<number, Placement>();
+    for (const sh of all) for (const q of sh.placements) byId.set(q.id, q);
+
+    const laidOut: Placement[][] = plan.sheets.map((placed) =>
+      placed.flatMap((item) => {
+        const original = byId.get(Number(item.key));
+        if (!original) return [];
+        // `rotated` is the plan's own idea of the turn, so the stored rotation
+        // is set from it rather than toggled — nesting twice must not spin a
+        // design through 180 degrees.
+        return [{ ...original, x_in: item.x, y_in: item.y, rotation: item.rotated ? 90 : 0 }];
+      }),
+    );
+
+    // Anything the plan could not place keeps its spot on the first sheet, so
+    // it is still there to be made smaller rather than silently dropped.
+    const stranded = plan.unplaceable
+      .map((item) => byId.get(Number(item.key)))
+      .filter((q): q is Placement => Boolean(q));
+    if (stranded.length) laidOut[0] = [...(laidOut[0] ?? []), ...stranded];
+
+    const next: SheetTab[] = all.map((sh, i) => ({ ...sh, placements: laidOut[i] ?? [] }));
+    for (let i = all.length; i < laidOut.length; i++) {
+      next.push({
+        key: uid(),
+        name: `Gang Sheet ${i + 1}`,
+        sizeId, qty: 1, customLength,
+        placements: laidOut[i] ?? [],
+      });
     }
-    setPlacements(out);
+
+    const added = Math.max(0, laidOut.length - all.length);
+    goTo(next, 0);
     setSelected(null);
+    setPendingNest(null);
+
+    if (stranded.length) {
+      say.warn(`${stranded.length} design${stranded.length === 1 ? "" : "s"} too big for this roll — left where they were.`);
+    } else if (added > 0) {
+      say.done(`Auto Nest applied — ${added} more sheet${added === 1 ? "" : "s"} added.`);
+    } else {
+      say.done("Auto Nest applied.");
+    }
   }
 
   // ── Auto Build ───────────────────────────────────────────────────────────────
@@ -1313,6 +1419,7 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
     const next = [...snapshotAll(), fresh];
     goTo(next, next.length - 1);
     setPanel("uploads");
+    say.done("New gang sheet created");
   }
 
   function duplicateSheet(idx: number) {
@@ -1477,14 +1584,60 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
     return await gangSheetsService.saveLayout(order.id, layout);
   }
 
+  /**
+   * Make the account (or sign in), then carry straight on with the save.
+   *
+   * The sheet is never thrown away by this: a failure leaves the modal open
+   * with the reason, and the designs are exactly where they were.
+   */
+  async function completeJoin() {
+    if (joining) return;
+    setJoining(true);
+    setJoinError(null);
+    try {
+      const tokens = mode === "join"
+        ? await authService.registerCustomer({
+            first_name: join.first_name.trim(),
+            last_name: join.last_name.trim(),
+            email: join.email.trim(),
+            password: join.password,
+            company_name: join.company_name.trim() || undefined,
+          })
+        : await authService.login({ email: join.email.trim(), password: join.password });
+
+      if (tokens.requires_2fa) {
+        setJoinError("This account uses a second factor. Please sign in from the sign-in page, then come back.");
+        return;
+      }
+      await establishSession(tokens.access_token);
+      setGuest({ name: `${join.first_name} ${join.last_name}`.trim(), email: join.email.trim() });
+
+      const next = askingWho;
+      setAskingWho(null);
+      if (next) await save(next.toCart);
+    } catch (e) {
+      const err = e as { message?: string; status?: number };
+      setJoinError(
+        err?.status === 429
+          ? "Too many tries just now. Wait a minute and try again."
+          : err?.message || (mode === "join"
+              ? "Could not open your account. Please check the details and try again."
+              : "Could not sign you in. Check your email and password."),
+      );
+    } finally {
+      setJoining(false);
+    }
+  }
+
   async function save(toCart: boolean) {
     setError(null);
     setSavedOk(false);
     const toSubmit = snapshotAll().filter((s) => s.placements.length > 0);
     if (!toSubmit.length) { setError("Add at least one design to a sheet before saving."); return; }
-    // A sheet gets reviewed and sometimes sent back, so there has to be a way
-    // to reach whoever made it. An account is one way; an email is the other.
-    if (!guest.email.trim()) { setAskingWho({ toCart }); return; }
+    // A sheet gets reviewed, queried and reordered, so it has to belong to
+    // somebody the shop can reach and the buyer can log back in as. A name and
+    // an email typed once was neither.
+    if (!signedIn) { setAskingWho({ toCart }); return; }
     setSaving(true);
     try {
       // Each sheet is its own order (its own review + print job); adding them all
@@ -1642,50 +1795,95 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
       {/* Where this job's updates go. A sheet is reviewed and sometimes sent
           back for a change, so there has to be a way to reach whoever made it —
           an account is one way, an email is the other. */}
+      {/* An account, before the sheet is filed.
+          A sheet used to be saved against a name and an email typed at the
+          end, which left the shop an order it could not do anything with: no
+          login for the buyer to come back to, nobody in the customer list, and
+          nowhere to send a proof or a reprint. Printing is a conversation —
+          artwork gets queried, jobs get reordered — so the person on the other
+          end has to be a customer, not a line of text. */}
       {askingWho && (
-        <div
-          onClick={() => setAskingWho(null)}
-          style={{ position: "fixed", inset: 0, zIndex: 600, background: "rgba(0,0,0,.5)", display: "flex", alignItems: "center", justifyContent: "center", padding: "20px" }}
-        >
+        <div onClick={() => !joining && setAskingWho(null)} style={S.joinBackdrop}>
           <form
             onClick={(e) => e.stopPropagation()}
-            onSubmit={(e) => {
-              e.preventDefault();
-              if (!guest.email.trim()) return;
-              const next = askingWho;
-              setAskingWho(null);
-              void save(next.toCart);
-            }}
-            style={{ background: "#fff", borderRadius: "12px", padding: "22px", width: "100%", maxWidth: "380px", boxShadow: "0 20px 60px rgba(0,0,0,.25)" }}
+            onSubmit={(e) => { e.preventDefault(); void completeJoin(); }}
+            style={S.joinBox}
           >
-            <div style={{ fontSize: "16px", fontWeight: 800, marginBottom: "6px", color: "#111" }}>Where should we send this?</div>
-            <p style={{ fontSize: "13px", color: "#555", lineHeight: 1.6, margin: "0 0 16px" }}>
-              We email you the confirmation, and anything the print team needs to ask
-              about this sheet. No account, no password.
-            </p>
-            <label style={{ display: "block", fontSize: "12.5px", fontWeight: 700, marginBottom: "4px", color: "#333" }}>Your name</label>
-            <input
-              value={guest.name}
-              onChange={(e) => setGuest((g) => ({ ...g, name: e.target.value }))}
-              style={{ width: "100%", boxSizing: "border-box", padding: "10px 12px", border: "1px solid #D5D2CB", borderRadius: "8px", fontSize: "14px", marginBottom: "12px" }}
-            />
-            <label style={{ display: "block", fontSize: "12.5px", fontWeight: 700, marginBottom: "4px", color: "#333" }}>Email</label>
-            <input
-              type="email"
-              required
-              autoFocus
-              value={guest.email}
-              onChange={(e) => setGuest((g) => ({ ...g, email: e.target.value }))}
-              style={{ width: "100%", boxSizing: "border-box", padding: "10px 12px", border: "1px solid #D5D2CB", borderRadius: "8px", fontSize: "14px", marginBottom: "18px" }}
-            />
-            <div style={{ display: "flex", gap: "8px" }}>
-              <button type="button" onClick={() => setAskingWho(null)} style={{ flex: 1, padding: "11px", borderRadius: "8px", border: "1px solid #D5D2CB", background: "#fff", fontSize: "14px", fontWeight: 600, cursor: "pointer" }}>
-                Back
-              </button>
-              <button type="submit" style={{ flex: 2, padding: "11px", borderRadius: "8px", border: "none", background: "#DC2626", color: "#fff", fontSize: "14px", fontWeight: 800, cursor: "pointer" }}>
-                {askingWho.toCart ? "Save & add to cart" : "Save my sheet"}
-              </button>
+            <div style={{ fontSize: "18px", fontWeight: 800, color: C.ink }}>
+              {mode === "join" ? "Create your account" : "Sign in"}
             </div>
+            <p style={{ fontSize: "13px", color: C.inkSoft, lineHeight: 1.6, margin: "7px 0 18px" }}>
+              {mode === "join"
+                ? "Your sheet is saved to your account, so you can track the print job, reorder it later, and we can reach you if the artwork needs a word."
+                : "Welcome back. Your sheet is waiting."}
+            </p>
+
+            {mode === "join" && (
+              <div style={{ display: "flex", gap: "9px" }}>
+                <label style={{ flex: 1 }}>
+                  <span style={S.joinLabel}>First name</span>
+                  <input required autoFocus value={join.first_name}
+                    onChange={(e) => setJoin((j) => ({ ...j, first_name: e.target.value }))}
+                    style={S.joinInput} />
+                </label>
+                <label style={{ flex: 1 }}>
+                  <span style={S.joinLabel}>Last name</span>
+                  <input value={join.last_name}
+                    onChange={(e) => setJoin((j) => ({ ...j, last_name: e.target.value }))}
+                    style={S.joinInput} />
+                </label>
+              </div>
+            )}
+
+            <label style={{ display: "block" }}>
+              <span style={S.joinLabel}>Email</span>
+              <input type="email" required autoFocus={mode === "signin"} value={join.email}
+                onChange={(e) => setJoin((j) => ({ ...j, email: e.target.value }))}
+                style={S.joinInput} />
+            </label>
+
+            <label style={{ display: "block" }}>
+              <span style={S.joinLabel}>Password</span>
+              <input type="password" required minLength={mode === "join" ? 8 : undefined} value={join.password}
+                onChange={(e) => setJoin((j) => ({ ...j, password: e.target.value }))}
+                style={S.joinInput} />
+              {mode === "join" && (
+                <span style={{ display: "block", fontSize: "11px", color: C.inkFaint, marginTop: "4px" }}>
+                  At least 8 characters.
+                </span>
+              )}
+            </label>
+
+            {mode === "join" && (
+              <label style={{ display: "block" }}>
+                <span style={S.joinLabel}>Business name <span style={{ color: C.inkFaint, fontWeight: 500 }}>(optional)</span></span>
+                <input value={join.company_name}
+                  onChange={(e) => setJoin((j) => ({ ...j, company_name: e.target.value }))}
+                  style={S.joinInput} />
+              </label>
+            )}
+
+            {joinError && (
+              <div role="alert" style={{ background: C.stopTint, border: "1px solid #FCA5A5", color: "#991B1B", borderRadius: "9px", padding: "9px 11px", fontSize: "12.5px", lineHeight: 1.5, marginTop: "4px" }}>
+                {joinError}
+              </div>
+            )}
+
+            <button type="submit" disabled={joining} style={{ ...S.primaryBtn, width: "100%", justifyContent: "center", padding: "12px", marginTop: "16px", opacity: joining ? 0.65 : 1 }}>
+              {joining
+                ? "Just a moment…"
+                : askingWho.toCart ? "Create account & add to cart" : "Create account & save"}
+            </button>
+
+            {/* Somebody who already has an account should not have to leave
+                the builder — and leaving it is how the sheet gets lost. */}
+            <button type="button" onClick={() => { setMode(mode === "join" ? "signin" : "join"); setJoinError(null); }}
+              style={S.joinSwitch}>
+              {mode === "join" ? "Already have an account? Sign in" : "New here? Create an account"}
+            </button>
+            <button type="button" onClick={() => setAskingWho(null)} disabled={joining} style={{ ...S.joinSwitch, color: C.inkFaint }}>
+              Back to my sheet
+            </button>
           </form>
         </div>
       )}
@@ -2185,8 +2383,22 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
                       display: "flex", alignItems: "center", justifyContent: "center", boxSizing: "border-box", zIndex: isSel ? 5 : 1,
                     }}>
                     {isImg
+                      // The design is drawn at its own size and then turned,
+                      // rather than squeezed into a box whose sides have been
+                      // swapped. Doing the latter is why rotating looked like
+                      // nothing happened: the frame changed shape and the
+                      // artwork inside it just got smaller and stayed upright
+                      // — while the preview and the print file turned it. What
+                      // was on screen was not what came off the printer.
                       // eslint-disable-next-line @next/next/no-img-element
-                      ? <img src={u!.file_url} alt="" draggable={false} style={{ width: "100%", height: "100%", objectFit: "contain", pointerEvents: "none" }} />
+                      ? <img src={u!.file_url} alt="" draggable={false} style={{
+                          position: "absolute",
+                          left: "50%", top: "50%",
+                          width: `${p.w_in * ppi}px`, height: `${p.h_in * ppi}px`,
+                          marginLeft: `${-p.w_in * ppi / 2}px`, marginTop: `${-p.h_in * ppi / 2}px`,
+                          transform: `rotate(${p.rotation}deg)`, transformOrigin: "center center",
+                          objectFit: "contain", pointerEvents: "none",
+                        }} />
                       : <span style={{ fontSize: "10.5px", color: "#4338CA", textAlign: "center", padding: "2px", pointerEvents: "none", wordBreak: "break-word" }}>{u?.file_name ?? "?"}</span>}
                     {warned && !isSel && (
                       <span style={{ position: "absolute", top: "-8px", right: "-8px", width: "18px", height: "18px", background: "#EA580C", color: "#fff", borderRadius: "50%", fontSize: "12px", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, pointerEvents: "none" }}>!</span>
@@ -2199,10 +2411,11 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
                             everybody reaches for first, delete, could not be
                             clicked at all on exactly the designs that needed
                             it. They flip below when there is no room above. */}
-                        <div style={{ position: "absolute", left: 0, display: "flex", gap: "6px", ...(p.y_in * ppi < 40 ? { top: "100%", marginTop: "8px" } : { bottom: "100%", marginBottom: "8px" }) }}>
-                          <button onPointerDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); rotate(p.id); }} style={S.chip} title="Rotate 90°" aria-label="Rotate 90 degrees"><RotateCw size={16} strokeWidth={2.2} /></button>
-                          <button onPointerDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); duplicate(p.id); }} style={S.chip} title="Duplicate" aria-label="Duplicate"><CopyPlus size={16} strokeWidth={2.2} /></button>
-                          <button onPointerDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); remove(p.id); }} style={S.chipDanger} title="Delete this design" aria-label="Delete this design"><Trash2 size={16} strokeWidth={2.2} /></button>
+                        <div style={{ position: "absolute", left: 0, ...S.selBar, ...(p.y_in * ppi < 44 ? { top: "100%", marginTop: "9px" } : { bottom: "100%", marginBottom: "9px" }) }}>
+                          <button onPointerDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); rotate(p.id); }} style={S.chip} title="Rotate 90°" aria-label="Rotate 90 degrees"><RotateCw size={15} strokeWidth={2} /></button>
+                          <button onPointerDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); duplicate(p.id); }} style={S.chip} title="Duplicate" aria-label="Duplicate"><Copy size={15} strokeWidth={2} /></button>
+                          <span style={S.selBarSplit} aria-hidden />
+                          <button onPointerDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); remove(p.id); }} style={S.chipDanger} title="Delete this design" aria-label="Delete this design"><Trash2 size={15} strokeWidth={2} /></button>
                         </div>
                         <div onPointerDown={(e) => startResize(e, p.id)} style={{ position: "absolute", right: "-7px", bottom: "-7px", width: "14px", height: "14px", background: "#fff", border: "2px solid var(--brand-primary,#1C3557)", borderRadius: "3px", cursor: "nwse-resize" }} title="Drag to resize" />
                       </>
@@ -2381,6 +2594,55 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
           </div>
         </div>
       </div>
+
+      {pendingNest && size && (
+        <NestPreview
+          plan={pendingNest.plan}
+          sheet={{ ...sheetSpec(sheetLen), gap: imageMargin + pendingNest.extraGap }}
+          title={pendingNest.extraGap > 0 ? "Auto Nest for cutting" : "Auto Nest"}
+          note={
+            pendingNest.plan.sheets.length > snapshotAll().length
+              ? `This will not all fit on the sheets you have. Here is the arrangement — ${pendingNest.plan.sheets.length - snapshotAll().length} more sheet${pendingNest.plan.sheets.length - snapshotAll().length === 1 ? "" : "s"} would be added. Nothing moves until you apply it.`
+              : "Here is how your designs would be arranged. Nothing moves until you apply it."
+          }
+          applyLabel="Apply arrangement"
+          onApply={applyNest}
+          onCancel={() => setPendingNest(null)}
+        />
+      )}
+
+      {pendingFill && size && (
+        <NestPreview
+          plan={{
+            sheets: [[
+              ...stateRef.current.placements.map((q) => {
+                const fp = footprint(q);
+                return { key: `k${q.id}`, w: fp.w, h: fp.h, sheet: 0, x: q.x_in, y: q.y_in, rotated: false };
+              }),
+              ...pendingFill.spots.map((spot, i) => {
+                const src = stateRef.current.placements.find((q) => q.id === pendingFill.id);
+                const fp = src ? footprint(src) : { w: 1, h: 1 };
+                return {
+                  key: `new${i}`,
+                  w: spot.rotated ? fp.h : fp.w,
+                  h: spot.rotated ? fp.w : fp.h,
+                  sheet: 0, x: spot.x, y: spot.y, rotated: false,
+                };
+              }),
+            ]],
+            unplaceable: [],
+            fill: [0],
+          }}
+          sheet={sheetSpec(sheetLen)}
+          title="Auto Fill this sheet"
+          note={`This adds ${pendingFill.spots.length} more cop${pendingFill.spots.length === 1 ? "y" : "ies"} in the space that is still free. Your existing designs do not move.`}
+          applyLabel={`Add ${pendingFill.spots.length}`}
+          onApply={applyFill}
+          onCancel={() => setPendingFill(null)}
+        />
+      )}
+
+      <ToastContainer />
     </div>
   );
 }
@@ -2483,13 +2745,24 @@ const S: Record<string, React.CSSProperties> = {
   rightAction: { display: "flex", alignItems: "center", gap: "9px", textAlign: "left", background: C.card, border: `1px solid ${C.line}`, borderRadius: C.radius, padding: "11px 13px", fontSize: "13px", fontWeight: 600, cursor: "pointer", color: C.ink, fontFamily: "inherit", width: "100%" },
   rightActionGo: { background: C.goTint, borderColor: "#BFE6CE", color: C.goDark, fontWeight: 700 },
   tipBox: { marginTop: "auto", display: "flex", gap: "9px", alignItems: "flex-start", background: "#F7F8FA", border: `1px solid ${C.lineSoft}`, borderRadius: C.radius, padding: "11px 12px", fontSize: "11.5px", color: C.inkSoft, lineHeight: 1.6 },
-  // 32px, not 24: these are the buttons every design is edited with, and at
-  // 24 they were a hard target with a mouse and a miss on a trackpad.
+  // One floating bar rather than three loose squares, so the buttons read as
+  // belonging to the design they are attached to. 30px targets: at 24 they
+  // were a hard target with a mouse and a miss on a trackpad.
+  joinBackdrop: { position: "fixed", inset: 0, zIndex: 600, background: "rgba(16,24,40,.55)", display: "flex", alignItems: "center", justifyContent: "center", padding: "20px", overflowY: "auto" },
+  joinBox: { background: "#fff", borderRadius: "14px", padding: "26px", width: "100%", maxWidth: "400px", boxShadow: "0 24px 64px rgba(16,24,40,.28)", fontFamily: "inherit" },
+  joinLabel: { display: "block", fontSize: "12px", fontWeight: 600, color: C.inkSoft, marginBottom: "5px", marginTop: "12px" },
+  joinInput: { width: "100%", boxSizing: "border-box", padding: "10px 12px", border: `1px solid ${C.line}`, borderRadius: "9px", fontSize: "14px", fontFamily: "inherit", color: C.ink },
+  joinSwitch: { display: "block", width: "100%", marginTop: "10px", background: "none", border: "none", color: C.inkSoft, fontSize: "12.5px", fontWeight: 600, cursor: "pointer", fontFamily: "inherit", padding: "4px" },
+  selBar: {
+    display: "flex", alignItems: "center", gap: "2px",
+    background: "#fff", border: `1px solid ${C.line}`, borderRadius: "10px",
+    padding: "3px", boxShadow: "0 3px 12px rgba(16,24,40,.16)",
+  },
+  selBarSplit: { width: "1px", alignSelf: "stretch", margin: "4px 2px", background: C.line },
   chip: {
-    border: "1px solid #C9C5BD", background: "#fff", borderRadius: "7px",
-    width: "32px", height: "32px", cursor: "pointer", lineHeight: 1, padding: 0,
-    color: "#2A2F3A", display: "flex", alignItems: "center", justifyContent: "center",
-    boxShadow: "0 1px 3px rgba(0,0,0,.14)",
+    border: "none", background: "none", borderRadius: "7px",
+    width: "30px", height: "30px", cursor: "pointer", lineHeight: 1, padding: 0,
+    color: C.inkSoft, display: "flex", alignItems: "center", justifyContent: "center",
   },
   deleteBtn: {
     display: "flex", alignItems: "center", gap: "6px",
@@ -2524,9 +2797,8 @@ const S: Record<string, React.CSSProperties> = {
     justifyContent: "center", padding: 0,
   },
   chipDanger: {
-    border: "1px solid #DC2626", background: "#DC2626", borderRadius: "7px",
-    width: "32px", height: "32px", cursor: "pointer", lineHeight: 1, padding: 0,
-    color: "#fff", display: "flex", alignItems: "center", justifyContent: "center",
-    boxShadow: "0 1px 3px rgba(0,0,0,.14)",
+    border: "none", background: "none", borderRadius: "7px",
+    width: "30px", height: "30px", cursor: "pointer", lineHeight: 1, padding: 0,
+    color: C.stop, display: "flex", alignItems: "center", justifyContent: "center",
   },
 };
