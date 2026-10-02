@@ -17,8 +17,10 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   ClipboardPaste, Copy, CopyPlus, Crop, Droplet, Eye, Grid3x3, Hand,
-  Layers, Maximize, Minus, Plus, Redo2, RotateCw, Scissors, Trash2, Undo2,
-  Upload as UploadIcon, Wand2, X, Zap,
+  Layers, Lightbulb, Maximize, Minus, Plus, Redo2, RotateCcw, RotateCw, Save,
+  Scissors, Settings as SettingsIcon, ShoppingCart, Sparkles, Trash2, Type,
+  Undo2, Upload as UploadIcon, UploadCloud, Wand2, X, Zap,
+  Image as ImageIcon, FolderOpen,
 } from "lucide-react";
 
 /** Icon sizing — one place each, so every tool button and menu row matches. */
@@ -151,6 +153,15 @@ interface Props {
   onClose: () => void;
   onSaved: (order: GangSheetOrder) => void;
 }
+
+/** The studio's left-hand tabs, in the order they are used. */
+const RAIL = [
+  { key: "uploads", label: "Uploads", Icon: UploadCloud },
+  { key: "designs", label: "Designs", Icon: Sparkles },
+  { key: "gallery", label: "Gallery", Icon: ImageIcon },
+  { key: "text", label: "Add Text", Icon: Type },
+  { key: "settings", label: "Settings", Icon: SettingsIcon },
+] as const;
 
 function footprint(p: Placement) {
   return p.rotation % 180 === 0 ? { w: p.w_in, h: p.h_in } : { w: p.h_in, h: p.w_in };
@@ -806,14 +817,35 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
   }
 
   // ── Discrete edits ───────────────────────────────────────────────────────────
+  /**
+   * Turn a design a quarter turn, and make sure it still has somewhere to be.
+   *
+   * Rotating swaps width for height, so a wide design becomes a tall one that
+   * no longer fits where it was standing. This only pulled it back inside the
+   * sheet's edges, which left it sitting on top of its neighbours — a rotation
+   * that quietly broke the layout. It keeps its place when the turned shape
+   * still fits there, and is given a proper spot when it does not.
+   */
   function rotate(id: number) {
-    setPlacements((list) => list.map((p) => {
-      if (p.id !== id) return p;
-      const rot = p.rotation % 180 === 0 ? 90 : 0;
-      const fp = footprint({ ...p, rotation: rot });
-      const { x, y } = clampSnap(p.x_in, p.y_in, fp.w, fp.h);
-      return { ...p, rotation: rot, x_in: x, y_in: y };
-    }));
+    const p = stateRef.current.placements.find((q) => q.id === id);
+    if (!p) return;
+    const rot = p.rotation % 180 === 0 ? 90 : 0;
+    const fp = footprint({ ...p, rotation: rot });
+    const { x, y } = clampSnap(p.x_in, p.y_in, fp.w, fp.h);
+
+    const others = stateRef.current.placements.filter((q) => q.id !== id);
+    const clear = !others.some((q) => overlaps(q, x, y, fp.w, fp.h, Math.max(imageMargin, 0)));
+    if (clear) {
+      setPlacements((list) => list.map((q) => (q.id === id ? { ...q, rotation: rot, x_in: x, y_in: y } : q)));
+      return;
+    }
+
+    const spot = placeOnSheet(sheetSpec(stateRef.current.sheetLen), fp.w, fp.h, boxesOf(others));
+    if (!spot) { setSheetFull(true); return; }
+    const moved: Placement = { ...p, rotation: rot, x_in: spot.x, y_in: spot.y };
+    liveRef.current = { placements: [...others, moved], len: Math.max(stateRef.current.sheetLen, spot.len) };
+    if (spot.len > stateRef.current.sheetLen) { setCustomLength(spot.len); setGrewTo(spot.len); }
+    setPlacements((list) => list.map((q) => (q.id === id ? moved : q)));
   }
   function remove(id: number) {
     setPlacements((list) => list.filter((p) => p.id !== id));
@@ -1545,27 +1577,39 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
     <div style={S.root}>
       {/* ── Top bar ─────────────────────────────────────────────────────────── */}
       <div style={S.topbar}>
-        <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
-          <div style={S.logo}>DTF<span style={{ color: "var(--brand-primary,#1C3557)" }}> Studio</span></div>
+        <div style={{ display: "flex", alignItems: "center", gap: "11px" }}>
+          <span style={S.logoMark} aria-hidden><Layers size={18} strokeWidth={2.3} /></span>
+          <span>
+            <div style={S.logo}>DTF Studio</div>
+            <div style={S.logoSub}>Gang Sheet Builder</div>
+          </span>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap", justifyContent: "center" }}>
-          <label style={{ fontSize: "13px", color: "#555", display: "flex", alignItems: "center", gap: "6px" }}>
+
+        <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap", justifyContent: "center" }}>
+          <label style={{ fontSize: "13px", color: C.inkSoft, display: "flex", alignItems: "center", gap: "7px", fontWeight: 500 }}>
             Sheets
-            <input type="number" min={1} value={qty} onChange={(e) => setQty(Math.max(1, Number(e.target.value) || 1))}
-              style={{ width: "58px", padding: "6px 8px", border: "1px solid #DDD9D2", borderRadius: "6px", fontSize: "13px" }} />
+            {/* A short list rather than a free number: this is how many copies
+                of the same sheet get printed, and it is a choice, not a sum.
+                A value set elsewhere still shows, so nothing is ever lost. */}
+            <select value={qty} onChange={(e) => setQty(Math.max(1, Number(e.target.value) || 1))} style={S.sheetsSelect}>
+              {Array.from(new Set([...Array.from({ length: 25 }, (_, i) => i + 1), qty]))
+                .sort((a, b) => a - b)
+                .map((n) => <option key={n} value={n}>{n}</option>)}
+            </select>
           </label>
-          <button onClick={preview} style={{ ...S.ghostBtn, display: "inline-flex", alignItems: "center", gap: "6px" }} title="Open a full-resolution preview in a new tab"><Eye size={14} strokeWidth={2.1} /> Preview</button>
+          <button onClick={preview} style={S.ghostBtn} title="Open a full-resolution preview in a new tab"><Eye size={15} strokeWidth={2.1} /> Preview</button>
           <button onClick={() => save(true)} disabled={saving} style={{ ...S.primaryBtn, opacity: saving ? 0.6 : 1 }}>
-            {saving ? "Saving…" : "Save & Add to Cart"}
+            <ShoppingCart size={15} strokeWidth={2.2} /> {saving ? "Saving…" : "Save & Add to Cart"}
           </button>
-          <button onClick={() => save(false)} disabled={saving} style={S.ghostBtn} title="Save without adding to cart">Save</button>
-          <button onClick={onClose} style={S.closeBtn}>Close</button>
+          <button onClick={() => save(false)} disabled={saving} style={S.ghostBtn} title="Save without adding to cart"><Save size={15} strokeWidth={2.1} /> Save</button>
+          <button onClick={onClose} style={S.closeBtn}><X size={15} strokeWidth={2.3} /> Close</button>
         </div>
-        <div style={{ textAlign: "right", minWidth: "130px" }}>
-          <div style={{ fontSize: "12px", color: "#656971", textTransform: "uppercase", letterSpacing: ".05em" }}>
-            {sheets.length > 1 ? `Total · ${sheets.length} sheets` : "Price"}
+
+        <div style={{ textAlign: "right", minWidth: "118px" }}>
+          <div style={S.priceLabel}>
+            {sheets.length > 1 ? `Est. total · ${sheets.length} sheets` : "Est. price"}
           </div>
-          <div style={{ fontSize: "20px", fontWeight: 800 }}>${cartTotal.toFixed(2)}</div>
+          <div style={S.priceValue}>${cartTotal.toFixed(2)}</div>
         </div>
       </div>
 
@@ -1592,8 +1636,8 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
         </div>
       )}
 
-      {error && <div style={S.errorBar}>{error}{savedOk ? "" : " "}<button onClick={() => setError(null)} style={{ background: "none", border: "none", color: "#991B1B", cursor: "pointer", fontWeight: 700 }}>✕</button></div>}
-      {savedOk && !error && <div style={S.okBar}>✓ Saved. It&apos;s in your gang sheets and ready for checkout.</div>}
+      {error && <div style={S.errorBar}>{error}{savedOk ? "" : " "}<button onClick={() => setError(null)} aria-label="Dismiss" style={{ background: "none", border: "none", color: "#991B1B", cursor: "pointer", padding: "2px", display: "inline-flex", alignItems: "center" }}><X size={14} strokeWidth={2.4} /></button></div>}
+      {savedOk && !error && <div style={S.okBar}>Saved. It&apos;s in your gang sheets and ready for checkout.</div>}
 
       {/* Where this job's updates go. A sheet is reviewed and sometimes sent
           back for a change, so there has to be a way to reach whoever made it —
@@ -1744,7 +1788,7 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
               <button onClick={bgDiscard} disabled={bgBusy} style={S.ghostBtn}>Discard</button>
               <button onClick={bgContinue} disabled={bgBusy} style={S.ghostBtn}>Continue</button>
               <button onClick={bgRemove} disabled={bgBusy} style={{ ...S.primaryBtn, background: "#1A1A1A", opacity: bgBusy ? 0.65 : 1 }}>
-                {bgBusy ? "Removing…" : "✨ Remove Background"}
+                {bgBusy ? "Removing…" : <><Sparkles size={14} strokeWidth={2.2} /> Remove background</>}
               </button>
             </div>
           </div>
@@ -1754,14 +1798,17 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
       <div style={S.body}>
         {/* ── Left rail ─────────────────────────────────────────────────────── */}
         <div style={S.rail}>
-          {([["uploads", "⬆", "Uploads"], ["designs", "✦", "Designs"], ["gallery", "🖼", "Gallery"], ["text", "T", "Add Text"], ["settings", "⚙", "Settings"]] as const).map(([key, icon, label]) => (
-            <button key={key} onClick={() => setPanel(key)} title={label}
-              style={{ ...S.railBtn, ...(panel === key ? S.railBtnActive : {}) }}>
-              <span style={{ fontSize: "19px", lineHeight: 1 }}>{icon}</span>
-              <span style={{ fontSize: "11.5px", marginTop: "3px", fontWeight: 700 }}>{label}</span>
-            </button>
-          ))}
-          <div style={{ marginTop: "auto", fontSize: "8px", fontWeight: 800, color: "#6B7280", textAlign: "center", padding: "10px 2px 4px", letterSpacing: ".04em" }}>AT360<br/>APPS</div>
+          {RAIL.map(({ key, label, Icon }) => {
+            const on = panel === key;
+            return (
+              <button key={key} onClick={() => setPanel(key)} title={label} aria-current={on ? "page" : undefined}
+                style={{ ...S.railBtn, ...(on ? S.railBtnActive : {}) }}>
+                <Icon size={19} strokeWidth={on ? 2.3 : 2} />
+                <span style={{ fontSize: "10.5px", marginTop: "5px", fontWeight: on ? 700 : 600 }}>{label}</span>
+              </button>
+            );
+          })}
+          <div style={{ marginTop: "auto", fontSize: "9.5px", fontWeight: 700, color: C.inkFaint, textAlign: "center", padding: "10px 2px 4px", letterSpacing: ".06em" }}>AT360<br/>APPS</div>
         </div>
 
         {/* ── Left panel ────────────────────────────────────────────────────── */}
@@ -1773,50 +1820,70 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
                 onDragLeave={() => setDropActive(false)}
                 onDrop={onDrop}
                 onClick={() => fileRef.current?.click()}
-                style={{ ...S.dropzone, borderColor: dropActive ? "var(--brand-primary,#1C3557)" : "#C9C5BD", background: dropActive ? "#EEF2FF" : "#FAFAF8" }}
+                style={{ ...S.dropzone, borderColor: dropActive ? C.go : "#D4D8DE", background: dropActive ? C.goTint : "#FBFCFD" }}
               >
-                <UploadIcon size={24} strokeWidth={2} color="#4A4E57" />
-                <div style={{ fontSize: "13.5px", fontWeight: 700, marginTop: "6px", color: "#1F2430" }}>
+                <UploadCloud size={30} strokeWidth={1.9} color={C.go} />
+                <div style={{ fontSize: "13.5px", fontWeight: 700, marginTop: "8px", color: C.ink }}>
                   {uploadStep
                     ? `Uploading ${uploadStep.done + 1} of ${uploadStep.total}…`
                     : uploading ? "Uploading…" : "Drag & drop, or click to upload"}
                 </div>
-                <div style={{ fontSize: "11.5px", color: uploadStep ? "#4A4E57" : "#6B6B6B", marginTop: "4px", maxWidth: "100%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                <div style={{ fontSize: "11.5px", color: C.inkFaint, marginTop: "5px", maxWidth: "100%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                   {uploadStep ? uploadStep.name : "PNG, JPG, PDF, SVG · larger than 300×300px"}
                 </div>
-                {uploadStep && uploadStep.total > 1 && (
-                  <span style={{ display: "block", width: "100%", height: "4px", borderRadius: "3px", background: "#E3E0DA", marginTop: "8px", overflow: "hidden" }}>
-                    <span style={{ display: "block", height: "100%", background: "var(--brand-primary,#1C3557)", borderRadius: "3px", width: `${Math.round((uploadStep.done / uploadStep.total) * 100)}%`, transition: "width .2s ease" }} />
+                {uploadStep && uploadStep.total > 1 ? (
+                  <span style={{ display: "block", width: "100%", height: "5px", borderRadius: "3px", background: C.lineSoft, marginTop: "10px", overflow: "hidden" }}>
+                    <span style={{ display: "block", height: "100%", background: C.go, borderRadius: "3px", width: `${Math.round((uploadStep.done / uploadStep.total) * 100)}%`, transition: "width .2s ease" }} />
                   </span>
+                ) : (
+                  <span style={S.chooseBtn}><FolderOpen size={14} strokeWidth={2.2} /> Choose Files</span>
                 )}
               </div>
               <input ref={fileRef} type="file" multiple accept=".png,.jpg,.jpeg,.webp,.gif,.pdf,.svg,.ai,.eps,.psd,.tif,.tiff" onChange={(e) => onFiles(e.target.files)} style={{ display: "none" }} />
 
-              <div style={{ marginTop: "16px", fontSize: "12px", fontWeight: 700, color: "#5A5E66", textTransform: "uppercase", letterSpacing: ".05em" }}>Your uploads</div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", marginTop: "8px" }}>
+              <div style={S.listHead}>
+                <span>Your uploads</span>
+                {uploads.length > 0 && <span style={{ color: C.inkFaint, fontWeight: 600 }}>{uploads.length}</span>}
+              </div>
+
+              {/* A list, not a grid of squares. The file's name and its pixel
+                  size are what tell a buyer which design is which and whether
+                  it will print — and neither fits under a 64px thumbnail. */}
+              <div style={{ display: "flex", flexDirection: "column", gap: "7px", marginTop: "8px" }}>
                 {uploads.map((u) => {
                   const count = placements.filter((p) => p.uid === u.uid).length;
                   const isImg = IMAGE_TYPES.has(u.file_type.toLowerCase());
                   return (
-                    <div key={u.uid} onClick={() => addPlacement(u)} title="Add to sheet" style={{ ...S.uploadThumb, cursor: "pointer" }}>
-                      {isImg
-                        // eslint-disable-next-line @next/next/no-img-element
-                        ? <img src={u.file_url} alt="" style={{ width: "100%", height: "64px", objectFit: "contain" }} />
-                        : <div style={{ height: "64px", display: "flex", alignItems: "center", justifyContent: "center", color: "#4338CA", fontWeight: 700 }}>{u.file_type.toUpperCase().slice(0, 4)}</div>}
-                      <div style={{ fontSize: "11.5px", color: "#666", padding: "3px 4px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{u.file_name}</div>
-                      {count > 0 && <span style={S.thumbBadge}>{count}</span>}
-                      {isImg && (
-                        <button onClick={(e) => { e.stopPropagation(); setEditUpload(u); }} title="Edit image (background, halftone, crop…)" aria-label={`Edit ${u.file_name}`}
-                          style={S.thumbTool}><Wand2 size={13} strokeWidth={2.2} /></button>
-                      )}
-                      {/* Removing a file was simply missing, so the only thing
-                          clicking here could do was add more copies of it. */}
-                      <button onClick={(e) => { e.stopPropagation(); removeUpload(u); }} title={`Remove ${u.file_name}`} aria-label={`Remove ${u.file_name}`}
-                        style={{ ...S.thumbTool, left: "auto", right: "4px", background: "rgba(185,28,28,.92)" }}><X size={13} strokeWidth={2.6} /></button>
+                    <div key={u.uid} style={S.uploadRow}>
+                      <button onClick={() => addPlacement(u)} title="Add to the sheet" style={S.uploadRowMain}>
+                        <span style={S.uploadThumbBox}>
+                          {isImg
+                            // eslint-disable-next-line @next/next/no-img-element
+                            ? <img src={u.file_url} alt="" style={{ width: "100%", height: "100%", objectFit: "contain" }} />
+                            : <span style={{ fontSize: "10.5px", color: "#4338CA", fontWeight: 800 }}>{u.file_type.toUpperCase().slice(0, 4)}</span>}
+                          {count > 0 && <span style={S.thumbBadge}>{count}</span>}
+                        </span>
+                        <span style={{ minWidth: 0, flex: 1 }}>
+                          <span style={S.uploadName}>{u.file_name}</span>
+                          <span style={S.uploadMeta}>
+                            {u.pxW && u.pxH ? `${u.pxW} × ${u.pxH} px` : u.file_type.toUpperCase()}
+                          </span>
+                        </span>
+                      </button>
+                      <span style={{ display: "flex", gap: "2px", paddingRight: "6px" }}>
+                        {isImg && (
+                          <button onClick={() => setEditUpload(u)} title="Edit image (background, halftone, crop…)" aria-label={`Edit ${u.file_name}`}
+                            style={S.rowTool}><Wand2 size={15} strokeWidth={2} /></button>
+                        )}
+                        {/* Removing a file was simply missing, so the only thing
+                            clicking here could do was add more copies of it. */}
+                        <button onClick={() => removeUpload(u)} title={`Remove ${u.file_name}`} aria-label={`Remove ${u.file_name}`}
+                          style={{ ...S.rowTool, color: C.stop }}><Trash2 size={15} strokeWidth={2} /></button>
+                      </span>
                     </div>
                   );
                 })}
-                {uploads.length === 0 && <div style={{ gridColumn: "1 / -1", fontSize: "12px", color: "#6B6F76", padding: "10px 0" }}>No uploads yet.</div>}
+                {uploads.length === 0 && <div style={{ fontSize: "12.5px", color: C.inkFaint, padding: "10px 0" }}>No uploads yet.</div>}
               </div>
             </>
           )}
@@ -1961,7 +2028,7 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
                 <div style={{ ...S.miniLabel, marginBottom: "5px" }}>Add copies of this design</div>
                 <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
                   <input type="number" min={1} value={copyN} onWheel={(e) => e.currentTarget.blur()} onChange={(e) => setCopyN(Math.max(1, Math.floor(Number(e.target.value)) || 1))} style={{ ...S.miniInput, width: "70px" }} />
-                  <button onClick={() => addCopies(copyN)} style={S.smallBtn}>＋ Add copies</button>
+                  <button onClick={() => addCopies(copyN)} style={S.smallBtn}><CopyPlus size={13} strokeWidth={2.2} /> Add copies</button>
                 </div>
               </div>
 
@@ -2033,9 +2100,10 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
             <button onClick={() => setPanTool((v) => !v)} title="Pan / hand tool" style={{ ...S.iconBtn, ...(panTool ? S.iconBtnOn : null) }}><Hand {...TOOL_ICON} /></button>
             <button onClick={() => setShowGrid((v) => !v)} title="Toggle grid" style={{ ...S.iconBtn, ...(showGrid ? S.iconBtnOn : null) }}><Grid3x3 {...TOOL_ICON} /></button>
             <div style={S.toolDivider} />
-            <label style={{ fontSize: "12px", color: "#555", display: "flex", alignItems: "center", gap: "5px" }}>
+            <label style={{ fontSize: "12.5px", color: C.inkSoft, display: "flex", alignItems: "center", gap: "7px", fontWeight: 500 }}>
               Margin
-              <input type="number" min={0} step="0.25" value={imageMargin} onWheel={(e) => e.currentTarget.blur()} onChange={(e) => setImageMargin(Math.max(0, Number(e.target.value) || 0))} style={{ width: "52px", padding: "6px", border: "1px solid #DDD9D2", borderRadius: "6px", fontSize: "12px" }} /> in
+              <input type="number" min={0} step="0.25" value={imageMargin} onWheel={(e) => e.currentTarget.blur()} onChange={(e) => setImageMargin(Math.max(0, Number(e.target.value) || 0))}
+                style={{ width: "58px", padding: "8px 9px", border: `1px solid ${C.line}`, borderRadius: "9px", fontSize: "12.5px", fontFamily: "inherit", color: C.ink }} /> in
             </label>
             <button onClick={() => autoNest()} style={S.nestBtn}><Zap size={14} strokeWidth={2.4} /> Auto Nest</button>
             <button onClick={() => autoNest(0.5)} style={S.nestBtn} title="Nest with extra spacing so each design can be cut out"><Scissors size={14} strokeWidth={2.4} /> Auto Nest for Cutting</button>
@@ -2242,7 +2310,7 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
 
         {/* ── Right panel: Active Gang Sheets ───────────────────────────────── */}
         <div style={S.rightPanel}>
-          <div style={{ fontSize: "13px", fontWeight: 800 }}>({sheets.length}) Active Gang Sheet{sheets.length === 1 ? "" : "s"}</div>
+          <div style={{ fontSize: "13.5px", fontWeight: 700, color: C.ink }}>({sheets.length}) Active Gang Sheet{sheets.length === 1 ? "" : "s"}</div>
           <div style={{ display: "flex", flexDirection: "column", gap: "8px", overflowY: "auto", maxHeight: "44vh", paddingRight: "2px" }}>
             {sheets.map((s, i) => {
               const isA = i === active;
@@ -2253,7 +2321,7 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
               return (
                 <div key={s.key} onClick={() => switchTo(i)} style={{ ...S.sheetCard, ...(isA ? S.sheetCardActive : {}) }}>
                   <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                    <span style={{ fontSize: "12px", color: "#5A5E66", fontWeight: 700 }}>🏠 {sz?.name ?? "—"}</span>
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: "6px", fontSize: "11.5px", color: C.inkSoft, fontWeight: 600 }}><Layers size={12} strokeWidth={2.1} /> {sz?.name ?? "—"}</span>
                     {sheets.length > 1 && (
                       <button onClick={(e) => { e.stopPropagation(); deleteSheet(i); }} title="Delete this sheet" aria-label="Delete this sheet" style={{ marginLeft: "auto", background: "none", border: "none", color: "#B91C1C", cursor: "pointer", padding: "4px", display: "flex", alignItems: "center" }}><Trash2 size={14} strokeWidth={2.2} /></button>
                     )}
@@ -2272,32 +2340,44 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
                       Qty
                       <input type="number" min={1} value={q} onClick={(e) => e.stopPropagation()} onChange={(e) => setSheetQty(i, Number(e.target.value))} style={{ width: "48px", padding: "3px 6px", border: "1px solid #DDD9D2", borderRadius: "5px", fontSize: "12px" }} />
                     </label>
-                    <button onClick={(e) => { e.stopPropagation(); duplicateSheet(i); }} style={{ background: "none", border: "1px solid #DDD9D2", borderRadius: "6px", padding: "3px 8px", fontSize: "12px", fontWeight: 600, cursor: "pointer", color: "#444" }}>⧉ Duplicate</button>
+                    <button onClick={(e) => { e.stopPropagation(); duplicateSheet(i); }} style={{ display: "inline-flex", alignItems: "center", gap: "5px", background: "none", border: `1px solid ${C.line}`, borderRadius: "7px", padding: "5px 9px", fontSize: "11.5px", fontWeight: 600, cursor: "pointer", color: C.inkSoft, fontFamily: "inherit" }}><Copy size={12} strokeWidth={2.1} /> Duplicate</button>
                   </div>
                 </div>
               );
             })}
           </div>
 
-          <button onClick={addSheet} style={{ ...S.rightAction, borderStyle: "dashed", color: "var(--brand-primary,#1C3557)", fontWeight: 700 }}>⊕ Add new sheet</button>
+          <button onClick={addSheet} style={{ ...S.rightAction, borderStyle: "dashed", color: C.goDark, fontWeight: 700 }}>
+            <Plus size={15} strokeWidth={2.4} /> Add new sheet
+          </button>
 
-          <div style={{ borderTop: "1px solid #EEECE7", margin: "2px 0" }} />
-          <button onClick={() => { setPanel("uploads"); fileRef.current?.click(); }} style={S.rightAction}>⬆ Add new design</button>
-          <button onClick={openAutoBuild} style={S.rightAction} title="Upload several designs, set their sizes and quantities, and pack them onto sheets">▦ Auto Build</button>
-          <button onClick={() => autoNest()} style={S.rightAction} title="Arrange this sheet's designs compactly">⚡ Auto nest (tidy up)</button>
-          <button onClick={() => autoNest(0.5)} style={S.rightAction} title="Nest with extra spacing for cutting">✂ Auto nest for cutting</button>
+          <div style={{ borderTop: `1px solid ${C.lineSoft}`, margin: "4px 0" }} />
+          <button onClick={() => { setPanel("uploads"); fileRef.current?.click(); }} style={S.rightAction}>
+            <UploadIcon size={15} strokeWidth={2.1} /> Add new design
+          </button>
+          <button onClick={openAutoBuild} style={S.rightAction} title="Upload several designs, set their sizes and quantities, and pack them onto sheets">
+            <Grid3x3 size={15} strokeWidth={2.1} /> Auto Build
+          </button>
+          <button onClick={() => autoNest()} style={{ ...S.rightAction, ...S.rightActionGo }} title="Arrange this sheet's designs compactly">
+            <Zap size={15} strokeWidth={2.3} /> Auto nest (tidy up)
+          </button>
+          <button onClick={() => autoNest(0.5)} style={S.rightAction} title="Nest with extra spacing for cutting">
+            <Scissors size={15} strokeWidth={2.1} /> Auto nest for cutting
+          </button>
           <button
             onClick={() => { if (placements.length) setConfirmStartOver(true); }}
             disabled={!placements.length}
             title={placements.length ? "Remove every design from this sheet" : "This sheet is already empty"}
-            style={{ ...S.rightAction, color: "#B91C1C", opacity: placements.length ? 1 : 0.45, cursor: placements.length ? "pointer" : "not-allowed" }}>
-            ↺ Start over (this sheet)
+            style={{ ...S.rightAction, color: C.stop, opacity: placements.length ? 1 : 0.45, cursor: placements.length ? "pointer" : "not-allowed" }}>
+            <RotateCcw size={15} strokeWidth={2.1} /> Start over (this sheet)
           </button>
-          <div style={{ marginTop: "auto", fontSize: "12px", color: "#5C5C5C", paddingTop: "12px" }}>
-            Tip: build multiple sheets, then <strong>Save &amp; Add to Cart</strong> — each sheet is its own print job.
+
+          <div style={S.tipBox}>
+            <Lightbulb size={15} strokeWidth={2} color={C.goDark} style={{ flexShrink: 0, marginTop: "1px" }} />
+            <span>Tip: build multiple sheets, then <strong>Save &amp; Add to Cart</strong> — each sheet is its own print job.</span>
           </div>
-          <div style={{ fontSize: "12px", color: "#64696F", textAlign: "center", paddingTop: "10px", borderTop: "1px solid #EEECE7" }}>
-            Powered by <strong style={{ color: "var(--brand-primary,#1C3557)" }}>AT360 APPS</strong>
+          <div style={{ fontSize: "11px", color: C.inkFaint, textAlign: "center", paddingTop: "12px", borderTop: `1px solid ${C.lineSoft}` }}>
+            Powered by <strong style={{ color: C.inkSoft }}>AT360 APPS</strong>
           </div>
         </div>
       </div>
@@ -2305,13 +2385,37 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
   );
 }
 
+// ── The builder's look ────────────────────────────────────────────────────────
+// One place for the handful of values the whole studio is drawn from, so a
+// panel, a button and a banner cannot drift apart from each other.
+const C = {
+  page: "#F6F7F9",
+  card: "#FFFFFF",
+  line: "#E6E8EC",
+  lineSoft: "#EFF1F4",
+  ink: "#1F2430",
+  inkSoft: "#5B6170",
+  inkFaint: "#848A96",
+  go: "#16A34A",
+  goDark: "#15803D",
+  goTint: "#E9F7EF",
+  stop: "#DC2626",
+  stopTint: "#FEF2F2",
+  radius: "10px",
+} as const;
+
 const S: Record<string, React.CSSProperties> = {
-  root: { position: "fixed", inset: 0, zIndex: 200, background: "#F4F3F1", color: "#242832", display: "flex", flexDirection: "column", fontFamily: "'Open Sans', system-ui, sans-serif" },
-  topbar: { height: "58px", flexShrink: 0, background: "#fff", borderBottom: "1px solid #E5E3DE", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 18px", gap: "16px" },
-  logo: { fontSize: "18px", fontWeight: 900, letterSpacing: "-.02em" },
-  primaryBtn: { background: "var(--brand-primary,#1C3557)", color: "#fff", border: "none", padding: "9px 16px", borderRadius: "7px", fontSize: "13px", fontWeight: 700, cursor: "pointer" },
-  ghostBtn: { background: "#fff", color: "#333", border: "1px solid #DDD9D2", padding: "9px 16px", borderRadius: "7px", fontSize: "13px", fontWeight: 600, cursor: "pointer" },
-  closeBtn: { background: "#fff", color: "#B91C1C", border: "1px solid #F0C9C9", padding: "9px 16px", borderRadius: "7px", fontSize: "13px", fontWeight: 600, cursor: "pointer" },
+  root: { position: "fixed", inset: 0, zIndex: 200, background: C.page, color: C.ink, display: "flex", flexDirection: "column", fontFamily: "'Inter', 'DM Sans', system-ui, sans-serif" },
+  topbar: { height: "62px", flexShrink: 0, background: C.card, borderBottom: `1px solid ${C.line}`, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 18px", gap: "16px" },
+  logoMark: { width: "32px", height: "32px", borderRadius: "9px", background: C.go, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 },
+  logo: { fontSize: "18px", fontWeight: 800, letterSpacing: "-.02em", lineHeight: 1.1, color: C.ink },
+  logoSub: { fontSize: "9.5px", fontWeight: 700, letterSpacing: ".13em", color: C.inkFaint, textTransform: "uppercase", marginTop: "2px" },
+  primaryBtn: { background: C.go, color: "#fff", border: "none", padding: "10px 16px", borderRadius: "9px", fontSize: "13px", fontWeight: 700, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "7px", fontFamily: "inherit" },
+  ghostBtn: { background: C.card, color: C.ink, border: `1px solid ${C.line}`, padding: "10px 15px", borderRadius: "9px", fontSize: "13px", fontWeight: 600, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "7px", fontFamily: "inherit" },
+  closeBtn: { background: C.card, color: C.stop, border: `1px solid ${C.line}`, padding: "10px 15px", borderRadius: "9px", fontSize: "13px", fontWeight: 600, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "7px", fontFamily: "inherit" },
+  priceLabel: { fontSize: "9.5px", fontWeight: 700, color: C.inkFaint, textTransform: "uppercase", letterSpacing: ".11em" },
+  priceValue: { fontSize: "21px", fontWeight: 800, color: C.ink, lineHeight: 1.15 },
+  sheetsSelect: { padding: "8px 10px", border: `1px solid ${C.line}`, borderRadius: "9px", fontSize: "13px", fontWeight: 600, color: C.ink, background: C.card, cursor: "pointer", fontFamily: "inherit" },
   errorBar: { background: "#FEF2F2", color: "#991B1B", borderBottom: "1px solid #FCA5A5", padding: "8px 18px", fontSize: "13px", display: "flex", alignItems: "center", gap: "10px" },
   okBar: { background: "#F0FDF4", color: "#166534", borderBottom: "1px solid #BBF7D0", padding: "8px 18px", fontSize: "13px" },
   bgOverlay: { position: "fixed", inset: 0, zIndex: 400, background: "rgba(20,24,31,.55)", display: "flex", alignItems: "center", justifyContent: "center", padding: "20px" },
@@ -2321,11 +2425,19 @@ const S: Record<string, React.CSSProperties> = {
   bgPreviewBox: { position: "relative", flex: 1, overflow: "auto", padding: "16px 18px", background: "#F7F7F5", margin: "14px 18px 0", borderRadius: "8px", border: "1px solid #EFEDE8" },
   bgFoot: { display: "flex", alignItems: "center", gap: "8px", padding: "14px 18px", borderTop: "1px solid #EFEDE8", flexWrap: "wrap" },
   body: { flex: 1, display: "flex", minHeight: 0 },
-  rail: { width: "62px", flexShrink: 0, background: "#fff", borderRight: "1px solid #E5E3DE", display: "flex", flexDirection: "column", padding: "10px 0", gap: "4px" },
-  railBtn: { background: "none", border: "none", color: "#3D4350", fontWeight: 700, display: "flex", flexDirection: "column", alignItems: "center", padding: "9px 4px", cursor: "pointer", borderLeft: "3px solid transparent" },
-  railBtnActive: { color: "var(--brand-primary,#1C3557)", borderLeftColor: "var(--brand-primary,#1C3557)", background: "#EEF3FB" },
-  leftPanel: { width: "270px", flexShrink: 0, background: "#fff", borderRight: "1px solid #E5E3DE", padding: "16px", overflowY: "auto" },
-  dropzone: { border: "2px dashed #C9C5BD", borderRadius: "10px", padding: "22px 12px", textAlign: "center", cursor: "pointer" },
+  rail: { width: "76px", flexShrink: 0, background: C.card, borderRight: `1px solid ${C.line}`, display: "flex", flexDirection: "column", padding: "12px 8px", gap: "6px" },
+  railBtn: { background: "none", border: "none", color: C.inkSoft, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "11px 2px", cursor: "pointer", borderRadius: C.radius, fontFamily: "inherit", lineHeight: 1.2 },
+  railBtnActive: { color: C.goDark, background: C.goTint },
+  leftPanel: { width: "282px", flexShrink: 0, background: C.card, borderRight: `1px solid ${C.line}`, padding: "16px", overflowY: "auto" },
+  dropzone: { border: "2px dashed #D4D8DE", borderRadius: "12px", padding: "22px 14px", textAlign: "center", cursor: "pointer" },
+  chooseBtn: { display: "inline-flex", alignItems: "center", gap: "7px", marginTop: "12px", background: C.go, color: "#fff", borderRadius: "9px", padding: "9px 16px", fontSize: "12.5px", fontWeight: 700 },
+  listHead: { marginTop: "18px", display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: "10.5px", fontWeight: 700, color: C.inkSoft, textTransform: "uppercase", letterSpacing: ".09em" },
+  uploadRow: { display: "flex", alignItems: "center", border: `1px solid ${C.line}`, borderRadius: C.radius, background: C.card, overflow: "hidden" },
+  uploadRowMain: { flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: "10px", padding: "8px 4px 8px 8px", background: "none", border: "none", cursor: "pointer", textAlign: "left", fontFamily: "inherit" },
+  uploadThumbBox: { position: "relative", width: "44px", height: "44px", flexShrink: 0, borderRadius: "8px", background: "#F4F5F7", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" },
+  uploadName: { display: "block", fontSize: "12.5px", fontWeight: 600, color: C.ink, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
+  uploadMeta: { display: "block", fontSize: "11px", color: C.inkFaint, marginTop: "2px" },
+  rowTool: { width: "30px", height: "30px", borderRadius: "8px", border: "none", background: "none", color: C.inkSoft, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 },
   panelTitle: { fontSize: "14px", fontWeight: 800, marginBottom: "12px" },
   uploadThumb: { position: "relative", border: "1px solid #E5E3DE", borderRadius: "8px", background: "#fff", padding: 0, cursor: "pointer", overflow: "hidden" },
   thumbBadge: { position: "absolute", top: "4px", right: "4px", background: "var(--brand-primary,#1C3557)", color: "#fff", fontSize: "11.5px", fontWeight: 700, borderRadius: "10px", padding: "1px 6px" },
@@ -2341,18 +2453,18 @@ const S: Record<string, React.CSSProperties> = {
   confirmCancel: { padding: "10px 18px", background: "#fff", color: "#1A1A1A", border: "1px solid #D8D5CF", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: "pointer" },
   confirmDanger: { padding: "10px 18px", background: "#B91C1C", color: "#fff", border: "none", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: "pointer" },
   abOverlay: { position: "absolute", inset: 0, zIndex: 30, display: "flex", background: "#fff" },
-  toolbar: { height: "50px", flexShrink: 0, background: "#fff", borderBottom: "1px solid #E5E3DE", display: "flex", alignItems: "center", gap: "10px", padding: "0 14px", flexWrap: "wrap" },
-  sizeSelect: { padding: "7px 10px", border: "1px solid #DDD9D2", borderRadius: "6px", fontSize: "13px", minWidth: "150px", background: "#fff" },
-  toolDivider: { width: "1px", height: "24px", background: "#E5E3DE" },
-  nestBtn: { background: "#B91C1C", color: "#fff", border: "none", padding: "7px 14px", borderRadius: "7px", fontSize: "13px", fontWeight: 700, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "6px" },
-  iconBtn: { width: "30px", height: "30px", border: "1px solid #BEC4CE", background: "#fff", color: "#2A2F3A", borderRadius: "6px", fontSize: "15px", fontWeight: 700, cursor: "pointer", lineHeight: 1, display: "inline-flex", alignItems: "center", justifyContent: "center" },
+  toolbar: { minHeight: "54px", flexShrink: 0, background: C.card, borderBottom: `1px solid ${C.line}`, display: "flex", alignItems: "center", gap: "9px", padding: "8px 14px", flexWrap: "wrap" },
+  sizeSelect: { padding: "8px 11px", border: `1px solid ${C.line}`, borderRadius: "9px", fontSize: "13px", fontWeight: 600, minWidth: "160px", background: C.card, color: C.ink, cursor: "pointer", fontFamily: "inherit" },
+  toolDivider: { width: "1px", height: "22px", background: C.line },
+  nestBtn: { background: C.go, color: "#fff", border: "none", padding: "9px 15px", borderRadius: "9px", fontSize: "12.5px", fontWeight: 700, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "7px", fontFamily: "inherit", whiteSpace: "nowrap" },
+  iconBtn: { width: "34px", height: "34px", border: `1px solid ${C.line}`, background: C.card, color: C.inkSoft, borderRadius: "9px", cursor: "pointer", lineHeight: 1, display: "inline-flex", alignItems: "center", justifyContent: "center", padding: 0 },
   // Pressed state for a toggle tool — dark, so it reads as "on" at a glance.
-  iconBtnOn: { background: "#1A1A1A", borderColor: "#1A1A1A", color: "#fff" },
+  iconBtnOn: { background: C.goTint, borderColor: "#BFE6CE", color: C.goDark },
   canvasScroll: { position: "absolute", inset: 0, overflow: "auto" },
   sheetFrame: { position: "relative", display: "flex", minWidth: "100%", minHeight: "100%", width: "max-content", boxSizing: "border-box", padding: `${RULER_PAD}px` },
   // A darker table than the sheet, so the sheet stands off it.
   rulerGrid: { flex: 1, minHeight: 0, display: "grid", gridTemplateColumns: "26px 1fr", gridTemplateRows: "22px 1fr", background: "#E6E3DE" },
-  viewStrip: { display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap", padding: "7px 12px", borderTop: "1px solid #DAD6CF", background: "#fff", fontSize: "12px", color: "#555" },
+  viewStrip: { display: "flex", alignItems: "center", gap: "13px", flexWrap: "wrap", padding: "9px 14px", borderTop: `1px solid ${C.line}`, background: C.card, fontSize: "11.5px", color: C.inkSoft },
   stripDivider: { width: "1px", height: "16px", background: "#E0DCD5" },
   legendItem: { display: "inline-flex", alignItems: "center", gap: "5px", fontSize: "12px", color: "#444", whiteSpace: "nowrap" },
   legendSwatch: { width: "10px", height: "10px", borderRadius: "2px", display: "inline-block" },
@@ -2363,12 +2475,14 @@ const S: Record<string, React.CSSProperties> = {
   overlapBanner: { position: "absolute", top: "12px", left: "50%", transform: "translateX(-50%)", zIndex: 6, display: "flex", alignItems: "center", gap: "10px", maxWidth: "min(560px, 80%)", background: "#FFEDD5", border: "1px solid #FDBA74", color: "#9A3412", borderRadius: "8px", padding: "9px 14px", fontSize: "13px", lineHeight: 1.45, boxShadow: "0 4px 14px rgba(154,52,18,.15)" },
   overlapIcon: { width: "20px", height: "20px", flexShrink: 0, borderRadius: "50%", border: "2px solid #C2410C", color: "#C2410C", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: "12px", fontWeight: 800 },
   canvasWarn: { position: "absolute", top: "10px", right: "10px", zIndex: 4, display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap", background: "#FFF7ED", border: "1px solid #FED7AA", color: "#9A3412", borderRadius: "8px", padding: "7px 11px", fontSize: "12px", maxWidth: "55%", justifyContent: "flex-end", boxShadow: "0 1px 4px rgba(0,0,0,.06)" },
-  rightPanel: { width: "240px", flexShrink: 0, background: "#fff", borderLeft: "1px solid #E5E3DE", padding: "16px", display: "flex", flexDirection: "column", gap: "10px" },
+  rightPanel: { width: "252px", flexShrink: 0, background: C.card, borderLeft: `1px solid ${C.line}`, padding: "16px", display: "flex", flexDirection: "column", gap: "9px", overflowY: "auto" },
   activeCard: { border: "1px solid #E5E3DE", borderRadius: "10px", padding: "12px" },
   sheetCard: { border: "1px solid #E5E3DE", borderRadius: "10px", padding: "10px 12px", cursor: "pointer", background: "#fff" },
   sheetCardActive: { borderColor: "var(--brand-primary,#1C3557)", boxShadow: "0 0 0 1px var(--brand-primary,#1C3557)", background: "#F7F9FD" },
   sheetNameInput: { width: "100%", boxSizing: "border-box", border: "1px solid transparent", background: "transparent", fontSize: "13px", fontWeight: 700, padding: "2px 4px", borderRadius: "5px", margin: "3px 0", color: "#222" },
-  rightAction: { textAlign: "left", background: "#fff", border: "1px solid #E5E3DE", borderRadius: "8px", padding: "10px 12px", fontSize: "13px", fontWeight: 600, cursor: "pointer", color: "#333" },
+  rightAction: { display: "flex", alignItems: "center", gap: "9px", textAlign: "left", background: C.card, border: `1px solid ${C.line}`, borderRadius: C.radius, padding: "11px 13px", fontSize: "13px", fontWeight: 600, cursor: "pointer", color: C.ink, fontFamily: "inherit", width: "100%" },
+  rightActionGo: { background: C.goTint, borderColor: "#BFE6CE", color: C.goDark, fontWeight: 700 },
+  tipBox: { marginTop: "auto", display: "flex", gap: "9px", alignItems: "flex-start", background: "#F7F8FA", border: `1px solid ${C.lineSoft}`, borderRadius: C.radius, padding: "11px 12px", fontSize: "11.5px", color: C.inkSoft, lineHeight: 1.6 },
   // 32px, not 24: these are the buttons every design is edited with, and at
   // 24 they were a hard target with a mouse and a miss on a trackpad.
   chip: {

@@ -64,9 +64,42 @@ export function freeSpotOn(
   const g = Math.max(sheet.gap, 0.25);
   const b = sheet.bleed;
   if (w > sheet.width - b * 2) return null;
-  for (let y = b; y + h <= len - b + 1e-9; y += g) {
-    for (let x = b; x + w <= sheet.width - b + 1e-9; x += g) {
-      if (!taken.some((t) => hits(t, x, y, w, h, g))) return { x: round3(x), y: round3(y) };
+
+  // Every design was tested against every candidate position, which is fine
+  // for ten designs and ruinous for four hundred: the scan went quadratic and
+  // froze the browser for eight seconds on a full roll. Two things fix it, and
+  // neither changes where a design lands — only how long it takes to find out.
+  //
+  // First, sort by top edge, so a row only has to consider the designs that
+  // reach into it rather than all of them.
+  const sorted = [...taken].sort((a, c) => a.y - c.y);
+  const maxX = sheet.width - b + 1e-9;
+  const maxY = len - b + 1e-9;
+
+  // A sweep down the sheet rather than a fresh search per row: each design
+  // joins the working set once, when the rows reach it, and leaves once, when
+  // the rows pass it. Without this, every row re-read the whole list from the
+  // top, so a long roll near the end of a big job spent most of its time
+  // walking past designs it had already walked past.
+  let head = 0;
+  let band: Box[] = [];
+
+  for (let y = b; y + h <= maxY; y += g) {
+    while (head < sorted.length && sorted[head]!.y - g < y + h) { band.push(sorted[head]!); head++; }
+    if (band.length) band = band.filter((t) => t.y + t.h + g > y);
+    if (band.length === 0) return { x: round3(b), y: round3(y) };
+
+    // Second, when something is in the way, jump past its right-hand edge
+    // instead of inching along by the margin — most of the row is one design.
+    let x = b;
+    while (x + w <= maxX) {
+      let blocker: Box | null = null;
+      for (const t of band) {
+        if (hits(t, x, y, w, h, g)) { if (!blocker || t.x + t.w > blocker.x + blocker.w) blocker = t; }
+      }
+      if (!blocker) return { x: round3(x), y: round3(y) };
+      const next = blocker.x + blocker.w + g;
+      x = next > x ? next : x + g;
     }
   }
   return null;
