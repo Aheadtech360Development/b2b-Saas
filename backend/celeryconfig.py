@@ -72,6 +72,12 @@ beat_schedule = {
         "task": "app.tasks.cart_tasks.detect_abandoned_carts",
         "schedule": crontab(hour="*/1"),  # every hour
     },
+    # Once a day, early, so a brand reads it with the morning's mail rather
+    # than at midnight. Each warning is recorded, so running twice is safe.
+    "trial-notices": {
+        "task": "app.tasks.trial_tasks.send_trial_notices",
+        "schedule": crontab(hour="7", minute="0"),
+    },
     "check-low-stock": {
         "task": "app.tasks.inventory_tasks.check_low_stock_levels",
         "schedule": crontab(hour="6", minute="0"),  # daily at 6am UTC

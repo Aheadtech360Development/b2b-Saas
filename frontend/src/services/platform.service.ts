@@ -63,6 +63,14 @@ export interface TenantFeatures {
   features: FeatureFlag[];
 }
 
+export interface TrialStatus {
+  on_trial: boolean;
+  days_left: number | null;
+  ends_at: string | null;
+  expired: boolean;
+  plan: string | null;
+}
+
 export interface StripeMode {
   mode: "live" | "test";
   ready: boolean;
@@ -101,6 +109,16 @@ export const platformService = {
     return apiClient.post(`/api/v1/platform/tenants/${slug}/admin-password`, {
       password: password || null,
     });
+  },
+
+  /** Where this brand stands on its free period. */
+  async getTrial(slug: string): Promise<TrialStatus> {
+    return apiClient.get<TrialStatus>(`/api/v1/platform/tenants/${slug}/trial`);
+  },
+
+  /** Start the free period now, or (days: 0) end it. */
+  async setTrial(slug: string, days: number): Promise<TrialStatus> {
+    return apiClient.put<TrialStatus>(`/api/v1/platform/tenants/${slug}/trial`, { days });
   },
 
   /** What the platform takes on this brand's Gang Sheet Builder orders. */

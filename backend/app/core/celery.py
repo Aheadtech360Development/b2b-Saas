@@ -13,6 +13,7 @@ celery_app = Celery(
         "app.tasks.inventory_tasks",
         "app.tasks.cart_tasks",
         "app.tasks.supplier_sync_tasks",
+        "app.tasks.trial_tasks",
     ],
 )
 

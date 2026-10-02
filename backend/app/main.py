@@ -739,9 +739,39 @@ async def _ensure_platform_admin() -> None:
                 {"email": email, "pw": hashed},
             )
             await db.commit()
+        # Retiring the one before. Changing SEED_PLATFORM_ADMIN_EMAIL only adds
+        # an admin; the old address keeps working, which is a second key to
+        # the whole platform that nobody is watching. Named explicitly rather
+        # than inferred, because "deactivate every other platform admin" is a
+        # good way to lock a team out of their own console.
+        #
+        # Deactivated, not deleted: the audit log records who did what and
+        # cannot give up the row it points at.
+        retire = [
+            a.strip().lower()
+            for a in (os.environ.get("SEED_PLATFORM_ADMIN_RETIRE") or "").split(",")
+            if a.strip() and a.strip().lower() != email.lower()
+        ]
+        retired = []
+        if retire:
+            async with AsyncSessionLocal() as db:
+                for address in retire:
+                    result = await db.execute(
+                        text(
+                            "UPDATE users SET is_active = false, is_platform_admin = false, "
+                            "       is_admin = false, updated_at = now() "
+                            " WHERE lower(email) = :e AND is_platform_admin = true"
+                        ),
+                        {"e": address},
+                    )
+                    if result.rowcount:
+                        retired.append(address)
+                await db.commit()
+
         print(
             f"Platform admin ensured: {email}"
             + (" (password reset — remove SEED_PLATFORM_ADMIN_RESET now)" if reset else "")
+            + (f"; retired: {', '.join(retired)}" if retired else "")
         )
     except Exception as exc:  # noqa: BLE001
         print(f"Platform admin seed skipped (non-fatal): {exc}")

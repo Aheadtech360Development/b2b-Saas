@@ -407,6 +407,70 @@ async def update_tenant_feature(
     return await entitlements.detail(db, row[0])
 
 
+# ── A brand's free period ─────────────────────────────────────────────────────
+class TrialIn(BaseModel):
+    # Absent means the usual fortnight. Zero or less ends it.
+    days: int | None = None
+
+
+@router.get("/{slug}/trial")
+async def get_trial(
+    slug: str,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Where this brand stands on its trial."""
+    _require_platform_admin(request)
+    from app.services import trial
+
+    row = (await db.execute(text("SELECT id FROM tenants WHERE slug=:s"), {"s": slug})).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+    return await trial.status(db, row[0])
+
+
+@router.put("/{slug}/trial")
+async def set_trial(
+    slug: str,
+    data: TrialIn,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Start a brand's trial now, or end it.
+
+    Starting resets the clock and clears which reminders have gone out, so a
+    brand given another fortnight is warned about that one too.
+    """
+    _require_platform_admin(request)
+    from app.services import trial
+
+    row = (await db.execute(
+        text("SELECT id, name FROM tenants WHERE slug=:s"), {"s": slug}
+    )).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+
+    days = trial.DEFAULT_DAYS if data.days is None else int(data.days)
+    result = await trial.clear(db, row[0]) if days <= 0 else await trial.start(db, row[0], days)
+
+    try:
+        from app.middleware.audit_middleware import write_audit_log
+
+        await write_audit_log(
+            db,
+            admin_user_id=getattr(request.state, "user_id", None),
+            action="UPDATE", entity_type="tenant_trial", entity_id=slug,
+            old_values=None,
+            new_values={"brand": row[1], "days": days, "ends_at": result.get("ends_at")},
+            ip_address=getattr(getattr(request, "client", None), "host", None),
+            user_agent=request.headers.get("user-agent"),
+        )
+        await db.commit()
+    except Exception:
+        logger.exception("Could not record the trial change for %s", slug)
+    return result
+
+
 # ── Hand a brand's owner their login ──────────────────────────────────────────
 class SetAdminPassword(BaseModel):
     # Left out, a strong one is generated. Chosen passwords are for handing to

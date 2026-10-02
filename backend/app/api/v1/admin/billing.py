@@ -35,7 +35,14 @@ async def my_billing(request: Request, db: AsyncSession = Depends(get_db)) -> di
     """Current subscription + the available plans, for the brand billing page."""
     slug = await _brand_slug(request, db)
     status = await BillingService(db).get_status(slug)
-    return {**status, "plans": public_pricing_table()}
+    # How much of the free period is left, read off the one date that records
+    # it. Here rather than its own request, because every screen that shows
+    # the countdown is already asking for this.
+    from app.services import trial
+
+    tenant_id = getattr(request.state, "tenant_id", None)
+    trial_status = await trial.status(db, tenant_id) if tenant_id else {}
+    return {**status, "plans": public_pricing_table(), "trial": trial_status}
 
 
 @router.post("/checkout")

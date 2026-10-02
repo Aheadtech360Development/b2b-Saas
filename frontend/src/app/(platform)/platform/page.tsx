@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { ApiClientError } from "@/lib/api-client";
+import { PlanAndTrial } from "@/components/platform/PlanAndTrial";
 import {
   platformService,
   tenantUrl,
@@ -555,6 +556,8 @@ function ManageTenantModal({ tenant, onClose, onChanged }: { tenant: Tenant; onC
           )}
           <div style={{ marginTop: "10px" }}><BillingBadge status={tenant.billing_status} /></div>
         </div>
+
+        <PlanAndTrial slug={tenant.slug} plan={plan || tenant.plan || ""} onPlanChanged={onChanged} />
 
         <CommissionEditor slug={tenant.slug} />
 

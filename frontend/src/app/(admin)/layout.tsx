@@ -8,6 +8,7 @@ import { Footer } from "@/components/layout/Footer";
 import { isReadOnly } from "@/lib/permissions";
 import { CopilotDock } from "@/components/admin/CopilotDock";
 import { EntitlementsProvider } from "@/lib/entitlements";
+import { TrialBanner } from "@/components/admin/TrialBanner";
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isAdmin, isLoading, user } = useAuthStore();
@@ -59,6 +60,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       {/* Padding comes from .admin-content, which scales it with the window —
           a flat one left the page heading up against the sidebar's border. */}
       <main className="flex-1 overflow-auto admin-content">
+        {/* How long the free period has left, above the work rather than
+            on a billing page nobody passes. */}
+        <TrialBanner />
         {isReadOnly(user?.role, user?.read_only) && (
           <div style={{ background: "#FFFBEB", border: "1px solid #FDE68A", color: "#92400E", padding: "10px 16px", borderRadius: "8px", fontSize: "13px", marginBottom: "16px", display: "flex", alignItems: "center", gap: "8px" }}>
             <span style={{ fontSize: "15px" }}>👁</span> <strong>View-only access</strong> — you can browse but cannot make changes.
