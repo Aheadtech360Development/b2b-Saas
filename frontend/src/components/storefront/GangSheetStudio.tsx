@@ -17,7 +17,8 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   ClipboardPaste, Copy, CopyPlus, Crop, Droplet, Eye, Grid3x3, Hand,
-  Layers, Maximize, Minus, Plus, Redo2, Scissors, Trash2, Undo2, Wand2, Zap,
+  Layers, Maximize, Minus, Plus, Redo2, RotateCw, Scissors, Trash2, Undo2,
+  Upload as UploadIcon, Wand2, X, Zap,
 } from "lucide-react";
 
 /** Icon sizing — one place each, so every tool button and menu row matches. */
@@ -38,6 +39,10 @@ import { ImageEditorModal } from "@/components/storefront/ImageEditorModal";
 import { WorkingOverlay } from "@/components/storefront/WorkingOverlay";
 import { AutoBuildPanel, type AutoBuildItem, type PickableDesign } from "@/components/storefront/AutoBuildPanel";
 import { packIntoSheets, type Layout } from "@/lib/sheetPacking";
+import {
+  freeSpotOn, spotFor as placeOnSheet,
+  type Box, type Sheet, type Spot,
+} from "@/lib/sheetPlacement";
 import type { ArtworkInspection } from "@/services/gangSheets.service";
 import { removeImageBackground, BackgroundRemovalError } from "@/lib/backgroundRemoval";
 
@@ -80,12 +85,12 @@ function Ruler({ axis, contentPx, ppi, lengthIn, pad }: { axis: "x" | "y"; conte
         return horiz ? (
           <div key={m.inch} style={{ position: "absolute", left: `${at}px`, top: 0, bottom: 0 }}>
             <div style={{ position: "absolute", top: 0, left: 0, width: "1px", height: m.major ? "13px" : "7px", background: "#8B93A1" }} />
-            {m.major && <span style={{ position: "absolute", top: "1px", left: "3px", fontSize: "9px", color: "#5A6474", fontWeight: 700, lineHeight: 1 }}>{m.inch}</span>}
+            {m.major && <span style={{ position: "absolute", top: "1px", left: "3px", fontSize: "10.5px", color: "#5A6474", fontWeight: 700, lineHeight: 1 }}>{m.inch}</span>}
           </div>
         ) : (
           <div key={m.inch} style={{ position: "absolute", top: `${at}px`, left: 0, right: 0 }}>
             <div style={{ position: "absolute", left: 0, top: 0, height: "1px", width: m.major ? "13px" : "7px", background: "#8B93A1" }} />
-            {m.major && <span style={{ position: "absolute", left: "2px", top: "2px", fontSize: "9px", color: "#5A6474", fontWeight: 700, lineHeight: 1 }}>{m.inch}</span>}
+            {m.major && <span style={{ position: "absolute", left: "2px", top: "2px", fontSize: "10.5px", color: "#5A6474", fontWeight: 700, lineHeight: 1 }}>{m.inch}</span>}
           </div>
         );
       })}
@@ -182,6 +187,9 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
   const [library, setLibrary] = useState<GangSheetLibraryDesign[]>([]);
   const [gallery, setGallery] = useState<GangSheetArtwork[]>([]);
   const [uploading, setUploading] = useState(false);
+  // How far through a batch we are. One word for twenty files is how a builder
+  // starts looking stuck — the buyer cannot tell a slow upload from a dead one.
+  const [uploadStep, setUploadStep] = useState<{ done: number; total: number; name: string } | null>(null);
   const [saving, setSaving] = useState(false);
   const [savedOk, setSavedOk] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -231,6 +239,18 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
   const topRulerRef = useRef<HTMLDivElement>(null);
   const leftRulerRef = useRef<HTMLDivElement>(null);
   const nextId = useRef(1);
+
+  // Said on screen when the sheet grows to take a design, and when it cannot.
+  // Growing silently is almost as confusing as stacking silently: the price
+  // follows the length, so a buyer has to see it happen.
+  const [grewTo, setGrewTo] = useState<number | null>(null);
+  const [sheetFull, setSheetFull] = useState(false);
+  // The growth note takes itself away; it is news, not a state of affairs.
+  useEffect(() => {
+    if (grewTo === null) return;
+    const t = window.setTimeout(() => setGrewTo(null), 6000);
+    return () => window.clearTimeout(t);
+  }, [grewTo]);
 
   const size = useMemo(() => sizes.find((s) => s.id === sizeId), [sizes, sizeId]);
   const isCustom = size?.pricing_mode === "custom_length";
@@ -357,16 +377,67 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
     const fp = footprint(p);
     return !(x + w + gap <= p.x_in || x >= p.x_in + fp.w + gap || y + h + gap <= p.y_in || y >= p.y_in + fp.h + gap);
   }
-  function firstFreeSpot(w: number, h: number): { x: number; y: number } {
-    const g = Math.max(imageMargin, 0.25);
-    const { placements: pl } = stateRef.current;
-    const b = size?.bleed_in ?? 0;
-    for (let y = b; y + h <= sheetLen - b; y += g) {
-      for (let x = b; x + w <= (size?.width_in ?? 0) - b; x += g) {
-        if (!pl.some((p) => overlaps(p, x, y, w, h, g))) return { x: round3(x), y: round3(y) };
-      }
+  /** This sheet as the placement rules see it: inches, edges and whether it
+   *  can be cut longer. */
+  function sheetSpec(len: number): Sheet {
+    return {
+      width: size?.width_in ?? 0,
+      length: len,
+      bleed: size?.bleed_in ?? 0,
+      gap: imageMargin,
+      canGrow: Boolean(isCustom && size),
+      maxLength: size?.max_length_in ?? len,
+    };
+  }
+
+  const boxesOf = (pl: Placement[]): Box[] =>
+    pl.map((p) => { const fp = footprint(p); return { x: p.x_in, y: p.y_in, w: fp.w, h: fp.h }; });
+
+  /**
+   * The list as it will be, not as it was last painted.
+   *
+   * A multi-file upload adds designs in a burst, and each one has to see where
+   * the one before it went — otherwise they are all told the same spot is free
+   * and land on top of each other, which is exactly what used to happen.
+   * Cleared as soon as React has caught up, so it never goes stale.
+   */
+  const liveRef = useRef<{ placements: Placement[]; len: number } | null>(null);
+  useEffect(() => { liveRef.current = null; }, [placements, sheetLen]);
+  function live(): { placements: Placement[]; len: number } {
+    return liveRef.current ?? { placements: stateRef.current.placements, len: stateRef.current.sheetLen };
+  }
+
+  /**
+   * Where a design of this size goes — making the sheet longer if that is what
+   * it takes.
+   *
+   * A sheet that has run out of room used to drop every further design in the
+   * top-left corner, one on top of the next, which is how twenty uploads turned
+   * into one unreadable pile. A roll is sold by the inch, so the honest answer
+   * is to give it another few inches and put the design below everything else,
+   * the way it would be laid out by hand. Only when the sheet cannot grow any
+   * further — a fixed size, or already at its longest — is there nothing to be
+   * done, and then it says so rather than stacking.
+   */
+  function spotFor(w: number, h: number): Spot | null {
+    const { placements: pl, len } = live();
+    return placeOnSheet(sheetSpec(len), w, h, boxesOf(pl));
+  }
+
+  /** Take a spot: remember the sheet's new length before React has re-rendered. */
+  function takeSpot(spot: { x: number; y: number; len: number }, placement: Placement) {
+    const { placements: pl, len } = live();
+    liveRef.current = { placements: [...pl, placement], len: Math.max(len, spot.len) };
+    if (spot.len > len) {
+      setCustomLength(spot.len);
+      setGrewTo(spot.len);
     }
-    return { x: round3(b), y: round3(b) };
+  }
+
+  function firstFreeSpot(w: number, h: number): { x: number; y: number } {
+    const len = stateRef.current.sheetLen;
+    return freeSpotOn(sheetSpec(len), len, w, h, boxesOf(stateRef.current.placements))
+      ?? { x: round3(size?.bleed_in ?? 0), y: round3(size?.bleed_in ?? 0) };
   }
 
   /** Default print size for a fresh upload: aim near 300 DPI, capped to the sheet. */
@@ -384,10 +455,14 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
 
   function addPlacement(u: Upload) {
     const { w, h } = defaultSize(u);
-    const spot = firstFreeSpot(w, h);
+    const spot = spotFor(w, h);
+    if (!spot) { setSheetFull(true); return; }
     const id = nextId.current++;
-    setPlacements((cur) => [...cur, { id, uid: u.uid, x_in: spot.x, y_in: spot.y, w_in: w, h_in: h, rotation: 0 }]);
+    const placement: Placement = { id, uid: u.uid, x_in: spot.x, y_in: spot.y, w_in: w, h_in: h, rotation: 0 };
+    takeSpot(spot, placement);
+    setPlacements((cur) => [...cur, placement]);
     setSelected(id);
+    setSheetFull(false);
   }
 
   // ── Uploads ──────────────────────────────────────────────────────────────────
@@ -417,8 +492,12 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
     setUploading(true);
     setError(null);
     const review: File[] = [];
+    const list = Array.from(files);
     try {
-      for (const file of Array.from(files)) {
+      for (let i = 0; i < list.length; i++) {
+        const file = list[i];
+        if (!file) continue;
+        setUploadStep({ done: i, total: list.length, name: file.name });
         const ext = (file.name.split(".").pop() || "").toLowerCase();
         // A raster image with no transparency almost always has a background —
         // hold it for the removal prompt (unless the buyer opted out).
@@ -432,6 +511,7 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
       setError("That file could not be uploaded. Allowed: PNG, JPG, PDF, SVG, AI, EPS, PSD, TIFF (max 50 MB).");
     } finally {
       setUploading(false);
+      setUploadStep(null);
       if (fileRef.current) fileRef.current.value = "";
     }
     if (review.length) setBgQueue((q) => [...q, ...review]);
@@ -652,6 +732,11 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
     if (panTool) { startPan(e); return; }
     e.preventDefault(); e.stopPropagation();
     setSelected(id);
+    // Selecting has to take the keyboard with it. The sheet only ever took
+    // focus when the empty canvas was clicked — which also clears the
+    // selection — so Delete could never reach a selected design: the key went
+    // to whatever was last clicked in the sidebar, and nothing happened.
+    sheetRef.current?.focus({ preventScroll: true });
     gesturing.current = true;
     const startX = e.clientX, startY = e.clientY;
     const orig = stateRef.current.placements.find((p) => p.id === id)!;
@@ -679,6 +764,7 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
   function startResize(e: React.PointerEvent, id: number) {
     e.preventDefault(); e.stopPropagation();
     setSelected(id);
+    sheetRef.current?.focus({ preventScroll: true });
     gesturing.current = true;
     const startX = e.clientX, startY = e.clientY;
     const orig = stateRef.current.placements.find((p) => p.id === id)!;
@@ -732,15 +818,42 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
   function remove(id: number) {
     setPlacements((list) => list.filter((p) => p.id !== id));
     if (selected === id) setSelected(null);
+    setSheetFull(false);
+  }
+
+  /**
+   * Throw an upload away, and everything placed from it.
+   *
+   * There was no way to do this at all: the uploads list only ever grew, and
+   * clicking a thumbnail added *another* copy to the sheet — so somebody
+   * trying to get rid of a design by clicking it made more of it. Removing the
+   * file has to take its copies with it, or the sheet still prints them.
+   */
+  function removeUpload(u: Upload) {
+    const copies = stateRef.current.placements.filter((p) => p.uid === u.uid).length;
+    if (copies > 0 && !confirm(
+      `Remove "${u.file_name}"? It is on the sheet ${copies} time${copies === 1 ? "" : "s"}, and those will go too.`
+    )) return;
+    setPlacements((list) => {
+      const kept = list.filter((p) => p.uid !== u.uid);
+      if (selected != null && !kept.some((p) => p.id === selected)) setSelected(null);
+      return kept;
+    });
+    setUploads((cur) => cur.filter((x) => x.uid !== u.uid));
+    setSheetFull(false);
   }
   function duplicate(id: number) {
     const p = stateRef.current.placements.find((q) => q.id === id);
     if (!p) return;
     const fp = footprint(p);
-    const spot = firstFreeSpot(fp.w, fp.h);
+    const spot = spotFor(fp.w, fp.h);
+    if (!spot) { setSheetFull(true); return; }
     const nid = nextId.current++;
-    setPlacements((list) => [...list, { ...p, id: nid, x_in: spot.x, y_in: spot.y }]);
+    const copy: Placement = { ...p, id: nid, x_in: spot.x, y_in: spot.y };
+    takeSpot(spot, copy);
+    setPlacements((list) => [...list, copy]);
     setSelected(nid);
+    setSheetFull(false);
   }
   function setDim(id: number, dim: "w" | "h", val: number) {
     setPlacements((list) => list.map((p) => {
@@ -1449,7 +1562,7 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
           <button onClick={onClose} style={S.closeBtn}>Close</button>
         </div>
         <div style={{ textAlign: "right", minWidth: "130px" }}>
-          <div style={{ fontSize: "11px", color: "#999", textTransform: "uppercase", letterSpacing: ".05em" }}>
+          <div style={{ fontSize: "12px", color: "#656971", textTransform: "uppercase", letterSpacing: ".05em" }}>
             {sheets.length > 1 ? `Total · ${sheets.length} sheets` : "Price"}
           </div>
           <div style={{ fontSize: "20px", fontWeight: 800 }}>${cartTotal.toFixed(2)}</div>
@@ -1572,7 +1685,7 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
           <div style={{ width: "min(420px,92vw)", background: "#fff", borderRadius: "12px", padding: "20px", boxShadow: "0 20px 60px rgba(0,0,0,.35)" }} onClick={(e) => e.stopPropagation()}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px" }}>
               <span style={{ fontSize: "16px", fontWeight: 800 }}>Auto Duplicate</span>
-              <button onClick={() => setDupModal(null)} style={{ background: "none", border: "none", fontSize: "17px", cursor: "pointer", color: "#666" }}>✕</button>
+              <button onClick={() => setDupModal(null)} aria-label="Close" style={S.modalClose}><X size={17} strokeWidth={2.2} /></button>
             </div>
             <label style={{ fontSize: "13px", fontWeight: 600, color: "#444" }}>Quantity you want to add</label>
             <input type="number" min={1} value={dupQty} onChange={(e) => setDupQty(Math.max(1, Math.floor(Number(e.target.value)) || 1))}
@@ -1585,7 +1698,7 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
                 <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
                   <input type="number" min={0} step="0.05" value={dupMargin} onChange={(e) => setDupMargin(Math.max(0, Number(e.target.value) || 0))}
                     style={{ width: "80px", padding: "8px", border: "1px solid #DDD9D2", borderRadius: "8px", fontSize: "13px" }} />
-                  <span style={{ fontSize: "12px", color: "#888" }}>in</span>
+                  <span style={{ fontSize: "12px", color: "#5A5E66" }}>in</span>
                 </div>
               )}
             </div>
@@ -1603,7 +1716,7 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
           <div style={S.bgModal}>
             <div style={S.bgHead}>
               <span style={{ fontSize: "17px", fontWeight: 800 }}>Background Warning</span>
-              <button onClick={bgDiscard} style={{ background: "none", border: "none", fontSize: "18px", cursor: "pointer", color: "#666" }}>✕</button>
+              <button onClick={bgDiscard} aria-label="Close" style={S.modalClose}><X size={18} strokeWidth={2.2} /></button>
             </div>
             <div style={S.bgWarnBar}>
               ⚠ We detected a background in this image. We recommend removing it with the background-removal tool, or replacing it with transparent artwork.
@@ -1645,10 +1758,10 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
             <button key={key} onClick={() => setPanel(key)} title={label}
               style={{ ...S.railBtn, ...(panel === key ? S.railBtnActive : {}) }}>
               <span style={{ fontSize: "19px", lineHeight: 1 }}>{icon}</span>
-              <span style={{ fontSize: "10px", marginTop: "3px", fontWeight: 700 }}>{label}</span>
+              <span style={{ fontSize: "11.5px", marginTop: "3px", fontWeight: 700 }}>{label}</span>
             </button>
           ))}
-          <div style={{ marginTop: "auto", fontSize: "8px", fontWeight: 800, color: "#A9AFB9", textAlign: "center", padding: "10px 2px 4px", letterSpacing: ".04em" }}>AT360<br/>APPS</div>
+          <div style={{ marginTop: "auto", fontSize: "8px", fontWeight: 800, color: "#6B7280", textAlign: "center", padding: "10px 2px 4px", letterSpacing: ".04em" }}>AT360<br/>APPS</div>
         </div>
 
         {/* ── Left panel ────────────────────────────────────────────────────── */}
@@ -1662,13 +1775,24 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
                 onClick={() => fileRef.current?.click()}
                 style={{ ...S.dropzone, borderColor: dropActive ? "var(--brand-primary,#1C3557)" : "#C9C5BD", background: dropActive ? "#EEF2FF" : "#FAFAF8" }}
               >
-                <div style={{ fontSize: "26px" }}>⬆</div>
-                <div style={{ fontSize: "13px", fontWeight: 700, marginTop: "6px" }}>{uploading ? "Uploading…" : "Drag & drop, or click to upload"}</div>
-                <div style={{ fontSize: "11px", color: "#999", marginTop: "4px" }}>PNG, JPG, PDF, SVG · larger than 300×300px</div>
+                <UploadIcon size={24} strokeWidth={2} color="#4A4E57" />
+                <div style={{ fontSize: "13.5px", fontWeight: 700, marginTop: "6px", color: "#1F2430" }}>
+                  {uploadStep
+                    ? `Uploading ${uploadStep.done + 1} of ${uploadStep.total}…`
+                    : uploading ? "Uploading…" : "Drag & drop, or click to upload"}
+                </div>
+                <div style={{ fontSize: "11.5px", color: uploadStep ? "#4A4E57" : "#6B6B6B", marginTop: "4px", maxWidth: "100%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {uploadStep ? uploadStep.name : "PNG, JPG, PDF, SVG · larger than 300×300px"}
+                </div>
+                {uploadStep && uploadStep.total > 1 && (
+                  <span style={{ display: "block", width: "100%", height: "4px", borderRadius: "3px", background: "#E3E0DA", marginTop: "8px", overflow: "hidden" }}>
+                    <span style={{ display: "block", height: "100%", background: "var(--brand-primary,#1C3557)", borderRadius: "3px", width: `${Math.round((uploadStep.done / uploadStep.total) * 100)}%`, transition: "width .2s ease" }} />
+                  </span>
+                )}
               </div>
               <input ref={fileRef} type="file" multiple accept=".png,.jpg,.jpeg,.webp,.gif,.pdf,.svg,.ai,.eps,.psd,.tif,.tiff" onChange={(e) => onFiles(e.target.files)} style={{ display: "none" }} />
 
-              <div style={{ marginTop: "16px", fontSize: "11px", fontWeight: 700, color: "#888", textTransform: "uppercase", letterSpacing: ".05em" }}>Your uploads</div>
+              <div style={{ marginTop: "16px", fontSize: "12px", fontWeight: 700, color: "#5A5E66", textTransform: "uppercase", letterSpacing: ".05em" }}>Your uploads</div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", marginTop: "8px" }}>
                 {uploads.map((u) => {
                   const count = placements.filter((p) => p.uid === u.uid).length;
@@ -1679,16 +1803,20 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
                         // eslint-disable-next-line @next/next/no-img-element
                         ? <img src={u.file_url} alt="" style={{ width: "100%", height: "64px", objectFit: "contain" }} />
                         : <div style={{ height: "64px", display: "flex", alignItems: "center", justifyContent: "center", color: "#4338CA", fontWeight: 700 }}>{u.file_type.toUpperCase().slice(0, 4)}</div>}
-                      <div style={{ fontSize: "10px", color: "#666", padding: "3px 4px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{u.file_name}</div>
+                      <div style={{ fontSize: "11.5px", color: "#666", padding: "3px 4px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{u.file_name}</div>
                       {count > 0 && <span style={S.thumbBadge}>{count}</span>}
                       {isImg && (
-                        <button onClick={(e) => { e.stopPropagation(); setEditUpload(u); }} title="Edit image (background, halftone, crop…)"
-                          style={{ position: "absolute", top: "4px", left: "4px", width: "22px", height: "22px", borderRadius: "6px", border: "none", background: "rgba(28,53,87,.9)", color: "#fff", fontSize: "11px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}>✎</button>
+                        <button onClick={(e) => { e.stopPropagation(); setEditUpload(u); }} title="Edit image (background, halftone, crop…)" aria-label={`Edit ${u.file_name}`}
+                          style={S.thumbTool}><Wand2 size={13} strokeWidth={2.2} /></button>
                       )}
+                      {/* Removing a file was simply missing, so the only thing
+                          clicking here could do was add more copies of it. */}
+                      <button onClick={(e) => { e.stopPropagation(); removeUpload(u); }} title={`Remove ${u.file_name}`} aria-label={`Remove ${u.file_name}`}
+                        style={{ ...S.thumbTool, left: "auto", right: "4px", background: "rgba(185,28,28,.92)" }}><X size={13} strokeWidth={2.6} /></button>
                     </div>
                   );
                 })}
-                {uploads.length === 0 && <div style={{ gridColumn: "1 / -1", fontSize: "12px", color: "#aaa", padding: "10px 0" }}>No uploads yet.</div>}
+                {uploads.length === 0 && <div style={{ gridColumn: "1 / -1", fontSize: "12px", color: "#6B6F76", padding: "10px 0" }}>No uploads yet.</div>}
               </div>
             </>
           )}
@@ -1696,16 +1824,16 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
           {panel === "designs" && (
             <>
               <div style={S.panelTitle}>Ready-made designs</div>
-              <p style={{ fontSize: "11px", color: "#999", marginBottom: "10px" }}>Tap any design to drop it on your sheet.</p>
+              <p style={{ fontSize: "12px", color: "#656971", marginBottom: "10px" }}>Tap any design to drop it on your sheet.</p>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
                 {library.map((d) => (
                   <button key={d.id} onClick={() => addFromUrl(d.file_url, d.name, d.file_type)} title={d.name} style={S.uploadThumb}>
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src={d.file_url} alt="" style={{ width: "100%", height: "72px", objectFit: "contain", background: "#F7F7F5" }} />
-                    <div style={{ fontSize: "10px", color: "#666", padding: "3px 4px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{d.name}</div>
+                    <div style={{ fontSize: "11.5px", color: "#666", padding: "3px 4px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{d.name}</div>
                   </button>
                 ))}
-                {library.length === 0 && <div style={{ gridColumn: "1 / -1", fontSize: "12px", color: "#aaa", padding: "10px 0" }}>No ready-made designs yet.</div>}
+                {library.length === 0 && <div style={{ gridColumn: "1 / -1", fontSize: "12px", color: "#6B6F76", padding: "10px 0" }}>No ready-made designs yet.</div>}
               </div>
             </>
           )}
@@ -1713,7 +1841,7 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
           {panel === "gallery" && (
             <>
               <div style={S.panelTitle}>Your gallery</div>
-              <p style={{ fontSize: "11px", color: "#999", marginBottom: "10px" }}>Designs you&apos;ve used before — reuse without re-uploading.</p>
+              <p style={{ fontSize: "12px", color: "#656971", marginBottom: "10px" }}>Designs you&apos;ve used before — reuse without re-uploading.</p>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
                 {gallery.map((a, i) => (
                   <button key={`${a.file_url}-${i}`} onClick={() => addFromUrl(a.file_url, a.file_name, a.file_type)} title={a.file_name} style={S.uploadThumb}>
@@ -1721,10 +1849,10 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
                       // eslint-disable-next-line @next/next/no-img-element
                       ? <img src={a.file_url} alt="" style={{ width: "100%", height: "72px", objectFit: "contain", background: "#F7F7F5" }} />
                       : <div style={{ height: "72px", display: "flex", alignItems: "center", justifyContent: "center", color: "#4338CA", fontWeight: 700 }}>{(a.file_type ?? "?").toUpperCase().slice(0, 4)}</div>}
-                    <div style={{ fontSize: "10px", color: "#666", padding: "3px 4px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.file_name}</div>
+                    <div style={{ fontSize: "11.5px", color: "#666", padding: "3px 4px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.file_name}</div>
                   </button>
                 ))}
-                {gallery.length === 0 && <div style={{ gridColumn: "1 / -1", fontSize: "12px", color: "#aaa", padding: "10px 0" }}>Your used designs will appear here.</div>}
+                {gallery.length === 0 && <div style={{ gridColumn: "1 / -1", fontSize: "12px", color: "#6B6F76", padding: "10px 0" }}>Your used designs will appear here.</div>}
               </div>
             </>
           )}
@@ -1746,7 +1874,7 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
               <button onClick={addText} disabled={!textDraft.text.trim() || uploading} style={{ ...S.primaryBtn, width: "100%", marginTop: "14px", opacity: textDraft.text.trim() ? 1 : 0.5 }}>
                 Add text to sheet
               </button>
-              <p style={{ fontSize: "11px", color: "#999", marginTop: "10px" }}>Text is added as a high-resolution graphic you can move and resize like any design.</p>
+              <p style={{ fontSize: "12px", color: "#656971", marginTop: "10px" }}>Text is added as a high-resolution graphic you can move and resize like any design.</p>
             </>
           )}
 
@@ -1772,7 +1900,9 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
             <div style={S.selCard}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
                 <span style={{ fontSize: "12px", fontWeight: 800, textTransform: "uppercase", letterSpacing: ".05em", color: "#555" }}>Selected design</span>
-                <button onClick={() => remove(sel.id)} style={{ background: "none", border: "none", color: "#B91C1C", cursor: "pointer", fontSize: "12px", fontWeight: 700 }}>Remove</button>
+                <button onClick={() => remove(sel.id)} style={S.deleteBtn} title="Delete this design">
+                  <Trash2 size={14} strokeWidth={2.2} /> Delete
+                </button>
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
                 <label style={S.miniLabel}>Width (in)
@@ -1798,7 +1928,7 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
               {warnings.filter((w) => w.id === sel.id).length > 0 && (
                 <div style={{ marginTop: "8px", background: "#FFF7ED", border: "1px solid #FED7AA", borderRadius: "6px", padding: "7px 9px" }}>
                   {Array.from(new Set(warnings.filter((w) => w.id === sel.id).map((w) => w.msg))).map((m) => (
-                    <div key={m} style={{ fontSize: "11px", color: "#9A3412", fontWeight: 600 }}>⚠ {m}</div>
+                    <div key={m} style={{ fontSize: "12px", color: "#9A3412", fontWeight: 600 }}>⚠ {m}</div>
                   ))}
                 </div>
               )}
@@ -1836,9 +1966,9 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
               </div>
 
               <div style={{ display: "flex", gap: "6px", marginTop: "12px", flexWrap: "wrap" }}>
-                <button onClick={() => rotate(sel.id)} style={S.smallBtn}>⟳ Rotate</button>
-                <button onClick={() => duplicate(sel.id)} style={S.smallBtn}>⧉ Duplicate</button>
-                <button onClick={() => autoFill(sel.id)} style={{ ...S.smallBtn, width: "100%" }}>▦ Auto fill sheet</button>
+                <button onClick={() => rotate(sel.id)} style={S.smallBtn}><RotateCw size={13} strokeWidth={2.2} /> Rotate</button>
+                <button onClick={() => duplicate(sel.id)} style={S.smallBtn}><CopyPlus size={13} strokeWidth={2.2} /> Duplicate</button>
+                <button onClick={() => autoFill(sel.id)} style={{ ...S.smallBtn, width: "100%" }}><Grid3x3 size={13} strokeWidth={2.2} /> Auto fill sheet</button>
               </div>
             </div>
           )}
@@ -1892,7 +2022,7 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
                 <input type="number" min={size.min_length_in} max={size.max_length_in} value={customLength}
                   onChange={(e) => setCustomLength(clamp(Number(e.target.value) || size.min_length_in, size.min_length_in, size.max_length_in))}
                   style={{ width: "70px", padding: "7px", border: "1px solid #DDD9D2", borderRadius: "6px", fontSize: "13px" }} />
-                <span style={{ fontSize: "12px", color: "#888" }}>in</span>
+                <span style={{ fontSize: "12px", color: "#5A5E66" }}>in</span>
                 <select onChange={(e) => setCustomLength(clamp(Number(e.target.value) * 12, size.min_length_in, size.max_length_in))} value="" style={{ ...S.sizeSelect, minWidth: "auto" }}>
                   <option value="">ft…</option>
                   {FOOT_PRESETS.filter((f) => f * 12 >= size.min_length_in && f * 12 <= size.max_length_in).map((f) => <option key={f} value={f}>{f} feet</option>)}
@@ -1960,7 +2090,7 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
                     .filter((inch) => inch < sheetLen)
                     .map((inch) => (
                       <div key={inch} style={{ position: "absolute", left: 0, right: 0, top: inch * ppi, borderTop: "1px dashed rgba(31,41,55,.45)", pointerEvents: "none" }}>
-                        <span style={{ position: "absolute", right: "4px", top: "2px", fontSize: "10px", fontWeight: 700, color: "#1F2937", background: "rgba(255,255,255,.9)", padding: "0 5px", borderRadius: "3px" }}>
+                        <span style={{ position: "absolute", right: "4px", top: "2px", fontSize: "11.5px", fontWeight: 700, color: "#1F2937", background: "rgba(255,255,255,.9)", padding: "0 5px", borderRadius: "3px" }}>
                           {inch / 12} ft
                         </span>
                       </div>
@@ -1989,16 +2119,22 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
                     {isImg
                       // eslint-disable-next-line @next/next/no-img-element
                       ? <img src={u!.file_url} alt="" draggable={false} style={{ width: "100%", height: "100%", objectFit: "contain", pointerEvents: "none" }} />
-                      : <span style={{ fontSize: "9px", color: "#4338CA", textAlign: "center", padding: "2px", pointerEvents: "none", wordBreak: "break-word" }}>{u?.file_name ?? "?"}</span>}
+                      : <span style={{ fontSize: "10.5px", color: "#4338CA", textAlign: "center", padding: "2px", pointerEvents: "none", wordBreak: "break-word" }}>{u?.file_name ?? "?"}</span>}
                     {warned && !isSel && (
-                      <span style={{ position: "absolute", top: "-8px", right: "-8px", width: "18px", height: "18px", background: "#EA580C", color: "#fff", borderRadius: "50%", fontSize: "11px", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, pointerEvents: "none" }}>!</span>
+                      <span style={{ position: "absolute", top: "-8px", right: "-8px", width: "18px", height: "18px", background: "#EA580C", color: "#fff", borderRadius: "50%", fontSize: "12px", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, pointerEvents: "none" }}>!</span>
                     )}
                     {isSel && (
                       <>
-                        <div style={{ position: "absolute", top: "-26px", left: 0, display: "flex", gap: "4px" }}>
-                          <button onPointerDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); rotate(p.id); }} style={S.chip} title="Rotate 90°">⟳</button>
-                          <button onPointerDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); duplicate(p.id); }} style={S.chip} title="Duplicate">⧉</button>
-                          <button onPointerDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); remove(p.id); }} style={{ ...S.chip, color: "#B91C1C" }} title="Remove">✕</button>
+                        {/* The design's own buttons. They used to sit above it
+                            in a fixed place, which put them off the top of the
+                            sheet for anything near the edge — so the one tool
+                            everybody reaches for first, delete, could not be
+                            clicked at all on exactly the designs that needed
+                            it. They flip below when there is no room above. */}
+                        <div style={{ position: "absolute", left: 0, display: "flex", gap: "6px", ...(p.y_in * ppi < 40 ? { top: "100%", marginTop: "8px" } : { bottom: "100%", marginBottom: "8px" }) }}>
+                          <button onPointerDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); rotate(p.id); }} style={S.chip} title="Rotate 90°" aria-label="Rotate 90 degrees"><RotateCw size={16} strokeWidth={2.2} /></button>
+                          <button onPointerDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); duplicate(p.id); }} style={S.chip} title="Duplicate" aria-label="Duplicate"><CopyPlus size={16} strokeWidth={2.2} /></button>
+                          <button onPointerDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); remove(p.id); }} style={S.chipDanger} title="Delete this design" aria-label="Delete this design"><Trash2 size={16} strokeWidth={2.2} /></button>
                         </div>
                         <div onPointerDown={(e) => startResize(e, p.id)} style={{ position: "absolute", right: "-7px", bottom: "-7px", width: "14px", height: "14px", background: "#fff", border: "2px solid var(--brand-primary,#1C3557)", borderRadius: "3px", cursor: "nwse-resize" }} title="Drag to resize" />
                       </>
@@ -2013,6 +2149,42 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
               {/* Overlapping designs print on top of each other and ruin both,
                   so they get a banner of their own across the top of the canvas
                   rather than a word in a list. */}
+              {/* The sheet just got longer to take a design. Said out loud
+                  because the roll is priced by the inch — a length that
+                  changes on its own and silently is a bill that changes on
+                  its own and silently. */}
+              {grewTo !== null && (
+                <div role="status" style={S.grewBanner}>
+                  <span>
+                    <strong>Sheet grew to {round2(grewTo)}″</strong>
+                    {" ("}{(grewTo / 12).toFixed(1)} ft{") "}
+                    to fit your design.
+                  </span>
+                  <button onClick={() => setGrewTo(null)} aria-label="Dismiss" style={S.bannerClose}>
+                    <X size={14} strokeWidth={2.4} />
+                  </button>
+                </div>
+              )}
+
+              {/* And when it cannot grow any further, which is the one case
+                  where there is genuinely nowhere to put the design. */}
+              {sheetFull && (
+                <div role="alert" style={{ ...S.overlapBanner, background: "#FEF3C7", borderColor: "#FCD34D", color: "#7C2D12" }}>
+                  <span aria-hidden style={{ ...S.overlapIcon, background: "#B45309" }}>!</span>
+                  <span>
+                    <strong>This sheet is full.</strong>{" "}
+                    {isCustom
+                      ? `It is already at its longest (${round2(size?.max_length_in ?? 0)}″).`
+                      : "This size has a fixed length."}
+                    {" "}Add another sheet, or make the designs smaller.
+                  </span>
+                  <button onClick={() => { addSheet(); setSheetFull(false); }} style={S.bannerAction}>Add a sheet</button>
+                  <button onClick={() => setSheetFull(false)} aria-label="Dismiss" style={S.bannerClose}>
+                    <X size={14} strokeWidth={2.4} />
+                  </button>
+                </div>
+              )}
+
               {overlapIds.size > 0 && (
                 <div role="alert" style={S.overlapBanner}>
                   <span aria-hidden style={S.overlapIcon}>!</span>
@@ -2081,9 +2253,9 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
               return (
                 <div key={s.key} onClick={() => switchTo(i)} style={{ ...S.sheetCard, ...(isA ? S.sheetCardActive : {}) }}>
                   <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                    <span style={{ fontSize: "11px", color: "#888", fontWeight: 700 }}>🏠 {sz?.name ?? "—"}</span>
+                    <span style={{ fontSize: "12px", color: "#5A5E66", fontWeight: 700 }}>🏠 {sz?.name ?? "—"}</span>
                     {sheets.length > 1 && (
-                      <button onClick={(e) => { e.stopPropagation(); deleteSheet(i); }} title="Delete sheet" style={{ marginLeft: "auto", background: "none", border: "none", color: "#B91C1C", cursor: "pointer", fontSize: "13px", padding: 0 }}>🗑</button>
+                      <button onClick={(e) => { e.stopPropagation(); deleteSheet(i); }} title="Delete this sheet" aria-label="Delete this sheet" style={{ marginLeft: "auto", background: "none", border: "none", color: "#B91C1C", cursor: "pointer", padding: "4px", display: "flex", alignItems: "center" }}><Trash2 size={14} strokeWidth={2.2} /></button>
                     )}
                   </div>
                   <input
@@ -2092,15 +2264,15 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
                     onChange={(e) => renameSheet(i, e.target.value)}
                     style={S.sheetNameInput}
                   />
-                  <div style={{ fontSize: "11px", color: "#999" }}>
+                  <div style={{ fontSize: "12px", color: "#656971" }}>
                     {imgs} image{imgs === 1 ? "" : "s"}{len ? ` · ${sz?.width_in ?? 0}×${Math.round(len)}″` : ""}
                   </div>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: "6px" }}>
-                    <label style={{ display: "flex", alignItems: "center", gap: "5px", fontSize: "11px", color: "#777" }}>
+                    <label style={{ display: "flex", alignItems: "center", gap: "5px", fontSize: "12px", color: "#4F535B" }}>
                       Qty
                       <input type="number" min={1} value={q} onClick={(e) => e.stopPropagation()} onChange={(e) => setSheetQty(i, Number(e.target.value))} style={{ width: "48px", padding: "3px 6px", border: "1px solid #DDD9D2", borderRadius: "5px", fontSize: "12px" }} />
                     </label>
-                    <button onClick={(e) => { e.stopPropagation(); duplicateSheet(i); }} style={{ background: "none", border: "1px solid #DDD9D2", borderRadius: "6px", padding: "3px 8px", fontSize: "11px", fontWeight: 600, cursor: "pointer", color: "#444" }}>⧉ Duplicate</button>
+                    <button onClick={(e) => { e.stopPropagation(); duplicateSheet(i); }} style={{ background: "none", border: "1px solid #DDD9D2", borderRadius: "6px", padding: "3px 8px", fontSize: "12px", fontWeight: 600, cursor: "pointer", color: "#444" }}>⧉ Duplicate</button>
                   </div>
                 </div>
               );
@@ -2121,10 +2293,10 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
             style={{ ...S.rightAction, color: "#B91C1C", opacity: placements.length ? 1 : 0.45, cursor: placements.length ? "pointer" : "not-allowed" }}>
             ↺ Start over (this sheet)
           </button>
-          <div style={{ marginTop: "auto", fontSize: "11px", color: "#8A8A8A", paddingTop: "12px" }}>
+          <div style={{ marginTop: "auto", fontSize: "12px", color: "#5C5C5C", paddingTop: "12px" }}>
             Tip: build multiple sheets, then <strong>Save &amp; Add to Cart</strong> — each sheet is its own print job.
           </div>
-          <div style={{ fontSize: "11px", color: "#9AA0AA", textAlign: "center", paddingTop: "10px", borderTop: "1px solid #EEECE7" }}>
+          <div style={{ fontSize: "12px", color: "#64696F", textAlign: "center", paddingTop: "10px", borderTop: "1px solid #EEECE7" }}>
             Powered by <strong style={{ color: "var(--brand-primary,#1C3557)" }}>AT360 APPS</strong>
           </div>
         </div>
@@ -2156,12 +2328,12 @@ const S: Record<string, React.CSSProperties> = {
   dropzone: { border: "2px dashed #C9C5BD", borderRadius: "10px", padding: "22px 12px", textAlign: "center", cursor: "pointer" },
   panelTitle: { fontSize: "14px", fontWeight: 800, marginBottom: "12px" },
   uploadThumb: { position: "relative", border: "1px solid #E5E3DE", borderRadius: "8px", background: "#fff", padding: 0, cursor: "pointer", overflow: "hidden" },
-  thumbBadge: { position: "absolute", top: "4px", right: "4px", background: "var(--brand-primary,#1C3557)", color: "#fff", fontSize: "10px", fontWeight: 700, borderRadius: "10px", padding: "1px 6px" },
+  thumbBadge: { position: "absolute", top: "4px", right: "4px", background: "var(--brand-primary,#1C3557)", color: "#fff", fontSize: "11.5px", fontWeight: 700, borderRadius: "10px", padding: "1px 6px" },
   toggleRow: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: "1px solid #F0EEE9" },
   selCard: { marginTop: "18px", border: "1px solid #E5E3DE", borderRadius: "10px", padding: "14px", background: "#FBFBF9" },
-  miniLabel: { display: "flex", flexDirection: "column", gap: "4px", fontSize: "11px", fontWeight: 700, color: "#777" },
+  miniLabel: { display: "flex", flexDirection: "column", gap: "4px", fontSize: "12px", fontWeight: 700, color: "#4F535B" },
   miniInput: { width: "100%", boxSizing: "border-box", minWidth: 0, padding: "7px", border: "1px solid #DDD9D2", borderRadius: "6px", fontSize: "13px" },
-  smallBtn: { flex: 1, background: "#fff", border: "1px solid #DDD9D2", borderRadius: "7px", padding: "8px 6px", fontSize: "12px", fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" },
+  smallBtn: { flex: 1, background: "#fff", border: "1px solid #DDD9D2", borderRadius: "7px", padding: "9px 8px", fontSize: "12.5px", fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap", color: "#2A2F3A", fontFamily: "inherit", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: "6px" },
   canvasArea: { position: "relative", flex: 1, display: "flex", flexDirection: "column", minWidth: 0 },
   confirmBackdrop: { position: "fixed", inset: 0, zIndex: 400, background: "rgba(0,0,0,.45)", display: "flex", alignItems: "center", justifyContent: "center", padding: "20px" },
   confirmBox: { width: "min(420px, 100%)", background: "#fff", borderRadius: "14px", padding: "24px", boxShadow: "0 20px 60px rgba(0,0,0,.3)" },
@@ -2180,9 +2352,9 @@ const S: Record<string, React.CSSProperties> = {
   sheetFrame: { position: "relative", display: "flex", minWidth: "100%", minHeight: "100%", width: "max-content", boxSizing: "border-box", padding: `${RULER_PAD}px` },
   // A darker table than the sheet, so the sheet stands off it.
   rulerGrid: { flex: 1, minHeight: 0, display: "grid", gridTemplateColumns: "26px 1fr", gridTemplateRows: "22px 1fr", background: "#E6E3DE" },
-  viewStrip: { display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap", padding: "7px 12px", borderTop: "1px solid #DAD6CF", background: "#fff", fontSize: "11px", color: "#555" },
+  viewStrip: { display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap", padding: "7px 12px", borderTop: "1px solid #DAD6CF", background: "#fff", fontSize: "12px", color: "#555" },
   stripDivider: { width: "1px", height: "16px", background: "#E0DCD5" },
-  legendItem: { display: "inline-flex", alignItems: "center", gap: "5px", fontSize: "11px", color: "#444", whiteSpace: "nowrap" },
+  legendItem: { display: "inline-flex", alignItems: "center", gap: "5px", fontSize: "12px", color: "#444", whiteSpace: "nowrap" },
   legendSwatch: { width: "10px", height: "10px", borderRadius: "2px", display: "inline-block" },
   rulerCorner: { borderRight: "1px solid #ECEAE5", borderBottom: "1px solid #ECEAE5", background: "#FAFAF8" },
   rulerTopWrap: { overflow: "hidden", borderBottom: "1px solid #ECEAE5", background: "#fff", position: "relative" },
@@ -2197,5 +2369,50 @@ const S: Record<string, React.CSSProperties> = {
   sheetCardActive: { borderColor: "var(--brand-primary,#1C3557)", boxShadow: "0 0 0 1px var(--brand-primary,#1C3557)", background: "#F7F9FD" },
   sheetNameInput: { width: "100%", boxSizing: "border-box", border: "1px solid transparent", background: "transparent", fontSize: "13px", fontWeight: 700, padding: "2px 4px", borderRadius: "5px", margin: "3px 0", color: "#222" },
   rightAction: { textAlign: "left", background: "#fff", border: "1px solid #E5E3DE", borderRadius: "8px", padding: "10px 12px", fontSize: "13px", fontWeight: 600, cursor: "pointer", color: "#333" },
-  chip: { border: "1px solid #D5D2CB", background: "#fff", borderRadius: "5px", width: "24px", height: "24px", fontSize: "12px", cursor: "pointer", lineHeight: 1, padding: 0 },
+  // 32px, not 24: these are the buttons every design is edited with, and at
+  // 24 they were a hard target with a mouse and a miss on a trackpad.
+  chip: {
+    border: "1px solid #C9C5BD", background: "#fff", borderRadius: "7px",
+    width: "32px", height: "32px", cursor: "pointer", lineHeight: 1, padding: 0,
+    color: "#2A2F3A", display: "flex", alignItems: "center", justifyContent: "center",
+    boxShadow: "0 1px 3px rgba(0,0,0,.14)",
+  },
+  deleteBtn: {
+    display: "flex", alignItems: "center", gap: "6px",
+    background: "#FEF2F2", border: "1px solid #FCA5A5", color: "#B91C1C",
+    cursor: "pointer", fontSize: "12.5px", fontWeight: 700,
+    borderRadius: "7px", padding: "6px 11px", fontFamily: "inherit",
+  },
+  modalClose: {
+    background: "none", border: "none", cursor: "pointer", color: "#4F535B",
+    padding: "6px", display: "flex", alignItems: "center", borderRadius: "6px",
+  },
+  grewBanner: {
+    position: "absolute", left: "10px", right: "10px", top: "10px", zIndex: 6,
+    display: "flex", alignItems: "center", gap: "10px",
+    background: "#ECFDF5", border: "1px solid #A7F3D0", color: "#065F46",
+    borderRadius: "10px", padding: "10px 12px", fontSize: "13px",
+    boxShadow: "0 4px 14px rgba(0,0,0,.08)",
+  },
+  bannerAction: {
+    marginLeft: "auto", background: "#B45309", color: "#fff", border: "none",
+    borderRadius: "7px", padding: "6px 12px", fontSize: "12.5px",
+    fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap",
+  },
+  bannerClose: {
+    background: "none", border: "none", cursor: "pointer", color: "inherit",
+    padding: "4px", display: "flex", alignItems: "center", marginLeft: "4px",
+  },
+  thumbTool: {
+    position: "absolute", top: "4px", left: "4px", width: "26px", height: "26px",
+    borderRadius: "7px", border: "none", background: "rgba(28,53,87,.92)",
+    color: "#fff", cursor: "pointer", display: "flex", alignItems: "center",
+    justifyContent: "center", padding: 0,
+  },
+  chipDanger: {
+    border: "1px solid #DC2626", background: "#DC2626", borderRadius: "7px",
+    width: "32px", height: "32px", cursor: "pointer", lineHeight: 1, padding: 0,
+    color: "#fff", display: "flex", alignItems: "center", justifyContent: "center",
+    boxShadow: "0 1px 3px rgba(0,0,0,.14)",
+  },
 };
