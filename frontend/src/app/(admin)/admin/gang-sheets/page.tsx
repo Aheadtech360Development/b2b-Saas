@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { downloadFile } from "@/lib/download";
 import {
   GANG_SHEET_STATUS_COLOR,
   GANG_SHEET_STATUS_LABEL,
@@ -797,9 +798,12 @@ function ReviewModal({ order, onClose, onChanged }: { order: GangSheetOrder; onC
                 </div>
                 <PrintCheckBadge inspection={a.inspection} />
               </div>
-              <a href={a.file_url} download target="_blank" rel="noopener noreferrer" style={{ fontSize: "12px", color: "#666", whiteSpace: "nowrap", marginLeft: "12px" }}>
+              <button
+                onClick={() => { void downloadFile(a.file_url, a.file_name); }}
+                style={{ fontSize: "12px", color: "#666", whiteSpace: "nowrap", marginLeft: "12px", background: "none", border: "none", cursor: "pointer", padding: 0, fontFamily: "inherit" }}
+              >
                 Download ↓
-              </a>
+              </button>
             </div>
           ))}
         </div>

@@ -123,14 +123,14 @@ async def create_payment_intent(
         )
         tax_amount_dc = Decimal(str(_tax.get("tax_amount", 0) or 0))
 
-    convenience_fee = (
-        (cart.subtotal * Decimal("0.03")).quantize(Decimal("0.01"))
-        if (account_type == "wholesale" and (payload.payment_method or "card") == "card")
-        else Decimal("0.00")
-    )
+    # No convenience fee. Card processing is the shop's own cost of taking
+    # money, and charging a buyer a percentage for paying by the only method
+    # offered is a line nobody can avoid and everybody notices. Kept out of
+    # the total rather than set to zero, so it cannot quietly come back.
+    convenience_fee = Decimal("0.00")
 
     total = (cart.subtotal + base_shipping + expedited_surcharge + tax_amount_dc
-             - coupon_discount_amount + convenience_fee).quantize(Decimal("0.01"))
+             - coupon_discount_amount).quantize(Decimal("0.01"))
     if total <= 0:
         raise ValidationError("Order total must be greater than zero")
 

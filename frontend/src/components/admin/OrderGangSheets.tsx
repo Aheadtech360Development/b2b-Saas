@@ -11,6 +11,7 @@
  * has to go hunting through.
  */
 import { useCallback, useEffect, useState } from "react";
+import { downloadFile } from "@/lib/download";
 import { apiClient } from "@/lib/api-client";
 import { GangSheetCanvas } from "@/components/storefront/GangSheetCanvas";
 import { openSheetPdf } from "@/lib/gangSheetPdf";
@@ -179,8 +180,10 @@ export function OrderGangSheets({ orderId }: { orderId: string }) {
                   </div>
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(150px,1fr))", gap: "10px" }}>
                     {arts.map((a) => (
-                      <a key={a.id} href={a.file_url} target="_blank" rel="noopener noreferrer" download
-                        style={{ border: "1px solid #E3E3E3", borderRadius: "8px", padding: "8px", textDecoration: "none", color: "inherit", background: "#fff" }}>
+                      <button key={a.id} type="button"
+                        onClick={() => { void downloadFile(a.file_url, a.file_name); }}
+                        title={`Download ${a.file_name}`}
+                        style={{ border: "1px solid #E3E3E3", borderRadius: "8px", padding: "8px", textAlign: "left", color: "inherit", background: "#fff", cursor: "pointer", font: "inherit" }}>
                         <div style={{ background: "#F6F6F7", borderRadius: "6px", aspectRatio: "1", display: "grid", placeItems: "center", overflow: "hidden", marginBottom: "7px" }}>
                           {/* eslint-disable-next-line @next/next/no-img-element */}
                           <img src={a.file_url} alt={a.file_name} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
@@ -197,7 +200,7 @@ export function OrderGangSheets({ orderId }: { orderId: string }) {
                             {a.inspection.findings.filter((f) => f.level !== "ok")[0]?.message}
                           </div>
                         )}
-                      </a>
+                      </button>
                     ))}
                   </div>
                 </div>

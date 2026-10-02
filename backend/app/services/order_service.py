@@ -290,14 +290,12 @@ class OrderService:
 
         tax_amount_val = Decimal(str(confirm.tax_amount or 0))
 
-        # 3% convenience fee for wholesale card payments only
-        _payment_method_for_fee = getattr(confirm, "payment_method", None) or ""
-        if is_wholesale and _payment_method_for_fee in ("card", "credit_card"):
-            convenience_fee = (subtotal * Decimal("0.03")).quantize(Decimal("0.01"))
-        else:
-            convenience_fee = Decimal("0.00")
+        # No convenience fee. See the note in api/v1/checkout: the column stays
+        # so orders that were charged one still read correctly, but nothing
+        # adds to it any more.
+        convenience_fee = Decimal("0.00")
 
-        total = subtotal + shipping_cost + tax_amount_val - coupon_discount_amount + convenience_fee
+        total = subtotal + shipping_cost + tax_amount_val - coupon_discount_amount
 
         # 6. Resolve shipping address
         shipping_address = await self._resolve_address(confirm, company_id)
