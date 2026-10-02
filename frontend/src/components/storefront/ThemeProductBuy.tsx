@@ -92,7 +92,11 @@ export default function ThemeProductBuy({ product }: { product: ThemeProductData
 
     // A gang sheet is chosen by the sheet, not by a variant: these are the
     // sizes the brand set up for this product, in the order it set them.
-    const sheets = product.sheets ?? [];
+    // A product printed from the buyer's own file at a size they pick in the
+    // uploader has no sheet to choose here. Its sheet sizes belong to the
+    // builder, and showing them put builder prices on a product that is not
+    // priced that way.
+    const sheets = byUpload ? [] : (product.sheets ?? []);
     let sheetId = sheets[0]?.sheet_id ?? "";
 
     const priceLine = root.querySelector<HTMLElement>("[data-theme-price]");
@@ -181,6 +185,21 @@ export default function ThemeProductBuy({ product }: { product: ThemeProductData
 
     // ── Choosing ──
     const cleanups: (() => void)[] = [];
+
+    if (byUpload) {
+      // The size grid is the builder's. Hidden rather than left inert, because
+      // a row of sizes nobody can choose reads as a broken page.
+      groups.forEach((group) => {
+        if (group.querySelector("[data-sheet-id]")) group.style.display = "none";
+      });
+      // And the button says what it does. It opened the uploader already; it
+      // just called itself the builder while doing it.
+      buyButtons.forEach((button) => {
+        if (button.dataset.themeBuy === "artwork") return;
+        button.dataset.baseLabel = button.textContent ?? "";
+        button.textContent = "Upload image by size";
+      });
+    }
 
     groups.forEach((group) => {
       const optionId = group.dataset.optionId ?? "";
