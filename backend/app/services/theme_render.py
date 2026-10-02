@@ -432,6 +432,11 @@ def _px(value: Any) -> str:
     return raw if raw.endswith(("px", "%", "em", "rem", "vw", "vh")) else f"{raw}px"
 
 
+# What a logo may grow to when neither the brand nor the design has said.
+# About the height of a header, so a picture in a header still looks like one.
+LOGO_FALLBACK_MAX_HEIGHT = "64px"
+
+
 def apply_logo(page: dict[str, Any], logo: dict[str, Any] | None) -> dict[str, Any]:
     """Put the brand's own logo where the design keeps its logo.
 
@@ -450,8 +455,22 @@ def apply_logo(page: dict[str, Any], logo: dict[str, Any] | None) -> dict[str, A
     padding = " ".join(_px(pad.get(side)) or "0" for side in ("top", "right", "bottom", "left"))
 
     style = ["display:block", "max-width:100%", "object-fit:contain"]
-    style.append(f"width:{width}" if width else "width:auto")
-    style.append(f"height:{height}" if height else "height:auto")
+    if width:
+        style.append(f"width:{width}")
+    if height:
+        style.append(f"height:{height}")
+    if not width and not height:
+        # Nothing said, so the design's own rule for its logo decides — which
+        # is the whole point of swapping only the picture. Writing width:auto
+        # and height:auto here looked like saying nothing and was the opposite:
+        # an inline style beats the design's stylesheet, so every logo fell
+        # back to the size of the file. A tall one then took the header over
+        # and pushed the menu into a column.
+        #
+        # The ceiling is for a design that has no rule of its own. It lets a
+        # smaller logo stay its own size and stops a large one wrecking the
+        # page, which is the failure worth preventing.
+        style.append(f"max-height:{LOGO_FALLBACK_MAX_HEIGHT}")
     if padding != "0 0 0 0":
         style.append(f"padding:{padding}")
 
