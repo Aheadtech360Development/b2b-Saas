@@ -29,6 +29,26 @@ _ACTIVE_STATES = {"active", "trialing"}
 _DEAD_STATES = {"canceled", "incomplete_expired", "unpaid"}
 
 
+
+def _is_missing(exc: Exception) -> bool:
+    """Whether Stripe is saying an id simply does not exist in this world.
+
+    A customer, a subscription and a price each belong to one Stripe account
+    and one mode. Change either and every id stored here still looks perfectly
+    valid and names nothing: Stripe answers "No such customer", which reaches
+    a brand as a checkout that will not open and no way to tell why.
+
+    This happens on purpose as well as by accident — the platform's own test
+    and live switch does it every time — so a stored id is treated as a hint
+    to check rather than a fact, and an id that is gone is the same as never
+    having had one.
+    """
+    return isinstance(exc, stripe.InvalidRequestError) and (
+        getattr(exc, "code", "") == "resource_missing"
+        or "no such" in str(exc).lower()
+    )
+
+
 def _stripe():
     """Stripe with the platform's key.
 
@@ -140,10 +160,24 @@ class BillingService:
             text("SELECT stripe_customer_id FROM tenant_subscriptions WHERE tenant_id = :t"),
             {"t": str(tenant["id"])},
         )).first()
-        if row and row[0]:
-            return row[0]
-
         s = await _stripe_for(self.db)
+        stored = row[0] if row and row[0] else None
+        if stored:
+            try:
+                found = s.Customer.retrieve(stored)
+                # A customer deleted in the dashboard still retrieves, with a
+                # flag, and cannot be charged. Treated as gone.
+                if not getattr(found, "deleted", False):
+                    return stored
+                logger.warning("Stripe customer %s was deleted; making a new one.", stored)
+            except Exception as exc:
+                if not _is_missing(exc):
+                    raise
+                logger.warning(
+                    "Stripe customer %s does not exist in the current account or mode; "
+                    "making a new one.", stored,
+                )
+
         customer = s.Customer.create(
             email=tenant.get("email"),
             name=tenant.get("name"),
@@ -177,16 +211,32 @@ class BillingService:
         ), {"t": str(tenant["id"])})).first()
         if sub_row and sub_row[0] and sub_row[1] in ("active", "trialing", "past_due"):
             s = await _stripe_for(self.db)
-            sub = s.Subscription.retrieve(sub_row[0])
-            item_id = sub["items"]["data"][0]["id"]
-            s.Subscription.modify(
-                sub.id,
-                items=[{"id": item_id, "price": price_id}],
-                proration_behavior="create_prorations",
-                metadata={"tenant_id": str(tenant["id"]), "plan_key": plan_key},
-            )
-            await self.sync_subscription(s.Subscription.retrieve(sub.id))
-            return {"switched": True, "plan": plan_key}
+            try:
+                sub = s.Subscription.retrieve(sub_row[0])
+                item_id = sub["items"]["data"][0]["id"]
+                s.Subscription.modify(
+                    sub.id,
+                    items=[{"id": item_id, "price": price_id}],
+                    proration_behavior="create_prorations",
+                    metadata={"tenant_id": str(tenant["id"]), "plan_key": plan_key},
+                )
+                await self.sync_subscription(s.Subscription.retrieve(sub.id))
+                return {"switched": True, "plan": plan_key}
+            except Exception as exc:
+                if not _is_missing(exc):
+                    raise
+                # The subscription belongs to an account or a mode this
+                # platform is no longer in. Forgotten, so the brand gets a
+                # fresh checkout rather than an error about an id they have
+                # never seen.
+                logger.warning(
+                    "Subscription %s does not exist here; starting a new checkout.", sub_row[0],
+                )
+                await self.db.execute(text("""
+                    UPDATE tenant_subscriptions
+                       SET stripe_subscription_id = NULL, updated_at = now()
+                     WHERE tenant_id = :t
+                """), {"t": str(tenant["id"])})
 
         customer_id = await self.get_or_create_customer(tenant)
         # Back to *their* admin, not the platform's. Built from the shop's own
@@ -255,9 +305,16 @@ class BillingService:
         customer_id = row[0] if row else None
         if customer_id:
             s = await _stripe_for(self.db)
-            subs = s.Subscription.list(customer=customer_id, status="all", limit=1)
-            if subs.data:
-                await self.sync_subscription(subs.data[0])
+            try:
+                subs = s.Subscription.list(customer=customer_id, status="all", limit=1)
+                if subs.data:
+                    await self.sync_subscription(subs.data[0])
+            except Exception as exc:
+                # Reading the status must not fail because a stored id is from
+                # somewhere else; the screen still has something to show.
+                if not _is_missing(exc):
+                    raise
+                logger.warning("Customer %s is not in this account or mode.", customer_id)
         return await self.get_status(slug)
 
     # ── Reconciliation (called from webhooks) ─────────────────────────────────
