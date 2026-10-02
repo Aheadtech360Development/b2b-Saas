@@ -157,6 +157,11 @@ async def save(db: AsyncSession, tenant_id: object, host: str | None) -> dict[st
         from app.services import tenant_hosts
 
         tenant_hosts.forget()
+        # The browser's side of the same question: until this is dropped, the
+        # new domain resolves to the shop and is still refused by CORS.
+        from app.middleware.brand_cors import forget as forget_cors
+
+        forget_cors()
         return await get(db, tenant_id)
 
     cleaned = normalise(host)

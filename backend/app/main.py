@@ -897,10 +897,21 @@ async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONR
     # headers and the browser hid it: the page saw a network failure instead of
     # an error it could show. Add them for the origins CORS already allows.
     origin = request.headers.get("origin")
-    if origin and (origin in _cors_origins or _re.match(_cors_origin_regex, origin)):
-        response.headers["Access-Control-Allow-Origin"] = origin
-        response.headers["Access-Control-Allow-Credentials"] = "true"
-        response.headers["Vary"] = "Origin"
+    if origin:
+        allowed = origin in _cors_origins or bool(_re.match(_cors_origin_regex, origin))
+        if not allowed:
+            # A brand's own domain is allowed too, and a 500 it cannot read is
+            # a network failure as far as the page is concerned.
+            try:
+                from app.middleware.brand_cors import _domains, _host_of
+
+                allowed = origin.startswith("https://") and _host_of(origin) in await _domains()
+            except Exception:
+                allowed = False
+        if allowed:
+            response.headers["Access-Control-Allow-Origin"] = origin
+            response.headers["Access-Control-Allow-Credentials"] = "true"
+            response.headers["Vary"] = "Origin"
     return response
 
 
@@ -1010,6 +1021,15 @@ app.add_middleware(
     allow_headers=["*"],
     expose_headers=["*"],
 )
+
+# A brand reached at the domain it bought is a different origin from the one
+# above, so everything its pages fetched was refused before it left the
+# browser. Those domains are rows, not a pattern, so they are looked up —
+# added last, which makes it the outermost layer and lets it answer a
+# preflight the middleware above would refuse.
+from app.middleware.brand_cors import BrandCORSMiddleware  # noqa: E402
+
+app.add_middleware(BrandCORSMiddleware)
 
 _V1 = "/api/v1"
 
