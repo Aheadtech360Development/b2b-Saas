@@ -86,9 +86,28 @@ class BillingService:
             text("SELECT value FROM app_settings WHERE key = :k"),
             {"k": f"stripe_price_{plan_key}"},
         )).first()
-        if row:
-            return row[0]
-        # Nothing recorded yet. Rather than refuse — which is what turned
+        stored = row[0] if row else None
+        if stored:
+            # Checked rather than trusted. A Price belongs to one Stripe
+            # account and one mode, and this row is neither — it is a single
+            # global setting, so it outlives a change of either and then names
+            # nothing. That reached a brand as "No such price" on the one
+            # button they were trying to press.
+            s = await _stripe_for(self.db)
+            try:
+                found = s.Price.retrieve(stored)
+                if getattr(found, "active", True):
+                    return stored
+                logger.warning("Price %s is archived; finding the current one.", stored)
+            except Exception as exc:
+                if not _is_missing(exc):
+                    raise
+                logger.warning(
+                    "Price %s does not exist in the current account or mode; "
+                    "finding or creating the right one.", stored,
+                )
+
+        # Nothing usable recorded. Rather than refuse — which is what turned
         # "Switch to this" into "Could not start checkout" and left the answer
         # in a script nobody could see — find or create the Price in Stripe and
         # remember it. Stripe keys it by lookup_key, so this is idempotent: the
