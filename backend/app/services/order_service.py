@@ -343,6 +343,7 @@ class OrderService:
                 STATUS_IN_REVIEW as _GS_IN_REVIEW,
             )
             _is_paid = order.payment_status == "paid"
+            _entered_review: list = []
             for _gsid in gang_sheet_ids:
                 _gs = (await self.db.execute(select(_GSOrder).where(_GSOrder.id == _gsid))).scalar_one_or_none()
                 if _gs is not None:
@@ -351,7 +352,18 @@ class OrderService:
                         _gs.paid_at = _dt.now(_tz.utc)
                     if _gs.status == _GS_SUBMITTED:
                         _gs.status = _GS_IN_REVIEW  # paid/ordered → enters the review queue
+                        _entered_review.append(_gs)
             await self.db.flush()
+
+            # Now the buyer is told, and not before. Best-effort: an email that
+            # will not send is not a reason to lose an order that was paid for.
+            from app.api.v1.gang_sheets import _notify as _gs_notify
+            for _gs in _entered_review:
+                try:
+                    await _gs_notify(self.db, _gs, _GS_IN_REVIEW)
+                except Exception:
+                    logger.warning("Could not tell %s about gang sheet %s",
+                                   order.id, _gs.id, exc_info=True)
 
         # Save tax_rate / tax_region via raw SQL — columns may not exist in older deployments.
         # This is a best-effort update; failure does not block order creation.

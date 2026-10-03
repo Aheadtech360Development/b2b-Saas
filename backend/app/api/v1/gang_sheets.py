@@ -770,7 +770,11 @@ async def submit_order(
     # touching it in the serialiser would trigger implicit async IO (500). Refresh
     # reloads it in the async context first.
     await db.refresh(order)
-    await _notify(db, order, STATUS_SUBMITTED)
+    # No email here. A sheet is saved to the buyer's account when they build
+    # it, which is long before — and sometimes instead of — paying for it.
+    # Telling somebody "we have received your gang sheet" while it sits in
+    # their cart with no card against it is a message about an order nobody
+    # placed. See order_service: the word goes out when the order does.
     return _order_row(order, arts)
 
 
@@ -881,7 +885,11 @@ async def submit_upload_by_size(
     order.versions = [_snapshot(order, arts, 1)]
     await db.flush()
     await db.refresh(order)
-    await _notify(db, order, STATUS_SUBMITTED)
+    # No email here. A sheet is saved to the buyer's account when they build
+    # it, which is long before — and sometimes instead of — paying for it.
+    # Telling somebody "we have received your gang sheet" while it sits in
+    # their cart with no card against it is a message about an order nobody
+    # placed. See order_service: the word goes out when the order does.
     return _order_row(order, arts)
 
 

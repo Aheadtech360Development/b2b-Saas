@@ -178,6 +178,26 @@ _TEMPLATES_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", 
 _file_jinja_env = Environment(loader=FileSystemLoader(_TEMPLATES_DIR), autoescape=True)
 
 
+def sender_account(cfg: dict | None, platform_key: str | None) -> tuple[str, str, bool]:
+    """Which Resend account this email leaves on, and from what address.
+
+    A brand that has brought its own key and its own verified address sends on
+    it: everything its customer sees is then the shop they bought from. Without
+    both, it goes out on the platform's account — which is how every brand
+    works on day one, and why the brand's name rides on the display name and
+    its reply-to carries replies home.
+
+    Both are needed together. A key with no verified sender cannot send, and a
+    sender with no key is somebody else's domain.
+    """
+    cfg = cfg or {}
+    own_key = (cfg.get("api_key") or "").strip()
+    own_from = (cfg.get("from_email") or "").strip()
+    if own_key and own_from:
+        return own_key, own_from, True
+    return (platform_key or ""), "", False
+
+
 class EmailService:
     def __init__(self, db: AsyncSession | None = None):
         # Optional: the raw and file-template senders never touch the database,
@@ -314,11 +334,12 @@ class EmailService:
         attachments: list[dict] | None = None,
     ) -> bool:
         cfg = _tenant_email_cfg()
-        if not settings.RESEND_API_KEY:
-            logger.warning("RESEND_API_KEY not set — skipping email to %s", to_email)
+        api_key, own_from, use_own = sender_account(cfg, settings.RESEND_API_KEY)
+        if not api_key:
+            logger.warning("No Resend key for this brand or the platform — skipping email to %s", to_email)
             return False
 
-        resend.api_key = settings.RESEND_API_KEY
+        resend.api_key = api_key
 
         # Rebrand outbound copy to the tenant this email belongs to. The bodies were
         # written for a single store and still carry that store's name and phone;
@@ -339,10 +360,11 @@ class EmailService:
         body_html = _point_at_brand(body_html, site)
         body_text = _point_at_brand(body_text, site)
 
-        # The sender address stays on the platform's verified domain — it's the
-        # only one this Resend account may send from. The brand's identity rides
-        # on the display name, and its reply-to points replies back to it.
-        from_addr = f"{from_name} <{settings.EMAIL_FROM_ADDRESS}>"
+        # The brand's own verified address when it has one. Otherwise the
+        # platform's — the only domain that account may send from — with the
+        # brand's identity on the display name and its reply-to carrying
+        # replies home.
+        from_addr = f"{from_name} <{own_from if use_own else settings.EMAIL_FROM_ADDRESS}>"
         if not reply_to:
             reply_to = (
                 (cfg.get("reply_to") or "").strip()

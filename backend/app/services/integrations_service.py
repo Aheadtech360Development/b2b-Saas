@@ -82,10 +82,13 @@ PROVIDERS: dict[str, Provider] = {
                   options=["United States", "Canada"]),
         ],
     ),
-    # Mail always leaves through the platform's own Resend account — a brand is
-    # never asked for a key, and the sender stays on our verified domain because
-    # that is the only domain this account can send from. What IS per-brand is
-    # the identity on the message and where the brand's own alerts go.
+    # Mail leaves through the platform's Resend account by default: a brand
+    # that has not set anything up still sends, under its own name, with
+    # replies coming back to it. But the address then reads @ the platform's
+    # domain, and a buyer who has never heard of the platform is right to find
+    # that odd — the shop they bought from is the shop that should be writing.
+    # So a brand can bring its own Resend key and its own verified sender, and
+    # then its customers never see us at all.
     "resend": Provider(
         key="resend",
         name="Email notifications",
@@ -102,6 +105,14 @@ PROVIDERS: dict[str, Provider] = {
             Field("reply_to", "Reply-to address", "text",
                   "Where a customer's reply lands. Defaults to your alerts address.",
                   required=False, placeholder="support@yourbrand.com"),
+            Field("api_key", "Your own Resend API key", "secret",
+                  "Optional. With your own key and a domain you have verified at "
+                  "Resend, your emails come from your address instead of ours.",
+                  required=False, placeholder="re_..."),
+            Field("from_email", "Send from", "text",
+                  "The verified address on your own Resend account. Only used "
+                  "when you have given a key above.",
+                  required=False, placeholder="orders@yourbrand.com"),
         ],
     ),
     "ups": Provider(
