@@ -2367,7 +2367,7 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
           )}
           <>
           {/* Toolbar */}
-          <div style={S.toolbar}>
+          <div data-gs-toolbar style={S.toolbar}>
             <select value={sizeId} onChange={(e) => setSizeId(e.target.value)} style={S.sizeSelect}>
               {sizes.map((s) => (
                 <option key={s.id} value={s.id}>
@@ -2379,7 +2379,7 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
               <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
                 <input type="number" min={size.min_length_in} max={size.max_length_in} value={customLength}
                   onChange={(e) => setCustomLength(clamp(Number(e.target.value) || size.min_length_in, size.min_length_in, size.max_length_in))}
-                  style={{ width: "70px", padding: "7px", border: "1px solid #DDD9D2", borderRadius: "6px", fontSize: "13px" }} />
+                  style={{ width: "58px", padding: "8px 7px", border: `1px solid ${C.line}`, borderRadius: "9px", fontSize: "12.5px", fontFamily: "inherit", color: C.ink }} />
                 <span style={{ fontSize: "12px", color: "#5A5E66" }}>in</span>
                 <select onChange={(e) => setCustomLength(clamp(Number(e.target.value) * 12, size.min_length_in, size.max_length_in))} value="" style={{ ...S.sizeSelect, minWidth: "auto" }}>
                   <option value="">ft…</option>
@@ -2387,17 +2387,15 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
                 </select>
               </div>
             )}
-            <div style={S.toolDivider} />
             <button onClick={() => setPanTool((v) => !v)} title="Pan / hand tool" style={{ ...S.iconBtn, ...(panTool ? S.iconBtnOn : null) }}><Hand {...TOOL_ICON} /></button>
             <button onClick={() => setShowGrid((v) => !v)} title="Toggle grid" style={{ ...S.iconBtn, ...(showGrid ? S.iconBtnOn : null) }}><Grid3x3 {...TOOL_ICON} /></button>
             <div style={S.toolDivider} />
             <label style={{ fontSize: "12.5px", color: C.inkSoft, display: "flex", alignItems: "center", gap: "7px", fontWeight: 500 }}>
               Margin
               <input type="number" min={0} step="0.25" value={imageMargin} onWheel={(e) => e.currentTarget.blur()} onChange={(e) => setImageMargin(Math.max(0, Number(e.target.value) || 0))}
-                style={{ width: "58px", padding: "8px 9px", border: `1px solid ${C.line}`, borderRadius: "9px", fontSize: "12.5px", fontFamily: "inherit", color: C.ink }} /> in
+                style={{ width: "50px", padding: "8px 7px", border: `1px solid ${C.line}`, borderRadius: "9px", fontSize: "12.5px", fontFamily: "inherit", color: C.ink }} /> in
             </label>
             <button onClick={() => autoNest()} style={S.nestBtn}><Zap size={14} strokeWidth={2.4} /> Auto Nest</button>
-            <div style={S.toolDivider} />
             <button onClick={undo} disabled={!canUndo} style={{ ...S.iconBtn, opacity: canUndo ? 1 : 0.4, cursor: canUndo ? "pointer" : "default" }} title="Undo (Ctrl+Z)"><Undo2 {...TOOL_ICON} /></button>
             <button onClick={redo} disabled={!canRedo} style={{ ...S.iconBtn, opacity: canRedo ? 1 : 0.4, cursor: canRedo ? "pointer" : "default" }} title="Redo (Ctrl+Shift+Z)"><Redo2 {...TOOL_ICON} /></button>
             <div style={{ display: "flex", alignItems: "center", gap: "4px", marginLeft: "auto" }}>
@@ -2791,7 +2789,7 @@ const S: Record<string, React.CSSProperties> = {
   rail: { width: "76px", flexShrink: 0, background: C.card, borderRight: `1px solid ${C.line}`, display: "flex", flexDirection: "column", padding: "12px 8px", gap: "6px", overflowY: "auto", minHeight: 0 },
   railBtn: { background: "none", border: "none", color: C.inkSoft, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "11px 2px", cursor: "pointer", borderRadius: C.radius, fontFamily: "inherit", lineHeight: 1.2 },
   railBtnActive: { color: C.goDark, background: C.goTint },
-  leftPanel: { width: "282px", flexShrink: 0, background: C.card, borderRight: `1px solid ${C.line}`, padding: "16px", overflowY: "auto", minHeight: 0 },
+  leftPanel: { width: "258px", flexShrink: 0, background: C.card, borderRight: `1px solid ${C.line}`, padding: "16px", overflowY: "auto", minHeight: 0 },
   dropzone: { border: "2px dashed #D4D8DE", borderRadius: "12px", padding: "22px 14px", textAlign: "center", cursor: "pointer" },
   chooseBtn: { display: "inline-flex", alignItems: "center", gap: "7px", marginTop: "12px", background: C.go, color: "#fff", borderRadius: "9px", padding: "9px 16px", fontSize: "12.5px", fontWeight: 700 },
   listHead: { marginTop: "18px", display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: "10.5px", fontWeight: 700, color: C.inkSoft, textTransform: "uppercase", letterSpacing: ".09em" },
@@ -2819,11 +2817,11 @@ const S: Record<string, React.CSSProperties> = {
   // One row, always. Wrapping cost a second 54px band of a window that may
   // only be 600 tall, and it took it from the canvas — the one part of this
   // screen somebody is actually looking at.
-  toolbar: { height: "46px", flexShrink: 0, background: C.card, borderBottom: `1px solid ${C.line}`, display: "flex", alignItems: "center", gap: "9px", padding: "0 14px", flexWrap: "nowrap", overflowX: "auto", overflowY: "hidden" },
-  sizeSelect: { padding: "8px 11px", border: `1px solid ${C.line}`, borderRadius: "9px", fontSize: "13px", fontWeight: 600, minWidth: "160px", background: C.card, color: C.ink, cursor: "pointer", fontFamily: "inherit" },
+  toolbar: { height: "46px", flexShrink: 0, background: C.card, borderBottom: `1px solid ${C.line}`, display: "flex", alignItems: "center", gap: "6px", padding: "0 10px", flexWrap: "nowrap", overflowX: "auto", overflowY: "hidden" },
+  sizeSelect: { padding: "8px 11px", border: `1px solid ${C.line}`, borderRadius: "9px", fontSize: "13px", fontWeight: 600, minWidth: "124px", maxWidth: "190px", background: C.card, color: C.ink, cursor: "pointer", fontFamily: "inherit" },
   toolDivider: { width: "1px", height: "22px", background: C.line },
-  nestBtn: { background: C.go, color: "#fff", border: "none", padding: "9px 15px", borderRadius: "9px", fontSize: "12.5px", fontWeight: 700, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "7px", fontFamily: "inherit", whiteSpace: "nowrap" },
-  iconBtn: { width: "34px", height: "34px", border: `1px solid ${C.line}`, background: C.card, color: C.inkSoft, borderRadius: "9px", cursor: "pointer", lineHeight: 1, display: "inline-flex", alignItems: "center", justifyContent: "center", padding: 0 },
+  nestBtn: { background: C.go, color: "#fff", border: "none", padding: "9px 12px", borderRadius: "9px", fontSize: "12.5px", fontWeight: 700, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "7px", fontFamily: "inherit", whiteSpace: "nowrap" },
+  iconBtn: { width: "31px", height: "31px", border: `1px solid ${C.line}`, background: C.card, color: C.inkSoft, borderRadius: "9px", cursor: "pointer", lineHeight: 1, display: "inline-flex", alignItems: "center", justifyContent: "center", padding: 0 },
   // Pressed state for a toggle tool — dark, so it reads as "on" at a glance.
   iconBtnOn: { background: C.goTint, borderColor: "#BFE6CE", color: C.goDark },
   canvasScroll: { position: "absolute", inset: 0, overflow: "auto" },
@@ -2852,15 +2850,15 @@ const S: Record<string, React.CSSProperties> = {
   overlapBanner: { position: "absolute", top: "12px", left: "50%", transform: "translateX(-50%)", zIndex: 6, display: "flex", alignItems: "center", gap: "10px", maxWidth: "min(560px, 80%)", background: "#FFEDD5", border: "1px solid #FDBA74", color: "#9A3412", borderRadius: "8px", padding: "9px 14px", fontSize: "13px", lineHeight: 1.45, boxShadow: "0 4px 14px rgba(154,52,18,.15)" },
   overlapIcon: { width: "20px", height: "20px", flexShrink: 0, borderRadius: "50%", border: "2px solid #C2410C", color: "#C2410C", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: "12px", fontWeight: 800 },
   canvasWarn: { position: "absolute", top: "10px", right: "10px", zIndex: 4, display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap", background: "#FFF7ED", border: "1px solid #FED7AA", color: "#9A3412", borderRadius: "8px", padding: "7px 11px", fontSize: "12px", maxWidth: "55%", justifyContent: "flex-end", boxShadow: "0 1px 4px rgba(0,0,0,.06)" },
-  rightPanel: { width: "252px", flexShrink: 0, background: C.card, borderLeft: `1px solid ${C.line}`, padding: "14px", display: "flex", flexDirection: "column", gap: "8px", minHeight: 0, overflow: "hidden" },
-  sheetList: { display: "flex", flexDirection: "column", gap: "8px", overflowY: "auto", flex: "1 1 0", minHeight: "64px", paddingRight: "2px" },
+  rightPanel: { width: "238px", flexShrink: 0, background: C.card, borderLeft: `1px solid ${C.line}`, padding: "14px", display: "flex", flexDirection: "column", gap: "8px", minHeight: 0, overflow: "hidden" },
+  sheetList: { display: "flex", flexDirection: "column", gap: "8px", overflowY: "auto", flex: "0 1 auto", minHeight: 0, maxHeight: "40%", paddingRight: "2px" },
   activeCard: { border: "1px solid #E5E3DE", borderRadius: "10px", padding: "12px" },
   sheetCard: { border: "1px solid #E5E3DE", borderRadius: "10px", padding: "10px 12px", cursor: "pointer", background: "#fff" },
   sheetCardActive: { borderColor: "var(--brand-primary,#1C3557)", boxShadow: "0 0 0 1px var(--brand-primary,#1C3557)", background: "#F7F9FD" },
   sheetNameInput: { width: "100%", boxSizing: "border-box", border: "1px solid transparent", background: "transparent", fontSize: "13px", fontWeight: 700, padding: "2px 4px", borderRadius: "5px", margin: "3px 0", color: "#222" },
   rightAction: { display: "flex", alignItems: "center", gap: "9px", textAlign: "left", background: C.card, border: `1px solid ${C.line}`, borderRadius: C.radius, padding: "11px 13px", fontSize: "13px", fontWeight: 600, cursor: "pointer", color: C.ink, fontFamily: "inherit", width: "100%" },
   rightActionGo: { background: C.goTint, borderColor: "#BFE6CE", color: C.goDark, fontWeight: 700 },
-  tipBox: { display: "flex", gap: "9px", alignItems: "flex-start", background: "#F7F8FA", border: `1px solid ${C.lineSoft}`, borderRadius: C.radius, padding: "11px 12px", fontSize: "11.5px", color: C.inkSoft, lineHeight: 1.6 },
+  tipBox: { marginTop: "auto", display: "flex", gap: "9px", alignItems: "flex-start", background: "#F7F8FA", border: `1px solid ${C.lineSoft}`, borderRadius: C.radius, padding: "11px 12px", fontSize: "11.5px", color: C.inkSoft, lineHeight: 1.6 },
   // One floating bar rather than three loose squares, so the buttons read as
   // belonging to the design they are attached to. 30px targets: at 24 they
   // were a hard target with a mouse and a miss on a trackpad.
