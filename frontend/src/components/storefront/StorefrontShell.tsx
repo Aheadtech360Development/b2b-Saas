@@ -11,12 +11,22 @@
  * route had changed.
  *
  * Rendered by the storefront's own segments now, so it mounts and unmounts
- * with them and no path list has to be kept in step with the routes.
+ * with them. The chrome is still built here, on the server, where the brand's
+ * theme is loaded — but whether to show it is decided by ShellGate, on the
+ * client, for the same reason the problem above existed at all.
  */
+import type { ReactNode } from "react";
 import { Header } from "@/components/layout/Header";
 import ThemeChrome, { ThemeChromeHead, loadStore } from "@/components/storefront/ThemeChrome";
+import ShellGate from "@/components/storefront/ShellGate";
 
-export default async function StorefrontShell({ children }: { children: React.ReactNode }) {
+export default async function StorefrontShell({
+  children, footer,
+}: {
+  children: ReactNode;
+  /** The app's own footer, when this shop has no theme of its own. */
+  footer?: ReactNode;
+}) {
   const { brand, chrome } = await loadStore();
 
   // Three cases, and only the middle one wants the app's own header: a themed
@@ -26,12 +36,22 @@ export default async function StorefrontShell({ children }: { children: React.Re
   const appHeader = brand !== null && chrome === null;
 
   return (
-    <>
-      {appHeader && <Header />}
-      {chrome && <ThemeChromeHead chrome={chrome} />}
-      {chrome && <ThemeChrome sections={chrome.top} />}
+    <ShellGate
+      before={
+        <>
+          {appHeader && <Header />}
+          {chrome && <ThemeChromeHead chrome={chrome} />}
+          {chrome && <ThemeChrome sections={chrome.top} />}
+        </>
+      }
+      after={
+        <>
+          {chrome && <ThemeChrome sections={chrome.bottom} />}
+          {footer}
+        </>
+      }
+    >
       {children}
-      {chrome && <ThemeChrome sections={chrome.bottom} />}
-    </>
+    </ShellGate>
   );
 }
