@@ -402,21 +402,27 @@ export function UploadBySizeModal({ product, onClose, revise = null, onRevised }
       >
         {/* ── Header ─────────────────────────────────────────────────────── */}
         <div style={S.header}>
-          {revise ? (
-            <div style={{ display: "flex", alignItems: "center", gap: "12px", minWidth: 0 }}>
-              <button onClick={() => fileRef.current?.click()} disabled={uploading || !active || !!busy} style={S.uploadBtn}>
-                Replace artwork
-              </button>
-              <span style={{ fontSize: "13px", color: "#6B6B6B", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                Revising <strong style={{ color: "#1A1A1A" }}>{revise.reference}</strong>
-              </span>
+          {/* A panel that opened on a black chip reading "+ Uploads" told
+              nobody what they had opened or what it would cost them. It says
+              what it is, and the thing to do next is the dropzone itself. */}
+          <div style={{ minWidth: 0 }}>
+            <div style={S.title}>
+              {revise ? "Revise your design" : "Upload image by size"}
             </div>
-          ) : (
-            <button onClick={() => fileRef.current?.click()} disabled={uploading} style={S.uploadBtn}>
-              {uploading ? "Uploading…" : "＋ Uploads"}
-            </button>
-          )}
-          <button onClick={onClose} aria-label="Close" style={S.close}>✕</button>
+            <div style={S.sub}>
+              {revise
+                ? <>Revising <strong style={{ color: "#1A1A1A" }}>{revise.reference}</strong> — replace the artwork or change the size.</>
+                : "One design, printed at the exact size you choose. Add as many as you like."}
+            </div>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            {(revise || items.length > 0) && (
+              <button onClick={() => fileRef.current?.click()} disabled={uploading || (!!revise && (!active || !!busy))} style={S.uploadBtn}>
+                {uploading ? "Uploading…" : revise ? "Replace artwork" : "Add another"}
+              </button>
+            )}
+            <button onClick={onClose} aria-label="Close" style={S.close}>✕</button>
+          </div>
         </div>
 
         <input
@@ -500,14 +506,19 @@ export function UploadBySizeModal({ product, onClose, revise = null, onRevised }
                 onClick={() => fileRef.current?.click()}
                 style={{ ...S.dropzone, borderColor: dropActive ? "#1A1A1A" : "#D6D3CC", background: dropActive ? "#F6F6F7" : "#fff" }}
               >
-                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "10px" }}>
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "8px" }}>
                   <span style={S.dropIcon}>↑</span>
-                  <span style={{ fontWeight: 700, fontSize: "15px", color: "#1A1A1A" }}>
-                    Drop your design here, or click to upload
+                  <span style={{ fontWeight: 700, fontSize: "15.5px", color: "#1A1A1A" }}>
+                    Drop your design here, or click to choose
                   </span>
-                  <span style={{ fontSize: "12px", color: "#8A8A8A", lineHeight: 1.7, maxWidth: "330px" }}>
-                    PNG, JPG or SVG. Add as many as you like — each one gets its own
-                    size, quantity and price.
+                  <span style={{ fontSize: "12.5px", color: "#6B6B6B", lineHeight: 1.65, maxWidth: "340px" }}>
+                    PNG, JPG or SVG, from this computer.
+                  </span>
+                  <span style={S.chooseBtn}>Choose a file</span>
+                  {/* What happens after, so the empty panel is not a dead end
+                      with a greyed-out button at the bottom of it. */}
+                  <span style={S.steps}>
+                    Then: pick the printed size → we check the resolution → add it to your cart.
                   </span>
                 </div>
                 {uploading && <WorkingOverlay label="Uploading your design…" note="Large files take a moment." />}
@@ -682,6 +693,16 @@ export function UploadBySizeModal({ product, onClose, revise = null, onRevised }
 
         {/* ── Footer ─────────────────────────────────────────────────────── */}
         <div style={S.footer}>
+          <span style={S.total}>
+            {items.length === 0
+              ? <span style={{ fontSize: "13px", fontWeight: 500, color: "#8A8A8A" }}>No designs yet</span>
+              : <>
+                  ${priced.reduce((sum, p) => sum + (p.price?.total ?? 0), 0).toFixed(2)}
+                  <span style={S.totalSub}>
+                    {items.length} design{items.length === 1 ? "" : "s"}
+                  </span>
+                </>}
+          </span>
           <button onClick={onClose} style={S.ghost}>Cancel</button>
           {revise ? (
             <button
@@ -730,8 +751,12 @@ function Row({ label, value }: { label: React.ReactNode; value: React.ReactNode 
 const S: Record<string, React.CSSProperties> = {
   backdrop: { position: "fixed", inset: 0, background: "rgba(0,0,0,.45)", zIndex: 400, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" },
   modal: { background: "#fff", borderRadius: "14px", maxHeight: "94vh", display: "flex", flexDirection: "column", overflow: "hidden", fontFamily: "'DM Sans', sans-serif" },
-  header: { display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 18px", borderBottom: "1px solid #EFEFEC" },
-  uploadBtn: { background: "#1A1A1A", color: "#fff", border: "none", borderRadius: "8px", padding: "10px 18px", fontSize: "13px", fontWeight: 700, cursor: "pointer" },
+  header: { display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "14px", padding: "18px 20px 14px", borderBottom: "1px solid #EFEFEC" },
+  title: { fontSize: "17px", fontWeight: 800, color: "#1A1A1A", letterSpacing: "-.01em" },
+  sub: { fontSize: "12.5px", color: "#6B6B6B", marginTop: "4px", lineHeight: 1.5 },
+  uploadBtn: { background: "#fff", color: "#1A1A1A", border: "1px solid #E0DED8", borderRadius: "10px", padding: "9px 15px", fontSize: "12.5px", fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" },
+  chooseBtn: { marginTop: "6px", background: "#1A1A1A", color: "#fff", borderRadius: "10px", padding: "10px 20px", fontSize: "13px", fontWeight: 700 },
+  steps: { marginTop: "12px", fontSize: "11.5px", color: "#9A9A9A", lineHeight: 1.6, maxWidth: "340px" },
   close: { width: "32px", height: "32px", borderRadius: "50%", border: "1px solid #E2E2DE", background: "#fff", cursor: "pointer", fontSize: "14px", color: "#6B6B6B" },
   body: { display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,420px)", gap: "18px", padding: "18px", overflowY: "auto" },
   bodyEmpty: { padding: "26px 22px", overflowY: "auto" },
@@ -743,7 +768,7 @@ const S: Record<string, React.CSSProperties> = {
   tag: { position: "absolute", background: "#1A1A1A", color: "#fff", fontSize: "10px", fontWeight: 700, padding: "2px 7px", borderRadius: "10px", zIndex: 2 },
   bgRow: { display: "flex", alignItems: "center", gap: "7px", justifyContent: "center", marginTop: "10px" },
   bgSwatch: { width: "22px", height: "22px", borderRadius: "5px", borderStyle: "solid", cursor: "pointer", padding: 0 },
-  dropzone: { position: "relative", border: "1.5px dashed", borderRadius: "12px", minHeight: "210px", display: "grid", placeItems: "center", textAlign: "center", cursor: "pointer", padding: "28px", transition: "border-color .15s, background .15s" },
+  dropzone: { position: "relative", border: "2px dashed", borderRadius: "14px", minHeight: "230px", display: "grid", placeItems: "center", textAlign: "center", cursor: "pointer", padding: "30px", transition: "border-color .15s, background .15s" },
   dropIcon: { width: "42px", height: "42px", borderRadius: "50%", background: "#F3F3F1", color: "#1A1A1A", fontSize: "19px", display: "grid", placeItems: "center" },
   toolGrid: { display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "8px" },
   editBar: { textAlign: "center", fontSize: "10px", fontWeight: 700, letterSpacing: ".08em", color: "#8A8A8A", background: "#F6F6F7", borderRadius: "6px", padding: "5px" },
@@ -772,9 +797,11 @@ const S: Record<string, React.CSSProperties> = {
   priceBox: { border: "1px solid #E2E2DE", borderRadius: "10px", padding: "12px 14px", background: "#FAFAF8" },
   totalRow: { display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: "1px solid #E2E2DE", marginTop: "8px", paddingTop: "10px", fontSize: "15px", fontWeight: 800, color: "#1A1A1A" },
   error: { background: "#FEF2F2", border: "1px solid #FCA5A5", color: "#991B1B", borderRadius: "8px", padding: "9px 12px", fontSize: "12px" },
-  footer: { display: "flex", justifyContent: "flex-end", gap: "10px", padding: "14px 18px", borderTop: "1px solid #EFEFEC" },
+  footer: { display: "flex", alignItems: "center", gap: "10px", padding: "14px 20px", borderTop: "1px solid #EFEFEC", background: "#FBFBFA" },
+  total: { flex: 1, minWidth: 0, fontSize: "17px", fontWeight: 800, color: "#1A1A1A" },
+  totalSub: { fontSize: "12px", fontWeight: 500, color: "#8A8A8A", marginLeft: "6px" },
   ghost: { padding: "12px 20px", background: "#fff", color: "#4A4A4A", border: "1px solid #D6D3CC", borderRadius: "8px", fontSize: "13px", fontWeight: 600, cursor: "pointer" },
   ctaOff: { background: "#D6D3CC", cursor: "not-allowed" },
-  cta: { position: "relative", padding: "13px 30px", background: "#1A1A1A", color: "#fff", border: "none", borderRadius: "8px", fontSize: "14px", fontWeight: 800, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "9px" },
+  cta: { position: "relative", padding: "12px 26px", background: "#1A1A1A", color: "#fff", border: "none", borderRadius: "10px", fontSize: "13.5px", fontWeight: 700, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "9px" },
   ctaCount: { background: "#fff", color: "#1A1A1A", borderRadius: "50%", width: "20px", height: "20px", fontSize: "11px", fontWeight: 800, display: "grid", placeItems: "center" },
 };
