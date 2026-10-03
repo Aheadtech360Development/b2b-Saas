@@ -10,6 +10,7 @@
 import { setAccessToken } from "@/lib/api-client";
 import { authService } from "@/services/auth.service";
 import { useAuthStore } from "@/stores/auth.store";
+import type { UserProfile } from "@/types/user.types";
 
 /** What the token itself says, without trusting it for anything but display. */
 function claimsOf(token: string): Record<string, unknown> {
@@ -29,8 +30,23 @@ function claimsOf(token: string): Record<string, unknown> {
  */
 export async function establishSession(accessToken: string) {
   setAccessToken(accessToken);
-  const profile = await authService.getProfile();
   const claims = claimsOf(accessToken);
+  // The token is the session. Fetching the profile makes it nicer — a name to
+  // greet somebody by — but it must not be allowed to decide whether they are
+  // signed in at all: a buyer whose account had just been created was thrown
+  // back to the form by a failure here, and the form then told them the email
+  // was already taken, which it was, by them, a second earlier.
+  let profile: Partial<UserProfile>;
+  try {
+    profile = await authService.getProfile();
+  } catch {
+    profile = {
+      id: (claims.user_id as string) || (claims.sub as string) || "",
+      email: (claims.email as string) || (claims.sub as string) || "",
+      first_name: (claims.first_name as string) || "",
+      last_name: (claims.last_name as string) || "",
+    };
+  }
   const full = {
     ...profile,
     is_admin: !!claims.is_admin,
@@ -40,6 +56,6 @@ export async function establishSession(accessToken: string) {
     account_type: (claims.account_type as string) || "wholesale",
     company_id: (claims.company_id as string | null) ?? null,
   };
-  useAuthStore.getState().setAuth(accessToken, full);
+  useAuthStore.getState().setAuth(accessToken, full as UserProfile);
   return full;
 }

@@ -17,7 +17,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   ClipboardPaste, Copy, CopyPlus, Crop, Droplet, Eye, Grid3x3, Hand,
-  Layers, Lightbulb, Maximize, Minus, Plus, Redo2, RotateCcw, RotateCw, Save,
+  EyeOff, Layers, Lightbulb, Maximize, Minus, Plus, Redo2, RotateCcw, RotateCw, Save,
   Scissors, Settings as SettingsIcon, ShoppingCart, Sparkles, Trash2, Type,
   Undo2, Upload as UploadIcon, UploadCloud, Wand2, X, Zap,
   Image as ImageIcon, FolderOpen,
@@ -227,6 +227,7 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
     company_name: "",
   });
   const [joining, setJoining] = useState(false);
+  const [showPw, setShowPw] = useState(false);
   const [joinError, setJoinError] = useState<string | null>(null);
   const [textDraft, setTextDraft] = useState({ text: "", color: "#111111", bold: true });
   const [copyN, setCopyN] = useState(1); // "add copies" quantity for the selected design
@@ -1692,8 +1693,9 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
     if (joining) return;
     setJoining(true);
     setJoinError(null);
+    const joining_ = mode === "join";
     try {
-      const tokens = mode === "join"
+      const tokens = joining_
         ? await authService.registerCustomer({
             first_name: join.first_name.trim(),
             last_name: join.last_name.trim(),
@@ -1709,19 +1711,36 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
       }
       await establishSession(tokens.access_token);
       setGuest({ name: `${join.first_name} ${join.last_name}`.trim(), email: join.email.trim() });
+      say.done(joining_ ? "Account created — you're signed in." : "Signed in.");
 
       const next = askingWho;
       setAskingWho(null);
+      // The sheet goes on from here. If this throws, the account still exists
+      // and the session still stands, so it is a saving problem, not a
+      // sign-up one — the form does not come back and ask again.
       if (next) await save(next.toCart);
     } catch (e) {
       const err = e as { message?: string; status?: number };
-      setJoinError(
-        err?.status === 429
-          ? "Too many tries just now. Wait a minute and try again."
-          : err?.message || (mode === "join"
-              ? "Could not open your account. Please check the details and try again."
-              : "Could not sign you in. Check your email and password."),
-      );
+      const taken = err?.status === 409 || /already (has|exists)/i.test(err?.message ?? "");
+
+      if (joining_ && taken) {
+        // The commonest way to land here is somebody who already registered —
+        // sometimes a moment ago, on the press before this one. Put them on
+        // the sign-in they actually need rather than making them find it.
+        setMode("signin");
+        setJoin((j) => ({ ...j, password: "" }));
+        setJoinError("You already have an account with this email. Enter your password to sign in.");
+        say.note("You already have an account — sign in to carry on.");
+        return;
+      }
+
+      const message = err?.status === 429
+        ? "Too many tries just now. Wait a minute and try again."
+        : err?.message || (joining_
+            ? "Could not open your account. Please check the details and try again."
+            : "Could not sign you in. Check your email and password.");
+      setJoinError(message);
+      say.problem(message);
     } finally {
       setJoining(false);
     }
@@ -1752,6 +1771,7 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
       setSheets((prev) => prev.map((s) => savedIds.has(s.key) ? { ...s, orderId: savedIds.get(s.key)! } : s));
       if (toCart) {
         try {
+          say.done(orders.length === 1 ? "Sheet saved — opening your cart…" : `${orders.length} sheets saved — opening your cart…`);
           for (const o of orders) {
             // Signed in, the sheet joins the company's cart; otherwise the
             // same cart every other guest line goes into.
@@ -1763,10 +1783,12 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
         } catch { /* cart unavailable — fall through to the saved state */ }
       }
       setSavedOk(true);
+      say.done(orders.length === 1 ? "Sheet saved to your account." : `${orders.length} sheets saved to your account.`);
       onSaved(orders[0]!);
     } catch (e) {
-      const msg = (e as { message?: string })?.message;
-      setError(msg || "Could not save your gang sheets. Please try again.");
+      const msg = (e as { message?: string })?.message || "Could not save your gang sheets. Please try again.";
+      setError(msg);
+      say.problem(msg);
     } finally {
       setSaving(false);
     }
@@ -1963,9 +1985,20 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
                 Password
                 {mode === "join" && <span style={{ color: C.inkFaint, fontWeight: 500 }}> · at least 8 characters</span>}
               </span>
-              <input type="password" required minLength={mode === "join" ? 8 : undefined} value={join.password}
-                onChange={(e) => setJoin((j) => ({ ...j, password: e.target.value }))}
-                style={S.joinInput} />
+              {/* Shown on request. A password typed blind and mistyped is a
+                  failed sign-in that reads like a wrong password. */}
+              <span style={{ position: "relative", display: "block" }}>
+                <input type={showPw ? "text" : "password"} required minLength={mode === "join" ? 8 : undefined}
+                  value={join.password}
+                  onChange={(e) => setJoin((j) => ({ ...j, password: e.target.value }))}
+                  style={{ ...S.joinInput, paddingRight: "40px" }} />
+                <button type="button" onClick={() => setShowPw((v) => !v)}
+                  aria-label={showPw ? "Hide password" : "Show password"}
+                  title={showPw ? "Hide password" : "Show password"}
+                  style={S.pwEye}>
+                  {showPw ? <EyeOff size={16} strokeWidth={2} /> : <Eye size={16} strokeWidth={2} />}
+                </button>
+              </span>
             </label>
 
             {joinError && (
@@ -2885,6 +2918,12 @@ const S: Record<string, React.CSSProperties> = {
   joinBox: { background: "#fff", borderRadius: "14px", padding: "22px", width: "100%", maxWidth: "430px", maxHeight: "92vh", overflowY: "auto", boxShadow: "0 24px 64px rgba(16,24,40,.28)", fontFamily: "inherit" },
   joinLabel: { display: "block", fontSize: "11.5px", fontWeight: 600, color: C.inkSoft, marginBottom: "4px", marginTop: "10px" },
   joinInput: { width: "100%", boxSizing: "border-box", padding: "9px 11px", border: `1px solid ${C.line}`, borderRadius: "9px", fontSize: "13.5px", fontFamily: "inherit", color: C.ink },
+  pwEye: {
+    position: "absolute", right: "6px", top: "50%", transform: "translateY(-50%)",
+    width: "30px", height: "30px", border: "none", background: "none",
+    color: C.inkFaint, cursor: "pointer", display: "flex",
+    alignItems: "center", justifyContent: "center", padding: 0,
+  },
   joinSwitch: { display: "block", width: "100%", marginTop: "7px", background: "none", border: "none", color: C.inkSoft, fontSize: "12.5px", fontWeight: 600, cursor: "pointer", fontFamily: "inherit", padding: "4px" },
   selBar: {
     display: "flex", alignItems: "center", gap: "2px",

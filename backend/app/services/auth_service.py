@@ -303,7 +303,10 @@ class AuthService:
         await self.db.commit()
         await self.db.refresh(user)
 
-        await self._welcome_customer(user, company, tenant_id)
+        try:
+            await self._welcome_customer(user, company, tenant_id)
+        except Exception:
+            logger.warning("Welcome for %s did not go out", user.email, exc_info=True)
         return user
 
     async def _welcome_customer(self, user: User, company: object, tenant_id: object) -> None:
@@ -314,8 +317,16 @@ class AuthService:
         """
         from app.services.email_service import EmailService
 
-        email_svc = EmailService(self.db)
-        store, contact = await self._store_identity(tenant_id)
+        # Everything below is best-effort, and that has to include working out
+        # who the shop is. The account is already committed by the time this
+        # runs, so anything that throws here loses the buyer their session and
+        # sends them back to a form that will now tell them the email is taken.
+        try:
+            email_svc = EmailService(self.db)
+            store, contact = await self._store_identity(tenant_id)
+        except Exception:
+            logger.warning("Could not work out the shop for %s's welcome", user.email, exc_info=True)
+            return
         first = (user.first_name or "").split(" ")[0] or "there"
         try:
             email_svc.send_raw(
@@ -345,7 +356,10 @@ class AuthService:
         except Exception:
             logger.warning("Could not send the welcome email to %s", user.email, exc_info=True)
 
-        owner_email = await self._resolve_owner_notification_email(tenant_id)
+        try:
+            owner_email = await self._resolve_owner_notification_email(tenant_id)
+        except Exception:
+            owner_email = None
         if owner_email:
             try:
                 email_svc.send_raw(
