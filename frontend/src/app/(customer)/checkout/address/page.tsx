@@ -48,19 +48,29 @@ interface SavedAddress {
   is_default: boolean;
 }
 
+// Square fields, shouted labels and a hard black bar — the same shape as every
+// other print shop's checkout, this one's competitors included. Softened and
+// rounded, with the headings written as sentences rather than filing-cabinet
+// labels, so the page reads as this shop's rather than as everybody's.
 const inp: React.CSSProperties = {
-  width: "100%", padding: "11px 14px", border: "1px solid var(--ui-line)",
-  fontSize: "14px", fontFamily: "'DM Sans', sans-serif",
+  width: "100%", padding: "12px 14px",
+  border: "1px solid var(--ui-line)", borderRadius: "10px",
+  fontSize: "14.5px", fontFamily: "'DM Sans', sans-serif",
   outline: "none", boxSizing: "border-box", color: "var(--ui-ink)", background: "#fff",
+  transition: "border-color .15s, box-shadow .15s",
 };
 const lbl: React.CSSProperties = {
-  display: "block", fontSize: "12px", fontWeight: 600, color: "var(--ui-ink)",
-  textTransform: "uppercase", letterSpacing: ".07em", marginBottom: "7px",
+  display: "block", fontSize: "13px", fontWeight: 600, color: "var(--ui-ink)",
+  letterSpacing: "0", marginBottom: "6px",
 };
 const sectionLabelStyle: React.CSSProperties = {
-  fontFamily: "'DM Sans', sans-serif", fontSize: "11px", letterSpacing: "0.1em",
-  textTransform: "uppercase", fontWeight: 700, color: "var(--ui-ink)",
-  marginBottom: "14px", paddingBottom: "10px", borderBottom: "1px solid var(--ui-line)",
+  fontFamily: "'DM Sans', sans-serif", fontSize: "16px", letterSpacing: "-.01em",
+  fontWeight: 700, color: "var(--ui-ink)", marginBottom: "16px",
+};
+/** The hint under a heading: what this section is for, in a sentence. */
+const sectionHintStyle: React.CSSProperties = {
+  fontSize: "13px", color: "var(--ui-muted)", lineHeight: 1.55,
+  margin: "-12px 0 16px", fontFamily: "'DM Sans', sans-serif",
 };
 
 const EXPEDITED_SURCHARGE = 45;
@@ -491,7 +501,8 @@ export default function CheckoutAddressPage() {
           <div>
             {/* ── Shipping Address ── */}
             <div style={{ marginBottom: "32px" }}>
-              <div style={{ ...sectionLabelStyle, marginTop: 0 }}>Shipping Address</div>
+              <div style={{ ...sectionLabelStyle, marginTop: 0 }}>Where are we sending it?</div>
+              <p style={sectionHintStyle}>The address your print job is delivered to.</p>
 
               {savedAddresses.length > 0 && (
                 <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginBottom: "10px" }}>
@@ -504,7 +515,7 @@ export default function CheckoutAddressPage() {
                         style={{
                           display: "flex", alignItems: "flex-start", gap: "14px",
                           padding: "14px 18px",
-                          border: `1px solid ${isSelected ? "var(--brand-primary, var(--ui-ink))" : "var(--ui-line)"}`,
+                          border: `1px solid ${isSelected ? "var(--brand-primary, var(--ui-ink))" : "var(--ui-line)"}`, borderRadius: "12px",
                           background: isSelected ? "rgba(28,53,87,.03)" : "var(--ui-paper)",
                           cursor: "pointer", transition: "all .15s",
                         }}
@@ -543,7 +554,7 @@ export default function CheckoutAddressPage() {
                     style={{
                       display: "flex", alignItems: "center", gap: "14px",
                       padding: "12px 18px",
-                      border: `1px solid ${showNewForm ? "var(--brand-primary, var(--ui-ink))" : "var(--ui-line)"}`,
+                      border: `1px solid ${showNewForm ? "var(--brand-primary, var(--ui-ink))" : "var(--ui-line)"}`, borderRadius: "12px",
                       background: showNewForm ? "rgba(28,53,87,.03)" : "var(--ui-paper)",
                       cursor: "pointer", fontSize: "13px", fontWeight: 600, color: "var(--ui-ink)",
                       transition: "all .15s",
@@ -570,7 +581,7 @@ export default function CheckoutAddressPage() {
                     style={{ ...inp, borderColor: errors.company ? "var(--ui-bad)" : "var(--ui-line)" }}
                     value={form.company}
                     onChange={e => setForm(p => ({ ...p, company: e.target.value }))}
-                    placeholder="Your Company Inc."
+                    placeholder="e.g. Bravo Print Co."
                   />
                   {errors.company && <p style={{ fontSize: "11px", color: "var(--ui-bad)", marginTop: "3px" }}>{errors.company}</p>}
                 </div>
@@ -584,7 +595,7 @@ export default function CheckoutAddressPage() {
                       style={{ ...inp, borderColor: errors.contact ? "var(--ui-bad)" : "var(--ui-line)" }}
                       value={form.contact}
                       onChange={e => setForm(p => ({ ...p, contact: e.target.value }))}
-                      placeholder={isGuest ? "Jane Smith" : "John Smith"}
+                      placeholder="Who should we address it to?"
                     />
                     {errors.contact && <p style={{ fontSize: "11px", color: "var(--ui-bad)", marginTop: "3px" }}>{errors.contact}</p>}
                   </div>
@@ -598,7 +609,7 @@ export default function CheckoutAddressPage() {
                         style={{ ...inp, borderColor: errors.email ? "var(--ui-bad)" : "var(--ui-line)" }}
                         value={form.email}
                         onChange={e => setForm(p => ({ ...p, email: e.target.value }))}
-                        placeholder="you@example.com"
+                        placeholder="Where your tracking link goes"
                       />
                       {errors.email && <p style={{ fontSize: "11px", color: "var(--ui-bad)", marginTop: "3px" }}>{errors.email}</p>}
                       <p style={{ fontSize: "11px", color: "var(--ui-muted)", marginTop: "3px" }}>Order confirmation will be sent to this email.</p>
@@ -612,7 +623,7 @@ export default function CheckoutAddressPage() {
                       style={{ ...inp, borderColor: errors.street ? "var(--ui-bad)" : "var(--ui-line)" }}
                       value={form.street}
                       onChange={e => setForm(p => ({ ...p, street: e.target.value }))}
-                      placeholder="123 Commerce Blvd, Suite 400"
+                      placeholder="Street, and a unit or suite if there is one"
                     />
                     {errors.street && <p style={{ fontSize: "11px", color: "var(--ui-bad)", marginTop: "3px" }}>{errors.street}</p>}
                   </div>
@@ -623,7 +634,7 @@ export default function CheckoutAddressPage() {
                       style={{ ...inp, borderColor: errors.city ? "var(--ui-bad)" : "var(--ui-line)" }}
                       value={form.city}
                       onChange={e => setForm(p => ({ ...p, city: e.target.value }))}
-                      placeholder="City"
+                      placeholder="Town or city"
                     />
                     {errors.city && <p style={{ fontSize: "11px", color: "var(--ui-bad)", marginTop: "3px" }}>{errors.city}</p>}
                   </div>
@@ -647,7 +658,7 @@ export default function CheckoutAddressPage() {
                       style={{ ...inp, borderColor: errors.zip ? "var(--ui-bad)" : "var(--ui-line)" }}
                       value={form.zip}
                       onChange={e => setForm(p => ({ ...p, zip: e.target.value }))}
-                      placeholder="75001"
+                      placeholder="ZIP"
                       maxLength={10}
                     />
                     {errors.zip && <p style={{ fontSize: "11px", color: "var(--ui-bad)", marginTop: "3px" }}>{errors.zip}</p>}
@@ -660,7 +671,7 @@ export default function CheckoutAddressPage() {
                       type="tel"
                       value={form.phone}
                       onChange={e => setForm(p => ({ ...p, phone: e.target.value }))}
-                      placeholder="(214) 555-0100"
+                      placeholder="In case the driver needs you"
                     />
                   </div>
                 </div>
@@ -669,7 +680,8 @@ export default function CheckoutAddressPage() {
 
             {/* ── Shipping Method ── */}
             <div style={{ marginBottom: "32px" }}>
-              <div style={sectionLabelStyle}>Shipping Method</div>
+              <div style={sectionLabelStyle}>How should it get to you?</div>
+              <p style={sectionHintStyle}>Pick one. You can change it before you pay.</p>
 
               <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
                 {SHIPPING_OPTIONS.map(opt => {
@@ -684,13 +696,14 @@ export default function CheckoutAddressPage() {
                       style={{
                         display: "flex", alignItems: "flex-start", gap: "14px",
                         padding: "16px 18px",
-                        border: `1px solid ${isSelected ? "var(--brand-primary, var(--ui-ink))" : "var(--ui-line)"}`,
-                        background: isSelected ? "rgba(28,53,87,.03)" : "var(--ui-paper)",
-                        cursor: "pointer", transition: "border-color .15s, background .15s",
+                        border: `1px solid ${isSelected ? "var(--brand-primary, var(--ui-ink))" : "var(--ui-line)"}`, borderRadius: "12px",
+                        background: isSelected ? "rgba(28,53,87,.045)" : "#fff",
+                        boxShadow: isSelected ? "0 0 0 1px var(--brand-primary, var(--ui-ink))" : "none",
+                        cursor: "pointer", transition: "border-color .15s, background .15s, box-shadow .15s",
                       }}
                     >
                       <div style={{
-                        width: "18px", height: "18px", borderRadius: "50%", flexShrink: 0, marginTop: "1px",
+                        width: "19px", height: "19px", borderRadius: "50%", flexShrink: 0, marginTop: "1px",
                         border: `2px solid ${isSelected ? "var(--brand-primary, var(--ui-ink))" : "var(--ui-line)"}`,
                         background: isSelected ? "var(--brand-primary, var(--ui-ink))" : "#fff",
                         display: "flex", alignItems: "center", justifyContent: "center",
@@ -737,7 +750,7 @@ export default function CheckoutAddressPage() {
                                       style={{
                                         display: "flex", alignItems: "center", justifyContent: "space-between",
                                         padding: "10px 14px", cursor: "pointer",
-                                        border: `1px solid ${isRateSelected ? "var(--brand-primary, var(--ui-ink))" : "var(--ui-line)"}`,
+                                        border: `1px solid ${isRateSelected ? "var(--brand-primary, var(--ui-ink))" : "var(--ui-line)"}`, borderRadius: "12px",
                                         background: isRateSelected ? "rgba(28,53,87,.03)" : "#fff",
                                       }}
                                     >
@@ -792,26 +805,33 @@ export default function CheckoutAddressPage() {
 
             {/* Continue button */}
             {shippingGateError && (
-              <div style={{ background: "#fef3c7", border: "1px solid #fcd34d", borderRadius: "4px", padding: "8px 12px", marginBottom: "10px", fontSize: "13px", color: "#92400e", fontFamily: "'DM Sans', sans-serif" }}>
+              <div style={{ background: "#fef3c7", border: "1px solid #fcd34d", borderRadius: "10px", padding: "8px 12px", marginBottom: "10px", fontSize: "13px", color: "#92400e", fontFamily: "'DM Sans', sans-serif" }}>
                 Please select a shipping carrier and rate before continuing.
               </div>
             )}
             <button
               onClick={handleContinue}
               disabled={shippingTypeForUser === "live_shippo" && shippingMethod === "standard" && liveRatesLoading}
-              style={{ width: "100%", padding: "14px", background: "var(--brand-primary, var(--ui-ink))", color: "#fff", border: "none", fontFamily: "'DM Sans', sans-serif", fontSize: "15px", fontWeight: 500, cursor: (shippingTypeForUser === "live_shippo" && shippingMethod === "standard" && liveRatesLoading) ? "not-allowed" : "pointer", transition: "opacity .15s", opacity: (shippingTypeForUser === "live_shippo" && shippingMethod === "standard" && liveRatesLoading) ? 0.6 : 1 }}
+              style={{ width: "100%", padding: "15px", borderRadius: "12px", background: "var(--brand-primary, var(--ui-ink))", color: "#fff", border: "none", fontFamily: "'DM Sans', sans-serif", fontSize: "15px", fontWeight: 600, cursor: (shippingTypeForUser === "live_shippo" && shippingMethod === "standard" && liveRatesLoading) ? "not-allowed" : "pointer", transition: "opacity .15s", opacity: (shippingTypeForUser === "live_shippo" && shippingMethod === "standard" && liveRatesLoading) ? 0.6 : 1 }}
               onMouseEnter={e => { if (!(shippingTypeForUser === "live_shippo" && shippingMethod === "standard" && liveRatesLoading)) (e.currentTarget as HTMLButtonElement).style.opacity = "0.88"; }}
               onMouseLeave={e => { if (!(shippingTypeForUser === "live_shippo" && shippingMethod === "standard" && liveRatesLoading)) (e.currentTarget as HTMLButtonElement).style.opacity = "1"; }}
             >
-              {shippingTypeForUser === "live_shippo" && shippingMethod === "standard" && liveRatesLoading ? "Fetching rates…" : "Continue to Payment →"}
+              {shippingTypeForUser === "live_shippo" && shippingMethod === "standard" && liveRatesLoading ? "Fetching rates…" : "Review my order →"}
             </button>
             <a
               href="/cart"
-              style={{ display: "inline-block", fontSize: "13px", color: "var(--ui-muted)", textDecoration: "none", marginTop: "14px", fontFamily: "'DM Sans', sans-serif" }}
-              onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.color = "var(--brand-primary, var(--ui-ink))"; }}
-              onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.color = "var(--ui-muted)"; }}
+              style={{
+                display: "block", textAlign: "center", width: "100%", boxSizing: "border-box",
+                marginTop: "10px", padding: "13px", borderRadius: "12px",
+                border: "1px solid var(--ui-line)", background: "#fff",
+                fontSize: "14px", fontWeight: 600, color: "var(--ui-ink)",
+                textDecoration: "none", fontFamily: "'DM Sans', sans-serif",
+                transition: "background .15s",
+              }}
+              onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.background = "var(--ui-bg, #F7F8FA)"; }}
+              onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.background = "#fff"; }}
             >
-              ← Return to Cart
+              Back to my cart
             </a>
           </div>
 
