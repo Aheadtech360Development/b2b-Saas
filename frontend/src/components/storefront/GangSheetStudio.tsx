@@ -682,10 +682,14 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
   }
 
   // Ready-made designs (store library) + the buyer's own past uploads (gallery).
+  // The gallery is only asked for once there is somebody to ask about: it is
+  // an account's own past artwork, so calling it signed out was a guaranteed
+  // 401 on every open, filling the console with a failure that was not one.
   useEffect(() => {
     gangSheetsService.listLibrary().then(setLibrary).catch(() => {});
-    gangSheetsService.myArtworks().then(setGallery).catch(() => {});
-  }, []);
+    if (signedIn) gangSheetsService.myArtworks().then(setGallery).catch(() => {});
+    else setGallery([]);
+  }, [signedIn]);
 
   // Reopen an existing editable order — rebuild uploads + placements from it so
   // the buyer can continue where they left off.
@@ -1780,7 +1784,7 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
   // element it happens to be nested in. Rendered on the client only, since
   // there is no document to portal into on the server.
   const tree = (
-    <div style={viewportH ? { ...S.root, height: `${viewportH}px` } : S.root}>
+    <div data-gs-root style={viewportH ? { ...S.root, height: `${viewportH}px` } : S.root}>
       {/* ── Top bar ─────────────────────────────────────────────────────────── */}
       <div style={S.topbar}>
         <div style={{ display: "flex", alignItems: "center", gap: "11px" }}>
