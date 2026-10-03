@@ -18,6 +18,9 @@ PUBLIC_PATHS = {
     # ── Legacy single-tenant auth ──────────────────────────────────────────
     "/api/v1/login",
     "/api/v1/register-wholesale",
+    # Opening an account is how somebody gets a token; asking them for one
+    # first is a door that can only be opened from inside.
+    "/api/v1/register-customer",
     "/api/v1/forgot-password",
     "/api/v1/reset-password",
     "/api/v1/refresh",
