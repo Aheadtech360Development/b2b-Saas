@@ -1694,6 +1694,7 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
     setJoining(true);
     setJoinError(null);
     const joining_ = mode === "join";
+    say.note(joining_ ? "Creating your account…" : "Signing you in…");
     try {
       const tokens = joining_
         ? await authService.registerCustomer({
@@ -1736,9 +1737,11 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
 
       const message = err?.status === 429
         ? "Too many tries just now. Wait a minute and try again."
-        : err?.message || (joining_
-            ? "Could not open your account. Please check the details and try again."
-            : "Could not sign you in. Check your email and password.");
+        : err?.status === 401
+          ? "That password does not match this email. Try again, or use Create an account."
+          : err?.message || (joining_
+              ? "Could not open your account. Please check the details and try again."
+              : "Could not sign you in. Check your email and password.");
       setJoinError(message);
       say.problem(message);
     } finally {
@@ -2009,8 +2012,10 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
 
             <button type="submit" disabled={joining} style={{ ...S.primaryBtn, width: "100%", justifyContent: "center", padding: "11px", marginTop: "14px", opacity: joining ? 0.65 : 1 }}>
               {joining
-                ? "Just a moment…"
-                : askingWho.toCart ? "Create account & add to cart" : "Create account & save"}
+                ? (mode === "join" ? "Creating your account…" : "Signing you in…")
+                : mode === "signin"
+                  ? (askingWho.toCart ? "Sign in & add to cart" : "Sign in & save")
+                  : (askingWho.toCart ? "Create account & add to cart" : "Create account & save")}
             </button>
 
             {/* Somebody who already has an account should not have to leave
