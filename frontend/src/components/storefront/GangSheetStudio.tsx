@@ -15,7 +15,6 @@
  * artwork rows (one artwork per unique upload) and persists the layout.
  */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { createPortal } from "react-dom";
 import {
   ClipboardPaste, Copy, CopyPlus, Crop, Droplet, Eye, Grid3x3, Hand,
   Layers, Lightbulb, Maximize, Minus, Plus, Redo2, RotateCcw, RotateCw, Save,
@@ -281,8 +280,6 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
   // The document only exists in the browser, so the first render stays in
   // place and the portal takes over once mounted.
   const rootRef = useRef<HTMLDivElement>(null);
-  const [portalReady, setPortalReady] = useState(false);
-  useEffect(() => setPortalReady(true), []);
 
   /**
    * The window's height, measured, not described.
@@ -348,7 +345,7 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
       html.style.overflow = wasHtml;
       body.style.overflow = wasBody;
     };
-  }, [portalReady]);
+  }, []);
   const [grewTo, setGrewTo] = useState<number | null>(null);
   const [sheetFull, setSheetFull] = useState(false);
   // The growth note takes itself away; it is news, not a state of affairs.
@@ -1817,12 +1814,12 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
     [warnings],
   );
 
-  // Put up against the document, not inside the shop's page. A brand's theme
-  // brings its own stylesheet, and the builder is a full-screen application —
-  // it should not be at the mercy of whatever that stylesheet does to the
-  // element it happens to be nested in. Rendered on the client only, since
-  // there is no document to portal into on the server.
-  const tree = (
+  // No portal. It was here to escape a shop page drawn around the builder, and
+  // that page is gone — /gang-sheets renders nothing but this. Worse, moving
+  // the tree into a portal after mount rebuilds its DOM nodes, which left the
+  // wheel listener attached to a node that had been thrown away: that is why
+  // pinch-to-zoom on the trackpad stopped working at all.
+  return (
     <div ref={rootRef} data-gs-root style={viewportH ? { ...S.root, height: `${viewportH}px` } : S.root}>
       {/* ── Top bar ─────────────────────────────────────────────────────────── */}
       <div style={S.topbar}>
@@ -2400,7 +2397,6 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
                 style={{ width: "58px", padding: "8px 9px", border: `1px solid ${C.line}`, borderRadius: "9px", fontSize: "12.5px", fontFamily: "inherit", color: C.ink }} /> in
             </label>
             <button onClick={() => autoNest()} style={S.nestBtn}><Zap size={14} strokeWidth={2.4} /> Auto Nest</button>
-            <button onClick={() => autoNest(0.5)} style={S.nestBtn} title="Nest with extra spacing so each design can be cut out"><Scissors size={14} strokeWidth={2.4} /> Auto Nest for Cutting</button>
             <div style={S.toolDivider} />
             <button onClick={undo} disabled={!canUndo} style={{ ...S.iconBtn, opacity: canUndo ? 1 : 0.4, cursor: canUndo ? "pointer" : "default" }} title="Undo (Ctrl+Z)"><Undo2 {...TOOL_ICON} /></button>
             <button onClick={redo} disabled={!canRedo} style={{ ...S.iconBtn, opacity: canRedo ? 1 : 0.4, cursor: canRedo ? "pointer" : "default" }} title="Redo (Ctrl+Shift+Z)"><Redo2 {...TOOL_ICON} /></button>
@@ -2585,10 +2581,10 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
             </div>
           </div>
 
-          {/* What the colours and lines mean, always on screen. It used to sit
-              in a View menu, where nobody found it — and a red outline nobody
-              can decode is just decoration. It lives under the canvas, not on
-              it, so it never covers the artwork being placed. */}
+          {/* What the colours and lines mean, always on screen — a red outline
+              nobody can decode is just decoration. It floats in the corner of
+              the workspace over the margin around the sheet, rather than
+              taking a band of height the canvas needs more than it does. */}
           <div style={S.viewStrip}>
             <label style={S.canvasCheck}>
               <input type="checkbox" checked={showRes} onChange={(e) => setShowRes(e.target.checked)} /> Resolution colours
@@ -2745,8 +2741,6 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
       <ToastContainer />
     </div>
   );
-
-  return portalReady ? createPortal(tree, document.body) : tree;
 }
 
 // ── The builder's look ────────────────────────────────────────────────────────
@@ -2775,7 +2769,7 @@ const S: Record<string, React.CSSProperties> = {
   // the window with the shop showing underneath. `dvh` also keeps it right on
   // a phone, where the browser's own bars come and go.
   root: { position: "fixed", inset: 0, width: "100vw", height: "100dvh", zIndex: 200, background: C.page, color: C.ink, display: "flex", flexDirection: "column", overflow: "hidden", fontFamily: "'Inter', 'DM Sans', system-ui, sans-serif" },
-  topbar: { height: "62px", flexShrink: 0, minWidth: 0, overflowX: "auto", background: C.card, borderBottom: `1px solid ${C.line}`, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 18px", gap: "16px" },
+  topbar: { height: "54px", flexShrink: 0, minWidth: 0, overflowX: "auto", background: C.card, borderBottom: `1px solid ${C.line}`, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 18px", gap: "16px" },
   logoMark: { width: "32px", height: "32px", borderRadius: "9px", background: C.go, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 },
   logo: { fontSize: "18px", fontWeight: 800, letterSpacing: "-.02em", lineHeight: 1.1, color: C.ink },
   logoSub: { fontSize: "9.5px", fontWeight: 700, letterSpacing: ".13em", color: C.inkFaint, textTransform: "uppercase", marginTop: "2px" },
@@ -2825,7 +2819,7 @@ const S: Record<string, React.CSSProperties> = {
   // One row, always. Wrapping cost a second 54px band of a window that may
   // only be 600 tall, and it took it from the canvas — the one part of this
   // screen somebody is actually looking at.
-  toolbar: { height: "54px", flexShrink: 0, background: C.card, borderBottom: `1px solid ${C.line}`, display: "flex", alignItems: "center", gap: "9px", padding: "0 14px", flexWrap: "nowrap", overflowX: "auto", overflowY: "hidden" },
+  toolbar: { height: "46px", flexShrink: 0, background: C.card, borderBottom: `1px solid ${C.line}`, display: "flex", alignItems: "center", gap: "9px", padding: "0 14px", flexWrap: "nowrap", overflowX: "auto", overflowY: "hidden" },
   sizeSelect: { padding: "8px 11px", border: `1px solid ${C.line}`, borderRadius: "9px", fontSize: "13px", fontWeight: 600, minWidth: "160px", background: C.card, color: C.ink, cursor: "pointer", fontFamily: "inherit" },
   toolDivider: { width: "1px", height: "22px", background: C.line },
   nestBtn: { background: C.go, color: "#fff", border: "none", padding: "9px 15px", borderRadius: "9px", fontSize: "12.5px", fontWeight: 700, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "7px", fontFamily: "inherit", whiteSpace: "nowrap" },
@@ -2836,7 +2830,18 @@ const S: Record<string, React.CSSProperties> = {
   sheetFrame: { position: "relative", display: "flex", minWidth: "100%", minHeight: "100%", width: "max-content", boxSizing: "border-box", padding: `${RULER_PAD}px` },
   // A darker table than the sheet, so the sheet stands off it.
   rulerGrid: { flex: "1 1 0", minHeight: 0, minWidth: 0, display: "grid", gridTemplateColumns: "26px 1fr", gridTemplateRows: "22px 1fr", background: "#E6E3DE", overflow: "hidden" },
-  viewStrip: { display: "flex", alignItems: "center", gap: "12px", flexWrap: "nowrap", overflowX: "auto", flexShrink: 0, padding: "6px 14px", borderTop: `1px solid ${C.line}`, background: C.card, fontSize: "11px", color: C.inkSoft, whiteSpace: "nowrap" },
+  // Over the canvas, not under it. As a band of its own it cost 36px of a
+  // window that may only be 600 tall, and the canvas is the whole point of
+  // this screen — the key can sit on top of the empty margin around the sheet.
+  viewStrip: {
+    position: "absolute", left: "12px", bottom: "12px", zIndex: 8,
+    display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap",
+    maxWidth: "calc(100% - 24px)",
+    padding: "6px 11px", borderRadius: "9px",
+    border: `1px solid ${C.line}`, background: "rgba(255,255,255,.94)",
+    boxShadow: "0 2px 10px rgba(16,24,40,.10)",
+    fontSize: "10.5px", color: C.inkSoft, whiteSpace: "nowrap",
+  },
   stripDivider: { width: "1px", height: "16px", background: "#E0DCD5" },
   legendItem: { display: "inline-flex", alignItems: "center", gap: "5px", fontSize: "12px", color: "#444", whiteSpace: "nowrap" },
   legendSwatch: { width: "10px", height: "10px", borderRadius: "2px", display: "inline-block" },
