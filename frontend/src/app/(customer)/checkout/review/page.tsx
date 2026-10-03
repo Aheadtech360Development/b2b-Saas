@@ -414,6 +414,105 @@ export default function CheckoutReviewPage() {
 
           {/* LEFT COLUMN */}
           <div>
+            {/* ── Pay ──
+                First, not last. This is the one thing somebody came to
+                this page to do; the order summary beside it says what they
+                are paying for. It used to sit under the address, the items
+                and the notes — three cards of scrolling to reach the card
+                field on the last screen of a checkout. */}
+            {paymentMethod === "card" ? (
+              // Stripe card entry + payment. On success the confirmed PaymentIntent
+              // id is handed to order creation. Money settles on the brand's account.
+              <div className="ui-card" style={{ marginBottom: "20px" }}>
+                <div style={sectionLabelStyle}>Card details</div>
+                {isPlacing ? (
+                  <div style={{ padding: "16px", color: "var(--ui-muted)", fontSize: "13px" }}>Placing your order…</div>
+                ) : paidIntentId ? (
+                  /* Charged, but the order didn't come back. Never show the pay
+                     form again — the buyer would be charged a second time. */
+                  <div style={{ padding: "16px 18px", background: "#FFF7ED", border: "1px solid #FDBA74", borderRadius: "8px" }}>
+                    <div style={{ fontSize: "13px", fontWeight: 700, color: "#9A3412", marginBottom: "6px" }}>
+                      Your payment went through — don&apos;t pay again
+                    </div>
+                    <div style={{ fontSize: "13px", color: "#7C2D12", lineHeight: 1.6 }}>
+                      We couldn&apos;t finish creating your order just now. Your card was charged once and that
+                      payment is safe. Press the button below to finish — it will pick up the same payment.
+                    </div>
+                    <button
+                      onClick={() => handlePlaceOrder(paidIntentId)}
+                      style={{ marginTop: "12px", background: "var(--ui-ink)", color: "#fff", border: "none", borderRadius: "6px", padding: "11px 22px", fontSize: "13px", fontWeight: 700, cursor: "pointer" }}
+                    >
+                      Finish my order
+                    </button>
+                  </div>
+                ) : (
+                  <StripePaymentForm
+                    // A guest's cart is in their browser, so the amount is
+                    // raised from the same items the order will be made from.
+                    // The signed-in path prices the company's cart instead and
+                    // refuses anyone without a company account — which is what
+                    // answered a guest with "Authentication required".
+                    intentUrl={isGuest ? "/api/v1/guest/payment-intent" : "/api/v1/checkout/intent"}
+                    intentPayload={{
+                      shipping_method: shippingMethod || "standard",
+                      shipping_cost: shippingCost > 0 ? shippingCost : undefined,
+                      discount_code: appliedCoupon?.code || undefined,
+                      payment_method: "card",
+                      // Ship-to → the backend computes tax itself (authoritative).
+                      to_state: shippingAddress?.state || undefined,
+                      to_zip: shippingAddress?.postal_code || undefined,
+                      ...(isGuest
+                        ? {
+                            items: guestEntries.map(guestCheckoutItem),
+                            tax_amount: taxAmount > 0 ? taxAmount : undefined,
+                          }
+                        : {}),
+                    }}
+                    onPaid={(pi) => handlePlaceOrder(pi)}
+                    buttonLabel={`Pay ${formatCurrency(total)} & Place Order`}
+                  />
+                )}
+                <a
+                  href="/checkout/address"
+                  style={{ display: "inline-block", marginTop: "14px", fontSize: "13px", color: "var(--ui-muted)", textDecoration: "none", fontFamily: "'DM Sans', sans-serif" }}
+                >
+                  ← Back to shipping
+                </a>
+              </div>
+            ) : (
+              <div style={{ display: "flex", gap: "16px", alignItems: "center" }}>
+                <a
+                  href="/checkout/address"
+                  style={{ display: "inline-block", fontSize: "13px", color: "var(--ui-muted)", textDecoration: "none", fontFamily: "'DM Sans', sans-serif" }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.color = "var(--brand-primary, var(--ui-ink))"; }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.color = "var(--ui-muted)"; }}
+                >
+                  ← Back to shipping
+                </a>
+                <button
+                  type="button"
+                  onClick={() => handlePlaceOrder()}
+                  disabled={isPlacing}
+                  style={{
+                    flex: 1, padding: "14px",
+                    background: isPlacing ? "var(--ui-line)" : "var(--brand-primary, var(--ui-ink))",
+                    color: isPlacing ? "#aaa" : "#fff",
+                    border: "none",
+                    fontFamily: "'DM Sans', sans-serif", fontSize: "15px", fontWeight: 500,
+                    cursor: isPlacing ? "not-allowed" : "pointer", transition: "opacity .15s",
+                  }}
+                  onMouseEnter={e => { if (!isPlacing) (e.currentTarget as HTMLButtonElement).style.opacity = "0.88"; }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.opacity = "1"; }}
+                >
+                  {isPlacing ? "Placing Order…" : "Place Order"}
+                </button>
+              </div>
+            )}
+
+            <p style={{ textAlign: "center", fontSize: "12px", color: "var(--ui-muted)", marginTop: "12px", fontFamily: "'DM Sans', sans-serif" }}>
+              By placing your order you agree to our Terms of Service and wholesale pricing agreement.
+            </p>
+
             {/* ── Shipping Address ── */}
             <div className="ui-card" style={{ marginBottom: "20px" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", ...sectionLabelStyle }}>
@@ -580,99 +679,6 @@ export default function CheckoutReviewPage() {
               </div>
             )}
 
-            {/* ── Place Order ── */}
-            {paymentMethod === "card" ? (
-              // Stripe card entry + payment. On success the confirmed PaymentIntent
-              // id is handed to order creation. Money settles on the brand's account.
-              <div className="ui-card">
-                <div style={sectionLabelStyle}>Card details</div>
-                {isPlacing ? (
-                  <div style={{ padding: "16px", color: "var(--ui-muted)", fontSize: "13px" }}>Placing your order…</div>
-                ) : paidIntentId ? (
-                  /* Charged, but the order didn't come back. Never show the pay
-                     form again — the buyer would be charged a second time. */
-                  <div style={{ padding: "16px 18px", background: "#FFF7ED", border: "1px solid #FDBA74", borderRadius: "8px" }}>
-                    <div style={{ fontSize: "13px", fontWeight: 700, color: "#9A3412", marginBottom: "6px" }}>
-                      Your payment went through — don&apos;t pay again
-                    </div>
-                    <div style={{ fontSize: "13px", color: "#7C2D12", lineHeight: 1.6 }}>
-                      We couldn&apos;t finish creating your order just now. Your card was charged once and that
-                      payment is safe. Press the button below to finish — it will pick up the same payment.
-                    </div>
-                    <button
-                      onClick={() => handlePlaceOrder(paidIntentId)}
-                      style={{ marginTop: "12px", background: "var(--ui-ink)", color: "#fff", border: "none", borderRadius: "6px", padding: "11px 22px", fontSize: "13px", fontWeight: 700, cursor: "pointer" }}
-                    >
-                      Finish my order
-                    </button>
-                  </div>
-                ) : (
-                  <StripePaymentForm
-                    // A guest's cart is in their browser, so the amount is
-                    // raised from the same items the order will be made from.
-                    // The signed-in path prices the company's cart instead and
-                    // refuses anyone without a company account — which is what
-                    // answered a guest with "Authentication required".
-                    intentUrl={isGuest ? "/api/v1/guest/payment-intent" : "/api/v1/checkout/intent"}
-                    intentPayload={{
-                      shipping_method: shippingMethod || "standard",
-                      shipping_cost: shippingCost > 0 ? shippingCost : undefined,
-                      discount_code: appliedCoupon?.code || undefined,
-                      payment_method: "card",
-                      // Ship-to → the backend computes tax itself (authoritative).
-                      to_state: shippingAddress?.state || undefined,
-                      to_zip: shippingAddress?.postal_code || undefined,
-                      ...(isGuest
-                        ? {
-                            items: guestEntries.map(guestCheckoutItem),
-                            tax_amount: taxAmount > 0 ? taxAmount : undefined,
-                          }
-                        : {}),
-                    }}
-                    onPaid={(pi) => handlePlaceOrder(pi)}
-                    buttonLabel={`Pay ${formatCurrency(total)} & Place Order`}
-                  />
-                )}
-                <a
-                  href="/checkout/address"
-                  style={{ display: "inline-block", marginTop: "14px", fontSize: "13px", color: "var(--ui-muted)", textDecoration: "none", fontFamily: "'DM Sans', sans-serif" }}
-                >
-                  ← Back to Payment
-                </a>
-              </div>
-            ) : (
-              <div style={{ display: "flex", gap: "16px", alignItems: "center" }}>
-                <a
-                  href="/checkout/address"
-                  style={{ display: "inline-block", fontSize: "13px", color: "var(--ui-muted)", textDecoration: "none", fontFamily: "'DM Sans', sans-serif" }}
-                  onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.color = "var(--brand-primary, var(--ui-ink))"; }}
-                  onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.color = "var(--ui-muted)"; }}
-                >
-                  ← Back to Payment
-                </a>
-                <button
-                  type="button"
-                  onClick={() => handlePlaceOrder()}
-                  disabled={isPlacing}
-                  style={{
-                    flex: 1, padding: "14px",
-                    background: isPlacing ? "var(--ui-line)" : "var(--brand-primary, var(--ui-ink))",
-                    color: isPlacing ? "#aaa" : "#fff",
-                    border: "none",
-                    fontFamily: "'DM Sans', sans-serif", fontSize: "15px", fontWeight: 500,
-                    cursor: isPlacing ? "not-allowed" : "pointer", transition: "opacity .15s",
-                  }}
-                  onMouseEnter={e => { if (!isPlacing) (e.currentTarget as HTMLButtonElement).style.opacity = "0.88"; }}
-                  onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.opacity = "1"; }}
-                >
-                  {isPlacing ? "Placing Order…" : "Place Order"}
-                </button>
-              </div>
-            )}
-
-            <p style={{ textAlign: "center", fontSize: "12px", color: "var(--ui-muted)", marginTop: "12px", fontFamily: "'DM Sans', sans-serif" }}>
-              By placing your order you agree to our Terms of Service and wholesale pricing agreement.
-            </p>
           </div>
 
           {/* RIGHT COLUMN — Order Summary */}

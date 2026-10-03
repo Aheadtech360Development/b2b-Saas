@@ -68,10 +68,22 @@ async def create_payment_intent(
         raise ValidationError("No store context on this request")
 
     from app.services.connect_service import ConnectService
+
+    def _blame_early(step: str) -> HTTPException:
+        logger.exception("Payment intent failed while %s", step)
+        return HTTPException(
+            status_code=500,
+            detail={"code": "INTENT_FAILED", "step": step,
+                    "message": f"Could not start payment ({step}). Please try again, "
+                               f"or tell the store if it keeps happening."},
+        )
+
     try:
         connect = await ConnectService(db).get_status(str(tenant_id))
     except ValueError:
         raise ValidationError("Store not found")
+    except Exception as exc:
+        raise _blame_early("checking the store's payment setup") from exc
     if not connect.get("charges_enabled"):
         raise HTTPException(
             status_code=409,
@@ -135,7 +147,11 @@ async def create_payment_intent(
     # tax_amount). Tax applies to the discounted subtotal; shipping is not taxed.
     taxable_base = cart.subtotal - coupon_discount_amount
     tax_amount_dc = Decimal("0")
-    if payload.to_state and taxable_base > 0 and not await _tax_exempt(db, company_id):
+    try:
+        exempt = await _tax_exempt(db, company_id)
+    except Exception as exc:
+        raise _blame("checking tax exemption", exc) from exc
+    if payload.to_state and taxable_base > 0 and not exempt:
         # Brand-aware: honours this brand's tax mode (auto ZipTax / its own manual
         # rates / no tax) — the same helper the quote endpoint uses.
         from app.services.tax_service import resolve_tax as _resolve_tax
@@ -176,6 +192,11 @@ async def create_payment_intent(
     except Exception as exc:
         raise _blame("reaching the payment provider", exc) from exc
 
+    try:
+        publishable = await stripe_mode.publishable_key(db)
+    except Exception as exc:
+        raise _blame("reading the payment key", exc) from exc
+
     return {
         "client_secret": intent.client_secret,
         "payment_intent_id": intent.id,
@@ -183,7 +204,7 @@ async def create_payment_intent(
         # The key the browser confirms with has to come from the same world
         # as the intent just created, or Stripe.js refuses it. Read from
         # the mode rather than the environment for exactly that reason.
-        "publishable_key": await stripe_mode.publishable_key(db),
+        "publishable_key": publishable,
         "amount": total,
     }
 
