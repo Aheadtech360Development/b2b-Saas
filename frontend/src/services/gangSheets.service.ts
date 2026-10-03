@@ -105,7 +105,7 @@ export interface GangSheetOrder {
   order_id?: string | null;
   paid?: boolean;
   /** Built on a sheet in the studio, or one design printed at an exact size. */
-  kind?: "gang_sheet" | "upload_by_size";
+  kind?: "gang_sheet" | "upload_by_size" | "upload_own";
   /** Where an upload-by-size job is revised — the product it was ordered from. */
   product_slug?: string | null;
   // Batch 3
@@ -203,7 +203,7 @@ export interface GangSheetProduct {
   name: string;
   slug: string;
   gang_sheet_enabled: boolean;
-  gang_sheet_type: "gang_sheet" | "upload_by_size" | null;
+  gang_sheet_type: "gang_sheet" | "upload_by_size" | "upload_own" | null;
   gang_sheet_config: GangSheetConfig | null;
   size_count: number;
 }

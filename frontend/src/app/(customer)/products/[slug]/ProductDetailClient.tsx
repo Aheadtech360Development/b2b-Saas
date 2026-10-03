@@ -12,6 +12,7 @@ import { apiClient } from "@/lib/api-client";
 import { cartService } from "@/services/cart.service";
 import { productsService } from "@/services/products.service";
 import { UploadBySizeModal } from "@/components/storefront/UploadBySizeModal";
+import { UploadOwnSheetModal } from "@/components/storefront/UploadOwnSheetModal";
 import { gangSheetsService, type GangSheetOrder, type GangSheetSize } from "@/services/gangSheets.service";
 import { ProductConfigurator } from "@/components/storefront/ProductConfigurator";
 import { trackAddToCart, trackViewItem, type TrackedItem } from "@/lib/tracking";
@@ -436,6 +437,7 @@ export function ProductDetailClient({ slug }: ProductDetailClientProps) {
   const [showImageLibrary, setShowImageLibrary] = useState(false);
   const [expandedLibraryColor, setExpandedLibraryColor] = useState<string | null>(null);
   const [showUploadBySize, setShowUploadBySize] = useState(false); // Upload-by-size modal (declared with the other hooks, before any early return)
+  const [showOwnSheet, setShowOwnSheet] = useState(false);          // The buyer's own finished sheet
   // A revision link (?revise=<job id>) reopens that job in the modal instead of
   // starting a new one — the only place an upload-by-size job can be edited.
   const [reviseJob, setReviseJob] = useState<GangSheetOrder | null>(null);
@@ -519,7 +521,9 @@ export function ProductDetailClient({ slug }: ProductDetailClientProps) {
 
   // Load this gang-sheet product's own sizes for the storefront size grid.
   useEffect(() => {
-    if (!product?.gang_sheet_enabled || product?.gang_sheet_type === "upload_by_size") { setGsSizes([]); return; }
+    if (!product?.gang_sheet_enabled
+        || product?.gang_sheet_type === "upload_by_size"
+        || product?.gang_sheet_type === "upload_own") { setGsSizes([]); return; }
     gangSheetsService.listSizes(product.id)
       .then((rows) => { setGsSizes(rows); setGsSelectedId((c) => c || rows[0]?.id || ""); })
       .catch(() => setGsSizes([]));
@@ -594,6 +598,9 @@ export function ProductDetailClient({ slug }: ProductDetailClientProps) {
   // "Upload by size" products get the simple single-design flow; everything else
   // (or an unset type) opens the full gang-sheet builder.
   const isUploadBySize = product.gang_sheet_enabled && product.gang_sheet_type === "upload_by_size";
+  // The buyer's own finished sheet: nothing to arrange, so it opens a panel
+  // here rather than the builder, and the button says exactly that.
+  const isOwnSheet = product.gang_sheet_enabled && product.gang_sheet_type === "upload_own";
   // Configurable products buy through their own option set, not the variant matrix.
   const isConfigurable = product.pricing_mode === "configurable";
 
@@ -1082,7 +1089,14 @@ export function ProductDetailClient({ slug }: ProductDetailClientProps) {
 
             {/* Gang sheet — "Upload by size" is the simple single-design flow;
                 any other enabled product opens the full builder. */}
-            {isUploadBySize ? (
+            {isOwnSheet ? (
+              <button
+                onClick={() => setShowOwnSheet(true)}
+                style={{ display: "block", width: "100%", boxSizing: "border-box", textAlign: "center", padding: "15px", marginTop: "12px", borderRadius: "12px", background: "#16A34A", color: "#fff", border: "none", cursor: "pointer", fontFamily: "'DM Sans', sans-serif", fontSize: "15px", fontWeight: 700 }}
+              >
+                Upload your own gang sheet
+              </button>
+            ) : isUploadBySize ? (
               <button
                 onClick={() => setShowUploadBySize(true)}
                 style={{ display: "block", width: "100%", boxSizing: "border-box", textAlign: "center", padding: "15px", marginTop: "12px", background: "#DC2626", color: "#fff", border: "none", cursor: "pointer", fontFamily: "'DM Sans', sans-serif", fontSize: "15px", fontWeight: 800, letterSpacing: ".02em" }}
@@ -1243,6 +1257,13 @@ export function ProductDetailClient({ slug }: ProductDetailClientProps) {
             ))}
           </div>
         </div>
+
+        {showOwnSheet && (
+          <UploadOwnSheetModal
+            product={{ id: product.id, name: product.name }}
+            onClose={() => setShowOwnSheet(false)}
+          />
+        )}
 
         {showUploadBySize && (
           <UploadBySizeModal

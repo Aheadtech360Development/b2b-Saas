@@ -1379,9 +1379,18 @@ async def admin_dashboard(
     }
 
 
+# The three ways a brand can sell a gang sheet.
+#   gang_sheet     — the buyer arranges designs on a sheet in the builder
+#   upload_by_size — one design, printed at an exact size, priced by area
+#   upload_own     — the buyer's own finished sheet, printed at a length they pick
+# The empty string clears it, which is how the builder is switched off.
+GANG_SHEET_TYPES = {"gang_sheet", "upload_by_size", "upload_own", ""}
+
+
 class GSProductUpdate(BaseModel):
     gang_sheet_enabled: Optional[bool] = None
-    gang_sheet_type: Optional[str] = None  # 'gang_sheet' | 'upload_by_size' | '' (clear)
+    # 'gang_sheet' | 'upload_by_size' | 'upload_own' | '' (clear)
+    gang_sheet_type: Optional[str] = None
     gang_sheet_config: Optional[dict] = None  # type-specific (upload_by_size tiers etc.)
 
 
@@ -1436,8 +1445,14 @@ async def admin_update_gs_product(
     if payload.gang_sheet_enabled is not None:
         p.gang_sheet_enabled = payload.gang_sheet_enabled
     if payload.gang_sheet_type is not None:
-        if payload.gang_sheet_type not in ("gang_sheet", "upload_by_size", ""):
-            raise HTTPException(status_code=400, detail="gang_sheet_type must be 'gang_sheet' or 'upload_by_size'")
+        # 'upload_own' is the third: the buyer brings a sheet that is already
+        # laid out, picks how long it runs, and nothing is arranged here.
+        if payload.gang_sheet_type not in GANG_SHEET_TYPES:
+            raise HTTPException(
+                status_code=400,
+                detail="gang_sheet_type must be one of: "
+                       + ", ".join(repr(t) for t in sorted(GANG_SHEET_TYPES) if t),
+            )
         p.gang_sheet_type = payload.gang_sheet_type or None
     if payload.gang_sheet_config is not None:
         p.gang_sheet_config = payload.gang_sheet_config or None

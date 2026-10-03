@@ -17,6 +17,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiClient, ApiClientError } from "@/lib/api-client";
 import { UploadBySizeModal } from "@/components/storefront/UploadBySizeModal";
+import { UploadOwnSheetModal } from "@/components/storefront/UploadOwnSheetModal";
 import { DesignUploadModal, type UploadedArtwork } from "@/components/storefront/DesignUploadModal";
 import type { ProductDetail } from "@/types/product.types";
 import { cartService } from "@/services/cart.service";
@@ -79,6 +80,11 @@ export default function ThemeProductBuy({ product }: { product: ThemeProductData
   const chosenRef = useRef<{ selections: Record<string, string>; quantity: number }>({ selections: {}, quantity: 1 });
   const busy = useRef(false);
   const byUpload = product.gang_sheet && product.gang_sheet_type === "upload_by_size";
+  // The buyer's own finished sheet. Like upload-by-size it has nothing to
+  // arrange here, but unlike it the length is picked in the uploader from the
+  // sheet sizes this product sells, so the sizes on the page are still theirs
+  // to hide — the uploader shows them in its own words.
+  const byOwnSheet = product.gang_sheet && product.gang_sheet_type === "upload_own";
 
   useEffect(() => {
     const root = document.querySelector<HTMLElement>(`[data-product-id="${CSS.escape(product.id)}"]`);
@@ -96,7 +102,7 @@ export default function ThemeProductBuy({ product }: { product: ThemeProductData
     // uploader has no sheet to choose here. Its sheet sizes belong to the
     // builder, and showing them put builder prices on a product that is not
     // priced that way.
-    const sheets = byUpload ? [] : (product.sheets ?? []);
+    const sheets = byUpload || byOwnSheet ? [] : (product.sheets ?? []);
     let sheetId = sheets[0]?.sheet_id ?? "";
 
     const priceLine = root.querySelector<HTMLElement>("[data-theme-price]");
@@ -186,18 +192,19 @@ export default function ThemeProductBuy({ product }: { product: ThemeProductData
     // ── Choosing ──
     const cleanups: (() => void)[] = [];
 
-    if (byUpload) {
+    if (byUpload || byOwnSheet) {
       // The size grid is the builder's. Hidden rather than left inert, because
       // a row of sizes nobody can choose reads as a broken page.
       groups.forEach((group) => {
         if (group.querySelector("[data-sheet-id]")) group.style.display = "none";
       });
       // And the button says what it does. It opened the uploader already; it
-      // just called itself the builder while doing it.
+      // just called itself the builder while doing it. The wording follows the
+      // type the brand chose, so the page and the panel agree.
       buyButtons.forEach((button) => {
         if (button.dataset.themeBuy === "artwork") return;
         button.dataset.baseLabel = button.textContent ?? "";
-        button.textContent = "Upload image by size";
+        button.textContent = byOwnSheet ? "Upload your own gang sheet" : "Upload image by size";
       });
     }
 
@@ -284,9 +291,10 @@ export default function ThemeProductBuy({ product }: { product: ThemeProductData
         // A product made from artwork is ordered in its builder, carrying the
         // sheet size and quantity chosen here so nothing is asked twice.
         if (button.dataset.themeBuy === "builder" || button.dataset.themeBuy === "upload" || product.gang_sheet) {
-          // One design at one size is uploaded right here; a sheet several
-          // designs share is arranged in the builder.
-          if (byUpload) setUploadOpen(true);
+          // Two of the three are uploads and open a panel right here: one
+          // design at one size, or a sheet the buyer has already laid out. Only
+          // the builder — where designs are arranged — is a page of its own.
+          if (byUpload || byOwnSheet) setUploadOpen(true);
           else router.push(builderHref());
           return;
         }
@@ -418,7 +426,14 @@ export default function ThemeProductBuy({ product }: { product: ThemeProductData
         />
       )}
 
-      {uploadOpen && (
+      {uploadOpen && byOwnSheet && (
+        <UploadOwnSheetModal
+          product={{ id: product.id, name: product.name }}
+          onClose={() => setUploadOpen(false)}
+        />
+      )}
+
+      {uploadOpen && !byOwnSheet && (
         <UploadBySizeModal
           product={{ id: product.id, gang_sheet_config: product.gang_sheet_config ?? null }}
           onClose={() => setUploadOpen(false)}

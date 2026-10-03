@@ -29,6 +29,14 @@ const CARD: React.CSSProperties = {
   borderRadius: "10px",
   padding: "20px",
 };
+/** The three ways a brand can sell a gang sheet, named once. */
+type GSType = "gang_sheet" | "upload_by_size" | "upload_own";
+const TYPE_LABEL: Record<string, string> = {
+  gang_sheet: "Gang Sheet",
+  upload_by_size: "Upload By Size",
+  upload_own: "Upload Your Own Gang Sheet",
+};
+
 const INPUT: React.CSSProperties = {
   width: "100%",
   padding: "8px 10px",
@@ -356,6 +364,7 @@ function ProductsTab({ onGoToSizes }: { onGoToSizes: () => void }) {
                       <option value="">— choose —</option>
                       <option value="gang_sheet">Gang Sheet</option>
                       <option value="upload_by_size">Upload By Size</option>
+                      <option value="upload_own">Upload Your Own Gang Sheet</option>
                     </select>
                   </td>
                   <td style={{ padding: "11px 14px", color: "#6B6B6B" }}>{p.size_count}</td>
@@ -376,7 +385,7 @@ function ProductsTab({ onGoToSizes }: { onGoToSizes: () => void }) {
 
 // ── Per-product builder editor (opened from the Products edit button) ───────────
 function ProductEditor({ product, onBack, onGoToSizes }: { product: GangSheetProduct; onBack: () => void; onGoToSizes: () => void }) {
-  const [type, setType] = useState<"gang_sheet" | "upload_by_size">(product.gang_sheet_type ?? "gang_sheet");
+  const [type, setType] = useState<GSType>(product.gang_sheet_type ?? "gang_sheet");
   const [cfg, setCfg] = useState<GangSheetConfig>(product.gang_sheet_config ?? { printer_width: 22, max_height: 312, tiers: [] });
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null);
@@ -456,9 +465,10 @@ function ProductEditor({ product, onBack, onGoToSizes }: { product: GangSheetPro
 
       <div style={{ ...CARD, marginBottom: "16px", display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
         <span style={LABEL}>Builder type</span>
-        <select value={type} onChange={(e) => setType(e.target.value as "gang_sheet" | "upload_by_size")} style={{ ...INPUT, width: "auto", minWidth: "200px" }}>
+        <select value={type} onChange={(e) => setType(e.target.value as GSType)} style={{ ...INPUT, width: "auto", minWidth: "240px" }}>
           <option value="gang_sheet">Gang Sheet (combine designs)</option>
           <option value="upload_by_size">Upload By Size (area-priced)</option>
+          <option value="upload_own">Upload Your Own Gang Sheet (buyer sends a finished sheet)</option>
         </select>
       </div>
 
@@ -989,7 +999,7 @@ function SizesTab() {
           <option value="">Global default (all products)</option>
           {products.map((p) => (
             <option key={p.id} value={p.id}>
-              {p.name}{p.gang_sheet_type ? ` — ${p.gang_sheet_type === "upload_by_size" ? "Upload By Size" : "Gang Sheet"}` : ""}
+              {p.name}{p.gang_sheet_type ? ` — ${TYPE_LABEL[p.gang_sheet_type] ?? "Gang Sheet"}` : ""}
             </option>
           ))}
         </select>

@@ -54,9 +54,10 @@ class Product(TenantMixin, BaseModel):
     # Printed from a file the buyer supplies — a sign, a flyer, a business
     # card. The brand decides which products work that way. See migration 0051.
     allow_design_upload: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-    # Which builder this gang-sheet product uses: 'gang_sheet' (combine designs on
-    # a fixed-size sheet) or 'upload_by_size' (upload art + pick a size, area-priced).
-    # NULL until configured. See migration 0030.
+    # Which builder this gang-sheet product uses: 'gang_sheet' (combine designs
+    # on a fixed-size sheet), 'upload_by_size' (upload art + pick a size,
+    # area-priced), or 'upload_own' (the buyer's own finished sheet, printed at
+    # a length they pick). NULL until configured. See migration 0030.
     gang_sheet_type: Mapped[str | None] = mapped_column(String(30), nullable=True)
     # Type-specific builder config (migration 0031). For 'upload_by_size':
     # {printer_width, max_height, tiers:[{max_height, max_area, price_per_sqin, discount}]}.
