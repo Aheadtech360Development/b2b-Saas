@@ -2581,7 +2581,11 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
         {/* ── Right panel: Active Gang Sheets ───────────────────────────────── */}
         <div style={S.rightPanel}>
           <div style={{ fontSize: "13.5px", fontWeight: 700, color: C.ink }}>({sheets.length}) Active Gang Sheet{sheets.length === 1 ? "" : "s"}</div>
-          <div style={{ display: "flex", flexDirection: "column", gap: "8px", overflowY: "auto", maxHeight: "44vh", paddingRight: "2px" }}>
+          {/* The list takes what is left and scrolls; the buttons under it keep
+              their place. It used to be capped at 44vh with everything else
+              stacked below, so in a short window the actions fell off the
+              bottom of the panel and Start over could not be reached. */}
+          <div style={S.sheetList}>
             {sheets.map((s, i) => {
               const isA = i === active;
               const sz = sizes.find((z) => z.id === (isA ? sizeId : s.sizeId));
@@ -2751,10 +2755,10 @@ const S: Record<string, React.CSSProperties> = {
   bgPreviewBox: { position: "relative", flex: 1, overflow: "auto", padding: "16px 18px", background: "#F7F7F5", margin: "14px 18px 0", borderRadius: "8px", border: "1px solid #EFEDE8" },
   bgFoot: { display: "flex", alignItems: "center", gap: "8px", padding: "14px 18px", borderTop: "1px solid #EFEDE8", flexWrap: "wrap" },
   body: { flex: 1, display: "flex", minHeight: 0 },
-  rail: { width: "76px", flexShrink: 0, background: C.card, borderRight: `1px solid ${C.line}`, display: "flex", flexDirection: "column", padding: "12px 8px", gap: "6px" },
+  rail: { width: "76px", flexShrink: 0, background: C.card, borderRight: `1px solid ${C.line}`, display: "flex", flexDirection: "column", padding: "12px 8px", gap: "6px", overflowY: "auto", minHeight: 0 },
   railBtn: { background: "none", border: "none", color: C.inkSoft, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "11px 2px", cursor: "pointer", borderRadius: C.radius, fontFamily: "inherit", lineHeight: 1.2 },
   railBtnActive: { color: C.goDark, background: C.goTint },
-  leftPanel: { width: "282px", flexShrink: 0, background: C.card, borderRight: `1px solid ${C.line}`, padding: "16px", overflowY: "auto" },
+  leftPanel: { width: "282px", flexShrink: 0, background: C.card, borderRight: `1px solid ${C.line}`, padding: "16px", overflowY: "auto", minHeight: 0 },
   dropzone: { border: "2px dashed #D4D8DE", borderRadius: "12px", padding: "22px 14px", textAlign: "center", cursor: "pointer" },
   chooseBtn: { display: "inline-flex", alignItems: "center", gap: "7px", marginTop: "12px", background: C.go, color: "#fff", borderRadius: "9px", padding: "9px 16px", fontSize: "12.5px", fontWeight: 700 },
   listHead: { marginTop: "18px", display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: "10.5px", fontWeight: 700, color: C.inkSoft, textTransform: "uppercase", letterSpacing: ".09em" },
@@ -2779,7 +2783,10 @@ const S: Record<string, React.CSSProperties> = {
   confirmCancel: { padding: "10px 18px", background: "#fff", color: "#1A1A1A", border: "1px solid #D8D5CF", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: "pointer" },
   confirmDanger: { padding: "10px 18px", background: "#B91C1C", color: "#fff", border: "none", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: "pointer" },
   abOverlay: { position: "absolute", inset: 0, zIndex: 30, display: "flex", background: "#fff" },
-  toolbar: { minHeight: "54px", flexShrink: 0, background: C.card, borderBottom: `1px solid ${C.line}`, display: "flex", alignItems: "center", gap: "9px", padding: "8px 14px", flexWrap: "wrap" },
+  // One row, always. Wrapping cost a second 54px band of a window that may
+  // only be 600 tall, and it took it from the canvas — the one part of this
+  // screen somebody is actually looking at.
+  toolbar: { height: "54px", flexShrink: 0, background: C.card, borderBottom: `1px solid ${C.line}`, display: "flex", alignItems: "center", gap: "9px", padding: "0 14px", flexWrap: "nowrap", overflowX: "auto", overflowY: "hidden" },
   sizeSelect: { padding: "8px 11px", border: `1px solid ${C.line}`, borderRadius: "9px", fontSize: "13px", fontWeight: 600, minWidth: "160px", background: C.card, color: C.ink, cursor: "pointer", fontFamily: "inherit" },
   toolDivider: { width: "1px", height: "22px", background: C.line },
   nestBtn: { background: C.go, color: "#fff", border: "none", padding: "9px 15px", borderRadius: "9px", fontSize: "12.5px", fontWeight: 700, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "7px", fontFamily: "inherit", whiteSpace: "nowrap" },
@@ -2790,7 +2797,7 @@ const S: Record<string, React.CSSProperties> = {
   sheetFrame: { position: "relative", display: "flex", minWidth: "100%", minHeight: "100%", width: "max-content", boxSizing: "border-box", padding: `${RULER_PAD}px` },
   // A darker table than the sheet, so the sheet stands off it.
   rulerGrid: { flex: 1, minHeight: 0, display: "grid", gridTemplateColumns: "26px 1fr", gridTemplateRows: "22px 1fr", background: "#E6E3DE" },
-  viewStrip: { display: "flex", alignItems: "center", gap: "13px", flexWrap: "wrap", padding: "9px 14px", borderTop: `1px solid ${C.line}`, background: C.card, fontSize: "11.5px", color: C.inkSoft },
+  viewStrip: { display: "flex", alignItems: "center", gap: "12px", flexWrap: "nowrap", overflowX: "auto", flexShrink: 0, padding: "6px 14px", borderTop: `1px solid ${C.line}`, background: C.card, fontSize: "11px", color: C.inkSoft, whiteSpace: "nowrap" },
   stripDivider: { width: "1px", height: "16px", background: "#E0DCD5" },
   legendItem: { display: "inline-flex", alignItems: "center", gap: "5px", fontSize: "12px", color: "#444", whiteSpace: "nowrap" },
   legendSwatch: { width: "10px", height: "10px", borderRadius: "2px", display: "inline-block" },
@@ -2801,14 +2808,15 @@ const S: Record<string, React.CSSProperties> = {
   overlapBanner: { position: "absolute", top: "12px", left: "50%", transform: "translateX(-50%)", zIndex: 6, display: "flex", alignItems: "center", gap: "10px", maxWidth: "min(560px, 80%)", background: "#FFEDD5", border: "1px solid #FDBA74", color: "#9A3412", borderRadius: "8px", padding: "9px 14px", fontSize: "13px", lineHeight: 1.45, boxShadow: "0 4px 14px rgba(154,52,18,.15)" },
   overlapIcon: { width: "20px", height: "20px", flexShrink: 0, borderRadius: "50%", border: "2px solid #C2410C", color: "#C2410C", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: "12px", fontWeight: 800 },
   canvasWarn: { position: "absolute", top: "10px", right: "10px", zIndex: 4, display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap", background: "#FFF7ED", border: "1px solid #FED7AA", color: "#9A3412", borderRadius: "8px", padding: "7px 11px", fontSize: "12px", maxWidth: "55%", justifyContent: "flex-end", boxShadow: "0 1px 4px rgba(0,0,0,.06)" },
-  rightPanel: { width: "252px", flexShrink: 0, background: C.card, borderLeft: `1px solid ${C.line}`, padding: "16px", display: "flex", flexDirection: "column", gap: "9px", overflowY: "auto" },
+  rightPanel: { width: "252px", flexShrink: 0, background: C.card, borderLeft: `1px solid ${C.line}`, padding: "14px", display: "flex", flexDirection: "column", gap: "8px", minHeight: 0, overflow: "hidden" },
+  sheetList: { display: "flex", flexDirection: "column", gap: "8px", overflowY: "auto", flex: "1 1 0", minHeight: "64px", paddingRight: "2px" },
   activeCard: { border: "1px solid #E5E3DE", borderRadius: "10px", padding: "12px" },
   sheetCard: { border: "1px solid #E5E3DE", borderRadius: "10px", padding: "10px 12px", cursor: "pointer", background: "#fff" },
   sheetCardActive: { borderColor: "var(--brand-primary,#1C3557)", boxShadow: "0 0 0 1px var(--brand-primary,#1C3557)", background: "#F7F9FD" },
   sheetNameInput: { width: "100%", boxSizing: "border-box", border: "1px solid transparent", background: "transparent", fontSize: "13px", fontWeight: 700, padding: "2px 4px", borderRadius: "5px", margin: "3px 0", color: "#222" },
   rightAction: { display: "flex", alignItems: "center", gap: "9px", textAlign: "left", background: C.card, border: `1px solid ${C.line}`, borderRadius: C.radius, padding: "11px 13px", fontSize: "13px", fontWeight: 600, cursor: "pointer", color: C.ink, fontFamily: "inherit", width: "100%" },
   rightActionGo: { background: C.goTint, borderColor: "#BFE6CE", color: C.goDark, fontWeight: 700 },
-  tipBox: { marginTop: "auto", display: "flex", gap: "9px", alignItems: "flex-start", background: "#F7F8FA", border: `1px solid ${C.lineSoft}`, borderRadius: C.radius, padding: "11px 12px", fontSize: "11.5px", color: C.inkSoft, lineHeight: 1.6 },
+  tipBox: { display: "flex", gap: "9px", alignItems: "flex-start", background: "#F7F8FA", border: `1px solid ${C.lineSoft}`, borderRadius: C.radius, padding: "11px 12px", fontSize: "11.5px", color: C.inkSoft, lineHeight: 1.6 },
   // One floating bar rather than three loose squares, so the buttons read as
   // belonging to the design they are attached to. 30px targets: at 24 they
   // were a hard target with a mouse and a miss on a trackpad.
