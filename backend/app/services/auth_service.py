@@ -269,6 +269,11 @@ class AuthService:
             # Active, not pending: nothing here needs approving, and a pending
             # company cannot order — which would defeat the whole point.
             status="active",
+            # Stamped here rather than left to the scoping hook. This runs on a
+            # public request, before anybody is signed in, and a company that
+            # ends up without a brand belongs to no shop: it exists, it is
+            # linked to its user, and it is invisible in the customer list.
+            tenant_id=tenant_id,
         )
         self.db.add(company)
 
@@ -299,7 +304,9 @@ class AuthService:
                 "Sign in with it, or use a different email address."
             )
 
-        self.db.add(CompanyUser(company_id=company.id, user_id=user.id, role="owner"))
+        self.db.add(CompanyUser(
+            company_id=company.id, user_id=user.id, role="owner", tenant_id=tenant_id,
+        ))
         await self.db.commit()
         await self.db.refresh(user)
 

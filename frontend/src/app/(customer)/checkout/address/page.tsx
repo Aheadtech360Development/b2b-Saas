@@ -83,6 +83,16 @@ export default function CheckoutAddressPage() {
   const authIsLoading = useAuthStore((s) => s.isLoading);
   const isGuest = !authIsLoading && !isAuthenticated;
 
+  // A first order opens an account, and the cart button already says so — but
+  // this address is reachable by typing it, and from a half-finished checkout
+  // somebody left open. The shop needs somebody it can reach about a print
+  // job; the buyer needs somewhere to find the order again. Everything after
+  // the first one is just shopping.
+  useEffect(() => {
+    if (!isGuest) return;
+    router.replace(`/create-account?next=${encodeURIComponent("/checkout/address")}`);
+  }, [isGuest, router]);
+
   const {
     companyName, setCompanyName,
     contactName, setContactName,

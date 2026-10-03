@@ -509,7 +509,17 @@ export default function CartPage() {
               isValid={isCheckoutEnabled}
               disabledReason={disabledReason}
               isGuest={isGuest}
-              onCheckout={() => router.push("/checkout/address")}
+              onCheckout={() => {
+                // A first order opens an account. Everything after it is just
+                // shopping — but the shop needs somebody it can reach about a
+                // print job, and a buyer needs somewhere to find it again.
+                if (isGuest) {
+                  const back = encodeURIComponent("/cart");
+                  router.push(`/create-account?next=${back}`);
+                  return;
+                }
+                router.push("/checkout/address");
+              }}
             />
           </div>
         )}
@@ -637,8 +647,13 @@ function OrderSummary({
         className="ui-btn ui-btn-block"
         style={{ marginTop: "18px" }}
       >
-        Checkout
+        {isGuest ? "Create an account to check out" : "Checkout"}
       </button>
+      {isGuest && (
+        <p className="ui-hint" style={{ textAlign: "center" }}>
+          First order only — after that you just sign in.
+        </p>
+      )}
       {disabledReason && (
         <p className="ui-hint ui-hint-bad" style={{ textAlign: "center" }}>{disabledReason}</p>
       )}
