@@ -1503,7 +1503,17 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
   function switchTo(idx: number) { if (idx !== active) goTo(snapshotAll(), idx); }
 
   function addSheet() {
-    const fresh: SheetTab = { key: uid(), name: `Gang Sheet ${sheets.length + 1}`, sizeId: sizes[0]?.id || sizeId, qty: 1, customLength: 0, placements: [] };
+    // The new sheet keeps the size and length of the one being worked on. It
+    // used to start at zero, which on a roll sold by the inch is not a sheet
+    // at all — it drew as a single line and priced as nothing.
+    const fresh: SheetTab = {
+      key: uid(),
+      name: `Gang Sheet ${sheets.length + 1}`,
+      sizeId: sizeId || sizes[0]?.id || "",
+      qty: 1,
+      customLength: isCustom ? (customLength || size?.min_length_in || 0) : 0,
+      placements: [],
+    };
     const next = [...snapshotAll(), fresh];
     goTo(next, next.length - 1);
     setPanel("uploads");
@@ -2119,7 +2129,10 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
                     ? `Uploading ${uploadStep.done + 1} of ${uploadStep.total}…`
                     : uploading ? "Uploading…" : "Drag & drop, or click to upload"}
                 </div>
-                <div style={{ fontSize: "11.5px", color: C.inkFaint, marginTop: "5px", maxWidth: "100%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {/* A file's name is cut with an ellipsis, because the start of
+                    it is what identifies it. The standing hint wraps instead:
+                    it is a sentence, and half a sentence helps nobody. */}
+                <div style={uploadStep ? S.dropName : S.dropHint}>
                   {uploadStep ? uploadStep.name : "PNG, JPG, PDF, SVG · larger than 300×300px"}
                 </div>
                 {uploadStep && uploadStep.total > 1 ? (
@@ -2791,6 +2804,8 @@ const S: Record<string, React.CSSProperties> = {
   railBtnActive: { color: C.goDark, background: C.goTint },
   leftPanel: { width: "258px", flexShrink: 0, background: C.card, borderRight: `1px solid ${C.line}`, padding: "16px", overflowY: "auto", minHeight: 0 },
   dropzone: { border: "2px dashed #D4D8DE", borderRadius: "12px", padding: "22px 14px", textAlign: "center", cursor: "pointer" },
+  dropHint: { fontSize: "11.5px", color: C.inkFaint, marginTop: "5px", lineHeight: 1.5 },
+  dropName: { fontSize: "11.5px", color: C.inkSoft, marginTop: "5px", maxWidth: "100%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
   chooseBtn: { display: "inline-flex", alignItems: "center", gap: "7px", marginTop: "12px", background: C.go, color: "#fff", borderRadius: "9px", padding: "9px 16px", fontSize: "12.5px", fontWeight: 700 },
   listHead: { marginTop: "18px", display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: "10.5px", fontWeight: 700, color: C.inkSoft, textTransform: "uppercase", letterSpacing: ".09em" },
   uploadRow: { display: "flex", alignItems: "center", border: `1px solid ${C.line}`, borderRadius: C.radius, background: C.card, overflow: "hidden" },
@@ -2850,8 +2865,8 @@ const S: Record<string, React.CSSProperties> = {
   overlapBanner: { position: "absolute", top: "12px", left: "50%", transform: "translateX(-50%)", zIndex: 6, display: "flex", alignItems: "center", gap: "10px", maxWidth: "min(560px, 80%)", background: "#FFEDD5", border: "1px solid #FDBA74", color: "#9A3412", borderRadius: "8px", padding: "9px 14px", fontSize: "13px", lineHeight: 1.45, boxShadow: "0 4px 14px rgba(154,52,18,.15)" },
   overlapIcon: { width: "20px", height: "20px", flexShrink: 0, borderRadius: "50%", border: "2px solid #C2410C", color: "#C2410C", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: "12px", fontWeight: 800 },
   canvasWarn: { position: "absolute", top: "10px", right: "10px", zIndex: 4, display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap", background: "#FFF7ED", border: "1px solid #FED7AA", color: "#9A3412", borderRadius: "8px", padding: "7px 11px", fontSize: "12px", maxWidth: "55%", justifyContent: "flex-end", boxShadow: "0 1px 4px rgba(0,0,0,.06)" },
-  rightPanel: { width: "238px", flexShrink: 0, background: C.card, borderLeft: `1px solid ${C.line}`, padding: "14px", display: "flex", flexDirection: "column", gap: "8px", minHeight: 0, overflow: "hidden" },
-  sheetList: { display: "flex", flexDirection: "column", gap: "8px", overflowY: "auto", flex: "0 1 auto", minHeight: 0, maxHeight: "40%", paddingRight: "2px" },
+  rightPanel: { width: "238px", flexShrink: 0, background: C.card, borderLeft: `1px solid ${C.line}`, padding: "14px", display: "flex", flexDirection: "column", gap: "8px", minHeight: 0, overflowY: "auto" },
+  sheetList: { display: "flex", flexDirection: "column", gap: "8px", flex: "0 0 auto", paddingRight: "2px" },
   activeCard: { border: "1px solid #E5E3DE", borderRadius: "10px", padding: "12px" },
   sheetCard: { border: "1px solid #E5E3DE", borderRadius: "10px", padding: "10px 12px", cursor: "pointer", background: "#fff" },
   sheetCardActive: { borderColor: "var(--brand-primary,#1C3557)", boxShadow: "0 0 0 1px var(--brand-primary,#1C3557)", background: "#F7F9FD" },
