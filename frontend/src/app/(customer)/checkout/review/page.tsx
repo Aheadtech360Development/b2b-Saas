@@ -540,42 +540,34 @@ export default function CheckoutReviewPage() {
               </div>
             </div>
 
-            {/* ── Payment ── */}
-            <div className="ui-card" style={{ marginBottom: "20px" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", ...sectionLabelStyle }}>
-                <span>Paying with</span>
-                <button onClick={() => router.push("/checkout/address")} style={editLinkStyle}>Change</button>
+            {/* ── How this one is being paid, when it is not by card ──
+                A card buyer has the card form at the top of this page; saying
+                "paying with: Credit Card" underneath it told them nothing. ACH
+                and Net 30 have terms worth repeating before they commit. */}
+            {paymentMethod !== "card" && (
+              <div className="ui-card" style={{ marginBottom: "20px" }}>
+                <div style={sectionLabelStyle}>Paying with</div>
+                {paymentMethod === "ach" ? (
+                  <div style={{ fontSize: "13px", color: "var(--ui-ink)", lineHeight: 1.8 }}>
+                    <div style={{ fontWeight: 700, marginBottom: "6px" }}>ACH / Bank Transfer</div>
+                    {achBankName && <div style={{ color: "var(--ui-muted)" }}>Bank: <span style={{ color: "var(--ui-ink)", fontWeight: 600 }}>{achBankName}</span></div>}
+                    {achAccountHolder && <div style={{ color: "var(--ui-muted)" }}>Account Holder: <span style={{ color: "var(--ui-ink)", fontWeight: 600 }}>{achAccountHolder}</span></div>}
+                    {achAccountLast4 && <div style={{ color: "var(--ui-muted)" }}>Account: <span style={{ color: "var(--ui-ink)", fontWeight: 600 }}>****{achAccountLast4}</span></div>}
+                    {achAccountType && <div style={{ color: "var(--ui-muted)" }}>Type: <span style={{ color: "var(--ui-ink)", fontWeight: 600 }}>{achAccountType.charAt(0).toUpperCase() + achAccountType.slice(1)}</span></div>}
+                    <div style={{ marginTop: "8px", padding: "8px 12px", borderRadius: "10px", background: "rgba(217,119,6,.08)", fontSize: "12px", color: "#D97706", fontWeight: 600 }}>
+                      Order pending — payment verified within 1–2 business days
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ fontSize: "13px", color: "var(--ui-ink)", lineHeight: 1.8 }}>
+                    <div style={{ fontWeight: 700, marginBottom: "6px" }}>Net 30 — Pay by Invoice</div>
+                    <div style={{ marginTop: "8px", padding: "8px 12px", borderRadius: "10px", background: "rgba(217,119,6,.08)", fontSize: "12px", color: "#D97706", fontWeight: 600 }}>
+                      An invoice will be sent to your account. Payment due within 30 days.
+                    </div>
+                  </div>
+                )}
               </div>
-              {paymentMethod === "ach" ? (
-                <div style={{ fontSize: "13px", color: "var(--ui-ink)", lineHeight: 1.8 }}>
-                  <div style={{ fontWeight: 700, marginBottom: "6px" }}>ACH / Bank Transfer</div>
-                  {achBankName && <div style={{ color: "var(--ui-muted)" }}>Bank: <span style={{ color: "var(--ui-ink)", fontWeight: 600 }}>{achBankName}</span></div>}
-                  {achAccountHolder && <div style={{ color: "var(--ui-muted)" }}>Account Holder: <span style={{ color: "var(--ui-ink)", fontWeight: 600 }}>{achAccountHolder}</span></div>}
-                  {achAccountLast4 && <div style={{ color: "var(--ui-muted)" }}>Account: <span style={{ color: "var(--ui-ink)", fontWeight: 600 }}>****{achAccountLast4}</span></div>}
-                  {achAccountType && <div style={{ color: "var(--ui-muted)" }}>Type: <span style={{ color: "var(--ui-ink)", fontWeight: 600 }}>{achAccountType.charAt(0).toUpperCase() + achAccountType.slice(1)}</span></div>}
-                  <div style={{ marginTop: "8px", padding: "8px 12px", background: "rgba(217,119,6,.08)", fontSize: "12px", color: "#D97706", fontWeight: 600 }}>
-                    Order pending — payment verified within 1–2 business days
-                  </div>
-                </div>
-              ) : paymentMethod === "net_30" ? (
-                <div style={{ fontSize: "13px", color: "var(--ui-ink)", lineHeight: 1.8 }}>
-                  <div style={{ fontWeight: 700, marginBottom: "6px" }}>Net 30 — Pay by Invoice</div>
-                  <div style={{ marginTop: "8px", padding: "8px 12px", background: "rgba(217,119,6,.08)", fontSize: "12px", color: "#D97706", fontWeight: 600 }}>
-                    An invoice will be sent to your account. Payment due within 30 days.
-                  </div>
-                </div>
-              ) : (
-                <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                  <svg width="32" height="22" viewBox="0 0 32 22" fill="none">
-                    <rect width="32" height="22" rx="3" fill="var(--ui-paper)" stroke="var(--ui-line)" />
-                    <rect x="4" y="8" width="10" height="6" rx="1.5" fill="var(--ui-line)" />
-                    <rect x="4" y="16" width="5" height="2" rx="0.5" fill="var(--ui-line)" />
-                    <rect x="11" y="16" width="5" height="2" rx="0.5" fill="var(--ui-line)" />
-                  </svg>
-                  <span style={{ fontSize: "13px", fontWeight: 700, color: "var(--ui-ink)" }}>{paymentLabel}</span>
-                </div>
-              )}
-            </div>
+            )}
 
             {/* ── Order Items ── */}
             {(isGuest ? guestEntries.length > 0 : cart ? cart.items.length > 0 : false) && (
