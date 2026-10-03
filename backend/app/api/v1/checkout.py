@@ -6,13 +6,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.database import get_db
-from app.core.exceptions import ForbiddenError, ValidationError
+from app.core.exceptions import ForbiddenError, NotFoundError, ValidationError
 from app.schemas.order import CheckoutConfirmRequest, CreatePaymentIntentRequest, OrderOut
 from app.services.cart_service import CartService
 from app.services.order_service import OrderService
 from app.services.payment_service import PaymentService
 from app.api.v1.discounts import validate_discount_code, compute_discount_amount
 from app.models.discount import DiscountUsage
+
+logger = logging.getLogger(__name__)
 
 _log = logging.getLogger(__name__)
 router = APIRouter(prefix="/checkout", tags=["checkout"])
@@ -83,8 +85,27 @@ async def create_payment_intent(
     discount_percent = getattr(request.state, "tier_discount_percent", Decimal("0"))
     group_id = getattr(request.state, "discount_group_id", None)
 
+    # Each step says which one it was. A single unhandled exception here
+    # reaches the buyer as "something went wrong on our side", which is true
+    # and useless: it is the last screen before paying, and nobody — the buyer,
+    # the shop, or us — can tell a broken cart from a broken tax lookup from a
+    # Stripe outage. The name of the step costs nothing and saves the call.
+    def _blame(step: str, exc: Exception) -> HTTPException:
+        logger.exception("Payment intent failed while %s", step)
+        return HTTPException(
+            status_code=500,
+            detail={"code": "INTENT_FAILED", "step": step,
+                    "message": f"Could not start payment ({step}). Please try again, "
+                               f"or tell the store if it keeps happening."},
+        )
+
     cart_svc = CartService(db)
-    cart = await cart_svc.get_cart_with_pricing(company_id, discount_percent, group_id)
+    try:
+        cart = await cart_svc.get_cart_with_pricing(company_id, discount_percent, group_id)
+    except (ValidationError, NotFoundError, HTTPException):
+        raise
+    except Exception as exc:
+        raise _blame("pricing your cart", exc) from exc
     if not cart.items:
         raise ValidationError("Cart is empty")
 
@@ -118,9 +139,12 @@ async def create_payment_intent(
         # Brand-aware: honours this brand's tax mode (auto ZipTax / its own manual
         # rates / no tax) — the same helper the quote endpoint uses.
         from app.services.tax_service import resolve_tax as _resolve_tax
-        _tax = await _resolve_tax(
-            db, payload.to_state, payload.to_zip or "", "", float(taxable_base)
-        )
+        try:
+            _tax = await _resolve_tax(
+                db, payload.to_state, payload.to_zip or "", "", float(taxable_base)
+            )
+        except Exception as exc:
+            raise _blame("working out the tax", exc) from exc
         tax_amount_dc = Decimal(str(_tax.get("tax_amount", 0) or 0))
 
     # No convenience fee. Card processing is the shop's own cost of taking
@@ -135,17 +159,22 @@ async def create_payment_intent(
         raise ValidationError("Order total must be greater than zero")
 
     payment_svc = PaymentService(db)
-    intent = await payment_svc.create_direct_payment_intent(
-        amount_decimal=total,
-        connected_account_id=connected_account_id,
-        metadata={
-            "company_id": str(company_id),
-            "tenant_id": str(tenant_id),
-            # The authoritative, server-computed tax — /checkout/confirm reads this
-            # back so the order's tax matches exactly what was charged.
-            "tax_amount": str(tax_amount_dc),
-        },
-    )
+    try:
+        intent = await payment_svc.create_direct_payment_intent(
+            amount_decimal=total,
+            connected_account_id=connected_account_id,
+                metadata={
+                "company_id": str(company_id),
+                "tenant_id": str(tenant_id),
+                # The authoritative, server-computed tax — /checkout/confirm reads
+                # this back so the order's tax matches what was charged.
+                "tax_amount": str(tax_amount_dc),
+            },
+        )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise _blame("reaching the payment provider", exc) from exc
 
     return {
         "client_secret": intent.client_secret,

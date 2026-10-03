@@ -11,17 +11,19 @@
 import type { ReactNode } from "react";
 import { usePathname } from "next/navigation";
 
+// Three steps, not four. The payment step only asked which kind of payment and
+// then said the card comes next — and the card is on the review page, where
+// somebody can see what they are paying for while they type it. A whole screen
+// between a buyer and their order, to tell them about the screen after it.
 const STEPS = [
   { label: "Shipping", step: 1 },
-  { label: "Payment", step: 2 },
-  { label: "Review", step: 3 },
-  { label: "Done", step: 4 },
+  { label: "Review & pay", step: 2 },
+  { label: "Done", step: 3 },
 ];
 
 function getActiveStep(pathname: string): number {
-  if (pathname.includes("/checkout/confirmed")) return 4;
-  if (pathname.includes("/checkout/review")) return 3;
-  if (pathname.includes("/checkout/payment")) return 2;
+  if (pathname.includes("/checkout/confirmed")) return 3;
+  if (pathname.includes("/checkout/review") || pathname.includes("/checkout/payment")) return 2;
   return 1;
 }
 

@@ -407,7 +407,7 @@ export default function CheckoutAddressPage() {
       setShippingPhone(form.phone);
       setShippingAddress({ line1: form.street, city: form.city, state: form.state, postal_code: form.zip, country: "US" });
       setAddressId(null);
-      router.push("/checkout/payment");
+      router.push("/checkout/review");
       return;
     }
 
@@ -426,7 +426,7 @@ export default function CheckoutAddressPage() {
         country: addr.country || "US",
       });
       setAddressId(selectedAddressId);
-      router.push("/checkout/payment");
+      router.push("/checkout/review");
     } else {
       if (!validate()) return;
       setCompanyName(form.company);
@@ -440,7 +440,7 @@ export default function CheckoutAddressPage() {
         country: "US",
       });
       setAddressId(null);
-      router.push("/checkout/payment");
+      router.push("/checkout/review");
     }
   }
 

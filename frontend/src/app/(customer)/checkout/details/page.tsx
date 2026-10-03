@@ -49,7 +49,7 @@ export default function CheckoutDetailsPage() {
           Back
         </button>
         <button
-          onClick={() => router.push("/checkout/payment")}
+          onClick={() => router.push("/checkout/review")}
           className="flex-1 rounded-md bg-brand-600 text-white py-3 text-sm font-medium hover:bg-brand-700"
         >
           Continue to Payment

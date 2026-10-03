@@ -8,6 +8,7 @@ Layout/nesting is intentionally not part of this phase: the buyer states the
 sizes, the supplier arranges the sheet. Everything here is tenant-scoped through
 TenantMixin, so a brand only ever sees its own sheet sizes, jobs, and artwork.
 """
+import re
 import uuid
 from datetime import UTC, datetime
 from decimal import Decimal
@@ -424,10 +425,34 @@ async def _submitter(request, db: AsyncSession, payload) -> tuple[str | None, st
     return name, email
 
 
-async def _next_reference(db: AsyncSession) -> str:
-    """Human-readable per-brand reference. Scoping keeps the count per tenant."""
+def _initials(name: str) -> str:
+    """Up to three letters from somebody's name, for the reference."""
+    # Split on spaces, not on every non-letter: a hyphenated or apostrophed
+    # surname is one name, and O'Brien-Smith is not three initials.
+    out = []
+    for word in (name or "").split():
+        stripped = re.sub(r"^[^A-Za-z]+", "", word)
+        if stripped:
+            out.append(stripped[0])
+    return "".join(out[:3]).upper()
+
+
+async def _next_reference(db: AsyncSession, who: str = "") -> str:
+    """A reference somebody can read down a phone.
+
+    It used to be a date and a running count — GS-202610-0010 — which says
+    nothing about whose job it is. On a production floor with a dozen sheets
+    queued, the one thing worth having in the name is the customer. So the
+    buyer's initials lead, and the count still follows, so two jobs from the
+    same person are never the same reference.
+
+    Falls back to the old shape when there is no name, which is the guest
+    case, rather than inventing one.
+    """
     n = (await db.execute(select(func.count(GangSheetOrder.id)))).scalar() or 0
-    return f"GS-{datetime.now(UTC):%Y%m}-{n + 1:04d}"
+    stamp = f"{datetime.now(UTC):%y%m}"
+    tag = _initials(who)
+    return f"GS-{tag}-{stamp}-{n + 1:04d}" if tag else f"GS-{stamp}-{n + 1:04d}"
 
 
 # What the buyer is told at each lifecycle event. The email shell rebrands to the
@@ -702,7 +727,7 @@ async def submit_order(
 
     who_name, who_email = await _submitter(request, db, payload)
     order = GangSheetOrder(
-        reference=await _next_reference(db),
+        reference=await _next_reference(db, who_name),
         company_id=getattr(request.state, "company_id", None),
         user_id=getattr(request.state, "user_id", None),
         contact_email=who_email,
@@ -815,7 +840,7 @@ async def submit_upload_by_size(
 
     who_name, who_email = await _submitter(request, db, payload)
     order = GangSheetOrder(
-        reference=await _next_reference(db),
+        reference=await _next_reference(db, who_name),
         company_id=getattr(request.state, "company_id", None),
         user_id=getattr(request.state, "user_id", None),
         contact_email=who_email,
@@ -1233,7 +1258,7 @@ async def reorder(
                 price = (src.sheet_width_in * src.sheet_height_in * Decimal(str(rate))).quantize(Decimal("0.01"))
 
     clone = GangSheetOrder(
-        reference=await _next_reference(db),
+        reference=await _next_reference(db, src.contact_name or ""),
         company_id=src.company_id,
         user_id=src.user_id,
         contact_email=src.contact_email,

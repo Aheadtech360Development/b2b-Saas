@@ -107,7 +107,7 @@ export default function CheckoutReviewPage() {
       !savedCardId
     ) {
       // Stripe card is entered here on the review step, so "card" needs no token yet.
-      router.replace("/checkout/payment");
+      router.replace("/checkout/address");
     }
   }, [shippingAddress, savedCardId, paymentMethod, router]);
 
@@ -445,7 +445,7 @@ export default function CheckoutReviewPage() {
             <div className="ui-card" style={{ marginBottom: "20px" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", ...sectionLabelStyle }}>
                 <span>Paying with</span>
-                <button onClick={() => router.push("/checkout/payment")} style={editLinkStyle}>Change</button>
+                <button onClick={() => router.push("/checkout/address")} style={editLinkStyle}>Change</button>
               </div>
               {paymentMethod === "ach" ? (
                 <div style={{ fontSize: "13px", color: "var(--ui-ink)", lineHeight: 1.8 }}>
@@ -634,7 +634,7 @@ export default function CheckoutReviewPage() {
                   />
                 )}
                 <a
-                  href="/checkout/payment"
+                  href="/checkout/address"
                   style={{ display: "inline-block", marginTop: "14px", fontSize: "13px", color: "var(--ui-muted)", textDecoration: "none", fontFamily: "'DM Sans', sans-serif" }}
                 >
                   ← Back to Payment
@@ -643,7 +643,7 @@ export default function CheckoutReviewPage() {
             ) : (
               <div style={{ display: "flex", gap: "16px", alignItems: "center" }}>
                 <a
-                  href="/checkout/payment"
+                  href="/checkout/address"
                   style={{ display: "inline-block", fontSize: "13px", color: "var(--ui-muted)", textDecoration: "none", fontFamily: "'DM Sans', sans-serif" }}
                   onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.color = "var(--brand-primary, var(--ui-ink))"; }}
                   onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.color = "var(--ui-muted)"; }}
