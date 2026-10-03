@@ -283,14 +283,41 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
   const [portalReady, setPortalReady] = useState(false);
   useEffect(() => setPortalReady(true), []);
 
-  // Hold the page still underneath. The builder covers the whole window, so a
-  // scroll that reaches past it moves a shop nobody can see — and on a
-  // trackpad that is easy to do by accident at the edge of the canvas.
+  /**
+   * The window's height, measured, not described.
+   *
+   * `inset: 0` and `100dvh` both ask the page how tall the window is, and the
+   * page is a brand's storefront carrying a stylesheet this code has never
+   * seen — one that was enough to leave the builder standing in the top part
+   * of the screen with the shop showing underneath. Asking the window itself
+   * cannot be overridden by any of that.
+   */
+  const [viewportH, setViewportH] = useState<number | null>(null);
   useEffect(() => {
+    const measure = () => setViewportH(window.visualViewport?.height ?? window.innerHeight);
+    measure();
+    window.addEventListener("resize", measure);
+    window.addEventListener("orientationchange", measure);
+    window.visualViewport?.addEventListener("resize", measure);
+    return () => {
+      window.removeEventListener("resize", measure);
+      window.removeEventListener("orientationchange", measure);
+      window.visualViewport?.removeEventListener("resize", measure);
+    };
+  }, []);
+
+  // Hold the page still underneath, on both html and body. The builder covers
+  // the whole window, so a scroll that reaches past it moves a shop nobody can
+  // see — and with the page unable to scroll there is nothing below the
+  // builder for anything to show through.
+  useEffect(() => {
+    const html = document.documentElement;
     const body = document.body;
-    const was = body.style.overflow;
+    const wasHtml = html.style.overflow;
+    const wasBody = body.style.overflow;
+    html.style.overflow = "hidden";
     body.style.overflow = "hidden";
-    return () => { body.style.overflow = was; };
+    return () => { html.style.overflow = wasHtml; body.style.overflow = wasBody; };
   }, []);
   const [grewTo, setGrewTo] = useState<number | null>(null);
   const [sheetFull, setSheetFull] = useState(false);
@@ -1753,7 +1780,7 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
   // element it happens to be nested in. Rendered on the client only, since
   // there is no document to portal into on the server.
   const tree = (
-    <div style={S.root}>
+    <div style={viewportH ? { ...S.root, height: `${viewportH}px` } : S.root}>
       {/* ── Top bar ─────────────────────────────────────────────────────────── */}
       <div style={S.topbar}>
         <div style={{ display: "flex", alignItems: "center", gap: "11px" }}>
