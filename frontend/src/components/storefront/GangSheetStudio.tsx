@@ -280,6 +280,7 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
   const [pendingFill, setPendingFill] = useState<null | { id: number; spots: { x: number; y: number; rotated: boolean }[] }>(null);
   // The document only exists in the browser, so the first render stays in
   // place and the portal takes over once mounted.
+  const rootRef = useRef<HTMLDivElement>(null);
   const [portalReady, setPortalReady] = useState(false);
   useEffect(() => setPortalReady(true), []);
 
@@ -312,19 +313,42 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
     };
   }, []);
 
-  // Hold the page still underneath, on both html and body. The builder covers
-  // the whole window, so a scroll that reaches past it moves a shop nobody can
-  // see — and with the page unable to scroll there is nothing below the
-  // builder for anything to show through.
+  /**
+   * Take the shop off the screen while the builder is up.
+   *
+   * The builder is exactly as tall as the window — that part was right. What
+   * was wrong is that the shop's page was still standing behind it, a good
+   * three hundred pixels taller than the window, with its own footer at the
+   * bottom. Hiding the overflow only stopped it being scrolled to; the page
+   * was still there, which is why it kept turning up under the builder and in
+   * every screenshot of it.
+   *
+   * So the page is put away, not just pinned down: everything else under
+   * <body> is hidden for as long as the builder is open, and put back exactly
+   * as it was when it closes. The document is then the height of the window,
+   * and there is nothing left to show through.
+   */
   useEffect(() => {
     const html = document.documentElement;
     const body = document.body;
+    const prior: { el: HTMLElement; display: string }[] = [];
+    for (const child of Array.from(body.children)) {
+      if (!(child instanceof HTMLElement)) continue;
+      // Our own node — and anything inside it — has to stay.
+      if (child.hasAttribute("data-gs-root") || child.querySelector("[data-gs-root]")) continue;
+      prior.push({ el: child, display: child.style.display });
+      child.style.display = "none";
+    }
     const wasHtml = html.style.overflow;
     const wasBody = body.style.overflow;
     html.style.overflow = "hidden";
     body.style.overflow = "hidden";
-    return () => { html.style.overflow = wasHtml; body.style.overflow = wasBody; };
-  }, []);
+    return () => {
+      for (const { el, display } of prior) el.style.display = display;
+      html.style.overflow = wasHtml;
+      body.style.overflow = wasBody;
+    };
+  }, [portalReady]);
   const [grewTo, setGrewTo] = useState<number | null>(null);
   const [sheetFull, setSheetFull] = useState(false);
   // The growth note takes itself away; it is news, not a state of affairs.
@@ -1353,7 +1377,8 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
   // the point under the cursor is anchored by adjusting scroll after the re-render.
   useEffect(() => {
     const el = scrollRef.current;
-    if (!el) return;
+    const frame = rootRef.current;
+    if (!el || !frame) return;
     function handle(e: WheelEvent) {
       // A two-finger swipe on a trackpad is a wheel event, and so is a pinch —
       // the difference is that the browser sets ctrlKey on the pinch. Treating
@@ -1366,8 +1391,12 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
       const next = clamp(round3(zoom * factor), 0.15, 6);
       if (next === zoom) return;
       const rect = el!.getBoundingClientRect();
-      const px = e.clientX - rect.left; // cursor within the viewport
-      const py = e.clientY - rect.top;
+      // Over the canvas, zoom toward the pointer. Anywhere else in the builder
+      // there is nothing under it to aim at, so it zooms about the middle.
+      const over = e.clientX >= rect.left && e.clientX <= rect.right
+        && e.clientY >= rect.top && e.clientY <= rect.bottom;
+      const px = over ? e.clientX - rect.left : rect.width / 2;
+      const py = over ? e.clientY - rect.top : rect.height / 2;
       const cx = el!.scrollLeft + px;   // cursor within the scrolled content
       const cy = el!.scrollTop + py;
       const ratio = next / zoom;
@@ -1377,8 +1406,12 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
         el!.scrollTop = cy * ratio - py;
       });
     }
-    el.addEventListener("wheel", handle, { passive: false });
-    return () => el.removeEventListener("wheel", handle);
+    // Bound to the whole builder, not just the canvas. A pinch over a sidebar
+    // or the toolbar is still somebody asking to zoom *this*, and letting it
+    // through means the browser scales the entire application — the header,
+    // the rails, the buttons — which is not what any design tool does.
+    frame.addEventListener("wheel", handle, { passive: false });
+    return () => frame.removeEventListener("wheel", handle);
   }, [zoom]);
 
   useLayoutEffect(() => {
@@ -1790,7 +1823,7 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
   // element it happens to be nested in. Rendered on the client only, since
   // there is no document to portal into on the server.
   const tree = (
-    <div data-gs-root style={viewportH ? { ...S.root, height: `${viewportH}px` } : S.root}>
+    <div ref={rootRef} data-gs-root style={viewportH ? { ...S.root, height: `${viewportH}px` } : S.root}>
       {/* ── Top bar ─────────────────────────────────────────────────────────── */}
       <div style={S.topbar}>
         <div style={{ display: "flex", alignItems: "center", gap: "11px" }}>
