@@ -294,7 +294,13 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
    */
   const [viewportH, setViewportH] = useState<number | null>(null);
   useEffect(() => {
-    const measure = () => setViewportH(window.visualViewport?.height ?? window.innerHeight);
+    // innerHeight, not visualViewport. The visual viewport is what is on screen
+    // after a pinch or a browser zoom, and it is smaller than the layout
+    // viewport a fixed element actually spans — so at any browser zoom but
+    // 100% this made the builder shorter than the window and let the shop's
+    // own footer show underneath it. innerHeight is in CSS pixels, which is
+    // the same ruler the layout is measured with.
+    const measure = () => setViewportH(window.innerHeight);
     measure();
     window.addEventListener("resize", measure);
     window.addEventListener("orientationchange", measure);
@@ -2736,7 +2742,7 @@ const S: Record<string, React.CSSProperties> = {
   // the window with the shop showing underneath. `dvh` also keeps it right on
   // a phone, where the browser's own bars come and go.
   root: { position: "fixed", inset: 0, width: "100vw", height: "100dvh", zIndex: 200, background: C.page, color: C.ink, display: "flex", flexDirection: "column", overflow: "hidden", fontFamily: "'Inter', 'DM Sans', system-ui, sans-serif" },
-  topbar: { height: "62px", flexShrink: 0, background: C.card, borderBottom: `1px solid ${C.line}`, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 18px", gap: "16px" },
+  topbar: { height: "62px", flexShrink: 0, minWidth: 0, overflowX: "auto", background: C.card, borderBottom: `1px solid ${C.line}`, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 18px", gap: "16px" },
   logoMark: { width: "32px", height: "32px", borderRadius: "9px", background: C.go, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 },
   logo: { fontSize: "18px", fontWeight: 800, letterSpacing: "-.02em", lineHeight: 1.1, color: C.ink },
   logoSub: { fontSize: "9.5px", fontWeight: 700, letterSpacing: ".13em", color: C.inkFaint, textTransform: "uppercase", marginTop: "2px" },
@@ -2754,7 +2760,7 @@ const S: Record<string, React.CSSProperties> = {
   bgWarnBar: { margin: "14px 18px 0", background: "#FEF3E2", border: "1px solid #FBD9A5", color: "#92400E", borderRadius: "8px", padding: "10px 12px", fontSize: "13px", lineHeight: 1.5 },
   bgPreviewBox: { position: "relative", flex: 1, overflow: "auto", padding: "16px 18px", background: "#F7F7F5", margin: "14px 18px 0", borderRadius: "8px", border: "1px solid #EFEDE8" },
   bgFoot: { display: "flex", alignItems: "center", gap: "8px", padding: "14px 18px", borderTop: "1px solid #EFEDE8", flexWrap: "wrap" },
-  body: { flex: 1, display: "flex", minHeight: 0 },
+  body: { flex: 1, display: "flex", minHeight: 0, minWidth: 0, overflow: "hidden" },
   rail: { width: "76px", flexShrink: 0, background: C.card, borderRight: `1px solid ${C.line}`, display: "flex", flexDirection: "column", padding: "12px 8px", gap: "6px", overflowY: "auto", minHeight: 0 },
   railBtn: { background: "none", border: "none", color: C.inkSoft, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "11px 2px", cursor: "pointer", borderRadius: C.radius, fontFamily: "inherit", lineHeight: 1.2 },
   railBtnActive: { color: C.goDark, background: C.goTint },
@@ -2776,7 +2782,7 @@ const S: Record<string, React.CSSProperties> = {
   miniLabel: { display: "flex", flexDirection: "column", gap: "4px", fontSize: "12px", fontWeight: 700, color: "#4F535B" },
   miniInput: { width: "100%", boxSizing: "border-box", minWidth: 0, padding: "7px", border: "1px solid #DDD9D2", borderRadius: "6px", fontSize: "13px" },
   smallBtn: { flex: 1, background: "#fff", border: "1px solid #DDD9D2", borderRadius: "7px", padding: "9px 8px", fontSize: "12.5px", fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap", color: "#2A2F3A", fontFamily: "inherit", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: "6px" },
-  canvasArea: { position: "relative", flex: 1, display: "flex", flexDirection: "column", minWidth: 0 },
+  canvasArea: { position: "relative", flex: "1 1 0", display: "flex", flexDirection: "column", minWidth: 0, minHeight: 0, overflow: "hidden" },
   confirmBackdrop: { position: "fixed", inset: 0, zIndex: 400, background: "rgba(0,0,0,.45)", display: "flex", alignItems: "center", justifyContent: "center", padding: "20px" },
   confirmBox: { width: "min(420px, 100%)", background: "#fff", borderRadius: "14px", padding: "24px", boxShadow: "0 20px 60px rgba(0,0,0,.3)" },
   confirmIcon: { width: "40px", height: "40px", borderRadius: "50%", background: "#FEE2E2", color: "#B91C1C", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "20px", fontWeight: 800, marginBottom: "14px" },
@@ -2796,7 +2802,7 @@ const S: Record<string, React.CSSProperties> = {
   canvasScroll: { position: "absolute", inset: 0, overflow: "auto" },
   sheetFrame: { position: "relative", display: "flex", minWidth: "100%", minHeight: "100%", width: "max-content", boxSizing: "border-box", padding: `${RULER_PAD}px` },
   // A darker table than the sheet, so the sheet stands off it.
-  rulerGrid: { flex: 1, minHeight: 0, display: "grid", gridTemplateColumns: "26px 1fr", gridTemplateRows: "22px 1fr", background: "#E6E3DE" },
+  rulerGrid: { flex: "1 1 0", minHeight: 0, minWidth: 0, display: "grid", gridTemplateColumns: "26px 1fr", gridTemplateRows: "22px 1fr", background: "#E6E3DE", overflow: "hidden" },
   viewStrip: { display: "flex", alignItems: "center", gap: "12px", flexWrap: "nowrap", overflowX: "auto", flexShrink: 0, padding: "6px 14px", borderTop: `1px solid ${C.line}`, background: C.card, fontSize: "11px", color: C.inkSoft, whiteSpace: "nowrap" },
   stripDivider: { width: "1px", height: "16px", background: "#E0DCD5" },
   legendItem: { display: "inline-flex", alignItems: "center", gap: "5px", fontSize: "12px", color: "#444", whiteSpace: "nowrap" },
