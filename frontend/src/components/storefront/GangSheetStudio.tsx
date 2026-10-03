@@ -1915,9 +1915,9 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
             <div style={{ fontSize: "18px", fontWeight: 800, color: C.ink }}>
               {mode === "join" ? "Create your account" : "Sign in"}
             </div>
-            <p style={{ fontSize: "13px", color: C.inkSoft, lineHeight: 1.6, margin: "7px 0 18px" }}>
+            <p style={{ fontSize: "12.5px", color: C.inkSoft, lineHeight: 1.55, margin: "6px 0 12px" }}>
               {mode === "join"
-                ? "Your sheet is saved to your account, so you can track the print job, reorder it later, and we can reach you if the artwork needs a word."
+                ? "Your sheet is saved to your account, so you can track it, reorder it, and we can reach you about the artwork."
                 : "Welcome back. Your sheet is waiting."}
             </p>
 
@@ -1938,33 +1938,35 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
               </div>
             )}
 
-            <label style={{ display: "block" }}>
-              <span style={S.joinLabel}>Email</span>
-              <input type="email" required autoFocus={mode === "signin"} value={join.email}
-                onChange={(e) => setJoin((j) => ({ ...j, email: e.target.value }))}
-                style={S.joinInput} />
-            </label>
+            {/* Paired across, not stacked down. As one field per row this ran
+                past the bottom of a laptop screen, which puts the button
+                somebody is trying to press off the edge of it. */}
+            <div style={{ display: "flex", gap: "9px" }}>
+              <label style={{ flex: 1, minWidth: 0 }}>
+                <span style={S.joinLabel}>Email</span>
+                <input type="email" required autoFocus={mode === "signin"} value={join.email}
+                  onChange={(e) => setJoin((j) => ({ ...j, email: e.target.value }))}
+                  style={S.joinInput} />
+              </label>
+              {mode === "join" && (
+                <label style={{ flex: 1, minWidth: 0 }}>
+                  <span style={S.joinLabel}>Business <span style={{ color: C.inkFaint, fontWeight: 500 }}>(optional)</span></span>
+                  <input value={join.company_name}
+                    onChange={(e) => setJoin((j) => ({ ...j, company_name: e.target.value }))}
+                    style={S.joinInput} />
+                </label>
+              )}
+            </div>
 
             <label style={{ display: "block" }}>
-              <span style={S.joinLabel}>Password</span>
+              <span style={S.joinLabel}>
+                Password
+                {mode === "join" && <span style={{ color: C.inkFaint, fontWeight: 500 }}> · at least 8 characters</span>}
+              </span>
               <input type="password" required minLength={mode === "join" ? 8 : undefined} value={join.password}
                 onChange={(e) => setJoin((j) => ({ ...j, password: e.target.value }))}
                 style={S.joinInput} />
-              {mode === "join" && (
-                <span style={{ display: "block", fontSize: "11px", color: C.inkFaint, marginTop: "4px" }}>
-                  At least 8 characters.
-                </span>
-              )}
             </label>
-
-            {mode === "join" && (
-              <label style={{ display: "block" }}>
-                <span style={S.joinLabel}>Business name <span style={{ color: C.inkFaint, fontWeight: 500 }}>(optional)</span></span>
-                <input value={join.company_name}
-                  onChange={(e) => setJoin((j) => ({ ...j, company_name: e.target.value }))}
-                  style={S.joinInput} />
-              </label>
-            )}
 
             {joinError && (
               <div role="alert" style={{ background: C.stopTint, border: "1px solid #FCA5A5", color: "#991B1B", borderRadius: "9px", padding: "9px 11px", fontSize: "12.5px", lineHeight: 1.5, marginTop: "4px" }}>
@@ -1972,7 +1974,7 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
               </div>
             )}
 
-            <button type="submit" disabled={joining} style={{ ...S.primaryBtn, width: "100%", justifyContent: "center", padding: "12px", marginTop: "16px", opacity: joining ? 0.65 : 1 }}>
+            <button type="submit" disabled={joining} style={{ ...S.primaryBtn, width: "100%", justifyContent: "center", padding: "11px", marginTop: "14px", opacity: joining ? 0.65 : 1 }}>
               {joining
                 ? "Just a moment…"
                 : askingWho.toCart ? "Create account & add to cart" : "Create account & save"}
@@ -2878,10 +2880,12 @@ const S: Record<string, React.CSSProperties> = {
   // belonging to the design they are attached to. 30px targets: at 24 they
   // were a hard target with a mouse and a miss on a trackpad.
   joinBackdrop: { position: "fixed", inset: 0, zIndex: 600, background: "rgba(16,24,40,.55)", display: "flex", alignItems: "center", justifyContent: "center", padding: "20px", overflowY: "auto" },
-  joinBox: { background: "#fff", borderRadius: "14px", padding: "26px", width: "100%", maxWidth: "400px", boxShadow: "0 24px 64px rgba(16,24,40,.28)", fontFamily: "inherit" },
-  joinLabel: { display: "block", fontSize: "12px", fontWeight: 600, color: C.inkSoft, marginBottom: "5px", marginTop: "12px" },
-  joinInput: { width: "100%", boxSizing: "border-box", padding: "10px 12px", border: `1px solid ${C.line}`, borderRadius: "9px", fontSize: "14px", fontFamily: "inherit", color: C.ink },
-  joinSwitch: { display: "block", width: "100%", marginTop: "10px", background: "none", border: "none", color: C.inkSoft, fontSize: "12.5px", fontWeight: 600, cursor: "pointer", fontFamily: "inherit", padding: "4px" },
+  // Capped and scrollable: on a short laptop screen the form was taller than
+  // the window, which pushed the button somebody is trying to press off it.
+  joinBox: { background: "#fff", borderRadius: "14px", padding: "22px", width: "100%", maxWidth: "430px", maxHeight: "92vh", overflowY: "auto", boxShadow: "0 24px 64px rgba(16,24,40,.28)", fontFamily: "inherit" },
+  joinLabel: { display: "block", fontSize: "11.5px", fontWeight: 600, color: C.inkSoft, marginBottom: "4px", marginTop: "10px" },
+  joinInput: { width: "100%", boxSizing: "border-box", padding: "9px 11px", border: `1px solid ${C.line}`, borderRadius: "9px", fontSize: "13.5px", fontFamily: "inherit", color: C.ink },
+  joinSwitch: { display: "block", width: "100%", marginTop: "7px", background: "none", border: "none", color: C.inkSoft, fontSize: "12.5px", fontWeight: 600, cursor: "pointer", fontFamily: "inherit", padding: "4px" },
   selBar: {
     display: "flex", alignItems: "center", gap: "2px",
     background: "#fff", border: `1px solid ${C.line}`, borderRadius: "10px",
