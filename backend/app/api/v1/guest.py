@@ -182,6 +182,11 @@ async def guest_payment_intent(
                   "commission_bps": str(rate["bps"])},
         application_fee_cents=fee_cents,
     )
+    # Imported where it is used. This module never imported it, so the
+    # line below raised NameError on every call — after the charge had
+    # been set up at Stripe, which is the worst possible moment.
+    from app.services import stripe_mode
+
     return {
         "client_secret": intent.client_secret,
         "payment_intent_id": intent.id,

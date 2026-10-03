@@ -1652,7 +1652,9 @@ async def recover_abandoned_cart(
     db: AsyncSession = Depends(get_db),
 ):
     """Recover abandoned cart — touches cart item timestamps so they're no longer stale."""
-    from datetime import timezone as _tz
+    # datetime itself was never imported here, only timezone — so recovering a
+    # cart raised NameError rather than recovering anything.
+    from datetime import datetime, timezone as _tz
     from sqlalchemy import update as sa_update
     from app.models.order import CartItem
 

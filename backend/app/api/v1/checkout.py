@@ -193,6 +193,12 @@ async def create_payment_intent(
         raise _blame("reaching the payment provider", exc) from exc
 
     try:
+        # Imported here, like the other services this handler reaches for. It
+        # was used below without ever being imported, so every single call
+        # raised NameError the moment the payment intent had been created —
+        # a charge set up at Stripe and a card form that never appeared.
+        from app.services import stripe_mode
+
         publishable = await stripe_mode.publishable_key(db)
     except Exception as exc:
         raise _blame("reading the payment key", exc) from exc

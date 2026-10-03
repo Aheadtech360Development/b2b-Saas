@@ -488,6 +488,11 @@ async def create_invoice_payment_intent(
         connected_account_id=connect["account_id"],
         metadata={"order_id": str(order.id), "order_number": order.order_number, "kind": "invoice"},
     )
+    # Imported where it is used. This module never imported it, so the
+    # line below raised NameError on every call — after the charge had
+    # been set up at Stripe, which is the worst possible moment.
+    from app.services import stripe_mode
+
     return {
         "client_secret": intent.client_secret,
         "connected_account_id": connect["account_id"],
