@@ -109,7 +109,7 @@ function AddPanel(p: LeftProps) {
               {items.map((c) => (
                 <button key={c.type} type="button" className="sbe-tile" title={c.blurb} {...drag(p.dragRef, { add: c.type })}
                         onClick={() => p.add({ add: c.type })}>
-                  <Icon name={c.icon} /><span>{c.label}</span>
+                  <Icon name={c.icon} /><span className="sbe-tile-label" lang="en">{c.tile ?? c.label}</span>
                 </button>
               ))}
             </div>

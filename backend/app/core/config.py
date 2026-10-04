@@ -46,6 +46,15 @@ class Settings(BaseSettings):
     # ── Database ──────────────────────────────────────────────────────────────
     DATABASE_URL: str  # asyncpg URL
     DATABASE_URL_SYNC: str = ""  # psycopg2 URL — auto-derived from DATABASE_URL if not set
+    # Connections each process may hold (pool) and open past that under a burst
+    # (overflow). Sized so every process the deployment runs fits inside the
+    # database's limit at once — see the calculation in core/database.py.
+    DB_POOL_SIZE: int = 8
+    DB_MAX_OVERFLOW: int = 4
+    DB_POOL_TIMEOUT: int = 30
+    # How many processes of this service share the database, for the startup
+    # check (uvicorn --workers, or celery --concurrency).
+    DB_PROCESSES: int = 2
 
     @property
     def sync_db_url(self) -> str:

@@ -8,6 +8,7 @@
  * customer sees the wrong prices.
  */
 import { setAccessToken } from "@/lib/api-client";
+import { adoptGuestCart } from "@/lib/guestCart";
 import { authService } from "@/services/auth.service";
 import { useAuthStore } from "@/stores/auth.store";
 import type { UserProfile } from "@/types/user.types";
@@ -57,5 +58,10 @@ export async function establishSession(accessToken: string) {
     company_id: (claims.company_id as string | null) ?? null,
   };
   useAuthStore.getState().setAuth(accessToken, full as UserProfile);
+  // A shopper who chose things before signing in keeps them. Staff have no
+  // cart to put them in, and a failure here must never undo a sign-in.
+  if (!full.is_admin && !full.is_platform_admin) {
+    try { await adoptGuestCart(); } catch { /* the cart page tries again */ }
+  }
   return full;
 }

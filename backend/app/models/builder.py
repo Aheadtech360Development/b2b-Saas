@@ -6,7 +6,7 @@ moves to the builder only by an explicit switch, and can switch back.
 """
 import uuid
 
-from sqlalchemy import ForeignKey, Integer, SmallInteger, String, Text
+from sqlalchemy import Boolean, ForeignKey, Integer, SmallInteger, String, Text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -45,6 +45,8 @@ class BuilderVersion(TenantMixin, BaseModel):
     published_by: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True,
     )
+    # Kept by the merchant: never removed by the history limit.
+    pinned: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false", nullable=False)
 
 
 class BuilderFont(TenantMixin, BaseModel):

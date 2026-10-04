@@ -34,12 +34,29 @@ if _is_cloud_db:
     # (public *.rlwy.net proxy or private *.railway.internal) alike.
     _connect_args = {"ssl": "prefer"}
 
+# ── Connection budget ─────────────────────────────────────────────────────────
+# Every process has its own pool, so the database sees the sum of them.
+#
+#   Postgres (Railway default)  max_connections 100, 3 reserved for superusers
+#   web      1 replica x 2 uvicorn workers x (8 + 4)  = 24
+#            x 2 for the moment a deploy runs old and new side by side = 48
+#   worker   celery --concurrency=2 x (4 + 2)          = 12  (railway.worker.json)
+#   beat     no database sessions                       =  0
+#   alembic  during a deploy                            =  1
+#   ------------------------------------------------------------
+#   worst case                                          = 61 of 97 usable
+#
+# leaving room for psql, Railway's own monitoring and a manual script. It used
+# to be 20 + 40 per process: 2 x 60 for the web service alone, 120 against a
+# limit of 100, before a deploy doubled it. Raising replicas or workers means
+# lowering DB_POOL_SIZE / DB_MAX_OVERFLOW so the sum still fits; the startup
+# log line below states the numbers this process is running with.
 engine = create_async_engine(
     _db_url,
     echo=settings.DEBUG,
-    pool_size=20,
-    max_overflow=40,
-    pool_timeout=30,
+    pool_size=settings.DB_POOL_SIZE,
+    max_overflow=settings.DB_MAX_OVERFLOW,
+    pool_timeout=settings.DB_POOL_TIMEOUT,
     pool_recycle=1800,
     # Neon (serverless PG) closes idle connections server-side; without a pre-ping
     # the first use of a stale pooled connection raises "connection is closed".
@@ -405,6 +422,37 @@ async def check_db_connection() -> bool:
         return True
     except Exception:
         return False
+
+
+async def report_connection_budget() -> None:
+    """Say, at startup, what this service may use against what the database allows.
+
+    Read from the database itself, so the numbers in the log are the real ones
+    for whichever database this deployment points at.
+    """
+    from sqlalchemy import text
+
+    per_process = settings.DB_POOL_SIZE + settings.DB_MAX_OVERFLOW
+    service = per_process * max(1, settings.DB_PROCESSES)
+    try:
+        async with AsyncSessionLocal() as session:
+            row = (await session.execute(text(
+                "SELECT current_setting('max_connections')::int, "
+                "current_setting('superuser_reserved_connections')::int, "
+                "(SELECT count(*) FROM pg_stat_activity)"
+            ))).first()
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Could not read the database connection limit: %s", exc)
+        return
+    limit, reserved, in_use = int(row[0]), int(row[1]), int(row[2])
+    usable = limit - reserved
+    msg = ("DB connections: this service may open %s (%s processes x %s), %s are open now, "
+           "the database allows %s (%s usable)")
+    if service * 2 > usable:  # x2: old and new side by side during a deploy
+        logger.warning(msg + " — too close to the limit; lower DB_POOL_SIZE/DB_MAX_OVERFLOW",
+                       service, settings.DB_PROCESSES, per_process, in_use, limit, usable)
+    else:
+        print(msg % (service, settings.DB_PROCESSES, per_process, in_use, limit, usable))
 
 
 async def email_owner(email: str) -> dict | None:

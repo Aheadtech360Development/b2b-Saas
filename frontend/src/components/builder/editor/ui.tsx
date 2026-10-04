@@ -83,7 +83,8 @@ select.sbe-in{padding-right:28px}
 .sbe-item .grow{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .sbe-item .sub{font-size:12px;color:#7A808C}
 .sbe-tiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
-.sbe-tile{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;min-height:72px;padding:8px 4px;border:1px solid #E3E6EC;border-radius:10px;background:#fff;cursor:grab;font-size:12px;font-weight:500;text-align:center;line-height:1.2;user-select:none}
+.sbe-tile{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;min-width:0;min-height:72px;padding:8px 6px;border:1px solid #E3E6EC;border-radius:10px;background:#fff;cursor:grab;font-size:12px;font-weight:500;text-align:center;line-height:1.2;user-select:none;overflow:hidden}
+.sbe-tile-label{display:block;max-width:100%;font-size:11.5px;line-height:1.25;hyphens:auto;-webkit-hyphens:auto;overflow-wrap:anywhere;text-wrap:balance}
 .sbe-tile:hover{border-color:#14161B;box-shadow:0 2px 8px rgba(20,22,27,.08)}
 .sbe-tile:active{cursor:grabbing}
 .sbe-card{display:flex;flex-direction:column;gap:3px;padding:10px 12px;border:1px solid #E3E6EC;border-radius:10px;background:#fff;cursor:grab;text-align:left;width:100%}

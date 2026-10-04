@@ -81,6 +81,7 @@ async def _state(db: AsyncSession, site: BuilderSite) -> dict[str, Any]:
         "mode": site.render_mode,
         "liveVersion": live_number,
         "versions": await site_svc.versions(db, site),
+        "keepVersions": site_svc.KEEP_VERSIONS,
     }
 
 
@@ -149,7 +150,7 @@ async def publish(data: PublishIn, request: Request, _: None = Depends(require_a
     if site is None:
         raise HTTPException(status_code=404, detail="Open the builder first.")
     try:
-        version, warnings = await site_svc.publish(
+        result = await site_svc.publish(
             db, site, user_id=getattr(request.state, "user_id", None), note=data.note,
         )
         await db.commit()
@@ -164,7 +165,12 @@ async def publish(data: PublishIn, request: Request, _: None = Depends(require_a
         await db.rollback()
         raise
     site = await site_svc.get_site(db, tid)
-    return {"version": version.number, "warnings": [w.as_dict() for w in warnings],
+    return {"version": result.version.number, "warnings": [w.as_dict() for w in result.warnings],
+            # Nothing had changed since the live version, so no new one was made.
+            "unchanged": result.unchanged,
+            # Older versions removed to keep history inside its limit — said
+            # here so the editor can tell the merchant which.
+            "pruned": result.pruned, "keepVersions": site_svc.KEEP_VERSIONS,
             **(await _state(db, site))}  # type: ignore[arg-type]
 
 
@@ -193,6 +199,28 @@ async def rollback(data: RollbackIn, request: Request, _: None = Depends(require
     await db.commit()
     site = await site_svc.get_site(db, tid)
     return {"version": version.number, **(await _state(db, site))}  # type: ignore[arg-type]
+
+
+class PinIn(BaseModel):
+    pinned: bool
+
+
+@router.put("/versions/{version_id}/pin")
+async def pin_version(version_id: str, data: PinIn, request: Request, _: None = Depends(require_admin),
+                      db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
+    """Keep a version out of the history limit — or let it go again."""
+    tid = _tenant(request)
+    site = await site_svc.get_site(db, tid)
+    if site is None:
+        raise HTTPException(status_code=404, detail="Open the builder first.")
+    try:
+        await site_svc.set_pinned(db, site, version_id, data.pinned)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    except site_svc.PinRefused as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
+    await db.commit()
+    return await _state(db, site)
 
 
 class ModeIn(BaseModel):

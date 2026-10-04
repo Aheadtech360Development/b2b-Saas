@@ -798,6 +798,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     try:
         if await check_db_connection():
             print("Multi-tenant SaaS backend started — DB OK")
+            from app.core.database import report_connection_budget
+            await report_connection_budget()
         else:
             print("WARNING: startup DB connection check failed (continuing; /health will report).")
     except Exception as exc:  # noqa: BLE001

@@ -406,6 +406,11 @@ async def main():
         await sql("UPDATE builder_versions SET document = jsonb_set(document, '{assignments,product,byId}', "
                   "CAST(:j AS jsonb)) WHERE id = (SELECT published_version_id FROM builder_sites WHERE tenant_id = :t)",
                   {"j": json.dumps({str(a["product"]): "deleted_one"}), "t": str(a["tid"])})
+        # Versions never change once written, so the server keeps them in memory;
+        # this test rewrites one behind its back, so it forgets them first.
+        from app.services.builder import site as _site_svc
+        _site_svc._DOCS.clear()
+        _site_svc._DOCS_BYTES[0] = 0
         live = await site(a, route="product", slug=a["product_slug"])
         check("a product pointing at a template that is gone falls back to the default",
               live.get("templateId") == "default" and (live["data"]["product"] or {}).get("name") == "Tee a",

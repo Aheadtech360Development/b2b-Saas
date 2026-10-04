@@ -8,7 +8,7 @@ import type { SiteDoc, SitePayload } from "@/lib/builder/types";
 
 const BASE = "/api/v1/admin/storefront/builder";
 
-export interface BuilderVersionRow { id: string; number: number; note: string | null; published_at: string | null; live: boolean }
+export interface BuilderVersionRow { id: string; number: number; note: string | null; published_at: string | null; live: boolean; pinned: boolean }
 
 export interface BuilderState {
   draft: SiteDoc;
@@ -16,6 +16,8 @@ export interface BuilderState {
   mode: "legacy" | "visual_builder";
   liveVersion: number | null;
   versions: BuilderVersionRow[];
+  /** How many versions history keeps (pinned ones and the live one aside). */
+  keepVersions?: number;
 }
 
 export interface BuilderIssue { path: string; code: string; message: string; severity: "error" | "warning" }
@@ -32,7 +34,9 @@ export const builderService = {
     apiClient.put<{ revision: number }>(`${BASE}/draft`, { draft, revision }),
   validate: () => apiClient.post<{ ok: boolean; issues: BuilderIssue[] }>(`${BASE}/validate`, {}),
   publish: (note: string) =>
-    apiClient.post<BuilderState & { version: number; warnings: BuilderIssue[] }>(`${BASE}/publish`, { note }),
+    apiClient.post<BuilderState & { version: number; warnings: BuilderIssue[]; unchanged: boolean; pruned: number[] }>(`${BASE}/publish`, { note }),
+  pin: (versionId: string, pinned: boolean) =>
+    apiClient.put<BuilderState>(`${BASE}/versions/${versionId}/pin`, { pinned }),
   rollback: (versionId: string) =>
     apiClient.post<BuilderState & { version: number }>(`${BASE}/rollback`, { version_id: versionId }),
   setMode: (mode: "legacy" | "visual_builder") => apiClient.put<BuilderState>(`${BASE}/mode`, { mode }),

@@ -18,6 +18,7 @@ import { cartService } from "@/services/cart.service";
 import { apiClient } from "@/lib/api-client";
 import { useAuthStore } from "@/stores/auth.store";
 import type { Cart, CartItem } from "@/types/order.types";
+import { adoptGuestCart } from "@/lib/guestCart";
 import { ConfigurationDetail } from "@/components/shared/ConfigurationDetail";
 
 // ── Color map (same as quick-order) ──────────────────────────────────────────
@@ -198,6 +199,7 @@ export default function CartView({ embedded = false }: { embedded?: boolean }) {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated());
   const authIsLoading = useAuthStore((s) => s.isLoading);
   const [isGuest, setIsGuest] = useState(false);
+  const [adoptDropped, setAdoptDropped] = useState<string[]>([]);
 
   const [cart, setCart] = useState<Cart | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -258,7 +260,14 @@ export default function CartView({ embedded = false }: { embedded?: boolean }) {
       }
     } else {
       setIsGuest(false);
-      cartService.getCart().then(setCart).catch(console.error).finally(() => setIsLoading(false));
+      // Lines chosen before signing in are moved into this account first, so
+      // the cart shows everything the shopper picked.
+      adoptGuestCart()
+        .then((r) => { if (r.dropped.length) setAdoptDropped(r.dropped.map((l) => l.product_name)); })
+        .catch(() => {})
+        .finally(() => {
+          cartService.getCart().then(setCart).catch(console.error).finally(() => setIsLoading(false));
+        });
     }
   }, [authIsLoading, isAuthenticated]);
 
@@ -415,6 +424,13 @@ export default function CartView({ embedded = false }: { embedded?: boolean }) {
             ? "Nothing in it yet."
             : `${cart.items.length} ${cart.items.length === 1 ? "line" : "lines"} ready to order.`}
         </p>
+
+        {adoptDropped.length > 0 && (
+          <div className="ui-card" role="status" style={{ padding: "12px 16px", marginBottom: "16px", fontSize: "14px", color: "var(--ui-muted)" }}>
+            {adoptDropped.length === 1 ? "One item" : `${adoptDropped.length} items`} from before you signed in could not be added,
+            because {adoptDropped.length === 1 ? "it is" : "they are"} no longer available: {adoptDropped.join(", ")}.
+          </div>
+        )}
 
         {isEmpty ? (
           /* An empty cart is a dead end unless it points somewhere. */

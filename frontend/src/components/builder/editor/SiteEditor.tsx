@@ -16,7 +16,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  ArrowLeft, Check, ChevronDown, Eye, History, Loader2, Monitor, MoreHorizontal, PanelLeftClose, PanelLeftOpen,
+  ArrowLeft, Bookmark, Check, ChevronDown, Eye, History, Loader2, Monitor, MoreHorizontal, PanelLeftClose, PanelLeftOpen,
   PanelRightClose, PanelRightOpen, Redo2, RotateCcw, Rocket, Smartphone, Tablet, Undo2, AlertTriangle,
 } from "lucide-react";
 import { ToastContainer } from "react-toastify";
@@ -48,7 +48,7 @@ function message(err: unknown, fallback: string): string {
   return err instanceof ApiClientError && err.message ? err.message : fallback;
 }
 
-export default function SiteEditor({ backHref = "/ui-preview" }: { backHref?: string }) {
+export default function SiteEditor({ backHref = "/admin/dashboard" }: { backHref?: string }) {
   const [state, setState] = useState<BuilderState | null>(null);
   const [loadError, setLoadError] = useState("");
   const [doc, setDoc] = useState<SiteDoc | null>(null);
@@ -685,6 +685,7 @@ function PublishDialog({ state, flush, onClose, onPublished, setMode, showIssue 
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState<number | null>(null);
+  const [outcome, setOutcome] = useState<{ unchanged: boolean; pruned: number[] }>({ unchanged: false, pruned: [] });
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -711,7 +712,8 @@ function PublishDialog({ state, flush, onClose, onPublished, setMode, showIssue 
       const r = await builderService.publish(note);
       onPublished(r);
       setDone(r.version);
-      say.done(`Version ${r.version} is published.`);
+      setOutcome({ unchanged: !!r.unchanged, pruned: r.pruned ?? [] });
+      say.done(r.unchanged ? `Nothing had changed — version ${r.version} is still live.` : `Version ${r.version} is published.`);
     } catch (err) {
       if (err instanceof ApiClientError && err.status === 422) {
         const r = await builderService.validate().catch(() => null);
@@ -738,7 +740,17 @@ function PublishDialog({ state, flush, onClose, onPublished, setMode, showIssue 
            )}>
       {done ? (
         <>
-          <p style={{ marginTop: 0 }}>Version {done} is the published version of your builder site.</p>
+          <p style={{ marginTop: 0 }}>
+            {outcome.unchanged
+              ? <>Nothing had changed since version {done}, so no new version was made — version {done} is still the published one.</>
+              : <>Version {done} is the published version of your builder site.</>}
+          </p>
+          {outcome.pruned.length > 0 && (
+            <div className="sbe-note" style={{ marginBottom: 12 }}>
+              To keep history to the last {state.keepVersions ?? 30} versions, {outcome.pruned.length === 1 ? "version" : "versions"}{" "}
+              {outcome.pruned.join(", ")} {outcome.pruned.length === 1 ? "was" : "were"} removed. Mark a version Keep, under Versions, to hold on to it.
+            </div>
+          )}
           {builderLive ? (
             <div className="sbe-note">Your shop shows the builder site, so shoppers see this version now.</div>
           ) : (
@@ -769,7 +781,7 @@ function PublishDialog({ state, flush, onClose, onPublished, setMode, showIssue 
               </div>
               <div className="sbe-help">
                 {builderLive ? "Shoppers see the new version as soon as it is published." : "Publishing does not change your shop yet — it keeps its imported theme until you switch it over."}
-                {" "}Every published version is kept; you can go back to any of them.
+                {" "}The last {state.keepVersions ?? 30} versions are kept, plus any you mark Keep; you can go back to any of them.
               </div>
             </>
           )}
@@ -791,16 +803,32 @@ function IssueRow({ issue, onShow }: { issue: BuilderIssue; onShow: () => void }
 
 function VersionsDialog({ state, onClose, onChanged }: { state: BuilderState; onClose: () => void; onChanged: (s: BuilderState) => void }) {
   const [busy, setBusy] = useState<string | null>(null);
+  const keep = state.keepVersions ?? 30;
   return (
     <Modal title="Published versions" onClose={onClose}>
+      <div className="sbe-note" style={{ marginBottom: 12 }}>
+        Your last {keep} published versions are kept. Older ones are removed when you publish — never the live one, never the
+        one that was live just before it, and never one you mark <b>Keep</b>. Each publish tells you if it removed any.
+      </div>
       {!state.versions.length && <div className="sbe-empty">Nothing published yet.</div>}
       <div className="sbe-list">
         {state.versions.map((v) => (
-          <div key={v.id} className="sbe-item" style={{ cursor: "default", border: "1px solid #EEF0F4" }}>
+          <div key={v.id} className="sbe-item" style={{ cursor: "default", border: "1px solid #EEF0F4", flexWrap: "wrap" }}>
             <span className="grow">
               <b>Version {v.number}</b>{v.note ? ` — ${v.note}` : ""}
               <span className="sub" style={{ display: "block" }}>{v.published_at ? new Date(v.published_at).toLocaleString() : ""}</span>
             </span>
+            <button type="button" className="sbe-btn sm" aria-pressed={v.pinned} disabled={busy !== null}
+                    title={v.pinned ? "Kept — never removed by the history limit" : "Keep this version for good"}
+                    style={v.pinned ? { background: "#EEF2FF", borderColor: "#C7D2FE", color: "#1E2A78" } : undefined}
+                    onClick={async () => {
+                      setBusy(`pin:${v.id}`);
+                      try { onChanged(await builderService.pin(v.id, !v.pinned)); }
+                      catch (err) { say.problem(message(err, "That did not work.")); }
+                      finally { setBusy(null); }
+                    }}>
+              <Bookmark size={13} /> {v.pinned ? "Kept" : "Keep"}
+            </button>
             {v.live ? <span className="sbe-badge live">Published</span> : (
               <button type="button" className="sbe-btn sm" disabled={busy !== null} onClick={async () => {
                 if (!confirmAction(`Make version ${v.number} the published version?${state.mode === "visual_builder" ? " Shoppers will see it straight away." : ""} Your draft is not changed.`)) return;

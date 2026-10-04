@@ -44,6 +44,9 @@ export interface ComponentDef {
   icon: string;
   /** What it shows, in a few words, for the Add panel's tooltip. */
   blurb: string;
+  /** The Add panel tile's label, when the name has a word too long for a
+   *  tile: the same words with a soft hyphen where it may break. */
+  tile?: string;
   container?: boolean;
   /** Templates it has something to show on. Elsewhere the editor says so. */
   context?: TemplateType[];
@@ -349,7 +352,7 @@ export const REGISTRY: ComponentDef[] = [
     create: () => node("breadcrumbs", {}),
   },
   {
-    type: "announcement_bar", label: "Announcement bar", category: "store", icon: "Megaphone",
+    type: "announcement_bar", label: "Announcement bar", tile: "Announce\u00ADment bar", category: "store", icon: "Megaphone",
     blurb: "A strip of news across the top.",
     fields: [{ key: "text", label: "Message", kind: "text" }, { key: "href", label: "Link (optional)", kind: "url" }],
     styles: ["typography", "spacing", "background"],

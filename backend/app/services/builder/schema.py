@@ -411,6 +411,37 @@ def _check_settings(doc: dict[str, Any], known: Known, issues: list[Issue]) -> s
     return families
 
 
+# Mirrors the caps in resolve.py: what one rendered page will fill.
+GRIDS_PER_PAGE = 60
+COLLECTION_SOURCES_PER_PAGE = 8
+
+
+def _check_page_cost(tree: Any, base: str, issues: list[Issue]) -> None:
+    """Warn when one tree asks for more than a page will fill.
+
+    A warning, not an error: the page still publishes and renders, the grids
+    past the limit are simply left empty — and the merchant is told which.
+    """
+    if not isinstance(tree, dict):
+        return
+    grids = 0
+    sources: set[str] = set()
+    for node, _path, _depth in iter_nodes(tree, base):
+        if node.get("type") in ("product_grid", "collection_grid"):
+            grids += 1
+            props = node.get("props") or {}
+            if node.get("type") == "product_grid" and props.get("source") == "collection" and props.get("collectionId"):
+                sources.add(str(props.get("collectionId")))
+    if grids > GRIDS_PER_PAGE:
+        issues.append(Issue(base, "too_many_grids",
+                            f"This has {grids} product and collection grids; a page fills the first "
+                            f"{GRIDS_PER_PAGE} and leaves the rest empty.", "warning"))
+    if len(sources) > COLLECTION_SOURCES_PER_PAGE:
+        issues.append(Issue(base, "too_many_collections",
+                            f"This shows products from {len(sources)} different collections; a page fills "
+                            f"grids from the first {COLLECTION_SOURCES_PER_PAGE} and leaves the rest empty.", "warning"))
+
+
 def validate(doc: Any, known: Known) -> list[Issue]:
     """Everything wrong with a document, worst first.
 
@@ -484,6 +515,7 @@ def validate(doc: Any, known: Known) -> list[Issue]:
     counts = [0]
     for path, tree, context in all_trees(doc):
         _check_tree(tree, path, context, doc, known, families, seen_ids, counts, issues)
+        _check_page_cost(tree, path, issues)
     if counts[0] > MAX_NODES:
         issues.append(Issue("", "too_many_nodes",
                             f"The site has {counts[0]} elements; the limit is {MAX_NODES}."))

@@ -180,24 +180,50 @@ async def main():
         print("publishing under pressure")
         r = await c.put("/api/v1/admin/storefront/builder/draft", headers=adm(a), json={"draft": draft_a, "revision": rev_a})
         rev_a = r.json()["revision"]
+
+        async def numbers_of(brand):
+            rows = await sql("SELECT number FROM builder_versions WHERE tenant_id = :t ORDER BY number",
+                             {"t": str(brand["tid"])}, fetch=True)
+            return [r[0] for r in rows]
+
+        async def live_number(brand):
+            rows = await sql("SELECT v.number FROM builder_sites s JOIN builder_versions v ON v.id = s.published_version_id "
+                             "WHERE s.tenant_id = :t", {"t": str(brand["tid"])}, fetch=True)
+            return rows[0][0] if rows else None
+
         results = await asyncio.gather(*[
             c.post("/api/v1/admin/storefront/builder/publish", headers=adm(a), json={"note": f"p{i}"}) for i in range(6)
         ])
-        numbers = sorted(x.json()["version"] for x in results if x.status_code == 200)
-        rows = await sql("SELECT number FROM builder_versions WHERE tenant_id = :t ORDER BY number", {"t": str(a["tid"])}, fetch=True)
-        live = await sql("SELECT v.number FROM builder_sites s JOIN builder_versions v ON v.id = s.published_version_id "
-                         "WHERE s.tenant_id = :t", {"t": str(a["tid"])}, fetch=True)
-        check("six publishes at once make six versions with six different numbers",
-              numbers == list(range(1, 7)) and [r[0] for r in rows] == list(range(1, 7)), f"{numbers} {rows}")
-        check("…and the live pointer is on the last of them", live and live[0][0] == 6, live)
+        got = sorted({x.json()["version"] for x in results if x.status_code == 200})
+        check("six identical publishes at once make one version, and all six are told which",
+              [x.status_code for x in results] == [200] * 6 and got == [1] and await numbers_of(a) == [1], f"{got} {await numbers_of(a)}")
+        check("…five of them say nothing had changed", sum(1 for x in results if x.json().get("unchanged")) == 5)
+        r = await c.post("/api/v1/admin/storefront/builder/publish", headers=adm(a), json={"note": "again"})
+        check("publishing again with nothing changed makes no new version",
+              r.json().get("unchanged") is True and r.json()["version"] == 1 and await numbers_of(a) == [1], r.text[:200])
+
+        def edited(doc, text_value):
+            d = json.loads(json.dumps(doc))
+            d["templates"]["home"]["default"]["tree"]["children"].insert(0, section(node("heading", text=text_value)))
+            return d
+
+        await c.put("/api/v1/admin/storefront/builder/draft", headers=adm(a), json={"draft": edited(draft_a, "v2"), "revision": None})
+        results = await asyncio.gather(*[
+            c.post("/api/v1/admin/storefront/builder/publish", headers=adm(a), json={}) for _ in range(3)
+        ])
+        check("three tabs publishing one changed draft at once make exactly one new version",
+              await numbers_of(a) == [1, 2] and await live_number(a) == 2
+              and sorted(x.json()["version"] for x in results) == [2, 2, 2], await numbers_of(a))
 
         saves = await asyncio.gather(*[
-            c.put("/api/v1/admin/storefront/builder/draft", headers=adm(a), json={"draft": draft_a, "revision": rev_a})
+            c.put("/api/v1/admin/storefront/builder/draft", headers=adm(a), json={"draft": draft_a, "revision": rev_a + 1})
             for _ in range(4)
         ])
         codes = sorted(s.status_code for s in saves)
         check("four tabs saving the same revision at once: one wins, three are told", codes == [200, 409, 409, 409], codes)
 
+        # A real change, so the publish below gets as far as writing a version.
+        await c.put("/api/v1/admin/storefront/builder/draft", headers=adm(a), json={"draft": edited(draft_a, "doomed"), "revision": None})
         before = await sql("SELECT count(*) FROM builder_versions WHERE tenant_id = :t", {"t": str(a["tid"])}, fetch=True)
         pointer0 = await sql("SELECT CAST(published_version_id AS text) FROM builder_sites WHERE tenant_id = :t", {"t": str(a["tid"])}, fetch=True)
         original = site_svc.logger.info
@@ -215,24 +241,137 @@ async def main():
         after = await sql("SELECT count(*) FROM builder_versions WHERE tenant_id = :t", {"t": str(a["tid"])}, fetch=True)
         pointer1 = await sql("SELECT CAST(published_version_id AS text) FROM builder_sites WHERE tenant_id = :t", {"t": str(a["tid"])}, fetch=True)
         check("a publish that fails halfway leaves no version behind and the live site where it was",
-              before == after and pointer0 == pointer1, f"{before} {after} {pointer0} {pointer1}")
+              before == after and pointer0 == pointer1
+              and (isinstance(r, Exception) or r.status_code >= 500), f"{before} {after} {pointer0} {pointer1}")
 
         print("")
-        print("one page made as expensive as a merchant can make it")
-        heavy = json.loads(json.dumps(draft_a))
-        heavy["templates"]["home"]["default"]["tree"]["children"] = [
-            section(*[node("product_grid", source="newest", limit=48) for _ in range(10)]) for _ in range(20)
-        ]
-        r = await c.put("/api/v1/admin/storefront/builder/draft", headers=adm(a), json={"draft": heavy, "revision": None})
+        print("history is limited, and says what it removes")
+        keep_was = site_svc.KEEP_VERSIONS
+        site_svc.KEEP_VERSIONS = 5
+        try:
+            r = await c.get("/api/v1/admin/storefront/builder/versions", headers=adm(a))
+            v2 = next(v for v in r.json() if v["number"] == 2)
+            r = await c.put(f"/api/v1/admin/storefront/builder/versions/{v2['id']}/pin", headers=adm(a), json={"pinned": True})
+            check("a version can be kept", r.status_code == 200 and any(v["pinned"] for v in r.json()["versions"] if v["number"] == 2))
+            r = await c.put(f"/api/v1/admin/storefront/builder/versions/{b_versions[0]['id']}/pin", headers=adm(a), json={"pinned": True})
+            check("…but not another shop's", r.status_code == 404, r.status_code)
+            pruned_all = []
+            for i in range(3, 10):
+                await c.put("/api/v1/admin/storefront/builder/draft", headers=adm(a), json={"draft": edited(draft_a, f"v{i}"), "revision": None})
+                r = await c.post("/api/v1/admin/storefront/builder/publish", headers=adm(a), json={})
+                pruned_all += r.json().get("pruned") or []
+            kept = await numbers_of(a)
+            check("past the limit the oldest go, the kept one stays, the live one stays",
+                  kept == [2, 5, 6, 7, 8, 9] and await live_number(a) == 9, kept)
+            check("…and every publish that removed some said which", sorted(pruned_all) == [1, 3, 4], pruned_all)
+            r = await c.post("/api/v1/admin/storefront/builder/rollback", headers=adm(a), json={"version_id": v2["id"]})
+            check("the kept version is still there to go back to", r.status_code == 200 and await live_number(a) == 2, r.status_code)
+            await c.put(f"/api/v1/admin/storefront/builder/versions/{v2['id']}/pin", headers=adm(a), json={"pinned": False})
+            await c.put("/api/v1/admin/storefront/builder/draft", headers=adm(a), json={"draft": edited(draft_a, "v10"), "revision": None})
+            r = await c.post("/api/v1/admin/storefront/builder/publish", headers=adm(a), json={})
+            check("publishing after a rollback keeps the version that was live, unkept and old as it is",
+                  2 in await numbers_of(a) and await live_number(a) == 10, await numbers_of(a))
+        finally:
+            site_svc.KEEP_VERSIONS = keep_was
+
+        print("")
+        print("published documents in memory")
+        big = edited(draft_a, "big")
+        big["pages"] = {f"p{i}": {"title": f"Page {i}", "template": "default", "seo": {},
+                                  "tree": section(*[node("text", text="lorem ipsum dolor sit amet " * 20) for _ in range(6)])}
+                        for i in range(220)}
+        await c.put("/api/v1/admin/storefront/builder/draft", headers=adm(a), json={"draft": big, "revision": None})
         r = await c.post("/api/v1/admin/storefront/builder/publish", headers=adm(a), json={})
         await c.put("/api/v1/admin/storefront/builder/mode", headers=adm(a), json={"mode": "visual_builder"})
-        STATEMENTS[0] = 0
-        t0 = asyncio.get_event_loop().time()
-        r = await c.get("/api/v1/storefront/site", headers=pub(a), params={"route": "home"})
-        took = asyncio.get_event_loop().time() - t0
-        print(f"  INFO  200 product grids on one page: {STATEMENTS[0]} SQL statements, {took * 1000:.0f} ms, {len(r.content) // 1024} KB")
-        # Reported, not asserted: there is no per-page cap on grids today.
-        check("the heavy page still renders", r.status_code == 200 and publish_ok(r))
+        size_kb = len(json.dumps(big)) // 1024
+
+        async def timed(n):
+            STATEMENTS[0] = 0
+            t0 = asyncio.get_event_loop().time()
+            for _ in range(n):
+                await c.get("/api/v1/storefront/site", headers=pub(a), params={"route": "home"})
+            return (asyncio.get_event_loop().time() - t0) * 1000 / n, STATEMENTS[0] / n
+
+        limit_was = site_svc.DOC_CACHE_BYTES
+        site_svc.DOC_CACHE_BYTES = 0
+        site_svc._DOCS.clear()
+        site_svc._DOCS_BYTES[0] = 0
+        cold_ms, cold_q = await timed(10)
+        site_svc.DOC_CACHE_BYTES = limit_was
+        await c.get("/api/v1/storefront/site", headers=pub(a), params={"route": "home"})
+        warm_ms, warm_q = await timed(10)
+        print(f"  INFO  {size_kb} KB published site, home page: without the cache {cold_ms:.0f} ms / {cold_q:.1f} SQL, "
+              f"with it {warm_ms:.0f} ms / {warm_q:.1f} SQL")
+        check("the cache saves a query and time on every page", warm_q <= cold_q - 1 and warm_ms < cold_ms, f"{cold_ms} {warm_ms}")
+        key = next(k for k in site_svc._DOCS if k[0] == str(a["tid"]) and "p1" in (site_svc._DOCS[k][0].get("pages") or {}))
+        snapshot = json.dumps(site_svc._DOCS[key][0], sort_keys=True)
+        for route in ("home", "page", "product", "cart", "not_found"):
+            await c.get("/api/v1/storefront/site", headers=pub(a), params={"route": route, "slug": "p1"})
+        check("rendering never changes the cached document", json.dumps(site_svc._DOCS[key][0], sort_keys=True) == snapshot)
+        r = await c.get("/api/v1/storefront/site", headers=pub(b))
+        check("brand B's shop still shows brand B's site with A's in memory", f"B-DRAFT-SECRET-{RUN}" in r.text and "lorem ipsum" not in r.text)
+        r = await c.post("/api/v1/admin/storefront/builder/rollback", headers=adm(a), json={"version_id": v2["id"]})
+        r = await c.get("/api/v1/storefront/site", headers=pub(a), params={"route": "page", "slug": "p1"})
+        check("a rollback is seen at once — the cache follows the live pointer", r.json().get("notFound") is True)
+        await c.put("/api/v1/admin/storefront/builder/mode", headers=adm(a), json={"mode": "legacy"})
+
+        print("one page made as expensive as a merchant can make it")
+        cols = []
+        for i in range(20):
+            cid = uuid.uuid4()
+            await sql("INSERT INTO collections (id, tenant_id, name, slug, is_active) VALUES (:i,:t,:n,:s,true)",
+                      {"i": str(cid), "t": str(a["tid"]), "n": f"A col {i}", "s": f"a-col-{i}-{RUN}"})
+            await sql("INSERT INTO collection_products (tenant_id, collection_id, product_id) VALUES (:t,:c,:p)",
+                      {"t": str(a["tid"]), "c": str(cid), "p": str(a["product"])})
+            cols.append(str(cid))
+
+        async def page_cost(children, label):
+            doc = json.loads(json.dumps(draft_a))
+            doc["templates"]["home"]["default"]["tree"]["children"] = children
+            await c.put("/api/v1/admin/storefront/builder/draft", headers=adm(a), json={"draft": doc, "revision": None})
+            v = await c.post("/api/v1/admin/storefront/builder/validate", headers=adm(a))
+            p = await c.post("/api/v1/admin/storefront/builder/publish", headers=adm(a), json={})
+            await c.put("/api/v1/admin/storefront/builder/mode", headers=adm(a), json={"mode": "visual_builder"})
+            await c.get("/api/v1/storefront/site", headers=pub(a), params={"route": "home"})  # warm caches
+            STATEMENTS[0] = 0
+            t0 = asyncio.get_event_loop().time()
+            r = await c.get("/api/v1/storefront/site", headers=pub(a), params={"route": "home"})
+            took = asyncio.get_event_loop().time() - t0
+            print(f"  INFO  {label}: {STATEMENTS[0]} SQL statements, {took * 1000:.0f} ms, {len(r.content) // 1024} KB")
+            return STATEMENTS[0], r.json(), v.json(), p.status_code
+
+        newest200 = [section(*[node("product_grid", source="newest", limit=24) for _ in range(10)]) for _ in range(20)]
+        q200, live, _v, status = await page_cost(newest200, "200 'newest' product grids (was 607 SQL before batching)")
+        check("200 product grids of one kind cost a bounded number of queries", status == 200 and q200 <= 30, q200)
+
+        def mixed(times):
+            kids = []
+            for i, cid in enumerate(cols):
+                kids.append(node("product_grid", source="collection", collectionId=cid, limit=8))
+                kids.append(node("collection_grid", collectionIds=[cid] if i % 2 else [], limit=4))
+            for _ in range(times):
+                kids.append(node("product_grid", source="newest", limit=8))
+                kids.append(node("product_grid", source="manual", productIds=[str(a["product"])], limit=8))
+                kids.append(node("product_grid", source="related", limit=8))
+                kids.append(node("product_grid", source="search", limit=8))
+            return [section(*kids)]
+
+        q_mixed, live, v, status = await page_cost(mixed(10), "60 mixed product grids, 20 collections, 20 collection grids")
+        q_double, _l, _v2, _s = await page_cost(mixed(20), "100 mixed product grids, same sources")
+        check("a page using every kind of source stays inside a fixed budget", status == 200 and q_mixed <= 90, q_mixed)
+        check("doubling the grids does not add queries — cost follows sources, not grids", q_double <= q_mixed + 2,
+              f"{q_mixed} -> {q_double}")
+        grids = live["data"]["grids"]
+        tree = live["template"]["children"][0]["children"]
+        manual_grid = next(n for n in tree if n["props"].get("source") == "manual")
+        coll_grids = [n for n in tree if n["props"].get("source") == "collection"]
+        check("hand-picked grids still show the products picked",
+              [c["title"] for c in grids[manual_grid["id"]]] == ["Secret a product"], grids[manual_grid["id"]])
+        filled = [n for n in coll_grids if grids.get(n["id"])]
+        check("grids from the first 8 collections are filled, the rest left empty",
+              len(filled) == 8 and all(grids[n["id"]][0]["title"] == "Secret a product" for n in filled), len(filled))
+        codes = {i["code"] for i in v["issues"]}
+        check("…and the publish check warns about it before anything goes live", "too_many_collections" in codes, sorted(codes))
         await c.put("/api/v1/admin/storefront/builder/mode", headers=adm(a), json={"mode": "legacy"})
 
     print(f"\n{ok} passed, {fail} failed")

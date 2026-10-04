@@ -29,7 +29,9 @@ from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.builder import BuilderFont
-from app.services.builder.schema import PART_KEYS, iter_nodes
+from app.services.builder.schema import (
+    COLLECTION_SOURCES_PER_PAGE, GRIDS_PER_PAGE, PART_KEYS, iter_nodes,
+)
 
 MAX_GRID = 48
 _ID_OK = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
@@ -80,16 +82,6 @@ async def _menus(db: AsyncSession, tenant_id: uuid.UUID, ids: set[str]) -> dict[
     return out
 
 
-async def _collection_slug(db: AsyncSession, tenant_id: uuid.UUID, cid: Any) -> str:
-    u = _uuid(cid)
-    if not u:
-        return ""
-    return (await db.execute(
-        text("SELECT slug FROM collections WHERE id = :i AND tenant_id = CAST(:t AS uuid) AND is_active"),
-        {"i": str(u), "t": str(tenant_id)},
-    )).scalar() or ""
-
-
 async def _search_ids(db: AsyncSession, tenant_id: uuid.UUID, q: str, limit: int) -> list[str]:
     q = (q or "").strip()
     if not q:
@@ -104,28 +96,157 @@ async def _search_ids(db: AsyncSession, tenant_id: uuid.UUID, q: str, limit: int
     return list(rows)
 
 
-async def _grid(db: AsyncSession, tenant_id: uuid.UUID, props: dict[str, Any], *,
-                product: dict | None, query: str) -> list[dict[str, Any]]:
+# What one page may cost, however it is built. Grids are filled from a few
+# shared fetches (one per kind of source), so twenty "newest" grids cost what
+# one does; what grows the work is distinct sources, and those are capped.
+# Beyond the caps a grid is left empty, and the publish check says so.
+MAX_GRIDS_PER_PAGE = GRIDS_PER_PAGE
+MAX_COLLECTION_SOURCES = COLLECTION_SOURCES_PER_PAGE
+MAX_MANUAL_PRODUCTS = 120
+
+
+def _limit(props: dict[str, Any], default: int) -> int:
+    try:
+        return max(1, min(int(props.get("limit") or default), MAX_GRID))
+    except (TypeError, ValueError):
+        return default
+
+
+async def _cards_for_ids(db: AsyncSession, tenant_id: uuid.UUID, ids: list[str]) -> dict[str, dict[str, Any]]:
+    """Product cards by product id, for hand-picked grids: one lookup for the
+    slugs, then the cards in batches of what the card loader takes at once."""
     from app.services import theme_data
 
-    limit = max(1, min(int(props.get("limit") or 8), MAX_GRID))
-    source = props.get("source") or "newest"
-    if source == "manual":
-        ids = [str(u) for u in (_uuid(i) for i in (props.get("productIds") or [])) if u]
-        return await theme_data.products(db, limit=limit, ids=ids) if ids else []
-    if source == "collection":
-        slug = await _collection_slug(db, tenant_id, props.get("collectionId"))
-        return await theme_data.products(db, limit=limit, collection_slug=slug) if slug else []
-    if source == "search":
-        ids = await _search_ids(db, tenant_id, query, limit)
-        return await theme_data.products(db, limit=limit, ids=ids) if ids else []
-    if source == "related":
-        # The newest of everything else. One more than needed, so the product
-        # being viewed can be left out and the row still fills.
-        cards = await theme_data.products(db, limit=limit + 1)
-        here = f"/products/{product['slug']}" if product else None
-        return [c for c in cards if c.get("url") != here][:limit]
-    return await theme_data.products(db, limit=limit)
+    if not ids:
+        return {}
+    rows = (await db.execute(
+        text("SELECT CAST(id AS text) AS id, slug FROM products "
+             "WHERE tenant_id = CAST(:t AS uuid) AND CAST(id AS text) = ANY(:ids)"),
+        {"t": str(tenant_id), "ids": ids},
+    )).all()
+    slug_of = {r.id: r.slug for r in rows}
+    wanted = [i for i in ids if i in slug_of]
+    by_url: dict[str, dict[str, Any]] = {}
+    step = theme_data.MAX_ITEMS
+    for at in range(0, len(wanted), step):
+        chunk = wanted[at:at + step]
+        for card in await theme_data.products(db, limit=len(chunk), ids=chunk):
+            by_url[card.get("url", "")] = card
+    out: dict[str, dict[str, Any]] = {}
+    for pid in wanted:
+        card = by_url.get(f"/products/{slug_of[pid]}")
+        if card is not None:
+            out[pid] = card
+    return out
+
+
+async def _fill_grids(db: AsyncSession, tenant_id: uuid.UUID, nodes: list[dict[str, Any]], *,
+                      product: dict | None, query: str) -> dict[str, list[dict[str, Any]]]:
+    """Every product grid on a page, from as few fetches as their sources need."""
+    from app.services import theme_data
+
+    grids = [n for n in nodes if n.get("type") == "product_grid"]
+    out: dict[str, list[dict[str, Any]]] = {n["id"]: [] for n in grids[MAX_GRIDS_PER_PAGE:]}
+    grids = grids[:MAX_GRIDS_PER_PAGE]
+
+    newest_need = search_need = 0
+    manual: list[str] = []
+    collections: dict[str, int] = {}
+    for n in grids:
+        props = n.get("props") or {}
+        limit = _limit(props, 8)
+        source = props.get("source") or "newest"
+        if source == "manual":
+            for raw in props.get("productIds") or []:
+                u = _uuid(raw)
+                if u and str(u) not in manual:
+                    manual.append(str(u))
+        elif source == "collection":
+            cid = _uuid(props.get("collectionId"))
+            if cid:
+                collections[str(cid)] = max(collections.get(str(cid), 0), limit)
+        elif source == "search":
+            search_need = max(search_need, limit)
+        else:  # newest, related
+            newest_need = max(newest_need, limit + (1 if source == "related" else 0))
+
+    newest = await theme_data.products(db, limit=newest_need) if newest_need else []
+    by_id = await _cards_for_ids(db, tenant_id, manual[:MAX_MANUAL_PRODUCTS])
+    found: list[dict[str, Any]] = []
+    if search_need:
+        ids = await _search_ids(db, tenant_id, query, search_need)
+        found = await theme_data.products(db, limit=search_need, ids=ids) if ids else []
+    by_collection: dict[str, list[dict[str, Any]]] = {}
+    if collections:
+        rows = (await db.execute(
+            text("SELECT CAST(id AS text) AS id, slug FROM collections "
+                 "WHERE tenant_id = CAST(:t AS uuid) AND is_active AND CAST(id AS text) = ANY(:ids)"),
+            {"t": str(tenant_id), "ids": list(collections)},
+        )).all()
+        for row in rows[:MAX_COLLECTION_SOURCES]:
+            by_collection[row.id] = await theme_data.products(
+                db, limit=collections[row.id], collection_slug=row.slug)
+
+    here = f"/products/{product['slug']}" if product else None
+    for n in grids:
+        props = n.get("props") or {}
+        limit = _limit(props, 8)
+        source = props.get("source") or "newest"
+        if source == "manual":
+            ids = [str(u) for u in (_uuid(i) for i in (props.get("productIds") or [])) if u]
+            out[n["id"]] = [by_id[i] for i in ids if i in by_id][:limit]
+        elif source == "collection":
+            cid = _uuid(props.get("collectionId"))
+            out[n["id"]] = by_collection.get(str(cid), [])[:limit] if cid else []
+        elif source == "search":
+            out[n["id"]] = found[:limit]
+        elif source == "related":
+            # The newest of everything else: the product being viewed is left out.
+            out[n["id"]] = [c for c in newest if c.get("url") != here][:limit]
+        else:
+            out[n["id"]] = newest[:limit]
+    return out
+
+
+async def _fill_collection_grids(db: AsyncSession, tenant_id: uuid.UUID,
+                                 nodes: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]:
+    """Every collection grid on a page, from one fetch for "all collections"
+    and one for the ones picked by hand."""
+    from app.services import theme_data
+
+    grids = [n for n in nodes if n.get("type") == "collection_grid"]
+    out: dict[str, list[dict[str, Any]]] = {n["id"]: [] for n in grids[MAX_GRIDS_PER_PAGE:]}
+    grids = grids[:MAX_GRIDS_PER_PAGE]
+    picked: list[str] = []
+    want_all = 0
+    for n in grids:
+        props = n.get("props") or {}
+        ids = [str(u) for u in (_uuid(i) for i in (props.get("collectionIds") or [])) if u]
+        if ids:
+            picked.extend(i for i in ids if i not in picked)
+        else:
+            want_all = max(want_all, _limit(props, 4))
+    every = await theme_data.collections(db, limit=want_all) if want_all else []
+    by_id: dict[str, dict[str, Any]] = {}
+    if picked:
+        chosen = await theme_data.collections(db, limit=len(picked), ids=picked)
+        # Cards carry their address, not their id.
+        slugs = {r.id: r.slug for r in (await db.execute(
+            text("SELECT CAST(id AS text) AS id, slug FROM collections "
+                 "WHERE tenant_id = CAST(:t AS uuid) AND CAST(id AS text) = ANY(:ids)"),
+            {"t": str(tenant_id), "ids": picked},
+        )).all()}
+        by_url = {c.get("url"): c for c in chosen}
+        for i in picked:
+            card = by_url.get(f"/collections/{slugs.get(i, '')}")
+            if card is not None:
+                by_id[i] = card
+    for n in grids:
+        props = n.get("props") or {}
+        limit = _limit(props, 4)
+        ids = [str(u) for u in (_uuid(i) for i in (props.get("collectionIds") or [])) if u]
+        out[n["id"]] = [by_id[i] for i in ids if i in by_id][:limit] if ids else every[:limit]
+    return out
 
 
 async def _fonts(db: AsyncSession, tenant_id: uuid.UUID, doc: dict[str, Any]) -> dict[str, Any]:
@@ -294,14 +415,8 @@ async def render_payload(
                 if n.get("type") == "menu" and (n.get("props") or {}).get("menuId")}
     data["menus"] = await _menus(db, tenant_id, menu_ids)
 
-    for node in nodes:
-        props = node.get("props") or {}
-        if node.get("type") == "product_grid":
-            data["grids"][node["id"]] = await _grid(db, tenant_id, props, product=data["product"], query=query)
-        elif node.get("type") == "collection_grid":
-            ids = [str(u) for u in (_uuid(i) for i in (props.get("collectionIds") or [])) if u]
-            limit = max(1, min(int(props.get("limit") or 4), MAX_GRID))
-            data["collectionGrids"][node["id"]] = await theme_data.collections(db, limit=limit, ids=ids or None)
+    data["grids"] = await _fill_grids(db, tenant_id, nodes, product=data["product"], query=query)
+    data["collectionGrids"] = await _fill_collection_grids(db, tenant_id, nodes)
 
     data["store"] = await _store(db, tenant_id)
 

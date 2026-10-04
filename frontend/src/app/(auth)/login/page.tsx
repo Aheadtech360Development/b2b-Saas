@@ -9,6 +9,7 @@ import Link from "next/link";
 import dynamic from "next/dynamic";
 import type ReCAPTCHAType from "react-google-recaptcha";
 import { useAuthStore } from "@/stores/auth.store";
+import { adoptGuestCart } from "@/lib/guestCart";
 import { authService } from "@/services/auth.service";
 import { ApiClientError, setAccessToken } from "@/lib/api-client";
 import { PasswordField } from "@/components/ui/PasswordField";
@@ -81,6 +82,10 @@ export default function LoginPage() {
       company_id: (payload.company_id as string | null) ?? null,
     };
     setAuth(accessToken, fullProfile);
+    // A shopper's guest cart comes with them into their account.
+    if (!fullProfile.is_admin && !fullProfile.is_platform_admin) {
+      try { await adoptGuestCart(); } catch { /* the cart page tries again */ }
+    }
 
     // One form, and it knows who signed in. The token says what somebody is —
     // the platform's, a brand's, or a brand's customer — so nobody is asked to
