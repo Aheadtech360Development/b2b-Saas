@@ -18,10 +18,12 @@ import { BY_TYPE, REGISTRY, createNode } from "@/lib/builder/registry";
 import { SYSTEM_FONTS } from "@/lib/builder/fonts";
 import { findNode } from "@/lib/builder/tree";
 import {
-  addPage, addTemplate, detachShared, ensureFont, locate, makeShared, nodeForIssue, removeTemplate, renameSlug,
-  setTreeAt, sharedUses, slugify, treeAt, usedFamilies,
+  addPage, addTemplate, assignProducts, detachShared, ensureFont, locate, makeShared, nodeForIssue, productsUsing,
+  removeTemplate, renameSlug, setTreeAt, sharedUses, slugify, treeAt, usedFamilies,
 } from "@/lib/builder/doc";
+import { findType } from "@/lib/builder/tree";
 import { cleanHtml, safeHref, safeSrc, scopeCss } from "@/lib/builder/sanitize";
+import { BASE_CSS } from "@/lib/builder/baseCss";
 import { Tree, type RenderCtx } from "@/components/builder/render";
 import { REGISTRY_ICONS } from "@/components/builder/editor/icons";
 import type { BuilderNode, SiteDoc, SitePayload } from "@/lib/builder/types";
@@ -169,6 +171,19 @@ describe("the document", () => {
     expect([...usedFamilies(doc())].sort()).toEqual(["Inter", "Lora"]);
   });
 
+  it("gives a product its own template, and moves it rather than copying it", () => {
+    let d = addTemplate(doc(), "product", "Gang sheets").doc;
+    d = addTemplate(d, "product", "Apparel").doc;
+    d = assignProducts(d, "gang_sheets", ["p1", "p2"]);
+    expect(productsUsing(d, "gang_sheets").sort()).toEqual(["p1", "p2"]);
+    d = assignProducts(d, "apparel", ["p2"]);
+    expect(productsUsing(d, "gang_sheets")).toEqual(["p1"]);
+    expect(productsUsing(d, "apparel")).toEqual(["p2"]);
+    d = assignProducts(d, "gang_sheets", []);
+    expect(d.assignments.product?.byId).toEqual({ p2: "apparel" });
+    expect(removeTemplate(d, "product", "apparel").assignments.product?.byId).toEqual({});
+  });
+
   it("points a server issue at the element it is about", () => {
     const hit = nodeForIssue(doc(), "templates.home.default.tree.children[0].children[0].props.text");
     expect(hit?.id).toBe("h1");
@@ -200,6 +215,12 @@ describe("the editor's HTML cleaner", () => {
     expect(css).toContain('[data-b="b1"] p { color: blue }');
     expect(css).toContain('@media (max-width: 600px) { [data-b="b1"] h2 { color: green } }');
     expect(css).not.toMatch(/@import|fixed|e\.test/);
+  });
+
+  it("keeps a Custom HTML block's drawing inside its own box", () => {
+    // Without this, an absolutely positioned div in the header covered the cart's
+    // checkout button with a link somewhere else (seen in the browser).
+    expect(BASE_CSS).toContain(".bsite .b-html{position:relative;contain:paint;isolation:isolate}");
   });
 
   it("accepts only links and pictures that cannot run anything", () => {
@@ -302,6 +323,15 @@ describe("what the storefront gets", () => {
     const out = html(tpl, { route: "page", page: { title: "About us", tree: { id: "pg", type: "stack", children: [{ id: "tx", type: "text", props: { text: "We print." } }] } } });
     expect(out).toContain("About us");
     expect(out).toContain("We print.");
+  });
+
+  it("shows a still picture of a cart in the editor, never the admin's own cart", () => {
+    const tpl: BuilderNode = { id: "c", type: "stack", children: [{ id: "ci", type: "cart_items" }] };
+    expect(findType(tpl, "cart_items")?.id).toBe("ci");
+    expect(findType(tpl, "product_buy")).toBeNull();
+    const out = html(tpl, { edit: true, route: "cart" });
+    expect(out).toContain('data-b="ci"');
+    expect(out).toContain("The shopper&#x27;s cart shows here");
   });
 
   it("can draw every element the registry offers without throwing", () => {

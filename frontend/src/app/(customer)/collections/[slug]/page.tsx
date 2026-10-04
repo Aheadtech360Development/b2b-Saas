@@ -57,7 +57,10 @@ export default async function CollectionPage({ params, searchParams }: {
   // other shop, which goes on below as before.
   const sort = sp.sort === "name" ? "name" : "";
   const site = await loadBuilderPage("collection", slug, "", page, sort);
-  if (site) return <BuilderPage payload={site} sort={sort} />;
+  if (site) {
+    if (site.notFound) notFound();
+    return <BuilderPage payload={site} sort={sort} />;
+  }
 
   const { page: themePage, collection } = await load(slug, page);
 

@@ -12,6 +12,7 @@
  */
 import { cache } from "react";
 import { ANCHOR_PREFIX } from "@/components/storefront/ThemeRenderer";
+import { isBuilder, type SitePayload, type SiteResponse } from "@/lib/builder/types";
 
 export interface ThemeChromeData {
   css: string;
@@ -34,6 +35,10 @@ export interface Store {
   chrome: ThemeChromeData | null;
   icon: string | null;
   title: string | null;
+  /** When this shop is live on the visual builder: its header, footer and
+   *  "page not found" template. Null for every other shop. Same answer, no
+   *  second request. */
+  builder: SitePayload | null;
 }
 
 /** Which brand this address belongs to, and the chrome its shop wears.
@@ -41,7 +46,7 @@ export interface Store {
 export const loadStore = cache(async (): Promise<Store> => {
   try {
     const { apiClient } = await import("@/lib/api-client");
-    const r = await apiClient.get<{ active: boolean; chrome: ThemeChromeData | null; brand: string | null; icon?: string | null; title?: string | null }>(
+    const r = await apiClient.get<{ active: boolean; chrome: ThemeChromeData | null; brand: string | null; icon?: string | null; title?: string | null; builder?: SiteResponse | null }>(
       "/api/v1/storefront/theme-active", { skipAuth: true },
     );
     return {
@@ -49,9 +54,10 @@ export const loadStore = cache(async (): Promise<Store> => {
       chrome: r?.active ? (r.chrome ?? null) : null,
       icon: r?.icon ?? null,
       title: r?.title ?? null,
+      builder: isBuilder(r?.builder) ? r.builder : null,
     };
   } catch {
-    return { brand: null, chrome: null, icon: null, title: null };
+    return { brand: null, chrome: null, icon: null, title: null, builder: null };
   }
 });
 

@@ -1,18 +1,20 @@
 /**
- * Asking the API whether this shop renders through the visual builder, and
- * for the page when it does. Server components only.
+ * Whether this shop renders through the visual builder, and its page when it
+ * does. Server components only.
  *
- * The first question costs every storefront page one small request, and its
- * answer for every shop that has not switched — every shop that existed
- * before the builder — is "legacy": the page then goes on down the path it
- * has always taken, exactly as before. It is asked once per request (cached),
- * however many components want to know.
+ * The first question costs nothing extra: it is answered by the request every
+ * storefront page already makes for the shop's theme (loadStore), which comes
+ * back with the builder's header and footer when — and only when — the shop is
+ * live on the builder. Every other shop, every shop that existed before the
+ * builder, gets null and goes on down the path it has always taken. Only a
+ * builder shop then asks for its page.
  *
  * Any failure is answered as legacy. A storefront that cannot reach the
  * builder renders the way it rendered yesterday, never a blank page.
  */
 import { cache } from "react";
 import { apiClient } from "@/lib/api-client";
+import { loadStore } from "@/components/storefront/ThemeChrome";
 import { isBuilder, type SitePayload, type SiteResponse } from "./types";
 
 async function ask(params: Record<string, string>): Promise<SitePayload | null> {
@@ -26,7 +28,7 @@ async function ask(params: Record<string, string>): Promise<SitePayload | null> 
 }
 
 /** The header, announcement and footer when this shop is on the builder; null when it is not. */
-export const loadBuilderChrome = cache(async (): Promise<SitePayload | null> => ask({ route: "chrome" }));
+export const loadBuilderChrome = cache(async (): Promise<SitePayload | null> => (await loadStore()).builder);
 
 /**
  * One page of a builder shop, or null — for every legacy shop, without a

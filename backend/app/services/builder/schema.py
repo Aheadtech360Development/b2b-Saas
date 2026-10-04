@@ -113,6 +113,9 @@ COMPONENTS: dict[str, Component] = {
     "menu": _c(refs=(("menuId", "menu", False),)),
     "search": _c(),
     "cart_link": _c(),
+    # The shop's own working cart, placed by a cart template. Presentation only:
+    # the cart's behaviour stays in the one cart component.
+    "cart_items": _c(context=("cart",)),
     "account_link": _c(),
     "breadcrumbs": _c(),
     "announcement_bar": _c(urls=("href",)),

@@ -12,6 +12,7 @@ Every brand runs its own white-label storefront: logo, name, colors, menu,
 announcement bar. No shared/hardcoded branding.
 """
 import json
+import logging
 import re
 import uuid
 from typing import Any
@@ -22,6 +23,8 @@ from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
+
+logger = logging.getLogger(__name__)
 
 public_router = APIRouter(prefix="/storefront", tags=["storefront"])
 admin_router = APIRouter(prefix="/admin/storefront", tags=["storefront-admin"])
@@ -342,6 +345,30 @@ async def get_written_page(
     return {"page": pages[slug]}
 
 
+async def _builder_chrome(db: AsyncSession, tid: Any) -> dict[str, Any] | None:
+    """The builder's header, announcement and footer — and its "page not found"
+    template — when this shop is live on the builder; None for every other shop.
+
+    The not-found template rides along because Next renders the 404 page's
+    component on every request, as the fallback it would show; carrying it
+    here means a 404 needs no request of its own, and neither does any page.
+
+    Looked up in a savepoint: if it fails for any reason the storefront goes on
+    exactly as it would without the builder, with its transaction intact.
+    """
+    from app.services.builder import resolve as builder_resolve, site as builder_site
+
+    try:
+        async with db.begin_nested():
+            mode, doc, number = await builder_site.live_document(db, tid)
+            if mode != "visual_builder" or not doc:
+                return None
+            return await builder_resolve.render_payload(db, tid, doc, route="not_found", version=number)
+    except Exception:
+        logger.warning("Builder chrome lookup failed for %s; rendering legacy", tid, exc_info=True)
+        return None
+
+
 @public_router.get("/theme-active")
 async def theme_is_active(request: Request, db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
     """Whether this brand's storefront is drawn by a theme.
@@ -372,6 +399,15 @@ async def theme_is_active(request: Request, db: AsyncSession = Depends(get_db)) 
     brand = row[0] if row else None
     icon = (row[1] or None) if row else None
     title = ((row[2] or row[0]) if row else None) or brand
+
+    # A shop switched to the visual builder wears the builder's header and
+    # footer instead, and they come back in this same answer — so a storefront
+    # page learns whether the shop is on the builder without a second request,
+    # and a shop on its imported theme pays one indexed lookup for it.
+    builder = await _builder_chrome(db, tid)
+    if builder is not None:
+        return {"active": False, "chrome": None, "brand": brand, "icon": icon, "title": title, "builder": builder}
+
     theme = (await db.execute(
         select(BrandTheme).where(
             BrandTheme.tenant_id == tid,

@@ -151,6 +151,9 @@ async def save_draft(db: AsyncSession, site: BuilderSite, draft: dict[str, Any],
     """
     locked = (await db.execute(
         select(BuilderSite).where(BuilderSite.id == site.id).with_for_update()
+        # The row as it is now that it is locked — not the copy this session read
+        # before waiting for the lock, or a save made in the meantime is missed.
+        .execution_options(populate_existing=True)
     )).scalar_one()
     if expected_revision is not None and locked.draft_revision != expected_revision:
         raise DraftConflict(locked.draft_revision)
@@ -170,6 +173,9 @@ async def publish(db: AsyncSession, site: BuilderSite, *, user_id: Any = None,
     """
     locked = (await db.execute(
         select(BuilderSite).where(BuilderSite.id == site.id).with_for_update()
+        # The row as it is now that it is locked — not the copy this session read
+        # before waiting for the lock, or a save made in the meantime is missed.
+        .execution_options(populate_existing=True)
     )).scalar_one()
     issues = await check(db, locked)
     errors = blocking(issues)
@@ -219,6 +225,9 @@ async def rollback(db: AsyncSession, site: BuilderSite, version_id: Any) -> Buil
         raise LookupError("That version is not one of this site's.")
     locked = (await db.execute(
         select(BuilderSite).where(BuilderSite.id == site.id).with_for_update()
+        # The row as it is now that it is locked — not the copy this session read
+        # before waiting for the lock, or a save made in the meantime is missed.
+        .execution_options(populate_existing=True)
     )).scalar_one()
     locked.published_version_id = version.id
     await db.flush()
@@ -263,11 +272,19 @@ async def live_document(db: AsyncSession, tenant_id: uuid.UUID) -> tuple[str, di
     has a published version — which is every store that existed before the
     builder, and stays so until its owner chooses otherwise.
     """
-    row = (await db.execute(
-        select(BuilderSite.render_mode, BuilderVersion.document, BuilderVersion.number)
-        .join(BuilderVersion, BuilderVersion.id == BuilderSite.published_version_id)
+    # The mode first, on its own: every storefront page asks this, and for a
+    # shop on its imported theme the answer is all that is needed. The
+    # published document — the whole site — is read only for a builder shop.
+    site = (await db.execute(
+        select(BuilderSite.render_mode, BuilderSite.published_version_id)
         .where(BuilderSite.tenant_id == tenant_id)
     )).first()
-    if row is None or row.render_mode != RENDER_BUILDER:
+    if site is None or site.render_mode != RENDER_BUILDER or site.published_version_id is None:
+        return RENDER_LEGACY, None, None
+    row = (await db.execute(
+        select(BuilderVersion.document, BuilderVersion.number)
+        .where(BuilderVersion.id == site.published_version_id, BuilderVersion.tenant_id == tenant_id)
+    )).first()
+    if row is None:
         return RENDER_LEGACY, None, None
     return RENDER_BUILDER, row.document, row.number

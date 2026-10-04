@@ -135,6 +135,7 @@ async def main():
         print("an imported-HTML brand renders exactly as before")
         status0, home0 = await theme_home(a)
         row0 = await theme_row(a)
+        active0 = (await client.get("/api/v1/storefront/theme-active", headers=pub(a))).text
         check("the imported theme renders today", status0 == 200 and '"page":null' not in home0.replace(" ", ""),
               home0[:200])
         check("the storefront asks and is told: legacy", await site(a) == {"mode": "legacy"})
@@ -355,6 +356,80 @@ async def main():
         await client.put("/api/v1/admin/storefront/builder/draft", headers=adm(a),
                          json={"draft": draft, "revision": None})
 
+        # ── 6c. A product with a template of its own ─────────────────────────
+        print("")
+        print("product-specific templates")
+        pid2 = uuid.uuid4()
+        await sql("INSERT INTO products (id, tenant_id, name, slug, status, moq, pricing_mode, gang_sheet_enabled) "
+                  "VALUES (:i, :t, 'Second tee', :s, 'active', 1, 'variant', false)",
+                  {"i": str(pid2), "t": str(a["tid"]), "s": f"second-{RUN}"})
+        assigned = json.loads(json.dumps(draft))
+        assigned["assignments"]["product"]["byId"] = {str(a["product"]): "minimal"}
+
+        def unmenu(node):
+            # The menu was deleted in step 6; a draft that still shows it cannot publish.
+            if isinstance(node, dict):
+                if node.get("type") == "menu":
+                    node.setdefault("props", {})["menuId"] = ""
+                for child in node.get("children") or []:
+                    unmenu(child)
+
+        for part in assigned["parts"].values():
+            unmenu(part)
+        await client.put("/api/v1/admin/storefront/builder/draft", headers=adm(a),
+                         json={"draft": assigned, "revision": None})
+        r = await client.post("/api/v1/admin/storefront/builder/publish", headers=adm(a), json={})
+        check("a draft giving one product its own template publishes", r.status_code == 200, r.text[:200])
+        live = await site(a, route="product", slug=a["product_slug"])
+        check("that product renders with its own template", live.get("templateId") == "minimal", live.get("templateId"))
+        live = await site(a, route="product", slug=f"second-{RUN}")
+        check("every other product keeps the default template", live.get("templateId") == "default", live.get("templateId"))
+
+        cross = json.loads(json.dumps(assigned))
+        cross["assignments"]["product"]["byId"][str(b["product"])] = "minimal"
+        await client.put("/api/v1/admin/storefront/builder/draft", headers=adm(a),
+                         json={"draft": cross, "revision": None})
+        r = await client.post("/api/v1/admin/storefront/builder/validate", headers=adm(a))
+        flagged = [i for i in r.json()["issues"] if i["code"] == "missing_product" and str(b["product"]) in i["path"]]
+        check("another brand's product in an assignment is flagged as not this shop's", bool(flagged), r.text[:300])
+        live = await site(a, route="product", slug=b["product_slug"])
+        check("…and naming it never shows brand B's product on brand A's shop",
+              live.get("notFound") is True and live["data"]["product"] is None)
+
+        gone = json.loads(json.dumps(assigned))
+        gone["assignments"]["product"]["byId"] = {str(a["product"]): "deleted_one"}
+        await client.put("/api/v1/admin/storefront/builder/draft", headers=adm(a),
+                         json={"draft": gone, "revision": None})
+        r = await client.post("/api/v1/admin/storefront/builder/publish", headers=adm(a), json={})
+        check("an assignment to a template that is gone blocks the publish", r.status_code == 422, r.text[:200])
+        # A published version from before a template was removed still renders.
+        await sql("UPDATE builder_versions SET document = jsonb_set(document, '{assignments,product,byId}', "
+                  "CAST(:j AS jsonb)) WHERE id = (SELECT published_version_id FROM builder_sites WHERE tenant_id = :t)",
+                  {"j": json.dumps({str(a["product"]): "deleted_one"}), "t": str(a["tid"])})
+        live = await site(a, route="product", slug=a["product_slug"])
+        check("a product pointing at a template that is gone falls back to the default",
+              live.get("templateId") == "default" and (live["data"]["product"] or {}).get("name") == "Tee a",
+              live.get("templateId"))
+
+        await sql("DELETE FROM products WHERE id = :i", {"i": str(pid2)})
+
+        # ── 6d. One request tells a page which shop it is drawing ────────────
+        print("")
+        print("builder answer folded into theme-active")
+        r = await client.get("/api/v1/storefront/theme-active", headers=pub(a))
+        body = r.json()
+        check("a builder shop gets its header and footer with the theme answer",
+              (body.get("builder") or {}).get("mode") == "visual_builder"
+              and body["builder"].get("templateType") == "not_found" and body["builder"]["parts"].get("header")
+              and body.get("chrome") is None, str(body)[:300])
+        r = await client.get("/api/v1/storefront/theme-active", headers=pub(b))
+        check("a shop not on the builder gets no builder answer at all", "builder" not in r.json(), r.text[:200])
+        cart = await site(a, route="cart")
+        check("the cart template places the shop's own cart",
+              '"cart_items"' in json.dumps(cart.get("template")), str(cart.get("template"))[:200])
+        await client.put("/api/v1/admin/storefront/builder/draft", headers=adm(a),
+                         json={"draft": draft, "revision": None})
+
         # ── 7. And back ──────────────────────────────────────────────────────
         print("\nswitching back")
         r = await client.put("/api/v1/admin/storefront/builder/mode", headers=adm(a), json={"mode": "legacy"})
@@ -363,6 +438,8 @@ async def main():
         check("the imported theme renders byte for byte as it did before any of this",
               (await theme_home(a))[1] == home0)
         check("its row was never touched", await theme_row(a) == row0)
+        check("and its theme-active answer is exactly what it was before the builder",
+              (await client.get("/api/v1/storefront/theme-active", headers=pub(a))).text == active0)
 
     print(f"\n{ok} passed, {fail} failed")
     return fail

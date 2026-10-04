@@ -98,7 +98,7 @@ function RichText({ value, onChange }: { value: string; onChange: (v: string) =>
   );
 }
 
-function ProductsPicker({ value, onChange, env }: { value: string[]; onChange: (v: string[]) => void; env: EditorEnv }) {
+export function ProductsPicker({ value, onChange, env }: { value: string[]; onChange: (v: string[]) => void; env: EditorEnv }) {
   const [q, setQ] = useState("");
   const [rows, setRows] = useState<PickProduct[] | null>(null);
   const [busy, setBusy] = useState(false);

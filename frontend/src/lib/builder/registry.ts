@@ -328,6 +328,13 @@ export const REGISTRY: ComponentDef[] = [
     create: () => node("cart_link", { showCount: true }),
   },
   {
+    type: "cart_items", label: "Cart contents", category: "commerce", icon: "ShoppingCart", context: ["cart"],
+    blurb: "The shopper's cart — lines, quantities, totals and checkout. The shop's own working cart.",
+    fields: [],
+    styles: ["spacing"],
+    create: () => node("cart_items", {}),
+  },
+  {
     type: "account_link", label: "Account", category: "store", icon: "CircleUser",
     blurb: "Sign in, or the customer's account once they have.",
     fields: [],

@@ -217,3 +217,14 @@ export function duplicateNode(root: BuilderNode, id: string): { tree: BuilderNod
   });
   return { tree, id: copy.id };
 }
+
+/** The first node of a type in a tree, or null. */
+export function findType(root: BuilderNode | null | undefined, type: string): BuilderNode | null {
+  if (!root) return null;
+  if (root.type === type) return root;
+  for (const child of root.children ?? []) {
+    const hit = findType(child, type);
+    if (hit) return hit;
+  }
+  return null;
+}

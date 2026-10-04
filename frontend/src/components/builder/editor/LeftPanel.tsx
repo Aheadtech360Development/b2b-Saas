@@ -14,12 +14,12 @@ import type { BuilderNode, SiteDoc, TemplateType } from "@/lib/builder/types";
 import { CATEGORIES, PRESETS, REGISTRY, labelOf } from "@/lib/builder/registry";
 import { GOOGLE_FONTS, SYSTEM_FONTS, availableFamilies, previewUrl } from "@/lib/builder/fonts";
 import {
-  TEMPLATE_LABELS, addPage, addTemplate, removePage, removeTemplate, renameSlug, sameTarget, sharedUses,
+  TEMPLATE_LABELS, addPage, addTemplate, assignProducts, productsUsing, removePage, removeTemplate, renameSlug, sameTarget, sharedUses,
   targetLabel, usedFamilies, type Target,
 } from "@/lib/builder/doc";
 import type { PickMenu, UploadedFont } from "@/services/builder.service";
 import type { DragPayload } from "./Canvas";
-import { ImageField, type EditorEnv } from "./fields";
+import { ImageField, ProductsPicker, type EditorEnv } from "./fields";
 import { confirmAction, TextInput } from "./ui";
 
 export type LeftTab = "add" | "layers" | "pages" | "templates" | "theme" | "sections" | "menus";
@@ -261,6 +261,7 @@ function PagesPanel(p: LeftProps) {
 // ── Templates ────────────────────────────────────────────────────────────────
 function TemplatesPanel(p: LeftProps) {
   const types = Object.keys(TEMPLATE_LABELS) as TemplateType[];
+  const [choosing, setChoosing] = useState<string | null>(null);
   return (
     <>
       <div className="sbe-sec">
@@ -292,10 +293,20 @@ function TemplatesPanel(p: LeftProps) {
             {group.map(([id, tpl]) => {
               const t: Target = { kind: "template", type, id };
               const isDefault = (rule?.default || "default") === id;
+              const assigned = type === "product" ? productsUsing(p.doc, id) : [];
               return (
-                <div key={id} className="sbe-item" aria-current={sameTarget(p.target, t)} onClick={() => p.open(t)}>
+                <div key={id}>
+                <div className="sbe-item" aria-current={sameTarget(p.target, t)} onClick={() => p.open(t)}>
                   <LayoutTemplate size={15} />
-                  <span className="grow">{tpl.name}{many && isDefault && <span className="sub"> · used by default</span>}</span>
+                  <span className="grow">{tpl.name}{many && isDefault && <span className="sub"> · used by default</span>}
+                    {type === "product" && !isDefault && <span className="sub" style={{ display: "block" }}>{assigned.length ? `${assigned.length} ${assigned.length === 1 ? "product" : "products"}` : "No products yet"}</span>}
+                  </span>
+                  {type === "product" && !isDefault && (
+                    <button type="button" className="sbe-btn sm ghost" aria-expanded={choosing === id}
+                            onClick={(e) => { e.stopPropagation(); setChoosing(choosing === id ? null : id); }}>
+                      {choosing === id ? "Done" : "Products"}
+                    </button>
+                  )}
                   {many && !isDefault && (
                     <button type="button" className="sbe-btn sm ghost" title="Use for every page of this kind that has no template of its own"
                             onClick={(e) => {
@@ -312,6 +323,15 @@ function TemplatesPanel(p: LeftProps) {
                       if (sameTarget(p.target, t)) p.open({ kind: "template", type, id: "default" });
                     }}><Trash2 size={13} /></button>
                   )}
+                </div>
+                {choosing === id && type === "product" && (
+                  <div style={{ padding: "6px 4px 12px 28px" }}>
+                    <div className="sbe-help" style={{ marginBottom: 8 }}>
+                      These products show with “{tpl.name}”. Everything else uses the default. A product has one template, so picking it here moves it from any other.
+                    </div>
+                    <ProductsPicker env={p.env} value={assigned} onChange={(ids) => p.commit(assignProducts(p.doc, id, ids))} />
+                  </div>
+                )}
                 </div>
               );
             })}

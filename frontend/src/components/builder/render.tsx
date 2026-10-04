@@ -25,6 +25,7 @@ import type { BuilderNode, CollectionCard, MenuItem, ProductCard, SitePayload } 
 import { cleanHtml, safeHref, safeSrc, scopeCss } from "@/lib/builder/sanitize";
 import MenuNav from "./islands/MenuNav";
 import CartLink from "./islands/CartLink";
+import CartIsland from "./islands/CartIsland";
 import { Newsletter, ProductGallery, SortSelect, Tabs } from "./islands/Interactive";
 
 export interface RenderCtx {
@@ -393,6 +394,8 @@ export function Node({ node, ctx }: { node: BuilderNode; ctx: RenderCtx }): Reac
       );
     case "cart_link":
       return <CartLink id={id} showCount={p.showCount !== false} edit={ctx.edit} />;
+    case "cart_items":
+      return <CartIsland id={id} edit={ctx.edit} />;
     case "account_link":
       return <a data-b={id} className="b-iconlink" href="/account" aria-label="Your account"><CircleUser size={21} aria-hidden /></a>;
     case "breadcrumbs": {

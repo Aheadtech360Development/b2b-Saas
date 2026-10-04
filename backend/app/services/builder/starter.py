@@ -203,9 +203,8 @@ def starter_document(*, store_name: str = "", primary: str = "", header_menu: st
     cart = _node(ids, "stack", {}, {}, [
         _section(ids, [
             _node(ids, "heading", {"text": "Your cart", "level": 1}),
-            _node(ids, "text", {"text": "Review your items and check out."},
-                  {"color": "#5B6170", "marginTop": "8px"}),
-        ], name="Cart"),
+            _node(ids, "cart_items", {}, {"marginTop": "20px"}),
+        ], {"paddingTop": "40px", "paddingBottom": "64px"}, name="Cart"),
     ])
     not_found = _node(ids, "stack", {}, {}, [
         _section(ids, [

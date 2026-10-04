@@ -90,8 +90,13 @@ export default async function ProductDetailPage({ params }: PageProps) {
   // without a theme, the product page is what it has always been.
   // A shop on the visual builder draws the product in its product template.
   // Every other shop gets null here and goes on as it always has.
+  // A product that is not for sale here is a real 404 — status and all — and
+  // the shop's own "page not found" template is drawn by app/not-found.tsx.
   const site = await loadBuilderPage("product", slug);
-  if (site) return <BuilderPage payload={site} />;
+  if (site) {
+    if (site.notFound) notFound();
+    return <BuilderPage payload={site} />;
+  }
 
   const themed = await themeProductPage(slug);
   if (themed) {

@@ -77,7 +77,7 @@ export function SitePart({ payload, part }: { payload: SitePayload; part: "annou
  * the same component the imported-theme product page uses, so there is one
  * cart and one set of stock and price rules — not a second copy of them.
  */
-export function BuilderPage({ payload, sort }: { payload: SitePayload; sort?: string }) {
+export function BuilderPage({ payload, sort, after }: { payload: SitePayload; sort?: string; after?: ReactNode }) {
   const ctx = payloadCtx(payload, { sort });
   const css = treeCss(payload.template, payload.page?.tree, ...Object.values(payload.globals ?? {}));
   const product = payload.data.product as unknown as ThemeProductData | null;
@@ -85,6 +85,7 @@ export function BuilderPage({ payload, sort }: { payload: SitePayload; sort?: st
     <div className="bsite" data-route={payload.templateType} data-product-id={product?.id}>
       <style dangerouslySetInnerHTML={{ __html: styleText(css) }} />
       <div className="bsite-in"><Tree tree={payload.template} ctx={ctx} /></div>
+      {after && <div className="bsite-in" style={{ maxWidth: "calc(var(--b-container) + 40px)", margin: "0 auto", padding: "0 20px 48px" }}>{after}</div>}
       {product && <ThemeProductBuy product={product} />}
     </div>
   );

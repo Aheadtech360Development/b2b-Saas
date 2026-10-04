@@ -223,6 +223,23 @@ export function removeTemplate(doc: SiteDoc, type: TemplateType, id: string): Si
   return next;
 }
 
+/** The products set to use one product template. */
+export function productsUsing(doc: SiteDoc, templateId: string): string[] {
+  return Object.entries(doc.assignments?.product?.byId ?? {}).filter(([, t]) => t === templateId).map(([pid]) => pid);
+}
+
+/**
+ * Set exactly which products use a product template. A product has one
+ * template, so choosing it here moves it off any other; a product taken off
+ * goes back to the default.
+ */
+export function assignProducts(doc: SiteDoc, templateId: string, productIds: string[]): SiteDoc {
+  const byId = { ...(doc.assignments?.product?.byId ?? {}) };
+  for (const [pid, t] of Object.entries(byId)) if (t === templateId && !productIds.includes(pid)) delete byId[pid];
+  for (const pid of productIds) byId[pid] = templateId;
+  return { ...doc, assignments: { ...doc.assignments, product: { ...(doc.assignments?.product ?? {}), byId } } };
+}
+
 /** Keep a copy of a section to drop in again later. A copy: changing one never changes another. */
 export function saveSection(doc: SiteDoc, node: BuilderNode, name: string): { doc: SiteDoc; id: string } {
   const id = `s${newId().slice(1, 8)}`;

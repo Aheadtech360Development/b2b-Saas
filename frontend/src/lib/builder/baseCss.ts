@@ -174,6 +174,7 @@ export const BASE_CSS = `
 .bsite :where(.b-cbar select){padding:9px 12px;border:1.5px solid var(--b-border,#e6e6e6);border-radius:10px;font:inherit;background:var(--b-background,#fff);color:var(--b-text,#14161B)}
 .bsite :where(.b-more){display:flex;justify-content:center;gap:10px;margin-top:32px}
 
+.bsite .b-html{position:relative;contain:paint;isolation:isolate}
 .bsite :where(.b-empty){padding:28px;border:1.5px dashed var(--b-border,#d9d9d9);border-radius:var(--b-radius);text-align:center;color:var(--b-muted,#5B6170);font-size:14px}
 .bsite :where(.b-drop){min-height:76px;border:1.5px dashed #C3C8D2;border-radius:10px;display:grid;place-items:center;color:#8A909C;font-size:13px;font-family:system-ui,sans-serif;background:rgba(244,246,251,.6);padding:12px;text-align:center}
 .bsite :where(.b-note){padding:14px 16px;border-radius:10px;background:#F4F6FB;color:#4A5160;font-size:13px;font-family:system-ui,sans-serif;border:1px dashed #C3C8D2;line-height:1.45}
