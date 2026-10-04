@@ -234,7 +234,7 @@ async def reset_draft(request: Request, _: None = Depends(require_admin),
 
 @router.get("/preview")
 async def preview(request: Request, route: str = "home", slug: str = "", q: str = "",
-                  page: int = 1, sort: str = "", _: None = Depends(require_admin),
+                  page: int = 1, sort: str = "", template: str = "", _: None = Depends(require_admin),
                   db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
     """The draft, rendered with real data, for the editor and the preview tab.
 
@@ -246,7 +246,8 @@ async def preview(request: Request, route: str = "home", slug: str = "", q: str 
     if site is None:
         raise HTTPException(status_code=404, detail="Open the builder first.")
     return await resolve.render_payload(db, tid, site.draft or {}, route=route, slug=slug,
-                                        query=q, page=page, sort=sort, version=None)
+                                        query=q, page=max(1, page), sort=sort, version=None,
+                                        template_id=template)
 
 
 # ── Fonts ─────────────────────────────────────────────────────────────────────

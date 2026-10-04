@@ -6,6 +6,8 @@ import { apiClient } from "@/lib/api-client";
 import { titleWithBrand } from "@/lib/brand";
 import ThemeRenderer, { type ThemePage } from "@/components/storefront/ThemeRenderer";
 import { loadThemeChrome } from "@/components/storefront/ThemeChrome";
+import { BuilderPage } from "@/components/builder/SiteParts";
+import { loadBuilderPage } from "@/lib/builder/load";
 
 interface CollectionInfo {
   name: string;
@@ -50,6 +52,13 @@ export default async function CollectionPage({ params, searchParams }: {
   const { slug } = await params;
   const sp = await searchParams;
   const page = Math.max(1, Number(typeof sp.page === "string" ? sp.page : "1") || 1);
+
+  // A shop on the visual builder: its collection template. Null for every
+  // other shop, which goes on below as before.
+  const sort = sp.sort === "name" ? "name" : "";
+  const site = await loadBuilderPage("collection", slug, "", page, sort);
+  if (site) return <BuilderPage payload={site} sort={sort} />;
+
   const { page: themePage, collection } = await load(slug, page);
 
   if (!collection) notFound();

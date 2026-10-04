@@ -9,6 +9,8 @@ import { loadThemeChrome } from "@/components/storefront/ThemeChrome";
 import type { ThemePage } from "@/components/storefront/ThemeRenderer";
 import type { ThemeProductData } from "@/components/storefront/ThemeProductBuy";
 import { apiClient } from "@/lib/api-client";
+import { BuilderPage } from "@/components/builder/SiteParts";
+import { loadBuilderPage } from "@/lib/builder/load";
 
 /** This brand's theme layout for this product, and the product itself. */
 async function themeProductPage(slug: string): Promise<{ page: ThemePage; product: ThemeProductData | null } | null> {
@@ -86,6 +88,11 @@ export default async function ProductDetailPage({ params }: PageProps) {
   // );
   // The brand's own theme draws the page around the real buying controls;
   // without a theme, the product page is what it has always been.
+  // A shop on the visual builder draws the product in its product template.
+  // Every other shop gets null here and goes on as it always has.
+  const site = await loadBuilderPage("product", slug);
+  if (site) return <BuilderPage payload={site} />;
+
   const themed = await themeProductPage(slug);
   if (themed) {
     return (

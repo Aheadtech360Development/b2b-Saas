@@ -61,7 +61,7 @@ check("carries no product data, only references",
 
 print("\nreferences to the store's own records")
 d = fresh()
-d["parts"]["header"]["children"][0]["children"][1]["children"][0]["props"]["menuId"] = "menu-deleted"
+d["parts"]["header"]["children"][0]["children"][1]["props"]["menuId"] = "menu-deleted"
 check("a deleted menu blocks the publish", "missing_menu" in codes(blocking(validate(d, KNOWN))))
 
 d = fresh()

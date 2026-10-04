@@ -26,6 +26,8 @@ import { loadStore } from "@/components/storefront/ThemeChrome";
 import StorefrontShell from "@/components/storefront/StorefrontShell";
 import PlatformLanding from "@/components/platform/PlatformLanding";
 import { apiClient } from "@/lib/api-client";
+import { BuilderPage } from "@/components/builder/SiteParts";
+import { loadBuilderPage } from "@/lib/builder/load";
 
 /** This brand's published theme home page, or null when it has none. */
 async function themeHome(): Promise<ThemePage | null> {
@@ -57,6 +59,17 @@ export default async function HomePage() {
   // PlatformLanding draws its own header, and deliberately gets no shop
   // chrome around it.
   if (!store.brand) return <PlatformLanding />;
+
+  // A shop switched to the visual builder. Every other shop gets null and
+  // carries on below, exactly as before.
+  const site = await loadBuilderPage("home");
+  if (site) {
+    return (
+      <StorefrontShell>
+        <BuilderPage payload={site} />
+      </StorefrontShell>
+    );
+  }
 
   // This page sits above the (customer) segment, so it wraps itself in the
   // same shell that segment uses. Both mount and unmount with the route,

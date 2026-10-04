@@ -19,7 +19,9 @@ imported-theme renderer (theme_data, theme_product) are called, not changed.
 """
 from __future__ import annotations
 
+import copy
 import json
+import re
 import uuid
 from typing import Any
 
@@ -30,6 +32,7 @@ from app.models.builder import BuilderFont
 from app.services.builder.schema import PART_KEYS, iter_nodes
 
 MAX_GRID = 48
+_ID_OK = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 
 
 def _uuid(value: Any) -> uuid.UUID | None:
@@ -155,6 +158,34 @@ async def _fonts(db: AsyncSession, tenant_id: uuid.UUID, doc: dict[str, Any]) ->
     return {"google": google, "custom": custom}
 
 
+def _safe(tree: Any) -> Any:
+    """A copy of a tree with its merchant-written markup made safe to serve.
+
+    The document keeps what the merchant typed, so the editor can show it back
+    to them; what leaves here is what a shopper's browser gets, and that is
+    always the cleaned version — Custom HTML without scripts or handlers, its
+    CSS confined to its own block, rich text reduced to formatting. Cleaned on
+    every answer rather than once at publish, so a rule tightened later
+    applies to sites published before it.
+    """
+    if not isinstance(tree, dict):
+        return tree
+    from app.services.builder.sanitize import clean_html, scope_css
+
+    out = copy.deepcopy(tree)
+    for node, _p, _d in iter_nodes(out):
+        props = node.get("props")
+        if not isinstance(props, dict):
+            continue
+        if node.get("type") in ("html", "rich_text"):
+            props["html"] = clean_html(str(props.get("html") or "")).value
+        if node.get("type") == "html":
+            nid = str(node.get("id") or "")
+            css = str(props.get("css") or "")
+            props["css"] = scope_css(css, f'.bsite [data-b="{nid}"]').value if css and _ID_OK.match(nid) else ""
+    return out
+
+
 async def _store(db: AsyncSession, tenant_id: uuid.UUID) -> dict[str, Any]:
     row = (await db.execute(
         text("SELECT t.name, b.store_name, b.logo_url FROM tenants t "
@@ -177,8 +208,16 @@ async def render_payload(
     page: int = 1,
     sort: str = "",
     version: int | None = None,
+    template_id: str = "",
 ) -> dict[str, Any]:
-    """Everything one storefront page needs, in one answer."""
+    """Everything one storefront page needs, in one answer.
+
+    route="chrome" is the header, announcement and footer alone — what the
+    shop wears around the pages the builder does not draw (the cart, the
+    checkout, the account). template_id forces one template of the route's
+    type; only the editor's preview passes it, to show a template that is not
+    the one assigned.
+    """
     from app.services import theme_data, theme_product
 
     assignments = doc.get("assignments") or {}
@@ -230,10 +269,15 @@ async def render_payload(
             page_data = {"slug": slug, "title": page_doc.get("title") or "",
                          "seo": page_doc.get("seo") or {}, "tree": page_doc.get("tree")}
 
-    elif route not in ("home", "search", "cart", "not_found"):
+    elif route not in ("home", "search", "cart", "not_found", "chrome"):
         not_found, ttype = True, "not_found"
 
-    template_id, tree = _template(doc, ttype, tid)
+    if template_id and not not_found:
+        tid = template_id
+    if ttype == "chrome":
+        template_id, tree = "", None
+    else:
+        template_id, tree = _template(doc, ttype, tid)
 
     # Shared sections the page uses, and only those.
     globals_all = doc.get("globals") or {}
@@ -261,6 +305,17 @@ async def render_payload(
 
     data["store"] = await _store(db, tenant_id)
 
+    # Descriptions are written in the product and collection editors and can
+    # carry markup. A builder page puts them in as HTML, so they leave here
+    # cleaned like any other markup the shopper's browser is handed.
+    from app.services.builder.sanitize import clean_html
+
+    if data["product"] and data["product"].get("description"):
+        data["product"] = {**data["product"], "description": clean_html(data["product"]["description"]).value}
+    if data["collection"] and data["collection"].get("description"):
+        data["collection"] = {**data["collection"],
+                              "description": clean_html(data["collection"]["description"]).value}
+
     return {
         "mode": "visual_builder",
         "version": version,
@@ -270,10 +325,10 @@ async def render_payload(
         "notFound": not_found,
         "settings": doc.get("settings") or {},
         "fonts": await _fonts(db, tenant_id, doc),
-        "parts": parts,
-        "template": tree,
-        "page": page_data,
-        "globals": used,
+        "parts": {k: _safe(v) for k, v in parts.items()},
+        "template": _safe(tree),
+        "page": {**page_data, "tree": _safe(page_data.get("tree"))} if page_data else None,
+        "globals": {k: _safe(v) for k, v in used.items()},
         "query": query,
         "data": data,
     }

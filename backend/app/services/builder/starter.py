@@ -53,20 +53,25 @@ def starter_document(*, store_name: str = "", primary: str = "", header_menu: st
     ink = "#14161B"
     primary = primary or ink
 
+    # One line at every width: the logo, the menu (a button that opens a
+    # drawer on phones) and the shop's icons. A grid of columns put the icons
+    # on a second line on a phone; a row that spreads its three items does not.
     header = _node(ids, "section", {"width": "contained", "sticky": False}, {
-        "paddingTop": "16px", "paddingBottom": "16px", "backgroundColor": "#FFFFFF",
+        "paddingTop": "14px", "paddingBottom": "14px", "backgroundColor": "#FFFFFF",
         "borderColor": "#ECECEC",
     }, [
-        _row(ids, [
-            [_node(ids, "logo", {"height": 40, "fallback": "name"})],
-            [_node(ids, "menu", {"menuId": header_menu, "layout": "horizontal", "mobile": "drawer"},
-                   {"justifyContent": "center"})],
-            [_node(ids, "stack", {"direction": "row"}, {"justifyContent": "flex-end", "gap": "18px"}, [
+        _node(ids, "stack", {"direction": "row"}, {
+            "justifyContent": "space-between", "alignItems": "center", "gap": "16px", "flexWrap": "nowrap",
+        }, [
+            _node(ids, "logo", {"height": 40, "fallback": "name"}),
+            _node(ids, "menu", {"menuId": header_menu, "layout": "horizontal", "mobile": "drawer"},
+                  {"justifyContent": "center"}),
+            _node(ids, "stack", {"direction": "row"}, {"justifyContent": "flex-end", "gap": "4px", "flexWrap": "nowrap"}, [
                 _node(ids, "search", {"style": "icon"}),
-                _node(ids, "account_link", {}),
+                {**_node(ids, "account_link", {}), "hide": {"mobile": True}},
                 _node(ids, "cart_link", {"showCount": True}),
-            ])],
-        ], {"alignItems": "center"}, mobile_columns=2),
+            ]),
+        ]),
     ], name="Header")
 
     announcement = _node(ids, "announcement_bar", {

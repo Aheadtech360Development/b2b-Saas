@@ -329,6 +329,7 @@ export function AdminSidebar() {
       {(can("storefront") || can("media")) && <>
       <div style={SECTION_HEAD}>Storefront</div>
       {can("storefront") && <NavLink href="/theme-editor" label="Edit theme" icon={<LayoutTemplate {...ICON_PROPS} />} />}
+      {can("storefront") && <NavLink href="/site-builder" label="Website builder" icon={<LayoutTemplate {...ICON_PROPS} />} />}
       {can("storefront") && (
         <a href="/" target="_blank" rel="noreferrer" style={{ ...NAV_LINK_BASE, color: "#555", textDecoration: "none" }}>
           <span style={{ fontSize: "15px", flexShrink: 0 }}><Store {...ICON_PROPS} /></span>

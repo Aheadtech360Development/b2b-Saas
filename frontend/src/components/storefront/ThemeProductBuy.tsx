@@ -119,9 +119,15 @@ export default function ThemeProductBuy({ product }: { product: ThemeProductData
       );
     }
 
+    // A "Buy it now" button (builder product pages mark one with data-then)
+    // goes on to the cart once its line is in. No imported design has one.
+    let then: string | null = null;
+
     function say(text: string, ok = true) {
       setMessage({ ok, text });
       if (ok) window.setTimeout(() => setMessage(null), 4000);
+      if (ok && then) router.push(then);
+      then = null;
     }
 
     /** The price of what is currently chosen, straight from the store. */
@@ -278,6 +284,7 @@ export default function ThemeProductBuy({ product }: { product: ThemeProductData
       const onClick = async (e: Event) => {
         e.preventDefault();
         if (busy.current) return;
+        then = button.dataset.then && button.dataset.then.startsWith("/") ? button.dataset.then : null;
 
         // Printed from a file the buyer supplies: take the file first, then
         // order the line with it attached.

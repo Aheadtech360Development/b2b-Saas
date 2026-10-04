@@ -19,6 +19,8 @@ import type { ReactNode } from "react";
 import { Header } from "@/components/layout/Header";
 import ThemeChrome, { ThemeChromeHead, loadStore } from "@/components/storefront/ThemeChrome";
 import ShellGate from "@/components/storefront/ShellGate";
+import { SiteHead, SitePart } from "@/components/builder/SiteParts";
+import { loadBuilderChrome } from "@/lib/builder/load";
 
 export default async function StorefrontShell({
   children, footer,
@@ -28,6 +30,28 @@ export default async function StorefrontShell({
   footer?: ReactNode;
 }) {
   const { brand, chrome } = await loadStore();
+
+  // A shop its owner has switched to the visual builder wears the builder's
+  // header and footer around every page, the app's own pages included. Every
+  // other shop — every shop that has not switched — gets null here and goes
+  // on exactly as below.
+  const site = brand !== null ? await loadBuilderChrome() : null;
+  if (site) {
+    return (
+      <ShellGate
+        before={
+          <>
+            <SiteHead settings={site.settings} fonts={site.fonts} />
+            <SitePart payload={site} part="announcement" />
+            <SitePart payload={site} part="header" />
+          </>
+        }
+        after={<SitePart payload={site} part="footer" />}
+      >
+        {children}
+      </ShellGate>
+    );
+  }
 
   // Three cases, and only the middle one wants the app's own header: a themed
   // shop wears the brand's chrome, a shop with no theme yet wears the app's,

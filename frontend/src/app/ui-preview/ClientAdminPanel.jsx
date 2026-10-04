@@ -15,6 +15,11 @@ function ThemeEditorLink() {
   React.useEffect(() => { window.location.href = "/theme-editor"; }, []);
   return <div className="p-10 text-sm text-gray-500">Opening the theme editor…</div>;
 }
+/** The website builder runs on its own screen too. */
+function SiteBuilderLink() {
+  React.useEffect(() => { window.location.href = "/site-builder"; }, []);
+  return <div className="p-10 text-sm text-gray-500">Opening the website builder…</div>;
+}
 // Real, already-built admin features — reused (not rebuilt) inside this shell so
 // the new design has full parity with the old sidebar. All are self-contained
 // client screens, store-isolated at the backend.
@@ -1719,6 +1724,7 @@ const NAV = [
     // Storefront theme, menus and pages are hidden for now — see HIDDEN_ADMIN_SECTIONS.
     ...(HIDDEN_ADMIN_SECTIONS.pages ? [] : [{ id: "pages", label: "Pages" }]),
     { id: "theme", label: "Edit theme" },
+    { id: "sitebuilder", label: "Website builder" },
     ...(HIDDEN_ADMIN_SECTIONS.productTemplates ? [] : [{ id: "producttemplates", label: "Product templates" }]),
     ...(HIDDEN_ADMIN_SECTIONS.menus ? [] : [{ id: "menus", label: "Menus" }]),
     ...(HIDDEN_ADMIN_SECTIONS.storefront ? [] : [{ id: "theme", label: "Storefront theme" }]),
@@ -2254,6 +2260,7 @@ export default function App() {
   else if (view === "producttemplates") content = <ProductTemplatesManager />;
   else if (view === "menus") content = <MenusManager />;
   else if (view === "theme") content = <ThemeEditorLink />;
+  else if (view === "sitebuilder") content = <SiteBuilderLink />;
   else if (view === "domains") content = <DomainsPanel />;
 
   // Real, already-built features brought to full parity with the old sidebar —

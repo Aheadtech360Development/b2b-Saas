@@ -211,7 +211,7 @@ async def main():
         # ── 4. A broken draft is refused, and the live site does not move ───
         print("\na broken draft is refused")
         broken = json.loads(json.dumps(draft))
-        menu_node = broken["parts"]["header"]["children"][0]["children"][1]["children"][0]
+        menu_node = broken["parts"]["header"]["children"][0]["children"][1]
         menu_node["props"]["menuId"] = str(uuid.uuid4())
         await client.put("/api/v1/admin/storefront/builder/draft", headers=adm(a),
                          json={"draft": broken, "revision": None})
@@ -237,7 +237,7 @@ async def main():
               r.text[:300])
 
         cross = json.loads(json.dumps(draft))
-        cross["parts"]["header"]["children"][0]["children"][1]["children"][0]["props"]["menuId"] = str(b["menu"])
+        cross["parts"]["header"]["children"][0]["children"][1]["props"]["menuId"] = str(b["menu"])
         await client.put("/api/v1/admin/storefront/builder/draft", headers=adm(a),
                          json={"draft": cross, "revision": None})
         r = await client.post("/api/v1/admin/storefront/builder/publish", headers=adm(a), json={})
@@ -302,6 +302,58 @@ async def main():
               live.get("mode") == "visual_builder" and str(a["menu"]) not in live["data"]["menus"])
         check("only the fonts the site uses are sent",
               [f["family"] for f in live["fonts"]["google"]] == ["Inter"] and live["fonts"]["custom"] == [])
+
+        # ── 6b. The chrome on its own, and markup made safe ────────────────
+        print("\nchrome, and markup made safe on the way out")
+        live = await site(a, route="chrome")
+        check("the chrome route is the header and footer alone, for pages the builder does not draw",
+              live.get("templateType") == "chrome" and live.get("template") is None
+              and live["parts"].get("header") and live["parts"].get("footer") and not live.get("notFound"),
+              str(live)[:300])
+
+        def find(tree, nid):
+            if not isinstance(tree, dict):
+                return None
+            if tree.get("id") == nid:
+                return tree
+            for child in tree.get("children") or []:
+                hit = find(child, nid)
+                if hit:
+                    return hit
+            return None
+
+        unsafe = json.loads(json.dumps(draft))
+        unsafe["pages"]["about"]["tree"]["children"].append({"id": "hx1", "type": "html", "props": {
+            "html": '<p onclick="steal()">Hi</p><script>steal()</script><a href="javascript:steal()">x</a>',
+            "css": "p { color: red } @import url(https://evil.test/x.css); h2 { position: fixed }"}})
+        unsafe["pages"]["about"]["tree"]["children"].append({"id": "rt1", "type": "rich_text", "props": {
+            "html": '<p>Fine <strong>bold</strong></p><img src="x" onerror="steal()">'}})
+        await client.put("/api/v1/admin/storefront/builder/draft", headers=adm(a),
+                         json={"draft": unsafe, "revision": None})
+        r = await client.get("/api/v1/admin/storefront/builder/preview", headers=adm(a),
+                             params={"route": "page", "slug": "about"})
+        tree = (r.json().get("page") or {}).get("tree")
+        html_node = find(tree, "hx1") or {}
+        out_html = (html_node.get("props") or {}).get("html", "")
+        out_css = (html_node.get("props") or {}).get("css", "")
+        check("custom HTML reaches the page without its script, handlers or javascript: links",
+              "Hi" in out_html and "<script" not in out_html and "onclick" not in out_html
+              and "javascript:" not in out_html, out_html)
+        check("its CSS is confined to its own block, with @import and fixed positioning gone",
+              out_css.startswith('.bsite [data-b="hx1"] p') and "@import" not in out_css
+              and "evil.test" not in out_css and "fixed" not in out_css, out_css)
+        rich = ((find(tree, "rt1") or {}).get("props") or {}).get("html", "")
+        check("rich text keeps its formatting and loses its handlers",
+              "<strong>bold</strong>" in rich and "onerror" not in rich, rich)
+        r = await client.get("/api/v1/admin/storefront/builder", headers=adm(a))
+        check("the draft still holds what the merchant typed, so the editor can show it back",
+              "<script>steal()</script>" in json.dumps(r.json()["draft"]))
+        r = await client.get("/api/v1/admin/storefront/builder/preview", headers=adm(a),
+                             params={"route": "product", "slug": a["product_slug"], "template": "minimal"})
+        check("the preview can show a template other than the assigned one",
+              r.json().get("templateId") == "minimal", str(r.json().get("templateId")))
+        await client.put("/api/v1/admin/storefront/builder/draft", headers=adm(a),
+                         json={"draft": draft, "revision": None})
 
         # ── 7. And back ──────────────────────────────────────────────────────
         print("\nswitching back")
