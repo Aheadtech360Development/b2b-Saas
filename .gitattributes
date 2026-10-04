@@ -1,0 +1,3 @@
+# CSS snapshots compared byte for byte by builder-layout-compat.test.ts:
+# keep them LF on every machine, whatever core.autocrlf says.
+frontend/src/__tests__/fixtures/*.snap.txt text eol=lf
