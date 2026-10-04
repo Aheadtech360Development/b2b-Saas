@@ -11,7 +11,7 @@ import SiteEditor from "@/components/builder/editor/SiteEditor";
 export default function SiteBuilderPage() {
   return (
     <AdminGate>
-      <SiteEditor backHref="/ui-preview" />
+      <SiteEditor backHref="/admin/dashboard" />
     </AdminGate>
   );
 }
