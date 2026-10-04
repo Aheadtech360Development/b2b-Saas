@@ -12,6 +12,7 @@ from app.models.inventory import Warehouse, InventoryRecord, InventoryAdjustment
 from app.models.collection import Collection, CollectionProduct  # noqa: F401
 from app.models.product_template import ProductTemplate  # noqa: F401
 from app.models.brand_theme import BrandTheme  # noqa: F401
+from app.models.builder import BuilderFont, BuilderSite, BuilderVersion  # noqa: F401
 from app.models.order import Order, OrderItem, CartItem, AbandonedCart, OrderTemplate, OrderComment, OrderEvent  # noqa: F401
 from app.models.wholesale import WholesaleApplication  # noqa: F401
 from app.models.rma import RMARequest, RMAItem  # noqa: F401

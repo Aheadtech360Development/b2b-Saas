@@ -1076,6 +1076,12 @@ app.include_router(admin_analytics_settings.router, prefix=_V1)
 app.include_router(admin_collections.router, prefix=_V1)
 app.include_router(admin_product_templates.router, prefix=_V1)
 app.include_router(admin_themes.router, prefix=_V1)
+# The visual builder. Additive: nothing renders through it until a brand
+# switches its own render mode, and the imported-theme routes are untouched.
+from app.api.v1 import builder_public as _builder_public  # noqa: E402
+from app.api.v1.admin import builder as _admin_builder  # noqa: E402
+app.include_router(_builder_public.router, prefix=_V1)
+app.include_router(_admin_builder.router, prefix=_V1)
 app.include_router(admin_google_reviews.router, prefix=_V1)
 app.include_router(admin_google_reviews.callback_router, prefix=_V1)
 from app.api.v1 import copilot as copilot_api  # noqa: E402
