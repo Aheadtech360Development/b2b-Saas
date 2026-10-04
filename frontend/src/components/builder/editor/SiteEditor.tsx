@@ -28,6 +28,7 @@ import {
   duplicateNode, findNode, insertNode, moveNode, newId, nudge, parentOf, removeNode, updateNode, withFreshIds, type Position,
 } from "@/lib/builder/tree";
 import { createNode, labelOf, PRESETS } from "@/lib/builder/registry";
+import { LAYOUT_PRESETS, placeInCell, setSpan } from "@/lib/builder/layout";
 import {
   TEMPLATE_LABELS, detachShared, exists, locate, makeShared, nodeForIssue, previewFor, saveSection, sameTarget, setTreeAt,
   targetLabel, treeAt, type Target,
@@ -308,6 +309,7 @@ export default function SiteEditor({ backHref = "/admin/dashboard" }: { backHref
     const d = docRef.current;
     if ("add" in drag) return createNode(drag.add);
     if ("preset" in drag) return PRESETS.find((p) => p.key === drag.preset)?.create() ?? null;
+    if ("layout" in drag) return LAYOUT_PRESETS.find((p) => p.key === drag.layout)?.create() ?? null;
     if ("saved" in drag) {
       const tree = d?.saved?.[drag.saved]?.tree;
       return tree ? withFreshIds(tree) : null;
@@ -352,6 +354,63 @@ export default function SiteEditor({ backHref = "/admin/dashboard" }: { backHref
     commit(setTreeAt(d, loc, res.tree));
     setSelected(res.id);
   }, [build, commit]);
+
+  /**
+   * Dropped on a free cell of a grid. A child of that grid moves to the cell; anything
+   * else goes into the grid and is put there. On the device being edited only —
+   * a phone keeps its own arrangement.
+   */
+  const placeCell = useCallback((drag: DragPayload, gridId: string, col: number, row: number) => {
+    const d = docRef.current;
+    if (!d) return;
+    const loc = locate(d, gridId);
+    const tree = loc ? treeAt(d, loc) : null;
+    if (!loc || !tree) return;
+    const gridNode = findNode(tree, gridId);
+    if (!gridNode || !["section", "stack", "column", "row"].includes(gridNode.type)) {
+      place(drag, gridId, "after");   // not a container: a drop next to it
+      return;
+    }
+    let next = d;
+    let childId: string;
+    if ("move" in drag) {
+      if (drag.move === gridId) return;
+      const from = locate(d, drag.move);
+      const fromTree = from ? treeAt(d, from) : null;
+      if (!from || !fromTree) return;
+      const node = findNode(fromTree, drag.move);
+      if (!node || findNode(node, gridId)) { say.warn("That cannot go inside itself."); return; }
+      const grid = findNode(tree, gridId);
+      if (!grid?.children?.some((c) => c.id === drag.move)) {
+        // From somewhere else: out of there, into this grid.
+        next = setTreeAt(next, from, removeNode(fromTree, drag.move));
+        const t2 = treeAt(next, loc)!;
+        next = setTreeAt(next, loc, updateNode(t2, gridId, (g) => ({ ...g, children: [...(g.children ?? []), node] })));
+      }
+      childId = drag.move;
+    } else {
+      const node = build(drag);
+      if (!node) return;
+      if (node.type === "global_ref" && loc.kind === "global") { say.warn("A shared section cannot go inside another one."); return; }
+      if (node.type === "section") { say.warn("A section cannot go inside a grid. Try a Stack, Columns or a Grid layout instead."); return; }
+      next = setTreeAt(next, loc, updateNode(tree, gridId, (g) => ({ ...g, children: [...(g.children ?? []), node] })));
+      childId = node.id;
+    }
+    const t3 = treeAt(next, loc)!;
+    commit(setTreeAt(next, loc, updateNode(t3, gridId, (g) => placeInCell(g, childId, device, col, row))));
+    setSelected(childId);
+  }, [build, commit, device, place]);
+
+  /** A grid item's corner dragged across cells. One undo step per drag. */
+  const spanCells = useCallback((gridId: string, childId: string, col: number, row: number, colSpan: number, rowSpan: number) => {
+    const d = docRef.current;
+    if (!d) return;
+    const loc = locate(d, gridId);
+    const tree = loc ? treeAt(d, loc) : null;
+    if (!loc || !tree) return;
+    commit(setTreeAt(d, loc, updateNode(tree, gridId, (g) => setSpan(placeInCell(g, childId, device, col, row), childId, device, colSpan, rowSpan))),
+           `span:${childId}`);
+  }, [commit, device]);
 
   /** Click-to-add: after what is selected, or into it when it holds things, or at the end of the page. */
   const add = useCallback((drag: DragPayload) => {
@@ -517,7 +576,10 @@ export default function SiteEditor({ backHref = "/admin/dashboard" }: { backHref
         <button type="button" className="sbe-icon" aria-label="Undo" title="Undo (Ctrl Z)" disabled={!canUndo} onClick={undo}><Undo2 size={17} /></button>
         <button type="button" className="sbe-icon" aria-label="Redo" title="Redo (Ctrl Y)" disabled={!canRedo} onClick={redo}><Redo2 size={17} /></button>
         <SaveStatus state={save} onRetry={() => void runSave()} />
-        <a className="sbe-btn" href={previewHref} target="_blank" rel="noopener noreferrer" onClick={() => void flush()}><Eye size={15} /> <span className="sbe-hide-sm">Preview</span></a>
+        {/* rel="opener": the preview is this app's own page, and opening it as this
+            tab's child is what hands it this tab's sign-in — without it the new
+            tab starts signed out wherever the API's cookie cannot reach it. */}
+        <a className="sbe-btn" href={previewHref} target="_blank" rel="opener" onClick={() => void flush()}><Eye size={15} /> <span className="sbe-hide-sm">Preview</span></a>
         <button type="button" className="sbe-icon" aria-label="Versions" title="Published versions" onClick={() => setDialog("versions")}><History size={17} /></button>
         <button ref={moreBtn} type="button" className="sbe-icon" aria-label="More" onClick={() => setMoreOpen(!moreOpen)}><MoreHorizontal size={17} /></button>
         <Popover open={moreOpen} onClose={() => setMoreOpen(false)} anchor={moreBtn} align="right" width={280}>
@@ -583,6 +645,7 @@ export default function SiteEditor({ backHref = "/admin/dashboard" }: { backHref
           <Canvas doc={doc} target={target} data={data} customFaces={uploaded.map((f) => ({ family: f.family, weight: f.weight, style: f.style, url: f.url, format: f.format }))}
                   device={device} selected={selected} epoch={epoch} dragRef={dragRef}
                   onSelect={setSelected} onDrop={place} onInlineText={inlineText}
+                  onDropCell={placeCell} onSpan={spanCells}
                   onDuplicate={duplicate} onRemove={remove} onRemount={() => setEpoch((e) => e + 1)} />
         </main>
 

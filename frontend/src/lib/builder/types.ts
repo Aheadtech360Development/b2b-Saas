@@ -19,9 +19,19 @@ export type NodeStyle = Partial<Record<
   | "borderStyle" | "boxShadow" | "textAlign" | "fontFamily" | "fontSize" | "fontWeight" | "fontStyle"
   | "lineHeight" | "letterSpacing" | "textTransform" | "textDecoration" | "justifyContent"
   | "alignItems" | "flexDirection" | "flexWrap" | "objectFit" | "aspectRatio" | "opacity" | "overflow"
-  | "columns",
+  | "columns"
+  // ── Layout engine: a container's own layout ──
+  | "display" | "rowGap" | "columnGap" | "alignContent" | "justifyItems" | "gridAutoFlow"
+  // Not CSS one-to-one: turned into grid-template-* by style.ts.
+  | "gridColumns" | "gridRows" | "gridAuto" | "gridMin" | "gridTemplate"
+  // ── Layout engine: where a child sits in its parent ──
+  | "alignSelf" | "justifySelf" | "flexGrow" | "flexShrink" | "flexBasis" | "minWidth" | "order"
+  | "gridColumn" | "gridRow" | "gridColumnSpan" | "gridRowSpan",
   string | number
 >>;
+
+/** The layout modes a container can be put in; absent means its own default. */
+export type LayoutMode = "flex" | "grid";
 
 export interface BuilderNode {
   id: string;

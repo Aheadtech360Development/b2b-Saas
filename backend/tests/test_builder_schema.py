@@ -227,5 +227,34 @@ check("@media is kept and its rules scoped",
 out = scope_css("p { color: red } </style><script>alert(1)</script>", '[data-b="n1"]')
 check("a style tag cannot be closed from inside", "<script" not in out.value and "</style" not in out.value)
 
+print("\nlayout engine")
+known = Known(menu_ids=set(), product_ids=set(), collection_ids=set(), custom_font_families=set())
+laid = starter_document(store_name="Shop")
+home = laid["templates"]["home"]["default"]["tree"]
+home["children"].append({"id": "lg1", "type": "stack", "props": {},
+                         "style": {"display": "grid", "gridColumns": 3, "gridRows": 2, "rowGap": "12px",
+                                   "justifyItems": "center", "gridAutoFlow": "row dense"},
+                         "tablet": {"gridColumns": 2}, "mobile": {"display": "flex", "flexDirection": "column"},
+                         "children": [{"id": "lg2", "type": "column", "props": {},
+                                       "style": {"gridColumn": 1, "gridColumnSpan": 2, "gridRow": "auto",
+                                                 "gridRowSpan": 2, "alignSelf": "end", "flexGrow": 1, "order": -1}}]})
+home["children"].append({"id": "lg3", "type": "stack", "props": {},
+                         "style": {"display": "grid", "gridAuto": "fit", "gridMin": "220px", "gridTemplate": "2fr 1fr"}})
+issues = [i for i in validate(laid, known) if i.path.startswith("templates.home") and "lg" in str(i.path) or i.code == "layout_value"]
+check("every layout setting the editor writes is accepted", not [i for i in issues if i.code in ("layout_value", "style_key")],
+      [i.as_dict() for i in issues])
+
+bad = starter_document(store_name="Shop")
+bad["templates"]["home"]["default"]["tree"]["children"].append({
+    "id": "lb1", "type": "stack", "props": {},
+    "style": {"display": "table", "gridColumns": 40, "gridAuto": "wide", "gridTemplate": "1fr; } body { x",
+              "gridColumnSpan": 0, "gridRow": "first"}})
+codes = [(i.path.rsplit(".", 1)[-1], i.code) for i in validate(bad, known) if "lb1" in str(i.path) or i.code in ("layout_value", "style_unsafe")]
+refused = {k for k, c in codes if c in ("layout_value", "style_unsafe")}
+check("anything a layout key cannot hold is refused before it goes live",
+      {"display", "gridColumns", "gridAuto", "gridTemplate", "gridColumnSpan", "gridRow"} <= refused, codes)
+check("…as errors that block the publish",
+      all(i.severity == "error" for i in validate(bad, known) if i.code == "layout_value"))
+
 print(f"\n{ok} passed, {fail} failed")
 sys.exit(1 if fail else 0)

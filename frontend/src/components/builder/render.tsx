@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import type { BuilderNode, CollectionCard, MenuItem, ProductCard, SitePayload } from "@/lib/builder/types";
 import { cleanHtml, safeHref, safeSrc, scopeCss } from "@/lib/builder/sanitize";
+import { layoutMark } from "@/lib/builder/layout";
 import MenuNav from "./islands/MenuNav";
 import CartLink from "./islands/CartLink";
 import CartIsland from "./islands/CartIsland";
@@ -238,17 +239,17 @@ export function Node({ node, ctx }: { node: BuilderNode; ctx: RenderCtx }): Reac
     case "section": {
       const width = ["contained", "wide", "full"].includes(str(p.width)) ? str(p.width) : "contained";
       return (
-        <section data-b={id} className="b-section" data-sticky={p.sticky ? "" : undefined}>
+        <section data-b={id} className="b-section" data-sticky={p.sticky ? "" : undefined} data-lay={layoutMark(node)}>
           <div className={`b-in b-in-${width}`}>{children(node, ctx)}</div>
         </section>
       );
     }
     case "row":
-      return <div data-b={id} className="b-row">{children(node, ctx)}</div>;
+      return <div data-b={id} className="b-row" data-lay={layoutMark(node)}>{children(node, ctx)}</div>;
     case "column":
-      return <div data-b={id} className="b-col">{children(node, ctx)}</div>;
+      return <div data-b={id} className="b-col" data-lay={layoutMark(node)}>{children(node, ctx)}</div>;
     case "stack":
-      return <div data-b={id} className="b-stack" data-dir={p.direction === "row" ? "row" : "column"}>{children(node, ctx)}</div>;
+      return <div data-b={id} className="b-stack" data-dir={p.direction === "row" ? "row" : "column"} data-lay={layoutMark(node)}>{children(node, ctx)}</div>;
     case "spacer":
       return <div data-b={id} className="b-spacer" aria-hidden style={{ height: Math.max(0, Math.min(800, num(p.height, 32))) }} />;
     case "divider":

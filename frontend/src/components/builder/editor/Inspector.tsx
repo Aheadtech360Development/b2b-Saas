@@ -12,6 +12,8 @@ import { findNode, pathTo } from "@/lib/builder/tree";
 import { targetLabel, treeAt, type Target } from "@/lib/builder/doc";
 import { FieldControl, type EditorEnv } from "./fields";
 import { StylePanel } from "./StylePanel";
+import { ContainerLayout, ItemPlacement } from "./LayoutPanel";
+import { LAYOUT_CONTAINERS, modeAt } from "@/lib/builder/layout";
 import { Toggle } from "./ui";
 
 export interface InspectorActions {
@@ -31,7 +33,7 @@ export function Inspector({ doc, where, nodeId, device, env, act, current }: {
   doc: SiteDoc; where: Target | null; nodeId: string | null; device: Breakpoint; env: EditorEnv;
   act: InspectorActions; current: Target;
 }) {
-  const [tab, setTab] = useState<"content" | "style" | "advanced">("content");
+  const [tab, setTab] = useState<"content" | "layout" | "style" | "advanced">("content");
   const tree = where ? treeAt(doc, where) : null;
   const node = nodeId ? findNode(tree, nodeId) : null;
 
@@ -60,6 +62,17 @@ export function Inspector({ doc, where, nodeId, device, env, act, current }: {
   const props = (node.props ?? {}) as Record<string, unknown>;
   const path = pathTo(tree, node.id);
   const isRoot = tree?.id === node.id;
+  const parentNode = path.length > 1 ? path[path.length - 2]! : null;
+  const inLayout = !!parentNode && modeAt(parentNode, device) !== "block";
+  const showLayout = LAYOUT_CONTAINERS.has(node.type) || inLayout;
+  const nothingToFill = !(def?.fields ?? []).length && node.type !== "global_ref";
+  // A container or a cell with nothing to fill in opens where its settings are.
+  const activeTab = tab === "layout" && !showLayout ? "content" : tab === "content" && nothingToFill && showLayout ? "layout" : tab;
+  const ownMode = LAYOUT_CONTAINERS.has(node.type) ? modeAt(node, device) : null;
+  const blurb = ownMode === "grid" && node.type !== "row" ? "A grid: what is in it sits in cells, and can span them."
+    : ownMode === "flex" && node.type !== "stack" ? "A flex container: what is in it sits in a line that can wrap."
+    : parentNode && modeAt(parentNode, device) === "grid" && node.type === "column" ? "A cell of a grid. Drop things into it, or drag its corner to span cells."
+    : def?.blurb ?? node.type;
   const elsewhere = where.kind !== current.kind || JSON.stringify(where) !== JSON.stringify(current);
   const setProp = (key: string, value: unknown) => {
     const next = { ...props };
@@ -78,7 +91,7 @@ export function Inspector({ doc, where, nodeId, device, env, act, current }: {
         <div className="sbe-row" style={{ justifyContent: "space-between", marginBottom: 6 }}>
           <div style={{ minWidth: 0 }}>
             <div style={{ fontWeight: 700, fontSize: 15, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{labelOf(node)}</div>
-            <div className="sbe-help">{def?.blurb ?? node.type}</div>
+            <div className="sbe-help">{blurb}</div>
           </div>
         </div>
         <div className="sbe-crumbs" aria-label="Where this is">
@@ -111,15 +124,24 @@ export function Inspector({ doc, where, nodeId, device, env, act, current }: {
       </div>
 
       <div className="sbe-tabs" role="tablist">
-        {(["content", "style", "advanced"] as const).map((t) => (
-          <button key={t} type="button" role="tab" className="sbe-tab" aria-selected={tab === t} onClick={() => setTab(t)}>
-            {t === "content" ? "Content" : t === "style" ? `Style · ${device === "desktop" ? "Desktop" : device === "tablet" ? "Tablet" : "Phone"}` : "Advanced"}
+        {([...(nothingToFill && showLayout ? [] : (["content"] as const)), ...(showLayout ? (["layout"] as const) : []), "style", "advanced"] as const).map((t) => (
+          <button key={t} type="button" role="tab" className="sbe-tab" aria-selected={activeTab === t} onClick={() => setTab(t)}>
+            {t === "content" ? "Content" : t === "layout" ? "Layout" : t === "style" ? `Style · ${device === "desktop" ? "Desktop" : device === "tablet" ? "Tablet" : "Phone"}` : "Advanced"}
           </button>
         ))}
       </div>
 
       <div className="sbe-scroll">
-        {tab === "content" && (
+        {activeTab === "layout" && (
+          <>
+            <ContainerLayout node={node} device={device} onChange={act.change} />
+            {inLayout && parentNode && (
+              <ItemPlacement node={node} parent={parentNode} device={device} onChange={act.change} onParentChange={act.change} />
+            )}
+          </>
+        )}
+
+        {activeTab === "content" && (
           <div className="sbe-sec">
             {contextWarn && <div className="sbe-note warn">{contextWarn}</div>}
             {node.type === "global_ref" && typeof props.ref === "string" && props.ref && (
@@ -141,11 +163,11 @@ export function Inspector({ doc, where, nodeId, device, env, act, current }: {
           </div>
         )}
 
-        {tab === "style" && (
+        {activeTab === "style" && (
           <StylePanel node={node} def={def} device={device} settings={doc.settings ?? {}} env={env} onChange={act.change} />
         )}
 
-        {tab === "advanced" && (
+        {activeTab === "advanced" && (
           <div className="sbe-sec">
             <div className="sbe-field">
               <label>Name in the layers list</label>

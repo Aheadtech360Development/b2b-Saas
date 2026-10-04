@@ -36,6 +36,8 @@ export const BASE_CSS = `
 .bsite :where(.b-stack[data-dir=row]){flex-direction:row;flex-wrap:wrap;align-items:center}
 .bsite :where(.b-stack[data-dir=column]) > :where(.b-row,.b-grid,.b-section,.b-stack,.b-text,.b-heading,.b-rich,.b-img,.b-imglink,.b-video,.b-faq,.b-tabs,.b-quotes,.b-gallery,.b-banner,.b-news,.b-html,.b-divider,.b-global,.b-price,.b-buy,.b-pgallery,.b-search-field,.b-menu[data-layout=vertical]){align-self:stretch}
 .bsite :where(.b-spacer){width:100%}
+.bsite :where([data-lay]) > *,.bsite :where(.b-section[data-lay]) > .b-in > *{min-width:0}
+.bsite :where([data-lay]) :where(.b-text,.b-heading,.b-rich){overflow-wrap:anywhere}
 .bsite :where(.b-divider){border:0;border-top:1px solid var(--b-border,#e6e6e6);margin:0;width:100%}
 
 .bsite :where(.b-heading){overflow-wrap:anywhere}

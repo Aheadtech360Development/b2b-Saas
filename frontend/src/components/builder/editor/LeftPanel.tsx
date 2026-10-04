@@ -10,6 +10,7 @@ import {
   Palette, Plus, RefreshCw, Search, Star, Trash2, Upload, Bookmark,
 } from "lucide-react";
 import { FALLBACK_ICON, REGISTRY_ICONS } from "./icons";
+import { LAYOUT_PRESETS } from "@/lib/builder/layout";
 import type { BuilderNode, SiteDoc, TemplateType } from "@/lib/builder/types";
 import { CATEGORIES, PRESETS, REGISTRY, labelOf } from "@/lib/builder/registry";
 import { GOOGLE_FONTS, SYSTEM_FONTS, availableFamilies, previewUrl } from "@/lib/builder/fonts";
@@ -94,6 +95,25 @@ function AddPanel(p: LeftProps) {
               <button key={preset.key} type="button" className="sbe-card" {...drag(p.dragRef, { preset: preset.key })}
                       onClick={() => p.add({ preset: preset.key })}>
                 <b>{preset.label}</b><span>{preset.blurb}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+      {!query && (
+        <div className="sbe-sec">
+          <div className="sbe-h"><span>Grid &amp; Flex</span></div>
+          <div className="sbe-tiles">
+            {LAYOUT_PRESETS.map((lp) => (
+              <button key={lp.key} type="button" className="sbe-tile" title={lp.blurb} {...drag(p.dragRef, { layout: lp.key })}
+                      onClick={() => p.add({ layout: lp.key })}>
+                <span aria-hidden style={{ display: "grid", gap: 2, width: 34, height: 22,
+                  gridTemplateColumns: lp.cols ? `repeat(${lp.cols},1fr)` : lp.key === "flex-row" ? "repeat(3,1fr)" : "1fr" }}>
+                  {Array.from({ length: lp.cols ? lp.cols * (lp.rows ?? 1) : lp.key === "flex-row" ? 3 : 2 }, (_, i) => (
+                    <span key={i} style={{ background: "#C9CED8", borderRadius: 2 }} />
+                  ))}
+                </span>
+                <span className="sbe-tile-label" lang="en">{lp.label}</span>
               </button>
             ))}
           </div>

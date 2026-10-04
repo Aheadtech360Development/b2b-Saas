@@ -1,0 +1,1285 @@
+{
+ "schema": 1,
+ "settings": {
+  "colors": {
+   "primary": "#1F4FD8",
+   "text": "#14161B",
+   "muted": "#5B6170",
+   "background": "#FFFFFF",
+   "surface": "#FAFAF8",
+   "border": "#ECECEC"
+  },
+  "fonts": [
+   {
+    "family": "Inter",
+    "source": "google",
+    "weights": [
+     400,
+     500,
+     600,
+     700
+    ],
+    "styles": [
+     "normal"
+    ]
+   }
+  ],
+  "typography": {
+   "heading": {
+    "family": "Inter",
+    "weight": 700
+   },
+   "body": {
+    "family": "Inter",
+    "weight": 400
+   },
+   "button": {
+    "family": "Inter",
+    "weight": 600
+   },
+   "scale": {
+    "h1": {
+     "desktop": 52,
+     "tablet": 42,
+     "mobile": 34,
+     "lineHeight": 1.1,
+     "letterSpacing": -0.02
+    },
+    "h2": {
+     "desktop": 36,
+     "tablet": 30,
+     "mobile": 26,
+     "lineHeight": 1.15,
+     "letterSpacing": -0.01
+    },
+    "h3": {
+     "desktop": 26,
+     "tablet": 22,
+     "mobile": 20,
+     "lineHeight": 1.25
+    },
+    "h4": {
+     "desktop": 18,
+     "tablet": 17,
+     "mobile": 16,
+     "lineHeight": 1.35
+    },
+    "h5": {
+     "desktop": 16,
+     "tablet": 15,
+     "mobile": 15,
+     "lineHeight": 1.4
+    },
+    "h6": {
+     "desktop": 14,
+     "tablet": 14,
+     "mobile": 13,
+     "lineHeight": 1.4
+    },
+    "body": {
+     "desktop": 16,
+     "tablet": 16,
+     "mobile": 15,
+     "lineHeight": 1.6
+    },
+    "small": {
+     "desktop": 13,
+     "tablet": 13,
+     "mobile": 12,
+     "lineHeight": 1.5
+    },
+    "button": {
+     "desktop": 15,
+     "tablet": 15,
+     "mobile": 15,
+     "lineHeight": 1
+    }
+   }
+  },
+  "layout": {
+   "containerWidth": 1200,
+   "radius": 10,
+   "buttonRadius": 10,
+   "sectionSpacing": 64
+  }
+ },
+ "parts": {
+  "header": {
+   "id": "n0008",
+   "type": "section",
+   "props": {
+    "width": "contained",
+    "sticky": false
+   },
+   "style": {
+    "paddingTop": "14px",
+    "paddingBottom": "14px",
+    "backgroundColor": "#FFFFFF",
+    "borderColor": "#ECECEC"
+   },
+   "children": [
+    {
+     "id": "n0007",
+     "type": "stack",
+     "props": {
+      "direction": "row"
+     },
+     "style": {
+      "justifyContent": "space-between",
+      "alignItems": "center",
+      "gap": "16px",
+      "flexWrap": "nowrap"
+     },
+     "children": [
+      {
+       "id": "n0001",
+       "type": "logo",
+       "props": {
+        "height": 40,
+        "fallback": "name"
+       },
+       "style": {}
+      },
+      {
+       "id": "n0002",
+       "type": "menu",
+       "props": {
+        "menuId": "m1",
+        "layout": "horizontal",
+        "mobile": "drawer"
+       },
+       "style": {
+        "justifyContent": "center"
+       }
+      },
+      {
+       "id": "n0006",
+       "type": "stack",
+       "props": {
+        "direction": "row"
+       },
+       "style": {
+        "justifyContent": "flex-end",
+        "gap": "4px",
+        "flexWrap": "nowrap"
+       },
+       "children": [
+        {
+         "id": "n0003",
+         "type": "search",
+         "props": {
+          "style": "icon"
+         },
+         "style": {}
+        },
+        {
+         "id": "n0004",
+         "type": "account_link",
+         "props": {},
+         "style": {},
+         "hide": {
+          "mobile": true
+         }
+        },
+        {
+         "id": "n0005",
+         "type": "cart_link",
+         "props": {
+          "showCount": true
+         },
+         "style": {}
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "name": "Header"
+  },
+  "footer": {
+   "id": "n0022",
+   "type": "section",
+   "props": {
+    "width": "contained"
+   },
+   "style": {
+    "paddingTop": "56px",
+    "paddingBottom": "40px",
+    "backgroundColor": "#F7F7F5"
+   },
+   "children": [
+    {
+     "id": "n0019",
+     "type": "row",
+     "props": {},
+     "style": {
+      "columns": 3,
+      "gap": "32px",
+      "alignItems": "flex-start"
+     },
+     "children": [
+      {
+       "id": "n0016",
+       "type": "column",
+       "props": {},
+       "style": {},
+       "children": [
+        {
+         "id": "n0010",
+         "type": "logo",
+         "props": {
+          "height": 36,
+          "fallback": "name"
+         },
+         "style": {}
+        },
+        {
+         "id": "n0011",
+         "type": "text",
+         "props": {
+          "text": "Printed well, shipped fast."
+         },
+         "style": {
+          "color": "#5B6170",
+          "marginTop": "12px",
+          "fontSize": "14px"
+         }
+        }
+       ]
+      },
+      {
+       "id": "n0017",
+       "type": "column",
+       "props": {},
+       "style": {},
+       "children": [
+        {
+         "id": "n0012",
+         "type": "heading",
+         "props": {
+          "text": "Shop",
+          "level": 4
+         },
+         "style": {}
+        },
+        {
+         "id": "n0013",
+         "type": "menu",
+         "props": {
+          "menuId": "m2",
+          "layout": "vertical"
+         },
+         "style": {}
+        }
+       ]
+      },
+      {
+       "id": "n0018",
+       "type": "column",
+       "props": {},
+       "style": {},
+       "children": [
+        {
+         "id": "n0014",
+         "type": "heading",
+         "props": {
+          "text": "Stay in touch",
+          "level": 4
+         },
+         "style": {}
+        },
+        {
+         "id": "n0015",
+         "type": "newsletter",
+         "props": {
+          "placeholder": "Your email",
+          "button": "Subscribe"
+         },
+         "style": {}
+        }
+       ]
+      }
+     ],
+     "mobile": {
+      "columns": 1
+     }
+    },
+    {
+     "id": "n0020",
+     "type": "divider",
+     "props": {},
+     "style": {
+      "marginTop": "32px",
+      "marginBottom": "20px"
+     }
+    },
+    {
+     "id": "n0021",
+     "type": "text",
+     "props": {
+      "text": "\u00a9 Northwind. All rights reserved."
+     },
+     "style": {
+      "color": "#848A96",
+      "fontSize": "12px"
+     }
+    }
+   ],
+   "name": "Footer"
+  },
+  "announcement": {
+   "id": "n0009",
+   "type": "announcement_bar",
+   "props": {
+    "text": "Order by 12 PM for same-day production",
+    "href": ""
+   },
+   "style": {
+    "backgroundColor": "#1F4FD8",
+    "color": "#FFFFFF",
+    "textAlign": "center",
+    "paddingTop": "10px",
+    "paddingBottom": "10px",
+    "fontSize": "13px"
+   },
+   "name": "Announcement"
+  }
+ },
+ "templates": {
+  "home": {
+   "default": {
+    "name": "Home",
+    "tree": {
+     "id": "n0044",
+     "type": "stack",
+     "props": {},
+     "style": {},
+     "children": [
+      {
+       "id": "n0032",
+       "type": "section",
+       "props": {
+        "width": "contained"
+       },
+       "style": {
+        "paddingTop": "88px",
+        "paddingBottom": "88px"
+       },
+       "children": [
+        {
+         "id": "n0031",
+         "type": "row",
+         "props": {},
+         "style": {
+          "columns": 2,
+          "gap": "32px",
+          "alignItems": "center"
+         },
+         "children": [
+          {
+           "id": "n0029",
+           "type": "column",
+           "props": {},
+           "style": {},
+           "children": [
+            {
+             "id": "n0023",
+             "type": "heading",
+             "props": {
+              "text": "Welcome to Northwind",
+              "level": 1
+             },
+             "style": {}
+            },
+            {
+             "id": "n0024",
+             "type": "text",
+             "props": {
+              "text": "Quality prints, fair prices, and orders that ship when we say they will."
+             },
+             "style": {
+              "fontSize": "18px",
+              "color": "#5B6170",
+              "marginTop": "14px"
+             }
+            },
+            {
+             "id": "n0027",
+             "type": "stack",
+             "props": {
+              "direction": "row"
+             },
+             "style": {
+              "gap": "12px",
+              "marginTop": "28px"
+             },
+             "children": [
+              {
+               "id": "n0025",
+               "type": "button",
+               "props": {
+                "text": "Shop all",
+                "href": "/products",
+                "variant": "solid"
+               },
+               "style": {}
+              },
+              {
+               "id": "n0026",
+               "type": "button",
+               "props": {
+                "text": "Get a quote",
+                "href": "/quote",
+                "variant": "outline"
+               },
+               "style": {}
+              }
+             ]
+            }
+           ]
+          },
+          {
+           "id": "n0030",
+           "type": "column",
+           "props": {},
+           "style": {},
+           "children": [
+            {
+             "id": "n0028",
+             "type": "image",
+             "props": {
+              "src": "",
+              "alt": "",
+              "placeholder": true
+             },
+             "style": {
+              "borderRadius": "16px",
+              "aspectRatio": "4 / 3",
+              "objectFit": "cover"
+             }
+            }
+           ]
+          }
+         ],
+         "mobile": {
+          "columns": 1
+         }
+        }
+       ],
+       "name": "Hero"
+      },
+      {
+       "id": "n0035",
+       "type": "section",
+       "props": {
+        "width": "contained"
+       },
+       "style": {
+        "paddingTop": "64px",
+        "paddingBottom": "64px"
+       },
+       "children": [
+        {
+         "id": "n0033",
+         "type": "heading",
+         "props": {
+          "text": "Shop by collection",
+          "level": 2
+         },
+         "style": {
+          "textAlign": "center"
+         }
+        },
+        {
+         "id": "n0034",
+         "type": "collection_grid",
+         "props": {
+          "collectionIds": [],
+          "limit": 4,
+          "columns": 4
+         },
+         "style": {
+          "marginTop": "32px"
+         },
+         "mobile": {
+          "columns": 2
+         }
+        }
+       ],
+       "name": "Collections"
+      },
+      {
+       "id": "n0038",
+       "type": "section",
+       "props": {
+        "width": "contained"
+       },
+       "style": {
+        "paddingTop": "64px",
+        "paddingBottom": "64px",
+        "backgroundColor": "#FAFAF8"
+       },
+       "children": [
+        {
+         "id": "n0036",
+         "type": "heading",
+         "props": {
+          "text": "New arrivals",
+          "level": 2
+         },
+         "style": {
+          "textAlign": "center"
+         }
+        },
+        {
+         "id": "n0037",
+         "type": "product_grid",
+         "props": {
+          "source": "newest",
+          "limit": 8,
+          "columns": 4
+         },
+         "style": {
+          "marginTop": "32px"
+         },
+         "mobile": {
+          "columns": 2
+         }
+        }
+       ],
+       "name": "Products"
+      },
+      {
+       "id": "n0040",
+       "type": "section",
+       "props": {
+        "width": "contained"
+       },
+       "style": {
+        "paddingTop": "64px",
+        "paddingBottom": "64px"
+       },
+       "children": [
+        {
+         "id": "n0039",
+         "type": "banner",
+         "props": {
+          "heading": "Need it by Friday?",
+          "text": "Same-day production on orders before noon.",
+          "button": "Start an order",
+          "href": "/products",
+          "image": ""
+         },
+         "style": {
+          "backgroundColor": "#1F4FD8",
+          "color": "#FFFFFF",
+          "borderRadius": "20px",
+          "paddingTop": "56px",
+          "paddingBottom": "56px"
+         }
+        }
+       ],
+       "name": "Promotion"
+      },
+      {
+       "id": "n0043",
+       "type": "section",
+       "props": {
+        "width": "contained"
+       },
+       "style": {
+        "paddingTop": "64px",
+        "paddingBottom": "64px"
+       },
+       "children": [
+        {
+         "id": "n0041",
+         "type": "heading",
+         "props": {
+          "text": "What customers say",
+          "level": 2
+         },
+         "style": {
+          "textAlign": "center"
+         }
+        },
+        {
+         "id": "n0042",
+         "type": "testimonials",
+         "props": {
+          "items": [
+           {
+            "quote": "Colours came out exactly as the proof. Will order again.",
+            "name": "A happy customer"
+           },
+           {
+            "quote": "Fast, careful, and they caught a problem with my file.",
+            "name": "A repeat customer"
+           },
+           {
+            "quote": "The easiest print order I have placed.",
+            "name": "A new customer"
+           }
+          ],
+          "columns": 3
+         },
+         "style": {
+          "marginTop": "32px"
+         },
+         "mobile": {
+          "columns": 1
+         }
+        }
+       ],
+       "name": "Testimonials"
+      }
+     ],
+     "name": "Home"
+    }
+   }
+  },
+  "page": {
+   "default": {
+    "name": "Default page",
+    "tree": {
+     "id": "n0048",
+     "type": "stack",
+     "props": {},
+     "style": {},
+     "children": [
+      {
+       "id": "n0047",
+       "type": "section",
+       "props": {
+        "width": "contained"
+       },
+       "style": {
+        "paddingTop": "56px",
+        "paddingBottom": "64px"
+       },
+       "children": [
+        {
+         "id": "n0045",
+         "type": "page_title",
+         "props": {
+          "level": 1
+         },
+         "style": {}
+        },
+        {
+         "id": "n0046",
+         "type": "page_content",
+         "props": {},
+         "style": {
+          "marginTop": "24px"
+         }
+        }
+       ],
+       "name": "Page"
+      }
+     ]
+    }
+   },
+   "landing": {
+    "name": "Landing page",
+    "tree": {
+     "id": "n0053",
+     "type": "stack",
+     "props": {},
+     "style": {},
+     "children": [
+      {
+       "id": "n0050",
+       "type": "section",
+       "props": {
+        "width": "contained"
+       },
+       "style": {
+        "paddingTop": "96px",
+        "paddingBottom": "48px",
+        "backgroundColor": "#FAFAF8"
+       },
+       "children": [
+        {
+         "id": "n0049",
+         "type": "page_title",
+         "props": {
+          "level": 1
+         },
+         "style": {
+          "textAlign": "center",
+          "fontSize": "52px"
+         }
+        }
+       ],
+       "name": "Landing hero"
+      },
+      {
+       "id": "n0052",
+       "type": "section",
+       "props": {
+        "width": "contained"
+       },
+       "style": {
+        "paddingTop": "64px",
+        "paddingBottom": "64px"
+       },
+       "children": [
+        {
+         "id": "n0051",
+         "type": "page_content",
+         "props": {},
+         "style": {}
+        }
+       ],
+       "name": "Content"
+      }
+     ]
+    }
+   },
+   "full_width": {
+    "name": "Full width",
+    "tree": {
+     "id": "n0056",
+     "type": "stack",
+     "props": {},
+     "style": {},
+     "children": [
+      {
+       "id": "n0055",
+       "type": "section",
+       "props": {
+        "width": "full"
+       },
+       "style": {
+        "paddingTop": "0px",
+        "paddingBottom": "0px"
+       },
+       "children": [
+        {
+         "id": "n0054",
+         "type": "page_content",
+         "props": {},
+         "style": {}
+        }
+       ],
+       "name": "Full width"
+      }
+     ]
+    }
+   }
+  },
+  "product": {
+   "default": {
+    "name": "Default product",
+    "tree": {
+     "id": "n0070",
+     "type": "stack",
+     "props": {},
+     "style": {},
+     "children": [
+      {
+       "id": "n0066",
+       "type": "section",
+       "props": {
+        "width": "contained"
+       },
+       "style": {
+        "paddingTop": "32px",
+        "paddingBottom": "64px"
+       },
+       "children": [
+        {
+         "id": "n0057",
+         "type": "breadcrumbs",
+         "props": {},
+         "style": {}
+        },
+        {
+         "id": "n0065",
+         "type": "row",
+         "props": {},
+         "style": {
+          "columns": 2,
+          "gap": "32px",
+          "marginTop": "20px",
+          "alignItems": "flex-start"
+         },
+         "children": [
+          {
+           "id": "n0063",
+           "type": "column",
+           "props": {},
+           "style": {},
+           "children": [
+            {
+             "id": "n0058",
+             "type": "product_gallery",
+             "props": {
+              "layout": "thumbs-below"
+             },
+             "style": {}
+            }
+           ]
+          },
+          {
+           "id": "n0064",
+           "type": "column",
+           "props": {},
+           "style": {},
+           "children": [
+            {
+             "id": "n0059",
+             "type": "product_title",
+             "props": {
+              "level": 1
+             },
+             "style": {}
+            },
+            {
+             "id": "n0060",
+             "type": "product_price",
+             "props": {
+              "showCompare": true
+             },
+             "style": {
+              "marginTop": "10px",
+              "fontSize": "22px"
+             }
+            },
+            {
+             "id": "n0061",
+             "type": "product_buy",
+             "props": {
+              "showQuantity": true,
+              "showBuyNow": true
+             },
+             "style": {
+              "marginTop": "24px"
+             }
+            },
+            {
+             "id": "n0062",
+             "type": "product_description",
+             "props": {},
+             "style": {
+              "marginTop": "28px"
+             }
+            }
+           ]
+          }
+         ],
+         "mobile": {
+          "columns": 1
+         }
+        }
+       ],
+       "name": "Product"
+      },
+      {
+       "id": "n0069",
+       "type": "section",
+       "props": {
+        "width": "contained"
+       },
+       "style": {
+        "paddingTop": "64px",
+        "paddingBottom": "64px"
+       },
+       "children": [
+        {
+         "id": "n0067",
+         "type": "heading",
+         "props": {
+          "text": "You may also like",
+          "level": 2
+         },
+         "style": {}
+        },
+        {
+         "id": "n0068",
+         "type": "product_grid",
+         "props": {
+          "source": "related",
+          "limit": 4,
+          "columns": 4
+         },
+         "style": {
+          "marginTop": "24px"
+         },
+         "mobile": {
+          "columns": 2
+         }
+        }
+       ],
+       "name": "Related"
+      }
+     ]
+    }
+   },
+   "minimal": {
+    "name": "Minimal product",
+    "tree": {
+     "id": "n0077",
+     "type": "stack",
+     "props": {},
+     "style": {},
+     "children": [
+      {
+       "id": "n0076",
+       "type": "section",
+       "props": {
+        "width": "contained"
+       },
+       "style": {
+        "paddingTop": "64px",
+        "paddingBottom": "64px",
+        "maxWidth": "760px"
+       },
+       "children": [
+        {
+         "id": "n0071",
+         "type": "product_gallery",
+         "props": {
+          "layout": "single"
+         },
+         "style": {}
+        },
+        {
+         "id": "n0072",
+         "type": "product_title",
+         "props": {
+          "level": 1
+         },
+         "style": {
+          "marginTop": "24px",
+          "textAlign": "center"
+         }
+        },
+        {
+         "id": "n0073",
+         "type": "product_price",
+         "props": {},
+         "style": {
+          "textAlign": "center",
+          "marginTop": "8px"
+         }
+        },
+        {
+         "id": "n0074",
+         "type": "product_buy",
+         "props": {
+          "showQuantity": true
+         },
+         "style": {
+          "marginTop": "24px",
+          "maxWidth": "480px",
+          "marginLeft": "auto",
+          "marginRight": "auto"
+         }
+        },
+        {
+         "id": "n0075",
+         "type": "product_description",
+         "props": {},
+         "style": {
+          "marginTop": "32px"
+         }
+        }
+       ],
+       "name": "Product"
+      }
+     ]
+    }
+   }
+  },
+  "collection": {
+   "default": {
+    "name": "Default collection",
+    "tree": {
+     "id": "n0083",
+     "type": "stack",
+     "props": {},
+     "style": {},
+     "children": [
+      {
+       "id": "n0082",
+       "type": "section",
+       "props": {
+        "width": "contained"
+       },
+       "style": {
+        "paddingTop": "40px",
+        "paddingBottom": "64px"
+       },
+       "children": [
+        {
+         "id": "n0078",
+         "type": "breadcrumbs",
+         "props": {},
+         "style": {}
+        },
+        {
+         "id": "n0079",
+         "type": "collection_title",
+         "props": {
+          "level": 1
+         },
+         "style": {
+          "marginTop": "12px"
+         }
+        },
+        {
+         "id": "n0080",
+         "type": "collection_description",
+         "props": {},
+         "style": {
+          "marginTop": "10px",
+          "color": "#5B6170"
+         }
+        },
+        {
+         "id": "n0081",
+         "type": "collection_products",
+         "props": {
+          "columns": 4,
+          "pageSize": 12,
+          "showSort": true
+         },
+         "style": {
+          "marginTop": "32px"
+         },
+         "mobile": {
+          "columns": 2
+         }
+        }
+       ],
+       "name": "Collection"
+      }
+     ]
+    }
+   }
+  },
+  "search": {
+   "default": {
+    "name": "Search",
+    "tree": {
+     "id": "n0088",
+     "type": "stack",
+     "props": {},
+     "style": {},
+     "children": [
+      {
+       "id": "n0087",
+       "type": "section",
+       "props": {
+        "width": "contained"
+       },
+       "style": {
+        "paddingTop": "64px",
+        "paddingBottom": "64px"
+       },
+       "children": [
+        {
+         "id": "n0084",
+         "type": "heading",
+         "props": {
+          "text": "Search",
+          "level": 1
+         },
+         "style": {}
+        },
+        {
+         "id": "n0085",
+         "type": "search",
+         "props": {
+          "style": "field"
+         },
+         "style": {
+          "marginTop": "20px",
+          "maxWidth": "560px"
+         }
+        },
+        {
+         "id": "n0086",
+         "type": "product_grid",
+         "props": {
+          "source": "search",
+          "limit": 24,
+          "columns": 4
+         },
+         "style": {
+          "marginTop": "32px"
+         },
+         "mobile": {
+          "columns": 2
+         }
+        }
+       ],
+       "name": "Search"
+      }
+     ]
+    }
+   }
+  },
+  "cart": {
+   "default": {
+    "name": "Cart",
+    "tree": {
+     "id": "n0092",
+     "type": "stack",
+     "props": {},
+     "style": {},
+     "children": [
+      {
+       "id": "n0091",
+       "type": "section",
+       "props": {
+        "width": "contained"
+       },
+       "style": {
+        "paddingTop": "40px",
+        "paddingBottom": "64px"
+       },
+       "children": [
+        {
+         "id": "n0089",
+         "type": "heading",
+         "props": {
+          "text": "Your cart",
+          "level": 1
+         },
+         "style": {}
+        },
+        {
+         "id": "n0090",
+         "type": "cart_items",
+         "props": {},
+         "style": {
+          "marginTop": "20px"
+         }
+        }
+       ],
+       "name": "Cart"
+      }
+     ]
+    }
+   }
+  },
+  "not_found": {
+   "default": {
+    "name": "Page not found",
+    "tree": {
+     "id": "n0098",
+     "type": "stack",
+     "props": {},
+     "style": {},
+     "children": [
+      {
+       "id": "n0097",
+       "type": "section",
+       "props": {
+        "width": "contained"
+       },
+       "style": {
+        "paddingTop": "120px",
+        "paddingBottom": "120px"
+       },
+       "children": [
+        {
+         "id": "n0093",
+         "type": "heading",
+         "props": {
+          "text": "We could not find that page",
+          "level": 1
+         },
+         "style": {
+          "textAlign": "center"
+         }
+        },
+        {
+         "id": "n0094",
+         "type": "text",
+         "props": {
+          "text": "It may have moved, or the link may be out of date."
+         },
+         "style": {
+          "textAlign": "center",
+          "color": "#5B6170",
+          "marginTop": "12px"
+         }
+        },
+        {
+         "id": "n0096",
+         "type": "stack",
+         "props": {
+          "direction": "row"
+         },
+         "style": {
+          "justifyContent": "center",
+          "marginTop": "28px"
+         },
+         "children": [
+          {
+           "id": "n0095",
+           "type": "button",
+           "props": {
+            "text": "Back to the shop",
+            "href": "/",
+            "variant": "solid"
+           },
+           "style": {}
+          }
+         ]
+        }
+       ],
+       "name": "Not found"
+      }
+     ]
+    }
+   }
+  }
+ },
+ "pages": {
+  "about": {
+   "title": "About us",
+   "template": "default",
+   "seo": {
+    "title": "",
+    "description": "",
+    "image": ""
+   },
+   "tree": {
+    "id": "n0100",
+    "type": "stack",
+    "props": {},
+    "style": {},
+    "children": [
+     {
+      "id": "n0099",
+      "type": "rich_text",
+      "props": {
+       "html": "<p>Tell your customers who you are, what you print, and why they can trust you with their order.</p>"
+      },
+      "style": {}
+     }
+    ]
+   }
+  }
+ },
+ "assignments": {
+  "product": {
+   "default": "default",
+   "byId": {}
+  },
+  "collection": {
+   "default": "default",
+   "byId": {}
+  },
+  "page": {
+   "default": "default"
+  }
+ },
+ "globals": {},
+ "saved": {}
+}

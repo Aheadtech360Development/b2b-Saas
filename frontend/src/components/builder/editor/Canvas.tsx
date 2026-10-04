@@ -25,11 +25,12 @@ import { SiteHead } from "@/components/builder/SiteParts";
 import { Tree, type RenderCtx } from "@/components/builder/render";
 
 export type DragPayload =
-  | { add: string } | { preset: string } | { saved: string } | { shared: string } | { move: string };
+  | { add: string } | { preset: string } | { layout: string } | { saved: string } | { shared: string } | { move: string };
 
 export const DEVICE_WIDTH: Record<Breakpoint, number> = { desktop: 1280, tablet: 820, mobile: 390 };
 
 interface Box { top: number; left: number; width: number; height: number }
+interface Cell { col: number; row: number; box: Box }
 
 const INLINE_TEXT = new Set(["heading", "text", "button", "link", "announcement_bar"]);
 
@@ -44,6 +45,10 @@ export interface CanvasProps {
   dragRef: React.MutableRefObject<DragPayload | null>;
   onSelect: (id: string | null) => void;
   onDrop: (drag: DragPayload, targetId: string, position: Position) => void;
+  /** Dropped on a free cell of a grid: put it there. */
+  onDropCell: (drag: DragPayload, gridId: string, col: number, row: number) => void;
+  /** A grid item's corner dragged: it now starts at col/row and spans this many cells. */
+  onSpan: (gridId: string, childId: string, col: number, row: number, colSpan: number, rowSpan: number) => void;
   onInlineText: (id: string, text: string) => void;
   onDuplicate: () => void;
   onRemove: () => void;
@@ -82,6 +87,10 @@ export function Canvas(props: CanvasProps) {
   const [hover, setHover] = useState<string | null>(null);
   const [boxes, setBoxes] = useState<{ sel: Box | null; hover: Box | null }>({ sel: null, hover: null });
   const [drop, setDrop] = useState<{ line?: Box; box?: Box; label: string } | null>(null);
+  // The grid whose cells are drawn: the one being dragged over, else the
+  // selected grid, else the grid the selected item sits in.
+  const [dragGrid, setDragGrid] = useState<string | null>(null);
+  const [cells, setCells] = useState<{ id: string; cells: Cell[] } | null>(null);
   const editing = useRef(false);
 
   const width = DEVICE_WIDTH[device];
@@ -149,12 +158,71 @@ export function Canvas(props: CanvasProps) {
     return { top: r.top - w.top, left: r.left - w.left, width: r.width, height: r.height };
   }, []);
 
+  /** The element that lays a grid container's children out, when it is a grid right now. */
+  const gridEl = useCallback((id: string | null): HTMLElement | null => {
+    const el = elFor(id);
+    const node = id ? nodes.get(id) : null;
+    // Only containers lay children out in cells. A product grid or a gallery is
+    // drawn with CSS grid too, but holds no children: dropping "into" it means
+    // before or after it, as it always has.
+    if (!el || !node || !isContainer(node.type)) return null;
+    const inner = node.type === "section" ? el.querySelector<HTMLElement>(":scope > .b-in") : el;
+    return inner && getComputedStyle(inner).display === "grid" ? inner : null;
+  }, [elFor, nodes]);
+
+  /** Where each cell of a grid is on screen, from the tracks the browser laid out. */
+  const cellsOf = useCallback((el: HTMLElement): Cell[] => {
+    const wrap = wrapRef.current;
+    if (!wrap) return [];
+    const cs = getComputedStyle(el);
+    const r = el.getBoundingClientRect();
+    const w = wrap.getBoundingClientRect();
+    const k = r.width / Math.max(1, el.offsetWidth);
+    const tracks = (v: string) => (v && v !== "none" ? v.split(/\s+/).map(parseFloat).filter((n) => Number.isFinite(n)) : []);
+    const cols = tracks(cs.gridTemplateColumns);
+    let rows = tracks(cs.gridTemplateRows);
+    if (!cols.length) return [];
+    if (!rows.length) rows = [Math.max(56, el.clientHeight)];
+    const cg = parseFloat(cs.columnGap) || 0;
+    const rg = parseFloat(cs.rowGap) || 0;
+    const left0 = r.left - w.left + (parseFloat(cs.borderLeftWidth) + parseFloat(cs.paddingLeft)) * k;
+    const top0 = r.top - w.top + (parseFloat(cs.borderTopWidth) + parseFloat(cs.paddingTop)) * k;
+    const out: Cell[] = [];
+    let y = 0;
+    rows.forEach((rh, ri) => {
+      const h = Math.max(rh, 40);
+      let x = 0;
+      cols.forEach((cw, ci) => {
+        out.push({ col: ci + 1, row: ri + 1, box: { left: left0 + x * k, top: top0 + y * k, width: cw * k, height: h * k } });
+        x += cw + cg;
+      });
+      y += h + rg;
+    });
+    return out;
+  }, []);
+
+  const parentNode = useCallback((id: string): BuilderNode | null => {
+    const tree = [parts.announcement, parts.header, body.tree, body.page?.tree, parts.footer].find((t) => t && findIn(t, id));
+    return tree ? parentOf(tree, id)?.parent ?? null : null;
+  }, [parts.announcement, parts.header, body.tree, body.page?.tree, parts.footer]);
+
   const measure = useCallback(() => {
     const next = { sel: boxOf(elFor(selected)), hover: hover && hover !== selected ? boxOf(elFor(hover)) : null };
     // Only when something moved: this runs after every render, and a new
     // object every time would render again, forever.
     setBoxes((prev) => (sameBox(prev.sel, next.sel) && sameBox(prev.hover, next.hover) ? prev : next));
-  }, [boxOf, elFor, selected, hover]);
+    let gid: string | null = dragGrid;
+    if (!gid && selected) {
+      if (gridEl(selected)) gid = selected;
+      else {
+        const p = parentNode(selected);
+        if (p && gridEl(p.id)) gid = p.id;
+      }
+    }
+    const g = gid ? gridEl(gid) : null;
+    const nextCells = g && gid ? { id: gid, cells: cellsOf(g) } : null;
+    setCells((prev) => (JSON.stringify(prev) === JSON.stringify(nextCells) ? prev : nextCells));
+  }, [boxOf, elFor, selected, hover, dragGrid, gridEl, parentNode, cellsOf]);
 
   useLayoutEffect(() => { measure(); });
   useEffect(() => {
@@ -236,13 +304,23 @@ export function Canvas(props: CanvasProps) {
   };
 
   // ── Dropping ──
-  const dropTarget = (x: number, y: number): { id: string; position: Position; el: HTMLElement } | null => {
+  const dropTarget = (x: number, y: number): { id: string; position: Position; el: HTMLElement; cell?: Cell } | null => {
     const hit = document.elementFromPoint(x, y);
     let id = frameRef.current?.contains(hit) ? resolve(hit) : null;
     if (!id) id = body.tree?.id ?? null;
     const el = elFor(id);
     const node = id ? nodes.get(id) : null;
     if (!id || !el || !node) return null;
+    // Over a grid itself — a free cell or the gap between cells, not one of its
+    // children: the drop goes into the cell under the pointer.
+    const g = gridEl(id);
+    const wrap = wrapRef.current?.getBoundingClientRect();
+    if (g && wrap) {
+      const px = x - wrap.left;
+      const py = y - wrap.top;
+      const cell = cellsOf(g).find((c) => px >= c.box.left && px <= c.box.left + c.box.width && py >= c.box.top && py <= c.box.top + c.box.height);
+      if (cell) return { id, position: "inside", el, cell };
+    }
     const r = el.getBoundingClientRect();
     // Columns of a row, and things in an across-stack, sit side by side: there
     // "before" is to the left.
@@ -268,7 +346,13 @@ export function Canvas(props: CanvasProps) {
       else if (e.clientY > v.bottom - 56) view.scrollBy({ top: 18 });
     }
     const t = dropTarget(e.clientX, e.clientY);
-    if (!t) { setDrop(null); return; }
+    if (!t) { setDrop(null); setDragGrid(null); return; }
+    if (t.cell) {
+      setDragGrid(t.id);
+      setDrop({ box: t.cell.box, label: `Row ${t.cell.row}, column ${t.cell.col}` });
+      return;
+    }
+    if (dragGrid) setDragGrid(null);
     const b = boxOf(t.el);
     if (!b) { setDrop(null); return; }
     const node = nodes.get(t.id)!;
@@ -293,8 +377,48 @@ export function Canvas(props: CanvasProps) {
     e.preventDefault();
     const t = dropTarget(e.clientX, e.clientY);
     dragRef.current = null;
-    if (t) onDrop(drag, t.id, t.position);
+    setDragGrid(null);
+    if (t?.cell) props.onDropCell(drag, t.id, t.cell.col, t.cell.row);
+    else if (t) onDrop(drag, t.id, t.position);
   };
+
+  // ── Spanning: drag the corner of an item in a grid across the cells ──
+  const spanning = useRef<{ gridId: string; childId: string; col: number; row: number; last: string } | null>(null);
+  const startSpan = (e: React.PointerEvent) => {
+    if (!selected) return;
+    const p = parentNode(selected);
+    const g = p ? gridEl(p.id) : null;
+    const el = elFor(selected);
+    const wrap = wrapRef.current?.getBoundingClientRect();
+    if (!p || !g || !el || !wrap) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const r = el.getBoundingClientRect();
+    const all = cellsOf(g);
+    const at = (x: number, y: number) => all.find((c) => x >= c.box.left && x <= c.box.left + c.box.width + 4 && y >= c.box.top && y <= c.box.top + c.box.height + 4);
+    const start = at(r.left - wrap.left + 2, r.top - wrap.top + 2) ?? all[0];
+    if (!start) return;
+    spanning.current = { gridId: p.id, childId: selected, col: start.col, row: start.row, last: "" };
+    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+  };
+  const moveSpan = (e: React.PointerEvent) => {
+    const sp = spanning.current;
+    const wrap = wrapRef.current?.getBoundingClientRect();
+    const g = sp ? gridEl(sp.gridId) : null;
+    if (!sp || !wrap || !g) return;
+    const x = e.clientX - wrap.left;
+    const y = e.clientY - wrap.top;
+    const all = cellsOf(g);
+    const cell = all.find((c) => x >= c.box.left && x <= c.box.left + c.box.width && y >= c.box.top && y <= c.box.top + c.box.height);
+    if (!cell) return;
+    const colSpan = Math.max(1, cell.col - sp.col + 1);
+    const rowSpan = Math.max(1, cell.row - sp.row + 1);
+    const key = `${colSpan}x${rowSpan}`;
+    if (key === sp.last) return;
+    sp.last = key;
+    props.onSpan(sp.gridId, sp.childId, sp.col, sp.row, colSpan, rowSpan);
+  };
+  const endSpan = () => { spanning.current = null; };
 
   const selNode = selected ? nodes.get(selected) : null;
   const hoverNode = hover ? nodes.get(hover) : null;
@@ -328,6 +452,11 @@ export function Canvas(props: CanvasProps) {
         </div>
 
         <div className="sbe-overlay">
+          {cells && cells.cells.map((c) => (
+            <div key={`${c.row}-${c.col}`} className="sbe-cell" style={c.box}>
+              <span>{(c.row - 1) * Math.max(...cells.cells.map((x) => x.col)) + c.col}</span>
+            </div>
+          ))}
           {boxes.hover && hoverNode && !drop && (
             <div className="sbe-hover" style={boxes.hover}>
               <span className="sbe-hchip">{labelOf(hoverNode)}</span>
@@ -335,6 +464,10 @@ export function Canvas(props: CanvasProps) {
           )}
           {boxes.sel && selNode && (
             <div className="sbe-sel" style={boxes.sel}>
+              {cells && selNode && cells.id !== selNode.id && (
+                <div className="sbe-span-handle" role="slider" aria-label="Drag to span cells" title="Drag to span more cells"
+                     onPointerDown={startSpan} onPointerMove={moveSpan} onPointerUp={endSpan} onPointerCancel={endSpan} />
+              )}
               <div className={`sbe-chip${chipBelow ? " below" : ""}`}>
                 <span style={{ marginRight: 4, maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis" }}>{labelOf(selNode)}</span>
                 {!roots.has(selNode.id) && (

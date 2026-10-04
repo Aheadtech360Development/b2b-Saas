@@ -134,6 +134,9 @@ select.sbe-in{padding-right:28px}
 .sbe-chip .drag{cursor:grab}
 .sbe-hchip{position:absolute;left:-1px;bottom:100%;padding:2px 7px;background:#818CF8;color:#fff;font-size:11px;font-weight:600;border-radius:5px 5px 0 0;white-space:nowrap;font-family:system-ui,sans-serif}
 .sbe-drop-line{position:absolute;background:#4F46E5;border-radius:2px;box-shadow:0 0 0 2px rgba(79,70,229,.2)}
+.sbe-cell{position:absolute;border:1px dashed rgba(79,70,229,.5);border-radius:4px;background:rgba(79,70,229,.03)}
+.sbe-cell span{position:absolute;top:3px;left:4px;font:600 10px system-ui,sans-serif;color:rgba(79,70,229,.75)}
+.sbe-span-handle{position:absolute;right:-8px;bottom:-8px;width:14px;height:14px;border-radius:4px;background:#4F46E5;border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.3);cursor:nwse-resize;pointer-events:auto;touch-action:none}
 .sbe-drop-box{position:absolute;border:2px dashed #4F46E5;background:rgba(79,70,229,.06);border-radius:4px}
 .sbe-banner{display:flex;align-items:center;gap:10px;padding:8px 14px;font-size:13px;background:#FFF8EB;color:#7A4A00;border-bottom:1px solid #F5E1B8;flex-wrap:wrap}
 .sbe-banner.bad{background:#FEF3F2;color:#912018;border-color:#F8D3CF}

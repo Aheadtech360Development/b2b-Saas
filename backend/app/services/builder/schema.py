@@ -152,7 +152,29 @@ STYLE_KEYS = {
     "objectFit", "aspectRatio", "opacity", "overflow",
     # Not CSS: how many columns a row lays out at this breakpoint.
     "columns",
+    # The layout engine: a container's layout, and where a child sits in it.
+    # Kept per breakpoint like every other setting; frontend style.ts turns
+    # them into CSS.
+    "display", "rowGap", "columnGap", "alignContent", "justifyItems", "gridAutoFlow",
+    "gridColumns", "gridRows", "gridAuto", "gridMin", "gridTemplate",
+    "alignSelf", "justifySelf", "flexGrow", "flexShrink", "flexBasis", "minWidth", "order",
+    "gridColumn", "gridRow", "gridColumnSpan", "gridRowSpan",
 }
+
+# What the layout keys may hold. Anything else is refused at publish, the way
+# an unsafe value is: the renderer would drop it, and a page that quietly
+# loses its layout is worse than being told.
+_LAYOUT_ENUMS = {
+    "display": {"flex", "grid", "block"},
+    "gridAuto": {"fit", "fill"},
+    "gridAutoFlow": {"row", "column", "dense", "row dense", "column dense"},
+}
+_LAYOUT_INTS = {
+    "gridColumns": (1, 12), "gridRows": (0, 12), "gridColumnSpan": (1, 12), "gridRowSpan": (1, 12),
+    "gridColumn": (1, 12), "gridRow": (1, 12), "flexGrow": (0, 100), "flexShrink": (0, 100), "order": (-100, 100),
+}
+_TRACK = r"(?:\d+(?:\.\d+)?(?:fr|px|%|em|rem)|auto|min-content|max-content|minmax\(\s*\d+(?:\.\d+)?(?:px|%|em|rem)?\s*,\s*\d+(?:\.\d+)?(?:fr|px|%|em|rem)\s*\))"
+_TRACKS = re.compile(rf"^\s*{_TRACK}(?:\s+{_TRACK}){{0,11}}\s*$")
 _STYLE_DANGER = re.compile(r"[;{}<>]|expression\s*\(|javascript:|@import|\\", re.I)
 _SAFE_URL = re.compile(r"^(https?://|/(?!/)|#|mailto:|tel:)", re.I)
 _CSS_URL = re.compile(r"url\(\s*(['\"]?)(.*?)\1\s*\)", re.I)
@@ -240,6 +262,27 @@ def _check_style(style: Any, where: str, families: set[str], issues: list[Issue]
                                 "warning"))
             continue
         if isinstance(value, bool) or value is None:
+            continue
+        if key in _LAYOUT_INTS:
+            low, high = _LAYOUT_INTS[key]
+            ok = value == "auto" and key in ("gridColumn", "gridRow")
+            if not ok:
+                try:
+                    ok = float(value) == int(float(value)) and low <= int(float(value)) <= high
+                except (TypeError, ValueError):
+                    ok = False
+            if not ok:
+                issues.append(Issue(f"{where}.{key}", "layout_value", f"'{key}' must be a whole number from {low} to {high}."))
+            continue
+        if key in _LAYOUT_ENUMS:
+            if str(value) not in _LAYOUT_ENUMS[key]:
+                issues.append(Issue(f"{where}.{key}", "layout_value",
+                                    f"'{value}' is not a {key} this builder knows."))
+            continue
+        if key == "gridTemplate":
+            if not isinstance(value, str) or not _TRACKS.match(value):
+                issues.append(Issue(f"{where}.{key}", "layout_value",
+                                    "Column widths are sizes like 2fr 1fr or 240px 1fr, up to twelve of them."))
             continue
         if isinstance(value, (int, float)):
             if key == "columns" and not (1 <= value <= 6):
