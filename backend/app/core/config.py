@@ -255,6 +255,13 @@ class Settings(BaseSettings):
     IMAGEKIT_PUBLIC_KEY: str = ""     # public_...
     IMAGEKIT_PRIVATE_KEY: str = ""    # private_...  (secret — .env only)
 
+    # Background removal for the print builders (workers/image-tools, on
+    # Cloudflare). The platform pays for this, so there is one key, not one per
+    # brand. Left empty, the builders remove backgrounds in the browser instead.
+    IMAGE_TOOLS_URL: str = ""         # the Worker's address, no trailing slash
+    IMAGE_TOOLS_KEY: str = ""         # signs tickets; the Worker holds the same  (secret — .env only)
+    IMAGE_TOOLS_DAILY_CAP: int = 300  # most removals one shop may ask for in a day
+
     # ── Sentry ────────────────────────────────────────────────────────────────
     SENTRY_DSN: str = ""
 

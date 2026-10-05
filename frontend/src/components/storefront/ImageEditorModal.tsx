@@ -6,7 +6,8 @@
  * Mirrors the reference builder's "Image Editor": Enhance (remove background /
  * upscale), Halftone, Crop (aspect presets + rectangle/circle), and Colors, with
  * an AFTER/BEFORE toggle and a viewing-only background-colour swatch. Everything
- * runs in the browser on <canvas>; Remove Background uses @imgly (loaded lazily).
+ * runs in the browser on <canvas>, except Remove Background, which is done on
+ * Cloudflare (lib/backgroundRemoval) and only falls back to the browser.
  * Apply returns the edited image as a transparent PNG File.
  */
 import { useCallback, useEffect, useRef, useState } from "react";

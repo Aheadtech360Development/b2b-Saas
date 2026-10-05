@@ -103,3 +103,6 @@ docker-compose.override.yml
 
 # ─── Local reference docs (kept locally, not versioned) ───────────────────────
 backend/app/models/ssactivewearguide.txt
+
+# Cloudflare Wrangler state (workers/*)
+.wrangler/

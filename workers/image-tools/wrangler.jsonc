@@ -1,0 +1,9 @@
+{
+  // Background removal for the print builders. See README.md.
+  "name": "pc-image-tools",
+  "main": "src/index.js",
+  "compatibility_date": "2026-09-01",
+  "workers_dev": true,
+  "observability": { "enabled": true },
+  "images": { "binding": "IMAGES" }
+}

@@ -207,3 +207,45 @@ async def upload_artwork(file: UploadFile = File(...), request: Request = None, 
         "type": ext.lstrip("."),
         "size": len(content),
     }
+
+
+@router.post("/cutout-ticket")
+async def cutout_ticket(request: Request, db: AsyncSession = Depends(get_db)):
+    """A ticket for removing an image's background.
+
+    The work is done on Cloudflare and the browser sends the image there
+    itself, so what this hands out is permission, not a result: a signed
+    ticket, good for a few minutes, that the image tools Worker will accept.
+
+    Open to guests, like the artwork upload beside it — somebody building a
+    sheet before they have an account still needs their background removed.
+    The platform pays for each removal, so it is limited twice: per caller, so
+    nobody can sit and drain it, and per shop per day.
+    """
+    from app.core.config import get_settings
+    from app.core.redis import redis_increment
+    from app.services import image_tools
+
+    await enforce_rate_limit(request, scope="cutout", limit=20, window=600)
+
+    if not image_tools.is_configured():
+        # The builders hear this as "do it in the browser instead".
+        raise HTTPException(status_code=503, detail="Background removal is not set up.")
+
+    shop = await resolve_media_folder_key(request, db)
+    if not shop:
+        raise HTTPException(status_code=400, detail="Unknown shop.")
+
+    import datetime
+    import logging
+
+    day = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%d")
+    try:
+        used = await redis_increment(f"cutout:{shop}:{day}", expire=2 * 86400)
+    except Exception as exc:  # noqa: BLE001 — a Redis hiccup must not switch the tool off
+        logging.getLogger(__name__).warning("cutout daily count skipped (redis error): %s", exc)
+        used = 0
+    if used > get_settings().IMAGE_TOOLS_DAILY_CAP:
+        raise HTTPException(status_code=429, detail="This shop has reached today's limit for background removal.")
+
+    return image_tools.cutout_ticket(shop)

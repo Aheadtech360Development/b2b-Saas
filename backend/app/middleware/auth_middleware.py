@@ -354,6 +354,12 @@ class AuthMiddleware(BaseHTTPMiddleware):
         # it from being a free file host.
         if path == "/api/v1/upload/artwork":
             return True
+        # And the ticket for removing that file's background, for the same
+        # reason. It hands out permission to use the image tools Worker, which
+        # the platform pays for — its own two limits, per caller and per shop
+        # per day, are what keep that from being drained.
+        if path == "/api/v1/upload/cutout-ticket":
+            return True
         # Invoice summary — public for pay-now email link access
         if path.endswith('/invoice-summary'):
             return True
