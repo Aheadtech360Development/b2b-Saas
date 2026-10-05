@@ -63,7 +63,7 @@ def starter_document(*, store_name: str = "", primary: str = "", header_menu: st
         _node(ids, "stack", {"direction": "row"}, {
             "justifyContent": "space-between", "alignItems": "center", "gap": "16px", "flexWrap": "nowrap",
         }, [
-            _node(ids, "logo", {"height": 40, "fallback": "name"}),
+            _node(ids, "logo", {"fallback": "name"}, {"height": "40px"}),
             _node(ids, "menu", {"menuId": header_menu, "layout": "horizontal", "mobile": "drawer"},
                   {"justifyContent": "center"}),
             _node(ids, "stack", {"direction": "row"}, {"justifyContent": "flex-end", "gap": "4px", "flexWrap": "nowrap"}, [
@@ -79,21 +79,29 @@ def starter_document(*, store_name: str = "", primary: str = "", header_menu: st
     }, {"backgroundColor": primary, "color": "#FFFFFF", "textAlign": "center",
         "paddingTop": "10px", "paddingBottom": "10px", "fontSize": "13px"}, name="Announcement")
 
+    # The footer: a brand column — logo, a line, a few words — then a column
+    # for each menu, as many as the merchant adds. The columns are a grid that
+    # fits as many across as there is room for, so a phone stacks them without
+    # anything being set for it. (Mirrors simpleFooter in the editor's registry.)
     footer = _node(ids, "section", {"width": "contained"}, {
-        "paddingTop": "56px", "paddingBottom": "40px", "backgroundColor": "#F7F7F5",
+        "paddingTop": "56px", "paddingBottom": "32px", "backgroundColor": "#F7F7F5",
     }, [
-        _row(ids, [
-            [_node(ids, "logo", {"height": 36, "fallback": "name"}),
-             _node(ids, "text", {"text": "Printed well, shipped fast."},
-                   {"color": "#5B6170", "marginTop": "12px", "fontSize": "14px"})],
-            [_node(ids, "heading", {"text": "Shop", "level": 4}),
-             _node(ids, "menu", {"menuId": footer_menu or header_menu, "layout": "vertical"})],
-            [_node(ids, "heading", {"text": "Stay in touch", "level": 4}),
-             _node(ids, "newsletter", {"placeholder": "Your email", "button": "Subscribe"})],
-        ], {"alignItems": "flex-start"}),
-        _node(ids, "divider", {}, {"marginTop": "32px", "marginBottom": "20px"}),
+        _node(ids, "stack", {"direction": "column"}, {
+            "display": "grid", "gridAuto": "fit", "gridMin": "170px", "gap": "32px", "alignItems": "start",
+        }, [
+            _node(ids, "stack", {"direction": "column"}, {"gap": "10px"}, [
+                _node(ids, "logo", {"fallback": "name"}, {"height": "36px"}),
+                _node(ids, "text", {"text": "Printed well, shipped fast."},
+                      {"fontWeight": 600, "fontSize": "15px"}, name="Tagline"),
+                _node(ids, "text", {"text": "A sentence or two about your shop — what you make and who for."},
+                      {"color": "var(--b-muted,#5B6170)", "fontSize": "14px"}, name="About"),
+            ], name="Brand"),
+            _node(ids, "menu", {"title": "Shop", "menuId": footer_menu or header_menu, "layout": "vertical"},
+                  name="Shop links"),
+        ], name="Footer columns"),
+        _node(ids, "divider", {}, {"marginTop": "36px", "marginBottom": "18px"}),
         _node(ids, "text", {"text": f"© {store_name or 'Our store'}. All rights reserved."},
-              {"color": "#848A96", "fontSize": "12px"}),
+              {"color": "var(--b-muted,#5B6170)", "fontSize": "12px"}, name="Small print"),
     ], name="Footer")
 
     home = _node(ids, "stack", {}, {}, [

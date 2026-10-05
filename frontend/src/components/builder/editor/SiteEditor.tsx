@@ -30,8 +30,8 @@ import {
 import { createNode, labelOf, PRESETS } from "@/lib/builder/registry";
 import { LAYOUT_PRESETS, placeInCell, setSpan } from "@/lib/builder/layout";
 import {
-  TEMPLATE_LABELS, collectionsUsing, detachShared, exists, locate, makeShared, nodeForIssue, previewFor, productsUsing, saveSection,
-  sameTarget, setTreeAt, targetLabel, templateFor, treeAt, type Target,
+  TEMPLATE_LABELS, addFooterColumn, collectionsUsing, detachShared, exists, locate, makeShared, nodeForIssue, previewFor, productsUsing,
+  saveSection, sameTarget, setTreeAt, targetLabel, templateFor, treeAt, withSimpleFooter, type Target,
 } from "@/lib/builder/doc";
 import {
   builderService, type BuilderIssue, type BuilderState, type PickCollection, type PickMenu, type PickProduct, type UploadedFont,
@@ -41,6 +41,7 @@ import { Inspector } from "./Inspector";
 import { LeftPanel, type LeftTab } from "./LeftPanel";
 import type { EditorEnv } from "./fields";
 import { EDITOR_CSS, Modal, Popover, confirmAction } from "./ui";
+import { MenuEditor, type MenuDialog } from "./MenuEditor";
 
 type SaveState = "saved" | "dirty" | "saving" | "error" | "conflict";
 const HOME: Target = { kind: "template", type: "home", id: "default" };
@@ -69,6 +70,8 @@ export default function SiteEditor({ backHref = "/admin/dashboard" }: { backHref
   const [device, setDevice] = useState<Breakpoint>("desktop");
   const [tab, setTab] = useState<LeftTab>("add");
   const [assigning, setAssigning] = useState<string | null>(null);
+  // A menu being made or having its links edited, from any menu field.
+  const [menuDialog, setMenuDialog] = useState<MenuDialog | null>(null);
   const [, setNames] = useState(0);
   const [showLeft, setShowLeft] = useState(true);
   const [showRight, setShowRight] = useState(true);
@@ -502,6 +505,8 @@ export default function SiteEditor({ backHref = "/admin/dashboard" }: { backHref
     uploadImage: async (file: File) => (await builderService.uploadImage(file)).url,
     openMedia: (onPick: (url: string) => void) => setMedia(() => onPick),
     themeColors: Object.fromEntries(Object.entries(doc?.settings?.colors ?? {}).filter(([, v]) => /^#[0-9a-f]{3,8}$/i.test(v))),
+    editMenu: (menuId: string) => setMenuDialog({ mode: "edit", id: menuId }),
+    newMenu: (onMade?: (menuId: string) => void, name?: string) => setMenuDialog({ mode: "new", onMade, name }),
   }), [menus, collections, doc?.globals, doc?.settings?.colors]);
 
   const layerTrees = useMemo(() => {
@@ -681,6 +686,28 @@ export default function SiteEditor({ backHref = "/admin/dashboard" }: { backHref
             <UsedBy doc={doc} type={target.type} id={target.id} names={(id) => target.type === "product" ? productCache.current.get(id)?.name : collections.find((c) => c.id === id)?.name}
                     onChoose={() => { setShowLeft(true); setTab("templates"); setAssigning(`${target.type}:${target.id}`); }} />
           )}
+          {target.kind === "part" && target.key === "footer" && (
+            <div className="sbe-banner info" role="note" data-footer-bar>
+              <LayoutTemplate size={15} />
+              <span style={{ flex: "1 1 240px", minWidth: 0 }}>The footer is your brand column, then a column for each menu. Click a column to set its title, its menu and its links.</span>
+              <button type="button" className="sbe-btn sm" onClick={() => {
+                const d = docRef.current;
+                const res = d ? addFooterColumn(d) : null;
+                if (!res) return;
+                commit(res.doc);
+                setSelected(res.id);
+                setShowRight(true);
+              }}>+ Add a menu column</button>
+              <button type="button" className="sbe-btn sm ghost" onClick={() => {
+                const d = docRef.current;
+                if (!d) return;
+                if (!confirmAction("Replace the footer with the simple layout — your logo, a line about the shop, and a column for each menu it shows now? You can undo this.")) return;
+                commit(withSimpleFooter(d, preview?.data?.store?.name ?? ""));
+                setSelected(null);
+                say.done("The footer is now the simple layout. Ctrl Z brings the old one back.");
+              }}>Use the simple layout</button>
+            </div>
+          )}
           <Canvas doc={doc} target={target} data={data} customFaces={uploaded.map((f) => ({ family: f.family, weight: f.weight, style: f.style, url: f.url, format: f.format }))}
                   device={device} selected={selected} epoch={epoch} dragRef={dragRef}
                   onSelect={setSelected} onDrop={place} onInlineText={inlineText}
@@ -723,6 +750,13 @@ export default function SiteEditor({ backHref = "/admin/dashboard" }: { backHref
         </aside>
       </div>
 
+      {menuDialog && (
+        <MenuEditor key={menuDialog.mode === "edit" ? menuDialog.id : "new"} dialog={menuDialog} menus={menus} doc={doc}
+                    collections={collections} searchProducts={env.searchProducts}
+                    onClose={() => setMenuDialog(null)}
+                    onChanged={(m) => setMenus((list) => (list.some((x) => x.id === m.id) ? list.map((x) => (x.id === m.id ? m : x)) : [...list, m]))}
+                    onDeleted={(id) => setMenus((list) => list.filter((x) => x.id !== id))} />
+      )}
       {dialog === "publish" && (
         <PublishDialog state={state} flush={flush} onClose={() => setDialog(null)}
                        onPublished={(s) => setState(s)} setMode={setMode}

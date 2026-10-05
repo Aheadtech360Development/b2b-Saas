@@ -187,6 +187,17 @@ export function StylePanel({ node, def, device, settings, env, onChange }: {
         </Group>
       )}
 
+      {groups.has("links") && (
+        <Group title="Links & headings" onReset={() => clear(["linkColor", "linkHoverColor", "headingColor"])}>
+          <div className="sbe-help" style={{ marginBottom: 10 }}>
+            {node.type === "menu" ? "For this menu's links." : "For every link and heading inside this — a header's menu, a footer's columns. One with a colour of its own keeps it."}
+          </div>
+          {color("linkColor", "Link colour")}
+          {color("linkHoverColor", "Link colour when pointed at")}
+          {color("headingColor", node.type === "menu" ? "Menu title colour" : "Heading & menu title colour")}
+        </Group>
+      )}
+
       {groups.has("columns") && (
         <Group title="Columns" onReset={() => clear(["columns", "gap"])}>
           <div className="sbe-grid2">
@@ -248,17 +259,33 @@ export function StylePanel({ node, def, device, settings, env, onChange }: {
       )}
 
       {groups.has("border") && (
-        <Group title="Border & corners" onReset={() => clear(["borderWidth", "borderStyle", "borderColor", "borderRadius", "boxShadow"])}>
+        <Group title="Border & corners" onReset={() => clear(["borderWidth", "borderStyle", "borderColor", "borderRadius", "boxShadow", "borderTopWidth", "borderBottomWidth"])}>
           <div className="sbe-grid2">
             {size("borderWidth", "Border", "0")}
             {select("borderStyle", "Line", [["solid", "Solid"], ["dashed", "Dashed"], ["dotted", "Dotted"], ["none", "None"]])}
           </div>
-          {get("borderWidth") && color("borderColor", "Border colour")}
+          {/* A divider: a line on one side only — under a header, over a footer. */}
+          <div className="sbe-grid2">
+            {size("borderTopWidth", "Line above", "0")}
+            {size("borderBottomWidth", "Line below", "0")}
+          </div>
+          {(get("borderWidth") || get("borderTopWidth") || get("borderBottomWidth") || hint("borderTopWidth") || hint("borderBottomWidth")) && color("borderColor", "Line colour")}
           {size("borderRadius", "Rounded corners", "0")}
           {select("boxShadow", "Shadow", [
             ["none", "None"], ["0 1px 3px rgba(20,22,27,.10)", "Subtle"],
             ["0 8px 24px rgba(20,22,27,.12)", "Soft"], ["0 18px 48px rgba(20,22,27,.18)", "Strong"],
           ])}
+        </Group>
+      )}
+
+      {groups.has("logosize") && (
+        <Group title="Logo size" onReset={() => clear(["width", "height", "maxWidth"])}>
+          <div className="sbe-grid2">
+            {size("width", "Width", "auto")}
+            {size("height", "Height", "auto")}
+          </div>
+          {size("maxWidth", "Widest it may get", "none")}
+          <div className="sbe-help">Set a width or a height and the other follows the logo&apos;s shape. Sizes here are for the {device === "desktop" ? "desktop, and smaller screens follow them" : device} — switch device at the top to give a phone its own.</div>
         </Group>
       )}
 

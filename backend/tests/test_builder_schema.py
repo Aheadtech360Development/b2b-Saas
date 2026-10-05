@@ -256,5 +256,60 @@ check("anything a layout key cannot hold is refused before it goes live",
 check("…as errors that block the publish",
       all(i.severity == "error" for i in validate(bad, known) if i.code == "layout_value"))
 
+print("\nheader and footer")
+doc = fresh()
+footer = doc["parts"]["footer"]
+columns = footer["children"][0]
+brand, *menus_ = columns["children"]
+check("a new shop's footer is a brand column and a column for each menu",
+      columns["style"].get("display") == "grid" and columns["style"].get("gridAuto") == "fit"
+      and [c["type"] for c in brand["children"]] == ["logo", "text", "text"]
+      and [(m["type"], m["props"].get("layout"), m["props"].get("title")) for m in menus_] == [("menu", "vertical", "Shop")],
+      [c["type"] for c in columns["children"]])
+check("…using the shop's footer menu", menus_[0]["props"]["menuId"] == "menu-foot")
+check("…with no fixed size on the logos: their height is a style like any other",
+      all("height" not in n["props"] and n["style"].get("height") for n, _p, _d in iter_nodes(doc["parts"]["header"]) if n["type"] == "logo")
+      and brand["children"][0]["style"].get("height") == "36px" and "height" not in brand["children"][0]["props"])
+
+more = copy.deepcopy(doc)
+cols = more["parts"]["footer"]["children"][0]["children"]
+for i in range(6):
+    cols.append({"id": f"extra{i}", "type": "menu", "props": {"title": f"Column {i}", "menuId": "menu-main", "layout": "vertical"}})
+check("a footer takes as many menu columns as it is given", not blocking(validate(more, KNOWN)) and len(cols) == 8,
+      [i.as_dict() for i in blocking(validate(more, KNOWN))])
+gone = copy.deepcopy(more)
+gone["parts"]["footer"]["children"][0]["children"][-1]["props"]["menuId"] = "menu-deleted"
+check("a column pointing at a menu that is gone is caught before it goes live",
+      any("menu" in i.code for i in validate(gone, KNOWN)), sorted({i.code for i in validate(gone, KNOWN)}))
+
+styled = copy.deepcopy(doc)
+styled["parts"]["header"]["style"].update({
+    "linkColor": "#FFFFFF", "linkHoverColor": "#FFD400", "headingColor": "#FFFFFF", "borderBottomWidth": "2px",
+    "borderColor": "#FFD400", "fontSize": "14px", "fontWeight": 600, "fontFamily": "Inter", "color": "#C9CED8",
+})
+styled["parts"]["footer"]["style"].update({"borderTopWidth": 3, "linkColor": "var(--b-primary)"})
+issues = validate(styled, KNOWN)
+check("link, hover and heading colours, a font, and a line above or below are all settings the builder knows",
+      not [i for i in issues if i.code in ("style_key", "style_value", "style_unsafe", "layout_value")],
+      [i.as_dict() for i in issues if i.code.startswith(("style", "layout"))])
+unsafe = copy.deepcopy(doc)
+unsafe["parts"]["header"]["style"]["linkColor"] = "red; } body { display:none"
+check("…and a colour that tries to break out of its rule is refused", "style_unsafe" in {i.code for i in validate(unsafe, KNOWN)})
+
+logo = copy.deepcopy(doc)
+head_logo = next(n for n, _p, _d in iter_nodes(logo["parts"]["header"]) if n["type"] == "logo")
+head_logo["props"].update({"image": "https://ik.imagekit.io/shop/logo.png", "alt": "Innterflow", "align": "center"})
+head_logo["style"].update({"width": "180px", "maxWidth": "60%"})
+head_logo["mobile"] = {"width": "110px"}
+check("a logo can be given its own picture, a width, a widest size and a size for phones",
+      not blocking(validate(logo, KNOWN)), [i.as_dict() for i in blocking(validate(logo, KNOWN))])
+head_logo["props"]["image"] = "/media/logo.png"
+check("…from the shop's own address too", not blocking(validate(logo, KNOWN)))
+for bad_url in ("javascript:alert(1)", "//evil.example/logo.png", "data:text/html,<script>1</script>"):
+    head_logo["props"]["image"] = bad_url
+    found = [i for i in validate(logo, KNOWN) if "image" in i.path]
+    check(f"…but not from {bad_url.split(':')[0].split('/')[0] or 'another site without a scheme'}: that is refused at publish",
+          bool(found) and all(i.severity == "error" for i in found), [i.as_dict() for i in found])
+
 print(f"\n{ok} passed, {fail} failed")
 sys.exit(1 if fail else 0)

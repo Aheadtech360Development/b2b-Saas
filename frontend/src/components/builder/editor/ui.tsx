@@ -8,6 +8,14 @@
  * nothing is ever cut off and the window itself never scrolls — the same rule
  * as the gang sheet studio. Styles are scoped under .sbe so none of this can
  * reach the site being edited (which lives under .bsite) or the reverse.
+ *
+ * The site being edited is drawn inside .sbe, so a rule here that names a bare
+ * element — button, input, a heading — would reach the page's own: an "Add to
+ * cart" button lost its white label to "buttons inherit their colour" and was
+ * dark on dark. Every such rule therefore leaves the page out with
+ * :not(.bsite *) — inside :where(), so the rule weighs exactly what it did
+ * before: written bare, the :not() made it outweigh the editor's own
+ * ".sbe-btn.primary", and Publish went black on black instead.
  */
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { X } from "lucide-react";
@@ -15,9 +23,9 @@ import { X } from "lucide-react";
 export const EDITOR_CSS = `
 .sbe{position:fixed;inset:0;display:grid;grid-template-rows:56px minmax(0,1fr);background:#EEF0F4;color:#14161B;font:14px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;-webkit-font-smoothing:antialiased;z-index:50}
 .sbe *,.sbe *::before,.sbe *::after{box-sizing:border-box}
-.sbe button{font:inherit;color:inherit}
+.sbe button:where(:not(.bsite *)){font:inherit;color:inherit}
 .sbe :is(h1,h2,h3,h4):not(.bsite *){font-family:inherit;letter-spacing:normal}
-.sbe input,.sbe select,.sbe textarea{font:inherit;color:#14161B}
+.sbe :is(input,select,textarea):where(:not(.bsite *)){font:inherit;color:#14161B}
 .sbe-top{display:flex;align-items:center;gap:10px;padding:0 12px;background:#fff;border-bottom:1px solid #E3E6EC;min-width:0;overflow-x:auto;scrollbar-width:none}
 .sbe-top::-webkit-scrollbar{display:none}
 .sbe-body{display:grid;grid-template-columns:var(--sbe-left,300px) minmax(0,1fr) var(--sbe-right,320px);min-height:0}
@@ -140,6 +148,7 @@ select.sbe-in{padding-right:28px}
 .sbe-insert-body{padding:2px 10px 12px;overflow-y:auto;min-height:0;overscroll-behavior:contain;scrollbar-width:thin}
 .sbe-insert .sbe-menu-h{padding:10px 0 6px}
 .sbe-insert .enter{border-color:#4F46E5;box-shadow:0 0 0 2px rgba(79,70,229,.18)}
+.sbe-menu-row{padding:10px;border:1px solid #E3E6EC;border-radius:10px;background:#FAFBFC}
 .sbe-drop-line{position:absolute;background:#4F46E5;border-radius:2px;box-shadow:0 0 0 2px rgba(79,70,229,.2)}
 .sbe-cell{position:absolute;border:1px dashed rgba(79,70,229,.5);border-radius:4px;background:rgba(79,70,229,.03)}
 .sbe-cell span{position:absolute;top:3px;left:4px;font:600 10px system-ui,sans-serif;color:rgba(79,70,229,.75)}

@@ -108,7 +108,9 @@ COMPONENTS: dict[str, Component] = {
     "newsletter": _c(),
     "html": _c(),
     # ── Store ──
-    "logo": _c(),
+    # Its picture can be chosen for it; an address that is not a safe one is
+    # refused at publish like any other picture's.
+    "logo": _c(urls=("image",)),
     "store_name": _c(),
     "menu": _c(refs=(("menuId", "menu", False),)),
     "search": _c(),
@@ -163,6 +165,9 @@ STYLE_KEYS = {
     "gridColumns", "gridRows", "gridAuto", "gridMin", "gridTemplate",
     "alignSelf", "justifySelf", "flexGrow", "flexShrink", "flexBasis", "minWidth", "order",
     "gridColumn", "gridRow", "gridColumnSpan", "gridRowSpan",
+    # Colours a container sets for the links and headings inside it, and a
+    # line on one side only — what a header and a footer are styled with.
+    "linkColor", "linkHoverColor", "headingColor", "borderTopWidth", "borderBottomWidth",
 }
 
 # What the layout keys may hold. Anything else is refused at publish, the way

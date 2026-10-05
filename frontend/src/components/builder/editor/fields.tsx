@@ -7,7 +7,7 @@
  * it or choosing one already in the brand's media library.
  */
 import { useEffect, useRef, useState } from "react";
-import { ArrowDown, ArrowUp, Bold, ImagePlus, Italic, Link2, List, Loader2, Plus, Search, Trash2, Upload, X } from "lucide-react";
+import { ArrowDown, ArrowUp, Bold, ImagePlus, Italic, Link2, List, Loader2, Pencil, Plus, Search, Trash2, Upload, X } from "lucide-react";
 import type { Field } from "@/lib/builder/registry";
 import type { PickCollection, PickMenu, PickProduct } from "@/services/builder.service";
 import { cleanHtml, safeSrc } from "@/lib/builder/sanitize";
@@ -23,6 +23,10 @@ export interface EditorEnv {
   uploadImage: (file: File) => Promise<string>;
   openMedia: (onPick: (url: string) => void) => void;
   themeColors: Record<string, string>;
+  /** Open a menu's links for editing — add, rename, reorder, remove. */
+  editMenu: (menuId: string) => void;
+  /** Make a new menu; told its id once it exists, so the field that asked can choose it. */
+  newMenu: (onMade?: (menuId: string) => void, name?: string) => void;
 }
 
 const str = (v: unknown) => (typeof v === "string" ? v : v === undefined || v === null ? "" : String(v));
@@ -249,14 +253,26 @@ export function FieldControl({ field, value, onChange, env }: {
                     requestAnimationFrame(() => { t.selectionStart = t.selectionEnd = at + 2; });
                   }} />
       );
-    case "menu":
+    case "menu": {
+      const chosen = env.menus.find((m) => m.id === value);
       return (
-        <select className="sbe-in" value={str(value)} aria-label={field.label} onChange={(e) => onChange(e.target.value)}>
-          <option value="">{env.menus.length ? "Choose a menu…" : "No menus yet — create one under Menus"}</option>
-          {!!value && !env.menus.some((m) => m.id === value) && <option value={str(value)}>A menu that no longer exists</option>}
-          {env.menus.map((m) => <option key={m.id} value={m.id}>{m.name} ({m.items?.length ?? 0} links)</option>)}
-        </select>
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          <select className="sbe-in" value={str(value)} aria-label={field.label} onChange={(e) => onChange(e.target.value)}>
+            <option value="">{env.menus.length ? "Choose a menu…" : "No menus yet — make one below"}</option>
+            {!!value && !chosen && <option value={str(value)}>A menu that no longer exists</option>}
+            {env.menus.map((m) => <option key={m.id} value={m.id}>{m.name} ({m.items?.length ?? 0} {m.items?.length === 1 ? "link" : "links"})</option>)}
+          </select>
+          <div className="sbe-row" style={{ gap: 6, flexWrap: "wrap" }}>
+            <button type="button" className="sbe-btn sm" disabled={!chosen} onClick={() => chosen && env.editMenu(chosen.id)}>
+              <Pencil size={13} /> Edit links
+            </button>
+            <button type="button" className="sbe-btn sm" onClick={() => env.newMenu((id) => onChange(id))}>
+              <Plus size={13} /> New menu
+            </button>
+          </div>
+        </div>
       );
+    }
     case "collection":
       return (
         <select className="sbe-in" value={str(value)} aria-label={field.label} onChange={(e) => onChange(e.target.value)}>

@@ -52,7 +52,9 @@ export interface ComponentDef {
   context?: TemplateType[];
   fields: Field[];
   /** Which style groups the right-hand panel offers. */
-  styles: ("spacing" | "typography" | "background" | "border" | "size" | "layout" | "columns")[];
+  styles: ("spacing" | "typography" | "background" | "border" | "size" | "layout" | "columns" | "links" | "logosize")[];
+  /** Style groups also shown under Content, for an element whose size is the first thing set. */
+  inline?: ComponentDef["styles"];
   create: () => BuilderNode;
 }
 
@@ -88,21 +90,21 @@ export const REGISTRY: ComponentDef[] = [
       { key: "sticky", label: "Stay at the top while scrolling", kind: "toggle",
         help: "For a header. The section stays visible as the page scrolls." },
     ],
-    styles: ["spacing", "background", "border", "size", "layout"],
+    styles: ["spacing", "background", "typography", "links", "border", "size", "layout"],
     create: () => node("section", { width: "contained" }, { paddingTop: "48px", paddingBottom: "48px" }, []),
   },
   {
     type: "row", label: "Columns", category: "layout", icon: "Columns3", container: true,
     blurb: "Side-by-side columns. Stack on phones by default.",
     fields: [],
-    styles: ["columns", "spacing", "layout", "background"],
+    styles: ["columns", "spacing", "layout", "background", "typography", "links"],
     create: () => columns(2),
   },
   {
     type: "column", label: "Column", category: "layout", icon: "RectangleVertical", container: true,
     blurb: "One column of a row.",
     fields: [],
-    styles: ["spacing", "background", "border", "layout"],
+    styles: ["spacing", "background", "typography", "links", "border", "layout"],
     create: () => node("column", {}, {}, []),
   },
   {
@@ -110,7 +112,7 @@ export const REGISTRY: ComponentDef[] = [
     blurb: "Elements one after another — down, or across.",
     fields: [{ key: "direction", label: "Direction", kind: "select",
                options: [{ value: "column", label: "Down" }, { value: "row", label: "Across" }] }],
-    styles: ["spacing", "layout", "background", "border"],
+    styles: ["spacing", "layout", "background", "typography", "links", "border"],
     create: () => node("stack", { direction: "column" }, { gap: "12px" }, []),
   },
   {
@@ -287,12 +289,17 @@ export const REGISTRY: ComponentDef[] = [
     type: "logo", label: "Logo", category: "store", icon: "BadgeCheck",
     blurb: "Your logo, linked to the home page.",
     fields: [
-      { key: "height", label: "Height (px)", kind: "number", min: 16, max: 160 },
+      { key: "image", label: "Logo image", kind: "image",
+        help: "Pick one from your media library or upload one. Left empty, this shows the logo from your shop's branding." },
+      { key: "alt", label: "Described as (for screen readers)", kind: "text" },
+      { key: "align", label: "Alignment", kind: "select", options: [
+        { value: "", label: "As the layout places it" }, ...ALIGN] },
       { key: "fallback", label: "If there is no logo, show", kind: "select",
         options: [{ value: "name", label: "The shop's name" }, { value: "none", label: "Nothing" }] },
     ],
-    styles: ["spacing"],
-    create: () => node("logo", { height: 40, fallback: "name" }),
+    styles: ["logosize", "spacing"],
+    inline: ["logosize", "spacing"],
+    create: () => node("logo", { fallback: "name" }, { height: "40px" }),
   },
   {
     type: "store_name", label: "Shop name", category: "store", icon: "Store",
@@ -305,14 +312,17 @@ export const REGISTRY: ComponentDef[] = [
     type: "menu", label: "Navigation menu", category: "store", icon: "Menu",
     blurb: "One of your menus, with its dropdowns. Becomes a drawer on phones.",
     fields: [
-      { key: "menuId", label: "Which menu", kind: "menu", help: "Menus are edited under Storefront → Menus." },
+      { key: "title", label: "Title above the links", kind: "text",
+        help: "For a footer column: “Shop”, “Help”, “Company”. Leave empty for none." },
+      { key: "menuId", label: "Which menu", kind: "menu",
+        help: "Choose a menu, edit its links, or make a new one — each footer column can have its own." },
       { key: "layout", label: "Layout", kind: "select", options: [
         { value: "horizontal", label: "Across (with dropdowns)" }, { value: "vertical", label: "Down (a list)" }] },
       { key: "mobile", label: "On phones", kind: "select", options: [
         { value: "drawer", label: "A menu button that opens a drawer" }, { value: "inline", label: "Show it as it is" }],
         when: { key: "layout", is: ["horizontal"] } },
     ],
-    styles: ["typography", "spacing", "layout"],
+    styles: ["typography", "links", "spacing", "layout"],
     create: () => node("menu", { menuId: "", layout: "horizontal", mobile: "drawer" }),
   },
   {
@@ -577,6 +587,37 @@ function line(icon: string, text: string): BuilderNode {
   ]);
 }
 
+/** One footer column: a title over a menu's links, listed down. */
+export function menuColumn(title: string, menuId = ""): BuilderNode {
+  return named(`${title} links`, node("menu", { title, menuId, layout: "vertical" }));
+}
+
+/**
+ * The simple footer: a brand column — logo, tagline, a few words — then a
+ * column for each menu, as many as the merchant adds. The columns are a grid
+ * that fits as many across as there is room for, so a phone stacks them and
+ * nothing has to be set for it.
+ */
+export function simpleFooter(menus: { title: string; menuId?: string }[] = [{ title: "Shop" }, { title: "Help" }, { title: "Company" }],
+                             storeName = ""): BuilderNode {
+  return named("Footer", node("section", { width: "contained" },
+    { paddingTop: "56px", paddingBottom: "32px", backgroundColor: "#F7F7F5" }, [
+      named("Footer columns", node("stack", { direction: "column" },
+        { display: "grid", gridAuto: "fit", gridMin: "170px", gap: "32px", alignItems: "start" }, [
+          named("Brand", node("stack", { direction: "column" }, { gap: "10px" }, [
+            node("logo", { fallback: "name" }, { height: "36px" }),
+            named("Tagline", node("text", { text: "Printed well, shipped fast." }, { fontWeight: 600, fontSize: "15px" })),
+            named("About", node("text", { text: "A sentence or two about your shop — what you make and who for." },
+              { color: "var(--b-muted,#5B6170)", fontSize: "14px" })),
+          ])),
+          ...menus.map((m) => menuColumn(m.title, m.menuId ?? "")),
+        ])),
+      node("divider", {}, { marginTop: "36px", marginBottom: "18px" }),
+      named("Small print", node("text", { text: `© ${storeName || "Your shop"}. All rights reserved.` },
+        { color: "var(--b-muted,#5B6170)", fontSize: "12px" })),
+    ]));
+}
+
 export const PRESETS: Preset[] = [
   {
     key: "hero", label: "Hero", kind: "section", blurb: "A big headline, a line and two buttons, beside a picture.",
@@ -707,6 +748,16 @@ export const PRESETS: Preset[] = [
             node("text", { text }, { fontSize: "14px", color: "#5B6170" }),
           ])))),
     ])),
+  },
+  {
+    key: "menu_column", label: "Menu column", kind: "block",
+    blurb: "A title and a list of links from one of your menus — a footer column.",
+    create: () => menuColumn("Shop"),
+  },
+  {
+    key: "footer_simple", label: "Footer", kind: "section",
+    blurb: "Your logo and a line about the shop, then a column for each menu. Add or remove columns freely.",
+    create: () => simpleFooter(),
   },
   {
     key: "trust", label: "Trust badges", kind: "block",

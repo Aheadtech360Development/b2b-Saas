@@ -162,6 +162,9 @@ export function Inspector({ doc, where, nodeId, device, env, act, current }: {
             {!fields.length && node.type !== "global_ref" && <div className="sbe-help">Nothing to set here — try the Style tab.</div>}
           </div>
         )}
+        {activeTab === "content" && def?.inline?.length && (
+          <StylePanel node={node} def={{ ...def, styles: def.inline }} device={device} settings={doc.settings ?? {}} env={env} onChange={act.change} />
+        )}
 
         {activeTab === "style" && (
           <StylePanel node={node} def={def} device={device} settings={doc.settings ?? {}} env={env} onChange={act.change} />

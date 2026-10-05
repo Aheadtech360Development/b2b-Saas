@@ -27,6 +27,8 @@ interface Props {
   layout: "horizontal" | "vertical";
   mobile: "drawer" | "inline";
   label: string;
+  /** A heading over the links — a footer column's "Shop", "Help". */
+  title?: string;
   /** In the editor: clicks select, they do not navigate or open. */
   edit?: boolean;
 }
@@ -87,7 +89,7 @@ function DrawerList({ items }: { items: MenuItem[] }) {
   );
 }
 
-export default function MenuNav({ id, items, layout, mobile, label, edit }: Props) {
+export default function MenuNav({ id, items, layout, mobile, label, title, edit }: Props) {
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const pathname = usePathname();
@@ -118,6 +120,7 @@ export default function MenuNav({ id, items, layout, mobile, label, edit }: Prop
 
   return (
     <nav data-b={id} className="b-menu" data-layout={layout} data-mobile={drawer ? "drawer" : "inline"} aria-label={label}>
+      {title && <div className="b-menu-title">{title}</div>}
       <ul className="b-menu-list">
         {list.map((item, i) => <Item key={`${item.label}-${i}`} item={item} depth={0} edit={edit} />)}
       </ul>

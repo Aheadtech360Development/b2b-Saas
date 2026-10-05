@@ -389,11 +389,29 @@ export function Node({ node, ctx }: { node: BuilderNode; ctx: RenderCtx }): Reac
 
     // ── Shop ──
     case "logo": {
-      const logo = safeSrc(data.store?.logo);
-      const height = Math.max(16, Math.min(200, num(p.height, 40)));
-      if (logo) return <a data-b={id} className="b-logo" href="/"><img src={logo} alt={data.store?.name || "Home"} style={{ height }} /></a>;
-      if (p.fallback === "none") return note(ctx, id, "No logo yet — upload one under Settings → Branding.");
-      return <a data-b={id} className="b-storename" href="/">{data.store?.name || "Your shop"}</a>;
+      // The picture chosen for this logo, else the shop's own from its branding.
+      const logo = safeSrc(p.image) || safeSrc(data.store?.logo);
+      // Its size is a style like any other — per device, and never a fixed cap.
+      // Width and height land on the link; the picture fills what was set and
+      // keeps its shape in the other direction.
+      const sized = (key: "width" | "height" | "maxWidth") =>
+        [node.style, node.tablet, node.mobile].some((s) => s && s[key] !== undefined && s[key] !== "");
+      const w = sized("width");
+      const h = sized("height");
+      // A logo from before sizes were styles carries a height in pixels: it is
+      // kept, with the modest widest size it always had, until a size is set.
+      const legacy = !w && !h ? Math.max(16, Math.min(200, num(p.height, 40))) : undefined;
+      const align = ["left", "center", "right"].includes(str(p.align)) ? str(p.align) : undefined;
+      if (logo) {
+        return (
+          <a data-b={id} className="b-logo" href="/" data-align={align} data-w={w ? "" : undefined} data-h={h ? "" : undefined}
+             data-auto={!w && !sized("maxWidth") ? "" : undefined}>
+            <img src={logo} alt={str(p.alt) || data.store?.name || "Home"} style={legacy ? { height: legacy } : undefined} />
+          </a>
+        );
+      }
+      if (p.fallback === "none") return note(ctx, id, "No logo yet — choose one in the panel on the right, or upload one under Settings → Branding.");
+      return <a data-b={id} className="b-storename" href="/" data-align={align}>{data.store?.name || "Your shop"}</a>;
     }
     case "store_name": {
       const name = data.store?.name || "Your shop";
@@ -404,14 +422,22 @@ export function Node({ node, ctx }: { node: BuilderNode; ctx: RenderCtx }): Reac
     }
     case "menu": {
       const menuId = str(p.menuId);
-      if (!menuId) return note(ctx, id, "Choose which menu to show, in the panel on the right.");
+      if (!menuId) {
+        if (!ctx.edit) return null;
+        return (
+          <div data-b={id} className="b-menu" data-layout={p.layout === "vertical" ? "vertical" : "horizontal"}>
+            {str(p.title).trim() && <div className="b-menu-title">{str(p.title).trim()}</div>}
+            <div className="b-note">Choose which menu these links come from, in the panel on the right.</div>
+          </div>
+        );
+      }
       const items = data.menus?.[menuId] as MenuItem[] | undefined;
       if (!items) return note(ctx, id, ctx.edit ? "This menu is loading, or no longer exists. Choose another." : "");
       return (
-        <MenuNav id={id} items={items} edit={ctx.edit}
+        <MenuNav id={id} items={items} edit={ctx.edit} title={str(p.title).trim()}
                  layout={p.layout === "vertical" ? "vertical" : "horizontal"}
                  mobile={p.mobile === "inline" ? "inline" : "drawer"}
-                 label={str(p.label) || "Menu"} />
+                 label={str(p.title).trim() || str(p.label) || "Menu"} />
       );
     }
     case "search":

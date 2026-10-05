@@ -10,7 +10,8 @@
  * header and footer around it, and any of them can be edited from there.
  */
 import type { BuilderNode, PartKey, SiteDoc, TemplateType } from "./types";
-import { findNode, newId, withFreshIds } from "./tree";
+import { findNode, newId, updateNode, walk, withFreshIds } from "./tree";
+import { menuColumn, simpleFooter } from "./registry";
 import { GOOGLE_FONTS } from "./fonts";
 
 export type Target =
@@ -284,6 +285,71 @@ export function templateFor(doc: SiteDoc, kind: "product" | "collection", record
   if (own && group[own]) return own;
   const dflt = rule?.default;
   return dflt && group[dflt] ? dflt : "default";
+}
+
+/** The menus a footer shows, with the title each goes under — what a new footer should keep. */
+function footerMenus(footer: BuilderNode | null): { title: string; menuId: string }[] {
+  const out: { title: string; menuId: string }[] = [];
+  walk(footer, (n) => {
+    for (const [i, c] of (n.children ?? []).entries()) {
+      if (c.type !== "menu") continue;
+      const props = (c.props ?? {}) as Record<string, unknown>;
+      // An older footer put a heading above the menu rather than a title on it.
+      const before = n.children![i - 1];
+      const heading = before?.type === "heading" ? String((before.props as Record<string, unknown> | undefined)?.text ?? "") : "";
+      out.push({ title: String(props.title ?? "").trim() || heading.trim() || "Links", menuId: String(props.menuId ?? "") });
+    }
+  });
+  return out;
+}
+
+/**
+ * Add a menu column to the footer, beside the ones it has, and say which
+ * element it is so it can be selected. Works for the simple footer (columns
+ * are the children of one grid) and for an older one built from a row of
+ * columns (a new column joins the row).
+ */
+export function addFooterColumn(doc: SiteDoc, title = "New column"): { doc: SiteDoc; id: string } | null {
+  const footer = doc.parts?.footer ?? null;
+  if (!footer) return null;
+  const column = menuColumn(title);
+  let host: BuilderNode | null = null;      // what holds the footer's menu columns
+  let row: BuilderNode | null = null;       // an older footer: the row whose columns hold them
+  walk(footer, (n) => {
+    if (host || row) return;
+    const kids = n.children ?? [];
+    if (n.type === "row" && kids.some((col) => (col.children ?? []).some((c) => c.type === "menu"))) row = n;
+    else if (n.type !== "row" && n.type !== "column" && kids.some((c) => c.type === "menu")) host = n;
+  });
+  let next: BuilderNode;
+  if (row) {
+    const r = row as BuilderNode;
+    const count = (r.children ?? []).length + 1;
+    next = updateNode(footer, r.id, (x) => ({
+      ...x,
+      style: { ...(x.style ?? {}), ...(x.style?.columns !== undefined ? { columns: Math.min(6, count) } : {}) },
+      children: [...(x.children ?? []), { id: newId(), type: "column", props: {}, children: [column] }],
+    }));
+  } else {
+    const target = (host as BuilderNode | null) ?? footer;
+    next = updateNode(footer, target.id, (x) => ({ ...x, children: [...(x.children ?? []), column] }));
+  }
+  return { id: column.id, doc: { ...doc, parts: { ...doc.parts, footer: next } } };
+}
+
+/**
+ * Replace the footer with the simple one — a brand column and a column for
+ * each menu — keeping the menus the old footer showed, under their titles.
+ */
+export function withSimpleFooter(doc: SiteDoc, storeName = ""): SiteDoc {
+  const kept = footerMenus(doc.parts?.footer ?? null);
+  // A shop with one menu so far starts its footer with that one.
+  let fallback = "";
+  walk(doc.parts?.header ?? null, (n) => {
+    if (!fallback && n.type === "menu") fallback = String((n.props as Record<string, unknown> | undefined)?.menuId ?? "");
+  });
+  const columns = kept.length ? kept : [{ title: "Shop", menuId: fallback }];
+  return { ...doc, parts: { ...doc.parts, footer: simpleFooter(columns, storeName) } };
 }
 
 /** Keep a copy of a section to drop in again later. A copy: changing one never changes another. */

@@ -812,15 +812,21 @@ function MenusPanel(p: LeftProps) {
   return (
     <div className="sbe-sec">
       <div className="sbe-h"><span>Your menus</span>
-        <button type="button" className="sbe-icon sm" aria-label="Reload menus" title="Reload" onClick={p.reloadMenus}><RefreshCw size={13} /></button>
+        <span className="sbe-row" style={{ gap: 2 }}>
+          <button type="button" className="sbe-icon sm" aria-label="Reload menus" title="Reload" onClick={p.reloadMenus}><RefreshCw size={13} /></button>
+          <button type="button" className="sbe-btn sm ghost" onClick={() => p.env.newMenu()}><Plus size={13} /> New</button>
+        </span>
       </div>
       <div className="sbe-help" style={{ marginBottom: 10 }}>
-        Menus are the shop&apos;s own — the same ones the rest of the admin uses. Put one on the page with the Navigation menu element.
+        Menus are the shop&apos;s own — the same ones the rest of the admin uses. Make as many as you need: one for the header, one for each footer column. Put one on the page with the Navigation menu element.
       </div>
       <div className="sbe-list">
         {p.menus.map((m) => (
           <div key={m.id} style={{ border: "1px solid #EEF0F4", borderRadius: 10, padding: "8px 10px" }}>
-            <div style={{ fontWeight: 600 }}>{m.name}</div>
+            <div className="sbe-row" style={{ justifyContent: "space-between", gap: 8 }}>
+              <div style={{ fontWeight: 600, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{m.name}</div>
+              <button type="button" className="sbe-btn sm ghost" onClick={() => p.env.editMenu(m.id)}><Pencil size={12} /> Edit links</button>
+            </div>
             <ul style={{ margin: "6px 0 0", paddingLeft: 16, fontSize: 12.5, color: "#5B6170" }}>
               {(m.items ?? []).slice(0, 8).map((it, i) => (
                 <li key={i}>{it.label}{it.children?.length ? ` (${it.children.length} below)` : ""}</li>

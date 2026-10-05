@@ -31,8 +31,22 @@ const PX = new Set([
   "padding", "paddingTop", "paddingRight", "paddingBottom", "paddingLeft",
   "margin", "marginTop", "marginRight", "marginBottom", "marginLeft",
   "gap", "width", "maxWidth", "minHeight", "height", "borderRadius", "borderWidth", "fontSize",
-  "rowGap", "columnGap", "minWidth", "flexBasis",
+  "rowGap", "columnGap", "minWidth", "flexBasis", "borderTopWidth", "borderBottomWidth",
 ]);
+
+/**
+ * Colours a container sets for everything inside it — a header's links, a
+ * footer's headings. They are handed down as variables the base stylesheet
+ * reads, so an element with a colour of its own still wins.
+ */
+const INHERITED: Record<string, string> = {
+  linkColor: "--b-link", linkHoverColor: "--b-link-hover", headingColor: "--b-head",
+};
+/** A line on one side only: a header's bottom rule, a footer's top one. */
+const SIDE_BORDER: Record<string, string> = { borderTopWidth: "top", borderBottomWidth: "bottom" };
+/** What holds other elements. A text size or weight set on one reaches the menus in it. */
+const HOLDERS = new Set(["section", "row", "column", "stack"]);
+const FIXED_SIZE = /^\d+(?:\.\d+)?(?:px|rem|em)$/;
 
 const UNSAFE = /[;{}<>\\]|expression\s*\(|javascript:|@import|url\(\s*['"]?\s*(?!https:)/i;
 const ID_OK = /^[A-Za-z0-9_-]{1,64}$/;
@@ -133,7 +147,14 @@ export function declarations(style: NodeStyle | undefined, type: string, part: P
     }
     if (COMPOSITE.has(key) || !want(key)) continue;
     const v = value(key, raw as string | number);
-    if (v !== null) out.push(`${kebab(key)}:${v}`);
+    if (v === null) continue;
+    if (INHERITED[key]) { out.push(`${INHERITED[key]}:${v}`); continue; }
+    if (SIDE_BORDER[key]) { out.push(`border-${SIDE_BORDER[key]}-width:${v}`, `border-${SIDE_BORDER[key]}-style:solid`); continue; }
+    // A least width is a wish, not a way to be wider than the screen.
+    if (key === "minWidth" && FIXED_SIZE.test(v)) { out.push(`min-width:min(${v},100%)`); continue; }
+    out.push(`${kebab(key)}:${v}`);
+    if (HOLDERS.has(type) && key === "fontSize") out.push(`--b-fs:${v}`);
+    if (HOLDERS.has(type) && key === "fontWeight") out.push(`--b-fw:${v}`);
   }
   if (template) out.push(`grid-template-columns:${template}`);
   if (want("gridRows") && s.gridRows !== undefined && s.gridRows !== "") {
@@ -153,6 +174,41 @@ export function declarations(style: NodeStyle | undefined, type: string, part: P
 function scope(id: string): string {
   return `.bsite [data-b="${id}"]`;
 }
+
+/** What makes a row a bar: the shop's own navigation pieces. */
+const BAR_PIECES = new Set(["menu", "cart_link", "account_link", "logo", "store_name", "search"]);
+
+/** A piece that takes a line of its own worth of room on a phone: a menu shown in full, a search box. */
+function isWide(node: BuilderNode): boolean {
+  const p = (node.props ?? {}) as Record<string, unknown>;
+  return (node.type === "menu" && (p.mobile === "inline" || p.layout === "vertical")) || (node.type === "search" && p.style !== "icon");
+}
+
+function pieces(node: BuilderNode, depth = 2): BuilderNode[] {
+  return (node.children ?? []).flatMap((c) => (BAR_PIECES.has(c.type) ? [c] : depth > 1 ? pieces(c, depth - 1) : []));
+}
+
+/**
+ * A header-like bar: a row that holds the logo, a menu button, the cart. Such
+ * a bar stays on one line on a phone — its brand gives way and its menu is a
+ * button — where any other row that cannot fit moves on to a second line. A
+ * bar that carries something wide (a menu shown in full, a search box) is not
+ * that: nothing would be left to give way, so it wraps like any other row.
+ */
+function isBar(node: BuilderNode): boolean {
+  const found = pieces(node);
+  return found.length > 0 && !found.some(isWide);
+}
+
+function px(raw: unknown): number {
+  if (typeof raw === "number") return raw;
+  const m = /^(-?\d+(?:\.\d+)?)px$/.exec(String(raw ?? "").trim());
+  return m ? Number(m[1]) : NaN;
+}
+
+/** The side gutter a section keeps on a tablet and on a phone: nothing is pulled further out than this. */
+const TABLET_GUTTER = 20;
+const PHONE_GUTTER = 16;
 
 /** Whether a node set a layout mode at any breakpoint. */
 export function hasLayout(node: BuilderNode): boolean {
@@ -246,6 +302,29 @@ function nodeRules(node: BuilderNode, parent?: GridContext): { css: string; grid
         grid.mobile = m;
       }
     }
+  }
+
+  // A row told not to wrap was told so for a desktop. On a narrower screen
+  // nobody chose it for, it wraps when its things do not fit — the alternative
+  // is a row wider than the screen. Wrapping changes nothing while they do fit.
+  // What the merchant set for that device always wins, and a row that scrolls
+  // sideways on purpose, or a bar, is left as it is.
+  const across_ = props.direction === "row" || base.flexDirection === "row";
+  const scrolls = base.overflow === "auto" || base.overflow === "scroll";
+  if (base.flexWrap === "nowrap" && across_ && base.flexDirection !== "column" && tablet.flexWrap === undefined
+      && !scrolls && !isBar(node)) {
+    tablet.flexWrap = "wrap";
+  }
+
+  // A negative side margin pulls an element past its section's edge — a
+  // full-bleed look on a desktop, text cut off by the screen on a phone. There
+  // it is held to the gutter, unless a phone margin was set.
+  for (const side of ["marginLeft", "marginRight"] as const) {
+    if (tablet[side] === undefined && px(base[side]) < -TABLET_GUTTER) tablet[side] = `max(${px(base[side])}px,-${TABLET_GUTTER}px)`;
+    if (mobile[side] !== undefined) continue;
+    // What the tablet holds — its own setting, or the hold just put on it.
+    const pulled = px(node.tablet?.[side] ?? base[side]);
+    if (pulled < -PHONE_GUTTER) mobile[side] = `max(${pulled}px,-${PHONE_GUTTER}px)`;
   }
 
   // An item placed by hand stays where it was put — except on a screen where

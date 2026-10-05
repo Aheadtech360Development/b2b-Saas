@@ -220,7 +220,8 @@ describe("the editor's HTML cleaner", () => {
   it("keeps a Custom HTML block's drawing inside its own box", () => {
     // Without this, an absolutely positioned div in the header covered the cart's
     // checkout button with a link somewhere else (seen in the browser).
-    expect(BASE_CSS).toContain(".bsite .b-html{position:relative;contain:paint;isolation:isolate}");
+    const rule = /\.bsite \.b-html\{([^}]*)\}/.exec(BASE_CSS)?.[1] ?? "";
+    for (const part of ["position:relative", "contain:paint", "isolation:isolate"]) expect(rule).toContain(part);
   });
 
   it("accepts only links and pictures that cannot run anything", () => {

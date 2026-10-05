@@ -26,7 +26,11 @@ export type NodeStyle = Partial<Record<
   | "gridColumns" | "gridRows" | "gridAuto" | "gridMin" | "gridTemplate"
   // ── Layout engine: where a child sits in its parent ──
   | "alignSelf" | "justifySelf" | "flexGrow" | "flexShrink" | "flexBasis" | "minWidth" | "order"
-  | "gridColumn" | "gridRow" | "gridColumnSpan" | "gridRowSpan",
+  | "gridColumn" | "gridRow" | "gridColumnSpan" | "gridRowSpan"
+  // ── For everything inside a container: a header's links, a footer's headings ──
+  | "linkColor" | "linkHoverColor" | "headingColor"
+  // ── A line on one side: under a header, over a footer ──
+  | "borderTopWidth" | "borderBottomWidth",
   string | number
 >>;
 
