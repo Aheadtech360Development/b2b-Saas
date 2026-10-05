@@ -475,7 +475,10 @@ export default function SiteEditor({ backHref = "/admin/dashboard" }: { backHref
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement | null;
-      const typing = !!t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable);
+      // A box on the page being edited (an email signup's, a search field's) is not
+      // somewhere to type: clicking it must not swallow Delete or Ctrl Z.
+      const field = !!t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT") && !t.closest(".sbe-frame");
+      const typing = field || !!t?.isContentEditable;
       const mod = e.ctrlKey || e.metaKey;
       if (mod && e.key.toLowerCase() === "s") { e.preventDefault(); void flush(); return; }
       if (typing) return;

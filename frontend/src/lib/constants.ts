@@ -6,14 +6,17 @@ export const CDN_BASE_URL = process.env.NEXT_PUBLIC_CDN_BASE_URL ?? "";
 export const STRIPE_PUBLIC_KEY = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY ?? "";
 
 /**
- * Admin screens switched off for now. Storefront design, menus and pages are
- * set up by our team for each client, so these editors are hidden from the
- * admin navigation. The routes and data are untouched — set a value to false
- * to bring its screen back.
+ * Admin screens switched off for now. Storefront design and pages are set up
+ * by our team for each client, so these editors are hidden from the admin
+ * navigation. The routes and data are untouched — set a value to false to
+ * bring its screen back.
+ *
+ * Menus are back on: the website builder's header and footer columns use
+ * them, and its "Edit menus" button opens this screen.
  */
 export const HIDDEN_ADMIN_SECTIONS = {
   storefront: true,
-  menus: true,
+  menus: false,
   pages: true,
   // Product page layouts come from the theme now; the older per-product
   // template editor stays in the code but off the menu.
