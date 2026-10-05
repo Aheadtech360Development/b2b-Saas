@@ -249,3 +249,57 @@ async def cutout_ticket(request: Request, db: AsyncSession = Depends(get_db)):
         raise HTTPException(status_code=429, detail="This shop has reached today's limit for background removal.")
 
     return image_tools.cutout_ticket(shop)
+
+
+@router.post("/upscale")
+async def upscale_image(file: UploadFile = File(...), request: Request = None, db: AsyncSession = Depends(get_db)):  # type: ignore[assignment]
+    """Upscale a small or blurry design with AI, and hand it back as a PNG.
+
+    Open to guests, like the artwork upload: the image editor is used before
+    anybody has an account. Each one costs the platform, and takes ImageKit ten
+    seconds or more, so it is limited harder than background removal — per
+    caller, and per shop per day.
+    """
+    import datetime
+    import logging
+
+    from fastapi.responses import Response
+
+    from app.core.config import get_settings
+    from app.core.redis import redis_increment
+    from app.services import image_upscale
+
+    await enforce_rate_limit(request, scope="upscale", limit=8, window=600)
+
+    shop = await resolve_media_folder_key(request, db) if request is not None else None
+    if not shop:
+        raise HTTPException(status_code=400, detail="Unknown shop.")
+
+    content = b""
+    while True:
+        chunk = await file.read(1 << 20)
+        if not chunk:
+            break
+        content += chunk
+        if len(content) > image_upscale.MAX_INPUT_BYTES:
+            raise HTTPException(status_code=413, detail="That file is too large to upscale.")
+    if not content:
+        raise HTTPException(status_code=400, detail="That file is empty.")
+
+    day = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%d")
+    try:
+        used = await redis_increment(f"upscale:{shop}:{day}", expire=2 * 86400)
+    except Exception as exc:  # noqa: BLE001 — a Redis hiccup must not switch the tool off
+        logging.getLogger(__name__).warning("upscale daily count skipped (redis error): %s", exc)
+        used = 0
+    if used > get_settings().IMAGE_TOOLS_UPSCALE_DAILY_CAP:
+        raise HTTPException(status_code=429, detail="This shop has reached today's limit for AI upscaling.")
+
+    try:
+        png = await image_upscale.upscale(content, shop)
+    except image_upscale.UpscaleError as exc:
+        raise HTTPException(status_code=exc.status, detail=str(exc)) from exc
+    except Exception as exc:  # noqa: BLE001 — ImageKit being away is not the buyer's problem to decode
+        logging.getLogger(__name__).warning("upscale failed: %s", exc)
+        raise HTTPException(status_code=502, detail="AI upscale is not available just now. Your image is unchanged.") from exc
+    return Response(content=png, media_type="image/png", headers={"cache-control": "no-store"})

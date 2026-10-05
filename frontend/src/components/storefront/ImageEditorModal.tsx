@@ -6,13 +6,18 @@
  * Mirrors the reference builder's "Image Editor": Enhance (remove background /
  * upscale), Halftone, Crop (aspect presets + rectangle/circle), and Colors, with
  * an AFTER/BEFORE toggle and a viewing-only background-colour swatch. Everything
- * runs in the browser on <canvas>, except Remove Background, which is done on
- * Cloudflare (lib/backgroundRemoval) and only falls back to the browser.
+ * runs in the browser on <canvas>, except the two AI tools: Remove Background is
+ * done on Cloudflare (lib/backgroundRemoval, falling back to the browser), and
+ * Upscale by ImageKit through our API.
  * Apply returns the edited image as a transparent PNG File.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { WorkingOverlay } from "@/components/storefront/WorkingOverlay";
 import { removeImageBackground, BackgroundRemovalError } from "@/lib/backgroundRemoval";
+import { apiClient, ApiClientError } from "@/lib/api-client";
+
+/** The largest picture the server will upscale; a bigger one has nothing to gain. */
+const UPSCALE_MAX_PIXELS = 4_200_000;
 
 interface Props {
   src: string;
@@ -153,17 +158,40 @@ export function ImageEditorModal({ src, fileName, onClose, onApply, initialTab }
     } finally { setBusy(null); setProgress(null); }
   }
 
-  function upscale() {
+  /**
+   * Upscale with AI — up to four times the size, with the edges redrawn sharp.
+   *
+   * This used to draw the picture twice as large and stop there, which makes a
+   * bigger file and not a sharper print. The work is done on the server (by
+   * ImageKit, through our API), takes around fifteen seconds, and keeps a
+   * transparent background transparent.
+   */
+  async function upscale() {
+    setError(null);
     bakeColors();
     const w = workRef.current!;
-    if (w.width * w.height > 20_000_000) { setError("This image is already high-resolution."); return; }
-    const out = makeCanvas(w.width * 2, w.height * 2);
-    const ctx = out.getContext("2d")!;
-    ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = "high";
-    ctx.drawImage(w, 0, 0, out.width, out.height);
-    workRef.current = out;
-    commit();
+    if (w.width * w.height > UPSCALE_MAX_PIXELS) {
+      setError("This image is already large enough to print well — upscaling is for small or blurry files.");
+      return;
+    }
+    setBusy("Upscaling with AI — about 15 seconds"); setProgress(null);
+    try {
+      const blob: Blob = await new Promise((res) => w.toBlob((b) => res(b!), "image/png"));
+      const form = new FormData();
+      form.append("file", new File([blob], fileName || "artwork.png", { type: "image/png" }));
+      const out = await apiClient.postForm<Blob>("/api/v1/upload/upscale", form, { asBlob: true });
+      const img = await blobToImage(out);
+      const c = makeCanvas(img.naturalWidth, img.naturalHeight);
+      c.getContext("2d")!.drawImage(img, 0, 0);
+      workRef.current = c;
+      commit();
+    } catch (e) {
+      // The server says why in words meant for the buyer — too large, today's
+      // limit reached, not available just now. Anything else gets the plain one.
+      setError(e instanceof ApiClientError && e.message && e.status !== 500
+        ? e.message
+        : "AI upscale wasn't available just now. Your image is unchanged.");
+    } finally { setBusy(null); setProgress(null); }
   }
 
   // ── Halftone ──────────────────────────────────────────────────────────────────
@@ -349,7 +377,9 @@ export function ImageEditorModal({ src, fileName, onClose, onApply, initialTab }
                 </button>
                 <button onClick={upscale} disabled={!!busy} style={S.toolCard}>
                   <div style={{ fontWeight: 700, fontSize: "14px" }}>⤢ Upscale Quality</div>
-                  <div style={{ fontSize: "12px", color: "#777", marginTop: "3px" }}>Double the resolution for sharper prints.</div>
+                  <div style={{ fontSize: "12px", color: "#777", marginTop: "3px" }}>
+                    AI makes a small or blurry design up to 4× larger and sharper. Best on logos, text and graphics — on photos of people, check the faces afterwards.
+                  </div>
                 </button>
               </>
             )}

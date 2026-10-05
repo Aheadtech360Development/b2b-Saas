@@ -3,8 +3,8 @@
 /**
  * WorkingOverlay — what a long job looks like while it runs.
  *
- * Background removal and upscaling run in the browser and can take several
- * seconds on a large file, with nothing moving on screen. A label alone reads
+ * Background removal and upscaling are done on a server and take from five to
+ * fifteen seconds, with nothing moving on screen. A label alone reads
  * as a frozen page, so this covers the thing being worked on with a moving
  * spinner, says which job is running, and warns that it takes a moment — the
  * three things that separate "working" from "stuck".

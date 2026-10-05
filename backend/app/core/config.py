@@ -261,6 +261,7 @@ class Settings(BaseSettings):
     IMAGE_TOOLS_URL: str = ""         # the Worker's address, no trailing slash
     IMAGE_TOOLS_KEY: str = ""         # signs tickets; the Worker holds the same  (secret — .env only)
     IMAGE_TOOLS_DAILY_CAP: int = 300  # most removals one shop may ask for in a day
+    IMAGE_TOOLS_UPSCALE_DAILY_CAP: int = 30  # most AI upscales (done by ImageKit) one shop may ask for in a day
 
     # ── Sentry ────────────────────────────────────────────────────────────────
     SENTRY_DSN: str = ""

@@ -360,6 +360,9 @@ class AuthMiddleware(BaseHTTPMiddleware):
         # per day, are what keep that from being drained.
         if path == "/api/v1/upload/cutout-ticket":
             return True
+        # And AI upscaling of it, from the same editor, limited the same way.
+        if path == "/api/v1/upload/upscale":
+            return True
         # Invoice summary — public for pay-now email link access
         if path.endswith('/invoice-summary'):
             return True
