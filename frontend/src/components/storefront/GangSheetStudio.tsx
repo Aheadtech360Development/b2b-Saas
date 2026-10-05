@@ -16,7 +16,7 @@
  */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
-  ClipboardPaste, Copy, CopyPlus, Crop, Droplet, Eye, Grid3x3, Hand,
+  ClipboardPaste, Copy, CopyPlus, Crop, Droplet, Eye, Grid3x3, Hand, HelpCircle,
   EyeOff, Layers, Lightbulb, Maximize, Minus, Plus, Redo2, RotateCcw, RotateCw, Save,
   Scissors, Settings as SettingsIcon, ShoppingCart, Sparkles, Trash2, Type,
   Undo2, Upload as UploadIcon, UploadCloud, Wand2, X, Zap,
@@ -44,11 +44,15 @@ import { WorkingOverlay } from "@/components/storefront/WorkingOverlay";
 import { AutoBuildPanel, type AutoBuildItem, type PickableDesign } from "@/components/storefront/AutoBuildPanel";
 import { packIntoSheets, type Layout } from "@/lib/sheetPacking";
 import {
-  freeSpotOn, spotFor as placeOnSheet,
+  spotFor as placeOnSheet,
   type Box, type Sheet, type Spot,
 } from "@/lib/sheetPlacement";
-import { planFill, planNest, type NestItem, type NestPlan } from "@/lib/sheetNesting";
+import {
+  planCopies, planFill, planNest, planRows, quarter, turnFor,
+  type NestItem, type NestPlan,
+} from "@/lib/sheetNesting";
 import { NestPreview } from "@/components/storefront/NestPreview";
+import { NoRoomAsk, type NoRoomChoice } from "@/components/storefront/NoRoomAsk";
 import { say } from "@/lib/toast";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
@@ -63,6 +67,7 @@ const RULER_PAD = 24; // px before the sheet inside the canvas scroll — rulers
 const round2 = (n: number) => Math.round(n * 100) / 100;
 const round3 = (n: number) => Math.round(n * 1000) / 1000;
 const clamp = (n: number, lo: number, hi: number) => Math.max(lo, Math.min(n, hi));
+const money = (n: number) => `$${n.toFixed(2)}`;
 
 /** Inch marks for a ruler: a labelled "major" step (kept ≥46px apart so labels
  *  never crowd at any zoom) with a minor tick halfway between. */
@@ -126,8 +131,27 @@ interface Placement {
   y_in: number;
   w_in: number; // own width  (before rotation)
   h_in: number; // own height (before rotation)
-  rotation: number; // 0 | 90
+  rotation: number; // 0 | 90 | 180 | 270, clockwise
 }
+
+/**
+ * More copies were asked for than this sheet has room for: what fits here,
+ * and what could be done with the rest. Held until somebody chooses.
+ */
+interface CopyAsk {
+  srcId: number;
+  count: number;
+  /** Select the copy afterwards — a single Duplicate does, Add copies does not. */
+  select: boolean;
+  here: { spots: Spot[]; len: number };
+  /** A larger size that takes every copy with nothing already placed moving. */
+  bigger: null | { size: GangSheetSize; spots: Spot[]; len: number; price: number };
+  /** The rest on further sheets of this same size. */
+  spill: null | { spots: Spot[]; len: number }[];
+}
+
+/** The selection's colour: the frame, its corner dots and the turn handle. */
+const FOREST = "#14532D";
 
 // One "Active Gang Sheet" in a multi-sheet build. The active sheet's live edits
 // live in the working state (placements/sizeId/qty/customLength); inactive sheets
@@ -276,8 +300,23 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
   // follows the length, so a buyer has to see it happen.
   // A rearrangement that has been worked out but not yet accepted. Both of
   // these move everything at once, so they are shown before they happen.
-  const [pendingNest, setPendingNest] = useState<null | { plan: NestPlan; extraGap: number }>(null);
+  const [pendingNest, setPendingNest] = useState<null | { plan: NestPlan; cutting: boolean }>(null);
   const [pendingFill, setPendingFill] = useState<null | { id: number; spots: { x: number; y: number; rotated: boolean }[] }>(null);
+  const [copyAsk, setCopyAsk] = useState<null | CopyAsk>(null);
+  const [nestHelp, setNestHelp] = useState(false);
+
+  // How a change looks while it happens. Twenty copies arriving in one frame,
+  // or a sheet rearranged in a blink, reads as the builder glitching rather
+  // than doing what it was asked.
+  /** Designs just put down, and the order they arrive in. */
+  const [fresh, setFresh] = useState<null | { order: Map<number, number>; step: number }>(null);
+  const freshTimer = useRef<number | undefined>(undefined);
+  /** A design part-way through a quarter turn. */
+  const [turn, setTurn] = useState<null | { id: number; from: number; n: number }>(null);
+  /** Set briefly when everything moves at once, so designs travel to their new places. */
+  const [glide, setGlide] = useState(false);
+  const glideTimer = useRef<number | undefined>(undefined);
+  useEffect(() => () => { window.clearTimeout(freshTimer.current); window.clearTimeout(glideTimer.current); }, []);
   // The document only exists in the browser, so the first render stays in
   // place and the portal takes over once mounted.
   const rootRef = useRef<HTMLDivElement>(null);
@@ -480,7 +519,10 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
   // ── Placement helpers ────────────────────────────────────────────────────────
   function overlaps(p: Placement, x: number, y: number, w: number, h: number, gap: number) {
     const fp = footprint(p);
-    return !(x + w + gap <= p.x_in || x >= p.x_in + fp.w + gap || y + h + gap <= p.y_in || y >= p.y_in + fp.h + gap);
+    // A hair of slack: designs standing exactly the margin apart are not
+    // overlapping, whatever the last digit of the arithmetic says.
+    const e = 1e-6;
+    return !(x + w + gap <= p.x_in + e || x >= p.x_in + fp.w + gap - e || y + h + gap <= p.y_in + e || y >= p.y_in + fp.h + gap - e);
   }
   /** This sheet as the placement rules see it: inches, edges and whether it
    *  can be cut longer. */
@@ -537,12 +579,6 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
       setCustomLength(spot.len);
       setGrewTo(spot.len);
     }
-  }
-
-  function firstFreeSpot(w: number, h: number): { x: number; y: number } {
-    const len = stateRef.current.sheetLen;
-    return freeSpotOn(sheetSpec(len), len, w, h, boxesOf(stateRef.current.placements))
-      ?? { x: round3(size?.bleed_in ?? 0), y: round3(size?.bleed_in ?? 0) };
   }
 
   /** Default print size for a fresh upload: aim near 300 DPI, capped to the sheet. */
@@ -876,7 +912,10 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
   }
 
   // ── Resize (corner) — proportional by default, free while Shift or lock off ────
-  function startResize(e: React.PointerEvent, id: number) {
+  // Any of the four corners can be dragged; the corner opposite stays where it
+  // is. There used to be one handle, bottom-right, so a design could only ever
+  // grow down and to the right.
+  function startResize(e: React.PointerEvent, id: number, corner: "nw" | "ne" | "sw" | "se" = "se") {
     e.preventDefault(); e.stopPropagation();
     setSelected(id);
     sheetRef.current?.focus({ preventScroll: true });
@@ -885,30 +924,37 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
     const orig = stateRef.current.placements.find((p) => p.id === id)!;
     const origFp = footprint(orig);
     const rotated = orig.rotation % 180 !== 0;
+    // Which way the dragged corner grows the box: right/down is +1, left/up -1.
+    const sx = corner[1] === "e" ? 1 : -1;
+    const sy = corner[0] === "s" ? 1 : -1;
 
     function move(ev: PointerEvent) {
       const { ppi: p, placements: pl, size: sz, sheetLen: len } = stateRef.current;
       if (!sz) return;
-      const cur = pl.find((q) => q.id === id);
-      if (!cur) return;
-      const dxIn = (ev.clientX - startX) / p;
-      const dyIn = (ev.clientY - startY) / p;
+      if (!pl.some((q) => q.id === id)) return;
+      const dxIn = sx * (ev.clientX - startX) / p;
+      const dyIn = sy * (ev.clientY - startY) / p;
       const free = ev.shiftKey || !aspectLock;
-      let baseW: number, baseH: number;
+      // As far as the box may reach from the corner that is staying put.
+      const maxFw = sx > 0 ? sz.width_in - orig.x_in : orig.x_in + origFp.w;
+      const maxFh = sy > 0 ? len - orig.y_in : orig.y_in + origFp.h;
+      let fw: number, fh: number;
       if (free) {
-        const newFw = clamp(origFp.w + dxIn, MIN_IN, sz.width_in - cur.x_in);
-        const newFh = clamp(origFp.h + dyIn, MIN_IN, len - cur.y_in);
-        baseW = rotated ? newFh : newFw;
-        baseH = rotated ? newFw : newFh;
+        fw = clamp(origFp.w + dxIn, MIN_IN, maxFw);
+        fh = clamp(origFp.h + dyIn, MIN_IN, maxFh);
       } else {
-        const maxScale = Math.min((sz.width_in - cur.x_in) / origFp.w, (len - cur.y_in) / origFp.h);
-        const scale = clamp((origFp.w + dxIn) / origFp.w, MIN_IN / origFp.w, maxScale);
-        baseW = orig.w_in * scale;
-        baseH = orig.h_in * scale;
+        const maxScale = Math.min(maxFw / origFp.w, maxFh / origFp.h);
+        const scale = clamp((origFp.w + dxIn) / origFp.w, MIN_IN / Math.min(origFp.w, origFp.h), maxScale);
+        fw = origFp.w * scale;
+        fh = origFp.h * scale;
       }
-      const w = round3(Math.max(MIN_IN, baseW));
-      const h = round3(Math.max(MIN_IN, baseH));
-      setPlacements((list) => list.map((q) => (q.id === id ? { ...q, w_in: w, h_in: h } : q)));
+      fw = round3(Math.max(MIN_IN, fw));
+      fh = round3(Math.max(MIN_IN, fh));
+      const w = rotated ? fh : fw;
+      const h = rotated ? fw : fh;
+      const x = sx > 0 ? orig.x_in : round3(Math.max(0, orig.x_in + origFp.w - fw));
+      const y = sy > 0 ? orig.y_in : round3(Math.max(0, orig.y_in + origFp.h - fh));
+      setPlacements((list) => list.map((q) => (q.id === id ? { ...q, w_in: w, h_in: h, x_in: x, y_in: y } : q)));
     }
     function upFn() {
       window.removeEventListener("pointermove", move);
@@ -933,19 +979,45 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
   function rotate(id: number) {
     const p = stateRef.current.placements.find((q) => q.id === id);
     if (!p) return;
-    const rot = p.rotation % 180 === 0 ? 90 : 0;
+    // A quarter turn clockwise, every time: on its right side, upside down, on
+    // its left side, upright again. It used to flip between upright and one
+    // side only, so a second press undid the first instead of carrying on.
+    const from = quarter(p.rotation);
+    const rot = (from + 90) % 360;
+    const spin = () => {
+      const n = (turn?.n ?? 0) + 1;
+      setTurn({ id, from, n });
+      window.setTimeout(() => setTurn((t) => (t && t.n === n ? null : t)), 420);
+    };
+    const was = footprint(p);
     const fp = footprint({ ...p, rotation: rot });
-    const { x, y } = clampSnap(p.x_in, p.y_in, fp.w, fp.h);
+    // Turned about its own middle, and only kept inside the safe area — not
+    // snapped to the grid. A turn is not a move: snapping nudged a design out
+    // of the row it was standing in, which was enough to count as too close
+    // to its neighbour and send it off to another part of the sheet.
+    const edge = size?.bleed_in ?? 0;
+    const x = round3(clamp(p.x_in + (was.w - fp.w) / 2, edge, Math.max(edge, (size?.width_in ?? 0) - edge - fp.w)));
+    const y = round3(clamp(p.y_in + (was.h - fp.h) / 2, edge, Math.max(edge, stateRef.current.sheetLen - edge - fp.h)));
 
     const others = stateRef.current.placements.filter((q) => q.id !== id);
-    const clear = !others.some((q) => overlaps(q, x, y, fp.w, fp.h, Math.max(imageMargin, 0)));
+    // Still standing on exactly the same patch — a square, or a wide design
+    // turned upside down — so there is nothing new for it to be in the way of.
+    const samePatch = Math.abs(fp.w - was.w) < 1e-9 && x === p.x_in && y === p.y_in;
+    const clear = samePatch || !others.some((q) => overlaps(q, x, y, fp.w, fp.h, Math.max(imageMargin, 0)));
     if (clear) {
+      spin();
       setPlacements((list) => list.map((q) => (q.id === id ? { ...q, rotation: rot, x_in: x, y_in: y } : q)));
       return;
     }
 
     const spot = placeOnSheet(sheetSpec(stateRef.current.sheetLen), fp.w, fp.h, boxesOf(others));
-    if (!spot) { setSheetFull(true); return; }
+    if (!spot) {
+      // Said in so many words. It used to raise "this sheet is full", which is
+      // not what stopped it and not something another sheet would fix.
+      say.warn("No room to turn this design here — on its side it would sit on its neighbours. Move it, or make it smaller.");
+      return;
+    }
+    spin();
     const moved: Placement = { ...p, rotation: rot, x_in: spot.x, y_in: spot.y };
     liveRef.current = { placements: [...others, moved], len: Math.max(stateRef.current.sheetLen, spot.len) };
     if (spot.len > stateRef.current.sheetLen) { setCustomLength(spot.len); setGrewTo(spot.len); }
@@ -979,18 +1051,9 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
     setSheetFull(false);
     say.done(copies > 0 ? "Design deleted, and its copies" : "Design deleted");
   }
+  /** One more of a design — the same as asking for one copy, and it is selected. */
   function duplicate(id: number) {
-    const p = stateRef.current.placements.find((q) => q.id === id);
-    if (!p) return;
-    const fp = footprint(p);
-    const spot = spotFor(fp.w, fp.h);
-    if (!spot) { setSheetFull(true); return; }
-    const nid = nextId.current++;
-    const copy: Placement = { ...p, id: nid, x_in: spot.x, y_in: spot.y };
-    takeSpot(spot, copy);
-    setPlacements((list) => [...list, copy]);
-    setSelected(nid);
-    setSheetFull(false);
+    addCopies(1, undefined, id, true);
   }
   function setDim(id: number, dim: "w" | "h", val: number) {
     setPlacements((list) => list.map((p) => {
@@ -1055,31 +1118,140 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
     });
   }
 
-  /** Add N more copies of the selected design, packed into the free space. */
-  function addCopies(n: number, gapOverride?: number) {
-    if (selected == null || n < 1 || !size) return;
-    const src = stateRef.current.placements.find((q) => q.id === selected);
-    if (!src) return;
-    const g = gapOverride != null ? Math.max(gapOverride, 0.02) : Math.max(imageMargin, 0.25);
-    const fp = footprint(src);
-    // Track occupied boxes locally so copies added in this batch don't stack.
-    const taken = stateRef.current.placements.map((p) => ({ x: p.x_in, y: p.y_in, w: footprint(p).w, h: footprint(p).h }));
-    const freeSpot = () => {
-      for (let y = 0; y + fp.h <= sheetLen + 1e-6; y += g) {
-        for (let x = 0; x + fp.w <= size.width_in + 1e-6; x += g) {
-          const clash = taken.some((q) => !(x + fp.w + g <= q.x || x >= q.x + q.w + g || y + fp.h + g <= q.y || y >= q.y + q.h + g));
-          if (!clash) return { x: round3(x), y: round3(y) };
-        }
-      }
-      return { x: 0, y: 0 };
-    };
-    const out: Placement[] = [];
-    for (let i = 0; i < n; i++) {
-      const spot = freeSpot();
-      out.push({ ...src, id: nextId.current++, x_in: spot.x, y_in: spot.y });
-      taken.push({ x: spot.x, y: spot.y, w: fp.w, h: fp.h });
-    }
+  /** Let designs that were just added arrive one after another, not all in one frame. */
+  function arrive(ids: number[]) {
+    if (!ids.length) return;
+    // Quick enough that a hundred copies do not make anybody wait, slow enough
+    // that five can be seen landing.
+    const step = Math.min(55, 900 / ids.length);
+    setFresh({ order: new Map(ids.map((id, i) => [id, i])), step });
+    window.clearTimeout(freshTimer.current);
+    freshTimer.current = window.setTimeout(() => setFresh(null), ids.length * step + 450);
+  }
+
+  /** Copies of `src` at the planned spots, each with an id of its own. */
+  const copiesAt = (src: Placement, spots: { x: number; y: number }[]): Placement[] =>
+    spots.map((s) => ({ ...src, id: nextId.current++, x_in: s.x, y_in: s.y }));
+
+  /** Put planned copies on this sheet. `len` is what the sheet must measure to hold them. */
+  function putCopies(src: Placement, spots: Spot[], len: number, select = false, grow = true) {
+    if (!spots.length) return;
+    const out = copiesAt(src, spots);
+    const cur = live();
+    liveRef.current = { placements: [...cur.placements, ...out], len: Math.max(cur.len, len) };
+    if (grow && len > cur.len + 1e-9) { setCustomLength(len); setGrewTo(len); }
     setPlacements((list) => [...list, ...out]);
+    arrive(out.map((p) => p.id));
+    if (select && out.length === 1) setSelected(out[0]!.id);
+    setSheetFull(false);
+  }
+
+  /**
+   * Add more copies of a design — and ask, when they do not all fit.
+   *
+   * This had a placement rule of its own, apart from the one everything else
+   * goes by: it ignored the safe edge, and once the sheet was full it put every
+   * further copy in the top-left corner, one on top of the next. Somebody asked
+   * for twenty-three copies on a 22×10 sheet and got a pile and a warning.
+   *
+   * Now the copies go where a design dropped by hand would. When the sheet
+   * cannot take them all, nothing is placed yet: the choices are worked out —
+   * a bigger size that holds everything without moving what is there, the rest
+   * on another sheet, or only as many as fit — and put to the buyer.
+   */
+  function addCopies(n: number, gapOverride?: number, srcId: number | null = selected, select = false) {
+    if (srcId == null || n < 1 || !size) return;
+    const src = stateRef.current.placements.find((q) => q.id === srcId);
+    if (!src) return;
+    const count = Math.min(Math.floor(n), 500);
+    const fp = footprint(src);
+    const { placements: pl, len } = live();
+    const gap = gapOverride != null ? Math.max(gapOverride, 0) : imageMargin;
+    const taken = boxesOf(pl);
+
+    const here = planCopies({ ...sheetSpec(len), gap }, taken, fp.w, fp.h, count);
+    if (here.left === 0) { putCopies(src, here.spots, here.len, select); return; }
+
+    // A bigger size, at least as wide and as long as this one so nothing
+    // already placed has to move. The cheapest that takes every copy.
+    let bigger: CopyAsk["bigger"] = null;
+    for (const s of sizes) {
+      if (s.id === size.id || s.width_in < size.width_in - 1e-6) continue;
+      const roll = s.pricing_mode === "custom_length";
+      const start = roll ? Math.max(s.min_length_in, len) : s.height_in;
+      if (start < len - 1e-6 || (roll && start > s.max_length_in + 1e-6)) continue;
+      const plan = planCopies(
+        { width: s.width_in, length: start, bleed: s.bleed_in ?? 0, gap, canGrow: roll, maxLength: roll ? s.max_length_in : start },
+        taken, fp.w, fp.h, count,
+      );
+      if (plan.left > 0) continue;
+      const price = roll ? plan.len * Number(s.price_per_inch || 0) : Number(s.price_per_sheet || 0);
+      if (!bigger || price < bigger.price - 1e-9) bigger = { size: s, spots: plan.spots, len: plan.len, price };
+    }
+
+    // Or the rest on sheets of their own, the same size as this one.
+    const blank: Sheet = { ...sheetSpec(isCustom ? (size.min_length_in || len) : len), gap };
+    const spill: { spots: Spot[]; len: number }[] = [];
+    let rest = here.left;
+    while (rest > 0 && spill.length < 20) {
+      const plan = planCopies(blank, [], fp.w, fp.h, rest);
+      if (!plan.spots.length) break;
+      spill.push({ spots: plan.spots, len: plan.len });
+      rest -= plan.spots.length;
+    }
+
+    setCopyAsk({ srcId, count, select, here, bigger, spill: spill.length && rest === 0 ? spill : null });
+  }
+
+  /** What somebody chose to do with copies that did not all fit. */
+  function answerCopies(choice: string) {
+    const ask = copyAsk;
+    setCopyAsk(null);
+    if (!ask || !size) return;
+    const src = stateRef.current.placements.find((q) => q.id === ask.srcId);
+    if (!src) return;
+    const fits = ask.here.spots.length;
+    const left = ask.count - fits;
+
+    if (choice === "bigger" && ask.bigger) {
+      const to = ask.bigger;
+      setSizeId(to.size.id);
+      if (to.size.pricing_mode === "custom_length") setCustomLength(to.len);
+      putCopies(src, to.spots, to.len, ask.select, false);
+      say.done(`Sheet changed to ${sizeWords(to.size, to.len)} — ${ask.count === 1 ? "the copy is" : `all ${ask.count} copies are`} on it.`);
+      return;
+    }
+
+    if (choice === "spill" && ask.spill) {
+      const more = ask.spill;
+      // The other sheets are added as they are; this one keeps its undo history.
+      const added: SheetTab[] = more.map((sh, i) => ({
+        key: uid(),
+        name: `Gang Sheet ${sheets.length + i + 1}`,
+        sizeId, qty: 1,
+        customLength: isCustom ? sh.len : 0,
+        placements: copiesAt(src, sh.spots),
+      }));
+      setSheets((list) => [...list, ...added]);
+      putCopies(src, ask.here.spots, ask.here.len, ask.select);
+      const where = more.length === 1 ? "a new sheet" : `${more.length} new sheets`;
+      say.done(fits > 0
+        ? `${fits} added here, ${left} on ${where} — see the list on the right.`
+        : `${left === 1 ? "The copy is" : `All ${left} are`} on ${where} — see the list on the right.`);
+      return;
+    }
+
+    if (choice === "fit" && fits > 0) {
+      putCopies(src, ask.here.spots, ask.here.len, ask.select);
+      say.note(`${fits} added. The other ${left} did not fit.`);
+    }
+  }
+
+  /** A size in the words the size menu uses. */
+  function sizeWords(s: GangSheetSize, len?: number): string {
+    return s.pricing_mode === "custom_length"
+      ? `${s.width_in}″ × ${round2(len ?? s.min_length_in)}″`
+      : `${s.width_in}×${s.height_in}″`;
   }
 
   /** Fill the whole sheet with copies of one design (shelf pack). */
@@ -1115,9 +1287,11 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
       id: nextId.current++,
       x_in: spot.x,
       y_in: spot.y,
-      rotation: spot.rotated ? (p.rotation % 180 === 0 ? 90 : 0) : p.rotation,
+      // A quarter turn from however the original stands, without flipping it over.
+      rotation: spot.rotated ? turnFor(p.rotation, p.rotation % 180 === 0) : p.rotation,
     }));
     setPlacements((list) => [...list, ...copies]);
+    arrive(copies.map((c) => c.id));
     setSelected(null);
     setPendingFill(null);
     say.done(`Auto Fill completed — ${copies.length} more added.`);
@@ -1133,21 +1307,26 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
    *
    * It plans first and shows the plan: how many sheets, what goes on each, and
    * anything too big for the roll at all. Nothing moves until that is
-   * accepted. `extraGap` is the cut-around spacing for the "for cutting"
-   * variant, where a plotter needs room around each piece.
+   * accepted.
+   *
+   * "For cutting" is a different arrangement, not the same one spaced out:
+   * full-width rows, so a cut can run straight across the sheet between them.
+   * It used to be the tight packing with half an inch added to the margin,
+   * which left more film between designs and still no line to cut along.
    */
-  function autoNest(extraGap = 0) {
+  function autoNest(cutting = false) {
     if (!size) return;
     const all = snapshotAll();
     const everything = all.flatMap((sh) => sh.placements);
     if (!everything.length) { say.note("Nothing to arrange yet."); return; }
 
-    const spec = { ...sheetSpec(sheetLen), gap: imageMargin + extraGap };
+    const spec = sheetSpec(sheetLen);
     // Everything may be turned. Text is added here as an image like anything
     // else, so there is nothing to tell apart — and a design the buyer did not
     // want turned can be turned back, which is cheaper than a wasted sheet.
     const items: NestItem[] = everything.map((q) => ({ key: String(q.id), w: q.w_in, h: q.h_in }));
-    setPendingNest({ plan: planNest(spec, items), extraGap });
+    setNestHelp(false);
+    setPendingNest({ plan: cutting ? planRows(spec, items) : planNest(spec, items), cutting });
   }
 
   /**
@@ -1173,8 +1352,8 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
         if (!original) return [];
         // `rotated` is the plan's own idea of the turn, so the stored rotation
         // is set from it rather than toggled — nesting twice must not spin a
-        // design through 180 degrees.
-        return [{ ...original, x_in: item.x, y_in: item.y, rotation: item.rotated ? 90 : 0 }];
+        // design round. One that was turned upside down stays upside down.
+        return [{ ...original, x_in: item.x, y_in: item.y, rotation: turnFor(original.rotation, item.rotated) }];
       }),
     );
 
@@ -1196,6 +1375,10 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
     }
 
     const added = Math.max(0, laidOut.length - all.length);
+    // Seen travelling to their new places, so it is plain what moved where.
+    setGlide(true);
+    window.clearTimeout(glideTimer.current);
+    glideTimer.current = window.setTimeout(() => setGlide(false), 480);
     goTo(next, 0);
     setSelected(null);
     setPendingNest(null);
@@ -1575,9 +1758,19 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
     setCtxMenu(null);
     if (!c) return;
     const fp = footprint(c);
-    const spot = firstFreeSpot(fp.w, fp.h);
+    // By the same rules as everything else. This used to fall back to the
+    // top-left corner when the sheet was full — on top of whatever was there.
+    const spot = spotFor(fp.w, fp.h);
+    if (!spot) {
+      setSheetFull(true);
+      say.warn("This sheet is full — there is no room to paste that here.");
+      return;
+    }
     const nid = nextId.current++;
-    setPlacements((list) => [...list, { ...c, id: nid, x_in: spot.x, y_in: spot.y }]);
+    const pasted: Placement = { ...c, id: nid, x_in: spot.x, y_in: spot.y };
+    takeSpot(spot, pasted);
+    setPlacements((list) => [...list, pasted]);
+    arrive([nid]);
     setSelected(nid);
   }
   function openDupModal(id: number) { setSelected(id); setDupQty(5); setDupApplyMargin(false); setDupModal(id); setCtxMenu(null); }
@@ -2515,15 +2708,30 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
                 const d = showRes ? dpiInfo(u, fp.w, fp.h) : null;
                 const warned = warnIds.has(p.id);
                 const isOverlap = showOverlap && overlapIds.has(p.id);
-                const ring = isSel ? "var(--brand-primary,#1C3557)" : isOverlap ? "#2563EB" : warned ? "#EA580C" : d ? d.color : "#9AA3B2";
+                // A thin line, not a frame: the outline says how sharp the
+                // design will print and nothing more. The selected one is
+                // marked by its corner dots, so it does not need a heavy
+                // border drawn over the artwork's own edge.
+                const ring = isSel ? FOREST : isOverlap ? "#2563EB" : warned ? "#EA580C" : d ? d.color : "rgba(31,41,55,.25)";
+                const flagged = isOverlap || warned;
+                const arriving = fresh?.order.get(p.id);
+                const turning = turn && turn.id === p.id ? turn : null;
+                // The selection bar sits above, or below when the design is at
+                // the top of the sheet; the turn handle takes the other side.
+                const barBelow = p.y_in * ppi < 44;
+                const stem = barBelow || (sheetLen - p.y_in - fp.h) * ppi < 40 ? 5 : 16;
                 return (
                   <div key={p.id} onPointerDown={(e) => startMove(e, p.id)}
+                    data-design={p.id} data-rotation={p.rotation}
+                    className={`${arriving !== undefined ? "gs-pop" : ""}${glide ? " gs-glide" : ""}` || undefined}
                     onContextMenu={(e) => { e.preventDefault(); setSelected(p.id); setCtxMenu({ id: p.id, x: e.clientX, y: e.clientY }); }}
                     style={{
                       position: "absolute", left: p.x_in * ppi, top: p.y_in * ppi, width: fp.w * ppi, height: fp.h * ppi,
-                      border: `2px solid ${ring}`, boxShadow: isSel ? "0 0 0 2px rgba(28,53,87,.2)" : isOverlap ? "0 0 0 2px rgba(37,99,235,.18)" : warned ? "0 0 0 2px rgba(234,88,12,.18)" : "none",
+                      border: `${isSel || flagged ? 1.5 : 1}px solid ${ring}`,
+                      boxShadow: isSel ? "0 0 0 1px rgba(20,83,45,.14)" : isOverlap ? "0 0 0 2px rgba(37,99,235,.18)" : warned ? "0 0 0 2px rgba(234,88,12,.18)" : "none",
                       background: isImg ? "transparent" : "#EEF2FF", cursor: panTool ? "grab" : "move",
                       display: "flex", alignItems: "center", justifyContent: "center", boxSizing: "border-box", zIndex: isSel ? 5 : 1,
+                      ...(arriving !== undefined ? { animationDelay: `${Math.round(arriving * (fresh?.step ?? 0))}ms` } : null),
                     }}>
                     {isImg
                       // The design is drawn at its own size and then turned,
@@ -2534,13 +2742,18 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
                       // — while the preview and the print file turned it. What
                       // was on screen was not what came off the printer.
                       // eslint-disable-next-line @next/next/no-img-element
-                      ? <img src={u!.file_url} alt="" draggable={false} style={{
+                      ? <img src={u!.file_url} alt="" draggable={false}
+                          // Two names for the same turn, so a second press
+                          // while the first is still playing starts it again.
+                          className={turning ? (turning.n % 2 ? "gs-turn-a" : "gs-turn-b") : undefined}
+                          style={{
                           position: "absolute",
                           left: "50%", top: "50%",
                           width: `${p.w_in * ppi}px`, height: `${p.h_in * ppi}px`,
                           marginLeft: `${-p.w_in * ppi / 2}px`, marginTop: `${-p.h_in * ppi / 2}px`,
                           transform: `rotate(${p.rotation}deg)`, transformOrigin: "center center",
                           objectFit: "contain", pointerEvents: "none",
+                          ...(turning ? ({ "--gs-from": `${turning.from}deg`, "--gs-to": `${turning.from + 90}deg` } as React.CSSProperties) : null),
                         }} />
                       : <span style={{ fontSize: "10.5px", color: "#4338CA", textAlign: "center", padding: "2px", pointerEvents: "none", wordBreak: "break-word" }}>{u?.file_name ?? "?"}</span>}
                     {warned && !isSel && (
@@ -2554,13 +2767,34 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
                             everybody reaches for first, delete, could not be
                             clicked at all on exactly the designs that needed
                             it. They flip below when there is no room above. */}
-                        <div style={{ position: "absolute", left: 0, ...S.selBar, ...(p.y_in * ppi < 44 ? { top: "100%", marginTop: "9px" } : { bottom: "100%", marginBottom: "9px" }) }}>
+                        <div style={{ position: "absolute", left: 0, ...S.selBar, ...(barBelow ? { top: "100%", marginTop: "11px" } : { bottom: "100%", marginBottom: "11px" }) }}>
                           <button onPointerDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); rotate(p.id); }} style={S.chip} title="Rotate 90°" aria-label="Rotate 90 degrees"><RotateCw size={15} strokeWidth={2} /></button>
                           <button onPointerDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); duplicate(p.id); }} style={S.chip} title="Duplicate" aria-label="Duplicate"><Copy size={15} strokeWidth={2} /></button>
                           <span style={S.selBarSplit} aria-hidden />
                           <button onPointerDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); remove(p.id); }} style={S.chipDanger} title="Delete this design" aria-label="Delete this design"><Trash2 size={15} strokeWidth={2} /></button>
                         </div>
-                        <div onPointerDown={(e) => startResize(e, p.id)} style={{ position: "absolute", right: "-7px", bottom: "-7px", width: "14px", height: "14px", background: "#fff", border: "2px solid var(--brand-primary,#1C3557)", borderRadius: "3px", cursor: "nwse-resize" }} title="Drag to resize" />
+                        {/* A dot at each corner; drag any of them to resize. */}
+                        {(["nw", "ne", "sw", "se"] as const).map((corner) => (
+                          <div key={corner} data-corner={corner} title="Drag to resize"
+                            onPointerDown={(e) => startResize(e, p.id, corner)}
+                            style={{
+                              ...S.selDot,
+                              ...(corner[0] === "n" ? { top: "-7px" } : { bottom: "-7px" }),
+                              ...(corner[1] === "w" ? { left: "-7px" } : { right: "-7px" }),
+                              cursor: corner === "nw" || corner === "se" ? "nwse-resize" : "nesw-resize",
+                            }} />
+                        ))}
+                        {/* The turn handle, on a short stem on the side the bar is not. */}
+                        <div style={{
+                          position: "absolute", left: "50%", width: 0, display: "flex", alignItems: "center", pointerEvents: "none",
+                          ...(barBelow ? { bottom: "100%", flexDirection: "column-reverse" } : { top: "100%", flexDirection: "column" }),
+                        }}>
+                          <span aria-hidden style={{ width: "1.5px", height: `${stem}px`, flexShrink: 0, background: "rgba(20,83,45,.6)" }} />
+                          <button data-turn onPointerDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); rotate(p.id); }}
+                            style={S.selTurn} title="Rotate a quarter turn" aria-label="Rotate a quarter turn">
+                            <RotateCw size={10} strokeWidth={3} />
+                          </button>
+                        </div>
                       </>
                     )}
                   </div>
@@ -2660,6 +2894,19 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
             .gs-canvas-scroll::-webkit-scrollbar-thumb { background: var(--brand-primary,#1C3557); border-radius: 999px; border: 3px solid #DCD9D3; }
             .gs-canvas-scroll::-webkit-scrollbar-thumb:hover { background: #0F2340; }
             .gs-canvas-scroll::-webkit-scrollbar-corner { background: #DCD9D3; }
+            /* Copies arrive one after another; a turned design is seen turning;
+               a rearranged sheet is seen rearranging. */
+            @keyframes gsPop { from { opacity: 0; transform: scale(.55); } to { opacity: 1; transform: none; } }
+            .gs-pop { animation: gsPop .26s cubic-bezier(.2,.8,.3,1.15) both; }
+            @keyframes gsTurnA { from { transform: rotate(var(--gs-from)); } to { transform: rotate(var(--gs-to)); } }
+            @keyframes gsTurnB { from { transform: rotate(var(--gs-from)); } to { transform: rotate(var(--gs-to)); } }
+            .gs-turn-a { animation: gsTurnA .24s ease-out; }
+            .gs-turn-b { animation: gsTurnB .24s ease-out; }
+            .gs-glide { transition: left .34s ease, top .34s ease, width .34s ease, height .34s ease; }
+            @media (prefers-reduced-motion: reduce) {
+              .gs-pop, .gs-turn-a, .gs-turn-b { animation: none !important; }
+              .gs-glide { transition: none !important; }
+            }
           `}</style>
           </>
         </div>
@@ -2718,12 +2965,46 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
           <button onClick={openAutoBuild} style={S.rightAction} title="Upload several designs, set their sizes and quantities, and pack them onto sheets">
             <Grid3x3 size={15} strokeWidth={2.1} /> Auto Build
           </button>
-          <button onClick={() => autoNest()} style={{ ...S.rightAction, ...S.rightActionGo }} title="Arrange this sheet's designs compactly">
+          <button onClick={() => autoNest()} style={{ ...S.rightAction, ...S.rightActionGo }} title="Pack the designs tightly, for the least wasted film">
             <Zap size={15} strokeWidth={2.3} /> Auto nest (tidy up)
           </button>
-          <button onClick={() => autoNest(0.5)} style={S.rightAction} title="Nest with extra spacing for cutting">
+          <button onClick={() => autoNest(true)} style={S.rightAction} title="Arrange the designs in rows, so a cut can run straight across between them">
             <Scissors size={15} strokeWidth={2.1} /> Auto nest for cutting
           </button>
+          <button onClick={() => setNestHelp((v) => !v)} style={{ ...S.helpBtn, ...(nestHelp ? { color: C.goDark } : null) }}
+            aria-expanded={nestHelp} aria-label="What is the difference between the two?">
+            <HelpCircle size={13} strokeWidth={2.2} /> What is the difference?
+          </button>
+          {/* The two arrangements side by side, drawn rather than described —
+              "for cutting" means nothing to somebody who has not cut a sheet. */}
+          {nestHelp && (
+            <div style={S.nestHelp} data-nest-help>
+              <button type="button" onClick={() => autoNest()} style={S.nestCard}>
+                <div style={S.nestArt} aria-hidden>
+                  {([[4, 6, 34, 46, "#93C5FD"], [42, 6, 24, 22, "#86EFAC"], [70, 6, 26, 30, "#FCD34D"], [42, 32, 24, 20, "#FDA4AF"],
+                     [70, 40, 26, 54, "#93C5FD"], [4, 56, 20, 38, "#FCD34D"], [28, 56, 38, 38, "#86EFAC"]] as const).map(([l, t, w, h, c], i) => (
+                    <span key={i} style={{ position: "absolute", left: `${l}%`, top: `${t}%`, width: `${w}%`, height: `${h}%`, background: c, borderRadius: "2px" }} />
+                  ))}
+                </div>
+                <div style={S.nestCardTitle}>Standard</div>
+                <div style={S.nestCardText}>Packed tightly in every direction. Least film wasted.</div>
+              </button>
+              <button type="button" onClick={() => autoNest(true)} style={S.nestCard}>
+                <div style={S.nestArt} aria-hidden>
+                  {([[4, 6, 28, 22, "#93C5FD"], [36, 6, 20, 22, "#86EFAC"], [60, 6, 34, 22, "#FCD34D"],
+                     [4, 39, 22, 22, "#FDA4AF"], [30, 39, 34, 22, "#93C5FD"], [68, 39, 26, 22, "#86EFAC"],
+                     [4, 72, 34, 22, "#FCD34D"], [42, 72, 22, 22, "#FDA4AF"], [68, 72, 26, 22, "#93C5FD"]] as const).map(([l, t, w, h, c], i) => (
+                    <span key={i} style={{ position: "absolute", left: `${l}%`, top: `${t}%`, width: `${w}%`, height: `${h}%`, background: c, borderRadius: "2px" }} />
+                  ))}
+                  {[33.5, 66.5].map((t) => (
+                    <span key={t} style={{ position: "absolute", left: 0, right: 0, top: `${t}%`, borderTop: "1.5px dashed #475569" }} />
+                  ))}
+                </div>
+                <div style={S.nestCardTitle}>For cutting</div>
+                <div style={S.nestCardText}>In rows, so a cut runs straight across between them.</div>
+              </button>
+            </div>
+          )}
           <button
             onClick={() => { if (placements.length) setConfirmStartOver(true); }}
             disabled={!placements.length}
@@ -2745,12 +3026,13 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
       {pendingNest && size && (
         <NestPreview
           plan={pendingNest.plan}
-          sheet={{ ...sheetSpec(sheetLen), gap: imageMargin + pendingNest.extraGap }}
-          title={pendingNest.extraGap > 0 ? "Auto Nest for cutting" : "Auto Nest"}
+          sheet={sheetSpec(sheetLen)}
+          title={pendingNest.cutting ? "Auto Nest for cutting" : "Auto Nest"}
           note={
-            pendingNest.plan.sheets.length > snapshotAll().length
+            (pendingNest.plan.sheets.length > snapshotAll().length
               ? `This will not all fit on the sheets you have. Here is the arrangement — ${pendingNest.plan.sheets.length - snapshotAll().length} more sheet${pendingNest.plan.sheets.length - snapshotAll().length === 1 ? "" : "s"} would be added. Nothing moves until you apply it.`
-              : "Here is how your designs would be arranged. Nothing moves until you apply it."
+              : "Here is how your designs would be arranged. Nothing moves until you apply it.")
+            + (pendingNest.cutting ? " They are in rows, so a cut can run straight across the sheet between one row and the next." : "")
           }
           applyLabel="Apply arrangement"
           onApply={applyNest}
@@ -2788,6 +3070,48 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
           onCancel={() => setPendingFill(null)}
         />
       )}
+
+      {copyAsk && size && (() => {
+        const fits = copyAsk.here.spots.length;
+        const left = copyAsk.count - fits;
+        const here = sizeWords(size, sheetLen);
+        const choices: NoRoomChoice[] = [];
+        if (copyAsk.bigger) {
+          choices.push({
+            key: "bigger",
+            label: `Switch this sheet to ${sizeWords(copyAsk.bigger.size, copyAsk.bigger.len)}`,
+            detail: `${copyAsk.count === 1 ? "The copy fits" : `All ${copyAsk.count} fit`}, and nothing already on the sheet moves. `
+              + `${money(copyAsk.bigger.price)} a sheet instead of ${money(sheetUnitPrice({ sizeId, customLength }))}.`,
+          });
+        }
+        if (copyAsk.spill) {
+          const n = copyAsk.spill.length;
+          const extra = copyAsk.spill.reduce((sum, sh) => sum + sheetUnitPrice({ sizeId, customLength: sh.len }), 0);
+          const where = n === 1 ? "a new sheet" : `${n} new sheets`;
+          choices.push({
+            key: "spill",
+            label: fits > 0 ? `Put the other ${left} on ${where}` : `Put ${left === 1 ? "it" : `all ${left}`} on ${where}`,
+            detail: `${fits > 0 ? `${fits} here, the rest on ` : ""}${n === 1 ? "one more" : `${n} more`} ${here} sheet${n === 1 ? "" : "s"}. Adds ${money(extra)}.`,
+          });
+        }
+        if (fits > 0) {
+          choices.push({ key: "fit", label: `Add only the ${fits} that fit`, detail: `The other ${left} ${left === 1 ? "is" : "are"} left out.` });
+        }
+        const message = fits > 0
+          ? `Only ${fits} of the ${copyAsk.count} copies fit on this ${here} sheet.`
+          : copyAsk.count === 1
+            ? `There is no room for another copy on this ${here} sheet.`
+            : `None of the ${copyAsk.count} copies fit on this ${here} sheet.`;
+        return (
+          <NoRoomAsk
+            title="Not enough room on this sheet"
+            message={choices.length ? `${message} What would you like to do?` : `${message} Make the design smaller, or take something off the sheet first.`}
+            choices={choices}
+            onPick={answerCopies}
+            onCancel={() => setCopyAsk(null)}
+          />
+        );
+      })()}
 
       <ToastContainer />
     </div>
@@ -2936,6 +3260,32 @@ const S: Record<string, React.CSSProperties> = {
     padding: "3px", boxShadow: "0 3px 12px rgba(16,24,40,.16)",
   },
   selBarSplit: { width: "1px", alignSelf: "stretch", margin: "4px 2px", background: C.line },
+  // The white ring keeps a dot readable on dark artwork as well as on light.
+  selDot: {
+    position: "absolute", width: "12px", height: "12px", borderRadius: "50%", boxSizing: "border-box",
+    background: FOREST, boxShadow: "0 0 0 1.5px #fff, 0 1px 3px rgba(16,24,40,.35)", touchAction: "none",
+  },
+  selTurn: {
+    width: "20px", height: "20px", flexShrink: 0, borderRadius: "50%", border: "none", padding: 0,
+    background: FOREST, color: "#fff", boxShadow: "0 0 0 1.5px #fff, 0 1px 4px rgba(16,24,40,.35)",
+    display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", pointerEvents: "auto",
+  },
+  helpBtn: {
+    display: "inline-flex", alignItems: "center", gap: "6px", alignSelf: "flex-start",
+    background: "none", border: "none", padding: "0 3px", margin: "-2px 0 0",
+    fontSize: "12px", fontWeight: 600, color: C.inkSoft, cursor: "pointer", fontFamily: "inherit",
+  },
+  nestHelp: {
+    border: `1px solid ${C.line}`, borderRadius: C.radius, background: "#FBFCFD", padding: "10px",
+    display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px",
+  },
+  nestCard: {
+    display: "block", textAlign: "left", background: C.card, border: `1px solid ${C.line}`, borderRadius: "9px",
+    padding: "8px", cursor: "pointer", fontFamily: "inherit", color: C.ink, minWidth: 0,
+  },
+  nestArt: { position: "relative", height: "54px", borderRadius: "6px", background: "#F3F5F8", overflow: "hidden", marginBottom: "7px" },
+  nestCardTitle: { fontSize: "12px", fontWeight: 700, color: C.ink },
+  nestCardText: { fontSize: "10.5px", lineHeight: 1.4, color: C.inkSoft, marginTop: "2px" },
   chip: {
     border: "none", background: "none", borderRadius: "7px",
     width: "30px", height: "30px", cursor: "pointer", lineHeight: 1, padding: 0,

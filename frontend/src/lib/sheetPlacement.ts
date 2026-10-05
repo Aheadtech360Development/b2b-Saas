@@ -45,12 +45,17 @@ export interface Spot {
 
 const round3 = (n: number) => Math.round(n * 1000) / 1000;
 
+// A space exactly the size of a design is a space it fits in. Without a hair of
+// slack, the last digit of the arithmetic decided — and a copy put back into
+// the gap its twin was deleted from could be told there was no room.
+const SLACK = 1e-9;
+
 function hits(b: Box, x: number, y: number, w: number, h: number, gap: number): boolean {
   return !(
-    x + w + gap <= b.x ||
-    x >= b.x + b.w + gap ||
-    y + h + gap <= b.y ||
-    y >= b.y + b.h + gap
+    x + w + gap <= b.x + SLACK ||
+    x >= b.x + b.w + gap - SLACK ||
+    y + h + gap <= b.y + SLACK ||
+    y >= b.y + b.h + gap - SLACK
   );
 }
 
@@ -84,7 +89,8 @@ export function freeSpotOn(
   let head = 0;
   let band: Box[] = [];
 
-  for (let y = b; y + h <= maxY; y += g) {
+  let y = b;
+  while (y + h <= maxY) {
     while (head < sorted.length && sorted[head]!.y - g < y + h) { band.push(sorted[head]!); head++; }
     if (band.length) band = band.filter((t) => t.y + t.h + g > y);
     if (band.length === 0) return { x: round3(b), y: round3(y) };
@@ -101,6 +107,17 @@ export function freeSpotOn(
       const next = blocker.x + blocker.w + g;
       x = next > x ? next : x + g;
     }
+
+    // Nothing is free at this height, and going lower changes nothing until
+    // one of the designs in the way has been passed: more can only come into
+    // reach, never less. So the next height worth trying is exactly the margin
+    // below the first of them to end. Stepping down by the margin instead put
+    // each row wherever the steps happened to land — further below the row
+    // above than the designs in it were from each other, an uneven grid, and
+    // on a short sheet one row fewer than there was room for.
+    let below = Infinity;
+    for (const t of band) { const end = t.y + t.h + g; if (end < below) below = end; }
+    y = below > y ? below : y + g;
   }
   return null;
 }

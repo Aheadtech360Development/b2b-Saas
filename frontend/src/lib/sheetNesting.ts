@@ -18,7 +18,25 @@
  * one can take it. Biggest first, because a big design dropped into a sheet
  * already full of small ones is what forces an extra sheet nobody needed.
  */
-import { freeSpotOn, type Box, type Sheet } from "./sheetPlacement";
+import { freeSpotOn, spotFor, type Box, type Sheet, type Spot } from "./sheetPlacement";
+
+const round3 = (n: number) => Math.round(n * 1000) / 1000;
+
+/** Any angle as the quarter turn nearest it: 0, 90, 180 or 270, clockwise. */
+export function quarter(deg: number): number {
+  return (((Math.round(deg / 90) * 90) % 360) + 360) % 360;
+}
+
+/**
+ * Which way up a design ends when a plan says whether it lies on its side.
+ *
+ * A plan only knows "upright" or "on its side". A design somebody turned
+ * upside down is still upside down afterwards — arranging a sheet is not a
+ * reason to flip a design back over.
+ */
+export function turnFor(current: number, onItsSide: boolean): number {
+  return (quarter(current) >= 180 ? 180 : 0) + (onItsSide ? 90 : 0);
+}
 
 export interface NestItem {
   /** Whatever the caller needs to map this back to its own record. */
@@ -177,4 +195,102 @@ export function planFill(
     out.push(best);
   }
   return out;
+}
+
+/**
+ * Where more copies of one design go on this sheet, and how many will not fit.
+ *
+ * "Add copies" had a placement rule of its own: it ignored the safe edge, and
+ * when the sheet ran out of room it put every remaining copy in the top-left
+ * corner, one on top of the next — twenty-three copies asked for, eight of
+ * them in a pile. This places them by the rules everything else goes by: free
+ * space first, then, on a roll that can be cut longer, below what is there.
+ * What is left over is counted and handed back, never stacked.
+ *
+ * `w` and `h` are the footprint as it stands on the sheet; copies keep the
+ * way up their original has.
+ */
+export function planCopies(
+  sheet: Sheet, taken: Box[], w: number, h: number, count: number,
+): { spots: Spot[]; left: number; len: number } {
+  const boxes = [...taken];
+  const spots: Spot[] = [];
+  let len = sheet.length;
+  for (let i = 0; i < count; i++) {
+    const at = spotFor({ ...sheet, length: len }, w, h, boxes);
+    if (!at) break;
+    spots.push(at);
+    boxes.push({ x: at.x, y: at.y, w, h });
+    len = Math.max(len, at.len);
+  }
+  return { spots, left: count - spots.length, len };
+}
+
+/**
+ * The same job laid out in full-width rows, for sheets that will be cut apart.
+ *
+ * Packing tightly wastes the least film but leaves no straight line to cut
+ * along. Rows do: every design in a row starts at the same height, the next
+ * row starts below the tallest of them, and a cut can run straight across the
+ * sheet between one row and the next.
+ */
+export function planRows(sheet: Sheet, items: NestItem[], maxSheets = 60): NestPlan {
+  const EPS = 1e-9;
+  const g = Math.max(sheet.gap, 0.25);
+  const b = sheet.bleed;
+  const printW = sheet.width - b * 2;
+  const printH = sheet.length - b * 2;
+  const area = Math.max(printW * printH, EPS);
+
+  // Laid flat where that is allowed and fits across: shorter rows, less film.
+  const prepared = items.map((item) => {
+    const mayTurn = item.canRotate !== false && Math.abs(item.w - item.h) > EPS;
+    const rotated = mayTurn && item.h <= printW + EPS && (item.h > item.w || item.w > printW + EPS);
+    return { item, rotated, ...sizeOf(item, rotated) };
+  }).sort((a, c) => {
+    if (Math.abs(c.h - a.h) > EPS) return c.h - a.h;
+    if (Math.abs(c.w - a.w) > EPS) return c.w - a.w;
+    return a.item.key < c.item.key ? -1 : a.item.key > c.item.key ? 1 : 0;
+  });
+
+  const sheets: NestPlaced[][] = [];
+  const rows: { y: number; height: number; x: number }[][] = [];
+  const used: number[] = [];
+  const unplaceable: NestItem[] = [];
+
+  /** A row on this sheet with room for the piece, opening a new one if there is height left. */
+  function rowOn(index: number, w: number, h: number) {
+    const mine = rows[index]!;
+    const open = mine.find((r) => r.x + w <= printW + EPS && h <= r.height + EPS);
+    if (open) return open;
+    const last = mine[mine.length - 1];
+    const y = last ? last.y + last.height + g : 0;
+    if (y + h > printH + EPS) return null;
+    const row = { y, height: h, x: 0 };
+    mine.push(row);
+    return row;
+  }
+
+  for (const p of prepared) {
+    if (p.w > printW + EPS || p.h > printH + EPS) { unplaceable.push(p.item); continue; }
+
+    let index = -1;
+    let row: { y: number; height: number; x: number } | null = null;
+    for (let i = 0; i < sheets.length && !row; i++) {
+      row = rowOn(i, p.w, p.h);
+      if (row) index = i;
+    }
+    if (!row) {
+      if (sheets.length >= maxSheets) { unplaceable.push(p.item); continue; }
+      sheets.push([]); rows.push([]); used.push(0);
+      index = sheets.length - 1;
+      row = rowOn(index, p.w, p.h)!;
+    }
+
+    sheets[index]!.push({ ...p.item, sheet: index, x: round3(b + row.x), y: round3(b + row.y), rotated: p.rotated });
+    row.x += p.w + g;
+    used[index] = used[index]! + p.item.w * p.item.h;
+  }
+
+  return { sheets, unplaceable, fill: used.map((u) => Math.min(1, u / area)) };
 }

@@ -6,7 +6,7 @@
  * meant to tidy a sheet was itself a way to produce an overlapping one.
  */
 import { describe, expect, it } from "vitest";
-import { planFill, planNest, type NestItem } from "@/lib/sheetNesting";
+import { planCopies, planFill, planNest, planRows, quarter, turnFor, type NestItem } from "@/lib/sheetNesting";
 import type { Box, Sheet } from "@/lib/sheetPlacement";
 
 /** A 22in roll cut to three feet, the size the screenshots are working in. */
@@ -147,6 +147,121 @@ describe("auto fill", () => {
   it("returns nothing when the sheet is already full", () => {
     const taken: Box[] = [{ x: 0.25, y: 0.25, w: 21.5, h: 35.5 }];
     expect(planFill(sheet, taken, { key: "c", w: 4, h: 4 })).toEqual([]);
+  });
+});
+
+/**
+ * The sheet a buyer was on when this was reported: 22 x 10 inches, a fixed
+ * size, with a 2.67 inch design they asked for twenty-three more of. Eighteen
+ * fit. The other seven used to be dropped in the top-left corner in a pile.
+ */
+describe("adding copies of a design", () => {
+  const fixed: Sheet = { width: 22, length: 10, bleed: 0.25, gap: 0.5, canGrow: false, maxLength: 10 };
+  const first: Box = { x: 0.25, y: 0.25, w: 2.67, h: 2.67 };
+
+  it("places only what the sheet has room for, and says how many are left over", () => {
+    const plan = planCopies(fixed, [first], 2.67, 2.67, 23);
+    expect(plan.spots.length).toBe(17);          // eighteen fit in all; one is already there
+    expect(plan.left).toBe(6);
+    expect(plan.len).toBe(10);
+  });
+
+  it("never puts one copy on another, or outside the safe area", () => {
+    const plan = planCopies(fixed, [first], 2.67, 2.67, 23);
+    const all = [first, ...plan.spots.map((sp) => ({ x: sp.x, y: sp.y, w: 2.67, h: 2.67 }))];
+    expect(overlapping(all, fixed.gap)).toBeNull();
+    expect(offSheet(all, fixed)).toBeNull();
+  });
+
+  it("places all of them when they do fit", () => {
+    const plan = planCopies(fixed, [first], 2.67, 2.67, 5);
+    expect(plan.spots).toHaveLength(5);
+    expect(plan.left).toBe(0);
+  });
+
+  it("makes a roll longer instead of running out, up to the longest it is sold in", () => {
+    const roll: Sheet = { width: 22, length: 10, bleed: 0.25, gap: 0.5, canGrow: true, maxLength: 24 };
+    const plan = planCopies(roll, [first], 2.67, 2.67, 23);
+    expect(plan.left).toBe(0);
+    expect(plan.len).toBeGreaterThan(10);
+    expect(plan.len).toBeLessThanOrEqual(24);
+    const all = [first, ...plan.spots.map((sp) => ({ x: sp.x, y: sp.y, w: 2.67, h: 2.67 }))];
+    expect(overlapping(all, roll.gap)).toBeNull();
+    expect(offSheet(all, { ...roll, length: plan.len })).toBeNull();
+
+    const tooMany = planCopies(roll, [first], 2.67, 2.67, 200);
+    expect(tooMany.left).toBeGreaterThan(0);
+    expect(tooMany.len).toBeLessThanOrEqual(24);
+  });
+
+  it("places none of a design wider than the sheet", () => {
+    const plan = planCopies(fixed, [], 30, 2, 3);
+    expect(plan.spots).toEqual([]);
+    expect(plan.left).toBe(3);
+  });
+});
+
+describe("nesting in rows, for cutting", () => {
+  const mixed: NestItem[] = [
+    ...copies(6, 4, 3), ...copies(5, 2, 6).map((c, i) => ({ ...c, key: `tall${i}` })),
+    ...copies(7, 5, 2).map((c, i) => ({ ...c, key: `wide${i}` })),
+  ];
+
+  it("keeps every design, on sheets that could be printed", () => {
+    const plan = planRows(sheet, mixed);
+    expect(plan.sheets.flat()).toHaveLength(mixed.length);
+    expect(plan.unplaceable).toEqual([]);
+    sound(plan);
+  });
+
+  it("leaves a straight line across the sheet between one row and the next", () => {
+    const plan = planRows(sheet, mixed);
+    for (const placed of plan.sheets) {
+      const boxes = boxesOf(placed);
+      const tops = [...new Set(boxes.map((b) => b.y))].sort((a, b) => a - b);
+      expect(tops.length).toBeGreaterThan(1);
+      for (let i = 0; i + 1 < tops.length; i++) {
+        const bottom = Math.max(...boxes.filter((b) => b.y === tops[i]).map((b) => b.y + b.h));
+        // Nothing in this row reaches the next: the cut has the whole width.
+        expect(bottom + sheet.gap).toBeLessThanOrEqual(tops[i + 1]! + 1e-9);
+      }
+    }
+  });
+
+  it("spills onto another sheet rather than stacking, and reports what fits nowhere", () => {
+    const plan = planRows(sheet, [...copies(60, 5, 5), { key: "huge", w: 40, h: 40 }]);
+    expect(plan.sheets.length).toBeGreaterThan(1);
+    expect(plan.sheets.flat()).toHaveLength(60);
+    expect(plan.unplaceable.map((u) => u.key)).toEqual(["huge"]);
+    sound(plan);
+  });
+
+  it("leaves text upright when told to", () => {
+    const plan = planRows(sheet, [{ key: "text", w: 3, h: 8, canRotate: false }]);
+    expect(plan.sheets[0]![0]!.rotated).toBe(false);
+  });
+});
+
+describe("which way up a design is", () => {
+  it("reads any angle as a quarter turn", () => {
+    expect([0, 90, 180, 270, 360, 450, -90].map(quarter)).toEqual([0, 90, 180, 270, 0, 90, 270]);
+  });
+
+  it("goes all the way round, a quarter at a time", () => {
+    const seen: number[] = [];
+    let r = 0;
+    for (let i = 0; i < 4; i++) { r = (quarter(r) + 90) % 360; seen.push(r); }
+    expect(seen).toEqual([90, 180, 270, 0]);
+  });
+
+  it("keeps an upside-down design upside down when a sheet is rearranged", () => {
+    expect(turnFor(0, false)).toBe(0);
+    expect(turnFor(0, true)).toBe(90);
+    expect(turnFor(90, false)).toBe(0);
+    expect(turnFor(180, false)).toBe(180);
+    expect(turnFor(180, true)).toBe(270);
+    expect(turnFor(270, true)).toBe(270);
+    expect(turnFor(270, false)).toBe(180);
   });
 });
 

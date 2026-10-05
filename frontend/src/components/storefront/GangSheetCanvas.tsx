@@ -251,7 +251,8 @@ export function GangSheetCanvas({ sheet, artworks, value, onChange, readOnly }: 
   // ── Discrete edits ──────────────────────────────────────────────────────────
   function rotate(index: number) {
     const p = value[index]!;
-    const rot = p.rotation % 180 === 0 ? 90 : 0;
+    // A quarter turn clockwise each time, all the way round — the same as the builder.
+    const rot = ((((Math.round(p.rotation / 90) * 90) % 360) + 360) % 360 + 90) % 360;
     const fp = footprint({ ...p, rotation: rot });
     const { x, y } = clampSnap(p.x_in, p.y_in, fp.w, fp.h);
     commit(value.map((v, i) => (i === index ? { ...v, rotation: rot, x_in: x, y_in: y } : v)));
@@ -459,8 +460,17 @@ export function GangSheetCanvas({ sheet, artworks, value, onChange, readOnly }: 
                 }}
               >
                 {isImg ? (
+                  // Drawn at its own size and then turned, as the builder and the
+                  // print file do — so a design the buyer turned upside down is
+                  // seen upside down here too, not squeezed upright into its box.
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={a!.file_url} alt="" draggable={false} style={{ width: "100%", height: "100%", objectFit: "contain", pointerEvents: "none" }} />
+                  <img src={a!.file_url} alt="" draggable={false} style={{
+                    position: "absolute", left: "50%", top: "50%",
+                    width: `${p.w_in * ppi}px`, height: `${p.h_in * ppi}px`,
+                    marginLeft: `${-p.w_in * ppi / 2}px`, marginTop: `${-p.h_in * ppi / 2}px`,
+                    transform: `rotate(${p.rotation}deg)`, transformOrigin: "center center",
+                    objectFit: "contain", pointerEvents: "none",
+                  }} />
                 ) : (
                   <span style={{ fontSize: "9px", color: "#4338CA", textAlign: "center", padding: "2px", pointerEvents: "none", wordBreak: "break-word" }}>{a?.file_name ?? "?"}</span>
                 )}

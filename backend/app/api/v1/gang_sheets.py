@@ -236,7 +236,7 @@ class Placement(BaseModel):
     artwork_id: uuid.UUID
     x_in: float = Field(ge=0)
     y_in: float = Field(ge=0)
-    rotation: int = 0          # 0 or 90 — Phase 2 keeps rotation orthogonal
+    rotation: int = 0          # a quarter turn clockwise: 0, 90, 180 or 270
     w_in: float = Field(gt=0)
     h_in: float = Field(gt=0)
 
@@ -584,7 +584,10 @@ def _validate_layout(
             "artwork_id": str(p.artwork_id),
             "x_in": round(p.x_in, 3),
             "y_in": round(p.y_in, 3),
-            "rotation": 90 if p.rotation % 180 else 0,
+            # Whichever quarter turn it was given, kept. This used to keep only
+            # "upright" or "on its side", so a design the buyer turned upside
+            # down in the builder was saved — and printed — the right way up.
+            "rotation": (round(p.rotation / 90) * 90) % 360,
             "w_in": round(p.w_in, 3),
             "h_in": round(p.h_in, 3),
         })
