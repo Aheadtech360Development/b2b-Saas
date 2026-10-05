@@ -97,18 +97,53 @@ async def _menus(db: AsyncSession, tenant_id: uuid.UUID, ids: set[str]) -> dict[
     return out
 
 
-async def _search_ids(db: AsyncSession, tenant_id: uuid.UUID, q: str, limit: int) -> list[str]:
-    q = (q or "").strip()
-    if not q:
-        return []
+# What a shopper's words are looked for in. The shop's catalogue search looks
+# in the name and the product code; the short description, type, brand and
+# tags are what else a shopper would call a product by.
+_SEARCH_IN = ("name", "product_code", "short_description", "product_type", "vendor",
+              "array_to_string(tags, ' ')")
+_SEARCH_WORDS = 6
+_LIKE_ESCAPES = str.maketrans({"\\": "\\\\", "%": "\\%", "_": "\\_"})
+
+
+def _like(word: str) -> str:
+    """The word as LIKE text: % and _ typed by a shopper are those characters,
+    not wildcards that match the whole catalogue."""
+    return word.translate(_LIKE_ESCAPES)
+
+
+async def _search_ids(db: AsyncSession, tenant_id: uuid.UUID, q: str, limit: int) -> tuple[list[str], int]:
+    """This shop's products that match what was typed: the best `limit` of
+    them, and how many there are in all.
+
+    Only this shop's, and only ones on sale — the two conditions are in the
+    query itself, not left to whoever calls it. Every word has to be found
+    somewhere in the product, in any order, so "hoodie black" finds "Black
+    Pullover Hoodie". The full-text index is asked too where a product has one.
+    A name that starts with the words comes first, then a name that holds them.
+    """
+    words = [w for w in re.split(r"\s+", (q or "").strip()[:80]) if w][:_SEARCH_WORDS]
+    if not words:
+        return [], 0
+    phrase = _like(" ".join(words))
+    args: dict[str, Any] = {"t": str(tenant_id), "full": " ".join(words),
+                            "starts": f"{phrase}%", "holds": f"%{phrase}%"}
+    each = []
+    for i, word in enumerate(words):
+        args[f"w{i}"] = f"%{_like(word)}%"
+        each.append("(" + " OR ".join(f"{col} ILIKE :w{i} ESCAPE '\\'" for col in _SEARCH_IN) + ")")
+    where = ("tenant_id = CAST(:t AS uuid) AND status = 'active' AND "
+             f"(({' AND '.join(each)}) OR search_vector @@ plainto_tsquery('english', :full))")
+    total = int((await db.execute(text(f"SELECT COUNT(*) FROM products WHERE {where}"), args)).scalar() or 0)
+    if not total:
+        return [], 0
     rows = (await db.execute(
-        text("SELECT CAST(id AS text) FROM products "
-             "WHERE tenant_id = CAST(:t AS uuid) AND status = 'active' "
-             "AND (name ILIKE :q OR short_description ILIKE :q) "
-             "ORDER BY name LIMIT :n"),
-        {"t": str(tenant_id), "q": f"%{q[:80]}%", "n": limit},
+        text(f"SELECT CAST(id AS text) FROM products WHERE {where} "
+             "ORDER BY (name ILIKE :starts ESCAPE '\\') DESC, (name ILIKE :holds ESCAPE '\\') DESC, name, id "
+             "LIMIT :n"),
+        {**args, "n": limit},
     )).scalars().all()
-    return list(rows)
+    return list(rows), total
 
 
 # What one page may cost, however it is built. Grids are filled from a few
@@ -190,7 +225,8 @@ async def _cards_for_ids(db: AsyncSession, tenant_id: uuid.UUID, ids: list[str])
 
 
 async def _fill_grids(db: AsyncSession, tenant_id: uuid.UUID, nodes: list[dict[str, Any]], *,
-                      product: dict | None, query: str) -> dict[str, list[dict[str, Any]]]:
+                      product: dict | None, query: str,
+                      searched: dict[str, Any] | None = None) -> dict[str, list[dict[str, Any]]]:
     """Every product grid on a page, from as few fetches as their sources need."""
     from app.services import theme_data
 
@@ -223,8 +259,11 @@ async def _fill_grids(db: AsyncSession, tenant_id: uuid.UUID, nodes: list[dict[s
     by_id = await _cards_for_ids(db, tenant_id, manual[:MAX_MANUAL_PRODUCTS])
     found: list[dict[str, Any]] = []
     if search_need:
-        ids = await _search_ids(db, tenant_id, query, search_need)
+        ids, total = await _search_ids(db, tenant_id, query, search_need)
         found = await theme_data.products(db, limit=search_need, ids=ids) if ids else []
+        if searched is not None:
+            # For the page to say "3 results", or "nothing found", in words.
+            searched.update(query=(query or "").strip()[:80], total=total, shown=len(found))
     by_collection: dict[str, list[dict[str, Any]]] = {}
     if collections:
         rows = (await db.execute(
@@ -393,7 +432,8 @@ async def render_payload(
     assignments = doc.get("assignments") or {}
     parts = {k: (doc.get("parts") or {}).get(k) for k in PART_KEYS}
     data: dict[str, Any] = {"product": None, "collection": None, "collectionPage": None,
-                            "menus": {}, "grids": {}, "collectionGrids": {}, "store": {}, "reviews": None}
+                            "menus": {}, "grids": {}, "collectionGrids": {}, "store": {}, "reviews": None,
+                            "search": None}
     page_data: dict[str, Any] | None = None
     not_found = False
     ttype = route
@@ -464,7 +504,10 @@ async def render_payload(
                 if n.get("type") == "menu" and (n.get("props") or {}).get("menuId")}
     data["menus"] = await _menus(db, tenant_id, menu_ids)
 
-    data["grids"] = await _fill_grids(db, tenant_id, nodes, product=data["product"], query=query)
+    searched: dict[str, Any] = {}
+    data["grids"] = await _fill_grids(db, tenant_id, nodes, product=data["product"], query=query,
+                                      searched=searched)
+    data["search"] = searched or None
     data["collectionGrids"] = await _fill_collection_grids(db, tenant_id, nodes)
 
     data["store"] = await _store(db, tenant_id)

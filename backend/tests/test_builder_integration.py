@@ -668,6 +668,177 @@ async def main():
         await client.put(f"{BUILDER}/draft", headers=adm(a), json={"draft": assigned, "revision": None})
         await client.post(f"{BUILDER}/publish", headers=adm(a), json={})
 
+        # ── 6e. The header's search finds this shop's real products ──────────
+        print("")
+        print("search on a builder shop")
+        made: list[str] = []
+
+        async def product(brand, name, *, status="active", code=None, short=None, vendor=None, tags=None,
+                          price=None, image=None, ptype=None):
+            pid = uuid.uuid4()
+            await sql("INSERT INTO products (id, tenant_id, name, slug, status, moq, pricing_mode, gang_sheet_enabled, "
+                      "product_code, short_description, vendor, tags, product_type) "
+                      "VALUES (:i, :t, :n, :s, :st, 1, 'variant', false, :c, :sh, :v, :tg, :pt)",
+                      {"i": str(pid), "t": str(brand["tid"]), "n": name, "s": f"srch-{uuid.uuid4().hex[:10]}",
+                       "st": status, "c": code, "sh": short, "v": vendor, "tg": tags, "pt": ptype})
+            made.append(str(pid))
+            vid = None
+            if price is not None:
+                vid = uuid.uuid4()
+                await sql("INSERT INTO product_variants (id, tenant_id, product_id, sku, color, size, retail_price, "
+                          "status, sort_order) VALUES (:i, :t, :p, :sku, 'Black', 'M', :pr, 'active', 0)",
+                          {"i": str(vid), "t": str(brand["tid"]), "p": str(pid), "sku": f"SK-{uuid.uuid4().hex[:8]}", "pr": price})
+            if image:
+                await sql("INSERT INTO product_images (id, tenant_id, product_id, url_thumbnail, url_medium, url_large, "
+                          "is_primary, sort_order) VALUES (gen_random_uuid(), :t, :p, :u, :u, :u, true, 0)",
+                          {"t": str(brand["tid"]), "p": str(pid), "u": image})
+            return pid, vid
+
+        hoodie, hoodie_variant = await product(a, "Harbor Pullover Hoodie", code="HPH-880", price=38,
+                                               short="Brushed fleece, kangaroo pocket", vendor="Northwind Mills",
+                                               tags=["winter", "heavyweight"], image="https://img.example/hoodie.jpg",
+                                               ptype="Outerwear")
+        await product(a, "Harbor Cap", code="HC-12", price=22)
+        await product(a, "Hoodie Strings (spare)", price=3)
+        await product(a, "100% Cotton Sample", price=1)
+        await product(a, "Harbor Draft Jacket", status="draft", price=60)
+        await product(a, "Harbor Retired Vest", status="archived", price=40)
+        zebra_b, zebra_b_variant = await product(b, "Zebra Windbreaker", code="ZB-1", price=55, short="Harbor edition")
+        for n in range(27):
+            await product(a, f"Bulkline Sticker {n:02d}", price=2)
+
+        async def search(q):
+            r = await site(a, route="search", q=q)
+            cards = next(iter(r["data"]["grids"].values()), [])
+            return [c["title"] for c in cards], (r["data"].get("search") or {}), cards
+
+        titles, found, cards = await search("hoodie")
+        check("a search finds this shop's products by name", set(titles) == {"Harbor Pullover Hoodie", "Hoodie Strings (spare)"}
+              and found.get("total") == 2 and found.get("query") == "hoodie", f"{titles} {found}")
+        check("a name that starts with the words comes first", titles[:1] == ["Hoodie Strings (spare)"], titles)
+        card = next(c for c in cards if c["title"] == "Harbor Pullover Hoodie")
+        check("each result is a real product card: its picture, its price, the page it opens",
+              card["image"] == "https://img.example/hoodie.jpg" and "38" in card["price"]
+              and card["url"].startswith("/products/srch-"), str(card))
+        opened = await site(a, route="product", slug=card["url"].rsplit("/", 1)[-1])
+        check("…and that page is the product", (opened["data"]["product"] or {}).get("name") == "Harbor Pullover Hoodie"
+              and opened.get("notFound") is False)
+
+        for q, why in (("HPH-880", "its product code"), ("hph", "part of its code, in any case"),
+                       ("fleece", "a word from its short description"), ("northwind mills", "its brand"),
+                       ("heavyweight", "one of its tags"), ("outerwear", "its type"),
+                       ("hoodie harbor", "its words in another order"), ("  HARBOR   pullover ", "capitals and stray spaces")):
+            titles, found, _c = await search(q)
+            check(f"…and by {why}", "Harbor Pullover Hoodie" in titles and found.get("total", 0) >= 1, f"{q!r} -> {titles}")
+
+        titles, found, _c = await search("harbor")
+        check("a product that is not on sale is never found — draft or archived",
+              set(titles) == {"Harbor Pullover Hoodie", "Harbor Cap"} and found["total"] == 2, f"{titles} {found}")
+        titles, found, _c = await search("zebra")
+        check("another shop's product is never found, whatever is typed", titles == [] and found["total"] == 0, f"{titles} {found}")
+        titles, found, _c = await search("windbreaker ZB-1 harbor edition")
+        check("…by any of its words", titles == [] and found["total"] == 0, str(titles))
+        r = await client.get("/api/v1/admin/storefront/builder/preview", headers=adm(b), params={"route": "search", "q": "zebra"})
+        own = [c["title"] for c in next(iter(r.json()["data"]["grids"].values()), [])]
+        check("…while its own shop finds it", own == ["Zebra Windbreaker"], str(own))
+
+        titles, found, _c = await search("zzzz-nothing")
+        check("a search that matches nothing says so: no products, a total of none, the words asked for",
+              titles == [] and found == {"query": "zzzz-nothing", "total": 0, "shown": 0}, f"{titles} {found}")
+        titles, found, _c = await search("")
+        check("an empty search finds nothing rather than everything", titles == [] and found.get("total") == 0, f"{titles} {found}")
+        titles, found, _c = await search("100%")
+        check("a % typed by a shopper is a %, not a wildcard for the whole catalogue",
+              titles == ["100% Cotton Sample"] and found["total"] == 1, f"{titles} {found}")
+        titles, found, _c = await search("_")
+        check("…and so is an underscore", titles == [] and found["total"] == 0, f"{titles} {found}")
+        titles, found, _c = await search("' OR 1=1 --")
+        check("…and nothing typed is ever run as a query", titles == [] and found["total"] == 0, f"{titles} {found}")
+        titles, found, _c = await search("bulkline sticker")
+        check("a search with more matches than fit shows the first of them and says how many there are",
+              len(titles) == 24 and found["total"] == 27 and found["shown"] == 24
+              and titles == sorted(titles), f"{len(titles)} {found}")
+        home = await site(a, route="home")
+        check("a page with no search on it runs no search", home["data"].get("search") is None)
+
+        # ── 6f. One cart, and it belongs to the shop ─────────────────────────
+        print("")
+        print("the cart on a builder shop")
+
+        async def customer(brand):
+            cid, uid = uuid.uuid4(), uuid.uuid4()
+            await sql("INSERT INTO companies (id, tenant_id, name, status) VALUES (:i, :t, :n, 'active')",
+                      {"i": str(cid), "t": str(brand["tid"]), "n": f"Shopper {uuid.uuid4().hex[:6]}"})
+            await sql("INSERT INTO users (id, tenant_id, email, hashed_password, first_name, last_name, role, "
+                      "is_admin, is_active, email_verified) VALUES (:i, :t, :e, 'x', 'Sam', 'Shopper', 'buyer', "
+                      "false, true, true)", {"i": str(uid), "t": str(brand["tid"]), "e": f"shop-{uuid.uuid4().hex[:8]}@example.com"})
+            token = create_access_token(subject=str(uid), extra_claims={
+                "tenant_id": str(brand["tid"]), "role": "buyer", "is_admin": False, "is_platform_admin": False,
+                "company_id": str(cid), "account_type": "retail"})
+            return {"X-Tenant-Slug": brand["slug"], "Authorization": f"Bearer {token}"}, cid
+
+        buyer_a, company_a = await customer(a)
+        buyer_b, company_b = await customer(b)
+        cap, cap_variant = await product(a, "Cart Test Cap", price=22)
+
+        r = await client.post("/api/v1/cart/add-matrix", headers=buyer_a,
+                              json={"product_id": str(hoodie), "items": [{"variant_id": str(hoodie_variant), "quantity": 2}]})
+        cart = r.json()
+        line = (cart.get("items") or [{}])[0]
+        check("the product found by search goes into the shop's own cart: that variant, that quantity, that price",
+              r.status_code == 200 and len(cart["items"]) == 1 and line["variant_id"] == str(hoodie_variant)
+              and line["quantity"] == 2 and float(line["unit_price"]) == 38 and float(line["line_total"]) == 76
+              and line["color"] == "Black" and line["size"] == "M", r.text[:300])
+        r = await client.post("/api/v1/cart/add-matrix", headers=buyer_a,
+                              json={"product_id": str(cap), "items": [{"variant_id": str(cap_variant), "quantity": 1}]})
+        cart = r.json()
+        check("a second product joins it and the total is the sum",
+              len(cart["items"]) == 2 and float(cart["subtotal"]) == 98 and cart["total_units"] == 3, r.text[:300])
+
+        r = await client.post("/api/v1/cart/add-matrix", headers=buyer_a,
+                              json={"product_id": str(zebra_b), "items": [{"variant_id": str(zebra_b_variant), "quantity": 1}]})
+        after = (await client.get("/api/v1/cart", headers=buyer_a)).json()
+        check("another shop's product cannot be put in this shop's cart",
+              r.status_code in (400, 404, 422) and len(after["items"]) == 2 and float(after["subtotal"]) == 98,
+              f"{r.status_code} {r.text[:200]}")
+        r = await client.post("/api/v1/cart/add-configured", headers=buyer_a,
+                              json={"product_id": str(zebra_b), "selections": {}, "quantity": 1})
+        check("…by either way of adding", r.status_code in (400, 404, 422), f"{r.status_code} {r.text[:200]}")
+
+        hoodie_line = next(i for i in after["items"] if i["variant_id"] == str(hoodie_variant))
+        r = await client.patch(f"/api/v1/cart/items/{hoodie_line['id']}", headers=buyer_a, json={"quantity": 5})
+        cart = r.json()
+        check("changing a quantity re-totals the cart on the server",
+              r.status_code == 200 and float(cart["subtotal"]) == 5 * 38 + 22 and cart["total_units"] == 6, r.text[:300])
+        other = (await client.get("/api/v1/cart", headers=buyer_b)).json()
+        check("another shop's customer has a cart of their own, and this one's lines are not in it",
+              other["items"] == [] and float(other["subtotal"]) == 0, str(other)[:200])
+        r = await client.patch(f"/api/v1/cart/items/{hoodie_line['id']}", headers=buyer_b, json={"quantity": 99})
+        r2 = await client.delete(f"/api/v1/cart/items/{hoodie_line['id']}", headers=buyer_b)
+        still = (await client.get("/api/v1/cart", headers=buyer_a)).json()
+        # Removing is "make sure this is not in my cart": for a line that was never
+        # theirs it removes nothing and answers with their own cart, still empty.
+        check("…and can neither change nor remove a line in this one",
+              r.status_code in (403, 404)
+              and (r2.status_code in (403, 404) or r2.json().get("items") == [])
+              and [(i["id"], i["quantity"]) for i in still["items"] if i["id"] == hoodie_line["id"]] == [(hoodie_line["id"], 5)]
+              and len(still["items"]) == 2 and float(still["subtotal"]) == 5 * 38 + 22,
+              f"{r.status_code} {r2.status_code} {r2.text[:120]} {str(still)[:160]}")
+        cap_line = next(i for i in still["items"] if i["variant_id"] == str(cap_variant))
+        r = await client.delete(f"/api/v1/cart/items/{cap_line['id']}", headers=buyer_a)
+        cart = r.json()
+        check("removing a line takes it out and re-totals",
+              r.status_code == 200 and [i["variant_id"] for i in cart["items"]] == [str(hoodie_variant)]
+              and float(cart["subtotal"]) == 190, r.text[:300])
+        again = (await client.get("/api/v1/cart", headers=buyer_a)).json()
+        check("the cart is the same when asked for again — it lives on the server, not in the page",
+              [(i["variant_id"], i["quantity"]) for i in again["items"]] == [(str(hoodie_variant), 5)], str(again)[:200])
+        r = await client.get("/api/v1/cart")
+        check("a cart is never served without a signed-in customer", r.status_code in (401, 403), r.status_code)
+
+        await sql("DELETE FROM cart_items WHERE company_id IN (:a, :b)", {"a": str(company_a), "b": str(company_b)})
+        await sql("DELETE FROM products WHERE CAST(id AS text) = ANY(:ids)", {"ids": made + [str(cap)]})
+
         await sql("DELETE FROM products WHERE id = :i", {"i": str(pid2)})
 
         # ── 6d. One request tells a page which shop it is drawing ────────────

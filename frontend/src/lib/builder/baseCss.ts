@@ -38,6 +38,10 @@ export const BASE_CSS = `
 .bsite :where(.b-spacer){width:100%}
 .bsite :where([data-lay]) > *,.bsite :where(.b-section[data-lay]) > .b-in > *{min-width:0}
 .bsite :where([data-lay]) :where(.b-text,.b-heading,.b-rich){overflow-wrap:anywhere}
+.bsite :where(.b-search-count){margin:0 0 16px;color:var(--b-muted,#6B6B6B);font-size:15px}
+.bsite :where(.b-search-note){display:flex;flex-direction:column;align-items:flex-start;gap:6px;margin:0;padding:22px 24px;border:1px dashed var(--b-border,#DADADA);border-radius:var(--b-radius,12px);color:var(--b-muted,#6B6B6B)}
+.bsite :where(.b-search-note b){color:var(--b-text,#14161B);font-size:17px}
+.bsite :where(.b-search-note a){color:var(--b-primary,#14161B);text-underline-offset:3px;font-weight:600}
 .bsite :where(.b-stars){position:relative;display:inline-block;line-height:1;letter-spacing:1px;color:var(--b-border,#DADADA);white-space:nowrap}
 .bsite :where(.b-stars > span){position:absolute;top:0;left:0;bottom:0;overflow:hidden;color:#F5A524}
 .bsite :where(.b-rating){display:inline-flex;align-items:center;gap:6px;color:inherit;text-decoration:none;flex-wrap:wrap}

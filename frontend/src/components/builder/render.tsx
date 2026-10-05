@@ -126,6 +126,36 @@ function ProductCards({ id, cards, ctx, empty }: { id: string; cards: ProductCar
   );
 }
 
+/**
+ * What a search found, for the shopper: how many, the products, or — in words —
+ * that nothing matched. A blank page after a search reads as a broken one.
+ */
+function SearchResults({ id, cards, ctx }: { id: string; cards: ProductCard[]; ctx: RenderCtx }) {
+  const found = ctx.data.search;
+  const query = (found?.query ?? ctx.query ?? "").trim();
+  if (!query) {
+    return <p data-b={id} className="b-search-note" data-search="idle">Type what you are looking for — a product&apos;s name, its code, or a word that describes it.</p>;
+  }
+  if (!cards.length) {
+    return (
+      <div data-b={id} className="b-search-note" data-search="none" role="status">
+        <b>No products match “{query}”.</b>
+        <span>Check the spelling, or try fewer or different words.</span>
+        <a href="/products">See all products</a>
+      </div>
+    );
+  }
+  const total = Math.max(found?.total ?? cards.length, cards.length);
+  return (
+    <div data-b={id} data-search="found">
+      <p className="b-search-count" role="status">
+        {total === 1 ? "1 product" : `${total} products`} for “{query}”{total > cards.length ? ` — showing the first ${cards.length}` : ""}
+      </p>
+      <ProductCards id="" cards={cards} ctx={ctx} empty="" />
+    </div>
+  );
+}
+
 function CollectionCards({ id, cards, ctx }: { id: string; cards: CollectionCard[] | undefined; ctx: RenderCtx }) {
   if (!cards) return ctx.edit ? <div data-b={id} className="b-empty">Loading collections…</div> : null;
   if (!cards.length) return ctx.edit ? <div data-b={id} className="b-empty">No collections to show yet.</div> : null;
@@ -390,7 +420,10 @@ export function Node({ node, ctx }: { node: BuilderNode; ctx: RenderCtx }): Reac
       }
       return (
         <form data-b={id} className="b-search-field" action="/search" method="get" role="search">
-          <input name="q" type="search" defaultValue={ctx.query} placeholder={str(p.placeholder) || "Search products"} aria-label="Search products" />
+          {/* On the search page with nothing typed yet — where the header's search
+              icon lands — the cursor is already in the box. */}
+          <input name="q" type="search" defaultValue={ctx.query} placeholder={str(p.placeholder) || "Search products"} aria-label="Search products"
+                 maxLength={80} autoFocus={!ctx.edit && ctx.route === "search" && !ctx.query} />
           <button type="submit" aria-label="Search"><Search size={18} aria-hidden /></button>
         </form>
       );
@@ -476,6 +509,7 @@ export function Node({ node, ctx }: { node: BuilderNode; ctx: RenderCtx }): Reac
 
     // ── Lists ──
     case "product_grid":
+      if (p.source === "search" && !ctx.edit) return <SearchResults id={id} cards={data.grids?.[id] ?? []} ctx={ctx} />;
       return <ProductCards id={id} cards={data.grids?.[id]} ctx={ctx}
                            empty={p.source === "search" ? "Search results show here." : "No products match yet."} />;
     case "collection_grid":

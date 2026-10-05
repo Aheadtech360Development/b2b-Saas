@@ -141,6 +141,8 @@ export interface SitePayload {
     grids: Record<string, ProductCard[]>;
     collectionGrids: Record<string, CollectionCard[]>;
     store: { name: string; logo: string };
+    /** What a search found: the words, how many products match in all, and how many are on the page. */
+    search?: { query: string; total: number; shown: number } | null;
     /** The product's reviews, on a page that shows its stars or its reviews. */
     reviews?: { total: number; avg: number; items: ReviewItem[] } | null;
   };
