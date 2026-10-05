@@ -22,6 +22,8 @@ export interface TemplateAssignment {
   live?: { id: string; name: string } | null;
   /** The draft's choice is not what shoppers see yet. */
   pending?: boolean;
+  /** The Website builder is what draws this shop's pages for shoppers: switched to it, and published. */
+  builderLive?: boolean;
   revision?: number;
 }
 

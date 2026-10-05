@@ -35,12 +35,20 @@ const DOT: CSSProperties = { width: "7px", height: "7px", borderRadius: "50%", b
 const NEW_TAB = { target: "_blank", rel: "opener" } as const;
 const LINK: CSSProperties = { color: "inherit", fontWeight: 700, textDecoration: "underline", textUnderlineOffset: "2px", whiteSpace: "nowrap" };
 
-export function WebsiteTemplateField({ kind, recordId, selectStyle, wrap }: {
+export function WebsiteTemplateField({ kind, recordId, selectStyle, wrap, onSettled }: {
   kind: Kind;
   recordId: string;
   selectStyle?: CSSProperties;
   /** The page's own card or label around the field; not drawn when there is nothing to choose. */
   wrap: (body: ReactNode) => ReactNode;
+  /**
+   * Told once it is known whether the Website builder is what shoppers see —
+   * true only for a shop switched to it with a site published. A page uses
+   * this to leave out fields only the imported theme reads. False when it
+   * cannot be known (no builder, no permission, no connection): the page then
+   * shows what it always has.
+   */
+  onSettled?: (builderLive: boolean) => void;
 }) {
   const [state, setState] = useState<TemplateAssignment | null>(null);
   const [busy, setBusy] = useState(false);
@@ -52,8 +60,12 @@ export function WebsiteTemplateField({ kind, recordId, selectStyle, wrap }: {
     setError("");
     if (!recordId) return;
     // No builder, or no permission to the shop's design: nothing to show.
-    builderService.assignment(kind, recordId).then((s) => { if (live) setState(s); }).catch(() => { if (live) setState(null); });
+    builderService.assignment(kind, recordId)
+      .then((s) => { if (live) { setState(s); onSettled?.(!!s.builderLive); } })
+      .catch(() => { if (live) { setState(null); onSettled?.(false); } });
     return () => { live = false; };
+    // onSettled is the page's own setter; asking again when it changes identity would only repeat the request.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [kind, recordId]);
 
   if (!state?.available) return null;

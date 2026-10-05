@@ -22,7 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.middleware.auth_middleware import require_admin
-from app.models.builder import BuilderFont, BuilderSite, BuilderVersion
+from app.models.builder import RENDER_BUILDER, BuilderFont, BuilderSite, BuilderVersion
 from app.services.builder import resolve, site as site_svc
 from app.services.builder.schema import blocking
 from app.services.builder.starter import starter_document
@@ -325,6 +325,11 @@ async def _assignment(db: AsyncSession, tid: uuid.UUID, site: BuilderSite, kind:
         # What the published site draws it with; None when nothing is published.
         "live": live,
         "pending": live is not None and live["id"] != effective,
+        # Whether the builder is what draws this shop's pages for shoppers: in
+        # builder mode *and* with something published — the two conditions the
+        # storefront itself checks. An admin page uses this to leave out what
+        # only the imported theme reads.
+        "builderLive": site.render_mode == RENDER_BUILDER and live is not None,
         "revision": site.draft_revision,
     }
 
@@ -342,7 +347,7 @@ async def get_assignment(request: Request, kind: str, id: str, _: None = Depends
         raise HTTPException(status_code=404, detail=f"That {kind} was not found.")
     site = await site_svc.get_site(db, tid)
     if site is None:
-        return {"available": False}
+        return {"available": False, "builderLive": False}
     return await _assignment(db, tid, site, kind, str(resolve._uuid(id)))
 
 

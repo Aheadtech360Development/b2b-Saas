@@ -126,6 +126,9 @@ export default function AdminProductEditPage() {
       .catch(() => setThemeLayouts([]));
   }, []);
   const [themeLayouts, setThemeLayouts] = useState<ThemePageSummary[]>([]);
+  // Whether the Website builder is what draws this shop's product pages. null
+  // until it is known, so a builder shop never sees the theme's card flash by.
+  const [builderLive, setBuilderLive] = useState<boolean | null>(null);
 
   // Variant expand state
   const [expandedGroups, setExpandedGroups] = useState<string[]>([]);
@@ -1083,6 +1086,7 @@ export default function AdminProductEditPage() {
               builder's draft, not with this form: it goes live on Publish. */}
           <WebsiteTemplateField
             kind="product" recordId={product.id} selectStyle={{ ...inputStyle, background: "#fff" }}
+            onSettled={setBuilderLive}
             wrap={(body) => (
               <div style={sectionCard} data-website-template="product">
                 <span style={sectionTitle}>Website template</span>
@@ -1091,8 +1095,13 @@ export default function AdminProductEditPage() {
             )}
           />
 
-          {/* Product page template */}
-          <div style={sectionCard}>
+          {/* Product page template — the older kind, read only by the imported
+              theme's product page. A shop on the Website builder draws its product
+              pages from "Website template" above, so this one is left out there:
+              two template choices, of which one does nothing, is one too many.
+              The product keeps its template_id either way; nothing is cleared. */}
+          {builderLive === false && (
+          <div style={sectionCard} data-theme-template>
             <span style={sectionTitle}>Theme template</span>
             <select
               value={product.template_id ?? ""}
@@ -1112,6 +1121,7 @@ export default function AdminProductEditPage() {
               <a href="/admin/storefront/product-templates" style={{ color: "#1A1A1A", fontWeight: 600 }}>Manage templates →</a>
             </p>
           </div>
+          )}
 
           {/* Product Organization */}
           <div style={sectionCard}>

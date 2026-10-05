@@ -572,6 +572,15 @@ async def main():
               and (st["live"] or {}).get("id") == "default" and st["pending"] is False, r.text[:300])
         rev0 = st["revision"]
 
+        # Which kind of shop this is — what the product page uses to decide whether
+        # the imported theme's own "Theme template" card still has a job to do.
+        check("a shop switched to the builder, with a site published, is told the builder is live",
+              st.get("builderLive") is True and st["mode"] == "visual_builder", str({k: st.get(k) for k in ("builderLive", "mode")}))
+        other = (await choice(b, "product", b["product"])).json()
+        check("a shop that opened the builder but still shows its theme is told it is not",
+              other.get("available") is True and other.get("builderLive") is False and other["mode"] == "legacy"
+              and other["live"] is None, str({k: other.get(k) for k in ("available", "builderLive", "mode", "live")}))
+
         r = await choose(a, "product", pid2, "minimal")
         st = r.json()
         check("choosing one saves it to the draft", r.status_code == 200 and st["assigned"] == "minimal"
@@ -650,8 +659,9 @@ async def main():
         r = await choice(c, "product", c["product"])
         r2 = await choose(c, "product", c["product"], "default")
         made = await sql("SELECT count(*) FROM builder_sites WHERE tenant_id = :t", {"t": str(c["tid"])}, fetch=True)
-        check("a shop that never opened the builder is told there is nothing to choose",
-              r.status_code == 200 and r.json() == {"available": False} and r2.status_code == 404, f"{r.text[:100]} {r2.status_code}")
+        check("a shop that never opened the builder is told there is nothing to choose, and that the builder is not live",
+              r.status_code == 200 and r.json() == {"available": False, "builderLive": False} and r2.status_code == 404,
+              f"{r.text[:100]} {r2.status_code}")
         check("…and asking does not make it a site", made[0][0] == 0, made)
 
         await sql("DELETE FROM collections WHERE id = :i", {"i": str(cid3)})
@@ -682,6 +692,11 @@ async def main():
         r = await client.put("/api/v1/admin/storefront/builder/mode", headers=adm(a), json={"mode": "legacy"})
         check("the owner can switch back to the imported theme", r.status_code == 200)
         check("the storefront says legacy again", await site(a) == {"mode": "legacy"})
+        back = (await client.get("/api/v1/admin/storefront/builder/assignment", headers=adm(a),
+                                 params={"kind": "product", "id": str(a["product"])})).json()
+        check("and its product page is told the builder is no longer what shoppers see — its theme fields matter again",
+              back.get("available") is True and back.get("builderLive") is False and back["mode"] == "legacy"
+              and back["live"] is not None, str({k: back.get(k) for k in ("available", "builderLive", "mode")}))
         check("the imported theme renders byte for byte as it did before any of this",
               (await theme_home(a))[1] == home0)
         check("its row was never touched", await theme_row(a) == row0)

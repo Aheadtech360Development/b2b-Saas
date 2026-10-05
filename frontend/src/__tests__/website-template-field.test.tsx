@@ -124,6 +124,37 @@ describe("the Website template field", () => {
     expect(card.textContent).toMatch(/You have one product template so far/);
   });
 
+  describe("telling its page whether the Website builder is what shoppers see", () => {
+    const settled = vi.fn();
+    const mount = () => render(<WebsiteTemplateField kind="product" recordId="p-1" onSettled={settled} wrap={(body) => <div>{body}</div>} />);
+    beforeEach(() => settled.mockReset());
+
+    it("says yes for a shop switched to the builder with a site published", async () => {
+      assignment.mockResolvedValue(state({ builderLive: true }));
+      mount();
+      await waitFor(() => expect(settled).toHaveBeenCalledWith(true));
+      expect(settled).toHaveBeenCalledTimes(1);
+    });
+
+    it("says no for a shop that has a builder draft but still shows its imported theme", async () => {
+      assignment.mockResolvedValue(state({ mode: "legacy", builderLive: false }));
+      mount();
+      await waitFor(() => expect(settled).toHaveBeenCalledWith(false));
+    });
+
+    it("says no for a shop that never opened the builder", async () => {
+      assignment.mockResolvedValue({ available: false, builderLive: false });
+      mount();
+      await waitFor(() => expect(settled).toHaveBeenCalledWith(false));
+    });
+
+    it("says no when it cannot find out, so the page shows what it always has", async () => {
+      assignment.mockRejectedValue(new Error("403"));
+      mount();
+      await waitFor(() => expect(settled).toHaveBeenCalledWith(false));
+    });
+  });
+
   it("shows what is really saved when a choice is refused", async () => {
     assignment.mockResolvedValueOnce(state()).mockResolvedValueOnce(state());
     assign.mockRejectedValue(new Error("gone"));
