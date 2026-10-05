@@ -18,6 +18,7 @@ export const dynamic = "force-dynamic";
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { apiClient } from "@/lib/api-client";
+import { WebsiteTemplateField } from "@/components/admin/WebsiteTemplateField";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -627,6 +628,20 @@ export default function CollectionsPage() {
                 </select>
               </div>
             </div>
+
+            {/* Which Website builder template draws this collection's page. Saved to the
+                builder's draft, not with this form: it goes live on Publish. */}
+            {editingId && (
+              <WebsiteTemplateField
+                kind="collection" recordId={editingId} selectStyle={{ ...inputStyle, padding: "10px 12px" }}
+                wrap={(body) => (
+                  <div style={{ marginBottom: "18px" }} data-website-template="collection">
+                    <label style={labelStyle}>Website template</label>
+                    {body}
+                  </div>
+                )}
+              />
+            )}
 
             <label style={{ display: "flex", alignItems: "center", gap: "9px", marginBottom: "20px", cursor: "pointer" }}>
               <input

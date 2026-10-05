@@ -26,6 +26,7 @@ import { VariantBulkEditor } from "@/components/admin/VariantBulkEditor";
 import { ProductOptionsBuilder } from "@/components/admin/ProductOptionsBuilder";
 import { productTemplatesService, type ProductTemplateRow } from "@/services/productTemplates.service";
 import { themesService, type ThemePageSummary } from "@/services/themes.service";
+import { WebsiteTemplateField } from "@/components/admin/WebsiteTemplateField";
 import { displayUrl } from "@/lib/brand";
 
 const METAFIELD_KEY = /^[a-z][a-z0-9_]{0,39}$/;
@@ -1077,6 +1078,18 @@ export default function AdminProductEditPage() {
               </p>
             </div>
           )}
+
+          {/* Which Website builder template draws this product's page. Saved to the
+              builder's draft, not with this form: it goes live on Publish. */}
+          <WebsiteTemplateField
+            kind="product" recordId={product.id} selectStyle={{ ...inputStyle, background: "#fff" }}
+            wrap={(body) => (
+              <div style={sectionCard} data-website-template="product">
+                <span style={sectionTitle}>Website template</span>
+                {body}
+              </div>
+            )}
+          />
 
           {/* Product page template */}
           <div style={sectionCard}>

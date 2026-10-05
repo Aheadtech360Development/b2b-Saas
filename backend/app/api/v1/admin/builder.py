@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import re
 import uuid
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 from pydantic import BaseModel, Field
@@ -276,6 +276,101 @@ async def preview(request: Request, route: str = "home", slug: str = "", q: str 
     return await resolve.render_payload(db, tid, site.draft or {}, route=route, slug=slug,
                                         query=q, page=max(1, page), sort=sort, version=None,
                                         template_id=template)
+
+
+# ── A product's or collection's template, from its own admin page ─────────────
+
+async def _record_name(db: AsyncSession, tid: uuid.UUID, kind: str, record_id: str) -> str | None:
+    """The product or collection, if it is this brand's."""
+    rid = resolve._uuid(record_id)
+    if rid is None:
+        return None
+    table = "products" if kind == "product" else "collections"
+    row = (await db.execute(text(
+        f"SELECT name FROM {table} WHERE id = CAST(:i AS uuid) AND tenant_id = CAST(:t AS uuid)"
+    ), {"i": str(rid), "t": str(tid)})).first()
+    return row.name if row else None
+
+
+async def _assignment(db: AsyncSession, tid: uuid.UUID, site: BuilderSite, kind: str,
+                      record_id: str) -> dict[str, Any]:
+    """Which template the record uses in the draft, and which shoppers see today."""
+    draft = site.draft or {}
+    group = (draft.get("templates") or {}).get(kind) or {}
+    own, effective = resolve.assigned_template(draft, kind, record_id)
+    _none, default = resolve.assigned_template(draft, kind, "")
+    live: dict[str, str] | None = None
+    if site.published_version_id:
+        found = await site_svc.published_document(db, tid, site.published_version_id)
+        if found:
+            live_group = (found[0].get("templates") or {}).get(kind) or {}
+            _own, live_id = resolve.assigned_template(found[0], kind, record_id)
+            live = {"id": live_id, "name": str((live_group.get(live_id) or {}).get("name") or "")}
+    return {
+        "available": True,
+        "kind": kind,
+        "id": record_id,
+        # Whether shoppers see the builder site at all, or the imported theme.
+        "mode": site.render_mode,
+        # The default first, then by name: the draft is stored as JSONB, which
+        # keeps its keys in its own order, not the order they were made in.
+        "templates": sorted(
+            ({"id": k, "name": str((v or {}).get("name") or k)} for k, v in group.items()),
+            key=lambda t: (t["id"] != default, t["name"].lower()),
+        ),
+        "defaultId": default,
+        # The one chosen for this record in the draft; "" follows the default.
+        "assigned": own if own in group else "",
+        "effective": effective,
+        # What the published site draws it with; None when nothing is published.
+        "live": live,
+        "pending": live is not None and live["id"] != effective,
+        "revision": site.draft_revision,
+    }
+
+
+@router.get("/assignment")
+async def get_assignment(request: Request, kind: str, id: str, _: None = Depends(require_admin),
+                         db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
+    """For the product and collection admin pages: the templates there are to
+    choose from, and the one this record has. Opening this never makes a site —
+    a brand that has not opened the builder is simply told there is none."""
+    tid = _tenant(request)
+    if kind not in site_svc.ASSIGNABLE:
+        raise HTTPException(status_code=422, detail="Templates are chosen for products and collections.")
+    if await _record_name(db, tid, kind, id) is None:
+        raise HTTPException(status_code=404, detail=f"That {kind} was not found.")
+    site = await site_svc.get_site(db, tid)
+    if site is None:
+        return {"available": False}
+    return await _assignment(db, tid, site, kind, str(resolve._uuid(id)))
+
+
+class AssignIn(BaseModel):
+    kind: Literal["product", "collection"]
+    id: str = Field(max_length=64)
+    # "" follows the kind's default template.
+    template: str = Field("", max_length=64)
+
+
+@router.put("/assignment")
+async def set_assignment(data: AssignIn, request: Request, _: None = Depends(require_admin),
+                         db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
+    """Choose a product's or collection's template. Saved to the draft only:
+    shoppers see it after the next publish, like any other change to the site."""
+    tid = _tenant(request)
+    if await _record_name(db, tid, data.kind, data.id) is None:
+        raise HTTPException(status_code=404, detail=f"That {data.kind} was not found.")
+    site = await site_svc.get_site(db, tid)
+    if site is None:
+        raise HTTPException(status_code=404, detail="Open the Website builder first.")
+    record_id = str(resolve._uuid(data.id))
+    try:
+        site = await site_svc.assign_template(db, site, data.kind, record_id, data.template.strip())
+    except site_svc.AssignRefused as exc:
+        raise HTTPException(status_code=422, detail={"code": "TEMPLATE_GONE", "message": str(exc)})
+    await db.commit()
+    return await _assignment(db, tid, site, data.kind, record_id)
 
 
 class LookupIn(BaseModel):

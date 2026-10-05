@@ -117,6 +117,14 @@ class ModeRefused(Exception):
     pass
 
 
+class AssignRefused(ValueError):
+    """The template chosen is not one the draft has."""
+
+
+# The kinds of record that can be given a template of their own.
+ASSIGNABLE = ("product", "collection")
+
+
 def _uuid(value: Any) -> uuid.UUID | None:
     try:
         return value if isinstance(value, uuid.UUID) else uuid.UUID(str(value))
@@ -226,6 +234,45 @@ async def save_draft(db: AsyncSession, site: BuilderSite, draft: dict[str, Any],
     )).scalar_one()
     if expected_revision is not None and locked.draft_revision != expected_revision:
         raise DraftConflict(locked.draft_revision)
+    locked.draft = draft
+    locked.draft_revision = (locked.draft_revision or 0) + 1
+    await db.flush()
+    return locked
+
+
+async def assign_template(db: AsyncSession, site: BuilderSite, kind: str, record_id: str,
+                          template_id: str) -> BuilderSite:
+    """Choose the template one product or collection is drawn with — in the draft.
+
+    This is the same choice the editor's Templates panel makes, made from the
+    product's or collection's own admin page. It is part of the site's design,
+    so it waits in the draft like any other edit and reaches shoppers at the
+    next publish. An empty template id means "follow the default".
+
+    The draft's revision moves, so an editor open in another tab is told the
+    site changed rather than saving over this.
+    """
+    locked = (await db.execute(
+        select(BuilderSite).where(BuilderSite.id == site.id).with_for_update()
+        .execution_options(populate_existing=True)
+    )).scalar_one()
+    draft = dict(locked.draft or {})
+    group = (draft.get("templates") or {}).get(kind) or {}
+    if template_id and template_id not in group:
+        raise AssignRefused("That template is not in the website draft any more.")
+    assignments = dict(draft.get("assignments") or {})
+    rule = dict(assignments.get(kind) or {})
+    by_id = dict(rule.get("byId") or {})
+    before = dict(by_id)
+    if template_id:
+        by_id[record_id] = template_id
+    else:
+        by_id.pop(record_id, None)
+    if by_id == before:
+        return locked
+    rule["byId"] = by_id
+    assignments[kind] = rule
+    draft["assignments"] = assignments
     locked.draft = draft
     locked.draft_revision = (locked.draft_revision or 0) + 1
     await db.flush()

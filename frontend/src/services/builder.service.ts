@@ -8,6 +8,23 @@ import type { SiteDoc, SitePayload } from "@/lib/builder/types";
 
 const BASE = "/api/v1/admin/storefront/builder";
 
+/** Which template a product or collection uses: in the draft, and on the live site. */
+export interface TemplateAssignment {
+  /** False when the brand has not opened the Website builder: there is nothing to choose. */
+  available: boolean;
+  mode?: "legacy" | "visual_builder";
+  templates?: { id: string; name: string }[];
+  defaultId?: string;
+  /** Chosen for this record in the draft; "" follows the default. */
+  assigned?: string;
+  effective?: string;
+  /** What the published site draws it with; null when nothing is published. */
+  live?: { id: string; name: string } | null;
+  /** The draft's choice is not what shoppers see yet. */
+  pending?: boolean;
+  revision?: number;
+}
+
 export interface BuilderVersionRow { id: string; number: number; note: string | null; published_at: string | null; live: boolean; pinned: boolean }
 
 export interface BuilderState {
@@ -67,6 +84,12 @@ export const builderService = {
       image: p.images?.[0]?.url_thumbnail || p.images?.[0]?.url_medium || "",
     }));
   },
+  /** A product's or collection's template, for its own admin page. Never makes a site. */
+  assignment: (kind: "product" | "collection", id: string) =>
+    apiClient.get<TemplateAssignment>(`${BASE}/assignment?kind=${kind}&id=${encodeURIComponent(id)}`),
+  /** Choose it. Saved to the draft; shoppers see it after the next publish. "" follows the default. */
+  assign: (kind: "product" | "collection", id: string, template: string) =>
+    apiClient.put<TemplateAssignment>(`${BASE}/assignment`, { kind, id, template }),
   /** Names for products the site refers to by id, however many products the shop has. */
   lookupProducts: async (ids: string[]): Promise<PickProduct[]> => {
     const rows = await apiClient.post<{ id: string; name: string; slug: string; status: string }[]>(

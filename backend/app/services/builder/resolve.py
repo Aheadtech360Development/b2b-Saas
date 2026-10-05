@@ -54,6 +54,20 @@ def _template(doc: dict[str, Any], ttype: str, tid: str | None) -> tuple[str, di
     return "", None
 
 
+def assigned_template(doc: dict[str, Any] | None, kind: str, record_id: str) -> tuple[str, str]:
+    """Which template a product or collection is drawn with in one document.
+
+    Returns (the one chosen for it, the one it is actually drawn with). The
+    second follows the rule render_payload applies: its own if it has one, else
+    the kind's default — so asking with no record id gives the default.
+    """
+    doc = doc or {}
+    rule = (doc.get("assignments") or {}).get(kind) or {}
+    own = str((rule.get("byId") or {}).get(record_id) or "")
+    effective, _tree = _template(doc, kind, own or rule.get("default"))
+    return own, effective
+
+
 def _nodes(*trees: Any) -> list[dict[str, Any]]:
     out: list[dict[str, Any]] = []
     for tree in trees:

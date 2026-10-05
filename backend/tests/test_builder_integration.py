@@ -550,6 +550,114 @@ async def main():
                          json={"draft": assigned, "revision": None})
         await client.post("/api/v1/admin/storefront/builder/publish", headers=adm(a), json={})
 
+        # ── 6c-3. The same choice, made from the product's own admin page ────
+        print("")
+        print("the Website template choice on a product's and a collection's admin page")
+        BUILDER = "/api/v1/admin/storefront/builder"
+
+        async def choice(brand, kind, rid, headers=None):
+            return await client.get(f"{BUILDER}/assignment", headers=headers or adm(brand),
+                                    params={"kind": kind, "id": str(rid)})
+
+        async def choose(brand, kind, rid, template, headers=None):
+            return await client.put(f"{BUILDER}/assignment", headers=headers or adm(brand),
+                                    json={"kind": kind, "id": str(rid), "template": template})
+
+        r = await choice(a, "product", pid2)
+        st = r.json()
+        check("the product page is told the templates there are, and the one this product has",
+              r.status_code == 200 and st.get("available") is True
+              and {t["id"] for t in st["templates"]} >= {"default", "minimal"}
+              and st["assigned"] == "" and st["effective"] == "default" and st["defaultId"] == "default"
+              and (st["live"] or {}).get("id") == "default" and st["pending"] is False, r.text[:300])
+        rev0 = st["revision"]
+
+        r = await choose(a, "product", pid2, "minimal")
+        st = r.json()
+        check("choosing one saves it to the draft", r.status_code == 200 and st["assigned"] == "minimal"
+              and st["effective"] == "minimal", r.text[:300])
+        check("…and says it is not live yet, and what shoppers see meanwhile",
+              st["pending"] is True and st["live"]["id"] == "default" and st["live"]["name"] == "Default product", str(st["live"]))
+        check("…as one more revision of the draft", st["revision"] == rev0 + 1, f"{rev0} -> {st['revision']}")
+        by_id = (await client.get(BUILDER, headers=adm(a))).json()["draft"]["assignments"]["product"]["byId"]
+        check("it is the assignment the builder's Templates panel makes, beside the ones already there",
+              by_id == {str(a["product"]): "minimal", str(pid2): "minimal"}, str(by_id))
+        live = await site(a, route="product", slug=f"second-{RUN}")
+        check("shoppers still see what was published", live.get("templateId") == "default", live.get("templateId"))
+
+        r = await client.put(f"{BUILDER}/draft", headers=adm(a), json={"draft": assigned, "revision": rev0})
+        check("an editor left open in another tab is told the site changed, and cannot save over the choice",
+              r.status_code == 409, r.status_code)
+        r = await choose(a, "product", pid2, "minimal")
+        check("choosing the same template again changes nothing", r.json()["revision"] == rev0 + 1, r.json()["revision"])
+
+        r = await client.post(f"{BUILDER}/publish", headers=adm(a), json={})
+        live = await site(a, route="product", slug=f"second-{RUN}")
+        st = (await choice(a, "product", pid2)).json()
+        check("after Publish shoppers see it, and the product page says it is live",
+              r.status_code == 200 and live.get("templateId") == "minimal" and st["pending"] is False
+              and st["live"]["id"] == "minimal", f"{r.status_code} {live.get('templateId')} {st}")
+
+        st = (await choose(a, "product", pid2, "")).json()
+        check("choosing Default takes the product's own template off — in the draft",
+              st["assigned"] == "" and st["effective"] == "default" and st["pending"] is True
+              and st["live"]["id"] == "minimal", str(st)[:300])
+        live = await site(a, route="product", slug=f"second-{RUN}")
+        check("…and again not for shoppers until the next publish", live.get("templateId") == "minimal")
+
+        r = await choose(a, "product", pid2, "no_such_template")
+        check("a template the draft does not have is refused, and nothing changes",
+              r.status_code == 422 and (await choice(a, "product", pid2)).json()["assigned"] == "", r.text[:200])
+        r = await choose(a, "product", b["product"], "minimal")
+        r2 = await choice(a, "product", b["product"])
+        by_id = (await client.get(BUILDER, headers=adm(a))).json()["draft"]["assignments"]["product"]["byId"]
+        check("another brand's product can be neither given a template nor asked about",
+              r.status_code == 404 and r2.status_code == 404 and str(b["product"]) not in by_id, f"{r.status_code} {r2.status_code}")
+        r = await choice(a, "product", pid2, headers=pub(a))
+        r2 = await choose(a, "product", pid2, "minimal", headers=pub(a))
+        check("neither is open to anyone but a signed-in admin",
+              r.status_code in (401, 403) and r2.status_code in (401, 403), f"{r.status_code} {r2.status_code}")
+        r = await choice(a, "page", pid2)
+        r2 = await choose(a, "page", pid2, "default")
+        check("templates are chosen for products and collections, nothing else",
+              r.status_code == 422 and r2.status_code == 422, f"{r.status_code} {r2.status_code}")
+
+        # A collection, the same way.
+        cid3 = uuid.uuid4()
+        await sql("INSERT INTO collections (id, tenant_id, name, slug, match_type, rules_match, rules, sort_by, "
+                  "is_active, position) VALUES (:i, :t, 'Transfers', :s, 'manual', 'all', '[]'::jsonb, 'manual', true, 0)",
+                  {"i": str(cid3), "t": str(a["tid"]), "s": f"transfers-{RUN}"})
+        with_alt = (await client.get(BUILDER, headers=adm(a))).json()["draft"]
+        with_alt["templates"]["collection"]["alt"] = {
+            "name": "Transfers layout", "tree": fresh(with_alt["templates"]["collection"]["default"]["tree"])}
+        await client.put(f"{BUILDER}/draft", headers=adm(a), json={"draft": with_alt, "revision": None})
+        st = (await choice(a, "collection", cid3)).json()
+        check("the collection page lists the collection templates",
+              [t["name"] for t in st["templates"]] == ["Default collection", "Transfers layout"] and st["assigned"] == "",
+              str(st.get("templates")))
+        st = (await choose(a, "collection", cid3, "alt")).json()
+        check("a collection's template is chosen the same way, into the draft",
+              st["assigned"] == "alt" and st["pending"] is True and st["live"]["id"] == "default", str(st)[:300])
+        check("…and shoppers do not see it yet",
+              (await site(a, route="collection", slug=f"transfers-{RUN}")).get("templateId") == "default")
+        await client.post(f"{BUILDER}/publish", headers=adm(a), json={})
+        check("…until the website is published",
+              (await site(a, route="collection", slug=f"transfers-{RUN}")).get("templateId") == "alt"
+              and (await choice(a, "collection", cid3)).json()["pending"] is False)
+
+        # A brand that has never opened the builder has nothing to choose, and is not given a site by asking.
+        c = await make_brand("c")
+        r = await choice(c, "product", c["product"])
+        r2 = await choose(c, "product", c["product"], "default")
+        made = await sql("SELECT count(*) FROM builder_sites WHERE tenant_id = :t", {"t": str(c["tid"])}, fetch=True)
+        check("a shop that never opened the builder is told there is nothing to choose",
+              r.status_code == 200 and r.json() == {"available": False} and r2.status_code == 404, f"{r.text[:100]} {r2.status_code}")
+        check("…and asking does not make it a site", made[0][0] == 0, made)
+
+        await sql("DELETE FROM collections WHERE id = :i", {"i": str(cid3)})
+        await client.put(f"{BUILDER}/draft", headers=adm(a), json={"draft": assigned, "revision": None})
+        await client.post(f"{BUILDER}/publish", headers=adm(a), json={})
+
         await sql("DELETE FROM products WHERE id = :i", {"i": str(pid2)})
 
         # ── 6d. One request tells a page which shop it is drawing ────────────
