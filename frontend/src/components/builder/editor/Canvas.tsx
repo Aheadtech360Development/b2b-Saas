@@ -14,15 +14,16 @@
  * the page select; nothing navigates, submits or adds to a cart.
  */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { ArrowUp, Copy, GripVertical, Trash2 } from "lucide-react";
-import type { Breakpoint, BuilderNode, SiteDoc, SitePayload } from "@/lib/builder/types";
-import { isContainer, parentOf, walk } from "@/lib/builder/tree";
+import { ArrowUp, Copy, GripVertical, Plus, Trash2 } from "lucide-react";
+import type { Breakpoint, BuilderNode, SiteDoc, SitePayload, TemplateType } from "@/lib/builder/types";
+import { canContain, isContainer, parentOf, walk } from "@/lib/builder/tree";
 import type { Position } from "@/lib/builder/tree";
 import { labelOf } from "@/lib/builder/registry";
 import { treeCss } from "@/lib/builder/style";
 import { treeAt, type Target } from "@/lib/builder/doc";
 import { SiteHead } from "@/components/builder/SiteParts";
 import { Tree, type RenderCtx } from "@/components/builder/render";
+import { InsertMenu } from "./InsertMenu";
 
 export type DragPayload =
   | { add: string } | { preset: string } | { layout: string } | { saved: string } | { shared: string } | { move: string };
@@ -31,6 +32,9 @@ export const DEVICE_WIDTH: Record<Breakpoint, number> = { desktop: 1280, tablet:
 
 interface Box { top: number; left: number; width: number; height: number }
 interface Cell { col: number; row: number; box: Box }
+/** A + on the canvas: add something at this spot, relative to an element. */
+interface PlusAt { key: string; targetId: string; position: Position; left: number; top: number; label: string }
+const PLUS = 22;
 
 const INLINE_TEXT = new Set(["heading", "text", "button", "link", "announcement_bar"]);
 
@@ -91,6 +95,10 @@ export function Canvas(props: CanvasProps) {
   // selected grid, else the grid the selected item sits in.
   const [dragGrid, setDragGrid] = useState<string | null>(null);
   const [cells, setCells] = useState<{ id: string; cells: Cell[] } | null>(null);
+  // The + buttons around what is selected and what the pointer is over, and
+  // the one whose menu is open.
+  const [plus, setPlus] = useState<PlusAt[]>([]);
+  const [insert, setInsert] = useState<(PlusAt & { x: number; y: number }) | null>(null);
   const editing = useRef(false);
 
   const width = DEVICE_WIDTH[device];
@@ -206,6 +214,46 @@ export function Canvas(props: CanvasProps) {
     return tree ? parentOf(tree, id)?.parent ?? null : null;
   }, [parts.announcement, parts.header, body.tree, body.page?.tree, parts.footer]);
 
+  /**
+   * The + buttons for one element. Between things, the + sits on the edge they
+   * share: above and below in a column of elements, left and right where they
+   * run across. Inside an empty box it sits in the middle. A column of a row
+   * takes things into itself — a row holds only columns — and so does the
+   * page, whose + adds to its end.
+   */
+  const plusFor = useCallback((id: string | null): PlusAt[] => {
+    const node = id ? nodes.get(id) : null;
+    const el = elFor(id);
+    const box = boxOf(el);
+    const wrap = wrapRef.current;
+    if (!id || !node || !el || !box || !wrap) return [];
+    const maxLeft = wrap.clientWidth - PLUS - 2;
+    const maxTop = wrap.clientHeight - PLUS - 2;
+    const at = (position: Position, left: number, top: number, label: string): PlusAt => ({
+      key: `${id}:${position}`, targetId: id, position, label,
+      left: Math.round(Math.max(2, Math.min(left, maxLeft))), top: Math.round(Math.max(2, Math.min(top, maxTop))),
+    });
+    const cx = box.left + box.width / 2 - PLUS / 2;
+    const cy = box.top + box.height / 2 - PLUS / 2;
+    const empty = isContainer(node.type) && node.type !== "row" && !(node.children ?? []).length;
+    if (roots.has(id)) return [at("inside", cx, empty ? cy : box.top + box.height - PLUS - 6, "Add at the end")];
+    if (node.type === "column") return [at("inside", cx, empty ? cy : box.top + box.height - PLUS / 2, "Add to this column")];
+    const ps = el.parentElement ? getComputedStyle(el.parentElement) : null;
+    const across = !!ps && ((ps.display.includes("flex") && ps.flexDirection.startsWith("row"))
+      || (ps.display.includes("grid") && ps.gridTemplateColumns.trim().split(/\s+/).length > 1));
+    const out: PlusAt[] = [];
+    if (across) {
+      out.push(at("before", box.left - PLUS / 2, cy, "Add before"));
+      out.push(at("after", box.left + box.width - PLUS / 2, cy, "Add after"));
+    } else {
+      // Clear of the name tag, which sits at the top left of a narrow element.
+      out.push(at("before", box.width < 420 ? box.left + box.width - PLUS - 4 : cx, box.top - PLUS / 2, "Add above"));
+      out.push(at("after", cx, box.top + box.height - PLUS / 2, "Add below"));
+    }
+    if (empty) out.push(at("inside", cx, cy, "Add inside"));
+    return out;
+  }, [nodes, elFor, boxOf, roots]);
+
   const measure = useCallback(() => {
     const next = { sel: boxOf(elFor(selected)), hover: hover && hover !== selected ? boxOf(elFor(hover)) : null };
     // Only when something moved: this runs after every render, and a new
@@ -222,7 +270,11 @@ export function Canvas(props: CanvasProps) {
     const g = gid ? gridEl(gid) : null;
     const nextCells = g && gid ? { id: gid, cells: cellsOf(g) } : null;
     setCells((prev) => (JSON.stringify(prev) === JSON.stringify(nextCells) ? prev : nextCells));
-  }, [boxOf, elFor, selected, hover, dragGrid, gridEl, parentNode, cellsOf]);
+    const seen = new Set<string>();
+    const nextPlus = editing.current ? [] : [...plusFor(selected), ...(hover && hover !== selected ? plusFor(hover) : [])]
+      .filter((b) => (seen.has(b.key) ? false : (seen.add(b.key), true)));
+    setPlus((prev) => (JSON.stringify(prev) === JSON.stringify(nextPlus) ? prev : nextPlus));
+  }, [boxOf, elFor, selected, hover, dragGrid, gridEl, parentNode, cellsOf, plusFor]);
 
   useLayoutEffect(() => { measure(); });
   useEffect(() => {
@@ -420,12 +472,31 @@ export function Canvas(props: CanvasProps) {
   };
   const endSpan = () => { spanning.current = null; };
 
+  const hereFor = (id: string): TemplateType | null => {
+    // The header, footer and announcement bar are on every kind of page.
+    for (const t of [parts.announcement, parts.header, parts.footer]) if (t && findIn(t, id)) return null;
+    if (target.kind === "template") return target.type;
+    if (target.kind === "page") return "page";
+    return target.kind === "part" ? "home" : null;
+  };
+  const sectionFits = (b: PlusAt): boolean => {
+    const node = nodes.get(b.targetId);
+    const holder = b.position === "inside" ? node : parentNode(b.targetId) ?? node;
+    return !!holder && canContain(holder.type, "section");
+  };
+  const openInsert = (b: PlusAt, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    setInsert({ ...b, x: r.left + r.width / 2, y: r.top + r.height / 2 });
+  };
+
   const selNode = selected ? nodes.get(selected) : null;
   const hoverNode = hover ? nodes.get(hover) : null;
   const chipBelow = !!boxes.sel && boxes.sel.top < 30;
 
   return (
     <div ref={viewRef} className="sbe-canvas"
+         onScroll={() => { if (insert) setInsert(null); }}
          onDragOver={onDragOver} onDrop={onDropEvent}
          onDragLeave={(e) => { if (!viewRef.current?.contains(e.relatedTarget as Node)) setDrop(null); }}
          onClick={(e) => { if (e.target === e.currentTarget) onSelect(null); }}>
@@ -436,7 +507,11 @@ export function Canvas(props: CanvasProps) {
              onClickCapture={onClickCapture} onDoubleClickCapture={onDoubleClickCapture}
              onSubmitCapture={(e) => e.preventDefault()}
              onPointerMove={(e) => { if (editing.current) return; const id = resolve(e.target); if (id !== hover) setHover(id); }}
-             onPointerLeave={() => setHover(null)}>
+             onPointerLeave={(e) => {
+               const to = e.relatedTarget;
+               if (to instanceof Element && to.closest(".sbe-plus")) return;
+               setHover(null);
+             }}>
           <SiteHead settings={doc.settings ?? {}} fonts={fonts} />
           <style dangerouslySetInnerHTML={{ __html: css.replace(/<\/?style/gi, "") }} />
           <div key={epoch} style={{ minHeight: 480 }}>
@@ -488,10 +563,27 @@ export function Canvas(props: CanvasProps) {
               </div>
             </div>
           )}
+          {!drop && (insert ? [insert, ...plus.filter((b) => b.key !== insert.key)] : plus).map((b) => (
+            <button key={b.key} type="button" className={`sbe-plus${insert?.key === b.key ? " on" : ""}`} style={{ left: b.left, top: b.top }}
+                    title={b.label} aria-label={b.label} data-plus={b.position}
+                    onClick={(e) => openInsert(b, e)}
+                    onPointerLeave={(e) => {
+                      const to = e.relatedTarget;
+                      if (to instanceof Node && (frameRef.current?.contains(to) || (to instanceof Element && to.closest(".sbe-plus")))) return;
+                      setHover(null);
+                    }}>
+              <Plus size={14} strokeWidth={3} />
+            </button>
+          ))}
           {drop?.box && <div className="sbe-drop-box" style={drop.box}><span className="sbe-hchip" style={{ background: "#4F46E5" }}>{drop.label}</span></div>}
           {drop?.line && <div className="sbe-drop-line" style={drop.line}><span className="sbe-hchip" style={{ background: "#4F46E5", bottom: 6 }}>{drop.label}</span></div>}
         </div>
       </div>
+      {insert && (
+        <InsertMenu at={{ x: insert.x, y: insert.y }} here={hereFor(insert.targetId)} doc={doc} sections={sectionFits(insert)}
+                    onClose={() => setInsert(null)}
+                    onPick={(payload) => { const b = insert; setInsert(null); onDrop(payload, b.targetId, b.position); }} />
+      )}
     </div>
   );
 }

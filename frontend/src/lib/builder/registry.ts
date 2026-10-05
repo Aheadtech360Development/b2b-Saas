@@ -402,6 +402,27 @@ export const REGISTRY: ComponentDef[] = [
     styles: ["spacing", "typography"],
     create: () => node("product_buy", { showQuantity: true, showBuyNow: true, label: "Add to cart" }),
   },
+  {
+    type: "product_rating", label: "Star rating", category: "commerce", icon: "Star", context: ["product"],
+    blurb: "The product's average stars and how many reviews it has.",
+    fields: [
+      { key: "showCount", label: "Show the number of reviews", kind: "toggle" },
+      { key: "hideEmpty", label: "Hide until the product has a review", kind: "toggle" },
+    ],
+    styles: ["typography", "spacing"],
+    create: () => node("product_rating", { showCount: true, hideEmpty: true }, { fontSize: "14px" }),
+  },
+  {
+    type: "product_reviews", label: "Reviews", category: "commerce", icon: "MessageSquareText", context: ["product"],
+    blurb: "What customers wrote about this product, and a form to write one.",
+    fields: [
+      { key: "heading", label: "Heading", kind: "text" },
+      { key: "limit", label: "Reviews shown", kind: "number", min: 1, max: 20 },
+      { key: "allowWrite", label: "Let signed-in customers write a review", kind: "toggle" },
+    ],
+    styles: ["typography", "spacing", "background", "border"],
+    create: () => node("product_reviews", { heading: "Customer reviews", limit: 6, allowWrite: true }),
+  },
 
   // ── Commerce: lists ───────────────────────────────────────────────────────
   {
@@ -518,10 +539,47 @@ export const CATEGORIES: { key: Category; label: string }[] = [
   { key: "advanced", label: "Advanced" },
 ];
 
-/** Ready-made sections for the Add panel: a whole band in one drop. */
-export const PRESETS: { key: string; label: string; blurb: string; create: () => BuilderNode }[] = [
+/**
+ * Ready-made pieces for the Add panel and the canvas's + menu.
+ *
+ * A "section" is a whole band of the page. A "block" is smaller — a boxed
+ * note, a checklist, steps — and goes anywhere, including beside a product's
+ * title or under its Add to cart. Both are made of ordinary elements, so once
+ * placed every word, colour and icon is edited like anything else.
+ */
+export interface Preset {
+  key: string;
+  label: string;
+  blurb: string;
+  kind: "section" | "block";
+  /** Templates it is made for; absent means anywhere. */
+  context?: TemplateType[];
+  create: () => BuilderNode;
+}
+
+const BOX = {
+  paddingTop: "18px", paddingRight: "20px", paddingBottom: "18px", paddingLeft: "20px",
+  backgroundColor: "var(--b-surface,#F7F7F5)", borderWidth: "1px", borderStyle: "solid",
+  borderColor: "var(--b-border,#E6E6E6)", borderRadius: "12px",
+};
+
+/** Room above a block, so one dropped under a title or a price does not touch it. */
+const AIR = "14px";
+
+function named(name: string, n: BuilderNode): BuilderNode {
+  return { ...n, name };
+}
+
+function line(icon: string, text: string): BuilderNode {
+  return node("stack", { direction: "row" }, { gap: "10px", alignItems: "flex-start" }, [
+    node("icon", { name: icon, size: 18 }, { color: "var(--b-primary,#14161B)", marginTop: "2px" }),
+    node("text", { text }, { fontSize: "15px" }),
+  ]);
+}
+
+export const PRESETS: Preset[] = [
   {
-    key: "hero", label: "Hero", blurb: "A big headline, a line and two buttons, beside a picture.",
+    key: "hero", label: "Hero", kind: "section", blurb: "A big headline, a line and two buttons, beside a picture.",
     create: () => node("section", { width: "contained", name: "Hero" }, { paddingTop: "88px", paddingBottom: "88px" }, [
       { ...node("row", {}, { columns: 2, gap: "48px", alignItems: "center" }, [
         node("column", {}, {}, [
@@ -537,7 +595,7 @@ export const PRESETS: { key: string; label: string; blurb: string; create: () =>
     ]),
   },
   {
-    key: "features", label: "Three features", blurb: "Three reasons to buy, side by side.",
+    key: "features", label: "Three features", kind: "section", blurb: "Three reasons to buy, side by side.",
     create: () => node("section", { width: "contained" }, { paddingTop: "64px", paddingBottom: "64px" }, [
       { ...node("row", {}, { columns: 3, gap: "32px" }, ["Fast", "Careful", "Fair"].map((t, i) =>
         node("column", {}, {}, [
@@ -548,21 +606,122 @@ export const PRESETS: { key: string; label: string; blurb: string; create: () =>
     ]),
   },
   {
-    key: "products", label: "Product row", blurb: "A heading and a row of products.",
+    key: "products", label: "Product row", kind: "section", blurb: "A heading and a row of products.",
     create: () => node("section", { width: "contained" }, { paddingTop: "64px", paddingBottom: "64px" }, [
       node("heading", { text: "Best sellers", level: 2 }, { textAlign: "center" }),
       { ...node("product_grid", { source: "newest", limit: 4, columns: 4 }, { marginTop: "28px" }), mobile: { columns: 2 } },
     ]),
   },
   {
-    key: "faq", label: "FAQ", blurb: "A heading and common questions.",
+    key: "faq", label: "FAQ", kind: "section", blurb: "A heading and common questions.",
     create: () => node("section", { width: "contained" }, { paddingTop: "64px", paddingBottom: "64px", maxWidth: "820px" }, [
       node("heading", { text: "Questions, answered", level: 2 }),
       { ...BY_TYPE.faq!.create(), style: { marginTop: "24px" } },
     ]),
   },
   {
-    key: "cta", label: "Call to action", blurb: "A coloured band with one button.",
+    key: "cta", label: "Call to action", kind: "section", blurb: "A coloured band with one button.",
     create: () => node("section", { width: "contained" }, { paddingTop: "48px", paddingBottom: "48px" }, [BY_TYPE.banner!.create()]),
   },
+  {
+    key: "product_main", label: "Product details", kind: "section", context: ["product"],
+    blurb: "Pictures beside the title, stars, price, options, Add to cart and description.",
+    create: () => named("Product", node("section", { width: "contained" }, { paddingTop: "32px", paddingBottom: "48px" }, [
+      { ...node("row", {}, { columns: 2, gap: "48px", alignItems: "flex-start" }, [
+        node("column", {}, {}, [BY_TYPE.product_gallery!.create()]),
+        node("column", {}, { gap: "14px" }, [
+          BY_TYPE.product_title!.create(),
+          BY_TYPE.product_rating!.create(),
+          node("product_price", {}, { fontSize: "22px" }),
+          node("product_buy", { showQuantity: true, showBuyNow: true, label: "Add to cart" }, { marginTop: "10px" }),
+          node("product_description", {}, { marginTop: "14px" }),
+        ]),
+      ]), mobile: { columns: 1 } },
+    ])),
+  },
+  {
+    key: "product_reviews", label: "Reviews section", kind: "section", context: ["product"],
+    blurb: "The product's reviews in a band of their own.",
+    create: () => named("Reviews", node("section", { width: "contained" }, { paddingTop: "56px", paddingBottom: "56px" }, [
+      BY_TYPE.product_reviews!.create(),
+    ])),
+  },
+  {
+    key: "collection_intro", label: "Collection header", kind: "section", context: ["collection"],
+    blurb: "The collection's picture beside its name and description.",
+    create: () => named("Collection header", node("section", { width: "contained" }, { paddingTop: "40px", paddingBottom: "24px" }, [
+      { ...node("row", {}, { columns: 2, gap: "40px", alignItems: "center" }, [
+        node("column", {}, {}, [node("collection_image", {}, { borderRadius: "14px" })]),
+        node("column", {}, { gap: "12px" }, [
+          node("collection_title", { level: 1 }),
+          node("collection_description", {}, { color: "#5B6170" }),
+        ]),
+      ]), mobile: { columns: 1 } },
+    ])),
+  },
+
+  // ── Blocks: smaller pieces that go anywhere ──
+  {
+    key: "info_box", label: "Info box", kind: "block",
+    blurb: "A boxed heading and a few points — “Why us”, materials, care.",
+    create: () => named("Info box", node("stack", { direction: "column" }, { ...BOX, gap: "10px", marginTop: AIR }, [
+      node("stack", { direction: "row" }, { gap: "10px", alignItems: "center" }, [
+        node("icon", { name: "Sparkles", size: 20 }, { color: "var(--b-primary,#14161B)" }),
+        node("heading", { text: "Why customers choose us", level: 3 }, { fontSize: "18px" }),
+      ]),
+      node("rich_text", { html: "<ul><li>Soft, pre-shrunk fabric that keeps its shape</li><li>Prints bright on light and dark colours</li><li>Made to take DTF transfers cleanly</li></ul>" },
+           { fontSize: "15px" }),
+    ])),
+  },
+  {
+    key: "notice", label: "Notice", kind: "block",
+    blurb: "One line that stands out — shipping or processing times, a heads-up.",
+    create: () => named("Notice", node("stack", { direction: "row" },
+      { gap: "10px", alignItems: "center", paddingTop: "12px", paddingRight: "16px", paddingBottom: "12px", paddingLeft: "16px",
+        backgroundColor: "#FFF8EB", color: "#7A4A00", borderRadius: "10px", marginTop: AIR }, [
+      node("icon", { name: "Truck", size: 18 }),
+      node("text", { text: "Ships in 2–3 business days. Rush orders ship the next day." }, { fontSize: "14px", fontWeight: 600 }),
+    ])),
+  },
+  {
+    key: "checklist", label: "Best for", kind: "block",
+    blurb: "A heading and ticked lines: what it is best for, what is included.",
+    create: () => named("Best for", node("stack", { direction: "column" }, { gap: "10px", marginTop: AIR }, [
+      node("heading", { text: "Best for", level: 3 }, { fontSize: "18px" }),
+      line("Check", "Full-colour designs on cotton and blends"),
+      line("Check", "Small runs and one-offs, no screens needed"),
+      line("Check", "Hats, bags and hard-to-print spots"),
+    ])),
+  },
+  {
+    key: "steps", label: "How it works", kind: "block",
+    blurb: "Numbered steps side by side that fold onto more rows when space runs out.",
+    create: () => named("How it works", node("stack", { direction: "column" }, { gap: "14px", marginTop: AIR }, [
+      node("heading", { text: "How it works", level: 3 }, { fontSize: "18px" }),
+      named("Steps", node("stack", { direction: "column" }, { display: "grid", gridAuto: "fit", gridMin: "170px", gap: "12px" },
+        [["Upload", "Send your artwork — PNG with a transparent background works best."],
+         ["We print", "Your transfers are printed and checked within a day."],
+         ["Press", "Heat-press at 300°F for 12 seconds, then peel."]].map(([title, text], i) =>
+          node("stack", { direction: "column" }, { ...BOX, gap: "6px" }, [
+            node("heading", { text: `${i + 1}. ${title}`, level: 4 }, { fontSize: "16px" }),
+            node("text", { text }, { fontSize: "14px", color: "#5B6170" }),
+          ])))),
+    ])),
+  },
+  {
+    key: "trust", label: "Trust badges", kind: "block",
+    blurb: "Three small promises in a row — shipping, quality, support.",
+    create: () => named("Trust badges", node("stack", { direction: "column" },
+      { display: "grid", gridAuto: "fit", gridMin: "140px", gap: "10px", marginTop: AIR },
+      [["Truck", "Fast shipping"], ["ShieldCheck", "Quality guaranteed"], ["Heart", "Real people to help"]].map(([icon, text]) =>
+        node("stack", { direction: "row" }, { gap: "8px", alignItems: "center" }, [
+          node("icon", { name: icon, size: 18 }, { color: "var(--b-primary,#14161B)" }),
+          node("text", { text }, { fontSize: "14px", fontWeight: 600 }),
+        ])))),
+  },
 ];
+
+/** Whether something made for these templates belongs on this one. */
+export function fitsTemplate(context: TemplateType[] | undefined, here: TemplateType | null): boolean {
+  return !context?.length || (!!here && context.includes(here));
+}

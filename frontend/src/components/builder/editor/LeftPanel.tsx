@@ -4,24 +4,24 @@
  * The left-hand panel: what can go on a page, what is on it, and the site
  * around it — pages, templates, the theme, saved and shared sections, menus.
  */
-import { useMemo, useState, type ReactNode } from "react";
+import { useMemo, useRef, useState, type ReactNode } from "react";
 import {
   ChevronDown, ChevronRight, Copy, ExternalLink, Eye, EyeOff, FileText, Layers, LayoutTemplate, Menu as MenuIcon,
-  Palette, Plus, RefreshCw, Search, Star, Trash2, Upload, Bookmark,
+  MoreHorizontal, Palette, Pencil, Plus, RefreshCw, Search, Star, Trash2, Upload, Bookmark,
 } from "lucide-react";
 import { FALLBACK_ICON, REGISTRY_ICONS } from "./icons";
 import { LAYOUT_PRESETS } from "@/lib/builder/layout";
 import type { BuilderNode, SiteDoc, TemplateType } from "@/lib/builder/types";
-import { CATEGORIES, PRESETS, REGISTRY, labelOf } from "@/lib/builder/registry";
+import { CATEGORIES, PRESETS, REGISTRY, fitsTemplate, labelOf } from "@/lib/builder/registry";
 import { GOOGLE_FONTS, SYSTEM_FONTS, availableFamilies, previewUrl } from "@/lib/builder/fonts";
 import {
-  TEMPLATE_LABELS, addPage, addTemplate, assignProducts, productsUsing, removePage, removeTemplate, renameSlug, sameTarget, sharedUses,
-  targetLabel, usedFamilies, type Target,
+  TEMPLATE_LABELS, addPage, addTemplate, assignCollections, assignProducts, collectionsUsing, productsUsing, removePage, removeTemplate,
+  renameSlug, renameTemplate, sameTarget, sharedUses, targetLabel, templateTypeOf, usedFamilies, type Target,
 } from "@/lib/builder/doc";
 import type { PickMenu, UploadedFont } from "@/services/builder.service";
 import type { DragPayload } from "./Canvas";
 import { ImageField, ProductsPicker, type EditorEnv } from "./fields";
-import { confirmAction, TextInput } from "./ui";
+import { confirmAction, Popover, TextInput } from "./ui";
 
 export type LeftTab = "add" | "layers" | "pages" | "templates" | "theme" | "sections" | "menus";
 
@@ -54,6 +54,9 @@ export interface LeftProps {
   deleteFont: (f: UploadedFont) => Promise<void>;
   env: EditorEnv;
   updateNode: (target: Target, id: string, change: (n: BuilderNode) => BuilderNode) => void;
+  /** The template whose products or collections are being chosen, as "type:id". */
+  assigning: string | null;
+  setAssigning: (key: string | null) => void;
 }
 
 function Icon({ name, size = 18 }: { name: string; size?: number }) {
@@ -78,6 +81,9 @@ function AddPanel(p: LeftProps) {
   const [q, setQ] = useState("");
   const query = q.trim().toLowerCase();
   const match = (s: string) => !query || s.toLowerCase().includes(query);
+  const here = templateTypeOf(p.target);
+  const sections = PRESETS.filter((x) => x.kind === "section" && fitsTemplate(x.context, here));
+  const blocks = PRESETS.filter((x) => x.kind === "block" && fitsTemplate(x.context, here) && (match(x.label) || match(x.blurb)));
   return (
     <>
       <div className="sbe-sec">
@@ -91,7 +97,7 @@ function AddPanel(p: LeftProps) {
         <div className="sbe-sec">
           <div className="sbe-h"><span>Ready-made sections</span></div>
           <div className="sbe-list" style={{ gap: 6 }}>
-            {PRESETS.map((preset) => (
+            {sections.map((preset) => (
               <button key={preset.key} type="button" className="sbe-card" {...drag(p.dragRef, { preset: preset.key })}
                       onClick={() => p.add({ preset: preset.key })}>
                 <b>{preset.label}</b><span>{preset.blurb}</span>
@@ -119,8 +125,22 @@ function AddPanel(p: LeftProps) {
           </div>
         </div>
       )}
+      {blocks.length > 0 && (
+        <div className="sbe-sec">
+          <div className="sbe-h"><span>Ready-made blocks</span></div>
+          <div className="sbe-list" style={{ gap: 6 }}>
+            {blocks.map((preset) => (
+              <button key={preset.key} type="button" className="sbe-card" {...drag(p.dragRef, { preset: preset.key })}
+                      onClick={() => p.add({ preset: preset.key })}>
+                <b>{preset.label}</b><span>{preset.blurb}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
       {CATEGORIES.map((cat) => {
-        const items = REGISTRY.filter((c) => c.category === cat.key && c.type !== "column" && (match(c.label) || match(c.blurb)));
+        const items = REGISTRY.filter((c) => c.category === cat.key && c.type !== "column" && fitsTemplate(c.context, here)
+                                             && (match(c.label) || match(c.blurb)));
         if (!items.length) return null;
         return (
           <div key={cat.key} className="sbe-sec">
@@ -279,9 +299,18 @@ function PagesPanel(p: LeftProps) {
 }
 
 // ── Templates ────────────────────────────────────────────────────────────────
+type Assignable = "product" | "collection";
+
+/**
+ * Every kind of page and the templates it can be drawn with.
+ *
+ * A product or collection uses its kind's default template unless one is
+ * chosen for it here — so one product can have an apparel layout and another
+ * a transfers layout, each with its own sections around the same buy box.
+ */
 function TemplatesPanel(p: LeftProps) {
   const types = Object.keys(TEMPLATE_LABELS) as TemplateType[];
-  const [choosing, setChoosing] = useState<string | null>(null);
+  const [creating, setCreating] = useState<TemplateType | null>(null);
   return (
     <>
       <div className="sbe-sec">
@@ -296,70 +325,203 @@ function TemplatesPanel(p: LeftProps) {
       {types.map((type) => {
         const group = Object.entries(p.doc.templates?.[type] ?? {});
         const many = type === "page" || type === "product" || type === "collection";
-        const rule = type === "page" ? p.doc.assignments?.page : type === "product" ? p.doc.assignments?.product : type === "collection" ? p.doc.assignments?.collection : undefined;
         return (
           <div key={type} className="sbe-sec">
             <div className="sbe-h"><span>{TEMPLATE_LABELS[type]}</span>
-              {many && (
-                <button type="button" className="sbe-btn sm ghost" onClick={() => {
-                  const name = window.prompt(`Name the new ${TEMPLATE_LABELS[type].toLowerCase().replace(/s$/, "")} template`, "Alternate");
-                  if (!name) return;
-                  const res = addTemplate(p.doc, type, name);
-                  p.commit(res.doc);
-                  p.open({ kind: "template", type, id: res.id });
-                }}><Plus size={13} /> New</button>
+              {many && creating !== type && (
+                <button type="button" className="sbe-btn sm ghost" onClick={() => setCreating(type)}><Plus size={13} /> New</button>
               )}
             </div>
-            {group.map(([id, tpl]) => {
-              const t: Target = { kind: "template", type, id };
-              const isDefault = (rule?.default || "default") === id;
-              const assigned = type === "product" ? productsUsing(p.doc, id) : [];
-              return (
-                <div key={id}>
-                <div className="sbe-item" aria-current={sameTarget(p.target, t)} onClick={() => p.open(t)}>
-                  <LayoutTemplate size={15} />
-                  <span className="grow">{tpl.name}{many && isDefault && <span className="sub"> · used by default</span>}
-                    {type === "product" && !isDefault && <span className="sub" style={{ display: "block" }}>{assigned.length ? `${assigned.length} ${assigned.length === 1 ? "product" : "products"}` : "No products yet"}</span>}
-                  </span>
-                  {type === "product" && !isDefault && (
-                    <button type="button" className="sbe-btn sm ghost" aria-expanded={choosing === id}
-                            onClick={(e) => { e.stopPropagation(); setChoosing(choosing === id ? null : id); }}>
-                      {choosing === id ? "Done" : "Products"}
-                    </button>
-                  )}
-                  {many && !isDefault && (
-                    <button type="button" className="sbe-btn sm ghost" title="Use for every page of this kind that has no template of its own"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              const kind = type as "page" | "product" | "collection";
-                              p.commit({ ...p.doc, assignments: { ...p.doc.assignments, [kind]: { ...(p.doc.assignments?.[kind] ?? {}), default: id } } });
-                            }}>Make default</button>
-                  )}
-                  {many && id !== "default" && (
-                    <button type="button" className="sbe-icon sm" aria-label="Delete template" onClick={(e) => {
-                      e.stopPropagation();
-                      if (!confirmAction(`Delete the template “${tpl.name}”? Anything using it goes back to the default.`)) return;
-                      p.commit(removeTemplate(p.doc, type, id));
-                      if (sameTarget(p.target, t)) p.open({ kind: "template", type, id: "default" });
-                    }}><Trash2 size={13} /></button>
-                  )}
-                </div>
-                {choosing === id && type === "product" && (
-                  <div style={{ padding: "6px 4px 12px 28px" }}>
-                    <div className="sbe-help" style={{ marginBottom: 8 }}>
-                      These products show with “{tpl.name}”. Everything else uses the default. A product has one template, so picking it here moves it from any other.
-                    </div>
-                    <ProductsPicker env={p.env} value={assigned} onChange={(ids) => p.commit(assignProducts(p.doc, id, ids))} />
-                  </div>
-                )}
-                </div>
-              );
-            })}
+            {creating === type && (
+              <NewTemplate type={type} group={group} onCancel={() => setCreating(null)}
+                           onCreate={(name, from) => {
+                             const res = addTemplate(p.doc, type, name, from);
+                             p.commit(res.doc);
+                             setCreating(null);
+                             p.open({ kind: "template", type, id: res.id });
+                           }} />
+            )}
+            {group.map(([id, tpl]) => <TemplateRow key={id} {...p} type={type} id={id} name={tpl.name} many={many} />)}
+            {(type === "product" || type === "collection") && group.length > 1 && (
+              <div className="sbe-help" style={{ margin: "4px 0 8px" }}>
+                {type === "product"
+                  ? "Each product uses its own template if you chose one for it, and the default otherwise."
+                  : "Each collection uses its own template if you chose one for it, and the default otherwise."}
+              </div>
+            )}
           </div>
         );
       })}
       <div className="sbe-sec"><div className="sbe-help">The cart, checkout and account pages are the shop&apos;s own working pages; they wear your header and footer.</div></div>
     </>
+  );
+}
+
+function NewTemplate({ type, group, onCreate, onCancel }: {
+  type: TemplateType; group: [string, { name: string }][];
+  onCreate: (name: string, from: string | null) => void; onCancel: () => void;
+}) {
+  const noun = TEMPLATE_LABELS[type].toLowerCase().replace(/ pages?$/, "").replace(/s$/, "");
+  const [name, setName] = useState("");
+  const [from, setFrom] = useState<string>(group.some(([id]) => id === "default") ? "default" : group[0]?.[0] ?? "");
+  const ok = name.trim().length > 0;
+  return (
+    <form className="sbe-newtpl" onSubmit={(e) => { e.preventDefault(); if (ok) onCreate(name.trim(), from || null); }}>
+      <div className="sbe-field">
+        <label htmlFor={`tpl-name-${type}`}>Name</label>
+        <input id={`tpl-name-${type}`} className="sbe-in" autoFocus value={name} maxLength={80} onChange={(e) => setName(e.target.value)}
+               placeholder={type === "product" ? "e.g. Apparel, DTF transfers" : type === "collection" ? "e.g. Apparel collections" : `e.g. ${noun} with sidebar`}
+               onKeyDown={(e) => { if (e.key === "Escape") onCancel(); }} />
+      </div>
+      <div className="sbe-field">
+        <label htmlFor={`tpl-from-${type}`}>Start from</label>
+        <select id={`tpl-from-${type}`} className="sbe-in" value={from} onChange={(e) => setFrom(e.target.value)}>
+          {group.map(([id, t]) => <option key={id} value={id}>A copy of “{t.name}”</option>)}
+          <option value="">An empty {noun} template</option>
+        </select>
+      </div>
+      <div className="sbe-row" style={{ justifyContent: "flex-end", marginBottom: 10 }}>
+        <button type="button" className="sbe-btn sm ghost" onClick={onCancel}>Cancel</button>
+        <button type="submit" className="sbe-btn sm primary" disabled={!ok}>Create</button>
+      </div>
+    </form>
+  );
+}
+
+function TemplateRow(p: LeftProps & { type: TemplateType; id: string; name: string; many: boolean }) {
+  const { type, id, name, many } = p;
+  const moreBtn = useRef<HTMLButtonElement>(null);
+  const [more, setMore] = useState(false);
+  const [renaming, setRenaming] = useState(false);
+  const t: Target = { kind: "template", type, id };
+  const rule = type === "page" ? p.doc.assignments?.page : type === "product" ? p.doc.assignments?.product : type === "collection" ? p.doc.assignments?.collection : undefined;
+  const isDefault = (rule?.default || "default") === id;
+  const kind: Assignable | null = type === "product" || type === "collection" ? type : null;
+  const assigned = kind === "product" ? productsUsing(p.doc, id) : kind === "collection" ? collectionsUsing(p.doc, id) : [];
+  const key = `${type}:${id}`;
+  const choosing = p.assigning === key;
+  const noun = kind === "product" ? ["product", "products"] : ["collection", "collections"];
+
+  return (
+    <div>
+      <div className="sbe-item" aria-current={sameTarget(p.target, t)} onClick={() => { if (!renaming) p.open(t); }}>
+        <LayoutTemplate size={15} />
+        <span className="grow" style={{ minWidth: 0 }}>
+          {renaming ? (
+            <input className="sbe-in" style={{ height: 28 }} autoFocus defaultValue={name} maxLength={80} aria-label="Template name"
+                   onClick={(e) => e.stopPropagation()}
+                   onKeyDown={(e) => {
+                     if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+                     if (e.key === "Escape") { (e.target as HTMLInputElement).value = name; (e.target as HTMLInputElement).blur(); }
+                   }}
+                   onBlur={(e) => { setRenaming(false); p.commit(renameTemplate(p.doc, type, id, e.target.value)); }} />
+          ) : (
+            <span title={name} style={{ display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{name}</span>
+          )}
+          {many && (
+            <span className="sub" style={{ display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {isDefault
+                ? kind ? `Default · all other ${noun[1]}` : "Default"
+                : kind ? (assigned.length ? `${assigned.length} ${assigned.length === 1 ? noun[0] : noun[1]}` : `No ${noun[1]} yet`) : ""}
+            </span>
+          )}
+        </span>
+        {kind && !isDefault && (
+          <button type="button" className="sbe-btn sm ghost" aria-expanded={choosing}
+                  onClick={(e) => { e.stopPropagation(); p.setAssigning(choosing ? null : key); }}>
+            {choosing ? "Done" : kind === "product" ? "Products" : "Collections"}
+          </button>
+        )}
+        {many && (
+          <>
+            <button ref={moreBtn} type="button" className="sbe-icon sm" aria-label={`More for ${name}`} aria-haspopup="menu" aria-expanded={more}
+                    onClick={(e) => { e.stopPropagation(); setMore(!more); }}><MoreHorizontal size={14} /></button>
+            <Popover open={more} onClose={() => setMore(false)} anchor={moreBtn} align="right" width={220}>
+              {/* Drawn inside the row, so a click here must not also open the row's template. */}
+              <div onClick={(e) => e.stopPropagation()}>
+              <button type="button" className="sbe-item" onClick={() => { setMore(false); setRenaming(true); }}>
+                <Pencil size={14} /><span className="grow">Rename</span>
+              </button>
+              <button type="button" className="sbe-item" onClick={() => {
+                setMore(false);
+                const res = addTemplate(p.doc, type, `${name} copy`, id);
+                p.commit(res.doc);
+                p.open({ kind: "template", type, id: res.id });
+              }}><Copy size={14} /><span className="grow">Duplicate</span></button>
+              {!isDefault && (
+                <button type="button" className="sbe-item" title="Use for everything of this kind that has no template of its own" onClick={() => {
+                  setMore(false);
+                  const k = type as "page" | "product" | "collection";
+                  p.commit({ ...p.doc, assignments: { ...p.doc.assignments, [k]: { ...(p.doc.assignments?.[k] ?? {}), default: id } } });
+                }}><Star size={14} /><span className="grow">Make default</span></button>
+              )}
+              {id !== "default" && (
+                <button type="button" className="sbe-item" style={{ color: "#B42318" }} onClick={() => {
+                  setMore(false);
+                  const users = assigned.length ? ` ${assigned.length} ${assigned.length === 1 ? noun[0] : noun[1]} using it go back to the default.` : " Anything using it goes back to the default.";
+                  if (!confirmAction(`Delete the template “${name}”?${users}`)) return;
+                  p.commit(removeTemplate(p.doc, type, id));
+                  if (sameTarget(p.target, t)) p.open({ kind: "template", type, id: "default" });
+                }}><Trash2 size={14} /><span className="grow">Delete</span></button>
+              )}
+              </div>
+            </Popover>
+          </>
+        )}
+      </div>
+      {choosing && kind === "product" && (
+        <div style={{ padding: "6px 4px 12px 28px" }}>
+          <div className="sbe-help" style={{ marginBottom: 8 }}>
+            These products show with “{name}”. Everything else uses the default. A product has one template, so picking it here moves it from any other.
+          </div>
+          <ProductsPicker env={p.env} value={assigned} onChange={(ids) => p.commit(assignProducts(p.doc, id, ids))} />
+        </div>
+      )}
+      {choosing && kind === "collection" && (
+        <div style={{ padding: "6px 4px 12px 28px" }}>
+          <div className="sbe-help" style={{ marginBottom: 8 }}>
+            These collections show with “{name}”. Everything else uses the default. A collection has one template, so ticking it here moves it from any other.
+          </div>
+          <CollectionsPicker env={p.env} value={assigned} doc={p.doc} templateId={id}
+                             onChange={(ids) => p.commit(assignCollections(p.doc, id, ids))} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CollectionsPicker({ env, value, onChange, doc, templateId }: {
+  env: EditorEnv; value: string[]; onChange: (ids: string[]) => void; doc: SiteDoc; templateId: string;
+}) {
+  const [q, setQ] = useState("");
+  const query = q.trim().toLowerCase();
+  const rows = env.collections.filter((c) => !query || c.name.toLowerCase().includes(query));
+  const names = Object.fromEntries(Object.entries(doc.templates?.collection ?? {}).map(([k, v]) => [k, v.name]));
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+      {env.collections.length > 8 && (
+        <div className="sbe-row" style={{ position: "relative" }}>
+          <Search size={14} style={{ position: "absolute", left: 10, color: "#7A808C" }} />
+          <input className="sbe-in" style={{ paddingLeft: 30 }} value={q} onChange={(e) => setQ(e.target.value)} placeholder="Find a collection" aria-label="Find a collection" />
+        </div>
+      )}
+      <div className="sbe-list" style={{ maxHeight: 260, overflowY: "auto", border: "1px solid #EEF0F4", borderRadius: 10, padding: 4 }}>
+        {env.collections.length === 0 && <div className="sbe-help" style={{ padding: 8 }}>No collections yet.</div>}
+        {rows.map((c) => {
+          const other = doc.assignments?.collection?.byId?.[c.id];
+          const elsewhere = other && other !== templateId ? names[other] : "";
+          return (
+            <label key={c.id} className="sbe-item" style={{ cursor: "pointer" }}>
+              <input type="checkbox" checked={value.includes(c.id)}
+                     onChange={(e) => onChange(e.target.checked ? [...value, c.id] : value.filter((x) => x !== c.id))} />
+              <span className="grow">{c.name}{!c.active && <span className="sub"> · hidden</span>}
+                {elsewhere && <span className="sub" style={{ display: "block" }}>Now uses “{elsewhere}”</span>}
+              </span>
+            </label>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 

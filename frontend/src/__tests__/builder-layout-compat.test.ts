@@ -30,9 +30,11 @@ describe("existing sites keep their CSS", () => {
   });
 
   it("every element and ready-made section as the editor creates them", async () => {
+    // Named after the element, not its place in the list: adding an element
+    // then adds lines here and moves none.
     const trees = [
-      ...REGISTRY.map((c, i) => stable(c.create(), `e${i}x`)),
-      ...PRESETS.map((p, i) => stable(p.create(), `p${i}x`)),
+      ...REGISTRY.map((c) => stable(c.create(), `e_${c.type}_`)),
+      ...PRESETS.map((p) => stable(p.create(), `p_${p.key}_`)),
     ];
     await expect(treeCss(...trees)).toMatchFileSnapshot("./fixtures/elements-css.snap.txt");
   });

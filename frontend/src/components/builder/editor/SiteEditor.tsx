@@ -16,7 +16,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  ArrowLeft, Bookmark, Check, ChevronDown, Eye, History, Loader2, Monitor, MoreHorizontal, PanelLeftClose, PanelLeftOpen,
+  ArrowLeft, Bookmark, Check, ChevronDown, Eye, History, LayoutTemplate, Loader2, Monitor, MoreHorizontal, PanelLeftClose, PanelLeftOpen,
   PanelRightClose, PanelRightOpen, Redo2, RotateCcw, Rocket, Smartphone, Tablet, Undo2, AlertTriangle,
 } from "lucide-react";
 import { ToastContainer } from "react-toastify";
@@ -30,8 +30,8 @@ import {
 import { createNode, labelOf, PRESETS } from "@/lib/builder/registry";
 import { LAYOUT_PRESETS, placeInCell, setSpan } from "@/lib/builder/layout";
 import {
-  TEMPLATE_LABELS, detachShared, exists, locate, makeShared, nodeForIssue, previewFor, saveSection, sameTarget, setTreeAt,
-  targetLabel, treeAt, type Target,
+  TEMPLATE_LABELS, collectionsUsing, detachShared, exists, locate, makeShared, nodeForIssue, previewFor, productsUsing, saveSection,
+  sameTarget, setTreeAt, targetLabel, templateFor, treeAt, type Target,
 } from "@/lib/builder/doc";
 import {
   builderService, type BuilderIssue, type BuilderState, type PickCollection, type PickMenu, type PickProduct, type UploadedFont,
@@ -68,6 +68,8 @@ export default function SiteEditor({ backHref = "/admin/dashboard" }: { backHref
   const [selected, setSelected] = useState<string | null>(null);
   const [device, setDevice] = useState<Breakpoint>("desktop");
   const [tab, setTab] = useState<LeftTab>("add");
+  const [assigning, setAssigning] = useState<string | null>(null);
+  const [, setNames] = useState(0);
   const [showLeft, setShowLeft] = useState(true);
   const [showRight, setShowRight] = useState(true);
   const [epoch, setEpoch] = useState(0);
@@ -109,6 +111,13 @@ export default function SiteEditor({ backHref = "/admin/dashboard" }: { backHref
       const first = c.find((x) => x.active) ?? c[0];
       if (first) setSample((s) => ({ ...s, collection: s.collection ?? first.slug }));
     }).catch(() => {});
+    const assignedIds = Object.keys(docRef.current?.assignments?.product?.byId ?? {});
+    if (assignedIds.length) {
+      builderService.lookupProducts(assignedIds).then((rows) => {
+        rows.forEach((r) => productCache.current.set(r.id, r));
+        setNames((n) => n + 1);
+      }).catch(() => {});
+    }
     builderService.products("").then((rows) => {
       rows.forEach((r) => productCache.current.set(r.id, r));
       const live = rows.filter((r) => r.status === "active");
@@ -230,6 +239,31 @@ export default function SiteEditor({ backHref = "/admin/dashboard" }: { backHref
   useEffect(() => {
     if (doc && !exists(doc, target)) setTarget(HOME);
   }, [doc, target]);
+
+  useEffect(() => {
+    const d = docRef.current;
+    if (!d || target.kind !== "template") return;
+    if (target.type === "product") {
+      const pool = [...productCache.current.values()].filter((r) => r.status === "active");
+      const fits = (r: PickProduct) => templateFor(d, "product", r.id) === target.id;
+      setSample((s) => {
+        const now = pool.find((r) => r.slug === s.product);
+        if (now && fits(now)) return s;
+        const pick = pool.find(fits);
+        return pick ? { ...s, product: pick.slug } : s;
+      });
+    } else if (target.type === "collection") {
+      const fits = (c: PickCollection) => templateFor(d, "collection", c.id) === target.id;
+      setSample((s) => {
+        const now = collections.find((c) => c.slug === s.collection);
+        if (now && fits(now)) return s;
+        const pick = collections.find((c) => c.active && fits(c)) ?? collections.find(fits);
+        return pick ? { ...s, collection: pick.slug } : s;
+      });
+    }
+    // Also when who-uses-what changes: giving a collection this template
+    // shows the template with that collection straight away.
+  }, [target, collections, sampleProducts, doc?.assignments]);
 
   const previewKey = doc ? JSON.stringify(previewFor(doc, target, sample)) : "";
   useEffect(() => {
@@ -558,7 +592,7 @@ export default function SiteEditor({ backHref = "/admin/dashboard" }: { backHref
         {(target.kind === "template" && target.type === "product") && sampleProducts.length > 0 && (
           <select className="sbe-in sbe-hide-xs" style={{ width: 170, height: 34, flex: "0 0 auto" }} value={sample.product ?? ""} aria-label="Product to preview with"
                   onChange={(e) => setSample((s) => ({ ...s, product: e.target.value }))}>
-            {sampleProducts.map((p) => <option key={p.id} value={p.slug}>Showing: {p.name}</option>)}
+            {sampleChoices(doc, target, sampleProducts, productCache.current).map((p) => <option key={p.id} value={p.slug}>Showing: {p.name}</option>)}
           </select>
         )}
         {(target.kind === "template" && target.type === "collection") && collections.length > 0 && (
@@ -608,6 +642,7 @@ export default function SiteEditor({ backHref = "/admin/dashboard" }: { backHref
       <div className="sbe-body">
         <aside className="sbe-left" aria-label="Site" style={{ display: showLeft ? undefined : "none" }}>
           <LeftPanel tab={tab} setTab={setTab} doc={doc} commit={(d) => commit(d, "panel")} target={target} open={open}
+                     assigning={assigning} setAssigning={setAssigning}
                      selected={selected} select={setSelected} dragRef={dragRef} add={add} layerTrees={layerTrees}
                      menus={menus} reloadMenus={() => builderService.menus().then(setMenus).catch(() => say.problem("Menus could not be loaded."))}
                      uploaded={uploaded} env={env} updateNode={updateAt}
@@ -639,8 +674,12 @@ export default function SiteEditor({ backHref = "/admin/dashboard" }: { backHref
           )}
           {!builderLive && state.liveVersion === null && save !== "conflict" && (
             <div className="sbe-banner">
-              Your shop keeps showing its current design while you work here. Nothing changes for shoppers until you publish <b>and</b> switch the shop over.
+              <span>Your shop keeps showing its current design while you work here. Nothing changes for shoppers until you publish <b>and</b> switch the shop over.</span>
             </div>
+          )}
+          {target.kind === "template" && (target.type === "product" || target.type === "collection") && (
+            <UsedBy doc={doc} type={target.type} id={target.id} names={(id) => target.type === "product" ? productCache.current.get(id)?.name : collections.find((c) => c.id === id)?.name}
+                    onChoose={() => { setShowLeft(true); setTab("templates"); setAssigning(`${target.type}:${target.id}`); }} />
           )}
           <Canvas doc={doc} target={target} data={data} customFaces={uploaded.map((f) => ({ family: f.family, weight: f.weight, style: f.style, url: f.url, format: f.format }))}
                   device={device} selected={selected} epoch={epoch} dragRef={dragRef}
@@ -930,5 +969,43 @@ function MediaDialog({ onClose, onPick }: { onClose: () => void; onPick: (url: s
         ))}
       </div>
     </Modal>
+  );
+}
+
+/** The products the sample picker offers: those that use this template, then the rest. */
+function sampleChoices(doc: SiteDoc, target: Target, live: PickProduct[], cache: Map<string, PickProduct>): PickProduct[] {
+  if (target.kind !== "template" || target.type !== "product") return live;
+  const own = productsUsing(doc, target.id).map((id) => cache.get(id)).filter((r): r is PickProduct => !!r && r.status === "active");
+  return [...own, ...live.filter((r) => !own.some((o) => o.id === r.id))];
+}
+
+function UsedBy({ doc, type, id, names, onChoose }: {
+  doc: SiteDoc; type: "product" | "collection"; id: string; names: (id: string) => string | undefined; onChoose: () => void;
+}) {
+  const tpl = doc.templates?.[type]?.[id];
+  if (!tpl) return null;
+  const isDefault = (doc.assignments?.[type]?.default || "default") === id;
+  const ids = type === "product" ? productsUsing(doc, id) : collectionsUsing(doc, id);
+  const noun = type === "product" ? ["product", "products"] : ["collection", "collections"];
+  const known = ids.map(names).filter((n): n is string => !!n);
+  const list = known.length
+    ? `${known.slice(0, 3).join(", ")}${ids.length > 3 ? ` and ${ids.length - 3} more` : known.length < ids.length ? ` and ${ids.length - known.length} more` : ""}`
+    : `${ids.length} ${ids.length === 1 ? noun[0] : noun[1]}`;
+  return (
+    <div className="sbe-banner info" role="note">
+      <LayoutTemplate size={15} />
+      <span style={{ flex: "1 1 260px", minWidth: 0 }}>
+        {isDefault
+          ? <>“{tpl.name}” is the default: every {noun[0]} without a template of its own is shown with it.</>
+          : ids.length
+            ? <>“{tpl.name}” is used by {list}.</>
+            : <>No {noun[1]} use “{tpl.name}” yet. Choose which ones should.</>}
+      </span>
+      {!isDefault && (
+        <button type="button" className="sbe-btn sm" onClick={onChoose}>
+          {ids.length ? `Change ${noun[1]}` : `Choose ${noun[1]}`}
+        </button>
+      )}
+    </div>
   );
 }

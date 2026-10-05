@@ -278,6 +278,26 @@ async def preview(request: Request, route: str = "home", slug: str = "", q: str 
                                         template_id=template)
 
 
+class LookupIn(BaseModel):
+    ids: list[str] = Field(default_factory=list, max_length=500)
+
+
+@router.post("/products/lookup")
+async def lookup_products(data: LookupIn, request: Request, _: None = Depends(require_admin),
+                          db: AsyncSession = Depends(get_db)) -> list[dict[str, Any]]:
+    """Names for products the site refers to by id — the ones a template is
+    assigned to, which a search would only find by name."""
+    tid = _tenant(request)
+    ids = [str(u) for u in (resolve._uuid(i) for i in data.ids) if u]
+    if not ids:
+        return []
+    rows = (await db.execute(text(
+        "SELECT CAST(id AS text) AS id, name, slug, status FROM products "
+        "WHERE tenant_id = CAST(:t AS uuid) AND CAST(id AS text) = ANY(:ids)"
+    ), {"t": str(tid), "ids": ids})).all()
+    return [{"id": r.id, "name": r.name, "slug": r.slug, "status": r.status} for r in rows]
+
+
 # ── Fonts ─────────────────────────────────────────────────────────────────────
 
 def _font_out(f: BuilderFont) -> dict[str, Any]:

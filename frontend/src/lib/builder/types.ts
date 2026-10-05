@@ -109,6 +109,12 @@ export interface CollectionCard { title: string; url: string; image: string; tex
 
 export interface MenuItem { label: string; href: string; children?: MenuItem[] }
 
+/** One approved review of the product being viewed. */
+export interface ReviewItem {
+  rating: number; title: string; body: string; name: string; company: string;
+  verified: boolean; image: string; reply: string; date: string;
+}
+
 /** What the storefront (or the editor's preview) is handed for one page. */
 export interface SitePayload {
   mode: "visual_builder";
@@ -135,6 +141,8 @@ export interface SitePayload {
     grids: Record<string, ProductCard[]>;
     collectionGrids: Record<string, CollectionCard[]>;
     store: { name: string; logo: string };
+    /** The product's reviews, on a page that shows its stars or its reviews. */
+    reviews?: { total: number; avg: number; items: ReviewItem[] } | null;
   };
 }
 

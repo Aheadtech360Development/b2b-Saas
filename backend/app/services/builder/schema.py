@@ -125,6 +125,10 @@ COMPONENTS: dict[str, Component] = {
     "product_description": _c(context=("product",)),
     "product_gallery": _c(context=("product",)),
     "product_buy": _c(context=("product",)),
+    # The product's own reviews: the stars under a title, and the list. Read
+    # from the reviews customers already write; nothing new is stored.
+    "product_rating": _c(context=("product",)),
+    "product_reviews": _c(context=("product",)),
     # ── Commerce: lists of products and collections ──
     "product_grid": _c(refs=(("collectionId", "collection", False), ("productIds", "product", True))),
     "collection_grid": _c(refs=(("collectionIds", "collection", True),)),

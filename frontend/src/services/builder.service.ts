@@ -67,6 +67,13 @@ export const builderService = {
       image: p.images?.[0]?.url_thumbnail || p.images?.[0]?.url_medium || "",
     }));
   },
+  /** Names for products the site refers to by id, however many products the shop has. */
+  lookupProducts: async (ids: string[]): Promise<PickProduct[]> => {
+    const rows = await apiClient.post<{ id: string; name: string; slug: string; status: string }[]>(
+      `${BASE}/products/lookup`, { ids: ids.slice(0, 500) },
+    );
+    return (rows ?? []).map((p) => ({ ...p, image: "" }));
+  },
   collections: async (): Promise<PickCollection[]> => {
     const rows = await apiClient.get<{ id: string; name: string; slug: string; image_url: string | null; is_active: boolean }[]>(
       "/api/v1/admin/collections?include_counts=false",

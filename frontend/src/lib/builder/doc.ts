@@ -38,6 +38,17 @@ export const RESERVED_SLUGS = new Set([
   "theme-editor", "theme-preview", "ui-preview", "sitemap.xml", "robots.txt",
 ]);
 
+/**
+ * The kind of page a target is drawn as, for deciding which elements fit it.
+ * The header, footer and shared or saved sections are on every kind of page,
+ * so nothing that belongs to one kind fits them.
+ */
+export function templateTypeOf(t: Target): TemplateType | null {
+  if (t.kind === "template") return t.type;
+  if (t.kind === "page") return "page";
+  return null;
+}
+
 export function sameTarget(a: Target | null | undefined, b: Target | null | undefined): boolean {
   return !!a && !!b && JSON.stringify(a) === JSON.stringify(b);
 }
@@ -183,13 +194,17 @@ export function removePage(doc: SiteDoc, slug: string): SiteDoc {
 }
 
 /** A new template of a type, copied from one that exists (fresh ids, so nothing collides). */
-export function addTemplate(doc: SiteDoc, type: TemplateType, name: string, from = "default"): { doc: SiteDoc; id: string } {
+/**
+ * A new template of a kind. It starts as a copy of another of that kind —
+ * the default unless told otherwise — or, with from = null, empty.
+ */
+export function addTemplate(doc: SiteDoc, type: TemplateType, name: string, from: string | null = "default"): { doc: SiteDoc; id: string } {
   const group = doc.templates?.[type] ?? {};
   const base = name.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 40) || "template";
   let id = base;
   let n = 2;
   while (group[id]) id = `${base}_${n++}`;
-  const source = group[from]?.tree ?? null;
+  const source = from === null ? null : group[from]?.tree ?? null;
   const tree = source ? withFreshIds(source) : { id: newId(), type: "stack", children: [] };
   return { id, doc: { ...doc, templates: { ...doc.templates, [type]: { ...group, [id]: { name: name.trim() || "Template", tree } } } } };
 }
@@ -224,6 +239,15 @@ export function removeTemplate(doc: SiteDoc, type: TemplateType, id: string): Si
 }
 
 /** The products set to use one product template. */
+/** A template's new name. Its id — what products and collections point at — stays. */
+export function renameTemplate(doc: SiteDoc, type: TemplateType, id: string, name: string): SiteDoc {
+  const group = doc.templates?.[type] ?? {};
+  const tpl = group[id];
+  const clean = name.trim().slice(0, 80);
+  if (!tpl || !clean || clean === tpl.name) return doc;
+  return { ...doc, templates: { ...doc.templates, [type]: { ...group, [id]: { ...tpl, name: clean } } } };
+}
+
 export function productsUsing(doc: SiteDoc, templateId: string): string[] {
   return Object.entries(doc.assignments?.product?.byId ?? {}).filter(([, t]) => t === templateId).map(([pid]) => pid);
 }
@@ -238,6 +262,28 @@ export function assignProducts(doc: SiteDoc, templateId: string, productIds: str
   for (const [pid, t] of Object.entries(byId)) if (t === templateId && !productIds.includes(pid)) delete byId[pid];
   for (const pid of productIds) byId[pid] = templateId;
   return { ...doc, assignments: { ...doc.assignments, product: { ...(doc.assignments?.product ?? {}), byId } } };
+}
+
+export function collectionsUsing(doc: SiteDoc, templateId: string): string[] {
+  return Object.entries(doc.assignments?.collection?.byId ?? {}).filter(([, t]) => t === templateId).map(([cid]) => cid);
+}
+
+/** Set exactly which collections use a collection template — as assignProducts does for products. */
+export function assignCollections(doc: SiteDoc, templateId: string, collectionIds: string[]): SiteDoc {
+  const byId = { ...(doc.assignments?.collection?.byId ?? {}) };
+  for (const [cid, t] of Object.entries(byId)) if (t === templateId && !collectionIds.includes(cid)) delete byId[cid];
+  for (const cid of collectionIds) byId[cid] = templateId;
+  return { ...doc, assignments: { ...doc.assignments, collection: { ...(doc.assignments?.collection ?? {}), byId } } };
+}
+
+/** Which template a product or collection is drawn with: its own, else the kind's default. */
+export function templateFor(doc: SiteDoc, kind: "product" | "collection", recordId: string): string {
+  const rule = doc.assignments?.[kind];
+  const own = rule?.byId?.[recordId];
+  const group = doc.templates?.[kind] ?? {};
+  if (own && group[own]) return own;
+  const dflt = rule?.default;
+  return dflt && group[dflt] ? dflt : "default";
 }
 
 /** Keep a copy of a section to drop in again later. A copy: changing one never changes another. */

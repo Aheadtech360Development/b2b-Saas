@@ -27,6 +27,7 @@ import { layoutMark } from "@/lib/builder/layout";
 import MenuNav from "./islands/MenuNav";
 import CartLink from "./islands/CartLink";
 import CartIsland from "./islands/CartIsland";
+import Reviews, { Stars } from "./islands/Reviews";
 import { Newsletter, ProductGallery, SortSelect, Tabs } from "./islands/Interactive";
 
 export interface RenderCtx {
@@ -448,6 +449,30 @@ export function Node({ node, ctx }: { node: BuilderNode; ctx: RenderCtx }): Reac
     case "product_buy":
       if (!product) return note(ctx, id, "Options, quantity and Add to cart show here, for each product.");
       return <BuyBox id={id} p={p} product={product} />;
+    case "product_rating": {
+      if (!product) return note(ctx, id, "The product's stars and review count show here.");
+      // In the editor the numbers arrive a moment after the element is placed.
+      if (!data.reviews && ctx.edit) return <div data-b={id} className="b-note">Loading this product’s rating…</div>;
+      const total = data.reviews?.total ?? 0;
+      const avg = data.reviews?.avg ?? 0;
+      if (!total) {
+        if (p.hideEmpty !== false) return ctx.edit ? <div data-b={id} className="b-note">Stars show here once this product has a review.</div> : null;
+        return <div data-b={id} className="b-rating"><Stars value={0} /> <span className="b-rcount">No reviews yet</span></div>;
+      }
+      return (
+        <a data-b={id} className="b-rating" href="#reviews">
+          <Stars value={avg} /> <b>{avg.toFixed(1)}</b>
+          {p.showCount !== false && <span className="b-rcount">({total} {total === 1 ? "review" : "reviews"})</span>}
+        </a>
+      );
+    }
+    case "product_reviews": {
+      if (!product) return note(ctx, id, "This product's reviews show here, with a form to write one.");
+      const r = data.reviews;
+      return <Reviews id={id} productId={String(product.id ?? "")} heading={str(p.heading)} items={r?.items ?? []}
+                      total={r?.total ?? 0} avg={r?.avg ?? 0} allowWrite={p.allowWrite !== false} edit={ctx.edit}
+                      loading={!!ctx.edit && !r} />;
+    }
 
     // ── Lists ──
     case "product_grid":

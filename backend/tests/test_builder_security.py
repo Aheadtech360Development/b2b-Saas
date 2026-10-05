@@ -302,7 +302,9 @@ async def main():
         warm_ms, warm_q = await timed(10)
         print(f"  INFO  {size_kb} KB published site, home page: without the cache {cold_ms:.0f} ms / {cold_q:.1f} SQL, "
               f"with it {warm_ms:.0f} ms / {warm_q:.1f} SQL")
-        check("the cache saves a query and time on every page", warm_q <= cold_q - 1 and warm_ms < cold_ms, f"{cold_ms} {warm_ms}")
+        # The query saved is the guarantee. The time saved is printed above and
+        # not asserted: ten requests on a busy machine can go either way.
+        check("the cache saves a query on every page", warm_q <= cold_q - 1, f"{cold_q} {warm_q}")
         key = next(k for k in site_svc._DOCS if k[0] == str(a["tid"]) and "p1" in (site_svc._DOCS[k][0].get("pages") or {}))
         snapshot = json.dumps(site_svc._DOCS[key][0], sort_keys=True)
         for route in ("home", "page", "product", "cart", "not_found"):

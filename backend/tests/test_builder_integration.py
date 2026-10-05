@@ -416,6 +416,140 @@ async def main():
               live.get("templateId") == "default" and (live["data"]["product"] or {}).get("name") == "Tee a",
               live.get("templateId"))
 
+        # ── 6c-2. Two products, two different pages ──────────────────────────
+        print("")
+        print("different products, different templates")
+
+        def node(ntype, props=None, children=None):
+            n = {"id": "t" + uuid.uuid4().hex[:10], "type": ntype, "props": props or {}}
+            if children is not None:
+                n["children"] = children
+            return n
+
+        def fresh(tree):
+            copy = json.loads(json.dumps(tree))
+
+            def walk(n):
+                n["id"] = "t" + uuid.uuid4().hex[:10]
+                for c in n.get("children") or []:
+                    walk(c)
+            walk(copy)
+            return copy
+
+        def texts(payload):
+            return json.dumps(payload.get("template"))
+
+        two = json.loads(json.dumps(assigned))
+        apparel = fresh(two["templates"]["product"]["default"]["tree"])
+        apparel["children"].append(node("section", {"width": "contained"}, [
+            node("heading", {"text": "Why Lyfelyke", "level": 3}),
+            node("product_rating", {"showCount": True, "hideEmpty": False}),
+            node("product_reviews", {"heading": "Customer reviews", "limit": 2, "allowWrite": True}),
+        ]))
+        dtf = fresh(two["templates"]["product"]["minimal"]["tree"])
+        dtf["children"].append(node("section", {"width": "contained"}, [
+            node("heading", {"text": "How it works", "level": 3}),
+            node("html", {"html": "<p class=\"best\">Best for small runs</p>", "css": ""}),
+        ]))
+        two["templates"]["product"]["apparel"] = {"name": "Apparel", "tree": apparel}
+        two["templates"]["product"]["dtf"] = {"name": "DTF transfers", "tree": dtf}
+        two["assignments"]["product"]["byId"] = {str(a["product"]): "apparel", str(pid2): "dtf"}
+
+        # Reviews: two approved and one held back for the first product, and one
+        # that belongs to another brand's product.
+        for rating, body, approved, pid, tid in (
+            (5, "Soft and true to size.", True, a["product"], a["tid"]),
+            (4, "Prints came out bright.", True, a["product"], a["tid"]),
+            (1, "HELD BACK - not approved", False, a["product"], a["tid"]),
+            (2, "BRAND B ONLY review", True, b["product"], b["tid"]),
+        ):
+            await sql("INSERT INTO product_reviews (id, tenant_id, product_id, rating, body, reviewer_name, "
+                      "is_verified, is_approved, source) VALUES (gen_random_uuid(), :t, :p, :r, :b, 'Sam', "
+                      "true, :a, 'site')", {"t": str(tid), "p": str(pid), "r": rating, "b": body, "a": approved})
+
+        # Two collections, one with a template of its own.
+        cid1, cid2 = uuid.uuid4(), uuid.uuid4()
+        for cid, name, cslug in ((cid1, "Apparel", f"apparel-{RUN}"), (cid2, "DTF", f"dtf-{RUN}")):
+            await sql("INSERT INTO collections (id, tenant_id, name, slug, match_type, rules_match, rules, sort_by, "
+                      "is_active, position) VALUES (:i, :t, :n, :s, 'manual', 'all', '[]'::jsonb, 'manual', true, 0)",
+                      {"i": str(cid), "t": str(a["tid"]), "n": name, "s": cslug})
+        dtf_coll = fresh(two["templates"]["collection"]["default"]["tree"])
+        dtf_coll["children"].insert(0, node("section", {"width": "contained"}, [
+            node("heading", {"text": "Transfers, ready to press", "level": 2}),
+        ]))
+        two["templates"]["collection"]["dtf_coll"] = {"name": "DTF collections", "tree": dtf_coll}
+        two["assignments"]["collection"]["byId"] = {str(cid2): "dtf_coll"}
+
+        r = await client.put("/api/v1/admin/storefront/builder/draft", headers=adm(a),
+                             json={"draft": two, "revision": None})
+        r = await client.post("/api/v1/admin/storefront/builder/publish", headers=adm(a), json={})
+        check("a site with two product templates and two collection templates publishes",
+              r.status_code == 200, r.text[:300])
+
+        one = await site(a, route="product", slug=a["product_slug"])
+        other = await site(a, route="product", slug=f"second-{RUN}")
+        check("the first product is drawn with the Apparel template",
+              one.get("templateId") == "apparel" and "Why Lyfelyke" in texts(one), one.get("templateId"))
+        check("…and has none of the other template's content",
+              "How it works" not in texts(one) and "Best for small runs" not in texts(one))
+        check("the second product is drawn with the DTF template",
+              other.get("templateId") == "dtf" and "How it works" in texts(other), other.get("templateId"))
+        check("…and has none of the first one's content",
+              "Why Lyfelyke" not in texts(other) and "product_reviews" not in texts(other))
+        check("both still carry the product's own data, from the product itself",
+              one["data"]["product"]["name"] == "Tee a" and other["data"]["product"]["name"] == "Second tee")
+        check("both templates still place the real buy box",
+              '"product_buy"' in texts(one) and '"product_buy"' in texts(other))
+
+        rv = one["data"].get("reviews") or {}
+        bodies = " ".join(i["body"] for i in rv.get("items", []))
+        check("a template that shows reviews gets the product's approved reviews",
+              rv.get("total") == 2 and rv.get("avg") == 4.5 and len(rv.get("items", [])) == 2, str(rv)[:300])
+        check("a review that is not approved never leaves the server", "HELD BACK" not in json.dumps(one))
+        check("another brand's review never shows", "BRAND B ONLY" not in json.dumps(one) and "BRAND B" not in bodies)
+        check("a template without reviews asks for none", other["data"].get("reviews") is None, str(other["data"].get("reviews")))
+
+        coll1 = await site(a, route="collection", slug=f"apparel-{RUN}")
+        coll2 = await site(a, route="collection", slug=f"dtf-{RUN}")
+        check("a collection without a template of its own uses the default",
+              coll1.get("templateId") == "default" and "Transfers, ready to press" not in texts(coll1), coll1.get("templateId"))
+        check("a collection with its own template is drawn with it",
+              coll2.get("templateId") == "dtf_coll" and "Transfers, ready to press" in texts(coll2), coll2.get("templateId"))
+        check("each is still its own collection", coll1["data"]["collection"]["name"] == "Apparel"
+              and coll2["data"]["collection"]["name"] == "DTF")
+
+        r = await client.get("/api/v1/admin/storefront/builder/preview", headers=adm(a),
+                             params={"route": "product", "slug": a["product_slug"], "template": "dtf"})
+        check("the editor can preview any template with any product",
+              r.json().get("templateId") == "dtf" and r.json()["data"]["product"]["name"] == "Tee a")
+
+        out_of_place = json.loads(json.dumps(two))
+        out_of_place["templates"]["home"]["default"]["tree"]["children"].append(
+            node("section", {"width": "contained"}, [node("product_reviews", {"limit": 3})]))
+        await client.put("/api/v1/admin/storefront/builder/draft", headers=adm(a),
+                         json={"draft": out_of_place, "revision": None})
+        r = await client.post("/api/v1/admin/storefront/builder/validate", headers=adm(a))
+        check("reviews placed on a page that is not a product's are pointed out",
+              any(i["code"] == "out_of_context" for i in r.json()["issues"]), r.text[:300])
+
+        r = await client.post("/api/v1/admin/storefront/builder/products/lookup", headers=adm(a),
+                              json={"ids": [str(a["product"]), str(pid2), str(b["product"]), "not-an-id"]})
+        names = {row["id"]: row["name"] for row in r.json()}
+        check("the editor can name the products a template is assigned to",
+              r.status_code == 200 and names.get(str(a["product"])) == "Tee a" and names.get(str(pid2)) == "Second tee",
+              r.text[:300])
+        check("…and never another brand's product", str(b["product"]) not in names and len(names) == 2, str(names))
+        r = await client.post("/api/v1/admin/storefront/builder/products/lookup", headers=pub(a),
+                              json={"ids": [str(a["product"])]})
+        check("…and only for a signed-in admin", r.status_code in (401, 403), r.status_code)
+
+        await sql("DELETE FROM product_reviews WHERE product_id IN (:a, :b)",
+                  {"a": str(a["product"]), "b": str(b["product"])})
+        await sql("DELETE FROM collections WHERE id IN (:a, :b)", {"a": str(cid1), "b": str(cid2)})
+        await client.put("/api/v1/admin/storefront/builder/draft", headers=adm(a),
+                         json={"draft": assigned, "revision": None})
+        await client.post("/api/v1/admin/storefront/builder/publish", headers=adm(a), json={})
+
         await sql("DELETE FROM products WHERE id = :i", {"i": str(pid2)})
 
         # ── 6d. One request tells a page which shop it is drawing ────────────

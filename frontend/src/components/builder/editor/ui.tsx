@@ -22,10 +22,10 @@ export const EDITOR_CSS = `
 .sbe-top::-webkit-scrollbar{display:none}
 .sbe-body{display:grid;grid-template-columns:var(--sbe-left,300px) minmax(0,1fr) var(--sbe-right,320px);min-height:0}
 .sbe-left,.sbe-right{background:#fff;min-height:0;display:flex;flex-direction:column;overflow:hidden}
-.sbe-left{border-right:1px solid #E3E6EC}
-.sbe-right{border-left:1px solid #E3E6EC}
+.sbe-left{border-right:1px solid #E3E6EC;grid-column:1}
+.sbe-right{border-left:1px solid #E3E6EC;grid-column:3}
 .sbe-scroll{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin}
-.sbe-center{position:relative;min-width:0;min-height:0;display:flex;flex-direction:column}
+.sbe-center{grid-column:2;position:relative;min-width:0;min-height:0;display:flex;flex-direction:column}
 .sbe-canvas{flex:1;min-height:0;overflow:auto;padding:28px 28px 80px;scrollbar-width:thin}
 .sbe-btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:34px;padding:0 12px;border-radius:9px;border:1px solid #D9DDE5;background:#fff;cursor:pointer;font-weight:500;white-space:nowrap;flex:0 0 auto}
 .sbe-btn:hover{background:#F5F6F9}
@@ -133,12 +133,21 @@ select.sbe-in{padding-right:28px}
 .sbe-chip button:hover{background:rgba(255,255,255,.18)}
 .sbe-chip .drag{cursor:grab}
 .sbe-hchip{position:absolute;left:-1px;bottom:100%;padding:2px 7px;background:#818CF8;color:#fff;font-size:11px;font-weight:600;border-radius:5px 5px 0 0;white-space:nowrap;font-family:system-ui,sans-serif}
+.sbe-plus{position:absolute;width:22px;height:22px;border-radius:50%;border:2px solid #fff;background:#4F46E5;color:#fff;display:grid;place-items:center;padding:0;cursor:pointer;pointer-events:auto;box-shadow:0 1px 4px rgba(20,22,27,.35);z-index:3;transition:transform .12s,background-color .12s}
+.sbe-plus:hover,.sbe-plus.on{transform:scale(1.2);background:#3730A3}
+.sbe-insert{position:fixed;z-index:95;display:flex;flex-direction:column;background:#fff;border:1px solid #E3E6EC;border-radius:14px;box-shadow:0 18px 48px rgba(20,22,27,.2);overflow:hidden}
+.sbe-insert-top{padding:10px;border-bottom:1px solid #EEF0F4;flex:0 0 auto}
+.sbe-insert-body{padding:2px 10px 12px;overflow-y:auto;min-height:0;overscroll-behavior:contain;scrollbar-width:thin}
+.sbe-insert .sbe-menu-h{padding:10px 0 6px}
+.sbe-insert .enter{border-color:#4F46E5;box-shadow:0 0 0 2px rgba(79,70,229,.18)}
 .sbe-drop-line{position:absolute;background:#4F46E5;border-radius:2px;box-shadow:0 0 0 2px rgba(79,70,229,.2)}
 .sbe-cell{position:absolute;border:1px dashed rgba(79,70,229,.5);border-radius:4px;background:rgba(79,70,229,.03)}
 .sbe-cell span{position:absolute;top:3px;left:4px;font:600 10px system-ui,sans-serif;color:rgba(79,70,229,.75)}
 .sbe-span-handle{position:absolute;right:-8px;bottom:-8px;width:14px;height:14px;border-radius:4px;background:#4F46E5;border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.3);cursor:nwse-resize;pointer-events:auto;touch-action:none}
 .sbe-drop-box{position:absolute;border:2px dashed #4F46E5;background:rgba(79,70,229,.06);border-radius:4px}
 .sbe-banner{display:flex;align-items:center;gap:10px;padding:8px 14px;font-size:13px;background:#FFF8EB;color:#7A4A00;border-bottom:1px solid #F5E1B8;flex-wrap:wrap}
+.sbe-banner.info{background:#F4F5FF;color:#3730A3;border-color:#E0E3FF}
+.sbe-newtpl{padding:10px 10px 0;border:1px solid #E3E6EC;border-radius:10px;background:#FAFBFC;margin-bottom:8px}
 .sbe-banner.bad{background:#FEF3F2;color:#912018;border-color:#F8D3CF}
 .sbe-issue{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border-radius:10px;border:1px solid #EEF0F4;margin-bottom:8px;font-size:13px}
 .sbe-issue.error{border-color:#F8D3CF;background:#FFFBFA}

@@ -34,6 +34,7 @@ from app.services.builder.schema import (
 )
 
 MAX_GRID = 48
+MAX_REVIEWS = 20
 _ID_OK = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 
 
@@ -110,6 +111,40 @@ def _limit(props: dict[str, Any], default: int) -> int:
         return max(1, min(int(props.get("limit") or default), MAX_GRID))
     except (TypeError, ValueError):
         return default
+
+
+async def _reviews(db: AsyncSession, tenant_id: uuid.UUID, product_id: str,
+                   nodes: list[dict[str, Any]]) -> dict[str, Any]:
+    """The product's approved reviews: how many, the average, and the newest
+    few a reviews list shows. Asked only by a page that shows them."""
+    args = {"t": str(tenant_id), "p": product_id}
+    where = ("WHERE tenant_id = CAST(:t AS uuid) AND product_id = CAST(:p AS uuid) "
+             "AND is_approved = true")
+    stats = (await db.execute(text(f"SELECT COUNT(*) AS n, AVG(rating) AS avg FROM product_reviews {where}"),
+                              args)).first()
+    total = int(stats.n or 0) if stats else 0
+    avg = round(float(stats.avg), 1) if stats and stats.avg else 0.0
+    limit = max((min(MAX_REVIEWS, _limit(n.get("props") or {}, 6)) for n in nodes
+                 if n.get("type") == "product_reviews"), default=0)
+    items: list[dict[str, Any]] = []
+    if limit and total:
+        rows = (await db.execute(text(
+            "SELECT rating, title, body, reviewer_name, reviewer_company, is_verified, image_url, "
+            f"reply_text, COALESCE(reviewed_at, created_at) AS at FROM product_reviews {where} "
+            "ORDER BY COALESCE(reviewed_at, created_at) DESC LIMIT :n"
+        ), {**args, "n": limit})).all()
+        items = [{
+            "rating": max(1, min(5, int(r.rating or 0))),
+            "title": r.title or "",
+            "body": r.body or "",
+            "name": r.reviewer_name or "",
+            "company": r.reviewer_company or "",
+            "verified": bool(r.is_verified),
+            "image": r.image_url or "",
+            "reply": r.reply_text or "",
+            "date": r.at.date().isoformat() if r.at else "",
+        } for r in rows]
+    return {"total": total, "avg": avg, "items": items}
 
 
 async def _cards_for_ids(db: AsyncSession, tenant_id: uuid.UUID, ids: list[str]) -> dict[str, dict[str, Any]]:
@@ -344,7 +379,7 @@ async def render_payload(
     assignments = doc.get("assignments") or {}
     parts = {k: (doc.get("parts") or {}).get(k) for k in PART_KEYS}
     data: dict[str, Any] = {"product": None, "collection": None, "collectionPage": None,
-                            "menus": {}, "grids": {}, "collectionGrids": {}, "store": {}}
+                            "menus": {}, "grids": {}, "collectionGrids": {}, "store": {}, "reviews": None}
     page_data: dict[str, Any] | None = None
     not_found = False
     ttype = route
@@ -419,6 +454,9 @@ async def render_payload(
     data["collectionGrids"] = await _fill_collection_grids(db, tenant_id, nodes)
 
     data["store"] = await _store(db, tenant_id)
+
+    if data["product"] and any(n.get("type") in ("product_rating", "product_reviews") for n in nodes):
+        data["reviews"] = await _reviews(db, tenant_id, data["product"]["id"], nodes)
 
     # Descriptions are written in the product and collection editors and can
     # carry markup. A builder page puts them in as HTML, so they leave here
