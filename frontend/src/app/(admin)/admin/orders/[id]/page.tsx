@@ -1,5 +1,6 @@
 "use client";
 
+import { ask, tell } from "@/lib/dialog";
 import { useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { adminService } from "@/services/admin.service";
@@ -673,7 +674,7 @@ export default function AdminOrderDetailPage() {
   }
 
   async function handleMarkAsPaid() {
-    if (!confirm("Mark this order as paid?")) return;
+    if (!await ask("Mark this order as paid?")) return;
     setIsMarkingPaid(true); setMsg(null);
     try {
       await apiClient.post(`/api/v1/admin/orders/${order?.id ?? id}/mark-paid`, {});
@@ -1071,7 +1072,7 @@ export default function AdminOrderDetailPage() {
                                 if (win) win.location.href = obj; else window.location.href = obj;
                                 setTimeout(() => URL.revokeObjectURL(obj), 60_000);
                               })
-                              .catch((err) => { win?.close(); alert(err instanceof Error ? err.message : "Couldn't open the label."); });
+                              .catch((err) => { win?.close(); tell(err instanceof Error ? err.message : "Couldn't open the label."); });
                           }}
                           style={{ background: "#1A1A1A", color: "#fff", padding: "8px 16px", borderRadius: "6px", fontSize: "13px", fontWeight: 700, textDecoration: "none" }}>
                           ↓ Download Label

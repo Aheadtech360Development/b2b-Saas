@@ -1,5 +1,6 @@
 "use client";
 
+import { ask, tell } from "@/lib/dialog";
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
@@ -82,28 +83,28 @@ export default function PODetailPage() {
   useEffect(() => { load(); }, [id]);
 
   async function handleSendEmail() {
-    if (!window.confirm(`Send PO email to ${po?.manufacturer_name || "manufacturer"}?`)) return;
+    if (!await ask(`Send PO email to ${po?.manufacturer_name || "manufacturer"}?`)) return;
     setEmailSending(true);
     try {
       await apiClient.post(`/api/v1/admin/purchase-orders/${id}/send-email`);
-      alert("Email sent to manufacturer!");
+      tell("Email sent to manufacturer!");
       await load();
     } catch (err) {
-      alert(err instanceof ApiClientError ? err.message : "Failed to send email");
+      tell(err instanceof ApiClientError ? err.message : "Failed to send email");
     } finally {
       setEmailSending(false);
     }
   }
 
   async function markSent() {
-    if (!window.confirm("Mark this PO as Sent? This cannot be undone.")) return;
+    if (!await ask("Mark this PO as Sent? This cannot be undone.")) return;
     setUpdatingStatus(true);
     try {
       await apiClient.post(`/api/v1/admin/purchase-orders/${id}/mark-sent`);
       await load();
-      alert("PO marked as sent.");
+      tell("PO marked as sent.");
     } catch (err) {
-      alert(err instanceof ApiClientError ? err.message : "Failed to update status");
+      tell(err instanceof ApiClientError ? err.message : "Failed to update status");
     } finally {
       setUpdatingStatus(false);
     }

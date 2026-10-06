@@ -1,5 +1,6 @@
 "use client";
 
+import { ask } from "@/lib/dialog";
 /**
  * Writing one of the shop's policies.
  *
@@ -34,8 +35,8 @@ export function PolicyEditor({ policy, doc, onSave, onRemove, onOpenPage, onClos
       footer={
         <>
           {written !== null && (
-            <button type="button" className="sbe-btn danger" style={{ marginRight: "auto" }} onClick={() => {
-              if (window.confirm(`Remove the ${policy.label.toLowerCase()} from your site? Its page goes with it. You can undo this.`)) onRemove();
+            <button type="button" className="sbe-btn danger" style={{ marginRight: "auto" }} onClick={async () => {
+              if (await ask(`Remove the ${policy.label.toLowerCase()} from your site? Its page goes with it. You can undo this.`)) onRemove();
             }}><Trash2 size={14} /> Remove</button>
           )}
           <button type="button" className="sbe-btn" onClick={onClose}>Cancel</button>

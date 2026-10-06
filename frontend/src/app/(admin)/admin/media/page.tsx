@@ -1,5 +1,6 @@
 "use client";
 
+import { ask, tell } from "@/lib/dialog";
 import { useEffect, useRef, useState } from "react";
 import { mediaService, type MediaItem } from "@/services/media.service";
 
@@ -48,8 +49,8 @@ export default function MediaLibraryPage() {
   }
 
   async function remove(id: string) {
-    if (!confirm("Delete this file?")) return;
-    try { await mediaService.remove(id); setItems((p) => p.filter((x) => x.file_id !== id)); } catch { alert("Delete failed"); }
+    if (!await ask("Delete this file?")) return;
+    try { await mediaService.remove(id); setItems((p) => p.filter((x) => x.file_id !== id)); } catch { tell("Delete failed"); }
   }
 
   return (

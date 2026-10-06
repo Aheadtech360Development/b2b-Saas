@@ -1,3 +1,4 @@
+import { tell } from "@/lib/dialog";
 // frontend/src/app/(customer)/account/orders/[id]/page.tsx
 "use client";
 
@@ -310,7 +311,7 @@ export default function OrderDetailPage() {
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
     } catch {
-      alert("Failed to download PDF. Please try again.");
+      tell("Failed to download PDF. Please try again.");
     }
   }
 

@@ -1,5 +1,6 @@
 "use client";
 
+import { ask } from "@/lib/dialog";
 // Pages manager — list + inline editor. Selecting a page opens the editor in
 // place (no route change), so it stays consistent inside whatever shell hosts
 // it (its own route or the new admin at /ui-preview).
@@ -69,7 +70,7 @@ export default function PagesManager() {
   }
 
   async function handleDelete(p: StorefrontPageRecord) {
-    if (!confirm(`Delete "${p.title}"? This can't be undone.`)) return;
+    if (!await ask(`Delete "${p.title}"? This can't be undone.`)) return;
     try {
       await pagesService.remove(p.id);
       setPages((prev) => prev.filter((x) => x.id !== p.id));

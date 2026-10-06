@@ -1,5 +1,6 @@
 "use client";
 
+import { askText } from "@/lib/dialog";
 /**
  * The controls for an element's settings — one per kind of field the
  * registry describes. Every control speaks the merchant's language: a menu is
@@ -91,9 +92,12 @@ export function RichText({ value, onChange, tall }: { value: string; onChange: (
         <button type="button" className="sbe-icon sm" aria-label="Italic" onMouseDown={(e) => { e.preventDefault(); run("italic"); }}><Italic size={14} /></button>
         <button type="button" className="sbe-icon sm" aria-label="Bulleted list" onMouseDown={(e) => { e.preventDefault(); run("insertUnorderedList"); }}><List size={14} /></button>
         <button type="button" className="sbe-icon sm" aria-label="Numbered list" onMouseDown={(e) => { e.preventDefault(); run("insertOrderedList"); }}><ListOrdered size={14} /></button>
-        <button type="button" className="sbe-icon sm" aria-label="Link" onMouseDown={(e) => {
+        <button type="button" className="sbe-icon sm" aria-label="Link" onMouseDown={async (e) => {
           e.preventDefault();
-          const url = window.prompt("Link to (a path like /products, or https://…)");
+          const sel = window.getSelection();
+          const range = sel && sel.rangeCount && ref.current?.contains(sel.anchorNode) ? sel.getRangeAt(0).cloneRange() : null;
+          const url = await askText("Link to (a path like /products, or https://…)", "", { ok: "Add link", placeholder: "/products" });
+          if (range) { ref.current?.focus(); sel?.removeAllRanges(); sel?.addRange(range); }
           if (url && /^(https?:\/\/|\/|mailto:|tel:)/.test(url.trim())) run("createLink", url.trim());
         }}><Link2 size={14} /></button>
         <button type="button" className="sbe-btn sm ghost" onMouseDown={(e) => { e.preventDefault(); run("formatBlock", "<p>"); }}>Text</button>

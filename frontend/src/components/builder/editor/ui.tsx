@@ -1,5 +1,6 @@
 "use client";
 
+import { ask } from "@/lib/dialog";
 /**
  * The editor's own look and its small shared controls.
  *
@@ -253,6 +254,6 @@ export function TextInput({ value, onChange, placeholder, type = "text", classNa
   );
 }
 
-export function confirmAction(message: string): boolean {
-  return typeof window !== "undefined" && window.confirm(message);
+export function confirmAction(message: string): Promise<boolean> {
+  return ask(message);
 }

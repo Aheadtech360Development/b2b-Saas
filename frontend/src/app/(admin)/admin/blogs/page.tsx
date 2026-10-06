@@ -1,5 +1,6 @@
 "use client";
 
+import { ask } from "@/lib/dialog";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiClient } from "@/lib/api-client";
@@ -37,7 +38,7 @@ export default function AdminBlogsPage() {
 
   async function handleDelete(id: string, e: React.MouseEvent) {
     e.stopPropagation();
-    if (!confirm("Delete this blog post?")) return;
+    if (!await ask("Delete this blog post?")) return;
     await apiClient.delete(`/api/v1/admin/blog-posts/${id}`);
     setPosts(p => p.filter(post => post.id !== id));
   }

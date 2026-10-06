@@ -1,5 +1,6 @@
 "use client";
 
+import { ask } from "@/lib/dialog";
 import { useEffect, useState } from "react";
 import { apiClient } from "@/lib/api-client";
 
@@ -134,7 +135,7 @@ export default function TaxesPage() {
   }
 
   async function handleDelete(id: string) {
-    if (!confirm("Delete this tax rate?")) return;
+    if (!await ask("Delete this tax rate?")) return;
     try {
       await apiClient.delete(`/api/v1/admin/taxes/${id}`);
       setRates(prev => prev.filter(r => r.id !== id));

@@ -1,5 +1,6 @@
 "use client";
 
+import { ask } from "@/lib/dialog";
 /**
  * ThemeCustomizer — edits the brand's own theme.
  *
@@ -241,7 +242,7 @@ export default function ThemeCustomizer({ fullScreen = false, backHref }: {
   }
 
   async function discard() {
-    if (!confirm("Throw away the changes that aren't published yet?")) return;
+    if (!await ask("Throw away the changes that aren't published yet?")) return;
     setBusy("discard"); setMsg(null);
     try { adopt((await themesService.discard()).theme); setMsg({ ok: true, text: "Back to the published version." }); }
     catch (e) { setMsg({ ok: false, text: e instanceof ApiClientError ? e.message : "Could not discard." }); }

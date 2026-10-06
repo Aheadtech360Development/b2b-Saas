@@ -1,5 +1,6 @@
 "use client";
 
+import { ask } from "@/lib/dialog";
 /**
  * The shop's own domain.
  *
@@ -154,8 +155,8 @@ export function DomainPanel() {
             <button
               className="ui-btn-quiet"
               disabled={busy === "save"}
-              onClick={() => {
-                if (window.confirm(
+              onClick={async () => {
+                if (await ask(
                   `Stop using ${state.domain}?\n\nYour shop goes back to ${state.platform_address}, ` +
                   "which has been working the whole time.",
                 )) save("");

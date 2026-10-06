@@ -1,5 +1,6 @@
 "use client";
 
+import { ask } from "@/lib/dialog";
 import { useEffect, useRef, useState } from "react";
 import { apiClient } from "@/lib/api-client";
 import { useAuthStore } from "@/stores/auth.store";
@@ -194,7 +195,7 @@ export default function ManageContactsPage() {
   }
 
   async function handleDelete(id: string) {
-    if (!confirm("Are you sure you want to delete this contact?")) return;
+    if (!await ask("Are you sure you want to delete this contact?")) return;
     try {
       await apiClient.delete(`/api/v1/account/contacts/${id}`);
       setMessage({ type: "success", text: "Contact deleted." });

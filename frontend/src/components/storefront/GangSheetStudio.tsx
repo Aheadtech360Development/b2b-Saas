@@ -1,5 +1,6 @@
 "use client";
 
+import { ask } from "@/lib/dialog";
 /**
  * GangSheetStudio — full-screen DTF gang sheet editor.
  *
@@ -1037,9 +1038,9 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
    * trying to get rid of a design by clicking it made more of it. Removing the
    * file has to take its copies with it, or the sheet still prints them.
    */
-  function removeUpload(u: Upload) {
+  async function removeUpload(u: Upload) {
     const copies = stateRef.current.placements.filter((p) => p.uid === u.uid).length;
-    if (copies > 0 && !confirm(
+    if (copies > 0 && !await ask(
       `Remove "${u.file_name}"? It is on the sheet ${copies} time${copies === 1 ? "" : "s"}, and those will go too.`
     )) return;
     setPlacements((list) => {

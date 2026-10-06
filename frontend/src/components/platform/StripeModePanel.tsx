@@ -1,5 +1,6 @@
 "use client";
 
+import { ask } from "@/lib/dialog";
 /**
  * Which Stripe world the whole platform is in.
  *
@@ -38,7 +39,7 @@ export function StripeModePanel() {
       : "Switch to TEST payments?\n\nNo real money will move.\n\n" +
         "Any live Connect account, subscription or saved card stops being " +
         "visible to the platform until you switch back.";
-    if (!window.confirm(warning)) return;
+    if (!await ask(warning)) return;
 
     setBusy(true);
     setError(null);

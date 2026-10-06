@@ -1,5 +1,6 @@
 "use client";
 
+import { ask } from "@/lib/dialog";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { apiClient } from "@/lib/api-client";
 import { useAuthStore } from "@/stores/auth.store";
@@ -130,7 +131,7 @@ export default function AddressBookPage() {
   }
 
   async function handleDelete(id: string) {
-    if (!confirm("Are you sure you want to delete this address?")) return;
+    if (!await ask("Are you sure you want to delete this address?")) return;
     try {
       await apiClient.delete(`/api/v1/account/addresses/${id}`);
       setMessage({ type: "success", text: "Address deleted." });

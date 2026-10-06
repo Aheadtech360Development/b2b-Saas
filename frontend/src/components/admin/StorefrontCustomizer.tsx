@@ -1,5 +1,6 @@
 "use client";
 
+import { ask } from "@/lib/dialog";
 import { useEffect, useState } from "react";
 import { storefrontService } from "@/services/storefront.service";
 import { productsService } from "@/services/products.service";
@@ -91,7 +92,7 @@ export default function StorefrontCustomizer() {
   const [themeMsg, setThemeMsg] = useState<string | null>(null);
 
   async function activateTheme(theme: StoreTheme) {
-    if (!confirm(`Apply the "${theme.name}" theme?\n\nThis sets its colors, homepage design and menus, and creates standard pages (About, Contact, policies). Pages you already have will NOT be overwritten. You can customize everything afterwards.`)) return;
+    if (!await ask(`Apply the "${theme.name}" theme?\n\nThis sets its colors, homepage design and menus, and creates standard pages (About, Contact, policies). Pages you already have will NOT be overwritten. You can customize everything afterwards.`)) return;
     setActivating(theme.id); setError(null); setThemeMsg(null);
     try {
       // 1. Upsert the theme's menus (by name) so nav linking is set up.

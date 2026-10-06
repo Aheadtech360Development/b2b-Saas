@@ -1,5 +1,6 @@
 "use client";
 
+import { ask } from "@/lib/dialog";
 /**
  * Connect Google Reviews — shown at the top of Catalogue › Reviews.
  *
@@ -152,7 +153,7 @@ export function GoogleReviewsConnect({ onChanged }: { onChanged?: () => void }) 
   }
 
   async function disconnect() {
-    if (!confirm("Disconnect Google? The imported Google reviews are removed from your store.")) return;
+    if (!await ask("Disconnect Google? The imported Google reviews are removed from your store.")) return;
     setBusy("disconnect");
     try {
       await apiClient.delete("/api/v1/admin/google-reviews");

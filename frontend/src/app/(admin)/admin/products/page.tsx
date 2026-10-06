@@ -1,5 +1,6 @@
 "use client";
 
+import { ask, tell } from "@/lib/dialog";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { adminService } from "@/services/admin.service";
@@ -98,16 +99,16 @@ export default function AdminProductsPage() {
 
   async function handleBulkDelete() {
     if (!selectedIds.length) return;
-    if (!confirm(`Permanently delete ${selectedIds.length} product(s)? This cannot be undone.`)) return;
+    if (!await ask(`Permanently delete ${selectedIds.length} product(s)? This cannot be undone.`)) return;
     try {
       const results = await Promise.allSettled(selectedIds.map(id => adminService.deleteProduct(id)));
       const failed = results.filter(r => r.status === "rejected");
       if (failed.length > 0) {
         const reason = (failed[0] as PromiseRejectedResult).reason;
-        alert(`Delete failed: ${reason instanceof Error ? reason.message : "Server error. The product may be referenced by existing orders."}`);
+        tell(`Delete failed: ${reason instanceof Error ? reason.message : "Server error. The product may be referenced by existing orders."}`);
       }
     } catch (err: unknown) {
-      alert(`Delete failed: ${err instanceof Error ? err.message : "Server error."}`);
+      tell(`Delete failed: ${err instanceof Error ? err.message : "Server error."}`);
     }
     setSelectedIds([]);
     load();

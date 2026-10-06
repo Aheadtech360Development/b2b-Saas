@@ -1,5 +1,6 @@
 "use client";
 
+import { ask } from "@/lib/dialog";
 import { useCallback, useEffect, useState } from "react";
 import { downloadFile } from "@/lib/download";
 import {
@@ -950,7 +951,7 @@ function SizesTab() {
   }
 
   async function remove(s: GangSheetSize) {
-    if (!confirm(`Delete "${s.name}"? Existing orders keep their saved sheet details.`)) return;
+    if (!await ask(`Delete "${s.name}"? Existing orders keep their saved sheet details.`)) return;
     await gangSheetsService.adminDeleteSize(s.id).catch(() => {});
     load();
   }
@@ -974,7 +975,7 @@ function SizesTab() {
   }
 
   async function seedStandard() {
-    if (!confirm("Add the 7 standard DTF sizes (22×24 … 22×96)?")) return;
+    if (!await ask("Add the 7 standard DTF sizes (22×24 … 22×96)?")) return;
     setBusy(true); setErr(null);
     try {
       for (const s of STANDARD_DTF_SIZES) {

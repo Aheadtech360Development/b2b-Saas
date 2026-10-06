@@ -1,5 +1,6 @@
 "use client";
 
+import { ask } from "@/lib/dialog";
 /**
  * Manage Suppliers — the brand's supplier connections, what it imports from
  * each, how it prices those imports and how often stock is synced.
@@ -54,7 +55,7 @@ function SupplierList({ onOpen }: { onOpen: (id: string, tab: Tab) => void }) {
 
   const toggleActive = async (row: SupplierRow) => {
     const turningOff = row.active !== false;
-    if (turningOff && !window.confirm(
+    if (turningOff && !await ask(
       `Turn off ${row.name || row.label}?
 
 Nothing will be imported, synced or sent to S&S until you turn it back on. Your API key, settings and imported products stay as they are.`,
@@ -175,9 +176,9 @@ function SupplierView({ id, initialTab, onBack }: { id: string; initialTab: Tab;
   const [dataVersion, setDataVersion] = useState(0);
   const lastStatus = useRef<string | undefined>(undefined);
   const editDirty = useRef(false);
-  const leaveOk = () => !editDirty.current || window.confirm("You have unsaved supplier changes. Leave without saving?");
-  const goTab = (t: Tab) => {
-    if (t === tab || (tab === "edit" && !leaveOk())) return;
+  const leaveOk = async () => !editDirty.current || ask("You have unsaved supplier changes. Leave without saving?");
+  const goTab = async (t: Tab) => {
+    if (t === tab || (tab === "edit" && !(await leaveOk()))) return;
     editDirty.current = false;
     setTab(t);
   };
@@ -274,7 +275,7 @@ function SupplierView({ id, initialTab, onBack }: { id: string; initialTab: Tab;
 
   return (
     <div style={{ maxWidth: 1180 }}>
-      <button onClick={() => { if (leaveOk()) onBack(); }} style={{ background: "none", border: "none", padding: 0, color: "#6B6B6B", fontSize: 13, cursor: "pointer", marginBottom: 10 }}>
+      <button onClick={async () => { if (await leaveOk()) onBack(); }} style={{ background: "none", border: "none", padding: 0, color: "#6B6B6B", fontSize: 13, cursor: "pointer", marginBottom: 10 }}>
         ← Manage Suppliers
       </button>
 

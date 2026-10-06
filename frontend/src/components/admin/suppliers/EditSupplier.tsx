@@ -1,5 +1,6 @@
 "use client";
 
+import { ask } from "@/lib/dialog";
 /**
  * Edit Supplier — every setting for one supplier, in five tabs, saved together
  * with one "Save Supplier" (or thrown away with "Discard Changes").
@@ -181,7 +182,7 @@ function ConnectionTab({ label, name, onName, conn, onConn, onDisconnected }: {
   const saved = !!conn.api_key_hint;
 
   const disconnect = async () => {
-    if (!window.confirm(
+    if (!await ask(
       `Disconnect ${label}?
 
 Your account number and API key are removed from this store. Nothing is imported, synced or sent until you connect again. Imported products and your settings stay.

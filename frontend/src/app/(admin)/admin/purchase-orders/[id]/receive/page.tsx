@@ -1,5 +1,6 @@
 "use client";
 
+import { tell } from "@/lib/dialog";
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { apiClient, ApiClientError } from "@/lib/api-client";
@@ -70,7 +71,7 @@ export default function ReceiveItemsPage() {
 
   async function submit() {
     const activeRows = rows.filter(r => r.qty_receiving > 0);
-    if (activeRows.length === 0) { alert("Enter at least 1 qty to receive"); return; }
+    if (activeRows.length === 0) { tell("Enter at least 1 qty to receive"); return; }
     setSaving(true);
     try {
       await apiClient.post(`/api/v1/admin/purchase-orders/${id}/receive`, {
@@ -84,7 +85,7 @@ export default function ReceiveItemsPage() {
       });
       router.push(`/admin/purchase-orders/${id}`);
     } catch (err) {
-      alert(err instanceof ApiClientError ? err.message : "Failed to record receiving");
+      tell(err instanceof ApiClientError ? err.message : "Failed to record receiving");
     } finally {
       setSaving(false);
     }

@@ -1,3 +1,4 @@
+import { ask, tell } from "@/lib/dialog";
 // frontend/src/app/(admin)/admin/products/categories/page.tsx
 "use client";
 
@@ -80,7 +81,7 @@ export default function CategoriesPage() {
       const res = await apiClient.postForm<{ url: string }>("/api/v1/admin/products/upload-image", fd);
       setForm(f => ({ ...f, image_url: res.url }));
     } catch {
-      alert("Image upload failed");
+      tell("Image upload failed");
     } finally {
       setUploading(false);
     }
@@ -107,21 +108,21 @@ export default function CategoriesPage() {
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Failed to save category";
       console.error("Categories save error:", err);
-      alert(msg);
+      tell(msg);
     } finally {
       setSaving(false);
     }
   }
 
   async function handleDelete(id: string, name: string) {
-    if (!confirm(`Delete category "${name}"? Products won't be deleted.`)) return;
+    if (!await ask(`Delete category "${name}"? Products won't be deleted.`)) return;
     try {
       await apiClient.delete(`/api/v1/admin/products/categories/${id}`);
       await loadCollections();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Failed to delete category";
       console.error("Categories delete error:", err);
-      alert(msg);
+      tell(msg);
     }
   }
 

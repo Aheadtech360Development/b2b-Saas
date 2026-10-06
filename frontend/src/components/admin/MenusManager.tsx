@@ -1,5 +1,6 @@
 "use client";
 
+import { ask } from "@/lib/dialog";
 import { useEffect, useState } from "react";
 import { menusService, type NavMenu } from "@/services/menus.service";
 import { productsService } from "@/services/products.service";
@@ -39,8 +40,8 @@ export default function MenusManager() {
     pagesService.list().then(setPages).catch(() => {});
   }, []);
 
-  function selectMenu(m: NavMenu) {
-    if (dirty && !confirm("Discard unsaved changes to this menu?")) return;
+  async function selectMenu(m: NavMenu) {
+    if (dirty && !await ask("Discard unsaved changes to this menu?")) return;
     setDraft(structuredClone(m)); setDirty(false); setError(null);
   }
   function patchItems(items: MenuItem[]) { setDraft((d) => (d ? { ...d, items } : d)); setDirty(true); }
@@ -73,7 +74,7 @@ export default function MenusManager() {
     finally { setSaving(false); }
   }
   async function handleDelete(m: NavMenu) {
-    if (!confirm(`Delete menu "${m.name}"? Any header/footer using it will fall back to default.`)) return;
+    if (!await ask(`Delete menu "${m.name}"? Any header/footer using it will fall back to default.`)) return;
     try {
       await menusService.remove(m.id);
       const rest = menus.filter((x) => x.id !== m.id);

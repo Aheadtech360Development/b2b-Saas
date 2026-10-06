@@ -1,5 +1,6 @@
 "use client";
 
+import { askText } from "@/lib/dialog";
 /**
  * The visual website builder.
  *
@@ -358,10 +359,10 @@ export default function SiteEditor({ backHref = "/admin/dashboard" }: { backHref
   }, []);
 
   /** The "Footer" block is the footer of every page, never a section of one page. */
-  const footerEverywhere = useCallback(() => {
+  const footerEverywhere = useCallback(async () => {
     const d = docRef.current;
     if (!d) return;
-    if (isColumnsFooter(d) && !confirmAction("Your site already has a footer on every page. Start it again as five columns — your logo and tagline, three menus and a column of text? Your logo, colours and menus are kept. You can undo this.")) return;
+    if (isColumnsFooter(d) && !await confirmAction("Your site already has a footer on every page. Start it again as five columns — your logo and tagline, three menus and a column of text? Your logo, colours and menus are kept. You can undo this.")) return;
     commit(withSimpleFooter(d, preview?.data?.store?.name ?? ""));
     setSelected(null);
     say.done("The footer is set — it shows on every page: home, products, collections, cart. Ctrl Z undoes it.");
@@ -547,7 +548,7 @@ export default function SiteEditor({ backHref = "/admin/dashboard" }: { backHref
     const text = mode === "visual_builder"
       ? "Switch your shop to the builder site? Shoppers will see it from now on. Your imported theme is kept exactly as it is, and you can switch back at any time."
       : "Switch your shop back to its imported theme? It comes back exactly as it was. The builder site stays here to keep working on.";
-    if (!confirmAction(text)) return;
+    if (!await confirmAction(text)) return;
     try {
       const s = await builderService.setMode(mode);
       setState((prev) => (prev ? { ...prev, mode: s.mode, liveVersion: s.liveVersion, versions: s.versions } : prev));
@@ -641,7 +642,7 @@ export default function SiteEditor({ backHref = "/admin/dashboard" }: { backHref
         <Popover open={moreOpen} onClose={() => setMoreOpen(false)} anchor={moreBtn} align="right" width={280}>
           <button type="button" className="sbe-item" onClick={async () => {
             setMoreOpen(false);
-            if (!confirmAction("Start the draft over from the starter site? Your published version and your shop are not affected.")) return;
+            if (!await confirmAction("Start the draft over from the starter site? Your published version and your shop are not affected.")) return;
             try {
               const s = await builderService.reset();
               setState(s); docRef.current = s.draft; savedRef.current = s.draft; revisionRef.current = s.revision;
@@ -681,7 +682,7 @@ export default function SiteEditor({ backHref = "/admin/dashboard" }: { backHref
                        say.done(`${family} ${weight} is uploaded and added to this site's fonts.`);
                      }}
                      deleteFont={async (f) => {
-                       if (!confirmAction(`Delete the uploaded font ${f.family} ${f.weight} ${f.style}?`)) return;
+                       if (!await confirmAction(`Delete the uploaded font ${f.family} ${f.weight} ${f.style}?`)) return;
                        try { await builderService.deleteFont(f.id); setUploaded((u) => u.filter((x) => x.id !== f.id)); say.done("Font deleted."); }
                        catch (err) { say.problem(message(err, "That font could not be deleted.")); }
                      }} />
@@ -709,10 +710,10 @@ export default function SiteEditor({ backHref = "/admin/dashboard" }: { backHref
               <span style={{ flex: "1 1 240px", minWidth: 0 }}>
                 This footer is part of this page only, so the shop shows it here and nowhere else. Make it the footer of every page — products, collections, cart and all.
               </span>
-              <button type="button" className="sbe-btn sm primary" onClick={() => {
+              <button type="button" className="sbe-btn sm primary" onClick={async () => {
                 const d = docRef.current;
                 if (!d) return;
-                if (d.parts?.footer && !confirmAction("Use this as the footer on every page? It takes the place of the footer the other pages show now. You can undo this.")) return;
+                if (d.parts?.footer && !await confirmAction("Use this as the footer on every page? It takes the place of the footer the other pages show now. You can undo this.")) return;
                 commit(moveToFooter(d, where, strayFooter));
                 setSelected(null);
                 say.done("This is the footer on every page now. Ctrl Z undoes it.");
@@ -743,10 +744,10 @@ export default function SiteEditor({ backHref = "/admin/dashboard" }: { backHref
                 setSelected(res.id);
                 setShowRight(true);
               }}>+ Add a text column</button>
-              <button type="button" className={`sbe-btn sm ${isColumnsFooter(doc) ? "ghost" : "primary"}`} data-footer-five onClick={() => {
+              <button type="button" className={`sbe-btn sm ${isColumnsFooter(doc) ? "ghost" : "primary"}`} data-footer-five onClick={async () => {
                 const d = docRef.current;
                 if (!d) return;
-                if (isColumnsFooter(d) && !confirmAction("Start the footer again as five columns — your logo and tagline, three menus and a column of text? Your logo, colours and menus are kept. You can undo this.")) return;
+                if (isColumnsFooter(d) && !await confirmAction("Start the footer again as five columns — your logo and tagline, three menus and a column of text? Your logo, colours and menus are kept. You can undo this.")) return;
                 commit(withSimpleFooter(d, preview?.data?.store?.name ?? ""));
                 setSelected(null);
                 say.done("The footer is five columns now. Ctrl Z brings the old one back.");
@@ -764,18 +765,18 @@ export default function SiteEditor({ backHref = "/admin/dashboard" }: { backHref
           <Inspector doc={doc} where={where} nodeId={selected} device={device} env={env} current={target}
                      act={{
                        change: changeNode, select: setSelected, remove, duplicate, nudge: move,
-                       saveSection: () => {
+                       saveSection: async () => {
                          const d = docRef.current; const node = d && selected && where ? findNode(treeAt(d, where), selected) : null;
                          if (!d || !node) return;
-                         const name = window.prompt("Name this section", labelOf(node));
+                         const name = await askText("Name this section", labelOf(node), { ok: "Save section" });
                          if (!name) return;
                          commit(saveSection(d, node, name).doc);
                          say.done(`Saved. Find “${name}” under Sections.`);
                        },
-                       makeShared: () => {
+                       makeShared: async () => {
                          const d = docRef.current;
                          if (!d || !selected || !where) return;
-                         const name = window.prompt("Name the shared section", "Shared section");
+                         const name = await askText("Name the shared section", "Shared section", { ok: "Make shared" });
                          if (!name) return;
                          const res = makeShared(d, where, selected, name);
                          if (!res) { say.warn("That cannot be shared."); return; }
@@ -1012,7 +1013,7 @@ function VersionsDialog({ state, onClose, onChanged }: { state: BuilderState; on
             </button>
             {v.live ? <span className="sbe-badge live">Published</span> : (
               <button type="button" className="sbe-btn sm" disabled={busy !== null} onClick={async () => {
-                if (!confirmAction(`Make version ${v.number} the published version?${state.mode === "visual_builder" ? " Shoppers will see it straight away." : ""} Your draft is not changed.`)) return;
+                if (!await confirmAction(`Make version ${v.number} the published version?${state.mode === "visual_builder" ? " Shoppers will see it straight away." : ""} Your draft is not changed.`)) return;
                 setBusy(v.id);
                 try { const s = await builderService.rollback(v.id); onChanged(s); say.done(`Version ${v.number} is the published version again.`); }
                 catch (err) { say.problem(message(err, "That did not work.")); }

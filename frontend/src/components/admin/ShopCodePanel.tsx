@@ -1,5 +1,6 @@
 "use client";
 
+import { ask } from "@/lib/dialog";
 /**
  * The code this shop hands its buyers for the mobile app.
  *
@@ -30,7 +31,7 @@ export function ShopCodePanel() {
   useEffect(load, [load]);
 
   async function rotate() {
-    if (!window.confirm(
+    if (!await ask(
       "Issue a new code?\n\nThe old one stops working straight away. Buyers already " +
       "using the app are unaffected — it remembers the shop, not the code.",
     )) return;

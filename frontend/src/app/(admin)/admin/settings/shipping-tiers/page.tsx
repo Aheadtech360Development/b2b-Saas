@@ -1,5 +1,6 @@
 "use client";
 
+import { ask } from "@/lib/dialog";
 import { useEffect, useState } from "react";
 import { adminService } from "@/services/admin.service";
 
@@ -529,7 +530,7 @@ function TierCard({ tier, onEdit, onDelete }: {
           <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end" }}>
             <button
               onClick={async () => {
-                if (!confirm(`Delete "${tier.name}"? Companies using this tier will need to be reassigned.`)) return;
+                if (!await ask(`Delete "${tier.name}"? Companies using this tier will need to be reassigned.`)) return;
                 onDelete();
               }}
               style={{ padding: "8px 16px", background: "rgba(232,36,42,.06)", color: "#E8242A",

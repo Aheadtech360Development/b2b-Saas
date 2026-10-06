@@ -1,5 +1,6 @@
 "use client";
 
+import { tell } from "@/lib/dialog";
 /**
  * The left-hand panel: what can go on a page, what is on it, and the site
  * around it — pages, templates, the theme, saved and shared sections, menus.
@@ -248,7 +249,7 @@ function PagesPanel(p: LeftProps) {
                     <div className="sbe-row"><span className="sbe-help">/</span>
                       <TextInput value={slug} onChange={() => {}} onCommit={(v) => {
                         const next = renameSlug(p.doc, slug, v);
-                        if (!next) { window.alert("That address is taken or not allowed. Use lowercase letters, numbers and hyphens."); return; }
+                        if (!next) { tell("That address is taken or not allowed. Use lowercase letters, numbers and hyphens."); return; }
                         p.commit(next);
                         setEditing(v.trim().toLowerCase());
                         if (sameTarget(p.target, { kind: "page", slug })) p.open({ kind: "page", slug: v.trim().toLowerCase() });
@@ -273,8 +274,8 @@ function PagesPanel(p: LeftProps) {
                     <ImageField env={p.env} value={page.seo?.image ?? ""}
                                 onChange={(v) => p.commit({ ...p.doc, pages: { ...p.doc.pages, [slug]: { ...page, seo: { ...page.seo, image: v } } } })} />
                   </div>
-                  <button type="button" className="sbe-btn sm danger" onClick={() => {
-                    if (!confirmAction(`Delete the page “${page.title || slug}”? It goes from the draft now and from the shop when you publish.`)) return;
+                  <button type="button" className="sbe-btn sm danger" onClick={async () => {
+                    if (!await confirmAction(`Delete the page “${page.title || slug}”? It goes from the draft now and from the shop when you publish.`)) return;
                     p.commit(removePage(p.doc, slug));
                     if (sameTarget(p.target, { kind: "page", slug })) p.open({ kind: "template", type: "home", id: "default" });
                   }}><Trash2 size={13} /> Delete page</button>
@@ -497,10 +498,10 @@ function TemplateRow(p: LeftProps & { type: TemplateType; id: string; name: stri
                 }}><Star size={14} /><span className="grow">Make default</span></button>
               )}
               {id !== "default" && (
-                <button type="button" className="sbe-item" style={{ color: "#B42318" }} onClick={() => {
+                <button type="button" className="sbe-item" style={{ color: "#B42318" }} onClick={async () => {
                   setMore(false);
                   const users = assigned.length ? ` ${assigned.length} ${assigned.length === 1 ? noun[0] : noun[1]} using it go back to the default.` : " Anything using it goes back to the default.";
-                  if (!confirmAction(`Delete the template “${name}”?${users}`)) return;
+                  if (!await confirmAction(`Delete the template “${name}”?${users}`)) return;
                   p.commit(removeTemplate(p.doc, type, id));
                   if (sameTarget(p.target, t)) p.open({ kind: "template", type, id: "default" });
                 }}><Trash2 size={14} /><span className="grow">Delete</span></button>
@@ -870,9 +871,9 @@ function SectionsPanel(p: LeftProps) {
               <button type="button" className="sbe-btn sm ghost" onClick={(e) => { e.stopPropagation(); p.add({ shared: id }); }}>Insert</button>
               <button type="button" className="sbe-icon sm" aria-label="Delete shared section" disabled={uses > 0}
                       title={uses ? "Remove it from the pages that use it first" : "Delete"}
-                      onClick={(e) => {
+                      onClick={async (e) => {
                         e.stopPropagation();
-                        if (!confirmAction(`Delete the shared section “${g.name}”?`)) return;
+                        if (!await confirmAction(`Delete the shared section “${g.name}”?`)) return;
                         const globals = { ...p.doc.globals };
                         delete globals[id];
                         p.commit({ ...p.doc, globals });
@@ -890,9 +891,9 @@ function SectionsPanel(p: LeftProps) {
           <div key={id} className="sbe-item" {...drag(p.dragRef, { saved: id })} onClick={() => p.add({ saved: id })}>
             <Bookmark size={15} /><span className="grow">{sv.name}</span>
             <button type="button" className="sbe-btn sm ghost" onClick={(e) => { e.stopPropagation(); p.open({ kind: "saved", id }); }}>Edit</button>
-            <button type="button" className="sbe-icon sm" aria-label="Delete saved section" onClick={(e) => {
+            <button type="button" className="sbe-icon sm" aria-label="Delete saved section" onClick={async (e) => {
               e.stopPropagation();
-              if (!confirmAction(`Delete the saved section “${sv.name}”? Copies already on pages stay.`)) return;
+              if (!await confirmAction(`Delete the saved section “${sv.name}”? Copies already on pages stay.`)) return;
               const next = { ...p.doc.saved };
               delete next[id];
               p.commit({ ...p.doc, saved: next });

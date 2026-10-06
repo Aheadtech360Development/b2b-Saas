@@ -1,5 +1,6 @@
 "use client";
 
+import { tell } from "@/lib/dialog";
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { apiClient, ApiClientError } from "@/lib/api-client";
@@ -319,9 +320,9 @@ export default function CreatePOPage() {
   // ── Save helpers ──────────────────────────────────────────────────────────────
 
   async function savePO(): Promise<{ id: string } | null> {
-    if (!manufacturerId) { alert("Please select a manufacturer"); return null; }
+    if (!manufacturerId) { tell("Please select a manufacturer"); return null; }
     const lineItems = buildLineItems();
-    if (lineItems.length === 0) { alert("Add at least one line item with qty > 0"); return null; }
+    if (lineItems.length === 0) { tell("Add at least one line item with qty > 0"); return null; }
     try {
       return await apiClient.post<{ id: string }>("/api/v1/admin/purchase-orders/", {
         manufacturer_id: manufacturerId,
@@ -330,7 +331,7 @@ export default function CreatePOPage() {
         line_items: lineItems,
       });
     } catch (err) {
-      alert(err instanceof ApiClientError ? err.message : "Failed to create PO");
+      tell(err instanceof ApiClientError ? err.message : "Failed to create PO");
       return null;
     }
   }
@@ -358,9 +359,9 @@ export default function CreatePOPage() {
     setEmailSending(true);
     try {
       await apiClient.post(`/api/v1/admin/purchase-orders/${poData.id}/send-email`);
-      alert("PO saved and email sent to manufacturer!");
+      tell("PO saved and email sent to manufacturer!");
     } catch {
-      alert("PO saved but email failed. You can resend from the PO detail page.");
+      tell("PO saved but email failed. You can resend from the PO detail page.");
     } finally {
       setEmailSending(false);
     }

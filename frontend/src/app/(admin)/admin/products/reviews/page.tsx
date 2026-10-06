@@ -1,5 +1,6 @@
 "use client";
 
+import { ask } from "@/lib/dialog";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiClient } from "@/lib/api-client";
@@ -77,7 +78,7 @@ export default function AdminReviewsPage() {
   }
 
   async function handleDelete(id: string) {
-    if (!confirm("Delete this review? This cannot be undone.")) return;
+    if (!await ask("Delete this review? This cannot be undone.")) return;
     await apiClient.delete(`/api/v1/admin/reviews/${id}`);
     setReviews(prev => prev.filter(r => r.id !== id));
     setTotal(t => t - 1);

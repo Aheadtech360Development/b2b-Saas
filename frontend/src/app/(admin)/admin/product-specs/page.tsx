@@ -1,5 +1,6 @@
 "use client";
 
+import { ask } from "@/lib/dialog";
 import { useEffect, useRef, useState } from "react";
 import { apiClient } from "@/lib/api-client";
 
@@ -119,7 +120,7 @@ export default function AdminProductSpecsPage() {
   }
 
   async function handleDelete(id: string) {
-    if (!confirm("Delete this product spec?")) return;
+    if (!await ask("Delete this product spec?")) return;
     try {
       await apiClient.delete(`/api/v1/admin/product-specs/${id}`);
       setSpecs(prev => prev.filter(r => r.id !== id));

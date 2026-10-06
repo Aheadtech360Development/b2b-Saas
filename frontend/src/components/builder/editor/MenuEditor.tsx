@@ -127,7 +127,7 @@ export function MenuEditor({ dialog, menus, doc, collections, searchProducts, on
     setItem(i, { children: kids });
   };
 
-  const close = () => { if (!dirty || confirmAction("Close without saving the changes to this menu?")) onClose(); };
+  const close = async () => { if (!dirty || await confirmAction("Close without saving the changes to this menu?")) onClose(); };
 
   async function save() {
     const clean = name.trim();
@@ -159,7 +159,7 @@ export function MenuEditor({ dialog, menus, doc, collections, searchProducts, on
   async function remove() {
     if (!id) return;
     const where = used ? ` It is used ${used === 1 ? "once" : `${used} times`} on this site — those spots will be empty until another menu is chosen.` : "";
-    if (!confirmAction(`Delete the menu “${name}”?${where} This cannot be undone.`)) return;
+    if (!await confirmAction(`Delete the menu “${name}”?${where} This cannot be undone.`)) return;
     setBusy(true);
     try {
       await menusService.remove(id);

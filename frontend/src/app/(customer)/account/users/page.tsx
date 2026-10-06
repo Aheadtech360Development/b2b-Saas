@@ -1,5 +1,6 @@
 "use client";
 
+import { ask } from "@/lib/dialog";
 import { useEffect, useRef, useState } from "react";
 import { apiClient } from "@/lib/api-client";
 import { useAuthStore } from "@/stores/auth.store";
@@ -195,7 +196,7 @@ export default function ManageUsersPage() {
   }
 
   async function handleResetPassword(u: CompanyUser) {
-    if (!confirm(`Send password reset email to ${u.email}?`)) return;
+    if (!await ask(`Send password reset email to ${u.email}?`)) return;
     try {
       await apiClient.post(`/api/v1/account/users/${u.user_id}/reset-password`, {});
       setMessage({ type: "success", text: `Password reset email sent to ${u.email}` });
@@ -205,7 +206,7 @@ export default function ManageUsersPage() {
   }
 
   async function handleRemove(u: CompanyUser) {
-    if (!confirm(`Remove ${u.first_name} ${u.last_name} from your company?`)) return;
+    if (!await ask(`Remove ${u.first_name} ${u.last_name} from your company?`)) return;
     try {
       await apiClient.delete(`/api/v1/account/users/${u.user_id}`);
       setMessage({ type: "success", text: "User removed successfully." });

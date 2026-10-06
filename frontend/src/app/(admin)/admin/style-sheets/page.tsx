@@ -1,5 +1,6 @@
 "use client";
 
+import { ask } from "@/lib/dialog";
 import { useEffect, useRef, useState } from "react";
 import { apiClient } from "@/lib/api-client";
 
@@ -122,7 +123,7 @@ export default function AdminStyleSheetsPage() {
   }
 
   async function handleDelete(id: string) {
-    if (!confirm("Delete this style sheet?")) return;
+    if (!await ask("Delete this style sheet?")) return;
     try {
       await apiClient.delete(`/api/v1/admin/style-sheets/${id}`);
       setSheets(prev => prev.filter(r => r.id !== id));

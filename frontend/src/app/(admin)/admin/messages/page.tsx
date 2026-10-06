@@ -1,5 +1,6 @@
 "use client";
 
+import { ask } from "@/lib/dialog";
 import { useEffect, useState } from "react";
 import { contactService, type ContactSubmission } from "@/services/contact.service";
 import { useAuthStore } from "@/stores/auth.store";
@@ -40,7 +41,7 @@ export default function MessagesPage() {
   }
 
   async function remove(s: ContactSubmission) {
-    if (!confirm("Delete this message?")) return;
+    if (!await ask("Delete this message?")) return;
     try {
       await contactService.remove(s.id);
       setItems((prev) => prev.filter((x) => x.id !== s.id));

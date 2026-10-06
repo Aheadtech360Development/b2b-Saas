@@ -1,5 +1,6 @@
 "use client";
 
+import { askText } from "@/lib/dialog";
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Underline from "@tiptap/extension-underline";
@@ -185,8 +186,8 @@ export function RichTextEditor({ value, onChange, placeholder }: Props) {
         <Divider />
 
         <ToolbarBtn
-          onClick={() => {
-            const url = window.prompt("Enter URL:");
+          onClick={async () => {
+            const url = await askText("Link to (a web address, or a path like /products)", "", { ok: "Add link", placeholder: "https://…" });
             if (url) editor.chain().focus().setLink({ href: url }).run();
           }}
           active={editor.isActive("link")}

@@ -1,5 +1,6 @@
 "use client";
 
+import { ask } from "@/lib/dialog";
 /**
  * ProductTemplateEditor — one product template: the product-information
  * blocks (standard ones movable, custom ones added between them), the
@@ -374,7 +375,7 @@ export default function ProductTemplateEditor({ id, onBack }: { id: string; onBa
   }
 
   async function discard() {
-    if (!confirm("Throw away the changes that aren't published yet?")) return;
+    if (!await ask("Throw away the changes that aren't published yet?")) return;
     setBusy("discard"); setMsg(null);
     try { adopt(await api.discard(id)); setMsg({ ok: true, text: "Back to the published version." }); }
     catch (e) { setMsg({ ok: false, text: errorText(e, "Could not discard changes.") }); }
@@ -416,7 +417,7 @@ export default function ProductTemplateEditor({ id, onBack }: { id: string; onBa
       {/* Header */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: "20px", flexWrap: "wrap", gap: "12px" }}>
         <div style={{ minWidth: 0, flex: "1 1 320px" }}>
-          <button onClick={() => { if (!dirty || confirm("You have unsaved changes. Leave anyway?")) onBack(); }} style={{ background: "none", border: "none", color: "#1A1A1A", fontSize: "13px", fontWeight: 700, cursor: "pointer", padding: 0, marginBottom: "6px" }}>← All product templates</button>
+          <button onClick={async () => { if (!dirty || await ask("You have unsaved changes. Leave anyway?")) onBack(); }} style={{ background: "none", border: "none", color: "#1A1A1A", fontSize: "13px", fontWeight: 700, cursor: "pointer", padding: 0, marginBottom: "6px" }}>← All product templates</button>
           <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
             <input
               value={name} onChange={(e) => setName(e.target.value)} disabled={!writable} aria-label="Template name"

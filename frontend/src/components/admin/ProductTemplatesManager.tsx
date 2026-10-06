@@ -1,5 +1,6 @@
 "use client";
 
+import { ask } from "@/lib/dialog";
 // Product templates — list + inline editor, the same pattern as PagesManager,
 // so it renders the same in its own route and inside the new admin shell.
 import { useEffect, useState } from "react";
@@ -50,7 +51,7 @@ export default function ProductTemplatesManager() {
 
   async function remove(t: ProductTemplateRow) {
     const note = t.product_count ? ` Its ${t.product_count} product${t.product_count === 1 ? "" : "s"} will go back to the default template.` : "";
-    if (!confirm(`Delete "${t.name}"?${note} This can't be undone.`)) return;
+    if (!await ask(`Delete "${t.name}"?${note} This can't be undone.`)) return;
     try { await api.remove(t.id); load(); }
     catch (e) { setError(e instanceof ApiClientError ? e.message : "Could not delete the template."); }
   }

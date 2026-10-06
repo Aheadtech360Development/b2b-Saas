@@ -1,5 +1,6 @@
 "use client";
 
+import { ask } from "@/lib/dialog";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiClient } from "@/lib/api-client";
@@ -84,7 +85,7 @@ export default function AbandonedCartsPage() {
   }
 
   async function handleDelete(cartId: string) {
-    if (!confirm("Delete this abandoned cart?")) return;
+    if (!await ask("Delete this abandoned cart?")) return;
     try {
       await apiClient.delete(`/api/v1/account/abandoned-carts/${cartId}`);
       setCarts((prev) => prev.filter((c) => c.id !== cartId));

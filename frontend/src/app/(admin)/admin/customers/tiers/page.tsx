@@ -1,3 +1,4 @@
+import { ask } from "@/lib/dialog";
 // frontend/src/app/(admin)/admin/customers/tiers/page.tsx
 "use client";
 export const dynamic = "force-dynamic";
@@ -457,7 +458,7 @@ export default function DiscountGroupsPage() {
   }
 
   async function handleDeleteGroup(id: string, title: string) {
-    if (!confirm(`Delete discount group "${title}"?`)) return;
+    if (!await ask(`Delete discount group "${title}"?`)) return;
     try {
       await apiClient.delete(`/api/v1/admin/discount-groups/${id}`);
       showToast("Group deleted");

@@ -1,5 +1,6 @@
 "use client";
 
+import { ask } from "@/lib/dialog";
 /**
  * Roles & permissions.
  *
@@ -190,8 +191,8 @@ export default function RolesPage() {
                 <div style={{ display: "flex", gap: "10px", flexShrink: 0 }}>
                   <button onClick={() => edit(r)} style={{ background: "none", border: "none", color: "#1A1A1A", fontWeight: 600, fontSize: "13px", cursor: "pointer" }}>Edit</button>
                   <button
-                    onClick={() => {
-                      if (confirm(`Delete “${r.name}”? Users on it revert to Viewer.`)) {
+                    onClick={async () => {
+                      if (await ask(`Delete “${r.name}”? Users on it revert to Viewer.`)) {
                         rolesService.remove(r.id).then(load).catch(() => {});
                       }
                     }}

@@ -1,5 +1,6 @@
 "use client";
 
+import { ask } from "@/lib/dialog";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   segmentsService,
@@ -94,7 +95,7 @@ export default function SegmentsPage() {
                   <td style={{ padding: "12px 14px", color: "#888" }}>{s.updated_at ? new Date(s.updated_at).toLocaleDateString() : "—"}</td>
                   <td style={{ padding: "12px 14px", textAlign: "right", whiteSpace: "nowrap" }}>
                     <button onClick={() => segmentsService.duplicate(s.id).then(() => load()).catch(() => {})} style={linkBtn}>Duplicate</button>
-                    <button onClick={() => { if (confirm(`Delete “${s.name}”?`)) segmentsService.remove(s.id).then(() => load()).catch(() => {}); }} style={{ ...linkBtn, color: "#B91C1C" }}>Delete</button>
+                    <button onClick={async () => { if (await ask(`Delete “${s.name}”?`)) segmentsService.remove(s.id).then(() => load()).catch(() => {}); }} style={{ ...linkBtn, color: "#B91C1C" }}>Delete</button>
                   </td>
                 </tr>
               ))}

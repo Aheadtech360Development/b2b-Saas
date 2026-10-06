@@ -1,3 +1,4 @@
+import { ask, tell } from "@/lib/dialog";
 // frontend/src/app/(admin)/admin/products/collections/page.tsx
 "use client";
 
@@ -259,13 +260,13 @@ export default function CollectionsPage() {
   }
 
   async function remove(c: Collection) {
-    if (!confirm(`Delete "${c.name}"? The products in it are not deleted.`)) return;
+    if (!await ask(`Delete "${c.name}"? The products in it are not deleted.`)) return;
     try {
       await apiClient.delete(`/api/v1/admin/collections/${c.id}`);
       await load();
     } catch (e) {
       const err = e as { detail?: string; message?: string };
-      alert(err?.detail || err?.message || "That could not be deleted.");
+      tell(err?.detail || err?.message || "That could not be deleted.");
     }
   }
 

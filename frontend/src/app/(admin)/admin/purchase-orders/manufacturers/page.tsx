@@ -1,5 +1,6 @@
 "use client";
 
+import { ask, tell } from "@/lib/dialog";
 import { useEffect, useState } from "react";
 import { apiClient, ApiClientError } from "@/lib/api-client";
 
@@ -36,7 +37,7 @@ export default function ManufacturersPage() {
 
   async function save() {
     if (!form.name.trim() || !form.contact_name?.trim() || !form.email?.trim() || !form.phone?.trim() || !form.address?.trim()) {
-      alert("Please fill all required fields: Name, Contact Name, Email, Phone, and Address");
+      tell("Please fill all required fields: Name, Contact Name, Email, Phone, and Address");
       return;
     }
     setSaving(true);
@@ -49,13 +50,13 @@ export default function ManufacturersPage() {
       setShowModal(false);
       await load();
     } catch (err) {
-      alert(err instanceof ApiClientError ? err.message : "Failed to save");
+      tell(err instanceof ApiClientError ? err.message : "Failed to save");
     }
     setSaving(false);
   }
 
   async function del(id: string, name: string) {
-    if (!confirm(`Delete "${name}"?`)) return;
+    if (!await ask(`Delete "${name}"?`)) return;
     await apiClient.delete(`/api/v1/admin/purchase-orders/manufacturers/${id}`);
     await load();
   }

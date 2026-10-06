@@ -1,3 +1,4 @@
+import { ask, tell } from "@/lib/dialog";
 // frontend/src/app/(admin)/admin/products/[slug]/edit/page.tsx
 "use client";
 
@@ -179,14 +180,14 @@ export default function AdminProductEditPage() {
 
   async function handleBulkDeleteVariants() {
     if (!product || selectedVariantIds.size === 0) return;
-    if (!confirm(`Delete ${selectedVariantIds.size} selected variant(s)? This cannot be undone.`)) return;
+    if (!await ask(`Delete ${selectedVariantIds.size} selected variant(s)? This cannot be undone.`)) return;
     try {
       const result = await adminService.deleteVariantsBulk(product.id, [...selectedVariantIds]);
       if (result?.discontinued && result.discontinued > 0) {
-        alert(`${result.discontinued} variant(s) have order history and were discontinued instead of deleted.`);
+        tell(`${result.discontinued} variant(s) have order history and were discontinued instead of deleted.`);
       }
     } catch (err: unknown) {
-      alert(`Delete failed: ${err instanceof Error ? err.message : "Server error"}`);
+      tell(`Delete failed: ${err instanceof Error ? err.message : "Server error"}`);
     }
     setSelectedVariantIds(new Set());
     await load();
@@ -314,7 +315,7 @@ export default function AdminProductEditPage() {
       setExpandedGroups(prev => [...new Set([...prev, ...colors.map(c => c.name)])]);
       setShowAddVariant(false);
     } catch (err) {
-      alert("Failed to add variants.");
+      tell("Failed to add variants.");
       console.error(err);
     } finally {
       setAddingVariant(false);
@@ -323,14 +324,14 @@ export default function AdminProductEditPage() {
 
   async function handleDeleteVariant(variantId: string) {
     if (!product) return;
-    if (!confirm("Delete this variant? This cannot be undone.")) return;
+    if (!await ask("Delete this variant? This cannot be undone.")) return;
     try {
       const result = await adminService.deleteVariantsBulk(product.id, [variantId]);
       if (result?.discontinued && result.discontinued > 0) {
-        alert("Variant has order history and was discontinued instead of deleted.");
+        tell("Variant has order history and was discontinued instead of deleted.");
       }
     } catch (err: unknown) {
-      alert(`Delete failed: ${err instanceof Error ? err.message : "Server error"}`);
+      tell(`Delete failed: ${err instanceof Error ? err.message : "Server error"}`);
     }
     setProduct(prev => prev ? {
       ...prev,
@@ -417,7 +418,7 @@ export default function AdminProductEditPage() {
   }
 
   async function handleDeleteFlyer() {
-    if (!product || !confirm("Remove the flyer for this product?")) return;
+    if (!product || !await ask("Remove the flyer for this product?")) return;
     try {
       await apiClient.delete(`/api/v1/admin/products/${product.id}/flyer`);
       setFlyerMsg("Flyer removed.");
@@ -1445,7 +1446,7 @@ export default function AdminProductEditPage() {
             <span style={{ ...sectionTitle, color: "#E8242A", marginBottom: "12px" }}>Danger zone</span>
             <button
               onClick={async () => {
-                if (!product || !confirm(`Delete "${product.name}"? This cannot be undone.`)) return;
+                if (!product || !await ask(`Delete "${product.name}"? This cannot be undone.`)) return;
                 await adminService.deleteProduct(product.id);
                 router.push("/admin/products");
               }}

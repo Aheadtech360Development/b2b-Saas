@@ -1,3 +1,4 @@
+import { ask } from "@/lib/dialog";
 // frontend/src/app/(admin)/admin/discounts/page.tsx
 "use client";
 export const dynamic = "force-dynamic";
@@ -188,7 +189,7 @@ export default function DiscountsPage() {
   }
 
   async function handleDeactivate(id: string) {
-    if (!confirm("Deactivate this discount code?")) return;
+    if (!await ask("Deactivate this discount code?")) return;
     await apiClient.delete(`/api/v1/admin/discounts/${id}`);
     load(page, search);
   }
