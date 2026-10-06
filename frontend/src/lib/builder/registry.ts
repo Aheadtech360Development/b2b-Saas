@@ -624,7 +624,10 @@ export function asFooterColumn(n: BuilderNode): BuilderNode {
  * shows as many as fit and puts the rest underneath, a phone ends up with the
  * brand on a line of its own and the columns in ones or twos below it.
  */
-export function simpleFooter(menus: { title: string; menuId?: string }[] = [{ title: "Shop" }, { title: "Help" }, { title: "Company" }],
+/** The three menu columns a footer starts with, by the names most shops give them. */
+export const FOOTER_TITLES = ["Products", "Support", "Company"];
+
+export function simpleFooter(menus: { title: string; menuId?: string }[] = FOOTER_TITLES.map((title) => ({ title })),
                              storeName = ""): BuilderNode {
   return named("Footer", node("section", { width: "contained" },
     { paddingTop: "56px", paddingBottom: "32px", backgroundColor: "#F7F7F5" }, [

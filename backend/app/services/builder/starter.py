@@ -27,6 +27,11 @@ class _Ids:
         return f"{self._prefix}{next(self._count):04d}"
 
 
+# A footer column's share of its row: side by side while there is room, onto the
+# next line when there is not. (Mirrors asFooterColumn in the editor's registry.)
+_COLUMN = {"flexGrow": 1, "flexBasis": "160px"}
+
+
 def _node(ids: _Ids, ntype: str, props: dict | None = None, style: dict | None = None,
           children: list | None = None, **extra: Any) -> dict[str, Any]:
     node: dict[str, Any] = {"id": ids(), "type": ntype, "props": props or {}, "style": style or {}}
@@ -79,25 +84,38 @@ def starter_document(*, store_name: str = "", primary: str = "", header_menu: st
     }, {"backgroundColor": primary, "color": "#FFFFFF", "textAlign": "center",
         "paddingTop": "10px", "paddingBottom": "10px", "fontSize": "13px"}, name="Announcement")
 
-    # The footer: a brand column — logo, a line, a few words — then a column
-    # for each menu, as many as the merchant adds. The columns are a grid that
-    # fits as many across as there is room for, so a phone stacks them without
-    # anything being set for it. (Mirrors simpleFooter in the editor's registry.)
+    # The footer: five columns — the brand (logo, a line, a few words), three
+    # menus, and a column of text. They are a row that wraps: side by side
+    # while there is room, the last onto the next line when there is not, so a
+    # phone stacks them without anything being set for it. Delete one and the
+    # rest grow into its room. (Mirrors simpleFooter in the editor's registry.)
     footer = _node(ids, "section", {"width": "contained"}, {
         "paddingTop": "56px", "paddingBottom": "32px", "backgroundColor": "#F7F7F5",
     }, [
-        _node(ids, "stack", {"direction": "column"}, {
-            "display": "grid", "gridAuto": "fit", "gridMin": "170px", "gap": "32px", "alignItems": "start",
+        _node(ids, "stack", {"direction": "row"}, {
+            "flexWrap": "wrap", "gap": "32px", "alignItems": "flex-start",
         }, [
-            _node(ids, "stack", {"direction": "column"}, {"gap": "10px"}, [
+            _node(ids, "stack", {"direction": "column"}, {"gap": "10px", "flexGrow": 3, "flexBasis": "280px"}, [
                 _node(ids, "logo", {"fallback": "name"}, {"height": "36px"}),
                 _node(ids, "text", {"text": "Printed well, shipped fast."},
                       {"fontWeight": 600, "fontSize": "15px"}, name="Tagline"),
                 _node(ids, "text", {"text": "A sentence or two about your shop — what you make and who for."},
                       {"color": "var(--b-muted,#5B6170)", "fontSize": "14px"}, name="About"),
             ], name="Brand"),
-            _node(ids, "menu", {"title": "Shop", "menuId": footer_menu or header_menu, "layout": "vertical"},
-                  name="Shop links"),
+            # Three menu columns: the shop's own footer menu in the first, the
+            # other two named and waiting for a menu to be chosen.
+            _node(ids, "menu", {"title": "Products", "menuId": footer_menu or header_menu, "layout": "vertical"},
+                  dict(_COLUMN), name="Products links"),
+            _node(ids, "menu", {"title": "Support", "menuId": "", "layout": "vertical"},
+                  dict(_COLUMN), name="Support links"),
+            _node(ids, "menu", {"title": "Company", "menuId": "", "layout": "vertical"},
+                  dict(_COLUMN), name="Company links"),
+            # And one that is not links: how to reach the shop.
+            _node(ids, "stack", {"direction": "column"}, {**_COLUMN, "gap": "10px"}, [
+                _node(ids, "heading", {"text": "Talk to us", "level": 4}, {"fontSize": "15.75px", "lineHeight": "1.6"}),
+                _node(ids, "rich_text", {"html": "<p>hello@yourshop.com</p><p>(000) 000-0000</p><p>City, State</p>"},
+                      {"fontSize": "15px", "fontWeight": 500, "paddingTop": "6px"}),
+            ], name="Talk to us"),
         ], name="Footer columns"),
         _node(ids, "divider", {}, {"marginTop": "36px", "marginBottom": "18px"}),
         _node(ids, "text", {"text": f"© {store_name or 'Our store'}. All rights reserved."},

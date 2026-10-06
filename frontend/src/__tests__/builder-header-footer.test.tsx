@@ -12,8 +12,8 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { Tree, type RenderCtx } from "@/components/builder/render";
 import { BASE_CSS } from "@/lib/builder/baseCss";
-import { addFooterColumn, addFooterTextColumn, withSimpleFooter } from "@/lib/builder/doc";
-import { BY_TYPE, PRESETS, menuColumn, simpleFooter, textColumn } from "@/lib/builder/registry";
+import { addFooterColumn, addFooterTextColumn, isColumnsFooter, removeAndClose, withSimpleFooter } from "@/lib/builder/doc";
+import { BY_TYPE, FOOTER_TITLES, PRESETS, menuColumn, simpleFooter, textColumn } from "@/lib/builder/registry";
 import { nodeCss, treeCss } from "@/lib/builder/style";
 import { findNode, walk } from "@/lib/builder/tree";
 import type { BuilderNode, SiteDoc, SitePayload } from "@/lib/builder/types";
@@ -402,11 +402,65 @@ describe("the footer: a brand column and a column for each menu", () => {
     const next = withSimpleFooter(doc, "Northwind");
     const rowOf = next.parts.footer!.children![0]!;
     const columns = rowOf.children!.filter((c) => c.type === "menu");
-    expect(columns.map((c) => (c.props as Record<string, unknown>).menuId)).toEqual(oldMenus);
+    expect(columns.map((c) => (c.props as Record<string, unknown>).menuId).slice(0, oldMenus.length)).toEqual(oldMenus);
+    // Five columns: the brand, three menus (the old ones first), a column of text.
+    expect(rowOf.children).toHaveLength(2 + Math.max(3, oldMenus.length));
+    expect(types(rowOf.children!.at(-1)!)).toEqual(["stack", "heading", "rich_text"]);
+    expect(isColumnsFooter(next)).toBe(true);
+    expect(isColumnsFooter(doc)).toBe(false);
     // The older footer titled its menu with a heading above it: that becomes the column's title.
     expect((columns[0]!.props as Record<string, unknown>).title).toBe("Shop");
     expect(types(next.parts.footer!)).not.toContain("newsletter");
     expect(next.parts.header).toBe(doc.parts.header);
+  });
+
+  it("is five columns from the start: the brand, Products, Support, Company, and a column of text", () => {
+    const rowOf = simpleFooter().children![0]!;
+    expect(rowOf.children).toHaveLength(5);
+    expect(rowOf.children!.filter((c) => c.type === "menu").map((c) => (c.props as Record<string, unknown>).title)).toEqual(FOOTER_TITLES);
+    // A footer with no menus at all gets the three, the first with the header's menu.
+    const bare = { ...(starter as unknown as SiteDoc), parts: { ...(starter as unknown as SiteDoc).parts, footer: n("section", {}, {}, [n("text", { text: "hi" })]) } };
+    const five = withSimpleFooter(bare).parts.footer!.children![0]!;
+    expect(five.children!.map((c) => c.type)).toEqual(["stack", "menu", "menu", "menu", "stack"]);
+  });
+
+  it("keeps the look the shop gave its old footer: its colours, its logo, the words under it, the small print", () => {
+    const logo = n("logo", { fallback: "name" }, { width: "150px" });
+    const old = n("section", { width: "contained" }, { backgroundColor: "#0B1B3F", color: "#FFFFFF", paddingTop: "72px" }, [
+      n("stack", { direction: "column" }, {}, [logo, n("text", { text: "Custom prints for teams and brands." }), n("text", { text: "" })]),
+      n("menu", { title: "Shop", menuId: "a", layout: "vertical" }),
+      n("text", { text: "© 2026 Innterflow. All rights reserved." }),
+    ], { mobile: { paddingTop: "40px" } });
+    const doc = { ...(starter as unknown as SiteDoc), parts: { ...(starter as unknown as SiteDoc).parts, footer: old } };
+    const footer = withSimpleFooter(doc, "Innterflow").parts.footer!;
+    expect(footer.style).toMatchObject({ backgroundColor: "#0B1B3F", color: "#FFFFFF", paddingTop: "72px" });
+    expect(footer.mobile).toEqual({ paddingTop: "40px" });
+    const brand = footer.children![0]!.children![0]!;
+    expect(brand.children!.map((c) => c.type)).toEqual(["logo", "text"]);
+    expect(brand.children![0]!.style).toEqual({ width: "150px" });
+    expect(brand.children![0]!.id).not.toBe(logo.id);
+    expect((brand.children![1]!.props as Record<string, unknown>).text).toBe("Custom prints for teams and brands.");
+    expect(JSON.stringify(footer)).toContain("© 2026 Innterflow. All rights reserved.");
+    const menus = footer.children![0]!.children!.filter((c) => c.type === "menu").map((c) => (c.props as Record<string, unknown>).title);
+    expect(menus).toEqual(["Shop", "Products", "Support"]);
+  });
+
+  it("lets the columns left take up the room of one that is deleted", () => {
+    const cols = [1, 2, 3].map((i) => n("column", {}, {}, [n("text", { text: `c${i}` })]));
+    const told = n("row", {}, { columns: 3 }, cols);
+    const tree = n("stack", {}, {}, [told]);
+    const after = findNode(removeAndClose(tree, cols[1]!.id), told.id)!;
+    expect(after.children).toHaveLength(2);
+    expect(after.style?.columns).toBe(2);
+    // A row told to keep more tracks than it has columns is left as it was set.
+    const wide = n("row", {}, { columns: 4 }, cols.map((c) => ({ ...c })));
+    expect(findNode(removeAndClose(n("stack", {}, {}, [wide]), wide.children![0]!.id), wide.id)!.style?.columns).toBe(4);
+    // In the footer's row that wraps, the others grow into the room by themselves.
+    const foot = simpleFooter();
+    const rowOf = foot.children![0]!;
+    const fewer = findNode(removeAndClose(foot, rowOf.children![2]!.id), rowOf.id)!;
+    expect(fewer.children).toHaveLength(4);
+    for (const col of fewer.children!.slice(1)) expect(col.style).toMatchObject({ flexGrow: 1 });
   });
 
   it("offers the footer and a single menu column as ready-made pieces", () => {

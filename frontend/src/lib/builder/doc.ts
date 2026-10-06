@@ -10,8 +10,8 @@
  * header and footer around it, and any of them can be edited from there.
  */
 import type { BuilderNode, PartKey, SiteDoc, TemplateType } from "./types";
-import { findNode, newId, updateNode, walk, withFreshIds } from "./tree";
-import { menuColumn, simpleFooter, asFooterColumn, textColumn } from "./registry";
+import { findNode, newId, updateNode, walk, withFreshIds, parentOf, removeNode } from "./tree";
+import { menuColumn, simpleFooter, asFooterColumn, textColumn, FOOTER_TITLES } from "./registry";
 import { GOOGLE_FONTS } from "./fonts";
 
 export type Target =
@@ -365,14 +365,88 @@ function joinFooter(doc: SiteDoc, column: BuilderNode): { doc: SiteDoc; id: stri
  * each menu — keeping the menus the old footer showed, under their titles.
  */
 export function withSimpleFooter(doc: SiteDoc, storeName = ""): SiteDoc {
-  const kept = footerMenus(doc.parts?.footer ?? null);
+  const old = doc.parts?.footer ?? null;
+  const kept = footerMenus(old);
   // A shop with one menu so far starts its footer with that one.
   let fallback = "";
   walk(doc.parts?.header ?? null, (n) => {
     if (!fallback && n.type === "menu") fallback = String((n.props as Record<string, unknown> | undefined)?.menuId ?? "");
   });
-  const columns = kept.length ? kept : [{ title: "Shop", menuId: fallback }];
-  return { ...doc, parts: { ...doc.parts, footer: simpleFooter(columns, storeName) } };
+  // Five columns: the brand, three menus, a column of text. The menus the old
+  // footer showed come first; the rest are named and wait for a menu to be chosen.
+  const columns: { title: string; menuId?: string }[] = kept.length ? [...kept] : [{ title: FOOTER_TITLES[0]!, menuId: fallback }];
+  for (const title of FOOTER_TITLES) {
+    if (columns.length >= 3) break;
+    if (!columns.some((c) => c.title.toLowerCase() === title.toLowerCase())) columns.push({ title });
+  }
+  let footer = simpleFooter(columns, storeName);
+
+  // What the shop had already made its own is kept: the footer's colours and
+  // spacing, its logo, the line under it, and the small print.
+  const textOf = (n: BuilderNode) => String((n.props as Record<string, unknown> | undefined)?.text ?? "").trim();
+  let logo: BuilderNode | null = null;
+  let beside: BuilderNode[] = [];
+  let small: BuilderNode | null = null;
+  walk(old, (n) => {
+    const kids = n.children ?? [];
+    if (!logo) {
+      const found = kids.find((c) => c.type === "logo");
+      if (found) { logo = found; beside = kids.filter((c) => c.type === "text" && textOf(c)); }
+    }
+    if (!small && n.type === "text" && /©|all rights reserved/i.test(textOf(n))) small = n;
+  });
+  const brand = footer.children?.[0]?.children?.[0];
+  if (brand && (logo || beside.length)) {
+    const [defaultLogo, ...defaultText] = brand.children ?? [];
+    footer = updateNode(footer, brand.id, (b) => ({
+      ...b,
+      children: [
+        logo ? withFreshIds(logo) : defaultLogo!,
+        ...(beside.length ? beside.map((t) => withFreshIds(t)) : defaultText),
+      ],
+    }));
+  }
+  const keptSmall = small as BuilderNode | null;
+  if (keptSmall) {
+    const mine = (footer.children ?? []).find((c) => c.type === "text");
+    if (mine) footer = updateNode(footer, mine.id, (t) => ({ ...t, props: { ...(t.props ?? {}), text: textOf(keptSmall) } }));
+  }
+  if (old?.type === "section") {
+    footer = {
+      ...footer,
+      style: { ...(footer.style ?? {}), ...(old.style ?? {}) },
+      ...(old.tablet ? { tablet: old.tablet } : {}),
+      ...(old.mobile ? { mobile: old.mobile } : {}),
+    };
+  }
+  return { ...doc, parts: { ...doc.parts, footer } };
+}
+
+/** Whether the footer is already columns in a row that wraps — the layout the buttons above build on. */
+export function isColumnsFooter(doc: SiteDoc): boolean {
+  let yes = false;
+  walk(doc.parts?.footer ?? null, (n) => {
+    const props = (n.props ?? {}) as Record<string, unknown>;
+    if (n.type === "stack" && props.direction === "row" && n.style?.flexWrap === "wrap"
+        && (n.children ?? []).some((c) => c.type === "menu" || (c.children ?? []).some((k) => k.type === "logo" || k.type === "store_name"))) yes = true;
+  });
+  return yes;
+}
+
+/**
+ * Take an element away, and let what is left use the room.
+ *
+ * A row told to be three columns stayed three columns when one was deleted:
+ * two columns and a gap where the third had been. When the row's count was
+ * simply how many columns it had, it follows the columns it has now.
+ */
+export function removeAndClose(tree: BuilderNode, id: string): BuilderNode {
+  const at = parentOf(tree, id);
+  const next = removeNode(tree, id);
+  if (!at || at.parent.type !== "row") return next;
+  const before = (at.parent.children ?? []).length;
+  if (before < 2 || at.parent.style?.columns !== before) return next;
+  return updateNode(next, at.parent.id, (row) => ({ ...row, style: { ...(row.style ?? {}), columns: before - 1 } }));
 }
 
 /** Keep a copy of a section to drop in again later. A copy: changing one never changes another. */

@@ -30,7 +30,7 @@ import {
 import { createNode, labelOf, PRESETS } from "@/lib/builder/registry";
 import { LAYOUT_PRESETS, placeInCell, setSpan } from "@/lib/builder/layout";
 import {
-  TEMPLATE_LABELS, addFooterColumn, addFooterTextColumn, collectionsUsing, detachShared, exists, locate, makeShared, nodeForIssue, previewFor, productsUsing,
+  TEMPLATE_LABELS, addFooterColumn, addFooterTextColumn, isColumnsFooter, removeAndClose, collectionsUsing, detachShared, exists, locate, makeShared, nodeForIssue, previewFor, productsUsing,
   saveSection, sameTarget, setTreeAt, targetLabel, templateFor, treeAt, withSimpleFooter, type Target,
 } from "@/lib/builder/doc";
 import {
@@ -315,7 +315,7 @@ export default function SiteEditor({ backHref = "/admin/dashboard" }: { backHref
     if (!loc || !tree || tree.id === selected) return;
     const parent = parentOf(tree, selected);
     const label = labelOf(findNode(tree, selected)!);
-    commit(setTreeAt(d, loc, removeNode(tree, selected)));
+    commit(setTreeAt(d, loc, removeAndClose(tree, selected)));
     setSelected(parent && parent.parent.id !== tree.id ? parent.parent.id : null);
     say.note(`${label} deleted. Ctrl Z brings it back.`);
   }, [selected, commit]);
@@ -689,10 +689,14 @@ export default function SiteEditor({ backHref = "/admin/dashboard" }: { backHref
             <UsedBy doc={doc} type={target.type} id={target.id} names={(id) => target.type === "product" ? productCache.current.get(id)?.name : collections.find((c) => c.id === id)?.name}
                     onChoose={() => { setShowLeft(true); setTab("templates"); setAssigning(`${target.type}:${target.id}`); }} />
           )}
-          {target.kind === "part" && target.key === "footer" && (
+          {((target.kind === "part" && target.key === "footer") || (where?.kind === "part" && where.key === "footer")) && (
             <div className="sbe-banner info" role="note" data-footer-bar>
               <LayoutTemplate size={15} />
-              <span style={{ flex: "1 1 240px", minWidth: 0 }}>The footer is your brand column, then a column for each menu or block of text. They sit side by side and move to the next line by themselves on a narrow screen. Click a column to change it.</span>
+              <span style={{ flex: "1 1 240px", minWidth: 0 }}>
+                {isColumnsFooter(doc)
+                  ? "Your logo and tagline, then a column for each menu or block of text. Click a column to choose its menu or change its text. Delete one and the others take up its room; on a phone they move under each other by themselves."
+                  : "Make this the usual footer in one press: your logo and tagline, three menu columns and a column of text. Your logo, colours and menus are kept."}
+              </span>
               <button type="button" className="sbe-btn sm" onClick={() => {
                 const d = docRef.current;
                 const res = d ? addFooterColumn(d) : null;
@@ -709,14 +713,14 @@ export default function SiteEditor({ backHref = "/admin/dashboard" }: { backHref
                 setSelected(res.id);
                 setShowRight(true);
               }}>+ Add a text column</button>
-              <button type="button" className="sbe-btn sm ghost" onClick={() => {
+              <button type="button" className={`sbe-btn sm ${isColumnsFooter(doc) ? "ghost" : "primary"}`} data-footer-five onClick={() => {
                 const d = docRef.current;
                 if (!d) return;
-                if (!confirmAction("Replace the footer with the simple layout — your logo, a line about the shop, and a column for each menu it shows now? You can undo this.")) return;
+                if (isColumnsFooter(d) && !confirmAction("Start the footer again as five columns — your logo and tagline, three menus and a column of text? Your logo, colours and menus are kept. You can undo this.")) return;
                 commit(withSimpleFooter(d, preview?.data?.store?.name ?? ""));
                 setSelected(null);
-                say.done("The footer is now the simple layout. Ctrl Z brings the old one back.");
-              }}>Use the simple layout</button>
+                say.done("The footer is five columns now. Ctrl Z brings the old one back.");
+              }}>{isColumnsFooter(doc) ? "Start again with 5 columns" : "Use the 5-column footer"}</button>
             </div>
           )}
           <Canvas doc={doc} target={target} data={data} customFaces={uploaded.map((f) => ({ family: f.family, weight: f.weight, style: f.style, url: f.url, format: f.format }))}

@@ -261,11 +261,18 @@ doc = fresh()
 footer = doc["parts"]["footer"]
 columns = footer["children"][0]
 brand, *menus_ = columns["children"]
-check("a new shop's footer is a brand column and a column for each menu",
-      columns["style"].get("display") == "grid" and columns["style"].get("gridAuto") == "fit"
+check("a new shop's footer is five columns: the brand, three menus, a column of text",
+      columns["props"].get("direction") == "row" and columns["style"].get("flexWrap") == "wrap"
       and [c["type"] for c in brand["children"]] == ["logo", "text", "text"]
-      and [(m["type"], m["props"].get("layout"), m["props"].get("title")) for m in menus_] == [("menu", "vertical", "Shop")],
+      and [(m["type"], m["props"].get("layout"), m["props"].get("title")) for m in menus_[:3]]
+      == [("menu", "vertical", "Products"), ("menu", "vertical", "Support"), ("menu", "vertical", "Company")]
+      and [c["type"] for c in menus_[3]["children"]] == ["heading", "rich_text"],
       [c["type"] for c in columns["children"]])
+check("…the brand the widest, the others an equal share that wraps",
+      brand["style"].get("flexGrow") == 3 and all(c["style"].get("flexGrow") == 1 and c["style"].get("flexBasis") == "160px"
+                                                  for c in menus_))
+check("…and the two menus not chosen yet do not stop a publish", not blocking(validate(doc, KNOWN)),
+      [i.as_dict() for i in blocking(validate(doc, KNOWN))])
 check("…using the shop's footer menu", menus_[0]["props"]["menuId"] == "menu-foot")
 check("…with no fixed size on the logos: their height is a style like any other",
       all("height" not in n["props"] and n["style"].get("height") for n, _p, _d in iter_nodes(doc["parts"]["header"]) if n["type"] == "logo")
@@ -275,7 +282,7 @@ more = copy.deepcopy(doc)
 cols = more["parts"]["footer"]["children"][0]["children"]
 for i in range(6):
     cols.append({"id": f"extra{i}", "type": "menu", "props": {"title": f"Column {i}", "menuId": "menu-main", "layout": "vertical"}})
-check("a footer takes as many menu columns as it is given", not blocking(validate(more, KNOWN)) and len(cols) == 8,
+check("a footer takes as many menu columns as it is given", not blocking(validate(more, KNOWN)) and len(cols) == 11,
       [i.as_dict() for i in blocking(validate(more, KNOWN))])
 gone = copy.deepcopy(more)
 gone["parts"]["footer"]["children"][0]["children"][-1]["props"]["menuId"] = "menu-deleted"
