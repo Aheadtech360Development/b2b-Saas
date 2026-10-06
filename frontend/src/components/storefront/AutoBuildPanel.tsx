@@ -104,7 +104,9 @@ function LayoutPicture({ kind }: { kind: Layout }) {
 
 export function AutoBuildPanel(p: Props) {
   const [layout, setLayout] = useState<Layout>("standard");
-  const [useArtboard, setUseArtboard] = useState(true);
+  // Off by default: the sheet's own safe edge is the one Auto Nest packs to, so a
+  // built sheet is already nested. A wider edge is there for whoever wants one.
+  const [useArtboard, setUseArtboard] = useState(false);
   const [artboard, setArtboard] = useState(0.25);
   const [useGap, setUseGap] = useState(true);
   const [gap, setGap] = useState(p.imageMargin || 0.5);

@@ -317,6 +317,8 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
   /** Set briefly when everything moves at once, so designs travel to their new
    *  places — one after another, in the order they were packed. */
   const [glide, setGlide] = useState<null | { order: Map<number, number>; step: number }>(null);
+  /** A wider edge chosen in Auto Build, kept so a later Auto Nest packs to the same one. */
+  const [nestEdge, setNestEdge] = useState(0);
   const glideTimer = useRef<number | undefined>(undefined);
   useEffect(() => () => { window.clearTimeout(freshTimer.current); window.clearTimeout(glideTimer.current); }, []);
   // The document only exists in the browser, so the first render stays in
@@ -1171,6 +1173,15 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
     const gap = gapOverride != null ? Math.max(gapOverride, 0) : imageMargin;
     const taken = boxesOf(pl);
 
+    // Several copies at once — or a sheet of nothing but this design — come out
+    // nested: the whole sheet as Auto Nest would leave it, so nobody has to
+    // press it afterwards. A design dropped in the middle of the sheet and
+    // given ten copies used to scatter them round wherever there was room.
+    if (count > 1 || pl.every((q) => q.uid === src.uid)) {
+      const nested = nestWithCopies(src, count, gap);
+      if (nested) { applyCopiesNest(nested, select); return; }
+    }
+
     const here = planCopies({ ...sheetSpec(len), gap }, taken, fp.w, fp.h, count);
     if (here.left === 0) { putCopies(src, here.spots, here.len, select); return; }
 
@@ -1203,6 +1214,75 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
     }
 
     setCopyAsk({ srcId, count, select, here, bigger, spill: spill.length && rest === 0 ? spill : null });
+  }
+
+  /**
+   * This sheet nested again with `count` more copies of `src` among the rest,
+   * by Auto Nest's own rules — or null when they do not all fit on it (a roll
+   * is let out an inch at a time, up to its longest). The copies' ids are
+   * taken in order now, so a later Auto Nest plans the very same layout.
+   */
+  function nestWithCopies(src: Placement, count: number, gap: number):
+    null | { list: Placement[]; len: number; ids: number[] } {
+    if (!size) return null;
+    const { placements: pl, len } = live();
+    const ids = Array.from({ length: count }, (_, i) => nextId.current + i);
+    const items: NestItem[] = [
+      ...pl.map((q) => ({ key: String(q.id), w: q.w_in, h: q.h_in })),
+      ...ids.map((id) => ({ key: String(id), w: src.w_in, h: src.h_in })),
+    ];
+    const edge = Math.max(size.bleed_in ?? 0, nestEdge);
+    const at = (L: number) => {
+      const plan = planNest({ ...sheetSpec(L), bleed: edge, gap }, items, 1);
+      return plan.unplaceable.length || !plan.sheets[0] ? null : plan.sheets[0];
+    };
+    // This length if it holds them; on a roll, the shortest whole inch up to its longest that does.
+    let L = len;
+    let placed = at(len);
+    if (!placed && isCustom) {
+      const top = Math.max(size.max_length_in || len, len);
+      if (at(top)) {
+        let lo = Math.floor(len) + 1, hi = Math.floor(top);
+        L = top;
+        while (lo <= hi) {
+          const mid = Math.floor((lo + hi) / 2);
+          if (at(mid)) { L = mid; hi = mid - 1; } else lo = mid + 1;
+        }
+        placed = at(L);
+      }
+    }
+    if (!placed) return null;
+    const byId = new Map(pl.map((q) => [q.id, q]));
+    const list = placed.map((it) => {
+      const id = Number(it.key);
+      const q = byId.get(id) ?? { ...src, id };
+      return { ...q, x_in: round3(it.x), y_in: round3(it.y), rotation: turnFor(q.rotation, it.rotated) };
+    });
+    const bottom = Math.max(...list.map((q) => q.y_in + footprint(q).h));
+    return { list, len: L > len ? Math.max(len, Math.min(L, round3(bottom + edge))) : len, ids };
+  }
+
+  /** Lay a nested sheet down: the designs that move travel there, the new copies arrive, one after another. */
+  function applyCopiesNest(res: { list: Placement[]; len: number; ids: number[] }, select: boolean) {
+    nextId.current = Math.max(nextId.current, ...res.ids.map((id) => id + 1));
+    const cur = live();
+    const before = new Map(cur.placements.map((q) => [q.id, q]));
+    liveRef.current = { placements: res.list, len: Math.max(cur.len, res.len) };
+    if (res.len > cur.len + 1e-9) { setCustomLength(res.len); setGrewTo(res.len); }
+    const moving = res.list.filter((q) => {
+      const was = before.get(q.id);
+      return was && (Math.abs(was.x_in - q.x_in) > 1e-6 || Math.abs(was.y_in - q.y_in) > 1e-6 || was.rotation !== q.rotation);
+    });
+    if (moving.length) {
+      const step = Math.min(45, 500 / moving.length);
+      setGlide({ order: new Map(moving.map((q, i) => [q.id, i])), step });
+      window.clearTimeout(glideTimer.current);
+      glideTimer.current = window.setTimeout(() => setGlide(null), moving.length * step + 480);
+    }
+    setPlacements(res.list);
+    arrive(res.ids);
+    if (select && res.ids.length === 1) setSelected(res.ids[0]!);
+    setSheetFull(false);
   }
 
   /** What somebody chose to do with copies that did not all fit. */
@@ -1322,7 +1402,7 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
     const everything = all.flatMap((sh) => sh.placements);
     if (!everything.length) { say.note("Nothing to arrange yet."); return; }
 
-    const spec = sheetSpec(sheetLen);
+    const spec: Sheet = { ...sheetSpec(sheetLen), bleed: Math.max(size.bleed_in ?? 0, nestEdge) };
     // Everything may be turned. Text is added here as an image like anything
     // else, so there is nothing to tell apart — and a design the buyer did not
     // want turned can be turned back, which is cheaper than a wasted sheet.
@@ -1541,6 +1621,7 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
     setPlacements(first);
     setSelected(null);
     setImageMargin(gap);
+    setNestEdge(inset);
     // Laid down one after another, in the order they were packed.
     arrive(first.map((p) => p.id));
 

@@ -285,6 +285,39 @@ describe("auto nest", () => {
   });
 });
 
+describe("copies asked for by number come out nested", () => {
+  /** The same design, dropped in the middle of the sheet. */
+  const MIDDLE = { ...ORDER, layout: [{ artwork_id: "a1", x_in: 9, y_in: 4, rotation: 0, w_in: 2.67, h_in: 2.67 }] } as GangSheetOrder;
+
+  it("in rows from the top-left corner, the design itself included — and Auto Nest then has nothing to move", () => {
+    open(MIDDLE);
+    select();
+    askForCopies(12);
+    expect(question()).toBeNull();
+    const boxes = designs().map(inches);
+    expect(boxes).toHaveLength(13);
+    expect(overlapping(boxes)).toBe(false);
+    expect(outside(boxes, 10)).toBe(false);
+    // Six to a row with the half-inch margin, the rows straight under each other.
+    const rows = [...new Set(boxes.map((b) => b.y))].sort((a, b) => a - b);
+    expect(rows).toEqual([0.25, 3.42, 6.59]);
+    expect(rows.map((y) => boxes.filter((b) => b.y === y).length)).toEqual([6, 6, 1]);
+
+    const before = designs().map(inches);
+    fireEvent.click(screen.getByRole("button", { name: /Auto nest \(tidy up\)/ }));
+    expect(screen.queryByRole("dialog", { name: "Auto Nest" })).toBeNull();
+    expect(said.at(-1)).toEqual(["done", "Already nested — nothing needed to move."]);
+    expect(designs().map(inches)).toEqual(before);
+  });
+
+  it("one more copy of a design alone on the sheet is nested too", () => {
+    open(MIDDLE);
+    select();
+    askForCopies(1);
+    expect(designs().map(inches).map((b) => [b.x, b.y])).toEqual([[0.25, 0.25], [3.42, 0.25]]);
+  });
+});
+
 describe("the selected design's handles", () => {
   it("has a dot at each corner and a turn handle", () => {
     open();
