@@ -30,6 +30,7 @@ import CartIsland from "./islands/CartIsland";
 import Reviews, { Stars } from "./islands/Reviews";
 import { Newsletter, ProductGallery, SortSelect, Tabs } from "./islands/Interactive";
 import { ContactForm } from "./islands/ContactForm";
+import { splitDescription } from "@/lib/builder/descSections";
 
 export interface RenderCtx {
   data: SitePayload["data"];
@@ -505,10 +506,27 @@ export function Node({ node, ctx }: { node: BuilderNode; ctx: RenderCtx }): Reac
     case "product_price":
       if (!product) return note(ctx, id, "The product's price shows here.");
       return <div data-b={id} className="b-price" data-theme-price="1">{money(product.from_price)}</div>;
-    case "product_description":
+    case "product_description": {
       if (!product) return note(ctx, id, "The product's description shows here.");
       if (!product.description) return note(ctx, id, "This product has no description yet.");
-      return <div data-b={id} className="b-rich" dangerouslySetInnerHTML={{ __html: html(ctx, product.description) }} />;
+      const clean = html(ctx, product.description);
+      // Long and written with headings: a section for each, opened one at a time.
+      const parts = str(p.layout) === "plain" ? null : splitDescription(clean);
+      if (!parts) return <div data-b={id} className="b-rich" dangerouslySetInnerHTML={{ __html: clean }} />;
+      return (
+        <div data-b={id} className="b-desc">
+          {parts.intro && <div className="b-rich" dangerouslySetInnerHTML={{ __html: parts.intro }} />}
+          <div className="b-desc-acc">
+            {parts.sections.map((s, i) => (
+              <details key={i} open={(i === 0 && !p.allClosed) || undefined}>
+                <summary><span dangerouslySetInnerHTML={{ __html: s.title }} /></summary>
+                <div className="b-rich b-desc-body" dangerouslySetInnerHTML={{ __html: s.html }} />
+              </details>
+            ))}
+          </div>
+        </div>
+      );
+    }
     case "product_gallery":
       if (!product) return note(ctx, id, "The product's pictures show here.");
       return <ProductGallery id={id} images={product.images ?? []} layout={str(p.layout, "thumbs-below")} />;

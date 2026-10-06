@@ -38,7 +38,7 @@ export const BASE_CSS = `
 .bsite :where(.b-col){min-width:0}
 .bsite :where(.b-stack){display:flex;flex-direction:column;min-width:0}
 .bsite :where(.b-stack[data-dir=row]){flex-direction:row;flex-wrap:wrap;align-items:center}
-.bsite :where(.b-stack[data-dir=column]) > :where(.b-row,.b-grid,.b-section,.b-stack,.b-text,.b-heading,.b-rich,.b-img,.b-imglink,.b-video,.b-faq,.b-tabs,.b-quotes,.b-gallery,.b-banner,.b-news,.b-form,.b-html,.b-divider,.b-global,.b-price,.b-buy,.b-pgallery,.b-search-field,.b-menu[data-layout=vertical]){align-self:stretch}
+.bsite :where(.b-stack[data-dir=column]) > :where(.b-row,.b-grid,.b-section,.b-stack,.b-text,.b-heading,.b-rich,.b-img,.b-imglink,.b-video,.b-faq,.b-tabs,.b-quotes,.b-gallery,.b-banner,.b-news,.b-form,.b-desc,.b-html,.b-divider,.b-global,.b-price,.b-buy,.b-pgallery,.b-search-field,.b-menu[data-layout=vertical]){align-self:stretch}
 .bsite :where(.b-spacer){width:100%}
 .bsite :where([data-lay]) > *,.bsite :where(.b-section[data-lay]) > .b-in > *{min-width:0}
 .bsite :where([data-lay]) :where(.b-text,.b-heading,.b-rich){overflow-wrap:anywhere}
@@ -124,6 +124,23 @@ export const BASE_CSS = `
 .bsite :where(.b-faq summary)::after{content:"+";font-size:20px;font-weight:400;line-height:1;color:var(--b-muted,#5B6170)}
 .bsite :where(.b-faq details[open] summary)::after{content:"\\2212"}
 .bsite :where(.b-faq-a){padding:0 0 18px;color:var(--b-muted,#5B6170);white-space:pre-line}
+.bsite :where(.b-desc){display:flex;flex-direction:column;gap:14px;min-width:0}
+.bsite :where(.b-desc-acc){border-top:1px solid var(--b-border,#e6e6e6)}
+.bsite :where(.b-desc-acc details){border-bottom:1px solid var(--b-border,#e6e6e6)}
+.bsite :where(.b-desc-acc summary){display:flex;justify-content:space-between;align-items:center;gap:16px;padding:16px 2px;cursor:pointer;list-style:none;font-family:var(--b-font-heading,inherit);font-size:1.08em;font-weight:600;line-height:1.35;color:var(--b-head,inherit);overflow-wrap:anywhere;-webkit-user-select:none;user-select:none}
+.bsite :where(.b-desc-acc summary)::-webkit-details-marker{display:none}
+.bsite :where(.b-desc-acc summary)::after{content:"";flex:0 0 auto;width:8px;height:8px;margin-right:4px;border-right:2px solid currentColor;border-bottom:2px solid currentColor;opacity:.55;transform:translateY(-3px) rotate(45deg);transition:transform .2s ease}
+.bsite :where(.b-desc-acc details[open] > summary)::after{transform:translateY(2px) rotate(-135deg)}
+.bsite :where(.b-desc-acc summary:focus-visible){outline:2px solid var(--b-primary,#14161B);outline-offset:2px;border-radius:4px}
+.bsite :where(.b-desc-body){padding:0 2px 18px}
+.bsite .b-desc-body > :first-child{margin-top:0}
+.bsite .b-desc-body > :last-child{margin-bottom:0}
+@supports (interpolate-size:allow-keywords){
+  .bsite :where(.b-desc-acc details){interpolate-size:allow-keywords}
+  .bsite :where(.b-desc-acc details)::details-content{height:0;overflow:clip;transition:height .25s ease,content-visibility .25s allow-discrete}
+  .bsite :where(.b-desc-acc details[open])::details-content{height:auto}
+}
+@media (prefers-reduced-motion:reduce){.bsite :where(.b-desc-acc details)::details-content{transition:none}}
 
 .bsite :where(.b-tabs-list){display:flex;gap:4px;border-bottom:1px solid var(--b-border,#e6e6e6);overflow-x:auto;scrollbar-width:thin}
 .bsite :where(.b-tab){padding:12px 16px;border:0;background:none;cursor:pointer;font-weight:600;color:var(--b-muted,#5B6170);border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap}

@@ -440,7 +440,13 @@ export const REGISTRY: ComponentDef[] = [
   {
     type: "product_description", label: "Product description", category: "commerce", icon: "AlignLeft", context: ["product"],
     blurb: "The current product's description.",
-    fields: [],
+    fields: [
+      { key: "layout", label: "Long descriptions", kind: "select", options: [
+        { value: "", label: "Sections that open and close" },
+        { value: "plain", label: "All of it, as written" },
+      ], help: "A description with two or more headings is cut at them: each heading becomes a section a customer opens. One without headings is shown as written." },
+      { key: "allClosed", label: "Start with every section closed", kind: "toggle", when: { key: "layout", is: ["", undefined] } },
+    ],
     styles: TEXT_STYLES,
     create: () => node("product_description", {}),
   },
