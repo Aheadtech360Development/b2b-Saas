@@ -12,8 +12,8 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { Tree, type RenderCtx } from "@/components/builder/render";
 import { BASE_CSS } from "@/lib/builder/baseCss";
-import { addFooterColumn, withSimpleFooter } from "@/lib/builder/doc";
-import { BY_TYPE, PRESETS, menuColumn, simpleFooter } from "@/lib/builder/registry";
+import { addFooterColumn, addFooterTextColumn, withSimpleFooter } from "@/lib/builder/doc";
+import { BY_TYPE, PRESETS, menuColumn, simpleFooter, textColumn } from "@/lib/builder/registry";
 import { nodeCss, treeCss } from "@/lib/builder/style";
 import { findNode, walk } from "@/lib/builder/tree";
 import type { BuilderNode, SiteDoc, SitePayload } from "@/lib/builder/types";
@@ -284,23 +284,43 @@ describe("the logo", () => {
 describe("the footer: a brand column and a column for each menu", () => {
   const menus = { shop: [{ label: "Tees", href: "/collections/tees" }, { label: "Hoodies", href: "/collections/hoodies" }] };
 
-  it("is a logo, a tagline and a few words, then one column per menu", () => {
+  it("is a logo, a tagline and a few words, then one column per menu, then a column of text", () => {
     const footer = simpleFooter([{ title: "Shop", menuId: "a" }, { title: "Help", menuId: "b" }, { title: "Company", menuId: "c" }], "Northwind");
     expect(footer.type).toBe("section");
-    const grid = footer.children![0]!;
-    expect(grid.style).toMatchObject({ display: "grid", gridAuto: "fit" });
-    const [brand, ...columns] = grid.children!;
+    const rowOf = footer.children![0]!;
+    const [brand, ...columns] = rowOf.children!;
     expect(types(brand!)).toEqual(["stack", "logo", "text", "text"]);
-    expect(columns.map((c) => [c.type, (c.props as Record<string, unknown>).title, (c.props as Record<string, unknown>).menuId, (c.props as Record<string, unknown>).layout]))
-      .toEqual([["menu", "Shop", "a", "vertical"], ["menu", "Help", "b", "vertical"], ["menu", "Company", "c", "vertical"]]);
+    const menus = columns.filter((c) => c.type === "menu");
+    expect(menus.map((c) => [(c.props as Record<string, unknown>).title, (c.props as Record<string, unknown>).menuId, (c.props as Record<string, unknown>).layout]))
+      .toEqual([["Shop", "a", "vertical"], ["Help", "b", "vertical"], ["Company", "c", "vertical"]]);
+    // The last column is not links: a title, and lines of text under it.
+    expect(types(columns.at(-1)!)).toEqual(["stack", "heading", "rich_text"]);
+    expect(columns).toHaveLength(4);
     expect(JSON.stringify(footer)).toContain("© Northwind");
   });
 
-  it("takes as many columns as it is given, and fits them to the screen by itself", () => {
+  it("is a row that wraps: columns side by side while they fit, the last ones onto the next line when they do not", () => {
     const seven = simpleFooter(Array.from({ length: 7 }, (_, i) => ({ title: `Menu ${i + 1}` })));
-    expect(seven.children![0]!.children).toHaveLength(8);
-    // As many across as fit, each at least 170px, and never wider than the screen.
-    expect(nodeCss(seven.children![0]!)).toContain("grid-template-columns:repeat(auto-fit,minmax(min(170px,100%),1fr))");
+    const rowOf = seven.children![0]!;
+    expect(rowOf.children).toHaveLength(9);
+    expect((rowOf.props as Record<string, unknown>).direction).toBe("row");
+    expect(nodeCss(rowOf)).toContain("flex-wrap:wrap");
+    // The brand is the widest, and every other column takes an equal share — none narrower than is worth reading.
+    expect(nodeCss(rowOf.children![0]!)).toMatch(/flex-grow:3;flex-basis:280px|flex-basis:280px;flex-grow:3/);
+    for (const col of rowOf.children!.slice(1)) expect(nodeCss(col)).toMatch(/flex-grow:1;flex-basis:160px|flex-basis:160px;flex-grow:1/);
+    // Nothing is set for a tablet or a phone: the wrapping is the layout.
+    expect(rowOf.tablet).toBeUndefined();
+    expect(rowOf.mobile).toBeUndefined();
+  });
+
+  it("has a column for plain text — an email, a phone number, a town — under its own title", () => {
+    const col = textColumn("Talk to us");
+    expect(types(col)).toEqual(["stack", "heading", "rich_text"]);
+    const out = html(col);
+    expect(out).toContain("Talk to us");
+    expect(out).toContain("hello@yourshop.com");
+    // Not a menu: nothing in it is a link to a page.
+    expect(out).not.toContain("b-menu");
   });
 
   it("shows a column's title over its links, down the page", () => {
@@ -325,17 +345,41 @@ describe("the footer: a brand column and a column for each menu", () => {
   it("adds a column beside the others", () => {
     const doc = { ...(starter as unknown as SiteDoc), parts: { ...(starter as unknown as SiteDoc).parts, footer: simpleFooter([{ title: "Shop", menuId: "a" }]) } };
     const res = addFooterColumn(doc, "Help")!;
-    const grid = res.doc.parts.footer!.children![0]!;
-    expect(grid.children!.map((c) => c.type)).toEqual(["stack", "menu", "menu"]);
+    const rowOf = res.doc.parts.footer!.children![0]!;
+    // With the other menus, before the column of text that closes the row.
+    expect(rowOf.children!.map((c) => c.type)).toEqual(["stack", "menu", "menu", "stack"]);
     const added = findNode(res.doc.parts.footer!, res.id)!;
     expect(added.type).toBe("menu");
     expect(added.props).toMatchObject({ title: "Help", layout: "vertical", menuId: "" });
+    expect(added.style).toMatchObject({ flexGrow: 1, flexBasis: "160px" });
     // And again, and again: there is no limit.
     let d = res.doc;
     for (let i = 0; i < 5; i++) d = addFooterColumn(d, `More ${i}`)!.doc;
-    expect(d.parts.footer!.children![0]!.children).toHaveLength(8);
+    expect(d.parts.footer!.children![0]!.children).toHaveLength(9);
     // The footer it was given is untouched.
-    expect(doc.parts.footer!.children![0]!.children).toHaveLength(2);
+    expect(doc.parts.footer!.children![0]!.children).toHaveLength(3);
+  });
+
+  it("adds a column of text at the end of the row", () => {
+    const doc = { ...(starter as unknown as SiteDoc), parts: { ...(starter as unknown as SiteDoc).parts, footer: simpleFooter([{ title: "Shop", menuId: "a" }]) } };
+    const res = addFooterTextColumn(doc, "Visit us")!;
+    const rowOf = res.doc.parts.footer!.children![0]!;
+    expect(rowOf.children!.map((c) => c.type)).toEqual(["stack", "menu", "stack", "stack"]);
+    const added = findNode(res.doc.parts.footer!, res.id)!;
+    expect(types(added)).toEqual(["stack", "heading", "rich_text"]);
+    expect((added.children![0]!.props as Record<string, unknown>).text).toBe("Visit us");
+    expect(added.style).toMatchObject({ flexGrow: 1, flexBasis: "160px" });
+  });
+
+  it("adds a column of text to an older footer built from a row of columns, too", () => {
+    const doc = starter as unknown as SiteDoc;
+    const rowBefore = (() => { let r: BuilderNode | null = null; walk(doc.parts.footer!, (x) => { if (!r && x.type === "row") r = x; }); return r as BuilderNode | null; })()!;
+    const res = addFooterTextColumn(doc)!;
+    const rowAfter = findNode(res.doc.parts.footer!, rowBefore.id)!;
+    expect(rowAfter.children).toHaveLength(rowBefore.children!.length + 1);
+    expect(types(rowAfter.children!.at(-1)!)).toEqual(["column", "stack", "heading", "rich_text"]);
+    // In a column of a row the column itself is the share of the row; nothing more is said.
+    expect(findNode(res.doc.parts.footer!, res.id)!.style?.flexBasis).toBeUndefined();
   });
 
   it("adds a column to an older footer built from a row of columns, too", () => {
@@ -356,8 +400,8 @@ describe("the footer: a brand column and a column for each menu", () => {
     const oldMenus: string[] = [];
     walk(doc.parts.footer!, (x) => { if (x.type === "menu") oldMenus.push(String((x.props as Record<string, unknown>).menuId ?? "")); });
     const next = withSimpleFooter(doc, "Northwind");
-    const grid = next.parts.footer!.children![0]!;
-    const columns = grid.children!.slice(1);
+    const rowOf = next.parts.footer!.children![0]!;
+    const columns = rowOf.children!.filter((c) => c.type === "menu");
     expect(columns.map((c) => (c.props as Record<string, unknown>).menuId)).toEqual(oldMenus);
     // The older footer titled its menu with a heading above it: that becomes the column's title.
     expect((columns[0]!.props as Record<string, unknown>).title).toBe("Shop");

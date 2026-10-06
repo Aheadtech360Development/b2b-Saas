@@ -11,7 +11,7 @@
  */
 import type { BuilderNode, PartKey, SiteDoc, TemplateType } from "./types";
 import { findNode, newId, updateNode, walk, withFreshIds } from "./tree";
-import { menuColumn, simpleFooter } from "./registry";
+import { menuColumn, simpleFooter, asFooterColumn, textColumn } from "./registry";
 import { GOOGLE_FONTS } from "./fonts";
 
 export type Target =
@@ -310,16 +310,29 @@ function footerMenus(footer: BuilderNode | null): { title: string; menuId: strin
  * columns (a new column joins the row).
  */
 export function addFooterColumn(doc: SiteDoc, title = "New column"): { doc: SiteDoc; id: string } | null {
+  return joinFooter(doc, menuColumn(title));
+}
+
+/**
+ * Add a column of text under a title — an address, an email, opening hours —
+ * for the column of a footer that is not a list of links.
+ */
+export function addFooterTextColumn(doc: SiteDoc, title = "Talk to us"): { doc: SiteDoc; id: string } | null {
+  return joinFooter(doc, textColumn(title));
+}
+
+/** Put a new column after the footer's others, whichever way the footer is built. */
+function joinFooter(doc: SiteDoc, column: BuilderNode): { doc: SiteDoc; id: string } | null {
   const footer = doc.parts?.footer ?? null;
   if (!footer) return null;
-  const column = menuColumn(title);
-  let host: BuilderNode | null = null;      // what holds the footer's menu columns
+  let host: BuilderNode | null = null;      // what holds the footer's columns
   let row: BuilderNode | null = null;       // an older footer: the row whose columns hold them
+  const isColumn = (c: BuilderNode) => c.type === "menu" || (c.type === "stack" && (c.children ?? []).some((k) => k.type === "logo" || k.type === "store_name"));
   walk(footer, (n) => {
     if (host || row) return;
     const kids = n.children ?? [];
     if (n.type === "row" && kids.some((col) => (col.children ?? []).some((c) => c.type === "menu"))) row = n;
-    else if (n.type !== "row" && n.type !== "column" && kids.some((c) => c.type === "menu")) host = n;
+    else if (n.type !== "row" && n.type !== "column" && kids.some(isColumn)) host = n;
   });
   let next: BuilderNode;
   if (row) {
@@ -332,7 +345,17 @@ export function addFooterColumn(doc: SiteDoc, title = "New column"): { doc: Site
     }));
   } else {
     const target = (host as BuilderNode | null) ?? footer;
-    next = updateNode(footer, target.id, (x) => ({ ...x, children: [...(x.children ?? []), column] }));
+    // In a row that wraps, a column needs its share of the row said; in a grid
+    // or a plain stack the place it is put decides that.
+    const wraps = target.type === "stack" && (target.props as Record<string, unknown> | undefined)?.direction === "row";
+    const placed = wraps ? asFooterColumn(column) : column;
+    next = updateNode(footer, target.id, (x) => {
+      const kids = x.children ?? [];
+      // A menu joins the other menus; a column of text closes the row.
+      const lastMenu = kids.map((k) => k.type).lastIndexOf("menu");
+      const at = column.type === "menu" && lastMenu >= 0 ? lastMenu + 1 : kids.length;
+      return { ...x, children: [...kids.slice(0, at), placed, ...kids.slice(at)] };
+    });
   }
   return { id: column.id, doc: { ...doc, parts: { ...doc.parts, footer: next } } };
 }

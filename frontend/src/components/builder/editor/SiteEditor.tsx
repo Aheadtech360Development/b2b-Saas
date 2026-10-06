@@ -30,7 +30,7 @@ import {
 import { createNode, labelOf, PRESETS } from "@/lib/builder/registry";
 import { LAYOUT_PRESETS, placeInCell, setSpan } from "@/lib/builder/layout";
 import {
-  TEMPLATE_LABELS, addFooterColumn, collectionsUsing, detachShared, exists, locate, makeShared, nodeForIssue, previewFor, productsUsing,
+  TEMPLATE_LABELS, addFooterColumn, addFooterTextColumn, collectionsUsing, detachShared, exists, locate, makeShared, nodeForIssue, previewFor, productsUsing,
   saveSection, sameTarget, setTreeAt, targetLabel, templateFor, treeAt, withSimpleFooter, type Target,
 } from "@/lib/builder/doc";
 import {
@@ -692,7 +692,7 @@ export default function SiteEditor({ backHref = "/admin/dashboard" }: { backHref
           {target.kind === "part" && target.key === "footer" && (
             <div className="sbe-banner info" role="note" data-footer-bar>
               <LayoutTemplate size={15} />
-              <span style={{ flex: "1 1 240px", minWidth: 0 }}>The footer is your brand column, then a column for each menu. Click a column to set its title, its menu and its links.</span>
+              <span style={{ flex: "1 1 240px", minWidth: 0 }}>The footer is your brand column, then a column for each menu or block of text. They sit side by side and move to the next line by themselves on a narrow screen. Click a column to change it.</span>
               <button type="button" className="sbe-btn sm" onClick={() => {
                 const d = docRef.current;
                 const res = d ? addFooterColumn(d) : null;
@@ -701,6 +701,14 @@ export default function SiteEditor({ backHref = "/admin/dashboard" }: { backHref
                 setSelected(res.id);
                 setShowRight(true);
               }}>+ Add a menu column</button>
+              <button type="button" className="sbe-btn sm" onClick={() => {
+                const d = docRef.current;
+                const res = d ? addFooterTextColumn(d) : null;
+                if (!res) return;
+                commit(res.doc);
+                setSelected(res.id);
+                setShowRight(true);
+              }}>+ Add a text column</button>
               <button type="button" className="sbe-btn sm ghost" onClick={() => {
                 const d = docRef.current;
                 if (!d) return;

@@ -165,7 +165,7 @@ export const BASE_CSS = `
 .bsite :where(.b-storename){font-weight:700;font-size:20px;text-decoration:none;letter-spacing:-.01em;min-width:0;overflow-wrap:anywhere;color:var(--b-head,inherit)}
 
 .bsite :where(.b-menu){position:relative;min-width:0;font-size:var(--b-fs,15px);font-weight:var(--b-fw,500)}
-.bsite :where(.b-menu-title){font-weight:700;font-size:1.05em;margin:0 0 10px;color:var(--b-head,inherit);overflow-wrap:anywhere}
+.bsite :where(.b-menu-title){font-family:var(--b-font-heading,inherit);font-weight:700;font-size:1.05em;margin:0 0 10px;color:var(--b-head,inherit);overflow-wrap:anywhere}
 .bsite :where(.b-menu ul){list-style:none;margin:0;padding:0}
 .bsite :where(.b-menu-list){display:flex;flex-wrap:wrap;align-items:center;gap:2px}
 .bsite :where(.b-menu-item){position:relative;display:flex;align-items:center}

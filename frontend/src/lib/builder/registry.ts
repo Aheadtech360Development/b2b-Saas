@@ -593,24 +593,51 @@ export function menuColumn(title: string, menuId = ""): BuilderNode {
 }
 
 /**
+ * A column of plain text under a title — "Talk to us", with an email address,
+ * a phone number and a town. For the last column of a footer, where a menu
+ * would be the wrong thing: these are not links to pages.
+ */
+export function textColumn(title = "Talk to us"): BuilderNode {
+  // Sized and spaced to sit level with a menu column beside it: the title on
+  // the same line as a menu's title, the first line of text on the same line
+  // as a menu's first link.
+  return named(title, node("stack", { direction: "column" }, { gap: "10px" }, [
+    node("heading", { text: title, level: 4 }, { fontSize: "15.75px", lineHeight: "1.6" }),
+    node("rich_text", { html: "<p>hello@yourshop.com</p><p>(000) 000-0000</p><p>City, State</p>" },
+      { fontSize: "15px", fontWeight: 500, paddingTop: "6px" }),
+  ]));
+}
+
+/**
+ * A footer column's share of the row. Columns sit side by side while there is
+ * room for them at a width worth reading; the ones that no longer fit move to
+ * the next line by themselves, last first. Nothing is set per device.
+ */
+export function asFooterColumn(n: BuilderNode): BuilderNode {
+  return { ...n, style: { ...(n.style ?? {}), flexGrow: 1, flexBasis: "160px" } };
+}
+
+/**
  * The simple footer: a brand column — logo, tagline, a few words — then a
- * column for each menu, as many as the merchant adds. The columns are a grid
- * that fits as many across as there is room for, so a phone stacks them and
- * nothing has to be set for it.
+ * column for each menu, as many as the merchant adds, and a column of text to
+ * finish. The brand column is the widest. They are a row that wraps: a tablet
+ * shows as many as fit and puts the rest underneath, a phone ends up with the
+ * brand on a line of its own and the columns in ones or twos below it.
  */
 export function simpleFooter(menus: { title: string; menuId?: string }[] = [{ title: "Shop" }, { title: "Help" }, { title: "Company" }],
                              storeName = ""): BuilderNode {
   return named("Footer", node("section", { width: "contained" },
     { paddingTop: "56px", paddingBottom: "32px", backgroundColor: "#F7F7F5" }, [
-      named("Footer columns", node("stack", { direction: "column" },
-        { display: "grid", gridAuto: "fit", gridMin: "170px", gap: "32px", alignItems: "start" }, [
-          named("Brand", node("stack", { direction: "column" }, { gap: "10px" }, [
+      named("Footer columns", node("stack", { direction: "row" },
+        { flexWrap: "wrap", gap: "32px", alignItems: "flex-start" }, [
+          named("Brand", node("stack", { direction: "column" }, { gap: "10px", flexGrow: 3, flexBasis: "280px" }, [
             node("logo", { fallback: "name" }, { height: "36px" }),
             named("Tagline", node("text", { text: "Printed well, shipped fast." }, { fontWeight: 600, fontSize: "15px" })),
             named("About", node("text", { text: "A sentence or two about your shop — what you make and who for." },
               { color: "var(--b-muted,#5B6170)", fontSize: "14px" })),
           ])),
-          ...menus.map((m) => menuColumn(m.title, m.menuId ?? "")),
+          ...menus.map((m) => asFooterColumn(menuColumn(m.title, m.menuId ?? ""))),
+          asFooterColumn(textColumn()),
         ])),
       node("divider", {}, { marginTop: "36px", marginBottom: "18px" }),
       named("Small print", node("text", { text: `© ${storeName || "Your shop"}. All rights reserved.` },
