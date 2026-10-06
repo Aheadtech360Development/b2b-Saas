@@ -1619,6 +1619,268 @@ async def admin_order_detail(
     return _order_row(order, await _load_artworks(db, order.id), admin=True)
 
 
+# ── Production files: what the print team prints from ─────────────────────────
+# A sheet's preview and its print-ready PNG are drawn on request from its
+# layout and artwork (services/gang_sheet_render.py) and reached by a signed
+# link, so the order page can list them as plain links — like the print apps
+# shops know from Shopify — without the browser having to send a sign-in.
+FILE_KINDS = ("print", "preview")
+FILE_LINK_DAYS = 7
+# Below this many DPI a design is "low resolution": the print check's own line
+# where edges and text start to look fuzzy (services/artwork/inspect.py).
+LOW_RES_DPI = 200
+
+
+def _file_sig(sheet_id, tenant_id, kind: str, exp: int) -> str:
+    import hashlib
+    import hmac
+
+    from app.core.config import settings
+
+    msg = f"gang-sheet-file:{sheet_id}:{tenant_id or ''}:{kind}:{exp}".encode()
+    return hmac.new(settings.APP_SECRET_KEY.encode(), msg, hashlib.sha256).hexdigest()[:40]
+
+
+def file_link(o: GangSheetOrder, kind: str, *, now: float | None = None) -> str:
+    """A link to one of the sheet's files, good for FILE_LINK_DAYS. A path on the
+    API: the page puts its API address in front."""
+    import time
+
+    exp = int((now if now is not None else time.time()) + FILE_LINK_DAYS * 86400)
+    return f"/api/v1/gang-sheets/files/{o.id}/{kind}?exp={exp}&sig={_file_sig(o.id, o.tenant_id, kind, exp)}"
+
+
+def _sheet_kind(o: GangSheetOrder, product_type: str | None) -> str:
+    """Which of the three builders made this sheet: the builder that arranges
+    designs on a sheet, Upload by size (one design, one size), or a buyer's own
+    finished sheet."""
+    if product_type == "upload_own":
+        return "upload_own"
+    if product_type == "upload_by_size" or not o.sheet_size_id:
+        return "upload_by_size"
+    return "gang_sheet"
+
+
+def _drawn_layout(o: GangSheetOrder, kind: str, arts: list[GangSheetArtwork]) -> list[dict]:
+    """The placements the sheet is drawn from. A buyer's own sheet is stored as
+    one artwork with no placement — it is the sheet — so it is placed centred,
+    inside the bleed it was sized to. Upload by size records its one placement
+    when it is submitted; one from before that is placed the same way."""
+    if o.layout:
+        return list(o.layout)
+    if kind in ("upload_own", "upload_by_size") and arts:
+        a = arts[0]
+        w, h = float(a.width_in), float(a.height_in)
+        return [{"artwork_id": str(a.id), "rotation": 0, "w_in": w, "h_in": h,
+                 "x_in": max(0.0, (float(o.sheet_width_in) - w) / 2),
+                 "y_in": max(0.0, (float(o.sheet_height_in) - h) / 2)}]
+    return []
+
+
+def _resolution(arts: list[GangSheetArtwork]) -> dict:
+    """The print check's verdict on resolution, for the whole sheet: whether any
+    design is low resolution, the lowest measured, and which ones."""
+    measured = []
+    unchecked = 0
+    for a in arts:
+        insp = getattr(a, "inspection", None) or {}
+        dpi = (insp.get("measured") or {}).get("effective_dpi")
+        if isinstance(dpi, (int, float)) and dpi > 0:
+            measured.append((a.file_name, int(dpi)))
+        elif any(f.get("code") == "vector" for f in insp.get("findings") or []):
+            continue  # vector: sharp at any size
+        else:
+            unchecked += 1
+    low = [(name, dpi) for name, dpi in measured if dpi < LOW_RES_DPI]
+    return {
+        "low": bool(low),
+        "low_files": [{"name": n, "dpi": d} for n, d in low],
+        "lowest_dpi": min((d for _, d in measured), default=None),
+        "designs": len(arts),
+        "unchecked": unchecked,
+        "threshold_dpi": LOW_RES_DPI,
+    }
+
+
+def _too_large(a: GangSheetArtwork) -> bool:
+    """Whether the print check measured this file bigger than the print file
+    draws (gang_sheet_render.MAX_SOURCE_PIXELS) — known without fetching it."""
+    from app.services.gang_sheet_render import MAX_SOURCE_PIXELS
+
+    px = ((getattr(a, "inspection", None) or {}).get("measured") or {}).get("pixels") or ""
+    try:
+        w, h = (int(n) for n in str(px).lower().split("x"))
+    except ValueError:
+        return False
+    return w * h > MAX_SOURCE_PIXELS
+
+
+def _print_name(o: GangSheetOrder) -> str:
+    w, h = f"{float(o.sheet_width_in):g}", f"{float(o.sheet_height_in):g}"
+    return f"{o.reference}-{w}x{h}in-300dpi.png"
+
+
+async def production_details(db: AsyncSession, sales_order_id) -> list[dict]:
+    """What production needs for every gang sheet on a sales order, as the order
+    page lists it under the sheet's line: its size, a preview, the print-ready
+    file, where the buyer and the shop edit it, and whether any design is low
+    resolution. One shape for all three builders."""
+    from app.services.gang_sheet_render import DRAWABLE
+
+    rows = (await db.execute(
+        select(GangSheetOrder)
+        .where(GangSheetOrder.order_id == sales_order_id)
+        .order_by(GangSheetOrder.created_at)
+    )).scalars().all()
+    if not rows:
+        return []
+    pids = [o.product_id for o in rows if o.product_id]
+    types: dict[str, str | None] = {}
+    if pids:
+        from sqlalchemy import text as _text
+
+        for pid, ptype, slug in (await db.execute(_text(
+            "SELECT CAST(id AS text), gang_sheet_type, slug FROM products WHERE CAST(id AS text) = ANY(:ids)"
+        ), {"ids": [str(p) for p in pids]})).all():
+            types[pid] = (ptype, slug)
+
+    out = []
+    for o in rows:
+        arts = await _load_artworks(db, o.id)
+        ptype, slug = types.get(str(o.product_id), (None, None)) if o.product_id else (None, None)
+        kind = _sheet_kind(o, ptype)
+        layout = _drawn_layout(o, kind, arts)
+        placed = {str(p.get("artwork_id")) for p in layout}
+        used = [a for a in arts if str(a.id) in placed]
+        # What the PNG cannot hold: vector and layered files, and any too big
+        # to draw. Production prints those from the original.
+        left_out = sorted({a.file_name for a in used
+                           if (a.file_type or "").lower() not in DRAWABLE or _too_large(a)})
+
+        if kind == "upload_own" and arts:
+            # The buyer's own sheet is already the print file: theirs, untouched.
+            print_file = {"url": arts[0].file_url, "name": arts[0].file_name, "signed": False}
+        elif kind == "upload_by_size" and used and len(left_out) == len(used):
+            # One design, and the PNG cannot hold it: the design is the file.
+            print_file = {"url": used[0].file_url, "name": used[0].file_name, "signed": False}
+        elif layout:
+            print_file = {"url": file_link(o, "print"), "name": _print_name(o), "signed": True}
+        else:
+            print_file = None
+
+        # Where the buyer changes it, while they still may: the builder for a
+        # sheet they arranged, the product page for Upload by size. A sheet they
+        # uploaded finished has no editor — it is changed by uploading another.
+        edit = None
+        if o.status in _BUYER_EDITABLE and kind == "gang_sheet":
+            edit = f"/gang-sheets?edit={o.id}" + (f"&product={o.product_id}" if o.product_id else "")
+        elif o.status in _BUYER_EDITABLE and kind == "upload_by_size" and slug:
+            edit = f"/products/{slug}?revise={o.id}"
+
+        out.append({
+            "id": str(o.id),
+            "reference": o.reference,
+            "kind": kind,
+            "status": o.status,
+            "sheet_name": o.sheet_name,
+            "width_in": float(o.sheet_width_in),
+            "height_in": float(o.sheet_height_in),
+            "quantity": o.sheet_quantity,
+            # A buyer's own sheet is its own preview — one file the size of
+            # the sheet, opened as it is rather than drawn again.
+            "preview_url": (arts[0].file_url if kind == "upload_own" and arts
+                            else file_link(o, "preview") if layout else None),
+            "print_file": print_file,
+            # Not laid out yet: a builder sheet the shop has still to arrange.
+            "needs_layout": kind == "gang_sheet" and not layout,
+            "left_out": left_out,
+            "edit_url": edit,
+            "admin_edit_url": f"/admin/gang-sheets?sheet={o.id}",
+            "originals": [{"name": a.file_name, "url": a.file_url} for a in arts],
+            "resolution": _resolution(arts),
+        })
+    return out
+
+
+@public_router.get("/files/{sheet_id}/{kind}")
+async def sheet_file(sheet_id: uuid.UUID, kind: str, exp: int, sig: str):
+    """A sheet's preview or print-ready PNG, drawn now from its layout.
+
+    Reached by the signed link the order page lists (file_link), not by a
+    sign-in — a download link the browser follows sends none. The signature
+    names the sheet, its brand, the kind of file and when the link stops
+    working, so it opens that one file and nothing else.
+    """
+    import asyncio
+    import hmac
+    import time
+
+    from fastapi.responses import Response, StreamingResponse
+    from sqlalchemy import text as _text
+
+    from app.core.database import AsyncSessionLocal
+    from app.core.tenant_context import is_scoping_bypassed, set_bypass_scoping
+    from app.services import gang_sheet_render as render
+
+    if kind not in FILE_KINDS:
+        raise HTTPException(status_code=404, detail="No such file")
+    if exp < time.time():
+        raise HTTPException(status_code=410, detail="This link has expired. Open the order again for a new one.")
+
+    # Looked up across brands on purpose — the link carries no sign-in and the
+    # API address names no shop — and then held to the brand the link was
+    # signed for.
+    previous = is_scoping_bypassed()
+    set_bypass_scoping(True)
+    try:
+        async with AsyncSessionLocal() as db:
+            await db.execute(_text("SELECT set_config('app.bypass_rls', 'on', true)"))
+            o = (await db.execute(select(GangSheetOrder).where(GangSheetOrder.id == sheet_id))).scalar_one_or_none()
+            if o is None or not hmac.compare_digest(sig, _file_sig(o.id, o.tenant_id, kind, exp)):
+                raise HTTPException(status_code=404, detail="No such file")
+            arts = await _load_artworks(db, o.id)
+            ptype = None
+            if o.product_id:
+                ptype = (await db.execute(_text("SELECT gang_sheet_type FROM products WHERE id = :p"),
+                                          {"p": str(o.product_id)})).scalar()
+    finally:
+        set_bypass_scoping(previous)
+
+    sheet_kind = _sheet_kind(o, ptype)
+    layout = _drawn_layout(o, sheet_kind, arts)
+    if not layout:
+        raise HTTPException(status_code=409, detail="This sheet has not been laid out yet.")
+    w_in, h_in = float(o.sheet_width_in), float(o.sheet_height_in)
+    dpi = render.PRINT_DPI if kind == "print" else render.preview_dpi(w_in, h_in)
+    px_w, px_h = render.sheet_pixels(w_in, h_in, dpi)
+    if px_w * px_h > render.MAX_SHEET_PIXELS:
+        raise HTTPException(status_code=413, detail="This sheet is too large to draw.")
+
+    wanted = {str(p.get("artwork_id")) for p in layout}
+    art_rows = [_art_row(a) for a in arts]
+    sources, missing = await render.load_sources(art_rows, wanted)
+    sheet = render.plan(w_in, h_in, layout, {r["id"]: r for r in art_rows}, sources, dpi, missing)
+
+    if kind == "preview":
+        data = await asyncio.to_thread(lambda: b"".join(render.png_stream(sheet, checker=True)))
+        return Response(data, media_type="image/png", headers={
+            "Content-Disposition": f'inline; filename="{o.reference}-preview.png"',
+            "Cache-Control": "private, max-age=600",
+        })
+    headers = {
+        "Content-Disposition": f'attachment; filename="{_print_name(o)}"',
+        "Cache-Control": "private, max-age=600",
+        "X-Sheet-Pixels": f"{sheet.width}x{sheet.height}",
+    }
+    if sheet.left_out:
+        # Said where a download can carry it: the file itself has no room. The
+        # names are the buyer's own, so percent-encoded — a header is Latin-1.
+        from urllib.parse import quote
+
+        headers["X-Left-Out"] = quote("; ".join(n for n, _ in sheet.left_out)[:600], safe=" ;()")
+    return StreamingResponse(render.png_stream(sheet), media_type="image/png", headers=headers)
+
+
 @admin_router.get("/by-order/{sales_order_id}")
 async def admin_sheets_for_order(
     sales_order_id: uuid.UUID,
@@ -1658,6 +1920,10 @@ async def admin_sheets_for_order(
             row["spacing_in"] = 0.0
         sheets.append(row)
 
+    # The production files, the same ones the order's lines list.
+    production = {d["id"]: d for d in await production_details(db, sales_order_id)}
+    for row in sheets:
+        row["production"] = production.get(row["id"])
     return {"sheets": sheets, "count": len(sheets)}
 
 

@@ -673,6 +673,26 @@ async def get_admin_order(order_id: str, db: AsyncSession = Depends(get_db)):
         for d in await _Disputes(db).for_order(order.id)
     ]
 
+    # What the total is made of: every discount with its code, the tax with
+    # where and at what rate. The page showed subtotal, tax and a total that
+    # did not meet, and nothing to say a discount came between them.
+    from app.services import order_money as _money
+
+    _discounts = await _money.discount_lines(db, order)
+
+    # A gang sheet line carries what production prints from — see
+    # gang_sheets.production_details, and _attach_sheets for how each sheet
+    # finds its line. In a savepoint: if it fails, the order still opens.
+    _item_rows = [OrderItemOut.model_validate(i) for i in items]
+    try:
+        from app.api.v1.gang_sheets import production_details as _production
+
+        async with db.begin_nested():
+            _sheets = await _production(db, order.id)
+        _item_rows = _attach_sheets(_item_rows, _sheets)
+    except Exception:
+        logger.warning("Could not load gang sheet details for order %s", order.id, exc_info=True)
+
     try:
         return AdminOrderDetail(
             supplier=_supplier_detail,
@@ -699,7 +719,11 @@ async def get_admin_order(order_id: str, db: AsyncSession = Depends(get_db)):
             shipped_at=order.shipped_at,
             created_at=order.created_at,
             updated_at=order.updated_at,
-            items=[OrderItemOut.model_validate(i) for i in items],
+            items=_item_rows,
+            tax_rate=getattr(order, "tax_rate", None),
+            tax_region=getattr(order, "tax_region", None),
+            tax_label=_money.tax_label(order),
+            discounts=_discounts,
             customer_name=customer_name,
             customer_email=customer_email,
             customer_phone=customer_phone,
@@ -735,6 +759,47 @@ async def get_admin_order(order_id: str, db: AsyncSession = Depends(get_db)):
     except Exception as exc:
         logger.exception("get_admin_order serialization error for order %s: %s", order_id, exc)
         raise HTTPException(status_code=500, detail=str(exc))
+
+
+def _attach_sheets(items: list[OrderItemOut], sheets: list[dict]) -> list[OrderItemOut]:
+    """Each gang sheet line with its sheet's production details.
+
+    Most lines carry the sheet's reference in their name ("Gang Sheet
+    GS-IH-2610-0018 — 22x10"). An Upload by size line is named for the design's
+    size alone ("DTF Transfers by Size — 2"x1.33""), which is the sheet's own
+    name. So a line finds its sheet by reference, then by name (one with the
+    same quantity first), then takes whichever sheet is left, in order — an
+    order with one sheet, the usual case, always finds it.
+    """
+    import re
+
+    left = list(sheets)
+    gang = [i for i in items if (i.sku or "").upper() == "GANG-SHEET"]
+    found: dict[str, dict] = {}
+
+    def by_reference(item: OrderItemOut, sheet: dict) -> bool:
+        ref = sheet.get("reference") or ""
+        # A whole reference: GS-2610-1000 is not GS-2610-10000.
+        return bool(ref) and re.search(rf"(?<![\w-]){re.escape(ref)}(?![\w-])", item.product_name or "") is not None
+
+    def by_name(item: OrderItemOut, sheet: dict) -> bool:
+        return (item.product_name or "").strip().lower() == (sheet.get("sheet_name") or "").strip().lower()
+
+    def by_name_and_quantity(item: OrderItemOut, sheet: dict) -> bool:
+        return by_name(item, sheet) and item.quantity == sheet.get("quantity")
+
+    for matches in (by_reference, by_name_and_quantity, by_name):
+        for item in gang:
+            if str(item.id) in found:
+                continue
+            sheet = next((s for s in left if matches(item, s)), None)
+            if sheet is not None:
+                found[str(item.id)] = sheet
+                left.remove(sheet)
+    for item in gang:
+        if str(item.id) not in found and left:
+            found[str(item.id)] = left.pop(0)
+    return [i.model_copy(update={"gang_sheet": found[str(i.id)]}) if str(i.id) in found else i for i in items]
 
 
 @router.get("/orders/{order_id}/events")

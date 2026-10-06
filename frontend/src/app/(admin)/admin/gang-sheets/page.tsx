@@ -111,6 +111,12 @@ interface SizeRow { id?: string; name: string; width_in: number; height_in: numb
 
 export default function AdminGangSheetsPage() {
   const [tab, setTab] = useState<"dashboard" | "setup" | "products" | "orders" | "sizes" | "library" | "settings">("dashboard");
+  // ?sheet=<id> — an order's "Admin edit" link: that sheet, open in review.
+  const [openSheet, setOpenSheet] = useState<string | null>(null);
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get("sheet");
+    if (id) { setOpenSheet(id); setTab("orders"); }
+  }, []);
   const TAB_LABEL: Record<string, string> = { dashboard: "Dashboard", setup: "Set up", products: "Products", orders: "Designs", sizes: "Sheet Sizes", library: "Design Library", settings: "Settings" };
 
   return (
@@ -124,7 +130,7 @@ export default function AdminGangSheetsPage() {
         {(["dashboard", "setup", "products", "orders", "sizes", "library", "settings"] as const).map((t) => (
           <button
             key={t}
-            onClick={() => setTab(t)}
+            onClick={() => { setTab(t); setOpenSheet(null); }}
             style={{
               padding: "8px 16px",
               borderRadius: "6px",
@@ -141,7 +147,7 @@ export default function AdminGangSheetsPage() {
         ))}
       </div>
 
-      {tab === "dashboard" ? <DashboardTab /> : tab === "setup" ? <SetupTab /> : tab === "products" ? <ProductsTab onGoToSizes={() => setTab("sizes")} /> : tab === "orders" ? <OrdersTab /> : tab === "sizes" ? <SizesTab /> : tab === "library" ? <LibraryTab /> : <SettingsTab />}
+      {tab === "dashboard" ? <DashboardTab /> : tab === "setup" ? <SetupTab /> : tab === "products" ? <ProductsTab onGoToSizes={() => setTab("sizes")} /> : tab === "orders" ? <OrdersTab openId={openSheet} /> : tab === "sizes" ? <SizesTab /> : tab === "library" ? <LibraryTab /> : <SettingsTab />}
     </div>
   );
 }
@@ -561,9 +567,13 @@ function ProductEditor({ product, onBack, onGoToSizes }: { product: GangSheetPro
 }
 
 // ── Orders / Designs ──────────────────────────────────────────────────────────
-function OrdersTab() {
+function OrdersTab({ openId }: { openId?: string | null }) {
   const [orders, setOrders] = useState<GangSheetOrder[]>([]);
   const [selected, setSelected] = useState<GangSheetOrder | null>(null);
+  // Opened from an order's "Admin edit" link: that sheet, straight away.
+  useEffect(() => {
+    if (openId) gangSheetsService.adminOrder(openId).then(setSelected).catch(() => {});
+  }, [openId]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("");
 

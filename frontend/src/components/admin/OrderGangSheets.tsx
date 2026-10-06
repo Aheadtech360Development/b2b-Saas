@@ -161,7 +161,7 @@ export function OrderGangSheets({ orderId }: { orderId: string }) {
                   >
                     Download print PDF
                   </button>
-                  <a href="/admin/gang-sheets" style={{ ...BTN_LIGHT, textDecoration: "none", display: "inline-block" }}>
+                  <a href={`/admin/gang-sheets?sheet=${s.id}`} style={{ ...BTN_LIGHT, textDecoration: "none", display: "inline-block" }}>
                     Edit layout
                   </a>
                 </div>

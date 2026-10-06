@@ -10,7 +10,8 @@ import { accountService } from "@/services/account.service";
 import { apiClient } from "@/lib/api-client";
 import { useAuthStore } from "@/stores/auth.store";
 import { ConfigurationDetail } from "@/components/shared/ConfigurationDetail";
-import type { LineConfiguration } from "@/types/order.types";
+import type { LineConfiguration, OrderDiscountLine } from "@/types/order.types";
+import { discountAmount, discountLabel } from "@/lib/orderMoney";
 
 interface OrderItem {
   id: string;
@@ -33,6 +34,11 @@ interface Order {
   total: string;
   subtotal: string;
   shipping_cost: string;
+  tax_amount?: string | null;
+  /** "Tax (WY · 6%)": where the tax was charged and at what rate. */
+  tax_label?: string | null;
+  /** What took money off the total — the discount code, and what it saved. */
+  discounts?: OrderDiscountLine[];
   amount_paid?: string | null;
   convenience_fee?: string | null;
   po_number: string | null;
@@ -559,8 +565,16 @@ export default function OrderDetailPage() {
           <p className="text-gray-500">
             Subtotal: <span className="text-gray-800 font-medium">${Number(order.subtotal).toFixed(2)}</span>
           </p>
+          {(order.discounts ?? []).map((d, i) => (
+            <p key={i} className="text-gray-500">
+              {discountLabel(d)}: <span className="text-emerald-700 font-medium">{discountAmount(d)}</span>
+            </p>
+          ))}
           <p className="text-gray-500">
             Shipping: <span className="text-gray-800 font-medium">${Number(order.shipping_cost).toFixed(2)}</span>
+          </p>
+          <p className="text-gray-500">
+            {order.tax_label || "Tax"}: <span className="text-gray-800 font-medium">${Number(order.tax_amount ?? 0).toFixed(2)}</span>
           </p>
           {order.convenience_fee && Number(order.convenience_fee) > 0 && (
             <p style={{ color: "#92400e" }}>

@@ -106,6 +106,10 @@ class OrderItemOut(BaseModel):
     product_id: UUID | None = None
     # Configured lines: the chosen options and their price effects.
     configuration: dict | None = None
+    # A gang sheet line: what production needs to print it — size, preview,
+    # print-ready file, edit links, low-resolution check. Set by the admin
+    # order page's endpoint; see gang_sheets.production_details.
+    gang_sheet: dict | None = None
 
     model_config = {"from_attributes": True}
 
@@ -124,6 +128,13 @@ class OrderOut(BaseModel):
     balance_due: Decimal | None = None
     is_fully_paid: bool = False
     convenience_fee: Decimal | None = None
+    # What the total is made of beyond its lines: tax with where and at what
+    # rate, and every discount with its code (services/order_money.py).
+    tax_amount: Decimal | None = None
+    tax_rate: Decimal | None = None
+    tax_region: str | None = None
+    tax_label: str | None = None
+    discounts: list[dict] = []
     items: list[OrderItemOut]
     created_at: datetime
     updated_at: datetime

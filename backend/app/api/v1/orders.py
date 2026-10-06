@@ -76,19 +76,32 @@ async def get_order(
         if not found_id:
             raise NotFoundError(f"Order {order_id} not found")
         if account_type == "retail" and user_id:
-            return await svc.get_order_for_retail_user(found_id, user_id)
+            return await _priced(db, await svc.get_order_for_retail_user(found_id, user_id))
         elif company_id:
-            return await svc.get_order(found_id, company_id)
+            return await _priced(db, await svc.get_order(found_id, company_id))
         else:
             raise ForbiddenError("Company account required")
 
     oid = _uuid.UUID(order_id)
     if account_type == "retail" and user_id:
-        return await svc.get_order_for_retail_user(oid, user_id)
+        return await _priced(db, await svc.get_order_for_retail_user(oid, user_id))
     elif company_id:
-        return await svc.get_order(oid, company_id)
+        return await _priced(db, await svc.get_order(oid, company_id))
     else:
         raise ForbiddenError("Company account required")
+
+
+async def _priced(db: AsyncSession, order) -> OrderOut:
+    """The order with what its total is made of: each discount and its code,
+    and the tax with where and at what rate. The buyer saw a subtotal and a
+    total that did not meet, with nothing between them to say why."""
+    from app.services import order_money
+
+    out = OrderOut.model_validate(order)
+    return out.model_copy(update={
+        "discounts": await order_money.discount_lines(db, order),
+        "tax_label": order_money.tax_label(order),
+    })
 
 
 @router.get("/{order_id}/events")

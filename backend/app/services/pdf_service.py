@@ -330,7 +330,11 @@ def _items_table(order: "Order") -> list:
 
 def _totals_block(order: "Order") -> list:
     """Right-aligned subtotal / discount / shipping / tax / total block."""
-    discount_val = float(getattr(order, "discount_amount", 0) or 0)
+    from app.services.order_money import discount_total, tax_label
+
+    # An order does not store its discount; its total is what is left of its
+    # parts after it, so that is where the figure comes from.
+    discount_val = float(discount_total(order))
     tax_val = float(getattr(order, "tax_amount", 0) or 0)
 
     rows: list = [["", "Subtotal:", f"${float(order.subtotal):.2f}"]]
@@ -338,7 +342,7 @@ def _totals_block(order: "Order") -> list:
         rows.append(["", "Discount:", f"−${discount_val:.2f}"])
     rows.append(["", "Shipping:", f"${float(order.shipping_cost or 0):.2f}"])
     if tax_val > 0:
-        rows.append(["", "Tax:", f"${tax_val:.2f}"])
+        rows.append(["", f"{tax_label(order)}:", f"${tax_val:.2f}"])
     rows.append(["", "TOTAL:", f"${float(order.total):.2f}"])
 
     tbl = Table(rows, colWidths=[4.85 * inch, 1.3 * inch, 0.85 * inch])
@@ -463,8 +467,10 @@ class PDFService:
         # ── Summary block with discount + tax ─────────────────────────────────
         subtotal_val = float(order.subtotal)
         shipping_val = float(order.shipping_cost or 0)
+        from app.services.order_money import discount_total, tax_label
+
         tax_val = float(order.tax_amount) if order.tax_amount else 0.0
-        discount_val = float(getattr(order, "discount_amount", 0) or 0)
+        discount_val = float(discount_total(order))
         total_val = float(order.total)
 
         summary_rows: list = [["", "Subtotal:", f"${subtotal_val:.2f}"]]
@@ -472,7 +478,7 @@ class PDFService:
             summary_rows.append(["", "Discount:", f"−${discount_val:.2f}"])
         summary_rows.append(["", "Shipping:", f"${shipping_val:.2f}"])
         if tax_val > 0:
-            summary_rows.append(["", "Tax:", f"${tax_val:.2f}"])
+            summary_rows.append(["", f"{tax_label(order)}:", f"${tax_val:.2f}"])
         summary_rows.append(["", "TOTAL DUE:", f"${total_val:.2f}"])
 
         sum_tbl = Table(summary_rows, colWidths=[4.85 * inch, 1.3 * inch, 0.85 * inch])

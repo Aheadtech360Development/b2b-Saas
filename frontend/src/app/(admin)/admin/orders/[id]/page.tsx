@@ -7,8 +7,10 @@ import { adminService } from "@/services/admin.service";
 import { apiClient } from "@/lib/api-client";
 import { ConfigurationDetail } from "@/components/shared/ConfigurationDetail";
 import { OrderGangSheets } from "@/components/admin/OrderGangSheets";
+import { GangSheetLineFiles, type GangSheetProduction } from "@/components/admin/GangSheetLineFiles";
+import { discountAmount, discountLabel } from "@/lib/orderMoney";
 import { OrderRefunds, type DisputeRow, type RefundRow } from "@/components/admin/OrderRefunds";
-import type { LineConfiguration } from "@/types/order.types";
+import type { LineConfiguration, OrderDiscountLine } from "@/types/order.types";
 
 interface OrderItem {
   id: string;
@@ -21,6 +23,8 @@ interface OrderItem {
   line_total: string;
   /** Configured products: what production needs to make this line. */
   configuration?: LineConfiguration | null;
+  /** A gang sheet line: its size, preview, edit links, print file and resolution. */
+  gang_sheet?: GangSheetProduction | null;
 }
 
 interface ShippingAddress {
@@ -76,6 +80,10 @@ interface AdminOrder {
   subtotal: string;
   shipping_cost: string;
   tax_amount?: string;
+  /** "Tax (WY · 6%)": where the tax was charged and at what rate. */
+  tax_label?: string | null;
+  /** What took money off the total: each code, and anything else short of the parts. */
+  discounts?: OrderDiscountLine[];
   total: string;
   items: OrderItem[];
   created_at: string;
@@ -1214,6 +1222,7 @@ export default function AdminOrderDetailPage() {
                     <td style={{ padding: "14px 12px", fontWeight: 700, fontSize: "14px", color: "#2A2830" }}>
                       {item.product_name}
                       <ConfigurationDetail configuration={item.configuration} />
+                      {item.gang_sheet && <GangSheetLineFiles sheet={item.gang_sheet} />}
                     </td>
                     <td style={{ padding: "14px 12px", fontSize: "12px", color: "#7A7880", fontFamily: "monospace" }}>{item.sku}</td>
                     <td style={{ padding: "14px 12px" }}>
@@ -1244,14 +1253,18 @@ export default function AdminOrderDetailPage() {
                 <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "8px", fontSize: "14px", color: "#7A7880" }}>
                   <span>Subtotal</span><span>${Number(order.subtotal).toFixed(2)}</span>
                 </div>
+                {(order.discounts ?? []).map((d, i) => (
+                  <div key={i} style={{ display: "flex", justifyContent: "space-between", gap: "12px", marginBottom: "8px", fontSize: "14px", color: "#047857" }}>
+                    <span>{discountLabel(d)}</span><span style={{ whiteSpace: "nowrap" }}>{discountAmount(d)}</span>
+                  </div>
+                ))}
                 <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "8px", fontSize: "14px", color: "#7A7880" }}>
                   <span>Shipping</span><span>${Number(order.shipping_cost).toFixed(2)}</span>
                 </div>
-                {order.tax_amount && Number(order.tax_amount) > 0 && (
-                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "8px", fontSize: "14px", color: "#7A7880" }}>
-                    <span>Tax</span><span>${Number(order.tax_amount).toFixed(2)}</span>
-                  </div>
-                )}
+                {/* Always shown, at $0.00 too: "how much tax" has an answer either way. */}
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "8px", fontSize: "14px", color: "#7A7880" }}>
+                  <span>{order.tax_label || "Tax"}</span><span>${Number(order.tax_amount ?? 0).toFixed(2)}</span>
+                </div>
                 {order.convenience_fee && Number(order.convenience_fee) > 0 && (
                   <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "8px", fontSize: "14px", color: "#D97706" }}>
                     <span>Convenience Fee (3%)</span><span>${Number(order.convenience_fee).toFixed(2)}</span>

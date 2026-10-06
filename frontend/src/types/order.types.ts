@@ -112,6 +112,19 @@ export interface OrderDetail extends OrderListItem {
   items: OrderItemDetail[];
 }
 
+/**
+ * One thing that took money off an order, as its page lists it: a discount
+ * code, or (`code` null) what the total is short of its parts by when no code
+ * was recorded. From the order endpoints' `discounts` (services/order_money.py).
+ */
+export interface OrderDiscountLine {
+  code: string | null;
+  type: string;
+  value: number;
+  amount: number;
+  label: string;
+}
+
 /** Order line item. */
 export interface OrderItemDetail {
   id: string;
