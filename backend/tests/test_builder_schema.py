@@ -133,6 +133,14 @@ btn = d["templates"]["not_found"]["default"]["tree"]["children"][0]["children"][
 btn["props"]["href"] = "javascript:alert(1)"
 check("a javascript: link is refused", "url_unsafe" in codes(blocking(validate(d, KNOWN))))
 
+d = fresh()
+btn = d["templates"]["not_found"]["default"]["tree"]["children"][0]["children"][2]["children"][0]
+btn["props"]["href"] = "www.innterflow.com/shop"
+found = [i for i in blocking(validate(d, KNOWN)) if i.code == "url_unsafe"]
+check("…and the refusal names the address, and how to write it",
+      len(found) == 1 and "“www.innterflow.com/shop”" in found[0].message and "https://" in found[0].message,
+      [i.message for i in found])
+
 print("\nfonts")
 d = fresh()
 d["settings"]["fonts"].append({"family": "Brand Sans", "source": "custom", "weights": [400]})
@@ -243,6 +251,30 @@ check("@media is kept and its rules scoped",
 
 out = scope_css("p { color: red } </style><script>alert(1)</script>", '[data-b="n1"]')
 check("a style tag cannot be closed from inside", "<script" not in out.value and "</style" not in out.value)
+
+pasted = (".hero { box-sizing: border-box; container-type: inline-size; -webkit-font-smoothing: antialiased;"
+          " cursor: pointer; outline: 2px solid #111; outline-offset: 2px; align-content: center;"
+          " clip-path: polygon(0 0, 100% 0, 100% 90%, 0 100%) }"
+          " .hero::before { content: \"\\2605\" } .icon { fill: #f60; stroke: #000 }"
+          " table { border-collapse: collapse; border-spacing: 0 } .sr { clip: rect(0 0 0 0) }"
+          " button { -webkit-tap-highlight-color: transparent }"
+          " @supports (font-size: 1cqw) { .logo { width: clamp(124px, 35.3cqw, 200px) } }"
+          " @container (min-width: 600px) { .grid { display: grid } }")
+out = scope_css(pasted, '[data-b="n1"]')
+check("CSS pasted from a real design keeps what it is made of — nothing to warn about", out.removed == [], out.removed)
+for part in ("box-sizing: border-box", "container-type: inline-size", "cursor: pointer", "outline-offset: 2px",
+             "clip-path: polygon", 'content: "\\2605"', "fill: #f60", "border-collapse: collapse",
+             "-webkit-tap-highlight-color: transparent"):
+    check(f"…{part.split(':')[0]} included", part in out.value, out.value[:200])
+check("@supports keeps its rules, confined to the block",
+      '@supports (font-size: 1cqw) { [data-b="n1"] .logo { width: clamp(124px, 35.3cqw, 200px) } }' in out.value, out.value)
+check("…and @container", '@container (min-width: 600px) { [data-b="n1"] .grid { display: grid } }' in out.value, out.value)
+out = scope_css('.a { content: url(http://x.test/a.png); cursor: url(http://x.test/c.cur), auto; position: sticky }'
+                ' @font-face { font-family: X; src: url(https://x.test/x.woff2) }', '[data-b="n1"]')
+check("the new properties are held to the old rules: https only, never pinned to the window, no other at-rules",
+      out.value == "" and len(out.removed) == 4, (out.value, out.removed))
+out = scope_css('.a { cursor: url(javascript:alert(1)), auto; color: red }', '[data-b="n1"]')
+check("…and script in any of them still drops the whole stylesheet", out.value == "", out.removed)
 
 print("\nlayout engine")
 known = Known(menu_ids=set(), product_ids=set(), collection_ids=set(), custom_font_families=set())

@@ -236,6 +236,20 @@ describe("the editor's HTML cleaner", () => {
     expect(css).not.toMatch(/@import|fixed|e\.test/);
   });
 
+  it("keeps what pasted designs are made of, @supports and @container too — as the server does", () => {
+    const css = scopeCss(".hero { box-sizing: border-box; container-type: inline-size; cursor: pointer; outline-offset: 2px }"
+      + ' .hero::before { content: "\\2605" } .icon { fill: #f60 } table { border-collapse: collapse }'
+      + " @supports (font-size: 1cqw) { .logo { width: clamp(124px, 35.3cqw, 200px) } }"
+      + " @container (min-width: 600px) { .grid { display: grid } }"
+      + " .a { content: url(http://x.test/a.png); position: sticky }", '[data-b="b1"]');
+    expect(css).toContain('[data-b="b1"] .hero { box-sizing: border-box; container-type: inline-size; cursor: pointer; outline-offset: 2px }');
+    expect(css).toContain('[data-b="b1"] .hero::before { content: "\\2605" }');
+    expect(css).toContain('[data-b="b1"] .icon { fill: #f60 }');
+    expect(css).toContain('@supports (font-size: 1cqw) { [data-b="b1"] .logo { width: clamp(124px, 35.3cqw, 200px) } }');
+    expect(css).toContain('@container (min-width: 600px) { [data-b="b1"] .grid { display: grid } }');
+    expect(css).not.toMatch(/x\.test|sticky/);
+  });
+
   it("keeps a Custom HTML block's drawing inside its own box", () => {
     // Without this, an absolutely positioned div in the header covered the cart's
     // checkout button with a link somewhere else (seen in the browser).

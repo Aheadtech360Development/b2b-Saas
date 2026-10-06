@@ -371,8 +371,12 @@ def _check_tree(
         for key in spec.urls:
             value = props.get(key)
             if value and (not isinstance(value, str) or not _SAFE_URL.match(value.strip())):
+                # Saying which address, so it can be found and put right.
+                shown = value.strip()[:60] if isinstance(value, str) else ""
                 issues.append(Issue(f"{path}.props.{key}", "url_unsafe",
-                                    "Links and images must be a web address or a path on this shop."))
+                                    "Links and images must be a web address or a path on this shop."
+                                    + (f" “{shown}” is neither: start it with https:// for another site,"
+                                       " or / for a page of this shop." if shown else "")))
 
         for prop, kind, many in spec.refs:
             value = props.get(prop)

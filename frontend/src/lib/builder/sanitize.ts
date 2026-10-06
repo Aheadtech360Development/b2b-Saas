@@ -63,22 +63,45 @@ const ALLOWED_ATTRS: Record<string, Set<string>> = {
 
 const SAFE_URL = /^(https?:\/\/|\/(?!\/)|#|mailto:|tel:)/i;
 
+// Mirrors ALLOWED_CSS_PROPERTIES in backend/app/services/builder/sanitize.py.
 const ALLOWED_CSS = new Set([
   "align-items", "align-self", "background", "background-color", "background-image",
-  "background-position", "background-repeat", "background-size", "border",
-  "border-bottom", "border-color", "border-left", "border-radius", "border-right",
-  "border-style", "border-top", "border-width", "box-shadow", "color", "column-gap",
-  "display", "flex", "flex-basis", "flex-direction", "flex-grow", "flex-shrink",
-  "flex-wrap", "font-family", "font-size", "font-style", "font-weight", "gap",
-  "grid-column", "grid-row", "grid-template-columns", "grid-template-rows", "height",
-  "justify-content", "letter-spacing", "line-height", "list-style", "margin",
-  "margin-bottom", "margin-left", "margin-right", "margin-top", "max-height",
-  "max-width", "min-height", "min-width", "object-fit", "object-position", "opacity",
-  "overflow", "padding", "padding-bottom", "padding-left", "padding-right",
-  "padding-top", "position", "row-gap", "text-align", "text-decoration",
-  "text-transform", "transform", "transition", "vertical-align", "white-space",
-  "width", "word-break", "z-index", "top", "left", "right", "bottom", "aspect-ratio",
-  "font-variant", "text-shadow", "filter", "inset",
+  "background-position", "background-repeat", "background-size", "border", "border-bottom",
+  "border-color", "border-left", "border-radius", "border-right", "border-style", "border-top",
+  "border-width", "box-shadow", "color", "column-gap", "display", "flex", "flex-basis",
+  "flex-direction", "flex-grow", "flex-shrink", "flex-wrap", "font-family", "font-size",
+  "font-style", "font-weight", "gap", "grid-column", "grid-row", "grid-template-columns",
+  "grid-template-rows", "height", "justify-content", "letter-spacing", "line-height", "list-style",
+  "margin", "margin-bottom", "margin-left", "margin-right", "margin-top", "max-height",
+  "max-width", "min-height", "min-width", "object-fit", "object-position", "opacity", "overflow",
+  "padding", "padding-bottom", "padding-left", "padding-right", "padding-top", "position",
+  "row-gap", "text-align", "text-decoration", "text-transform", "transform", "transition",
+  "vertical-align", "white-space", "width", "word-break", "z-index", "top", "left", "right",
+  "bottom", "aspect-ratio", "font-variant", "text-shadow", "filter", "inset", "box-sizing",
+  "cursor", "outline", "outline-color", "outline-offset", "outline-style", "outline-width",
+  "-webkit-font-smoothing", "-moz-osx-font-smoothing", "text-rendering",
+  "-webkit-tap-highlight-color", "align-content", "justify-items", "justify-self", "place-items",
+  "place-content", "place-self", "order", "flex-flow", "grid-area", "grid-template",
+  "grid-template-areas", "grid-auto-flow", "grid-auto-rows", "grid-auto-columns",
+  "grid-column-start", "grid-column-end", "grid-row-start", "grid-row-end", "clip-path", "clip",
+  "container", "container-type", "container-name", "border-collapse", "border-spacing",
+  "table-layout", "caption-side", "content", "counter-reset", "counter-increment", "quotes",
+  "fill", "stroke", "stroke-width", "stroke-linecap", "stroke-linejoin", "stroke-dasharray",
+  "stroke-dashoffset", "overflow-x", "overflow-y", "overflow-wrap", "word-wrap", "text-overflow",
+  "text-wrap", "hyphens", "text-indent", "text-decoration-color", "text-decoration-line",
+  "text-decoration-style", "text-decoration-thickness", "text-underline-offset", "list-style-type",
+  "list-style-position", "font", "font-feature-settings", "font-variant-numeric", "font-stretch",
+  "border-top-left-radius", "border-top-right-radius", "border-bottom-left-radius",
+  "border-bottom-right-radius", "border-top-color", "border-right-color", "border-bottom-color",
+  "border-left-color", "border-top-width", "border-right-width", "border-bottom-width",
+  "border-left-width", "border-top-style", "border-right-style", "border-bottom-style",
+  "border-left-style", "background-clip", "-webkit-background-clip", "-webkit-text-fill-color",
+  "background-attachment", "background-origin", "background-blend-mode", "backdrop-filter",
+  "-webkit-backdrop-filter", "mix-blend-mode", "isolation", "transform-origin", "will-change",
+  "transition-property", "transition-duration", "transition-timing-function", "transition-delay",
+  "pointer-events", "user-select", "visibility", "-webkit-line-clamp", "-webkit-box-orient",
+  "line-clamp", "margin-inline", "margin-block", "padding-inline", "padding-block", "accent-color",
+  "caret-color", "float", "clear", "columns", "column-count", "column-width",
 ]);
 
 const CSS_DANGER = /expression\s*\(|javascript:|vbscript:|@import|behaviou?r\s*:|-moz-binding|<\//i;
@@ -174,8 +197,8 @@ export function cleanHtml(html: string): string {
 
 /**
  * A block's custom CSS, confined to that block: every selector is put under
- * the block's own attribute. @media is kept with its contents scoped; every
- * other at-rule is dropped.
+ * the block's own attribute. @media, @supports and @container are kept with
+ * their contents scoped; every other at-rule is dropped.
  */
 export function scopeCss(css: string, scope: string): string {
   const text = (css || "").replace(/\/\*[\s\S]*?\*\//g, "");
@@ -214,7 +237,7 @@ export function scopeCss(css: string, scope: string): string {
       else if (text[end] === "}") { depth--; if (depth === 0) break; }
     }
     const inner = text.slice(brace + 1, end);
-    if (/^@media\s[^{]+$/i.test(header)) {
+    if (/^@(media|supports|container)\s[^{]+$/i.test(header)) {
       const rules = scoped(inner);
       if (rules.length) out.push(`${header} { ${rules.join(" ")} }`);
     }

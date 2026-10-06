@@ -101,6 +101,35 @@ ALLOWED_CSS_PROPERTIES = {
     "text-transform", "transform", "transition", "vertical-align", "white-space",
     "width", "word-break", "z-index", "top", "left", "right", "bottom", "aspect-ratio",
     "font-variant", "text-shadow", "filter", "inset",
+    # What designs pasted from elsewhere are made of, and none of it can reach
+    # outside the block: a url() in any of these is held to https like the rest,
+    # and position: fixed or sticky is still refused below.
+    "box-sizing", "cursor", "outline", "outline-color", "outline-offset", "outline-style",
+    "outline-width", "-webkit-font-smoothing", "-moz-osx-font-smoothing", "text-rendering",
+    "-webkit-tap-highlight-color", "align-content", "justify-items", "justify-self",
+    "place-items", "place-content", "place-self", "order", "flex-flow", "grid-area",
+    "grid-template", "grid-template-areas", "grid-auto-flow", "grid-auto-rows",
+    "grid-auto-columns", "grid-column-start", "grid-column-end", "grid-row-start",
+    "grid-row-end", "clip-path", "clip", "container", "container-type", "container-name",
+    "border-collapse", "border-spacing", "table-layout", "caption-side", "content",
+    "counter-reset", "counter-increment", "quotes", "fill", "stroke", "stroke-width",
+    "stroke-linecap", "stroke-linejoin", "stroke-dasharray", "stroke-dashoffset",
+    "overflow-x", "overflow-y", "overflow-wrap", "word-wrap", "text-overflow", "text-wrap",
+    "hyphens", "text-indent", "text-decoration-color", "text-decoration-line",
+    "text-decoration-style", "text-decoration-thickness", "text-underline-offset",
+    "list-style-type", "list-style-position", "font", "font-feature-settings",
+    "font-variant-numeric", "font-stretch", "border-top-left-radius", "border-top-right-radius",
+    "border-bottom-left-radius", "border-bottom-right-radius", "border-top-color",
+    "border-right-color", "border-bottom-color", "border-left-color", "border-top-width",
+    "border-right-width", "border-bottom-width", "border-left-width", "border-top-style",
+    "border-right-style", "border-bottom-style", "border-left-style", "background-clip",
+    "-webkit-background-clip", "-webkit-text-fill-color", "background-attachment",
+    "background-origin", "background-blend-mode", "backdrop-filter", "-webkit-backdrop-filter",
+    "mix-blend-mode", "isolation", "transform-origin", "will-change", "transition-property",
+    "transition-duration", "transition-timing-function", "transition-delay", "pointer-events",
+    "user-select", "visibility", "-webkit-line-clamp", "-webkit-box-orient", "line-clamp",
+    "margin-inline", "margin-block", "padding-inline", "padding-block", "accent-color",
+    "caret-color", "float", "clear", "columns", "column-count", "column-width",
 }
 
 # Values that can run code or reach outside the page, in any property.
@@ -242,7 +271,9 @@ def clean_html(html: str) -> Cleaned:
 
 # A selector list may only name things; a block's CSS cannot reach the rest of
 # the page because every selector is put under the block's own attribute.
-_AT_RULE_OK = re.compile(r"^@media\s[^{]+$", re.I)
+# Conditions on a group of rules — the screen's size, what the browser
+# supports, the size of a container — keep their rules, scoped the same way.
+_AT_RULE_OK = re.compile(r"^@(media|supports|container)\s[^{]+$", re.I)
 
 
 def scope_css(css: str, scope: str) -> Cleaned:
@@ -250,8 +281,8 @@ def scope_css(css: str, scope: str) -> Cleaned:
 
     Every selector is prefixed with the block's own attribute selector, so
     `h2 { color: red }` written for one block cannot turn every heading on the
-    shop red. @media is kept (and its contents scoped); every other at-rule —
-    @import above all — is dropped.
+    shop red. @media, @supports and @container are kept (and their contents
+    scoped); every other at-rule — @import above all — is dropped.
     """
     removed: list[str] = []
     out: list[str] = []
