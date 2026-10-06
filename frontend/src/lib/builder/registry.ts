@@ -786,7 +786,7 @@ export const PRESETS: Preset[] = [
   },
   {
     key: "footer_simple", label: "Footer", kind: "section",
-    blurb: "Your logo and a line about the shop, then a column for each menu. Add or remove columns freely.",
+    blurb: "The footer on every page: your logo and tagline, three menu columns and a column of text.",
     create: () => simpleFooter(),
   },
   {

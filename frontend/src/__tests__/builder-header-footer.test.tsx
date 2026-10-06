@@ -12,7 +12,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { Tree, type RenderCtx } from "@/components/builder/render";
 import { BASE_CSS } from "@/lib/builder/baseCss";
-import { addFooterColumn, addFooterTextColumn, isColumnsFooter, removeAndClose, withSimpleFooter } from "@/lib/builder/doc";
+import { addFooterColumn, addFooterTextColumn, isColumnsFooter, moveToFooter, removeAndClose, strayFooterOf, treeAt, withSimpleFooter } from "@/lib/builder/doc";
 import { BY_TYPE, FOOTER_TITLES, PRESETS, menuColumn, simpleFooter, textColumn } from "@/lib/builder/registry";
 import { nodeCss, treeCss } from "@/lib/builder/style";
 import { findNode, walk } from "@/lib/builder/tree";
@@ -461,6 +461,22 @@ describe("the footer: a brand column and a column for each menu", () => {
     const fewer = findNode(removeAndClose(foot, rowOf.children![2]!.id), rowOf.id)!;
     expect(fewer.children).toHaveLength(4);
     for (const col of fewer.children!.slice(1)) expect(col.style).toMatchObject({ flexGrow: 1 });
+  });
+
+  it("finds a footer that was put on one page, and makes it the footer of every page", () => {
+    const base = starter as unknown as SiteDoc;
+    const stray = simpleFooter();
+    const page = n("stack", {}, {}, [n("section", {}, {}, [n("heading", { text: "Hi" })]), stray]);
+    const doc = { ...base, pages: { ...base.pages, home: { title: "Home", template: "default", tree: page } } } as unknown as SiteDoc;
+    const loc = { kind: "page", slug: "home" } as const;
+    const menu = stray.children![0]!.children![1]!;
+    // Anything inside it points back to the footer section; a plain section does not.
+    expect(strayFooterOf(page, menu.id)).toBe(stray.id);
+    expect(strayFooterOf(page, page.children![0]!.children![0]!.id)).toBeNull();
+    const next = moveToFooter(doc, loc, stray.id);
+    expect(next.parts.footer!.id).toBe(stray.id);
+    expect(findNode(treeAt(next, loc)!, stray.id)).toBeNull();
+    expect(treeAt(next, loc)!.children).toHaveLength(1);
   });
 
   it("offers the footer and a single menu column as ready-made pieces", () => {

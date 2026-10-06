@@ -30,7 +30,7 @@ import {
 import { createNode, labelOf, PRESETS } from "@/lib/builder/registry";
 import { LAYOUT_PRESETS, placeInCell, setSpan } from "@/lib/builder/layout";
 import {
-  TEMPLATE_LABELS, addFooterColumn, addFooterTextColumn, isColumnsFooter, removeAndClose, collectionsUsing, detachShared, exists, locate, makeShared, nodeForIssue, previewFor, productsUsing,
+  TEMPLATE_LABELS, addFooterColumn, addFooterTextColumn, isColumnsFooter, moveToFooter, removeAndClose, strayFooterOf, collectionsUsing, detachShared, exists, locate, makeShared, nodeForIssue, previewFor, productsUsing,
   saveSection, sameTarget, setTreeAt, targetLabel, templateFor, treeAt, withSimpleFooter, type Target,
 } from "@/lib/builder/doc";
 import {
@@ -290,6 +290,8 @@ export default function SiteEditor({ backHref = "/admin/dashboard" }: { backHref
 
   // ── Elements ──
   const where = doc && selected ? locate(doc, selected) : null;
+  const whereTree = doc && where && where.kind !== "part" ? treeAt(doc, where) : null;
+  const strayFooter = whereTree && selected ? strayFooterOf(whereTree, selected) : null;
 
   const changeNode = useCallback((next: BuilderNode) => {
     const d = docRef.current;
@@ -355,9 +357,20 @@ export default function SiteEditor({ backHref = "/admin/dashboard" }: { backHref
     return null;
   }, []);
 
+  /** The "Footer" block is the footer of every page, never a section of one page. */
+  const footerEverywhere = useCallback(() => {
+    const d = docRef.current;
+    if (!d) return;
+    if (isColumnsFooter(d) && !confirmAction("Your site already has a footer on every page. Start it again as five columns — your logo and tagline, three menus and a column of text? Your logo, colours and menus are kept. You can undo this.")) return;
+    commit(withSimpleFooter(d, preview?.data?.store?.name ?? ""));
+    setSelected(null);
+    say.done("The footer is set — it shows on every page: home, products, collections, cart. Ctrl Z undoes it.");
+  }, [commit, preview]);
+
   const place = useCallback((drag: DragPayload, targetId: string, position: Position) => {
     const d = docRef.current;
     if (!d) return;
+    if ("preset" in drag && drag.preset === "footer_simple") { footerEverywhere(); return; }
     const loc = locate(d, targetId);
     const tree = loc ? treeAt(d, loc) : null;
     if (!loc || !tree) return;
@@ -390,7 +403,7 @@ export default function SiteEditor({ backHref = "/admin/dashboard" }: { backHref
     if (!res) { say.warn("That cannot go there."); return; }
     commit(setTreeAt(d, loc, res.tree));
     setSelected(res.id);
-  }, [build, commit]);
+  }, [build, commit, footerEverywhere]);
 
   /**
    * Dropped on a free cell of a grid. A child of that grid moves to the cell; anything
@@ -426,6 +439,7 @@ export default function SiteEditor({ backHref = "/admin/dashboard" }: { backHref
       }
       childId = drag.move;
     } else {
+      if ("preset" in drag && drag.preset === "footer_simple") { footerEverywhere(); return; }
       const node = build(drag);
       if (!node) return;
       if (node.type === "global_ref" && loc.kind === "global") { say.warn("A shared section cannot go inside another one."); return; }
@@ -436,7 +450,7 @@ export default function SiteEditor({ backHref = "/admin/dashboard" }: { backHref
     const t3 = treeAt(next, loc)!;
     commit(setTreeAt(next, loc, updateNode(t3, gridId, (g) => placeInCell(g, childId, device, col, row))));
     setSelected(childId);
-  }, [build, commit, device, place]);
+  }, [build, commit, device, place, footerEverywhere]);
 
   /** A grid item's corner dragged across cells. One undo step per drag. */
   const spanCells = useCallback((gridId: string, childId: string, col: number, row: number, colSpan: number, rowSpan: number) => {
@@ -688,6 +702,22 @@ export default function SiteEditor({ backHref = "/admin/dashboard" }: { backHref
           {target.kind === "template" && (target.type === "product" || target.type === "collection") && (
             <UsedBy doc={doc} type={target.type} id={target.id} names={(id) => target.type === "product" ? productCache.current.get(id)?.name : collections.find((c) => c.id === id)?.name}
                     onChoose={() => { setShowLeft(true); setTab("templates"); setAssigning(`${target.type}:${target.id}`); }} />
+          )}
+          {strayFooter && where && (
+            <div className="sbe-banner bad" role="note" data-stray-footer>
+              <LayoutTemplate size={15} />
+              <span style={{ flex: "1 1 240px", minWidth: 0 }}>
+                This footer is part of this page only, so the shop shows it here and nowhere else. Make it the footer of every page — products, collections, cart and all.
+              </span>
+              <button type="button" className="sbe-btn sm primary" onClick={() => {
+                const d = docRef.current;
+                if (!d) return;
+                if (d.parts?.footer && !confirmAction("Use this as the footer on every page? It takes the place of the footer the other pages show now. You can undo this.")) return;
+                commit(moveToFooter(d, where, strayFooter));
+                setSelected(null);
+                say.done("This is the footer on every page now. Ctrl Z undoes it.");
+              }}>Show it on every page</button>
+            </div>
           )}
           {((target.kind === "part" && target.key === "footer") || (where?.kind === "part" && where.key === "footer")) && (
             <div className="sbe-banner info" role="note" data-footer-bar>

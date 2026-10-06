@@ -422,15 +422,48 @@ export function withSimpleFooter(doc: SiteDoc, storeName = ""): SiteDoc {
   return { ...doc, parts: { ...doc.parts, footer } };
 }
 
+/** A footer's columns: a row that wraps, holding menus or the brand. */
+function isFooterRow(n: BuilderNode): boolean {
+  const props = (n.props ?? {}) as Record<string, unknown>;
+  return n.type === "stack" && props.direction === "row" && n.style?.flexWrap === "wrap"
+    && (n.children ?? []).some((c) => c.type === "menu" || (c.children ?? []).some((k) => k.type === "logo" || k.type === "store_name"));
+}
+
+function holdsFooterRow(tree: BuilderNode | null): boolean {
+  let yes = false;
+  walk(tree, (n) => { if (isFooterRow(n)) yes = true; });
+  return yes;
+}
+
 /** Whether the footer is already columns in a row that wraps — the layout the buttons above build on. */
 export function isColumnsFooter(doc: SiteDoc): boolean {
-  let yes = false;
-  walk(doc.parts?.footer ?? null, (n) => {
-    const props = (n.props ?? {}) as Record<string, unknown>;
-    if (n.type === "stack" && props.direction === "row" && n.style?.flexWrap === "wrap"
-        && (n.children ?? []).some((c) => c.type === "menu" || (c.children ?? []).some((k) => k.type === "logo" || k.type === "store_name"))) yes = true;
-  });
-  return yes;
+  return holdsFooterRow(doc.parts?.footer ?? null);
+}
+
+/**
+ * The section holding `id`, when that section is a footer sitting in a page.
+ *
+ * The "Footer" block dropped into a page was a section of that page only, so
+ * the shop showed it on the home page and nowhere else.
+ */
+export function strayFooterOf(tree: BuilderNode, id: string): string | null {
+  let at: string | null = id;
+  while (at) {
+    const n = findNode(tree, at);
+    if (n?.type === "section" && n.id !== tree.id && holdsFooterRow(n)) return n.id;
+    const p = parentOf(tree, at);
+    at = p ? p.parent.id : null;
+  }
+  return null;
+}
+
+/** That footer taken off its page and made the footer every page shows — products, collections, cart and all. */
+export function moveToFooter(doc: SiteDoc, loc: Target, id: string): SiteDoc {
+  const tree = treeAt(doc, loc);
+  const node = tree ? findNode(tree, id) : null;
+  if (!tree || !node) return doc;
+  const off = setTreeAt(doc, loc, removeNode(tree, id));
+  return { ...off, parts: { ...off.parts, footer: node } };
 }
 
 /**
