@@ -318,6 +318,54 @@ describe("copies asked for by number come out nested", () => {
   });
 });
 
+describe("work kept between visits", () => {
+  const KEY = "gs_draft:any";
+  const tee = (id: number, x: number) => ({ id, uid: "https://shop.test/tee.png#1", x_in: x, y_in: 0.25, w_in: 2.67, h_in: 2.67, rotation: 0 });
+  const DRAFT = {
+    v: 1, at: Date.now(), active: 0, imageMargin: 0.5,
+    uploads: [{ uid: "https://shop.test/tee.png#1", file_url: "https://shop.test/tee.png", file_name: "tee.png", file_type: "png", isImage: true, pxW: 800, pxH: 800, hasAlpha: true, aspect: 1 }],
+    sheets: [{ key: "k1", name: "Gang Sheet 1", sizeId: "s10", qty: 1, customLength: 0, placements: [tee(1, 0.25), tee(2, 3.42)] }],
+  };
+  const fresh = () => render(<GangSheetStudio sizes={SIZES} productId={null} onClose={() => {}} onSaved={() => {}} />);
+  beforeEach(() => { localStorage.clear(); });
+
+  it("opens onto the sheet as it was left, and says so", () => {
+    localStorage.setItem(KEY, JSON.stringify(DRAFT));
+    fresh();
+    expect(designs()).toHaveLength(2);
+    expect(document.querySelector("[data-carried]")).toHaveTextContent("Carried on from where you left off.");
+  });
+
+  it("keeps each change as it is made", async () => {
+    localStorage.setItem(KEY, JSON.stringify(DRAFT));
+    fresh();
+    select();
+    askForCopies(1);
+    expect(designs()).toHaveLength(3);
+    await act(async () => { await new Promise((r) => setTimeout(r, 700)); });
+    const kept = JSON.parse(localStorage.getItem(KEY)!);
+    expect(kept.sheets[0].placements).toHaveLength(3);
+  });
+
+  it("can start fresh, and then keeps nothing", async () => {
+    localStorage.setItem(KEY, JSON.stringify(DRAFT));
+    fresh();
+    fireEvent.click(screen.getByRole("button", { name: "Start fresh" }));
+    await act(async () => { await new Promise((r) => setTimeout(r, 0)); });
+    await act(async () => { document.querySelector<HTMLButtonElement>(".pcdlg-btn.main")!.click(); });
+    await act(async () => { await new Promise((r) => setTimeout(r, 700)); });
+    expect(designs()).toHaveLength(0);
+    expect(localStorage.getItem(KEY)).toBeNull();
+  });
+
+  it("opens empty when nothing was kept, or what was kept is a month old", () => {
+    localStorage.setItem(KEY, JSON.stringify({ ...DRAFT, at: Date.now() - 31 * 864e5 }));
+    fresh();
+    expect(designs()).toHaveLength(0);
+    expect(document.querySelector("[data-carried]")).toBeNull();
+  });
+});
+
 describe("the selected design's handles", () => {
   it("has a dot at each corner and a turn handle", () => {
     open();

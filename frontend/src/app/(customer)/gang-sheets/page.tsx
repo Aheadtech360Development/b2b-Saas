@@ -122,9 +122,11 @@ export default function GangSheetBuilderPage() {
       initialQty={launch.qty}
       resumeOrder={launch.resume}
       onClose={leave}
-      // "Save" keeps the sheet without buying it; it is then waiting under My
-      // Print Jobs. "Save & Add to Cart" goes to the cart on its own.
-      onSaved={() => { window.location.href = "/account/gang-sheets?saved=1"; }}
+      // "Save" keeps the sheet without buying it and leaves the buyer where
+      // they are, to carry on — it is also waiting under My Print Jobs. It used
+      // to jump to that list, which read as being thrown out of the builder.
+      // "Save & Add to Cart" goes to the cart on its own.
+      onSaved={() => {}}
     />
   );
 }

@@ -170,6 +170,21 @@ interface SheetTab {
 
 const uid = () => Math.random().toString(36).slice(2, 10);
 
+/**
+ * The work in progress, kept in this browser as it is made, so closing the
+ * builder — or the tab — and coming back carries on where it was left. Only
+ * designs already uploaded are kept: a file still on its way has no address yet.
+ */
+interface Draft {
+  v: 1;
+  at: number;
+  sheets: SheetTab[];
+  active: number;
+  uploads: Upload[];
+  imageMargin: number;
+}
+const DRAFT_DAYS = 30;
+
 interface Props {
   sizes: GangSheetSize[];
   productId: string | null;
@@ -263,6 +278,11 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
   // is edited through the working state above and snapshotted back on switch/save.
   const [sheets, setSheets] = useState<SheetTab[]>([]);
   const [active, setActive] = useState(0);
+  /** Opened onto work kept from last time — said once, with a way to start fresh. */
+  const [carried, setCarried] = useState(false);
+  const draftReady = useRef(false);
+  const draftOff = useRef(false);
+  const draftKey = `gs_draft:${productId || "any"}`;
   // Background-removal prompt: files awaiting a decision + the removal state.
   const [bgQueue, setBgQueue] = useState<File[]>([]);
   const [bgBusy, setBgBusy] = useState(false);
@@ -1743,6 +1763,58 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sizes.length, resumeOrder]);
 
+  useEffect(() => {
+    if (draftReady.current || !sizes.length) return;
+    draftReady.current = true;
+    if (resumeOrder) return;
+    let d: Draft | null = null;
+    try { d = JSON.parse(localStorage.getItem(draftKey) || "null") as Draft | null; } catch { d = null; }
+    if (!d || d.v !== 1 || !Array.isArray(d.sheets) || Date.now() - (d.at || 0) > DRAFT_DAYS * 864e5) return;
+    const known = new Set(sizes.map((z) => z.id));
+    const ups = (d.uploads ?? []).filter((u) => u && typeof u.file_url === "string" && /^(https?:\/\/|\/)/.test(u.file_url));
+    const have = new Set(ups.map((u) => u.uid));
+    const list: SheetTab[] = d.sheets
+      .filter((s) => s && known.has(s.sizeId))
+      .map((s) => ({ ...s, placements: (s.placements ?? []).filter((p) => have.has(p.uid)) }));
+    if (!list.some((s) => s.placements.length)) return;
+    const top = Math.max(0, ...list.flatMap((s) => s.placements.map((p) => p.id)),
+      ...ups.map((u) => Number(String(u.uid).split("#").pop()) || 0));
+    nextId.current = Math.max(nextId.current, top + 1);
+    setUploads(ups);
+    if (typeof d.imageMargin === "number") setImageMargin(d.imageMargin);
+    goTo(list, Math.min(Math.max(0, d.active || 0), list.length - 1));
+    setCarried(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sizes.length]);
+
+  // Kept as it is made, a moment after each change.
+  useEffect(() => {
+    if (!draftReady.current || draftOff.current || resumeOrder) return;
+    const t = window.setTimeout(() => {
+      if (draftOff.current) return;
+      try {
+        const all = snapshotAll();
+        if (!all.some((s) => s.placements.length)) { localStorage.removeItem(draftKey); return; }
+        const draft: Draft = {
+          v: 1, at: Date.now(), sheets: all, active, imageMargin,
+          uploads: uploads.filter((u) => /^(https?:\/\/|\/)/.test(u.file_url)),
+        };
+        localStorage.setItem(draftKey, JSON.stringify(draft));
+      } catch { /* storage full or blocked: the work is still on screen */ }
+    }, 500);
+    return () => window.clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sheets, active, placements, sizeId, qty, customLength, uploads, imageMargin]);
+
+  /** Put the kept work away and begin again with one empty sheet. Uploads stay to hand. */
+  async function startFresh() {
+    if (!(await ask("Start fresh? The designs on your sheets are cleared. Your uploads stay under Your uploads."))) return;
+    try { localStorage.removeItem(draftKey); } catch { /* blocked */ }
+    goTo([{ key: uid(), name: "Gang Sheet 1", sizeId: sizeId || sizes[0]?.id || "", qty: 1, customLength, placements: [] }], 0);
+    setCarried(false);
+    say.done("Started fresh.");
+  }
+
   // ── Keyboard ─────────────────────────────────────────────────────────────────
   function onKeyDown(e: React.KeyboardEvent) {
     const meta = e.ctrlKey || e.metaKey;
@@ -1953,9 +2025,17 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
       return { file_url: up.file_url, file_name: up.file_name, file_type: up.file_type, width_in: round2(first.w_in), height_in: round2(first.h_in), quantity: count };
     });
     // Reopened sheet → replace its order's contents; otherwise submit a new one.
+    const fresh = () => gangSheetsService.submit({ sheet_size_id: sz.id, sheet_quantity: s.qty, custom_length_in: sCustom ? s.customLength : undefined, artworks: artPayload, product_id: productId || undefined, contact_name: guest.name.trim() || undefined, contact_email: guest.email.trim() || undefined });
+    // A sheet carried on from last time may belong to a job that has since gone
+    // to the print team (or is gone): that one can no longer change, so this is
+    // saved as a new job rather than failing.
     const order = s.orderId
       ? await gangSheetsService.rebuild(s.orderId, { sheet_size_id: sz.id, sheet_quantity: s.qty, custom_length_in: sCustom ? s.customLength : undefined, artworks: artPayload })
-      : await gangSheetsService.submit({ sheet_size_id: sz.id, sheet_quantity: s.qty, custom_length_in: sCustom ? s.customLength : undefined, artworks: artPayload, product_id: productId || undefined, contact_name: guest.name.trim() || undefined, contact_email: guest.email.trim() || undefined });
+          .catch((e: { status?: number }) => {
+            if (e?.status && [400, 403, 404, 409, 422].includes(e.status)) return fresh();
+            throw e;
+          })
+      : await fresh();
     // Artwork rows come back in the order they were sent, so the id for a design
     // is matched by position. Matching on file_url instead would collapse to one
     // id whenever the same file was uploaded twice, quietly stacking those
@@ -2083,12 +2163,14 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
             if (signedIn) await cartService.addGangSheet(o.id);
             else addToGuestCart(gangSheetLine(o));
           }
+          draftOff.current = true;
+          try { localStorage.removeItem(draftKey); } catch { /* blocked */ }
           window.location.href = "/cart";
           return;
         } catch { /* cart unavailable — fall through to the saved state */ }
       }
       setSavedOk(true);
-      say.done(orders.length === 1 ? "Sheet saved to your account." : `${orders.length} sheets saved to your account.`);
+      say.done(orders.length === 1 ? "Saved. Carry on, or come back to it any time." : `${orders.length} sheets saved. Carry on, or come back to them any time.`);
       onSaved(orders[0]!);
     } catch (e) {
       const msg = (e as { message?: string })?.message || "Could not save your gang sheets. Please try again.";
@@ -2220,7 +2302,14 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
       )}
 
       {error && <div style={S.errorBar}>{error}{savedOk ? "" : " "}<button onClick={() => setError(null)} aria-label="Dismiss" style={{ background: "none", border: "none", color: "#991B1B", cursor: "pointer", padding: "2px", display: "inline-flex", alignItems: "center" }}><X size={14} strokeWidth={2.4} /></button></div>}
-      {savedOk && !error && <div style={S.okBar}>Saved. It&apos;s in your gang sheets and ready for checkout.</div>}
+      {savedOk && !error && <div style={S.okBar} role="status">Saved to your account. Keep working here — it is also under My Print Jobs, ready for checkout.</div>}
+      {carried && !savedOk && !error && (
+        <div style={S.carryBar} role="status" data-carried>
+          <span>Carried on from where you left off.</span>
+          <button type="button" onClick={startFresh} style={S.carryBtn}>Start fresh</button>
+          <button type="button" onClick={() => setCarried(false)} aria-label="Dismiss" style={{ background: "none", border: "none", color: "inherit", cursor: "pointer", padding: "2px", display: "inline-flex", alignItems: "center", marginLeft: "auto" }}><X size={14} strokeWidth={2.4} /></button>
+        </div>
+      )}
 
       {/* Where this job's updates go. A sheet is reviewed and sometimes sent
           back for a change, so there has to be a way to reach whoever made it —
@@ -3266,6 +3355,8 @@ const S: Record<string, React.CSSProperties> = {
   sheetsSelect: { padding: "8px 10px", border: `1px solid ${C.line}`, borderRadius: "9px", fontSize: "13px", fontWeight: 600, color: C.ink, background: C.card, cursor: "pointer", fontFamily: "inherit" },
   errorBar: { background: "#FEF2F2", color: "#991B1B", borderBottom: "1px solid #FCA5A5", padding: "8px 18px", fontSize: "13px", display: "flex", alignItems: "center", gap: "10px" },
   okBar: { background: "#F0FDF4", color: "#166534", borderBottom: "1px solid #BBF7D0", padding: "8px 18px", fontSize: "13px" },
+  carryBar: { background: "#F0F9FF", color: "#075985", borderBottom: "1px solid #BAE6FD", padding: "7px 18px", fontSize: "13px", display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" },
+  carryBtn: { background: "#fff", color: "#075985", border: "1px solid #7DD3FC", borderRadius: "7px", padding: "4px 12px", fontSize: "12.5px", fontWeight: 700, cursor: "pointer" },
   bgOverlay: { position: "fixed", inset: 0, zIndex: 400, background: "rgba(20,24,31,.55)", display: "flex", alignItems: "center", justifyContent: "center", padding: "20px" },
   bgModal: { width: "min(560px, 94vw)", maxHeight: "92vh", display: "flex", flexDirection: "column", background: "#fff", borderRadius: "12px", overflow: "hidden", boxShadow: "0 20px 60px rgba(0,0,0,.35)" },
   bgHead: { display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 18px", borderBottom: "1px solid #EFEDE8" },
