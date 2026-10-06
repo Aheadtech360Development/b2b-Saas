@@ -1159,11 +1159,15 @@ async def submit_contact_form(
     tid = await _tenant_id_from_slug(db, getattr(request.state, "tenant_slug", None))
     if not tid:
         raise HTTPException(status_code=404, detail="Store not found")
-    # Ignore empty values and cap size so the inbox stays clean.
+    # A box no person can see, filled in: a bot. Thanked like anyone else, and not kept.
+    if str(payload.data.get("_gotcha") or "").strip():
+        return {"status": "received"}
+    # Ignore empty values and cap size so the inbox stays clean. Keys starting
+    # with "_" are the form's own workings, not something the customer wrote.
     clean = {
         str(k)[:100]: (str(v)[:5000] if v is not None else "")
         for k, v in list(payload.data.items())[:40]
-        if str(v).strip()
+        if str(v).strip() and not str(k).startswith("_")
     }
     if not clean:
         raise HTTPException(status_code=400, detail="Please fill in the form.")

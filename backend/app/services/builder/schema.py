@@ -106,6 +106,7 @@ COMPONENTS: dict[str, Component] = {
     "gallery": _c(),
     "banner": _c(urls=("image", "href")),
     "newsletter": _c(),
+    "contact_form": _c(),
     "html": _c(),
     # ── Store ──
     # Its picture can be chosen for it; an address that is not a safe one is

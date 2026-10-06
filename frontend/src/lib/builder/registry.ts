@@ -30,6 +30,8 @@ export interface Field {
   step?: number;
   /** For "items": the fields each item has. */
   itemFields?: Field[];
+  /** For "items": what a newly added item starts as. */
+  newItem?: Record<string, unknown>;
   /** Only shown when another setting has this value. */
   when?: { key: string; is: unknown[] };
 }
@@ -282,6 +284,56 @@ export const REGISTRY: ComponentDef[] = [
     ],
     styles: ["spacing"],
     create: () => node("newsletter", { placeholder: "Your email", button: "Subscribe", success: "Thanks — you're on the list." }),
+  },
+  {
+    type: "contact_form", label: "Contact form", category: "content", icon: "ClipboardList",
+    blurb: "A form with the fields you choose. What customers send arrives in Messages in your admin.",
+    fields: [
+      { key: "formName", label: "Form name", kind: "text", help: "Shown with each message in Messages, so you know which form it came from." },
+      { key: "fields", label: "Fields", kind: "items",
+        newItem: { label: "New field", type: "text", placeholder: "", required: false, width: "full" },
+        itemFields: [
+          { key: "label", label: "Label", kind: "text" },
+          { key: "type", label: "Type", kind: "select", options: [
+            { value: "text", label: "Short text" }, { value: "email", label: "Email" }, { value: "tel", label: "Phone" },
+            { value: "textarea", label: "Long text (message)" }, { value: "select", label: "Dropdown" },
+            { value: "number", label: "Number" }, { value: "date", label: "Date" }, { value: "checkbox", label: "Tick box" },
+          ] },
+          { key: "options", label: "Choices — one per line", kind: "textarea", when: { key: "type", is: ["select"] } },
+          { key: "placeholder", label: "Hint inside the box", kind: "text", when: { key: "type", is: ["text", "email", "tel", "textarea", "number", "select", "", undefined] } },
+          { key: "required", label: "Required", kind: "toggle" },
+          { key: "width", label: "Width", kind: "select", options: [
+            { value: "full", label: "Whole row" }, { value: "half", label: "Half — two side by side" },
+          ] },
+        ] },
+      { key: "button", label: "Button text", kind: "text" },
+      { key: "buttonWidth", label: "Button width", kind: "select", options: [
+        { value: "auto", label: "Fits its words" }, { value: "full", label: "Whole width" },
+      ] },
+      { key: "success", label: "Thank-you message", kind: "textarea" },
+      { key: "labelColor", label: "Label colour", kind: "color" },
+      { key: "fieldBorder", label: "Field border colour", kind: "color" },
+      { key: "fieldBg", label: "Field background", kind: "color" },
+      { key: "focusColor", label: "Field border while typing", kind: "color" },
+      { key: "fieldRadius", label: "Field corners (px)", kind: "number", min: 0, max: 40 },
+      { key: "buttonBg", label: "Button colour", kind: "color" },
+      { key: "buttonColor", label: "Button text colour", kind: "color" },
+      { key: "buttonRadius", label: "Button corners (px)", kind: "number", min: 0, max: 60 },
+    ],
+    styles: ["typography", "spacing", "size"],
+    create: () => node("contact_form", {
+      formName: "Contact form",
+      fields: [
+        { label: "Name", type: "text", placeholder: "Your name", required: true, width: "half" },
+        { label: "Email", type: "email", placeholder: "you@example.com", required: true, width: "half" },
+        { label: "Phone", type: "tel", placeholder: "", required: false, width: "half" },
+        { label: "Company", type: "text", placeholder: "", required: false, width: "half" },
+        { label: "Message", type: "textarea", placeholder: "How can we help?", required: true, width: "full" },
+      ],
+      button: "Send message", buttonWidth: "auto",
+      success: "Thanks — we got your message and will get back to you soon.",
+      fieldRadius: 10, buttonRadius: 10,
+    }),
   },
 
   // ── Store ──────────────────────────────────────────────────────────────────

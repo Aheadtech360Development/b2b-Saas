@@ -191,7 +191,7 @@ function ItemsEditor({ field, value, onChange, env }: { field: Field; value: unk
               <button type="button" className="sbe-icon sm" aria-label="Remove" onClick={() => onChange(items.filter((_, n) => n !== i))}><Trash2 size={13} /></button>
             </span>
           </div>
-          {(field.itemFields ?? []).map((f) => (
+          {(field.itemFields ?? []).filter((f) => !f.when || f.when.is.includes(item[f.when.key])).map((f) => (
             <div key={f.key} className="sbe-field">
               <label>{f.label}</label>
               <FieldControl field={f} value={item[f.key]} onChange={(v) => set(i, f.key, v)} env={env} />
@@ -199,7 +199,7 @@ function ItemsEditor({ field, value, onChange, env }: { field: Field; value: unk
           ))}
         </div>
       ))}
-      <button type="button" className="sbe-btn sm" onClick={() => onChange([...items, Object.fromEntries((field.itemFields ?? []).map((f) => [f.key, ""]))])}>
+      <button type="button" className="sbe-btn sm" onClick={() => onChange([...items, field.newItem ? { ...field.newItem } : Object.fromEntries((field.itemFields ?? []).map((f) => [f.key, ""]))])}>
         <Plus size={14} /> Add {field.label.toLowerCase().replace(/s$/, "")}
       </button>
     </div>

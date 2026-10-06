@@ -29,6 +29,7 @@ import CartLink from "./islands/CartLink";
 import CartIsland from "./islands/CartIsland";
 import Reviews, { Stars } from "./islands/Reviews";
 import { Newsletter, ProductGallery, SortSelect, Tabs } from "./islands/Interactive";
+import { ContactForm } from "./islands/ContactForm";
 
 export interface RenderCtx {
   data: SitePayload["data"];
@@ -386,6 +387,12 @@ export function Node({ node, ctx }: { node: BuilderNode; ctx: RenderCtx }): Reac
     }
     case "newsletter":
       return <Newsletter id={id} placeholder={str(p.placeholder)} button={str(p.button)} success={str(p.success)} edit={ctx.edit} />;
+    case "contact_form":
+      return <ContactForm id={id} formName={str(p.formName)} fields={p.fields} button={str(p.button)} success={str(p.success)}
+                          buttonWidth={str(p.buttonWidth)} edit={ctx.edit}
+                          look={{ fieldBorder: p.fieldBorder as string, fieldBg: p.fieldBg as string, fieldRadius: p.fieldRadius as number,
+                                  labelColor: p.labelColor as string, buttonBg: p.buttonBg as string, buttonColor: p.buttonColor as string,
+                                  buttonRadius: p.buttonRadius as number, focusColor: p.focusColor as string }} />;
 
     // ── Shop ──
     case "logo": {

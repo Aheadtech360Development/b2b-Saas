@@ -6,6 +6,18 @@ import { contactService, type ContactSubmission } from "@/services/contact.servi
 import { useAuthStore } from "@/stores/auth.store";
 import { isReadOnly } from "@/lib/permissions";
 
+/** The database keeps a message's fields in an order of its own; show them the way a person reads them. */
+const FIRST = ["name", "full name", "first name", "last name", "email", "phone", "company", "subject"];
+function ordered(data: Record<string, string>): [string, string][] {
+  const rank = (k: string) => {
+    const l = k.toLowerCase();
+    const i = FIRST.indexOf(l);
+    if (i >= 0) return i;
+    return /message|details|comment|notes?/.test(l) ? 1000 : 500;
+  };
+  return Object.entries(data).sort(([a], [b]) => rank(a) - rank(b));
+}
+
 function timeAgo(iso: string | null): string {
   if (!iso) return "";
   const d = new Date(iso);
@@ -88,7 +100,7 @@ export default function MessagesPage() {
                 {open === s.id && (
                   <div style={{ padding: "0 18px 18px 18px" }}>
                     <div style={{ background: "#F6F6F7", border: "1px solid #EEE", borderRadius: "8px", padding: "14px" }}>
-                      {Object.entries(s.data).map(([k, v]) => (
+                      {ordered(s.data).map(([k, v]) => (
                         <div key={k} style={{ display: "flex", gap: "10px", padding: "6px 0", borderBottom: "1px solid #F0EFEA", fontSize: "14px" }}>
                           <span style={{ fontWeight: 700, color: "#555", flex: "0 0 130px" }}>{k}</span>
                           <span style={{ color: "#2A2830", whiteSpace: "pre-wrap", flex: 1 }}>{v}</span>

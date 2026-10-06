@@ -38,7 +38,7 @@ export const BASE_CSS = `
 .bsite :where(.b-col){min-width:0}
 .bsite :where(.b-stack){display:flex;flex-direction:column;min-width:0}
 .bsite :where(.b-stack[data-dir=row]){flex-direction:row;flex-wrap:wrap;align-items:center}
-.bsite :where(.b-stack[data-dir=column]) > :where(.b-row,.b-grid,.b-section,.b-stack,.b-text,.b-heading,.b-rich,.b-img,.b-imglink,.b-video,.b-faq,.b-tabs,.b-quotes,.b-gallery,.b-banner,.b-news,.b-html,.b-divider,.b-global,.b-price,.b-buy,.b-pgallery,.b-search-field,.b-menu[data-layout=vertical]){align-self:stretch}
+.bsite :where(.b-stack[data-dir=column]) > :where(.b-row,.b-grid,.b-section,.b-stack,.b-text,.b-heading,.b-rich,.b-img,.b-imglink,.b-video,.b-faq,.b-tabs,.b-quotes,.b-gallery,.b-banner,.b-news,.b-form,.b-html,.b-divider,.b-global,.b-price,.b-buy,.b-pgallery,.b-search-field,.b-menu[data-layout=vertical]){align-self:stretch}
 .bsite :where(.b-spacer){width:100%}
 .bsite :where([data-lay]) > *,.bsite :where(.b-section[data-lay]) > .b-in > *{min-width:0}
 .bsite :where([data-lay]) :where(.b-text,.b-heading,.b-rich){overflow-wrap:anywhere}
@@ -152,6 +152,34 @@ export const BASE_CSS = `
 .bsite :where(.b-news input:focus){outline:none;border-color:var(--b-primary,#14161B)}
 .bsite :where(.b-news-done){font-weight:600}
 .bsite :where(.b-news-err){color:#B42318;font-size:14px;margin-top:8px}
+.bsite :where(.b-form){width:100%;max-width:100%}
+.bsite :where(.b-form form){display:flex;flex-direction:column;gap:20px;margin:0}
+.bsite :where(.b-form-grid){display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px 18px}
+.bsite :where(.b-form-field){display:flex;flex-direction:column;gap:7px;min-width:0;grid-column:1 / -1}
+.bsite :where(.b-form-field[data-w=half]){grid-column:auto}
+.bsite :where(.b-form-label){font-size:14px;font-weight:600;line-height:1.4;color:var(--f-label,inherit)}
+.bsite :where(.b-form-req){color:#D92D20;margin-left:3px}
+.bsite :where(.b-form-opt){font-weight:400;color:var(--b-muted,#5B6170);font-size:13px}
+.bsite :where(.b-form-in){box-sizing:border-box;width:100%;min-width:0;margin:0;font:inherit;font-size:15px;line-height:1.45;padding:12px 14px;border:1.5px solid var(--f-border,var(--b-border,#D0D5DD));border-radius:var(--f-radius,10px);background:var(--f-bg,var(--b-background,#fff));color:inherit;outline:none;transition:border-color .15s ease,box-shadow .15s ease;-webkit-appearance:none;appearance:none}
+.bsite :where(select.b-form-in){padding-right:40px;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' fill='none' stroke='%235B6170' stroke-width='1.8' stroke-linecap='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 14px center}
+.bsite :where(textarea.b-form-in){min-height:140px;resize:vertical}
+.bsite :where(.b-form-in)::placeholder{color:var(--b-muted,#8A8F98);opacity:1}
+.bsite :where(.b-form-in:focus){border-color:var(--f-focus,var(--b-primary,#14161B));box-shadow:0 0 0 3px color-mix(in srgb,var(--f-focus,var(--b-primary,#14161B)) 16%,transparent)}
+.bsite :where(.b-form-in[aria-invalid=true]){border-color:#D92D20}
+.bsite :where(.b-form-tick){display:flex;align-items:flex-start;gap:10px;font-size:15px;line-height:1.45;cursor:pointer;color:var(--f-label,inherit)}
+.bsite :where(.b-form-box){flex:0 0 auto;width:18px;height:18px;margin:2px 0 0;accent-color:var(--f-btn-bg,var(--b-primary,#14161B))}
+.bsite :where(.b-form-err){color:#B42318;font-size:13px;margin:0}
+.bsite :where(.b-form-actions){display:flex}
+.bsite :where(.b-form-btn){display:inline-flex;align-items:center;justify-content:center;min-height:48px;padding:12px 28px;border:0;border-radius:var(--f-btn-radius,10px);background:var(--f-btn-bg,var(--b-primary,#14161B));color:var(--f-btn-color,#fff);font:inherit;font-size:15px;font-weight:600;cursor:pointer;transition:filter .15s ease,transform .05s ease}
+.bsite :where(.b-form-btn:hover){filter:brightness(1.08)}
+.bsite :where(.b-form-btn:active){transform:translateY(1px)}
+.bsite :where(.b-form-btn:disabled){opacity:.6;cursor:progress}
+.bsite :where(.b-form-actions[data-full] .b-form-btn){width:100%}
+.bsite :where(.b-form-trap){position:absolute;left:-10000px;width:1px;height:1px;opacity:0;pointer-events:none}
+.bsite :where(.b-form-done){padding:22px 24px;border:1.5px solid var(--f-border,var(--b-border,#D0D5DD));border-radius:var(--f-radius,10px);background:var(--f-bg,var(--b-surface,#F7F7F5))}
+.bsite :where(.b-form-done p){margin:0 0 10px;font-size:16px;font-weight:600;overflow-wrap:anywhere}
+.bsite :where(.b-form-again){padding:0;border:0;background:none;font:inherit;font-size:14px;text-decoration:underline;cursor:pointer;color:inherit}
+.bsite :where(.b-form-empty){grid-column:1 / -1;margin:0;padding:18px;border:1.5px dashed var(--b-border,#D0D5DD);border-radius:10px;color:var(--b-muted,#5B6170);font-size:14px}
 
 .bsite :where(.b-logo){display:inline-flex;align-items:center;text-decoration:none;min-width:0;flex:0 1 auto;color:var(--b-head,inherit)}
 .bsite :where(.b-logo img){width:auto;max-width:100%;object-fit:contain}
@@ -267,6 +295,10 @@ ${PHONE}{
   .bsite :where(.b-search-field){max-width:none}
   .bsite :where(.b-storename){font-size:17px}
   .bsite :where(.b-logo[data-auto] img){max-width:min(150px,100%)}
+  .bsite :where(.b-form-grid){grid-template-columns:minmax(0,1fr)}
+  .bsite :where(.b-form-field[data-w=half]){grid-column:1 / -1}
+  .bsite :where(.b-form-btn){width:100%}
+  .bsite :where(.b-form-in){font-size:16px}
 }
 
 .bsite-layer{position:fixed;inset:0;z-index:2147483000}
