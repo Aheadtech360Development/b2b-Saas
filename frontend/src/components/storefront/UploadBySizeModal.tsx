@@ -20,6 +20,7 @@ import {
 } from "@/services/gangSheets.service";
 import { cartService } from "@/services/cart.service";
 import { useAuthStore } from "@/stores/auth.store";
+import { Crop, Eraser, Grip, ImageUpscale, Palette } from "lucide-react";
 import { ImageEditorModal } from "@/components/storefront/ImageEditorModal";
 import { WorkingOverlay } from "@/components/storefront/WorkingOverlay";
 import { PrintCheck } from "@/components/storefront/PrintCheck";
@@ -532,23 +533,23 @@ export function UploadBySizeModal({ product, onClose, revise = null, onRevised }
               <>
                 <div style={S.toolGrid}>
                   <button onClick={removeBg} disabled={!isImage || !!busy} style={S.tool}>
-                    <span style={S.toolIcon}>◫</span>Remove BG
+                    <Eraser size={19} strokeWidth={1.9} aria-hidden />Remove BG
                   </button>
                   <button onClick={() => setEditorTab("enhance")} disabled={!isImage || !!busy} style={S.tool}>
-                    <span style={S.toolIcon}>⤢</span>Upscale
+                    <ImageUpscale size={19} strokeWidth={1.9} aria-hidden />Upscale
                   </button>
                   <button onClick={() => setEditorTab("halftone")} disabled={!isImage || !!busy} style={S.tool}>
-                    <span style={S.toolIcon}>⁘</span>Halftone
+                    <Grip size={19} strokeWidth={1.9} aria-hidden />Halftone
                   </button>
                 </div>
 
                 <div style={S.editBar}>EDIT</div>
                 <div style={S.editGrid}>
                   <button onClick={() => setEditorTab("crop")} disabled={!isImage || !!busy} style={S.tool}>
-                    <span style={S.toolIcon}>⌗</span>Crop
+                    <Crop size={19} strokeWidth={1.9} aria-hidden />Crop
                   </button>
                   <button onClick={() => setEditorTab("colors")} disabled={!isImage || !!busy} style={S.tool}>
-                    <span style={S.toolIcon}>◑</span>Colors
+                    <Palette size={19} strokeWidth={1.9} aria-hidden />Colors
                   </button>
                 </div>
 
@@ -774,7 +775,6 @@ const S: Record<string, React.CSSProperties> = {
   editBar: { textAlign: "center", fontSize: "10px", fontWeight: 700, letterSpacing: ".08em", color: "#8A8A8A", background: "#F6F6F7", borderRadius: "6px", padding: "5px" },
   editGrid: { display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "8px" },
   tool: { display: "flex", flexDirection: "column", alignItems: "center", gap: "5px", padding: "12px 8px", border: "1px solid #E2E2DE", borderRadius: "9px", background: "#fff", color: "#1A1A1A", fontSize: "12px", fontWeight: 700, cursor: "pointer" },
-  toolIcon: { fontSize: "17px", lineHeight: 1 },
   busy: { background: "#F6F6F7", border: "1px solid #E2E2DE", borderRadius: "8px", padding: "9px 12px", fontSize: "12px", color: "#4A4A4A" },
   ratioRow: { display: "flex", alignItems: "center", gap: "8px" },
   resetBtn: { border: "none", background: "none", cursor: "pointer", color: "#6B6B6B", fontSize: "14px" },

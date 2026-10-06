@@ -3167,7 +3167,9 @@ const S: Record<string, React.CSSProperties> = {
   railBtn: { background: "none", border: "none", color: C.inkSoft, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "11px 2px", cursor: "pointer", borderRadius: C.radius, fontFamily: "inherit", lineHeight: 1.2 },
   railBtnActive: { color: C.goDark, background: C.goTint },
   leftPanel: { width: "258px", flexShrink: 0, background: C.card, borderRight: `1px solid ${C.line}`, padding: "16px", overflowY: "auto", minHeight: 0 },
-  dropzone: { border: "2px dashed #D4D8DE", borderRadius: "12px", padding: "22px 14px", textAlign: "center", cursor: "pointer" },
+  // A column, so the cloud is centred by layout: an <svg> is drawn as a block
+  // here, and text-align does not move a block.
+  dropzone: { border: "2px dashed #D4D8DE", borderRadius: "12px", padding: "22px 14px", textAlign: "center", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center" },
   dropHint: { fontSize: "11.5px", color: C.inkFaint, marginTop: "5px", lineHeight: 1.5 },
   dropName: { fontSize: "11.5px", color: C.inkSoft, marginTop: "5px", maxWidth: "100%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
   chooseBtn: { display: "inline-flex", alignItems: "center", gap: "7px", marginTop: "12px", background: C.go, color: "#fff", borderRadius: "9px", padding: "9px 16px", fontSize: "12.5px", fontWeight: 700 },

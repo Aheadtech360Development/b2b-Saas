@@ -13,8 +13,22 @@
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { WorkingOverlay } from "@/components/storefront/WorkingOverlay";
+import {
+  Circle, Contrast, Crop as CropIcon, Eraser, Grip, ImageUpscale, Palette, Pipette, Sparkles, Square, Wand2, X,
+} from "lucide-react";
 import { removeImageBackground, BackgroundRemovalError } from "@/lib/backgroundRemoval";
 import { apiClient, ApiClientError } from "@/lib/api-client";
+import { HANDLES, cursorFor, moveCrop, resizeCrop, type Handle } from "@/lib/cropBox";
+import { enhance as autoLevels, grayscale, sharpen, type Pixels } from "@/lib/imageTools";
+
+/** The editor's tabs, in the order they are used. */
+const TABS = [
+  { key: "enhance", label: "Enhance", Icon: Sparkles },
+  { key: "halftone", label: "Halftone", Icon: Grip },
+  { key: "crop", label: "Crop", Icon: CropIcon },
+  { key: "colors", label: "Colors", Icon: Palette },
+  { key: "removecolor", label: "Remove Color", Icon: Pipette },
+] as const;
 
 /** The largest picture the server will upscale; a bigger one has nothing to gain. */
 const UPSCALE_MAX_PIXELS = 4_200_000;
@@ -241,6 +255,28 @@ export function ImageEditorModal({ src, fileName, onClose, onApply, initialTab }
   function applyColors() { bakeColors(); commit(); }
   function resetColors() { setColors({ ...DEFAULT_COLORS }); }
 
+  /**
+   * Grayscale, sharpen and auto-levels — the same pixel tools the print-ready
+   * upload uses, so a design is treated the same whichever builder it is in.
+   * Each one acts on the picture at once; BEFORE shows what it was.
+   */
+  function pixelTool(change: (p: Pixels) => Pixels) {
+    setError(null);
+    bakeColors();
+    try {
+      const w = workRef.current!;
+      const ctx = w.getContext("2d")!;
+      const img = ctx.getImageData(0, 0, w.width, w.height);
+      const next = change({ width: img.width, height: img.height, data: new Uint8ClampedArray(img.data) });
+      const out = makeCanvas(next.width, next.height);
+      out.getContext("2d")!.putImageData(new ImageData(next.data, next.width, next.height), 0, 0);
+      workRef.current = out;
+      commit();
+    } catch {
+      setError("Couldn't process this image (it may be cross-origin protected).");
+    }
+  }
+
   // ── Remove colour (chroma key) ────────────────────────────────────────────────
   // Click the preview to sample a colour; Apply makes every pixel within the
   // tolerance of it transparent.
@@ -285,21 +321,23 @@ export function ImageEditorModal({ src, fileName, onClose, onApply, initialTab }
   }
   useEffect(() => { if (tab === "crop" && ready) startCrop(); else setCrop(null); /* eslint-disable-next-line */ }, [tab, ratioKey, shape, ready]);
 
-  function cropPointer(e: React.PointerEvent, mode: "move" | "resize") {
+  /**
+   * Drag the box, or one of its eight handles.
+   *
+   * There was one handle, bottom-right, so a design could only be cropped from
+   * the right and the bottom. Any side or corner can be dragged now, in or out,
+   * with the opposite one staying where it is (lib/cropBox).
+   */
+  function cropPointer(e: React.PointerEvent, mode: "move" | Handle) {
     e.preventDefault(); e.stopPropagation();
     const disp = dispRef.current!, start = cropRef.current!;
     const sx = e.clientX, sy = e.clientY;
     const ratio = RATIOS.find((r) => r.key === ratioKey)?.r ?? null;
     function mv(ev: PointerEvent) {
       const dx = ev.clientX - sx, dy = ev.clientY - sy;
-      if (mode === "move") {
-        setCrop({ ...start, x: clamp(start.x + dx, 0, disp.width - start.w), y: clamp(start.y + dy, 0, disp.height - start.h) });
-      } else {
-        let nw = clamp(start.w + dx, 20, disp.width - start.x);
-        let nh = ratio ? nw / ratio : clamp(start.h + dy, 20, disp.height - start.y);
-        if (ratio && start.y + nh > disp.height) { nh = disp.height - start.y; nw = nh * ratio; }
-        setCrop({ ...start, w: nw, h: nh });
-      }
+      setCrop(mode === "move"
+        ? moveCrop(start, dx, dy, disp.width, disp.height)
+        : resizeCrop(start, mode, dx, dy, disp.width, disp.height, ratio));
     }
     function up() { window.removeEventListener("pointermove", mv); window.removeEventListener("pointerup", up); }
     window.addEventListener("pointermove", mv);
@@ -353,16 +391,16 @@ export function ImageEditorModal({ src, fileName, onClose, onApply, initialTab }
         {/* Header */}
         <div style={S.head}>
           <span style={{ fontSize: "17px", fontWeight: 800 }}>Image Editor</span>
-          <button onClick={onClose} style={S.closeX} aria-label="Close">✕</button>
+          <button onClick={onClose} style={S.closeX} aria-label="Close"><X size={16} strokeWidth={2.2} /></button>
         </div>
 
         <div style={S.body}>
           {/* Left tabs */}
           <div style={S.tabs}>
-            {([["enhance", "✨", "Enhance"], ["halftone", "▦", "Halftone"], ["crop", "⛶", "Crop"], ["colors", "🎨", "Colors"], ["removecolor", "🎯", "Remove Color"]] as const).map(([k, ic, lb]) => (
-              <button key={k} onClick={() => setTab(k)} style={{ ...S.tabBtn, ...(tab === k ? S.tabBtnActive : {}) }}>
-                <span style={{ fontSize: "18px" }}>{ic}</span>
-                <span style={{ fontSize: "10px", marginTop: "3px", textTransform: "uppercase", letterSpacing: ".04em" }}>{lb}</span>
+            {TABS.map(({ key, label, Icon }) => (
+              <button key={key} data-tab={key} onClick={() => setTab(key)} aria-pressed={tab === key} style={{ ...S.tabBtn, ...(tab === key ? S.tabBtnActive : {}) }}>
+                <Icon size={20} strokeWidth={tab === key ? 2.2 : 1.9} />
+                <span style={{ fontSize: "10px", marginTop: "5px", textTransform: "uppercase", letterSpacing: ".04em" }}>{label}</span>
               </button>
             ))}
           </div>
@@ -371,12 +409,12 @@ export function ImageEditorModal({ src, fileName, onClose, onApply, initialTab }
           <div style={S.controls}>
             {tab === "enhance" && (
               <>
-                <button onClick={removeBg} disabled={!!busy} style={S.toolCard}>
-                  <div style={{ fontWeight: 700, fontSize: "14px" }}>✨ Remove Background</div>
+                <button onClick={removeBg} disabled={!!busy} style={S.toolCard} data-tool="remove-background">
+                  <div style={S.toolTitle}><Eraser size={16} strokeWidth={2.1} /> Remove Background</div>
                   <div style={{ fontSize: "12px", color: "#777", marginTop: "3px" }}>Automatically make the background transparent.</div>
                 </button>
-                <button onClick={upscale} disabled={!!busy} style={S.toolCard}>
-                  <div style={{ fontWeight: 700, fontSize: "14px" }}>⤢ Upscale Quality</div>
+                <button onClick={upscale} disabled={!!busy} style={S.toolCard} data-tool="upscale">
+                  <div style={S.toolTitle}><ImageUpscale size={16} strokeWidth={2.1} /> Upscale Quality</div>
                   <div style={{ fontSize: "12px", color: "#777", marginTop: "3px" }}>
                     AI makes a small or blurry design up to 4× larger and sharper. Best on logos, text and graphics — on photos of people, check the faces afterwards.
                   </div>
@@ -398,7 +436,10 @@ export function ImageEditorModal({ src, fileName, onClose, onApply, initialTab }
                 <div style={S.groupLabel}>Shape</div>
                 <div style={{ display: "flex", gap: "8px", marginBottom: "14px" }}>
                   {(["rect", "circle"] as const).map((s) => (
-                    <button key={s} onClick={() => setShape(s)} style={{ ...S.chip, ...(shape === s ? S.chipActive : {}) }}>{s === "rect" ? "▢ Rectangle" : "◯ Circle"}</button>
+                    <button key={s} onClick={() => setShape(s)} style={{ ...S.chip, ...(shape === s ? S.chipActive : {}), display: "inline-flex", alignItems: "center", justifyContent: "center", gap: "6px" }}>
+                      {s === "rect" ? <Square size={13} strokeWidth={2.2} /> : <Circle size={13} strokeWidth={2.2} />}
+                      {s === "rect" ? "Rectangle" : "Circle"}
+                    </button>
                   ))}
                 </div>
                 <div style={S.groupLabel}>Aspect ratio</div>
@@ -408,6 +449,7 @@ export function ImageEditorModal({ src, fileName, onClose, onApply, initialTab }
                   ))}
                 </div>
                 <button onClick={applyCrop} disabled={!!busy || !crop} style={S.applyBtn}>Crop</button>
+                <p style={S.hint}>Drag any side or corner of the box to trim that side. Drag inside the box to move it.</p>
               </>
             )}
 
@@ -420,6 +462,20 @@ export function ImageEditorModal({ src, fileName, onClose, onApply, initialTab }
                   <button onClick={applyColors} style={S.applyBtn}>Apply</button>
                   <button onClick={resetColors} style={{ ...S.chip, flex: "0 0 auto" }}>Reset</button>
                 </div>
+
+                <div style={{ ...S.groupLabel, marginTop: "18px" }}>One-press fixes</div>
+                <div style={{ display: "grid", gap: "6px" }}>
+                  <button onClick={() => pixelTool(grayscale)} disabled={!!busy} style={S.fixBtn} data-fix="grayscale">
+                    <Contrast size={15} strokeWidth={2.1} /> Grayscale
+                  </button>
+                  <button onClick={() => pixelTool((p) => sharpen(p, 0.6))} disabled={!!busy} style={S.fixBtn} data-fix="sharpen">
+                    <Sparkles size={15} strokeWidth={2.1} /> Sharpen
+                  </button>
+                  <button onClick={() => pixelTool(autoLevels)} disabled={!!busy} style={S.fixBtn} data-fix="enhance">
+                    <Wand2 size={15} strokeWidth={2.1} /> Auto enhance
+                  </button>
+                </div>
+                <p style={S.hint}>These act at once. Press Sharpen again for more; BEFORE shows the original.</p>
               </>
             )}
 
@@ -445,12 +501,39 @@ export function ImageEditorModal({ src, fileName, onClose, onApply, initialTab }
                 <canvas ref={dispRef} onClick={pickAt} style={{ display: "block", filter: showBefore ? "none" : colorFilter, cursor: tab === "removecolor" ? "crosshair" : "default" }} />
                 {/* Crop overlay */}
                 {tab === "crop" && crop && (
-                  <div
-                    onPointerDown={(e) => cropPointer(e, "move")}
-                    style={{ position: "absolute", left: crop.x, top: crop.y, width: crop.w, height: crop.h, border: "2px solid #22C55E", boxShadow: "0 0 0 9999px rgba(0,0,0,.35)", borderRadius: shape === "circle" ? "50%" : 0, cursor: "move", touchAction: "none" }}
-                  >
-                    <div onPointerDown={(e) => cropPointer(e, "resize")} style={{ position: "absolute", right: -7, bottom: -7, width: 14, height: 14, background: "#fff", border: "2px solid #22C55E", borderRadius: 3, cursor: "nwse-resize" }} />
+                  <>
+                  {/* What will be cut away, dimmed — clipped to the picture, so it
+                      darkens the design and not the editor around it. */}
+                  <div aria-hidden style={{ position: "absolute", inset: 0, overflow: "hidden", pointerEvents: "none" }}>
+                    <div style={{ position: "absolute", left: crop.x, top: crop.y, width: crop.w, height: crop.h, boxShadow: "0 0 0 9999px rgba(0,0,0,.45)", borderRadius: shape === "circle" ? "50%" : 0 }} />
                   </div>
+                  <div data-crop-box style={{ position: "absolute", left: crop.x, top: crop.y, width: crop.w, height: crop.h, touchAction: "none" }}>
+                    {/* The box itself: drag it to move. Round when the crop is a circle. */}
+                    <div
+                      onPointerDown={(e) => cropPointer(e, "move")}
+                      style={{ position: "absolute", inset: 0, border: "2px solid #22C55E", borderRadius: shape === "circle" ? "50%" : 0, cursor: "move" }}
+                    />
+                    {/* What will be kept, in the picture's own pixels. */}
+                    <span style={S.cropSize}>
+                      {Math.round(crop.w * ((workRef.current?.width ?? 0) / (dispRef.current?.width || 1)))} × {Math.round(crop.h * ((workRef.current?.height ?? 0) / (dispRef.current?.height || 1)))} px
+                    </span>
+                    {/* A handle on every side and corner. */}
+                    {HANDLES.map((hd) => {
+                      const side = hd.length === 1;
+                      const across = hd === "n" || hd === "s";
+                      return (
+                        <div key={hd} data-crop-handle={hd} onPointerDown={(e) => cropPointer(e, hd)}
+                          style={{
+                            position: "absolute", background: "#fff", border: "2px solid #16A34A", boxSizing: "border-box",
+                            boxShadow: "0 1px 3px rgba(0,0,0,.35)", cursor: cursorFor(hd), touchAction: "none",
+                            width: side ? (across ? 30 : 10) : 14, height: side ? (across ? 10 : 30) : 14, borderRadius: side ? 5 : 3,
+                            ...(hd.includes("n") ? { top: side ? -5 : -7 } : hd.includes("s") ? { bottom: side ? -5 : -7 } : { top: "50%", marginTop: -15 }),
+                            ...(hd.includes("w") ? { left: side ? -5 : -7 } : hd.includes("e") ? { right: side ? -5 : -7 } : { left: "50%", marginLeft: -15 }),
+                          }} />
+                      );
+                    })}
+                  </div>
+                  </>
                 )}
               </div>
             </div>
@@ -495,7 +578,6 @@ export function ImageEditorModal({ src, fileName, onClose, onApply, initialTab }
   );
 }
 
-function clamp(n: number, lo: number, hi: number) { return Math.max(lo, Math.min(n, hi)); }
 function blobToImage(blob: Blob): Promise<HTMLImageElement> {
   return new Promise((res, rej) => {
     const url = URL.createObjectURL(blob);
@@ -521,11 +603,13 @@ const S: Record<string, React.CSSProperties> = {
   overlay: { position: "fixed", inset: 0, zIndex: 500, background: "rgba(20,24,31,.55)", display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" },
   modal: { width: "min(1040px, 96vw)", height: "min(660px, 94vh)", display: "flex", flexDirection: "column", background: "#fff", borderRadius: "14px", overflow: "hidden", boxShadow: "0 20px 60px rgba(0,0,0,.35)", fontFamily: "system-ui, sans-serif" },
   head: { display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 18px", borderBottom: "1px solid #EFEDE8" },
-  closeX: { width: 34, height: 34, borderRadius: "50%", border: "1px solid #E0E0E0", background: "#fff", cursor: "pointer", fontSize: "14px", color: "#666" },
+  closeX: { width: 34, height: 34, borderRadius: "50%", border: "1px solid #E0E0E0", background: "#fff", cursor: "pointer", fontSize: "14px", color: "#666", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 },
   body: { flex: 1, display: "flex", minHeight: 0 },
   tabs: { width: "78px", flexShrink: 0, borderRight: "1px solid #EFEDE8", display: "flex", flexDirection: "column", padding: "10px 0", gap: "4px" },
   tabBtn: { background: "none", border: "none", color: "#666", display: "flex", flexDirection: "column", alignItems: "center", padding: "10px 4px", cursor: "pointer", borderLeft: "3px solid transparent" },
-  tabBtnActive: { color: "#1C3557", borderLeftColor: "#1C3557", background: "#F4F6FB" },
+  // The whole border, not just its colour: with only the colour set here, a tab
+  // that stopped being the active one kept a grey bar down its side.
+  tabBtnActive: { color: "#1C3557", borderLeft: "3px solid #1C3557", background: "#F4F6FB" },
   controls: { width: "260px", flexShrink: 0, borderRight: "1px solid #EFEDE8", padding: "16px", overflowY: "auto" },
   toolCard: { display: "block", width: "100%", textAlign: "left", background: "#fff", border: "1px solid #E5E3DE", borderRadius: "10px", padding: "12px 14px", cursor: "pointer", marginBottom: "10px" },
   applyBtn: { width: "100%", background: "#22C55E", color: "#fff", border: "none", borderRadius: "8px", padding: "10px", fontSize: "14px", fontWeight: 700, cursor: "pointer", marginTop: "4px" },
@@ -533,6 +617,9 @@ const S: Record<string, React.CSSProperties> = {
   chip: { flex: 1, background: "#fff", border: "1px solid #DDD9D2", borderRadius: "8px", padding: "8px 6px", fontSize: "12px", fontWeight: 600, cursor: "pointer", color: "#333" },
   chipActive: { borderColor: "#1C3557", background: "#EEF2FB", color: "#1C3557" },
   hint: { fontSize: "11px", color: "#999", marginTop: "10px" },
+  toolTitle: { display: "flex", alignItems: "center", gap: "8px", fontWeight: 700, fontSize: "14px", color: "#1F2430" },
+  fixBtn: { display: "flex", alignItems: "center", gap: "8px", width: "100%", textAlign: "left", background: "#fff", border: "1px solid #DDD9D2", borderRadius: "8px", padding: "9px 12px", fontSize: "13px", fontWeight: 600, cursor: "pointer", color: "#333", fontFamily: "inherit" },
+  cropSize: { position: "absolute", left: 6, top: 6, background: "rgba(17,24,39,.78)", color: "#fff", fontSize: "11px", fontWeight: 600, lineHeight: 1, padding: "4px 6px", borderRadius: "4px", pointerEvents: "none", whiteSpace: "nowrap" },
   stage: { flex: 1, minWidth: 0, position: "relative", display: "flex", alignItems: "center", justifyContent: "center", background: "#F3F4F6", padding: "12px" },
   checker: { display: "inline-flex", alignItems: "center", justifyContent: "center", maxWidth: "100%", maxHeight: "100%", boxShadow: "0 1px 8px rgba(0,0,0,.12)" },
   beforeToggle: { position: "absolute", top: "16px", left: "50%", transform: "translateX(-50%)", display: "flex", background: "rgba(0,0,0,.75)", borderRadius: "8px", overflow: "hidden" },
