@@ -111,7 +111,7 @@ COMPONENTS: dict[str, Component] = {
     # ── Store ──
     # Its picture can be chosen for it; an address that is not a safe one is
     # refused at publish like any other picture's.
-    "logo": _c(urls=("image",)),
+    "logo": _c(urls=("image", "href")),
     "store_name": _c(),
     "menu": _c(refs=(("menuId", "menu", False),)),
     "search": _c(),

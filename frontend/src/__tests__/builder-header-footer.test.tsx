@@ -487,3 +487,16 @@ describe("the footer: a brand column and a column for each menu", () => {
     expect(BY_TYPE.menu!.fields.map((f) => f.key)).toEqual(expect.arrayContaining(["title", "menuId"]));
   });
 });
+
+describe("where the logo goes", () => {
+  it("to the home page unless the shop chose somewhere else, in a new tab if asked", () => {
+    expect(html(n("logo", {}))).toContain('href="/"');
+    const elsewhere = html(n("logo", { href: "/collections/dtf", newTab: true }));
+    expect(elsewhere).toContain('href="/collections/dtf"');
+    expect(elsewhere).toContain('target="_blank"');
+    // Nothing that is not a link.
+    expect(html(n("logo", { href: "javascript:alert(1)" }))).toContain('href="/"');
+    // With no logo, the shop's name goes to the same place.
+    expect(html(n("logo", { href: "/about" }), { data: data({ store: { name: "Northwind", logo: "" } }) })).toMatch(/b-storename" href="\/about"/);
+  });
+});

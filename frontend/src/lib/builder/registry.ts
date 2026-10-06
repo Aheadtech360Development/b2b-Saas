@@ -343,6 +343,8 @@ export const REGISTRY: ComponentDef[] = [
     fields: [
       { key: "image", label: "Logo image", kind: "image",
         help: "Pick one from your media library or upload one. Left empty, this shows the logo from your shop's branding." },
+      { key: "href", label: "Goes to", kind: "url", help: "Where a click on the logo takes people. Left empty, it is your home page." },
+      { key: "newTab", label: "Open in a new tab", kind: "toggle" },
       { key: "alt", label: "Described as (for screen readers)", kind: "text" },
       { key: "align", label: "Alignment", kind: "select", options: [
         { value: "", label: "As the layout places it" }, ...ALIGN] },

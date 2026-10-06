@@ -410,16 +410,18 @@ export function Node({ node, ctx }: { node: BuilderNode; ctx: RenderCtx }): Reac
       // kept, with the modest widest size it always had, until a size is set.
       const legacy = !w && !h ? Math.max(16, Math.min(200, num(p.height, 40))) : undefined;
       const align = ["left", "center", "right"].includes(str(p.align)) ? str(p.align) : undefined;
+      // The home page unless the shop chose somewhere else for it.
+      const to = { ...link(p.href, p.newTab), href: safeHref(p.href) || "/" };
       if (logo) {
         return (
-          <a data-b={id} className="b-logo" href="/" data-align={align} data-w={w ? "" : undefined} data-h={h ? "" : undefined}
+          <a data-b={id} className="b-logo" {...to} data-align={align} data-w={w ? "" : undefined} data-h={h ? "" : undefined}
              data-auto={!w && !sized("maxWidth") ? "" : undefined}>
             <img src={logo} alt={str(p.alt) || data.store?.name || "Home"} style={legacy ? { height: legacy } : undefined} />
           </a>
         );
       }
       if (p.fallback === "none") return note(ctx, id, "No logo yet — choose one in the panel on the right, or upload one under Settings → Branding.");
-      return <a data-b={id} className="b-storename" href="/" data-align={align}>{data.store?.name || "Your shop"}</a>;
+      return <a data-b={id} className="b-storename" {...to} data-align={align}>{data.store?.name || "Your shop"}</a>;
     }
     case "store_name": {
       const name = data.store?.name || "Your shop";
