@@ -1637,8 +1637,13 @@ def _file_sig(sheet_id, tenant_id, kind: str, exp: int) -> str:
 
     from app.core.config import settings
 
+    # Keyed with both secrets. APP_SECRET_KEY has a default in the code that a
+    # deployment may never have changed; the sign-in key cannot be left at its
+    # default without sign-in itself being forgeable. Either one kept secret
+    # keeps these links unforgeable.
+    key = f"{settings.APP_SECRET_KEY}\x00{settings.JWT_SECRET_KEY}".encode()
     msg = f"gang-sheet-file:{sheet_id}:{tenant_id or ''}:{kind}:{exp}".encode()
-    return hmac.new(settings.APP_SECRET_KEY.encode(), msg, hashlib.sha256).hexdigest()[:40]
+    return hmac.new(key, msg, hashlib.sha256).hexdigest()[:40]
 
 
 def file_link(o: GangSheetOrder, kind: str, *, now: float | None = None) -> str:

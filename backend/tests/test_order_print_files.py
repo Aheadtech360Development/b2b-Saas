@@ -296,6 +296,17 @@ async def main():
         check("a link past its week says it has expired", r.status_code == 410 and "expired" in r.text, r.text[:120])
         r = await get(f"/api/v1/gang-sheets/files/{s_builder}/print?exp={int(time.time()) + 999}&sig=x")
         check("…and one without its signature opens nothing", r.status_code == 404)
+        import hashlib
+        import hmac
+
+        from app.core.config import settings as _settings
+
+        exp = int(time.time()) + 3600
+        forged = hmac.new(_settings.APP_SECRET_KEY.encode(),
+                          f"gang-sheet-file:{s_builder}:{tid}:print:{exp}".encode(), hashlib.sha256).hexdigest()[:40]
+        r = await get(f"/api/v1/gang-sheets/files/{s_builder}/print?exp={exp}&sig={forged}")
+        check("…nor one signed with the app key alone, which has a default in the code", r.status_code == 404,
+              r.status_code)
 
     print(f"\n{ok} passed, {fail} failed")
     return fail
