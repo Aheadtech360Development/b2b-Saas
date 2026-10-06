@@ -205,8 +205,27 @@ describe("the editor's HTML cleaner", () => {
     expect(out).toContain('rel="noopener noreferrer"');
   });
 
-  it("drops forms, iframes and svg with what is inside them", () => {
-    expect(cleanHtml('<form><input name="card"></form><iframe src="https://x"></iframe><svg><script>1</script></svg>ok')).toBe("ok");
+  it("drops forms and iframes with what is inside them, and a script even inside a drawing", () => {
+    expect(cleanHtml('<form><input name="card"></form><iframe src="https://x"></iframe><svg><script>1</script></svg>ok')).toBe("<svg></svg>ok");
+  });
+
+  it("keeps a drawing — stars, icons — but nothing in it that could run or load", () => {
+    const stars = '<svg viewBox="0 0 83 15" role="img" aria-label="5 stars"><g fill="#f5a31a"><polygon transform="translate(17 0)" points="7.5,0.8 9.7,5.3"/></g></svg>';
+    const out = cleanHtml(stars);
+    expect(out).toContain('viewBox="0 0 83 15"');
+    expect(out).toContain('<polygon transform="translate(17 0)" points="7.5,0.8 9.7,5.3"></polygon>');
+    expect(out).toContain('fill="#f5a31a"');
+    const bad = cleanHtml('<svg onload="x()"><a href="javascript:x"><circle r="2"/></a><use href="https://evil.test/s.svg#a"/><use href="#ok"/>'
+      + '<rect fill="url(https://evil.test/p)" width="2"/><animate attributeName="href" values="javascript:x"/><foreignObject><p>t</p></foreignObject></svg>');
+    expect(bad).not.toMatch(/onload|javascript|evil\.test|animate|foreignobject/i);
+    expect(bad).toContain('<use href="#ok"></use>');
+    expect(bad).toContain('<rect width="2"></rect>');
+  });
+
+  it("keeps a Google Fonts link and no other stylesheet", () => {
+    expect(cleanHtml('<link href="https://fonts.googleapis.com/css2?family=Inter&display=swap" rel="stylesheet" onload="x()">'))
+      .toBe('<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter&amp;display=swap">');
+    expect(cleanHtml('<link rel="stylesheet" href="https://evil.test/x.css">ok')).toBe("ok");
   });
 
   it("confines CSS to its block and drops @import and fixed positioning", () => {

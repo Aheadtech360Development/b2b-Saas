@@ -34,7 +34,32 @@ ALLOWED_TAGS = {
 # code sitting in the page as text, which is a different problem, not a fix.
 DROP_WITH_CONTENT = {"script", "style", "iframe", "object", "embed", "noscript", "template",
                      "form", "input", "button", "select", "textarea", "link", "meta", "base",
-                     "frame", "frameset", "applet", "svg", "math"}
+                     "frame", "frameset", "applet", "math"}
+
+# Drawings: icons, stars, logos pasted as SVG. Shapes, colours and lines only —
+# nothing that animates, embeds a page, loads a file or runs anything
+# (<animate>, <set>, <foreignObject>, <image>, <script> are not here, so they
+# are unwrapped or dropped). Only inside an <svg>.
+SVG_TAGS = {"svg", "g", "path", "polygon", "polyline", "circle", "ellipse", "rect", "line",
+            "defs", "lineargradient", "radialgradient", "stop", "clippath", "mask", "symbol",
+            "use", "title", "desc", "text", "tspan"}
+SVG_ATTRS = {
+    "viewbox", "xmlns", "xmlns:xlink", "version", "width", "height", "fill", "fill-opacity",
+    "fill-rule", "stroke", "stroke-width", "stroke-linecap", "stroke-linejoin", "stroke-dasharray",
+    "stroke-dashoffset", "stroke-miterlimit", "stroke-opacity", "opacity", "d", "points", "cx",
+    "cy", "r", "rx", "ry", "x", "y", "x1", "y1", "x2", "y2", "dx", "dy", "fx", "fy", "transform",
+    "offset", "stop-color", "stop-opacity", "gradientunits", "gradienttransform", "spreadmethod",
+    "preserveaspectratio", "id", "clip-path", "clip-rule", "mask", "maskunits", "clippathunits",
+    "href", "xlink:href", "focusable", "vector-effect", "text-anchor", "dominant-baseline",
+    "font-size", "font-weight", "font-family", "letter-spacing", "shape-rendering", "color",
+    "visibility", "pathlength",
+}
+# Inside a drawing a value may point at another part of the same drawing
+# (url(#shine), href="#star") and nowhere else.
+_SVG_VALUE_DANGER = re.compile(r"javascript:|vbscript:|data:|expression\s*\(|url\(\s*['\"]?(?!#)", re.I)
+
+# A web font from Google Fonts may be linked; no other stylesheet.
+_FONT_LINK = re.compile(r"^https://fonts\.googleapis\.com/css2?\?", re.I)
 
 ALLOWED_ATTRS = {
     "*": {"class", "style", "title", "dir", "lang", "role", "aria-label", "aria-hidden"},
@@ -139,6 +164,31 @@ def clean_html(html: str) -> Cleaned:
         if not isinstance(tag, Tag) or tag.parent is None:
             continue
         name = (tag.name or "").lower()
+        if name == "link":
+            href = str(tag.get("href", ""))
+            if "stylesheet" in str(tag.get("rel", "")).lower() and _FONT_LINK.match(href):
+                tag.attrs = {"rel": "stylesheet", "href": href}
+                continue
+        if name in SVG_TAGS and (name == "svg" or tag.find_parent("svg") is not None):
+            for attr in list(tag.attrs):
+                low = attr.lower()
+                value = tag.attrs[attr]
+                value = " ".join(value) if isinstance(value, list) else str(value)
+                keep = (low in SVG_ATTRS or low in ALLOWED_ATTRS["*"]) and not low.startswith("on")
+                if keep and low in ("href", "xlink:href") and not value.strip().startswith("#"):
+                    keep = False
+                if keep and _SVG_VALUE_DANGER.search(value):
+                    keep = False
+                if keep and low == "style":
+                    styled = clean_style(value)
+                    if styled.value:
+                        tag.attrs[attr] = styled.value
+                        continue
+                    keep = False
+                if not keep:
+                    removed.append(f"{name}[{attr}]")
+                    del tag.attrs[attr]
+            continue
         if name in DROP_WITH_CONTENT:
             removed.append(f"<{name}>")
             tag.decompose()

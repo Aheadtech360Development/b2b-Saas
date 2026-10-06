@@ -6,6 +6,7 @@ that points at a deleted menu or another brand's product, a font that was
 removed, a script pasted into a Custom HTML block.
 """
 import copy
+import re
 import os
 import sys
 
@@ -203,6 +204,22 @@ check("what was removed is reported", any("script" in r for r in out.removed))
 
 out = clean_html('<iframe src="https://evil.test"></iframe><form action="/x"><input></form><p>ok</p>')
 check("iframes and forms are removed", "iframe" not in out.value and "form" not in out.value and "ok" in out.value)
+
+out = clean_html('<svg viewBox="0 0 83 15" role="img" aria-label="5 stars"><g fill="#f5a31a">'
+                 '<polygon transform="translate(17 0)" points="7.5,0.8 9.7,5.3"/></g></svg>')
+check("a drawing (stars, icons) is kept with its shapes and colours",
+      "<polygon" in out.value and 'fill="#f5a31a"' in out.value and "points=" in out.value
+      and "viewbox" in out.value.lower(), out.value)
+out = clean_html('<svg onload="x()"><script>alert(1)</script><a href="javascript:x"><circle r="2"/></a>'
+                 '<use href="https://evil.test/s.svg#a"/><use href="#ok"/><rect fill="url(https://evil.test/p)" width="2"/>'
+                 '<animate attributeName="href" values="javascript:x"/><foreignObject><p>t</p></foreignObject></svg>')
+check("…but nothing in it that could run, animate a link or load from elsewhere",
+      not re.search(r"onload|script|javascript|evil\.test|animate|foreignobject", out.value, re.I)
+      and 'href="#ok"' in out.value and "<rect" in out.value, out.value)
+out = clean_html('<link href="https://fonts.googleapis.com/css2?family=Inter&display=swap" rel="stylesheet" onload="x()">'
+                 '<link rel="stylesheet" href="https://evil.test/x.css"><p>ok</p>')
+check("a Google Fonts link is kept and no other stylesheet",
+      "fonts.googleapis.com" in out.value and "evil.test" not in out.value and "onload" not in out.value, out.value)
 
 out = clean_html('<div style="position:fixed;top:0;color:red;background:url(javascript:x)">x</div>')
 check("a block cannot pin itself over the checkout", "fixed" not in out.value)

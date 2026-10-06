@@ -23,8 +23,29 @@ const ALLOWED_TAGS = new Set([
 const DROP_WITH_CONTENT = new Set([
   "script", "style", "iframe", "object", "embed", "noscript", "template",
   "form", "input", "button", "select", "textarea", "link", "meta", "base",
-  "frame", "frameset", "applet", "svg", "math",
+  "frame", "frameset", "applet", "math",
 ]);
+
+/** Drawings — icons, stars, logos — as the server allows them: shapes and colours only, inside an <svg>. */
+const SVG_TAGS = new Set([
+  "svg", "g", "path", "polygon", "polyline", "circle", "ellipse", "rect", "line",
+  "defs", "lineargradient", "radialgradient", "stop", "clippath", "mask", "symbol",
+  "use", "title", "desc", "text", "tspan",
+]);
+const SVG_ATTRS = new Set([
+  "viewbox", "xmlns", "xmlns:xlink", "version", "width", "height", "fill", "fill-opacity",
+  "fill-rule", "stroke", "stroke-width", "stroke-linecap", "stroke-linejoin", "stroke-dasharray",
+  "stroke-dashoffset", "stroke-miterlimit", "stroke-opacity", "opacity", "d", "points", "cx",
+  "cy", "r", "rx", "ry", "x", "y", "x1", "y1", "x2", "y2", "dx", "dy", "fx", "fy", "transform",
+  "offset", "stop-color", "stop-opacity", "gradientunits", "gradienttransform", "spreadmethod",
+  "preserveaspectratio", "id", "clip-path", "clip-rule", "mask", "maskunits", "clippathunits",
+  "href", "xlink:href", "focusable", "vector-effect", "text-anchor", "dominant-baseline",
+  "font-size", "font-weight", "font-family", "letter-spacing", "shape-rendering", "color",
+  "visibility", "pathlength",
+]);
+const SVG_NS = "http://www.w3.org/2000/svg";
+const SVG_VALUE_DANGER = /javascript:|vbscript:|data:|expression\s*\(|url\(\s*['"]?(?!#)/i;
+const FONT_LINK = /^https:\/\/fonts\.googleapis\.com\/css2?\?/i;
 
 const ALLOWED_ATTRS: Record<string, Set<string>> = {
   "*": new Set(["class", "style", "title", "dir", "lang", "role", "aria-label", "aria-hidden"]),
@@ -94,6 +115,31 @@ export function cleanHtml(html: string): string {
       if (child.nodeType !== 1) continue;
       const el = child as Element;
       const name = el.tagName.toLowerCase();
+      if (name === "link") {
+        const href = el.getAttribute("href") || "";
+        if (/stylesheet/i.test(el.getAttribute("rel") || "") && FONT_LINK.test(href)) {
+          for (const a of Array.from(el.attributes)) el.removeAttribute(a.name);
+          el.setAttribute("rel", "stylesheet");
+          el.setAttribute("href", href);
+          continue;
+        }
+      }
+      if (SVG_TAGS.has(name) && el.namespaceURI === SVG_NS) {
+        strip(el);
+        for (const attr of Array.from(el.attributes)) {
+          const low = attr.name.toLowerCase();
+          let keep = (SVG_ATTRS.has(low) || ALLOWED_ATTRS["*"]!.has(low)) && !low.startsWith("on");
+          if (keep && (low === "href" || low === "xlink:href") && !attr.value.trim().startsWith("#")) keep = false;
+          if (keep && SVG_VALUE_DANGER.test(attr.value)) keep = false;
+          if (keep && low === "style") {
+            const styled = cleanStyle(attr.value);
+            if (styled) { el.setAttribute(attr.name, styled); continue; }
+            keep = false;
+          }
+          if (!keep) el.removeAttribute(attr.name);
+        }
+        continue;
+      }
       if (DROP_WITH_CONTENT.has(name)) { el.remove(); continue; }
       strip(el);
       if (!ALLOWED_TAGS.has(name)) { el.replaceWith(...Array.from(el.childNodes)); continue; }
