@@ -18,7 +18,7 @@
  */
 import type { CSSProperties, ReactNode } from "react";
 import {
-  Award, Check, CircleUser, Clock, Heart, Leaf, Mail, MapPin, Phone, Search, ShieldCheck, Sparkles, Star, Truck,
+  Award, Check, CircleUser, Clock, Heart, Leaf, Mail, MapPin, Phone, ShieldCheck, Sparkles, Star, Truck,
   type LucideIcon,
 } from "lucide-react";
 import type { BuilderNode, CollectionCard, MenuItem, ProductCard, SitePayload } from "@/lib/builder/types";
@@ -30,6 +30,7 @@ import CartIsland from "./islands/CartIsland";
 import Reviews, { Stars } from "./islands/Reviews";
 import { Newsletter, ProductGallery, SortSelect, Tabs } from "./islands/Interactive";
 import { ContactForm } from "./islands/ContactForm";
+import { SearchBox, SearchIcon } from "./islands/SearchBox";
 import { splitDescription } from "@/lib/builder/descSections";
 
 export interface RenderCtx {
@@ -451,18 +452,12 @@ export function Node({ node, ctx }: { node: BuilderNode; ctx: RenderCtx }): Reac
       );
     }
     case "search":
+      // Both suggest products while the shopper types; see SearchBox.
       if (p.style === "icon") {
-        return <a data-b={id} className="b-iconlink" href="/search" aria-label="Search"><Search size={21} aria-hidden /></a>;
+        return <SearchIcon id={id} placeholder={str(p.placeholder) || "Search products"} edit={ctx.edit} />;
       }
-      return (
-        <form data-b={id} className="b-search-field" action="/search" method="get" role="search">
-          {/* On the search page with nothing typed yet — where the header's search
-              icon lands — the cursor is already in the box. */}
-          <input name="q" type="search" defaultValue={ctx.query} placeholder={str(p.placeholder) || "Search products"} aria-label="Search products"
-                 maxLength={80} autoFocus={!ctx.edit && ctx.route === "search" && !ctx.query} />
-          <button type="submit" aria-label="Search"><Search size={18} aria-hidden /></button>
-        </form>
-      );
+      return <SearchBox id={id} query={ctx.query} placeholder={str(p.placeholder) || "Search products"} edit={ctx.edit}
+                        autoFocus={!ctx.edit && ctx.route === "search" && !ctx.query} />;
     case "cart_link":
       return <CartLink id={id} showCount={p.showCount !== false} edit={ctx.edit} />;
     case "cart_items":
@@ -584,7 +579,11 @@ export function Node({ node, ctx }: { node: BuilderNode; ctx: RenderCtx }): Reac
       const pageData = data.collectionPage;
       if (!pageData) return note(ctx, id, "The collection's products show here, with sorting and Load more.");
       const sort = ctx.sort === "name" ? "name" : "";
-      const more = new URLSearchParams({ page: String(pageData.page + 1), ...(sort ? { sort } : {}) });
+      // All products opened from an old ?category= link: the next page is that category's too.
+      const more = new URLSearchParams();
+      if (ctx.route === "products" && data.collection?.slug) more.set("category", data.collection.slug);
+      more.set("page", String(pageData.page + 1));
+      if (sort) more.set("sort", sort);
       return (
         <div data-b={id}>
           {p.showSort !== false && (

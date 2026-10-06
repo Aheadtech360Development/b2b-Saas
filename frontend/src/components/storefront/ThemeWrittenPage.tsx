@@ -22,7 +22,14 @@ export interface WrittenPage {
   sections: { heading: string; body: string }[];
 }
 
-export default function ThemeWrittenPage({ page }: { page: WrittenPage }) {
+export default function ThemeWrittenPage({ page, builder }: {
+  page: WrittenPage;
+  /** A shop on the visual builder: no imported theme's classes are loaded
+   *  there, so the page is drawn in the builder's own — its type, colours,
+   *  spacing and form — inside the builder's header and footer. */
+  builder?: boolean;
+}) {
+  if (builder) return <BuilderWrittenPage page={page} />;
   return (
     <>
       <section style={{ paddingBottom: page.sections.length || page.form ? undefined : 0 }}>
@@ -58,6 +65,44 @@ export default function ThemeWrittenPage({ page }: { page: WrittenPage }) {
   );
 }
 
+/** The same page in the builder's classes (baseCss.ts), so it reads as one of
+ *  the shop's own pages rather than a page from somewhere else. */
+function BuilderWrittenPage({ page }: { page: WrittenPage }) {
+  return (
+    <div className="bsite" data-route="page">
+      <section className="b-section" style={{ paddingBlock: "56px 72px" }}>
+        <div className="b-in b-in-contained">
+          <div style={{ maxWidth: "780px" }}>
+            <h1 className="b-heading">{page.title}</h1>
+            {page.intro && (
+              <p className="b-text" style={{ marginTop: "14px", fontSize: "17px", lineHeight: 1.7, color: "var(--b-muted,#5B6170)" }}>
+                {page.intro}
+              </p>
+            )}
+            {page.form && (
+              <div className="b-form" style={{ marginTop: "32px" }}>
+                <EnquiryForm page={page} builder />
+              </div>
+            )}
+            {page.sections.length > 0 && (
+              <div style={{ marginTop: "36px", display: "flex", flexDirection: "column", gap: "30px" }}>
+                {page.sections.map((s, i) => (
+                  <div key={i}>
+                    {s.heading && <h2 className="b-heading" style={{ fontSize: "22px", lineHeight: 1.3, marginBottom: "10px" }}>{s.heading}</h2>}
+                    {s.body.split(/\n{2,}/).map((para, j) => (
+                      <p key={j} className="b-text" style={{ marginBottom: "12px", lineHeight: 1.75 }}>{para}</p>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+}
+
 // ── The form ───────────────────────────────────────────────────────────────
 
 const FIELD: React.CSSProperties = {
@@ -71,22 +116,23 @@ const LABEL: React.CSSProperties = { display: "block", fontSize: "13.5px", fontW
 /** What each form asks. A quote needs to know what is being quoted; a
  *  contact message does not. */
 function fieldsFor(form: string) {
+  // `half`: sits beside another on a wide screen, in the builder's form.
   const common = [
-    { name: "name", label: "Your name", type: "text", required: true },
-    { name: "email", label: "Email", type: "email", required: true },
-    { name: "phone", label: "Phone", type: "tel", required: false },
-    { name: "company", label: "Business name", type: "text", required: false },
+    { name: "name", label: "Your name", type: "text", required: true, half: true },
+    { name: "email", label: "Email", type: "email", required: true, half: true },
+    { name: "phone", label: "Phone", type: "tel", required: false, half: true },
+    { name: "company", label: "Business name", type: "text", required: false, half: true },
   ];
   if (form !== "quote") return common;
   return [
     ...common,
-    { name: "product", label: "What do you need printed?", type: "text", required: true },
-    { name: "quantity", label: "How many?", type: "text", required: false },
-    { name: "deadline", label: "When do you need it?", type: "text", required: false },
+    { name: "product", label: "What do you need printed?", type: "text", required: true, half: false },
+    { name: "quantity", label: "How many?", type: "text", required: false, half: true },
+    { name: "deadline", label: "When do you need it?", type: "text", required: false, half: true },
   ];
 }
 
-function EnquiryForm({ page }: { page: WrittenPage }) {
+function EnquiryForm({ page, builder }: { page: WrittenPage; builder?: boolean }) {
   const fields = fieldsFor(page.form);
   const [sent, setSent] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -114,6 +160,14 @@ function EnquiryForm({ page }: { page: WrittenPage }) {
     }
   }
 
+  if (sent && builder) {
+    return (
+      <div className="b-form-done" role="status">
+        <p>Thanks — that is with us.</p>
+        We will come back to you at the email you gave.
+      </div>
+    );
+  }
   if (sent) {
     return (
       <div className="callout" role="status">
@@ -121,6 +175,35 @@ function EnquiryForm({ page }: { page: WrittenPage }) {
         <br />
         We will come back to you at the email you gave.
       </div>
+    );
+  }
+
+  const label = page.form === "quote" ? "Request a quote" : "Send message";
+  if (builder) {
+    return (
+      <form onSubmit={submit}>
+        <div className="b-form-grid">
+          {fields.map((f) => (
+            <div key={f.name} className="b-form-field" data-w={f.half ? "half" : undefined}>
+              <label className="b-form-label" htmlFor={`f-${f.name}`}>
+                {f.label}{f.required ? <span className="b-form-req" aria-hidden="true">*</span> : <span className="b-form-opt"> (optional)</span>}
+              </label>
+              <input id={`f-${f.name}`} name={f.name} type={f.type} required={f.required} className="b-form-in" />
+            </div>
+          ))}
+          <div className="b-form-field">
+            <label className="b-form-label" htmlFor="f-message">
+              {page.form === "quote" ? "Anything else we should know" : "Message"}
+              {page.form === "quote" ? <span className="b-form-opt"> (optional)</span> : <span className="b-form-req" aria-hidden="true">*</span>}
+            </label>
+            <textarea id="f-message" name="message" rows={6} required={page.form !== "quote"} className="b-form-in" />
+          </div>
+        </div>
+        {error && <p className="b-form-err" role="alert">{error}</p>}
+        <div className="b-form-actions">
+          <button type="submit" className="b-form-btn" disabled={busy}>{busy ? "Sending…" : label}</button>
+        </div>
+      </form>
     );
   }
 
@@ -144,7 +227,7 @@ function EnquiryForm({ page }: { page: WrittenPage }) {
       </div>
       {error && <p style={{ color: "#B42318", fontSize: "14px", marginTop: "12px" }}>{error}</p>}
       <button type="submit" className="btn btn-primary" disabled={busy} style={{ marginTop: "18px", border: 0, cursor: busy ? "wait" : "pointer" }}>
-        {busy ? "Sending…" : page.form === "quote" ? "Request a quote" : "Send message"}
+        {busy ? "Sending…" : label}
       </button>
     </form>
   );

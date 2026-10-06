@@ -761,6 +761,113 @@ async def main():
         home = await site(a, route="home")
         check("a page with no search on it runs no search", home["data"].get("search") is None)
 
+        # ── 6e-2. Suggestions while typing ───────────────────────────────────
+        print("")
+        print("suggestions under the search box")
+
+        async def suggest(brand, q):
+            r = await client.get("/api/v1/storefront/search/suggest", headers=pub(brand), params={"q": q})
+            return r.status_code, r.json()
+
+        gang_pid, _v = await product(a, "Custom DTF Gang Sheet", price=None)
+        await sql("UPDATE products SET gang_sheet_enabled = true, gang_sheet_type = NULL WHERE id = :i", {"i": str(gang_pid)})
+        upload_pid, _v = await product(a, "Gang Sheet Upload By Size", price=None)
+        await sql("UPDATE products SET gang_sheet_enabled = true, gang_sheet_type = 'upload_by_size' WHERE id = :i",
+                  {"i": str(upload_pid)})
+        status, got = await suggest(a, "gang")
+        by_title = {i["title"]: i for i in got.get("items", [])}
+        check("typing 'gang' suggests the shop's gang sheet products", status == 200
+              and set(by_title) == {"Custom DTF Gang Sheet", "Gang Sheet Upload By Size"} and got["total"] == 2, str(got)[:300])
+        check("…a gang sheet made in the builder opens the builder itself",
+              by_title.get("Custom DTF Gang Sheet", {}).get("url") == f"/gang-sheets?product={gang_pid}"
+              and by_title["Custom DTF Gang Sheet"]["builder"] is True, str(by_title.get("Custom DTF Gang Sheet")))
+        check("…one ordered by uploading opens its own page, where the upload is",
+              by_title.get("Gang Sheet Upload By Size", {}).get("url", "").startswith("/products/srch-")
+              and by_title["Gang Sheet Upload By Size"]["builder"] is False, str(by_title.get("Gang Sheet Upload By Size")))
+        status, got = await suggest(a, "hoodie")
+        hood = next((i for i in got["items"] if i["title"] == "Harbor Pullover Hoodie"), {})
+        check("a suggestion is a real card: picture, price, the product's page",
+              hood.get("image") == "https://img.example/hoodie.jpg" and "38" in hood.get("price", "")
+              and hood.get("url", "").startswith("/products/srch-"), str(hood))
+        check("…found the way the search page finds them, in the same order",
+              [i["title"] for i in got["items"]] == (await search("hoodie"))[0], str(got["items"])[:200])
+        _s, got = await suggest(a, "bulkline")
+        check("only the best few are suggested, with how many there are in all",
+              len(got["items"]) == 6 and got["total"] == 27, f"{len(got['items'])} {got['total']}")
+        _s, got = await suggest(a, "h")
+        check("one letter suggests nothing yet", got["items"] == [] and got["total"] == 0, str(got))
+        _s, got = await suggest(a, "harbor")
+        check("a product not on sale is never suggested",
+              {i["title"] for i in got["items"]} == {"Harbor Pullover Hoodie", "Harbor Cap"}, str(got["items"])[:200])
+        _s, got = await suggest(a, "zebra")
+        check("another shop's product is never suggested", got["items"] == [] and got["total"] == 0, str(got))
+        _s, got = await suggest(b, "zebra")
+        check("…and a shop not on the builder yet still gets suggestions — a draft's preview needs them",
+              [i["title"] for i in got["items"]] == ["Zebra Windbreaker"], str(got))
+        _s, got = await suggest(a, "' OR 1=1 --")
+        check("nothing typed is ever run as a query", got["items"] == [], str(got))
+
+        # ── 6e-3. All products ────────────────────────────────────────────────
+        print("")
+        print("all products on a builder shop")
+        on_sale = [r[0] for r in await sql(
+            "SELECT name FROM products WHERE tenant_id = :t AND status = 'active' ORDER BY created_at DESC, id",
+            {"t": str(a["tid"])}, fetch=True)]
+        everything = await site(a, route="products")
+        cp = everything["data"]["collectionPage"] or {}
+        check("/products is drawn with the shop's collection template, not the old catalogue",
+              everything.get("templateType") == "collection" and everything.get("notFound") is False
+              and '"collection_products"' in json.dumps(everything.get("template")), str(everything.get("templateType")))
+        check("…called All products, with every product on sale counted",
+              everything["data"]["collection"]["name"] == "All products" and cp.get("total") == len(on_sale),
+              f"{cp.get('total')} vs {len(on_sale)}")
+        check("…a page of them at a time, newest first, with more to load",
+              [c["title"] for c in cp["items"]] == on_sale[:12] and cp["has_more"] is True, str([c["title"] for c in cp["items"]])[:200])
+        last = await site(a, route="products", page=str(-(-len(on_sale) // 12)))
+        titles = [c["title"] for c in last["data"]["collectionPage"]["items"]]
+        check("Load more to the end shows every product on sale and nothing else",
+              titles == on_sale and last["data"]["collectionPage"]["has_more"] is False
+              and not {"Harbor Draft Jacket", "Harbor Retired Vest", "Zebra Windbreaker"} & set(titles), f"{len(titles)}")
+        named = await site(a, route="products", sort="name")
+        titles = [c["title"] for c in named["data"]["collectionPage"]["items"]]
+        by_name = [r[0] for r in await sql(
+            "SELECT name FROM products WHERE tenant_id = :t AND status = 'active' ORDER BY name, id LIMIT 12",
+            {"t": str(a["tid"])}, fetch=True)]
+        check("sorted by name, A to Z", titles == by_name, f"{titles[:4]} vs {by_name[:4]}")
+        huge = await site(a, route="products", page="500")
+        check("a far-off page asks for no more than there is", huge["data"]["collectionPage"]["total"] == len(on_sale)
+              and len(huge["data"]["collectionPage"]["items"]) == len(on_sale))
+
+        cat_parent, cat_child, cat_other = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
+        await sql("INSERT INTO categories (id, tenant_id, name, slug, sort_order, is_active, description) "
+                  "VALUES (:i, :t, 'Hoodies', :s, 0, true, 'Warm ones')",
+                  {"i": str(cat_parent), "t": str(a["tid"]), "s": f"hoodies-{RUN}"})
+        await sql("INSERT INTO categories (id, tenant_id, name, slug, sort_order, is_active, parent_id) "
+                  "VALUES (:i, :t, 'Zip hoodies', :s, 0, true, :p)",
+                  {"i": str(cat_child), "t": str(a["tid"]), "s": f"zip-hoodies-{RUN}", "p": str(cat_parent)})
+        await sql("INSERT INTO categories (id, tenant_id, name, slug, sort_order, is_active) "
+                  "VALUES (:i, :t, 'Windbreakers', :s, 0, true)",
+                  {"i": str(cat_other), "t": str(b["tid"]), "s": f"windbreakers-{RUN}"})
+        cap_id = (await sql("SELECT id FROM products WHERE tenant_id = :t AND name = 'Harbor Cap'",
+                            {"t": str(a["tid"])}, fetch=True))[0][0]
+        for pid, cid, tid in ((hoodie, cat_parent, a["tid"]), (cap_id, cat_child, a["tid"]),
+                              (zebra_b, cat_other, b["tid"])):
+            await sql("INSERT INTO product_categories (id, tenant_id, product_id, category_id) "
+                      "VALUES (gen_random_uuid(), :t, :p, :c)", {"t": str(tid), "p": str(pid), "c": str(cid)})
+        old_link = await site(a, route="products", slug=f"hoodies-{RUN}")
+        titles = {c["title"] for c in old_link["data"]["collectionPage"]["items"]}
+        check("an old /products?category= link still means that category, and the ones under it",
+              old_link["data"]["collection"]["name"] == "Hoodies" and titles == {"Harbor Pullover Hoodie", "Harbor Cap"}
+              and old_link["data"]["collection"]["description"] == "Warm ones", f"{titles}")
+        gone = await site(a, route="products", slug=f"windbreakers-{RUN}")
+        check("another shop's category is no category here", gone.get("notFound") is True)
+        gone = await site(a, route="products", slug=f"nope-{RUN}")
+        check("a category that does not exist is the shop's page-not-found", gone.get("notFound") is True
+              and gone.get("templateType") == "not_found")
+        r = await client.get("/api/v1/admin/storefront/builder/preview", headers=adm(a), params={"route": "products"})
+        check("the draft's preview draws All products too", r.status_code == 200
+              and r.json()["data"]["collection"]["name"] == "All products")
+
         # ── 6f. One cart, and it belongs to the shop ─────────────────────────
         print("")
         print("the cart on a builder shop")

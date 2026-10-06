@@ -146,6 +146,106 @@ async def _search_ids(db: AsyncSession, tenant_id: uuid.UUID, q: str, limit: int
     return list(rows), total
 
 
+SUGGEST_LIMIT = 6
+
+
+async def suggest(db: AsyncSession, tenant_id: uuid.UUID, q: str) -> dict[str, Any]:
+    """The best few of this shop's products for what a shopper is typing, found
+    the way the search page finds them, so the list under the box and the page
+    behind Enter agree.
+
+    Each comes with where it opens. A gang sheet made in the builder opens the
+    builder itself — what someone typing "gang" is after — and every other
+    product its own page, where its sizes, uploads and cart are.
+    """
+    from app.services import theme_data
+
+    words = " ".join((q or "").split())[:80]
+    if len(words) < 2:
+        return {"query": words, "total": 0, "items": []}
+    ids, total = await _search_ids(db, tenant_id, words, SUGGEST_LIMIT)
+    if not ids:
+        return {"query": words, "total": 0, "items": []}
+    rows = (await db.execute(
+        text("SELECT CAST(id AS text) AS id, slug, gang_sheet_enabled, gang_sheet_type FROM products "
+             "WHERE tenant_id = CAST(:t AS uuid) AND CAST(id AS text) = ANY(:ids)"),
+        {"t": str(tenant_id), "ids": ids},
+    )).all()
+    builder = {f"/products/{r.slug}": r.id for r in rows
+               if r.gang_sheet_enabled and (r.gang_sheet_type or "gang_sheet") == "gang_sheet"}
+    items = []
+    for card in await theme_data.cards_in_order(db, [u for u in (_uuid(i) for i in ids) if u]):
+        pid = builder.get(card["url"])
+        items.append({"title": card["title"], "image": card["image"], "price": card["price"],
+                      "url": f"/gang-sheets?product={pid}" if pid else card["url"],
+                      "builder": bool(pid)})
+    return {"query": words, "total": total, "items": items}
+
+
+# The shop's "All products" page (/products): every product on sale, drawn with
+# the collection template. Load more adds a page to what is on screen, as a
+# collection's does, and stops here — so a link to ?page=500 cannot make one
+# request load the whole catalogue several times over.
+ALL_PAGE_SIZE = 12
+MAX_ALL_PRODUCTS = 600
+
+
+async def _all_products(db: AsyncSession, tenant_id: uuid.UUID, *, page: int, sort: str,
+                        category: str = "") -> dict[str, Any] | None:
+    """Every product this shop has on sale, as the collection template's
+    "collection": a name, and the products up to the page asked for.
+
+    `category` is for links made before the builder — /products?category=…,
+    the old catalogue's own filter — and keeps them meaning what they meant:
+    that category's products and those of the categories under it. None when
+    no such category exists.
+    """
+    from app.services import theme_data
+
+    args: dict[str, Any] = {"t": str(tenant_id)}
+    where = "p.tenant_id = CAST(:t AS uuid) AND p.status = 'active'"
+    info = {"name": "All products", "slug": "", "description": "", "image": ""}
+    if category:
+        cat = (await db.execute(
+            text("SELECT CAST(id AS text) AS id, name, slug, description, image_url FROM categories "
+                 "WHERE tenant_id = CAST(:t AS uuid) AND is_active AND (slug = :c OR name = :c) "
+                 "ORDER BY (slug = :c) DESC LIMIT 1"),
+            {**args, "c": category[:100]},
+        )).first()
+        if cat is None:
+            return None
+        args["cats"] = list((await db.execute(
+            text("WITH RECURSIVE picked AS ("
+                 "  SELECT id FROM categories WHERE id = CAST(:c AS uuid) AND tenant_id = CAST(:t AS uuid)"
+                 "  UNION ALL"
+                 "  SELECT c.id FROM categories c JOIN picked ON c.parent_id = picked.id"
+                 "   WHERE c.tenant_id = CAST(:t AS uuid)"
+                 ") SELECT DISTINCT CAST(id AS text) FROM picked"),
+            {**args, "c": cat.id},
+        )).scalars().all())
+        where += (" AND p.id IN (SELECT pc.product_id FROM product_categories pc "
+                  "WHERE CAST(pc.category_id AS text) = ANY(:cats))")
+        info = {"name": cat.name, "slug": cat.slug, "description": cat.description or "",
+                "image": cat.image_url or ""}
+
+    total = int((await db.execute(text(f"SELECT COUNT(*) FROM products p WHERE {where}"), args)).scalar() or 0)
+    upto = min(max(1, page) * ALL_PAGE_SIZE, MAX_ALL_PRODUCTS)
+    order = "p.name, p.id" if sort == "name" else "p.created_at DESC, p.id"
+    ids = (await db.execute(
+        text(f"SELECT p.id FROM products p WHERE {where} ORDER BY {order} LIMIT :n"),
+        {**args, "n": upto},
+    )).scalars().all() if total else []
+    cards = await theme_data.cards_in_order(db, [_uuid(i) for i in ids if _uuid(i)])
+    return {
+        "collection": {**info, "seo_title": info["name"], "seo_description": info["description"]},
+        "items": cards,
+        "total": total,
+        "page": max(1, page),
+        "page_size": ALL_PAGE_SIZE,
+        "has_more": len(cards) < min(total, MAX_ALL_PRODUCTS),
+    }
+
+
 # What one page may cost, however it is built. Grids are filled from a few
 # shared fetches (one per kind of source), so twenty "newest" grids cost what
 # one does; what grows the work is distinct sources, and those are capped.
@@ -469,6 +569,18 @@ async def render_payload(
             data["collectionPage"] = {k: found[k] for k in ("items", "total", "page", "page_size", "has_more")}
             rule = assignments.get("collection") or {}
             tid = (rule.get("byId") or {}).get(cid or "") or rule.get("default")
+
+    elif route == "products":
+        # The whole catalogue, in the collection template — "Shop all" stays in
+        # the shop's own design. `slug` is an old link's ?category=.
+        found = await _all_products(db, tenant_id, page=page, sort=sort, category=slug)
+        if found is None:
+            not_found, ttype = True, "not_found"
+        else:
+            ttype = "collection"
+            data["collection"] = found["collection"]
+            data["collectionPage"] = {k: found[k] for k in ("items", "total", "page", "page_size", "has_more")}
+            tid = (assignments.get("collection") or {}).get("default")
 
     elif route == "page":
         page_doc = (doc.get("pages") or {}).get(slug)

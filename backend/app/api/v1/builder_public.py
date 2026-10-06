@@ -68,3 +68,17 @@ async def storefront_site(
         return _LEGACY
     return await resolve.render_payload(db, tid, doc, route=route, slug=slug, query=q,
                                         page=max(1, page), sort=sort, version=number)
+
+
+@router.get("/search/suggest")
+async def search_suggest(request: Request, q: str = "", db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
+    """Products for what a shopper is typing into a builder shop's search box.
+
+    The shop's catalogue is public, so this answers whether or not the shop is
+    live on the builder yet — the draft's preview searches the same products
+    shoppers will. The brand is the one the request resolved to.
+    """
+    tid = await _tenant(request, db)
+    if tid is None:
+        return {"query": "", "total": 0, "items": []}
+    return await resolve.suggest(db, tid, q)

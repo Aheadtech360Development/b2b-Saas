@@ -169,6 +169,20 @@ async def products(
     return cards[:limit]
 
 
+async def cards_in_order(db: AsyncSession, ids: list[uuid.UUID]) -> list[dict[str, Any]]:
+    """Cards for these products, in this order, from one fetch — a page of a
+    listing, however far down it is. Anything not on sale is left out."""
+    if not ids:
+        return []
+    loaded = (await db.execute(
+        select(Product)
+        .options(selectinload(Product.variants), selectinload(Product.images))
+        .where(Product.id.in_(ids), Product.status == "active")
+    )).scalars().unique().all()
+    by_id = {p.id: p for p in loaded}
+    return await _cards(db, [by_id[i] for i in ids if i in by_id])
+
+
 async def collections(db: AsyncSession, *, limit: int = DEFAULT_LIMIT, ids: list[str] | None = None) -> list[dict[str, Any]]:
     """Cards for the store's own collections."""
     limit = max(1, min(int(limit or DEFAULT_LIMIT), MAX_ITEMS))

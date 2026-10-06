@@ -2,10 +2,13 @@ export const dynamic = "force-dynamic";
 
 import { Suspense } from "react";
 import type { Metadata } from "next";
+import { notFound, redirect } from "next/navigation";
 import { productsService } from "@/services/products.service";
 import { ProductListClient } from "./ProductListClient";
 import { sortSizes } from "@/lib/utils";
 import { titleWithBrand } from "@/lib/brand";
+import { BuilderPage } from "@/components/builder/SiteParts";
+import { loadBuilderChrome, loadBuilderPage } from "@/lib/builder/load";
 
 export async function generateMetadata(): Promise<Metadata> {
   return {
@@ -20,6 +23,25 @@ interface PageProps {
 
 export default async function ProductsPage({ searchParams }: PageProps) {
   const params = await searchParams;
+
+  // A shop on the visual builder: every product, in its own collection
+  // template — "Shop all" stays in the shop's design. Words typed are a search,
+  // and the search page answers those; an old ?category= link keeps meaning
+  // that category. The catalogue's other filters belong to the page below.
+  // Every other shop, and a builder shop the builder cannot answer for, goes
+  // on as before.
+  if (await loadBuilderChrome()) {
+    const q = typeof params.q === "string" ? params.q.trim() : "";
+    if (q) redirect(`/search?q=${encodeURIComponent(q.slice(0, 120))}`);
+    const category = typeof params.category === "string" ? params.category : "";
+    const page = Math.max(1, Number(typeof params.page === "string" ? params.page : "1") || 1);
+    const sort = params.sort === "name" ? "name" : "";
+    const site = await loadBuilderPage("products", category, "", page, sort);
+    if (site) {
+      if (site.notFound) notFound();
+      return <BuilderPage payload={site} sort={sort} />;
+    }
+  }
 
   const filters = {
     category: typeof params.category === "string" ? params.category : undefined,

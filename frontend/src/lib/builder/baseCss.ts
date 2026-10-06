@@ -234,10 +234,25 @@ export const BASE_CSS = `
 .bsite :where(.b-menu-toggle:hover){background:var(--b-surface,#F4F4F2)}
 .bsite :where(.b-menu-empty){font-size:13px;color:var(--b-muted,#5B6170)}
 
-.bsite :where(.b-search-field){display:flex;align-items:center;gap:8px;min-width:0;width:100%;max-width:420px;padding:0 6px 0 14px;border:1.5px solid var(--b-border,#e6e6e6);border-radius:999px;background:var(--b-background,#fff)}
-.bsite :where(.b-search-field:focus-within){border-color:var(--b-primary,#14161B)}
-.bsite :where(.b-search-field input){flex:1;min-width:0;border:0;outline:none;background:none;font:inherit;font-size:14px;padding:10px 0;color:inherit}
-.bsite :where(.b-search-field button){display:grid;place-items:center;width:34px;height:34px;border:0;border-radius:999px;background:none;cursor:pointer;color:inherit}
+:is(.bsite,.bsite-layer) :where(.b-search-field){position:relative;display:flex;align-items:center;gap:8px;min-width:0;width:100%;max-width:420px;padding:0 6px 0 14px;border:1.5px solid var(--b-border,#e6e6e6);border-radius:999px;background:var(--b-background,#fff)}
+:is(.bsite,.bsite-layer) :where(.b-search-field:focus-within){border-color:var(--b-primary,#14161B)}
+/* The app's form styles ring a search box in blue on focus; this one shows focus on its own border. */
+:is(.bsite,.bsite-layer) .b-search-field input[type=search]:focus{box-shadow:none}
+:is(.bsite,.bsite-layer) :where(.b-search-field input){flex:1;min-width:0;border:0;outline:none;background:none;font:inherit;font-size:14px;padding:10px 0;color:inherit}
+:is(.bsite,.bsite-layer) :where(.b-search-field button){display:grid;place-items:center;width:34px;height:34px;border:0;border-radius:999px;background:none;cursor:pointer;color:inherit}
+/* What the box finds while the shopper types: under the box, as wide as it. */
+:is(.bsite,.bsite-layer) :where(.b-suggest){position:absolute;top:calc(100% + 8px);left:0;right:0;z-index:70;display:flex;flex-direction:column;max-height:min(70vh,460px);overflow-y:auto;overscroll-behavior:contain;padding:6px;background:var(--b-background,#fff);color:var(--b-text,#14161B);border:1px solid var(--b-border,#e6e6e6);border-radius:14px;box-shadow:0 16px 40px rgba(20,22,27,.16);text-align:left}
+:is(.bsite,.bsite-layer) :where(.b-suggest-item){display:flex;align-items:center;gap:12px;padding:8px;border-radius:10px;text-decoration:none;color:inherit}
+:is(.bsite,.bsite-layer) :where(.b-suggest-item[aria-selected=true],.b-suggest-item:hover){background:var(--b-surface,#F4F4F2)}
+:is(.bsite,.bsite-layer) :where(.b-suggest-img){flex:0 0 auto;width:48px;height:48px;border-radius:8px;overflow:hidden;background:var(--b-surface,#F4F4F2)}
+:is(.bsite,.bsite-layer) :where(.b-suggest-img img){width:100%;height:100%;object-fit:cover}
+:is(.bsite,.bsite-layer) :where(.b-suggest-text){display:flex;flex-direction:column;gap:2px;min-width:0}
+:is(.bsite,.bsite-layer) :where(.b-suggest-title){font-weight:600;font-size:14px;line-height:1.3;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+:is(.bsite,.bsite-layer) :where(.b-suggest-meta){font-size:13px;color:var(--b-muted,#5B6170)}
+:is(.bsite,.bsite-layer) :where(.b-suggest-meta[data-builder]){color:var(--b-primary,#14161B);font-weight:600}
+:is(.bsite,.bsite-layer) :where(.b-suggest-none){margin:0;padding:12px;font-size:14px;color:var(--b-muted,#5B6170)}
+:is(.bsite,.bsite-layer) :where(.b-suggest-all){display:block;margin-top:4px;padding:11px 8px 8px;border-top:1px solid var(--b-border,#eeeeee);font-size:14px;font-weight:600;color:var(--b-primary,#14161B);text-decoration:none}
+:is(.bsite,.bsite-layer) :where(.b-suggest-all:hover){text-decoration:underline;text-underline-offset:3px}
 .bsite :where(.b-iconlink){position:relative;display:inline-flex;align-items:center;justify-content:center;gap:6px;min-width:42px;height:42px;padding:0 9px;border-radius:999px;text-decoration:none}
 .bsite :where(.b-iconlink,.b-menu-toggle){flex:0 0 auto}
 .bsite :where(.b-stack:has(> .b-iconlink):not(:has(> .b-search-field))){flex-shrink:0}
@@ -338,7 +353,13 @@ ${PHONE}{
 .bsite-layer .b-drawer-foot{border-top:1px solid var(--b-border,#e6e6e6);padding:8px;background:var(--b-surface,#F7F7F5)}
 .bsite-layer .b-drawer-foot a{font-weight:500;font-size:15px}
 .bsite-layer .b-drawer-foot svg{flex:0 0 auto;color:var(--b-muted,#5B6170)}
+/* The header's search icon opens the box across the top of the page. */
+.bsite-layer .b-spop{position:absolute;top:0;left:0;right:0;background:var(--b-background,#fff);color:var(--b-text,#14161B);box-shadow:0 12px 32px rgba(0,0,0,.18);padding:16px;animation:bdrop .2s ease}
+.bsite-layer .b-spop-in{display:flex;align-items:center;gap:8px;max-width:720px;margin:0 auto}
+.bsite-layer .b-spop .b-search-field{max-width:none;flex:1}
+.bsite-layer .b-spop .b-search-field input{font-size:16px;padding:12px 0}
+@keyframes bdrop{from{transform:translateY(-100%)}to{transform:none}}
 @keyframes bfade{from{opacity:0}to{opacity:1}}
 @keyframes bslide{from{transform:translateX(100%)}to{transform:none}}
-@media (prefers-reduced-motion:reduce){.bsite-layer .b-drawer,.bsite-layer .b-drawer-back{animation:none}}
+@media (prefers-reduced-motion:reduce){.bsite-layer .b-drawer,.bsite-layer .b-drawer-back,.bsite-layer .b-spop{animation:none}}
 `;

@@ -60,7 +60,7 @@ export const builderService = {
     apiClient.post<BuilderState & { version: number }>(`${BASE}/rollback`, { version_id: versionId }),
   setMode: (mode: "legacy" | "visual_builder") => apiClient.put<BuilderState>(`${BASE}/mode`, { mode }),
   reset: () => apiClient.post<BuilderState>(`${BASE}/reset`, {}),
-  preview: (params: { route: string; slug?: string; q?: string; template?: string }) => {
+  preview: (params: { route: string; slug?: string; q?: string; page?: string; sort?: string; template?: string }) => {
     const q = new URLSearchParams(Object.entries(params).filter(([, v]) => v) as [string, string][]);
     return apiClient.get<SitePayload>(`${BASE}/preview?${q.toString()}`);
   },
