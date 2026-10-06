@@ -1,6 +1,6 @@
-import { ask, tell } from "@/lib/dialog";
 // frontend/src/app/(admin)/admin/products/[slug]/edit/page.tsx
 "use client";
+import { ask, tell } from "@/lib/dialog";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";

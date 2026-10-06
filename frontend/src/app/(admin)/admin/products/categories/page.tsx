@@ -1,6 +1,6 @@
-import { ask, tell } from "@/lib/dialog";
 // frontend/src/app/(admin)/admin/products/categories/page.tsx
 "use client";
+import { ask, tell } from "@/lib/dialog";
 
 export const dynamic = "force-dynamic";
 

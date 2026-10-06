@@ -1,6 +1,6 @@
-import { tell } from "@/lib/dialog";
 // frontend/src/app/(customer)/account/orders/[id]/page.tsx
 "use client";
+import { tell } from "@/lib/dialog";
 
 import { useBranding } from "@/components/providers/BrandingProvider";
 

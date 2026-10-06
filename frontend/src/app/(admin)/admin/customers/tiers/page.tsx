@@ -1,6 +1,6 @@
-import { ask } from "@/lib/dialog";
 // frontend/src/app/(admin)/admin/customers/tiers/page.tsx
 "use client";
+import { ask } from "@/lib/dialog";
 export const dynamic = "force-dynamic";
 
 import { useEffect, useState } from "react";
