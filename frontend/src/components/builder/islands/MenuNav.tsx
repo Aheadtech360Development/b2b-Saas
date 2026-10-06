@@ -17,7 +17,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { usePathname } from "next/navigation";
-import { ChevronDown, Menu as MenuIcon, X } from "lucide-react";
+import { ChevronDown, CircleUser, Menu as MenuIcon, Search, ShoppingCart, X } from "lucide-react";
 import type { MenuItem } from "@/lib/builder/types";
 import { safeHref } from "@/lib/builder/sanitize";
 
@@ -135,13 +135,22 @@ export default function MenuNav({ id, items, layout, mobile, label, title, edit 
           <div className="b-drawer-back" onClick={() => setOpen(false)} />
           <div className="b-drawer">
             <div className="b-drawer-head">
-              <span>{label}</span>
+              <span>Menu</span>
               <button ref={closeRef} type="button" className="b-drawer-close" aria-label="Close the menu"
                       onClick={() => setOpen(false)}>
                 <X size={20} aria-hidden />
               </button>
             </div>
             <div className="b-drawer-body"><DrawerList items={list} /></div>
+            {/* The three places every shop has, where a thumb can reach them —
+                whatever the header itself has room to show on a phone. */}
+            <div className="b-drawer-foot">
+              <ul>
+                <li><a href="/search"><Search size={19} aria-hidden /> Search</a></li>
+                <li><a href="/account"><CircleUser size={19} aria-hidden /> My account</a></li>
+                <li><a href="/cart"><ShoppingCart size={19} aria-hidden /> Cart</a></li>
+              </ul>
+            </div>
           </div>
         </div>,
         document.body,

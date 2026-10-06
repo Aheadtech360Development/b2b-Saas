@@ -251,7 +251,8 @@ export const BASE_CSS = `
 ${TABLET}{
   .bsite :where(.b-menu[data-mobile=drawer] .b-menu-list){display:none}
   .bsite :where(.b-menu[data-mobile=drawer] .b-menu-toggle){display:inline-flex}
-  .bsite :where(.b-menu[data-mobile=drawer]){flex:0 0 auto}
+  .bsite :where(.b-menu[data-mobile=drawer]){flex:0 0 auto;order:99;margin-left:-6px}
+  .bsite :where(.b-stack:has(> .b-menu[data-mobile=drawer])) > :nth-child(1 of :not(.b-menu[data-mobile=drawer])){margin-right:auto}
   .bsite :where(.b-grid){grid-template-columns:repeat(3,minmax(0,1fr))}
   .bsite :where(.b-quotes){grid-template-columns:repeat(2,minmax(0,1fr))}
 }
@@ -270,19 +271,25 @@ ${PHONE}{
 
 .bsite-layer{position:fixed;inset:0;z-index:2147483000}
 .bsite-layer .b-drawer-back{position:absolute;inset:0;background:rgba(15,17,22,.45);animation:bfade .18s ease}
-.bsite-layer .b-drawer{position:absolute;top:0;bottom:0;left:0;width:min(360px,88vw);background:var(--b-background,#fff);color:var(--b-text,#14161B);box-shadow:8px 0 32px rgba(0,0,0,.18);display:flex;flex-direction:column;animation:bslide .22s ease}
-.bsite-layer .b-drawer-head{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--b-border,#e6e6e6);font-weight:700}
+.bsite-layer .b-drawer{position:absolute;top:0;bottom:0;right:0;width:min(360px,88vw);background:var(--b-background,#fff);color:var(--b-text,#14161B);box-shadow:-8px 0 32px rgba(0,0,0,.18);display:flex;flex-direction:column;animation:bslide .22s ease;font-family:var(--b-font-body,system-ui,sans-serif)}
+.bsite-layer .b-drawer-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 12px 12px 20px;border-bottom:1px solid var(--b-border,#e6e6e6);font-weight:700;font-size:17px}
+.bsite-layer .b-drawer-head span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .bsite-layer .b-drawer-close{display:grid;place-items:center;width:40px;height:40px;border:0;background:none;border-radius:10px;cursor:pointer;color:inherit}
-.bsite-layer .b-drawer-body{flex:1;overflow-y:auto;overscroll-behavior:contain;padding:8px 8px 24px}
+.bsite-layer .b-drawer-body{flex:1;overflow-y:auto;overscroll-behavior:contain;padding:6px 8px 16px}
 .bsite-layer .b-drawer ul{list-style:none;margin:0;padding:0}
-.bsite-layer .b-drawer a{display:block;padding:13px 12px;border-radius:10px;text-decoration:none;color:inherit;font-weight:500}
+.bsite-layer .b-drawer a{display:flex;align-items:center;gap:12px;min-height:48px;padding:12px;border-radius:10px;text-decoration:none;color:inherit;font-size:16px;font-weight:600;overflow-wrap:anywhere}
 .bsite-layer .b-drawer a:hover{background:var(--b-surface,#F4F4F2)}
-.bsite-layer .b-drawer details > summary{display:flex;justify-content:space-between;align-items:center;padding:13px 12px;border-radius:10px;cursor:pointer;font-weight:500;list-style:none}
+.bsite-layer .b-drawer details > summary{display:flex;justify-content:space-between;align-items:center;gap:12px;min-height:48px;padding:12px;border-radius:10px;cursor:pointer;font-size:16px;font-weight:600;list-style:none;overflow-wrap:anywhere}
 .bsite-layer .b-drawer details > summary::-webkit-details-marker{display:none}
 .bsite-layer .b-drawer details > summary::after{content:"+";font-size:18px;color:var(--b-muted,#5B6170)}
 .bsite-layer .b-drawer details[open] > summary::after{content:"\\2212"}
 .bsite-layer .b-drawer details ul{padding-left:12px}
+.bsite-layer .b-drawer details a{font-weight:500;font-size:15px;min-height:44px}
+.bsite-layer .b-drawer-body > ul > li + li{border-top:1px solid var(--b-border,#eeeeee)}
+.bsite-layer .b-drawer-foot{border-top:1px solid var(--b-border,#e6e6e6);padding:8px;background:var(--b-surface,#F7F7F5)}
+.bsite-layer .b-drawer-foot a{font-weight:500;font-size:15px}
+.bsite-layer .b-drawer-foot svg{flex:0 0 auto;color:var(--b-muted,#5B6170)}
 @keyframes bfade{from{opacity:0}to{opacity:1}}
-@keyframes bslide{from{transform:translateX(-100%)}to{transform:none}}
+@keyframes bslide{from{transform:translateX(100%)}to{transform:none}}
 @media (prefers-reduced-motion:reduce){.bsite-layer .b-drawer,.bsite-layer .b-drawer-back{animation:none}}
 `;

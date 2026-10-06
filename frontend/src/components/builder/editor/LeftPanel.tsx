@@ -4,7 +4,7 @@
  * The left-hand panel: what can go on a page, what is on it, and the site
  * around it — pages, templates, the theme, saved and shared sections, menus.
  */
-import { useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   ChevronDown, ChevronRight, Copy, ExternalLink, Eye, EyeOff, FileText, Layers, LayoutTemplate, Menu as MenuIcon, ScrollText,
   MoreHorizontal, Palette, Pencil, Plus, RefreshCw, Search, Star, Trash2, Upload, Bookmark,
@@ -23,6 +23,9 @@ import type { DragPayload } from "./Canvas";
 import { ImageField, ProductsPicker, type EditorEnv } from "./fields";
 import { POLICIES, policyHtml, removePolicy, savePolicy, type Policy } from "@/lib/builder/policies";
 import { PolicyEditor } from "./PolicyEditor";
+import { apiClient } from "@/lib/api-client";
+import { safeSrc } from "@/lib/builder/sanitize";
+import { say } from "@/lib/toast";
 import { confirmAction, Popover, TextInput } from "./ui";
 
 export type LeftTab = "add" | "layers" | "pages" | "templates" | "theme" | "sections" | "menus";
@@ -570,6 +573,63 @@ const COLOR_NAMES: [string, string][] = [
 ];
 const SCALE_STEPS = ["h1", "h2", "h3", "h4", "h5", "h6", "body", "small", "button"];
 
+/**
+ * The shop's icon in the browser tab.
+ *
+ * Until one is set the tab shows the first letter of the shop's name. This is
+ * the brand's own setting, not part of the draft: it is the shop's icon
+ * whichever design is showing, so it is saved, and seen, straight away.
+ */
+function TabIcon({ env }: { env: EditorEnv }) {
+  const [icon, setIcon] = useState<string | null>(null);
+  useEffect(() => {
+    let live = true;
+    apiClient.get<{ favicon_url?: string | null }>("/api/v1/admin/storefront")
+      .then((b) => { if (live) { saved.current = b?.favicon_url ?? ""; setIcon(saved.current); } })
+      .catch(() => { if (live) setIcon(""); });
+    return () => { live = false; };
+  }, []);
+
+  const saved = useRef<string | null>(null);
+  const timer = useRef<number | undefined>(undefined);
+  useEffect(() => () => window.clearTimeout(timer.current), []);
+
+  // An address is typed a letter at a time. Only a whole one — or none, to go
+  // back to the letter — is worth saving, and only once the typing has stopped.
+  const change = (next: string) => {
+    setIcon(next);
+    window.clearTimeout(timer.current);
+    if (next && !safeSrc(next)) return;
+    timer.current = window.setTimeout(() => { void save(next); }, 700);
+  };
+
+  const save = async (next: string) => {
+    if (saved.current === next) return;
+    const before = saved.current;
+    try {
+      await apiClient.put("/api/v1/admin/storefront", { favicon_url: next });
+      saved.current = next;
+      say.done(next ? "Your shop's tab icon is set. Reload the shop to see it." : "The tab icon is back to your shop's first letter.");
+    } catch {
+      setIcon(before ?? "");
+      say.problem("The tab icon could not be saved. Try again.");
+    }
+  };
+
+  return (
+    <div className="sbe-sec" data-tab-icon>
+      <div className="sbe-h"><span>Browser tab icon</span></div>
+      {icon === null
+        ? <div className="sbe-help">Loading…</div>
+        : <ImageField env={env} value={icon} onChange={(v) => change(String(v ?? ""))} />}
+      <div className="sbe-help" style={{ marginTop: 6 }}>
+        The small picture beside your shop's name in a browser tab (the favicon). Use a square picture, 180 pixels or more.
+        It is saved straight away, not with Publish.
+      </div>
+    </div>
+  );
+}
+
 function ThemePanel(p: LeftProps) {
   const s = p.doc.settings ?? {};
   const typo = s.typography ?? {};
@@ -611,6 +671,7 @@ function ThemePanel(p: LeftProps) {
 
   return (
     <>
+      <TabIcon env={p.env} />
       <div className="sbe-sec">
         <div className="sbe-h"><span>Colours</span></div>
         {COLOR_NAMES.map(([key, label]) => {
