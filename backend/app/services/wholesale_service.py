@@ -100,9 +100,11 @@ class WholesaleService:
             if dg and dg.customer_tag:
                 company.tags = [dg.customer_tag]
 
-        # Find the user by email and assign to company as owner
+        # Find the user by email and assign to company as owner — the account
+        # the application made at this shop, not one the address has elsewhere.
         user_result = await self.db.execute(
-            select(User).where(User.email == application.email)
+            select(User).where(User.email == application.email,
+                               User.tenant_id == getattr(application, "tenant_id", None))
         )
         user = user_result.scalar_one_or_none()
         if user:

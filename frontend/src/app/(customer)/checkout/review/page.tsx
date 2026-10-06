@@ -85,6 +85,12 @@ export default function CheckoutReviewPage() {
   const [paidIntentId, setPaidIntentId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [appliedCoupon, setAppliedCoupon] = useState<{ code: string; discount_amount: number; discount_type: string } | null>(null);
+  // Whether the code from the cart, and a guest's cart, have been read from
+  // this browser yet. The card form prices its payment the moment it appears,
+  // so it waits for both: appearing first, it charged full price for an order
+  // that then recorded the discount.
+  const [couponRead, setCouponRead] = useState(false);
+  const [guestCartRead, setGuestCartRead] = useState(false);
   // Seed from checkout store; API fetch is a fallback in case user navigated directly here
   const [taxRate, setTaxRate] = useState<{ region: string; rate: number } | null>(
     storedTaxRate > 0 && storedTaxRegion ? { region: storedTaxRegion, rate: storedTaxRate } : null
@@ -119,17 +125,20 @@ export default function CheckoutReviewPage() {
         const entries: GuestCartEntry[] = JSON.parse(localStorage.getItem("af_guest_cart") || "[]");
         setGuestEntries(entries);
       } catch { /* ignore */ }
+      setGuestCartRead(true);
     }
   }, [isGuest]);
 
   useEffect(() => {
-    if (typeof window === "undefined" || isGuest) return;
-    const saved = localStorage.getItem("af_coupon");
-    if (!saved) return;
-    try {
-      const parsed = JSON.parse(saved);
-      if (parsed?.code) setAppliedCoupon(parsed);
-    } catch { /* ignore */ }
+    if (typeof window === "undefined") return;
+    const saved = isGuest ? null : localStorage.getItem("af_coupon");
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (parsed?.code) setAppliedCoupon(parsed);
+      } catch { /* ignore */ }
+    }
+    setCouponRead(true);
   }, [isGuest]);
 
   useEffect(() => {
@@ -403,6 +412,23 @@ export default function CheckoutReviewPage() {
   const total = subtotal + shipping + taxAmount - (isGuest ? 0 : couponDiscount) + convenienceFee;
   const shippingLabel = SHIPPING_LABELS[shippingMethod] ?? "Standard Ground";
 
+  // What the card is asked for — the same fields /checkout/confirm is sent.
+  const cardIntent = {
+    shipping_method: shippingMethod || "standard",
+    shipping_cost: shippingCost > 0 ? shippingCost : undefined,
+    discount_code: appliedCoupon?.code || undefined,
+    payment_method: "card",
+    // Ship-to → the backend computes tax itself (authoritative).
+    to_state: shippingAddress?.state || undefined,
+    to_zip: shippingAddress?.postal_code || undefined,
+    ...(isGuest
+      ? {
+          items: guestEntries.map(guestCheckoutItem),
+          tax_amount: taxAmount > 0 ? taxAmount : undefined,
+        }
+      : {}),
+  };
+
   return (
     <div style={{ padding: "40px 0 64px" }}>
       <div className="ui-wrap">
@@ -445,29 +471,23 @@ export default function CheckoutReviewPage() {
                       Finish my order
                     </button>
                   </div>
+                ) : !couponRead || (isGuest && !guestCartRead) ? (
+                  <div style={{ padding: "16px", color: "var(--ui-muted)", fontSize: "13px" }}>Loading secure payment…</div>
                 ) : (
                   <StripePaymentForm
+                    // A new payment for a new amount: anything that changes
+                    // what is charged — the code, shipping, the ship-to, a
+                    // guest's items — gives the form a fresh intent, priced
+                    // as the order will be. The one it replaces is never
+                    // confirmed, so it is never charged.
+                    key={JSON.stringify(cardIntent)}
                     // A guest's cart is in their browser, so the amount is
                     // raised from the same items the order will be made from.
                     // The signed-in path prices the company's cart instead and
                     // refuses anyone without a company account — which is what
                     // answered a guest with "Authentication required".
                     intentUrl={isGuest ? "/api/v1/guest/payment-intent" : "/api/v1/checkout/intent"}
-                    intentPayload={{
-                      shipping_method: shippingMethod || "standard",
-                      shipping_cost: shippingCost > 0 ? shippingCost : undefined,
-                      discount_code: appliedCoupon?.code || undefined,
-                      payment_method: "card",
-                      // Ship-to → the backend computes tax itself (authoritative).
-                      to_state: shippingAddress?.state || undefined,
-                      to_zip: shippingAddress?.postal_code || undefined,
-                      ...(isGuest
-                        ? {
-                            items: guestEntries.map(guestCheckoutItem),
-                            tax_amount: taxAmount > 0 ? taxAmount : undefined,
-                          }
-                        : {}),
-                    }}
+                    intentPayload={cardIntent}
                     onPaid={(pi) => handlePlaceOrder(pi)}
                     buttonLabel={`Pay ${formatCurrency(total)} & Place Order`}
                   />

@@ -143,11 +143,9 @@ def _taken_message(owner: dict, email: str) -> str:
                 "them from the list instead of adding them again."
             )
         return f"{who} is already a user of your shop."
-    # Another brand's account. Said plainly, and without naming them.
-    return (
-        f"{email} is already registered elsewhere on the platform, so it cannot be "
-        "used again here. Add this person with a different address."
-    )
+    # email_owner only looks at this shop (one account per address per shop),
+    # so this is somebody here the branches above did not name.
+    return f"{email} already has an account here. Add this person with a different address."
 
 @router.post("", status_code=201)
 async def create_user(
@@ -165,11 +163,9 @@ async def create_user(
 
     from app.core.database import email_owner
 
-    # "That email is taken" is not something an admin can act on: they cannot
-    # see the account and have no idea where it is. So the answer says which
-    # of the three cases it is — their own staff, their own customer, or an
-    # account on a store that is not theirs — and only the first two name any
-    # detail, because the third is somebody else's data.
+    # "That email is taken" is not something an admin can act on, so the
+    # answer says which case it is — their own staff, or their own customer.
+    # Only this shop is asked: an address can have an account at every shop.
     owner = await email_owner(email)
     if owner:
         raise HTTPException(status_code=409, detail=_taken_message(owner, email))
@@ -248,7 +244,10 @@ async def update_user(
     if "email" in payload and payload["email"]:
         new_email = payload["email"].strip().lower()
         if new_email != user.email:
-            conflict = await db.execute(select(User).where(User.email == new_email))
+            # At this shop: the same address may have an account at another.
+            conflict = await db.execute(
+                select(User).where(User.email == new_email, User.tenant_id == user.tenant_id, User.id != user.id)
+            )
             if conflict.scalar_one_or_none():
                 raise HTTPException(status_code=409, detail="Email already in use")
             user.email = new_email

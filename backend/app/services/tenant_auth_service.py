@@ -119,10 +119,18 @@ class TenantAuthService:
         try:
             async with AsyncSessionLocal() as lookup:
                 if tenant_id is None:
-                    result = await lookup.execute(text(
+                    # The platform's own page, where nothing names a shop — and
+                    # an address can have an account at several (migration
+                    # 0058). The one whose password this is, trying the
+                    # platform's admins first, then a shop's owners and staff,
+                    # then the oldest. A handful at most: each try is a hash.
+                    candidates = [dict(r) for r in (await lookup.execute(text(
                         "SELECT * FROM users WHERE lower(email) = :e "
-                        "ORDER BY is_platform_admin DESC, created_at ASC LIMIT 1"
-                    ), {"e": email.lower()})
+                        "ORDER BY is_platform_admin DESC, is_admin DESC, created_at ASC LIMIT 5"
+                    ), {"e": email.lower()})).mappings().all()]
+                    row = next((c for c in candidates
+                                if verify_password(password, c["hashed_password"] or "")),
+                               candidates[0] if candidates else None)
                 else:
                     # An address that names a shop: that shop's user, or the
                     # platform's own admin signing in through it.
@@ -131,8 +139,8 @@ class TenantAuthService:
                         "AND (tenant_id = CAST(:t AS uuid) OR is_platform_admin = true) "
                         "ORDER BY (tenant_id = CAST(:t AS uuid)) DESC LIMIT 1"
                     ), {"e": email.lower(), "t": str(tenant_id)})
-                row = result.mappings().first()
-                row = dict(row) if row else None
+                    row = result.mappings().first()
+                    row = dict(row) if row else None
         finally:
             set_bypass_scoping(previous)
 

@@ -257,7 +257,13 @@ class AuthService:
         email = data.email.lower().strip()
         tenant_id = get_current_tenant_id()
 
-        existing = await self.db.execute(select(User).where(User.email == email))
+        # This shop's accounts only. An address can have an account at every
+        # shop on the platform (migration 0058); one belonging to another shop,
+        # or to nobody's shop, is no reason to turn a buyer away here — and
+        # signing in here could never find it.
+        existing = await self.db.execute(
+            select(User).where(User.email == email, User.tenant_id == tenant_id)
+        )
         if existing.scalar_one_or_none():
             raise ConflictError("An account with this email already exists. Please sign in.")
 
@@ -295,14 +301,10 @@ class AuthService:
         try:
             await self.db.flush()
         except IntegrityError:
-            # Emails are unique across the platform, but the check above only
-            # sees this shop's accounts, so one registered with another shop
-            # gets this far and breaks the insert.
+            # The same address signing up twice at once: the second insert
+            # meets the first one's account at this shop.
             await self.db.rollback()
-            raise ConflictError(
-                "This email already has an account on our platform. "
-                "Sign in with it, or use a different email address."
-            )
+            raise ConflictError("An account with this email already exists. Please sign in.")
 
         self.db.add(CompanyUser(
             company_id=company.id, user_id=user.id, role="owner", tenant_id=tenant_id,
@@ -388,8 +390,10 @@ class AuthService:
 
     async def register_wholesale(self, data: RegisterWholesaleRequest) -> WholesaleApplication:
         """Create a user account and wholesale application with 'pending' status."""
-        # Check for duplicate email
-        existing = await self.db.execute(select(User).where(User.email == data.email.lower()))
+        # A duplicate is one at this shop; see register_customer.
+        existing = await self.db.execute(
+            select(User).where(User.email == data.email.lower(), User.tenant_id == get_current_tenant_id())
+        )
         if existing.scalar_one_or_none():
             raise ConflictError("An account with this email already exists")
 
@@ -411,12 +415,11 @@ class AuthService:
         try:
             await self.db.flush()
         except IntegrityError:
-            # Emails are unique across the whole platform, but the check above
-            # only sees this brand's accounts, so an email already registered
-            # with another store got past it and crashed the insert.
+            # Two applications from one address at once: the second insert
+            # meets the first one's account.
             await self.db.rollback()
             raise ConflictError(
-                "This email already has an account on our platform. "
+                "This email already has an account here. "
                 "Log in with it, or apply with a different email address."
             )
 
@@ -561,18 +564,18 @@ class AuthService:
         from app.services.email_service import notify_address as _notify_to
         return _notify_to()
 
-    async def send_password_reset(self, email: str) -> None:
+    async def send_password_reset(self, email: str, tenant_id=None) -> None:
         """Send the link that gets somebody back into their account.
 
-        Looked up without tenant scoping, deliberately. An email address
-        belongs to one account across the whole platform, and this is asked for
-        from wherever the person happens to be — the platform's own page, or a
-        shop's. Scoped to the page they were on, row-level security hid their
-        own account from the query: no user found, no mail sent, and a page
-        that said "check your email" regardless.
+        Looked up on an unscoped session, deliberately: row-level security on
+        the page they were on used to hide their own account. Which account is
+        decided in the query instead. An address can have an account at every
+        shop (migration 0058), so asked from a shop it is that shop's account —
+        or the platform's own admin, who signs in through any shop. Asked from
+        the platform's own page, the same order sign-in uses there.
         """
         token = secrets.token_urlsafe(32)
-        user = await self._claim_reset_token(email.lower(), token)
+        user = await self._claim_reset_token(email.lower(), token, tenant_id)
         if not user:
             return
 
@@ -594,11 +597,13 @@ class AuthService:
             logger.warning("Password reset email failed for %s", email)
 
     @staticmethod
-    async def _claim_reset_token(email: str, token: str) -> dict | None:
-        """Write a fresh reset token against this address, whoever it belongs to.
+    async def _claim_reset_token(email: str, token: str, tenant_id=None) -> dict | None:
+        """Write a fresh reset token against one account with this address.
 
-        Runs on its own unscoped session — see send_password_reset. Returns what
-        the email needs, never the account itself.
+        Runs on its own unscoped session — see send_password_reset. One account
+        only: the token is how the reset finds whose password to change, and a
+        token written on two accounts would change one of them at random.
+        Returns what the email needs, never the account itself.
         """
         from sqlalchemy import text as _text
 
@@ -612,9 +617,17 @@ class AuthService:
                 row = (await db.execute(_text("""
                     UPDATE users SET password_reset_token = :tok,
                                      password_reset_expires = now() + interval '1 hour'
-                    WHERE lower(email) = :em
+                    WHERE id = (
+                        SELECT id FROM users
+                        WHERE lower(email) = :em
+                          AND (CAST(:t AS uuid) IS NULL OR tenant_id = CAST(:t AS uuid)
+                               OR is_platform_admin = true)
+                        ORDER BY (tenant_id IS NOT DISTINCT FROM CAST(:t AS uuid)) DESC,
+                                 is_platform_admin DESC, is_admin DESC, created_at ASC
+                        LIMIT 1
+                    )
                     RETURNING email, first_name
-                """), {"tok": token, "em": email})).mappings().first()
+                """), {"tok": token, "em": email, "t": str(tenant_id) if tenant_id else None})).mappings().first()
                 await db.commit()
                 return dict(row) if row else None
         except Exception:

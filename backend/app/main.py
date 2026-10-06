@@ -722,22 +722,35 @@ async def _ensure_platform_admin() -> None:
         set_bypass_scoping(True)  # seed as the superuser connection, no RLS
         hashed = hash_password(pw)
         async with AsyncSessionLocal() as db:
-            await db.execute(
+            # The platform's own account: the one with this address and no
+            # shop. An address is unique per shop now (migration 0058), so the
+            # same address at a shop is somebody else's account and is left
+            # alone — this used to promote it by matching on the address alone.
+            updated = await db.execute(
                 text(
                     """
-                    INSERT INTO users (id, email, hashed_password, first_name, last_name,
-                                       role, is_platform_admin, is_admin, is_active,
-                                       email_verified, account_type, two_factor_enabled, tenant_id)
-                    VALUES (gen_random_uuid(), :email, :pw, 'Platform', 'Admin',
-                            'platform_admin', true, true, true, true, 'wholesale', false, NULL)
-                    ON CONFLICT (email) DO UPDATE
+                    UPDATE users
                       SET is_platform_admin = true, is_admin = true, is_active = true,
                           email_verified = true, role = 'platform_admin'
                     """
                     + (", hashed_password = :pw" if reset else "")
+                    + " WHERE lower(email) = lower(:email) AND tenant_id IS NULL"
                 ),
                 {"email": email, "pw": hashed},
             )
+            if not updated.rowcount:
+                await db.execute(
+                    text(
+                        """
+                        INSERT INTO users (id, email, hashed_password, first_name, last_name,
+                                           role, is_platform_admin, is_admin, is_active,
+                                           email_verified, account_type, two_factor_enabled, tenant_id)
+                        VALUES (gen_random_uuid(), lower(:email), :pw, 'Platform', 'Admin',
+                                'platform_admin', true, true, true, true, 'wholesale', false, NULL)
+                        """
+                    ),
+                    {"email": email, "pw": hashed},
+                )
             await db.commit()
         # Retiring the one before. Changing SEED_PLATFORM_ADMIN_EMAIL only adds
         # an admin; the old address keeps working, which is a second key to

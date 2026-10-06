@@ -129,20 +129,19 @@ async def create_company(
     # Optionally create/link a user account for the contact person
     user_created = False
     if payload.contact_email:
-        from app.core.database import email_taken_anywhere
         from app.core.tenant_context import get_current_tenant_id
 
         contact_email = payload.contact_email.strip().lower()
+        # This shop's account for the address, if it has one. Named in the
+        # query: row-level security also shows accounts that belong to no
+        # shop, and an address may have an account at other shops too.
         existing = (await db.execute(
-            select(User).where(func.lower(User.email) == contact_email)
+            select(User).where(func.lower(User.email) == contact_email,
+                               User.tenant_id == get_current_tenant_id())
         )).scalar_one_or_none()
 
         if existing:
             user = existing
-        elif await email_taken_anywhere(contact_email):
-            # Registered on another store: emails are unique platform-wide, and
-            # this session can only see this store's users.
-            raise HTTPException(status_code=409, detail="This email address already has an account. Use a different address, or ask that person to sign in with it.")
         else:
             # Create a new user with a temporary password (they'll need to reset it)
             import secrets

@@ -209,8 +209,15 @@ async def forgot_password(
 ) -> None:
     """Send password reset email (always returns 204 to prevent enumeration)."""
     await enforce_rate_limit(request, "forgot", limit=5, window=3600, extra=data.email)
+    # Which shop's account: the one this page belongs to, as sign-in decides it.
+    import uuid as _uuid
+
+    from app.core.tenant_context import NO_TENANT, get_current_tenant_id
+
+    _raw = getattr(request.state, "tenant_id", None) or get_current_tenant_id()
+    _tid = (_raw if isinstance(_raw, _uuid.UUID) else _uuid.UUID(str(_raw))) if _raw else None
     service = AuthService(db)
-    await service.send_password_reset(data.email)
+    await service.send_password_reset(data.email, None if _tid == NO_TENANT else _tid)
 
 
 @router.post("/reset-password", status_code=204)
@@ -381,8 +388,11 @@ async def resend_activation(
     from app.models.user import User
     from app.services.email_service import EmailService
 
+    from app.core.tenant_context import get_current_tenant_id
+
+    # This shop's account: the address may have one at other shops too.
     result = await db.execute(
-        select(User).where(User.email == payload.email.lower())
+        select(User).where(User.email == payload.email.lower(), User.tenant_id == get_current_tenant_id())
     )
     user = result.scalar_one_or_none()
 

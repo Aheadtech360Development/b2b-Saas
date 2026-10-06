@@ -3,7 +3,7 @@ import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, String
+from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, Index, String, text
 from sqlalchemy.dialects.postgresql import JSONB, UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -17,6 +17,14 @@ class User(BaseModel):
     """Platform user — admin, wholesale company buyer, or retail customer."""
 
     __tablename__ = "users"
+    # One address is one account per shop (migration 0058): a buyer of one
+    # brand can open an account at another. Platform admins, with no brand,
+    # are unique among themselves.
+    __table_args__ = (
+        Index("uq_users_brand_email",
+              text("(COALESCE(tenant_id, '00000000-0000-0000-0000-000000000000'::uuid))"), "email",
+              unique=True),
+    )
 
     # Multi-tenant: which brand this user belongs to (NULL = platform super-admin).
     # NOT auto-scoped (login uses raw SQL); staff endpoints filter on it explicitly.
@@ -25,7 +33,7 @@ class User(BaseModel):
     role: Mapped[str] = mapped_column(String(30), default="buyer", nullable=False)
     is_platform_admin: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
-    email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False, index=True)
+    email: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
     hashed_password: Mapped[str | None] = mapped_column(String(255), nullable=True)
     first_name: Mapped[str] = mapped_column(String(100), nullable=False)
     last_name: Mapped[str] = mapped_column(String(100), nullable=False)

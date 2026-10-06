@@ -46,6 +46,47 @@ async def payment_options(request: Request, db: AsyncSession = Depends(get_db)) 
 
 # ── Stripe: create payment intent ─────────────────────────────────────────────
 
+def charged_coupon(recorded: str | None, asked: str | None) -> str | None:
+    """The discount code a card order is made with: the one its payment was
+    priced with, when the payment says (`recorded`, from the intent's
+    metadata — "none" for no code), else the one the order asks for.
+
+    An intent from before codes were recorded says nothing, and the order
+    goes on as it always did.
+    """
+    if recorded is None:
+        return asked
+    charged = "" if recorded == "none" else str(recorded)
+    if charged.strip().upper() == (asked or "").strip().upper():
+        return asked
+    return charged or None
+
+
+async def _check_charge(db: AsyncSession, order, intent, events) -> Decimal:
+    """What the card paid, set against what the order says it costs.
+
+    They are meant to be the same — the intent is priced as the order will be —
+    and when they are not, money and records disagree: a buyer charged more
+    than their order, or an order paid short. Nothing is moved automatically
+    (a refund here would be counted against the smaller order total and mark
+    the order refunded); the shop is told on the order itself, in figures.
+    """
+    charged = (Decimal(int(getattr(intent, "amount", 0) or 0)) / 100).quantize(Decimal("0.01"))
+    owed = Decimal(str(order.total or 0)).quantize(Decimal("0.01"))
+    if charged != owed:
+        gap = abs(charged - owed)
+        what = (f"${gap:.2f} more than the order total — refund the difference to the customer"
+                if charged > owed else f"${gap:.2f} less than the order total — that much is still owed")
+        _log.warning("Order %s: card charged %s, order total %s", order.order_number, charged, owed)
+        await events.record(
+            db, order, "note",
+            f"Check this payment: the card was charged ${charged:.2f}, {what}.",
+            meta={"charged": float(charged), "order_total": float(owed),
+                  "payment_intent_id": getattr(intent, "id", None)},
+        )
+    return charged
+
+
 @router.post("/intent")
 async def create_payment_intent(
     payload: CreatePaymentIntentRequest,
@@ -185,6 +226,11 @@ async def create_payment_intent(
                 # The authoritative, server-computed tax — /checkout/confirm reads
                 # this back so the order's tax matches what was charged.
                 "tax_amount": str(tax_amount_dc),
+                # The discount code this amount was priced with, read back the
+                # same way. "none" rather than blank: Stripe drops a blank value,
+                # and an intent from before this was recorded must stay
+                # distinguishable from one with no code.
+                "coupon": coupon_dc.code if payload.discount_code else "none",
             },
         )
     except HTTPException:
@@ -320,6 +366,19 @@ async def _confirm_checkout_inner(
             except Exception:
                 pass
 
+        # And the discount code it was priced with. The card form raised its
+        # intent the moment it appeared, before the review page had read the
+        # code the buyer applied in the cart — so the card paid full price
+        # while this order, given the code, recorded the discounted one. The
+        # card's amount is what was actually paid; the order follows it.
+        _code = charged_coupon((getattr(_pi, "metadata", None) or {}).get("coupon"), payload.discount_code)
+        if _code != payload.discount_code:
+            _log.warning(
+                "Order for intent %s asked for discount code %r but the card was charged with %r; "
+                "using the charged one", payload.payment_intent_id, payload.discount_code, _code,
+            )
+            payload.discount_code = _code
+
     discount_percent = getattr(request.state, "tier_discount_percent", Decimal("0"))
     group_id = getattr(request.state, "discount_group_id", None)
 
@@ -403,10 +462,11 @@ async def _confirm_checkout_inner(
         occurred_at=order.created_at,
     )
     if has_stripe:
+        _charged = await _check_charge(db, order, _pi, _events)
         await _events.record(
             db, order, "payment_received",
-            f"Card payment of ${float(order.total):.2f} received",
-            meta={"amount": float(order.total), "method": "card",
+            f"Card payment of ${_charged:.2f} received",
+            meta={"amount": float(_charged), "method": "card",
                   "payment_intent_id": payload.payment_intent_id},
         )
     elif has_net30:
@@ -477,7 +537,8 @@ async def _confirm_checkout_inner(
             transaction_date=_today,
             description=f"Card payment for Order {order.order_number}",
             transaction_type="payment",
-            amount=_order_total,
+            # What the card actually paid, so a difference shows as a balance.
+            amount=float(_charged),
             reference_number=payload.payment_intent_id or order.order_number,
             order_id=order.id,
         ))

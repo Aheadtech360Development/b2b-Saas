@@ -35,9 +35,12 @@ async def _create_or_get_retail_user(
     Returns (user, activation_token_or_None).
     activation_token is None when the user already exists.
     """
+    from app.core.tenant_context import get_current_tenant_id
     from app.models.user import User
 
-    result = await db.execute(select(User).where(User.email == email.lower()))
+    # This shop's account for the address — one per shop (migration 0058).
+    tenant_id = get_current_tenant_id()
+    result = await db.execute(select(User).where(User.email == email.lower(), User.tenant_id == tenant_id))
     existing = result.scalar_one_or_none()
     if existing:
         return existing, None
@@ -54,6 +57,8 @@ async def _create_or_get_retail_user(
         hashed_password=None,
         activation_token=token,
         activation_token_expires=token_expires,
+        # Not stamped automatically (User is not a TenantMixin).
+        tenant_id=tenant_id,
     )
     db.add(new_user)
     await db.flush()
@@ -553,10 +558,16 @@ async def guest_checkout(
         occurred_at=order.created_at,
     )
     if _payment_status == "paid":
+        # The same check a signed-in card order gets: what the card paid
+        # against what the order says, written on the order when they differ.
+        from app.api.v1.checkout import _check_charge
+
+        _charged = (await _check_charge(db, order, _pi, _events)
+                    if payload.payment_method != "ach" else total)
         await _events.record(
             db, order, "payment_received",
-            f"{(payload.payment_method or 'card').upper()} payment of ${float(total):.2f} received",
-            meta={"amount": float(total), "method": payload.payment_method or "card",
+            f"{(payload.payment_method or 'card').upper()} payment of ${float(_charged):.2f} received",
+            meta={"amount": float(_charged), "method": payload.payment_method or "card",
                   "payment_intent_id": payload.payment_intent_id},
         )
 

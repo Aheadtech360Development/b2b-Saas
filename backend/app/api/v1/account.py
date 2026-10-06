@@ -604,11 +604,13 @@ async def invite_user(
     if not re.match(r"^[a-zA-Z]", payload.password):
         raise ValidationError("Password must begin with a letter")
 
-    from app.core.database import email_taken_anywhere
     from app.core.tenant_context import get_current_tenant_id
 
     invite_email = payload.email.strip().lower()
-    existing = (await db.execute(select(User).where(func.lower(User.email) == invite_email))).scalar_one_or_none()
+    # This shop's account for the address (see admin/customers.py).
+    existing = (await db.execute(select(User).where(
+        func.lower(User.email) == invite_email, User.tenant_id == get_current_tenant_id()
+    ))).scalar_one_or_none()
     if existing:
         already_member = (await db.execute(
             select(CompanyUser).where(
@@ -618,8 +620,6 @@ async def invite_user(
         if already_member:
             raise ConflictError("User already belongs to this company")
         user_id = existing.id
-    elif await email_taken_anywhere(invite_email):
-        raise ConflictError("This email address already has an account. Use a different address, or ask that person to sign in with it.")
     else:
         new_user = User(
             email=invite_email,

@@ -455,28 +455,33 @@ async def report_connection_budget() -> None:
         print(msg % (service, settings.DB_PROCESSES, per_process, in_use, limit, usable))
 
 
-async def email_owner(email: str) -> dict | None:
-    """Who already holds this login email, anywhere on the platform.
+async def email_owner(email: str, tenant_id=None) -> dict | None:
+    """Who already holds this login email at this shop.
 
-    `users.email` is unique across every store, but a duplicate check run on a
-    tenant-scoped session only ever sees the current one, so an address used
-    by another store passed the check and failed on insert. This runs its own
-    bypassing session.
+    An address is one account per shop (migration 0058), so this asks about
+    one shop: `tenant_id`, or the request's own. With no shop at all it asks
+    about the accounts that have none (the platform's admins).
+
+    It runs its own bypassing session and names the shop in the query itself,
+    rather than leaning on row-level security — which also shows every shop
+    the accounts with no shop, and would have counted a platform admin's
+    address as taken at every store.
 
     It returns the row rather than a yes or no, because "that email is taken"
     is not something an admin can act on. Knowing it belongs to a customer of
-    their own shop, or to somebody they deactivated, or to a store that is not
-    theirs, tells them what to do next. What is said back to them is decided
-    at the call site, which is where the difference between their own data and
-    somebody else's is known.
+    their own shop, or to somebody they deactivated, tells them what to do
+    next. What is said back to them is decided at the call site.
     """
     from sqlalchemy import text
 
-    from app.core.tenant_context import is_scoping_bypassed, set_bypass_scoping
+    from app.core.tenant_context import NO_TENANT, get_current_tenant_id, is_scoping_bypassed, set_bypass_scoping
 
     address = (email or "").strip().lower()
     if not address:
         return None
+    shop = tenant_id if tenant_id is not None else get_current_tenant_id()
+    if shop == NO_TENANT:
+        shop = None
     previous = is_scoping_bypassed()
     set_bypass_scoping(True)
     try:
@@ -484,8 +489,9 @@ async def email_owner(email: str) -> dict | None:
             row = (await session.execute(text(
                 "SELECT id, tenant_id, role, is_active, is_platform_admin, "
                 "       first_name, last_name "
-                "FROM users WHERE lower(email) = :e LIMIT 1"
-            ), {"e": address})).mappings().first()
+                "FROM users WHERE lower(email) = :e "
+                "AND tenant_id IS NOT DISTINCT FROM CAST(:t AS uuid) LIMIT 1"
+            ), {"e": address, "t": str(shop) if shop else None})).mappings().first()
             return dict(row) if row else None
     except Exception:  # never block account creation on this check
         logger.exception("Could not check whether %s is already taken", address)
@@ -494,7 +500,7 @@ async def email_owner(email: str) -> dict | None:
         set_bypass_scoping(previous)
 
 
-async def email_taken_anywhere(email: str) -> bool:
-    """Whether this login email is registered on any store."""
-    return await email_owner(email) is not None
+async def email_taken_here(email: str, tenant_id=None) -> bool:
+    """Whether this login email already has an account at this shop."""
+    return await email_owner(email, tenant_id) is not None
 
