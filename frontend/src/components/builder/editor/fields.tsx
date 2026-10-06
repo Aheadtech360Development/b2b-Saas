@@ -7,7 +7,7 @@
  * it or choosing one already in the brand's media library.
  */
 import { useEffect, useRef, useState } from "react";
-import { ArrowDown, ArrowUp, Bold, ImagePlus, Italic, Link2, List, Loader2, Pencil, Plus, Search, Trash2, Upload, X } from "lucide-react";
+import { ArrowDown, ArrowUp, Bold, ImagePlus, Italic, Link2, List, ListOrdered, Loader2, Pencil, Plus, Search, Trash2, Upload, X } from "lucide-react";
 import type { Field } from "@/lib/builder/registry";
 import type { PickCollection, PickMenu, PickProduct } from "@/services/builder.service";
 import { cleanHtml, safeSrc } from "@/lib/builder/sanitize";
@@ -68,7 +68,12 @@ export function ImageField({ value, onChange, env }: { value: string; onChange: 
   );
 }
 
-function RichText({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+/**
+ * A box of formatted text: bold, italic, lists, links, two sizes of heading.
+ * `tall` is for writing at length — a policy — rather than a line or two in the
+ * settings panel.
+ */
+export function RichText({ value, onChange, tall }: { value: string; onChange: (v: string) => void; tall?: boolean }) {
   const ref = useRef<HTMLDivElement>(null);
   const focused = useRef(false);
   useEffect(() => {
@@ -81,20 +86,22 @@ function RichText({ value, onChange }: { value: string; onChange: (v: string) =>
   };
   return (
     <div style={{ border: "1px solid #D9DDE5", borderRadius: 8, overflow: "hidden" }}>
-      <div className="sbe-row" style={{ gap: 2, padding: 4, borderBottom: "1px solid #EEF0F4", background: "#FAFBFC" }}>
+      <div className="sbe-row" style={{ gap: 2, padding: 4, borderBottom: "1px solid #EEF0F4", background: "#FAFBFC", flexWrap: "wrap" }}>
         <button type="button" className="sbe-icon sm" aria-label="Bold" onMouseDown={(e) => { e.preventDefault(); run("bold"); }}><Bold size={14} /></button>
         <button type="button" className="sbe-icon sm" aria-label="Italic" onMouseDown={(e) => { e.preventDefault(); run("italic"); }}><Italic size={14} /></button>
         <button type="button" className="sbe-icon sm" aria-label="Bulleted list" onMouseDown={(e) => { e.preventDefault(); run("insertUnorderedList"); }}><List size={14} /></button>
+        <button type="button" className="sbe-icon sm" aria-label="Numbered list" onMouseDown={(e) => { e.preventDefault(); run("insertOrderedList"); }}><ListOrdered size={14} /></button>
         <button type="button" className="sbe-icon sm" aria-label="Link" onMouseDown={(e) => {
           e.preventDefault();
           const url = window.prompt("Link to (a path like /products, or https://…)");
           if (url && /^(https?:\/\/|\/|mailto:|tel:)/.test(url.trim())) run("createLink", url.trim());
         }}><Link2 size={14} /></button>
         <button type="button" className="sbe-btn sm ghost" onMouseDown={(e) => { e.preventDefault(); run("formatBlock", "<p>"); }}>Text</button>
+        <button type="button" className="sbe-btn sm ghost" onMouseDown={(e) => { e.preventDefault(); run("formatBlock", "<h2>"); }}>Big heading</button>
         <button type="button" className="sbe-btn sm ghost" onMouseDown={(e) => { e.preventDefault(); run("formatBlock", "<h3>"); }}>Heading</button>
       </div>
-      <div ref={ref} contentEditable suppressContentEditableWarning role="textbox" aria-multiline="true" aria-label="Text"
-           style={{ minHeight: 120, maxHeight: 360, overflowY: "auto", padding: "8px 10px", outline: "none", lineHeight: 1.55 }}
+      <div ref={ref} className="sbe-rich" contentEditable suppressContentEditableWarning role="textbox" aria-multiline="true" aria-label="Text"
+           style={{ minHeight: tall ? 300 : 120, maxHeight: tall ? "min(52vh, 520px)" : 360, overflowY: "auto", padding: tall ? "14px 16px" : "8px 10px", outline: "none", lineHeight: 1.6 }}
            onFocus={() => { focused.current = true; }}
            onBlur={() => { focused.current = false; if (ref.current) onChange(ref.current.innerHTML); }}
            onInput={() => { if (ref.current) onChange(ref.current.innerHTML); }} />

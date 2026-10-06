@@ -149,6 +149,13 @@ select.sbe-in{padding-right:28px}
 .sbe-insert .sbe-menu-h{padding:10px 0 6px}
 .sbe-insert .enter{border-color:#4F46E5;box-shadow:0 0 0 2px rgba(79,70,229,.18)}
 .sbe-menu-row{padding:10px;border:1px solid #E3E6EC;border-radius:10px;background:#FAFBFC}
+.sbe-rich h2{font-size:1.4em;font-weight:700;line-height:1.25;margin:.8em 0 .3em}
+.sbe-rich h3{font-size:1.15em;font-weight:700;line-height:1.3;margin:.8em 0 .3em}
+.sbe-rich p{margin:.5em 0}
+.sbe-rich ul{list-style:disc;padding-left:1.4em;margin:.5em 0}
+.sbe-rich ol{list-style:decimal;padding-left:1.4em;margin:.5em 0}
+.sbe-rich a{color:#4F46E5;text-decoration:underline}
+.sbe-rich > :first-child{margin-top:0}
 .sbe-drop-line{position:absolute;background:#4F46E5;border-radius:2px;box-shadow:0 0 0 2px rgba(79,70,229,.2)}
 .sbe-cell{position:absolute;border:1px dashed rgba(79,70,229,.5);border-radius:4px;background:rgba(79,70,229,.03)}
 .sbe-cell span{position:absolute;top:3px;left:4px;font:600 10px system-ui,sans-serif;color:rgba(79,70,229,.75)}

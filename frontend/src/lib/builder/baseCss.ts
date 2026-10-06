@@ -87,6 +87,11 @@ export const BASE_CSS = `
 .bsite :where(.b-rich,.b-html) :where(pre){overflow-x:auto;scrollbar-width:thin}
 .bsite :where(.b-rich,.b-html) :where(table){max-width:none;overflow-wrap:normal;word-break:normal}
 .bsite :where(.b-rich) :where(p+p,ul,ol,h2,h3,h4,blockquote){margin-top:.85em}
+.bsite :where(.b-rich) :where(h2){font-family:var(--b-font-heading,inherit);font-size:1.45em;font-weight:700;line-height:1.25;color:var(--b-head,inherit)}
+.bsite :where(.b-rich) :where(h3){font-family:var(--b-font-heading,inherit);font-size:1.2em;font-weight:700;line-height:1.3;color:var(--b-head,inherit)}
+.bsite :where(.b-rich) :where(h4){font-size:1.05em;font-weight:700}
+.bsite .b-rich :where(h2,h3,h4){margin:1.15em 0 .35em}
+.bsite .b-rich > :where(:first-child){margin-top:0}
 .bsite :where(.b-rich) :where(ul,ol){padding-left:1.3em}
 .bsite :where(.b-rich) :where(ul){list-style:disc}
 .bsite :where(.b-rich) :where(ol){list-style:decimal}

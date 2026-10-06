@@ -6,7 +6,7 @@
  */
 import { useMemo, useRef, useState, type ReactNode } from "react";
 import {
-  ChevronDown, ChevronRight, Copy, ExternalLink, Eye, EyeOff, FileText, Layers, LayoutTemplate, Menu as MenuIcon,
+  ChevronDown, ChevronRight, Copy, ExternalLink, Eye, EyeOff, FileText, Layers, LayoutTemplate, Menu as MenuIcon, ScrollText,
   MoreHorizontal, Palette, Pencil, Plus, RefreshCw, Search, Star, Trash2, Upload, Bookmark,
 } from "lucide-react";
 import { FALLBACK_ICON, REGISTRY_ICONS } from "./icons";
@@ -21,6 +21,8 @@ import {
 import type { PickMenu, UploadedFont } from "@/services/builder.service";
 import type { DragPayload } from "./Canvas";
 import { ImageField, ProductsPicker, type EditorEnv } from "./fields";
+import { POLICIES, policyHtml, removePolicy, savePolicy, type Policy } from "@/lib/builder/policies";
+import { PolicyEditor } from "./PolicyEditor";
 import { confirmAction, Popover, TextInput } from "./ui";
 
 export type LeftTab = "add" | "layers" | "pages" | "templates" | "theme" | "sections" | "menus";
@@ -209,6 +211,7 @@ function LayersPanel(p: LeftProps) {
 // ── Pages ────────────────────────────────────────────────────────────────────
 function PagesPanel(p: LeftProps) {
   const [title, setTitle] = useState("");
+  const [policy, setPolicy] = useState<Policy | null>(null);
   const [editing, setEditing] = useState<string | null>(null);
   const pages = Object.entries(p.doc.pages ?? {});
   const pageTemplates = Object.entries(p.doc.templates?.page ?? {});
@@ -279,6 +282,41 @@ function PagesPanel(p: LeftProps) {
           {!pages.length && <div className="sbe-help">No pages yet.</div>}
         </div>
       </div>
+      {/* The five policies every shop needs, each written in a box of formatted
+          text. They are pages like the ones above; this is the short way in. */}
+      <div className="sbe-sec" data-policies>
+        <div className="sbe-h"><span>Policies</span></div>
+        <div className="sbe-list">
+          {POLICIES.map((pol) => {
+            const written = policyHtml(p.doc, pol) !== null;
+            return (
+              <div key={pol.key} className="sbe-item" data-policy={pol.key} onClick={() => setPolicy(pol)}>
+                <ScrollText size={15} />
+                <span className="grow">{pol.label}
+                  <span className="sub" style={{ display: "block" }}>{written ? `/${pol.slug}` : "Not written yet"}</span>
+                </span>
+                <button type="button" className="sbe-btn sm ghost" onClick={(e) => { e.stopPropagation(); setPolicy(pol); }}>
+                  {written ? "Edit" : "Write"}
+                </button>
+              </div>
+            );
+          })}
+        </div>
+        <div className="sbe-help" style={{ marginTop: 6 }}>Each one is a page on your shop once you write it and publish.</div>
+      </div>
+      {policy && (
+        <PolicyEditor
+          policy={policy} doc={p.doc}
+          onSave={(html) => { p.commit(savePolicy(p.doc, policy, html)); setPolicy(null); }}
+          onRemove={() => {
+            if (sameTarget(p.target, { kind: "page", slug: policy.slug })) p.open({ kind: "template", type: "home", id: "default" });
+            p.commit(removePolicy(p.doc, policy));
+            setPolicy(null);
+          }}
+          onOpenPage={() => { p.open({ kind: "page", slug: policy.slug }); setPolicy(null); }}
+          onClose={() => setPolicy(null)}
+        />
+      )}
       <div className="sbe-sec">
         <div className="sbe-h"><span>New page</span></div>
         <form className="sbe-row" onSubmit={(e) => {
