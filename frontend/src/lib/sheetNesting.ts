@@ -22,6 +22,13 @@ import { freeSpotOn, spotFor, type Box, type Sheet, type Spot } from "./sheetPla
 
 const round3 = (n: number) => Math.round(n * 1000) / 1000;
 
+/**
+ * Equal designs in a steady order. By number where the keys are numbers —
+ * placement 100 after 99, not before it as text would have it — so a sheet
+ * nested once comes out the same when it is nested again.
+ */
+const byKey = (a: string, b: string) => a.localeCompare(b, "en", { numeric: true });
+
 /** Any angle as the quarter turn nearest it: 0, 90, 180 or 270, clockwise. */
 export function quarter(deg: number): number {
   return (((Math.round(deg / 90) * 90) % 360) + 360) % 360;
@@ -97,7 +104,7 @@ export function planNest(sheet: Sheet, items: NestItem[], maxSheets = 60): NestP
     if (Math.abs(byLongest) > 1e-9) return byLongest;
     const byArea = b.w * b.h - a.w * a.h;
     if (Math.abs(byArea) > 1e-9) return byArea;
-    return a.key < b.key ? -1 : a.key > b.key ? 1 : 0;
+    return byKey(a.key, b.key);
   });
 
   const sheets: NestPlaced[][] = [];
@@ -250,7 +257,7 @@ export function planRows(sheet: Sheet, items: NestItem[], maxSheets = 60): NestP
   }).sort((a, c) => {
     if (Math.abs(c.h - a.h) > EPS) return c.h - a.h;
     if (Math.abs(c.w - a.w) > EPS) return c.w - a.w;
-    return a.item.key < c.item.key ? -1 : a.item.key > c.item.key ? 1 : 0;
+    return byKey(a.item.key, c.item.key);
   });
 
   const sheets: NestPlaced[][] = [];

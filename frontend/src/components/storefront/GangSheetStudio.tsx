@@ -43,14 +43,14 @@ import { establishSession } from "@/lib/session";
 import { ImageEditorModal } from "@/components/storefront/ImageEditorModal";
 import { WorkingOverlay } from "@/components/storefront/WorkingOverlay";
 import { AutoBuildPanel, type AutoBuildItem, type PickableDesign } from "@/components/storefront/AutoBuildPanel";
-import { packIntoSheets, type Layout } from "@/lib/sheetPacking";
+import type { Layout } from "@/lib/sheetPacking";
 import {
   spotFor as placeOnSheet,
   type Box, type Sheet, type Spot,
 } from "@/lib/sheetPlacement";
 import {
   planCopies, planFill, planNest, planRows, quarter, turnFor,
-  type NestItem, type NestPlan,
+  type NestItem, type NestPlaced, type NestPlan,
 } from "@/lib/sheetNesting";
 import { NestPreview } from "@/components/storefront/NestPreview";
 import { NoRoomAsk, type NoRoomChoice } from "@/components/storefront/NoRoomAsk";
@@ -314,8 +314,9 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
   const freshTimer = useRef<number | undefined>(undefined);
   /** A design part-way through a quarter turn. */
   const [turn, setTurn] = useState<null | { id: number; from: number; n: number }>(null);
-  /** Set briefly when everything moves at once, so designs travel to their new places. */
-  const [glide, setGlide] = useState(false);
+  /** Set briefly when everything moves at once, so designs travel to their new
+   *  places — one after another, in the order they were packed. */
+  const [glide, setGlide] = useState<null | { order: Map<number, number>; step: number }>(null);
   const glideTimer = useRef<number | undefined>(undefined);
   useEffect(() => () => { window.clearTimeout(freshTimer.current); window.clearTimeout(glideTimer.current); }, []);
   // The document only exists in the browser, so the first render stays in
@@ -1327,7 +1328,18 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
     // want turned can be turned back, which is cheaper than a wasted sheet.
     const items: NestItem[] = everything.map((q) => ({ key: String(q.id), w: q.w_in, h: q.h_in }));
     setNestHelp(false);
-    setPendingNest({ plan: cutting ? planRows(spec, items) : planNest(spec, items), cutting });
+    const plan = cutting ? planRows(spec, items) : planNest(spec, items);
+    // Already laid out exactly this way — by Auto Build, or an Auto Nest before:
+    // there is nothing to show or to move.
+    const now = new Map<number, { sheet: number; x: number; y: number; rotation: number }>();
+    all.forEach((sh, i) => sh.placements.forEach((q) => now.set(q.id, { sheet: i, x: q.x_in, y: q.y_in, rotation: q.rotation })));
+    const settled = !plan.unplaceable.length && plan.sheets.every((page, i) => page.every((it) => {
+      const q = now.get(Number(it.key));
+      return !!q && q.sheet === i && Math.abs(q.x - it.x) < 1e-3 && Math.abs(q.y - it.y) < 1e-3
+        && turnFor(q.rotation, it.rotated) === quarter(q.rotation);
+    }));
+    if (settled) { say.done(cutting ? "Already in rows for cutting — nothing needed to move." : "Already nested — nothing needed to move."); return; }
+    setPendingNest({ plan, cutting });
   }
 
   /**
@@ -1376,10 +1388,13 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
     }
 
     const added = Math.max(0, laidOut.length - all.length);
-    // Seen travelling to their new places, so it is plain what moved where.
-    setGlide(true);
+    // Seen travelling to their new places one after another, so it is plain
+    // what moved where — not the whole sheet jumping in one frame.
+    const moving = laidOut[0] ?? [];
+    const step = Math.min(45, 700 / Math.max(moving.length, 1));
+    setGlide({ order: new Map(moving.map((q, i) => [q.id, i])), step });
     window.clearTimeout(glideTimer.current);
-    glideTimer.current = window.setTimeout(() => setGlide(false), 480);
+    glideTimer.current = window.setTimeout(() => setGlide(null), moving.length * step + 480);
     goTo(next, 0);
     setSelected(null);
     setPendingNest(null);
@@ -1478,30 +1493,40 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
     }
   }
 
-  /** Pack every piece onto this sheet, and onto new sheets for whatever is left. */
+  /**
+   * Pack every piece onto this sheet, and onto new sheets for whatever is left.
+   *
+   * It had a packer of its own, apart from Auto Nest's, so a built sheet came
+   * out in a shape Auto Nest then rearranged: a row of six and a column down
+   * the side, which Auto Nest turned into two rows of seven and six. Somebody
+   * who has just pressed Build should not need a second button. It now plans
+   * with the very same rules — Auto Nest's tight packing, or Auto nest for
+   * cutting's rows — so nesting a built sheet again leaves it as it is.
+   */
   function abApply({ layout, inset, gap }: { layout: Layout; inset: number; gap: number }) {
     if (!size) return;
-    const W = size.width_in - inset * 2;
-    const H = sheetLen - inset * 2;
-    if (W <= 0 || H <= 0) { setAbMessage("The margins leave no room on this sheet."); return; }
+    if (size.width_in - inset * 2 <= 0 || sheetLen - inset * 2 <= 0) { setAbMessage("The margins leave no room on this sheet."); return; }
 
     const byKey = new Map<string, AutoBuildItem>();
-    const pieces = abItems.flatMap((it) => Array.from({ length: Math.max(0, it.qty) }, (_, i) => {
+    const pieces: NestItem[] = abItems.flatMap((it) => Array.from({ length: Math.max(0, it.qty) }, (_, i) => {
       const key = `${it.key}#${i}`;
       byKey.set(key, it);
       return { key, w: it.w, h: it.h };
     }));
-    const { sheets: pages, tooBig } = packIntoSheets(pieces, W, H, gap, layout);
+    const spec: Sheet = { ...sheetSpec(sheetLen), bleed: inset, gap };
+    const plan = layout === "cutting" ? planRows(spec, pieces) : planNest(spec, pieces);
+    const pages = plan.sheets.filter((page) => page.length);
+    const tooBig = plan.unplaceable;
     if (!pages.length) {
       setAbMessage("None of these fit on this sheet size. Make the designs smaller, or pick a bigger sheet.");
       return;
     }
 
-    const toPlacements = (page: typeof pages[number]): Placement[] => page.map((pc) => {
+    const toPlacements = (page: NestPlaced[]): Placement[] => page.map((pc) => {
       const it = byKey.get(pc.key)!;
       return {
         id: nextId.current++, uid: it.uid,
-        x_in: round3(inset + pc.x), y_in: round3(inset + pc.y),
+        x_in: round3(pc.x), y_in: round3(pc.y),
         w_in: it.w, h_in: it.h, rotation: pc.rotated ? 90 : 0,
       };
     });
@@ -1516,6 +1541,8 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
     setPlacements(first);
     setSelected(null);
     setImageMargin(gap);
+    // Laid down one after another, in the order they were packed.
+    arrive(first.map((p) => p.id));
 
     const built = pages.length === 1 ? "Built 1 sheet." : `Built ${pages.length} sheets.`;
     if (tooBig.length) {
@@ -2733,6 +2760,7 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
                       background: isImg ? "transparent" : "#EEF2FF", cursor: panTool ? "grab" : "move",
                       display: "flex", alignItems: "center", justifyContent: "center", boxSizing: "border-box", zIndex: isSel ? 5 : 1,
                       ...(arriving !== undefined ? { animationDelay: `${Math.round(arriving * (fresh?.step ?? 0))}ms` } : null),
+                      ...(glide?.order.has(p.id) ? { transitionDelay: `${Math.round(glide.order.get(p.id)! * glide.step)}ms` } : null),
                     }}>
                     {isImg
                       // The design is drawn at its own size and then turned,

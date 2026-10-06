@@ -274,3 +274,27 @@ describe("a big job stays responsive", () => {
     sound(plan);
   });
 });
+
+describe("a sheet built or nested once is already nested", () => {
+  // Auto Build packs with these same planners, keyed by its own items; the
+  // studio then gives each design an id in the order it was placed. Pressing
+  // Auto Nest afterwards plans again by those ids, and must find nothing to move.
+  const twelve: NestItem[] = [
+    ...Array.from({ length: 13 }, (_, i) => ({ key: `tee#${i}`, w: 2.67, h: 2.67 })),
+    ...Array.from({ length: 4 }, (_, i) => ({ key: `logo#${i}`, w: 5, h: 3 })),
+    ...Array.from({ length: 3 }, (_, i) => ({ key: `back#${i}`, w: 10, h: 8 })),
+  ];
+  const short: Sheet = { ...sheet, length: 20, maxLength: 20 };
+
+  for (const [name, plan] of [["tight packing", planNest], ["rows for cutting", planRows]] as const) {
+    it(`plans the same layout the second time — ${name}`, () => {
+      const first = plan(short, twelve);
+      // Ids past 99, where ordering them as text would have put 100 before 99.
+      let id = 95;
+      const placed = first.sheets.flatMap((page, s) => page.map((p) => ({ ...p, key: String(id++), s })));
+      const second = plan(short, placed.map(({ key, w, h }) => ({ key, w, h })));
+      const now = new Map(second.sheets.flatMap((page, s) => page.map((p) => [p.key, { ...p, s }] as const)));
+      for (const p of placed) expect(now.get(p.key)).toMatchObject({ s: p.s, x: p.x, y: p.y, rotated: p.rotated });
+    });
+  }
+});
