@@ -7,7 +7,8 @@ brand and disputes/refunds are the brand's — the platform's liability stays lo
 This service owns onboarding + readiness tracking:
   • create_or_get_account   — one Express account per brand (stored on tenants)
   • create_onboarding_link  — hosted KYC link (expires fast — always fresh)
-  • create_dashboard_link   — Express dashboard login link (payouts view)
+  • create_dashboard_link   — where the brand sees its payouts: an Express login
+                              link, or the full Stripe Dashboard
   • refresh_status          — pull latest flags from Stripe into the DB
   • sync_account            — same, driven by the account.updated webhook
 
@@ -205,12 +206,34 @@ class ConnectService:
         return {"onboarding_url": link.url, "expires_at": link.expires_at}
 
     async def create_dashboard_link(self, tenant_id: str) -> dict:
+        """Where the brand sees its balance and payouts — which depends on the
+        dashboard its account was given (STRIPE_CONNECT_STYLE, _CONTROLLERS).
+
+        A login link opens only the Express Dashboard; Stripe refuses one for
+        any other account ("does not have access to the Express Dashboard").
+        A standard account has the full Stripe Dashboard instead, which its
+        owner signs in to at dashboard.stripe.com with the login they made at
+        onboarding — so that is where it goes.
+        """
         tenant = await self._get_tenant(tenant_id)
         if not tenant or not tenant.get("stripe_connect_account_id"):
             raise ValueError("Brand has not started Connect onboarding yet")
+        account_id = tenant["stripe_connect_account_id"]
         s = await _stripe_for(self.db)
-        link = s.Account.create_login_link(tenant["stripe_connect_account_id"])
-        return {"dashboard_url": link.url}
+        account = s.Account.retrieve(account_id)
+        kind = (((account.get("controller") or {}).get("stripe_dashboard") or {}).get("type")
+                # An account from before controller properties says it by type.
+                or {"express": "express", "standard": "full", "custom": "none"}.get(account.get("type") or "", "express"))
+        if kind == "express":
+            link = s.Account.create_login_link(account_id)
+            return {"dashboard_url": link.url, "kind": "express"}
+        if kind == "full":
+            from app.services import stripe_mode
+
+            test = await stripe_mode.current(self.db) != stripe_mode.LIVE
+            return {"dashboard_url": f"https://dashboard.stripe.com/{'test/' if test else ''}payouts", "kind": "full"}
+        raise ValueError("This payment account has no Stripe dashboard of its own. "
+                         "Its payments and refunds are on your orders here.")
 
     # ── Status (DB read — never hits Stripe) ──────────────────────────────────
     async def get_status(self, tenant_id: str) -> dict:

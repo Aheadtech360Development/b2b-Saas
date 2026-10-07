@@ -85,7 +85,8 @@ async def start_onboarding(request: Request, db: AsyncSession = Depends(get_db))
 
 @router.post("/dashboard")
 async def express_dashboard(request: Request, db: AsyncSession = Depends(get_db)) -> dict:
-    """Return an Express dashboard login link (brand views payouts/balance)."""
+    """Where the brand sees its balance and payouts: an Express login link, or
+    the full Stripe Dashboard for a standard account (ConnectService)."""
     try:
         return await ConnectService(db).create_dashboard_link(_tenant_id(request))
     except ValueError as e:
