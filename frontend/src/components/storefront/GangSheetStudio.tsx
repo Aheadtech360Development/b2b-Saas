@@ -56,8 +56,8 @@ import { NestPreview } from "@/components/storefront/NestPreview";
 import { StudioAssistant, type UploadedDesign } from "@/components/storefront/StudioAssistant";
 import { buildStudioContext, dpiAt, type StudioContext } from "@/lib/studioContext";
 import {
-  betterSize, fillCount, isRoll as isRollSize, planBuild, toStudioSize,
-  type AssistantPlan, type BuildDesign, type PlanPreview, type PlanRun,
+  betterSize, fillCount, isRoll as isRollSize, planBuild, scaled, shrinkToFit, toStudioSize,
+  type AssistantPlan, type BuildDesign, type BuildLayout, type PlanChoice, type PlanPreview, type PlanRun,
 } from "@/lib/studioBuild";
 import { NoRoomAsk, type NoRoomChoice } from "@/components/storefront/NoRoomAsk";
 import { say } from "@/lib/toast";
@@ -2162,7 +2162,12 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
     // A sheet gets reviewed, queried and reordered, so it has to belong to
     // somebody the shop can reach and the buyer can log back in as. A name and
     // an email typed once was neither.
-    if (!signedIn) { setAskingWho({ toCart }); return; }
+    // Read from the store, not from this render: signing in from the form below
+    // calls save() straight after, from the render before the sign-in — where
+    // signedIn is still false — and that put the form straight back up, so the
+    // sheet never reached the cart.
+    const authed = useAuthStore.getState().isAuthenticated();
+    if (!authed) { setAskingWho({ toCart }); return; }
     setSaving(true);
     try {
       // Each sheet is its own order (its own review + print job); adding them all
@@ -2191,7 +2196,7 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
           for (const o of orders) {
             // Signed in, the sheet joins the company's cart; otherwise the
             // same cart every other guest line goes into.
-            if (signedIn) await cartService.addGangSheet(o.id);
+            if (authed) await cartService.addGangSheet(o.id);
             else addToGuestCart(gangSheetLine(o));
           }
           draftOff.current = true;
@@ -2300,6 +2305,8 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
   type Resolved = {
     size: GangSheetSize;
     gap: number;
+    edge: number;
+    layout: BuildLayout;
     designs: (BuildDesign & { uid: string })[];
     fills: { uid: string; copies: number }[];
   };
@@ -2320,13 +2327,15 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
    * the size they have now. Anything else on the sheet stays as it is unless
    * the plan says otherwise.
    */
-  function resolveBuild(build: NonNullable<AssistantPlan["build"]>, refs: Record<string, string>, sizeId?: string): Resolved | string {
+  function resolveBuild(build: NonNullable<AssistantPlan["build"]>, refs: Record<string, string>, choice: PlanChoice = {}): Resolved | string {
     const want = (build.sheet_size ?? "").trim().toLowerCase();
-    const target = sizeId ? sizes.find((s) => s.id === sizeId)
+    const target = choice.sizeId ? sizes.find((s) => s.id === choice.sizeId)
       : want ? sizes.find((s) => s.name.trim().toLowerCase() === want)
       : size;
     if (!target) return `The ${build.sheet_size ?? "chosen"} sheet isn't available any more.`;
     const gap = build.gap_in ?? imageMargin;
+    const edge = build.sheet_margin_in ?? nestEdge;
+    const layout: BuildLayout = build.layout ?? "standard";
 
     const named = new Map<string, Upload>();
     for (const it of build.items) {
@@ -2367,16 +2376,18 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
     const rollLength = isRollSize(studioTarget) ? (target.id === size?.id && sheetLen > 0 ? sheetLen : studioTarget.min_length_in) : undefined;
     const fills: Resolved["fills"] = [];
     for (const d of filling) {
-      const n = fillCount(studioTarget, out, d, nestEdge, gap, rollLength);
+      const n = fillCount(studioTarget, out, d, edge, gap, rollLength, layout);
       if (n < 1) return `There's no room left on a ${target.name} sheet for ${upById(d.uid)?.file_name ?? "that design"} at that size.`;
       out.push({ ...d, copies: n });
       fills.push({ uid: d.uid, copies: n });
     }
-    return { size: target, gap, designs: out, fills };
+    // "Shrink to fit" — everything the same fraction smaller.
+    const designs = choice.scale ? scaled(out, choice.scale) : out;
+    return { size: target, gap, edge, layout, designs, fills };
   }
 
   /** What the plan card shows: worked out now, with nothing changed. */
-  function previewPlan(plan: AssistantPlan, refs: Record<string, string>, sizeId?: string): PlanPreview {
+  function previewPlan(plan: AssistantPlan, refs: Record<string, string>, choice: PlanChoice = {}): PlanPreview {
     const nameOf = (ref: string) => (refs[ref] ? upById(refs[ref]!)?.file_name : undefined) ?? ref;
     const out: PlanPreview = {
       backgrounds: (plan.remove_background ?? []).map(nameOf),
@@ -2388,12 +2399,14 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
       if (out.cart && !placements.length && !out.place.length) out.problem = "The sheet is empty — add designs first.";
       return out;
     }
-    const r = resolveBuild(plan.build, refs, sizeId);
+    const r = resolveBuild(plan.build, refs, choice);
     if (typeof r === "string") return { ...out, problem: r };
     const target = toStudioSize(r.size);
-    const built = planBuild(target, r.designs, nestEdge, r.gap);
+    const built = planBuild(target, r.designs, r.edge, r.gap, r.layout);
     const byKey = new Map(r.designs.map((d) => [d.key, d]));
-    const alt = betterSize(studioSizes, built, r.designs, nestEdge, r.gap);
+    const plain = !choice.sizeId && !choice.scale && !r.fills.length;
+    const alt = plain ? betterSize(studioSizes, built, r.designs, r.edge, r.gap, r.layout) : null;
+    const shrink = plain ? shrinkToFit(target, r.designs, r.edge, r.gap, r.layout) : null;
     const lowDpi: { name: string; dpi: number }[] = [];
     for (const d of r.designs) {
       const dpi = dpiAt(upById(d.uid), d.w, d.h);
@@ -2411,10 +2424,16 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
       lowDpi,
       fills: r.fills.map((f) => ({ name: upById(f.uid)?.file_name ?? "design", copies: f.copies })),
       gap: plan.build.gap_in,
+      sheetMargin: plan.build.sheet_margin_in,
+      layout: r.layout,
       // Filling is "this sheet, full": a bigger sheet would just fill bigger.
-      alt: alt && !sizeId && !r.fills.length ? {
+      alt: alt ? {
         sizeId: alt.size.id, sizeName: alt.size.name, price: alt.price,
         length: isRollSize(alt.size) ? alt.sheets[0]?.length : undefined,
+      } : undefined,
+      shrink: shrink ? {
+        scale: shrink.scale, price: shrink.plan.price,
+        widths: [...new Map(scaled(r.designs, shrink.scale).map((d) => [d.uid, { name: upById(d.uid)?.file_name ?? "design", w: Math.round(d.w * 10) / 10 }])).values()],
       } : undefined,
     };
     if (built.tooBig.length) out.problem = `${out.build.tooBig.join(", ")} won't fit a ${r.size.name} sheet at that size — make it smaller or pick a wider sheet.`;
@@ -2424,11 +2443,11 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
 
   /** Lay the plan's build out on this sheet (and new sheets after it, if it
    *  spills over). One undo puts the sheet back as it was. */
-  function applyBuild(build: NonNullable<AssistantPlan["build"]>, refs: Record<string, string>, sizeId?: string, sets?: number): PlanRun {
-    const r = resolveBuild(build, refs, sizeId);
+  function applyBuild(build: NonNullable<AssistantPlan["build"]>, refs: Record<string, string>, choice: PlanChoice = {}, sets?: number): PlanRun {
+    const r = resolveBuild(build, refs, choice);
     if (typeof r === "string") return { ok: false, message: r };
     const target = toStudioSize(r.size);
-    const built = planBuild(target, r.designs, nestEdge, r.gap);
+    const built = planBuild(target, r.designs, r.edge, r.gap, r.layout);
     if (built.tooBig.length) return { ok: false, message: "A design is too big for that sheet — nothing was changed." };
     if (!built.sheets.length) return { ok: false, message: "That would leave the sheet empty — nothing was changed." };
 
@@ -2450,6 +2469,7 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
     }));
     next.splice(active + 1, 0, ...extra);
     if (r.gap !== imageMargin) setImageMargin(r.gap);
+    if (r.edge !== nestEdge) setNestEdge(r.edge);
 
     const moving = laid[0]!;
     const step = Math.min(45, 700 / Math.max(moving.length, 1));
@@ -2507,15 +2527,17 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
   const settle = () => new Promise<void>((done) => requestAnimationFrame(() => window.setTimeout(done, 40)));
 
   /** Carry a plan out: backgrounds, then placing or building, then the cart. */
-  async function runPlan(plan: AssistantPlan, refs: Record<string, string>, sizeId?: string): Promise<PlanRun> {
+  async function runPlan(plan: AssistantPlan, refs: Record<string, string>, choice: PlanChoice = {}): Promise<PlanRun> {
     const notes: string[] = [];
+    const problems: string[] = [];
     try {
       for (const ref of plan.remove_background ?? []) {
         const u = refs[ref] ? upById(refs[ref]!) : undefined;
         if (!u) continue;
         setAiWork({ label: `Removing the background — ${u.file_name}`, progress: null });
         const problem = await removeBackgroundOf(u);
-        notes.push(problem ?? `background removed from ${u.file_name}`);
+        if (problem) problems.push(problem);
+        else notes.push(`background removed from ${u.file_name}`);
       }
       if (plan.place?.length) {
         await settle();
@@ -2525,8 +2547,8 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
       if (plan.build) {
         setAiWork({ label: "Laying out your sheet", progress: null });
         await settle();
-        const done = latest.current.applyBuild(plan.build, refs, sizeId, plan.sets);
-        if (!done.ok) return { ok: false, message: [...notes, done.message].join(" · ") };
+        const done = latest.current.applyBuild(plan.build, refs, choice, plan.sets);
+        if (!done.ok) return { ok: false, message: [...notes, done.message].join(" · "), problems };
         notes.unshift(done.message);
       } else if (plan.sets) {
         latest.current.setQty(plan.sets);
@@ -2538,7 +2560,7 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
         await latest.current.save(true);
         notes.push("saving and opening your cart");
       }
-      return { ok: true, message: notes.join(" · ") || "Done" };
+      return { ok: true, message: notes.join(" · ") || "Done", problems };
     } finally {
       setAiWork(null);
     }

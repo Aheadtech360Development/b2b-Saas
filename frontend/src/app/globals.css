@@ -798,6 +798,10 @@
   transition: opacity .15s;
 }
 .ui-btn:hover { opacity: .9; }
+/* A button that is a link keeps its own colours inside a shop drawn by the
+   website builder, whose link colour (.bsite :where(a)) is just as specific
+   and comes later — the empty cart's "Browse the catalogue" read dark on dark. */
+a.ui-btn, a.ui-btn:hover, a.ui-btn:visited { color: #fff; }
 .ui-btn:disabled { background: #C9C6C0; cursor: not-allowed; opacity: 1; }
 .ui-btn-ghost {
   display: inline-block; text-align: center; text-decoration: none;
@@ -806,6 +810,7 @@
   font-family: inherit; font-size: 15px; font-weight: 600; cursor: pointer;
 }
 .ui-btn-ghost:hover { border-color: #C9C6C0; }
+a.ui-btn-ghost, a.ui-btn-ghost:hover, a.ui-btn-ghost:visited { color: var(--ui-ink); }
 .ui-btn-block { display: block; width: 100%; }
 .ui-btn-quiet {
   background: none; border: none; color: var(--ui-muted);

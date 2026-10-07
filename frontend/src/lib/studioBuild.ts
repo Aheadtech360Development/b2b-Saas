@@ -8,7 +8,7 @@
  * Auto Nest button uses — so what the plan card promises, and what the sheet
  * then shows, are the same thing, and the price is the shop's own.
  */
-import { planNest, type NestItem } from "@/lib/sheetNesting";
+import { planNest, planRows, type NestItem } from "@/lib/sheetNesting";
 import type { Sheet } from "@/lib/sheetPlacement";
 
 export interface StudioSize {
@@ -23,6 +23,10 @@ export interface StudioSize {
   min_length_in: number;
   max_length_in: number;
 }
+
+/** Standard packs tightly for the least film; cutting lays rows a cut can run
+ *  straight across — the two layouts Auto Nest and Auto Build offer. */
+export type BuildLayout = "standard" | "cutting";
 
 export interface BuildDesign {
   /** Whatever the caller uses to know the design again (an upload id). */
@@ -70,7 +74,9 @@ const r2 = (n: number) => Math.round(n * 100) / 100;
 export const isRoll = (s: StudioSize) => s.pricing_mode === "custom_length";
 
 /** Lay the designs out on `size`, onto as many sheets as they take. */
-export function planBuild(size: StudioSize, designs: BuildDesign[], edge: number, gap: number): BuildPlan {
+export function planBuild(
+  size: StudioSize, designs: BuildDesign[], edge: number, gap: number, layout: BuildLayout = "standard",
+): BuildPlan {
   const roll = isRoll(size);
   const bleed = Math.max(size.bleed_in || 0, edge);
   // A roll is cut to length: lay it out at the longest it is sold, then cut
@@ -89,7 +95,7 @@ export function planBuild(size: StudioSize, designs: BuildDesign[], edge: number
     }
   }
 
-  const plan = planNest(spec, items);
+  const plan = layout === "cutting" ? planRows(spec, items) : planNest(spec, items);
   const sheets: BuildSheet[] = plan.sheets.map((page) => {
     const pieces = page.map((it) => ({
       key: owners[Number(it.key)]!, x: it.x, y: it.y, w: it.w, h: it.h, rotated: it.rotated,
@@ -137,11 +143,11 @@ export function capacity(size: StudioSize, w: number, h: number, edge: number, g
  */
 export function fillCount(
   size: StudioSize, others: BuildDesign[], design: { key: string; w: number; h: number },
-  edge: number, gap: number, length?: number,
+  edge: number, gap: number, length?: number, layout: BuildLayout = "standard",
 ): number {
   const sheet: StudioSize = length && isRoll(size) ? { ...size, pricing_mode: "fixed", height_in: length } : size;
   const fits = (n: number) => {
-    const p = planBuild(sheet, [...others, { ...design, copies: n }], edge, gap);
+    const p = planBuild(sheet, [...others, { ...design, copies: n }], edge, gap, layout);
     return p.tooBig.length === 0 && p.sheets.length <= 1;
   };
   if (!fits(1)) return 0;
@@ -167,12 +173,12 @@ export function fillCount(
  * is cheaper. Null when there is nothing better to say.
  */
 export function betterSize(
-  sizes: StudioSize[], plan: BuildPlan, designs: BuildDesign[], edge: number, gap: number,
+  sizes: StudioSize[], plan: BuildPlan, designs: BuildDesign[], edge: number, gap: number, layout: BuildLayout = "standard",
 ): BuildPlan | null {
   let best: BuildPlan | null = null;
   for (const s of sizes) {
     if (s.id === plan.size.id) continue;
-    const p = planBuild(s, designs, edge, gap);
+    const p = planBuild(s, designs, edge, gap, layout);
     if (p.tooBig.length || p.sheets.length !== 1) continue;
     if (!best || p.price < best.price - 1e-9) best = p;
   }
@@ -180,6 +186,30 @@ export function betterSize(
   const oneSheet = !plan.tooBig.length && plan.sheets.length === 1;
   if (oneSheet && best.price >= plan.price - 1e-9) return null;
   return best;
+}
+
+/** Every design `scale` times its size. */
+export const scaled = <T extends BuildDesign>(designs: T[], scale: number): T[] =>
+  designs.map((d) => ({ ...d, w: Math.round(d.w * scale * 1000) / 1000, h: Math.round(d.h * scale * 1000) / 1000 }));
+
+/**
+ * The other way out of an overflow: everything a little smaller, so it all
+ * goes on one sheet of this size. The largest scale, to the percent, at which
+ * it does — or null when it would take shrinking below a quarter, which is no
+ * longer the same order.
+ */
+export function shrinkToFit(
+  size: StudioSize, designs: BuildDesign[], edge: number, gap: number, layout: BuildLayout = "standard",
+): { scale: number; plan: BuildPlan } | null {
+  const at = (pct: number) => planBuild(size, scaled(designs, pct / 100), edge, gap, layout);
+  const ok = (p: BuildPlan) => p.tooBig.length === 0 && p.sheets.length === 1;
+  if (ok(at(100)) || !ok(at(25))) return null;
+  let lo = 25, hi = 100;
+  while (hi - lo > 1) {
+    const mid = (lo + hi) >> 1;
+    if (ok(at(mid))) lo = mid; else hi = mid;
+  }
+  return { scale: lo / 100, plan: at(lo) };
 }
 
 /** A size as the API sends it, with every number made a number. */
@@ -208,8 +238,12 @@ export interface AssistantPlan {
   build?: {
     sheet_size?: string;
     keep_others?: boolean;
+    /** Packed tight, or in rows to cut along. */
+    layout?: BuildLayout;
     /** Space between designs, in inches; the builder's margin otherwise. */
     gap_in?: number;
+    /** Space kept clear at the sheet's edges, in inches; never under the shop's own. */
+    sheet_margin_in?: number;
     items: { design: string; copies?: number; fill?: boolean; width_in?: number; height_in?: number }[];
   };
   /** How many of the sheet to print. */
@@ -237,6 +271,11 @@ export interface PlanPreview {
     fills: { name: string; copies: number }[];
     /** The spacing it was laid out with, when the plan sets one. */
     gap?: number;
+    /** The edge kept clear, when the plan sets one. */
+    sheetMargin?: number;
+    layout: BuildLayout;
+    /** The other answer to an overflow: everything smaller, on one sheet of this size. */
+    shrink?: { scale: number; price: number; widths: { name: string; w: number }[] };
     alt?: { sizeId: string; sizeName: string; price: number; length?: number };
   };
   cart: boolean;
@@ -248,4 +287,14 @@ export interface PlanPreview {
   problem?: string;
 }
 
-export interface PlanRun { ok: boolean; message: string }
+export interface PlanRun {
+  ok: boolean;
+  message: string;
+  /** Steps that did not work although the rest did — a background that could
+   *  not be removed, say — to be told, not hidden. */
+  problems?: string[];
+}
+
+/** Which of the card's buttons was pressed: the plan as it is, another sheet
+ *  size, or everything scaled down to fit. */
+export interface PlanChoice { sizeId?: string; scale?: number }

@@ -33,6 +33,13 @@ A customer building a gang sheet can ask, in plain English, "will my designs fit
 - **Fill the sheet**: a build item may `fill` instead of giving copies; the builder counts exactly how many fit beside everything else by laying them out (`fillCount`), on a roll at its cut length.
 - **Spacing and sets**: `build.gap_in` (0–3″) sets the margin between designs; `sets` (1–100) sets how many of the sheet are printed.
 
+## Phase 3b — layout, margins, overflow, the builder's tools
+- **Layout**: a build may be `standard` (Auto Nest's tight packing) or `cutting` (Auto nest for cutting's rows). The assistant asks once, before the first build, with the usual answer first.
+- **Margins**: `gap_in` is the image margin (between designs) and `sheet_margin_in` the sheet margin (at the edges, never under the shop's bleed). The context sends both, and the least allowed.
+- **Overflow**: besides the bigger sheet, the card offers "Shrink to fit one sheet" (`shrinkToFit`: the largest scale, to the percent, at which it all goes on one sheet of this size, never under 25%), and the Do-it button says how many sheets it will take and what that costs. The prompt has the model explain the ways out before proposing.
+- **Tools**: the prompt names the builder's own tools (Uploads, Designs, Gallery, Add Text, Settings, the image editor's tabs, Auto Build, Auto Nest, Auto nest for cutting, Auto fill sheet, Add new sheet, Preview, Save) so it can tell people how to do things by hand.
+- **Fixes**: signing in from Save & Add to Cart now carries on into the cart (save read a stale signed-out flag and opened the form again); a link styled `ui-btn` keeps white text inside a shop drawn by the website builder; a background that cannot be removed is reported in the chat and to the model.
+
 ## Model and cost
 - Claude Haiku 4.5 by default for this assistant (`COPILOT_STUDIO_MODEL` overrides; other providers use their own default). The owner copilot keeps its model.
 - Limits per day: `COPILOT_STUDIO_USER_LIMIT` (60) per signed-in user, `COPILOT_STUDIO_GUEST_LIMIT` (15) per guest address, plus the brand's `COPILOT_DAILY_LIMIT`.

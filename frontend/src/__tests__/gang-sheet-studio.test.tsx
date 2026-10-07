@@ -25,7 +25,10 @@ vi.mock("@/services/gangSheets.service", () => ({
   gangSheetsService: new Proxy({}, { get: () => () => Promise.resolve([]) }),
 }));
 vi.mock("@/stores/auth.store", () => ({
-  useAuthStore: (pick: (s: { isAuthenticated: () => boolean }) => unknown) => pick({ isAuthenticated: () => false }),
+  useAuthStore: Object.assign(
+    (pick: (s: { isAuthenticated: () => boolean }) => unknown) => pick({ isAuthenticated: () => false }),
+    { getState: () => ({ isAuthenticated: () => false }) },
+  ),
 }));
 vi.mock("@/services/cart.service", () => ({ cartService: {} }));
 vi.mock("@/services/auth.service", () => ({ authService: {} }));

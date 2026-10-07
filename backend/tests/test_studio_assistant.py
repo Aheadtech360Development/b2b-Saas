@@ -118,6 +118,25 @@ def test_fill_spacing_and_sets_come_back_clean():
     }
 
 
+def test_layout_and_sheet_margin_come_back_clean_and_never_under_the_shops_edge():
+    plan = validate_plan({
+        "label": "rows", "build": {"items": [{"design": "d1", "copies": 4}], "layout": "cutting", "sheet_margin_in": 0.1},
+    }, _ctx(min_sheet_margin_in=0.25))
+    assert plan["build"]["layout"] == "cutting"
+    assert plan["build"]["sheet_margin_in"] == 0.25
+
+
+def test_a_layout_must_be_one_the_builder_has():
+    with pytest.raises(PlanError, match="layout must be"):
+        validate_plan({"label": "x", "build": {"items": [{"design": "d1", "copies": 1}], "layout": "spiral"}}, _ctx())
+
+
+def test_the_prompt_explains_layouts_margins_and_the_builders_tools():
+    text = studio_system("Acme", "Monday", _ctx())
+    for words in ("For cutting", "Image margin", "Sheet margin", "Auto Build", "Auto Nest", "Add Text", "Halftone", "Overflow"):
+        assert words in text, words
+
+
 def test_sets_alone_is_a_plan():
     assert validate_plan({"label": "2 sets", "sets": 2}, _ctx()) == {"label": "2 sets", "sets": 2}
 

@@ -101,7 +101,9 @@ class StudioContext(BaseModel):
     sheet_name: str = Field(max_length=80)
     sheet_width_in: float = Field(ge=0, le=500)
     sheet_length_in: float = Field(ge=0, le=5000)
-    safe_edge_in: float = Field(default=0, ge=0, le=50)
+    # Kept clear at the sheet's edges ("sheet margin"), and the least the shop allows.
+    sheet_margin_in: float = Field(default=0, ge=0, le=50)
+    min_sheet_margin_in: float = Field(default=0, ge=0, le=50)
     gap_between_designs_in: float = Field(default=0, ge=0, le=50)
     sheet_count_ordered: int = Field(default=1, ge=1, le=1000)
     price_now: float | None = Field(default=None, ge=0, le=1_000_000)
@@ -129,7 +131,9 @@ PROPOSE_PLAN_TOOL = {
         "the design has now. copies 0 takes a design off. fill true instead of copies puts in as many as "
         "fit in the room left (at most one item may fill). keep_others (default true) keeps designs not "
         "listed as they are. sheet_size is a size name from STUDIO DATA sizes; leave it out to keep the "
-        "sheet open now. gap_in sets the space between designs in inches, only if the customer asks.\n"
+        "sheet open now. layout: \"standard\" (packed tight, least film) or \"cutting\" (rows a cut can run "
+        "straight across). gap_in is the space between designs (image margin) and sheet_margin_in the space "
+        "kept clear at the sheet's edges (sheet margin), both in inches; leave them out to keep the builder's.\n"
         "- sets: how many of this sheet to print, only if the customer says.\n"
         "- add_to_cart: true to save the sheet and open the cart once it is made."
     ),
@@ -146,7 +150,9 @@ PROPOSE_PLAN_TOOL = {
                 "properties": {
                     "sheet_size": {"type": "string"},
                     "keep_others": {"type": "boolean"},
+                    "layout": {"type": "string", "enum": ["standard", "cutting"]},
                     "gap_in": {"type": "number"},
+                    "sheet_margin_in": {"type": "number"},
                     "items": {
                         "type": "array",
                         "items": {
@@ -250,6 +256,15 @@ def validate_plan(args: dict, context: StudioContext | None) -> dict:
         clean: dict = {"items": items, "keep_others": build.get("keep_others") is not False}
         if build.get("gap_in") is not None:
             clean["gap_in"] = _num(build["gap_in"], "gap_in", 0, MAX_GAP)
+        if build.get("sheet_margin_in") is not None:
+            margin = _num(build["sheet_margin_in"], "sheet_margin_in", 0, MAX_GAP)
+            # The shop's own edge is the least it prints with; asking for less gets that.
+            clean["sheet_margin_in"] = max(margin, context.min_sheet_margin_in)
+        layout = build.get("layout")
+        if layout is not None:
+            if layout not in ("standard", "cutting"):
+                raise PlanError('layout must be "standard" or "cutting".')
+            clean["layout"] = layout
         name = str(build.get("sheet_size") or "").strip()
         if name:
             size = sizes.get(name.lower())
@@ -288,14 +303,27 @@ What you know: only the STUDIO DATA below, worked out by the builder in the cust
 Sizes and room — read these before you answer anything about fitting:
 - Each design has size_now (its print size now, with the dpi it prints at), on_sheet (how many copies of it are on the sheet, at what size) and copies_that_fit: for each width, about how many copies of it fit on the open sheet if it were alone there, with the dpi at that width. Smaller means more copies, bigger means fewer; a width missing from the table, or with 0, does not fit at all.
 - "fits" says how the designs on the sheet now would nest on every size the shop sells.
-- Use them to answer and to advise before you propose. If they ask for N copies at a width where copies_that_fit is below N (counting other designs that share the sheet), say it will overflow and offer the choices: a smaller width where N fit (name it), fewer copies, or a bigger sheet. If they want copies at a size that would print under 200 dpi, warn that it will look soft.
+- Overflow: if they ask for N copies at a width where copies_that_fit is below N (counting other designs sharing the sheet), tell them plainly before proposing — "8 fit at 4 inches; 20 won't" — and give the ways out, each with what it means: a smaller width where N fit (name the width), fewer copies, a bigger sheet (name it, from sizes), or a second sheet. Then propose what they pick. The card also shows these ways out with the builder's own prices.
+- If they want copies at a size that would print under 200 dpi, warn that it will look soft.
 - "Fill the sheet" / "as many as fit": use fill true on that design (with a width if they gave one). The builder counts exactly how many go in.
 - A roll (is_roll) is cut to the length the designs need, between its min and max length, priced per inch.
+
+Layout and margins — ask once, before the first build, in one short question with the usual answer first, unless they already said:
+- Layout: "Standard" packs designs tightly in every direction for the least wasted film (the usual choice). "For cutting" puts them in rows so cuts can run straight across the full width — for customers who cut the sheet apart before pressing. Use build.layout.
+- Image margin (gap_between_designs_in) is the space between designs; 0.5″ is usual, 0.25″ fits more. Sheet margin (sheet_margin_in) is the space kept clear at the sheet's edges; it can't go below min_sheet_margin_in. Use build.gap_in and build.sheet_margin_in only when they choose something other than what is set.
+- e.g. "Standard layout with 0.5″ between designs, or rows for cutting?"
+
+The builder's own tools — when they ask how to do something by hand, name these (you can't press them for them):
+- Left side: Uploads (Choose Files or drag and drop), Designs (the shop's ready-made designs), Gallery (designs they used before), Add Text (type text as a design), Settings (image margin, and the selected design's size and position).
+- On a design: drag to move, corner handles to resize, Rotate, Duplicate, Add copies, Delete. The wand next to an upload opens the image editor: Enhance (remove background, upscale), Crop, Remove Color, Colors and Halftone. Right-click a design for more, including Auto Duplicate.
+- Right side: Auto Build (several designs with sizes and quantities, packed onto as many sheets as needed, Standard or For Cutting), Auto Nest (packs what is on the sheet tightly), Auto nest for cutting (rows), Auto fill sheet, Add new sheet (each sheet its own Qty), Start over.
+- Top: sheet size, Sheets (how many of this sheet to print), Preview (full-resolution), Save, Save & Add to Cart, Undo/Redo.
+- Warnings on the sheet: designs overlapping, past the safe area, too small, or low resolution.
 
 How to get a sheet made:
 1. No designs yet: ask them to upload with the 📎 button below, or with Upload on the left.
 2. When a message says files were uploaded, the builder has already asked about the background and about putting them on the sheet, and done what they chose — don't ask those again. Ask what is left: how many copies, and how big (offer the size it has now as the easy answer).
-3. For each design you need how many copies (or "fill") and how big. If they don't say a size, the size it has now is fine — say so. "4 inch" means 4 inches wide unless they say tall.
+3. For each design you need how many copies (or "fill") and how big. If they don't say a size, the size it has now is fine — say so. "4 inch" means 4 inches wide unless they say tall. Check it against copies_that_fit before proposing.
 4. A design with has_background=true will print as a solid box. If they haven't answered about it, ask once whether to remove it, naming the files; never remove one they didn't agree to. If has_background is missing nobody has checked; don't bring it up unless they do. Only pictures (picture=true) can have a background removed.
 5. Sheet: use the one they name, from "sizes"; otherwise keep the open one. If they ask which is cheapest or best, answer from "fits" and copies_that_fit, and propose with the size you recommend — the card also offers a better size by itself when there is one.
 6. As soon as you have enough, call propose_plan. Don't ask for confirmation first; the card is the confirmation. Then reply in one or two short lines: what is ready, and that they press the button on the card. Never say it is done — it happens only when they press it.

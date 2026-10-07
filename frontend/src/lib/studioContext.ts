@@ -37,7 +37,10 @@ export interface StudioContext {
   sheet_name: string;
   sheet_width_in: number;
   sheet_length_in: number;
-  safe_edge_in: number;
+  /** Kept clear at the sheet's edges ("sheet margin"), and the least the shop allows. */
+  sheet_margin_in: number;
+  min_sheet_margin_in: number;
+  /** Kept between designs ("image margin"). */
   gap_between_designs_in: number;
   sheet_count_ordered: number;
   price_now?: number;
@@ -158,7 +161,8 @@ export function buildStudioContext(input: StudioInput): { context: StudioContext
       sheet_name: current.name.slice(0, 80),
       sheet_width_in: current.width_in,
       sheet_length_in: input.currentLength,
-      safe_edge_in: Math.max(current.bleed_in, input.edge),
+      sheet_margin_in: Math.max(current.bleed_in, input.edge),
+      min_sheet_margin_in: current.bleed_in,
       gap_between_designs_in: input.gap,
       sheet_count_ordered: Math.max(1, input.copiesOrdered),
       price_now: Number.isFinite(input.priceNow) ? r2(input.priceNow) : undefined,

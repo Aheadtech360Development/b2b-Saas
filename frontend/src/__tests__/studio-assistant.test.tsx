@@ -18,10 +18,18 @@ vi.mock("@/lib/toast", () => ({
   say: new Proxy({}, { get: (_t, kind: string) => (msg: string) => { said.push([kind, msg]); } }),
 }));
 vi.mock("react-toastify", () => ({ ToastContainer: () => null }));
+// Saving answers like the API: an order with one artwork row per design sent.
+const savedOrder = (artworks: unknown[] = []) => ({
+  id: "o1", reference: "GS-1", sheet_name: "22×10", price_per_sheet: 7.35, sheet_quantity: 1,
+  artworks: artworks.map((_, i) => ({ id: `a${i}` })), layout: [],
+});
 vi.mock("@/services/gangSheets.service", () => ({
   gangSheetsService: new Proxy({}, {
     get: (_t, k) => k === "uploadArtwork"
       ? (f: File) => Promise.resolve({ url: `https://shop.test/${f.name}`, file_name: f.name, type: "png" })
+      : k === "rebuild" ? (_id: string, p: { artworks: unknown[] }) => Promise.resolve(savedOrder(p.artworks))
+      : k === "submit" ? (p: { artworks: unknown[] }) => Promise.resolve(savedOrder(p.artworks))
+      : k === "saveLayout" ? (id: string, layout: unknown[]) => Promise.resolve({ ...savedOrder(), id, layout })
       : () => Promise.resolve([]),
   }),
 }));
@@ -35,17 +43,27 @@ const removed: string[] = [];
 vi.mock("@/lib/backgroundRemoval", () => ({
   BackgroundRemovalError: class extends Error {},
   removeImageBackground: (f: File) => {
+    if (f.name.startsWith("fail")) return Promise.reject(new Error("service down"));
     removed.push(f.name);
     return Promise.resolve(new File(["png"], f.name.replace(/\.\w+$/, "") + "-nobg.png", { type: "image/png" }));
   },
 }));
 vi.stubGlobal("fetch", () => Promise.resolve({ blob: () => Promise.resolve(new Blob(["img"], { type: "image/jpeg" })) }));
+// Signed out until establishSession runs, as with the real store.
+const auth = vi.hoisted(() => ({ on: false, cart: [] as string[] }));
 vi.mock("@/stores/auth.store", () => ({
-  useAuthStore: (pick: (s: { isAuthenticated: () => boolean }) => unknown) => pick({ isAuthenticated: () => false }),
+  useAuthStore: Object.assign(
+    (pick: (s: { isAuthenticated: () => boolean }) => unknown) => pick({ isAuthenticated: () => auth.on }),
+    { getState: () => ({ isAuthenticated: () => auth.on }) },
+  ),
 }));
-vi.mock("@/services/cart.service", () => ({ cartService: {} }));
-vi.mock("@/services/auth.service", () => ({ authService: {} }));
-vi.mock("@/lib/session", () => ({ establishSession: vi.fn() }));
+vi.mock("@/services/cart.service", () => ({
+  cartService: { addGangSheet: (id: string) => { auth.cart.push(id); return Promise.resolve({}); } },
+}));
+vi.mock("@/services/auth.service", () => ({
+  authService: { login: () => Promise.resolve({ access_token: "token" }) },
+}));
+vi.mock("@/lib/session", () => ({ establishSession: () => { auth.on = true; return Promise.resolve({}); } }));
 vi.mock("@/components/storefront/ImageEditorModal", () => ({ ImageEditorModal: () => null }));
 vi.mock("@/components/storefront/AutoBuildPanel", () => ({ AutoBuildPanel: () => null }));
 vi.mock("@/components/storefront/WorkingOverlay", () => ({ WorkingOverlay: () => null }));
@@ -125,7 +143,7 @@ async function openAndAsk(question: string, answer: unknown) {
   await act(async () => { fireEvent.click(within(panel()).getByRole("button", { name: "Send" })); });
 }
 
-beforeEach(() => { said.length = 0; removed.length = 0; post.mockReset(); });
+beforeEach(() => { said.length = 0; removed.length = 0; auth.on = false; auth.cart.length = 0; post.mockReset(); });
 
 describe("the assistant builds the sheet", () => {
   it("sends the sheet with the question, the designs named d1, d2…", async () => {
@@ -281,6 +299,16 @@ describe("files handed to the assistant", () => {
     expect(lastAsk().messages.at(-1)!.content).toBe("📎 Uploaded logo.jpg. Keep the backgrounds. Not on the sheet yet.");
   });
 
+  it("when the background can't come off, it says so, keeps the original and carries on", async () => {
+    openBuilder();
+    const card = await attach("fail.jpg");
+    post.mockResolvedValueOnce({ reply: "OK." });
+    await answer(card, "Yes, remove it", "Yes, put it on");
+    expect(designs()).toHaveLength(2);
+    expect(within(panel()).getByText(/⚠ fail.jpg: the background couldn't be removed just now/)).toBeInTheDocument();
+    expect(lastAsk().messages.at(-1)!.content).toMatch(/Put on the sheet\. \(fail.jpg: the background couldn't be removed/);
+  });
+
   it("a file with no background is only asked about the sheet", async () => {
     openBuilder();
     const card = await attach("star-nobg.png");
@@ -364,5 +392,62 @@ describe("filling, spacing and sets", () => {
     expect(designs()).toHaveLength(4);
     expect((screen.getByRole("combobox", { name: /Sheets/ }) as HTMLSelectElement).value).toBe("3");
     expect([...document.querySelectorAll<HTMLInputElement>('input[type="number"][step="0.25"]')].every((el) => el.value === "0.25")).toBe(true);
+  });
+});
+
+describe("layout, margins and the ways out of an overflow", () => {
+  it("lays the sheet out in rows for cutting when asked", async () => {
+    await openAndAsk("rows for cutting please", {
+      reply: "Ready.", plan: { label: "6 × tee in rows", build: { items: [{ design: "d1", copies: 6 }], layout: "cutting" } },
+    });
+    expect(line(/Layout: for cutting/)).toBeInTheDocument();
+    await press(within(panel()).getByRole("button", { name: /Do it/ }));
+    const boxes = designs().map(inches);
+    expect(boxes).toHaveLength(6);
+    // Every row starts at one height, and the next starts below all of it.
+    const rows = [...new Set(boxes.map((b) => b.y))].sort((a, b) => a - b);
+    for (let i = 1; i < rows.length; i++) {
+      const bottom = Math.max(...boxes.filter((b) => b.y === rows[i - 1]).map((b) => b.y + b.h));
+      expect(rows[i]!).toBeGreaterThanOrEqual(bottom);
+    }
+  });
+
+  it("keeps the sheet margin it is given", async () => {
+    await openAndAsk("an inch from the edges", {
+      reply: "Ready.", plan: { label: "4 × tee", build: { items: [{ design: "d1", copies: 4 }], sheet_margin_in: 1 } },
+    });
+    expect(line(/Space at the sheet's edges: 1″/)).toBeInTheDocument();
+    await press(within(panel()).getByRole("button", { name: /Do it/ }));
+    const boxes = designs().map(inches);
+    expect(boxes.every((b) => b.x >= 1 - 1e-6 && b.y >= 1 - 1e-6 && b.x + b.w <= 21 + 1e-6 && b.y + b.h <= 9 + 1e-6)).toBe(true);
+  });
+
+  it("on an overflow, offers to shrink everything onto one sheet — and does it", async () => {
+    await openAndAsk("20 copies", {
+      reply: "Ready.", plan: { label: "20 × tee", build: { items: [{ design: "d1", copies: 20 }] } },
+    });
+    expect(within(panel()).getByRole("button", { name: /Do it on 2 sheets — \$14.70/ })).toBeInTheDocument();
+    const shrink = within(panel()).getByRole("button", { name: /Shrink to fit one 22×10: tee.png at [\d.]+″ wide — \$7.35/ });
+    await press(shrink);
+    expect(designs()).toHaveLength(20);
+    expect(screen.queryByText(/\(2\) Active Gang Sheets/)).toBeNull();
+    const boxes = designs().map(inches);
+    expect(overlapping(boxes)).toBe(false);
+    expect(outside(boxes, 10)).toBe(false);
+    expect(boxes[0]!.w).toBeLessThan(3);
+  });
+});
+
+describe("signing in to add the sheet to the cart", () => {
+  it("carries on after signing in: the form closes and the sheet goes into the cart", async () => {
+    render(<GangSheetStudio sizes={SIZES} productId={null} resumeOrder={ORDER} onClose={() => {}} onSaved={() => {}} />);
+    fireEvent.click(screen.getByRole("button", { name: /Save & Add to Cart/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Already have an account? Sign in" }));
+    fireEvent.change(document.querySelector<HTMLInputElement>('input[type="email"]')!, { target: { value: "buyer@shop.test" } });
+    fireEvent.change(document.querySelector<HTMLInputElement>('input[type="password"]')!, { target: { value: "secret123" } });
+    fireEvent.click(screen.getByRole("button", { name: "Sign in & add to cart" }));
+
+    await waitFor(() => expect(auth.cart).toEqual(["o1"]), { timeout: 4000 });
+    expect(screen.queryByRole("button", { name: "Sign in & add to cart" })).toBeNull();
   });
 });

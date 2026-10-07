@@ -18,7 +18,7 @@ import { Paperclip, Sparkles, X } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { ChatMarkdown } from "@/components/ui/ChatMarkdown";
 import type { StudioContext } from "@/lib/studioContext";
-import type { AssistantPlan, PlanPreview, PlanRun } from "@/lib/studioBuild";
+import type { AssistantPlan, PlanChoice, PlanPreview, PlanRun } from "@/lib/studioBuild";
 
 type Refs = Record<string, string>;
 type CardState = "ready" | "running" | "done" | "failed" | "old";
@@ -64,8 +64,8 @@ export function StudioAssistant({ open, onClose, getContext, preview, run, uploa
   open: boolean;
   onClose: () => void;
   getContext: () => { context: StudioContext; refs: Refs } | null;
-  preview: (plan: AssistantPlan, refs: Refs, sizeId?: string) => PlanPreview;
-  run: (plan: AssistantPlan, refs: Refs, sizeId?: string) => Promise<PlanRun>;
+  preview: (plan: AssistantPlan, refs: Refs, choice?: PlanChoice) => PlanPreview;
+  run: (plan: AssistantPlan, refs: Refs, choice?: PlanChoice) => Promise<PlanRun>;
   upload: (files: File[]) => Promise<UploadedDesign[]>;
   /** Designs uploaded outside the chat (the Upload panel, a drop on the
    *  canvas) while it was open, to ask about. A new id is a new batch. */
@@ -83,8 +83,8 @@ export function StudioAssistant({ open, onClose, getContext, preview, run, uploa
 
   // Read at the moment of use: an answer or an upload finishes several renders
   // after it started, and must see the sheet and the chat as they are then.
-  const live = useRef({ turns, getContext, preview });
-  live.current = { turns, getContext, preview };
+  const live = useRef({ turns, getContext, preview, asking });
+  live.current = { turns, getContext, preview, asking };
 
   useEffect(() => {
     scroller.current?.scrollTo?.({ top: scroller.current.scrollHeight, behavior: "smooth" });
@@ -197,33 +197,45 @@ export function StudioAssistant({ open, onClose, getContext, preview, run, uploa
     const parts = [`📎 Uploaded ${names}.`];
     if (withBg.length) parts.push(next.removeBg ? `Remove the background from ${withBg.map((d) => d.name).join(", ")}.` : "Keep the backgrounds.");
     parts.push(next.place ? "Put on the sheet." : "Not on the sheet yet.");
-    if (out.message && !out.ok) parts.push(`(${out.message})`);
-    // Let the builder take the designs in before the assistant is told the sheet.
+    if (!out.ok) parts.push(`(${out.message})`);
+    if (out.problems?.length) {
+      parts.push(`(${out.problems.join(" ")})`);
+      setTurns((cur) => [...cur, { role: "note", tone: "bad", content: `⚠ ${out.problems!.join(" ")}` }]);
+    }
+    // Let the builder take the designs in before the assistant is told the
+    // sheet — and let an answer already on its way arrive first, or this one
+    // would be dropped.
     await settle();
+    for (let waited = 0; live.current.asking && waited < 60_000; waited += 150) {
+      await new Promise((r) => setTimeout(r, 150));
+    }
     await ask(parts.join(" "));
   }
 
-  async function press(index: number, sizeId?: string) {
+  async function press(index: number, choice: PlanChoice = {}) {
     const t = turns[index];
     if (!t || t.role !== "assistant" || !t.plan || t.state !== "ready") return;
     const plan = t.plan, refs = t.refs ?? {};
     setTurns((cur) => cur.map((x, i) => (i === index && x.role === "assistant" ? { ...x, state: "running" as const } : x)));
     let out: PlanRun;
     try {
-      out = await run(plan, refs, sizeId);
+      out = await run(plan, refs, choice);
     } catch {
       out = { ok: false, message: "Something went wrong — nothing more was changed." };
     }
     setTurns((cur) => {
-      const marked = cur.map((x, i) => (i === index && x.role === "assistant" ? { ...x, state: (out.ok ? "done" : "failed") as CardState, result: out.message } : x));
+      const result = [out.message, ...(out.problems ?? [])].join(" ");
+      const marked = cur.map((x, i) => (i === index && x.role === "assistant" ? { ...x, state: (out.ok ? "done" : "failed") as CardState, result } : x));
       // Built but not yet in the cart: the obvious next step is one tap away.
       const offerCart = out.ok && !!plan.build && !plan.add_to_cart;
-      return [...marked, {
+      const notes: Turn[] = [{
         role: "note" as const, tone: out.ok ? "ok" as const : "bad" as const, cartOffer: offerCart,
         content: out.ok
           ? "✓ Done — your sheet is updated. Not right? Press Undo (Ctrl+Z), or tell me what to change."
           : `✗ ${out.message}`,
       }];
+      if (out.problems?.length) notes.unshift({ role: "note", tone: "bad", content: `⚠ ${out.problems.join(" ")}` });
+      return [...marked, ...notes];
     });
   }
 
@@ -281,7 +293,7 @@ export function StudioAssistant({ open, onClose, getContext, preview, run, uploa
               <div style={S.bot}><ChatMarkdown text={t.content} /></div>
               {t.plan && t.preview && (
                 <PlanCard plan={t.plan} preview={t.preview} state={t.state ?? "ready"} result={t.result}
-                  onDo={() => void press(i)} onAlt={(id) => void press(i, id)} />
+                  onChoose={(c) => void press(i, c)} />
               )}
             </div>
           );
@@ -349,12 +361,17 @@ function UploadCard({ turn, onAnswer }: {
 }
 
 /** The plan, as the builder worked it out, and the button that makes it. */
-function PlanCard({ plan, preview, state, result, onDo, onAlt }: {
+function PlanCard({ plan, preview, state, result, onChoose }: {
   plan: AssistantPlan; preview: PlanPreview; state: CardState; result?: string;
-  onDo: () => void; onAlt: (sizeId: string) => void;
+  onChoose: (choice: PlanChoice) => void;
 }) {
   const b = preview.build;
   const ready = state === "ready";
+  // Doesn't go on one sheet as asked: say so, and lay the ways out side by side.
+  const over = !!b && (b.sheets > 1 || b.tooBig.length > 0);
+  const shrinkWhat = b?.shrink
+    ? (b.shrink.widths.length === 1 ? `${b.shrink.widths[0]!.name} at ${b.shrink.widths[0]!.w}″ wide` : `everything at ${Math.round(b.shrink.scale * 100)}% size`)
+    : "";
   return (
     <div style={{ ...S.card, opacity: state === "old" ? 0.55 : 1 }}>
       <div style={{ fontSize: "13px", fontWeight: 800, color: "#1A1A1A" }}>{plan.label}</div>
@@ -362,7 +379,9 @@ function PlanCard({ plan, preview, state, result, onDo, onAlt }: {
         {preview.backgrounds.length > 0 && <li>✂️ Remove background: {preview.backgrounds.join(", ")}</li>}
         {preview.place.length > 0 && <li>➕ Put on the sheet: {preview.place.join(", ")}</li>}
         {b?.fills.map((f) => <li key={f.name}>▦ Fill the sheet: {f.copies} × {f.name}</li>)}
+        {b?.layout === "cutting" && <li>✂ Layout: for cutting — rows a cut can run straight across</li>}
         {b?.gap != null && <li>↔ Space between designs: {b.gap}″</li>}
+        {b?.sheetMargin != null && <li>⬚ Space at the sheet&apos;s edges: {b.sheetMargin}″</li>}
         {b && (
           <li>
             ▦ {b.copies} design{b.copies === 1 ? "" : "s"} on {b.sheets === 1 ? "1" : b.sheets} × {b.sizeName}
@@ -370,7 +389,11 @@ function PlanCard({ plan, preview, state, result, onDo, onAlt }: {
             {" — "}<strong>{money(b.price * b.qty)}</strong>{b.qty > 1 ? ` (${b.qty} sets)` : ""}
           </li>
         )}
-        {b && b.sheets > 1 && <li style={{ color: "#92400E" }}>Doesn&apos;t fit one {b.sizeName} — it takes {b.sheets} sheets.</li>}
+        {b && b.sheets > 1 && (
+          <li style={{ color: "#92400E" }}>
+            Doesn&apos;t fit one {b.sizeName} — it takes {b.sheets} sheets.{(b.alt || b.shrink) ? " Pick one of the ways below." : ""}
+          </li>
+        )}
         {b?.lowDpi.map((d) => (
           <li key={d.name} style={{ color: "#92400E" }}>⚠ {d.name} prints at {d.dpi} DPI at that size — may look soft.</li>
         ))}
@@ -381,12 +404,17 @@ function PlanCard({ plan, preview, state, result, onDo, onAlt }: {
 
       {ready && (
         <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-          <button onClick={onDo} disabled={!!preview.problem} style={{ ...S.doBtn, opacity: preview.problem ? 0.45 : 1 }}>
-            ✓ Do it
+          <button onClick={() => onChoose({})} disabled={!!preview.problem} style={{ ...S.doBtn, opacity: preview.problem ? 0.45 : 1 }}>
+            {over && b && !preview.problem ? `✓ Do it on ${b.sheets} sheets — ${money(b.price * b.qty)}` : "✓ Do it"}
           </button>
           {b?.alt && (
-            <button onClick={() => onAlt(b.alt!.sizeId)} style={S.altBtn}>
+            <button onClick={() => onChoose({ sizeId: b.alt!.sizeId })} style={S.altBtn}>
               Use one {b.alt.sizeName}{b.alt.length ? ` (${b.alt.length}″)` : ""} instead — {money(b.alt.price * b.qty)}
+            </button>
+          )}
+          {b?.shrink && (
+            <button onClick={() => onChoose({ scale: b.shrink!.scale })} style={S.altBtn}>
+              Shrink to fit one {b.sizeName}: {shrinkWhat} — {money(b.shrink.price * b.qty)}
             </button>
           )}
         </div>

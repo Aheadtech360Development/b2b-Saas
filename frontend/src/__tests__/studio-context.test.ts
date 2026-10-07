@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildStudioContext, fitOn, type StudioUpload } from "@/lib/studioContext";
-import { betterSize, capacity, fillCount, planBuild, type BuildDesign, type StudioSize } from "@/lib/studioBuild";
+import { betterSize, capacity, fillCount, planBuild, shrinkToFit, type BuildDesign, type StudioSize } from "@/lib/studioBuild";
 
 const fixed = (over: Partial<StudioSize> = {}): StudioSize => ({
   id: "a", name: "22x10", width_in: 22, height_in: 10, price_per_sheet: 10, bleed_in: 0.25,
@@ -91,6 +91,36 @@ describe("betterSize", () => {
     const designs = [design("logo", 4, 4, 2)];
     const p = planBuild(big(), designs, 0, 0.5);
     expect(betterSize([fixed(), big()], p, designs, 0, 0.5)?.size.name).toBe("22x10");
+  });
+});
+
+describe("layouts", () => {
+  it("for cutting, lays rows a cut can run straight across", () => {
+    const p = planBuild(fixed({ height_in: 24 }), [design("a", 3, 2, 5), design("b", 2, 4, 5)], 0, 0.5, "cutting");
+    const pieces = p.sheets[0]!.pieces.map((q) => ({ y: q.y, bottom: q.y + (q.rotated ? q.w : q.h) }));
+    const rows = [...new Set(pieces.map((q) => q.y))].sort((a, b) => a - b);
+    expect(rows.length).toBeGreaterThan(1);
+    for (let i = 1; i < rows.length; i++) {
+      const above = Math.max(...pieces.filter((q) => q.y === rows[i - 1]).map((q) => q.bottom));
+      expect(rows[i]!).toBeGreaterThanOrEqual(above);
+    }
+  });
+});
+
+describe("shrinkToFit", () => {
+  it("finds the largest size at which an overflow goes on one sheet", () => {
+    const designs = [design("a", 8, 8, 4)];
+    expect(planBuild(fixed(), designs, 0, 0.5).sheets).toHaveLength(2);
+    const s = shrinkToFit(fixed(), designs, 0, 0.5)!;
+    expect(s.plan.sheets).toHaveLength(1);
+    expect(s.plan.price).toBe(10);
+    const bigger = planBuild(fixed(), designs.map((d) => ({ ...d, w: d.w * (s.scale + 0.01), h: d.h * (s.scale + 0.01) })), 0, 0.5);
+    expect(bigger.sheets.length).toBeGreaterThan(1);
+  });
+
+  it("has nothing to offer when it already fits, or would need shrinking past a quarter", () => {
+    expect(shrinkToFit(fixed(), [design("a", 4, 4, 2)], 0, 0.5)).toBeNull();
+    expect(shrinkToFit(fixed(), [design("a", 4, 4, 500)], 0, 0.5)).toBeNull();
   });
 });
 
