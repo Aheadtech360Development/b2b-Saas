@@ -33,7 +33,9 @@ from app.services.copilot.actions import (
 )
 from app.services.copilot.audit import log_action
 from app.services.copilot.briefing import build_briefing
-from app.services.copilot.studio import StudioContext, studio_system
+from app.services.copilot.studio import (
+    PROPOSE_PLAN_TOOL, PlanError, StudioContext, studio_system, validate_plan,
+)
 from app.services.copilot.tools import (
     CUSTOMER_TOOLS, OWNER_TOOLS, customer_handlers, owner_handlers,
 )
@@ -258,17 +260,43 @@ async def studio_assistant(
     payload: StudioChatIn, request: Request, db: AsyncSession = Depends(get_db), __: None = Depends(require_brand),
 ) -> dict:
     """The builder's assistant. Open to guests — the builder is — so the limit
-    is per person: the signed-in user, or the visitor's address."""
+    is per person: the signed-in user, or the visitor's address.
+
+    Whatever plan the model proposes is checked against the sheet it was sent
+    and travels back as a card the buyer confirms in the builder. Only the last
+    proposal survives: one reply, one thing to press."""
     user_id = getattr(request.state, "user_id", None)
     if user_id:
         subject, limit = f"u{user_id}", settings.COPILOT_STUDIO_USER_LIMIT
     else:
         subject, limit = f"ip{client_ip(request)}", settings.COPILOT_STUDIO_GUEST_LIMIT
+
+    proposed: dict = {}
+
+    async def propose(args: dict):
+        try:
+            plan = validate_plan(args, payload.context)
+        except PlanError as exc:
+            # Back to the model as a normal result: it can fix the plan or ask.
+            return {"ok": False, "problem": str(exc)}
+        proposed.clear()
+        proposed.update(plan)
+        return {"ok": True, "prepared": plan,
+                "next": "Tell the customer in one or two short lines what is ready and to press the button "
+                        "on the card below. The card shows the result and price; don't state them yourself, "
+                        "and don't say it is done."}
+
     try:
-        return await run_copilot(
-            system=studio_system(_brand(), _today(), payload.context), tools=[], handlers={},
+        result = await run_copilot(
+            system=studio_system(_brand(), _today(), payload.context), tools=[PROPOSE_PLAN_TOOL],
+            handlers={"propose_plan": propose},
             messages=[m.model_dump() for m in payload.messages], scope="studio", db=db,
             studio=True, subject=subject, subject_limit=limit,
         )
     except (CopilotUnavailable, CopilotLimitReached, CopilotError) as exc:
         _raise_for(exc)
+    if proposed:
+        result["plan"] = proposed
+        if not result.get("reply") or result["reply"] == "I don't have an answer for that.":
+            result["reply"] = "Ready — press the button on the card below."
+    return result

@@ -7,9 +7,17 @@ A customer building a gang sheet can ask, in English or Roman Urdu, "will my des
 **The builder works out the numbers; the model reads and explains them.** Fits come from `lib/sheetNesting` (the same nesting Auto Nest uses), prices from the sizes the shop sells, backgrounds and DPI from `analyzeArtwork`. The model never does geometry or arithmetic, so it cannot promise a fit the builder cannot deliver.
 
 ## Phases
-1. **Read-only assistant (this change).** Asks, explains, suggests; says which button to press. Changes nothing on the canvas.
-2. **Actions.** Remove background, auto-build, copies, resize — each proposed as a confirm card and undoable (the admin copilot's `propose_action` pattern). The model's tool calls run in the browser through a studio actions interface.
-3. **End to end.** "Build my sheet" through save and add to cart.
+1. **Read-only assistant (done).** Asks, explains, suggests.
+2. **Builds the sheet (done).** The model calls `propose_plan` with what the customer asked for (designs by ref, total copies, a width or height, a sheet size, backgrounds to remove, add to cart). The server checks it against the sheet and returns it; the builder shows it as a card with its own layout and price, and runs it on one press: backgrounds → build (Auto Nest rules) → save and cart. One undo puts the sheet back.
+3. **Next.** Quantity of sets, text designs, and a per-shop on/off switch in the admin.
+
+## Phase 2 — the easy path
+- Builder opens empty → the assistant opens itself (once per browser; closed stays closed).
+- 📎 in the chat uploads designs straight onto the sheet with no background pop-up, and the assistant is told at once, so it asks: how many, how big, remove the background?
+- Plan card: label, steps, "N designs on K × size — $price", low-DPI and overflow warnings, a design too big (button disabled). When the sheet overflows or a cheaper size holds it all, a second button offers that one sheet instead, with its price.
+- After a build, "Add to cart" is one tap (no model call).
+- A newer plan retires the one before it; the model is told on the next question whether its plan was pressed.
+- Backgrounds are only flagged on files the builder actually read (`alphaChecked`); designs reopened from an order are "unknown", not "has a background".
 
 ## Phase 1 — behaviour
 - "Ask AI" in the builder's top bar opens a panel. Guests and signed-in customers.
@@ -34,4 +42,6 @@ A customer building a gang sheet can ask, in English or Roman Urdu, "will my des
 - [x] Studio model resolves to Haiku on Anthropic; owner copilot unchanged.
 - [x] `buildStudioContext` / `fitOn` tested (fixed sheet, overflow, too-wide, roll length and price, minimum length, copies folded, background and DPI flags).
 - [ ] 20 Roman Urdu / English scenarios run against Haiku and Gemini Flash; pick by tool-free answer quality and cost (needs API keys).
-- [ ] Phase 2 studio actions interface.
+- [x] `propose_plan` validated server-side (unknown design, copies 0-500, unknown size, duplicate item, empty build, non-picture background, empty cart) — 20 backend tests.
+- [x] `planBuild` / `betterSize` — spacing, edges, overflow pricing, too-big, roll length and minimum.
+- [x] Real builder (vitest + testing-library): card before change, one-press build, resize keeps shape, overflow → bigger sheet or second sheet, too-big refused, undo, model told the outcome, newer plan retires older, 📎 upload tells the model, background removed before build.

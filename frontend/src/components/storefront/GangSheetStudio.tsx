@@ -54,7 +54,11 @@ import {
 } from "@/lib/sheetNesting";
 import { NestPreview } from "@/components/storefront/NestPreview";
 import { StudioAssistant } from "@/components/storefront/StudioAssistant";
-import { buildStudioContext, type StudioContext } from "@/lib/studioContext";
+import { buildStudioContext, dpiAt, type StudioContext } from "@/lib/studioContext";
+import {
+  betterSize, isRoll as isRollSize, planBuild, toStudioSize,
+  type AssistantPlan, type BuildDesign, type PlanPreview, type PlanRun,
+} from "@/lib/studioBuild";
 import { NoRoomAsk, type NoRoomChoice } from "@/components/storefront/NoRoomAsk";
 import { say } from "@/lib/toast";
 import { ToastContainer } from "react-toastify";
@@ -124,6 +128,9 @@ interface Upload {
   pxW: number;
   pxH: number;
   hasAlpha: boolean;
+  /** hasAlpha was read from the file itself. Designs reopened from an order
+   *  or a link never are, and false there means "not known", not "opaque". */
+  alphaChecked?: boolean;
   aspect: number; // pxW/pxH (or 1 for vectors)
 }
 
@@ -342,6 +349,8 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
   /** A wider edge chosen in Auto Build, kept so a later Auto Nest packs to the same one. */
   const [nestEdge, setNestEdge] = useState(0);
   const [assistantOpen, setAssistantOpen] = useState(false);
+  // A plan from the assistant being carried out: what is running, and how far.
+  const [aiWork, setAiWork] = useState<null | { label: string; progress: number | null }>(null);
   const glideTimer = useRef<number | undefined>(undefined);
   useEffect(() => () => { window.clearTimeout(freshTimer.current); window.clearTimeout(glideTimer.current); }, []);
   // The document only exists in the browser, so the first render stays in
@@ -651,6 +660,7 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
       pxW: analysis.pxW,
       pxH: analysis.pxH,
       hasAlpha: analysis.hasAlpha,
+      alphaChecked: true,
       aspect: analysis.pxW && analysis.pxH ? analysis.pxW / analysis.pxH : 1,
     };
     setUploads((cur) => [...cur, u]);
@@ -758,6 +768,7 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
         pxW: analysis.pxW,
         pxH: analysis.pxH,
         hasAlpha: analysis.hasAlpha,
+        alphaChecked: true,
         aspect: analysis.pxW && analysis.pxH ? analysis.pxW / analysis.pxH : u.aspect,
       } : u)));
     } catch {
@@ -869,7 +880,7 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
       const u: Upload = {
         uid: `${res.url}#${nextId.current++}`,
         file_url: res.url, file_name: `Text: ${text.slice(0, 18)}`, file_type: "png",
-        isImage: true, pxW: w, pxH: h, hasAlpha: true, aspect: w / h,
+        isImage: true, pxW: w, pxH: h, hasAlpha: true, alphaChecked: true, aspect: w / h,
       };
       setUploads((cur) => [...cur, u]);
       addPlacement(u);
@@ -2244,30 +2255,267 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
     [warnings],
   );
 
+  // ── Assistant ────────────────────────────────────────────────────────────────
+  // The assistant talks; the builder does. It is told about the sheet (below),
+  // proposes a plan in terms of the designs it was told about, and the builder
+  // lays that plan out with its own nesting — on the card first, so the buyer
+  // sees the result and price, and on the sheet when they press the button.
+  const studioSizes = useMemo(() => sizes.map(toStudioSize), [sizes]);
+
   /** The sheet open now, as the assistant is told about it — fits and prices
    *  worked out here with the builder's own nesting, read at the moment of the
-   *  question so it is never a stale picture. */
-  function assistantContext(): StudioContext | null {
+   *  question so it is never a stale picture. `refs` maps the names it is given
+   *  for each design (d1, d2…) back to the uploads. */
+  function assistantContext(): { context: StudioContext; refs: Record<string, string> } | null {
     return buildStudioContext({
-      sizes,
-      current: size,
+      sizes: studioSizes,
+      current: size ? toStudioSize(size) : undefined,
       currentLength: sheetLen,
       edge: nestEdge,
       gap: imageMargin,
       copiesOrdered: qty,
       priceNow: unitPrice * qty,
-      pieces: placements.map((p) => {
-        const u = upById(p.uid);
-        return {
-          name: u?.file_name ?? "design", w_in: p.w_in, h_in: p.h_in,
-          pxW: u?.pxW, pxH: u?.pxH, isImage: !!u?.isImage, hasAlpha: !!u?.hasAlpha,
-        };
-      }),
+      uploads: uploads.map((u) => ({
+        uid: u.uid, name: u.file_name, pxW: u.pxW, pxH: u.pxH, isImage: u.isImage,
+        hasAlpha: u.alphaChecked ? u.hasAlpha : undefined,
+      })),
+      pieces: placements.map((p) => ({ uid: p.uid, w_in: p.w_in, h_in: p.h_in })),
       warnings: {
         low_dpi: warnCounts.dpi ?? 0, outside_safe_area: warnCounts.outside ?? 0,
         overlapping: warnCounts.overlap ?? 0, very_small: warnCounts.small ?? 0,
       },
     });
+  }
+
+  type Resolved = { size: GangSheetSize; designs: (BuildDesign & { uid: string })[] };
+
+  /**
+   * A plan's build step in terms of this sheet: which size, and every design
+   * with its count and print size in inches.
+   *
+   * Designs the plan names get the count it gives, at the width or height it
+   * gives (the other side follows the picture's shape), or the size they
+   * already have here, or the size a fresh upload would get. Anything else on
+   * the sheet stays as it is unless the plan says otherwise.
+   */
+  function resolveBuild(build: NonNullable<AssistantPlan["build"]>, refs: Record<string, string>, sizeId?: string): Resolved | string {
+    const want = (build.sheet_size ?? "").trim().toLowerCase();
+    const target = sizeId ? sizes.find((s) => s.id === sizeId)
+      : want ? sizes.find((s) => s.name.trim().toLowerCase() === want)
+      : size;
+    if (!target) return `The ${build.sheet_size ?? "chosen"} sheet isn't available any more.`;
+
+    const named = new Map<string, Upload>();
+    for (const it of build.items) {
+      const u = refs[it.design] ? upById(refs[it.design]!) : undefined;
+      if (!u) return "A design in this plan is no longer in your uploads. Ask again and I'll redo it.";
+      named.set(it.design, u);
+    }
+    const namedUids = new Set([...named.values()].map((u) => u.uid));
+
+    const out: Resolved["designs"] = [];
+    if (build.keep_others !== false) {
+      const kept = new Map<string, BuildDesign & { uid: string }>();
+      for (const p of placements) {
+        if (namedUids.has(p.uid)) continue;
+        const key = `${p.uid}\u0001${round3(p.w_in)}x${round3(p.h_in)}`;
+        const k = kept.get(key);
+        if (k) k.copies += 1;
+        else kept.set(key, { key, uid: p.uid, w: p.w_in, h: p.h_in, copies: 1 });
+      }
+      out.push(...kept.values());
+    }
+    for (const it of build.items) {
+      if (it.copies <= 0) continue;
+      const u = named.get(it.design)!;
+      const here = placements.find((p) => p.uid === u.uid);
+      const shape = here ? here.w_in / here.h_in : (u.aspect || 1);
+      let w: number, h: number;
+      if (it.width_in) { w = it.width_in; h = w / shape; }
+      else if (it.height_in) { h = it.height_in; w = h * shape; }
+      else if (here) { w = here.w_in; h = here.h_in; }
+      else ({ w, h } = defaultSize(u));
+      out.push({ key: `${u.uid}\u0001plan`, uid: u.uid, w: round3(Math.max(0.25, w)), h: round3(Math.max(0.25, h)), copies: it.copies });
+    }
+    return { size: target, designs: out };
+  }
+
+  /** What the plan card shows: worked out now, with nothing changed. */
+  function previewPlan(plan: AssistantPlan, refs: Record<string, string>, sizeId?: string): PlanPreview {
+    const nameOf = (ref: string) => (refs[ref] ? upById(refs[ref]!)?.file_name : undefined) ?? ref;
+    const out: PlanPreview = { backgrounds: (plan.remove_background ?? []).map(nameOf), cart: !!plan.add_to_cart };
+    if (!plan.build) {
+      if (out.cart && !placements.length) out.problem = "The sheet is empty — add designs first.";
+      return out;
+    }
+    const r = resolveBuild(plan.build, refs, sizeId);
+    if (typeof r === "string") return { ...out, problem: r };
+    const target = toStudioSize(r.size);
+    const built = planBuild(target, r.designs, nestEdge, imageMargin);
+    const byKey = new Map(r.designs.map((d) => [d.key, d]));
+    const alt = betterSize(studioSizes, built, r.designs, nestEdge, imageMargin);
+    const lowDpi: { name: string; dpi: number }[] = [];
+    for (const d of r.designs) {
+      const dpi = dpiAt(upById(d.uid), d.w, d.h);
+      if (dpi != null && dpi < 200) lowDpi.push({ name: upById(d.uid)?.file_name ?? "design", dpi });
+    }
+    out.build = {
+      sizeName: r.size.name,
+      sheets: built.sheets.length,
+      lengths: built.sheets.map((sh) => sh.length),
+      roll: isRollSize(target),
+      copies: built.copies,
+      price: built.price,
+      qty,
+      tooBig: built.tooBig.map((k) => upById(byKey.get(k)?.uid ?? "")?.file_name ?? "a design"),
+      lowDpi,
+      alt: alt && !sizeId ? {
+        sizeId: alt.size.id, sizeName: alt.size.name, price: alt.price,
+        length: isRollSize(alt.size) ? alt.sheets[0]?.length : undefined,
+      } : undefined,
+    };
+    if (built.tooBig.length) out.problem = `${out.build.tooBig.join(", ")} won't fit a ${r.size.name} sheet at that size — make it smaller or pick a wider sheet.`;
+    else if (!built.copies) out.problem = "That would leave the sheet empty.";
+    return out;
+  }
+
+  /** Lay the plan's build out on this sheet (and new sheets after it, if it
+   *  spills over). One undo step puts the sheet back as it was. */
+  function applyBuild(build: NonNullable<AssistantPlan["build"]>, refs: Record<string, string>, sizeId?: string): PlanRun {
+    const r = resolveBuild(build, refs, sizeId);
+    if (typeof r === "string") return { ok: false, message: r };
+    const target = toStudioSize(r.size);
+    const built = planBuild(target, r.designs, nestEdge, imageMargin);
+    if (built.tooBig.length) return { ok: false, message: "A design is too big for that sheet — nothing was changed." };
+    if (!built.sheets.length) return { ok: false, message: "That would leave the sheet empty — nothing was changed." };
+
+    const byKey = new Map(r.designs.map((d) => [d.key, d]));
+    const laid: Placement[][] = built.sheets.map((sh) => sh.pieces.map((pc) => ({
+      id: nextId.current++, uid: byKey.get(pc.key)!.uid,
+      x_in: round3(pc.x), y_in: round3(pc.y), w_in: pc.w, h_in: pc.h, rotation: pc.rotated ? 90 : 0,
+    })));
+    const roll = isRollSize(target);
+    const all = snapshotAll();
+    const here = all[active]!;
+    const before = placements.map((p) => ({ ...p }));
+    const next = [...all];
+    next[active] = { ...here, sizeId: r.size.id, customLength: roll ? built.sheets[0]!.length : 0, placements: laid[0]! };
+    const extra: SheetTab[] = laid.slice(1).map((pl, i) => ({
+      key: uid(), name: `Gang Sheet ${all.length + i + 1}`, sizeId: r.size.id, qty: here.qty,
+      customLength: roll ? built.sheets[i + 1]!.length : 0, placements: pl,
+    }));
+    next.splice(active + 1, 0, ...extra);
+
+    const moving = laid[0]!;
+    const step = Math.min(45, 700 / Math.max(moving.length, 1));
+    setGlide({ order: new Map(moving.map((q, i) => [q.id, i])), step });
+    window.clearTimeout(glideTimer.current);
+    glideTimer.current = window.setTimeout(() => setGlide(null), moving.length * step + 480);
+    goTo(next, active);
+    // goTo starts this sheet's history afresh; keep the way it was one undo away.
+    historyRef.current = [before, moving.map((p) => ({ ...p }))];
+    ptrRef.current = 1;
+    forceHud((n) => n + 1);
+
+    const where = extra.length ? `${laid.length} ${r.size.name} sheets` : `a ${r.size.name} sheet`;
+    say.done(`${built.copies} design${built.copies === 1 ? "" : "s"} laid out on ${where}.`);
+    return { ok: true, message: `${built.copies} on ${where}` };
+  }
+
+  /** Take a design's background off, in place: every copy of it on every sheet
+   *  shows the cut-out, the way the image editor's result does. */
+  async function removeBackgroundOf(target: Upload): Promise<string | null> {
+    try {
+      const blob = await (await fetch(target.file_url)).blob();
+      const file = new File([blob], target.file_name, { type: blob.type || "image/png" });
+      const png = await removeImageBackground(file, (p) => setAiWork({ label: `${target.file_name}: ${p.label}`, progress: p.ratio }));
+      const analysis = await analyzeArtwork(png);
+      const res = await gangSheetsService.uploadArtwork(png);
+      setUploads((cur) => cur.map((u) => (u.uid === target.uid ? {
+        ...u, file_url: res.url, file_name: res.file_name, file_type: res.type,
+        isImage: analysis.isImage, pxW: analysis.pxW, pxH: analysis.pxH, hasAlpha: analysis.hasAlpha, alphaChecked: true,
+        aspect: analysis.pxW && analysis.pxH ? analysis.pxW / analysis.pxH : u.aspect,
+      } : u)));
+      return null;
+    } catch (e) {
+      return e instanceof BackgroundRemovalError ? `${target.file_name}: ${e.message}` : `${target.file_name}: the background couldn't be removed just now, so the original was kept.`;
+    }
+  }
+
+  // The steps of a plan run one after another, and each must see what the one
+  // before it did — so later steps are taken from the latest render, not from
+  // the one the button was pressed in.
+  const latest = useRef({ applyBuild, save });
+  latest.current = { applyBuild, save };
+  const settle = () => new Promise<void>((done) => requestAnimationFrame(() => window.setTimeout(done, 40)));
+
+  /** Carry a plan out: backgrounds, then the build, then the cart. */
+  async function runPlan(plan: AssistantPlan, refs: Record<string, string>, sizeId?: string): Promise<PlanRun> {
+    const notes: string[] = [];
+    try {
+      for (const ref of plan.remove_background ?? []) {
+        const u = refs[ref] ? upById(refs[ref]!) : undefined;
+        if (!u) continue;
+        setAiWork({ label: `Removing the background — ${u.file_name}`, progress: null });
+        const problem = await removeBackgroundOf(u);
+        if (problem) notes.push(problem);
+      }
+      if (plan.build) {
+        setAiWork({ label: "Laying out your sheet", progress: null });
+        await settle();
+        const done = latest.current.applyBuild(plan.build, refs, sizeId);
+        if (!done.ok) return { ok: false, message: [...notes, done.message].join(" ") };
+        notes.unshift(done.message);
+      }
+      if (plan.add_to_cart) {
+        setAiWork(null);
+        await settle();
+        await latest.current.save(true);
+        notes.push("saving and opening your cart");
+      }
+      return { ok: true, message: notes.join(" · ") || "Done" };
+    } finally {
+      setAiWork(null);
+    }
+  }
+
+  /** Files handed to the assistant: uploaded and put on the sheet straight
+   *  away, with no background prompt — the assistant asks about backgrounds
+   *  itself, in the conversation. */
+  async function assistantUpload(files: File[]): Promise<string[]> {
+    if (!size || !files.length) return [];
+    setUploading(true);
+    setError(null);
+    const names: string[] = [];
+    try {
+      for (let i = 0; i < files.length; i++) {
+        const f = files[i]!;
+        setUploadStep({ done: i, total: files.length, name: f.name });
+        const u = await ingestFile(f, true);
+        names.push(u.file_name);
+      }
+    } catch {
+      setError("That file could not be uploaded. Allowed: PNG, JPG, PDF, SVG, AI, EPS, PSD, TIFF (max 50 MB).");
+    } finally {
+      setUploading(false);
+      setUploadStep(null);
+    }
+    return names;
+  }
+
+  // Somebody opening an empty builder is met by the assistant: telling it what
+  // you want is the easy way in. Closed once, it stays closed on this browser.
+  useEffect(() => {
+    const t = window.setTimeout(() => {
+      let closed = false;
+      try { closed = localStorage.getItem("gs_ai_closed") === "1"; } catch { /* private mode */ }
+      if (!closed && stateRef.current.placements.length === 0) setAssistantOpen(true);
+    }, 900);
+    return () => window.clearTimeout(t);
+  }, []);
+  function closeAssistant() {
+    setAssistantOpen(false);
+    try { localStorage.setItem("gs_ai_closed", "1"); } catch { /* private mode */ }
   }
 
   // No portal. It was here to escape a shop page drawn around the builder, and
@@ -2314,7 +2562,7 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
             @media (prefers-reduced-motion: reduce) { .gs-ai::before { animation: none; } }
           `}</style>
           <span className="gs-ai" data-open={assistantOpen ? "" : undefined}>
-            <button onClick={() => setAssistantOpen((o) => !o)} style={{ ...S.ghostBtn, border: "none", padding: "9px 14px", borderRadius: "7px", color: "#5B21B6", fontWeight: 700 }} title="Ask the assistant — will my designs fit? what about backgrounds? (English / Roman Urdu)" aria-pressed={assistantOpen}><Sparkles size={15} strokeWidth={2.1} /> Ask AI</button>
+            <button onClick={() => setAssistantOpen((o) => !o)} style={{ ...S.ghostBtn, border: "none", padding: "9px 14px", borderRadius: "7px", color: "#5B21B6", fontWeight: 700 }} title="Tell the assistant what you want and it builds the sheet for you (English / Roman Urdu)" aria-pressed={assistantOpen}><Sparkles size={15} strokeWidth={2.1} /> Build with AI</button>
           </span>
           <button onClick={preview} style={S.ghostBtn} title="Open a full-resolution preview in a new tab"><Eye size={15} strokeWidth={2.1} /> Preview</button>
           <button onClick={() => save(true)} disabled={saving} style={{ ...S.primaryBtn, opacity: saving ? 0.6 : 1 }}>
@@ -3366,7 +3614,17 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
         );
       })()}
 
-      <StudioAssistant open={assistantOpen} onClose={() => setAssistantOpen(false)} getContext={assistantContext} />
+      <StudioAssistant
+        open={assistantOpen}
+        onClose={closeAssistant}
+        getContext={assistantContext}
+        preview={previewPlan}
+        run={runPlan}
+        upload={assistantUpload}
+        accept=".png,.jpg,.jpeg,.webp,.gif,.pdf,.svg,.ai,.eps,.psd,.tif,.tiff"
+        uploading={uploading}
+      />
+      {aiWork && <WorkingOverlay absolute={false} label={`${aiWork.label}…`} progress={aiWork.progress} />}
       <ToastContainer />
     </div>
   );

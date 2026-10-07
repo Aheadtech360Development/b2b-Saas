@@ -5,32 +5,29 @@
  * trust with geometry or prices. So the builder works those out here, with the
  * same nesting the Auto Nest button uses, and sends the results along with each
  * question. The model reads them; it works nothing out.
+ *
+ * Each uploaded design is given a short name ("d1", "d2"…) that the model uses
+ * to say which design it means. `refs` maps those names back to uploads, held by
+ * the builder for when the customer presses the plan's button.
  */
-import { planNest, type NestItem } from "@/lib/sheetNesting";
-import type { Sheet } from "@/lib/sheetPlacement";
+import { isRoll, planBuild, type StudioSize } from "@/lib/studioBuild";
 
-export interface StudioSize {
-  id: string;
-  name: string;
-  width_in: number;
-  height_in: number;
-  price_per_sheet: number;
-  bleed_in: number;
-  pricing_mode: "fixed" | "custom_length";
-  price_per_inch: number;
-  min_length_in: number;
-  max_length_in: number;
-}
+export type { StudioSize } from "@/lib/studioBuild";
 
-export interface StudioPiece {
-  /** Items that share a name and size are one design with several copies. */
+export interface StudioUpload {
+  uid: string;
   name: string;
-  w_in: number;
-  h_in: number;
   pxW?: number;
   pxH?: number;
   isImage: boolean;
-  hasAlpha: boolean;
+  /** Undefined when nobody has looked (a design reopened from an order). */
+  hasAlpha?: boolean;
+}
+
+export interface StudioPiece {
+  uid: string;
+  w_in: number;
+  h_in: number;
 }
 
 export interface StudioContext {
@@ -43,8 +40,12 @@ export interface StudioContext {
   price_now?: number;
   designs_on_sheet: number;
   designs: {
-    name: string; width_in: number; height_in: number; copies: number;
-    px_w?: number; px_h?: number; dpi?: number; has_background?: boolean;
+    ref: string; name: string; px_w?: number; px_h?: number; picture?: boolean; has_background?: boolean;
+    on_sheet: { width_in: number; height_in: number; copies: number; dpi?: number }[];
+  }[];
+  sizes: {
+    name: string; width_in: number; is_roll: boolean; length_in?: number; price?: number;
+    min_length_in?: number; max_length_in?: number; price_per_inch?: number; current: boolean;
   }[];
   warnings: { low_dpi: number; outside_safe_area: number; overlapping: number; very_small: number };
   fits: {
@@ -61,6 +62,7 @@ export interface StudioInput {
   gap: number;
   copiesOrdered: number;
   priceNow: number;
+  uploads: StudioUpload[];
   pieces: StudioPiece[];
   warnings: StudioContext["warnings"];
 }
@@ -69,78 +71,81 @@ export interface StudioInput {
 // be slower than the question is worth, and the model is told it has no fits.
 const MAX_ITEMS_FOR_FITS = 300;
 const MAX_DESIGNS = 40;
-const MAX_FITS = 12;
+const MAX_SIZES = 12;
 
 const r2 = (n: number) => Math.round(n * 100) / 100;
 
-function dpiOf(p: StudioPiece): number | undefined {
-  if (!p.isImage || !p.pxW || !p.pxH || p.w_in <= 0 || p.h_in <= 0) return undefined;
-  return Math.floor(Math.min(p.pxW / p.w_in, p.pxH / p.h_in));
+export function dpiAt(u: { isImage: boolean; pxW?: number; pxH?: number } | undefined, w: number, h: number): number | undefined {
+  if (!u || !u.isImage || !u.pxW || !u.pxH || w <= 0 || h <= 0) return undefined;
+  return Math.floor(Math.min(u.pxW / w, u.pxH / h));
 }
 
-/** How the same designs would nest on one size, at this gap and edge. */
+/** How the pieces on the sheet now would nest on one size, at this gap and edge. */
 export function fitOn(
-  size: StudioSize, pieces: StudioPiece[], edge: number, gap: number,
+  size: StudioSize, pieces: { w_in: number; h_in: number }[], edge: number, gap: number,
 ): StudioContext["fits"][number] {
-  const isRoll = size.pricing_mode === "custom_length";
-  const bleed = Math.max(size.bleed_in, edge);
-  // A roll is cut to length, so the question is how long it must be: try it at
-  // the longest it is sold and measure what the designs actually use.
-  const length = isRoll ? size.max_length_in : size.height_in;
-  const spec: Sheet = { width: size.width_in, length, bleed, gap, canGrow: false, maxLength: length };
-  const items: NestItem[] = pieces.map((p, i) => ({ key: String(i), w: p.w_in, h: p.h_in }));
-  const plan = planNest(spec, items);
-  const fitsAll = plan.unplaceable.length === 0 && plan.sheets.length <= 1;
-  const base = {
-    size_name: size.name, width_in: size.width_in, is_roll: isRoll, fits_all: fitsAll,
-    too_wide: plan.unplaceable.length,
-  };
-  if (isRoll) {
-    if (!fitsAll) return { ...base, length_in: size.max_length_in, sheets_needed: plan.sheets.length, current: false };
-    const used = plan.sheets[0]?.reduce((m, it) => Math.max(m, it.y + (it.rotated ? it.w : it.h)), 0) ?? 0;
-    const need = Math.min(size.max_length_in, Math.max(size.min_length_in, Math.ceil(used + bleed)));
-    return { ...base, length_in: need, sheets_needed: 1, price: r2(need * size.price_per_inch), current: false };
+  const plan = planBuild(size, pieces.map((p, i) => ({ key: String(i), w: p.w_in, h: p.h_in, copies: 1 })), edge, gap);
+  const roll = isRoll(size);
+  const fitsAll = plan.tooBig.length === 0 && plan.sheets.length <= 1;
+  const base = { size_name: size.name, width_in: size.width_in, is_roll: roll, fits_all: fitsAll, too_wide: plan.tooBig.length, current: false };
+  if (roll) {
+    if (!fitsAll) return { ...base, length_in: size.max_length_in, sheets_needed: plan.sheets.length };
+    return { ...base, length_in: plan.sheets[0]?.length ?? size.min_length_in, sheets_needed: 1, price: plan.price };
   }
-  const n = plan.sheets.length;
-  return {
-    ...base, length_in: size.height_in, sheets_needed: n,
-    fill_pct: plan.fill.length ? Math.round((plan.fill.reduce((a, b) => a + b, 0) / plan.fill.length) * 100) : 0,
-    price: r2(size.price_per_sheet * Math.max(1, n)), current: false,
-  };
+  return { ...base, length_in: size.height_in, sheets_needed: plan.sheets.length, fill_pct: plan.fillPct, price: r2(size.price_per_sheet * Math.max(1, plan.sheets.length)) };
 }
 
-export function buildStudioContext(input: StudioInput): StudioContext | null {
+export function buildStudioContext(input: StudioInput): { context: StudioContext; refs: Record<string, string> } | null {
   const { current, pieces } = input;
   if (!current) return null;
 
-  const groups = new Map<string, { piece: StudioPiece; copies: number }>();
-  for (const p of pieces) {
-    const k = `${p.name}|${p.w_in}|${p.h_in}`;
-    const g = groups.get(k);
-    if (g) g.copies += 1; else groups.set(k, { piece: p, copies: 1 });
-  }
-  const designs = [...groups.values()].slice(0, MAX_DESIGNS).map(({ piece: p, copies }) => ({
-    name: p.name.slice(0, 80), width_in: r2(p.w_in), height_in: r2(p.h_in), copies,
-    px_w: p.pxW || undefined, px_h: p.pxH || undefined, dpi: dpiOf(p),
-    has_background: p.isImage ? !p.hasAlpha : undefined,
-  }));
+  const refs: Record<string, string> = {};
+  const designs: StudioContext["designs"] = input.uploads.slice(0, MAX_DESIGNS).map((u, i) => {
+    const ref = `d${i + 1}`;
+    refs[ref] = u.uid;
+    const bySize = new Map<string, { width_in: number; height_in: number; copies: number; dpi?: number }>();
+    for (const p of pieces) {
+      if (p.uid !== u.uid) continue;
+      const k = `${r2(p.w_in)}x${r2(p.h_in)}`;
+      const g = bySize.get(k);
+      if (g) g.copies += 1;
+      else bySize.set(k, { width_in: r2(p.w_in), height_in: r2(p.h_in), copies: 1, dpi: dpiAt(u, p.w_in, p.h_in) });
+    }
+    return {
+      ref, name: u.name.slice(0, 80), px_w: u.pxW || undefined, px_h: u.pxH || undefined,
+      picture: u.isImage || undefined,
+      // A picture with no transparency almost always has a background to
+      // remove. Not said at all when it was never looked at.
+      has_background: u.isImage && u.hasAlpha !== undefined ? !u.hasAlpha : undefined,
+      on_sheet: [...bySize.values()],
+    };
+  });
+
+  const shown = input.sizes.slice(0, MAX_SIZES);
+  const sizes: StudioContext["sizes"] = shown.map((s) => isRoll(s)
+    ? { name: s.name, width_in: s.width_in, is_roll: true, min_length_in: s.min_length_in, max_length_in: s.max_length_in, price_per_inch: s.price_per_inch, current: s.id === current.id }
+    : { name: s.name, width_in: s.width_in, is_roll: false, length_in: s.height_in, price: s.price_per_sheet, current: s.id === current.id });
 
   let fits: StudioContext["fits"] = [];
   if (pieces.length > 0 && pieces.length <= MAX_ITEMS_FOR_FITS) {
-    fits = input.sizes.slice(0, MAX_FITS).map((s) => ({ ...fitOn(s, pieces, input.edge, input.gap), current: s.id === current.id }));
+    fits = shown.map((s) => ({ ...fitOn(s, pieces, input.edge, input.gap), current: s.id === current.id }));
   }
 
   return {
-    sheet_name: current.name.slice(0, 80),
-    sheet_width_in: current.width_in,
-    sheet_length_in: input.currentLength,
-    safe_edge_in: Math.max(current.bleed_in, input.edge),
-    gap_between_designs_in: input.gap,
-    sheet_count_ordered: Math.max(1, input.copiesOrdered),
-    price_now: Number.isFinite(input.priceNow) ? r2(input.priceNow) : undefined,
-    designs_on_sheet: pieces.length,
-    designs,
-    warnings: input.warnings,
-    fits,
+    refs,
+    context: {
+      sheet_name: current.name.slice(0, 80),
+      sheet_width_in: current.width_in,
+      sheet_length_in: input.currentLength,
+      safe_edge_in: Math.max(current.bleed_in, input.edge),
+      gap_between_designs_in: input.gap,
+      sheet_count_ordered: Math.max(1, input.copiesOrdered),
+      price_now: Number.isFinite(input.priceNow) ? r2(input.priceNow) : undefined,
+      designs_on_sheet: pieces.length,
+      designs,
+      sizes,
+      warnings: input.warnings,
+      fits,
+    },
   };
 }
