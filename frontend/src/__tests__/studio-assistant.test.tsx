@@ -105,7 +105,7 @@ async function openAndAsk(question: string, answer: unknown) {
   expect(designs()).toHaveLength(1);
   fireEvent.click(screen.getByRole("button", { name: /Build with AI/ }));
   post.mockResolvedValueOnce(answer);
-  fireEvent.change(within(panel()).getByPlaceholderText(/22x10 pe/), { target: { value: question } });
+  fireEvent.change(within(panel()).getByPlaceholderText(/on a 22x10/), { target: { value: question } });
   await act(async () => { fireEvent.click(within(panel()).getByRole("button", { name: "Send" })); });
 }
 
@@ -113,18 +113,18 @@ beforeEach(() => { said.length = 0; removed.length = 0; post.mockReset(); });
 
 describe("the assistant builds the sheet", () => {
   it("sends the sheet with the question, the designs named d1, d2…", async () => {
-    await openAndAsk("kitne aa jayenge?", { reply: "Sab aa jayenge." });
+    await openAndAsk("Will they all fit?", { reply: "Yes, they all fit." });
     const [url, body] = post.mock.calls[0]! as [string, { messages: { role: string; content: string }[]; context: { designs: { ref: string; name: string }[]; fits: unknown[] } }];
     expect(url).toBe("/api/v1/copilot/studio");
-    expect(body.messages).toEqual([{ role: "user", content: "kitne aa jayenge?" }]);
+    expect(body.messages).toEqual([{ role: "user", content: "Will they all fit?" }]);
     expect(body.context.designs.map((d) => [d.ref, d.name])).toEqual([["d1", "tee.png"]]);
     expect(body.context.fits).toHaveLength(2);
-    expect(within(panel()).getByText("Sab aa jayenge.")).toBeInTheDocument();
+    expect(within(panel()).getByText("Yes, they all fit.")).toBeInTheDocument();
   });
 
   it("shows the plan's real result and price before anything changes, then builds it on one press", async () => {
-    await openAndAsk("8 copies bana do", {
-      reply: "Tayyar hai — neeche button dabayein.",
+    await openAndAsk("Make 8 copies", {
+      reply: "Ready — press the button below.",
       plan: { label: "8 × tee.png on 22×10", build: { items: [{ design: "d1", copies: 8 }], keep_others: true } },
     });
     const card = within(panel());
@@ -142,7 +142,7 @@ describe("the assistant builds the sheet", () => {
   });
 
   it("resizes as asked, keeping the design's shape", async () => {
-    await openAndAsk("4 inch ke 2", {
+    await openAndAsk("2 of them, 4 inches wide", {
       reply: "Ready.", plan: { label: "2 × tee 4in", build: { items: [{ design: "d1", copies: 2, width_in: 4 }] } },
     });
     await press(within(panel()).getByRole("button", { name: /Do it/ }));
@@ -176,7 +176,7 @@ describe("the assistant builds the sheet", () => {
   });
 
   it("refuses a design too big for the sheet, and changes nothing", async () => {
-    await openAndAsk("30 inch", {
+    await openAndAsk("30 inches wide", {
       reply: "Ready.", plan: { label: "1 × tee 30in", build: { items: [{ design: "d1", copies: 1, width_in: 30 }] } },
     });
     const card = within(panel());
@@ -202,7 +202,7 @@ describe("the assistant builds the sheet", () => {
     });
     await press(within(panel()).getByRole("button", { name: /Do it/ }));
     post.mockResolvedValueOnce({ reply: "Great." });
-    fireEvent.change(within(panel()).getByPlaceholderText(/22x10 pe/), { target: { value: "theek hai" } });
+    fireEvent.change(within(panel()).getByPlaceholderText(/on a 22x10/), { target: { value: "Looks good" } });
     await act(async () => { fireEvent.click(within(panel()).getByRole("button", { name: "Send" })); });
     const body = post.mock.calls[1]![1] as { messages: { role: string; content: string }[]; context: { designs_on_sheet: number } };
     expect(body.messages[1]!.content).toMatch(/The customer pressed the button\. Done: 8 on a 22×10 sheet/);
@@ -214,7 +214,7 @@ describe("the assistant builds the sheet", () => {
       reply: "First.", plan: { label: "8 × tee", build: { items: [{ design: "d1", copies: 8 }] } },
     });
     post.mockResolvedValueOnce({ reply: "Second.", plan: { label: "4 × tee", build: { items: [{ design: "d1", copies: 4 }] } } });
-    fireEvent.change(within(panel()).getByPlaceholderText(/22x10 pe/), { target: { value: "nahi 4" } });
+    fireEvent.change(within(panel()).getByPlaceholderText(/on a 22x10/), { target: { value: "No, 4 copies" } });
     await act(async () => { fireEvent.click(within(panel()).getByRole("button", { name: "Send" })); });
     expect(within(panel()).getByText("Replaced by a newer plan.")).toBeInTheDocument();
     expect(within(panel()).getAllByRole("button", { name: /Do it/ })).toHaveLength(1);
@@ -225,7 +225,7 @@ describe("files handed to the assistant", () => {
   it("are uploaded onto the sheet, and the assistant is told about them straight away", async () => {
     render(<GangSheetStudio sizes={SIZES} productId={null} resumeOrder={ORDER} onClose={() => {}} onSaved={() => {}} />);
     fireEvent.click(screen.getByRole("button", { name: /Build with AI/ }));
-    post.mockResolvedValueOnce({ reply: "logo.jpg par background hai — hata dun?" });
+    post.mockResolvedValueOnce({ reply: "logo.jpg has a background — remove it?" });
     await attach("logo.jpg");
 
     expect(designs()).toHaveLength(2);
@@ -237,7 +237,7 @@ describe("files handed to the assistant", () => {
       expect.objectContaining({ ref: "d2", name: "logo.jpg", has_background: true }),
     ]);
     expect((body.context.designs[0] as { has_background?: boolean }).has_background).toBeUndefined();
-    expect(within(panel()).getByText(/hata dun\?/)).toBeInTheDocument();
+    expect(within(panel()).getByText(/remove it\?/)).toBeInTheDocument();
     // No background prompt of the builder's own: the assistant asks instead.
     expect(screen.queryByText("Background Warning")).toBeNull();
   });
@@ -245,14 +245,14 @@ describe("files handed to the assistant", () => {
   it("a plan takes the background off first, then builds with the cut-out", async () => {
     render(<GangSheetStudio sizes={SIZES} productId={null} resumeOrder={ORDER} onClose={() => {}} onSaved={() => {}} />);
     fireEvent.click(screen.getByRole("button", { name: /Build with AI/ }));
-    post.mockResolvedValueOnce({ reply: "Hata dun?" });
+    post.mockResolvedValueOnce({ reply: "Remove the background?" });
     await attach("logo.jpg");
 
     post.mockResolvedValueOnce({
-      reply: "Tayyar.",
+      reply: "Ready.",
       plan: { label: "logo bg off, 3 copies", remove_background: ["d2"], build: { items: [{ design: "d2", copies: 3 }], keep_others: true } },
     });
-    fireEvent.change(within(panel()).getByPlaceholderText(/22x10 pe/), { target: { value: "haan hata do, 3 copies" } });
+    fireEvent.change(within(panel()).getByPlaceholderText(/on a 22x10/), { target: { value: "Yes, remove it, 3 copies" } });
     await act(async () => { fireEvent.click(within(panel()).getByRole("button", { name: "Send" })); });
     expect(line(/Remove background: logo.jpg/)).toBeInTheDocument();
     expect(line(/4 designs on 1 × 22×10/)).toBeInTheDocument(); // the tee stays

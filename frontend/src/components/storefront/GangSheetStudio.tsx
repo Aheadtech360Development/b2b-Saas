@@ -2562,7 +2562,7 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
             @media (prefers-reduced-motion: reduce) { .gs-ai::before { animation: none; } }
           `}</style>
           <span className="gs-ai" data-open={assistantOpen ? "" : undefined}>
-            <button onClick={() => setAssistantOpen((o) => !o)} style={{ ...S.ghostBtn, border: "none", padding: "9px 14px", borderRadius: "7px", color: "#5B21B6", fontWeight: 700 }} title="Tell the assistant what you want and it builds the sheet for you (English / Roman Urdu)" aria-pressed={assistantOpen}><Sparkles size={15} strokeWidth={2.1} /> Build with AI</button>
+            <button onClick={() => setAssistantOpen((o) => !o)} style={{ ...S.ghostBtn, border: "none", padding: "9px 14px", borderRadius: "7px", color: "#5B21B6", fontWeight: 700 }} title="Tell the assistant what you want and it builds the sheet for you" aria-pressed={assistantOpen}><Sparkles size={15} strokeWidth={2.1} /> Build with AI</button>
           </span>
           <button onClick={preview} style={S.ghostBtn} title="Open a full-resolution preview in a new tab"><Eye size={15} strokeWidth={2.1} /> Preview</button>
           <button onClick={() => save(true)} disabled={saving} style={{ ...S.primaryBtn, opacity: saving ? 0.6 : 1 }}>

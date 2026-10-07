@@ -1,7 +1,7 @@
 # Gang sheet builder — customer AI assistant
 
 ## Goal
-A customer building a gang sheet can ask, in English or Roman Urdu, "will my designs fit on 22x10?", "what does a bigger sheet cost?", "do my designs have backgrounds?" and get a correct, short answer — without learning the builder.
+A customer building a gang sheet can ask, in plain English, "will my designs fit on 22x10?", "what does a bigger sheet cost?", "do my designs have backgrounds?" and get a correct, short answer — without learning the builder.
 
 ## Principle
 **The builder works out the numbers; the model reads and explains them.** Fits come from `lib/sheetNesting` (the same nesting Auto Nest uses), prices from the sizes the shop sells, backgrounds and DPI from `analyzeArtwork`. The model never does geometry or arithmetic, so it cannot promise a fit the builder cannot deliver.
@@ -22,7 +22,7 @@ A customer building a gang sheet can ask, in English or Roman Urdu, "will my des
 ## Phase 1 — behaviour
 - "Ask AI" in the builder's top bar opens a panel. Guests and signed-in customers.
 - Each question carries a `StudioContext` (sheet, designs with DPI and background flag, warning counts, and a fit/price row per size the shop sells) built at the moment of asking.
-- Replies follow the customer's language and script (English, Roman Urdu, mixed, Urdu script).
+- Replies are always in plain English, whatever language the customer writes in.
 - Overflow: offers the nearest size that fits (with its price), smaller designs, or a second sheet.
 - Backgrounds: asks once, naming the files; never assumes yes.
 - Low DPI and warnings are surfaced.
@@ -41,7 +41,7 @@ A customer building a gang sheet can ask, in English or Roman Urdu, "will my des
 - [x] `POST /api/v1/copilot/studio` works for guests, limited per person.
 - [x] Studio model resolves to Haiku on Anthropic; owner copilot unchanged.
 - [x] `buildStudioContext` / `fitOn` tested (fixed sheet, overflow, too-wide, roll length and price, minimum length, copies folded, background and DPI flags).
-- [ ] 20 Roman Urdu / English scenarios run against Haiku and Gemini Flash; pick by tool-free answer quality and cost (needs API keys).
+- [ ] 20 English scenarios run against Gemini Flash-Lite, Gemini Flash and Haiku; pick by plan quality and cost (needs API keys).
 - [x] `propose_plan` validated server-side (unknown design, copies 0-500, unknown size, duplicate item, empty build, non-picture background, empty cart) — 20 backend tests.
 - [x] `planBuild` / `betterSize` — spacing, edges, overflow pricing, too-big, roll length and minimum.
 - [x] Real builder (vitest + testing-library): card before change, one-press build, resize keeps shape, overflow → bigger sheet or second sheet, too-big refused, undo, model told the outcome, newer plan retires older, 📎 upload tells the model, background removed before build.

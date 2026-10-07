@@ -4,8 +4,8 @@
  * StudioAssistant — get a gang sheet made by talking.
  *
  * Built for somebody who has never used a builder: they drop their files in
- * here, say what they want in English or Roman Urdu ("8 of the logo, 4 inch,
- * 22x10 pe"), and the assistant asks for anything missing — how many, how big,
+ * here, say what they want ("8 of the logo, 4 inches wide, on a 22x10"), and
+ * the assistant asks for anything missing — how many, how big,
  * whether to take a background off — then proposes a plan.
  *
  * A plan arrives as a card. The card is worked out by the builder, not the
@@ -31,18 +31,17 @@ type Turn =
     }
   | { role: "note"; content: string; tone: "ok" | "bad"; cartOffer?: boolean };
 
-// Fixed wording, in both languages, so the starting points never depend on a model.
+// Fixed wording, so the starting points never depend on a model.
 const SUGGESTIONS = [
   "Build my sheet for me",
-  "Meri sheet bana do",
+  "Will my designs fit on this sheet?",
   "Which sheet is cheapest for my designs?",
-  "Background hata do",
+  "Remove the backgrounds",
 ];
 
 const GREETING =
   "Hi! Tell me what you want on your sheet — for example \"8 of my logo, 4 inches wide, on a 22x10\" — and I'll build it for you. " +
-  "Add your designs with the 📎 button.\n\n" +
-  "Salam! Bas batayein kya chahiye — main sheet tayyar kar deta hoon. Designs 📎 se daalein.";
+  "Add your designs with the 📎 button.";
 
 const money = (n: number) => `$${n.toFixed(2)}`;
 const settle = () => new Promise<void>((done) => requestAnimationFrame(() => requestAnimationFrame(() => window.setTimeout(done, 40))));
@@ -156,7 +155,7 @@ export function StudioAssistant({ open, onClose, getContext, preview, run, uploa
       return [...marked, {
         role: "note" as const, tone: out.ok ? "ok" as const : "bad" as const, cartOffer: offerCart,
         content: out.ok
-          ? "✓ Done — your sheet is updated. Not right? Press Undo (Ctrl+Z), or tell me what to change.\nHo gaya — sheet tayyar hai."
+          ? "✓ Done — your sheet is updated. Not right? Press Undo (Ctrl+Z), or tell me what to change."
           : `✗ ${out.message}`,
       }];
     });
@@ -178,7 +177,7 @@ export function StudioAssistant({ open, onClose, getContext, preview, run, uploa
           <span style={S.headIcon}><Sparkles size={15} strokeWidth={2.3} aria-hidden /></span>
           <div>
             <div style={{ fontSize: "14px", fontWeight: 700 }}>Build with AI</div>
-            <div style={{ fontSize: "11px", color: "#6B6B6B" }}>Tell me what you need · English / Roman Urdu</div>
+            <div style={{ fontSize: "11px", color: "#6B6B6B" }}>Tell me what you need</div>
           </div>
         </div>
         <button onClick={onClose} aria-label="Close assistant" style={S.close}><X size={16} strokeWidth={2.3} /></button>
@@ -203,7 +202,7 @@ export function StudioAssistant({ open, onClose, getContext, preview, run, uploa
               <div key={i} style={{ display: "flex", flexDirection: "column", gap: "6px", alignSelf: "stretch" }}>
                 <div style={t.tone === "ok" ? S.noteOk : S.noteBad}>{t.content}</div>
                 {t.cartOffer && (
-                  <button onClick={() => void addToCart(i)} style={S.cartBtn}>🛒 Add to cart · Cart mein daal do</button>
+                  <button onClick={() => void addToCart(i)} style={S.cartBtn}>🛒 Add to cart</button>
                 )}
               </div>
             );
@@ -231,7 +230,7 @@ export function StudioAssistant({ open, onClose, getContext, preview, run, uploa
           <Paperclip size={16} strokeWidth={2.2} />
         </button>
         <input value={draft} onChange={(e) => setDraft(e.target.value)} disabled={busy || off}
-          placeholder={off ? "The assistant isn't available right now" : "e.g. 10 logo 4 inch, 22x10 pe"}
+          placeholder={off ? "The assistant isn't available right now" : "e.g. 10 of my logo, 4 inches wide, on a 22x10"}
           maxLength={4000} style={S.input} />
         <button type="submit" disabled={busy || off || !draft.trim()}
           style={{ ...S.send, opacity: busy || off || !draft.trim() ? 0.45 : 1 }}>Send</button>
@@ -270,7 +269,7 @@ function PlanCard({ plan, preview, state, result, onDo, onAlt }: {
       {ready && (
         <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
           <button onClick={onDo} disabled={!!preview.problem} style={{ ...S.doBtn, opacity: preview.problem ? 0.45 : 1 }}>
-            ✓ Do it · Kar do
+            ✓ Do it
           </button>
           {b?.alt && (
             <button onClick={() => onAlt(b.alt!.sizeId)} style={S.altBtn}>
@@ -279,7 +278,7 @@ function PlanCard({ plan, preview, state, result, onDo, onAlt }: {
           )}
         </div>
       )}
-      {state === "running" && <div style={S.cardStatus}>Working on it… · Ho raha hai…</div>}
+      {state === "running" && <div style={S.cardStatus}>Working on it…</div>}
       {state === "done" && <div style={{ ...S.cardStatus, color: "#166534" }}>✓ Done{result ? ` — ${result}` : ""}</div>}
       {state === "failed" && <div style={{ ...S.cardStatus, color: "#991B1B" }}>✗ {result}</div>}
       {state === "old" && <div style={S.cardStatus}>Replaced by a newer plan.</div>}
