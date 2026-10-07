@@ -201,6 +201,13 @@ class Settings(BaseSettings):
     # size and fills in a nested plan — and the provider's own default otherwise.
     # Limits are per day, per signed-in user and per guest address, so one
     # visitor cannot run up the bill.
+    #
+    # Off for now, at the owner's word (2026-10-08): while this is false the
+    # route refuses every question, whoever asks, so "off" also means nothing
+    # is spent. To put the assistant back, two switches, both needed: this one
+    # to true in the environment, and BUILD_WITH_AI in the frontend's
+    # gang-sheets/page.tsx (the button and the panel).
+    COPILOT_STUDIO_ENABLED: bool = False
     COPILOT_STUDIO_MODEL: str = ""
     # How much the model thinks (Claude models that take it): low, medium, high.
     # Low suits a chat that asks and explains; it is also the cheapest.

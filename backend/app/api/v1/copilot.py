@@ -255,9 +255,21 @@ class StudioChatIn(ChatIn):
     context: StudioContext | None = None
 
 
+async def studio_switched_on() -> None:
+    """The builder's assistant answers only while the platform has it on.
+
+    A switch of its own, apart from hiding the button in the shop: the route is
+    open to guests, so with the button hidden it could still be called by
+    anybody who knew the address, and every answer is paid for.
+    """
+    if not settings.COPILOT_STUDIO_ENABLED:
+        raise HTTPException(status_code=503, detail="The assistant isn't available right now.")
+
+
 @public_router.post("/studio")
 async def studio_assistant(
     payload: StudioChatIn, request: Request, db: AsyncSession = Depends(get_db), __: None = Depends(require_brand),
+    ___: None = Depends(studio_switched_on),
 ) -> dict:
     """The builder's assistant. Open to guests — the builder is — so the limit
     is per person: the signed-in user, or the visitor's address.

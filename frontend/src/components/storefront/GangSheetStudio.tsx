@@ -209,6 +209,10 @@ interface Props {
   resumeOrder?: GangSheetOrder | null;
   onClose: () => void;
   onSaved: (order: GangSheetOrder) => void;
+  /** "Build with AI": its button, its panel, and opening by itself on an empty
+   *  sheet. False leaves the builder exactly as it is without it. The page
+   *  decides (see gang-sheets/page.tsx); the server has its own switch. */
+  assistant?: boolean;
 }
 
 /** The studio's left-hand tabs, in the order they are used. */
@@ -234,7 +238,7 @@ function dpiInfo(u: Upload | undefined, w: number, h: number) {
   return { dpi, color: "#DC2626", label: "Low" };
 }
 
-export function GangSheetStudio({ sizes, productId, contactName, contactEmail, autoStart, initialSizeId, initialQty, resumeOrder, onClose, onSaved }: Props) {
+export function GangSheetStudio({ sizes, productId, contactName, contactEmail, autoStart, initialSizeId, initialQty, resumeOrder, onClose, onSaved, assistant = true }: Props) {
   const [sizeId, setSizeId] = useState(
     resumeOrder?.sheet_size_id ||
     (initialSizeId && sizes.some((s) => s.id === initialSizeId) ? initialSizeId : "") ||
@@ -2675,13 +2679,14 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
   // Somebody opening an empty builder is met by the assistant: telling it what
   // you want is the easy way in. Closed once, it stays closed on this browser.
   useEffect(() => {
+    if (!assistant) return;
     const t = window.setTimeout(() => {
       let closed = false;
       try { closed = localStorage.getItem("gs_ai_closed") === "1"; } catch { /* private mode */ }
       if (!closed && stateRef.current.placements.length === 0) setAssistantOpen(true);
     }, 900);
     return () => window.clearTimeout(t);
-  }, []);
+  }, [assistant]);
   function closeAssistant() {
     setAssistantOpen(false);
     try { localStorage.setItem("gs_ai_closed", "1"); } catch { /* private mode */ }
@@ -2719,6 +2724,7 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
           {/* The one button here a customer does not expect, so it is the one
               that asks to be seen: a light runs round its border until it is
               opened, and stands still for anybody who asked for less motion. */}
+          {assistant && (<>
           <style>{`
             .gs-ai { position: relative; display: inline-flex; flex-shrink: 0; padding: 2px; border-radius: 9px; overflow: hidden; isolation: isolate; background: #DDD3FB; box-shadow: 0 0 0 3px rgba(124,58,237,.12); }
             .gs-ai::before { content: ""; position: absolute; z-index: -1; left: 50%; top: 50%; width: 260px; height: 260px; margin: -130px 0 0 -130px;
@@ -2733,6 +2739,7 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
           <span className="gs-ai" data-open={assistantOpen ? "" : undefined}>
             <button onClick={() => setAssistantOpen((o) => !o)} style={{ ...S.ghostBtn, border: "none", padding: "9px 14px", borderRadius: "7px", color: "#5B21B6", fontWeight: 700 }} title="Tell the assistant what you want and it builds the sheet for you" aria-pressed={assistantOpen}><Sparkles size={15} strokeWidth={2.1} /> Build with AI</button>
           </span>
+          </>)}
           <button onClick={preview} style={S.ghostBtn} title="Open a full-resolution preview in a new tab"><Eye size={15} strokeWidth={2.1} /> Preview</button>
           <button onClick={() => save(true)} disabled={saving} style={{ ...S.primaryBtn, opacity: saving ? 0.6 : 1 }}>
             <ShoppingCart size={15} strokeWidth={2.2} /> {saving ? "Saving…" : "Save & Add to Cart"}
@@ -3783,17 +3790,19 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
         );
       })()}
 
-      <StudioAssistant
-        open={assistantOpen}
-        onClose={closeAssistant}
-        getContext={assistantContext}
-        preview={previewPlan}
-        run={runPlan}
-        upload={assistantUpload}
-        inbox={assistantInbox}
-        accept=".png,.jpg,.jpeg,.webp,.gif,.pdf,.svg,.ai,.eps,.psd,.tif,.tiff"
-        uploading={uploading}
-      />
+      {assistant && (
+        <StudioAssistant
+          open={assistantOpen}
+          onClose={closeAssistant}
+          getContext={assistantContext}
+          preview={previewPlan}
+          run={runPlan}
+          upload={assistantUpload}
+          inbox={assistantInbox}
+          accept=".png,.jpg,.jpeg,.webp,.gif,.pdf,.svg,.ai,.eps,.psd,.tif,.tiff"
+          uploading={uploading}
+        />
+      )}
       {aiWork && <WorkingOverlay absolute={false} label={`${aiWork.label}…`} progress={aiWork.progress} />}
       <ToastContainer />
     </div>

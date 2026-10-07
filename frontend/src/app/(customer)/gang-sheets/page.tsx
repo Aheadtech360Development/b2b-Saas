@@ -21,6 +21,17 @@ import { gangSheetsService, type GangSheetOrder, type GangSheetSize } from "@/se
 import { GangSheetStudio } from "@/components/storefront/GangSheetStudio";
 import { useAuthStore } from "@/stores/auth.store";
 
+/**
+ * "Build with AI" in the builder. Off for now, at the owner's word
+ * (2026-10-08): no button, no panel, and it does not open by itself.
+ *
+ * To put it back, two switches, both needed: this one to true, and
+ * COPILOT_STUDIO_ENABLED=true in the server's environment (backend
+ * app/core/config.py) — with only this one, the panel opens and says the
+ * assistant isn't available.
+ */
+const BUILD_WITH_AI = false;
+
 interface Launch {
   sizes: GangSheetSize[];
   productId: string | null;
@@ -121,6 +132,7 @@ export default function GangSheetBuilderPage() {
       initialSizeId={launch.sizeId}
       initialQty={launch.qty}
       resumeOrder={launch.resume}
+      assistant={BUILD_WITH_AI}
       onClose={leave}
       // "Save" keeps the sheet without buying it and leaves the buyer where
       // they are, to carry on — it is also waiting under My Print Jobs. It used

@@ -403,3 +403,22 @@ async def test_one_person_running_out_does_not_use_up_anyone_else(monkeypatch):
     with pytest.raises(agent.CopilotLimitReached):
         await agent._check_daily_limit("studio", "ip1", 2)
     await agent._check_daily_limit("studio", "ip2", 2)  # someone else is unaffected
+
+
+async def test_the_assistant_answers_only_while_the_platform_has_it_switched_on(monkeypatch):
+    """Hiding the button in the shop is not the switch: the route is open to
+    guests, so it refuses by itself, before anything is asked of a model."""
+    from fastapi import HTTPException
+
+    assert type(settings).model_fields["COPILOT_STUDIO_ENABLED"].default is False  # off until somebody turns it on
+    monkeypatch.setattr(settings, "COPILOT_STUDIO_ENABLED", False)
+    with pytest.raises(HTTPException) as refused:
+        await copilot_api.studio_switched_on()
+    assert refused.value.status_code == 503
+    monkeypatch.setattr(settings, "COPILOT_STUDIO_ENABLED", True)
+    await copilot_api.studio_switched_on()
+
+    # And the route asks it: a question cannot get past the switch.
+    import inspect
+
+    assert "Depends(studio_switched_on)" in inspect.getsource(copilot_api.studio_assistant)
