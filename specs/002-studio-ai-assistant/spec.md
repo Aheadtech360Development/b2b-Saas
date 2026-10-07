@@ -27,6 +27,12 @@ A customer building a gang sheet can ask, in plain English, "will my designs fit
 - Backgrounds: asks once, naming the files; never assumes yes.
 - Low DPI and warnings are surfaced.
 
+## Phase 3 — asks on every upload, knows sizes, full control
+- **Every upload is asked about first** (a card from the builder, not the model): "Background found on X — remove it? Yes / No" (only when the file has one) and "Put it on the sheet now? Yes / Not yet". Nothing happens until both are answered; then the assistant is told what was uploaded and what became of it, and asks what is left (copies, size). While the assistant is open this covers the clip, the Upload panel and drops on the canvas; closed, the builder behaves as before.
+- **Size knowledge**: each design is sent with `size_now` and `copies_that_fit` — about how many copies of it fit on the open sheet alone at 1.5″–12″ (and its current width), with the dpi at each, up to the first width that no longer fits. The prompt tells the model to warn of overflow before proposing and to offer a width where they fit, fewer copies, or a bigger sheet.
+- **Fill the sheet**: a build item may `fill` instead of giving copies; the builder counts exactly how many fit beside everything else by laying them out (`fillCount`), on a roll at its cut length.
+- **Spacing and sets**: `build.gap_in` (0–3″) sets the margin between designs; `sets` (1–100) sets how many of the sheet are printed.
+
 ## Model and cost
 - Claude Haiku 4.5 by default for this assistant (`COPILOT_STUDIO_MODEL` overrides; other providers use their own default). The owner copilot keeps its model.
 - Limits per day: `COPILOT_STUDIO_USER_LIMIT` (60) per signed-in user, `COPILOT_STUDIO_GUEST_LIMIT` (15) per guest address, plus the brand's `COPILOT_DAILY_LIMIT`.
@@ -44,4 +50,5 @@ A customer building a gang sheet can ask, in plain English, "will my designs fit
 - [ ] 20 English scenarios run against Gemini Flash-Lite, Gemini Flash and Haiku; pick by plan quality and cost (needs API keys).
 - [x] `propose_plan` validated server-side (unknown design, copies 0-500, unknown size, duplicate item, empty build, non-picture background, empty cart) — 20 backend tests.
 - [x] `planBuild` / `betterSize` — spacing, edges, overflow pricing, too-big, roll length and minimum.
+- [x] Phase 3: upload card (yes/yes, no/not yet, no-background file, Upload panel routed while open, unchanged while closed), fill (exact count, smaller fills more), spacing and sets applied; `capacity` and `fillCount` checked against the real nesting.
 - [x] Real builder (vitest + testing-library): card before change, one-press build, resize keeps shape, overflow → bigger sheet or second sheet, too-big refused, undo, model told the outcome, newer plan retires older, 📎 upload tells the model, background removed before build.

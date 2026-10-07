@@ -88,14 +88,30 @@ async function press(button: HTMLElement) {
   fireEvent.click(button);
   await waitFor(() => expect(within(panel()).queryByText(/Working on it/)).toBeNull(), { timeout: 4000 });
 }
-/** Hand files to the assistant and wait until it has asked about them. */
+/** The newest upload card; throws until there is one, so waitFor waits. */
+function uploadCard(): HTMLElement {
+  const all = panel().querySelectorAll<HTMLElement>("[data-upload-card]");
+  if (!all.length) throw new Error("no upload card yet");
+  return all[all.length - 1]!;
+}
+const files = (names: string[]) => names.map((n) => new File(["x"], n, { type: "image/jpeg" }));
+/** Hand files to the assistant's clip and wait for its upload card. */
 async function attach(...names: string[]) {
-  const calls = post.mock.calls.length;
   const input = panel().querySelector<HTMLInputElement>('input[type="file"]')!;
-  fireEvent.change(input, { target: { files: names.map((n) => new File(["x"], n, { type: "image/jpeg" })) } });
+  fireEvent.change(input, { target: { files: files(names) } });
+  return await waitFor(() => uploadCard(), { timeout: 4000 });
+}
+/** Answer the upload card, and wait until the assistant has been told. */
+async function answer(card: HTMLElement, ...labels: string[]) {
+  const calls = post.mock.calls.length;
+  for (const l of labels) fireEvent.click(within(card).getByRole("button", { name: l }));
   await waitFor(() => expect(post.mock.calls.length).toBe(calls + 1), { timeout: 4000 });
   await waitFor(() => expect(within(panel()).queryByText("Looking at your sheet…")).toBeNull());
 }
+const lastAsk = () => post.mock.calls.at(-1)![1] as {
+  messages: { role: string; content: string }[];
+  context: { designs: { ref: string; name: string; has_background?: boolean; picture?: boolean }[]; designs_on_sheet: number };
+};
 /** A line of the plan card, matched on all its text. */
 const line = (re: RegExp) => within(panel()).getByText((_, el) => el?.tagName === "LI" && re.test(el.textContent ?? ""));
 const sizeMenu = () => document.querySelector('option[value="s24"]')!.parentElement as HTMLSelectElement;
@@ -222,37 +238,86 @@ describe("the assistant builds the sheet", () => {
 });
 
 describe("files handed to the assistant", () => {
-  it("are uploaded onto the sheet, and the assistant is told about them straight away", async () => {
+  const openBuilder = () => {
     render(<GangSheetStudio sizes={SIZES} productId={null} resumeOrder={ORDER} onClose={() => {}} onSaved={() => {}} />);
     fireEvent.click(screen.getByRole("button", { name: /Build with AI/ }));
-    post.mockResolvedValueOnce({ reply: "logo.jpg has a background — remove it?" });
-    await attach("logo.jpg");
+  };
 
-    expect(designs()).toHaveLength(2);
-    const body = post.mock.calls[0]![1] as { messages: { content: string }[]; context: { designs: { ref: string; name: string; has_background?: boolean }[] } };
-    expect(body.messages.at(-1)!.content).toBe("📎 logo.jpg");
-    // The reopened design was never looked at; the new photo was.
-    expect(body.context.designs).toEqual([
-      expect.objectContaining({ ref: "d1", name: "tee.png", picture: true }),
-      expect.objectContaining({ ref: "d2", name: "logo.jpg", has_background: true }),
-    ]);
-    expect((body.context.designs[0] as { has_background?: boolean }).has_background).toBeUndefined();
-    expect(within(panel()).getByText(/remove it\?/)).toBeInTheDocument();
-    // No background prompt of the builder's own: the assistant asks instead.
+  it("asks before doing anything: remove the background? put it on the sheet?", async () => {
+    openBuilder();
+    const card = await attach("logo.jpg");
+    expect(card).toHaveTextContent("Background found on logo.jpg");
+    expect(card).toHaveTextContent("Put it on the sheet now?");
+    // Nothing yet: not on the sheet, no pop-up of the builder's own, the model not asked.
+    expect(designs()).toHaveLength(1);
     expect(screen.queryByText("Background Warning")).toBeNull();
+    expect(post).not.toHaveBeenCalled();
+  });
+
+  it("yes and yes: the background comes off, it goes on the sheet, and the assistant is told", async () => {
+    openBuilder();
+    const card = await attach("logo.jpg");
+    post.mockResolvedValueOnce({ reply: "How many copies, and how big?" });
+    await answer(card, "Yes, remove it", "Yes, put it on");
+
+    expect(removed).toEqual(["logo.jpg"]);
+    expect(designs()).toHaveLength(2);
+    expect(designs().some((el) => el.querySelector("img")?.getAttribute("src") === "https://shop.test/logo-nobg.png")).toBe(true);
+    const ask = lastAsk();
+    expect(ask.messages.at(-1)!.content).toBe("📎 Uploaded logo.jpg. Remove the background from logo.jpg. Put on the sheet.");
+    expect(ask.context.designs[1]).toMatchObject({ ref: "d2", name: "logo-nobg.png", has_background: false });
+    expect(ask.context.designs_on_sheet).toBe(2);
+    expect(within(panel()).getByText("How many copies, and how big?")).toBeInTheDocument();
+  });
+
+  it("no and not yet: the file is kept as it is and left off the sheet", async () => {
+    openBuilder();
+    const card = await attach("logo.jpg");
+    post.mockResolvedValueOnce({ reply: "OK." });
+    await answer(card, "No, keep it", "Not yet");
+
+    expect(removed).toEqual([]);
+    expect(designs()).toHaveLength(1);
+    expect(lastAsk().messages.at(-1)!.content).toBe("📎 Uploaded logo.jpg. Keep the backgrounds. Not on the sheet yet.");
+  });
+
+  it("a file with no background is only asked about the sheet", async () => {
+    openBuilder();
+    const card = await attach("star-nobg.png");
+    expect(card).not.toHaveTextContent("Background found");
+    post.mockResolvedValueOnce({ reply: "OK." });
+    await answer(card, "Yes, put it on");
+    expect(designs()).toHaveLength(2);
+    expect(lastAsk().messages.at(-1)!.content).toBe("📎 Uploaded star-nobg.png. Put on the sheet.");
+  });
+
+  it("the Upload panel goes through the same questions while the assistant is open", async () => {
+    openBuilder();
+    const panelInput = [...document.querySelectorAll<HTMLInputElement>('input[type="file"]')].find((el) => !panel().contains(el))!;
+    fireEvent.change(panelInput, { target: { files: files(["logo.jpg"]) } });
+    const card = await waitFor(() => uploadCard(), { timeout: 4000 });
+    expect(card).toHaveTextContent("Background found on logo.jpg");
+    expect(designs()).toHaveLength(1);
+  });
+
+  it("and works as it always did with the assistant closed", async () => {
+    render(<GangSheetStudio sizes={SIZES} productId={null} resumeOrder={ORDER} onClose={() => {}} onSaved={() => {}} />);
+    const panelInput = document.querySelector<HTMLInputElement>('input[type="file"]')!;
+    fireEvent.change(panelInput, { target: { files: files(["logo.jpg"]) } });
+    await waitFor(() => expect(screen.getByText("Background Warning")).toBeInTheDocument(), { timeout: 4000 });
   });
 
   it("a plan takes the background off first, then builds with the cut-out", async () => {
-    render(<GangSheetStudio sizes={SIZES} productId={null} resumeOrder={ORDER} onClose={() => {}} onSaved={() => {}} />);
-    fireEvent.click(screen.getByRole("button", { name: /Build with AI/ }));
-    post.mockResolvedValueOnce({ reply: "Remove the background?" });
-    await attach("logo.jpg");
+    openBuilder();
+    const card = await attach("logo.jpg");
+    post.mockResolvedValueOnce({ reply: "How many?" });
+    await answer(card, "No, keep it", "Not yet");
 
     post.mockResolvedValueOnce({
       reply: "Ready.",
       plan: { label: "logo bg off, 3 copies", remove_background: ["d2"], build: { items: [{ design: "d2", copies: 3 }], keep_others: true } },
     });
-    fireEvent.change(within(panel()).getByPlaceholderText(/on a 22x10/), { target: { value: "Yes, remove it, 3 copies" } });
+    fireEvent.change(within(panel()).getByPlaceholderText(/on a 22x10/), { target: { value: "Actually remove it, 3 copies" } });
     await act(async () => { fireEvent.click(within(panel()).getByRole("button", { name: "Send" })); });
     expect(line(/Remove background: logo.jpg/)).toBeInTheDocument();
     expect(line(/4 designs on 1 × 22×10/)).toBeInTheDocument(); // the tee stays
@@ -263,5 +328,41 @@ describe("files handed to the assistant", () => {
     expect(overlapping(designs().map(inches))).toBe(false);
     const srcs = designs().map((el) => el.querySelector("img")?.getAttribute("src"));
     expect(srcs.filter((x) => x === "https://shop.test/logo-nobg.png")).toHaveLength(3);
+  });
+});
+
+describe("filling, spacing and sets", () => {
+  it("fills the sheet with as many as really fit", async () => {
+    await openAndAsk("Fill the sheet with it", {
+      reply: "Ready.", plan: { label: "Fill with tee", build: { items: [{ design: "d1", fill: true }] } },
+    });
+    expect(line(/Fill the sheet: 12 × tee.png/)).toBeInTheDocument();
+    expect(line(/12 designs on 1 × 22×10/)).toBeInTheDocument();
+    // Filling is this sheet, full: no bigger sheet is offered for it.
+    expect(within(panel()).queryByRole("button", { name: /Use one/ })).toBeNull();
+    await press(within(panel()).getByRole("button", { name: /Do it/ }));
+    expect(designs()).toHaveLength(12);
+    const boxes = designs().map(inches);
+    expect(overlapping(boxes)).toBe(false);
+    expect(outside(boxes, 10)).toBe(false);
+  });
+
+  it("smaller fills more", async () => {
+    await openAndAsk("Fill it at 2 inches", {
+      reply: "Ready.", plan: { label: "Fill at 2in", build: { items: [{ design: "d1", fill: true, width_in: 2 }] } },
+    });
+    expect(line(/Fill the sheet: 32 × tee.png/)).toBeInTheDocument();
+  });
+
+  it("sets the spacing and the number of sets it was asked for", async () => {
+    await openAndAsk("4 of them, tight spacing, 3 sets", {
+      reply: "Ready.", plan: { label: "4 × tee", sets: 3, build: { items: [{ design: "d1", copies: 4 }], gap_in: 0.25 } },
+    });
+    expect(line(/Space between designs: 0.25″/)).toBeInTheDocument();
+    expect(line(/4 designs on 1 × 22×10/)).toHaveTextContent("$22.05 (3 sets)");
+    await press(within(panel()).getByRole("button", { name: /Do it/ }));
+    expect(designs()).toHaveLength(4);
+    expect((screen.getByRole("combobox", { name: /Sheets/ }) as HTMLSelectElement).value).toBe("3");
+    expect([...document.querySelectorAll<HTMLInputElement>('input[type="number"][step="0.25"]')].every((el) => el.value === "0.25")).toBe(true);
   });
 });

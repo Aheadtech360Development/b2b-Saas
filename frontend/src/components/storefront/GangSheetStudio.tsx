@@ -53,10 +53,10 @@ import {
   type NestItem, type NestPlaced, type NestPlan,
 } from "@/lib/sheetNesting";
 import { NestPreview } from "@/components/storefront/NestPreview";
-import { StudioAssistant } from "@/components/storefront/StudioAssistant";
+import { StudioAssistant, type UploadedDesign } from "@/components/storefront/StudioAssistant";
 import { buildStudioContext, dpiAt, type StudioContext } from "@/lib/studioContext";
 import {
-  betterSize, isRoll as isRollSize, planBuild, toStudioSize,
+  betterSize, fillCount, isRoll as isRollSize, planBuild, toStudioSize,
   type AssistantPlan, type BuildDesign, type PlanPreview, type PlanRun,
 } from "@/lib/studioBuild";
 import { NoRoomAsk, type NoRoomChoice } from "@/components/storefront/NoRoomAsk";
@@ -671,6 +671,15 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
   async function onFiles(files: FileList | null, autoPlace = true) {
     if (!files?.length || !size) return;
     if (abOpen) { abUploadFiles(files); return; }
+    // With the assistant open it asks what to do with each design — whether to
+    // take a background off, whether to put it on the sheet — so the files are
+    // handed to it instead of placed straight away.
+    if (assistantOpen) {
+      const list = Array.from(files);
+      if (fileRef.current) fileRef.current.value = "";
+      await uploadToAssistant(list);
+      return;
+    }
     setUploading(true);
     setError(null);
     const review: File[] = [];
@@ -2278,6 +2287,7 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
       uploads: uploads.map((u) => ({
         uid: u.uid, name: u.file_name, pxW: u.pxW, pxH: u.pxH, isImage: u.isImage,
         hasAlpha: u.alphaChecked ? u.hasAlpha : undefined,
+        ...(({ w, h }) => ({ w_in: w, h_in: h }))(sizeNow(u)),
       })),
       pieces: placements.map((p) => ({ uid: p.uid, w_in: p.w_in, h_in: p.h_in })),
       warnings: {
@@ -2287,16 +2297,28 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
     });
   }
 
-  type Resolved = { size: GangSheetSize; designs: (BuildDesign & { uid: string })[] };
+  type Resolved = {
+    size: GangSheetSize;
+    gap: number;
+    designs: (BuildDesign & { uid: string })[];
+    fills: { uid: string; copies: number }[];
+  };
+
+  /** The print size a design has on this sheet, or would be given if added now. */
+  function sizeNow(u: Upload): { w: number; h: number } {
+    const here = placements.find((p) => p.uid === u.uid);
+    return here ? { w: here.w_in, h: here.h_in } : defaultSize(u);
+  }
 
   /**
-   * A plan's build step in terms of this sheet: which size, and every design
-   * with its count and print size in inches.
+   * A plan's build step in terms of this sheet: which size, what spacing, and
+   * every design with its count and print size in inches.
    *
-   * Designs the plan names get the count it gives, at the width or height it
-   * gives (the other side follows the picture's shape), or the size they
-   * already have here, or the size a fresh upload would get. Anything else on
-   * the sheet stays as it is unless the plan says otherwise.
+   * Designs the plan names get the count it gives — or, to fill the sheet, as
+   * many as fit beside everything else, counted by laying them out — at the
+   * width or height it gives (the other side follows the picture's shape), or
+   * the size they have now. Anything else on the sheet stays as it is unless
+   * the plan says otherwise.
    */
   function resolveBuild(build: NonNullable<AssistantPlan["build"]>, refs: Record<string, string>, sizeId?: string): Resolved | string {
     const want = (build.sheet_size ?? "").trim().toLowerCase();
@@ -2304,6 +2326,7 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
       : want ? sizes.find((s) => s.name.trim().toLowerCase() === want)
       : size;
     if (!target) return `The ${build.sheet_size ?? "chosen"} sheet isn't available any more.`;
+    const gap = build.gap_in ?? imageMargin;
 
     const named = new Map<string, Upload>();
     for (const it of build.items) {
@@ -2325,35 +2348,52 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
       }
       out.push(...kept.values());
     }
+    const filling: (BuildDesign & { uid: string })[] = [];
     for (const it of build.items) {
-      if (it.copies <= 0) continue;
+      if (!it.fill && !(it.copies && it.copies > 0)) continue;
       const u = named.get(it.design)!;
-      const here = placements.find((p) => p.uid === u.uid);
-      const shape = here ? here.w_in / here.h_in : (u.aspect || 1);
+      const now = sizeNow(u);
+      const shape = now.w / now.h;
       let w: number, h: number;
       if (it.width_in) { w = it.width_in; h = w / shape; }
       else if (it.height_in) { h = it.height_in; w = h * shape; }
-      else if (here) { w = here.w_in; h = here.h_in; }
-      else ({ w, h } = defaultSize(u));
-      out.push({ key: `${u.uid}\u0001plan`, uid: u.uid, w: round3(Math.max(0.25, w)), h: round3(Math.max(0.25, h)), copies: it.copies });
+      else ({ w, h } = now);
+      const d = { key: `${u.uid}\u0001plan`, uid: u.uid, w: round3(Math.max(0.25, w)), h: round3(Math.max(0.25, h)), copies: it.copies ?? 0 };
+      if (it.fill) filling.push(d); else out.push(d);
     }
-    return { size: target, designs: out };
+
+    // Filling comes last: it takes whatever room the rest leaves.
+    const studioTarget = toStudioSize(target);
+    const rollLength = isRollSize(studioTarget) ? (target.id === size?.id && sheetLen > 0 ? sheetLen : studioTarget.min_length_in) : undefined;
+    const fills: Resolved["fills"] = [];
+    for (const d of filling) {
+      const n = fillCount(studioTarget, out, d, nestEdge, gap, rollLength);
+      if (n < 1) return `There's no room left on a ${target.name} sheet for ${upById(d.uid)?.file_name ?? "that design"} at that size.`;
+      out.push({ ...d, copies: n });
+      fills.push({ uid: d.uid, copies: n });
+    }
+    return { size: target, gap, designs: out, fills };
   }
 
   /** What the plan card shows: worked out now, with nothing changed. */
   function previewPlan(plan: AssistantPlan, refs: Record<string, string>, sizeId?: string): PlanPreview {
     const nameOf = (ref: string) => (refs[ref] ? upById(refs[ref]!)?.file_name : undefined) ?? ref;
-    const out: PlanPreview = { backgrounds: (plan.remove_background ?? []).map(nameOf), cart: !!plan.add_to_cart };
+    const out: PlanPreview = {
+      backgrounds: (plan.remove_background ?? []).map(nameOf),
+      place: (plan.place ?? []).map(nameOf),
+      cart: !!plan.add_to_cart,
+      sets: plan.sets,
+    };
     if (!plan.build) {
-      if (out.cart && !placements.length) out.problem = "The sheet is empty — add designs first.";
+      if (out.cart && !placements.length && !out.place.length) out.problem = "The sheet is empty — add designs first.";
       return out;
     }
     const r = resolveBuild(plan.build, refs, sizeId);
     if (typeof r === "string") return { ...out, problem: r };
     const target = toStudioSize(r.size);
-    const built = planBuild(target, r.designs, nestEdge, imageMargin);
+    const built = planBuild(target, r.designs, nestEdge, r.gap);
     const byKey = new Map(r.designs.map((d) => [d.key, d]));
-    const alt = betterSize(studioSizes, built, r.designs, nestEdge, imageMargin);
+    const alt = betterSize(studioSizes, built, r.designs, nestEdge, r.gap);
     const lowDpi: { name: string; dpi: number }[] = [];
     for (const d of r.designs) {
       const dpi = dpiAt(upById(d.uid), d.w, d.h);
@@ -2366,10 +2406,13 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
       roll: isRollSize(target),
       copies: built.copies,
       price: built.price,
-      qty,
+      qty: plan.sets ?? qty,
       tooBig: built.tooBig.map((k) => upById(byKey.get(k)?.uid ?? "")?.file_name ?? "a design"),
       lowDpi,
-      alt: alt && !sizeId ? {
+      fills: r.fills.map((f) => ({ name: upById(f.uid)?.file_name ?? "design", copies: f.copies })),
+      gap: plan.build.gap_in,
+      // Filling is "this sheet, full": a bigger sheet would just fill bigger.
+      alt: alt && !sizeId && !r.fills.length ? {
         sizeId: alt.size.id, sizeName: alt.size.name, price: alt.price,
         length: isRollSize(alt.size) ? alt.sheets[0]?.length : undefined,
       } : undefined,
@@ -2380,12 +2423,12 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
   }
 
   /** Lay the plan's build out on this sheet (and new sheets after it, if it
-   *  spills over). One undo step puts the sheet back as it was. */
-  function applyBuild(build: NonNullable<AssistantPlan["build"]>, refs: Record<string, string>, sizeId?: string): PlanRun {
+   *  spills over). One undo puts the sheet back as it was. */
+  function applyBuild(build: NonNullable<AssistantPlan["build"]>, refs: Record<string, string>, sizeId?: string, sets?: number): PlanRun {
     const r = resolveBuild(build, refs, sizeId);
     if (typeof r === "string") return { ok: false, message: r };
     const target = toStudioSize(r.size);
-    const built = planBuild(target, r.designs, nestEdge, imageMargin);
+    const built = planBuild(target, r.designs, nestEdge, r.gap);
     if (built.tooBig.length) return { ok: false, message: "A design is too big for that sheet — nothing was changed." };
     if (!built.sheets.length) return { ok: false, message: "That would leave the sheet empty — nothing was changed." };
 
@@ -2397,14 +2440,16 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
     const roll = isRollSize(target);
     const all = snapshotAll();
     const here = all[active]!;
+    const copies = sets ?? here.qty;
     const before = placements.map((p) => ({ ...p }));
     const next = [...all];
-    next[active] = { ...here, sizeId: r.size.id, customLength: roll ? built.sheets[0]!.length : 0, placements: laid[0]! };
+    next[active] = { ...here, sizeId: r.size.id, qty: copies, customLength: roll ? built.sheets[0]!.length : 0, placements: laid[0]! };
     const extra: SheetTab[] = laid.slice(1).map((pl, i) => ({
-      key: uid(), name: `Gang Sheet ${all.length + i + 1}`, sizeId: r.size.id, qty: here.qty,
+      key: uid(), name: `Gang Sheet ${all.length + i + 1}`, sizeId: r.size.id, qty: copies,
       customLength: roll ? built.sheets[i + 1]!.length : 0, placements: pl,
     }));
     next.splice(active + 1, 0, ...extra);
+    if (r.gap !== imageMargin) setImageMargin(r.gap);
 
     const moving = laid[0]!;
     const step = Math.min(45, 700 / Math.max(moving.length, 1));
@@ -2420,6 +2465,18 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
     const where = extra.length ? `${laid.length} ${r.size.name} sheets` : `a ${r.size.name} sheet`;
     say.done(`${built.copies} design${built.copies === 1 ? "" : "s"} laid out on ${where}.`);
     return { ok: true, message: `${built.copies} on ${where}` };
+  }
+
+  /** Put designs on the sheet where there is room, moving nothing already there. */
+  function placeDesigns(uids: string[]): number {
+    let n = 0;
+    for (const id of uids) {
+      const u = upById(id);
+      if (!u) continue;
+      addPlacement(u);
+      n += 1;
+    }
+    return n;
   }
 
   /** Take a design's background off, in place: every copy of it on every sheet
@@ -2445,11 +2502,11 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
   // The steps of a plan run one after another, and each must see what the one
   // before it did — so later steps are taken from the latest render, not from
   // the one the button was pressed in.
-  const latest = useRef({ applyBuild, save });
-  latest.current = { applyBuild, save };
+  const latest = useRef({ applyBuild, placeDesigns, save, setQty });
+  latest.current = { applyBuild, placeDesigns, save, setQty };
   const settle = () => new Promise<void>((done) => requestAnimationFrame(() => window.setTimeout(done, 40)));
 
-  /** Carry a plan out: backgrounds, then the build, then the cart. */
+  /** Carry a plan out: backgrounds, then placing or building, then the cart. */
   async function runPlan(plan: AssistantPlan, refs: Record<string, string>, sizeId?: string): Promise<PlanRun> {
     const notes: string[] = [];
     try {
@@ -2458,14 +2515,22 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
         if (!u) continue;
         setAiWork({ label: `Removing the background — ${u.file_name}`, progress: null });
         const problem = await removeBackgroundOf(u);
-        if (problem) notes.push(problem);
+        notes.push(problem ?? `background removed from ${u.file_name}`);
+      }
+      if (plan.place?.length) {
+        await settle();
+        const n = latest.current.placeDesigns(plan.place.map((ref) => refs[ref] ?? "").filter(Boolean));
+        if (n) notes.push(`${n} put on the sheet`);
       }
       if (plan.build) {
         setAiWork({ label: "Laying out your sheet", progress: null });
         await settle();
-        const done = latest.current.applyBuild(plan.build, refs, sizeId);
-        if (!done.ok) return { ok: false, message: [...notes, done.message].join(" ") };
+        const done = latest.current.applyBuild(plan.build, refs, sizeId, plan.sets);
+        if (!done.ok) return { ok: false, message: [...notes, done.message].join(" · ") };
         notes.unshift(done.message);
+      } else if (plan.sets) {
+        latest.current.setQty(plan.sets);
+        notes.push(`${plan.sets} set${plan.sets === 1 ? "" : "s"}`);
       }
       if (plan.add_to_cart) {
         setAiWork(null);
@@ -2479,28 +2544,39 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
     }
   }
 
-  /** Files handed to the assistant: uploaded and put on the sheet straight
-   *  away, with no background prompt — the assistant asks about backgrounds
-   *  itself, in the conversation. */
-  async function assistantUpload(files: File[]): Promise<string[]> {
+  /**
+   * Files given to the builder while the assistant is open — through its clip,
+   * the Upload panel or a drop on the canvas. They are uploaded and read, but
+   * not put on the sheet and not met by the background pop-up: the assistant
+   * asks about both, in the conversation, and nothing happens until it is
+   * answered.
+   */
+  async function assistantUpload(files: File[]): Promise<UploadedDesign[]> {
     if (!size || !files.length) return [];
     setUploading(true);
     setError(null);
-    const names: string[] = [];
+    const got: UploadedDesign[] = [];
     try {
       for (let i = 0; i < files.length; i++) {
         const f = files[i]!;
         setUploadStep({ done: i, total: files.length, name: f.name });
-        const u = await ingestFile(f, true);
-        names.push(u.file_name);
+        const u = await ingestFile(f, false);
+        got.push({ uid: u.uid, name: u.file_name, background: u.isImage && u.alphaChecked ? !u.hasAlpha : false });
       }
     } catch {
       setError("That file could not be uploaded. Allowed: PNG, JPG, PDF, SVG, AI, EPS, PSD, TIFF (max 50 MB).");
     } finally {
       setUploading(false);
       setUploadStep(null);
+      if (fileRef.current) fileRef.current.value = "";
     }
-    return names;
+    return got;
+  }
+  /** Uploads made outside the chat, handed to it to ask about. */
+  const [assistantInbox, setAssistantInbox] = useState<null | { id: number; designs: UploadedDesign[] }>(null);
+  async function uploadToAssistant(files: File[]) {
+    const designs = await assistantUpload(files);
+    if (designs.length) setAssistantInbox({ id: Date.now(), designs });
   }
 
   // Somebody opening an empty builder is met by the assistant: telling it what
@@ -3621,6 +3697,7 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
         preview={previewPlan}
         run={runPlan}
         upload={assistantUpload}
+        inbox={assistantInbox}
         accept=".png,.jpg,.jpeg,.webp,.gif,.pdf,.svg,.ai,.eps,.psd,.tif,.tiff"
         uploading={uploading}
       />

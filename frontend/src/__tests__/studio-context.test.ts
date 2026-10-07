@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildStudioContext, fitOn, type StudioUpload } from "@/lib/studioContext";
-import { betterSize, planBuild, type BuildDesign, type StudioSize } from "@/lib/studioBuild";
+import { betterSize, capacity, fillCount, planBuild, type BuildDesign, type StudioSize } from "@/lib/studioBuild";
 
 const fixed = (over: Partial<StudioSize> = {}): StudioSize => ({
   id: "a", name: "22x10", width_in: 22, height_in: 10, price_per_sheet: 10, bleed_in: 0.25,
@@ -94,6 +94,52 @@ describe("betterSize", () => {
   });
 });
 
+describe("capacity", () => {
+  it("counts a grid of copies, smaller fitting more and bigger fewer", () => {
+    // 22x10 with a 0.25 edge and 0.5 gap: 21.5 x 9.5 to print in.
+    expect(capacity(fixed(), 3, 3, 0, 0.5)).toBe(6 * 2);
+    expect(capacity(fixed(), 2, 2, 0, 0.5)).toBe(8 * 4);
+    expect(capacity(fixed(), 4, 4, 0, 0.5)).toBe(4 * 2);
+    expect(capacity(fixed(), 10, 10, 0, 0.5)).toBe(0);
+  });
+
+  it("turns a design on its side when that fits more", () => {
+    // 2 wide x 9 tall: upright 8 across x 1 down; on its side 2 across x 4 down.
+    expect(capacity(fixed(), 2, 9, 0, 0.5)).toBe(8);
+    expect(capacity(fixed(), 9, 2, 0, 0.5)).toBe(8);
+  });
+
+  it("measures a roll at the length given", () => {
+    expect(capacity(roll(), 4, 4, 0, 0.5, 10)).toBe(capacity(fixed(), 4, 4, 0, 0.5));
+  });
+});
+
+describe("fillCount", () => {
+  it("fills an empty sheet with as many as really fit, and one more would not", () => {
+    const n = fillCount(fixed(), [], { key: "a", w: 3, h: 3 }, 0, 0.5);
+    expect(n).toBe(12);
+    expect(planBuild(fixed(), [design("a", 3, 3, n)], 0, 0.5).sheets).toHaveLength(1);
+    expect(planBuild(fixed(), [design("a", 3, 3, n + 1)], 0, 0.5).sheets).toHaveLength(2);
+  });
+
+  it("leaves room for what else is on the sheet", () => {
+    const others = [design("b", 8, 8, 1)];
+    const n = fillCount(fixed(), others, { key: "a", w: 3, h: 3 }, 0, 0.5);
+    expect(n).toBeGreaterThan(0);
+    expect(n).toBeLessThan(12);
+    expect(planBuild(fixed(), [...others, design("a", 3, 3, n)], 0, 0.5).sheets).toHaveLength(1);
+    expect(planBuild(fixed(), [...others, design("a", 3, 3, n + 1)], 0, 0.5).sheets).toHaveLength(2);
+  });
+
+  it("is nothing when the design is too big for the sheet", () => {
+    expect(fillCount(fixed(), [], { key: "a", w: 30, h: 3 }, 0, 0.5)).toBe(0);
+  });
+
+  it("fills a roll to the length it is cut at", () => {
+    expect(fillCount(roll(), [], { key: "a", w: 3, h: 3 }, 0, 0.5, 10)).toBe(12);
+  });
+});
+
 describe("fitOn", () => {
   it("says a few small designs fit one fixed sheet at its price", () => {
     const f = fitOn(fixed(), sq(2), 0.25, 0.5);
@@ -122,9 +168,9 @@ describe("fitOn", () => {
 
 describe("buildStudioContext", () => {
   const uploads: StudioUpload[] = [
-    { uid: "u-logo", name: "logo.jpg", pxW: 1200, pxH: 1200, isImage: true, hasAlpha: false },
-    { uid: "u-star", name: "star.png", pxW: 600, pxH: 600, isImage: true, hasAlpha: true },
-    { uid: "u-vec", name: "art.svg", isImage: false, hasAlpha: false },
+    { uid: "u-logo", name: "logo.jpg", pxW: 1200, pxH: 1200, isImage: true, hasAlpha: false, w_in: 4, h_in: 4 },
+    { uid: "u-star", name: "star.png", pxW: 600, pxH: 600, isImage: true, hasAlpha: true, w_in: 2, h_in: 2 },
+    { uid: "u-vec", name: "art.svg", isImage: false, hasAlpha: false, w_in: 4, h_in: 4 },
   ];
   const base = {
     sizes: [fixed(), big(), roll()], current: fixed(), currentLength: 10, edge: 0, gap: 0.5,
@@ -148,7 +194,7 @@ describe("buildStudioContext", () => {
   });
 
   it("says nothing about a background nobody has looked for", () => {
-    const d = buildStudioContext({ ...base, uploads: [{ uid: "u-old", name: "old.png", isImage: true }], pieces: [] })!.context.designs[0]!;
+    const d = buildStudioContext({ ...base, uploads: [{ uid: "u-old", name: "old.png", isImage: true, w_in: 3, h_in: 3 }], pieces: [] })!.context.designs[0]!;
     expect(d.picture).toBe(true);
     expect(d.has_background).toBeUndefined();
   });
@@ -168,6 +214,17 @@ describe("buildStudioContext", () => {
     const s = buildStudioContext({ ...base, pieces: [] })!.context.sizes;
     expect(s.map((x) => [x.name, x.current, x.is_roll])).toEqual([["22x10", true, false], ["22x24", false, false], ["Roll 22", false, true]]);
     expect(s[2]).toMatchObject({ price_per_inch: 0.5, min_length_in: 12, max_length_in: 240 });
+  });
+
+  it("tells each design how many copies fit at the widths people ask for", () => {
+    const d = buildStudioContext({ ...base, pieces: [] })!.context.designs[0]!;
+    expect(d.size_now).toEqual({ width_in: 4, height_in: 4, dpi: 300 });
+    const at = (w: number) => d.copies_that_fit!.find((r) => r.width_in === w);
+    expect(at(2)).toEqual({ width_in: 2, height_in: 2, copies: 32, dpi: 600 });
+    expect(at(4)).toEqual({ width_in: 4, height_in: 4, copies: 8, dpi: 300 });
+    // The first width that no longer fits is shown with 0; past it, nothing.
+    expect(d.copies_that_fit!.at(-1)!.copies).toBe(0);
+    expect(d.copies_that_fit!.filter((r) => r.copies === 0)).toHaveLength(1);
   });
 
   it("sends fits only when something is on the sheet", () => {

@@ -113,6 +113,51 @@ export function planBuild(size: StudioSize, designs: BuildDesign[], edge: number
 }
 
 /**
+ * About how many copies of one design, alone, fit on a sheet: a grid of them,
+ * all upright or all turned, whichever takes more. It is what the assistant is
+ * told so it knows that smaller means more and bigger means fewer, without
+ * running the nesting for every size it might mention. `length` is a roll's
+ * cut length; a roll otherwise counts at its longest.
+ */
+export function capacity(size: StudioSize, w: number, h: number, edge: number, gap: number, length?: number): number {
+  if (!(w > 0 && h > 0)) return 0;
+  const bleed = Math.max(size.bleed_in || 0, edge);
+  const long = length ?? (isRoll(size) ? size.max_length_in : size.height_in);
+  const W = size.width_in - bleed * 2, H = long - bleed * 2;
+  const grid = (a: number, b: number) => (a > W + 1e-9 || b > H + 1e-9 ? 0
+    : Math.floor((W + gap + 1e-9) / (a + gap)) * Math.floor((H + gap + 1e-9) / (b + gap)));
+  return Math.max(grid(w, h), grid(h, w));
+}
+
+/**
+ * Exactly how many copies of `design` go on one sheet beside `others` — the
+ * most for which the whole build still takes a single sheet. This is "fill the
+ * sheet": counted by laying it out, not by the grid estimate. A roll is filled
+ * to `length` rather than let out to its longest.
+ */
+export function fillCount(
+  size: StudioSize, others: BuildDesign[], design: { key: string; w: number; h: number },
+  edge: number, gap: number, length?: number,
+): number {
+  const sheet: StudioSize = length && isRoll(size) ? { ...size, pricing_mode: "fixed", height_in: length } : size;
+  const fits = (n: number) => {
+    const p = planBuild(sheet, [...others, { ...design, copies: n }], edge, gap);
+    return p.tooBig.length === 0 && p.sheets.length <= 1;
+  };
+  if (!fits(1)) return 0;
+  let lo = 1;
+  let hi = Math.min(MAX_BUILD_COPIES, Math.ceil(capacity(sheet, design.w, design.h, edge, gap) * 1.3) + 2);
+  // The grid estimate is a starting point; mixing turns can fit a few more.
+  while (hi < MAX_BUILD_COPIES && fits(hi)) { lo = hi; hi = Math.min(MAX_BUILD_COPIES, hi * 2); }
+  if (fits(hi)) return hi;
+  while (hi - lo > 1) {
+    const mid = (lo + hi) >> 1;
+    if (fits(mid)) lo = mid; else hi = mid;
+  }
+  return lo;
+}
+
+/**
  * The cheapest size that takes everything on one sheet, worth offering instead
  * of `plan`.
  *
@@ -157,11 +202,18 @@ export function toStudioSize(s: {
 export interface AssistantPlan {
   label: string;
   remove_background?: string[];
+  /** Put these on the sheet where there is room, without moving anything.
+   *  Only the builder's own upload card asks for this, never the model. */
+  place?: string[];
   build?: {
     sheet_size?: string;
     keep_others?: boolean;
-    items: { design: string; copies: number; width_in?: number; height_in?: number }[];
+    /** Space between designs, in inches; the builder's margin otherwise. */
+    gap_in?: number;
+    items: { design: string; copies?: number; fill?: boolean; width_in?: number; height_in?: number }[];
   };
+  /** How many of the sheet to print. */
+  sets?: number;
   add_to_cart?: boolean;
 }
 
@@ -181,9 +233,17 @@ export interface PlanPreview {
     qty: number;
     tooBig: string[];
     lowDpi: { name: string; dpi: number }[];
+    /** Designs that fill whatever room is left, and how many that came to. */
+    fills: { name: string; copies: number }[];
+    /** The spacing it was laid out with, when the plan sets one. */
+    gap?: number;
     alt?: { sizeId: string; sizeName: string; price: number; length?: number };
   };
   cart: boolean;
+  /** Names put on the sheet as they are. */
+  place: string[];
+  /** Sets to print, when the plan changes it. */
+  sets?: number;
   /** Why it cannot be done as it stands. */
   problem?: string;
 }

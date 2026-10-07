@@ -23,13 +23,27 @@ import type { AssistantPlan, PlanPreview, PlanRun } from "@/lib/studioBuild";
 type Refs = Record<string, string>;
 type CardState = "ready" | "running" | "done" | "failed" | "old";
 
+/** A design just uploaded, as the upload card asks about it. */
+export interface UploadedDesign {
+  uid: string;
+  name: string;
+  /** Read from the file: a picture with no transparency. */
+  background: boolean;
+}
+
 type Turn =
   | { role: "user"; content: string }
   | {
       role: "assistant"; content: string;
       plan?: AssistantPlan; refs?: Refs; preview?: PlanPreview; state?: CardState; result?: string;
     }
-  | { role: "note"; content: string; tone: "ok" | "bad"; cartOffer?: boolean };
+  | { role: "note"; content: string; tone: "ok" | "bad"; cartOffer?: boolean }
+  | {
+      role: "uploads"; designs: UploadedDesign[];
+      /** The two questions, null until answered. */
+      removeBg: boolean | null; place: boolean | null;
+      state: "asking" | "running" | "done";
+    };
 
 // Fixed wording, so the starting points never depend on a model.
 const SUGGESTIONS = [
@@ -46,13 +60,16 @@ const GREETING =
 const money = (n: number) => `$${n.toFixed(2)}`;
 const settle = () => new Promise<void>((done) => requestAnimationFrame(() => requestAnimationFrame(() => window.setTimeout(done, 40))));
 
-export function StudioAssistant({ open, onClose, getContext, preview, run, upload, accept, uploading }: {
+export function StudioAssistant({ open, onClose, getContext, preview, run, upload, inbox, accept, uploading }: {
   open: boolean;
   onClose: () => void;
   getContext: () => { context: StudioContext; refs: Refs } | null;
   preview: (plan: AssistantPlan, refs: Refs, sizeId?: string) => PlanPreview;
   run: (plan: AssistantPlan, refs: Refs, sizeId?: string) => Promise<PlanRun>;
-  upload: (files: File[]) => Promise<string[]>;
+  upload: (files: File[]) => Promise<UploadedDesign[]>;
+  /** Designs uploaded outside the chat (the Upload panel, a drop on the
+   *  canvas) while it was open, to ask about. A new id is a new batch. */
+  inbox?: { id: number; designs: UploadedDesign[] } | null;
   accept: string;
   uploading: boolean;
 }) {
@@ -76,7 +93,7 @@ export function StudioAssistant({ open, onClose, getContext, preview, run, uploa
   /** The conversation as the model is shown it, with what became of each plan. */
   function forModel(list: Turn[]) {
     return list.flatMap((t) => {
-      if (t.role === "note") return [];
+      if (t.role === "note" || t.role === "uploads") return [];
       if (t.role === "user" || !t.plan) return [{ role: t.role, content: t.content }];
       const what =
         t.state === "done" ? `[The customer pressed the button. Done: ${t.result ?? ""}]`
@@ -130,18 +147,67 @@ export function StudioAssistant({ open, onClose, getContext, preview, run, uploa
     const files = Array.from(list ?? []);
     if (fileRef.current) fileRef.current.value = "";
     if (!files.length) return;
-    const names = await upload(files);
-    if (!names.length) return;
-    // Let the builder take the new designs in before the assistant is told the sheet.
+    const designs = await upload(files);
+    if (designs.length) received(designs);
+  }
+
+  /** New designs: ask about them before anything is done with them. */
+  function received(designs: UploadedDesign[]) {
+    const anyBg = designs.some((d) => d.background);
+    setTurns((cur) => [...cur, { role: "uploads", designs, removeBg: anyBg ? null : false, place: null, state: "asking" }]);
+  }
+  const seenInbox = useRef<number | null>(null);
+  useEffect(() => {
+    if (!inbox || inbox.id === seenInbox.current) return;
+    seenInbox.current = inbox.id;
+    received(inbox.designs);
+  }, [inbox]);
+
+  /**
+   * One of the upload card's questions answered. Once both are, it is done —
+   * backgrounds off if they said so, onto the sheet if they said so — and the
+   * assistant is told what was uploaded and what became of it, so it can ask
+   * what is left: how many, and how big.
+   */
+  async function answerUploads(index: number, answer: { removeBg?: boolean; place?: boolean }) {
+    const t = live.current.turns[index];
+    if (!t || t.role !== "uploads" || t.state !== "asking") return;
+    const next = { ...t, ...answer };
+    const complete = next.removeBg !== null && next.place !== null;
+    setTurns((cur) => cur.map((x, i) => (i === index ? { ...next, state: complete ? "running" as const : "asking" as const } : x)));
+    if (!complete) return;
+
+    const withBg = next.designs.filter((d) => d.background);
+    const ids = Object.fromEntries(next.designs.map((d) => [d.uid, d.uid]));
+    let out: PlanRun = { ok: true, message: "" };
+    if (next.removeBg || next.place) {
+      try {
+        out = await run({
+          label: "Your uploads",
+          remove_background: next.removeBg ? withBg.map((d) => d.uid) : undefined,
+          place: next.place ? next.designs.map((d) => d.uid) : undefined,
+        }, ids);
+      } catch {
+        out = { ok: false, message: "Something went wrong with the uploads." };
+      }
+    }
+    setTurns((cur) => cur.map((x, i) => (i === index && x.role === "uploads" ? { ...x, state: "done" as const } : x)));
+
+    const names = next.designs.map((d) => d.name).join(", ");
+    const parts = [`📎 Uploaded ${names}.`];
+    if (withBg.length) parts.push(next.removeBg ? `Remove the background from ${withBg.map((d) => d.name).join(", ")}.` : "Keep the backgrounds.");
+    parts.push(next.place ? "Put on the sheet." : "Not on the sheet yet.");
+    if (out.message && !out.ok) parts.push(`(${out.message})`);
+    // Let the builder take the designs in before the assistant is told the sheet.
     await settle();
-    await ask(`📎 ${names.join(", ")}`);
+    await ask(parts.join(" "));
   }
 
   async function press(index: number, sizeId?: string) {
     const t = turns[index];
     if (!t || t.role !== "assistant" || !t.plan || t.state !== "ready") return;
     const plan = t.plan, refs = t.refs ?? {};
-    setTurns((cur) => cur.map((x, i) => (i === index ? { ...x, state: "running" as const } : x)));
+    setTurns((cur) => cur.map((x, i) => (i === index && x.role === "assistant" ? { ...x, state: "running" as const } : x)));
     let out: PlanRun;
     try {
       out = await run(plan, refs, sizeId);
@@ -149,7 +215,7 @@ export function StudioAssistant({ open, onClose, getContext, preview, run, uploa
       out = { ok: false, message: "Something went wrong — nothing more was changed." };
     }
     setTurns((cur) => {
-      const marked = cur.map((x, i) => (i === index ? { ...x, state: (out.ok ? "done" : "failed") as CardState, result: out.message } : x));
+      const marked = cur.map((x, i) => (i === index && x.role === "assistant" ? { ...x, state: (out.ok ? "done" : "failed") as CardState, result: out.message } : x));
       // Built but not yet in the cart: the obvious next step is one tap away.
       const offerCart = out.ok && !!plan.build && !plan.add_to_cart;
       return [...marked, {
@@ -197,6 +263,9 @@ export function StudioAssistant({ open, onClose, getContext, preview, run, uploa
         )}
         {turns.map((t, i) => {
           if (t.role === "user") return <div key={i} style={S.user}>{t.content}</div>;
+          if (t.role === "uploads") {
+            return <UploadCard key={i} turn={t} onAnswer={(a) => void answerUploads(i, a)} />;
+          }
           if (t.role === "note") {
             return (
               <div key={i} style={{ display: "flex", flexDirection: "column", gap: "6px", alignSelf: "stretch" }}>
@@ -239,6 +308,46 @@ export function StudioAssistant({ open, onClose, getContext, preview, run, uploa
   );
 }
 
+/** Just uploaded: take the background off? Put it on the sheet? Nothing is
+ *  done with the designs until both are answered. */
+function UploadCard({ turn, onAnswer }: {
+  turn: Extract<Turn, { role: "uploads" }>;
+  onAnswer: (a: { removeBg?: boolean; place?: boolean }) => void;
+}) {
+  const withBg = turn.designs.filter((d) => d.background);
+  const one = turn.designs.length === 1;
+  const asking = turn.state === "asking";
+  const choice = (picked: boolean | null, label: string, value: boolean, pick: () => void) => (
+    <button onClick={pick} disabled={!asking || picked !== null}
+      style={{ ...(value ? S.yesBtn : S.noBtn), ...(picked === value ? S.picked : {}), opacity: picked !== null && picked !== value ? 0.4 : 1 }}
+      aria-pressed={picked === value}>
+      {label}
+    </button>
+  );
+  return (
+    <div style={S.card} data-upload-card>
+      <div style={{ fontSize: "13px", fontWeight: 800 }}>📎 {one ? "Uploaded" : `${turn.designs.length} designs uploaded`}: {turn.designs.map((d) => d.name).join(", ")}</div>
+      {withBg.length > 0 && (
+        <div style={S.question}>
+          <div>Background found on {withBg.map((d) => d.name).join(", ")} — it would print as a solid box. Remove it?</div>
+          <div style={S.choices}>
+            {choice(turn.removeBg, "Yes, remove it", true, () => onAnswer({ removeBg: true }))}
+            {choice(turn.removeBg, "No, keep it", false, () => onAnswer({ removeBg: false }))}
+          </div>
+        </div>
+      )}
+      <div style={S.question}>
+        <div>Put {one ? "it" : "them"} on the sheet now?</div>
+        <div style={S.choices}>
+          {choice(turn.place, "Yes, put it on", true, () => onAnswer({ place: true }))}
+          {choice(turn.place, "Not yet", false, () => onAnswer({ place: false }))}
+        </div>
+      </div>
+      {turn.state === "running" && <div style={S.cardStatus}>Working on it…</div>}
+    </div>
+  );
+}
+
 /** The plan, as the builder worked it out, and the button that makes it. */
 function PlanCard({ plan, preview, state, result, onDo, onAlt }: {
   plan: AssistantPlan; preview: PlanPreview; state: CardState; result?: string;
@@ -251,6 +360,9 @@ function PlanCard({ plan, preview, state, result, onDo, onAlt }: {
       <div style={{ fontSize: "13px", fontWeight: 800, color: "#1A1A1A" }}>{plan.label}</div>
       <ul style={S.steps}>
         {preview.backgrounds.length > 0 && <li>✂️ Remove background: {preview.backgrounds.join(", ")}</li>}
+        {preview.place.length > 0 && <li>➕ Put on the sheet: {preview.place.join(", ")}</li>}
+        {b?.fills.map((f) => <li key={f.name}>▦ Fill the sheet: {f.copies} × {f.name}</li>)}
+        {b?.gap != null && <li>↔ Space between designs: {b.gap}″</li>}
         {b && (
           <li>
             ▦ {b.copies} design{b.copies === 1 ? "" : "s"} on {b.sheets === 1 ? "1" : b.sheets} × {b.sizeName}
@@ -262,6 +374,7 @@ function PlanCard({ plan, preview, state, result, onDo, onAlt }: {
         {b?.lowDpi.map((d) => (
           <li key={d.name} style={{ color: "#92400E" }}>⚠ {d.name} prints at {d.dpi} DPI at that size — may look soft.</li>
         ))}
+        {!b && preview.sets ? <li>🖨 Print {preview.sets} set{preview.sets === 1 ? "" : "s"} of this sheet</li> : null}
         {preview.cart && <li>🛒 Then save it and open the cart</li>}
       </ul>
       {preview.problem && <div style={S.cardProblem}>{preview.problem}</div>}
@@ -302,6 +415,11 @@ const S: Record<string, React.CSSProperties> = {
   cardStatus: { fontSize: "12.5px", fontWeight: 600, color: "#5A6474" },
   doBtn: { padding: "10px 12px", background: "#4F46E5", color: "#fff", border: "none", borderRadius: "9px", fontSize: "13.5px", fontWeight: 800, cursor: "pointer" },
   altBtn: { padding: "8px 12px", background: "#fff", color: "#3B33C4", border: "1px solid #C7C4F5", borderRadius: "9px", fontSize: "12.5px", fontWeight: 700, cursor: "pointer", textAlign: "left" },
+  question: { display: "flex", flexDirection: "column", gap: "6px", fontSize: "12.5px", lineHeight: 1.5, color: "#2A2F3A" },
+  choices: { display: "flex", gap: "6px", flexWrap: "wrap" },
+  yesBtn: { padding: "7px 12px", background: "#4F46E5", color: "#fff", border: "1px solid #4F46E5", borderRadius: "8px", fontSize: "12.5px", fontWeight: 700, cursor: "pointer" },
+  noBtn: { padding: "7px 12px", background: "#fff", color: "#2A2F3A", border: "1px solid #D4D4D8", borderRadius: "8px", fontSize: "12.5px", fontWeight: 700, cursor: "pointer" },
+  picked: { boxShadow: "0 0 0 2px #C7C4F5" },
   cartBtn: { padding: "9px 12px", background: "#1A1A1A", color: "#fff", border: "none", borderRadius: "9px", fontSize: "13px", fontWeight: 700, cursor: "pointer" },
   chip: { padding: "6px 10px", border: "1px solid #E3E3E3", background: "#fff", borderRadius: "16px", fontSize: "12px", fontWeight: 600, cursor: "pointer", textAlign: "left" },
   error: { margin: "0 14px 6px", background: "#FEF2F2", border: "1px solid #FECACA", color: "#991B1B", borderRadius: "8px", padding: "7px 10px", fontSize: "12px" },

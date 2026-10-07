@@ -107,6 +107,42 @@ def test_a_bad_plan_is_refused_with_a_reason(args, says):
         validate_plan(args, _ctx())
 
 
+def test_fill_spacing_and_sets_come_back_clean():
+    plan = validate_plan({
+        "label": "fill with logo", "sets": "3",
+        "build": {"items": [{"design": "d1", "fill": True, "width_in": 3, "copies": 99}], "gap_in": 0.25},
+    }, _ctx())
+    assert plan == {
+        "label": "fill with logo", "sets": 3,
+        "build": {"items": [{"design": "d1", "fill": True, "width_in": 3.0}], "keep_others": True, "gap_in": 0.25},
+    }
+
+
+def test_sets_alone_is_a_plan():
+    assert validate_plan({"label": "2 sets", "sets": 2}, _ctx()) == {"label": "2 sets", "sets": 2}
+
+
+@pytest.mark.parametrize("args, says", [
+    ({"label": "x", "build": {"items": [{"design": "d1", "fill": True}, {"design": "d2", "fill": True}]}}, "Only one design can fill"),
+    ({"label": "x", "build": {"items": [{"design": "d1", "copies": 2}], "gap_in": 5}}, "gap_in must be between 0 and 3"),
+    ({"label": "x", "sets": 0}, "sets must be between 1 and 100"),
+    ({"label": "x", "build": {"items": [{"design": "d1"}]}}, "copies of d1 must be a number"),
+])
+def test_more_bad_plans(args, says):
+    with pytest.raises(PlanError, match=says):
+        validate_plan(args, _ctx())
+
+
+def test_the_size_table_travels_with_each_design():
+    ctx = _ctx(designs=[{
+        "ref": "d1", "name": "logo.png", "picture": True, "size_now": {"width_in": 4, "height_in": 4, "dpi": 300},
+        "copies_that_fit": [{"width_in": 2, "height_in": 2, "copies": 32, "dpi": 600}, {"width_in": 4, "height_in": 4, "copies": 8, "dpi": 300}],
+    }])
+    text = studio_system("Acme", "Monday", ctx)
+    assert '"copies_that_fit":[{"width_in":2.0,"height_in":2.0,"copies":32' in text
+    assert "Smaller means more copies" in text and "fill true" in text
+
+
 def test_an_empty_sheet_cannot_go_to_the_cart_unbuilt():
     with pytest.raises(PlanError, match="empty"):
         validate_plan({"label": "x", "add_to_cart": True}, _ctx(designs_on_sheet=0))

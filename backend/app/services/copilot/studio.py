@@ -23,12 +23,27 @@ MAX_DESIGNS = 40
 MAX_SIZES = 12
 MAX_COPIES = 500
 MAX_LABEL = 160
+MAX_GAP = 3
+MAX_SETS = 100
 
 
 class StudioPlaced(BaseModel):
     width_in: float = Field(ge=0, le=500)
     height_in: float = Field(ge=0, le=500)
     copies: int = Field(ge=1, le=5000)
+    dpi: int | None = Field(default=None, ge=0, le=20_000)
+
+
+class StudioSizeNow(BaseModel):
+    width_in: float = Field(ge=0, le=500)
+    height_in: float = Field(ge=0, le=500)
+    dpi: int | None = Field(default=None, ge=0, le=20_000)
+
+
+class StudioCapacity(BaseModel):
+    width_in: float = Field(ge=0, le=500)
+    height_in: float = Field(ge=0, le=5000)
+    copies: int = Field(ge=0, le=100_000)
     dpi: int | None = Field(default=None, ge=0, le=20_000)
 
 
@@ -42,7 +57,11 @@ class StudioDesign(BaseModel):
     # A picture with no transparency — almost always a background to remove.
     # Absent when the file was never looked at (reopened from an order).
     has_background: bool | None = None
+    # The size it has on the sheet, or would be given if added now.
+    size_now: StudioSizeNow | None = None
     on_sheet: list[StudioPlaced] = Field(default_factory=list, max_length=50)
+    # Alone on the open sheet, about how many copies fit at each width.
+    copies_that_fit: list[StudioCapacity] | None = Field(default=None, max_length=20)
 
 
 class StudioSizeInfo(BaseModel):
@@ -107,9 +126,11 @@ PROPOSE_PLAN_TOOL = {
         "- build: lays the sheet out again from scratch with Auto Nest. items lists designs with the TOTAL "
         "copies wanted on the sheet (not extra ones) and, if the customer gave one, a size: width_in or "
         "height_in in inches — the other side follows the picture's shape. Leave both out to keep the size "
-        "the design has now. copies 0 takes a design off. keep_others (default true) keeps designs not "
+        "the design has now. copies 0 takes a design off. fill true instead of copies puts in as many as "
+        "fit in the room left (at most one item may fill). keep_others (default true) keeps designs not "
         "listed as they are. sheet_size is a size name from STUDIO DATA sizes; leave it out to keep the "
-        "sheet open now.\n"
+        "sheet open now. gap_in sets the space between designs in inches, only if the customer asks.\n"
+        "- sets: how many of this sheet to print, only if the customer says.\n"
         "- add_to_cart: true to save the sheet and open the cart once it is made."
     ),
     "input_schema": {
@@ -125,6 +146,7 @@ PROPOSE_PLAN_TOOL = {
                 "properties": {
                     "sheet_size": {"type": "string"},
                     "keep_others": {"type": "boolean"},
+                    "gap_in": {"type": "number"},
                     "items": {
                         "type": "array",
                         "items": {
@@ -132,15 +154,17 @@ PROPOSE_PLAN_TOOL = {
                             "properties": {
                                 "design": {"type": "string", "description": "A ref such as d1."},
                                 "copies": {"type": "integer"},
+                                "fill": {"type": "boolean", "description": "As many as fit, instead of copies."},
                                 "width_in": {"type": "number"},
                                 "height_in": {"type": "number"},
                             },
-                            "required": ["design", "copies"],
+                            "required": ["design"],
                         },
                     },
                 },
                 "required": ["items"],
             },
+            "sets": {"type": "integer"},
             "add_to_cart": {"type": "boolean"},
         },
         "required": ["label"],
@@ -212,31 +236,40 @@ def validate_plan(args: dict, context: StudioContext | None) -> dict:
             if ref in seen:
                 raise PlanError(f"{ref} is listed twice; give its total copies once.")
             seen.add(ref)
-            copies = int(_num(it.get("copies"), f"copies of {ref}", 0, MAX_COPIES))
-            item: dict = {"design": ref, "copies": copies}
+            if it.get("fill") is True:
+                item: dict = {"design": ref, "fill": True}
+            else:
+                item = {"design": ref, "copies": int(_num(it.get("copies"), f"copies of {ref}", 0, MAX_COPIES))}
             if it.get("width_in") is not None:
                 item["width_in"] = _num(it["width_in"], f"width of {ref}", 0.25, 500)
             elif it.get("height_in") is not None:
                 item["height_in"] = _num(it["height_in"], f"height of {ref}", 0.25, 500)
             items.append(item)
+        if sum(1 for i in items if i.get("fill")) > 1:
+            raise PlanError("Only one design can fill the sheet; give the others a number of copies.")
         clean: dict = {"items": items, "keep_others": build.get("keep_others") is not False}
+        if build.get("gap_in") is not None:
+            clean["gap_in"] = _num(build["gap_in"], "gap_in", 0, MAX_GAP)
         name = str(build.get("sheet_size") or "").strip()
         if name:
             size = sizes.get(name.lower())
             if size is None:
                 raise PlanError(f'There is no sheet size "{name}". Sizes: ' + ", ".join(s.name for s in context.sizes))
             clean["sheet_size"] = size.name
-        if not clean["keep_others"] and not any(i["copies"] for i in items):
+        if not clean["keep_others"] and not any(i.get("copies") or i.get("fill") for i in items):
             raise PlanError("That build would leave the sheet empty.")
         plan["build"] = clean
+
+    if args.get("sets") is not None:
+        plan["sets"] = int(_num(args["sets"], "sets", 1, MAX_SETS))
 
     if args.get("add_to_cart") is True:
         if not build and context.designs_on_sheet == 0:
             raise PlanError("The sheet is empty; build it before adding it to the cart.")
         plan["add_to_cart"] = True
 
-    if not (refs or build or plan.get("add_to_cart")):
-        raise PlanError("The plan does nothing: give remove_background, build or add_to_cart.")
+    if not (refs or build or plan.get("add_to_cart") or plan.get("sets")):
+        raise PlanError("The plan does nothing: give remove_background, build, sets or add_to_cart.")
     return plan
 
 
@@ -250,16 +283,23 @@ def studio_system(brand: str, today: str, context: StudioContext | None) -> str:
 
 Language: always reply in English, whatever language the customer writes in. Use plain, simple words — many customers are not native speakers and have never used a builder.
 
-What you know: only the STUDIO DATA below, worked out by the builder in the customer's browser. Designs are named by ref (d1, d2…) — use the ref in plans and the file name when talking. Never work out an area, a layout or a price yourself, and never say a plan fits or what it costs: the card under your reply shows the builder's own result and price. For the designs already on the sheet, the "fits" rows say how they nest on each size.
+What you know: only the STUDIO DATA below, worked out by the builder in the customer's browser. Designs are named by ref (d1, d2…) — use the ref in plans and the file name when talking. Never work out an area, a layout or a price yourself, and never say a plan fits or what it costs: the card under your reply shows the builder's own result and price.
+
+Sizes and room — read these before you answer anything about fitting:
+- Each design has size_now (its print size now, with the dpi it prints at), on_sheet (how many copies of it are on the sheet, at what size) and copies_that_fit: for each width, about how many copies of it fit on the open sheet if it were alone there, with the dpi at that width. Smaller means more copies, bigger means fewer; a width missing from the table, or with 0, does not fit at all.
+- "fits" says how the designs on the sheet now would nest on every size the shop sells.
+- Use them to answer and to advise before you propose. If they ask for N copies at a width where copies_that_fit is below N (counting other designs that share the sheet), say it will overflow and offer the choices: a smaller width where N fit (name it), fewer copies, or a bigger sheet. If they want copies at a size that would print under 200 dpi, warn that it will look soft.
+- "Fill the sheet" / "as many as fit": use fill true on that design (with a width if they gave one). The builder counts exactly how many go in.
+- A roll (is_roll) is cut to the length the designs need, between its min and max length, priced per inch.
 
 How to get a sheet made:
 1. No designs yet: ask them to upload with the 📎 button below, or with Upload on the left.
-2. For each design you need how many copies and how big. If they don't say a size, the size it has now is fine — say so. "4 inch" means 4 inches wide unless they say tall.
-3. A design with has_background=true is a picture with no transparency and will print as a solid box. Before building, ask once whether to remove the background, naming the files. Never remove one they didn't agree to. If has_background is missing nobody has checked; don't bring it up unless they do. Only pictures (picture=true) can have a background removed.
-4. Sheet: use the one they name, from "sizes"; otherwise keep the open one. If they ask which is cheapest or best, propose with the size they are on — the card offers a better size by itself when there is one.
-5. As soon as you have enough, call propose_plan. Don't ask for confirmation first; the card is the confirmation. Then reply in one or two short lines: what is ready, and that they press the button on the card. Never say it is done — it happens only when they press it.
-6. When the sheet looks right, offer to add it to the cart (propose_plan with add_to_cart true).
-- A design with dpi under 200 will print soft at that size: suggest smaller, or a bigger file.
+2. When a message says files were uploaded, the builder has already asked about the background and about putting them on the sheet, and done what they chose — don't ask those again. Ask what is left: how many copies, and how big (offer the size it has now as the easy answer).
+3. For each design you need how many copies (or "fill") and how big. If they don't say a size, the size it has now is fine — say so. "4 inch" means 4 inches wide unless they say tall.
+4. A design with has_background=true will print as a solid box. If they haven't answered about it, ask once whether to remove it, naming the files; never remove one they didn't agree to. If has_background is missing nobody has checked; don't bring it up unless they do. Only pictures (picture=true) can have a background removed.
+5. Sheet: use the one they name, from "sizes"; otherwise keep the open one. If they ask which is cheapest or best, answer from "fits" and copies_that_fit, and propose with the size you recommend — the card also offers a better size by itself when there is one.
+6. As soon as you have enough, call propose_plan. Don't ask for confirmation first; the card is the confirmation. Then reply in one or two short lines: what is ready, and that they press the button on the card. Never say it is done — it happens only when they press it.
+7. When the sheet looks right, offer to add it to the cart (propose_plan with add_to_cart true).
 - Ask at most two short questions at a time. Prefer choices they can answer in a word.
 - You can only change the sheet through propose_plan. You cannot upload files for them or change the price.
 - Only discuss this sheet, printing and ordering from this shop. Anything else, say briefly you can only help with the sheet.

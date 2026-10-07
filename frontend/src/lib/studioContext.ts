@@ -10,7 +10,7 @@
  * to say which design it means. `refs` maps those names back to uploads, held by
  * the builder for when the customer presses the plan's button.
  */
-import { isRoll, planBuild, type StudioSize } from "@/lib/studioBuild";
+import { capacity, isRoll, planBuild, type StudioSize } from "@/lib/studioBuild";
 
 export type { StudioSize } from "@/lib/studioBuild";
 
@@ -22,6 +22,9 @@ export interface StudioUpload {
   isImage: boolean;
   /** Undefined when nobody has looked (a design reopened from an order). */
   hasAlpha?: boolean;
+  /** The print size it has on the sheet, or would be given if added now. */
+  w_in: number;
+  h_in: number;
 }
 
 export interface StudioPiece {
@@ -41,7 +44,10 @@ export interface StudioContext {
   designs_on_sheet: number;
   designs: {
     ref: string; name: string; px_w?: number; px_h?: number; picture?: boolean; has_background?: boolean;
+    size_now: { width_in: number; height_in: number; dpi?: number };
     on_sheet: { width_in: number; height_in: number; copies: number; dpi?: number }[];
+    /** Alone on the open sheet: about how many copies fit at each width. */
+    copies_that_fit?: { width_in: number; height_in: number; copies: number; dpi?: number }[];
   }[];
   sizes: {
     name: string; width_in: number; is_roll: boolean; length_in?: number; price?: number;
@@ -72,6 +78,12 @@ export interface StudioInput {
 const MAX_ITEMS_FOR_FITS = 300;
 const MAX_DESIGNS = 40;
 const MAX_SIZES = 12;
+// The widths a buyer is likely to name. Each design is told how many copies of
+// it fit at these, so "smaller and fill the sheet" or "bigger, will it
+// overflow?" is answered from the builder's numbers. Only the first few
+// designs get the table: it is the bulk of what is sent.
+const WIDTHS = [1.5, 2, 2.5, 3, 3.5, 4, 5, 6, 8, 10, 12];
+const MAX_TABLES = 8;
 
 const r2 = (n: number) => Math.round(n * 100) / 100;
 
@@ -111,13 +123,22 @@ export function buildStudioContext(input: StudioInput): { context: StudioContext
       if (g) g.copies += 1;
       else bySize.set(k, { width_in: r2(p.w_in), height_in: r2(p.h_in), copies: 1, dpi: dpiAt(u, p.w_in, p.h_in) });
     }
+    const shape = u.w_in > 0 && u.h_in > 0 ? u.w_in / u.h_in : 1;
+    const table = i < MAX_TABLES
+      ? [...new Set([...WIDTHS, r2(u.w_in)])].sort((a, b) => a - b).map((w) => {
+          const h = r2(w / shape);
+          return { width_in: w, height_in: h, copies: capacity(current, w, h, input.edge, input.gap, isRoll(current) ? input.currentLength : undefined), dpi: dpiAt(u, w, h) };
+        }).filter((row, j, all) => row.copies > 0 || all[j - 1]?.copies)
+      : undefined;
     return {
       ref, name: u.name.slice(0, 80), px_w: u.pxW || undefined, px_h: u.pxH || undefined,
       picture: u.isImage || undefined,
       // A picture with no transparency almost always has a background to
       // remove. Not said at all when it was never looked at.
       has_background: u.isImage && u.hasAlpha !== undefined ? !u.hasAlpha : undefined,
+      size_now: { width_in: r2(u.w_in), height_in: r2(u.h_in), dpi: dpiAt(u, u.w_in, u.h_in) },
       on_sheet: [...bySize.values()],
+      copies_that_fit: table,
     };
   });
 
