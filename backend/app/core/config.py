@@ -196,12 +196,16 @@ class Settings(BaseSettings):
     COPILOT_PROVIDER: str = ""
     COPILOT_MODEL: str = ""
     COPILOT_DAILY_LIMIT: int = 200
-    # The gang sheet builder's customer assistant. A cheaper model than the
-    # owner copilot is enough (the layout maths is done by the builder, the model
-    # only asks and explains); blank uses Claude Haiku when the provider is
-    # Claude, and the provider's own default otherwise. Limits are per day, per
-    # signed-in user and per guest address, so one visitor cannot run up the bill.
+    # The gang sheet builder's customer assistant. Blank uses Claude Sonnet 5.5
+    # when the provider is Claude — it reads the room left on a sheet at every
+    # size and fills in a nested plan — and the provider's own default otherwise.
+    # Limits are per day, per signed-in user and per guest address, so one
+    # visitor cannot run up the bill.
     COPILOT_STUDIO_MODEL: str = ""
+    # How much the model thinks (Claude models that take it): low, medium, high.
+    # Low suits a chat that asks and explains; it is also the cheapest.
+    COPILOT_STUDIO_EFFORT: str = "low"
+    COPILOT_EFFORT: str = "low"
     COPILOT_STUDIO_USER_LIMIT: int = 60
     COPILOT_STUDIO_GUEST_LIMIT: int = 15
 

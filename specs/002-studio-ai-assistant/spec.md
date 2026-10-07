@@ -41,9 +41,11 @@ A customer building a gang sheet can ask, in plain English, "will my designs fit
 - **Fixes**: signing in from Save & Add to Cart now carries on into the cart (save read a stale signed-out flag and opened the form again); a link styled `ui-btn` keeps white text inside a shop drawn by the website builder; a background that cannot be removed is reported in the chat and to the model.
 
 ## Model and cost
-- Claude Haiku 4.5 by default for this assistant (`COPILOT_STUDIO_MODEL` overrides; other providers use their own default). The owner copilot keeps its model.
-- Limits per day: `COPILOT_STUDIO_USER_LIMIT` (60) per signed-in user, `COPILOT_STUDIO_GUEST_LIMIT` (15) per guest address, plus the brand's `COPILOT_DAILY_LIMIT`.
-- No tools in Phase 1: one model call per question. Fits are skipped above 300 designs on a sheet.
+- **Claude Sonnet 5.5** (`claude-sonnet-5-5`, $2 / $10 per MTok) is the default for this assistant on Claude (`COPILOT_STUDIO_MODEL` overrides; other providers use their own default). Chosen over Haiku 4.5 because the assistant now reads the room left at every size, warns of overflow before proposing and fills in a nested plan.
+- **Effort `low`** (`COPILOT_STUDIO_EFFORT`, `COPILOT_EFFORT`), sent only to models that take it (not Haiku 4.5). Thinking counts towards `max_tokens`, raised to 8000.
+- **Refusals**: `fallbacks: "default"` (beta `server-side-fallback-2026-07-01`) on Sonnet 5.5 / Opus 5.5 / Opus 5 / Fable 5.1; a final `stop_reason: "refusal"` is answered with a plain sentence. Across a fallback, the declined model's thinking and tool calls are not echoed back.
+- **Estimated cost** (~6,500 input and ~700 output tokens per question, ~10 questions a sheet): about $0.20 a sheet on Sonnet 5.5, $0.08 on Haiku 4.5. Measure from usage before relying on it.
+- Limits per day: `COPILOT_STUDIO_USER_LIMIT` (60) per signed-in user, `COPILOT_STUDIO_GUEST_LIMIT` (15) per guest address, plus the brand's `COPILOT_DAILY_LIMIT` (200) for the builder.
 
 ## Constraints
 - Reuses `run_copilot`; plan-gated by the existing `ai_agent` feature on `/api/v1/copilot`.

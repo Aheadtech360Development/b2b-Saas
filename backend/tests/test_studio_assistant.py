@@ -57,6 +57,89 @@ def test_studio_on_gemini_uses_the_configured_gemini_model(monkeypatch):
     assert agent.resolve_provider(studio=True).model == "gemini-3.5-flash-lite"
 
 
+def test_claude_5_models_think_at_low_effort_with_a_fallback_and_haiku_gets_neither():
+    sonnet = agent.Provider("anthropic", "k", "claude-sonnet-5-5")
+    headers, body = agent.anthropic_request(sonnet, "sys", [{"name": "t"}], [], "low")
+    assert body["output_config"] == {"effort": "low"}
+    assert body["fallbacks"] == "default" and headers["anthropic-beta"] == agent.FALLBACK_BETA
+    assert body["max_tokens"] >= 4000  # thinking counts towards it
+
+    haiku = agent.Provider("anthropic", "k", "claude-haiku-4-5")
+    headers, body = agent.anthropic_request(haiku, "sys", [], [], "low")
+    assert "output_config" not in body and "fallbacks" not in body and "anthropic-beta" not in headers
+    assert "tools" not in body
+
+    _, body = agent.anthropic_request(sonnet, "sys", [], [], "")
+    assert "output_config" not in body
+
+
+def test_a_fallback_turn_goes_back_without_the_declined_models_thinking_and_calls():
+    content = [
+        {"type": "thinking", "thinking": "", "signature": "a"},
+        {"type": "text", "text": "Let me"},
+        {"type": "tool_use", "id": "x", "name": "propose_plan", "input": {}},
+        {"type": "fallback", "from": {"model": "claude-sonnet-5-5"}, "to": {"model": "claude-sonnet-5"}},
+        {"type": "thinking", "thinking": "", "signature": "b"},
+        {"type": "text", "text": "Here is your plan."},
+    ]
+    assert agent.echoable(content) == [
+        {"type": "text", "text": "Let me"},
+        {"type": "thinking", "thinking": "", "signature": "b"},
+        {"type": "text", "text": "Here is your plan."},
+    ]
+    plain = [{"type": "thinking", "thinking": "", "signature": "a"}, {"type": "text", "text": "Hi"}]
+    assert agent.echoable(plain) is plain
+
+
+class _Fake:
+    """Answers each Messages API call with the next body given."""
+
+    def __init__(self, *bodies):
+        self.bodies, self.sent = list(bodies), []
+
+    async def post(self, url, headers=None, json=None):
+        import copy
+
+        import httpx
+
+        self.sent.append(copy.deepcopy(json))
+        return httpx.Response(200, json=self.bodies.pop(0))
+
+
+@pytest.mark.asyncio
+async def test_a_refusal_is_said_plainly_to_the_customer():
+    client = _Fake({"stop_reason": "refusal", "stop_details": {"category": "general_harms"}, "content": []})
+    p = agent.Provider("anthropic", "k", "claude-sonnet-5-5")
+    reply = await agent._anthropic(client, p, "sys", [], {}, [{"role": "user", "content": "x"}], [], None, "studio", "low")
+    assert reply == agent.REFUSED
+
+
+@pytest.mark.asyncio
+async def test_thinking_blocks_go_back_unchanged_through_a_tool_round():
+    thinking = {"type": "thinking", "thinking": "", "signature": "sig"}
+    call = {"type": "tool_use", "id": "t1", "name": "propose_plan", "input": {"label": "x"}}
+    client = _Fake(
+        {"stop_reason": "tool_use", "content": [thinking, call]},
+        {"stop_reason": "end_turn", "content": [{"type": "text", "text": "Ready — press the button."}]},
+    )
+    seen = []
+
+    async def propose(args):
+        seen.append(args)
+        return {"ok": True}
+
+    p = agent.Provider("anthropic", "k", "claude-sonnet-5-5")
+    reply = await agent._anthropic(client, p, "sys", [{"name": "propose_plan"}], {"propose_plan": propose},
+                                   [{"role": "user", "content": "8 logos"}], [], None, "studio", "low")
+    assert reply == "Ready — press the button."
+    assert seen == [{"label": "x"}]
+    second = client.sent[1]["messages"]
+    assert second[1] == {"role": "assistant", "content": [thinking, call]}
+    assert second[2]["content"][0]["tool_use_id"] == "t1"
+    # The system prompt and tools are the same on both calls (the history check).
+    assert client.sent[0]["system"] == client.sent[1]["system"] and client.sent[0]["tools"] == client.sent[1]["tools"]
+
+
 # ── Prompt ────────────────────────────────────────────────────────────────────
 
 def test_prompt_carries_the_sheet_and_the_language_rule():

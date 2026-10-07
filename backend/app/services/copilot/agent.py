@@ -36,7 +36,9 @@ from app.services.copilot.audit import log_tool_call
 logger = logging.getLogger(__name__)
 
 MAX_TOOL_ROUNDS = 6
-MAX_TOKENS = 1500
+# Thinking counts towards it as well as the reply, so it is a ceiling with room
+# for both; only what is produced is billed.
+MAX_TOKENS = 8000
 MAX_TOOL_RESULT_CHARS = 20_000
 
 ANTHROPIC_URL = "https://api.anthropic.com/v1/messages"
@@ -48,10 +50,25 @@ OPENAI_STYLE = {
     # No default: OpenAI's model names change often; set COPILOT_MODEL.
     "openai": ("https://api.openai.com/v1/", ""),
 }
-ANTHROPIC_DEFAULT_MODEL = "claude-sonnet-5"
-# The builder's customer assistant: asking and explaining, with the layout
-# maths done elsewhere, so the small model is enough.
-ANTHROPIC_STUDIO_MODEL = "claude-haiku-4-5-20251001"
+ANTHROPIC_DEFAULT_MODEL = "claude-sonnet-5-5"
+# The builder's customer assistant reads the room left on a sheet at every
+# size, works out an overflow before it happens and fills in a nested plan —
+# more than the small model does reliably.
+ANTHROPIC_STUDIO_MODEL = "claude-sonnet-5-5"
+
+# Models that take output_config.effort. It is how much they think, and so a
+# good part of what they cost; Haiku 4.5 rejects the field, so it is sent only
+# where it is understood.
+EFFORT_MODELS = (
+    "claude-fable-", "claude-mythos-", "claude-opus-5", "claude-opus-4-8", "claude-opus-4-7",
+    "claude-opus-4-6", "claude-opus-4-5", "claude-sonnet-5", "claude-sonnet-4-6",
+)
+# Models with safety classifiers that can decline a request. With fallbacks
+# "default" the API re-runs a declined request on Anthropic's choice of model,
+# instead of handing a refusal back to a customer mid-order.
+FALLBACK_MODELS = {"claude-sonnet-5-5", "claude-opus-5-5", "claude-opus-5", "claude-fable-5-1"}
+FALLBACK_BETA = "server-side-fallback-2026-07-01"
+REFUSED = "Sorry — I can't help with that one. Ask me about your sheet and I'll help you build it."
 
 
 class CopilotUnavailable(Exception):
@@ -209,6 +226,7 @@ async def run_copilot(
     subject: str = "",
     subject_limit: int | None = None,
 ) -> dict:
+    """`studio` picks the builder assistant's model and effort."""
     """Answer the last user message. `messages` is plain text history
     ([{role, content}]); tool rounds happen here and are not returned."""
     provider = resolve_provider(studio)
@@ -225,7 +243,8 @@ async def run_copilot(
     async with httpx.AsyncClient(timeout=httpx.Timeout(90.0, connect=10.0)) as client:
         try:
             if provider.name == "anthropic":
-                reply = await _anthropic(client, provider, system, tools, handlers, history, used, db, scope)
+                effort = (settings.COPILOT_STUDIO_EFFORT if studio else settings.COPILOT_EFFORT).strip().lower()
+                reply = await _anthropic(client, provider, system, tools, handlers, history, used, db, scope, effort)
             else:
                 reply = await _openai_style(client, provider, system, tools, handlers, history, used, db, scope)
         except httpx.HTTPError as exc:
@@ -237,23 +256,55 @@ async def run_copilot(
     return {"reply": reply or "I don't have an answer for that.", "tools_used": used, "provider": provider.name}
 
 
-async def _anthropic(client, p: Provider, system, tools, handlers, convo, used, db, scope="-") -> str | None:
+def anthropic_request(p: Provider, system, tools, convo, effort: str = "") -> tuple[dict, dict]:
+    """Headers and body for one Messages API call."""
     headers = {"x-api-key": p.api_key, "anthropic-version": ANTHROPIC_VERSION, "content-type": "application/json"}
+    body = {"model": p.model, "max_tokens": MAX_TOKENS, "system": system, "messages": convo}
+    if tools:
+        body["tools"] = tools
+    if effort and p.model.startswith(EFFORT_MODELS):
+        body["output_config"] = {"effort": effort}
+    if p.model in FALLBACK_MODELS:
+        headers["anthropic-beta"] = FALLBACK_BETA
+        body["fallbacks"] = "default"
+    return headers, body
+
+
+def echoable(content: list[dict]) -> list[dict]:
+    """The assistant turn as it goes back on the next request.
+
+    Sent back as it came — thinking blocks included, or the next request is
+    rejected — except across a fallback: the declined model's thinking and tool
+    calls before the last switch point are not echoed, and the switch marker
+    itself is only an audit note.
+    """
+    last = max((i for i, b in enumerate(content) if b.get("type") == "fallback"), default=-1)
+    if last < 0:
+        return content
+    drop = {"thinking", "redacted_thinking", "tool_use"}
+    return [b for b in content[:last] if b.get("type") not in drop] + content[last + 1:]
+
+
+async def _anthropic(client, p: Provider, system, tools, handlers, convo, used, db, scope="-", effort: str = "") -> str | None:
     for _ in range(MAX_TOOL_ROUNDS + 1):
-        body_in = {"model": p.model, "max_tokens": MAX_TOKENS, "system": system, "messages": convo}
-        if tools:
-            body_in["tools"] = tools
+        headers, body_in = anthropic_request(p, system, tools, convo, effort)
         res = await client.post(ANTHROPIC_URL, headers=headers, json=body_in)
         _raise_for_status(res, p)
         body = res.json()
-        content = body.get("content") or []
-        # The assistant turn goes back verbatim — including any thinking blocks —
-        # or the next request is rejected.
+        stop = body.get("stop_reason")
+        if stop == "refusal":
+            # Declined, even after any fallback. Said plainly, not as an error.
+            logger.info("copilot refusal (%s): %s", p.model, (body.get("stop_details") or {}).get("category"))
+            return REFUSED
+        content = echoable(body.get("content") or [])
         convo.append({"role": "assistant", "content": content})
 
         calls = [b for b in content if b.get("type") == "tool_use"]
-        if body.get("stop_reason") != "tool_use" or not calls:
-            return "\n\n".join(b.get("text", "") for b in content if b.get("type") == "text").strip()
+        if stop != "tool_use" or not calls:
+            text = "\n\n".join(b.get("text", "") for b in content if b.get("type") == "text").strip()
+            if not text and stop == "max_tokens":
+                return "That took more working out than I can do in one go. Try asking something narrower."
+            return text
 
         results = []
         for call in calls:
