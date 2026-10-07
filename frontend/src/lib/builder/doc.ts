@@ -11,7 +11,7 @@
  */
 import type { BuilderNode, PartKey, SiteDoc, TemplateType } from "./types";
 import { findNode, newId, updateNode, walk, withFreshIds, parentOf, removeNode } from "./tree";
-import { menuColumn, simpleFooter, asFooterColumn, textColumn, FOOTER_TITLES } from "./registry";
+import { menuColumn, simpleFooter, asFooterColumn, textColumn, FOOTER_TITLES, createNode } from "./registry";
 import { GOOGLE_FONTS } from "./fonts";
 
 export type Target =
@@ -433,6 +433,45 @@ function holdsFooterRow(tree: BuilderNode | null): boolean {
   let yes = false;
   walk(tree, (n) => { if (isFooterRow(n)) yes = true; });
   return yes;
+}
+
+/** Whether the header already has Log in / Sign up buttons. */
+export function hasHeaderAuth(doc: SiteDoc): boolean {
+  let yes = false;
+  walk(doc.parts?.header ?? null, (n) => { if (n.type === "auth_buttons") yes = true; });
+  return yes;
+}
+
+/**
+ * Log in and Sign up in the header, where they belong: at the end of the row
+ * that holds the cart and the search. The plain account icon, when the header
+ * has one, makes way for them — it was the same door without a name on it.
+ */
+export function addHeaderAuth(doc: SiteDoc): { doc: SiteDoc; id: string; replaced: boolean } | null {
+  const header = doc.parts?.header;
+  const auth = createNode("auth_buttons");
+  if (!header || !auth) return null;
+
+  // The row to join: where the cart, search or account icon is; else where the menu is; else the header's first row.
+  let host: BuilderNode | null = null;
+  const holding = (types: string[]) => walk(header, (n) => {
+    if (!host && (n.children ?? []).some((c) => types.includes(c.type))) host = n;
+  });
+  holding(["cart_link", "account_link"]);
+  if (!host) holding(["search"]);
+  if (!host) holding(["menu"]);
+  if (!host) holding(["logo", "store_name"]);
+  const row = (host ?? header) as BuilderNode;
+
+  const kids = row.children ?? [];
+  const icon = kids.find((c) => c.type === "account_link");
+  const rest = kids.filter((c) => c !== icon);
+  // After the last icon when the row has them; else at its end.
+  let at = -1;
+  rest.forEach((c, i) => { if (c.type === "cart_link" || c.type === "search") at = i; });
+  const next = at >= 0 ? [...rest.slice(0, at + 1), auth, ...rest.slice(at + 1)] : [...rest, auth];
+  const withButtons = updateNode(header, row.id, (n) => ({ ...n, children: next }));
+  return { doc: { ...doc, parts: { ...doc.parts, header: withButtons } }, id: auth.id, replaced: !!icon };
 }
 
 /** Whether the footer is already columns in a row that wraps — the layout the buttons above build on. */

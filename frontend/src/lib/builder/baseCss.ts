@@ -258,6 +258,11 @@ export const BASE_CSS = `
 .bsite :where(.b-stack:has(> .b-iconlink):not(:has(> .b-search-field))){flex-shrink:0}
 .bsite :where(.b-stack[data-dir=row]) > :where(.b-search-field){flex:1 1 160px;width:auto}
 .bsite :where(.b-iconlink:hover){background:var(--b-surface,#F4F4F2)}
+.bsite :where(.b-auth){display:inline-flex;align-items:center;gap:10px;flex:0 0 auto;min-width:0}
+.bsite :where(.b-auth .b-btn){white-space:nowrap;font-weight:600}
+.bsite :where(.b-auth[data-size=compact] .b-btn){padding:9px 16px;font-size:14px}
+.bsite :where(.b-auth .b-auth-text){border-color:transparent;background:none;color:inherit;padding-inline:6px}
+.bsite :where(.b-auth .b-auth-text:hover){filter:none;text-decoration:underline;text-underline-offset:4px}
 .bsite :where(.b-count){position:absolute;top:2px;right:0;min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:var(--b-primary,#14161B);color:#fff;font-size:11px;font-weight:700;line-height:18px;text-align:center}
 .bsite :where(.b-crumbs){display:flex;flex-wrap:wrap;align-items:center;gap:6px;font-size:13px;color:var(--b-muted,#5B6170)}
 .bsite :where(.b-crumbs a){text-decoration:none}
@@ -327,6 +332,9 @@ ${PHONE}{
   .bsite :where(.b-search-field){max-width:none}
   .bsite :where(.b-storename){font-size:17px}
   .bsite :where(.b-logo[data-auto] img){max-width:min(150px,100%)}
+  .bsite :where(.b-auth[data-phone=menu]):where(.bsite:has(.b-menu[data-mobile=drawer]) *){display:none}
+  .bsite :where(.b-auth){gap:6px}
+  .bsite :where(.b-auth .b-btn){padding:8px 12px;font-size:13px}
   .bsite :where(.b-form-grid){grid-template-columns:minmax(0,1fr)}
   .bsite :where(.b-form-field[data-w=half]){grid-column:1 / -1}
   .bsite :where(.b-form-btn){width:100%}
@@ -353,6 +361,11 @@ ${PHONE}{
 .bsite-layer .b-drawer-foot{border-top:1px solid var(--b-border,#e6e6e6);padding:8px;background:var(--b-surface,#F7F7F5)}
 .bsite-layer .b-drawer-foot a{font-weight:500;font-size:15px}
 .bsite-layer .b-drawer-foot svg{flex:0 0 auto;color:var(--b-muted,#5B6170)}
+.bsite-layer .b-drawer-auth{display:flex;gap:10px;padding:8px 4px 12px}
+.bsite-layer .b-drawer .b-drawer-auth a{box-sizing:border-box;flex:1 1 0;min-width:0;justify-content:center;min-height:46px;padding:10px 12px;border:1.5px solid var(--b-primary,#14161B);border-radius:var(--b-btn-radius,10px);background:transparent;color:var(--b-primary,#14161B);font-size:15px;font-weight:600;text-align:center}
+.bsite-layer .b-drawer .b-drawer-auth a.solid{background:var(--b-primary,#14161B);color:#fff}
+.bsite-layer .b-drawer .b-drawer-auth a:hover{filter:brightness(.92);background:transparent}
+.bsite-layer .b-drawer .b-drawer-auth a.solid:hover{background:var(--b-primary,#14161B)}
 /* The header's search icon opens the box across the top of the page. */
 .bsite-layer .b-spop{position:absolute;top:0;left:0;right:0;background:var(--b-background,#fff);color:var(--b-text,#14161B);box-shadow:0 12px 32px rgba(0,0,0,.18);padding:16px;animation:bdrop .2s ease}
 .bsite-layer .b-spop-in{display:flex;align-items:center;gap:8px;max-width:720px;margin:0 auto}

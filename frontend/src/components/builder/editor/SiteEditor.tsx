@@ -31,7 +31,7 @@ import {
 import { createNode, labelOf, PRESETS } from "@/lib/builder/registry";
 import { LAYOUT_PRESETS, placeInCell, setSpan } from "@/lib/builder/layout";
 import {
-  TEMPLATE_LABELS, addFooterColumn, addFooterTextColumn, isColumnsFooter, moveToFooter, removeAndClose, strayFooterOf, collectionsUsing, detachShared, exists, locate, makeShared, nodeForIssue, previewFor, productsUsing,
+  TEMPLATE_LABELS, addFooterColumn, addFooterTextColumn, addHeaderAuth, hasHeaderAuth, isColumnsFooter, moveToFooter, removeAndClose, strayFooterOf, collectionsUsing, detachShared, exists, locate, makeShared, nodeForIssue, previewFor, productsUsing,
   saveSection, sameTarget, setTreeAt, targetLabel, templateFor, treeAt, withSimpleFooter, type Target,
 } from "@/lib/builder/doc";
 import {
@@ -703,6 +703,23 @@ export default function SiteEditor({ backHref = "/admin/dashboard" }: { backHref
           {target.kind === "template" && (target.type === "product" || target.type === "collection") && (
             <UsedBy doc={doc} type={target.type} id={target.id} names={(id) => target.type === "product" ? productCache.current.get(id)?.name : collections.find((c) => c.id === id)?.name}
                     onChoose={() => { setShowLeft(true); setTab("templates"); setAssigning(`${target.type}:${target.id}`); }} />
+          )}
+          {((target.kind === "part" && target.key === "header") || (where?.kind === "part" && where.key === "header")) && !hasHeaderAuth(doc) && (
+            <div className="sbe-banner info" role="note" data-header-bar>
+              <LayoutTemplate size={15} />
+              <span style={{ flex: "1 1 240px", minWidth: 0 }}>
+                Your customers have an account of their own on this shop. Give them Log in and Sign up in the header — signed in, they see My account instead; on a phone the two sit inside the menu.
+              </span>
+              <button type="button" className="sbe-btn sm primary" data-header-auth onClick={() => {
+                const d = docRef.current;
+                const res = d ? addHeaderAuth(d) : null;
+                if (!res) return;
+                commit(res.doc);
+                setSelected(res.id);
+                setShowRight(true);
+                say.done(res.replaced ? "Log in and Sign up are in the header, in place of the account icon. Ctrl Z undoes it." : "Log in and Sign up are in the header. Ctrl Z undoes it.");
+              }}>+ Add Log in / Sign up</button>
+            </div>
           )}
           {strayFooter && where && (
             <div className="sbe-banner bad" role="note" data-stray-footer>

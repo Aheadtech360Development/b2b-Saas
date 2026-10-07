@@ -409,6 +409,34 @@ export const REGISTRY: ComponentDef[] = [
     create: () => node("account_link", {}),
   },
   {
+    type: "auth_buttons", label: "Log in / Sign up", tile: "Log in \u00B7 Sign up", category: "store", icon: "LogIn",
+    blurb: "Log in and Sign up buttons for your customers. Once signed in, they see My account instead.",
+    fields: [
+      { key: "show", label: "Show", kind: "select", options: [
+        { value: "", label: "Log in and Sign up" }, { value: "login", label: "Log in only" }, { value: "signup", label: "Sign up only" }] },
+      { key: "loginLabel", label: "Log in says", kind: "text", when: { key: "show", is: ["", "login", undefined] } },
+      { key: "loginStyle", label: "Log in looks", kind: "select", when: { key: "show", is: ["", "login", undefined] }, options: [
+        { value: "outline", label: "Outlined" }, { value: "solid", label: "Filled" }, { value: "text", label: "Plain words" }] },
+      { key: "signupLabel", label: "Sign up says", kind: "text", when: { key: "show", is: ["", "signup", undefined] } },
+      { key: "signupStyle", label: "Sign up looks", kind: "select", when: { key: "show", is: ["", "signup", undefined] }, options: [
+        { value: "solid", label: "Filled" }, { value: "outline", label: "Outlined" }, { value: "text", label: "Plain words" }] },
+      { key: "accountLabel", label: "Once signed in, it says", kind: "text",
+        help: "A signed-in customer sees this one button instead, and it opens their account." },
+      { key: "size", label: "Size", kind: "select", options: [
+        { value: "", label: "Compact \u2014 for a header" }, { value: "regular", label: "Regular" }] },
+      { key: "phone", label: "On a phone", kind: "select",
+        help: "A phone's header has room for the logo, the cart and the menu button. Inside the menu, the two buttons sit at the top of it.",
+        options: [{ value: "", label: "Inside the menu" }, { value: "bar", label: "Stay in the header" }] },
+      { key: "signupHref", label: "Sign up goes to", kind: "url",
+        help: "Empty: a quick account \u2014 name, email, password \u2014 and straight to their dashboard. A wholesale shop can use /wholesale/register." },
+      { key: "loginHref", label: "Log in goes to", kind: "url", help: "Empty: your shop's own sign-in page." },
+    ],
+    styles: ["typography", "spacing"],
+    create: () => node("auth_buttons", {
+      loginLabel: "Log in", signupLabel: "Sign up", accountLabel: "My account", loginStyle: "outline", signupStyle: "solid",
+    }),
+  },
+  {
     type: "breadcrumbs", label: "Breadcrumbs", category: "store", icon: "ChevronsRight",
     blurb: "Home › Collection › Product — where the customer is.",
     fields: [],

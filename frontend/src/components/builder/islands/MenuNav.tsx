@@ -20,6 +20,10 @@ import { usePathname } from "next/navigation";
 import { ChevronDown, CircleUser, Menu as MenuIcon, Search, ShoppingCart, X } from "lucide-react";
 import type { MenuItem } from "@/lib/builder/types";
 import { safeHref } from "@/lib/builder/sanitize";
+import { useAuthStore } from "@/stores/auth.store";
+
+/** What the header's Log in / Sign up element says and where it goes (AuthButtons writes these on itself). */
+interface AuthLinks { login: string; loginLabel: string; signup: string; signupLabel: string; accountLabel: string }
 
 interface Props {
   id: string;
@@ -95,8 +99,36 @@ export default function MenuNav({ id, items, layout, mobile, label, title, edit 
   const pathname = usePathname();
   const closeRef = useRef<HTMLButtonElement>(null);
   const toggleRef = useRef<HTMLButtonElement>(null);
+  const user = useAuthStore((s) => s.user);
+  const authLoading = useAuthStore((s) => s.isLoading);
+  const [auth, setAuth] = useState<AuthLinks | null>(null);
+  const [vars, setVars] = useState<React.CSSProperties>({});
 
   useEffect(() => setMounted(true), []);
+
+  // The drawer is drawn outside the site, so on opening it is told two things
+  // it cannot inherit there: the header's Log in / Sign up, when the header has
+  // them, and the shop's own button colour and corners to draw them in.
+  useEffect(() => {
+    if (!open) return;
+    const site = toggleRef.current?.closest(".bsite");
+    const el = site?.querySelector<HTMLElement>(".b-auth") ?? document.querySelector<HTMLElement>('.bsite[data-part="header"] .b-auth');
+    setAuth(el ? {
+      login: el.dataset.login ?? "", loginLabel: el.dataset.loginLabel || "Log in",
+      signup: el.dataset.signup ?? "", signupLabel: el.dataset.signupLabel || "Sign up",
+      accountLabel: el.dataset.accountLabel || "My account",
+    } : null);
+    if (site) {
+      const cs = getComputedStyle(site);
+      const next: Record<string, string> = {};
+      for (const name of ["--b-primary", "--b-btn-radius"]) {
+        const value = cs.getPropertyValue(name).trim();
+        if (value) next[name] = value;
+      }
+      setVars(next as React.CSSProperties);
+    }
+  }, [open]);
+  const signedIn = !authLoading && !!user;
   // Following a link in the drawer goes to another page; the drawer closes.
   useEffect(() => setOpen(false), [pathname]);
 
@@ -131,7 +163,7 @@ export default function MenuNav({ id, items, layout, mobile, label, title, edit 
         </button>
       )}
       {drawer && open && mounted && createPortal(
-        <div className="bsite-layer" role="dialog" aria-modal="true" aria-label={label}>
+        <div className="bsite-layer" role="dialog" aria-modal="true" aria-label={label} style={vars}>
           <div className="b-drawer-back" onClick={() => setOpen(false)} />
           <div className="b-drawer">
             <div className="b-drawer-head">
@@ -145,9 +177,18 @@ export default function MenuNav({ id, items, layout, mobile, label, title, edit 
             {/* The three places every shop has, where a thumb can reach them —
                 whatever the header itself has room to show on a phone. */}
             <div className="b-drawer-foot">
+              {auth && !signedIn && (auth.login || auth.signup) && (
+                <div className="b-drawer-auth">
+                  {auth.login && <a href={auth.login}>{auth.loginLabel}</a>}
+                  {auth.signup && <a className="solid" href={auth.signup}>{auth.signupLabel}</a>}
+                </div>
+              )}
               <ul>
                 <li><a href="/search"><Search size={19} aria-hidden /> Search</a></li>
-                <li><a href="/account"><CircleUser size={19} aria-hidden /> My account</a></li>
+                {/* Signed out, with the two buttons above: they are the way in, and this would be a third. */}
+                {!(auth && !signedIn && (auth.login || auth.signup)) && (
+                  <li><a href={user?.is_admin ? "/admin/dashboard" : "/account"}><CircleUser size={19} aria-hidden /> {user?.is_admin ? "Dashboard" : auth?.accountLabel ?? "My account"}</a></li>
+                )}
                 <li><a href="/cart"><ShoppingCart size={19} aria-hidden /> Cart</a></li>
               </ul>
             </div>

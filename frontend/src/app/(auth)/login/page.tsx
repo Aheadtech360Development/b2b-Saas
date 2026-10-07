@@ -321,30 +321,26 @@ export default function LoginPage() {
             {/* What is worth offering here depends on whose page this is. On
                 the platform's own address: a shop of your own. On a wholesale
                 shop: the application its buyers have to make before they can
-                sign in. On a retail shop: nothing — its customers buy as
-                guests, and an application would go to a screen its plan does
-                not include. */}
+                sign in. On a retail shop: an account of their own, made in a
+                moment — the shop's header now says "Sign up", and somebody who
+                landed on Log in without one needs the same door from here. */}
             <div style={{ marginTop: "22px", paddingTop: "18px", borderTop: "1px solid var(--ui-line)" }}>
-              {(onPlatform || wholesale_signup) && (
-                <>
-                  <div style={{ position: "relative", textAlign: "center", marginBottom: "16px" }}>
-                    <span style={{ fontSize: "12.5px", color: "var(--ui-muted)", background: "#fff", padding: "0 12px", position: "relative", zIndex: 1 }}>or</span>
-                    <div style={{ position: "absolute", top: "50%", left: 0, right: 0, height: "1px", background: "var(--ui-line)", zIndex: 0 }} />
-                  </div>
-                  <Link
-                    href={onPlatform ? "/signup" : "/wholesale/register"}
-                    className="ui-btn-ghost ui-btn-block"
-                  >
-                    {onPlatform ? "Start your own shop" : "Apply for a wholesale account"}
-                  </Link>
-                </>
-              )}
-              <p className="ui-hint" style={{ textAlign: "center", marginTop: (onPlatform || wholesale_signup) ? "16px" : "0" }}>
+              <div style={{ position: "relative", textAlign: "center", marginBottom: "16px" }}>
+                <span style={{ fontSize: "12.5px", color: "var(--ui-muted)", background: "#fff", padding: "0 12px", position: "relative", zIndex: 1 }}>or</span>
+                <div style={{ position: "absolute", top: "50%", left: 0, right: 0, height: "1px", background: "var(--ui-line)", zIndex: 0 }} />
+              </div>
+              <Link
+                href={onPlatform ? "/signup" : wholesale_signup ? "/wholesale/register" : "/create-account?next=/account"}
+                className="ui-btn-ghost ui-btn-block"
+              >
+                {onPlatform ? "Start your own shop" : wholesale_signup ? "Apply for a wholesale account" : "Create an account"}
+              </Link>
+              <p className="ui-hint" style={{ textAlign: "center", marginTop: "16px" }}>
                 {onPlatform
                   ? "A plan, your details, and your shop is open in a minute."
                   : wholesale_signup
                     ? "Wholesale pricing needs an approved account. You can still order as a guest at standard prices."
-                    : "No account needed to place an order. Guests pay standard pricing."}
+                    : "An account keeps your orders, invoices and saved designs in one place. You can also order as a guest."}
               </p>
             </div>
           </div>

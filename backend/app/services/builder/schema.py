@@ -120,6 +120,7 @@ COMPONENTS: dict[str, Component] = {
     # the cart's behaviour stays in the one cart component.
     "cart_items": _c(context=("cart",)),
     "account_link": _c(),
+    "auth_buttons": _c(urls=("loginHref", "signupHref")),
     "breadcrumbs": _c(),
     "announcement_bar": _c(urls=("href",)),
     # ── Commerce: the product being viewed ──

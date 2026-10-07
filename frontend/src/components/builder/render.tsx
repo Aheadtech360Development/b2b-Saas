@@ -27,6 +27,7 @@ import { cleanHtml, safeHref, safeSrc, scopeCss } from "@/lib/builder/sanitize";
 import { layoutMark } from "@/lib/builder/layout";
 import MenuNav from "./islands/MenuNav";
 import CartLink from "./islands/CartLink";
+import AuthButtons from "./islands/AuthButtons";
 import CartIsland from "./islands/CartIsland";
 import Reviews, { Stars } from "./islands/Reviews";
 import { Newsletter, ProductGallery, SortSelect, Tabs } from "./islands/Interactive";
@@ -467,6 +468,10 @@ export function Node({ node, ctx }: { node: BuilderNode; ctx: RenderCtx }): Reac
       return <CartLink id={id} showCount={p.showCount !== false} edit={ctx.edit} />;
     case "cart_items":
       return <CartIsland id={id} edit={ctx.edit} />;
+    case "auth_buttons":
+      return <AuthButtons id={id} show={str(p.show)} loginLabel={str(p.loginLabel)} signupLabel={str(p.signupLabel)}
+                          accountLabel={str(p.accountLabel)} loginStyle={str(p.loginStyle)} signupStyle={str(p.signupStyle)}
+                          size={str(p.size)} phone={str(p.phone)} loginHref={str(p.loginHref)} signupHref={str(p.signupHref)} edit={ctx.edit} />;
     case "account_link":
       return <a data-b={id} className="b-iconlink" href="/account" aria-label="Your account"><CircleUser size={21} aria-hidden /></a>;
     case "breadcrumbs": {

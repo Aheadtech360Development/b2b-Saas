@@ -73,8 +73,11 @@ def starter_document(*, store_name: str = "", primary: str = "", header_menu: st
                   {"justifyContent": "center"}),
             _node(ids, "stack", {"direction": "row"}, {"justifyContent": "flex-end", "gap": "4px", "flexWrap": "nowrap"}, [
                 _node(ids, "search", {"style": "icon"}),
-                {**_node(ids, "account_link", {}), "hide": {"mobile": True}},
                 _node(ids, "cart_link", {"showCount": True}),
+                # Log in and Sign up by name, for the shop's own customers; on a
+                # phone they sit inside the menu. (Mirrors the editor's registry.)
+                _node(ids, "auth_buttons", {"loginLabel": "Log in", "signupLabel": "Sign up", "accountLabel": "My account",
+                                            "loginStyle": "outline", "signupStyle": "solid"}),
             ]),
         ]),
     ], name="Header")
