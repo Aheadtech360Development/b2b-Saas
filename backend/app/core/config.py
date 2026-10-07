@@ -197,6 +197,11 @@ class Settings(BaseSettings):
     COPILOT_MODEL: str = ""
     COPILOT_DAILY_LIMIT: int = 200
 
+    # ── Address suggestions at checkout (api/v1/address.py) ──────────────────
+    # Geoapify's free plan: 3,000 requests a day, no card. Blank turns the
+    # suggestions off and the address is typed as before.
+    GEOAPIFY_API_KEY: str = ""
+
     @model_validator(mode="after")
     def _apply_resend_from_email(self) -> "Settings":
         if self.RESEND_FROM_EMAIL:

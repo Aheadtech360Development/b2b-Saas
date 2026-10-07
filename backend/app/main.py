@@ -977,6 +977,7 @@ from app.api.v1.platform import billing as platform_billing  # noqa: E402
 from app.api.v1.platform import audit as platform_audit  # noqa: E402
 from app.api.v1 import auth, products, cart, checkout, orders, account, webhooks, reviews, discounts, guest, contact, style_sheets, product_specs, upload, tax_rate, tax, pages_seo, blog_posts, shipping as public_shipping  # noqa: E402
 from app.api.v1 import gang_sheets  # noqa: E402
+from app.api.v1 import address as address_api  # noqa: E402
 from app.api.v1 import two_factor  # noqa: E402
 from app.api.v1.admin import (  # noqa: E402
     customers,
@@ -1120,6 +1121,7 @@ app.include_router(product_specs.router, prefix=_V1)
 app.include_router(upload.router, prefix=_V1)
 app.include_router(tax_rate.router, prefix=_V1)
 app.include_router(tax.router, prefix=_V1)
+app.include_router(address_api.router, prefix=_V1)
 app.include_router(public_shipping.router, prefix=_V1)
 
 app.include_router(customers.router, prefix=f"{_V1}/admin")
