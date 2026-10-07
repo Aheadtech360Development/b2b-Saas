@@ -21,23 +21,12 @@ export async function generateMetadata(): Promise<Metadata> {
 import { Footer } from "@/components/layout/Footer";
 import NewShopHome from "@/components/home/NewShopHome";
 import StorefrontHome from "@/components/home/StorefrontHome";
-import ThemeRenderer, { type ThemePage } from "@/components/storefront/ThemeRenderer";
-import { loadStore } from "@/components/storefront/ThemeChrome";
+import { loadStore } from "@/lib/store";
 import StorefrontShell from "@/components/storefront/StorefrontShell";
 import PlatformLanding from "@/components/platform/PlatformLanding";
 import { apiClient } from "@/lib/api-client";
 import { BuilderPage } from "@/components/builder/SiteParts";
 import { loadBuilderPage } from "@/lib/builder/load";
-
-/** This brand's published theme home page, or null when it has none. */
-async function themeHome(): Promise<ThemePage | null> {
-  try {
-    const res = await apiClient.get<{ page: ThemePage | null }>("/api/v1/storefront/theme/home", { skipAuth: true });
-    return res?.page ?? null;
-  } catch {
-    return null;  // no theme, or the API is down — the built-in home still works
-  }
-}
 
 /** Whether this brand has anything for sale yet. */
 async function hasProducts(): Promise<boolean> {
@@ -60,8 +49,7 @@ export default async function HomePage() {
   // chrome around it.
   if (!store.brand) return <PlatformLanding />;
 
-  // A shop switched to the visual builder. Every other shop gets null and
-  // carries on below, exactly as before.
+  // A shop live on the website builder: its home page.
   const site = await loadBuilderPage("home");
   if (site) {
     return (
@@ -71,23 +59,15 @@ export default async function HomePage() {
     );
   }
 
-  // This page sits above the (customer) segment, so it wraps itself in the
-  // same shell that segment uses. Both mount and unmount with the route,
-  // which the root layout could not do — it is shared by the console too and
-  // is never re-rendered on the way there.
-  const page = await themeHome();
-  if (page) {
-    // The store's header and footer come from the shell around this page;
-    // the theme's own copies of them are left out.
-    return (
-      <StorefrontShell>
-        <ThemeRenderer page={page} chromeInLayout={store.chrome !== null} />
-      </StorefrontShell>
-    );
-  }
-  // A shop with no theme and nothing to sell is a shop on its first day, not a
-  // broken one. The built-in storefront is for a brand that has stock but has
-  // not imported a design yet.
+  // A shop that has not gone live on the builder yet. This page sits above
+  // the (customer) segment, so it wraps itself in the same shell that segment
+  // uses. Both mount and unmount with the route, which the root layout could
+  // not do — it is shared by the console too and is never re-rendered on the
+  // way there.
+  //
+  // With nothing to sell it is a shop on its first day, not a broken one; the
+  // built-in storefront is for a brand that has stock but has not published
+  // its builder site yet.
   if (!(await hasProducts())) {
     return (
       <StorefrontShell>

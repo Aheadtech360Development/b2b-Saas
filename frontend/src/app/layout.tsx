@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import Script from "next/script";
 import { headers } from "next/headers";
 import "./globals.css";
-import { loadStore } from "@/components/storefront/ThemeChrome";
+import { loadStore } from "@/lib/store";
 import { Providers } from "@/components/providers/Providers";
 import { DeployRefresh } from "@/components/providers/DeployRefresh";
 import { AttributionTracker } from "@/components/analytics/AttributionTracker";

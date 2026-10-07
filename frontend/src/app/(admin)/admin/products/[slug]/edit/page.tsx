@@ -28,7 +28,6 @@ import { VariantOptionsEditor, type ColorOption } from "@/components/admin/Varia
 import { VariantBulkEditor } from "@/components/admin/VariantBulkEditor";
 import { ProductOptionsBuilder } from "@/components/admin/ProductOptionsBuilder";
 import { productTemplatesService, type ProductTemplateRow } from "@/services/productTemplates.service";
-import { themesService, type ThemePageSummary } from "@/services/themes.service";
 import { WebsiteTemplateField } from "@/components/admin/WebsiteTemplateField";
 import { displayUrl } from "@/lib/brand";
 
@@ -85,12 +84,7 @@ export default function AdminProductEditPage() {
   const [metaRows, setMetaRows] = useState<{ key: string; value: string }[]>([]);
   useEffect(() => {
     productTemplatesService.list().then(setTemplates).catch(() => setTemplates([]));
-    // The theme's product layouts, when this brand runs a theme.
-    themesService.get()
-      .then((r) => setThemeLayouts((r.theme?.pages ?? []).filter((p) => p.kind === "product")))
-      .catch(() => setThemeLayouts([]));
   }, []);
-  const [themeLayouts, setThemeLayouts] = useState<ThemePageSummary[]>([]);
   // Whether the Website builder is what draws this shop's product pages. null
   // until it is known, so a builder shop never sees the theme's card flash by.
   const [builderLive, setBuilderLive] = useState<boolean | null>(null);
@@ -447,7 +441,6 @@ export default function AdminProductEditPage() {
         size_chart_data: (product as any).size_chart_data ?? null,
         highlight_text: (product as any).highlight_text ?? null,
         template_id: product.template_id ?? null,
-        theme_page: (product as any).theme_page ?? null,
         allow_design_upload: Boolean((product as any).allow_design_upload),
         metafields,
       });
@@ -1047,26 +1040,6 @@ export default function AdminProductEditPage() {
             </div>
           </div>
 
-          {/* Which of the theme's product layouts this product uses */}
-          {themeLayouts.length > 0 && (
-            <div style={sectionCard}>
-              <span style={sectionTitle}>Theme layout</span>
-              <select
-                value={(product as any).theme_page ?? ""}
-                onChange={e => setProduct(p => p ? { ...p, theme_page: e.target.value || null } as any : p)}
-                style={{ ...inputStyle, background: "#fff" }}
-                aria-label="Theme layout"
-              >
-                <option value="">Default ({themeLayouts[0]?.label})</option>
-                {themeLayouts.map(l => <option key={l.key} value={l.key}>{l.label}</option>)}
-              </select>
-              <p style={{ fontSize: "12px", color: "#7A7880", marginTop: "8px", lineHeight: 1.5 }}>
-                Which of your theme&apos;s product layouts this product is drawn in. The gallery,
-                options and add to cart stay the same — only what surrounds them changes.
-              </p>
-            </div>
-          )}
-
           {/* Which Website builder template draws this product's page. Saved to the
               builder's draft, not with this form: it goes live on Publish. */}
           <WebsiteTemplateField
@@ -1080,9 +1053,9 @@ export default function AdminProductEditPage() {
             )}
           />
 
-          {/* Product page template — the older kind, read only by the imported
-              theme's product page. A shop on the Website builder draws its product
-              pages from "Website template" above, so this one is left out there:
+          {/* Product page template — the older kind, read by the app's own product
+              page. A shop on the Website builder draws its product pages from
+              "Website template" above, so this one is left out there:
               two template choices, of which one does nothing, is one too many.
               The product keeps its template_id either way; nothing is cleared. */}
           {builderLive === false && (

@@ -1,10 +1,13 @@
 """The visual builder, end to end, against a real database.
 
-The first group is the one that matters most: a brand whose storefront was
-imported from HTML must render exactly as it did, byte for byte, through every
-step of somebody opening the builder, editing, publishing — right up until that
-brand's own admin switches its render mode, and again the moment they switch
-back.
+The first group is the one that matters most: a shop that has not switched to
+the builder must be told exactly what it was told before — byte for byte —
+through every step of somebody opening the builder, editing, publishing, right
+up until that brand's own admin switches its render mode, and again the moment
+they switch back.
+
+(These once also held an imported HTML theme byte for byte. Imported themes
+are gone; what a shop is told about itself is what is left to hold.)
 
 Then: the draft never reaches shoppers; publish and rollback do what they say;
 a broken draft is refused with the live site untouched; and one brand can never
@@ -62,7 +65,7 @@ async def sql(stmt, params=None, fetch=False):
         set_bypass_scoping(False)
 
 
-async def make_brand(label, *, imported_theme=False):
+async def make_brand(label):
     tid = uuid.uuid4()
     slug = f"bld-{label}-{RUN}"
     await sql("INSERT INTO tenants (id, slug, name, email, status, plan) "
@@ -83,13 +86,6 @@ async def make_brand(label, *, imported_theme=False):
              {"label": "About", "href": "/about"}]
     await sql("INSERT INTO tenant_menus (id, tenant_id, name, items) VALUES (:i, :t, 'Main', CAST(:j AS jsonb))",
               {"i": str(mid), "t": str(tid), "j": json.dumps(items)})
-    if imported_theme:
-        # A real imported design, copied from an existing published theme.
-        await sql("INSERT INTO brand_themes (id, tenant_id, name, definition, draft, published, "
-                  "published_at, is_active, source_html) "
-                  "SELECT gen_random_uuid(), :t, name, definition, draft, published, now(), true, source_html "
-                  "FROM brand_themes WHERE published IS NOT NULL AND is_active ORDER BY created_at DESC LIMIT 1",
-                  {"t": str(tid)})
     token = create_access_token(subject=str(uid), extra_claims={
         "tenant_id": str(tid), "role": "tenant_admin", "is_admin": True, "is_platform_admin": False,
     })
@@ -98,7 +94,7 @@ async def make_brand(label, *, imported_theme=False):
 
 
 async def main():
-    a = await make_brand("a", imported_theme=True)
+    a = await make_brand("a")
     b = await make_brand("b")
 
     transport = httpx.ASGITransport(app=app)
@@ -110,18 +106,13 @@ async def main():
         def adm(brand):
             return {"X-Tenant-Slug": brand["slug"], "Authorization": f"Bearer {brand['token']}"}
 
-        async def theme_home(brand):
-            r = await client.get("/api/v1/storefront/theme/home", headers=pub(brand))
-            return r.status_code, r.text
+        async def told(brand):
+            """What every storefront page is told about the shop it is drawing."""
+            return (await client.get("/api/v1/storefront/theme-active", headers=pub(brand))).text
 
         async def site(brand, **params):
             r = await client.get("/api/v1/storefront/site", headers=pub(brand), params=params)
             return r.json()
-
-        async def theme_row(brand):
-            rows = await sql("SELECT definition::text, published::text, draft::text FROM brand_themes "
-                             "WHERE tenant_id = :t", {"t": str(brand["tid"])}, fetch=True)
-            return rows[0] if rows else None
 
         def heading_text(doc):
             return doc["templates"]["home"]["default"]["tree"]["children"][0]["children"][0]["children"][0][
@@ -131,13 +122,16 @@ async def main():
             doc["templates"]["home"]["default"]["tree"]["children"][0]["children"][0]["children"][0][
                 "children"][0]["props"]["text"] = value
 
-        # ── 1. The imported brand is untouched ────────────────────────────────
-        print("an imported-HTML brand renders exactly as before")
-        status0, home0 = await theme_home(a)
-        row0 = await theme_row(a)
-        active0 = (await client.get("/api/v1/storefront/theme-active", headers=pub(a))).text
-        check("the imported theme renders today", status0 == 200 and '"page":null' not in home0.replace(" ", ""),
-              home0[:200])
+        # ── 1. A shop that has not switched is untouched ─────────────────────
+        print("a shop that has not switched is told exactly what it was")
+        active0 = await told(a)
+        first = json.loads(active0)
+        check("a shop is told whose it is, and nothing about a builder or a theme",
+              first.get("brand") == "Brand a" and "builder" not in first
+              and first.get("active") is False and first.get("chrome") is None, active0[:200])
+        gone = [(await client.get(f"/api/v1/storefront/theme/{path}", headers=pub(a))).status_code
+                for path in ("home", f"product/{a['product_slug']}")]
+        check("the imported theme's own pages are not served any more", gone == [404, 404], gone)
         check("the storefront asks and is told: legacy", await site(a) == {"mode": "legacy"})
 
         r = await client.get("/api/v1/admin/storefront/builder", headers=adm(a))
@@ -145,7 +139,7 @@ async def main():
         check("opening the builder makes a draft", r.status_code == 200 and state.get("draft"), r.text[:200])
         check("opening the builder does not switch the storefront", state.get("mode") == "legacy")
         check("…and the storefront still says legacy", await site(a) == {"mode": "legacy"})
-        check("…and the imported theme renders byte for byte the same", (await theme_home(a))[1] == home0)
+        check("…and it is told byte for byte the same", await told(a) == active0)
 
         draft = state["draft"]
         set_heading(draft, "Published heading v1")
@@ -157,8 +151,7 @@ async def main():
         r = await client.post("/api/v1/admin/storefront/builder/publish", headers=adm(a), json={"note": "first"})
         check("the draft publishes", r.status_code == 200 and r.json().get("version") == 1, r.text[:300])
         check("publishing does not switch the storefront", await site(a) == {"mode": "legacy"})
-        check("…and the imported theme still renders byte for byte the same", (await theme_home(a))[1] == home0)
-        check("the imported theme's own row was never written to", await theme_row(a) == row0)
+        check("…and it is still told byte for byte the same", await told(a) == active0)
 
         # ── 2. Switching, and the draft staying a draft ──────────────────────
         print("\nswitching to the builder, and the draft staying a draft")
@@ -573,11 +566,11 @@ async def main():
         rev0 = st["revision"]
 
         # Which kind of shop this is — what the product page uses to decide whether
-        # the imported theme's own "Theme template" card still has a job to do.
+        # the older "Theme template" card still has a job to do.
         check("a shop switched to the builder, with a site published, is told the builder is live",
               st.get("builderLive") is True and st["mode"] == "visual_builder", str({k: st.get(k) for k in ("builderLive", "mode")}))
         other = (await choice(b, "product", b["product"])).json()
-        check("a shop that opened the builder but still shows its theme is told it is not",
+        check("a shop that opened the builder but has not switched to it is told it is not",
               other.get("available") is True and other.get("builderLive") is False and other["mode"] == "legacy"
               and other["live"] is None, str({k: other.get(k) for k in ("available", "builderLive", "mode", "live")}))
 
@@ -968,18 +961,14 @@ async def main():
         # ── 7. And back ──────────────────────────────────────────────────────
         print("\nswitching back")
         r = await client.put("/api/v1/admin/storefront/builder/mode", headers=adm(a), json={"mode": "legacy"})
-        check("the owner can switch back to the imported theme", r.status_code == 200)
+        check("the owner can switch the shop off the builder", r.status_code == 200)
         check("the storefront says legacy again", await site(a) == {"mode": "legacy"})
         back = (await client.get("/api/v1/admin/storefront/builder/assignment", headers=adm(a),
                                  params={"kind": "product", "id": str(a["product"])})).json()
-        check("and its product page is told the builder is no longer what shoppers see — its theme fields matter again",
+        check("and its product page is told the builder is no longer what shoppers see",
               back.get("available") is True and back.get("builderLive") is False and back["mode"] == "legacy"
               and back["live"] is not None, str({k: back.get(k) for k in ("available", "builderLive", "mode")}))
-        check("the imported theme renders byte for byte as it did before any of this",
-              (await theme_home(a))[1] == home0)
-        check("its row was never touched", await theme_row(a) == row0)
-        check("and its theme-active answer is exactly what it was before the builder",
-              (await client.get("/api/v1/storefront/theme-active", headers=pub(a))).text == active0)
+        check("and it is told exactly what it was before the builder", await told(a) == active0)
 
     print(f"\n{ok} passed, {fail} failed")
     return fail

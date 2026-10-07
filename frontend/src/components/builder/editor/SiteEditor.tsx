@@ -6,10 +6,11 @@ import { askText } from "@/lib/dialog";
  *
  * Everything here happens to the draft. The shop changes in two places only,
  * both behind a button that says so: Publish (the draft becomes the live
- * version) and the switch that moves the storefront from its imported theme
- * to the builder site, or back. A brand on its imported theme can open, edit,
- * publish and preview as much as it likes; shoppers see the theme they have
- * always seen until the owner flips that switch.
+ * version) and the switch that puts the storefront on the builder site. A
+ * brand that has not switched can open, edit, publish and preview as much as
+ * it likes; shoppers keep seeing the shop's standard pages until the owner
+ * flips that switch. (There is nothing to switch back to: imported themes are
+ * gone, and the builder site is the shop's site.)
  *
  * The draft saves itself a moment after each change. Saves carry the revision
  * they were based on, so two windows editing the same site cannot silently
@@ -544,15 +545,13 @@ export default function SiteEditor({ backHref = "/admin/dashboard" }: { backHref
     return out;
   }, [doc, target]);
 
-  const setMode = async (mode: "legacy" | "visual_builder") => {
-    const text = mode === "visual_builder"
-      ? "Switch your shop to the builder site? Shoppers will see it from now on. Your imported theme is kept exactly as it is, and you can switch back at any time."
-      : "Switch your shop back to its imported theme? It comes back exactly as it was. The builder site stays here to keep working on.";
-    if (!await confirmAction(text)) return;
+  /** Put the shop on the builder site. */
+  const goLive = async () => {
+    if (!await confirmAction("Switch your shop to the builder site? Shoppers will see it from now on.")) return;
     try {
-      const s = await builderService.setMode(mode);
+      const s = await builderService.setMode("visual_builder");
       setState((prev) => (prev ? { ...prev, mode: s.mode, liveVersion: s.liveVersion, versions: s.versions } : prev));
-      say.done(mode === "visual_builder" ? "Your shop now shows the builder site." : "Your shop shows its imported theme again.");
+      say.done("Your shop now shows the builder site.");
     } catch (err) {
       say.problem(message(err, "The switch did not go through. Your shop has not changed."));
     }
@@ -599,8 +598,8 @@ export default function SiteEditor({ backHref = "/admin/dashboard" }: { backHref
       <header className="sbe-top">
         <a className="sbe-icon" href={backHref} aria-label="Back to the admin" title="Back to the admin"><ArrowLeft size={18} /></a>
         <div style={{ fontWeight: 700, whiteSpace: "nowrap" }} className="sbe-hide-sm">Website builder</div>
-        <span className={`sbe-badge ${builderLive ? "live" : "legacy"}`} title={builderLive ? "Shoppers see the builder site" : "Shoppers see the imported theme; this site is a draft"}>
-          {builderLive ? `Live · v${state.liveVersion}` : "Theme is live"}
+        <span className={`sbe-badge ${builderLive ? "live" : "legacy"}`} title={builderLive ? "Shoppers see the builder site" : "Shoppers do not see this site yet"}>
+          {builderLive ? `Live · v${state.liveVersion}` : "Not live yet"}
         </span>
         <button type="button" className="sbe-icon" aria-label={showLeft ? "Hide the left panel" : "Show the left panel"} onClick={() => setShowLeft(!showLeft)}>
           {showLeft ? <PanelLeftClose size={17} /> : <PanelLeftOpen size={17} />}
@@ -650,11 +649,6 @@ export default function SiteEditor({ backHref = "/admin/dashboard" }: { backHref
               say.done("The draft is back to the starter site.");
             } catch (err) { say.problem(message(err, "That did not work.")); }
           }}><RotateCcw size={15} /><span className="grow">Start the draft over</span></button>
-          {builderLive && (
-            <button type="button" className="sbe-item" onClick={() => { setMoreOpen(false); void setMode("legacy"); }}>
-              <ArrowLeft size={15} /><span className="grow">Switch the shop back to its imported theme</span>
-            </button>
-          )}
         </Popover>
         <button type="button" className="sbe-btn primary" onClick={() => setDialog("publish")}><Rocket size={15} /> Publish</button>
         <button type="button" className="sbe-icon" aria-label={showRight ? "Hide the settings panel" : "Show the settings panel"} onClick={() => setShowRight(!showRight)}>
@@ -822,7 +816,7 @@ export default function SiteEditor({ backHref = "/admin/dashboard" }: { backHref
       )}
       {dialog === "publish" && (
         <PublishDialog state={state} flush={flush} onClose={() => setDialog(null)}
-                       onPublished={(s) => setState(s)} setMode={setMode}
+                       onPublished={(s) => setState(s)} goLive={goLive}
                        showIssue={(issue) => {
                          const d = docRef.current;
                          const hit = d ? nodeForIssue(d, issue.path) : null;
@@ -876,9 +870,9 @@ function TargetMenu({ doc, current, onPick }: { doc: SiteDoc; current: Target; o
   );
 }
 
-function PublishDialog({ state, flush, onClose, onPublished, setMode, showIssue }: {
+function PublishDialog({ state, flush, onClose, onPublished, goLive, showIssue }: {
   state: BuilderState; flush: () => Promise<void>; onClose: () => void; onPublished: (s: BuilderState) => void;
-  setMode: (m: "legacy" | "visual_builder") => Promise<void>; showIssue: (i: BuilderIssue) => void;
+  goLive: () => Promise<void>; showIssue: (i: BuilderIssue) => void;
 }) {
   const [issues, setIssues] = useState<BuilderIssue[] | null>(null);
   const [note, setNote] = useState("");
@@ -954,10 +948,10 @@ function PublishDialog({ state, flush, onClose, onPublished, setMode, showIssue 
             <div className="sbe-note">Your shop shows the builder site, so shoppers see this version now.</div>
           ) : (
             <div className="sbe-note warn">
-              Your shop is still showing its imported theme. When you are ready, switch it to the builder site — your theme is kept
-              exactly as it is, and you can switch back at any time.
+              Your shop is not showing the builder site yet. When you are ready, switch it over — shoppers see this version from
+              then on.
               <div style={{ marginTop: 10 }}>
-                <button type="button" className="sbe-btn primary sm" onClick={() => void setMode("visual_builder")}>Switch the shop to the builder site</button>
+                <button type="button" className="sbe-btn primary sm" onClick={() => void goLive()}>Switch the shop to the builder site</button>
               </div>
             </div>
           )}
@@ -979,7 +973,7 @@ function PublishDialog({ state, flush, onClose, onPublished, setMode, showIssue 
                 <input className="sbe-in" value={note} maxLength={200} onChange={(e) => setNote(e.target.value)} placeholder="e.g. New summer banner" />
               </div>
               <div className="sbe-help">
-                {builderLive ? "Shoppers see the new version as soon as it is published." : "Publishing does not change your shop yet — it keeps its imported theme until you switch it over."}
+                {builderLive ? "Shoppers see the new version as soon as it is published." : "Publishing does not change your shop yet — shoppers see the builder site once you switch it over."}
                 {" "}The last {state.keepVersions ?? 30} versions are kept, plus any you mark Keep; you can go back to any of them.
               </div>
             </>

@@ -24,10 +24,11 @@ import type { DragPayload } from "./Canvas";
 import { ImageField, ProductsPicker, type EditorEnv } from "./fields";
 import { POLICIES, policyHtml, removePolicy, savePolicy, type Policy } from "@/lib/builder/policies";
 import { PolicyEditor } from "./PolicyEditor";
+import WrittenPagesEditor from "@/components/admin/WrittenPagesEditor";
 import { apiClient } from "@/lib/api-client";
 import { safeSrc } from "@/lib/builder/sanitize";
 import { say } from "@/lib/toast";
-import { confirmAction, Popover, TextInput } from "./ui";
+import { confirmAction, Modal, Popover, TextInput } from "./ui";
 
 export type LeftTab = "add" | "layers" | "pages" | "templates" | "theme" | "sections" | "menus";
 
@@ -216,6 +217,7 @@ function LayersPanel(p: LeftProps) {
 function PagesPanel(p: LeftProps) {
   const [title, setTitle] = useState("");
   const [policy, setPolicy] = useState<Policy | null>(null);
+  const [written, setWritten] = useState(false);
   const [editing, setEditing] = useState<string | null>(null);
   const pages = Object.entries(p.doc.pages ?? {});
   const pageTemplates = Object.entries(p.doc.templates?.page ?? {});
@@ -308,6 +310,29 @@ function PagesPanel(p: LeftProps) {
         </div>
         <div className="sbe-help" style={{ marginTop: 6 }}>Each one is a page on your shop once you write it and publish.</div>
       </div>
+      {/* The shop's six built-in pages of words — Contact, Get a quote and four
+          policies at /policies/… — which menus and the link picker point at by
+          name. Their editor used to be inside "Edit theme". */}
+      <div className="sbe-sec" data-written-pages>
+        <div className="sbe-h"><span>Built-in pages</span></div>
+        <div className="sbe-list">
+          <div className="sbe-item" onClick={() => setWritten(true)}>
+            <FileText size={15} />
+            <span className="grow">Quote, contact &amp; policy words
+              <span className="sub" style={{ display: "block" }}>/quote · /contact · /policies/…</span>
+            </span>
+            <button type="button" className="sbe-btn sm ghost" onClick={(e) => { e.stopPropagation(); setWritten(true); }}>Edit</button>
+          </div>
+        </div>
+        <div className="sbe-help" style={{ marginTop: 6 }}>
+          Drawn in your site&apos;s own look. Saved straight to your shop — they are not part of the draft, and separate from the Policies above.
+        </div>
+      </div>
+      {written && (
+        <Modal wide title="Built-in pages" onClose={() => setWritten(false)}>
+          <WrittenPagesEditor writable />
+        </Modal>
+      )}
       {policy && (
         <PolicyEditor
           policy={policy} doc={p.doc}

@@ -4,25 +4,8 @@ import { notFound } from "next/navigation";
 import { productsService } from "@/services/products.service";
 import { titleWithBrand } from "@/lib/brand";
 import { ProductDetailClient } from "./ProductDetailClient";
-import ThemeProductPage from "@/components/storefront/ThemeProductPage";
-import { loadThemeChrome } from "@/components/storefront/ThemeChrome";
-import type { ThemePage } from "@/components/storefront/ThemeRenderer";
-import type { ThemeProductData } from "@/components/storefront/ThemeProductBuy";
-import { apiClient } from "@/lib/api-client";
 import { BuilderPage } from "@/components/builder/SiteParts";
 import { loadBuilderPage } from "@/lib/builder/load";
-
-/** This brand's theme layout for this product, and the product itself. */
-async function themeProductPage(slug: string): Promise<{ page: ThemePage; product: ThemeProductData | null } | null> {
-  try {
-    const res = await apiClient.get<{ page: ThemePage | null; product: ThemeProductData | null }>(
-      `/api/v1/storefront/theme/product/${encodeURIComponent(slug)}`, { skipAuth: true },
-    );
-    return res?.page ? { page: res.page, product: res.product ?? null } : null;
-  } catch {
-    return null;
-  }
-}
 
 interface PageProps {
   params: Promise<{ slug: string }>;
@@ -86,28 +69,15 @@ export default async function ProductDetailPage({ params }: PageProps) {
   //     <ProductDetailClient product={product} />
   //   </>
   // );
-  // The brand's own theme draws the page around the real buying controls;
-  // without a theme, the product page is what it has always been.
-  // A shop on the visual builder draws the product in its product template.
-  // Every other shop gets null here and goes on as it always has.
+  // A shop on the website builder draws the product in its product template.
   // A product that is not for sale here is a real 404 — status and all — and
   // the shop's own "page not found" template is drawn by app/not-found.tsx.
+  // A shop that is not on the builder yet gets the app's own product page.
   const site = await loadBuilderPage("product", slug);
   if (site) {
     if (site.notFound) notFound();
     return <BuilderPage payload={site} />;
   }
 
-  const themed = await themeProductPage(slug);
-  if (themed) {
-    return (
-      <ThemeProductPage
-        page={themed.page}
-        product={themed.product}
-        slug={slug}
-        chromeInLayout={(await loadThemeChrome()) !== null}
-      />
-    );
-  }
   return <ProductDetailClient slug={slug} />;
 }

@@ -371,20 +371,17 @@ async def _builder_chrome(db: AsyncSession, tid: Any) -> dict[str, Any] | None:
 
 @public_router.get("/theme-active")
 async def theme_is_active(request: Request, db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
-    """Whether this brand's storefront is drawn by a theme.
+    """Whose shop this address is, what its browser tab says and shows, and —
+    for a shop live on the website builder — its header and footer.
 
-    The app's own header and footer are not rendered at all on a themed store,
-    and that has to be known before the page is sent — hiding them in the
-    browser after the fact is what made the old header flash on every
-    navigation.
+    Every storefront page asks this first, so a shop on the builder learns it
+    is one, and gets its chrome, without a second request.
 
-    The theme's own chrome comes back with the answer, so the layout can put
-    the store's header and footer around every page — the cart and the
-    checkout included, which the theme has no page of its own for.
+    The address and the `active` / `chrome` keys are from when this also
+    answered for imported themes. Those are gone: `active` is always false and
+    `chrome` always null now, kept so a page built before this change still
+    reads the answer it expects.
     """
-    from app.models.brand_theme import BrandTheme
-    from app.services import theme_data, theme_render, theme_upgrade
-
     tid = await _tenant_id_from_slug(db, getattr(request.state, "tenant_slug", None)) or _resolve_tenant_id(request)
     if not tid:
         # No brand at all: this is the platform's own address, not a shop.
@@ -400,61 +397,11 @@ async def theme_is_active(request: Request, db: AsyncSession = Depends(get_db)) 
     icon = (row[1] or None) if row else None
     title = ((row[2] or row[0]) if row else None) or brand
 
-    # A shop switched to the visual builder wears the builder's header and
-    # footer instead, and they come back in this same answer — so a storefront
-    # page learns whether the shop is on the builder without a second request,
-    # and a shop on its imported theme pays one indexed lookup for it.
+    answer: dict[str, Any] = {"active": False, "chrome": None, "brand": brand, "icon": icon, "title": title}
     builder = await _builder_chrome(db, tid)
     if builder is not None:
-        return {"active": False, "chrome": None, "brand": brand, "icon": icon, "title": title, "builder": builder}
-
-    theme = (await db.execute(
-        select(BrandTheme).where(
-            BrandTheme.tenant_id == tid,
-            BrandTheme.is_active.is_(True),
-            BrandTheme.published.is_not(None),
-        )
-    )).scalar_one_or_none()
-    if theme is not None:
-        theme = await theme_upgrade.ensure_current(db, theme)
-    if theme is None:
-        return {"active": False, "chrome": None, "brand": brand, "icon": icon, "title": title}
-    items = await theme_data.page_items(db, theme.published, "home")
-    chrome = theme_render.render_chrome(theme.definition or {}, theme.published, items)
-    return {"active": True, "chrome": chrome, "brand": brand, "icon": icon, "title": title}
-
-
-@public_router.get("/theme/{page_key}")
-async def get_storefront_theme(
-    page_key: str,
-    request: Request,
-    db: AsyncSession = Depends(get_db),
-) -> dict[str, Any]:
-    """One page of this brand's published theme, ready to render.
-
-    `page: null` means this brand has no published theme, and the storefront
-    then draws the page it always has — importing or editing a theme changes
-    nothing for shoppers until it is published.
-    """
-    from app.models.brand_theme import BrandTheme
-    from app.services import theme_data, theme_render
-
-    tid = await _tenant_id_from_slug(db, getattr(request.state, "tenant_slug", None)) or _resolve_tenant_id(request)
-    if not tid:
-        return {"page": None}
-    theme = (await db.execute(
-        select(BrandTheme).where(
-            BrandTheme.tenant_id == tid,
-            BrandTheme.is_active.is_(True),
-            BrandTheme.published.is_not(None),
-        )
-    )).scalar_one_or_none()
-    from app.services import theme_upgrade
-    theme = await theme_upgrade.ensure_current(db, theme)
-    if theme is None:
-        return {"page": None}
-    items = await theme_data.page_items(db, theme.published, page_key)
-    return {"page": theme_render.render_page(theme.definition, theme.published, page_key, items)}
+        answer["builder"] = builder
+    return answer
 
 
 @public_router.get("/theme/collection/{slug}")
@@ -464,15 +411,15 @@ async def get_storefront_collection(
     page: int = 1,
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
-    """A collection, drawn in the theme's collection layout.
+    """A collection's name, description and size — what a shop that is not on
+    the website builder needs before it lists the collection's products.
 
-    The design's example products are replaced by this collection's own, and
-    its title, description and count name the collection being viewed. When
-    the brand has no published theme, `page` is null and the storefront falls
-    back to its built-in catalogue.
+    A collection that does not exist is a 404. `page` is always null: it
+    carried an imported theme's layout for the collection, and imported themes
+    are gone. (A shop on the builder never asks here; its collection template
+    draws the page.)
     """
-    from app.models.brand_theme import BrandTheme
-    from app.services import theme_data, theme_render
+    from app.services import theme_data
 
     tid = await _tenant_id_from_slug(db, getattr(request.state, "tenant_slug", None)) or _resolve_tenant_id(request)
     if not tid:
@@ -481,120 +428,7 @@ async def get_storefront_collection(
     found = await theme_data.collection_page(db, slug, page=page)
     if found is None:
         raise HTTPException(status_code=404, detail="Collection not found")
-
-    theme = (await db.execute(
-        select(BrandTheme).where(
-            BrandTheme.tenant_id == tid,
-            BrandTheme.is_active.is_(True),
-            BrandTheme.published.is_not(None),
-        )
-    )).scalar_one_or_none()
-    if theme is None:
-        return {"page": None, "collection": found["collection"], "total": found["total"]}
-
-    definition = theme.definition or {}
-    key = next((k for k, p in (definition.get("pages") or {}).items() if p.get("kind") == "collection"), None)
-    if key is None:
-        return {"page": None, "collection": found["collection"], "total": found["total"]}
-
-    # Every row of cards on the collection page shows this collection.
-    items = await theme_data.page_items(db, theme.published, key)
-    for section in (definition.get("pages") or {}).get(key, {}).get("sections", []):
-        for repeater in section.get("repeaters", []):
-            if repeater.get("kind") == "products":
-                items[f"{section['id']}|{repeater['key']}"] = found["items"]
-
-    rendered = theme_render.render_page(definition, theme.published, key, items)
-    if rendered is None:
-        return {"page": None, "collection": found["collection"], "total": found["total"]}
-    rendered = theme_render.apply_collection(
-        rendered, found["collection"], found["total"],
-        found["page"] + 1 if found["has_more"] else None,
-    )
-    return {"page": rendered, "collection": found["collection"], "total": found["total"]}
-
-
-@public_router.get("/theme/product/{slug}")
-async def get_storefront_product_page(
-    slug: str,
-    request: Request,
-    db: AsyncSession = Depends(get_db),
-) -> dict[str, Any]:
-    """A product, drawn in the theme's layout for it.
-
-    The section where the product is bought comes back marked `product_block`
-    and with no markup of its own: the storefront puts its real gallery,
-    variants, options and add to cart there, so buying works exactly as it
-    does without a theme. Everything around it is the design.
-    """
-    from app.models.brand_theme import BrandTheme
-    from app.models.product import Product
-    from app.services import theme_data, theme_render
-
-    tid = await _tenant_id_from_slug(db, getattr(request.state, "tenant_slug", None)) or _resolve_tenant_id(request)
-    if not tid:
-        return {"page": None}
-
-    row = (await db.execute(
-        select(Product.id, Product.name, Product.slug, Product.theme_page)
-        .where(Product.slug == slug, Product.status == "active")
-    )).first()
-    if row is None:
-        return {"page": None}
-
-    theme = (await db.execute(
-        select(BrandTheme).where(
-            BrandTheme.tenant_id == tid,
-            BrandTheme.is_active.is_(True),
-            BrandTheme.published.is_not(None),
-        )
-    )).scalar_one_or_none()
-    from app.services import theme_upgrade
-    theme = await theme_upgrade.ensure_current(db, theme)
-    if theme is None:
-        return {"page": None}
-
-    definition = theme.definition or {}
-    pages = definition.get("pages") or {}
-    product_pages = [k for k, p in pages.items() if p.get("kind") == "product"]
-    if not product_pages:
-        return {"page": None}
-    from app.services import theme_product
-
-    data = await theme_product.load(db, row.id)
-    if row.theme_page in product_pages:
-        key = row.theme_page
-    elif data is not None:
-        # What the product is decides where it is drawn: colours and sizes
-        # belong where those are chosen, artwork where artwork is uploaded.
-        collections = [
-            r[0] for r in (await db.execute(text("""
-                SELECT c.name FROM collections c
-                  JOIN collection_products cp ON cp.collection_id = c.id
-                 WHERE cp.product_id = CAST(:p AS uuid)
-            """), {"p": str(row.id)})).all()
-        ]
-        key = theme_product.choose_layout(pages, {**data, "name": " ".join([data["name"], *collections])})
-    else:
-        key = product_pages[0]
-
-    items = await theme_data.page_items(db, theme.published, key)
-    rendered = theme_render.render_page(definition, theme.published, key, items)
-    if rendered is None:
-        return {"page": None}
-    rendered = theme_render.apply_product(rendered, {"name": row.name, "slug": row.slug})
-
-    # The design's own product page, carrying this product: its pictures, its
-    # words, its prices and the choices it was actually given in the admin.
-    # Choices the design drew that the product doesn't offer are dropped, so
-    # nothing on the page is left as an example.
-    if data is not None:
-        for block in rendered.get("sections", []):
-            if block.get("role") == "product_block":
-                block["html"] = theme_product.fill_product_block(block["html"], data)
-            else:
-                block["html"] = theme_product.fill_size_chart(block["html"], data["size_chart"])
-    return {"page": rendered, "layout": key, "product": data}
+    return {"page": None, "collection": found["collection"], "total": found["total"]}
 
 
 # ── Public: storefront branding by subdomain ──────────────────────────────────

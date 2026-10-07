@@ -3,16 +3,20 @@
 /**
  * The words on the shop's written pages.
  *
- * Contact, Get a quote, and the four policies the footer links to. The design
- * has no page for any of them, so the brand writes them here and the
- * storefront draws them in the theme's own stylesheet.
+ * Contact, Get a quote, and the four policies — the pages at /contact, /quote
+ * and /policies/…, which menus and the link picker point at by name. The brand
+ * writes them here and the storefront draws them in the site's own look. They
+ * are saved straight to the shop, not into a builder draft.
+ *
+ * (This sat inside "Edit theme" until imported themes went; the website
+ * builder's Pages panel opens it now.)
  *
  * What exists is fixed — six pages, and which of them carry a form — because
  * the footer and the link picker point at them by name. The brand owns every
  * word, the heading of each part, and the order they are in.
  */
 import { useEffect, useState } from "react";
-import { themesService, type WrittenPage } from "@/services/themes.service";
+import { writtenPagesService, type WrittenPage } from "@/services/writtenPages.service";
 
 const ORDER = ["contact", "quote", "shipping", "returns", "privacy", "terms"] as const;
 
@@ -35,7 +39,7 @@ const rowBtn: React.CSSProperties = {
   marginBottom: "6px", fontFamily: "inherit",
 };
 
-export default function ThemePagesEditor({ writable }: { writable: boolean }) {
+export default function WrittenPagesEditor({ writable }: { writable: boolean }) {
   const [pages, setPages] = useState<Record<string, WrittenPage> | null>(null);
   const [open, setOpen] = useState<string | null>(null);
   const [dirty, setDirty] = useState(false);
@@ -43,7 +47,7 @@ export default function ThemePagesEditor({ writable }: { writable: boolean }) {
   const [note, setNote] = useState<string | null>(null);
 
   useEffect(() => {
-    themesService.pages().then((r) => setPages(r.pages)).catch(() => setPages({}));
+    writtenPagesService.pages().then((r) => setPages(r.pages)).catch(() => setPages({}));
   }, []);
 
   function patch(slug: string, change: Partial<WrittenPage>) {
@@ -86,7 +90,7 @@ export default function ThemePagesEditor({ writable }: { writable: boolean }) {
     setBusy(true);
     setNote(null);
     try {
-      const r = await themesService.savePages(pages);
+      const r = await writtenPagesService.savePages(pages);
       setPages(r.pages);
       setDirty(false);
       setNote("Saved. These pages are live straight away.");

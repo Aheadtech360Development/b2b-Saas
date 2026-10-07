@@ -1,5 +1,5 @@
 import { headers } from "next/headers";
-import { loadStore } from "@/components/storefront/ThemeChrome";
+import { loadStore } from "@/lib/store";
 import { PlatformHeader, PlatformFooter } from "@/components/platform/PlatformChrome";
 
 export default async function AuthLayout({ children }: { children: React.ReactNode }) {

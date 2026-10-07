@@ -23,10 +23,10 @@ import starter from "./fixtures/starter-doc.json";
 
 const defaults = () => BY_TYPE.auth_buttons!.create().props as Record<string, string>;
 const mount = (over: Record<string, string> = {}, edit = false) => {
-  const p = { show: "", size: "", phone: "", loginHref: "", signupHref: "", ...defaults(), ...over };
-  return render(<AuthButtons id="au1" show={p.show} loginLabel={p.loginLabel!} signupLabel={p.signupLabel!} accountLabel={p.accountLabel!}
-                             loginStyle={p.loginStyle!} signupStyle={p.signupStyle!} size={p.size} phone={p.phone}
-                             loginHref={p.loginHref} signupHref={p.signupHref} edit={edit} />);
+  const p: Record<string, string> = { show: "", size: "", phone: "", loginHref: "", signupHref: "", ...defaults(), ...over };
+  return render(<AuthButtons id="au1" show={p.show!} loginLabel={p.loginLabel!} signupLabel={p.signupLabel!} accountLabel={p.accountLabel!}
+                             loginStyle={p.loginStyle!} signupStyle={p.signupStyle!} size={p.size!} phone={p.phone!}
+                             loginHref={p.loginHref!} signupHref={p.signupHref!} edit={edit} />);
 };
 const links = () => [...document.querySelectorAll<HTMLAnchorElement>(".b-auth a")].map((a) => [a.textContent, a.getAttribute("href"), a.className]);
 

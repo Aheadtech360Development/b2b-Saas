@@ -4,8 +4,6 @@ import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { apiClient } from "@/lib/api-client";
 import { titleWithBrand } from "@/lib/brand";
-import ThemeRenderer, { type ThemePage } from "@/components/storefront/ThemeRenderer";
-import { loadThemeChrome } from "@/components/storefront/ThemeChrome";
 import { BuilderPage } from "@/components/builder/SiteParts";
 import { loadBuilderPage } from "@/lib/builder/load";
 
@@ -18,12 +16,11 @@ interface CollectionInfo {
 }
 
 interface Answer {
-  page: ThemePage | null;
   collection: CollectionInfo | null;
   total?: number;
 }
 
-/** This collection, in the brand's own theme when it has one. */
+/** This collection's name and description — or nothing, when there is no such collection. */
 async function load(slug: string, page: number): Promise<Answer> {
   try {
     return await apiClient.get<Answer>(
@@ -31,7 +28,7 @@ async function load(slug: string, page: number): Promise<Answer> {
       { skipAuth: true },
     );
   } catch {
-    return { page: null, collection: null };
+    return { collection: null };
   }
 }
 
@@ -53,8 +50,7 @@ export default async function CollectionPage({ params, searchParams }: {
   const sp = await searchParams;
   const page = Math.max(1, Number(typeof sp.page === "string" ? sp.page : "1") || 1);
 
-  // A shop on the visual builder: its collection template. Null for every
-  // other shop, which goes on below as before.
+  // A shop on the website builder: its collection template.
   const sort = sp.sort === "name" ? "name" : "";
   const site = await loadBuilderPage("collection", slug, "", page, sort);
   if (site) {
@@ -62,11 +58,9 @@ export default async function CollectionPage({ params, searchParams }: {
     return <BuilderPage payload={site} sort={sort} />;
   }
 
-  const { page: themePage, collection } = await load(slug, page);
-
+  // A shop that is not on the builder yet: the built-in catalogue already
+  // lists a collection's products.
+  const { collection } = await load(slug, page);
   if (!collection) notFound();
-  // No theme yet: the built-in catalogue already lists a collection's products.
-  if (!themePage) redirect(`/products?category=${encodeURIComponent(slug)}`);
-
-  return <ThemeRenderer page={themePage} chromeInLayout={(await loadThemeChrome()) !== null} />;
+  redirect(`/products?category=${encodeURIComponent(slug)}`);
 }

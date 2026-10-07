@@ -12,7 +12,7 @@
  * renders when there is no not-found file at all.
  */
 import BuiltinNotFound from "next/dist/client/components/builtin/not-found";
-import { loadStore } from "@/components/storefront/ThemeChrome";
+import { loadStore } from "@/lib/store";
 import { BuilderPage, SiteHead, SitePart } from "@/components/builder/SiteParts";
 
 export default async function NotFound() {

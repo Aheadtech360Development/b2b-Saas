@@ -189,10 +189,11 @@ interface BuyProduct {
 }
 
 /**
- * The buying controls, drawn with the same marks the imported-theme product
- * page carries (variant-group, data-label, data-theme-buy …), so the same
- * code that makes those work — ThemeProductBuy, mounted once on the page —
- * makes these work: one cart, one set of rules for stock and prices.
+ * The buying controls, drawn with the marks ThemeProductBuy binds to
+ * (variant-group, data-label, data-theme-buy …). That component, mounted once
+ * on the page, is what makes them work: one cart, one set of rules for stock
+ * and prices. (Its name, and the marks', are from the imported themes it was
+ * first written for.)
  */
 function BuyBox({ id, p, product }: { id: string; p: Props; product: BuyProduct }) {
   type Choice = { label: string; valueId?: string; sheetId?: string; hex?: string; selected: boolean };

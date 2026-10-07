@@ -5,8 +5,8 @@
  * storefront with nothing in it — empty grids, headings above no products, a
  * page that looked broken rather than new. This is what that address says
  * until there is something to sell: the shop's name, one line worth reading,
- * and a way to get in touch. Once a theme is imported or products are added,
- * nobody sees this page again.
+ * and a way to get in touch. Once the shop's site is published or products
+ * are added, nobody sees this page again.
  */
 import Link from "next/link";
 

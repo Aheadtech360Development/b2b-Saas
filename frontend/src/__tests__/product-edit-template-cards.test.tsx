@@ -3,8 +3,8 @@
  *
  * A shop on the Website builder draws its product pages from the builder's
  * templates, so the page shows "Website template" and leaves out the older
- * "Theme template" — which only the imported theme's product page reads.
- * A shop still on its imported theme keeps "Theme template" exactly as it was.
+ * "Theme template" — which only the app's own product page reads.
+ * A shop that is not on the builder keeps "Theme template" exactly as it was.
  *
  * Hiding is all that happens: the product's template_id is never cleared, and
  * is saved back untouched.
@@ -45,7 +45,6 @@ vi.mock("@/services/productTemplates.service", () => ({
     ]),
   },
 }));
-vi.mock("@/services/themes.service", () => ({ themesService: { get: () => Promise.resolve({ theme: null }) } }));
 
 const assignment = vi.fn();
 vi.mock("@/services/builder.service", () => ({
@@ -65,7 +64,7 @@ const builderShop: TemplateAssignment = {
   available: true, mode: "visual_builder", templates: TEMPLATES, defaultId: "default", assigned: "apparel", effective: "apparel",
   live: { id: "apparel", name: "Apparel" }, pending: false, builderLive: true, revision: 3,
 };
-/** Opened the builder, even published in it, but shoppers still get the imported theme. */
+/** Opened the builder, even published in it, but the shop has not been switched to it. */
 const legacyWithDraft: TemplateAssignment = {
   ...builderShop, mode: "legacy", assigned: "", effective: "default", live: { id: "default", name: "Default product" }, builderLive: false,
 };
@@ -121,7 +120,7 @@ describe("a shop on the Website builder", () => {
   });
 });
 
-describe("a shop on its imported theme", () => {
+describe("a shop that is not on the builder", () => {
   it("keeps the Theme template card exactly as it was, and has no Website template", async () => {
     assignment.mockResolvedValue(neverOpened);
     render(<EditProductPage />);

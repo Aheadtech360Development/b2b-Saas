@@ -109,11 +109,11 @@ describe("the Website template field", () => {
     expect(status().getAttribute("data-template-status")).toBe("unpublished");
   });
 
-  it("says so when the shop is still on its imported theme", async () => {
+  it("says so when the shop has not been switched to the builder", async () => {
     assignment.mockResolvedValue(state({ mode: "legacy", live: null }));
     field();
     await screen.findByLabelText("card");
-    expect(status().textContent).toMatch(/showing its imported theme/);
+    expect(status().textContent).toMatch(/not showing the builder site yet/);
   });
 
   it("points to where another template is made when there is only the default", async () => {
@@ -136,7 +136,7 @@ describe("the Website template field", () => {
       expect(settled).toHaveBeenCalledTimes(1);
     });
 
-    it("says no for a shop that has a builder draft but still shows its imported theme", async () => {
+    it("says no for a shop that has a builder draft but has not been switched to it", async () => {
       assignment.mockResolvedValue(state({ mode: "legacy", builderLive: false }));
       mount();
       await waitFor(() => expect(settled).toHaveBeenCalledWith(false));

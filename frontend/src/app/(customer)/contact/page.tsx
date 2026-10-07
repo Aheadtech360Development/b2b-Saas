@@ -4,10 +4,9 @@ import type { Metadata } from "next";
 import StorefrontPage from "@/components/storefront/StorefrontPage";
 import ThemeWrittenPage from "@/components/storefront/ThemeWrittenPage";
 import { loadWrittenPage } from "@/lib/writtenPages";
-import { loadThemeChrome } from "@/components/storefront/ThemeChrome";
 import { titleWithBrand } from "@/lib/brand";
 import { BuilderPage } from "@/components/builder/SiteParts";
-import { builderPageMetadata, loadBuilderSitePage } from "@/lib/builder/load";
+import { builderPageMetadata, loadBuilderChrome, loadBuilderSitePage } from "@/lib/builder/load";
 
 export async function generateMetadata(): Promise<Metadata> {
   const built = await builderPageMetadata("contact");
@@ -17,14 +16,17 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function ContactPage() {
-  // A Contact page made in the visual builder, on a shop that has switched.
+  // A Contact page made in the website builder.
   const site = await loadBuilderSitePage("contact");
   if (site) return <BuilderPage payload={site} />;
 
-  // A themed brand gets the contact page in its own theme; without a theme the
-  // built-in page is what it has always been.
-  const themed = (await loadThemeChrome()) !== null;
-  const page = themed ? await loadWrittenPage("contact") : null;
-  if (page) return <ThemeWrittenPage page={page} />;
+  // A builder shop that has not made one: the shop's own written Contact page,
+  // in the builder's look — the same way its quote and policy pages are drawn.
+  if ((await loadBuilderChrome()) !== null) {
+    const page = await loadWrittenPage("contact");
+    if (page) return <ThemeWrittenPage page={page} builder />;
+  }
+
+  // A shop that is not on the builder yet: the built-in page.
   return <StorefrontPage slug="contact" />;
 }

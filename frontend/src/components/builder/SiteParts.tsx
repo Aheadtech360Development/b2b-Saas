@@ -74,8 +74,8 @@ export function SitePart({ payload, part }: { payload: SitePayload; part: "annou
 
 /**
  * A builder page's body. On a product page the buying controls are bound by
- * the same component the imported-theme product page uses, so there is one
- * cart and one set of stock and price rules — not a second copy of them.
+ * ThemeProductBuy — the one place the cart's rules for stock and prices live,
+ * rather than a second copy of them here.
  */
 export function BuilderPage({ payload, sort, after }: { payload: SitePayload; sort?: string; after?: ReactNode }) {
   const ctx = payloadCtx(payload, { sort });

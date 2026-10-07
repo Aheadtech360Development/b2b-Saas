@@ -1,8 +1,9 @@
-"use client";
+import { redirect } from "next/navigation";
 
-// The brand's theme editor — the same screen inside the new admin shell.
-import ThemeCustomizer from "@/components/admin/ThemeCustomizer";
-
-export default function AdminThemePage() {
-  return <ThemeCustomizer />;
+/**
+ * The imported theme's admin page is gone with imported themes; the website
+ * builder is where a shop's site is made. See app/theme-editor/page.tsx.
+ */
+export default function AdminThemeGone() {
+  redirect("/site-builder");
 }

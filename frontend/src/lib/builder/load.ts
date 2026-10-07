@@ -3,18 +3,18 @@
  * does. Server components only.
  *
  * The first question costs nothing extra: it is answered by the request every
- * storefront page already makes for the shop's theme (loadStore), which comes
- * back with the builder's header and footer when — and only when — the shop is
- * live on the builder. Every other shop, every shop that existed before the
- * builder, gets null and goes on down the path it has always taken. Only a
- * builder shop then asks for its page.
+ * storefront page already makes to learn whose shop it is drawing (loadStore),
+ * which comes back with the builder's header and footer when — and only when —
+ * the shop is live on the builder. A shop that has not gone live yet gets null
+ * and is drawn by the app's own pages. Only a builder shop then asks for its
+ * page.
  *
- * Any failure is answered as legacy. A storefront that cannot reach the
- * builder renders the way it rendered yesterday, never a blank page.
+ * Any failure is answered as "not on the builder". A storefront that cannot
+ * reach the builder draws the app's own pages, never a blank one.
  */
 import { cache } from "react";
 import { apiClient } from "@/lib/api-client";
-import { loadStore } from "@/components/storefront/ThemeChrome";
+import { loadStore } from "@/lib/store";
 import { isBuilder, type SitePayload, type SiteResponse } from "./types";
 
 async function ask(params: Record<string, string>): Promise<SitePayload | null> {

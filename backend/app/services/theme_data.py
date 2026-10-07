@@ -1,9 +1,10 @@
-"""The store's own products and collections, as cards for a theme.
+"""The store's own products and collections, as cards.
 
-A design shows a row of example cards. The store fills that row with what it
-actually sells: this is where those items come from, and the shape they take
-("title", "price", "image", "url") is what services/theme_render.py knows how
-to put into the design's own card.
+Where the website builder's product grids, collection grids and collection
+pages get what they show: the things this store actually sells, in one shape
+("title", "price", "image", "url"). The name is from the imported themes this
+was first written for; those are gone, and the builder (services/builder/
+resolve.py) is who calls it now.
 
 Everything here runs inside the brand's tenant scope, so a row of cards can
 only ever be filled with that brand's catalogue.
@@ -247,75 +248,3 @@ async def collection_page(db: AsyncSession, slug: str, *, page: int = 1, page_si
         "page_size": page_size,
         "has_more": len(cards) < total,
     }
-
-
-async def menu(db: AsyncSession, *, menu_id: str = "", limit: int = 12) -> list[dict[str, Any]]:
-    """A store menu as link items, or the store's collections when none is picked.
-
-    Sub-menus are flattened: the design decides how a menu looks, and a list
-    that was drawn flat stays flat rather than growing a dropdown it has no
-    styling for.
-    """
-    import json as _json
-
-    from sqlalchemy import text as _text
-
-    limit = max(1, min(int(limit or 12), MAX_ITEMS))
-    rows: list[dict[str, Any]] = []
-    if menu_id:
-        raw = (await db.execute(
-            _text("SELECT items FROM tenant_menus WHERE id = CAST(:mid AS uuid)"), {"mid": str(menu_id)}
-        )).scalar()
-        items = _json.loads(raw) if isinstance(raw, str) else (raw or [])
-        for item in items if isinstance(items, list) else []:
-            if not isinstance(item, dict):
-                continue
-            rows.append({"title": str(item.get("label") or item.get("title") or ""),
-                         "url": str(item.get("href") or item.get("url") or "#")})
-            for child in (item.get("children") or []):
-                if isinstance(child, dict):
-                    rows.append({"title": str(child.get("label") or ""), "url": str(child.get("href") or "#")})
-        rows = [r for r in rows if r["title"]]
-    if not rows:
-        rows = [{"title": c["title"], "url": c["url"]} for c in await collections(db, limit=limit)]
-    return [{**r, "image": "", "price": "", "badge": "", "text": ""} for r in rows[:limit]]
-
-
-async def items_for(db: AsyncSession, spec: dict[str, Any] | None) -> list[dict[str, Any]]:
-    """The cards one row should show, from what the admin chose for it."""
-    spec = spec or {}
-    source = spec.get("source") or "products"
-    limit = spec.get("limit") or DEFAULT_LIMIT
-    ids = [str(i) for i in (spec.get("ids") or [])]
-    if source == "menu":
-        return await menu(db, menu_id=str(spec.get("menu") or ""), limit=limit)
-    if source == "collections":
-        return await collections(db, limit=limit, ids=ids)
-    if source == "none":
-        return []
-    return await products(
-        db, limit=limit, collection_slug=str(spec.get("collection") or ""),
-        ids=ids, sort=str(spec.get("sort") or "newest"),
-    )
-
-
-async def page_items(db: AsyncSession, state: dict[str, Any] | None, page_key: str) -> dict[str, list[dict[str, Any]]]:
-    """Every row of cards on this page, filled — keyed "<section>|<row>"."""
-    pages = (state or {}).get("pages") or {}
-    # The page itself, plus wherever the header and footer live — those are
-    # rendered on every page, and their menus have to be filled too.
-    page_state = {"dynamic": {}}
-    for key in ("home", page_key):
-        for section_id, slots in ((pages.get(key) or {}).get("dynamic") or {}).items():
-            page_state["dynamic"].setdefault(section_id, {}).update(slots or {})
-    out: dict[str, list[dict[str, Any]]] = {}
-    for section_id, slots in (page_state.get("dynamic") or {}).items():
-        if not isinstance(slots, dict):
-            continue
-        for slot_key, spec in slots.items():
-            # "none" means this row keeps the design's own example cards, so it
-            # gets no entry at all — an empty list would wipe the row instead.
-            if (spec or {}).get("source") == "none":
-                continue
-            out[f"{section_id}|{slot_key}"] = await items_for(db, spec)
-    return out

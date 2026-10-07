@@ -44,7 +44,7 @@ export function WebsiteTemplateField({ kind, recordId, selectStyle, wrap, onSett
   /**
    * Told once it is known whether the Website builder is what shoppers see —
    * true only for a shop switched to it with a site published. A page uses
-   * this to leave out fields only the imported theme reads. False when it
+   * this to leave out fields only the app's own product page reads. False when it
    * cannot be known (no builder, no permission, no connection): the page then
    * shows what it always has.
    */
@@ -101,7 +101,7 @@ export function WebsiteTemplateField({ kind, recordId, selectStyle, wrap, onSett
   } else if (busy) {
     status = <>Saving to the website draft…</>;
   } else if (state.mode !== "visual_builder") {
-    status = <>Saved in the website draft. Your shop is showing its imported theme, so shoppers will see this once you publish the website and switch the shop over to it.</>;
+    status = <>Saved in the website draft. Your shop is not showing the builder site yet, so shoppers will see this once you publish the website and switch the shop over to it.</>;
   } else if (!state.live) {
     tone = "draft";
     status = <>Saved in the website draft. Your website has not been published yet.</>;
