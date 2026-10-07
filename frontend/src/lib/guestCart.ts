@@ -60,7 +60,10 @@ export function writeGuestCart(lines: GuestLine[]): void {
 export function addToGuestCart(line: GuestLine): void {
   const cart = readGuestCart();
   const existing = cart.find((i) => i.variant_id === line.variant_id);
-  if (existing) existing.quantity += line.quantity;
+  // A built sheet is one job, not a stock line: saving it again replaces the
+  // line (new price, new count) instead of adding its quantity on top.
+  if (existing && line.gang_sheet_order_id) Object.assign(existing, line);
+  else if (existing) existing.quantity += line.quantity;
   else cart.push(line);
   writeGuestCart(cart);
 }

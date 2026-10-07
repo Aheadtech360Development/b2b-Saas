@@ -2148,12 +2148,20 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
       // Remember which sheet produced which order, so pressing Save again
       // rebuilds that same order instead of filing a second one.
       const savedIds = new Map<string, string>();
-      for (const s of toSubmit) {
-        const o = await submitSheet(s);
-        orders.push(o);
-        savedIds.set(s.key, o.id);
+      // Recorded as each sheet lands, not after the loop: if a later sheet
+      // fails, the ones already filed must be rebuilt on the retry, not filed
+      // a second time.
+      const remember = () =>
+        setSheets((prev) => prev.map((s) => savedIds.has(s.key) ? { ...s, orderId: savedIds.get(s.key)! } : s));
+      try {
+        for (const s of toSubmit) {
+          const o = await submitSheet(s);
+          orders.push(o);
+          savedIds.set(s.key, o.id);
+        }
+      } finally {
+        remember();
       }
-      setSheets((prev) => prev.map((s) => savedIds.has(s.key) ? { ...s, orderId: savedIds.get(s.key)! } : s));
       if (toCart) {
         try {
           say.done(orders.length === 1 ? "Sheet saved — opening your cart…" : `${orders.length} sheets saved — opening your cart…`);
