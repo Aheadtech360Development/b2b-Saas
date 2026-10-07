@@ -2299,7 +2299,23 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
                 .map((n) => <option key={n} value={n}>{n}</option>)}
             </select>
           </label>
-          <button onClick={() => setAssistantOpen((o) => !o)} style={S.ghostBtn} title="Ask the assistant — will my designs fit? what about backgrounds? (English / Roman Urdu)" aria-pressed={assistantOpen}><Sparkles size={15} strokeWidth={2.1} /> Ask AI</button>
+          {/* The one button here a customer does not expect, so it is the one
+              that asks to be seen: a light runs round its border until it is
+              opened, and stands still for anybody who asked for less motion. */}
+          <style>{`
+            .gs-ai { position: relative; display: inline-flex; flex-shrink: 0; padding: 2px; border-radius: 9px; overflow: hidden; isolation: isolate; background: #DDD3FB; box-shadow: 0 0 0 3px rgba(124,58,237,.12); }
+            .gs-ai::before { content: ""; position: absolute; z-index: -1; left: 50%; top: 50%; width: 260px; height: 260px; margin: -130px 0 0 -130px;
+              background: conic-gradient(from 0deg, rgba(124,58,237,0) 0deg, rgba(124,58,237,0) 50deg, #7C3AED 125deg, #EC4899 160deg, #F59E0B 180deg, rgba(124,58,237,0) 181deg, rgba(124,58,237,0) 230deg, #7C3AED 305deg, #EC4899 340deg, #F59E0B 360deg);
+              animation: gsAiRun 2.8s linear infinite; }
+            .gs-ai[data-open] { background: #7C3AED; }
+            .gs-ai[data-open]::before { display: none; }
+            .gs-ai button:hover { background: #FAF8FF !important; }
+            @keyframes gsAiRun { to { transform: rotate(360deg); } }
+            @media (prefers-reduced-motion: reduce) { .gs-ai::before { animation: none; } }
+          `}</style>
+          <span className="gs-ai" data-open={assistantOpen ? "" : undefined}>
+            <button onClick={() => setAssistantOpen((o) => !o)} style={{ ...S.ghostBtn, border: "none", padding: "9px 14px", borderRadius: "7px", color: "#5B21B6", fontWeight: 700 }} title="Ask the assistant — will my designs fit? what about backgrounds? (English / Roman Urdu)" aria-pressed={assistantOpen}><Sparkles size={15} strokeWidth={2.1} /> Ask AI</button>
+          </span>
           <button onClick={preview} style={S.ghostBtn} title="Open a full-resolution preview in a new tab"><Eye size={15} strokeWidth={2.1} /> Preview</button>
           <button onClick={() => save(true)} disabled={saving} style={{ ...S.primaryBtn, opacity: saving ? 0.6 : 1 }}>
             <ShoppingCart size={15} strokeWidth={2.2} /> {saving ? "Saving…" : "Save & Add to Cart"}
