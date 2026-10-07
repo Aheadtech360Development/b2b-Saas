@@ -30,6 +30,7 @@ vi.mock("@/services/gangSheets.service", () => ({
       : k === "rebuild" ? (_id: string, p: { artworks: unknown[] }) => Promise.resolve(savedOrder(p.artworks))
       : k === "submit" ? (p: { artworks: unknown[] }) => Promise.resolve(savedOrder(p.artworks))
       : k === "saveLayout" ? (id: string, layout: unknown[]) => Promise.resolve({ ...savedOrder(), id, layout })
+      : k === "listLibrary" ? () => Promise.resolve(LIBRARY)
       : () => Promise.resolve([]),
   }),
 }));
@@ -64,7 +65,22 @@ vi.mock("@/services/auth.service", () => ({
   authService: { login: () => Promise.resolve({ access_token: "token" }) },
 }));
 vi.mock("@/lib/session", () => ({ establishSession: () => { auth.on = true; return Promise.resolve({}); } }));
-vi.mock("@/components/storefront/ImageEditorModal", () => ({ ImageEditorModal: () => null }));
+vi.mock("@/components/storefront/ImageEditorModal", () => ({
+  ImageEditorModal: ({ fileName, initialTab }: { fileName: string; initialTab: string }) => (
+    <div data-editor data-tab={initialTab}>{fileName}</div>
+  ),
+}));
+// The shop's ready-made designs, as the library endpoint lists them.
+const LIBRARY = [{ id: "L1", name: "Skull", file_url: "https://shop.test/skull.png", file_type: "png", category: "Halloween", is_active: true, sort_order: 0 }];
+// Pictures "load" at 1200 x 1200; text is drawn on a canvas jsdom doesn't have.
+vi.stubGlobal("Image", class {
+  naturalWidth = 1200; naturalHeight = 1200; onload: null | (() => void) = null; onerror: null | (() => void) = null;
+  set src(_v: string) { setTimeout(() => this.onload?.(), 0); }
+});
+HTMLCanvasElement.prototype.getContext = (() => ({
+  font: "", fillStyle: "", textBaseline: "", measureText: (t: string) => ({ width: t.length * 120 }), fillText: () => {},
+})) as unknown as HTMLCanvasElement["getContext"];
+HTMLCanvasElement.prototype.toBlob = function (cb: BlobCallback) { cb(new Blob(["png"], { type: "image/png" })); };
 vi.mock("@/components/storefront/AutoBuildPanel", () => ({ AutoBuildPanel: () => null }));
 vi.mock("@/components/storefront/WorkingOverlay", () => ({ WorkingOverlay: () => null }));
 const post = vi.fn();
@@ -449,5 +465,72 @@ describe("signing in to add the sheet to the cart", () => {
 
     await waitFor(() => expect(auth.cart).toEqual(["o1"]), { timeout: 4000 });
     expect(screen.queryByRole("button", { name: "Sign in & add to cart" })).toBeNull();
+  });
+});
+
+describe("the shop's designs, text, the image editor and saving", () => {
+  const openBuilder = async () => {
+    render(<GangSheetStudio sizes={SIZES} productId={null} resumeOrder={ORDER} onClose={() => {}} onSaved={() => {}} />);
+    fireEvent.click(screen.getByRole("button", { name: /Build with AI/ }));
+    await act(async () => { await new Promise((r) => setTimeout(r, 0)); }); // the library arrives
+  };
+  const ask = async (question: string, answer: unknown) => {
+    post.mockResolvedValueOnce(answer);
+    fireEvent.change(within(panel()).getByPlaceholderText(/on a 22x10/), { target: { value: question } });
+    await act(async () => { fireEvent.click(within(panel()).getByRole("button", { name: "Send" })); });
+  };
+
+  it("tells the assistant about the shop's designs, separately from the sheet", async () => {
+    await openBuilder();
+    await ask("what designs do you have?", { reply: "We have Skull." });
+    const ctx = lastAsk().context as unknown as { shop_designs: unknown[] };
+    expect(ctx.shop_designs).toEqual([{ ref: "s1", name: "Skull", category: "Halloween" }]);
+  });
+
+  it("puts a ready-made design on the sheet, then lets the assistant build with it", async () => {
+    await openBuilder();
+    await ask("add the skull", { reply: "Adding it — press the button.", plan: { label: "Add Skull", add_designs: ["s1"] } });
+    expect(line(/Put on the sheet: Skull/)).toBeInTheDocument();
+
+    post.mockResolvedValueOnce({ reply: "How many skulls, and how big?" });
+    await press(within(panel()).getByRole("button", { name: /Do it/ }));
+    expect(designs()).toHaveLength(2);
+    await waitFor(() => expect(post).toHaveBeenCalledTimes(2));
+    expect(lastAsk().messages.at(-1)!.content).toBe("➕ Added Skull to the sheet.");
+    expect(lastAsk().context.designs.map((d) => d.name)).toEqual(["tee.png", "Skull"]);
+  });
+
+  it("makes a text design in the colour asked and puts it on the sheet", async () => {
+    await openBuilder();
+    await ask("add TEAM 2026 in red", {
+      reply: "Ready.", plan: { label: "Text", add_text: [{ text: "TEAM 2026", color: "#D62828", bold: true }] },
+    });
+    expect(line(/Text “TEAM 2026” —\s+#D62828, bold/)).toBeInTheDocument();
+    post.mockResolvedValueOnce({ reply: "How big should the text be?" });
+    await press(within(panel()).getByRole("button", { name: /Do it/ }));
+    expect(designs()).toHaveLength(2);
+    await waitFor(() => expect(post).toHaveBeenCalledTimes(2));
+    expect(lastAsk().messages.at(-1)!.content).toBe("➕ Added Text: TEAM 2026 to the sheet.");
+  });
+
+  it("opens the image editor on the design and tab asked", async () => {
+    await openBuilder();
+    await ask("I want to crop it", { reply: "Opening it.", plan: { label: "Crop tee", open_editor: { design: "d1", tab: "crop" } } });
+    expect(line(/Open the image editor on tee.png — Crop/)).toBeInTheDocument();
+    await press(within(panel()).getByRole("button", { name: /Do it/ }));
+    const editor = document.querySelector<HTMLElement>("[data-editor]")!;
+    expect(editor).toHaveTextContent("tee.png");
+    expect(editor.dataset.tab).toBe("crop");
+    expect(within(panel()).getByText(/The image editor is open/)).toBeInTheDocument();
+  });
+
+  it("saves the sheet to the account, without the cart, once signed in", async () => {
+    auth.on = true;
+    await openBuilder();
+    await ask("save it", { reply: "Saving.", plan: { label: "Save", save: true } });
+    expect(line(/Save the sheet to your account/)).toBeInTheDocument();
+    await press(within(panel()).getByRole("button", { name: /Do it/ }));
+    await waitFor(() => expect(screen.getByText(/Saved to your account/)).toBeInTheDocument());
+    expect(auth.cart).toEqual([]);
   });
 });

@@ -40,6 +40,13 @@ A customer building a gang sheet can ask, in plain English, "will my designs fit
 - **Tools**: the prompt names the builder's own tools (Uploads, Designs, Gallery, Add Text, Settings, the image editor's tabs, Auto Build, Auto Nest, Auto nest for cutting, Auto fill sheet, Add new sheet, Preview, Save) so it can tell people how to do things by hand.
 - **Fixes**: signing in from Save & Add to Cart now carries on into the cart (save read a stale signed-out flag and opened the form again); a link styled `ui-btn` keeps white text inside a shop drawn by the website builder; a background that cannot be removed is reported in the chat and to the model.
 
+## Phase 4 — fewer tokens, every tool in reach
+- **Prompt cache**: the system prompt holds only what is the same all session (instructions, sizes, the shop's ready-made designs, the gallery) and carries a cache mark, so it and the tool are read at a tenth of the price after the first question. The sheet as it is now goes with the newest question (`context_note`), and the turn before it carries a second mark, so the earlier conversation is read from the cache too. The system prompt is checked to stay byte-identical whatever the sheet holds.
+- **One call per plan**: an accepted `propose_plan` ends the answer (`stop_when`); the model writes its line before the call. A refused plan still gets a second turn to fix it.
+- **Smaller context**: no pixel sizes (the dpi they come to is sent instead).
+- **Every tool in reach**: `add_designs` (the shop's ready-made designs s1…, the gallery g1…), `add_text` (text, colour name or hex, bold), `open_editor` (enhance, crop, removecolor, colors, halftone), `save`. New designs are added in a plan of their own; the assistant is then told and builds with their real sizes, so the card is never worked out on a guess. Moving, resizing, rotating, undo and preview stay by hand, and the prompt names their buttons.
+- **Estimate**: per question ~3,000 tokens read from the cache and ~750 at full price, one call; about $0.08 a sheet on Sonnet 5.5 (was ~$0.20), mostly output.
+
 ## Model and cost
 - **Claude Sonnet 5.5** (`claude-sonnet-5-5`, $2 / $10 per MTok) is the default for this assistant on Claude (`COPILOT_STUDIO_MODEL` overrides; other providers use their own default). Chosen over Haiku 4.5 because the assistant now reads the room left at every size, warns of overflow before proposing and fills in a nested plan.
 - **Effort `low`** (`COPILOT_STUDIO_EFFORT`, `COPILOT_EFFORT`), sent only to models that take it (not Haiku 4.5). Thinking counts towards `max_tokens`, raised to 8000.

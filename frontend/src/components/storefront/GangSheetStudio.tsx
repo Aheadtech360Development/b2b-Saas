@@ -57,6 +57,7 @@ import { StudioAssistant, type UploadedDesign } from "@/components/storefront/St
 import { buildStudioContext, dpiAt, type StudioContext } from "@/lib/studioContext";
 import {
   betterSize, fillCount, isRoll as isRollSize, planBuild, scaled, shrinkToFit, toStudioSize,
+  EDITOR_TAB_NAMES,
   type AssistantPlan, type BuildDesign, type BuildLayout, type PlanChoice, type PlanPreview, type PlanRun,
 } from "@/lib/studioBuild";
 import { NoRoomAsk, type NoRoomChoice } from "@/components/storefront/NoRoomAsk";
@@ -837,7 +838,10 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
   function loadDims(src: string): Promise<{ w: number; h: number }> {
     return new Promise((res, rej) => {
       const img = new Image();
-      img.onload = () => res({ w: img.naturalWidth, h: img.naturalHeight });
+      // A file that never answers must not hold the design up forever: it is
+      // added without its pixel size (no DPI shown) after ten seconds.
+      const give = window.setTimeout(() => rej(new Error("timed out")), 10_000);
+      img.onload = () => { window.clearTimeout(give); res({ w: img.naturalWidth, h: img.naturalHeight }); };
       img.onerror = rej;
       img.src = src;
     });
@@ -865,34 +869,41 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
   }
 
   // ── Add Text (rasterised to PNG so it flows through the same pipeline) ─────────
+  /** A line of text drawn as a transparent PNG, uploaded and added to the
+   *  uploads — the same design the Add Text panel makes. */
+  async function makeTextDesign(text: string, color: string, bold: boolean): Promise<Upload> {
+    const pad = 40;
+    const fontPx = 220;
+    const font = `${bold ? "700" : "400"} ${fontPx}px Arial, sans-serif`;
+    const measure = document.createElement("canvas").getContext("2d")!;
+    measure.font = font;
+    const w = Math.ceil(measure.measureText(text).width) + pad * 2;
+    const h = fontPx + pad * 2;
+    const cv = document.createElement("canvas");
+    cv.width = w; cv.height = h;
+    const ctx = cv.getContext("2d")!;
+    ctx.font = font;
+    ctx.fillStyle = color;
+    ctx.textBaseline = "middle";
+    ctx.fillText(text, pad, h / 2);
+    const blob: Blob = await new Promise((r) => cv.toBlob((b) => r(b!), "image/png"));
+    const file = new File([blob], `text-${Date.now()}.png`, { type: "image/png" });
+    const res = await gangSheetsService.uploadArtwork(file);
+    const u: Upload = {
+      uid: `${res.url}#${nextId.current++}`,
+      file_url: res.url, file_name: `Text: ${text.slice(0, 18)}`, file_type: "png",
+      isImage: true, pxW: w, pxH: h, hasAlpha: true, alphaChecked: true, aspect: w / h,
+    };
+    setUploads((cur) => [...cur, u]);
+    return u;
+  }
+
   async function addText() {
     const text = textDraft.text.trim();
     if (!text || !size) return;
     setUploading(true);
     try {
-      const pad = 40;
-      const fontPx = 220;
-      const measure = document.createElement("canvas").getContext("2d")!;
-      measure.font = `${textDraft.bold ? "700" : "400"} ${fontPx}px Arial, sans-serif`;
-      const w = Math.ceil(measure.measureText(text).width) + pad * 2;
-      const h = fontPx + pad * 2;
-      const cv = document.createElement("canvas");
-      cv.width = w; cv.height = h;
-      const ctx = cv.getContext("2d")!;
-      ctx.font = `${textDraft.bold ? "700" : "400"} ${fontPx}px Arial, sans-serif`;
-      ctx.fillStyle = textDraft.color;
-      ctx.textBaseline = "middle";
-      ctx.fillText(text, pad, h / 2);
-      const blob: Blob = await new Promise((r) => cv.toBlob((b) => r(b!), "image/png"));
-      const file = new File([blob], `text-${Date.now()}.png`, { type: "image/png" });
-      const res = await gangSheetsService.uploadArtwork(file);
-      const u: Upload = {
-        uid: `${res.url}#${nextId.current++}`,
-        file_url: res.url, file_name: `Text: ${text.slice(0, 18)}`, file_type: "png",
-        isImage: true, pxW: w, pxH: h, hasAlpha: true, alphaChecked: true, aspect: w / h,
-      };
-      setUploads((cur) => [...cur, u]);
-      addPlacement(u);
+      addPlacement(await makeTextDesign(text, textDraft.color, textDraft.bold));
       setTextDraft({ text: "", color: "#111111", bold: true });
       setPanel("uploads");
     } catch {
@@ -2299,7 +2310,24 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
         low_dpi: warnCounts.dpi ?? 0, outside_safe_area: warnCounts.outside ?? 0,
         overlapping: warnCounts.overlap ?? 0, very_small: warnCounts.small ?? 0,
       },
+      shopDesigns: library.filter((d) => d.is_active).map((d) => ({ key: d.id, name: d.name, category: d.category })),
+      gallery: gallery.map((a) => ({ key: a.file_url, name: a.file_name })),
     });
+  }
+
+  /** A ready-made or gallery design the assistant named (s1…, g1…), as the
+   *  Designs and Gallery panels would add it. */
+  function shopItem(ref: string, refs: Record<string, string>): { file_url: string; file_name: string; file_type?: string | null } | undefined {
+    const key = refs[ref] ?? "";
+    if (key.startsWith("shop:")) {
+      const d = library.find((x) => x.id === key.slice(5));
+      return d ? { file_url: d.file_url, file_name: d.name, file_type: d.file_type } : undefined;
+    }
+    if (key.startsWith("gallery:")) {
+      const a = gallery.find((x) => x.file_url === key.slice(8));
+      return a ? { file_url: a.file_url, file_name: a.file_name, file_type: a.file_type } : undefined;
+    }
+    return undefined;
   }
 
   type Resolved = {
@@ -2392,11 +2420,18 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
     const out: PlanPreview = {
       backgrounds: (plan.remove_background ?? []).map(nameOf),
       place: (plan.place ?? []).map(nameOf),
+      added: (plan.add_designs ?? []).map((ref) => shopItem(ref, refs)?.file_name ?? ref),
+      texts: plan.add_text ?? [],
+      editor: plan.open_editor ? { name: nameOf(plan.open_editor.design), tab: EDITOR_TAB_NAMES[plan.open_editor.tab] } : undefined,
+      save: !!plan.save,
       cart: !!plan.add_to_cart,
       sets: plan.sets,
     };
     if (!plan.build) {
-      if (out.cart && !placements.length && !out.place.length) out.problem = "The sheet is empty — add designs first.";
+      const missing = (plan.add_designs ?? []).filter((ref) => !shopItem(ref, refs));
+      if (missing.length) out.problem = "One of those designs isn't available any more. Ask again and I'll redo it.";
+      else if (plan.open_editor && !(refs[plan.open_editor.design] && upById(refs[plan.open_editor.design]!))) out.problem = "That design is no longer in your uploads.";
+      else if ((out.cart || out.save) && !placements.length && !out.place.length) out.problem = "The sheet is empty — add designs first.";
       return out;
     }
     const r = resolveBuild(plan.build, refs, choice);
@@ -2522,15 +2557,41 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
   // The steps of a plan run one after another, and each must see what the one
   // before it did — so later steps are taken from the latest render, not from
   // the one the button was pressed in.
-  const latest = useRef({ applyBuild, placeDesigns, save, setQty });
-  latest.current = { applyBuild, placeDesigns, save, setQty };
+  const latest = useRef({ applyBuild, placeDesigns, save, setQty, addPlacement });
+  latest.current = { applyBuild, placeDesigns, save, setQty, addPlacement };
   const settle = () => new Promise<void>((done) => requestAnimationFrame(() => window.setTimeout(done, 40)));
 
   /** Carry a plan out: backgrounds, then placing or building, then the cart. */
   async function runPlan(plan: AssistantPlan, refs: Record<string, string>, choice: PlanChoice = {}): Promise<PlanRun> {
     const notes: string[] = [];
     const problems: string[] = [];
+    const added: string[] = [];
     try {
+      // New designs first — the shop's, the gallery's, text — each onto the
+      // sheet where there is room, the way their panels add them.
+      for (const ref of plan.add_designs ?? []) {
+        const item = shopItem(ref, refs);
+        if (!item) { problems.push(`${ref} isn't available any more.`); continue; }
+        setAiWork({ label: `Adding ${item.file_name}`, progress: null });
+        try {
+          const u = await hostedUpload(item.file_url, item.file_name, item.file_type);
+          latest.current.addPlacement(u);
+          added.push(u.file_name);
+        } catch {
+          problems.push(`${item.file_name} couldn't be added just now.`);
+        }
+      }
+      for (const t of plan.add_text ?? []) {
+        setAiWork({ label: `Making the text "${t.text}"`, progress: null });
+        try {
+          const u = await makeTextDesign(t.text, t.color, t.bold);
+          latest.current.addPlacement(u);
+          added.push(u.file_name);
+        } catch {
+          problems.push(`The text "${t.text}" couldn't be made just now.`);
+        }
+      }
+      if (added.length) notes.push(`added ${added.join(", ")}`);
       for (const ref of plan.remove_background ?? []) {
         const u = refs[ref] ? upById(refs[ref]!) : undefined;
         if (!u) continue;
@@ -2554,13 +2615,23 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
         latest.current.setQty(plan.sets);
         notes.push(`${plan.sets} set${plan.sets === 1 ? "" : "s"}`);
       }
-      if (plan.add_to_cart) {
+      if (plan.add_to_cart || plan.save) {
         setAiWork(null);
         await settle();
-        await latest.current.save(true);
-        notes.push("saving and opening your cart");
+        await latest.current.save(!!plan.add_to_cart);
+        notes.push(plan.add_to_cart ? "saving and opening your cart" : "saved to your account");
       }
-      return { ok: true, message: notes.join(" · ") || "Done", problems };
+      if (plan.open_editor) {
+        const u = refs[plan.open_editor.design] ? upById(refs[plan.open_editor.design]!) : undefined;
+        if (!u || !IMAGE_TYPES.has(u.file_type.toLowerCase())) return { ok: false, message: "That design can't be opened in the image editor.", problems };
+        setEditTab(plan.open_editor.tab);
+        setEditUpload(u);
+        notes.push(`the image editor is open on ${u.file_name} (${EDITOR_TAB_NAMES[plan.open_editor.tab]})`);
+      }
+      if ((plan.add_designs?.length || plan.add_text?.length) && !added.length) {
+        return { ok: false, message: "Nothing could be added just now.", problems };
+      }
+      return { ok: true, message: notes.join(" · ") || "Done", problems, added };
     } finally {
       setAiWork(null);
     }

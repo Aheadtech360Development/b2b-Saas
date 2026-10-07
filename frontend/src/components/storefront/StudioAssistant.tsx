@@ -230,13 +230,24 @@ export function StudioAssistant({ open, onClose, getContext, preview, run, uploa
       const offerCart = out.ok && !!plan.build && !plan.add_to_cart;
       const notes: Turn[] = [{
         role: "note" as const, tone: out.ok ? "ok" as const : "bad" as const, cartOffer: offerCart,
-        content: out.ok
-          ? "✓ Done — your sheet is updated. Not right? Press Undo (Ctrl+Z), or tell me what to change."
-          : `✗ ${out.message}`,
+        content: !out.ok ? `✗ ${out.message}`
+          : plan.open_editor ? "✓ The image editor is open — make your change there and press Apply."
+          : plan.build || plan.add_designs || plan.add_text || plan.remove_background
+            ? "✓ Done — your sheet is updated. Not right? Press Undo (Ctrl+Z), or tell me what to change."
+            : "✓ Done.",
       }];
       if (out.problems?.length) notes.unshift({ role: "note", tone: "bad", content: `⚠ ${out.problems.join(" ")}` });
       return [...marked, ...notes];
     });
+    // New designs are on the sheet but not yet laid out as asked: the assistant
+    // is told their names, and with the sheet as it now is it builds with them.
+    if (out.ok && out.added?.length) {
+      await settle();
+      for (let waited = 0; live.current.asking && waited < 60_000; waited += 150) {
+        await new Promise((r) => setTimeout(r, 150));
+      }
+      await ask(`➕ Added ${out.added.join(", ")} to the sheet.`);
+    }
   }
 
   async function addToCart(index: number) {
@@ -376,6 +387,10 @@ function PlanCard({ plan, preview, state, result, onChoose }: {
     <div style={{ ...S.card, opacity: state === "old" ? 0.55 : 1 }}>
       <div style={{ fontSize: "13px", fontWeight: 800, color: "#1A1A1A" }}>{plan.label}</div>
       <ul style={S.steps}>
+        {preview.added.length > 0 && <li>➕ Put on the sheet: {preview.added.join(", ")}</li>}
+        {preview.texts.map((t, i) => (
+          <li key={`t${i}`}>🔤 Text &ldquo;{t.text}&rdquo; — <span style={{ display: "inline-block", width: "10px", height: "10px", borderRadius: "2px", background: t.color, border: "1px solid #D4D4D8", verticalAlign: "middle" }} aria-hidden /> {t.color}{t.bold ? ", bold" : ""}</li>
+        ))}
         {preview.backgrounds.length > 0 && <li>✂️ Remove background: {preview.backgrounds.join(", ")}</li>}
         {preview.place.length > 0 && <li>➕ Put on the sheet: {preview.place.join(", ")}</li>}
         {b?.fills.map((f) => <li key={f.name}>▦ Fill the sheet: {f.copies} × {f.name}</li>)}
@@ -398,6 +413,8 @@ function PlanCard({ plan, preview, state, result, onChoose }: {
           <li key={d.name} style={{ color: "#92400E" }}>⚠ {d.name} prints at {d.dpi} DPI at that size — may look soft.</li>
         ))}
         {!b && preview.sets ? <li>🖨 Print {preview.sets} set{preview.sets === 1 ? "" : "s"} of this sheet</li> : null}
+        {preview.editor && <li>🖼 Open the image editor on {preview.editor.name} — {preview.editor.tab}</li>}
+        {preview.save && <li>💾 Save the sheet to your account</li>}
         {preview.cart && <li>🛒 Then save it and open the cart</li>}
       </ul>
       {preview.problem && <div style={S.cardProblem}>{preview.problem}</div>}

@@ -257,6 +257,23 @@ describe("buildStudioContext", () => {
     expect(d.copies_that_fit!.filter((r) => r.copies === 0)).toHaveLength(1);
   });
 
+  it("names the shop's designs s1… and the gallery g1…, and maps them back", () => {
+    const out = buildStudioContext({
+      ...base, pieces: [],
+      shopDesigns: [{ key: "L1", name: "Skull", category: "Halloween" }, { key: "L2", name: "Rose" }],
+      gallery: [{ key: "https://x/old.png", name: "old.png" }],
+    })!;
+    expect(out.context.shop_designs).toEqual([{ ref: "s1", name: "Skull", category: "Halloween" }, { ref: "s2", name: "Rose" }]);
+    expect(out.context.gallery).toEqual([{ ref: "g1", name: "old.png" }]);
+    expect(out.refs).toMatchObject({ s1: "shop:L1", s2: "shop:L2", g1: "gallery:https://x/old.png" });
+  });
+
+  it("sends no pixel sizes, only the dpi they come to", () => {
+    const d = buildStudioContext({ ...base, pieces: [] })!.context.designs[0]! as Record<string, unknown>;
+    expect(d).not.toHaveProperty("px_w");
+    expect(d).not.toHaveProperty("px_h");
+  });
+
   it("sends fits only when something is on the sheet", () => {
     expect(buildStudioContext({ ...base, pieces: [] })!.context.fits).toEqual([]);
     expect(buildStudioContext({ ...base, pieces: sq(2) })!.context.fits).toHaveLength(3);

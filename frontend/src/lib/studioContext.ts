@@ -27,6 +27,14 @@ export interface StudioUpload {
   h_in: number;
 }
 
+/** A ready-made design of the shop's, or one from the customer's gallery. */
+export interface StudioShopItem {
+  /** What the builder knows it by: the library id, or the gallery file's address. */
+  key: string;
+  name: string;
+  category?: string | null;
+}
+
 export interface StudioPiece {
   uid: string;
   w_in: number;
@@ -46,7 +54,7 @@ export interface StudioContext {
   price_now?: number;
   designs_on_sheet: number;
   designs: {
-    ref: string; name: string; px_w?: number; px_h?: number; picture?: boolean; has_background?: boolean;
+    ref: string; name: string; picture?: boolean; has_background?: boolean;
     size_now: { width_in: number; height_in: number; dpi?: number };
     on_sheet: { width_in: number; height_in: number; copies: number; dpi?: number }[];
     /** Alone on the open sheet: about how many copies fit at each width. */
@@ -61,6 +69,9 @@ export interface StudioContext {
     size_name: string; width_in: number; length_in?: number; is_roll: boolean; fits_all: boolean;
     sheets_needed?: number; too_wide: number; fill_pct?: number; price?: number; current: boolean;
   }[];
+  /** The shop's ready-made designs (s1…) and the customer's gallery (g1…). */
+  shop_designs: { ref: string; name: string; category?: string }[];
+  gallery: { ref: string; name: string }[];
 }
 
 export interface StudioInput {
@@ -74,6 +85,8 @@ export interface StudioInput {
   uploads: StudioUpload[];
   pieces: StudioPiece[];
   warnings: StudioContext["warnings"];
+  shopDesigns?: StudioShopItem[];
+  gallery?: StudioShopItem[];
 }
 
 // Past this the nesting runs once per size on every question; the answer would
@@ -87,6 +100,7 @@ const MAX_SIZES = 12;
 // designs get the table: it is the bulk of what is sent.
 const WIDTHS = [1.5, 2, 2.5, 3, 3.5, 4, 5, 6, 8, 10, 12];
 const MAX_TABLES = 8;
+const MAX_SHOP = 40;
 
 const r2 = (n: number) => Math.round(n * 100) / 100;
 
@@ -134,7 +148,7 @@ export function buildStudioContext(input: StudioInput): { context: StudioContext
         }).filter((row, j, all) => row.copies > 0 || all[j - 1]?.copies)
       : undefined;
     return {
-      ref, name: u.name.slice(0, 80), px_w: u.pxW || undefined, px_h: u.pxH || undefined,
+      ref, name: u.name.slice(0, 80),
       picture: u.isImage || undefined,
       // A picture with no transparency almost always has a background to
       // remove. Not said at all when it was never looked at.
@@ -155,6 +169,19 @@ export function buildStudioContext(input: StudioInput): { context: StudioContext
     fits = shown.map((s) => ({ ...fitOn(s, pieces, input.edge, input.gap), current: s.id === current.id }));
   }
 
+  // The shop's designs and the gallery are named s1…, g1…; their refs carry
+  // what the builder needs to fetch them, prefixed so they never pass for an upload.
+  const shop_designs = (input.shopDesigns ?? []).slice(0, MAX_SHOP).map((d, i) => {
+    const ref = `s${i + 1}`;
+    refs[ref] = `shop:${d.key}`;
+    return { ref, name: d.name.slice(0, 80), ...(d.category ? { category: d.category.slice(0, 40) } : {}) };
+  });
+  const gallery = (input.gallery ?? []).slice(0, MAX_SHOP).map((d, i) => {
+    const ref = `g${i + 1}`;
+    refs[ref] = `gallery:${d.key}`;
+    return { ref, name: d.name.slice(0, 80) };
+  });
+
   return {
     refs,
     context: {
@@ -171,6 +198,8 @@ export function buildStudioContext(input: StudioInput): { context: StudioContext
       sizes,
       warnings: input.warnings,
       fits,
+      shop_designs,
+      gallery,
     },
   };
 }

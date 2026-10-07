@@ -34,7 +34,7 @@ from app.services.copilot.actions import (
 from app.services.copilot.audit import log_action
 from app.services.copilot.briefing import build_briefing
 from app.services.copilot.studio import (
-    PROPOSE_PLAN_TOOL, PlanError, StudioContext, studio_system, validate_plan,
+    PROPOSE_PLAN_TOOL, PlanError, StudioContext, studio_sheet, studio_system, validate_plan,
 )
 from app.services.copilot.tools import (
     CUSTOMER_TOOLS, OWNER_TOOLS, customer_handlers, owner_handlers,
@@ -292,6 +292,11 @@ async def studio_assistant(
             handlers={"propose_plan": propose},
             messages=[m.model_dump() for m in payload.messages], scope="studio", db=db,
             studio=True, subject=subject, subject_limit=limit,
+            # The sheet changes with every question; it rides on the newest one so
+            # the prompt and the earlier conversation are read from the cache.
+            context_note=studio_sheet(payload.context),
+            # An accepted plan is the answer: no second request to say so.
+            stop_when=lambda: bool(proposed),
         )
     except (CopilotUnavailable, CopilotLimitReached, CopilotError) as exc:
         _raise_for(exc)

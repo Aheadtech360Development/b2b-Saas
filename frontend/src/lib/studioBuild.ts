@@ -248,8 +248,21 @@ export interface AssistantPlan {
   };
   /** How many of the sheet to print. */
   sets?: number;
+  /** The shop's ready-made designs (s1…) or the gallery's (g1…), put on the sheet. */
+  add_designs?: string[];
+  /** Text designs to make and put on the sheet. */
+  add_text?: { text: string; color: string; bold: boolean }[];
+  /** Open the image editor on one picture, at one tab. */
+  open_editor?: { design: string; tab: EditorTab };
+  save?: boolean;
   add_to_cart?: boolean;
 }
+
+export type EditorTab = "enhance" | "crop" | "removecolor" | "colors" | "halftone";
+
+export const EDITOR_TAB_NAMES: Record<EditorTab, string> = {
+  enhance: "Enhance", crop: "Crop", removecolor: "Remove Color", colors: "Colors", halftone: "Halftone",
+};
 
 /** What the plan card shows before anything changes. */
 export interface PlanPreview {
@@ -279,8 +292,13 @@ export interface PlanPreview {
     alt?: { sizeId: string; sizeName: string; price: number; length?: number };
   };
   cart: boolean;
+  save: boolean;
   /** Names put on the sheet as they are. */
   place: string[];
+  /** Ready-made or gallery designs to add, by name. */
+  added: string[];
+  texts: { text: string; color: string; bold: boolean }[];
+  editor?: { name: string; tab: string };
   /** Sets to print, when the plan changes it. */
   sets?: number;
   /** Why it cannot be done as it stands. */
@@ -293,6 +311,8 @@ export interface PlanRun {
   /** Steps that did not work although the rest did — a background that could
    *  not be removed, say — to be told, not hidden. */
   problems?: string[];
+  /** Designs the plan added (ready-made, gallery, text), by name. */
+  added?: string[];
 }
 
 /** Which of the card's buttons was pressed: the plan as it is, another sheet

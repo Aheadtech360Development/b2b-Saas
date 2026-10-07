@@ -225,10 +225,20 @@ async def run_copilot(
     studio: bool = False,
     subject: str = "",
     subject_limit: int | None = None,
+    context_note: str = "",
+    stop_when=None,
 ) -> dict:
-    """`studio` picks the builder assistant's model and effort."""
     """Answer the last user message. `messages` is plain text history
-    ([{role, content}]); tool rounds happen here and are not returned."""
+    ([{role, content}]); tool rounds happen here and are not returned.
+
+    `studio` picks the builder assistant's model and effort. `context_note` is
+    data that changes every question (the sheet as it is now): it goes with the
+    last message rather than in `system`, so the system prompt and the earlier
+    conversation stay byte-for-byte the same and are read from the prompt
+    cache. `stop_when` is asked after each round of tool calls; when it says
+    yes, the answer is the text written alongside those calls and no further
+    request is made — a proposal needs no second call to say it is ready.
+    """
     provider = resolve_provider(studio)
     if provider is None:
         raise CopilotUnavailable("The AI copilot isn't switched on for this platform yet.")
@@ -244,9 +254,12 @@ async def run_copilot(
         try:
             if provider.name == "anthropic":
                 effort = (settings.COPILOT_STUDIO_EFFORT if studio else settings.COPILOT_EFFORT).strip().lower()
-                reply = await _anthropic(client, provider, system, tools, handlers, history, used, db, scope, effort)
+                reply = await _anthropic(client, provider, system, tools, handlers, cached_history(history, context_note),
+                                         used, db, scope, effort, stop_when)
             else:
-                reply = await _openai_style(client, provider, system, tools, handlers, history, used, db, scope)
+                if context_note and history:
+                    history[-1] = {**history[-1], "content": f"{history[-1]['content']}\n\n{context_note}"}
+                reply = await _openai_style(client, provider, system, tools, handlers, history, used, db, scope, stop_when)
         except httpx.HTTPError as exc:
             logger.warning("copilot request failed: %s", exc)
             raise CopilotError("Couldn't reach the AI service. Please try again.") from exc
@@ -256,10 +269,44 @@ async def run_copilot(
     return {"reply": reply or "I don't have an answer for that.", "tools_used": used, "provider": provider.name}
 
 
+CACHE = {"type": "ephemeral"}
+
+
+def cached_history(history: list[dict], context_note: str = "") -> list[dict]:
+    """The conversation as sent to Claude, marked for the prompt cache.
+
+    The turn before the newest question is the end of what the next request
+    will repeat word for word, so the cache mark goes there: each question
+    reads the whole earlier conversation from the cache and pays in full only
+    for what is new. The note about the sheet as it is now rides on the newest
+    question, after the mark, where changing it costs nothing that is cached.
+    """
+    out = [dict(m) for m in history]
+    if len(out) >= 2:
+        prev = out[-2]
+        text = prev["content"] if isinstance(prev["content"], str) else None
+        if text:
+            out[-2] = {**prev, "content": [{"type": "text", "text": text, "cache_control": CACHE}]}
+    if context_note and out:
+        last = out[-1]
+        blocks = [{"type": "text", "text": last["content"]}] if isinstance(last["content"], str) else list(last["content"])
+        out[-1] = {**last, "content": [*blocks, {"type": "text", "text": context_note}]}
+    return out
+
+
 def anthropic_request(p: Provider, system, tools, convo, effort: str = "") -> tuple[dict, dict]:
-    """Headers and body for one Messages API call."""
+    """Headers and body for one Messages API call.
+
+    The system prompt carries a cache mark: tools come before it, so the two
+    are read from the cache together on every request after the first, at a
+    tenth of the price. A prompt too short to cache simply isn't, at no cost.
+    """
     headers = {"x-api-key": p.api_key, "anthropic-version": ANTHROPIC_VERSION, "content-type": "application/json"}
-    body = {"model": p.model, "max_tokens": MAX_TOKENS, "system": system, "messages": convo}
+    body = {
+        "model": p.model, "max_tokens": MAX_TOKENS,
+        "system": [{"type": "text", "text": system, "cache_control": CACHE}],
+        "messages": convo,
+    }
     if tools:
         body["tools"] = tools
     if effort and p.model.startswith(EFFORT_MODELS):
@@ -285,7 +332,8 @@ def echoable(content: list[dict]) -> list[dict]:
     return [b for b in content[:last] if b.get("type") not in drop] + content[last + 1:]
 
 
-async def _anthropic(client, p: Provider, system, tools, handlers, convo, used, db, scope="-", effort: str = "") -> str | None:
+async def _anthropic(client, p: Provider, system, tools, handlers, convo, used, db, scope="-", effort: str = "",
+                     stop_when=None) -> str | None:
     for _ in range(MAX_TOOL_ROUNDS + 1):
         headers, body_in = anthropic_request(p, system, tools, convo, effort)
         res = await client.post(ANTHROPIC_URL, headers=headers, json=body_in)
@@ -300,11 +348,11 @@ async def _anthropic(client, p: Provider, system, tools, handlers, convo, used, 
         convo.append({"role": "assistant", "content": content})
 
         calls = [b for b in content if b.get("type") == "tool_use"]
+        said = "\n\n".join(b.get("text", "") for b in content if b.get("type") == "text").strip()
         if stop != "tool_use" or not calls:
-            text = "\n\n".join(b.get("text", "") for b in content if b.get("type") == "text").strip()
-            if not text and stop == "max_tokens":
+            if not said and stop == "max_tokens":
                 return "That took more working out than I can do in one go. Try asking something narrower."
-            return text
+            return said
 
         results = []
         for call in calls:
@@ -313,11 +361,14 @@ async def _anthropic(client, p: Provider, system, tools, handlers, convo, used, 
             if is_error:
                 block["is_error"] = True
             results.append(block)
+        if stop_when is not None and stop_when():
+            return said
         convo.append({"role": "user", "content": results})
     return None
 
 
-async def _openai_style(client, p: Provider, system, tools, handlers, history, used, db, scope="-") -> str | None:
+async def _openai_style(client, p: Provider, system, tools, handlers, history, used, db, scope="-",
+                        stop_when=None) -> str | None:
     headers = {"Authorization": f"Bearer {p.api_key}", "content-type": "application/json"}
     if p.name == "gemini":
         # Keys made in AI Studio are now "auth keys", which Google's own examples
@@ -358,4 +409,6 @@ async def _openai_style(client, p: Provider, system, tools, handlers, history, u
                 args = {}
             text, _ = await _run_tool(fn.get("name"), args, handlers, used, db, scope)
             convo.append({"role": "tool", "tool_call_id": call.get("id"), "content": text})
+        if stop_when is not None and stop_when():
+            return (message.get("content") or "").strip()
     return None
