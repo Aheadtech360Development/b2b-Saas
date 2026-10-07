@@ -215,14 +215,40 @@ async def create_payment_intent(
     if total <= 0:
         raise ValidationError("Order total must be greater than zero")
 
+    # The platform's share, on the Gang Sheet Builder lines only — the rule the
+    # guest checkout already follows. It was missing here, so a signed-in
+    # customer's gang sheet order went through with nothing taken, and the rate
+    # set in the console changed nothing for the customers who buy most.
+    from app.services import commission as commission_svc
+
+    gang_sheet_subtotal = sum(
+        (Decimal(str(i.line_total)) for i in cart.items if getattr(i, "item_type", "") == "gang_sheet"),
+        Decimal("0"),
+    )
+    commission_bps, fee_cents = 0, 0
+    if gang_sheet_subtotal > 0:
+        try:
+            commission_bps = int((await commission_svc.for_tenant(db, tenant_id))["bps"])
+        except Exception as exc:
+            raise _blame("working out the platform's share", exc) from exc
+        fee_cents = commission_svc.amount_cents(
+            commission_svc.base_after_discount(gang_sheet_subtotal, cart.subtotal, coupon_discount_amount),
+            commission_bps,
+        )
+
     payment_svc = PaymentService(db)
     try:
         intent = await payment_svc.create_direct_payment_intent(
             amount_decimal=total,
             connected_account_id=connected_account_id,
+            application_fee_cents=fee_cents,
                 metadata={
                 "company_id": str(company_id),
                 "tenant_id": str(tenant_id),
+                # What the platform's share was worked out on, kept with the
+                # payment so it can be read back from Stripe.
+                "gang_sheet_subtotal": str(gang_sheet_subtotal),
+                "commission_bps": str(commission_bps),
                 # The authoritative, server-computed tax — /checkout/confirm reads
                 # this back so the order's tax matches what was charged.
                 "tax_amount": str(tax_amount_dc),

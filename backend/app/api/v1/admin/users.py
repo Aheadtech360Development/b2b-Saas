@@ -3,7 +3,7 @@
 import secrets
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -279,8 +279,19 @@ async def update_user(
 @router.delete("/{user_id}", status_code=204)
 async def delete_user(
     user_id: UUID,
+    request: Request,
     db: AsyncSession = Depends(get_db),
 ):
+    """Remove a person from the shop, or say exactly why they can't be.
+
+    Orders and returns are the shop's books and keep the account they came
+    from, so somebody with either is not deleted: they are deactivated, or the
+    shop's test data is cleared first. What is only theirs — messages they
+    sent, carts they saved, price lists they asked for — goes with them.
+
+    This used to hand the database's refusal straight back as a bare 500, which
+    the page showed as a Delete button that did nothing.
+    """
     _tid = get_current_tenant_id()
     q = select(User).where(User.id == user_id)
     if _tid is not None:
@@ -289,8 +300,51 @@ async def delete_user(
     user = result.scalar_one_or_none()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
-    await db.delete(user)
-    await db.commit()
+    # Read now: after a refused delete the row can no longer be read without a query.
+    name = user.full_name.strip() or user.email
+    if str(getattr(request.state, "user_id", "") or "") == str(user.id):
+        raise HTTPException(status_code=409, detail="You can't delete the account you are signed in with.")
+
+    from sqlalchemy import delete as sa_delete
+
+    from app.models.communication import Message
+    from app.models.order import Order, OrderTemplate
+    from app.models.rma import RMARequest
+    from app.models.system import PriceListRequest
+
+    orders = (await db.execute(
+        select(func.count()).select_from(Order).where(Order.placed_by_id == user.id)
+    )).scalar() or 0
+    returns = (await db.execute(
+        select(func.count()).select_from(RMARequest).where(RMARequest.submitted_by_id == user.id)
+    )).scalar() or 0
+    if orders or returns:
+        has = " and ".join(part for part in (
+            f"{orders} order{'' if orders == 1 else 's'}" if orders else "",
+            f"{returns} return{'' if returns == 1 else 's'}" if returns else "",
+        ) if part)
+        raise HTTPException(status_code=409, detail=(
+            f"{name} has {has} on record, so the account can't be deleted. Deactivate it instead. "
+            "If these were test orders, clear the shop's test data first, then delete."
+        ))
+
+    try:
+        for model, column in (
+            (Message, Message.sender_id),
+            (OrderTemplate, OrderTemplate.created_by_id),
+            (PriceListRequest, PriceListRequest.requested_by_id),
+        ):
+            await db.execute(sa_delete(model).where(column == user.id))
+        await db.delete(user)
+        await db.commit()
+    except IntegrityError as exc:
+        await db.rollback()
+        # Something else still points at them. Named, when the database names it.
+        cause = getattr(exc.orig, "__cause__", None) or exc.orig
+        held = str(getattr(cause, "table_name", "") or "").replace("_", " ") or "other records"
+        raise HTTPException(status_code=409, detail=(
+            f"{name} is still used by {held}, so the account can't be deleted. Deactivate it instead."
+        ))
 
 
 @router.post("/{user_id}/reset-password", status_code=204)

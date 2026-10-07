@@ -85,6 +85,14 @@ export interface StripeMode {
   mismatch: boolean;
 }
 
+export interface ClearedTestData {
+  slug: string;
+  /** What went, counted by kind — only the kinds that had anything. */
+  removed: Record<string, number>;
+  total: number;
+  kept: string;
+}
+
 export const platformService = {
   /** Whether the platform is taking real money or pretending to. */
   async getStripeMode(): Promise<StripeMode> {
@@ -167,6 +175,15 @@ export const platformService = {
       feature,
       is_enabled: isEnabled,
     });
+  },
+
+  /** Throw away a brand's trial run — orders, designs, carts — and keep the
+   *  shop itself: products, customers, staff, settings, theme. Irreversible. */
+  async clearTestData(slug: string, confirm: string): Promise<ClearedTestData> {
+    return apiClient.post<ClearedTestData>(
+      `/api/v1/platform/tenants/${slug}/clear-test-data`,
+      { confirm },
+    );
   },
 
   /** Permanently delete a tenant + all its data (irreversible). */

@@ -682,6 +682,97 @@ async def impersonate_tenant(
     return {"access_token": token, "slug": slug, "admin_email": admin["email"]}
 
 
+# ── Clearing out a trial run ──────────────────────────────────────────────────
+
+# What a shop accumulates while it is being tried out, in the order it has to
+# go. Returns come before orders because an order with a return against it
+# cannot be deleted while the return is there, and the gang-sheet designs come
+# before the orders that bought them for the same reason in reverse: nothing
+# points at a design, so it goes early and reads better in the count.
+#
+# Everything else either hangs off these rows and follows them down, or holds a
+# reference that the database empties by itself.
+#
+# Not here, on purpose: gang_sheet_library_designs. That is the shop's own
+# shelf of ready-made designs, put there by the brand for its buyers — part of
+# the shop, like its products, and nothing a trial run leaves behind.
+_CLEARED: tuple[tuple[str, str], ...] = (
+    ("returns", "rma_requests"),
+    ("built gang sheets", "gang_sheet_orders"),
+    ("orders", "orders"),
+    ("discount uses", "discount_usage"),
+    ("statement lines", "statement_transactions"),
+    ("refunds", "payment_refunds"),
+    ("disputes", "disputes"),
+    ("carts", "cart_items"),
+    ("abandoned carts", "abandoned_carts"),
+    ("customer totals", "customer_metrics"),
+)
+
+
+class ClearTestData(BaseModel):
+    """Typing the brand's own address is the confirmation."""
+
+    confirm: str
+
+
+@router.post("/{slug}/clear-test-data")
+async def clear_test_data(
+    slug: str,
+    data: ClearTestData,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Throw away what a shop did while it was being tested, and nothing else.
+
+    A brand is tried before it is launched — orders placed to see the emails,
+    gang sheets uploaded to see the review queue — and then it goes live with
+    somebody else's experiments sitting in its order list, in its numbering and
+    in its customers' totals. This clears the trading history and leaves the
+    shop itself alone: products, customers, staff, theme, settings, suppliers
+    and the sizes the builder offers all stay exactly as they are.
+
+    It cannot be undone, so it asks for the brand's address to be typed, it is
+    a platform admin's call rather than a brand's own, and the audit log is
+    deliberately not touched: a record of what happened is the one thing that
+    should survive the records being cleared.
+    """
+    _require_platform_admin(request)
+
+    tenant_id = (await db.execute(
+        text("SELECT id FROM tenants WHERE slug = :s"), {"s": slug}
+    )).scalar()
+    if not tenant_id:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+    if (data.confirm or "").strip().lower() != slug.lower():
+        raise HTTPException(
+            status_code=400,
+            detail=f"Type '{slug}' to confirm. Nothing has been deleted.",
+        )
+
+    removed: dict[str, int] = {}
+    for label, table in _CLEARED:
+        result = await db.execute(
+            text(f"DELETE FROM {table} WHERE tenant_id = CAST(:t AS uuid)"),
+            {"t": str(tenant_id)},
+        )
+        if result.rowcount:
+            removed[label] = result.rowcount
+    await db.commit()
+
+    logger.warning(
+        "Test data cleared for tenant %s (%s): %s", slug, tenant_id, removed or "nothing"
+    )
+    return {
+        "slug": slug,
+        "removed": removed,
+        "total": sum(removed.values()),
+        # Said back rather than assumed: the point of the action is what it
+        # leaves behind, and that is worth reading on screen.
+        "kept": "products, customers, staff, settings, the site, suppliers and the shop's ready-made designs",
+    }
+
+
 # ── Hard purge (irreversible) ─────────────────────────────────────────────────
 @router.delete("/{slug}/purge", status_code=204)
 async def purge_tenant(

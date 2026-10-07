@@ -496,10 +496,31 @@ async def create_invoice_payment_intent(
             "message": "This store hasn't finished payment setup yet.",
         })
 
+    # The platform's share of what is being paid now, when the invoice has Gang
+    # Sheet Builder sheets on it: the order's fee, in the proportion of the
+    # order this payment settles. An order paid at checkout never gets here
+    # with a balance, so the fee is never taken twice.
+    from sqlalchemy import func as _func
+
+    from app.api.v1.gang_sheets import GangSheetOrder as _GSOrder
+    from app.services import commission as commission_svc
+
+    gang_sheet_subtotal = _Dec(str((await db.execute(
+        select(_func.coalesce(_func.sum(_GSOrder.price_per_sheet * _GSOrder.sheet_quantity), 0))
+        .where(_GSOrder.order_id == order.id)
+    )).scalar() or 0))
+    commission_bps, fee_cents = 0, 0
+    if gang_sheet_subtotal > 0 and tenant_id:
+        commission_bps = int((await commission_svc.for_tenant(db, tenant_id))["bps"])
+        whole_fee = commission_svc.amount_cents(min(gang_sheet_subtotal, _Dec(str(order.subtotal or 0))), commission_bps)
+        fee_cents = commission_svc.share_cents(whole_fee, balance, _Dec(str(order.total or 0)))
+
     intent = await PaymentService(db).create_direct_payment_intent(
         amount_decimal=balance,
         connected_account_id=connect["account_id"],
-        metadata={"order_id": str(order.id), "order_number": order.order_number, "kind": "invoice"},
+        application_fee_cents=fee_cents,
+        metadata={"order_id": str(order.id), "order_number": order.order_number, "kind": "invoice",
+                  "gang_sheet_subtotal": str(gang_sheet_subtotal), "commission_bps": str(commission_bps)},
     )
     # Imported where it is used. This module never imported it, so the
     # line below raised NameError on every call — after the charge had

@@ -276,13 +276,18 @@ function UserModal({
 
 function DeleteDialog({ user, onClose, onSuccess }: { user: AdminUser; onClose: () => void; onSuccess: () => void }) {
   const [deleting, setDeleting] = useState(false);
+  // Why it could not be done, in the server's words. It used to be swallowed,
+  // so a refused delete looked like a button that did nothing.
+  const [problem, setProblem] = useState<string | null>(null);
 
   async function handleDelete() {
     setDeleting(true);
+    setProblem(null);
     try {
       await adminService.deleteUser(user.id);
       onSuccess();
-    } catch {
+    } catch (e) {
+      setProblem((e as { message?: string })?.message || "Couldn't delete this user. Please try again.");
       setDeleting(false);
     }
   }
@@ -292,8 +297,13 @@ function DeleteDialog({ user, onClose, onSuccess }: { user: AdminUser; onClose: 
       <div style={{ background: "#fff", borderRadius: "12px", width: "100%", maxWidth: "420px", padding: "28px", boxShadow: "0 20px 60px rgba(0,0,0,.2)" }}>
         <h3 style={{ fontFamily: "var(--font-bebas)", fontSize: "20px", color: "#2A2830", letterSpacing: "-0.01em", marginBottom: "10px" }}>Delete User</h3>
         <p style={{ fontSize: "14px", color: "#7A7880", lineHeight: 1.6, marginBottom: "20px" }}>
-          Are you sure you want to delete <strong style={{ color: "#2A2830" }}>{user.full_name}</strong> ({user.email})? This action cannot be undone.
+          Are you sure you want to delete <strong style={{ color: "#2A2830" }}>{user.full_name}</strong> ({user.email})? Their messages and saved carts go with them. This action cannot be undone.
         </p>
+        {problem && (
+          <p role="alert" style={{ fontSize: "13px", color: "#991B1B", background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: "8px", padding: "10px 12px", lineHeight: 1.55, margin: "-8px 0 16px" }}>
+            {problem}
+          </p>
+        )}
         <div style={{ display: "flex", gap: "10px" }}>
           <button onClick={onClose} style={{ flex: 1, padding: "10px", border: "1.5px solid #E3E3E3", borderRadius: "8px", fontSize: "13px", fontWeight: 600, cursor: "pointer", background: "#fff" }}>
             Cancel

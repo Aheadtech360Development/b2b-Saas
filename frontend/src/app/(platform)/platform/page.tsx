@@ -11,6 +11,7 @@ import {
   type CreateTenantResponse,
   type FeatureFlag,
   type Commission,
+  type ClearedTestData,
 } from "@/services/platform.service";
 import { AnalyticsTab, ActivityTab, SearchTab, HealthTab } from "@/components/platform/InsightTabs";
 import { StripeModePanel } from "@/components/platform/StripeModePanel";
@@ -477,6 +478,9 @@ function ManageTenantModal({ tenant, onClose, onChanged }: { tenant: Tenant; onC
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [purgeText, setPurgeText] = useState("");
+  const [clearText, setClearText] = useState("");
+  const [clearing, setClearing] = useState(false);
+  const [cleared, setCleared] = useState<ClearedTestData | null>(null);
   const [domain, setDomain] = useState(tenant.custom_domain ?? "");
   const [savingDomain, setSavingDomain] = useState(false);
   const [brandName, setBrandName] = useState(tenant.name);
@@ -513,6 +517,22 @@ function ManageTenantModal({ tenant, onClose, onChanged }: { tenant: Tenant; onC
   async function cancelBrand() {
     if (!confirm(`Suspend & cancel "${tenant.name}"? (reversible)`)) return;
     try { await platformService.deleteTenant(tenant.slug); onChanged(); onClose(); } catch { alert("Failed"); }
+  }
+
+  async function clearTestData() {
+    if (clearText !== tenant.slug || clearing) return;
+    setClearing(true);
+    setMsg(null);
+    try {
+      const result = await platformService.clearTestData(tenant.slug, clearText);
+      setCleared(result);
+      setClearText("");
+      onChanged();
+    } catch {
+      setMsg("Could not clear the test data. Nothing was deleted.");
+    } finally {
+      setClearing(false);
+    }
   }
 
   async function purge() {
@@ -747,6 +767,41 @@ Any link with the old address stops working, and anyone browsing it right now wi
               Suspend &amp; Cancel (reversible)
             </button>
           )}
+          {/* Before the brand goes live: throw away what it did while it was
+              being tried out, and keep the shop. A step short of deleting it,
+              and the one actually wanted when a trial run is over. */}
+          <div style={{ background: "#FFFBEB", border: "1px solid #FDE68A", borderRadius: "8px", padding: "12px", marginBottom: "12px" }}>
+            <p style={{ fontSize: "12px", color: "#92400E", margin: "0 0 8px", lineHeight: 1.6 }}>
+              <b>Clear the test data.</b> Removes every order, gang sheet a customer built, return
+              and cart, and restarts the order numbering. Products, customers, staff, settings, the
+              site and the shop&apos;s own ready-made designs all stay. This cannot be undone. Type{" "}
+              <b style={{ fontFamily: "monospace" }}>{tenant.slug}</b> to confirm.
+            </p>
+            {cleared ? (
+              <p style={{ fontSize: "12px", color: "#166534", margin: "0 0 8px", lineHeight: 1.6 }}>
+                {cleared.total === 0
+                  ? "Nothing left to clear. This brand had no test data."
+                  : `Cleared ${Object.entries(cleared.removed)
+                      .map(([kind, n]) => `${n} ${kind}`)
+                      .join(", ")}. Kept ${cleared.kept}.`}
+              </p>
+            ) : null}
+            <input
+              value={clearText}
+              onChange={(e) => { setClearText(e.target.value); setCleared(null); }}
+              placeholder={tenant.slug}
+              aria-label="Type the brand's address to confirm"
+              style={{ width: "100%", background: "#FFFDF7", border: "1px solid #FDE68A", color: "#18181B", padding: "9px 12px", borderRadius: "8px", fontSize: "13px", boxSizing: "border-box", marginBottom: "8px" }}
+            />
+            <button
+              onClick={clearTestData}
+              disabled={clearText !== tenant.slug || clearing}
+              style={{ width: "100%", background: clearText === tenant.slug ? "#B45309" : "#F5E7C8", color: clearText === tenant.slug ? "#fff" : "#B08A4A", border: "none", padding: "10px", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: clearText === tenant.slug ? "pointer" : "not-allowed" }}
+            >
+              {clearing ? "Clearing…" : "Clear test data"}
+            </button>
+          </div>
+
           <div style={{ background: "#FEF2F2", border: "1px solid #FCA5A5", borderRadius: "8px", padding: "12px" }}>
             <p style={{ fontSize: "12px", color: "#B42318", margin: "0 0 8px", lineHeight: 1.6 }}>
               Permanently delete this brand and <b>ALL its data</b> (products, orders, customers, users). This cannot be undone.

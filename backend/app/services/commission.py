@@ -82,3 +82,27 @@ def amount_cents(order_total: Decimal, bps: int) -> int:
         return 0
     cents = (order_total * Decimal(bps) / Decimal(10000) * Decimal(100))
     return int(cents.quantize(Decimal("1"), rounding=ROUND_HALF_UP))
+
+
+def base_after_discount(gang_sheet_subtotal: Decimal, cart_subtotal: Decimal, discount: Decimal) -> Decimal:
+    """What the percentage is taken on once a discount code has come off.
+
+    A code comes off the whole cart, so it comes off the gang sheet lines in
+    the share they make up of it. The platform takes its percentage of what the
+    shop is paid for those lines, never of money the shop gave away.
+    """
+    if gang_sheet_subtotal <= 0 or cart_subtotal <= 0:
+        return Decimal("0")
+    if discount <= 0:
+        return gang_sheet_subtotal
+    kept = max(Decimal("0"), cart_subtotal - discount) / cart_subtotal
+    return (gang_sheet_subtotal * kept).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+
+def share_cents(fee_cents: int, paying: Decimal, total: Decimal) -> int:
+    """The part of an order's fee that goes with a part payment of it, so an
+    invoice settled in two goes pays the fee once between them."""
+    if fee_cents <= 0 or paying <= 0 or total <= 0:
+        return 0
+    part = min(Decimal("1"), paying / total)
+    return int((Decimal(fee_cents) * part).quantize(Decimal("1"), rounding=ROUND_HALF_UP))
