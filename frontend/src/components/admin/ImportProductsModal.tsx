@@ -2,6 +2,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { knownColor, parseColorEntry } from "@/lib/colors";
 import { adminService } from "@/services/admin.service";
 import { productsService } from "@/services/products.service";
 import { ApiClientError } from "@/lib/api-client";
@@ -87,6 +88,8 @@ interface PreviewRow {
   vendor: string;
   product_type: string;
   colors: string[];
+  /** A hex written beside a colour in the file — "Seafoam #9FD5B8" — by the colour's name. */
+  color_hexes: Record<string, string>;
   sizes: string[];
   status: string;
   sku_prefix: string;
@@ -145,7 +148,9 @@ export function ImportProductsModal({ onClose, onSuccess }: Props) {
         vendor: row["vendor"] ?? "",
         product_type: row["product_type"] ?? "",
         // Colors and sizes are comma-separated inside quoted CSV fields
-        colors: (row["colors"] ?? "").split(",").map(s => s.trim()).filter(Boolean),
+        colors: (row["colors"] ?? "").split(",").map(s => parseColorEntry(s).name).filter(Boolean),
+        color_hexes: Object.fromEntries((row["colors"] ?? "").split(",").map(s => parseColorEntry(s))
+          .filter(c => c.name && c.hex).map(c => [c.name, c.hex as string])),
         sizes: (row["sizes"] ?? "").split(",").map(s => s.trim()).filter(Boolean),
         status: row["status"] ?? "draft",
         sku_prefix: row["sku_prefix"] ?? "",
@@ -238,6 +243,8 @@ export function ImportProductsModal({ onClose, onSuccess }: Props) {
             sizes.map(size => ({
               sku: buildSku(row.sku_prefix, row.name, color, size),
               color,
+              // Its own hex from the file, else what the name means — never a grey stand-in.
+              color_hex: row.color_hexes[color] ?? knownColor(color) ?? undefined,
               size,
               retail_price: row.base_price,
               status: "active",

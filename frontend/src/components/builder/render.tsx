@@ -17,6 +17,7 @@
  * off sale) draws nothing on the storefront, and says why in the editor.
  */
 import type { CSSProperties, ReactNode } from "react";
+import { knownColor, resolveColor } from "@/lib/colors";
 import {
   Award, Check, CircleUser, Clock, Heart, Leaf, Mail, MapPin, Phone, ShieldCheck, Sparkles, Star, Truck,
   type LucideIcon,
@@ -203,14 +204,18 @@ function BuyBox({ id, p, product }: { id: string; p: Props; product: BuyProduct 
       const hasDefault = o.values.some((v) => v.default);
       groups.push({
         name: o.name, optionId: o.id, swatch: o.values.some((v) => v.hex),
-        items: o.values.map((v, i) => ({ label: v.label, valueId: v.id, hex: v.hex,
+        // In a question answered with swatches, a choice left without a colour is drawn from its name.
+        items: o.values.map((v, i) => ({ label: v.label, valueId: v.id,
+          hex: v.hex || (o.values.some((x) => x.hex) ? knownColor(v.label) ?? undefined : undefined),
           selected: hasDefault ? !!v.default : i === 0 })),
       });
     }
   } else {
     if (product.colours?.length) {
-      groups.push({ name: "Color", swatch: product.colours.some((c) => c.hex),
-        items: product.colours.map((c, i) => ({ label: c.label, hex: c.hex, selected: i === 0 })) });
+      // A colour with no hex of its own — or the grey once saved as a stand-in — is drawn from its name.
+      const colours = product.colours.map((c) => ({ label: c.label, hex: resolveColor(c.label, c.hex) ?? "" }));
+      groups.push({ name: "Color", swatch: colours.some((c) => c.hex),
+        items: colours.map((c, i) => ({ label: c.label, hex: c.hex, selected: i === 0 })) });
     }
     if (product.sizes?.length) {
       groups.push({ name: "Size", swatch: false,

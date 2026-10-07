@@ -13,6 +13,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { TemplateAssignment } from "@/services/builder.service";
 
+// The whole edit page is mounted for each of these. Alone that takes a second
+// or two; beside the rest of the suite it can pass the default five.
+vi.setConfig({ testTimeout: 30_000 });
+
 const push = vi.fn();
 vi.mock("next/navigation", () => ({
   useParams: () => ({ slug: "heavyweight-tee" }),

@@ -13,6 +13,7 @@
  * produced by the same code path.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
+import { resolveColor } from "@/lib/colors";
 import { apiClient } from "@/lib/api-client";
 import { cartService } from "@/services/cart.service";
 import { useAuthStore } from "@/stores/auth.store";
@@ -203,7 +204,7 @@ export function ProductConfigurator({ productId, productName }: { productId: str
                         {v.image_url
                           // eslint-disable-next-line @next/next/no-img-element
                           ? <img src={v.image_url} alt={v.label} style={{ width: "100%", aspectRatio: "1", objectFit: "cover", borderRadius: "5px", display: "block" }} />
-                          : <div style={{ width: "100%", aspectRatio: "1", borderRadius: "5px", background: v.swatch_hex || "#EFEFEC" }} />}
+                          : <div style={{ width: "100%", aspectRatio: "1", borderRadius: "5px", background: resolveColor(v.label, v.swatch_hex) ?? "#EFEFEC" }} />}
                         <span style={{ display: "block", fontSize: "12px", fontWeight: 600, marginTop: "6px", lineHeight: 1.3 }}>{v.label}</span>
                         {v.price_delta !== 0 && <span style={{ ...DELTA, display: "block", fontWeight: 700 }}>{fmtDelta(v)}</span>}
                       </button>
@@ -218,7 +219,7 @@ export function ProductConfigurator({ productId, productName }: { productId: str
                     return (
                       <button key={v.id} onClick={() => !off && pick(o.id, v.id)} disabled={!!off} title={off || v.label}
                         style={{ width: "34px", height: "34px", borderRadius: "50%", cursor: off ? "not-allowed" : "pointer",
-                          background: v.image_url ? `url(${v.image_url}) center/cover` : (v.swatch_hex || "#DDD"),
+                          background: v.image_url ? `url(${v.image_url}) center/cover` : (resolveColor(v.label, v.swatch_hex) ?? "#DDD"),
                           border: active ? "2px solid #111" : "1px solid #D6D3CC", opacity: off ? 0.35 : 1,
                           boxShadow: active ? "0 0 0 3px rgba(0,0,0,.08)" : "none" }} />
                     );

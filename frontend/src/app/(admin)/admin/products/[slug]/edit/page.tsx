@@ -1,6 +1,8 @@
 // frontend/src/app/(admin)/admin/products/[slug]/edit/page.tsx
 "use client";
 import { ask, tell } from "@/lib/dialog";
+import { colorHex } from "@/lib/colors";
+import { ColorSwatchPicker } from "@/components/admin/ColorSwatchPicker";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
@@ -55,44 +57,6 @@ const thStyle: React.CSSProperties = {
 
 const SIZE_ORDER = ["XXS", "XS", "S", "S/M", "M", "M/L", "L", "XL", "2XL", "3XL", "4XL", "5XL", "6XL", "ONE SIZE"];
 
-const COLOR_MAP: Record<string, string> = {
-  White: "#FFFFFF", Black: "#111111", Navy: "#1e3a5f", Red: "#E8242A",
-  Blue: "#1A5CFF", Royal: "#2251CC", "Royal Blue": "#2251CC",
-  Grey: "#9ca3af", Gray: "#9ca3af", "Dark Grey": "#4b5563", "Dark Gray": "#4b5563",
-  "Light Grey": "#d1d5db", "Light Gray": "#d1d5db", Charcoal: "#374151",
-  "Sport Grey": "#9ca3af", "Heather Grey": "#b0b7c3", "Athletic Heather": "#b0b7c3",
-  Heather: "#b0b7c3", "Dark Heather": "#6b7280", Sand: "#c6a67f", Natural: "#f5f0e8",
-  Tan: "#c9a96e", Brown: "#78350f", Maroon: "#7f1d1d", Burgundy: "#881337",
-  Green: "#166534", Forest: "#1B4332", "Forest Green": "#14532d", "Kelly Green": "#15803d",
-  Lime: "#65a30d", Yellow: "#eab308", Gold: "#f69d0b", Mustard: "#D4A843",
-  Orange: "#ea580c", Purple: "#7c3aed", Pink: "#ffcfce", "Hot Pink": "#db2777",
-  Coral: "#f87171", Teal: "#0cafcc", Turquoise: "#06b6d4", Mint: "#6ee7b7",
-  Olive: "#4d7c0f", Cream: "#fef3c7", Ivory: "#fffff0", "Sky Blue": "#38bdf8",
-  Lavender: "#a78bfa", "Light Blue": "#7DD3FC", "Stonewash Blue": "#5b8fa8",
-  "Dark Navy": "#0f1f3d", Indigo: "#3730a3", Cardinal: "#7b1520", Crimson: "#9f0712",
-  "Carolina Blue": "#56a0d3", "Columbia Blue": "#9bc4e2", Silver: "#c0c0c0",
-  "Ash Grey": "#b2b2b2", Ash: "#b2b2b2", Stone: "#a8a29e", Mocha: "#7c5c48",
-  Chocolate: "#5c3d2e", Caramel: "#b5651d", Camo: "#78866b", "Oatmeal Heather": "#D6CFC7",
-  "Sports Grey": "#C4C4C4",
-  "Charcoal Heather": "#4A4A4A",
-  "Texas Orange": "#BF5700",
-  "Baby Pink": "#F4C2C2",
-  "Moss Green": "#305040",
-  "Lime Green": "#32CD32",
-  "Rust": "#B7410E",
-  "Peach": "#FFDAB9",
-  "Pacific Blue": "#1CA9C9",
-  "Dust": "#ebdcc8",
-  "Military Green": "#4B5320",
-  "Neon Yellow": "#FFFF33",
-  "Neon Orange": "#FF5F1F",
-  "Denim": "#1560BD",
-  "Salt & Pepper": "#8E8E8E",
-  "Powder Blue": "#B0E0E6",
-  "Pure Navy": "#373f53",
-  "Sawana Brown": "#7d6c5b",
-  "Decadent Chocolate": "#723638",
-};
 
 
 interface VariantGroup {
@@ -173,6 +137,25 @@ export default function AdminProductEditPage() {
       setVariantMsg({ ok: false, text: err?.detail || err?.message || "Could not apply those changes." });
     }
     await load();
+  }
+
+  /**
+   * Give a colour its swatch — for every size of it at once.
+   *
+   * A colour added under a name the old list did not have was saved as grey,
+   * and there was nowhere to put that right short of deleting the variants.
+   */
+  async function setGroupColor(color: string, ids: string[], hex: string) {
+    if (!product) return;
+    try {
+      await adminService.bulkUpdateVariants(product.id, { variant_ids: ids, set: { color_hex: hex } });
+      const changed = new Set(ids);
+      setProduct((p) => (p ? { ...p, variants: p.variants.map((v) => (changed.has(v.id) ? { ...v, color_hex: hex } : v)) } : p));
+      setVariantMsg({ ok: true, text: `${color} now shows as ${hex}.` });
+    } catch (e) {
+      const err = e as { detail?: string; message?: string };
+      setVariantMsg({ ok: false, text: err?.detail || err?.message || "That colour could not be saved." });
+    }
   }
 
   const applyToAllVariants = () => applyBulk(null);
@@ -306,7 +289,7 @@ export default function AdminProductEditPage() {
           const sizeCode = size.toUpperCase().replace(/\//g, "");
           const sku = `${productCode}-${colorCode}-${sizeCode}-${Date.now().toString(36).toUpperCase()}`;
           const created = await apiClient.post<ProductVariant>(`/api/v1/admin/products/${product.id}/variants`, {
-            sku, color: color.name, color_hex: color.hex, size, retail_price: price, status: "active",
+            sku, color: color.name, color_hex: color.hex || null, size, retail_price: price, status: "active",
           });
           newVariants.push(created);
         }
@@ -675,8 +658,8 @@ export default function AdminProductEditPage() {
                       <div key={color || "__none"} style={{ marginBottom: "14px" }}>
                         {/* Color group header */}
                         <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "7px", padding: "5px 10px", background: "#F6F6F7", borderRadius: "6px" }}>
-                          {color && COLOR_MAP[color] && (
-                            <div style={{ width: "12px", height: "12px", borderRadius: "50%", background: COLOR_MAP[color], border: "1px solid rgba(0,0,0,.12)", flexShrink: 0 }} />
+                          {color && (
+                            <div style={{ width: "12px", height: "12px", borderRadius: "50%", background: colorHex(color, product.variants.find((v) => v.color === color && v.color_hex)?.color_hex), border: "1px solid rgba(0,0,0,.12)", flexShrink: 0 }} />
                           )}
                           <span style={{ fontSize: "12px", fontWeight: 700, color: "#2A2830" }}>{color || "No Color Assigned"}</span>
                           <span style={{ fontSize: "11px", color: "#7A7880" }}>· {groupImages.length} image{groupImages.length !== 1 ? "s" : ""}</span>
@@ -848,7 +831,8 @@ export default function AdminProductEditPage() {
                   onClick={() => toggleGroup(group.color)}
                   style={{ display: "flex", alignItems: "center", gap: "12px", padding: "12px 16px", cursor: "pointer", background: "#F6F6F7", userSelect: "none" }}
                 >
-                  <div style={{ width: "20px", height: "20px", borderRadius: "50%", background: group.variants.find((v) => (v as { color_hex?: string | null }).color_hex)?.color_hex ?? COLOR_MAP[group.color] ?? "#888", border: "1.5px solid rgba(0,0,0,.1)", flexShrink: 0 }} />
+                  <ColorSwatchPicker name={group.color} hex={group.variants.find((v) => v.color_hex)?.color_hex}
+                    onPick={(hex) => setGroupColor(group.color, group.variants.map((v) => v.id), hex)} />
                   <span style={{ fontWeight: 700, fontSize: "14px", color: "#2A2830" }}>{group.color}</span>
                   <span style={{ fontSize: "12px", color: "#7A7880" }}>({group.variants.length} sizes)</span>
                   <span style={{ marginLeft: "auto", fontSize: "12px", color: "#7A7880" }}>

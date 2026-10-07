@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { colorHex } from "@/lib/colors";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
@@ -23,50 +24,10 @@ interface ProductListClientProps {
 }
 
 // Color name → hex for swatch dots
-const COLOR_MAP: Record<string, string> = {
-  White: "#FFFFFF", Black: "#111111", Navy: "#1e3a5f", Red: "#E8242A",
-  Blue: "#1A5CFF", Royal: "#2251CC", "Royal Blue": "#2251CC",
-  Grey: "#9ca3af", Gray: "#9ca3af", "Dark Grey": "#4b5563", "Dark Gray": "#4b5563",
-  "Light Grey": "#d1d5db", "Light Gray": "#d1d5db", Charcoal: "#374151",
-  "Sport Grey": "#9ca3af", "Heather Grey": "#b0b7c3", "Athletic Heather": "#b0b7c3",
-  Heather: "#b0b7c3", "Dark Heather": "#6b7280", Sand: "#c6a67f", Natural: "#f5f0e8",
-  Tan: "#c9a96e", Brown: "#78350f", Maroon: "#7f1d1d", Burgundy: "#881337",
-  Green: "#166534", Forest: "#1B4332", "Forest Green": "#14532d", "Kelly Green": "#15803d",
-  Lime: "#65a30d", Yellow: "#eab308", Gold: "#f69d0b", Mustard: "#D4A843",
-  Orange: "#ea580c", Purple: "#7c3aed", Pink: "#ffcfce", "Hot Pink": "#db2777",
-  Coral: "#f87171", Teal: "#0cafcc", Turquoise: "#06b6d4", Mint: "#6ee7b7",
-  Olive: "#4d7c0f", Cream: "#fef3c7", Ivory: "#fffff0", "Sky Blue": "#38bdf8",
-  Lavender: "#a78bfa", "Light Blue": "#7DD3FC", "Stonewash Blue": "#5b8fa8",
-  "Dark Navy": "#0f1f3d", Indigo: "#3730a3", Cardinal: "#7b1520", Crimson: "#9f0712",
-  "Carolina Blue": "#56a0d3", "Columbia Blue": "#9bc4e2", Silver: "#c0c0c0",
-  "Ash Grey": "#b2b2b2", Ash: "#b2b2b2", Stone: "#a8a29e", Mocha: "#7c5c48",
-  Chocolate: "#5c3d2e", Caramel: "#b5651d", Camo: "#78866b", "Oatmeal Heather": "#D6CFC7",
-  "Sports Grey": "#C4C4C4",
-  "Charcoal Heather": "#4A4A4A",
-  "Texas Orange": "#BF5700",
-  "Baby Pink": "#F4C2C2",
-  "Moss Green": "#305040",
-  "Lime Green": "#32CD32",
-  "Rust": "#B7410E",
-  "Peach": "#FFDAB9",
-  "Pacific Blue": "#1CA9C9",
-  "Dust": "#ebdcc8",
-  "Military Green": "#4B5320",
-  "Neon Yellow": "#FFFF33",
-  "Neon Orange": "#FF5F1F",
-  "Denim": "#1560BD",
-  "Salt & Pepper": "#8E8E8E",
-  "Powder Blue": "#B0E0E6",
-  "Pure Navy": "#373f53",
-  "Sawana Brown": "#7d6c5b",
-  "Decadent Chocolate": "#723638",
-};
 
-/** The brand's own hex for this colour, else a known name, else grey. */
+/** The brand's own hex for this colour, else what its name means. */
 function swatchColor(c: FacetColor): string {
-  const hex = (c.hex ?? "").trim();
-  if (/^#[0-9a-fA-F]{3,8}$/.test(hex)) return hex;
-  return COLOR_MAP[c.name] ?? COLOR_MAP[c.name?.trim()] ?? "#ccc";
+  return colorHex(c.name, c.hex);
 }
 
 /** Filters hold several values at once: "Tees,Signs" means either. */

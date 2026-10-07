@@ -205,15 +205,25 @@ def _angles(cfg: dict) -> str:
     return (cfg.get("product") or {}).get("images", "all")
 
 
+def _hex(value: Any) -> str | None:
+    """A supplier's colour as "#RRGGBB". Some rows carry it without the #,
+    and those used to be dropped — leaving the colour to be guessed."""
+    text = str(value or "").strip()
+    six = re.fullmatch(r"#?([0-9a-fA-F]{6})", text)
+    if six:
+        return f"#{six.group(1).upper()}"
+    three = re.fullmatch(r"#?([0-9a-fA-F])([0-9a-fA-F])([0-9a-fA-F])", text)
+    return "#" + "".join(ch * 2 for ch in three.groups()).upper() if three else None
+
+
 def _variant_values(fields, style, row, price_fn) -> dict:
     vals = mapping.apply(fields, style, row, level="variant", price_fn=price_fn)
     sku = vals.get("sku") or str(row.get("sku") or row.get("gtin") or "") or \
         f"{style.get('styleID')}-{row.get('colorCode', '')}-{row.get('sizeCode', '')}"
-    hexv = str(row.get("color1") or "").strip()
     return {
         "sku": sku[:100],
         "color": (row.get("colorName") or "Default")[:100],
-        "color_hex": hexv if hexv.startswith("#") and len(hexv) <= 9 else None,
+        "color_hex": _hex(row.get("color1")),
         "size": (row.get("sizeName") or "OS")[:50],
         "retail_price": vals.get("retail_price") if vals.get("retail_price") is not None
         else price_fn(float(row.get("customerPrice") or row.get("piecePrice") or 0)),

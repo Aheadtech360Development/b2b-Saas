@@ -9,26 +9,25 @@
  * render exactly. Backend stays color/size (no migration); this only changes how
  * the values are entered.
  */
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { colorNames, knownColor, normalizeHex, parseColorEntry } from "@/lib/colors";
+import { ColorSwatchPicker, UNSET_SWATCH } from "@/components/admin/ColorSwatchPicker";
 
+/** A colour to make variants in. `hex` is "" when no colour could be found for the name and none was chosen. */
 export interface ColorOption { name: string; hex: string; }
 
-// Sensible default hex for common colour names so a freshly typed colour still
-// gets a reasonable swatch; the admin can always override with the picker.
-const KNOWN: Record<string, string> = {
-  white: "#FFFFFF", black: "#111111", navy: "#1e3a5f", red: "#E8242A", blue: "#1A5CFF",
-  royal: "#2251CC", "royal blue": "#2251CC", grey: "#9ca3af", gray: "#9ca3af",
-  "dark grey": "#4b5563", "dark gray": "#4b5563", "light grey": "#d1d5db", charcoal: "#374151",
-  "sport grey": "#9ca3af", "heather grey": "#b0b7c3", "athletic heather": "#b0b7c3",
-  sand: "#c6a67f", natural: "#f5f0e8", tan: "#c9a96e", brown: "#78350f", maroon: "#7f1d1d",
-  burgundy: "#881337", wine: "#722F37", green: "#166534", forest: "#1B4332", "forest green": "#14532d",
-  "kelly green": "#15803d", olive: "#6B7233", sage: "#9CAF88", "deep teal": "#0f4c4c",
-  teal: "#0d9488", coral: "#FF7F50", pink: "#EC4899", "dusty rose": "#C08497", dusk: "#8B7B9B",
-  "powder blue": "#B0E0E6", ivory: "#FFFFF0", yellow: "#EAB308", orange: "#EA580C", purple: "#7C3AED",
-};
 const QUICK_SIZES = ["XS", "S", "S/M", "M", "M/L", "L", "XL", "2XL", "3XL", "4XL", "5XL", "One Size"];
 
-function hexFor(name: string) { return KNOWN[name.trim().toLowerCase()] ?? "#888888"; }
+/**
+ * The colour for what was typed: the hex written with it ("Seafoam #9FD5B8"),
+ * else what the name means. This had a forty-name list of its own and gave
+ * every other name #888888 — which was then saved, so "Heather Royal" or
+ * "Safety Green" was a grey dot in the admin and on the shop.
+ */
+function entryFor(text: string): ColorOption | null {
+  const { name, hex } = parseColorEntry(text);
+  return name ? { name, hex: hex ?? knownColor(name) ?? "" } : null;
+}
 
 export function VariantOptionsEditor({
   busy, onAdd, onCancel, willReplace,
@@ -41,16 +40,39 @@ export function VariantOptionsEditor({
   const [colors, setColors] = useState<ColorOption[]>([]);
   const [sizes, setSizes] = useState<string[]>([]);
   const [colorInput, setColorInput] = useState("");
-  const [colorHex, setColorHex] = useState("#888888");
+  /** A colour chosen by hand for what is being typed — the picker or the hex box. Empty: go by the name. */
+  const [hexInput, setHexInput] = useState("");
   const [sizeInput, setSizeInput] = useState("");
   const [price, setPrice] = useState("");
+  const names = useMemo(() => colorNames(), []);
 
-  function addColor(name?: string, hex?: string) {
-    const n = (name ?? colorInput).trim();
-    if (!n) return;
-    if (colors.some((c) => c.name.toLowerCase() === n.toLowerCase())) { setColorInput(""); return; }
-    setColors((c) => [...c, { name: n, hex: hex ?? (colorHex !== "#888888" ? colorHex : hexFor(n)) }]);
-    setColorInput(""); setColorHex("#888888");
+  const typing = entryFor(colorInput);
+  const chosen = normalizeHex(hexInput);
+  /** What the swatch shows as the name is typed: the hand-picked colour, else the name's, else nothing yet. */
+  const live = chosen ?? (typing?.hex || null);
+
+  /** Add colours, skipping any already there. */
+  function addColors(list: ColorOption[]) {
+    setColors((have) => {
+      const out = [...have];
+      for (const c of list) if (c.name && !out.some((x) => x.name.toLowerCase() === c.name.toLowerCase())) out.push(c);
+      return out;
+    });
+  }
+  function addColor() {
+    if (!typing) return;
+    addColors([{ name: typing.name, hex: chosen ?? typing.hex }]);
+    setColorInput(""); setHexInput("");
+  }
+  /** Several at once — "Black, Navy, Heather Royal" pasted or typed with commas: each gets its own colour. */
+  function addList(text: string): boolean {
+    if (!/[,;\n]/.test(text)) return false;
+    const list = text.split(/[,;\n]+/).map((t) => entryFor(t.trim())).filter((c): c is ColorOption => !!c);
+    // One name and a comma: the colour picked by hand for it still counts.
+    if (list.length === 1 && chosen) list[0] = { ...list[0]!, hex: chosen };
+    addColors(list);
+    setColorInput(""); setHexInput("");
+    return true;
   }
   function addSize(v?: string) {
     const s = (v ?? sizeInput).trim();
@@ -72,40 +94,79 @@ export function VariantOptionsEditor({
               reach, so the round swatch is the wrapper and the input sits inside
               it, oversized and clipped — what shows is a circle of the colour. */}
           <label
-            title="Swatch colour"
+            title={live ? `${live} — click to pick another colour` : "Pick this colour"}
             style={{
               width: "38px", height: "38px", borderRadius: "50%", flexShrink: 0,
-              background: colorHex, border: "1.5px solid rgba(0,0,0,.14)",
+              background: live ?? UNSET_SWATCH, border: live ? "1.5px solid rgba(0,0,0,.14)" : "1.5px dashed #B45309",
               boxShadow: "inset 0 0 0 2px #fff", cursor: "pointer",
               overflow: "hidden", position: "relative", display: "inline-block",
             }}
           >
             <input
               type="color"
-              value={colorHex}
-              onChange={(e) => setColorHex(e.target.value)}
+              aria-label="Pick this colour"
+              value={(live ?? "#888888").toLowerCase()}
+              onChange={(e) => setHexInput(e.target.value.toUpperCase())}
               style={{ position: "absolute", inset: "-8px", width: "calc(100% + 16px)", height: "calc(100% + 16px)", border: "none", padding: 0, background: "none", cursor: "pointer", opacity: 0 }}
             />
           </label>
           <input
             value={colorInput}
-            onChange={(e) => { setColorInput(e.target.value); const k = KNOWN[e.target.value.trim().toLowerCase()]; if (k) setColorHex(k); }}
-            onKeyDown={(e) => { if (e.key === "Enter" || e.key === ",") { e.preventDefault(); addColor(); } }}
-            placeholder="e.g. Black, Navy, Forest…  (Enter to add)"
+            list="variant-colour-names"
+            aria-label="Colour name"
+            onChange={(e) => {
+              const text = e.target.value;
+              if (/[,;]/.test(text) && addList(text)) return;
+              setColorInput(text);
+              // A colour picked by hand belongs to the name it was picked for.
+              if (!text.trim()) setHexInput("");
+            }}
+            onPaste={(e) => { const text = e.clipboardData.getData("text"); if (/[,;\n]/.test(text) && addList(text)) e.preventDefault(); }}
+            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addColor(); } }}
+            placeholder="e.g. Black, Heather Royal, Safety Green…  (Enter to add)"
             style={{ ...INPUT, flex: 1, minWidth: "160px" }}
+          />
+          <datalist id="variant-colour-names">{names.map((n) => <option key={n} value={n} />)}</datalist>
+          <input
+            value={hexInput || (live ?? "")}
+            aria-label="Hex code"
+            spellCheck={false}
+            onChange={(e) => setHexInput(e.target.value)}
+            onFocus={(e) => e.currentTarget.select()}
+            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addColor(); } }}
+            placeholder="#hex"
+            title="The colour's hex code — typed here, it is used straight away"
+            style={{ ...INPUT, width: "104px", fontFamily: "ui-monospace, monospace", fontSize: "13px", borderColor: hexInput.trim() && !chosen ? "#F59E0B" : "#D6D3CC" }}
           />
           <button type="button" onClick={() => addColor()} disabled={!colorInput.trim()} style={ADD_BTN}>Add</button>
         </div>
+        {typing && (
+          <div style={{ fontSize: "12px", marginBottom: "10px", color: live ? "#6B6B6B" : "#B45309" }}>
+            {hexInput.trim() && !chosen
+              ? "A hex code looks like #1F3A93."
+              : !live
+                ? <>No colour is known for “{typing.name}”. Click the circle to pick it, or type its hex code — it is used straight away.</>
+                : chosen
+                  ? <>“{typing.name}” will use {chosen}.</>
+                  : <>Colour found for “{typing.name}”. Not right? Click the circle or type a hex code.</>}
+          </div>
+        )}
         <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
           {colors.map((c) => (
             <span key={c.name} style={CHIP}>
-              <span style={{ width: "15px", height: "15px", borderRadius: "50%", background: c.hex, border: "1.5px solid rgba(0,0,0,.12)" }} />
+              <ColorSwatchPicker name={c.name} hex={c.hex} size={16}
+                onPick={(hex) => setColors((list) => list.map((x) => (x.name === c.name ? { ...x, hex } : x)))} />
               {c.name}
               <button type="button" onClick={() => setColors((list) => list.filter((x) => x.name !== c.name))} style={CHIP_X}>×</button>
             </span>
           ))}
-          {colors.length === 0 && <span style={EMPTY}>No colours yet — add at least one.</span>}
+          {colors.length === 0 && <span style={EMPTY}>No colours yet — add at least one. Several at once: paste them with commas.</span>}
         </div>
+        {colors.some((c) => !c.hex) && (
+          <div style={{ fontSize: "12px", color: "#B45309", marginTop: "8px" }}>
+            A hatched dot has no colour yet — click it to choose one, or it will show as a plain dot on your shop.
+          </div>
+        )}
       </div>
 
       {/* ── Size option ──────────────────────────────────────────────────────── */}

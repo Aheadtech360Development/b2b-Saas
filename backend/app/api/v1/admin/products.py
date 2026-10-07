@@ -298,6 +298,18 @@ async def bulk_generate_variants(
     return {"generated": len(variants), "variants": [{"id": str(v.id), "sku": v.sku} for v in variants]}
 
 
+def _clean_hex(value: Any) -> str | None:
+    """"#1f3a93", "1F3A93" or "#abc" as "#1F3A93". Anything else is not a colour."""
+    import re
+
+    text = str(value or "").strip()
+    six = re.fullmatch(r"#?([0-9a-fA-F]{6})(?:[0-9a-fA-F]{2})?", text)
+    if six:
+        return f"#{six.group(1).upper()}"
+    three = re.fullmatch(r"#([0-9a-fA-F])([0-9a-fA-F])([0-9a-fA-F])", text)
+    return "#" + "".join(ch * 2 for ch in three.groups()).upper() if three else None
+
+
 @router.post("/{product_id}/variants/batch")
 async def create_variants_batch(
     product_id: UUID,
@@ -316,6 +328,9 @@ async def create_variants_batch(
             product_id=product_id,
             sku=str(v.get("sku", "")),
             color=v.get("color"),
+            # The swatch for this colour, when the import knew it. Without it
+            # every imported colour was left to be guessed from its name.
+            color_hex=_clean_hex(v.get("color_hex")),
             size=v.get("size"),
             retail_price=float(v.get("retail_price", 0)),
             status=str(v.get("status", "active")),

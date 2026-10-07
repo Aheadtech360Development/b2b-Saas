@@ -14,6 +14,7 @@ import {
 } from "@/services/platform.service";
 import { AnalyticsTab, ActivityTab, SearchTab, HealthTab } from "@/components/platform/InsightTabs";
 import { StripeModePanel } from "@/components/platform/StripeModePanel";
+import { TaxTab } from "@/components/platform/TaxTab";
 import type { Tenant } from "@/types/user.types";
 
 // The service is sold as a single flat offering — there are no tiers to choose
@@ -38,7 +39,7 @@ export default function PlatformDashboard() {
   const [showCreate, setShowCreate] = useState(false);
   const [createdInfo, setCreatedInfo] = useState<CreateTenantResponse | null>(null);
   const [manageTenant, setManageTenant] = useState<Tenant | null>(null);
-  const [tab, setTab] = useState<"brands" | "analytics" | "activity" | "search" | "health">("brands");
+  const [tab, setTab] = useState<"brands" | "analytics" | "taxes" | "activity" | "search" | "health">("brands");
 
   async function loadTenants() {
     setLoading(true);
@@ -103,6 +104,7 @@ export default function PlatformDashboard() {
         {([
           ["brands", "Brands"],
           ["analytics", "Analytics"],
+          ["taxes", "Taxes"],
           ["activity", "Activity"],
           ["search", "Search"],
           ["health", "Brand Health"],
@@ -125,6 +127,7 @@ export default function PlatformDashboard() {
       </div>
 
       {tab === "analytics" && <AnalyticsTab />}
+      {tab === "taxes" && <TaxTab />}
       {tab === "activity" && <ActivityTab tenants={tenants} />}
       {tab === "search" && <SearchTab />}
       {tab === "health" && <HealthTab onEnter={(slug) => enterBrandDashboard(slug).catch(() => alert("Could not open dashboard"))} />}

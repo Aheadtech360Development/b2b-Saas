@@ -14,6 +14,7 @@
  * pricing while building — the server stays the only authority at checkout.
  */
 import { useCallback, useEffect, useState } from "react";
+import { knownColor } from "@/lib/colors";
 import { apiClient } from "@/lib/api-client";
 import { MediaPicker } from "@/components/admin/MediaPicker";
 import { CombinationPricing } from "@/components/admin/CombinationPricing";
@@ -570,9 +571,9 @@ export function ProductOptionsBuilder({ productId }: { productId: string }) {
                                   {o.input_type === "swatch" && (
                                     <td style={TD}>
                                       <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-                                        <label title={v.image_url ? "The image fills this circle — the colour is only used without one" : v.swatch_hex ? "Change colour" : "Pick a colour"}
-                                          style={v.swatch_hex ? SWATCH_WELL(v.swatch_hex) : SWATCH_EMPTY}>
-                                          <input type="color" value={v.swatch_hex ?? "#000000"}
+                                        <label title={v.image_url ? "The image fills this circle — the colour is only used without one" : v.swatch_hex ? "Change colour" : knownColor(v.label) ? "Drawn from its name — click to choose another colour" : "Pick a colour"}
+                                          style={v.swatch_hex ? SWATCH_WELL(v.swatch_hex) : knownColor(v.label) ? { ...SWATCH_WELL(knownColor(v.label)!), borderStyle: "dashed" } : SWATCH_EMPTY}>
+                                          <input type="color" value={(v.swatch_hex ?? knownColor(v.label) ?? "#000000").toLowerCase()}
                                             onChange={e => patchVal(oi, vi, { swatch_hex: e.target.value })}
                                             style={SWATCH_INPUT} />
                                         </label>
