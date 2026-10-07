@@ -8,6 +8,7 @@
  * And nothing a merchant sets for a desktop is allowed to make a phone's page
  * wider than its screen: a fixed width, a row told not to wrap, a pasted table.
  */
+import { readFileSync } from "node:fs";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { Tree, type RenderCtx } from "@/components/builder/render";
@@ -213,6 +214,21 @@ describe("a header and a footer are styled by name", () => {
     }
     expect(BY_TYPE.section!.styles).toContain("border");
     expect(BY_TYPE.menu!.styles).toEqual(expect.arrayContaining(["typography", "links", "spacing"]));
+  });
+
+  it("opens a header's dropdown over a page's own sticky bar, and under the pop-ups", () => {
+    const header = Number(/\.bsite\[data-part=header\]\{z-index:(\d+)\}/.exec(BASE_CSS)![1]);
+    // The account pages keep a bar of their own at the top: a tie goes to whichever comes later, which is the bar.
+    const account = readFileSync("src/app/(customer)/account/layout.tsx", "utf8");
+    const bar = Number(/position: "sticky",\s*top: 0,\s*zIndex: (\d+)/.exec(account)![1]);
+    expect(header).toBeGreaterThan(bar);
+    expect(header).toBeLessThan(50);   // the cart's pop-up, and the chat above that
+    // A header that follows the page down sits on the same layer.
+    expect(BASE_CSS).toContain(".bsite[data-part=header][data-sticky]{position:sticky;top:0}");
+  });
+
+  it("keeps the page's layers inside the editor's frame, so a header never covers what is selected in it", () => {
+    expect(EDITOR_CSS).toMatch(/\.sbe-frame\{[^}]*isolation:isolate/);
   });
 });
 

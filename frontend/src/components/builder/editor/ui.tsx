@@ -131,7 +131,7 @@ select.sbe-in{padding-right:28px}
 .sbe-crumbs button{border:0;background:none;padding:2px 4px;border-radius:5px;cursor:pointer;color:#5B6170}
 .sbe-crumbs button:hover{background:#F1F3F7;color:#14161B}
 .sbe-frame-wrap{margin:0 auto;position:relative}
-.sbe-frame{background:#fff;box-shadow:0 1px 3px rgba(20,22,27,.08),0 10px 30px rgba(20,22,27,.08);transform-origin:top left;position:relative;border-radius:6px;overflow:hidden}
+.sbe-frame{background:#fff;box-shadow:0 1px 3px rgba(20,22,27,.08),0 10px 30px rgba(20,22,27,.08);transform-origin:top left;position:relative;isolation:isolate;border-radius:6px;overflow:hidden}
 .sbe-frame[data-device=mobile],.sbe-frame[data-device=tablet]{border-radius:18px}
 .sbe-overlay{position:absolute;inset:0;pointer-events:none;z-index:20}
 .sbe-sel{position:absolute;border:2px solid #4F46E5;border-radius:3px}

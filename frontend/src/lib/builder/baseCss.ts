@@ -26,8 +26,8 @@ export const BASE_CSS = `
 .bsite :where(a:hover){color:var(--b-link-hover,var(--b-link,inherit))}
 .bsite :where(p,figure,blockquote,ul,ol){margin:0}
 .bsite :where(button){font:inherit}
-.bsite[data-part=header]{z-index:30}
-.bsite[data-part=header][data-sticky]{position:sticky;top:0;z-index:40}
+.bsite[data-part=header]{z-index:40}
+.bsite[data-part=header][data-sticky]{position:sticky;top:0}
 
 .bsite :where(.b-section){position:relative;width:100%}
 .bsite :where(.b-in){width:100%;margin-inline:auto;padding-inline:20px}
