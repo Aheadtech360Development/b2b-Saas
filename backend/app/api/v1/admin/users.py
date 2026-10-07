@@ -1,10 +1,11 @@
 # backend/app/api/v1/admin/users.py
 """Admin user management — list, create, update, delete, reset password."""
+import logging
 import secrets
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import DBAPIError, IntegrityError
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -14,6 +15,8 @@ from app.core.security import hash_password
 from app.core.tenant_context import get_current_tenant_id
 from app.models.company import CompanyUser, Company
 from app.models.user import User
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/admin/users", tags=["admin", "users"])
 
@@ -344,6 +347,15 @@ async def delete_user(
         held = str(getattr(cause, "table_name", "") or "").replace("_", " ") or "other records"
         raise HTTPException(status_code=409, detail=(
             f"{name} is still used by {held}, so the account can't be deleted. Deactivate it instead."
+        ))
+    except DBAPIError:
+        await db.rollback()
+        # The database refused for a reason of its own — a rule on a table that
+        # pointed at them, as the activity log's once did (migration 0059).
+        # Said, and logged in full, rather than handed back as a bare 500.
+        logger.exception("Deleting user %s was refused by the database", user_id)
+        raise HTTPException(status_code=409, detail=(
+            f"{name} couldn't be deleted: the database refused it. Deactivate the account instead."
         ))
 
 
