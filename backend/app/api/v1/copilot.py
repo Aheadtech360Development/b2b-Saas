@@ -3,6 +3,7 @@
   GET  /admin/copilot/briefing   today's priority list (computed; works without AI)
   POST /admin/copilot/chat       the owner asks about their store
   POST /copilot/support          a signed-in customer asks about their own orders
+  POST /copilot/studio           a customer asks about the sheet they are building
 
 The client keeps the conversation as plain text and sends it back each turn.
 Tool rounds happen server-side and are never part of what the client can send,
@@ -18,6 +19,8 @@ from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
+from app.core.config import settings
+from app.core.rate_limit import client_ip
 from app.core.tenant_context import (
     NO_TENANT, get_current_brand_name, get_current_tenant_id, is_scoping_bypassed,
 )
@@ -30,6 +33,7 @@ from app.services.copilot.actions import (
 )
 from app.services.copilot.audit import log_action
 from app.services.copilot.briefing import build_briefing
+from app.services.copilot.studio import StudioContext, studio_system
 from app.services.copilot.tools import (
     CUSTOMER_TOOLS, OWNER_TOOLS, customer_handlers, owner_handlers,
 )
@@ -237,6 +241,34 @@ async def customer_support(
             system=_customer_system(), tools=CUSTOMER_TOOLS,
             handlers=customer_handlers(db, user_id=user_id, company_id=company_id),
             messages=[m.model_dump() for m in payload.messages], scope="support", db=db,
+        )
+    except (CopilotUnavailable, CopilotLimitReached, CopilotError) as exc:
+        _raise_for(exc)
+
+
+class StudioChatIn(ChatIn):
+    """A question from inside the gang sheet builder, with the sheet as the
+    builder sees it. The sheet travels with every question: it is what the
+    answer is about, and it changes between questions."""
+    context: StudioContext | None = None
+
+
+@public_router.post("/studio")
+async def studio_assistant(
+    payload: StudioChatIn, request: Request, db: AsyncSession = Depends(get_db), __: None = Depends(require_brand),
+) -> dict:
+    """The builder's assistant. Open to guests — the builder is — so the limit
+    is per person: the signed-in user, or the visitor's address."""
+    user_id = getattr(request.state, "user_id", None)
+    if user_id:
+        subject, limit = f"u{user_id}", settings.COPILOT_STUDIO_USER_LIMIT
+    else:
+        subject, limit = f"ip{client_ip(request)}", settings.COPILOT_STUDIO_GUEST_LIMIT
+    try:
+        return await run_copilot(
+            system=studio_system(_brand(), _today(), payload.context), tools=[], handlers={},
+            messages=[m.model_dump() for m in payload.messages], scope="studio", db=db,
+            studio=True, subject=subject, subject_limit=limit,
         )
     except (CopilotUnavailable, CopilotLimitReached, CopilotError) as exc:
         _raise_for(exc)

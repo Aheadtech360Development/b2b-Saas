@@ -49,6 +49,9 @@ OPENAI_STYLE = {
     "openai": ("https://api.openai.com/v1/", ""),
 }
 ANTHROPIC_DEFAULT_MODEL = "claude-sonnet-5"
+# The builder's customer assistant: asking and explaining, with the layout
+# maths done elsewhere, so the small model is enough.
+ANTHROPIC_STUDIO_MODEL = "claude-haiku-4-5-20251001"
 
 
 class CopilotUnavailable(Exception):
@@ -81,11 +84,12 @@ class Provider:
     base_url: str = ""
 
 
-def resolve_provider() -> Provider | None:
+def resolve_provider(studio: bool = False) -> Provider | None:
     """The configured provider, or None when no key is set.
 
     An explicit COPILOT_PROVIDER wins. Otherwise the first key present is used,
     Claude first, so adding a key is all it takes to switch the copilot on.
+    `studio` picks the model for the builder's customer assistant.
     """
     keys = {
         "anthropic": settings.ANTHROPIC_API_KEY,
@@ -98,9 +102,10 @@ def resolve_provider() -> Provider | None:
     if name not in keys or not keys[name]:
         return None
     if name == "anthropic":
-        return Provider(name, keys[name], settings.COPILOT_MODEL or ANTHROPIC_DEFAULT_MODEL)
+        model = (settings.COPILOT_STUDIO_MODEL or ANTHROPIC_STUDIO_MODEL) if studio else ""
+        return Provider(name, keys[name], model or settings.COPILOT_MODEL or ANTHROPIC_DEFAULT_MODEL)
     base, default_model = OPENAI_STYLE[name]
-    model = settings.COPILOT_MODEL or default_model
+    model = (settings.COPILOT_STUDIO_MODEL if studio else "") or settings.COPILOT_MODEL or default_model
     if not model:
         return None
     return Provider(name, keys[name], model, base)
@@ -110,12 +115,15 @@ def copilot_configured() -> bool:
     return resolve_provider() is not None
 
 
-async def _check_daily_limit(scope: str) -> None:
-    limit = settings.COPILOT_DAILY_LIMIT
+async def _check_daily_limit(scope: str, subject: str = "", limit: int | None = None) -> None:
+    """Count one question against the brand's day, or one person's when
+    `subject` names them (a user id, or a guest's address)."""
+    limit = settings.COPILOT_DAILY_LIMIT if limit is None else limit
     if limit <= 0:
         return
     tenant = get_current_tenant_id() or "platform"
-    key = f"copilot:{tenant}:{scope}:{datetime.now(UTC):%Y%m%d}"
+    who = f":{subject}" if subject else ""
+    key = f"copilot:{tenant}:{scope}{who}:{datetime.now(UTC):%Y%m%d}"
     try:
         used = await redis_increment(key, expire=26 * 3600)
     except Exception as exc:
@@ -197,12 +205,19 @@ async def run_copilot(
     messages: list[dict],
     scope: str,
     db=None,
+    studio: bool = False,
+    subject: str = "",
+    subject_limit: int | None = None,
 ) -> dict:
     """Answer the last user message. `messages` is plain text history
     ([{role, content}]); tool rounds happen here and are not returned."""
-    provider = resolve_provider()
+    provider = resolve_provider(studio)
     if provider is None:
         raise CopilotUnavailable("The AI copilot isn't switched on for this platform yet.")
+    # The person's own allowance first, so a visitor who has used theirs does not
+    # also spend the brand's.
+    if subject:
+        await _check_daily_limit(scope, subject, subject_limit)
     await _check_daily_limit(scope)
 
     history = [{"role": m["role"], "content": m["content"]} for m in messages]
@@ -225,9 +240,10 @@ async def run_copilot(
 async def _anthropic(client, p: Provider, system, tools, handlers, convo, used, db, scope="-") -> str | None:
     headers = {"x-api-key": p.api_key, "anthropic-version": ANTHROPIC_VERSION, "content-type": "application/json"}
     for _ in range(MAX_TOOL_ROUNDS + 1):
-        res = await client.post(ANTHROPIC_URL, headers=headers, json={
-            "model": p.model, "max_tokens": MAX_TOKENS, "system": system, "tools": tools, "messages": convo,
-        })
+        body_in = {"model": p.model, "max_tokens": MAX_TOKENS, "system": system, "messages": convo}
+        if tools:
+            body_in["tools"] = tools
+        res = await client.post(ANTHROPIC_URL, headers=headers, json=body_in)
         _raise_for_status(res, p)
         body = res.json()
         content = body.get("content") or []
@@ -264,11 +280,14 @@ async def _openai_style(client, p: Provider, system, tools, handlers, history, u
     convo: list[dict] = [{"role": "system", "content": system}, *history]
 
     for _ in range(MAX_TOOL_ROUNDS + 1):
-        res = await client.post(p.base_url + "chat/completions", headers=headers, json={
-            "model": p.model, "messages": convo, "tools": fn_tools,
+        body_in = {
+            "model": p.model, "messages": convo,
             # OpenAI's newer models refuse max_tokens; Gemini's endpoint takes it.
             ("max_completion_tokens" if p.name == "openai" else "max_tokens"): MAX_TOKENS,
-        })
+        }
+        if fn_tools:
+            body_in["tools"] = fn_tools
+        res = await client.post(p.base_url + "chat/completions", headers=headers, json=body_in)
         _raise_for_status(res, p)
         choice = (res.json().get("choices") or [{}])[0]
         message = choice.get("message") or {}

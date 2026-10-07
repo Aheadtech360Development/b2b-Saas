@@ -53,6 +53,8 @@ import {
   type NestItem, type NestPlaced, type NestPlan,
 } from "@/lib/sheetNesting";
 import { NestPreview } from "@/components/storefront/NestPreview";
+import { StudioAssistant } from "@/components/storefront/StudioAssistant";
+import { buildStudioContext, type StudioContext } from "@/lib/studioContext";
 import { NoRoomAsk, type NoRoomChoice } from "@/components/storefront/NoRoomAsk";
 import { say } from "@/lib/toast";
 import { ToastContainer } from "react-toastify";
@@ -339,6 +341,7 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
   const [glide, setGlide] = useState<null | { order: Map<number, number>; step: number }>(null);
   /** A wider edge chosen in Auto Build, kept so a later Auto Nest packs to the same one. */
   const [nestEdge, setNestEdge] = useState(0);
+  const [assistantOpen, setAssistantOpen] = useState(false);
   const glideTimer = useRef<number | undefined>(undefined);
   useEffect(() => () => { window.clearTimeout(freshTimer.current); window.clearTimeout(glideTimer.current); }, []);
   // The document only exists in the browser, so the first render stays in
@@ -2241,6 +2244,32 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
     [warnings],
   );
 
+  /** The sheet open now, as the assistant is told about it — fits and prices
+   *  worked out here with the builder's own nesting, read at the moment of the
+   *  question so it is never a stale picture. */
+  function assistantContext(): StudioContext | null {
+    return buildStudioContext({
+      sizes,
+      current: size,
+      currentLength: sheetLen,
+      edge: nestEdge,
+      gap: imageMargin,
+      copiesOrdered: qty,
+      priceNow: unitPrice * qty,
+      pieces: placements.map((p) => {
+        const u = upById(p.uid);
+        return {
+          name: u?.file_name ?? "design", w_in: p.w_in, h_in: p.h_in,
+          pxW: u?.pxW, pxH: u?.pxH, isImage: !!u?.isImage, hasAlpha: !!u?.hasAlpha,
+        };
+      }),
+      warnings: {
+        low_dpi: warnCounts.dpi ?? 0, outside_safe_area: warnCounts.outside ?? 0,
+        overlapping: warnCounts.overlap ?? 0, very_small: warnCounts.small ?? 0,
+      },
+    });
+  }
+
   // No portal. It was here to escape a shop page drawn around the builder, and
   // that page is gone — /gang-sheets renders nothing but this. Worse, moving
   // the tree into a portal after mount rebuilds its DOM nodes, which left the
@@ -2270,6 +2299,7 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
                 .map((n) => <option key={n} value={n}>{n}</option>)}
             </select>
           </label>
+          <button onClick={() => setAssistantOpen((o) => !o)} style={S.ghostBtn} title="Ask the assistant — will my designs fit? what about backgrounds? (English / Roman Urdu)" aria-pressed={assistantOpen}><Sparkles size={15} strokeWidth={2.1} /> Ask AI</button>
           <button onClick={preview} style={S.ghostBtn} title="Open a full-resolution preview in a new tab"><Eye size={15} strokeWidth={2.1} /> Preview</button>
           <button onClick={() => save(true)} disabled={saving} style={{ ...S.primaryBtn, opacity: saving ? 0.6 : 1 }}>
             <ShoppingCart size={15} strokeWidth={2.2} /> {saving ? "Saving…" : "Save & Add to Cart"}
@@ -3320,6 +3350,7 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
         );
       })()}
 
+      <StudioAssistant open={assistantOpen} onClose={() => setAssistantOpen(false)} getContext={assistantContext} />
       <ToastContainer />
     </div>
   );

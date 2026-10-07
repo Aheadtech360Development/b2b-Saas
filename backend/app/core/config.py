@@ -196,6 +196,14 @@ class Settings(BaseSettings):
     COPILOT_PROVIDER: str = ""
     COPILOT_MODEL: str = ""
     COPILOT_DAILY_LIMIT: int = 200
+    # The gang sheet builder's customer assistant. A cheaper model than the
+    # owner copilot is enough (the layout maths is done by the builder, the model
+    # only asks and explains); blank uses Claude Haiku when the provider is
+    # Claude, and the provider's own default otherwise. Limits are per day, per
+    # signed-in user and per guest address, so one visitor cannot run up the bill.
+    COPILOT_STUDIO_MODEL: str = ""
+    COPILOT_STUDIO_USER_LIMIT: int = 60
+    COPILOT_STUDIO_GUEST_LIMIT: int = 15
 
     # ── Address suggestions at checkout (api/v1/address.py) ──────────────────
     # Geoapify's free plan: 3,000 requests a day, no card. Blank turns the

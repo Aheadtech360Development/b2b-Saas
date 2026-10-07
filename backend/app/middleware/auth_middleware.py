@@ -351,6 +351,12 @@ class AuthMiddleware(BaseHTTPMiddleware):
             return True
         if path == "/api/v1/gang-sheets/sizes":
             return True
+        # The builder's assistant, for the same reason: the builder is open to
+        # anybody, so its helper is. It reads only the sheet sent with the
+        # question and touches no account data; its limits are per person
+        # (user, or the visitor's address) and per shop per day.
+        if path == "/api/v1/copilot/studio":
+            return True
         # The artwork a buyer is ordering. Nobody needs an account to order,
         # so nobody needs one to hand over the file being printed. The
         # endpoint's own rate limit and its extension allow-list are what keep
