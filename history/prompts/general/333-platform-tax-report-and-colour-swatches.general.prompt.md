@@ -1,5 +1,5 @@
 ---
-id: 311
+id: 333
 title: Platform tax report and colour swatches
 stage: general
 date: 2026-10-07
@@ -31,6 +31,7 @@ files:
 tests:
  - the tax report against the local test database, on orders inside one rolled-back transaction, 8/8: paid and all orders, half and whole refunds, the month's edge in Chicago and in UTC, one day, by month, by region, nothing left behind
  - frontend vitest: whole suite 354 passed, the 2 old api-client failures; colours 13/13, taxes tab 5/5; tsc: no new errors; no import above a "use client"
+ - after rebasing onto 22 commits pushed by another session: tsc clean, whole suite 394 passed with the same 2 old failures
  - one picture of the Taxes tab with sample figures
 ---
 
