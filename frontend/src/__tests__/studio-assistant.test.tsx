@@ -187,8 +187,12 @@ describe("the assistant builds the sheet", () => {
     const boxes = designs().map(inches);
     expect(overlapping(boxes)).toBe(false);
     expect(outside(boxes, 10)).toBe(false);
-    expect(card.getByText(/Done — your sheet is updated/)).toBeInTheDocument();
+    expect(card.getByText(/Your sheet is updated/)).toBeInTheDocument();
     expect(card.getByRole("button", { name: /Add to cart/ })).toBeInTheDocument();
+    // Read as a person typed it: the model's long dash is a comma by the time
+    // it is shown, and nothing the builder says of its own has one.
+    expect(card.getByText("Ready, press the button below.")).toBeInTheDocument();
+    expect(panel().textContent).not.toMatch(/[—–]/);
   });
 
   it("resizes as asked, keeping the design's shape", async () => {
@@ -206,7 +210,7 @@ describe("the assistant builds the sheet", () => {
     const card = within(panel());
     expect(line(/20 designs on 2 × 22×10/)).toHaveTextContent("$14.70");
     expect(line(/takes 2 sheets/)).toBeInTheDocument();
-    const bigger = card.getByRole("button", { name: /Use one 22×24 instead — \$15.00/ });
+    const bigger = card.getByRole("button", { name: /Use one 22×24 instead \(\$15\.00\)/ });
 
     await press(bigger);
     expect(sizeMenu().value).toBe("s24");
@@ -321,7 +325,8 @@ describe("files handed to the assistant", () => {
     post.mockResolvedValueOnce({ reply: "OK." });
     await answer(card, "Yes, remove it", "Yes, put it on");
     expect(designs()).toHaveLength(2);
-    expect(within(panel()).getByText(/⚠ fail.jpg: the background couldn't be removed just now/)).toBeInTheDocument();
+    // The note itself, not the line that tells the assistant about it.
+    expect(panel().querySelector('[data-note="bad"]')).toHaveTextContent("fail.jpg: the background couldn't be removed just now");
     expect(lastAsk().messages.at(-1)!.content).toMatch(/Put on the sheet\. \(fail.jpg: the background couldn't be removed/);
   });
 
@@ -442,8 +447,8 @@ describe("layout, margins and the ways out of an overflow", () => {
     await openAndAsk("20 copies", {
       reply: "Ready.", plan: { label: "20 × tee", build: { items: [{ design: "d1", copies: 20 }] } },
     });
-    expect(within(panel()).getByRole("button", { name: /Do it on 2 sheets — \$14.70/ })).toBeInTheDocument();
-    const shrink = within(panel()).getByRole("button", { name: /Shrink to fit one 22×10: tee.png at [\d.]+″ wide — \$7.35/ });
+    expect(within(panel()).getByRole("button", { name: /Do it on 2 sheets \(\$14\.70\)/ })).toBeInTheDocument();
+    const shrink = within(panel()).getByRole("button", { name: /Shrink to fit one 22×10: tee.png at [\d.]+″ wide \(\$7\.35\)/ });
     await press(shrink);
     expect(designs()).toHaveLength(20);
     expect(screen.queryByText(/\(2\) Active Gang Sheets/)).toBeNull();
@@ -505,7 +510,7 @@ describe("the shop's designs, text, the image editor and saving", () => {
     await ask("add TEAM 2026 in red", {
       reply: "Ready.", plan: { label: "Text", add_text: [{ text: "TEAM 2026", color: "#D62828", bold: true }] },
     });
-    expect(line(/Text “TEAM 2026” —\s+#D62828, bold/)).toBeInTheDocument();
+    expect(line(/Text “TEAM 2026” in\s+#D62828, bold/)).toBeInTheDocument();
     post.mockResolvedValueOnce({ reply: "How big should the text be?" });
     await press(within(panel()).getByRole("button", { name: /Do it/ }));
     expect(designs()).toHaveLength(2);
@@ -516,7 +521,7 @@ describe("the shop's designs, text, the image editor and saving", () => {
   it("opens the image editor on the design and tab asked", async () => {
     await openBuilder();
     await ask("I want to crop it", { reply: "Opening it.", plan: { label: "Crop tee", open_editor: { design: "d1", tab: "crop" } } });
-    expect(line(/Open the image editor on tee.png — Crop/)).toBeInTheDocument();
+    expect(line(/Open the image editor on tee.png: Crop/)).toBeInTheDocument();
     await press(within(panel()).getByRole("button", { name: /Do it/ }));
     const editor = document.querySelector<HTMLElement>("[data-editor]")!;
     expect(editor).toHaveTextContent("tee.png");

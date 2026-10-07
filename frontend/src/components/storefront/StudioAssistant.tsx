@@ -12,9 +12,16 @@
  * model: the same nesting as Auto Nest lays it out, and the shop's own prices
  * price it, so what it says is what will happen. Nothing changes until the
  * buyer presses its button; one undo puts the sheet back.
+ *
+ * It is written to read like a person at the shop typed it: plain sentences,
+ * an icon for what a line is about, and no long dashes — the model's own are
+ * taken out before its words are shown.
  */
 import { useEffect, useRef, useState } from "react";
-import { Paperclip, Sparkles, X } from "lucide-react";
+import {
+  Check, CircleCheck, Eraser, Frame, Image as ImageIcon, Layers, LayoutGrid, MoveHorizontal, Paperclip, Plus,
+  Printer, Save, Scissors, ShoppingCart, Sparkles, TriangleAlert, Type, X, type LucideIcon,
+} from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { ChatMarkdown } from "@/components/ui/ChatMarkdown";
 import type { StudioContext } from "@/lib/studioContext";
@@ -54,11 +61,16 @@ const SUGGESTIONS = [
 ];
 
 const GREETING =
-  "Hi! Tell me what you want on your sheet — for example \"8 of my logo, 4 inches wide, on a 22x10\" — and I'll build it for you. " +
-  "Add your designs with the 📎 button.";
+  "Hi! Tell me what you want on your sheet and I'll build it for you.\n\n" +
+  "For example: \"8 of my logo, 4 inches wide, on a 22x10\".\n\n" +
+  "Add your designs with the paperclip button below.";
 
 const money = (n: number) => `$${n.toFixed(2)}`;
 const settle = () => new Promise<void>((done) => requestAnimationFrame(() => requestAnimationFrame(() => window.setTimeout(done, 40))));
+
+/** A model joins two thoughts with a long dash; a person typing uses a comma.
+ *  Only what is shown is changed — the conversation goes back as it was said. */
+export const noDashes = (text: string) => text.replace(/[ \t]*—[ \t]*/g, ", ").replace(/[ \t]+–[ \t]+/g, ", ");
 
 export function StudioAssistant({ open, onClose, getContext, preview, run, upload, inbox, accept, uploading }: {
   open: boolean;
@@ -135,7 +147,7 @@ export function StudioAssistant({ open, onClose, getContext, preview, run, uploa
       if (err?.status === 503 || err?.status === 403) setOff(true);
       setError(
         err?.status === 429
-          ? "You've asked a lot today — please try again tomorrow, or use the builder's own tools."
+          ? "You've asked a lot today. Please try again tomorrow, or use the builder's own tools."
           : err?.message || "Couldn't get an answer. Please try again.",
       );
     } finally {
@@ -200,7 +212,7 @@ export function StudioAssistant({ open, onClose, getContext, preview, run, uploa
     if (!out.ok) parts.push(`(${out.message})`);
     if (out.problems?.length) {
       parts.push(`(${out.problems.join(" ")})`);
-      setTurns((cur) => [...cur, { role: "note", tone: "bad", content: `⚠ ${out.problems!.join(" ")}` }]);
+      setTurns((cur) => [...cur, { role: "note", tone: "bad", content: out.problems!.join(" ") }]);
     }
     // Let the builder take the designs in before the assistant is told the
     // sheet — and let an answer already on its way arrive first, or this one
@@ -221,7 +233,7 @@ export function StudioAssistant({ open, onClose, getContext, preview, run, uploa
     try {
       out = await run(plan, refs, choice);
     } catch {
-      out = { ok: false, message: "Something went wrong — nothing more was changed." };
+      out = { ok: false, message: "Something went wrong. Nothing more was changed." };
     }
     setTurns((cur) => {
       const result = [out.message, ...(out.problems ?? [])].join(" ");
@@ -230,13 +242,13 @@ export function StudioAssistant({ open, onClose, getContext, preview, run, uploa
       const offerCart = out.ok && !!plan.build && !plan.add_to_cart;
       const notes: Turn[] = [{
         role: "note" as const, tone: out.ok ? "ok" as const : "bad" as const, cartOffer: offerCart,
-        content: !out.ok ? `✗ ${out.message}`
-          : plan.open_editor ? "✓ The image editor is open — make your change there and press Apply."
+        content: !out.ok ? out.message
+          : plan.open_editor ? "The image editor is open. Make your change there and press Apply."
           : plan.build || plan.add_designs || plan.add_text || plan.remove_background
-            ? "✓ Done — your sheet is updated. Not right? Press Undo (Ctrl+Z), or tell me what to change."
-            : "✓ Done.",
+            ? "Your sheet is updated. Not right? Press Undo (Ctrl+Z) or tell me what to change."
+            : "Done.",
       }];
-      if (out.problems?.length) notes.unshift({ role: "note", tone: "bad", content: `⚠ ${out.problems.join(" ")}` });
+      if (out.problems?.length) notes.unshift({ role: "note", tone: "bad", content: out.problems.join(" ") });
       return [...marked, ...notes];
     });
     // New designs are on the sheet but not yet laid out as asked: the assistant
@@ -253,7 +265,7 @@ export function StudioAssistant({ open, onClose, getContext, preview, run, uploa
   async function addToCart(index: number) {
     setTurns((cur) => cur.map((x, i) => (i === index && x.role === "note" ? { ...x, cartOffer: false } : x)));
     const out = await run({ label: "Add to cart", add_to_cart: true }, {});
-    if (!out.ok) setTurns((cur) => [...cur, { role: "note", tone: "bad", content: `✗ ${out.message}` }]);
+    if (!out.ok) setTurns((cur) => [...cur, { role: "note", tone: "bad", content: out.message }]);
   }
 
   if (!open) return null;
@@ -262,14 +274,14 @@ export function StudioAssistant({ open, onClose, getContext, preview, run, uploa
   return (
     <div role="dialog" aria-label="Sheet assistant" data-gs-assistant style={S.panel}>
       <div style={S.head}>
-        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-          <span style={S.headIcon}><Sparkles size={15} strokeWidth={2.3} aria-hidden /></span>
+        <div style={{ display: "flex", alignItems: "center", gap: "11px" }}>
+          <span style={S.headIcon}><Sparkles size={17} strokeWidth={2.3} aria-hidden /></span>
           <div>
-            <div style={{ fontSize: "14px", fontWeight: 700 }}>Build with AI</div>
-            <div style={{ fontSize: "11px", color: "#6B6B6B" }}>Tell me what you need</div>
+            <div style={{ fontSize: "16px", fontWeight: 700, lineHeight: 1.25 }}>Build with AI</div>
+            <div style={{ fontSize: "12.5px", color: "#6B6B6B", lineHeight: 1.3 }}>Tell me what you need</div>
           </div>
         </div>
-        <button onClick={onClose} aria-label="Close assistant" style={S.close}><X size={16} strokeWidth={2.3} /></button>
+        <button onClick={onClose} aria-label="Close assistant" style={S.close}><X size={18} strokeWidth={2.3} /></button>
       </div>
 
       <div ref={scroller} style={S.log}>
@@ -277,8 +289,10 @@ export function StudioAssistant({ open, onClose, getContext, preview, run, uploa
           <>
             <div style={{ ...S.bot, whiteSpace: "pre-wrap" }}>{GREETING}</div>
             {!off && (
-              <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
-                <button onClick={() => fileRef.current?.click()} style={{ ...S.chip, borderColor: "#C7C4F5", color: "#3B33C4" }}>📎 Upload designs</button>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "7px" }}>
+                <button onClick={() => fileRef.current?.click()} style={{ ...S.chip, borderColor: "#C7C4F5", color: "#3B33C4" }}>
+                  <Paperclip size={14} strokeWidth={2.3} aria-hidden /> Upload designs
+                </button>
                 {SUGGESTIONS.map((s) => <button key={s} onClick={() => void ask(s)} style={S.chip}>{s}</button>)}
               </div>
             )}
@@ -290,18 +304,24 @@ export function StudioAssistant({ open, onClose, getContext, preview, run, uploa
             return <UploadCard key={i} turn={t} onAnswer={(a) => void answerUploads(i, a)} />;
           }
           if (t.role === "note") {
+            const NoteIcon = t.tone === "ok" ? CircleCheck : TriangleAlert;
             return (
-              <div key={i} style={{ display: "flex", flexDirection: "column", gap: "6px", alignSelf: "stretch" }}>
-                <div style={t.tone === "ok" ? S.noteOk : S.noteBad}>{t.content}</div>
+              <div key={i} style={S.stack}>
+                <div data-note={t.tone} style={t.tone === "ok" ? S.noteOk : S.noteBad}>
+                  <NoteIcon size={17} strokeWidth={2.2} aria-hidden style={S.lead} />
+                  <span style={{ minWidth: 0, whiteSpace: "pre-wrap" }}>{t.content}</span>
+                </div>
                 {t.cartOffer && (
-                  <button onClick={() => void addToCart(i)} style={S.cartBtn}>🛒 Add to cart</button>
+                  <button onClick={() => void addToCart(i)} style={S.cartBtn}>
+                    <ShoppingCart size={17} strokeWidth={2.2} aria-hidden /> Add to cart
+                  </button>
                 )}
               </div>
             );
           }
           return (
-            <div key={i} style={{ display: "flex", flexDirection: "column", gap: "6px", alignSelf: "stretch" }}>
-              <div style={S.bot}><ChatMarkdown text={t.content} /></div>
+            <div key={i} style={S.stack}>
+              <div style={S.bot}><ChatMarkdown text={noDashes(t.content)} /></div>
               {t.plan && t.preview && (
                 <PlanCard plan={t.plan} preview={t.preview} state={t.state ?? "ready"} result={t.result}
                   onChoose={(c) => void press(i, c)} />
@@ -319,7 +339,7 @@ export function StudioAssistant({ open, onClose, getContext, preview, run, uploa
         <input ref={fileRef} type="file" multiple accept={accept} onChange={(e) => void onFiles(e.target.files)} style={{ display: "none" }} />
         <button type="button" onClick={() => fileRef.current?.click()} disabled={busy || off}
           aria-label="Upload designs" title="Upload designs" style={{ ...S.clip, opacity: busy || off ? 0.45 : 1 }}>
-          <Paperclip size={16} strokeWidth={2.2} />
+          <Paperclip size={18} strokeWidth={2.2} />
         </button>
         <input value={draft} onChange={(e) => setDraft(e.target.value)} disabled={busy || off}
           placeholder={off ? "The assistant isn't available right now" : "e.g. 10 of my logo, 4 inches wide, on a 22x10"}
@@ -328,6 +348,16 @@ export function StudioAssistant({ open, onClose, getContext, preview, run, uploa
           style={{ ...S.send, opacity: busy || off || !draft.trim() ? 0.45 : 1 }}>Send</button>
       </form>
     </div>
+  );
+}
+
+/** One line of a card: an icon for what it is about, then the words. */
+function Row({ icon: Icon, warn, children }: { icon: LucideIcon; warn?: boolean; children: React.ReactNode }) {
+  return (
+    <li style={warn ? S.rowWarn : S.row}>
+      <Icon size={16} strokeWidth={2.1} aria-hidden style={{ ...S.lead, color: warn ? "#B45309" : "#6D66D8" }} />
+      <span style={{ minWidth: 0 }}>{children}</span>
+    </li>
   );
 }
 
@@ -349,10 +379,13 @@ function UploadCard({ turn, onAnswer }: {
   );
   return (
     <div style={S.card} data-upload-card>
-      <div style={{ fontSize: "13px", fontWeight: 800 }}>📎 {one ? "Uploaded" : `${turn.designs.length} designs uploaded`}: {turn.designs.map((d) => d.name).join(", ")}</div>
+      <div style={S.cardTitle}>
+        <Paperclip size={16} strokeWidth={2.3} aria-hidden style={{ ...S.lead, color: "#4F46E5" }} />
+        <span style={{ minWidth: 0 }}>{one ? "Uploaded" : `${turn.designs.length} designs uploaded`}: {turn.designs.map((d) => d.name).join(", ")}</span>
+      </div>
       {withBg.length > 0 && (
         <div style={S.question}>
-          <div>Background found on {withBg.map((d) => d.name).join(", ")} — it would print as a solid box. Remove it?</div>
+          <div>Background found on {withBg.map((d) => d.name).join(", ")}. It would print as a solid box. Remove it?</div>
           <div style={S.choices}>
             {choice(turn.removeBg, "Yes, remove it", true, () => onAnswer({ removeBg: true }))}
             {choice(turn.removeBg, "No, keep it", false, () => onAnswer({ removeBg: false }))}
@@ -383,93 +416,119 @@ function PlanCard({ plan, preview, state, result, onChoose }: {
   const shrinkWhat = b?.shrink
     ? (b.shrink.widths.length === 1 ? `${b.shrink.widths[0]!.name} at ${b.shrink.widths[0]!.w}″ wide` : `everything at ${Math.round(b.shrink.scale * 100)}% size`)
     : "";
+  // "Done" alone is what a run says when it has nothing more to add.
+  const said = result && result !== "Done" ? result : "";
   return (
     <div style={{ ...S.card, opacity: state === "old" ? 0.55 : 1 }}>
-      <div style={{ fontSize: "13px", fontWeight: 800, color: "#1A1A1A" }}>{plan.label}</div>
+      <div style={S.cardTitle}>{noDashes(plan.label)}</div>
       <ul style={S.steps}>
-        {preview.added.length > 0 && <li>➕ Put on the sheet: {preview.added.join(", ")}</li>}
+        {preview.added.length > 0 && <Row icon={Plus}>Put on the sheet: {preview.added.join(", ")}</Row>}
         {preview.texts.map((t, i) => (
-          <li key={`t${i}`}>🔤 Text &ldquo;{t.text}&rdquo; — <span style={{ display: "inline-block", width: "10px", height: "10px", borderRadius: "2px", background: t.color, border: "1px solid #D4D4D8", verticalAlign: "middle" }} aria-hidden /> {t.color}{t.bold ? ", bold" : ""}</li>
+          <Row key={`t${i}`} icon={Type}>
+            Text &ldquo;{t.text}&rdquo; in <span style={{ display: "inline-block", width: "11px", height: "11px", borderRadius: "3px", background: t.color, border: "1px solid #D4D4D8", verticalAlign: "middle" }} aria-hidden /> {t.color}{t.bold ? ", bold" : ""}
+          </Row>
         ))}
-        {preview.backgrounds.length > 0 && <li>✂️ Remove background: {preview.backgrounds.join(", ")}</li>}
-        {preview.place.length > 0 && <li>➕ Put on the sheet: {preview.place.join(", ")}</li>}
-        {b?.fills.map((f) => <li key={f.name}>▦ Fill the sheet: {f.copies} × {f.name}</li>)}
-        {b?.layout === "cutting" && <li>✂ Layout: for cutting — rows a cut can run straight across</li>}
-        {b?.gap != null && <li>↔ Space between designs: {b.gap}″</li>}
-        {b?.sheetMargin != null && <li>⬚ Space at the sheet&apos;s edges: {b.sheetMargin}″</li>}
+        {preview.backgrounds.length > 0 && <Row icon={Eraser}>Remove background: {preview.backgrounds.join(", ")}</Row>}
+        {preview.place.length > 0 && <Row icon={Plus}>Put on the sheet: {preview.place.join(", ")}</Row>}
+        {b?.fills.map((f) => <Row key={f.name} icon={LayoutGrid}>Fill the sheet: {f.copies} × {f.name}</Row>)}
+        {b?.layout === "cutting" && <Row icon={Scissors}>Layout: for cutting (rows a cut can run straight across)</Row>}
+        {b?.gap != null && <Row icon={MoveHorizontal}>Space between designs: {b.gap}″</Row>}
+        {b?.sheetMargin != null && <Row icon={Frame}>Space at the sheet&apos;s edges: {b.sheetMargin}″</Row>}
         {b && (
-          <li>
-            ▦ {b.copies} design{b.copies === 1 ? "" : "s"} on {b.sheets === 1 ? "1" : b.sheets} × {b.sizeName}
-            {b.roll && b.lengths.length ? ` (${b.lengths.map((l) => `${l}″`).join(", ")} long)` : ""}
-            {" — "}<strong>{money(b.price * b.qty)}</strong>{b.qty > 1 ? ` (${b.qty} sets)` : ""}
+          <li style={S.total}>
+            <Layers size={16} strokeWidth={2.1} aria-hidden style={{ ...S.lead, color: "#6D66D8" }} />
+            <span style={{ flex: 1, minWidth: 0 }}>
+              {b.copies} design{b.copies === 1 ? "" : "s"} on {b.sheets === 1 ? "1" : b.sheets} × {b.sizeName}
+              {b.roll && b.lengths.length ? ` (${b.lengths.map((l) => `${l}″`).join(", ")} long)` : ""}
+            </span>
+            <span style={{ whiteSpace: "nowrap" }}><strong style={S.price}>{money(b.price * b.qty)}</strong>{b.qty > 1 ? ` (${b.qty} sets)` : ""}</span>
           </li>
         )}
         {b && b.sheets > 1 && (
-          <li style={{ color: "#92400E" }}>
-            Doesn&apos;t fit one {b.sizeName} — it takes {b.sheets} sheets.{(b.alt || b.shrink) ? " Pick one of the ways below." : ""}
-          </li>
+          <Row icon={TriangleAlert} warn>
+            Doesn&apos;t fit one {b.sizeName}. It takes {b.sheets} sheets.{(b.alt || b.shrink) ? " Pick one of the ways below." : ""}
+          </Row>
         )}
         {b?.lowDpi.map((d) => (
-          <li key={d.name} style={{ color: "#92400E" }}>⚠ {d.name} prints at {d.dpi} DPI at that size — may look soft.</li>
+          <Row key={d.name} icon={TriangleAlert} warn>{d.name} prints at {d.dpi} DPI at that size and may look soft.</Row>
         ))}
-        {!b && preview.sets ? <li>🖨 Print {preview.sets} set{preview.sets === 1 ? "" : "s"} of this sheet</li> : null}
-        {preview.editor && <li>🖼 Open the image editor on {preview.editor.name} — {preview.editor.tab}</li>}
-        {preview.save && <li>💾 Save the sheet to your account</li>}
-        {preview.cart && <li>🛒 Then save it and open the cart</li>}
+        {!b && preview.sets ? <Row icon={Printer}>Print {preview.sets} set{preview.sets === 1 ? "" : "s"} of this sheet</Row> : null}
+        {preview.editor && <Row icon={ImageIcon}>Open the image editor on {preview.editor.name}: {preview.editor.tab}</Row>}
+        {preview.save && <Row icon={Save}>Save the sheet to your account</Row>}
+        {preview.cart && <Row icon={ShoppingCart}>Then save it and open the cart</Row>}
       </ul>
       {preview.problem && <div style={S.cardProblem}>{preview.problem}</div>}
 
       {ready && (
-        <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: "7px" }}>
           <button onClick={() => onChoose({})} disabled={!!preview.problem} style={{ ...S.doBtn, opacity: preview.problem ? 0.45 : 1 }}>
-            {over && b && !preview.problem ? `✓ Do it on ${b.sheets} sheets — ${money(b.price * b.qty)}` : "✓ Do it"}
+            <Check size={17} strokeWidth={2.6} aria-hidden />
+            {over && b && !preview.problem ? `Do it on ${b.sheets} sheets (${money(b.price * b.qty)})` : "Do it"}
           </button>
           {b?.alt && (
             <button onClick={() => onChoose({ sizeId: b.alt!.sizeId })} style={S.altBtn}>
-              Use one {b.alt.sizeName}{b.alt.length ? ` (${b.alt.length}″)` : ""} instead — {money(b.alt.price * b.qty)}
+              Use one {b.alt.sizeName}{b.alt.length ? ` (${b.alt.length}″)` : ""} instead ({money(b.alt.price * b.qty)})
             </button>
           )}
           {b?.shrink && (
             <button onClick={() => onChoose({ scale: b.shrink!.scale })} style={S.altBtn}>
-              Shrink to fit one {b.sizeName}: {shrinkWhat} — {money(b.shrink.price * b.qty)}
+              Shrink to fit one {b.sizeName}: {shrinkWhat} ({money(b.shrink.price * b.qty)})
             </button>
           )}
         </div>
       )}
       {state === "running" && <div style={S.cardStatus}>Working on it…</div>}
-      {state === "done" && <div style={{ ...S.cardStatus, color: "#166534" }}>✓ Done{result ? ` — ${result}` : ""}</div>}
-      {state === "failed" && <div style={{ ...S.cardStatus, color: "#991B1B" }}>✗ {result}</div>}
+      {state === "done" && (
+        <div style={{ ...S.cardStatus, color: "#166534" }}>
+          <Check size={16} strokeWidth={2.6} aria-hidden style={S.lead} />
+          <span style={{ minWidth: 0 }}>Done{said ? `: ${said}` : ""}</span>
+        </div>
+      )}
+      {state === "failed" && (
+        <div style={{ ...S.cardStatus, color: "#991B1B" }}>
+          <X size={16} strokeWidth={2.6} aria-hidden style={S.lead} />
+          <span style={{ minWidth: 0 }}>{result}</span>
+        </div>
+      )}
       {state === "old" && <div style={S.cardStatus}>Replaced by a newer plan.</div>}
     </div>
   );
 }
 
 const S: Record<string, React.CSSProperties> = {
-  panel: { position: "fixed", right: "16px", bottom: "16px", zIndex: 260, width: "min(390px, calc(100vw - 32px))", height: "min(600px, calc(100dvh - 96px))", background: "#fff", border: "1px solid #E3E3E3", borderRadius: "14px", boxShadow: "0 12px 40px rgba(0,0,0,.22)", display: "flex", flexDirection: "column", overflow: "hidden", color: "#1A1A1A" },
-  head: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 14px", borderBottom: "1px solid #EDEDEA" },
-  headIcon: { width: "28px", height: "28px", borderRadius: "8px", background: "#4F46E5", color: "#fff", display: "inline-flex", alignItems: "center", justifyContent: "center" },
-  close: { border: "none", background: "none", cursor: "pointer", color: "#6B6B6B", display: "inline-flex", padding: "2px" },
-  log: { flex: 1, overflowY: "auto", padding: "12px 14px", display: "flex", flexDirection: "column", gap: "8px" },
-  user: { alignSelf: "flex-end", maxWidth: "85%", background: "#1A1A1A", color: "#fff", padding: "8px 11px", borderRadius: "12px 12px 2px 12px", fontSize: "13px", lineHeight: 1.5, whiteSpace: "pre-wrap", wordBreak: "break-word" },
-  bot: { alignSelf: "flex-start", maxWidth: "92%", background: "#F4F4F2", color: "#1A1A1A", padding: "8px 11px", borderRadius: "12px 12px 12px 2px", fontSize: "13px", lineHeight: 1.55 },
-  noteOk: { background: "#F0FDF4", border: "1px solid #BBF7D0", color: "#166534", borderRadius: "10px", padding: "8px 11px", fontSize: "12.5px", lineHeight: 1.5, whiteSpace: "pre-wrap" },
-  noteBad: { background: "#FEF2F2", border: "1px solid #FECACA", color: "#991B1B", borderRadius: "10px", padding: "8px 11px", fontSize: "12.5px", lineHeight: 1.5, whiteSpace: "pre-wrap" },
-  card: { border: "1.5px solid #C7C4F5", background: "#F7F6FF", borderRadius: "12px", padding: "10px 12px", display: "flex", flexDirection: "column", gap: "8px" },
-  steps: { margin: 0, paddingLeft: "2px", listStyle: "none", display: "flex", flexDirection: "column", gap: "4px", fontSize: "12.5px", lineHeight: 1.5, color: "#2A2F3A" },
-  cardProblem: { background: "#FEF2F2", border: "1px solid #FECACA", color: "#991B1B", borderRadius: "8px", padding: "7px 10px", fontSize: "12px", lineHeight: 1.5 },
-  cardStatus: { fontSize: "12.5px", fontWeight: 600, color: "#5A6474" },
-  doBtn: { padding: "10px 12px", background: "#4F46E5", color: "#fff", border: "none", borderRadius: "9px", fontSize: "13.5px", fontWeight: 800, cursor: "pointer" },
-  altBtn: { padding: "8px 12px", background: "#fff", color: "#3B33C4", border: "1px solid #C7C4F5", borderRadius: "9px", fontSize: "12.5px", fontWeight: 700, cursor: "pointer", textAlign: "left" },
-  question: { display: "flex", flexDirection: "column", gap: "6px", fontSize: "12.5px", lineHeight: 1.5, color: "#2A2F3A" },
-  choices: { display: "flex", gap: "6px", flexWrap: "wrap" },
-  yesBtn: { padding: "7px 12px", background: "#4F46E5", color: "#fff", border: "1px solid #4F46E5", borderRadius: "8px", fontSize: "12.5px", fontWeight: 700, cursor: "pointer" },
-  noBtn: { padding: "7px 12px", background: "#fff", color: "#2A2F3A", border: "1px solid #D4D4D8", borderRadius: "8px", fontSize: "12.5px", fontWeight: 700, cursor: "pointer" },
+  panel: { position: "fixed", right: "16px", bottom: "16px", zIndex: 260, width: "min(420px, calc(100vw - 32px))", height: "min(660px, calc(100dvh - 96px))", background: "#fff", border: "1px solid #E3E3E3", borderRadius: "16px", boxShadow: "0 12px 40px rgba(0,0,0,.22)", display: "flex", flexDirection: "column", overflow: "hidden", color: "#1A1A1A" },
+  head: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 16px", borderBottom: "1px solid #EDEDEA" },
+  headIcon: { width: "36px", height: "36px", borderRadius: "10px", background: "linear-gradient(135deg, #6D5DF6, #4F46E5)", color: "#fff", display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0 },
+  close: { border: "none", background: "none", cursor: "pointer", color: "#6B6B6B", display: "inline-flex", padding: "4px", borderRadius: "8px" },
+  log: { flex: 1, overflowY: "auto", padding: "16px", display: "flex", flexDirection: "column", gap: "10px" },
+  stack: { display: "flex", flexDirection: "column", gap: "8px", alignSelf: "stretch" },
+  user: { alignSelf: "flex-end", maxWidth: "85%", background: "#1A1A1A", color: "#fff", padding: "10px 14px", borderRadius: "16px 16px 4px 16px", fontSize: "15px", lineHeight: 1.5, whiteSpace: "pre-wrap", wordBreak: "break-word" },
+  bot: { alignSelf: "flex-start", maxWidth: "92%", background: "#F4F4F2", color: "#1A1A1A", padding: "10px 14px", borderRadius: "16px 16px 16px 4px", fontSize: "15px", lineHeight: 1.55 },
+  // The icon sits on the first line of the words beside it, however many lines they run to.
+  lead: { flexShrink: 0, marginTop: "3px" },
+  noteOk: { display: "flex", gap: "9px", alignItems: "flex-start", background: "#F0FDF4", border: "1px solid #BBF7D0", color: "#166534", borderRadius: "12px", padding: "11px 13px", fontSize: "14.5px", lineHeight: 1.5 },
+  noteBad: { display: "flex", gap: "9px", alignItems: "flex-start", background: "#FEF2F2", border: "1px solid #FECACA", color: "#991B1B", borderRadius: "12px", padding: "11px 13px", fontSize: "14.5px", lineHeight: 1.5 },
+  card: { border: "1.5px solid #C7C4F5", background: "#F7F6FF", borderRadius: "14px", padding: "14px", display: "flex", flexDirection: "column", gap: "11px" },
+  cardTitle: { display: "flex", gap: "8px", alignItems: "flex-start", fontSize: "15.5px", fontWeight: 800, lineHeight: 1.4, color: "#1A1A1A" },
+  steps: { margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: "8px", fontSize: "14.5px", lineHeight: 1.5, color: "#2A2F3A" },
+  row: { display: "flex", gap: "9px", alignItems: "flex-start" },
+  rowWarn: { display: "flex", gap: "9px", alignItems: "flex-start", color: "#92400E" },
+  total: { display: "flex", gap: "9px", alignItems: "flex-start", paddingTop: "9px", borderTop: "1px solid #DDDAF7" },
+  price: { fontSize: "15.5px", color: "#1A1A1A" },
+  cardProblem: { background: "#FEF2F2", border: "1px solid #FECACA", color: "#991B1B", borderRadius: "10px", padding: "9px 12px", fontSize: "14px", lineHeight: 1.5 },
+  cardStatus: { display: "flex", gap: "8px", alignItems: "flex-start", fontSize: "14.5px", fontWeight: 600, lineHeight: 1.5, color: "#5A6474" },
+  doBtn: { padding: "12px 14px", background: "#4F46E5", color: "#fff", border: "none", borderRadius: "10px", fontSize: "15.5px", fontWeight: 800, cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: "8px", fontFamily: "inherit" },
+  altBtn: { padding: "10px 13px", background: "#fff", color: "#3B33C4", border: "1px solid #C7C4F5", borderRadius: "10px", fontSize: "14px", fontWeight: 700, lineHeight: 1.4, cursor: "pointer", textAlign: "left", fontFamily: "inherit" },
+  question: { display: "flex", flexDirection: "column", gap: "8px", fontSize: "14.5px", lineHeight: 1.5, color: "#2A2F3A" },
+  choices: { display: "flex", gap: "7px", flexWrap: "wrap" },
+  yesBtn: { padding: "9px 14px", background: "#4F46E5", color: "#fff", border: "1px solid #4F46E5", borderRadius: "9px", fontSize: "14px", fontWeight: 700, cursor: "pointer", fontFamily: "inherit" },
+  noBtn: { padding: "9px 14px", background: "#fff", color: "#2A2F3A", border: "1px solid #D4D4D8", borderRadius: "9px", fontSize: "14px", fontWeight: 700, cursor: "pointer", fontFamily: "inherit" },
   picked: { boxShadow: "0 0 0 2px #C7C4F5" },
-  cartBtn: { padding: "9px 12px", background: "#1A1A1A", color: "#fff", border: "none", borderRadius: "9px", fontSize: "13px", fontWeight: 700, cursor: "pointer" },
-  chip: { padding: "6px 10px", border: "1px solid #E3E3E3", background: "#fff", borderRadius: "16px", fontSize: "12px", fontWeight: 600, cursor: "pointer", textAlign: "left" },
-  error: { margin: "0 14px 6px", background: "#FEF2F2", border: "1px solid #FECACA", color: "#991B1B", borderRadius: "8px", padding: "7px 10px", fontSize: "12px" },
-  form: { display: "flex", gap: "6px", padding: "10px 12px", borderTop: "1px solid #EDEDEA", alignItems: "center" },
-  clip: { width: "36px", height: "36px", flexShrink: 0, border: "1px solid #E3E3E3", background: "#fff", borderRadius: "8px", cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", color: "#3B33C4" },
-  input: { flex: 1, minWidth: 0, padding: "9px 11px", border: "1px solid #E3E3E3", borderRadius: "8px", fontSize: "13px", outline: "none" },
-  send: { padding: "9px 14px", background: "#1A1A1A", color: "#fff", border: "none", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: "pointer" },
+  cartBtn: { padding: "12px 14px", background: "#1A1A1A", color: "#fff", border: "none", borderRadius: "10px", fontSize: "15.5px", fontWeight: 700, cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: "9px", fontFamily: "inherit" },
+  chip: { padding: "8px 13px", border: "1px solid #E3E3E3", background: "#fff", borderRadius: "18px", fontSize: "13.5px", fontWeight: 600, cursor: "pointer", textAlign: "left", display: "inline-flex", alignItems: "center", gap: "6px", fontFamily: "inherit" },
+  error: { margin: "0 16px 8px", background: "#FEF2F2", border: "1px solid #FECACA", color: "#991B1B", borderRadius: "10px", padding: "9px 12px", fontSize: "14px", lineHeight: 1.45 },
+  form: { display: "flex", gap: "8px", padding: "12px 14px", borderTop: "1px solid #EDEDEA", alignItems: "center" },
+  clip: { width: "44px", height: "44px", flexShrink: 0, border: "1px solid #E3E3E3", background: "#fff", borderRadius: "10px", cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", color: "#3B33C4" },
+  input: { flex: 1, minWidth: 0, height: "44px", padding: "0 13px", border: "1px solid #E3E3E3", borderRadius: "10px", fontSize: "15px", outline: "none", fontFamily: "inherit" },
+  send: { height: "44px", padding: "0 17px", background: "#1A1A1A", color: "#fff", border: "none", borderRadius: "10px", fontSize: "15px", fontWeight: 700, cursor: "pointer", fontFamily: "inherit" },
 };

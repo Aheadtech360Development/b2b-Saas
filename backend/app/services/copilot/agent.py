@@ -68,7 +68,7 @@ EFFORT_MODELS = (
 # instead of handing a refusal back to a customer mid-order.
 FALLBACK_MODELS = {"claude-sonnet-5-5", "claude-opus-5-5", "claude-opus-5", "claude-fable-5-1"}
 FALLBACK_BETA = "server-side-fallback-2026-07-01"
-REFUSED = "Sorry — I can't help with that one. Ask me about your sheet and I'll help you build it."
+REFUSED = "Sorry, I can't help with that one. Ask me about your sheet and I'll help you build it."
 
 
 class CopilotUnavailable(Exception):

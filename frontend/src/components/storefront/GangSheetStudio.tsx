@@ -2431,7 +2431,7 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
       const missing = (plan.add_designs ?? []).filter((ref) => !shopItem(ref, refs));
       if (missing.length) out.problem = "One of those designs isn't available any more. Ask again and I'll redo it.";
       else if (plan.open_editor && !(refs[plan.open_editor.design] && upById(refs[plan.open_editor.design]!))) out.problem = "That design is no longer in your uploads.";
-      else if ((out.cart || out.save) && !placements.length && !out.place.length) out.problem = "The sheet is empty — add designs first.";
+      else if ((out.cart || out.save) && !placements.length && !out.place.length) out.problem = "The sheet is empty. Add designs first.";
       return out;
     }
     const r = resolveBuild(plan.build, refs, choice);
@@ -2471,7 +2471,7 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
         widths: [...new Map(scaled(r.designs, shrink.scale).map((d) => [d.uid, { name: upById(d.uid)?.file_name ?? "design", w: Math.round(d.w * 10) / 10 }])).values()],
       } : undefined,
     };
-    if (built.tooBig.length) out.problem = `${out.build.tooBig.join(", ")} won't fit a ${r.size.name} sheet at that size — make it smaller or pick a wider sheet.`;
+    if (built.tooBig.length) out.problem = `${out.build.tooBig.join(", ")} won't fit a ${r.size.name} sheet at that size. Make it smaller or pick a wider sheet.`;
     else if (!built.copies) out.problem = "That would leave the sheet empty.";
     return out;
   }
@@ -2483,8 +2483,8 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
     if (typeof r === "string") return { ok: false, message: r };
     const target = toStudioSize(r.size);
     const built = planBuild(target, r.designs, r.edge, r.gap, r.layout);
-    if (built.tooBig.length) return { ok: false, message: "A design is too big for that sheet — nothing was changed." };
-    if (!built.sheets.length) return { ok: false, message: "That would leave the sheet empty — nothing was changed." };
+    if (built.tooBig.length) return { ok: false, message: "A design is too big for that sheet. Nothing was changed." };
+    if (!built.sheets.length) return { ok: false, message: "That would leave the sheet empty. Nothing was changed." };
 
     const byKey = new Map(r.designs.map((d) => [d.key, d]));
     const laid: Placement[][] = built.sheets.map((sh) => sh.pieces.map((pc) => ({
@@ -2595,7 +2595,7 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
       for (const ref of plan.remove_background ?? []) {
         const u = refs[ref] ? upById(refs[ref]!) : undefined;
         if (!u) continue;
-        setAiWork({ label: `Removing the background — ${u.file_name}`, progress: null });
+        setAiWork({ label: `Removing the background from ${u.file_name}`, progress: null });
         const problem = await removeBackgroundOf(u);
         if (problem) problems.push(problem);
         else notes.push(`background removed from ${u.file_name}`);
@@ -2609,7 +2609,7 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
         setAiWork({ label: "Laying out your sheet", progress: null });
         await settle();
         const done = latest.current.applyBuild(plan.build, refs, choice, plan.sets);
-        if (!done.ok) return { ok: false, message: [...notes, done.message].join(" · "), problems };
+        if (!done.ok) return { ok: false, message: [...notes, done.message].join(", "), problems };
         notes.unshift(done.message);
       } else if (plan.sets) {
         latest.current.setQty(plan.sets);
@@ -2631,7 +2631,7 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
       if ((plan.add_designs?.length || plan.add_text?.length) && !added.length) {
         return { ok: false, message: "Nothing could be added just now.", problems };
       }
-      return { ok: true, message: notes.join(" · ") || "Done", problems, added };
+      return { ok: true, message: notes.join(", ") || "Done", problems, added };
     } finally {
       setAiWork(null);
     }

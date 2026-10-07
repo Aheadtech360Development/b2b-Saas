@@ -303,5 +303,5 @@ async def studio_assistant(
     if proposed:
         result["plan"] = proposed
         if not result.get("reply") or result["reply"] == "I don't have an answer for that.":
-            result["reply"] = "Ready — press the button on the card below."
+            result["reply"] = "Ready. Press the button on the card below."
     return result
