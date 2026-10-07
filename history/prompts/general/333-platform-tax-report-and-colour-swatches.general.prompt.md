@@ -43,7 +43,8 @@ acha zara ek cheez aur dekhni ha abhi manager ki taraf se ek shikayat ai ha wo y
 
 **1. Taxes, in the super admin.** A new "Taxes" tab on the platform page: every brand is a row — orders, orders with tax, sales, tax charged, tax refunded, net tax — with a total under them.
 
-- Dates: All time, This month, Last month, This quarter, Last quarter, This year, Last year, or any From/To. They are order dates in the viewer's own time zone.
+- Dates: All time, This month, Last month, This quarter, Last quarter, This year, Last year, or any From/To.
+- "Dates in": the time zone a day begins and ends in — US Eastern, Central, Mountain, Pacific, UTC or the viewer's own. A brand has no time zone on record and the viewer may be far from the shops, so it starts on US Central unless the viewer is in the Americas, says which zone it is using, and remembers the choice. The named ranges follow that zone's calendar.
 - "Orders counted": Paid orders (the tax a brand is holding) or All orders, unpaid invoices included. Cancelled orders never count.
 - Refunds: tax on an order refunded in full counts as given back in full; on one refunded in part, in proportion.
 - Search a brand; "Only brands that charged tax"; sort by any column; Export CSV of what is shown.

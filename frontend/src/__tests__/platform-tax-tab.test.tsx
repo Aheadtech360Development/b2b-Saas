@@ -35,7 +35,7 @@ import { TaxTab } from "@/components/platform/TaxTab";
 const brandRows = () => [...document.querySelectorAll("tbody > tr")].filter((r) => r.querySelector("button[aria-expanded]"));
 const ready = () => waitFor(() => expect(screen.getByText("Sales tax by brand")).toBeInTheDocument());
 
-beforeEach(() => { asked.length = 0; });
+beforeEach(() => { asked.length = 0; localStorage.clear(); });
 
 describe("the platform's Taxes tab", () => {
   it("lists every brand with its tax, the most first, and the total under them", async () => {
@@ -82,6 +82,11 @@ describe("the platform's Taxes tab", () => {
     fireEvent.change(screen.getByLabelText("From"), { target: { value: "2026-10-01" } });
     await waitFor(() => expect(asked.at(-1)).toMatchObject({ from: "2026-10-01" }));
     expect(screen.getByRole("button", { name: "Last year" })).toHaveAttribute("aria-pressed", "false");
+    // Days begin and end in the zone chosen, and the choice is kept for next time.
+    expect(asked.at(-1)!.tz).toBe((screen.getByLabelText("Dates in") as HTMLSelectElement).value);
+    fireEvent.change(screen.getByLabelText("Dates in"), { target: { value: "America/Los_Angeles" } });
+    await waitFor(() => expect(asked.at(-1)).toMatchObject({ tz: "America/Los_Angeles", from: "2026-10-01" }));
+    expect(localStorage.getItem("pc_tax_zone")).toBe("America/Los_Angeles");
   });
 
   it("narrows to a brand by name, or to the brands that charged tax, and totals what is shown", async () => {

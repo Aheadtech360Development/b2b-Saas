@@ -10,7 +10,14 @@
  * region, which is how tax is filed.
  *
  * "Paid orders" is the tax a brand is holding; "All orders" adds invoices not
- * paid yet. Dates are order dates in the viewer's own time zone.
+ * paid yet.
+ *
+ * Dates are order dates in a time zone the viewer chooses. A brand has no time
+ * zone of its own on record, and the person reading this may be half a world
+ * from the shops — read in their own zone, a month would begin and end ten
+ * hours away from the month the shop files for. So it starts on US Central
+ * unless the viewer is in the Americas, says which zone it is using, and
+ * remembers the choice.
  */
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { platformTaxService, type BrandTax, type TaxBasis, type TaxFigures, type TaxReport } from "@/services/platformTax.service";
@@ -39,9 +46,38 @@ const COLUMNS: [SortKey, string, string][] = [
 
 const day = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
-/** The first and last day of a named range, on the viewer's own calendar. */
-function rangeFor(preset: Preset): [string, string] {
-  const now = new Date();
+const ZONES: [string, string][] = [
+  ["America/New_York", "US Eastern"], ["America/Chicago", "US Central"], ["America/Denver", "US Mountain"],
+  ["America/Los_Angeles", "US Pacific"], ["UTC", "UTC"],
+];
+const ZONE_KEY = "pc_tax_zone";
+
+function myZone(): string {
+  try { return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"; } catch { return "UTC"; }
+}
+/** The zone last chosen here; else the viewer's own when they are in the Americas; else US Central. */
+function startingZone(): string {
+  try {
+    const kept = localStorage.getItem(ZONE_KEY);
+    if (kept) return kept;
+  } catch { /* storage blocked */ }
+  const mine = myZone();
+  return mine.startsWith("America/") || mine.startsWith("US/") ? mine : "America/Chicago";
+}
+/** Today's date where that zone is — it can be yesterday or tomorrow where the viewer sits. */
+function todayIn(zone: string): Date {
+  try {
+    const parts = new Intl.DateTimeFormat("en-CA", { timeZone: zone, year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date());
+    const n = (type: string) => Number(parts.find((p) => p.type === type)?.value);
+    const d = new Date(n("year"), n("month") - 1, n("day"));
+    if (!Number.isNaN(d.getTime())) return d;
+  } catch { /* a zone this browser does not know */ }
+  return new Date();
+}
+
+/** The first and last day of a named range, on the calendar of the zone being used. */
+function rangeFor(preset: Preset, zone: string): [string, string] {
+  const now = todayIn(zone);
   const y = now.getFullYear(), m = now.getMonth(), q = Math.floor(m / 3) * 3;
   switch (preset) {
     case "this_month": return [day(new Date(y, m, 1)), day(now)];
@@ -119,6 +155,7 @@ export function TaxTab() {
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [basis, setBasis] = useState<TaxBasis>("paid");
+  const [zone, setZone] = useState(startingZone);
   const [query, setQuery] = useState("");
   const [onlyTaxed, setOnlyTaxed] = useState(false);
   const [sort, setSort] = useState<{ key: SortKey; desc: boolean }>({ key: "net_tax", desc: true });
@@ -133,18 +170,28 @@ export function TaxTab() {
     const mine = ++asked.current;
     setLoading(true);
     setFailed(false);
-    let tz: string | undefined;
-    try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone; } catch { tz = undefined; }
-    platformTaxService.report({ from: from || undefined, to: to || undefined, basis, tz })
+    platformTaxService.report({ from: from || undefined, to: to || undefined, basis, tz: zone })
       .then((r) => { if (mine === asked.current) setData(r); })
       .catch(() => { if (mine === asked.current) { setData(null); setFailed(true); } })
       .finally(() => { if (mine === asked.current) setLoading(false); });
-  }, [from, to, basis]);
+  }, [from, to, basis, zone]);
 
   function choose(p: Preset) {
-    const [a, b] = rangeFor(p);
+    const [a, b] = rangeFor(p, zone);
     setPreset(p); setFrom(a); setTo(b);
   }
+  /** Another zone: "this month" is that zone's month, so a named range is worked out again. */
+  function changeZone(next: string) {
+    setZone(next);
+    try { localStorage.setItem(ZONE_KEY, next); } catch { /* storage blocked */ }
+    if (preset !== "custom" && preset !== "all") {
+      const [a, b] = rangeFor(preset, next);
+      setFrom(a); setTo(b);
+    }
+  }
+  const mine = myZone();
+  const zones: [string, string][] = ZONES.some(([z]) => z === mine) ? ZONES : [...ZONES, [mine, `My time zone (${mine})`]];
+  const zoneName = (zones.find(([z]) => z === zone)?.[1] ?? zone).replace(/^My time zone \((.*)\)$/, "$1");
 
   const rows = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -212,6 +259,14 @@ export function TaxTab() {
             <select id="tax-basis" value={basis} onChange={(e) => setBasis(e.target.value as TaxBasis)} style={FIELD}>
               <option value="paid">Paid orders</option>
               <option value="all">All orders, unpaid included</option>
+            </select>
+          </div>
+          <div>
+            <label style={LABEL} htmlFor="tax-zone">Dates in</label>
+            <select id="tax-zone" value={zone} onChange={(e) => changeZone(e.target.value)} style={FIELD}
+              title="Which time zone a day begins and ends in. Use the zone the brands file their tax in.">
+              {!zones.some(([z]) => z === zone) && <option value={zone}>{zone}</option>}
+              {zones.map(([z, label]) => <option key={z} value={z}>{label}</option>)}
             </select>
           </div>
           <div style={{ flex: "1 1 200px", minWidth: "160px" }}>
@@ -331,7 +386,7 @@ export function TaxTab() {
 
           <p style={{ fontSize: "12px", color: "#71717A", lineHeight: 1.6, margin: "12px 2px 0" }}>
             Tax charged is the sales tax on each order. Refunded is the tax given back with refunds — all of it for an order refunded in full,
-            and in proportion for one refunded in part. Dates are order dates in your time zone ({data.range.tz}).
+            and in proportion for one refunded in part. Dates are order dates in {zoneName} time{data.range.tz !== zone ? ` (read as ${data.range.tz})` : ""}.
           </p>
         </div>
       )}
