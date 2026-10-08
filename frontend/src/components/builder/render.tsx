@@ -85,6 +85,21 @@ function html(ctx: RenderCtx, markup: unknown): string {
   return ctx.trusted ? raw : cleanHtml(raw);
 }
 
+/**
+ * How long a moving announcement takes to pass once: the same walking pace
+ * whatever the message is, so a long one is not rushed and a short one does
+ * not crawl. One pass covers the message or the bar, whichever is wider; a
+ * phone's bar is about 390px and a wide screen's about 1200. A letter is
+ * taken as 7.5px, which is close enough for a pace.
+ */
+function announcePace(text: string): CSSProperties {
+  const wide = text.length * 7.5 + 56;
+  return {
+    "--b-ann-dur": `${Math.round(Math.max(390, wide) / 50)}s`,
+    "--b-ann-wide": `${Math.round(Math.max(1200, wide) / 70)}s`,
+  } as CSSProperties;
+}
+
 function link(href: unknown, newTab?: unknown) {
   const h = safeHref(href);
   return {
@@ -502,9 +517,19 @@ export function Node({ node, ctx }: { node: BuilderNode; ctx: RenderCtx }): Reac
       const href = safeHref(p.href);
       const text = str(p.text);
       if (!text) return note(ctx, id, "Write the announcement in the panel on the right.");
+      // A long message takes four or five lines of a phone's screen before
+      // the shop has shown anything. Moving, it stays on one: on a phone
+      // unless the shop says otherwise. The copy that makes the loop seamless
+      // is drawn by the stylesheet from data-text, so the words are in the
+      // page once, for a reader and for the editor alike.
+      const move = str(p.move) === "off" ? undefined : str(p.move) === "always" ? "always" : "phone";
+      const run = (
+        <span className="b-announce-run" data-text={text} style={announcePace(text)}><span>{text}</span></span>
+      );
+      const moving = { "data-move": move, "data-dir": move && str(p.moveDir) === "left" ? "left" : undefined };
       return href
-        ? <a data-b={id} className="b-announce" href={href}>{text}</a>
-        : <div data-b={id} className="b-announce">{text}</div>;
+        ? <a data-b={id} className="b-announce" {...moving} href={href}>{run}</a>
+        : <div data-b={id} className="b-announce" {...moving}>{run}</div>;
     }
 
     // ── The product being viewed ──

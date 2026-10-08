@@ -15,6 +15,23 @@ import { MOBILE_MAX, TABLET_MAX } from "./style";
 const TABLET = `@container bsite (max-width:${TABLET_MAX}px)`;
 const PHONE = `@container bsite (max-width:${MOBILE_MAX}px)`;
 
+/**
+ * A moving announcement: the message three times side by side, each copy at
+ * least as wide as the site, the row sliding by exactly one copy and starting
+ * again. A copy is always coming in as one goes out, so the loop has no seam
+ * and the bar is never empty, whatever padding the merchant gave it.
+ *
+ * The copies either side are drawn from data-text, not written in the page:
+ * the words are there once for a search engine, a screen reader (which is
+ * given nothing to say for them, where the browser allows) and the editor.
+ */
+const moving = (bar: string, pace: string) => `
+  .bsite :where(${bar}){overflow:hidden;white-space:nowrap}
+  .bsite :where(${bar} .b-announce-run){display:flex;width:max-content;animation:b-ann ${pace} linear infinite}
+  .bsite :where(${bar}[data-dir=left] .b-announce-run){animation-direction:reverse}
+  .bsite :where(${bar} .b-announce-run > span),.bsite :where(${bar} .b-announce-run)::before,.bsite :where(${bar} .b-announce-run)::after{flex:none;min-width:100cqw;padding-inline:28px;text-align:center}
+  .bsite :where(${bar} .b-announce-run)::before,.bsite :where(${bar} .b-announce-run)::after{content:attr(data-text);content:attr(data-text) / ""}`;
+
 export const BASE_CSS = `
 .bsite{box-sizing:border-box;line-height:1.5;-webkit-font-smoothing:antialiased;overflow-wrap:break-word;position:relative;overflow-x:clip}
 /* No element is wider than what holds it, whatever width it was given for a
@@ -268,6 +285,21 @@ export const BASE_CSS = `
 .bsite :where(.b-crumbs a){text-decoration:none}
 .bsite :where(.b-crumbs a:hover){text-decoration:underline}
 .bsite :where(.b-announce){display:block;text-decoration:none;font-size:14px;line-height:1.4}
+/* Moving, when the merchant has it so: on a phone unless told otherwise. Left
+   to right; data-dir=left runs it the other way. Nobody who asked their device
+   for less motion gets it: for them the message stays as it was, on as many
+   lines as it takes. */
+@keyframes b-ann{from{transform:translateX(calc(-200% / 3))}to{transform:translateX(calc(-100% / 3))}}
+@media (prefers-reduced-motion:no-preference){${moving(".b-announce[data-move=always]", "var(--b-ann-wide,24s)")}
+  ${PHONE}{${moving(".b-announce[data-move]", "var(--b-ann-dur,14s)")}
+  }
+  @media (hover:hover){.bsite :where(.b-announce[data-move]:hover .b-announce-run){animation-play-state:paused}}
+}
+/* While its words are being typed in the editor it stands still, and is there once. */
+.bsite .b-announce[contenteditable]:not([contenteditable=false]){white-space:normal}
+.bsite .b-announce[contenteditable]:not([contenteditable=false]) .b-announce-run{display:inline;animation:none}
+.bsite .b-announce[contenteditable]:not([contenteditable=false]) .b-announce-run > span{min-width:0;padding:0}
+.bsite .b-announce[contenteditable]:not([contenteditable=false]) .b-announce-run::before,.bsite .b-announce[contenteditable]:not([contenteditable=false]) .b-announce-run::after{content:none}
 
 .bsite :where(.b-price){font-size:22px;font-weight:600}
 .bsite :where(.b-pgallery){display:flex;flex-direction:column;gap:10px;min-width:0}

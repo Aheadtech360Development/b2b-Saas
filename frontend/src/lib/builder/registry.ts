@@ -446,7 +446,15 @@ export const REGISTRY: ComponentDef[] = [
   {
     type: "announcement_bar", label: "Announcement bar", tile: "Announce\u00ADment bar", category: "store", icon: "Megaphone",
     blurb: "A strip of news across the top.",
-    fields: [{ key: "text", label: "Message", kind: "text" }, { key: "href", label: "Link (optional)", kind: "url" }],
+    fields: [
+      { key: "text", label: "Message", kind: "text" },
+      { key: "href", label: "Link (optional)", kind: "url" },
+      { key: "move", label: "Moving text", kind: "select",
+        help: "Moving, the message stays on one line and slides across the bar. A long message would otherwise take several lines of a phone's screen.",
+        options: [{ value: "", label: "On a phone" }, { value: "always", label: "On every screen" }, { value: "off", label: "Off" }] },
+      { key: "moveDir", label: "It moves", kind: "select", when: { key: "move", is: ["", "always", undefined] },
+        options: [{ value: "", label: "Left to right" }, { value: "left", label: "Right to left" }] },
+    ],
     styles: ["typography", "spacing", "background"],
     create: () => node("announcement_bar", { text: "Free shipping on orders over $100" },
                        { backgroundColor: "#14161B", color: "#FFFFFF", textAlign: "center", paddingTop: "10px", paddingBottom: "10px" }),
