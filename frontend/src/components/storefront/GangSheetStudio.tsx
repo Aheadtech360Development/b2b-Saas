@@ -2509,6 +2509,21 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
       },
       shopDesigns: library.filter((d) => d.is_active).map((d) => ({ key: d.id, name: d.name, category: d.category })),
       gallery: gallery.map((a) => ({ key: a.file_url, name: a.file_name })),
+      // Every sheet in the build, not only the open one: the assistant is asked
+      // about all of them, and asks which one when that isn't clear.
+      sheets: snapshotAll().map((sh, i) => {
+        const v = viewOf(i);
+        return {
+          key: sh.key, name: sh.name, sizeName: v.size?.name ?? "", lengthIn: v.sheetLen, sets: sh.qty,
+          price: sheetUnitPrice(sh) * sh.qty, active: i === active,
+          pieces: v.placements.map((p) => ({ uid: p.uid, w_in: p.w_in, h_in: p.h_in })),
+        };
+      }),
+      selectedUid: selected != null ? placements.find((p) => p.id === selected)?.uid : undefined,
+      issues: warnings.flatMap((w) => {
+        const uid = placements.find((p) => p.id === w.id)?.uid;
+        return uid ? [{ uid, kind: w.kind }] : [];
+      }),
     });
   }
 
@@ -2536,10 +2551,25 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
     fills: { uid: string; copies: number }[];
   };
 
-  /** The print size a design has on this sheet, or would be given if added now. */
-  function sizeNow(u: Upload): { w: number; h: number } {
-    const here = placements.find((p) => p.uid === u.uid);
+  /** The print size a design has on this sheet (or `list`), or would be given if added now. */
+  function sizeNow(u: Upload, list: Placement[] = placements): { w: number; h: number } {
+    const here = list.find((p) => p.uid === u.uid) ?? placements.find((p) => p.uid === u.uid);
     return here ? { w: here.w_in, h: here.h_in } : defaultSize(u);
+  }
+
+  /** One sheet as a plan is worked out on it: the open one from what is on
+   *  screen, any other from its saved snapshot. */
+  type SheetView = { placements: Placement[]; size: GangSheetSize | undefined; sheetLen: number };
+  function viewOf(idx: number): SheetView {
+    if (idx === active) return { placements, size, sheetLen };
+    const sh = sheets[idx];
+    const sz = sh ? sizes.find((z) => z.id === sh.sizeId) : undefined;
+    return { placements: sh?.placements ?? [], size: sz, sheetLen: sz ? (sz.pricing_mode === "custom_length" ? sh!.customLength : sz.height_in) : 0 };
+  }
+  /** Which sheet a ref the assistant was given (sheet1…) means now, or -1. */
+  function sheetIndex(ref: string, refs: Record<string, string>): number {
+    const key = refs[ref] ?? "";
+    return key.startsWith("sheet:") ? sheets.findIndex((sh) => sh.key === key.slice(6)) : -1;
   }
 
   /**
@@ -2552,11 +2582,14 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
    * the size they have now. Anything else on the sheet stays as it is unless
    * the plan says otherwise.
    */
-  function resolveBuild(build: NonNullable<AssistantPlan["build"]>, refs: Record<string, string>, choice: PlanChoice = {}): Resolved | string {
+  function resolveBuild(
+    build: NonNullable<AssistantPlan["build"]>, refs: Record<string, string>, choice: PlanChoice = {},
+    view: SheetView = { placements, size, sheetLen },
+  ): Resolved | string {
     const want = (build.sheet_size ?? "").trim().toLowerCase();
     const target = choice.sizeId ? sizes.find((s) => s.id === choice.sizeId)
       : want ? sizes.find((s) => s.name.trim().toLowerCase() === want)
-      : size;
+      : view.size;
     if (!target) return `The ${build.sheet_size ?? "chosen"} sheet isn't available any more.`;
     const gap = build.gap_in ?? imageMargin;
     const edge = build.sheet_margin_in ?? nestEdge;
@@ -2573,7 +2606,7 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
     const out: Resolved["designs"] = [];
     if (build.keep_others !== false) {
       const kept = new Map<string, BuildDesign & { uid: string }>();
-      for (const p of placements) {
+      for (const p of view.placements) {
         if (namedUids.has(p.uid)) continue;
         const key = `${p.uid}\u0001${round3(p.w_in)}x${round3(p.h_in)}`;
         const k = kept.get(key);
@@ -2586,7 +2619,7 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
     for (const it of build.items) {
       if (!it.fill && !(it.copies && it.copies > 0)) continue;
       const u = named.get(it.design)!;
-      const now = sizeNow(u);
+      const now = sizeNow(u, view.placements);
       const shape = now.w / now.h;
       let w: number, h: number;
       if (it.width_in) { w = it.width_in; h = w / shape; }
@@ -2598,7 +2631,7 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
 
     // Filling comes last: it takes whatever room the rest leaves.
     const studioTarget = toStudioSize(target);
-    const rollLength = isRollSize(studioTarget) ? (target.id === size?.id && sheetLen > 0 ? sheetLen : studioTarget.min_length_in) : undefined;
+    const rollLength = isRollSize(studioTarget) ? (target.id === view.size?.id && view.sheetLen > 0 ? view.sheetLen : studioTarget.min_length_in) : undefined;
     const fills: Resolved["fills"] = [];
     for (const d of filling) {
       const n = fillCount(studioTarget, out, d, edge, gap, rollLength, layout);
@@ -2623,15 +2656,41 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
       save: !!plan.save,
       cart: !!plan.add_to_cart,
       sets: plan.sets,
+      cleared: [],
+      deleted: [],
     };
+    // Which sheet it works on: one other than the open one is named on the card.
+    const fresh = plan.sheet === "new";
+    const onSheet = fresh ? active : plan.sheet ? sheetIndex(plan.sheet, refs) : active;
+    if (onSheet < 0) return { ...out, problem: "That sheet isn't there any more. Ask again and I'll redo it." };
+    if (fresh) out.sheetName = "a new sheet";
+    else if (onSheet !== active) out.sheetName = sheets[onSheet]?.name;
+    const sheetsAt = (list: string[] | undefined) => (list ?? []).map((ref) => sheetIndex(ref, refs));
+    const describe = (idxs: number[]) => idxs.map((i) => ({ name: sheets[i]?.name ?? "a sheet", designs: viewOf(i).placements.length, open: i === active }));
+    if (plan.clear_sheets?.length) {
+      const idxs = sheetsAt(plan.clear_sheets);
+      if (idxs.some((i) => i < 0)) return { ...out, problem: "One of those sheets isn't there any more." };
+      out.cleared = describe(idxs);
+    }
+    if (plan.delete_sheets?.length) {
+      const idxs = sheetsAt(plan.delete_sheets);
+      if (idxs.some((i) => i < 0)) return { ...out, problem: "One of those sheets isn't there any more." };
+      out.deleted = describe(idxs);
+      if (new Set(idxs).size >= sheets.length) out.problem = "At least one sheet has to stay.";
+    }
     if (!plan.build) {
       const missing = (plan.add_designs ?? []).filter((ref) => !shopItem(ref, refs));
+      const anyDesigns = sheets.some((_, i) => viewOf(i).placements.length > 0);
       if (missing.length) out.problem = "One of those designs isn't available any more. Ask again and I'll redo it.";
       else if (plan.open_editor && !(refs[plan.open_editor.design] && upById(refs[plan.open_editor.design]!))) out.problem = "That design is no longer in your uploads.";
-      else if ((out.cart || out.save) && !placements.length && !out.place.length) out.problem = "The sheet is empty. Add designs first.";
+      else if ((out.cart || out.save) && !anyDesigns && !out.place.length) out.problem = "The sheet is empty. Add designs first.";
       return out;
     }
-    const r = resolveBuild(plan.build, refs, choice);
+    // A new sheet starts empty, at the size and length of the one open, as Add new sheet makes it.
+    const view: SheetView = fresh
+      ? { placements: [], size, sheetLen: isCustom ? (customLength || size?.min_length_in || 0) : (size?.height_in ?? 0) }
+      : viewOf(onSheet);
+    const r = resolveBuild(plan.build, refs, choice, view);
     if (typeof r === "string") return { ...out, problem: r };
     const target = toStudioSize(r.size);
     const built = planBuild(target, r.designs, r.edge, r.gap, r.layout);
@@ -2719,6 +2778,39 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
     return { ok: true, message: `${built.copies} on ${where}` };
   }
 
+  /** Take every design off these sheets. The open one can be brought back with
+   *  one Undo; the others keep their name, size and Qty, only empty. */
+  function clearSheets(idxs: number[]): PlanRun {
+    const all = snapshotAll();
+    const set = new Set(idxs.filter((i) => i >= 0 && i < all.length));
+    if (!set.size) return { ok: false, message: "Those sheets aren't there any more." };
+    const taken = [...set].reduce((t, i) => t + all[i]!.placements.length, 0);
+    const names = [...set].sort((a, b) => a - b).map((i) => all[i]!.name);
+    const before = placements.map((p) => ({ ...p }));
+    goTo(all.map((sh, i) => (set.has(i) ? { ...sh, placements: [] } : sh)), active);
+    if (set.has(active)) {
+      historyRef.current = [before, []];
+      ptrRef.current = 1;
+      forceHud((n) => n + 1);
+    }
+    say.done(`${names.join(", ")} emptied.`);
+    return { ok: true, message: `${taken} design${taken === 1 ? "" : "s"} taken off ${names.join(", ")}` };
+  }
+
+  /** Delete these sheets; at least one always stays. */
+  function deleteSheets(idxs: number[]): PlanRun {
+    const all = snapshotAll();
+    const set = new Set(idxs.filter((i) => i >= 0 && i < all.length));
+    if (!set.size) return { ok: false, message: "Those sheets aren't there any more." };
+    if (set.size >= all.length) return { ok: false, message: "At least one sheet has to stay." };
+    const names = [...set].sort((a, b) => a - b).map((i) => all[i]!.name);
+    const next = all.filter((_, i) => !set.has(i));
+    const shift = [...set].filter((i) => i < active).length;
+    goTo(next, Math.max(0, Math.min(active - shift, next.length - 1)));
+    say.done(`${names.join(", ")} deleted.`);
+    return { ok: true, message: `deleted ${names.join(", ")}` };
+  }
+
   /** Put designs on the sheet where there is room, moving nothing already there. */
   function placeDesigns(uids: string[]): number {
     let n = 0;
@@ -2754,8 +2846,8 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
   // The steps of a plan run one after another, and each must see what the one
   // before it did — so later steps are taken from the latest render, not from
   // the one the button was pressed in.
-  const latest = useRef({ applyBuild, placeDesigns, save, setQty, addPlacement });
-  latest.current = { applyBuild, placeDesigns, save, setQty, addPlacement };
+  const latest = useRef({ applyBuild, placeDesigns, save, setQty, addPlacement, switchTo, clearSheets, deleteSheets, addSheet });
+  latest.current = { applyBuild, placeDesigns, save, setQty, addPlacement, switchTo, clearSheets, deleteSheets, addSheet };
   const settle = () => new Promise<void>((done) => requestAnimationFrame(() => window.setTimeout(done, 40)));
 
   /** Carry a plan out: backgrounds, then placing or building, then the cart. */
@@ -2764,6 +2856,27 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
     const problems: string[] = [];
     const added: string[] = [];
     try {
+      // The sheet it is for first: everything after works on the open sheet.
+      if (plan.sheet === "new") {
+        latest.current.addSheet();
+        await settle();
+        notes.push("on a new sheet");
+      } else if (plan.sheet) {
+        const idx = sheetIndex(plan.sheet, refs);
+        if (idx < 0) return { ok: false, message: "That sheet isn't there any more.", problems };
+        if (idx !== active) {
+          latest.current.switchTo(idx);
+          await settle();
+          notes.push(`on ${sheets[idx]?.name ?? "that sheet"}`);
+        }
+      }
+      if (plan.clear_sheets?.length || plan.delete_sheets?.length) {
+        const idxs = (list?: string[]) => (list ?? []).map((ref) => sheetIndex(ref, refs));
+        const done = plan.clear_sheets?.length
+          ? latest.current.clearSheets(idxs(plan.clear_sheets))
+          : latest.current.deleteSheets(idxs(plan.delete_sheets));
+        return { ...done, problems };
+      }
       // New designs first — the shop's, the gallery's, text — each onto the
       // sheet where there is room, the way their panels add them.
       for (const ref of plan.add_designs ?? []) {

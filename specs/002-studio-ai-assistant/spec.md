@@ -47,6 +47,12 @@ A customer building a gang sheet can ask, in plain English, "will my designs fit
 - **Every tool in reach**: `add_designs` (the shop's ready-made designs s1…, the gallery g1…), `add_text` (text, colour name or hex, bold), `open_editor` (enhance, crop, removecolor, colors, halftone), `save`. New designs are added in a plan of their own; the assistant is then told and builds with their real sizes, so the card is never worked out on a guess. Moving, resizing, rotating, undo and preview stay by hand, and the prompt names their buttons.
 - **Estimate**: per question ~3,000 tokens read from the cache and ~750 at full price, one call; about $0.08 a sheet on Sonnet 5.5 (was ~$0.20), mostly output.
 
+## Phase 5 — the whole build, and which sheet
+- **Every sheet**: SHEET NOW carries `sheets` (sheet1…: name, size, length, sets, designs on it by design ref with copies and size, price for its sets, which is open), `total_price`, `selected` (the design clicked on) and `issues` (designs on the open sheet with low resolution, past the safe area, overlapping, too small). None of it is in the cached system prompt.
+- **Which sheet**: with more than one sheet a build, sets or added designs must name `sheet` (or `"new"` for a new sheet); the server refuses otherwise and tells the model to ask the customer if they didn't say. The prompt says to ask, naming the sheets, and never guess.
+- **Empty and delete**: `clear_sheets` takes every design off the named sheets (one Undo brings back the open one; the card warns when others are included); `delete_sheets` removes sheets, never the last one, and the card warns Undo can't bring them back. Each goes in a plan of its own.
+- The prompt and tool description are written without long dashes, which the prompt itself forbids.
+
 ## Model and cost
 - **Claude Sonnet 5.5** (`claude-sonnet-5-5`, $2 / $10 per MTok) is the default for this assistant on Claude (`COPILOT_STUDIO_MODEL` overrides; other providers use their own default). Chosen over Haiku 4.5 because the assistant now reads the room left at every size, warns of overflow before proposing and fills in a nested plan.
 - **Effort `low`** (`COPILOT_STUDIO_EFFORT`, `COPILOT_EFFORT`), sent only to models that take it (not Haiku 4.5). Thinking counts towards `max_tokens`, raised to 8000.

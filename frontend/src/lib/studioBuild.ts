@@ -231,6 +231,12 @@ export function toStudioSize(s: {
 /** What the assistant proposes, as the server checked it (services/copilot/studio.py). */
 export interface AssistantPlan {
   label: string;
+  /** Which sheet (sheet1…) the plan works on, or "new" for a new one; the open one when left out. */
+  sheet?: string;
+  /** Sheets to take every design off. */
+  clear_sheets?: string[];
+  /** Sheets to delete. */
+  delete_sheets?: string[];
   remove_background?: string[];
   /** Put these on the sheet where there is room, without moving anything.
    *  Only the builder's own upload card asks for this, never the model. */
@@ -297,6 +303,11 @@ export interface PlanPreview {
   place: string[];
   /** Ready-made or gallery designs to add, by name. */
   added: string[];
+  /** The sheet it works on, when that is not the one open. */
+  sheetName?: string;
+  /** `open` is the sheet on screen: the only one Undo can bring back. */
+  cleared: { name: string; designs: number; open: boolean }[];
+  deleted: { name: string; designs: number; open: boolean }[];
   texts: { text: string; color: string; bold: boolean }[];
   editor?: { name: string; tab: string };
   /** Sets to print, when the plan changes it. */

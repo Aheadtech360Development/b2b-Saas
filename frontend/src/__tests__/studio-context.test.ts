@@ -268,6 +268,33 @@ describe("buildStudioContext", () => {
     expect(out.refs).toMatchObject({ s1: "shop:L1", s2: "shop:L2", g1: "gallery:https://x/old.png" });
   });
 
+  it("lists every sheet by ref with what is on it, the total, the selection and the issues", () => {
+    const out = buildStudioContext({
+      ...base, pieces: [{ uid: "u-logo", w_in: 4, h_in: 4 }],
+      sheets: [
+        { key: "k1", name: "Gang Sheet 1", sizeName: "22x10", lengthIn: 10, sets: 2, price: 20, active: true,
+          pieces: [{ uid: "u-logo", w_in: 4, h_in: 4 }, { uid: "u-logo", w_in: 4, h_in: 4 }] },
+        { key: "k2", name: "Gang Sheet 2", sizeName: "22x24", lengthIn: 24, sets: 1, price: 22, active: false,
+          pieces: [{ uid: "u-star", w_in: 2, h_in: 2 }] },
+      ],
+      selectedUid: "u-star",
+      issues: [{ uid: "u-logo", kind: "dpi" }, { uid: "u-logo", kind: "dpi" }, { uid: "u-star", kind: "overlap" }],
+    })!;
+    expect(out.context.sheets).toEqual([
+      { ref: "sheet1", name: "Gang Sheet 1", size: "22x10", length_in: 10, sets: 2, designs: 2, price: 20, current: true,
+        contents: [{ design: "d1", copies: 2, width_in: 4, height_in: 4 }] },
+      { ref: "sheet2", name: "Gang Sheet 2", size: "22x24", length_in: 24, sets: 1, designs: 1, price: 22, current: false,
+        contents: [{ design: "d2", copies: 1, width_in: 2, height_in: 2 }] },
+    ]);
+    expect(out.context.total_price).toBe(42);
+    expect(out.context.selected).toBe("d2");
+    expect(out.context.issues).toEqual([
+      { design: "d1", problem: "low resolution at its size", copies: 2 },
+      { design: "d2", problem: "overlapping another design", copies: 1 },
+    ]);
+    expect(out.refs).toMatchObject({ sheet1: "sheet:k1", sheet2: "sheet:k2" });
+  });
+
   it("sends no pixel sizes, only the dpi they come to", () => {
     const d = buildStudioContext({ ...base, pieces: [] })!.context.designs[0]! as Record<string, unknown>;
     expect(d).not.toHaveProperty("px_w");

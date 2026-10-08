@@ -331,6 +331,72 @@ def test_bad_adds_edits_and_saves_are_refused(args, says):
         validate_plan(args, ctx)
 
 
+# ── Several sheets ────────────────────────────────────────────────────────────
+
+def _two_sheets(**over) -> StudioContext:
+    return _ctx(sheets=[
+        {"ref": "sheet1", "name": "Gang Sheet 1", "size": "22x10", "length_in": 10, "sets": 2, "designs": 8,
+         "contents": [{"design": "d1", "copies": 8, "width_in": 4, "height_in": 4}], "price": 14.7, "current": True},
+        {"ref": "sheet2", "name": "Gang Sheet 2", "size": "22x24", "length_in": 24, "sets": 1, "designs": 3,
+         "contents": [{"design": "d1", "copies": 3, "width_in": 6, "height_in": 6}], "price": 15},
+    ], total_price=29.7, selected="d1", issues=[{"design": "d1", "problem": "low resolution at its size", "copies": 2}], **over)
+
+
+def test_every_sheet_the_selection_and_the_issues_ride_with_the_question():
+    sheet = studio_sheet(_two_sheets())
+    assert '"ref":"sheet2"' in sheet and '"sets":2' in sheet and '"total_price":29.7' in sheet
+    assert '"selected":"d1"' in sheet and "low resolution" in sheet
+    # Sheets change all the time: none of it goes in the cached system prompt.
+    assert "Gang Sheet 2" not in studio_system("Acme", "Monday", _two_sheets())
+
+
+def test_with_several_sheets_a_change_must_say_which_sheet():
+    with pytest.raises(PlanError, match=r"There are 2 sheets \(sheet1 'Gang Sheet 1' \(open\), sheet2 'Gang Sheet 2'\).*ask them first"):
+        validate_plan({"label": "x", "build": {"items": [{"design": "d1", "copies": 4}]}}, _two_sheets())
+    with pytest.raises(PlanError, match="Name the one this is for"):
+        validate_plan({"label": "x", "sets": 3}, _two_sheets())
+    plan = validate_plan({"label": "x", "sheet": "sheet2", "build": {"items": [{"design": "d1", "copies": 4}]}}, _two_sheets())
+    assert plan["sheet"] == "sheet2"
+    # One sheet: no need to say.
+    assert "sheet" not in validate_plan({"label": "x", "build": {"items": [{"design": "d1", "copies": 4}]}}, _ctx())
+    # What isn't on a sheet (a background, the editor, saving) never needs one.
+    assert validate_plan({"label": "x", "remove_background": ["d1"]}, _two_sheets())
+    assert validate_plan({"label": "x", "open_editor": {"design": "d1", "tab": "crop"}, "sheet": "sheet1"}, _two_sheets())
+
+
+def test_sheets_are_emptied_or_deleted_by_name_and_on_their_own():
+    assert validate_plan({"label": "Empty both", "clear_sheets": ["sheet1", "sheet2", "sheet1"]}, _two_sheets()) == {
+        "label": "Empty both", "clear_sheets": ["sheet1", "sheet2"]}
+    assert validate_plan({"label": "Drop 2", "delete_sheets": ["sheet2"]}, _two_sheets()) == {
+        "label": "Drop 2", "delete_sheets": ["sheet2"]}
+
+
+def test_a_new_sheet_can_be_started_and_built_on():
+    plan = validate_plan({"label": "x", "sheet": "new", "build": {"items": [{"design": "d1", "copies": 10}]}}, _two_sheets())
+    assert plan["sheet"] == "new"
+    assert validate_plan({"label": "Another sheet", "sheet": "new"}, _two_sheets()) == {"label": "Another sheet", "sheet": "new"}
+
+
+@pytest.mark.parametrize("args, says", [
+    ({"label": "x", "clear_sheets": ["sheet9"]}, "no sheet sheet9"),
+    ({"label": "x", "sheet": "sheet9", "sets": 2}, "no sheet sheet9"),
+    ({"label": "x", "delete_sheets": ["sheet1", "sheet2"]}, "At least one sheet has to stay"),
+    ({"label": "x", "clear_sheets": ["sheet1"], "delete_sheets": ["sheet2"]}, "separate plans"),
+    ({"label": "x", "clear_sheets": ["sheet1"], "add_to_cart": True}, "plan of its own"),
+])
+def test_bad_sheet_plans_are_refused(args, says):
+    with pytest.raises(PlanError, match=says):
+        validate_plan(args, _two_sheets())
+
+
+def test_the_prompt_says_to_ask_which_sheet_and_writes_no_long_dashes():
+    system = studio_system("Acme", "Monday", _ctx())
+    assert "ask which, naming the sheets" in system and "Never guess" in system
+    assert "means clear_sheets, not delete" in system
+    # The rule against long dashes is the only place one appears.
+    assert system.count("—") == 1 and system.count("–") == 1
+
+
 # ── Prompt cache and one call per plan ────────────────────────────────────────
 
 def test_the_system_prompt_and_the_earlier_conversation_are_marked_for_the_cache():

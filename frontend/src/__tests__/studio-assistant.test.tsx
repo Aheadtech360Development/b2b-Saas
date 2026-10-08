@@ -539,3 +539,107 @@ describe("the shop's designs, text, the image editor and saving", () => {
     expect(auth.cart).toEqual([]);
   });
 });
+
+describe("several sheets", () => {
+  type Sheets = { ref: string; name: string; sets: number; designs: number; current: boolean; contents: { design: string; copies: number }[] }[];
+  const sheetsSeen = () => (lastAsk().context as unknown as { sheets: Sheets; total_price: number; selected?: string }).sheets;
+  /** The reopened sheet (one tee) and a second, empty one, which is left open. */
+  const twoSheets = async () => {
+    render(<GangSheetStudio sizes={SIZES} productId={null} resumeOrder={ORDER} onClose={() => {}} onSaved={() => {}} />);
+    fireEvent.click(screen.getByRole("button", { name: /Add new sheet/ }));
+    expect(screen.getByText(/\(2\) Active Gang Sheets/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Build with AI/ }));
+  };
+  const ask = async (question: string, answer: unknown) => {
+    post.mockResolvedValueOnce(answer);
+    fireEvent.change(within(panel()).getByPlaceholderText(/on a 22x10/), { target: { value: question } });
+    await act(async () => { fireEvent.click(within(panel()).getByRole("button", { name: "Send" })); });
+  };
+
+  it("tells the assistant about every sheet, what is on each, and the total", async () => {
+    await twoSheets();
+    await ask("what's on my sheets?", { reply: "Sheet 1 has one tee." });
+    const sheets = sheetsSeen();
+    expect(sheets.map((s) => [s.ref, s.name, s.designs, s.current])).toEqual([
+      ["sheet1", "Gang Sheet 1", 1, false], ["sheet2", "Gang Sheet 2", 0, true],
+    ]);
+    expect(sheets[0]!.contents).toEqual([{ design: "d1", copies: 1, width_in: 3, height_in: 3 }]);
+    expect((lastAsk().context as unknown as { total_price: number }).total_price).toBe(14.7);
+  });
+
+  it("tells it which design is selected", async () => {
+    render(<GangSheetStudio sizes={SIZES} productId={null} resumeOrder={ORDER} onClose={() => {}} onSaved={() => {}} />);
+    fireEvent.pointerDown(designs()[0]!, { clientX: 5, clientY: 5 });
+    fireEvent.pointerUp(window);
+    fireEvent.click(screen.getByRole("button", { name: /Build with AI/ }));
+    await ask("make this one bigger", { reply: "How big?" });
+    expect((lastAsk().context as unknown as { selected?: string }).selected).toBe("d1");
+  });
+
+  it("builds on the sheet it names, opening that sheet", async () => {
+    await twoSheets();
+    expect(designs()).toHaveLength(0); // the new, empty sheet is open
+    await ask("4 tees on sheet 1", {
+      reply: "Ready.", plan: { label: "4 tees on Gang Sheet 1", sheet: "sheet1", build: { items: [{ design: "d1", copies: 4 }] } },
+    });
+    expect(line(/On Gang Sheet 1/)).toBeInTheDocument();
+    expect(line(/4 designs on 1 × 22×10/)).toBeInTheDocument();
+    await press(within(panel()).getByRole("button", { name: /Do it/ }));
+    expect(designs()).toHaveLength(4);
+    expect(overlapping(designs().map(inches))).toBe(false);
+  });
+
+  it("empties the sheets it names, saying first that only the open one comes back with Undo", async () => {
+    await twoSheets();
+    await ask("clear sheet 1", { reply: "Ready.", plan: { label: "Empty Gang Sheet 1", clear_sheets: ["sheet1"] } });
+    expect(line(/Take every design off Gang Sheet 1 \(1 design\)/)).toBeInTheDocument();
+    expect(line(/Undo only brings back the sheet that is open/)).toBeInTheDocument();
+    await press(within(panel()).getByRole("button", { name: /Do it/ }));
+    await ask("what's left?", { reply: "Nothing." });
+    expect(sheetsSeen().map((s) => s.designs)).toEqual([0, 0]);
+    expect(screen.getByText(/\(2\) Active Gang Sheets/)).toBeInTheDocument(); // emptied, not deleted
+  });
+
+  it("empties the open sheet so that one Undo brings it back", async () => {
+    render(<GangSheetStudio sizes={SIZES} productId={null} resumeOrder={ORDER} onClose={() => {}} onSaved={() => {}} />);
+    fireEvent.click(screen.getByRole("button", { name: /Build with AI/ }));
+    await ask("remove all designs", { reply: "Ready.", plan: { label: "Empty the sheet", clear_sheets: ["sheet1"] } });
+    expect(within(panel()).queryByText(/Undo only brings back/)).toBeNull();
+    await press(within(panel()).getByRole("button", { name: /Do it/ }));
+    expect(designs()).toHaveLength(0);
+    fireEvent.click(screen.getByRole("button", { name: /Undo/ }));
+    expect(designs()).toHaveLength(1);
+  });
+
+  it("deletes the sheets it names, warning first that Undo can't bring them back", async () => {
+    await twoSheets();
+    await ask("delete sheet 2", { reply: "Ready.", plan: { label: "Delete Gang Sheet 2", delete_sheets: ["sheet2"] } });
+    expect(line(/Delete Gang Sheet 2 \(0 designs\)/)).toBeInTheDocument();
+    expect(line(/can't be brought back with Undo/)).toBeInTheDocument();
+    await press(within(panel()).getByRole("button", { name: /Do it/ }));
+    expect(screen.queryByText(/\(2\) Active Gang Sheets/)).toBeNull();
+    expect(designs()).toHaveLength(1); // Gang Sheet 1, with its tee, is what is left open
+  });
+
+  it("starts a new sheet and builds on it, leaving the others as they are", async () => {
+    render(<GangSheetStudio sizes={SIZES} productId={null} resumeOrder={ORDER} onClose={() => {}} onSaved={() => {}} />);
+    fireEvent.click(screen.getByRole("button", { name: /Build with AI/ }));
+    await ask("a new sheet with 4 tees", {
+      reply: "Ready.", plan: { label: "New sheet, 4 tees", sheet: "new", build: { items: [{ design: "d1", copies: 4 }], keep_others: false } },
+    });
+    expect(line(/On a new sheet/)).toBeInTheDocument();
+    expect(line(/4 designs on 1 × 22×10/)).toBeInTheDocument();
+    await press(within(panel()).getByRole("button", { name: /Do it/ }));
+    expect(screen.getByText(/\(2\) Active Gang Sheets/)).toBeInTheDocument();
+    expect(designs()).toHaveLength(4);
+    await ask("and now?", { reply: "OK." });
+    expect(sheetsSeen().map((s) => [s.designs, s.current])).toEqual([[1, false], [4, true]]);
+  });
+
+  it("never deletes the last sheet", async () => {
+    await twoSheets();
+    await ask("delete both", { reply: "Ready.", plan: { label: "Delete both", delete_sheets: ["sheet1", "sheet2"] } });
+    expect(within(panel()).getByText("At least one sheet has to stay.")).toBeInTheDocument();
+    expect(within(panel()).getByRole("button", { name: /Do it/ })).toBeDisabled();
+  });
+});

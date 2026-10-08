@@ -35,6 +35,22 @@ export interface StudioShopItem {
   category?: string | null;
 }
 
+/** One sheet in the build (the builder can hold several, each its own order). */
+export interface StudioSheetInput {
+  key: string;
+  name: string;
+  sizeName: string;
+  lengthIn: number;
+  /** How many of this sheet are printed (the Qty beside it). */
+  sets: number;
+  /** All its sets together. */
+  price: number;
+  pieces: StudioPiece[];
+  active: boolean;
+}
+
+export type StudioIssueKind = "dpi" | "outside" | "overlap" | "small";
+
 export interface StudioPiece {
   uid: string;
   w_in: number;
@@ -72,6 +88,18 @@ export interface StudioContext {
   /** The shop's ready-made designs (s1…) and the customer's gallery (g1…). */
   shop_designs: { ref: string; name: string; category?: string }[];
   gallery: { ref: string; name: string }[];
+  /** Every sheet in the build (sheet1…), the open one marked current. */
+  sheets: {
+    ref: string; name: string; size: string; length_in: number; sets: number; designs: number;
+    contents: { design: string; copies: number; width_in: number; height_in: number }[];
+    price: number; current: boolean;
+  }[];
+  /** Every sheet, every set, together. */
+  total_price?: number;
+  /** The design the customer has clicked on, if any ("this one"). */
+  selected?: string;
+  /** Designs on the open sheet with something to put right. */
+  issues: { design: string; problem: string; copies: number }[];
 }
 
 export interface StudioInput {
@@ -87,6 +115,9 @@ export interface StudioInput {
   warnings: StudioContext["warnings"];
   shopDesigns?: StudioShopItem[];
   gallery?: StudioShopItem[];
+  sheets?: StudioSheetInput[];
+  selectedUid?: string;
+  issues?: { uid: string; kind: StudioIssueKind }[];
 }
 
 // Past this the nesting runs once per size on every question; the answer would
@@ -101,6 +132,10 @@ const MAX_SIZES = 12;
 const WIDTHS = [1.5, 2, 2.5, 3, 3.5, 4, 5, 6, 8, 10, 12];
 const MAX_TABLES = 8;
 const MAX_SHOP = 40;
+const MAX_SHEETS = 20;
+const PROBLEM: Record<StudioIssueKind, string> = {
+  dpi: "low resolution at its size", outside: "past the safe area", overlap: "overlapping another design", small: "too small to print cleanly",
+};
 
 const r2 = (n: number) => Math.round(n * 100) / 100;
 
@@ -182,6 +217,40 @@ export function buildStudioContext(input: StudioInput): { context: StudioContext
     return { ref, name: d.name.slice(0, 80) };
   });
 
+  // Every sheet, named sheet1…, with what is on it by design ref.
+  const refOf = new Map(Object.entries(refs).filter(([r]) => /^d\d+$/.test(r)).map(([r, uid]) => [uid, r]));
+  const contentsOf = (list: StudioPiece[]) => {
+    const by = new Map<string, { design: string; copies: number; width_in: number; height_in: number }>();
+    for (const p of list) {
+      const ref = refOf.get(p.uid);
+      if (!ref) continue;
+      const k = `${ref}|${r2(p.w_in)}|${r2(p.h_in)}`;
+      const g = by.get(k);
+      if (g) g.copies += 1; else by.set(k, { design: ref, copies: 1, width_in: r2(p.w_in), height_in: r2(p.h_in) });
+    }
+    return [...by.values()];
+  };
+  const sheets = (input.sheets ?? []).slice(0, MAX_SHEETS).map((sh, i) => {
+    const ref = `sheet${i + 1}`;
+    refs[ref] = `sheet:${sh.key}`;
+    return {
+      ref, name: sh.name.slice(0, 60), size: sh.sizeName.slice(0, 60), length_in: r2(sh.lengthIn), sets: sh.sets,
+      designs: sh.pieces.length, contents: contentsOf(sh.pieces), price: r2(sh.price), current: sh.active,
+    };
+  });
+
+  const issueCount = new Map<string, number>();
+  for (const it of input.issues ?? []) {
+    const ref = refOf.get(it.uid);
+    if (!ref) continue;
+    const k = `${ref}|${it.kind}`;
+    issueCount.set(k, (issueCount.get(k) ?? 0) + 1);
+  }
+  const issues = [...issueCount.entries()].slice(0, 30).map(([k, copies]) => {
+    const [design, kind] = k.split("|") as [string, StudioIssueKind];
+    return { design, problem: PROBLEM[kind], copies };
+  });
+
   return {
     refs,
     context: {
@@ -200,6 +269,10 @@ export function buildStudioContext(input: StudioInput): { context: StudioContext
       fits,
       shop_designs,
       gallery,
+      sheets,
+      total_price: sheets.length ? r2(sheets.reduce((sum, sh) => sum + sh.price, 0)) : undefined,
+      selected: input.selectedUid ? refOf.get(input.selectedUid) : undefined,
+      issues,
     },
   };
 }

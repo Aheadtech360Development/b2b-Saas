@@ -19,8 +19,8 @@
  */
 import { useEffect, useRef, useState } from "react";
 import {
-  Check, CircleCheck, Eraser, Frame, Image as ImageIcon, Layers, LayoutGrid, MoveHorizontal, Paperclip, Plus,
-  Printer, Save, Scissors, ShoppingCart, Sparkles, TriangleAlert, Type, X, type LucideIcon,
+  Check, CircleCheck, Eraser, FileStack, Frame, Image as ImageIcon, Layers, LayoutGrid, MoveHorizontal, Paperclip, Plus,
+  Printer, Save, Scissors, ShoppingCart, Sparkles, SquareDashed, Trash2, TriangleAlert, Type, X, type LucideIcon,
 } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { ChatMarkdown } from "@/components/ui/ChatMarkdown";
@@ -244,6 +244,8 @@ export function StudioAssistant({ open, onClose, getContext, preview, run, uploa
         role: "note" as const, tone: out.ok ? "ok" as const : "bad" as const, cartOffer: offerCart,
         content: !out.ok ? out.message
           : plan.open_editor ? "The image editor is open. Make your change there and press Apply."
+          : plan.delete_sheets?.length ? "Done. The sheets are deleted."
+          : plan.clear_sheets?.length ? "Done. The sheets are empty. The open sheet comes back with Undo (Ctrl+Z)."
           : plan.build || plan.add_designs || plan.add_text || plan.remove_background
             ? "Your sheet is updated. Not right? Press Undo (Ctrl+Z) or tell me what to change."
             : "Done.",
@@ -422,6 +424,21 @@ function PlanCard({ plan, preview, state, result, onChoose }: {
     <div style={{ ...S.card, opacity: state === "old" ? 0.55 : 1 }}>
       <div style={S.cardTitle}>{noDashes(plan.label)}</div>
       <ul style={S.steps}>
+        {preview.sheetName && <Row icon={FileStack}>On {preview.sheetName}</Row>}
+        {preview.cleared.length > 0 && (
+          <Row icon={SquareDashed}>
+            Take every design off {preview.cleared.map((c) => `${c.name} (${c.designs} design${c.designs === 1 ? "" : "s"})`).join(", ")}
+          </Row>
+        )}
+        {preview.deleted.length > 0 && (
+          <Row icon={Trash2}>
+            Delete {preview.deleted.map((c) => `${c.name} (${c.designs} design${c.designs === 1 ? "" : "s"})`).join(", ")}
+          </Row>
+        )}
+        {preview.deleted.length > 0 && <Row icon={TriangleAlert} warn>A deleted sheet can&apos;t be brought back with Undo.</Row>}
+        {preview.cleared.some((c) => !c.open) && (
+          <Row icon={TriangleAlert} warn>Undo only brings back the sheet that is open. The others stay empty.</Row>
+        )}
         {preview.added.length > 0 && <Row icon={Plus}>Put on the sheet: {preview.added.join(", ")}</Row>}
         {preview.texts.map((t, i) => (
           <Row key={`t${i}`} icon={Type}>
