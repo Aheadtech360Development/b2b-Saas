@@ -764,6 +764,16 @@ async def submit_order(
         )
     await db.flush()
     arts = await _load_artworks(db, order.id)
+    # A buyer's own finished sheet is one file that is the whole sheet: there
+    # is nothing to arrange, so it is laid out here, as Upload by size records
+    # its one design. Without a layout the cart refused it ("no saved layout
+    # yet"), and the modal that sends it adds it to the cart straight away.
+    if len(arts) == 1 and await _gang_sheet_type(db, payload.product_id) == "upload_own":
+        a = arts[0]
+        w, h = float(a.width_in), float(a.height_in)
+        order.layout = [{"artwork_id": str(a.id), "rotation": 0, "w_in": w, "h_in": h,
+                         "x_in": max(0.0, (float(order.sheet_width_in) - w) / 2),
+                         "y_in": max(0.0, (float(order.sheet_height_in) - h) / 2)}]
     await _inspect_and_store(db, arts)
     # Record the first submission as version 1 of the history.
     order.version = 1
@@ -779,6 +789,16 @@ async def submit_order(
     # their cart with no card against it is a message about an order nobody
     # placed. See order_service: the word goes out when the order does.
     return _order_row(order, arts)
+
+
+async def _gang_sheet_type(db: AsyncSession, product_id) -> str | None:
+    """Which builder a product sells through: 'gang_sheet', 'upload_by_size',
+    'upload_own', or None."""
+    if not product_id:
+        return None
+    from app.models.product import Product
+
+    return (await db.execute(select(Product.gang_sheet_type).where(Product.id == product_id))).scalar_one_or_none()
 
 
 def _upload_by_size_rate(config: dict, area: float) -> Optional[float]:
