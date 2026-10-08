@@ -111,6 +111,49 @@ def _brand_site() -> str | None:
         return None
 
 
+def _brand_logo() -> str:
+    """The logo this mail carries: the brand's own, or none.
+
+    The platform's logo (LOGO_URL) is for mail the platform sends as itself.
+    It used to be the fallback for everybody, so a shop that had not put a
+    logo into its mail settings sent its customers the platform's.
+    """
+    try:
+        from app.core.tenant_context import get_current_brand_logo
+
+        own = (_tenant_email_cfg().get("logo_url") or "").strip() or (get_current_brand_logo() or "")
+    except Exception:
+        own = ""
+    if own:
+        return own
+    sender = _current_brand_from_context()
+    is_a_brand = bool(sender) and sender != settings.PLATFORM_NAME
+    return "" if is_a_brand else (getattr(settings, "LOGO_URL", "") or "")
+
+
+def _brand_contact() -> str | None:
+    """Where a customer's reply should land: the brand, never the platform."""
+    cfg = _tenant_email_cfg()
+    own = (cfg.get("reply_to") or "").strip() or (cfg.get("notify_email") or "").strip()
+    if own:
+        return own
+    try:
+        from app.core.tenant_context import get_current_brand_contact
+
+        return get_current_brand_contact()
+    except Exception:
+        return None
+
+
+def _bare_address(value: str | None) -> str:
+    """`Name <a@b.c>` or `a@b.c` → `a@b.c`. The sender's name is put on by the
+    send path, so a platform address saved with a name of its own must not
+    bring that name along."""
+    text = (value or "").strip()
+    found = _re.search(r"<([^<>\s]+@[^<>\s]+)>", text)
+    return found.group(1) if found else text
+
+
 def _point_at_brand(text: str | None, site: str) -> str | None:
     """Send every link in this message to the brand's shop.
 
@@ -252,7 +295,7 @@ class EmailService:
         return {
             # Only a logo somebody configured: the fallback used to be one
             # store's file, which then appeared on every brand's email.
-            "logo_url": (cfg.get("logo_url") or "").strip() or getattr(settings, "LOGO_URL", "") or "",
+            "logo_url": _brand_logo(),
             "frontend_url": settings.FRONTEND_URL,
             # The sending brand — the templates print this instead of a name
             # that used to be written into every one of them.
@@ -348,7 +391,7 @@ class EmailService:
         brand = _current_brand_from_context() or settings.EMAIL_FROM_NAME or "Our Store"
         from_name = (cfg.get("from_name") or "").strip() or brand or settings.EMAIL_FROM_NAME
         # Where this brand's customers should write, and where its store lives.
-        contact = (cfg.get("reply_to") or "").strip() or (cfg.get("notify_email") or "").strip() or None
+        contact = _brand_contact()
         site = _brand_site() or settings.FRONTEND_URL
         subject = _rebrand_text(subject, brand, contact_email=contact, site_url=site)
         body_html = _rebrand_text(body_html, brand, contact_email=contact, site_url=site)
@@ -364,13 +407,11 @@ class EmailService:
         # platform's — the only domain that account may send from — with the
         # brand's identity on the display name and its reply-to carrying
         # replies home.
-        from_addr = f"{from_name} <{own_from if use_own else settings.EMAIL_FROM_ADDRESS}>"
+        from_addr = f"{from_name} <{_bare_address(own_from if use_own else settings.EMAIL_FROM_ADDRESS)}>"
+        # A reply goes to the brand: the address it set, else the one it signed
+        # up with. Without one it went to the platform's sending address.
         if not reply_to:
-            reply_to = (
-                (cfg.get("reply_to") or "").strip()
-                or (cfg.get("notify_email") or "").strip()
-                or None
-            )
+            reply_to = contact
 
         # Everything to one inbox while no sending domain is verified — see
         # EMAIL_REDIRECT_TO. The real recipient rides in the subject so nothing

@@ -93,9 +93,18 @@ def _header(doc_title: str) -> list:
     from reportlab.platypus import Image as _RLImage
 
     logo_element = None
-    # Only a logo somebody configured — never one store's file on every
-    # other store's invoice.
-    logo_url = _cfg.LOGO_URL
+    # The brand's own logo, or none. The platform's (LOGO_URL) is for the
+    # platform's own documents only: it used to be read here for everybody, so
+    # a shop's order PDF and invoice carried the platform's logo to the shop's
+    # customer.
+    try:
+        from app.core.tenant_context import get_current_brand_logo, get_current_brand_name
+
+        _sender = get_current_brand_name()
+        _is_a_brand = bool(_sender) and _sender != _cfg.PLATFORM_NAME
+        logo_url = get_current_brand_logo() or ("" if _is_a_brand else _cfg.LOGO_URL)
+    except Exception:
+        logo_url = ""
     if logo_url:
         try:
             with _req.urlopen(logo_url, timeout=5) as resp:

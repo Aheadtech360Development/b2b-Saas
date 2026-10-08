@@ -20,13 +20,24 @@ async def _brand_from_order(db, order) -> None:
     store. No-ops when the order is missing."""
     if order is None:
         return
-    from app.core.database import _resolve_brand_name, _resolve_brand_site
-    from app.core.tenant_context import set_current_brand_name, set_current_brand_site
-    tenant_id = getattr(order, "tenant_id", None)
-    set_current_brand_name(await _resolve_brand_name(db, tenant_id))
-    # And where that store lives, so the links in the mail go to the shop the
-    # buyer ordered from rather than to the platform.
-    set_current_brand_site(await _resolve_brand_site(db, tenant_id))
+    await _brand_from(db, order)
+
+
+async def _brand_from(db, record) -> None:
+    """Sign this job's mail as the brand the record belongs to — an order, an
+    application, a user, a return: anything that carries a tenant_id.
+
+    Its name, where its shop lives, its own mail settings, its logo and its
+    reply address, all five. The jobs for returns, wholesale decisions,
+    password resets, verification and invitations set none of them, so every
+    one of those went to a shop's customer under the platform's name.
+    """
+    tenant_id = getattr(record, "tenant_id", None) if record is not None else None
+    if not tenant_id:
+        return
+    from app.core.database import use_brand_identity
+
+    await use_brand_identity(db, tenant_id)
 
 
 def _fmt_items(items) -> list[dict]:
@@ -497,12 +508,22 @@ def send_invoice_email(self, order_id: str) -> dict:
 # ─── Wholesale application received ─────────────────────────────────────────
 
 @celery_app.task(bind=True, max_retries=3, default_retry_delay=60)
-def send_wholesale_application_received_email(self, to_email: str, contact_name: str, company_name: str) -> dict:
-    """Notify applicant that their wholesale application was received."""
+def send_wholesale_application_received_email(
+    self, to_email: str, contact_name: str, company_name: str, tenant_id: str | None = None,
+) -> dict:
+    """Notify applicant that their wholesale application was received.
+
+    `tenant_id` is the shop they applied to: there is no record to read it
+    from here, so whoever queues this has to say, or the mail cannot be signed
+    as that shop.
+    """
     try:
         async def _send():
+            from types import SimpleNamespace
+
             from app.services.email_service import EmailService
             async with AsyncSessionLocal() as db:
+                await _brand_from(db, SimpleNamespace(tenant_id=tenant_id))
                 svc = EmailService(db)
                 ok = svc.send_from_file(
                     template_name="wholesale_application_received.html",
@@ -537,6 +558,7 @@ def send_wholesale_approved_email(self, application_id: str, company_id: str) ->
                 )).scalar_one_or_none()
                 if not app:
                     return {"status": "skipped", "reason": "application_not_found"}
+                await _brand_from(db, app)
                 svc = EmailService(db)
                 ok = svc.send_from_file(
                     template_name="wholesale_approved.html",
@@ -571,6 +593,7 @@ def send_wholesale_rejected_email(self, application_id: str, reason: str) -> dic
                 )).scalar_one_or_none()
                 if not app:
                     return {"status": "skipped", "reason": "application_not_found"}
+                await _brand_from(db, app)
                 svc = EmailService(db)
                 ok = svc.send_from_file(
                     template_name="wholesale_rejected.html",
@@ -604,8 +627,9 @@ def send_password_reset_email(self, user_id: str, reset_token: str) -> dict:
                 user = (await db.execute(select(User).where(User.id == user_id))).scalar_one_or_none()
                 if not user:
                     return {"status": "skipped", "reason": "user_not_found"}
+                await _brand_from(db, user)
                 svc = EmailService(db)
-                reset_url = f"{settings.FRONTEND_URL}/reset-password?token={reset_token}"
+                reset_url =f"{settings.FRONTEND_URL}/reset-password?token={reset_token}"
                 ok = await svc.send_password_reset_link(
                     to_email=user.email,
                     first_name=user.first_name or user.email,
@@ -631,8 +655,9 @@ def send_email_verification(self, user_id: str, verification_token: str) -> dict
                 user = (await db.execute(select(User).where(User.id == user_id))).scalar_one_or_none()
                 if not user:
                     return {"status": "skipped", "reason": "user_not_found"}
+                await _brand_from(db, user)
                 svc = EmailService(db)
-                verify_url = f"{settings.FRONTEND_URL}/auth/verify-email?token={verification_token}"
+                verify_url =f"{settings.FRONTEND_URL}/auth/verify-email?token={verification_token}"
                 variables = {"name": user.full_name or user.email, "verify_url": verify_url}
                 ok = await svc.send("email_verification", user.email, variables)
                 return {"status": "sent" if ok else "failed", "user_id": user_id}
@@ -657,6 +682,7 @@ def send_user_invitation_email(self, invited_user_id: str, company_id: str, invi
                 company = (await db.execute(select(Company).where(Company.id == company_id))).scalar_one_or_none()
                 if not user or not company:
                     return {"status": "skipped", "reason": "user_or_company_not_found"}
+                await _brand_from(db, user)
                 svc = EmailService(db)
                 invite_url = (
                     f"{settings.FRONTEND_URL}/auth/accept-invite?token={invite_token}"
@@ -693,6 +719,7 @@ def send_rma_status_email(self, rma_id: str) -> dict:
                 if not user:
                     return {"status": "skipped", "reason": "user_not_found"}
                 event = "rma_approved" if rma.status == "approved" else "rma_rejected"
+                await _brand_from(db, rma)
                 svc = EmailService(db)
                 variables = {
                     "rma_number": rma.rma_number,

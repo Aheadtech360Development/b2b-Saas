@@ -44,6 +44,13 @@ _bypass_scoping: ContextVar[bool] = ContextVar("bypass_tenant_scoping", default=
 # service is synchronous and cannot await a lookup of its own.
 _current_tenant_email: ContextVar[dict | None] = ContextVar("current_tenant_email", default=None)
 
+# The brand's own logo, and the address its customers' replies should reach.
+# Resolved with the name for the same reason. Without them a brand's mail and
+# its order PDFs wore the platform's logo, and a customer pressing Reply wrote
+# to the platform's no-reply address.
+_current_brand_logo: ContextVar[str | None] = ContextVar("current_brand_logo", default=None)
+_current_brand_contact: ContextVar[str | None] = ContextVar("current_brand_contact", default=None)
+
 # Sentinel used when a request names a tenant that cannot be resolved (unknown or
 # suspended subdomain, malformed JWT tenant claim). Scoping filters on it and it
 # matches no row, so such a request sees an empty store. Leaving the tenant unset
@@ -80,6 +87,24 @@ def set_current_brand_site(origin: str | None) -> None:
 def get_current_brand_site() -> str | None:
     """Where this brand's shop lives, or None to fall back to the platform's."""
     return _current_brand_site.get()
+
+
+def set_current_brand_logo(url: str | None) -> None:
+    _current_brand_logo.set((url or "").strip() or None)
+
+
+def get_current_brand_logo() -> str | None:
+    """This brand's own logo, or None when it has not uploaded one."""
+    return _current_brand_logo.get()
+
+
+def set_current_brand_contact(email: str | None) -> None:
+    _current_brand_contact.set((email or "").strip() or None)
+
+
+def get_current_brand_contact() -> str | None:
+    """Where this brand's customers should be able to write back to."""
+    return _current_brand_contact.get()
 
 
 def get_current_tenant_slug() -> str | None:

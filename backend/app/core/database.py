@@ -153,11 +153,22 @@ def forget_brand_name(tenant_id: object) -> None:
     had not worked.
     """
     _BRAND_CACHE.pop(str(tenant_id), None)
+    _MARK_CACHE.pop(str(tenant_id), None)
 
 
 async def _resolve_brand_name(session: AsyncSession, tenant_id: object) -> str | None:
+    """The name a brand's customers know it by.
+
+    The store name it chose, else its company name, else the name it signed up
+    with — the same order the shop's own pages use. It used to be the store
+    name or nothing, and nothing made every email of a brand that had not typed
+    one go out under the platform's name: sender, subject, heading and
+    signature. A brand always has a name; this always finds it.
+    """
     from sqlalchemy import text
 
+    if not tenant_id:
+        return None
     key = str(tenant_id)
     hit = _BRAND_CACHE.get(key)
     now = _time.monotonic()
@@ -166,7 +177,12 @@ async def _resolve_brand_name(session: AsyncSession, tenant_id: object) -> str |
     try:
         name = (
             await session.execute(
-                text("SELECT store_name FROM tenant_branding WHERE tenant_id = :t"),
+                text(
+                    "SELECT COALESCE(NULLIF(btrim(b.store_name), ''), NULLIF(btrim(b.company_name), ''), "
+                    "NULLIF(btrim(t.name), '')) "
+                    "FROM tenants t LEFT JOIN tenant_branding b ON b.tenant_id = t.id "
+                    "WHERE t.id = CAST(:t AS uuid)"
+                ),
                 {"t": key},
             )
         ).scalar()
@@ -174,6 +190,66 @@ async def _resolve_brand_name(session: AsyncSession, tenant_id: object) -> str |
         name = None
     _BRAND_CACHE[key] = (name, now + _BRAND_TTL_SECONDS)
     return name
+
+
+# The brand's logo and the address its customers can write back to. Cached and
+# cleared with the name.
+_MARK_CACHE: dict[str, tuple[tuple[str | None, str | None], float]] = {}
+
+
+async def _resolve_brand_mark(session: AsyncSession, tenant_id: object) -> tuple[str | None, str | None]:
+    """(logo, contact address) for a brand: its own, never the platform's."""
+    from sqlalchemy import text
+
+    if not tenant_id:
+        return None, None
+    key = str(tenant_id)
+    hit = _MARK_CACHE.get(key)
+    now = _time.monotonic()
+    if hit and hit[1] > now:
+        return hit[0]
+    mark: tuple[str | None, str | None] = (None, None)
+    try:
+        row = (
+            await session.execute(
+                text(
+                    "SELECT NULLIF(btrim(b.logo_url), ''), NULLIF(btrim(t.email), '') "
+                    "FROM tenants t LEFT JOIN tenant_branding b ON b.tenant_id = t.id "
+                    "WHERE t.id = CAST(:t AS uuid)"
+                ),
+                {"t": key},
+            )
+        ).first()
+        if row:
+            mark = (row[0], row[1])
+    except Exception:
+        mark = (None, None)
+    _MARK_CACHE[key] = (mark, now + _BRAND_TTL_SECONDS)
+    return mark
+
+
+async def use_brand_identity(session: AsyncSession, tenant_id: object) -> None:
+    """Sign everything sent from here on as this brand.
+
+    Its name, where its shop lives, its own mail settings, its logo and where
+    replies should go, all at once — for a request, and for a job running
+    outside one. One call, so a new sender cannot set the name and forget the
+    rest: the background jobs set two of the five, and three jobs set none.
+    """
+    from app.core.tenant_context import (
+        set_current_brand_contact,
+        set_current_brand_logo,
+        set_current_brand_name,
+        set_current_brand_site,
+        set_current_tenant_email,
+    )
+
+    set_current_brand_name(await _resolve_brand_name(session, tenant_id))
+    set_current_brand_site(await _resolve_brand_site(session, tenant_id))
+    set_current_tenant_email(await _resolve_tenant_email(session, tenant_id))
+    logo, contact = await _resolve_brand_mark(session, tenant_id)
+    set_current_brand_logo(logo)
+    set_current_brand_contact(contact)
 
 
 # Where each brand's shop lives. Same treatment again: every link we mail out
@@ -232,6 +308,8 @@ async def _apply_tenant_context(request: Request | None, session: AsyncSession) 
     from app.core.tenant_context import (
         NO_TENANT,
         set_bypass_scoping,
+        set_current_brand_contact,
+        set_current_brand_logo,
         set_current_brand_name,
         set_current_brand_site,
         set_current_tenant,
@@ -242,6 +320,8 @@ async def _apply_tenant_context(request: Request | None, session: AsyncSession) 
     set_current_brand_name(None)
     set_current_brand_site(None)
     set_current_tenant_email(None)
+    set_current_brand_logo(None)
+    set_current_brand_contact(None)
 
     # Fresh defaults for this request task.
     set_bypass_scoping(False)
@@ -268,9 +348,7 @@ async def _apply_tenant_context(request: Request | None, session: AsyncSession) 
     tenant_id = getattr(state, "tenant_id", None)
     if tenant_id:
         set_current_tenant(tenant_id)
-        set_current_brand_name(await _resolve_brand_name(session, tenant_id))
-        set_current_brand_site(await _resolve_brand_site(session, tenant_id))
-        set_current_tenant_email(await _resolve_tenant_email(session, tenant_id))
+        await use_brand_identity(session, tenant_id)
         return
 
     # 3. Public storefront — resolve the subdomain slug to a tenant id.
@@ -286,9 +364,7 @@ async def _apply_tenant_context(request: Request | None, session: AsyncSession) 
         # would return every tenant's products pooled together.
         set_current_tenant(row[0] if row else NO_TENANT)
         if row:
-            set_current_brand_name(await _resolve_brand_name(session, row[0]))
-            set_current_brand_site(await _resolve_brand_site(session, row[0]))
-            set_current_tenant_email(await _resolve_tenant_email(session, row[0]))
+            await use_brand_identity(session, row[0])
         return
 
     # 4. No tenant and not a platform admin — a public request to the bare root.
