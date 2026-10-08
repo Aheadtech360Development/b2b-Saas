@@ -95,7 +95,7 @@ export default function CheckoutConfirmedPage() {
             { label: "Shipping", value: shippingLabel },
             ...(confirmedShippingCost > 0 ? [{ label: "Shipping Cost", value: formatCurrency(confirmedShippingCost) }] : []),
             { label: "Total", value: formatCurrency(confirmedOrderTotal) },
-            ...(confirmedPaymentMethod ? [{ label: "Payment", value: confirmedPaymentMethod === "net_30" ? "Net 30 — Invoice" : confirmedPaymentMethod === "ach" ? "ACH / Bank Transfer" : "Credit Card" }] : []),
+            ...(confirmedPaymentMethod ? [{ label: "Payment", value: confirmedPaymentMethod === "net_30" ? "Net 30 — Invoice" : confirmedPaymentMethod === "ach" ? "ACH / Bank Transfer" : confirmedPaymentMethod === "cod" ? "Cash on delivery (pay when it arrives)" : "Credit Card" }] : []),
           ].map((row, i, arr) => (
             <div key={row.label} style={{ display: "flex", gap: "12px", padding: "10px 0", borderBottom: i < arr.length - 1 ? "1px solid var(--ui-line)" : "none" }}>
               <dt style={{ fontSize: "14px", color: "var(--ui-muted)", flex: 1, margin: 0 }}>{row.label}</dt>

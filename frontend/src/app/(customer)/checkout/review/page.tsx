@@ -49,6 +49,36 @@ const lbl: React.CSSProperties = {
   textTransform: "uppercase", letterSpacing: ".07em", marginBottom: "7px",
 };
 
+/** One way to pay, as a row somebody can pick: a dot, a name, and what it means. */
+function PayChoice({ checked, disabled, onPick, title, hint }: {
+  checked: boolean; disabled?: boolean; onPick: () => void; title: string; hint: string;
+}) {
+  return (
+    <button
+      type="button" role="radio" aria-checked={checked} disabled={disabled} onClick={onPick}
+      style={{
+        display: "flex", alignItems: "flex-start", gap: "12px", width: "100%", textAlign: "left",
+        padding: "14px 16px", background: checked ? "var(--ui-paper, #FAFAF8)" : "#fff",
+        border: `1.5px solid ${checked ? "var(--brand-primary, var(--ui-ink))" : "var(--ui-line)"}`,
+        borderRadius: "10px", cursor: disabled ? "not-allowed" : "pointer", fontFamily: "inherit",
+        opacity: disabled ? 0.6 : 1,
+      }}
+    >
+      <span aria-hidden style={{
+        width: "18px", height: "18px", borderRadius: "50%", flexShrink: 0, marginTop: "2px",
+        border: `2px solid ${checked ? "var(--brand-primary, var(--ui-ink))" : "var(--ui-line)"}`,
+        display: "inline-flex", alignItems: "center", justifyContent: "center", background: "#fff",
+      }}>
+        {checked && <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "var(--brand-primary, var(--ui-ink))" }} />}
+      </span>
+      <span style={{ minWidth: 0 }}>
+        <span style={{ display: "block", fontSize: "14.5px", fontWeight: 700, color: "var(--ui-ink)" }}>{title}</span>
+        <span style={{ display: "block", fontSize: "13px", color: "var(--ui-muted)", marginTop: "2px", lineHeight: 1.5 }}>{hint}</span>
+      </span>
+    </button>
+  );
+}
+
 export default function CheckoutReviewPage() {
   const router = useRouter();
   const {
@@ -60,7 +90,7 @@ export default function CheckoutReviewPage() {
     taxRegion: storedTaxRegion,
     taxRate: storedTaxRate,
     taxAmount: storedTaxAmount,
-    paymentMethod,
+    paymentMethod, setPaymentMethod,
     achBankName, achAccountHolder, achRoutingNumber, achAccountLast4, achAccountType,
     shippingType,
     selectedRate,
@@ -96,6 +126,24 @@ export default function CheckoutReviewPage() {
     storedTaxRate > 0 && storedTaxRegion ? { region: storedTaxRegion, rate: storedTaxRate } : null
   );
   const [freshTaxAmount, setFreshTaxAmount] = useState(0);
+  // Which ways this shop can be paid. Until the shop has answered, the page
+  // offers what it always did: the card.
+  const [ways, setWays] = useState<{ card: boolean; cod: boolean } | null>(null);
+
+  useEffect(() => {
+    apiClient.get<{ card?: boolean; cod?: boolean }>("/api/v1/checkout/payment-options")
+      .then((r) => setWays({ card: r.card !== false, cod: !!r.cod }))
+      .catch(() => setWays({ card: true, cod: false }));
+  }, []);
+
+  // Keep the choice to what the shop offers: cash on delivery left over from
+  // another shop's checkout goes back to card, and a shop that takes only
+  // cash on delivery starts on it.
+  useEffect(() => {
+    if (!ways) return;
+    if (paymentMethod === "cod" && !ways.cod) setPaymentMethod("card");
+    else if (paymentMethod === "card" && !ways.card && ways.cod) setPaymentMethod("cod");
+  }, [ways, paymentMethod, setPaymentMethod]);
 
   // Derived values needed by useEffects below
   const guestSubtotalCalc = guestEntries.reduce((s, e) => s + e.unit_price * e.quantity, 0);
@@ -110,7 +158,7 @@ export default function CheckoutReviewPage() {
       router.replace("/checkout/address");
     } else if (
       paymentMethod !== "card" && paymentMethod !== "ach" && paymentMethod !== "net_30" &&
-      !savedCardId
+      paymentMethod !== "cod" && !savedCardId
     ) {
       // Stripe card is entered here on the review step, so "card" needs no token yet.
       router.replace("/checkout/address");
@@ -351,6 +399,11 @@ export default function CheckoutReviewPage() {
               ...basePayload,
               payment_method: "net_30",
             }
+          : paymentMethod === "cod"
+          ? {
+              ...basePayload,
+              payment_method: "cod",
+            }
           : {
               ...basePayload,
               payment_method: "card",
@@ -401,6 +454,8 @@ export default function CheckoutReviewPage() {
     ? `ACH / Bank Transfer${achAccountLast4 ? ` — ****${achAccountLast4}` : ""}`
     : paymentMethod === "net_30"
     ? "Net 30 — Pay by Invoice"
+    : paymentMethod === "cod"
+    ? "Cash on delivery"
     : "Credit Card";
 
   // Priority: stored tax amount → fresh re-fetch amount → rate × (subtotal-discount)
@@ -446,6 +501,28 @@ export default function CheckoutReviewPage() {
                 are paying for. It used to sit under the address, the items
                 and the notes — three cards of scrolling to reach the card
                 field on the last screen of a checkout. */}
+            {/* The choice of how, when the shop offers more than the card. Gone
+                once a card has been charged: the only thing left then is to
+                finish that order. */}
+            {ways?.cod && !paidIntentId && (
+              <div className="ui-card" style={{ marginBottom: "20px" }}>
+                <div style={sectionLabelStyle}>How would you like to pay?</div>
+                <div role="radiogroup" aria-label="How would you like to pay?" style={{ display: "grid", gap: "10px" }}>
+                  {ways.card && (
+                    <PayChoice
+                      checked={paymentMethod === "card"} disabled={isPlacing}
+                      onPick={() => setPaymentMethod("card")}
+                      title="Card" hint="Pay now, securely, by credit or debit card."
+                    />
+                  )}
+                  <PayChoice
+                    checked={paymentMethod === "cod"} disabled={isPlacing}
+                    onPick={() => setPaymentMethod("cod")}
+                    title="Cash on delivery" hint={`Pay ${formatCurrency(total)} in cash when your order arrives.`}
+                  />
+                </div>
+              </div>
+            )}
             {paymentMethod === "card" ? (
               // Stripe card entry + payment. On success the confirmed PaymentIntent
               // id is handed to order creation. Money settles on the brand's account.
@@ -524,7 +601,7 @@ export default function CheckoutReviewPage() {
                   onMouseEnter={e => { if (!isPlacing) (e.currentTarget as HTMLButtonElement).style.opacity = "0.88"; }}
                   onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.opacity = "1"; }}
                 >
-                  {isPlacing ? "Placing Order…" : "Place Order"}
+                  {isPlacing ? "Placing Order…" : paymentMethod === "cod" ? "Place order (pay on delivery)" : "Place Order"}
                 </button>
               </div>
             )}
@@ -564,7 +641,7 @@ export default function CheckoutReviewPage() {
                 A card buyer has the card form at the top of this page; saying
                 "paying with: Credit Card" underneath it told them nothing. ACH
                 and Net 30 have terms worth repeating before they commit. */}
-            {paymentMethod !== "card" && (
+            {paymentMethod !== "card" && paymentMethod !== "cod" && (
               <div className="ui-card" style={{ marginBottom: "20px" }}>
                 <div style={sectionLabelStyle}>Paying with</div>
                 {paymentMethod === "ach" ? (

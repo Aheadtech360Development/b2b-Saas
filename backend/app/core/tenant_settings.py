@@ -41,6 +41,7 @@ TENANT_SCOPED_KEYS: frozenset[str] = frozenset({
     "gang_sheet_commission_bps",
     "google_reviews",  # brand's Google Business Profile connection (JSON) — see services/google_reviews
     "storefront_pages",  # contact, quote and the footer's policies (JSON) — see services/storefront_pages
+    "cod_enabled",  # "true" when this brand takes cash on delivery at checkout — see api/v1/checkout.cod_offered
 })
 
 _SEP = "@"

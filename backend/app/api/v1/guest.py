@@ -439,6 +439,15 @@ async def guest_checkout(
     # 3. Verify the card payment (ACH is collected manually, so nothing to check)
     if payload.payment_method == "ach":
         _payment_status = "paid"  # ACH / bank transfer treated as immediately paid
+    elif payload.payment_method == "cod" and not payload.payment_intent_id:
+        # Cash on delivery: placed now, paid for when it arrives. Only at a
+        # shop that takes it — asked here, not left to the page.
+        from app.api.v1.checkout import cod_offered
+        from app.core.tenant_context import get_current_tenant_id as _cod_tenant
+
+        if not await cod_offered(db, _cod_tenant()):
+            raise ValidationError("This store doesn't take cash on delivery. Please choose another way to pay.")
+        _payment_status = "unpaid"
     else:
         if not payload.payment_intent_id:
             raise ValidationError("Card payment is required to place this order")
@@ -569,6 +578,12 @@ async def guest_checkout(
             f"{(payload.payment_method or 'card').upper()} payment of ${float(_charged):.2f} received",
             meta={"amount": float(_charged), "method": payload.payment_method or "card",
                   "payment_intent_id": payload.payment_intent_id},
+        )
+    elif payload.payment_method == "cod":
+        await _events.record(
+            db, order, "note",
+            f"Cash on delivery: ${float(total):.2f} to collect when it is delivered",
+            meta={"amount": float(total), "method": "cod"},
         )
 
     # The sheets this checkout paid for now belong to the order, and go into

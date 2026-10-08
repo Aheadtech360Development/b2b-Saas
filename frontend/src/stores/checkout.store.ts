@@ -44,7 +44,7 @@ interface CheckoutState {
   convenienceFee: number;
 
   // Payment method selection
-  paymentMethod: "card" | "ach" | "net_30";
+  paymentMethod: "card" | "ach" | "net_30" | "cod";
   achBankName: string;
   achAccountHolder: string;
   achRoutingNumber: string;
@@ -80,7 +80,7 @@ interface CheckoutState {
   setSelectedRate: (r: SelectedLiveRate | null) => void;
   setTaxInfo: (region: string | null, rate: number, amount?: number) => void;
   setConvenienceFee: (fee: number) => void;
-  setPaymentMethod: (m: "card" | "ach" | "net_30") => void;
+  setPaymentMethod: (m: "card" | "ach" | "net_30" | "cod") => void;
   setAchInfo: (bankName: string, accountHolder: string, routingNumber: string, accountLast4: string, accountType: string) => void;
   setPoNumber: (po: string) => void;
   setOrderNotes: (notes: string) => void;
@@ -115,7 +115,7 @@ const initialState = {
   taxRate: 0,
   taxAmount: 0,
   convenienceFee: 0,
-  paymentMethod: "card" as "card" | "ach" | "net_30",
+  paymentMethod: "card" as "card" | "ach" | "net_30" | "cod",
   achBankName: "",
   achAccountHolder: "",
   achRoutingNumber: "",

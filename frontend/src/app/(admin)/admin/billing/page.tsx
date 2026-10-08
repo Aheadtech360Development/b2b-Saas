@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { ApiClientError } from "@/lib/api-client";
 import { apiClient } from "@/lib/api-client";
+import { CashOnDeliveryPanel } from "@/components/admin/CashOnDeliveryPanel";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 type Plan = {
@@ -303,6 +304,9 @@ export default function BillingPage() {
           )}
         </div>
       </section>
+
+      {/* ── Cash on delivery: a second way to be paid, if the shop wants it ──── */}
+      <CashOnDeliveryPanel />
 
       {/* ── Subscription (platform billing) ──────────────────────────────────── */}
       <section className="bg-white border border-gray-200 rounded-xl overflow-hidden">

@@ -41,7 +41,25 @@ async def payment_options(request: Request, db: AsyncSession = Depends(get_db)) 
             card = bool((await ConnectService(db).get_status(str(tenant_id))).get("charges_enabled"))
         except Exception:
             card = False
-    return {"card": card, "ach": True}
+    return {"card": card, "ach": True, "cod": await cod_offered(db, tenant_id)}
+
+
+async def cod_offered(db: AsyncSession, tenant_id: object) -> bool:
+    """Whether this shop takes cash on delivery.
+
+    The shop decides (Billing & Payouts in its admin); off until it says so.
+    Asked again on the server when the order is placed: the page hiding the
+    choice is not what stops an order being placed without paying.
+    """
+    if not tenant_id:
+        return False
+    from app.core.tenant_settings import get_setting
+
+    try:
+        value = await get_setting(db, "cod_enabled", tenant_id=tenant_id)
+    except Exception:
+        return False
+    return str(value or "").strip().lower() in ("true", "1", "yes", "on")
 
 
 # ── Stripe: create payment intent ─────────────────────────────────────────────
@@ -334,11 +352,24 @@ async def _confirm_checkout_inner(
     has_stripe = bool(payload.payment_intent_id)
     has_ach    = payload.payment_method == "ach"
     has_net30  = payload.payment_method == "net_30"  # wholesale invoice/NET 30 — no upfront charge
-    if not has_stripe and not has_ach and not has_net30:
+    # Cash on delivery: the order is placed now and paid for when it arrives.
+    has_cod    = payload.payment_method == "cod" and not has_stripe
+    if not has_stripe and not has_ach and not has_net30 and not has_cod:
         raise ValidationError(
             "Payment required: supply payment_intent_id, payment_method=ach, "
-            "or payment_method=net_30"
+            "payment_method=net_30 or payment_method=cod"
         )
+
+    # Only a shop that takes cash on delivery takes it — asked here, not left
+    # to the page, or anybody could place an order without paying.
+    if has_cod:
+        _cod_tenant = getattr(request.state, "tenant_id", None)
+        if not _cod_tenant:
+            from app.core.tenant_context import get_current_tenant_id as _tid_now
+
+            _cod_tenant = _tid_now()
+        if not await cod_offered(db, _cod_tenant):
+            raise ValidationError("This store doesn't take cash on delivery. Please choose another way to pay.")
 
     # Validate Net 30 is explicitly enabled for this company
     if has_net30:
@@ -506,6 +537,12 @@ async def _confirm_checkout_inner(
             db, order, "payment_authorized",
             f"ACH payment of ${float(order.total):.2f} submitted",
             meta={"amount": float(order.total), "method": "ach"},
+        )
+    elif has_cod:
+        await _events.record(
+            db, order, "note",
+            f"Cash on delivery: ${float(order.total):.2f} to collect when it is delivered",
+            meta={"amount": float(order.total), "method": "cod"},
         )
     if order.status and order.status != "pending":
         await _events.record(

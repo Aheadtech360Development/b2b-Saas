@@ -307,8 +307,10 @@ class OrderService:
         import json as _json
         # Determine payment_status based on payment method:
         # Net 30 = unpaid (pay later via invoice), all other methods (card/ach/bank) = paid immediately.
+        # Cash on delivery = unpaid until the shop marks it paid, unless a card
+        # did pay for it after all.
         _pm = getattr(confirm, "payment_method", None) or ""
-        if _pm == "net_30":
+        if _pm == "net_30" or (_pm == "cod" and not confirm.payment_intent_id):
             _payment_status = "unpaid"
         else:
             _payment_status = "paid"

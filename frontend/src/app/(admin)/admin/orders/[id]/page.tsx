@@ -1283,8 +1283,12 @@ export default function AdminOrderDetailPage() {
             <div style={{ flex: 1 }}>
               <p style={{ margin: 0, fontSize: '13px', fontWeight: 600, color: '#1A1A1A' }}>Invoice &amp; Payment</p>
               <p style={{ margin: '2px 0 0', fontSize: '12px', color: '#888' }}>
-                {order.payment_status === "paid" && !order.invoice_sent_at
-                  ? `Payment received via ${order.payment_method === "ach" ? "ACH / Bank Transfer" : "Card"}`
+                {order.payment_method === "cod" && order.payment_status !== "paid"
+                  // Nothing has been paid yet: the cash is collected at the door,
+                  // and "Mark as Paid" beside this is how the shop records it.
+                  ? `Cash on delivery: collect $${Number(order.total ?? 0).toFixed(2)} when it is delivered, then mark it paid`
+                  : order.payment_status === "paid" && !order.invoice_sent_at
+                  ? `Payment received via ${order.payment_method === "ach" ? "ACH / Bank Transfer" : order.payment_method === "cod" ? "cash on delivery" : "Card"}`
                   : order.invoice_sent_at
                     ? `Invoice sent ${new Date(order.invoice_sent_at).toLocaleDateString()}`
                     : 'Invoice not yet sent'}
@@ -1686,7 +1690,7 @@ export default function AdminOrderDetailPage() {
               <div style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase" as const, letterSpacing: ".08em", color: "#aaa", marginBottom: "8px" }}>Payment</div>
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: "13px", marginBottom: "5px" }}>
                 <span style={{ color: "#7A7880" }}>Method</span>
-                <span style={{ fontWeight: 600, color: "#2A2830" }}>{order.payment_method === "ach" ? "ACH / Bank Transfer" : (order.payment_method ?? "Card")}</span>
+                <span style={{ fontWeight: 600, color: "#2A2830" }}>{order.payment_method === "ach" ? "ACH / Bank Transfer" : order.payment_method === "cod" ? "Cash on delivery" : order.payment_method === "net_30" ? "Net 30" : (order.payment_method ?? "Card")}</span>
               </div>
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: "13px", marginBottom: "5px" }}>
                 <span style={{ color: "#7A7880" }}>Status</span>
