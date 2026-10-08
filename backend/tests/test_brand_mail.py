@@ -145,3 +145,103 @@ def test_every_background_mail_job_signs_as_the_records_brand():
     for part in ("set_current_brand_name", "set_current_brand_site", "set_current_tenant_email",
                  "set_current_brand_logo", "set_current_brand_contact"):
         assert part in setters, part
+
+
+@pytest.mark.parametrize("mail, signup", [
+    (None, "owner@innterflow.com"),                                    # nothing set: the store's name, replies to the owner
+    ({"notify_email": "hello@innterflow.com"}, "owner@innterflow.com"),  # the one email: replies come to it
+    ({"notify_email": "hello@innterflow.com", "reply_to": "care@innterflow.com"}, None),
+    ({"from_name": "Innterflow Prints", "notify_email": "hello@innterflow.com"}, None),  # a sender name typed on purpose
+    ({"api_key": "re_own", "from_email": "orders@innterflow.com", "notify_email": "hello@innterflow.com"}, None),
+])
+def test_what_the_settings_page_promises_is_what_the_mail_carries(outbox, mail, signup):
+    """The admin is shown "what your customers see" before any mail is sent.
+    It is worked out apart from the send path, so the two are held together
+    here: same name, same address, same reply address, whatever is set."""
+    promised = email_service.customer_facing_identity("innterflow", mail, signup)
+    as_brand(mail=mail, contact=signup)
+    EmailService(None).send_raw("customer@example.com", "Hello", "<p>Hi</p>")
+    sent = outbox[-1]
+    assert sent["from"] == f"{promised['sender_name']} <{promised['from_address']}>"
+    assert (sent.get("reply_to") or [""])[0] == promised["reply_to"]
+    assert promised["own_sender"] is bool(mail and mail.get("api_key"))
+
+
+def test_the_one_email_is_all_a_shop_has_to_set():
+    """Its customers see the store's name; replies and the shop's own alerts go
+    to the one address. A sender name left over from before is said, and one
+    press puts the store's name back."""
+    seen = email_service.customer_facing_identity("innterflow", {"notify_email": "hello@innterflow.com"}, None)
+    assert (seen["sender_name"], seen["email"], seen["reply_to"]) == ("innterflow", "hello@innterflow.com", "hello@innterflow.com")
+    assert seen["custom_sender_name"] == ""
+
+    stale = email_service.customer_facing_identity("innterflow", {"from_name": "PrintCopilot"}, None)
+    assert stale["sender_name"] == "PrintCopilot" and stale["custom_sender_name"] == "PrintCopilot"
+
+    from app.api.v1.admin import integrations
+
+    route = inspect.getsource(integrations.set_email_identity)
+    assert '{"notify_email": email}' in route and 'values["from_name"] = ""' in route
+    assert "forget_tenant_email(tid)" in route  # takes effect on the next mail, not five minutes later
+
+
+async def test_the_settings_route_saves_the_one_email_and_says_what_customers_see(outbox, monkeypatch):
+    """The route itself, with the shop's stored settings stood in for by a dict:
+    read, set, refuse a bad address, put the store's name back."""
+    from fastapi import HTTPException
+
+    from app.api.v1.admin import integrations
+    from app.core import database
+
+    tid = "11111111-1111-1111-1111-111111111111"
+    stored: dict = {"from_name": "PrintCopilot"}
+
+    async def get_connection(db, provider, tenant_id=None):
+        assert (provider, str(tenant_id)) == ("resend", tid)
+        return dict(stored)
+
+    async def save_connection(db, provider, values, tenant_id=None):
+        assert (provider, str(tenant_id)) == ("resend", tid)
+        stored.update(values)
+        return dict(stored)
+
+    async def name(db, tenant_id):
+        return "Innterflow"
+
+    async def mark(db, tenant_id):
+        return None, "owner@innterflow.com"
+
+    class Db:
+        commits = 0
+
+        async def commit(self):
+            Db.commits += 1
+
+    monkeypatch.setattr(integrations.svc, "get_connection", get_connection)
+    monkeypatch.setattr(integrations.svc, "save_connection", save_connection)
+    monkeypatch.setattr(database, "_resolve_brand_name", name)
+    monkeypatch.setattr(database, "_resolve_brand_mark", mark)
+    monkeypatch.setattr(integrations, "get_current_tenant_id", lambda: tid)
+
+    seen = await integrations.get_email_identity(_=None, db=Db())
+    assert seen["sender_name"] == "PrintCopilot" and seen["store_name"] == "Innterflow"
+    assert seen["reply_to"] == "owner@innterflow.com" and seen["email"] == ""
+
+    seen = await integrations.set_email_identity(integrations.ShopEmail(email=" hello@innterflow.com "), _=None, db=Db())
+    assert stored["notify_email"] == "hello@innterflow.com" and Db.commits == 1
+    assert seen["reply_to"] == "hello@innterflow.com" and seen["sender_name"] == "PrintCopilot"  # the name is not touched unless asked
+
+    seen = await integrations.set_email_identity(
+        integrations.ShopEmail(email="hello@innterflow.com", use_store_name=True), _=None, db=Db())
+    assert stored["from_name"] == "" and seen["sender_name"] == "Innterflow" and seen["custom_sender_name"] == ""
+
+    for bad in ("not an email", "a@b", "two@@signs.com", "name <a@b.com>"):
+        with pytest.raises(HTTPException) as refused:
+            await integrations.set_email_identity(integrations.ShopEmail(email=bad), _=None, db=Db())
+        assert refused.value.status_code == 400, bad
+    assert stored["notify_email"] == "hello@innterflow.com"  # a refused address changes nothing
+
+    # No shop on the request: refused, rather than writing a setting for nobody.
+    monkeypatch.setattr(integrations, "get_current_tenant_id", lambda: None)
+    with pytest.raises(HTTPException):
+        await integrations.get_email_identity(_=None, db=Db())

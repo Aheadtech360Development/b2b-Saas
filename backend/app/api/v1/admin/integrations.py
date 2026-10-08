@@ -49,6 +49,75 @@ async def list_integrations(
     }
 
 
+# ── The shop's email, the simple way ─────────────────────────────────────────
+#
+# One address. A brand's customers see the shop's name on every mail; this is
+# where their replies go and where the shop's own alerts land. Everything else
+# about mail (a sender name of its own, a sending domain of its own) is still
+# there under the Resend provider for the brand that wants it — this is for
+# the brand that wants to type its email once and be done.
+
+class ShopEmail(BaseModel):
+    email: str = Field(default="", max_length=254)
+    # Drop a sender name typed in earlier, so mail goes under the store's name.
+    use_store_name: bool = False
+
+
+async def _email_identity(db: AsyncSession, tid) -> dict:
+    from app.core.database import _resolve_brand_mark, _resolve_brand_name
+    from app.services.email_service import customer_facing_identity
+
+    cfg = await svc.get_connection(db, "resend", tenant_id=tid)
+    name = await _resolve_brand_name(db, tid)
+    _logo, signup_email = await _resolve_brand_mark(db, tid)
+    return customer_facing_identity(name, cfg, signup_email)
+
+
+@router.get("/email-identity")
+async def get_email_identity(
+    _: None = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Who this shop's customers see their mail come from, and where a reply goes."""
+    tid = get_current_tenant_id()
+    if not tid:
+        raise HTTPException(status_code=400, detail="No store context on this request")
+    return await _email_identity(db, tid)
+
+
+@router.put("/email-identity")
+async def set_email_identity(
+    payload: ShopEmail,
+    _: None = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Set the shop's one email: replies from its customers, and its own alerts."""
+    import re
+
+    tid = get_current_tenant_id()
+    if not tid:
+        raise HTTPException(status_code=400, detail="No store context on this request")
+
+    email = (payload.email or "").strip()
+    if email and not re.fullmatch(r"[^@\s<>\"',;]+@[^@\s<>\"',;]+\.[^@\s<>\"',;]{2,}", email):
+        raise HTTPException(status_code=400, detail=f"'{email}' doesn't look like an email address.")
+
+    values: dict[str, str] = {"notify_email": email}
+    if payload.use_store_name:
+        values["from_name"] = ""
+    try:
+        await svc.save_connection(db, "resend", values, tenant_id=tid)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    await db.commit()
+
+    # The send path reads these from a cache; a save must take effect now.
+    from app.core.database import forget_tenant_email
+
+    forget_tenant_email(tid)
+    return await _email_identity(db, tid)
+
+
 @router.post("/{provider}/test")
 async def test_integration(
     provider: str,

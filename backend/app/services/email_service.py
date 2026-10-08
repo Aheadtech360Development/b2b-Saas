@@ -241,6 +241,33 @@ def sender_account(cfg: dict | None, platform_key: str | None) -> tuple[str, str
     return (platform_key or ""), "", False
 
 
+def customer_facing_identity(store_name: str | None, cfg: dict | None, signup_email: str | None) -> dict:
+    """What a brand's customer sees of who wrote to them — said to the brand's
+    admin before they find out from a customer.
+
+    Worked out from the same settings, in the same order, as the send path
+    below: a test holds the two together, so the page cannot promise a name
+    the mail does not carry.
+    """
+    cfg = cfg or {}
+    _key, own_from, use_own = sender_account(cfg, settings.RESEND_API_KEY)
+    custom = (cfg.get("from_name") or "").strip()
+    store = (store_name or "").strip()
+    email = (cfg.get("notify_email") or "").strip()
+    reply = (cfg.get("reply_to") or "").strip() or email or (signup_email or "").strip()
+    return {
+        "store_name": store,
+        # The name on the mail: one typed in on purpose, else the store's.
+        "sender_name": custom or store or settings.EMAIL_FROM_NAME,
+        "custom_sender_name": custom,
+        "email": email,
+        "reply_to": reply,
+        "from_address": _bare_address(own_from if use_own else settings.EMAIL_FROM_ADDRESS),
+        # True once the brand sends from a verified address of its own.
+        "own_sender": use_own,
+    }
+
+
 class EmailService:
     def __init__(self, db: AsyncSession | None = None):
         # Optional: the raw and file-template senders never touch the database,
