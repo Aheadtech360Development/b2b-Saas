@@ -396,13 +396,15 @@ export function UploadBySizeModal({ product, onClose, revise = null, onRevised }
   const isImage = active && ["png", "jpg", "jpeg", "webp", "gif"].includes(active.file_type);
 
   return (
-    <div style={S.backdrop} onClick={onClose}>
+    <div className="ubs-backdrop" style={S.backdrop} onClick={onClose}>
+      <style>{PHONE_CSS}</style>
       <div
+        className="ubs-modal"
         style={{ ...S.modal, width: items.length ? "min(1100px, 100%)" : "min(560px, 100%)" }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* ── Header ─────────────────────────────────────────────────────── */}
-        <div style={S.header}>
+        <div className="ubs-head" style={S.header}>
           {/* A panel that opened on a black chip reading "+ Uploads" told
               nobody what they had opened or what it would cost them. It says
               what it is, and the thing to do next is the dropzone itself. */}
@@ -410,7 +412,7 @@ export function UploadBySizeModal({ product, onClose, revise = null, onRevised }
             <div style={S.title}>
               {revise ? "Revise your design" : "Upload image by size"}
             </div>
-            <div style={S.sub}>
+            <div className="ubs-sub" style={S.sub}>
               {revise
                 ? <>Revising <strong style={{ color: "#1A1A1A" }}>{revise.reference}</strong> — replace the artwork or change the size.</>
                 : "One design, printed at the exact size you choose. Add as many as you like."}
@@ -441,7 +443,7 @@ export function UploadBySizeModal({ product, onClose, revise = null, onRevised }
           </div>
         )}
 
-        <div style={items.length ? S.body : S.bodyEmpty}>
+        <div className="ubs-body" style={items.length ? S.body : S.bodyEmpty}>
           {/* ── Left: the design ─────────────────────────────────────────── */}
           <div style={S.left}>
             {active ? (
@@ -461,7 +463,7 @@ export function UploadBySizeModal({ product, onClose, revise = null, onRevised }
                     onUpscale={() => setEditorTab("enhance")}
                   />
                 </div>
-                <div style={{ ...S.stage, background: bg.css }}>
+                <div className="ubs-stage" style={{ ...S.stage, background: bg.css }}>
                   {/* Size callouts, the way a print shop marks a proof. */}
                   <span style={{ ...S.tag, top: "6px", left: "50%", transform: "translateX(-50%)" }}>
                     {active.w}in
@@ -470,7 +472,7 @@ export function UploadBySizeModal({ product, onClose, revise = null, onRevised }
                     {active.h}in
                   </span>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={active.file_url} alt={active.file_name} style={S.art} />
+                  <img className="ubs-art" src={active.file_url} alt={active.file_name} style={S.art} />
                   {busy && (
                     <WorkingOverlay
                       label={`${busy}…`}
@@ -505,6 +507,7 @@ export function UploadBySizeModal({ product, onClose, revise = null, onRevised }
                 onDragLeave={() => setDropActive(false)}
                 onDrop={(e) => { e.preventDefault(); setDropActive(false); onFiles(e.dataTransfer.files); }}
                 onClick={() => fileRef.current?.click()}
+                className="ubs-drop"
                 style={{ ...S.dropzone, borderColor: dropActive ? "#1A1A1A" : "#D6D3CC", background: dropActive ? "#F6F6F7" : "#fff" }}
               >
                 <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "8px" }}>
@@ -693,20 +696,21 @@ export function UploadBySizeModal({ product, onClose, revise = null, onRevised }
         </div>
 
         {/* ── Footer ─────────────────────────────────────────────────────── */}
-        <div style={S.footer}>
-          <span style={S.total}>
+        <div className="ubs-foot" style={S.footer}>
+          <span className="ubs-total" style={S.total}>
             {items.length === 0
               ? <span style={{ fontSize: "13px", fontWeight: 500, color: "#8A8A8A" }}>No designs yet</span>
               : <>
                   ${priced.reduce((sum, p) => sum + (p.price?.total ?? 0), 0).toFixed(2)}
-                  <span style={S.totalSub}>
+                  <span className="ubs-total-sub" style={S.totalSub}>
                     {items.length} design{items.length === 1 ? "" : "s"}
                   </span>
                 </>}
           </span>
-          <button onClick={onClose} style={S.ghost}>Cancel</button>
+          <button className="ubs-cancel" onClick={onClose} style={S.ghost}>Cancel</button>
           {revise ? (
             <button
+              className="ubs-cta"
               onClick={saveRevision}
               disabled={adding || !active || !!busy || uploading}
               style={{ ...S.cta, ...(active ? null : S.ctaOff) }}
@@ -715,6 +719,7 @@ export function UploadBySizeModal({ product, onClose, revise = null, onRevised }
             </button>
           ) : (
             <button
+              className="ubs-cta"
               onClick={addToCart}
               disabled={adding || !items.length || !!busy}
               style={{ ...S.cta, ...(items.length ? null : S.ctaOff) }}
@@ -748,6 +753,39 @@ function Row({ label, value }: { label: React.ReactNode; value: React.ReactNode 
     </div>
   );
 }
+
+// ── On a phone ────────────────────────────────────────────────────────────────
+// Side by side, the design and its settings do not fit across a phone: the
+// settings took the whole width and the design was left none, so the one
+// thing being bought could not be seen. Under 760px it is one column — the
+// design, then its tools, its size and its price — on the whole screen, with
+// the total and the button always in sight at the bottom.
+//
+// It fills the backdrop rather than a share of "vh": on a phone that unit
+// counts the part of the screen the browser's own bar is covering, which is
+// where the button was.
+//
+// 16px in the fields is not a taste: an iPhone zooms the page in on any field
+// with smaller type and leaves it there.
+const PHONE_CSS = `
+@media (max-width: 760px) {
+  .ubs-backdrop { padding: 0 !important; align-items: stretch !important; }
+  .ubs-modal { width: 100% !important; max-height: none !important; border-radius: 0 !important; }
+  .ubs-head { padding: 12px 14px 10px !important; gap: 10px !important; }
+  .ubs-sub { font-size: 12px !important; margin-top: 2px !important; }
+  .ubs-body { display: block !important; flex: 1 1 auto; min-height: 0; padding: 12px 14px 16px !important; overscroll-behavior: contain; }
+  .ubs-body > * + * { margin-top: 14px; }
+  .ubs-stage { min-height: 200px !important; padding: 14px !important; }
+  .ubs-art { max-height: 240px !important; }
+  .ubs-drop { min-height: 220px !important; padding: 22px 16px !important; }
+  .ubs-modal input { font-size: 16px !important; padding: 9px 8px !important; }
+  .ubs-foot { padding: 10px 14px calc(10px + env(safe-area-inset-bottom, 0px)) !important; gap: 8px !important; }
+  .ubs-cancel { display: none !important; }
+  .ubs-cta { padding: 12px 18px !important; white-space: nowrap; flex-shrink: 0; }
+  .ubs-total { font-size: 16px !important; line-height: 1.25; }
+  .ubs-total-sub { display: block; margin-left: 0 !important; }
+}
+`;
 
 const S: Record<string, React.CSSProperties> = {
   backdrop: { position: "fixed", inset: 0, background: "rgba(0,0,0,.45)", zIndex: 400, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" },

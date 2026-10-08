@@ -351,7 +351,7 @@ const S: Record<string, React.CSSProperties> = {
   radio: { width: "14px", height: "14px", borderRadius: "50%", border: "2px solid #9CA3AF", flexShrink: 0, marginTop: "2px" },
   radioOn: { borderColor: "#1A1A1A", boxShadow: "inset 0 0 0 3px #fff", background: "#1A1A1A" },
   empty: { border: "1.5px dashed #D8D5CF", borderRadius: "12px", padding: "34px 18px", textAlign: "center" },
-  grid: { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(330px, 1fr))", gap: "12px" },
+  grid: { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(330px, 100%), 1fr))", gap: "12px" },
   item: { border: "1px solid #E5E3DE", borderRadius: "12px", padding: "12px", display: "grid", gap: "10px", alignContent: "start" },
   preview: { position: "relative", width: "130px", height: "130px", flexShrink: 0, borderRadius: "8px", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", background: "repeating-conic-gradient(#E8E8E8 0% 25%, #fff 0% 50%) 50% / 14px 14px" },
   busy: { position: "absolute", inset: 0, background: "rgba(255,255,255,.85)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "11px", fontWeight: 700, textAlign: "center", padding: "6px" },

@@ -208,9 +208,9 @@ export function UploadOwnSheetModal({
   const ready = Boolean(file && size);
 
   return (
-    <div style={S.backdrop} onClick={() => !adding && onClose()}>
-      <div style={S.box} onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="Upload your own gang sheet">
-        <div style={S.head}>
+    <div className="uos-backdrop" style={S.backdrop} onClick={() => !adding && onClose()}>
+      <div className="uos-box" style={S.box} onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="Upload your own gang sheet">
+        <div className="uos-head" style={S.head}>
           <div>
             <div style={S.title}>Upload your own gang sheet</div>
             <div style={S.sub}>Already laid out? Send it as it is — pick the length and we print it.</div>
@@ -218,7 +218,7 @@ export function UploadOwnSheetModal({
           <button onClick={onClose} aria-label="Close" style={S.close}><X size={18} strokeWidth={2.2} /></button>
         </div>
 
-        <div style={S.body}>
+        <div className="uos-body" style={S.body}>
           {!file ? (
             <div
               onDragOver={(e) => { e.preventDefault(); setDropActive(true); }}
@@ -251,7 +251,7 @@ export function UploadOwnSheetModal({
               </div>
 
               {original && (
-                <div style={S.tools}>
+                <div className="uos-tools" style={S.tools}>
                   {(Object.keys(TOOL_LABEL) as Tool[]).map((tool) => {
                     const { label, hint, Icon } = TOOL_LABEL[tool];
                     return (
@@ -321,21 +321,43 @@ export function UploadOwnSheetModal({
           {error && <div role="alert" style={S.error}>{error}</div>}
         </div>
 
-        <div style={S.foot}>
+        <div className="uos-foot" style={S.foot}>
           <span style={S.price}>
             {unitPrice > 0 ? "$" + (unitPrice * qty).toFixed(2) : "—"}
             <span style={S.priceSub}>{qty > 1 ? " · " + qty + " sheets" : ""}</span>
           </span>
-          <button onClick={onClose} disabled={adding} style={S.ghost}>Cancel</button>
-          <button onClick={addToCart} disabled={!ready || adding} style={{ ...S.primary, opacity: ready && !adding ? 1 : 0.55 }}>
+          <button className="uos-cancel" onClick={onClose} disabled={adding} style={S.ghost}>Cancel</button>
+          <button className="uos-add" onClick={addToCart} disabled={!ready || adding} style={{ ...S.primary, opacity: ready && !adding ? 1 : 0.55 }}>
             {adding ? "Adding…" : "Add to cart"}
           </button>
         </div>
-        <style>{"@keyframes spin { to { transform: rotate(360deg); } }"}</style>
+        <style>{"@keyframes spin { to { transform: rotate(360deg); } }" + PHONE_CSS}</style>
       </div>
     </div>
   );
 }
+
+// ── On a phone ────────────────────────────────────────────────────────────────
+// The whole screen, not a card floating in it with a margin all round: the
+// margin was a fifth of a phone's width. It fills the backdrop rather than a
+// share of "vh", which on a phone counts the part of the screen under the
+// browser's own bar — where the price and the button were. The five tools sit
+// in one row, each with its icon over its name. 16px in the fields because an
+// iPhone zooms the page in on any field with smaller type and leaves it there.
+const PHONE_CSS = `
+@media (max-width: 640px) {
+  .uos-backdrop { padding: 0 !important; align-items: stretch !important; }
+  .uos-box { max-width: none !important; max-height: none !important; border-radius: 0 !important; }
+  .uos-head { padding: 14px 16px 10px !important; }
+  .uos-body { padding: 0 16px 16px !important; overscroll-behavior: contain; }
+  .uos-tools { display: grid !important; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px !important; }
+  .uos-tools button { flex-direction: column; justify-content: center; gap: 4px !important; padding: 8px 2px !important; font-size: 11px !important; min-width: 0; }
+  .uos-box input { font-size: 16px !important; }
+  .uos-foot { padding: 10px 16px calc(10px + env(safe-area-inset-bottom, 0px)) !important; }
+  .uos-cancel { display: none !important; }
+  .uos-add { padding: 12px 20px !important; white-space: nowrap; flex-shrink: 0; }
+}
+`;
 
 const S: Record<string, React.CSSProperties> = {
   backdrop: { position: "fixed", inset: 0, zIndex: 700, background: "rgba(16,24,40,.55)", display: "flex", alignItems: "center", justifyContent: "center", padding: "20px" },

@@ -72,6 +72,11 @@ const MIN_IN = 0.5;
 const FOOT_PRESETS = [2, 3, 4, 5, 6, 7, 8, 10, 12, 15, 20];
 const RULER_PAD = 24; // px before the sheet inside the canvas scroll — rulers start here
 
+/** Whether a pointer event is some other finger's, not the one that started
+ *  the gesture in hand. An event that carries no id at all is nobody else's. */
+const otherFinger = (ev: PointerEvent, id: number | undefined) =>
+  id !== undefined && ev.pointerId !== undefined && ev.pointerId !== id;
+
 const round2 = (n: number) => Math.round(n * 100) / 100;
 const round3 = (n: number) => Math.round(n * 1000) / 1000;
 const clamp = (n: number, lo: number, hi: number) => Math.max(lo, Math.min(n, hi));
@@ -432,6 +437,25 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
       body.style.overflow = wasBody;
     };
   }, []);
+
+  /**
+   * No zooming of the page itself while the builder is up.
+   *
+   * A phone zooms the whole page in when a field with small type is tapped —
+   * a width, a margin, how many copies — and stays there. The builder fills
+   * the screen and does its own zooming on the sheet, so that left a customer
+   * looking at one corner of it with no way back. The browser is told not to,
+   * for as long as the builder is open, and told what it was told before when
+   * it closes. A computer ignores this line altogether.
+   */
+  useEffect(() => {
+    const meta = document.querySelector<HTMLMetaElement>('meta[name="viewport"]');
+    if (!meta) return;
+    const was = meta.getAttribute("content") ?? "";
+    if (/maximum-scale/i.test(was)) return;
+    meta.setAttribute("content", was ? `${was}, maximum-scale=1` : "width=device-width, initial-scale=1, maximum-scale=1");
+    return () => meta.setAttribute("content", was);
+  }, []);
   const [grewTo, setGrewTo] = useState<number | null>(null);
   const [sheetFull, setSheetFull] = useState(false);
   // The growth note takes itself away; it is news, not a state of affairs.
@@ -481,6 +505,8 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
   const historyRef = useRef<Placement[][]>([[]]);
   const ptrRef = useRef(0);
   const gesturing = useRef(false);
+  /** Stops the drag or resize in hand and puts the design back; set while one is going. */
+  const dragAbort = useRef<(() => void) | null>(null);
   const suppressHistory = useRef(false);
   const [, forceHud] = useState(0);
 
@@ -931,12 +957,20 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
   function startPan(e: React.PointerEvent) {
     const el = scrollRef.current;
     if (!el) return;
+    // A finger is followed by the canvas's own touch handling, which also
+    // knows about a second finger; this is the mouse's hand tool.
+    if (e.pointerType === "touch") return;
     e.preventDefault();
+    const pid = e.pointerId;
     const sx = e.clientX, sy = e.clientY, sl = el.scrollLeft, st = el.scrollTop;
-    function move(ev: PointerEvent) { el!.scrollLeft = sl - (ev.clientX - sx); el!.scrollTop = st - (ev.clientY - sy); }
-    function up() { window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up); }
+    function move(ev: PointerEvent) { if (otherFinger(ev, pid)) return; el!.scrollLeft = sl - (ev.clientX - sx); el!.scrollTop = st - (ev.clientY - sy); }
+    function up(ev: PointerEvent) {
+      if (otherFinger(ev, pid)) return;
+      window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up); window.removeEventListener("pointercancel", up);
+    }
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", up);
+    window.addEventListener("pointercancel", up);
   }
 
   // Keep the top/left rulers aligned with the canvas as it scrolls (programmatic
@@ -959,11 +993,16 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
     // to whatever was last clicked in the sidebar, and nothing happened.
     sheetRef.current?.focus({ preventScroll: true });
     gesturing.current = true;
+    // The one finger (or the mouse) that started this. A second finger on the
+    // screen is not part of the drag: followed as well, it threw the design
+    // across the sheet to wherever that finger was.
+    const pid = e.pointerId;
     const startX = e.clientX, startY = e.clientY;
     const orig = stateRef.current.placements.find((p) => p.id === id)!;
     const ox = orig.x_in, oy = orig.y_in;
 
     function move(ev: PointerEvent) {
+      if (otherFinger(ev, pid)) return;
       const { ppi: p, placements: pl } = stateRef.current;
       const cur = pl.find((q) => q.id === id);
       if (!cur) return;
@@ -971,14 +1010,26 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
       const { x, y } = clampSnap(ox + (ev.clientX - startX) / p, oy + (ev.clientY - startY) / p, fp.w, fp.h);
       setPlacements((list) => list.map((q) => (q.id === id ? { ...q, x_in: x, y_in: y } : q)));
     }
-    function upFn() {
+    function done() {
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", upFn);
+      window.removeEventListener("pointercancel", upFn);
       gesturing.current = false;
+      dragAbort.current = null;
+    }
+    function upFn(ev: PointerEvent) {
+      if (otherFinger(ev, pid)) return;
+      done();
       recordHistory(stateRef.current.placements); // one undo entry per drag
     }
+    // A pinch takes over: the design goes back to where it was picked up.
+    dragAbort.current = () => {
+      done();
+      setPlacements((list) => list.map((q) => (q.id === id ? { ...q, x_in: ox, y_in: oy } : q)));
+    };
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", upFn);
+    window.addEventListener("pointercancel", upFn);
   }
 
   // ── Resize (corner) — proportional by default, free while Shift or lock off ────
@@ -990,6 +1041,7 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
     setSelected(id);
     sheetRef.current?.focus({ preventScroll: true });
     gesturing.current = true;
+    const pid = e.pointerId;
     const startX = e.clientX, startY = e.clientY;
     const orig = stateRef.current.placements.find((p) => p.id === id)!;
     const origFp = footprint(orig);
@@ -999,6 +1051,7 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
     const sy = corner[0] === "s" ? 1 : -1;
 
     function move(ev: PointerEvent) {
+      if (otherFinger(ev, pid)) return;
       const { ppi: p, placements: pl, size: sz, sheetLen: len } = stateRef.current;
       if (!sz) return;
       if (!pl.some((q) => q.id === id)) return;
@@ -1026,14 +1079,26 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
       const y = sy > 0 ? orig.y_in : round3(Math.max(0, orig.y_in + origFp.h - fh));
       setPlacements((list) => list.map((q) => (q.id === id ? { ...q, w_in: w, h_in: h, x_in: x, y_in: y } : q)));
     }
-    function upFn() {
+    function done() {
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", upFn);
+      window.removeEventListener("pointercancel", upFn);
       gesturing.current = false;
+      dragAbort.current = null;
+    }
+    function upFn(ev: PointerEvent) {
+      if (otherFinger(ev, pid)) return;
+      done();
       recordHistory(stateRef.current.placements); // one undo entry per resize
     }
+    // A pinch takes over: the design goes back to the size it had.
+    dragAbort.current = () => {
+      done();
+      setPlacements((list) => list.map((q) => (q.id === id ? { ...q, w_in: orig.w_in, h_in: orig.h_in, x_in: orig.x_in, y_in: orig.y_in } : q)));
+    };
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", upFn);
+    window.addEventListener("pointercancel", upFn);
   }
 
   // ── Discrete edits ───────────────────────────────────────────────────────────
@@ -1722,8 +1787,13 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
   const fitScreen = () => {
     const el = scrollRef.current;
     if (!el || !size) return;
-    const zx = (el.clientWidth - 40) / (size.width_in * fitPpi);
-    const zy = ((el.clientHeight || 560) - 40) / (sheetLen * fitPpi);
+    // The room there actually is: the table's margin either side of the sheet
+    // and the same slack the opening fit allows. Measured against 40px, the
+    // sheet came out a few pixels wider than the canvas — on a phone, where
+    // this is the way back from a pinch, it sat cut off at one edge.
+    const room = RULER_PAD * 2 + 8;
+    const zx = (el.clientWidth - room) / (size.width_in * fitPpi);
+    const zy = ((el.clientHeight || 560) - room) / (sheetLen * fitPpi);
     setZoom(clamp(round3(Math.min(zx, zy)), 0.15, 6));
   };
   // Mouse-wheel zooms the sheet toward the cursor — the rest of the canvas (rails,
@@ -1769,6 +1839,121 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
     frame.addEventListener("wheel", handle, { passive: false });
     return () => frame.removeEventListener("wheel", handle);
   }, [zoom]);
+
+  // ── Fingers on the canvas ────────────────────────────────────────────────────
+  // A phone has no wheel and no Ctrl key, so none of the above reaches it, and
+  // the sheet took no touch at all: it could not be made bigger to see a
+  // design, nor moved to reach one. Two fingers now zoom the sheet about the
+  // point between them and carry it along as they move; one finger on the
+  // table, or on an empty part of the sheet, slides the view. A finger on a
+  // design still moves that design, unless the hand tool is on.
+  //
+  // The canvas is marked touch-action: none, so the browser leaves all of it to
+  // this: its own pinch would scale the whole builder, bars and all.
+  const panToolRef = useRef(panTool);
+  panToolRef.current = panTool;
+  const zoomRef = useRef(zoom);
+  zoomRef.current = zoom;
+  /** The point of the sheet two fingers are holding (in inches), and where on
+   *  the screen they are holding it. */
+  const pinchAnchor = useRef<{ inX: number; inY: number; cx: number; cy: number } | null>(null);
+  /** Put that point back under the fingers. Read from where the sheet actually
+   *  is, so centring and the table's margin are already accounted for. */
+  const holdAnchor = useCallback(() => {
+    const a = pinchAnchor.current, el = scrollRef.current, sheet = sheetRef.current;
+    if (!a || !el || !sheet) return;
+    const r = sheet.getBoundingClientRect();
+    const p = stateRef.current.ppi;
+    el.scrollLeft += r.left + a.inX * p - a.cx;
+    el.scrollTop += r.top + a.inY * p - a.cy;
+  }, []);
+  // After the sheet has been drawn at its new size, before it is painted.
+  useLayoutEffect(holdAnchor, [zoom, holdAnchor]);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const fingers = new Map<number, { x: number; y: number }>();
+    let pan: { id: number; x: number; y: number; left: number; top: number } | null = null;
+    let pinch: { dist: number; zoom: number; asked: number } | null = null;
+
+    const between = () => {
+      const [a, b] = [...fingers.values()] as [{ x: number; y: number }, { x: number; y: number }];
+      return { dist: Math.hypot(a.x - b.x, a.y - b.y) || 1, cx: (a.x + b.x) / 2, cy: (a.y + b.y) / 2 };
+    };
+
+    function down(e: PointerEvent) {
+      if (e.pointerType !== "touch") return;
+      // The first finger of a new touch: nothing else is on the screen, so
+      // anything still remembered is a lift that never arrived here (its
+      // element went away under it). Kept, it would make this lone finger
+      // the second of a pinch, and the sheet could not be worked on at all.
+      if (e.isPrimary) { fingers.clear(); pan = null; pinch = null; pinchAnchor.current = null; }
+      fingers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (fingers.size >= 2) {
+        // Not a press on whatever is under the second finger.
+        e.preventDefault();
+        e.stopPropagation();
+        if (fingers.size > 2 || pinch) return;
+        // Whatever the first finger was doing stops, and is undone.
+        dragAbort.current?.();
+        pan = null;
+        const sheet = sheetRef.current;
+        if (!sheet) return;
+        const t = between();
+        const r = sheet.getBoundingClientRect();
+        const p = stateRef.current.ppi || 1;
+        pinch = { dist: t.dist, zoom: zoomRef.current, asked: zoomRef.current };
+        pinchAnchor.current = { inX: (t.cx - r.left) / p, inY: (t.cy - r.top) / p, cx: t.cx, cy: t.cy };
+        return;
+      }
+      const on = e.target instanceof Element ? e.target : null;
+      // A design, its handles and its buttons are theirs to answer.
+      if (on?.closest("[data-design]") && !panToolRef.current) return;
+      if (on?.closest("button")) return;
+      pan = { id: e.pointerId, x: e.clientX, y: e.clientY, left: el!.scrollLeft, top: el!.scrollTop };
+    }
+
+    function move(e: PointerEvent) {
+      if (e.pointerType !== "touch" || !fingers.has(e.pointerId)) return;
+      fingers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (pinch && fingers.size >= 2) {
+        e.preventDefault();
+        const t = between();
+        const next = clamp(round3(pinch.zoom * (t.dist / pinch.dist)), 0.15, 6);
+        const a = pinchAnchor.current;
+        if (a) { a.cx = t.cx; a.cy = t.cy; }
+        // A new size is drawn first and the point put back after it; the same
+        // size is only the fingers moving, which is put back at once.
+        if (next !== pinch.asked) { pinch.asked = next; setZoom(next); } else holdAnchor();
+        return;
+      }
+      if (pan && pan.id === e.pointerId) {
+        el!.scrollLeft = pan.left - (e.clientX - pan.x);
+        el!.scrollTop = pan.top - (e.clientY - pan.y);
+      }
+    }
+
+    function up(e: PointerEvent) {
+      if (e.pointerType !== "touch") return;
+      fingers.delete(e.pointerId);
+      if (pan?.id === e.pointerId) pan = null;
+      // One finger lifted ends the pinch. The one still down does nothing
+      // more: it does not turn into a slide halfway across the screen.
+      if (pinch && fingers.size < 2) { pinch = null; pinchAnchor.current = null; }
+    }
+
+    el.addEventListener("pointerdown", down, true);
+    el.addEventListener("pointermove", move, true);
+    el.addEventListener("pointerup", up, true);
+    el.addEventListener("pointercancel", up, true);
+    return () => {
+      el.removeEventListener("pointerdown", down, true);
+      el.removeEventListener("pointermove", move, true);
+      el.removeEventListener("pointerup", up, true);
+      el.removeEventListener("pointercancel", up, true);
+    };
+  }, [holdAnchor]);
 
   useLayoutEffect(() => {
     const wrap = frameRef.current, sheet = sheetRef.current;
@@ -3344,7 +3529,7 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
               <input type="number" min={0} step="0.25" value={imageMargin} onWheel={(e) => e.currentTarget.blur()} onChange={(e) => setImageMargin(Math.max(0, Number(e.target.value) || 0))}
                 style={{ width: "50px", padding: "8px 7px", border: `1px solid ${C.line}`, borderRadius: "9px", fontSize: "12.5px", fontFamily: "inherit", color: C.ink }} /> in
             </label>
-            <button onClick={() => autoNest()} style={S.nestBtn}><Zap size={14} strokeWidth={2.4} /> Auto Nest</button>
+            <button className="gs-nest" onClick={() => autoNest()} style={S.nestBtn}><Zap size={14} strokeWidth={2.4} /> Auto Nest</button>
             <button onClick={undo} disabled={!canUndo} style={{ ...S.iconBtn, opacity: canUndo ? 1 : 0.4, cursor: canUndo ? "pointer" : "default" }} title="Undo (Ctrl+Z)"><Undo2 {...TOOL_ICON} /></button>
             <button onClick={redo} disabled={!canRedo} style={{ ...S.iconBtn, opacity: canRedo ? 1 : 0.4, cursor: canRedo ? "pointer" : "default" }} title="Redo (Ctrl+Shift+Z)"><Redo2 {...TOOL_ICON} /></button>
             <div style={{ display: "flex", alignItems: "center", gap: "4px", marginLeft: "auto" }}>
@@ -3376,7 +3561,7 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
                   onPointerDown={(e) => { if (panTool) { startPan(e); return; } setSelected(null); sheetRef.current?.focus(); }}
                   style={{
                     position: "relative", width: `${sheetWpx}px`, height: `${sheetHpx}px`, margin: "auto", flexShrink: 0,
-                    background: "#fff", outline: "none", touchAction: "none", userSelect: "none",
+                    background: "#fff", outline: "none", touchAction: "none", userSelect: "none", WebkitTouchCallout: "none",
                     cursor: panTool ? "grab" : "default",
                     // A checker the eye can actually see, and a hard edge: the sheet
                     // is what gets printed, so where it ends has to be obvious.
@@ -3531,7 +3716,7 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
               {/* And when it cannot grow any further, which is the one case
                   where there is genuinely nowhere to put the design. */}
               {sheetFull && (
-                <div role="alert" style={{ ...S.overlapBanner, background: "#FEF3C7", borderColor: "#FCD34D", color: "#7C2D12" }}>
+                <div role="alert" className="gs-banner" style={{ ...S.overlapBanner, background: "#FEF3C7", borderColor: "#FCD34D", color: "#7C2D12" }}>
                   <span aria-hidden style={{ ...S.overlapIcon, background: "#B45309" }}>!</span>
                   <span>
                     <strong>This sheet is full.</strong>{" "}
@@ -3548,7 +3733,7 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
               )}
 
               {overlapIds.size > 0 && (
-                <div role="alert" style={S.overlapBanner}>
+                <div role="alert" className="gs-banner" style={S.overlapBanner}>
                   <span aria-hidden style={S.overlapIcon}>!</span>
                   <span>
                     <strong>Images are overlapping</strong>
@@ -3560,7 +3745,7 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
 
               {/* Other issues (top-right) — advisory, never blocks saving. */}
               {otherIssueIds.size > 0 && (
-                <div style={{ ...S.canvasWarn, top: overlapIds.size > 0 ? "64px" : "10px" }}>
+                <div className="gs-canvas-warn" style={{ ...S.canvasWarn, top: overlapIds.size > 0 ? "64px" : "10px" }}>
                   <span style={{ fontWeight: 800 }}>⚠ {otherIssueIds.size} design{otherIssueIds.size === 1 ? "" : "s"} to check</span>
                   {warnCounts.outside ? <span> · {warnCounts.outside} past safe area</span> : null}
                   {warnCounts.dpi ? <span> · {warnCounts.dpi} low res</span> : null}
@@ -3885,12 +4070,16 @@ const PHONE_CSS = `
 /* These two are drawn with a display of their own, so hiding them has to outweigh it. */
 [data-gs-root] .gs-phone-tab, [data-gs-root] .gs-phone-only { display: none !important; }
 @media (max-width: 900px) {
-  [data-gs-root] .gs-topbar { height: 52px !important; padding: 0 10px !important; gap: 8px !important; overflow: hidden !important; }
+  /* The two bars above the sheet are kept small: every pixel of them is one
+     the sheet does not get, on a screen that has few. */
+  [data-gs-root] .gs-topbar { height: 44px !important; padding: 0 8px !important; gap: 8px !important; overflow: hidden !important; }
   [data-gs-root] .gs-logo, [data-gs-root] .gs-lbl, [data-gs-root] .gs-top-preview, [data-gs-root] .gs-sheets-qty { display: none !important; }
   [data-gs-root] .gs-price { order: -1; text-align: left !important; min-width: 0 !important; flex-shrink: 0; }
-  [data-gs-root] .gs-top-actions { flex: 1 1 auto; min-width: 0; gap: 6px !important; flex-wrap: nowrap !important; justify-content: flex-end !important; }
-  [data-gs-root] .gs-top-actions button { padding: 10px 11px !important; white-space: nowrap; flex-shrink: 0; }
-  [data-gs-root] .gs-top-actions .gs-top-cart { padding: 10px 14px !important; }
+  [data-gs-root] .gs-price > div:first-child { font-size: 8px !important; letter-spacing: .08em !important; }
+  [data-gs-root] .gs-price > div:last-child { font-size: 16px !important; }
+  [data-gs-root] .gs-top-actions { flex: 1 1 auto; min-width: 0; gap: 5px !important; flex-wrap: nowrap !important; justify-content: flex-end !important; }
+  [data-gs-root] .gs-top-actions button { height: 32px; padding: 0 9px !important; font-size: 12px !important; border-radius: 8px !important; gap: 6px !important; white-space: nowrap; flex-shrink: 0; }
+  [data-gs-root] .gs-top-actions .gs-top-cart { padding: 0 11px !important; }
 
   [data-gs-root] .gs-body { flex-direction: column !important; position: relative; }
   [data-gs-root] .gs-canvas { order: 1; }
@@ -3902,8 +4091,17 @@ const PHONE_CSS = `
   [data-gs-root] .gs-body:not([data-drawer="left"]) .gs-rail > button:not(.gs-phone-tab) { background: none !important; color: ${C.inkSoft} !important; }
 
   /* The sheet's own tools: on two rows, all in sight, where they ran off the side. */
-  [data-gs-root] [data-gs-toolbar] { height: auto !important; flex-wrap: wrap !important; overflow: visible !important; padding: 7px 8px !important; row-gap: 7px; }
+  [data-gs-root] [data-gs-toolbar] { height: auto !important; flex-wrap: wrap !important; overflow: visible !important; padding: 5px 8px !important; gap: 5px !important; }
   [data-gs-root] [data-gs-toolbar] .gs-tool-divider { display: none; }
+  [data-gs-root] [data-gs-toolbar] select { height: 30px; padding: 0 6px !important; font-size: 12px !important; min-width: 0 !important; max-width: 140px !important; border-radius: 8px !important; }
+  [data-gs-root] [data-gs-toolbar] input { box-sizing: border-box; width: 44px !important; height: 30px; padding: 0 5px !important; font-size: 12px !important; border-radius: 8px !important; }
+  [data-gs-root] [data-gs-toolbar] label { font-size: 11.5px !important; gap: 5px !important; }
+  [data-gs-root] [data-gs-toolbar] button { width: 30px !important; height: 30px !important; border-radius: 8px !important; }
+  [data-gs-root] [data-gs-toolbar] button.gs-nest { width: auto !important; padding: 0 9px !important; font-size: 12px !important; gap: 5px !important; }
+  [data-gs-root] .gs-canvas-warn { font-size: 11px !important; padding: 5px 8px !important; max-width: 72% !important; right: 8px !important; }
+  /* Centred on a point, a banner had half the canvas to be in and stood six
+     lines tall over the sheet. Edge to edge it is one or two. */
+  [data-gs-root] .gs-banner { left: 8px !important; right: 8px !important; top: 8px !important; transform: none !important; max-width: none !important; font-size: 12px !important; line-height: 1.4 !important; padding: 7px 10px !important; gap: 8px !important; }
 
   [data-gs-root] .gs-left, [data-gs-root] .gs-right {
     position: absolute !important; left: 0; right: 0; bottom: ${PHONE_TABS}; width: auto !important;
@@ -3919,6 +4117,16 @@ const PHONE_CSS = `
 @media (max-width: 900px) and (prefers-reduced-motion: reduce) {
   [data-gs-root] .gs-left, [data-gs-root] .gs-right { transition: none !important; }
 }
+/* Under a finger, whatever the width of the screen. The sheet is slid and
+   pinched, so it needs no scrollbars, which a finger cannot take hold of
+   anyway. A corner dot is 12px across and a fingertip about 40: the dot and
+   the turn handle answer to a touch around them as well. */
+@media (pointer: coarse) {
+  [data-gs-root] .gs-canvas-scroll { scrollbar-width: none !important; }
+  [data-gs-root] .gs-canvas-scroll::-webkit-scrollbar { display: none; }
+  [data-gs-root] [data-turn] { position: relative; }
+  [data-gs-root] [data-corner]::after, [data-gs-root] [data-turn]::after { content: ""; position: absolute; inset: -13px; border-radius: 50%; }
+}
 `;
 
 const S: Record<string, React.CSSProperties> = {
@@ -3927,7 +4135,10 @@ const S: Record<string, React.CSSProperties> = {
   // html and body — enough to leave the builder standing in the top part of
   // the window with the shop showing underneath. `dvh` also keeps it right on
   // a phone, where the browser's own bars come and go.
-  root: { position: "fixed", inset: 0, width: "100vw", height: "100dvh", zIndex: 200, background: C.page, color: C.ink, display: "flex", flexDirection: "column", overflow: "hidden", fontFamily: "'Inter', 'DM Sans', system-ui, sans-serif" },
+  // touch-action: lists and drawers still scroll under a finger, but a pinch or
+  // a double tap on a bar or a panel does not blow the whole builder up; the
+  // sheet has its own pinch.
+  root: { position: "fixed", inset: 0, width: "100vw", height: "100dvh", zIndex: 200, background: C.page, color: C.ink, display: "flex", flexDirection: "column", overflow: "hidden", fontFamily: "'Inter', 'DM Sans', system-ui, sans-serif", touchAction: "pan-x pan-y" },
   topbar: { height: "54px", flexShrink: 0, minWidth: 0, overflowX: "auto", background: C.card, borderBottom: `1px solid ${C.line}`, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 18px", gap: "16px" },
   logoMark: { width: "32px", height: "32px", borderRadius: "9px", background: C.go, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 },
   logo: { fontSize: "18px", fontWeight: 800, letterSpacing: "-.02em", lineHeight: 1.1, color: C.ink },
@@ -3991,7 +4202,10 @@ const S: Record<string, React.CSSProperties> = {
   iconBtn: { width: "31px", height: "31px", border: `1px solid ${C.line}`, background: C.card, color: C.inkSoft, borderRadius: "9px", cursor: "pointer", lineHeight: 1, display: "inline-flex", alignItems: "center", justifyContent: "center", padding: 0 },
   // Pressed state for a toggle tool — dark, so it reads as "on" at a glance.
   iconBtnOn: { background: C.goTint, borderColor: "#BFE6CE", color: C.goDark },
-  canvasScroll: { position: "absolute", inset: 0, overflow: "auto" },
+  // touch-action none: fingers on the canvas are read by the builder (slide,
+  // pinch, move a design), never by the browser, whose own pinch would scale
+  // the whole screen. A wheel and the scrollbars are not touch and still work.
+  canvasScroll: { position: "absolute", inset: 0, overflow: "auto", touchAction: "none" },
   sheetFrame: { position: "relative", display: "flex", minWidth: "100%", minHeight: "100%", width: "max-content", boxSizing: "border-box", padding: `${RULER_PAD}px` },
   // A darker table than the sheet, so the sheet stands off it.
   rulerGrid: { flex: "1 1 0", minHeight: 0, minWidth: 0, display: "grid", gridTemplateColumns: "26px 1fr", gridTemplateRows: "22px 1fr", background: "#E6E3DE", overflow: "hidden" },

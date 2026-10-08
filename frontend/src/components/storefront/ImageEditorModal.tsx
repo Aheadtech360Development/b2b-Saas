@@ -386,17 +386,17 @@ export function ImageEditorModal({ src, fileName, onClose, onApply, initialTab }
   const outW = source?.width ?? 0, outH = source?.height ?? 0;
 
   return (
-    <div style={S.overlay} onClick={onClose}>
-      <div style={S.modal} onClick={(e) => e.stopPropagation()}>
+    <div className="ie-overlay" style={S.overlay} onClick={onClose}>
+      <div className="ie-modal" style={S.modal} onClick={(e) => e.stopPropagation()}>
         {/* Header */}
-        <div style={S.head}>
+        <div className="ie-head" style={S.head}>
           <span style={{ fontSize: "17px", fontWeight: 800 }}>Image Editor</span>
           <button onClick={onClose} style={S.closeX} aria-label="Close"><X size={16} strokeWidth={2.2} /></button>
         </div>
 
-        <div style={S.body}>
+        <div className="ie-body" style={S.body}>
           {/* Left tabs */}
-          <div style={S.tabs}>
+          <div className="ie-tabs" style={S.tabs}>
             {TABS.map(({ key, label, Icon }) => (
               <button key={key} data-tab={key} onClick={() => setTab(key)} aria-pressed={tab === key} style={{ ...S.tabBtn, ...(tab === key ? S.tabBtnActive : {}) }}>
                 <Icon size={20} strokeWidth={tab === key ? 2.2 : 1.9} />
@@ -406,7 +406,7 @@ export function ImageEditorModal({ src, fileName, onClose, onApply, initialTab }
           </div>
 
           {/* Controls */}
-          <div style={S.controls}>
+          <div className="ie-controls" style={S.controls}>
             {tab === "enhance" && (
               <>
                 <button onClick={removeBg} disabled={!!busy} style={S.toolCard} data-tool="remove-background">
@@ -495,7 +495,7 @@ export function ImageEditorModal({ src, fileName, onClose, onApply, initialTab }
           </div>
 
           {/* Preview stage */}
-          <div ref={stageRef} style={S.stage}>
+          <div ref={stageRef} className="ie-stage" style={S.stage}>
             <div style={{ ...S.checker, background: bgColor === "transparent" ? undefined : bgColor }} className={bgColor === "transparent" ? "gs-checker" : ""}>
               <div style={{ position: "relative", lineHeight: 0 }}>
                 <canvas ref={dispRef} onClick={pickAt} style={{ display: "block", filter: showBefore ? "none" : colorFilter, cursor: tab === "removecolor" ? "crosshair" : "default" }} />
@@ -560,20 +560,20 @@ export function ImageEditorModal({ src, fileName, onClose, onApply, initialTab }
         {error && <div style={S.errBar}>{error}</div>}
 
         {/* Footer */}
-        <div style={S.foot}>
-          <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
-            <span style={{ fontSize: "12px", fontWeight: 800 }}>CHANGE BG COLOR <span style={{ color: "#DC2626", fontWeight: 600 }}>(viewing only)</span></span>
+        <div className="ie-foot" style={S.foot}>
+          <div className="ie-bg" style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
+            <span className="ie-bg-label" style={{ fontSize: "12px", fontWeight: 800 }}><span className="ie-bg-long">CHANGE BG COLOR</span><span className="ie-bg-short">BG</span> <span style={{ color: "#DC2626", fontWeight: 600 }}>(viewing only)</span></span>
             {BG_SWATCHES.map((c) => (
               <button key={c} onClick={() => setBgColor(c)} title={c} style={{ width: 26, height: 26, borderRadius: "50%", cursor: "pointer", border: bgColor === c ? "2px solid #1C3557" : "1px solid #D0D0D0", background: c === "transparent" ? "conic-gradient(#ccc 25%, #fff 0 50%, #ccc 0 75%, #fff 0)" : c, backgroundSize: c === "transparent" ? "10px 10px" : undefined }} />
             ))}
           </div>
-          <div style={{ flex: 1 }} />
-          <span style={{ fontSize: "11px", color: "#999", marginRight: "10px" }}>{outW}×{outH}px</span>
-          <button onClick={onClose} style={S.discardBtn}>Discard Changes</button>
-          <button onClick={apply} disabled={!!busy || !ready} style={S.applyMain}>Apply</button>
+          <div className="ie-grow" style={{ flex: 1 }} />
+          <span className="ie-px" style={{ fontSize: "11px", color: "#999", marginRight: "10px" }}>{outW}×{outH}px</span>
+          <button className="ie-act" onClick={onClose} style={S.discardBtn}>Discard Changes</button>
+          <button className="ie-act" onClick={apply} disabled={!!busy || !ready} style={S.applyMain}>Apply</button>
         </div>
       </div>
-      <style>{".gs-checker{background-image:repeating-conic-gradient(#e0e0e0 0% 25%,#fff 0% 50%);background-size:20px 20px;}"}</style>
+      <style>{".gs-checker{background-image:repeating-conic-gradient(#e0e0e0 0% 25%,#fff 0% 50%);background-size:20px 20px;}" + PHONE_CSS}</style>
     </div>
   );
 }
@@ -598,6 +598,43 @@ function Slider({ label, min, max, value, onChange }: { label: string; min: numb
     </div>
   );
 }
+
+// ── On a phone ────────────────────────────────────────────────────────────────
+// Across a phone the tabs and the controls took 338 of its 374 pixels and left
+// the picture 36: the thing being edited was a sliver nobody could see. Under
+// 760px the editor is the whole screen, top to bottom: the tabs in a row, the
+// picture with all the room that is left, the chosen tab's controls under it,
+// then the two buttons.
+//
+// The controls keep one height whatever tab is open, so the picture does not
+// change size (and its crop box with it) every time a tab is pressed.
+const PHONE_CSS = `
+.ie-bg-short { display: none; }
+@media (max-width: 760px) {
+  .ie-overlay { padding: 0 !important; align-items: stretch !important; }
+  .ie-modal { width: 100% !important; height: auto !important; border-radius: 0 !important; }
+  .ie-head { padding: 9px 14px !important; }
+  .ie-body { flex-direction: column !important; }
+  .ie-tabs { width: auto !important; flex-direction: row !important; padding: 0 !important; gap: 0 !important; border-right: 0 !important; border-bottom: 1px solid #EFEDE8; }
+  .ie-tabs button { flex: 1 1 0; min-width: 0; padding: 8px 2px 6px !important; border-left: 0 !important; border-bottom: 3px solid transparent !important; }
+  .ie-tabs button[aria-pressed="true"] { border-bottom-color: #1C3557 !important; }
+  .ie-tabs button span { font-size: 9px !important; letter-spacing: 0 !important; white-space: nowrap; }
+  .ie-stage { order: 1; flex: 1 1 0 !important; min-height: 0; }
+  .ie-controls { order: 2; width: auto !important; flex: 0 0 38% !important; border-right: 0 !important; border-top: 1px solid #EFEDE8; padding: 12px 14px !important; overscroll-behavior: contain; }
+  .ie-foot { padding: 8px 14px calc(8px + env(safe-area-inset-bottom, 0px)) !important; }
+  .ie-bg { flex: 1 1 100%; gap: 7px !important; flex-wrap: nowrap !important; }
+  .ie-bg-label { font-size: 10.5px !important; white-space: nowrap; }
+  .ie-bg-long { display: none; }
+  .ie-bg-short { display: inline; }
+  .ie-bg button { flex: 0 0 auto; }
+  .ie-grow, .ie-px { display: none; }
+  .ie-act { flex: 1 1 0; padding: 11px 10px !important; }
+}
+/* A crop handle is 10 to 14px; a fingertip is about 40. */
+@media (pointer: coarse) {
+  [data-crop-handle]::after { content: ""; position: absolute; inset: -13px; }
+}
+`;
 
 const S: Record<string, React.CSSProperties> = {
   overlay: { position: "fixed", inset: 0, zIndex: 500, background: "rgba(20,24,31,.55)", display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" },

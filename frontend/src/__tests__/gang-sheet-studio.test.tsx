@@ -405,3 +405,63 @@ describe("the selected design's handles", () => {
     expect(grown.y).toBeCloseTo(after.y, 3);
   });
 });
+
+describe("fingers on the sheet", () => {
+  const finger = (id: number, x: number, y: number) => ({ pointerType: "touch", pointerId: id, clientX: x, clientY: y });
+  const canvas = () => document.querySelector<HTMLElement>(".gs-canvas-scroll")!;
+  const zoomShown = () => [...document.querySelectorAll("[data-gs-toolbar] span")].map((s) => s.textContent).find((t) => /%$/.test(t ?? ""));
+
+  it("zooms under two fingers, and a pinch that starts mid-drag puts the design back", () => {
+    open();
+    const was = inches(designs()[0]!);
+    expect(zoomShown()).toBe("100%");
+
+    // One finger is moving a design...
+    fireEvent.pointerDown(designs()[0]!, finger(1, 10, 10));
+    fireEvent.pointerMove(designs()[0]!, finger(1, 10 + PPI * 4, 10));
+    expect(inches(designs()[0]!).x).toBeGreaterThan(was.x + 1);
+
+    // ...when a second lands 100px from it: that is a pinch, not a drag.
+    fireEvent.pointerDown(canvas(), finger(2, 10 + PPI * 4 + 100, 10));
+    expect(inches(designs()[0]!)).toEqual(was);
+
+    // The two move apart to twice the distance: the sheet is twice the size.
+    fireEvent.pointerMove(canvas(), finger(2, 10 + PPI * 4 + 200, 10));
+    expect(zoomShown()).toBe("200%");
+    const at = designs()[0]!;
+    expect(parseFloat(at.style.left) / (PPI * 2)).toBeCloseTo(was.x, 3);
+    expect(parseFloat(at.style.width) / (PPI * 2)).toBeCloseTo(was.w, 3);
+
+    // The second finger moving is not the first finger dragging the design.
+    fireEvent.pointerMove(canvas(), finger(2, 10 + PPI * 4 + 150, 10));
+    expect(zoomShown()).toBe("150%");
+    expect(parseFloat(designs()[0]!.style.left) / (PPI * 1.5)).toBeCloseTo(was.x, 3);
+    fireEvent.pointerUp(canvas(), finger(2, 0, 0));
+    fireEvent.pointerUp(canvas(), finger(1, 0, 0));
+  });
+
+  it("slides the view under one finger on an empty part, and leaves the designs alone", () => {
+    open();
+    const was = inches(designs()[0]!);
+    const c = canvas();
+    fireEvent.pointerDown(c, finger(5, 200, 200));
+    fireEvent.pointerMove(c, finger(5, 140, 120));
+    fireEvent.pointerUp(c, finger(5, 140, 120));
+    expect(inches(designs()[0]!)).toEqual(was);
+    expect(zoomShown()).toBe("100%");
+    // The browser is told to leave the canvas's touches to the builder.
+    expect(c.style.touchAction).toBe("none");
+  });
+
+  it("keeps the page from zooming while the builder is up, and gives that back when it closes", () => {
+    const meta = document.createElement("meta");
+    meta.name = "viewport";
+    meta.content = "width=device-width, initial-scale=1";
+    document.head.appendChild(meta);
+    const { unmount } = render(<GangSheetStudio sizes={SIZES} productId={null} resumeOrder={ORDER} onClose={() => {}} onSaved={() => {}} />);
+    expect(meta.content).toBe("width=device-width, initial-scale=1, maximum-scale=1");
+    unmount();
+    expect(meta.content).toBe("width=device-width, initial-scale=1");
+    meta.remove();
+  });
+});
