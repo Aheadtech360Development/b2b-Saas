@@ -256,6 +256,11 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
   const [imageMargin, setImageMargin] = useState(0.5);
   const [aspectLock, setAspectLock] = useState(true);
   const [panel, setPanel] = useState<"uploads" | "designs" | "gallery" | "text" | "settings">("uploads");
+  // On a phone there is room for the sheet and nothing beside it, so the tools
+  // on the left and the sheets on the right each slide up over it from the
+  // bottom when asked for. Which one is up; a wide screen shows both always and
+  // never reads this.
+  const [mobileSheet, setMobileSheet] = useState<null | "left" | "right">(null);
   const [library, setLibrary] = useState<GangSheetLibraryDesign[]>([]);
   const [gallery, setGallery] = useState<GangSheetArtwork[]>([]);
   const [uploading, setUploading] = useState(false);
@@ -646,6 +651,9 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
     const id = nextId.current++;
     const placement: Placement = { id, uid: u.uid, x_in: spot.x, y_in: spot.y, w_in: w, h_in: h, rotation: 0 };
     takeSpot(spot, placement);
+    // On a phone the tools are over the sheet: step aside so the design just
+    // added is seen landing on it.
+    setMobileSheet(null);
     setPlacements((cur) => [...cur, placement]);
     setSelected(id);
     setSheetFull(false);
@@ -2699,9 +2707,10 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
   // pinch-to-zoom on the trackpad stopped working at all.
   return (
     <div ref={rootRef} data-gs-root style={viewportH ? { ...S.root, height: `${viewportH}px` } : S.root}>
+      <style>{PHONE_CSS}</style>
       {/* ── Top bar ─────────────────────────────────────────────────────────── */}
-      <div style={S.topbar}>
-        <div style={{ display: "flex", alignItems: "center", gap: "11px" }}>
+      <div className="gs-topbar" style={S.topbar}>
+        <div className="gs-logo" style={{ display: "flex", alignItems: "center", gap: "11px" }}>
           <span style={S.logoMark} aria-hidden><Layers size={18} strokeWidth={2.3} /></span>
           <span>
             <div style={S.logo}>DTF Studio</div>
@@ -2709,9 +2718,9 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
           </span>
         </div>
 
-        <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap", justifyContent: "center" }}>
-          <label style={{ fontSize: "13px", color: C.inkSoft, display: "flex", alignItems: "center", gap: "7px", fontWeight: 500 }}>
-            Sheets
+        <div className="gs-top-actions" style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap", justifyContent: "center" }}>
+          <label className="gs-sheets-qty" title="How many of this sheet to print" style={{ fontSize: "13px", color: C.inkSoft, display: "flex", alignItems: "center", gap: "7px", fontWeight: 500 }}>
+            <span className="gs-lbl">Sheets</span>
             {/* A short list rather than a free number: this is how many copies
                 of the same sheet get printed, and it is a choice, not a sum.
                 A value set elsewhere still shows, so nothing is ever lost. */}
@@ -2737,18 +2746,18 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
             @media (prefers-reduced-motion: reduce) { .gs-ai::before { animation: none; } }
           `}</style>
           <span className="gs-ai" data-open={assistantOpen ? "" : undefined}>
-            <button onClick={() => setAssistantOpen((o) => !o)} style={{ ...S.ghostBtn, border: "none", padding: "9px 14px", borderRadius: "7px", color: "#5B21B6", fontWeight: 700 }} title="Tell the assistant what you want and it builds the sheet for you" aria-pressed={assistantOpen}><Sparkles size={15} strokeWidth={2.1} /> Build with AI</button>
+            <button onClick={() => setAssistantOpen((o) => !o)} style={{ ...S.ghostBtn, border: "none", padding: "9px 14px", borderRadius: "7px", color: "#5B21B6", fontWeight: 700 }} title="Tell the assistant what you want and it builds the sheet for you" aria-label="Build with AI" aria-pressed={assistantOpen}><Sparkles size={15} strokeWidth={2.1} /> <span className="gs-lbl">Build with AI</span></button>
           </span>
           </>)}
-          <button onClick={preview} style={S.ghostBtn} title="Open a full-resolution preview in a new tab"><Eye size={15} strokeWidth={2.1} /> Preview</button>
-          <button onClick={() => save(true)} disabled={saving} style={{ ...S.primaryBtn, opacity: saving ? 0.6 : 1 }}>
-            <ShoppingCart size={15} strokeWidth={2.2} /> {saving ? "Saving…" : "Save & Add to Cart"}
+          <button className="gs-top-preview" onClick={preview} style={S.ghostBtn} title="Open a full-resolution preview in a new tab"><Eye size={15} strokeWidth={2.1} /> Preview</button>
+          <button className="gs-top-cart" onClick={() => save(true)} disabled={saving} style={{ ...S.primaryBtn, opacity: saving ? 0.6 : 1 }}>
+            <ShoppingCart size={15} strokeWidth={2.2} /> {saving ? "Saving…" : <span><span className="gs-lbl">Save &amp;</span> Add to Cart</span>}
           </button>
-          <button onClick={() => save(false)} disabled={saving} style={S.ghostBtn} title="Save without adding to cart"><Save size={15} strokeWidth={2.1} /> Save</button>
-          <button onClick={onClose} style={S.closeBtn}><X size={15} strokeWidth={2.3} /> Close</button>
+          <button onClick={() => save(false)} disabled={saving} style={S.ghostBtn} title="Save without adding to cart" aria-label="Save"><Save size={15} strokeWidth={2.1} /> <span className="gs-lbl">Save</span></button>
+          <button onClick={onClose} style={S.closeBtn} aria-label="Close"><X size={15} strokeWidth={2.3} /> <span className="gs-lbl">Close</span></button>
         </div>
 
-        <div style={{ textAlign: "right", minWidth: "118px" }}>
+        <div className="gs-price" style={{ textAlign: "right", minWidth: "118px" }}>
           <div style={S.priceLabel}>
             {sheets.length > 1 ? `Est. total · ${sheets.length} sheets` : "Est. price"}
           </div>
@@ -3005,24 +3014,42 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
         </div>
       )}
 
-      <div style={S.body}>
-        {/* ── Left rail ─────────────────────────────────────────────────────── */}
-        <div style={S.rail}>
+      <div className="gs-body" data-drawer={mobileSheet ?? undefined} style={S.body}>
+        {/* On a phone, what is behind an open drawer: a tap on it closes the drawer. */}
+        {mobileSheet && <div className="gs-backdrop" onClick={() => setMobileSheet(null)} aria-hidden />}
+
+        {/* ── Left rail ───────────────────────────────────────────────────────
+            Beside the sheet on a wide screen; along the bottom on a phone,
+            where each tab slides its tools up over the sheet and a second
+            press puts them away. */}
+        <div className="gs-rail" style={S.rail}>
           {RAIL.map(({ key, label, Icon }) => {
             const on = panel === key;
             return (
-              <button key={key} onClick={() => setPanel(key)} title={label} aria-current={on ? "page" : undefined}
+              <button key={key} title={label} aria-current={on ? "page" : undefined}
+                onClick={() => { setPanel(key); setMobileSheet((cur) => (cur === "left" && on ? null : "left")); }}
                 style={{ ...S.railBtn, ...(on ? S.railBtnActive : {}) }}>
                 <Icon size={19} strokeWidth={on ? 2.3 : 2} />
                 <span style={{ fontSize: "10.5px", marginTop: "5px", fontWeight: on ? 700 : 600 }}>{label}</span>
               </button>
             );
           })}
-          <div style={{ marginTop: "auto", fontSize: "9.5px", fontWeight: 700, color: C.inkFaint, textAlign: "center", padding: "10px 2px 4px", letterSpacing: ".06em" }}>AT360<br/>APPS</div>
+          {/* The right-hand column has no room of its own on a phone: it is a tab here. */}
+          <button className="gs-phone-tab" title="Sheets and tools" aria-expanded={mobileSheet === "right"}
+            onClick={() => setMobileSheet((cur) => (cur === "right" ? null : "right"))}
+            style={{ ...S.railBtn, ...(mobileSheet === "right" ? S.railBtnActive : {}) }}>
+            <Layers size={19} strokeWidth={mobileSheet === "right" ? 2.3 : 2} />
+            <span style={{ fontSize: "10.5px", marginTop: "5px", fontWeight: mobileSheet === "right" ? 700 : 600 }}>Sheets</span>
+          </button>
+          <div className="gs-rail-foot" style={{ marginTop: "auto", fontSize: "9.5px", fontWeight: 700, color: C.inkFaint, textAlign: "center", padding: "10px 2px 4px", letterSpacing: ".06em" }}>AT360<br/>APPS</div>
         </div>
 
         {/* ── Left panel ────────────────────────────────────────────────────── */}
-        <div style={S.leftPanel}>
+        <div className="gs-left" data-open={mobileSheet === "left" ? "" : undefined} style={S.leftPanel}>
+          <div className="gs-drawer-head">
+            <span>{RAIL.find((r) => r.key === panel)?.label}</span>
+            <button type="button" onClick={() => setMobileSheet(null)} aria-label="Close this panel"><X size={18} strokeWidth={2.3} /></button>
+          </div>
           {panel === "uploads" && (
             <>
               <div
@@ -3255,7 +3282,7 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
         </div>
 
         {/* ── Canvas area ───────────────────────────────────────────────────── */}
-        <div style={S.canvasArea}>
+        <div className="gs-canvas" style={S.canvasArea}>
           {abOpen && (
             <div style={S.abOverlay}>
             <AutoBuildPanel
@@ -3311,7 +3338,7 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
             )}
             <button onClick={() => setPanTool((v) => !v)} title="Pan / hand tool" style={{ ...S.iconBtn, ...(panTool ? S.iconBtnOn : null) }}><Hand {...TOOL_ICON} /></button>
             <button onClick={() => setShowGrid((v) => !v)} title="Toggle grid" style={{ ...S.iconBtn, ...(showGrid ? S.iconBtnOn : null) }}><Grid3x3 {...TOOL_ICON} /></button>
-            <div style={S.toolDivider} />
+            <div className="gs-tool-divider" style={S.toolDivider} />
             <label style={{ fontSize: "12.5px", color: C.inkSoft, display: "flex", alignItems: "center", gap: "7px", fontWeight: 500 }}>
               Margin
               <input type="number" min={0} step="0.25" value={imageMargin} onWheel={(e) => e.currentTarget.blur()} onChange={(e) => setImageMargin(Math.max(0, Number(e.target.value) || 0))}
@@ -3547,7 +3574,7 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
               nobody can decode is just decoration. It floats in the corner of
               the workspace over the margin around the sheet, rather than
               taking a band of height the canvas needs more than it does. */}
-          <div style={S.viewStrip}>
+          <div className="gs-view-strip" style={S.viewStrip}>
             <label style={S.canvasCheck}>
               <input type="checkbox" checked={showRes} onChange={(e) => setShowRes(e.target.checked)} /> Resolution colours
             </label>
@@ -3588,8 +3615,16 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
           </>
         </div>
 
-        {/* ── Right panel: Active Gang Sheets ───────────────────────────────── */}
-        <div style={S.rightPanel}>
+        {/* ── Right panel: Active Gang Sheets ─────────────────────────────────
+            On a phone it is a drawer, and anything in it that acts on the
+            sheet (marked data-close-sheet) puts the drawer away as it does,
+            so what it did is seen. */}
+        <div className="gs-right" data-open={mobileSheet === "right" ? "" : undefined} style={S.rightPanel}
+          onClick={(e) => { if ((e.target as HTMLElement).closest("[data-close-sheet]")) setMobileSheet(null); }}>
+          <div className="gs-drawer-head">
+            <span>Sheets and tools</span>
+            <button type="button" onClick={() => setMobileSheet(null)} aria-label="Close this panel"><X size={18} strokeWidth={2.3} /></button>
+          </div>
           <div style={{ fontSize: "13.5px", fontWeight: 700, color: C.ink }}>({sheets.length}) Active Gang Sheet{sheets.length === 1 ? "" : "s"}</div>
           {/* The list takes what is left and scrolls; the buttons under it keep
               their place. It used to be capped at 44vh with everything else
@@ -3603,7 +3638,7 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
               const q = isA ? qty : s.qty;
               const len = sz ? (sz.pricing_mode === "custom_length" ? (isA ? sheetLen : s.customLength) : Number(sz.height_in)) : 0;
               return (
-                <div key={s.key} onClick={() => switchTo(i)} style={{ ...S.sheetCard, ...(isA ? S.sheetCardActive : {}) }}>
+                <div key={s.key} data-close-sheet onClick={() => switchTo(i)} style={{ ...S.sheetCard, ...(isA ? S.sheetCardActive : {}) }}>
                   <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
                     <span style={{ display: "inline-flex", alignItems: "center", gap: "6px", fontSize: "11.5px", color: C.inkSoft, fontWeight: 600 }}><Layers size={12} strokeWidth={2.1} /> {sz?.name ?? "—"}</span>
                     {sheets.length > 1 && (
@@ -3631,22 +3666,27 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
             })}
           </div>
 
-          <button onClick={addSheet} style={{ ...S.rightAction, borderStyle: "dashed", color: C.goDark, fontWeight: 700 }}>
+          <button data-close-sheet onClick={addSheet} style={{ ...S.rightAction, borderStyle: "dashed", color: C.goDark, fontWeight: 700 }}>
             <Plus size={15} strokeWidth={2.4} /> Add new sheet
           </button>
 
           <div style={{ borderTop: `1px solid ${C.lineSoft}`, margin: "4px 0" }} />
-          <button onClick={() => { setPanel("uploads"); fileRef.current?.click(); }} style={S.rightAction}>
+          {/* The files chosen arrive in Uploads, which on a phone is the other drawer. */}
+          <button onClick={() => { setPanel("uploads"); setMobileSheet("left"); fileRef.current?.click(); }} style={S.rightAction}>
             <UploadIcon size={15} strokeWidth={2.1} /> Add new design
           </button>
-          <button onClick={openAutoBuild} style={S.rightAction} title="Upload several designs, set their sizes and quantities, and pack them onto sheets">
+          <button data-close-sheet onClick={openAutoBuild} style={S.rightAction} title="Upload several designs, set their sizes and quantities, and pack them onto sheets">
             <Grid3x3 size={15} strokeWidth={2.1} /> Auto Build
           </button>
-          <button onClick={() => autoNest()} style={{ ...S.rightAction, ...S.rightActionGo }} title="Pack the designs tightly, for the least wasted film">
+          <button data-close-sheet onClick={() => autoNest()} style={{ ...S.rightAction, ...S.rightActionGo }} title="Pack the designs tightly, for the least wasted film">
             <Zap size={15} strokeWidth={2.3} /> Auto nest (tidy up)
           </button>
-          <button onClick={() => autoNest(true)} style={S.rightAction} title="Arrange the designs in rows, so a cut can run straight across between them">
+          <button data-close-sheet onClick={() => autoNest(true)} style={S.rightAction} title="Arrange the designs in rows, so a cut can run straight across between them">
             <Scissors size={15} strokeWidth={2.1} /> Auto nest for cutting
+          </button>
+          {/* Preview has no room in a phone's top bar, so it is offered here. */}
+          <button className="gs-phone-only" data-close-sheet onClick={preview} style={S.rightAction} title="Open a full-resolution preview in a new tab">
+            <Eye size={15} strokeWidth={2.1} /> Preview
           </button>
           <button onClick={() => setNestHelp((v) => !v)} style={{ ...S.helpBtn, ...(nestHelp ? { color: C.goDark } : null) }}
             aria-expanded={nestHelp} aria-label="What is the difference between the two?">
@@ -3656,7 +3696,7 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
               "for cutting" means nothing to somebody who has not cut a sheet. */}
           {nestHelp && (
             <div style={S.nestHelp} data-nest-help>
-              <button type="button" onClick={() => autoNest()} style={S.nestCard}>
+              <button type="button" data-close-sheet onClick={() => autoNest()} style={S.nestCard}>
                 <div style={S.nestArt} aria-hidden>
                   {([[4, 6, 34, 46, "#93C5FD"], [42, 6, 24, 22, "#86EFAC"], [70, 6, 26, 30, "#FCD34D"], [42, 32, 24, 20, "#FDA4AF"],
                      [70, 40, 26, 54, "#93C5FD"], [4, 56, 20, 38, "#FCD34D"], [28, 56, 38, 38, "#86EFAC"]] as const).map(([l, t, w, h, c], i) => (
@@ -3666,7 +3706,7 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
                 <div style={S.nestCardTitle}>Standard</div>
                 <div style={S.nestCardText}>Packed tightly in every direction. Least film wasted.</div>
               </button>
-              <button type="button" onClick={() => autoNest(true)} style={S.nestCard}>
+              <button type="button" data-close-sheet onClick={() => autoNest(true)} style={S.nestCard}>
                 <div style={S.nestArt} aria-hidden>
                   {([[4, 6, 28, 22, "#93C5FD"], [36, 6, 20, 22, "#86EFAC"], [60, 6, 34, 22, "#FCD34D"],
                      [4, 39, 22, 22, "#FDA4AF"], [30, 39, 34, 22, "#93C5FD"], [68, 39, 26, 22, "#86EFAC"],
@@ -3683,6 +3723,7 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
             </div>
           )}
           <button
+            data-close-sheet
             onClick={() => { if (placements.length) setConfirmStartOver(true); }}
             disabled={!placements.length}
             title={placements.length ? "Remove every design from this sheet" : "This sheet is already empty"}
@@ -3827,6 +3868,58 @@ const C = {
   stopTint: "#FEF2F2",
   radius: "10px",
 } as const;
+
+// ── The builder on a phone ───────────────────────────────────────────────────
+// Three columns do not fit across a phone: the tools, the sheet and the list of
+// sheets crushed each other until the sheet had no width left at all. Under
+// 900px the sheet gets the whole screen. The tools' tabs run along the bottom,
+// and each column slides up over the sheet as a drawer when its tab is pressed.
+// The top bar keeps the price and what somebody came to do — add to cart, save,
+// close — and lets go of the names and the rest.
+//
+// Written as overrides of the inline styles the wide layout is drawn with, so
+// that layout is not touched: above 900px none of this applies.
+const PHONE_TABS = "calc(60px + env(safe-area-inset-bottom, 0px))";
+const PHONE_CSS = `
+[data-gs-root] .gs-backdrop, [data-gs-root] .gs-drawer-head { display: none; }
+/* These two are drawn with a display of their own, so hiding them has to outweigh it. */
+[data-gs-root] .gs-phone-tab, [data-gs-root] .gs-phone-only { display: none !important; }
+@media (max-width: 900px) {
+  [data-gs-root] .gs-topbar { height: 52px !important; padding: 0 10px !important; gap: 8px !important; overflow: hidden !important; }
+  [data-gs-root] .gs-logo, [data-gs-root] .gs-lbl, [data-gs-root] .gs-top-preview, [data-gs-root] .gs-sheets-qty { display: none !important; }
+  [data-gs-root] .gs-price { order: -1; text-align: left !important; min-width: 0 !important; flex-shrink: 0; }
+  [data-gs-root] .gs-top-actions { flex: 1 1 auto; min-width: 0; gap: 6px !important; flex-wrap: nowrap !important; justify-content: flex-end !important; }
+  [data-gs-root] .gs-top-actions button { padding: 10px 11px !important; white-space: nowrap; flex-shrink: 0; }
+  [data-gs-root] .gs-top-actions .gs-top-cart { padding: 10px 14px !important; }
+
+  [data-gs-root] .gs-body { flex-direction: column !important; position: relative; }
+  [data-gs-root] .gs-canvas { order: 1; }
+  [data-gs-root] .gs-rail { order: 2; width: auto !important; flex-direction: row !important; align-items: stretch; height: ${PHONE_TABS}; padding: 4px 4px calc(4px + env(safe-area-inset-bottom, 0px)) !important; gap: 2px !important; border-right: 0 !important; border-top: 1px solid #E6E8EC; overflow-x: auto !important; overflow-y: hidden !important; position: relative; z-index: 31; }
+  [data-gs-root] .gs-rail > button { flex: 1 0 56px; padding: 6px 2px !important; }
+  [data-gs-root] .gs-phone-tab, [data-gs-root] .gs-phone-only { display: flex !important; }
+  [data-gs-root] .gs-rail-foot, [data-gs-root] .gs-view-strip { display: none !important; }
+  /* A tab is lit while its drawer is up, not because it was the last one used. */
+  [data-gs-root] .gs-body:not([data-drawer="left"]) .gs-rail > button:not(.gs-phone-tab) { background: none !important; color: ${C.inkSoft} !important; }
+
+  /* The sheet's own tools: on two rows, all in sight, where they ran off the side. */
+  [data-gs-root] [data-gs-toolbar] { height: auto !important; flex-wrap: wrap !important; overflow: visible !important; padding: 7px 8px !important; row-gap: 7px; }
+  [data-gs-root] [data-gs-toolbar] .gs-tool-divider { display: none; }
+
+  [data-gs-root] .gs-left, [data-gs-root] .gs-right {
+    position: absolute !important; left: 0; right: 0; bottom: ${PHONE_TABS}; width: auto !important;
+    max-height: min(74%, 620px); z-index: 30; border: 0 !important; border-radius: 18px 18px 0 0;
+    box-shadow: 0 -14px 34px rgba(16,24,40,.24); padding-top: 0 !important;
+    transform: translateY(calc(100% + 80px)); visibility: hidden; transition: transform .22s ease, visibility 0s linear .22s; }
+  [data-gs-root] .gs-left[data-open], [data-gs-root] .gs-right[data-open] { transform: none; visibility: visible; transition: transform .22s ease; }
+  [data-gs-root] .gs-drawer-head { display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 2; background: #fff; padding: 16px 0 10px; margin-bottom: 8px; border-bottom: 1px solid #EEF0F3; font-size: 15px; font-weight: 800; color: #1F2430; flex-shrink: 0; }
+  [data-gs-root] .gs-drawer-head::before { content: ""; position: absolute; left: 50%; top: 6px; width: 38px; height: 4px; margin-left: -19px; border-radius: 4px; background: #D5D9E0; }
+  [data-gs-root] .gs-drawer-head button { display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px; padding: 0; border: 0; border-radius: 9px; background: #F2F4F7; color: #1F2430; cursor: pointer; }
+  [data-gs-root] .gs-backdrop { display: block; position: absolute; left: 0; right: 0; top: 0; bottom: ${PHONE_TABS}; background: rgba(15,23,42,.32); z-index: 29; }
+}
+@media (max-width: 900px) and (prefers-reduced-motion: reduce) {
+  [data-gs-root] .gs-left, [data-gs-root] .gs-right { transition: none !important; }
+}
+`;
 
 const S: Record<string, React.CSSProperties> = {
   // Height is stated rather than inferred from `inset`. A brand's theme styles
