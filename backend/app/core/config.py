@@ -200,14 +200,8 @@ class Settings(BaseSettings):
     # when the provider is Claude — it reads the room left on a sheet at every
     # size and fills in a nested plan — and the provider's own default otherwise.
     # Limits are per day, per signed-in user and per guest address, so one
-    # visitor cannot run up the bill.
-    #
-    # Off for now, at the owner's word (2026-10-08): while this is false the
-    # route refuses every question, whoever asks, so "off" also means nothing
-    # is spent. To put the assistant back, two switches, both needed: this one
-    # to true in the environment, and BUILD_WITH_AI in the frontend's
-    # gang-sheets/page.tsx (the button and the panel).
-    COPILOT_STUDIO_ENABLED: bool = False
+    # visitor cannot run up the bill. Which brands have it at all is the
+    # platform's call, per brand: "Build with AI" in the brand's Manage screen.
     COPILOT_STUDIO_MODEL: str = ""
     # How much the model thinks (Claude models that take it): low, medium, high.
     # Low suits a chat that asks and explains; it is also the cheapest.

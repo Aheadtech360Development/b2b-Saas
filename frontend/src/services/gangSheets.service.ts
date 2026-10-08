@@ -287,6 +287,9 @@ export const gangSheetsService = {
   addArtwork: (id: string, artwork: Omit<GangSheetArtwork, "id" | "sort_order">) =>
     apiClient.post<GangSheetOrder>(`/api/v1/gang-sheets/orders/${id}/artwork`, artwork),
 
+  /** Whether this brand's builder shows "Build with AI" — the platform turns it on per brand. */
+  assistantAvailable: () => apiClient.get<{ available: boolean }>("/api/v1/gang-sheets/assistant"),
+
   /** Store-curated ready-made designs the buyer can drop onto a sheet. */
   listLibrary: () => apiClient.get<GangSheetLibraryDesign[]>("/api/v1/gang-sheets/library"),
 

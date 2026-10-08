@@ -21,17 +21,6 @@ import { gangSheetsService, type GangSheetOrder, type GangSheetSize } from "@/se
 import { GangSheetStudio } from "@/components/storefront/GangSheetStudio";
 import { useAuthStore } from "@/stores/auth.store";
 
-/**
- * "Build with AI" in the builder. Off for now, at the owner's word
- * (2026-10-08): no button, no panel, and it does not open by itself.
- *
- * To put it back, two switches, both needed: this one to true, and
- * COPILOT_STUDIO_ENABLED=true in the server's environment (backend
- * app/core/config.py) — with only this one, the panel opens and says the
- * assistant isn't available.
- */
-const BUILD_WITH_AI = false;
-
 interface Launch {
   sizes: GangSheetSize[];
   productId: string | null;
@@ -39,6 +28,10 @@ interface Launch {
   qty: number;
   resume: GangSheetOrder | null;
   auto: boolean;
+  /** "Build with AI": the platform turns it on per brand, from the brand's
+   *  Manage screen. Off, there is no button, no panel, and it does not open
+   *  by itself. Off as well when the answer can't be had. */
+  assistant: boolean;
 }
 
 export default function GangSheetBuilderPage() {
@@ -59,9 +52,10 @@ export default function GangSheetBuilderPage() {
 
     (async () => {
       try {
-        const [sizes, resume] = await Promise.all([
+        const [sizes, resume, assistant] = await Promise.all([
           gangSheetsService.listSizes(productId || undefined),
           editId ? gangSheetsService.myOrder(editId).catch(() => null) : Promise.resolve(null),
+          gangSheetsService.assistantAvailable().then((r) => r?.available === true).catch(() => false),
         ]);
         if (cancelled) return;
         if (!sizes.length) {
@@ -83,6 +77,7 @@ export default function GangSheetBuilderPage() {
           qty: Math.max(1, Math.min(999, parseInt(params.get("qty") || "1", 10) || 1)),
           resume,
           auto: params.get("auto") === "1",
+          assistant,
         });
       } catch {
         if (!cancelled) setProblem("The builder couldn't load. Please refresh the page to try again.");
@@ -132,7 +127,7 @@ export default function GangSheetBuilderPage() {
       initialSizeId={launch.sizeId}
       initialQty={launch.qty}
       resumeOrder={launch.resume}
-      assistant={BUILD_WITH_AI}
+      assistant={launch.assistant}
       onClose={leave}
       // "Save" keeps the sheet without buying it and leaves the buyer where
       // they are, to carry on — it is also waiting under My Print Jobs. It used

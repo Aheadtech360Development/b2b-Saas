@@ -631,6 +631,22 @@ async def list_library(db: AsyncSession = Depends(get_db)) -> list[dict]:
     return [_library_row(d) for d in rows.scalars().all()]
 
 
+@public_router.get("/assistant")
+async def assistant_available(db: AsyncSession = Depends(get_db)) -> dict:
+    """Whether this brand's builder shows "Build with AI".
+
+    The platform turns it on per brand (Manage → "Build with AI in the
+    builder"); the assistant's own route asks the same question before it
+    answers, so hiding the button is not the only thing keeping it off."""
+    from app.core.tenant_context import NO_TENANT, get_current_tenant_id
+    from app.services import entitlements
+
+    tenant_id = get_current_tenant_id()
+    if tenant_id in (None, NO_TENANT):
+        return {"available": False}
+    return {"available": await entitlements.enabled(db, tenant_id, "gang_sheet_ai")}
+
+
 @public_router.get("/my-artworks")
 async def my_artworks(request: Request, db: AsyncSession = Depends(get_db)) -> list[dict]:
     """The buyer's own previously-uploaded designs, de-duplicated, newest first —

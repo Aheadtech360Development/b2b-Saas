@@ -405,18 +405,30 @@ async def test_one_person_running_out_does_not_use_up_anyone_else(monkeypatch):
     await agent._check_daily_limit("studio", "ip2", 2)  # someone else is unaffected
 
 
-async def test_the_assistant_answers_only_while_the_platform_has_it_switched_on(monkeypatch):
+async def test_the_assistant_answers_only_at_a_brand_the_platform_has_given_it(monkeypatch):
     """Hiding the button in the shop is not the switch: the route is open to
-    guests, so it refuses by itself, before anything is asked of a model."""
+    guests, so it refuses by itself, before anything is asked of a model —
+    unless this brand has "Build with AI" switched on, and the builder too."""
     from fastapi import HTTPException
 
-    assert type(settings).model_fields["COPILOT_STUDIO_ENABLED"].default is False  # off until somebody turns it on
-    monkeypatch.setattr(settings, "COPILOT_STUDIO_ENABLED", False)
-    with pytest.raises(HTTPException) as refused:
-        await copilot_api.studio_switched_on()
-    assert refused.value.status_code == 503
-    monkeypatch.setattr(settings, "COPILOT_STUDIO_ENABLED", True)
-    await copilot_api.studio_switched_on()
+    from app.services import entitlements
+
+    has: set[str] = set()
+
+    async def for_tenant(_db, tenant_id):
+        assert tenant_id == "brand-1"  # the brand in scope, nobody else's
+        return has
+
+    monkeypatch.setattr(entitlements, "for_tenant", for_tenant)
+    monkeypatch.setattr(copilot_api, "get_current_tenant_id", lambda: "brand-1")
+    for brand_has in (set(), {"gang_sheet"}, {"gang_sheet_ai"}):
+        has.clear()
+        has.update(brand_has)
+        with pytest.raises(HTTPException) as refused:
+            await copilot_api.studio_switched_on(db=None)
+        assert refused.value.status_code == 503
+    has.update({"gang_sheet", "gang_sheet_ai"})
+    await copilot_api.studio_switched_on(db=None)
 
     # And the route asks it: a question cannot get past the switch.
     import inspect

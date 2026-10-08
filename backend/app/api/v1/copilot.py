@@ -255,14 +255,20 @@ class StudioChatIn(ChatIn):
     context: StudioContext | None = None
 
 
-async def studio_switched_on() -> None:
-    """The builder's assistant answers only while the platform has it on.
+async def studio_switched_on(db: AsyncSession = Depends(get_db)) -> None:
+    """The builder's assistant answers only at a brand the platform has given it.
 
-    A switch of its own, apart from hiding the button in the shop: the route is
-    open to guests, so with the button hidden it could still be called by
-    anybody who knew the address, and every answer is paid for.
+    "Build with AI" is switched on brand by brand, in the brand's Manage screen
+    on the platform console, and is in no plan by default. The shop hides the
+    button when it is off, but the route is open to guests, so it could still be
+    called by anybody who knew the address, and every answer is paid for — so
+    it asks for itself. The builder has to be on too: the assistant only ever
+    works on a sheet in it.
     """
-    if not settings.COPILOT_STUDIO_ENABLED:
+    from app.services import entitlements
+
+    have = await entitlements.for_tenant(db, get_current_tenant_id())
+    if "gang_sheet_ai" not in have or "gang_sheet" not in have:
         raise HTTPException(status_code=503, detail="The assistant isn't available right now.")
 
 

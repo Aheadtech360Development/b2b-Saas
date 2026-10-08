@@ -55,6 +55,7 @@ FEATURES: list[tuple[str, str, str]] = [
     ("ai_agent", "24/7 AI Data Analytics Agent", "Analytics"),
     # Gang Sheet Builder
     ("gang_sheet", "Gang Sheet Builder", "Gang Sheet Builder"),
+    ("gang_sheet_ai", "Build with AI in the builder", "Gang Sheet Builder"),
     # Operations
     ("staff_accounts", "Staff accounts and roles", "Settings and operations"),
     ("audit_logs", "Audit log", "Settings and operations"),
@@ -72,9 +73,16 @@ _WHOLESALE_ONLY = {
 }
 # Scale only.
 _SCALE_ONLY = {"mobile_app"}
+# In no plan: the platform turns these on brand by brand, from the brand's
+# Manage screen. "Build with AI" answers shoppers through a paid model, guests
+# included, so a brand has it only when the platform has said so.
+_GRANT_ONLY = {"gang_sheet_ai"}
 
 # Every plan includes everything except what is reserved above.
-_BASE = [k for k in ALL_FEATURES if k not in _WHOLESALE_ONLY and k not in _SCALE_ONLY]
+_BASE = [
+    k for k in ALL_FEATURES
+    if k not in _WHOLESALE_ONLY and k not in _SCALE_ONLY and k not in _GRANT_ONLY
+]
 
 PLAN_FEATURES: dict[str, set[str]] = {
     "starter": set(_BASE),
@@ -162,6 +170,9 @@ PUBLIC_PATH_FEATURES: list[tuple[str, str]] = [
     ("/api/v1/register-wholesale", "wholesale_accounts"),
     ("/api/v1/gang-sheets", "gang_sheet"),
     ("/api/v1/quick-order", "quick_buy"),
+    # The builder's assistant before the rest of the copilot: it is the
+    # shopper's, switched on per brand, not the admin's analytics agent.
+    ("/api/v1/copilot/studio", "gang_sheet_ai"),
     ("/api/v1/copilot", "ai_agent"),
 ]
 
