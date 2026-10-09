@@ -124,6 +124,10 @@ export interface Branding {
   support_phone: string;
   /** Where will-call orders are collected — the brand's own ship-from. */
   pickup_address?: string;
+  /** What the place is called, when it is open, and anything to bring: set in Admin → Shipping. */
+  pickup_name?: string;
+  pickup_hours?: string;
+  pickup_note?: string;
   email_sender_name: string;
 }
 

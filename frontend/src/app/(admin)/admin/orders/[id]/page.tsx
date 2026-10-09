@@ -351,12 +351,18 @@ export default function AdminOrderDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const [order, setOrder] = useState<AdminOrder | null>(null);
-  // Will-call orders are collected from this brand's own warehouse.
-  const [pickupAddress, setPickupAddress] = useState<{ name?: string; street1?: string; city?: string; state?: string; zip?: string } | null>(null);
+  // Will-call orders are collected from this brand's pickup location, or from
+  // its ship-from address when it has not set one: the same rule the checkout
+  // and the customer's mail follow (backend services/pickup).
+  const [pickupAddress, setPickupAddress] = useState<{ name?: string; street1?: string; city?: string; state?: string; zip?: string; hours?: string } | null>(null);
   useEffect(() => {
     apiClient.get<Record<string, string>>("/api/v1/admin/settings")
       .then((s) => {
-        try { setPickupAddress(s?.ship_from ? JSON.parse(s.ship_from) : null); } catch { setPickupAddress(null); }
+        const read = (raw?: string) => { try { return raw ? JSON.parse(raw) : null; } catch { return null; } };
+        const own = read(s?.pickup_location);
+        const from = read(s?.ship_from);
+        const place = own?.street1 ? own : from;
+        setPickupAddress(place ? { ...place, hours: own?.hours } : null);
       })
       .catch(() => setPickupAddress(null));
   }, []);
@@ -925,16 +931,17 @@ export default function AdminOrderDetailPage() {
             {isWillCallPickup ? (
               <div style={{ background: "rgba(26,26,26,.05)", border: "1.5px solid rgba(26,26,26,.2)", borderRadius: "10px", padding: "18px 20px" }}>
                 <div style={{ fontSize: "13px", fontWeight: 700, color: "#1A1A1A", marginBottom: "10px" }}>📦 Customer selected: Will Call Pickup</div>
-                <div style={{ fontSize: "13px", color: "#2A2830", fontWeight: 600, marginBottom: "6px" }}>Warehouse Address:</div>
+                <div style={{ fontSize: "13px", color: "#2A2830", fontWeight: 600, marginBottom: "6px" }}>Pickup location:</div>
                 <div style={{ fontSize: "13px", color: "#7A7880", lineHeight: 1.7 }}>
-                  {pickupAddress ? (
+                  {pickupAddress?.street1 ? (
                     <>
                       {pickupAddress.name && <>{pickupAddress.name}<br /></>}
                       {pickupAddress.street1 && <>{pickupAddress.street1}<br /></>}
                       {[pickupAddress.city, [pickupAddress.state, pickupAddress.zip].filter(Boolean).join(" ")].filter(Boolean).join(", ")}
+                      {pickupAddress.hours && <><br />{pickupAddress.hours}</>}
                     </>
                   ) : (
-                    <>No pickup address set. Add your warehouse under <a href="/admin/standard-shipping" style={{ color: "#1A1A1A", fontWeight: 600 }}>Shipping → Ship from</a>.</>
+                    <>No pickup location set. Add it under <a href="/admin/standard-shipping" style={{ color: "#1A1A1A", fontWeight: 600 }}>Shipping → Pickup location</a>.</>
                   )}
                 </div>
                 <div style={{ marginTop: "12px", fontSize: "12px", color: "#059669", fontWeight: 700, background: "rgba(5,150,105,.08)", padding: "6px 10px", borderRadius: "6px", display: "inline-block" }}>

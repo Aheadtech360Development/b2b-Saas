@@ -161,6 +161,11 @@ export default function StandardShippingPage() {
   const [shipFrom, setShipFrom] = useState({
     name: "", street1: "", city: "", state: "", zip: "", phone: "",
   });
+  // Where will-call orders are collected: the ship-from address above unless
+  // the brand says it is somewhere else. The hours and the note are its own
+  // either way. One rule with the checkout and the mail: backend services/pickup.
+  const [pickup, setPickup] = useState({ name: "", street1: "", city: "", state: "", zip: "", hours: "", note: "" });
+  const [pickupOwn, setPickupOwn] = useState(false);
 
   function showToast(msg: string, ok = true) {
     setToast({ msg, ok });
@@ -188,6 +193,16 @@ export default function StandardShippingPage() {
           });
         } catch { /* ignore malformed */ }
       }
+      if (settings?.pickup_location) {
+        try {
+          const p = JSON.parse(settings.pickup_location);
+          setPickup({
+            name: p.name ?? "", street1: p.street1 ?? "", city: p.city ?? "", state: p.state ?? "",
+            zip: p.zip ?? "", hours: p.hours ?? "", note: p.note ?? "",
+          });
+          setPickupOwn(!!(p.street1 ?? "").trim());
+        } catch { /* ignore malformed */ }
+      }
     } catch { /* use defaults */ }
     setLoading(false);
   }
@@ -204,6 +219,8 @@ export default function StandardShippingPage() {
           brackets: shippingType === "flat_rate" ? brackets : [],
         }),
         ship_from: JSON.stringify(shipFrom),
+        // Its own address only when one was asked for: left out, the ship-from address is used.
+        pickup_location: JSON.stringify(pickupOwn ? pickup : { hours: pickup.hours, note: pickup.note }),
         // keeps the existing connection (the server never returns the raw key).
       });
       showToast("Standard shipping saved");
@@ -294,6 +311,77 @@ export default function StandardShippingPage() {
               <input type="text" value={shipFrom.phone} onChange={e => setShipFrom({ ...shipFrom, phone: e.target.value })} placeholder="2125550100" style={inputStyle} />
             </div>
           </div>
+        </div>
+
+        {/* Pickup location: what a customer who chooses Will Call Pickup is told */}
+        <div data-pickup-card style={{ background: "#fff", border: "1.5px solid #E3E3E3", borderRadius: "12px", padding: "24px", marginBottom: "20px" }}>
+          <h2 style={{ fontSize: "15px", fontWeight: 700, color: "#2A2830", marginBottom: "4px" }}>Pickup location (Will Call)</h2>
+          <p style={{ fontSize: "12px", color: "#7A7880", marginBottom: "16px", lineHeight: 1.6 }}>
+            Where customers collect an order when they choose <strong>Will Call Pickup</strong> at checkout.
+            They see it at checkout, and again in the email that tells them the order is ready.
+          </p>
+          <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginBottom: "16px" }}>
+            {([[false, "Same as my ship-from address", "The address above is where customers come."],
+               [true, "A different address", "A shop counter or office that is not where parcels leave from."]] as const).map(([own, title, sub]) => (
+              <label key={String(own)} style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 14px", background: pickupOwn === own ? "rgba(26,26,26,.06)" : "#fff", border: `1.5px solid ${pickupOwn === own ? "#1A1A1A" : "#E3E3E3"}`, borderRadius: "8px", cursor: "pointer" }}>
+                <input type="radio" name="pickup_own" checked={pickupOwn === own} onChange={() => setPickupOwn(own)} style={{ accentColor: "#1A1A1A" }} />
+                <div>
+                  <div style={{ fontSize: "13px", fontWeight: 600, color: "#2A2830" }}>{title}</div>
+                  <div style={{ fontSize: "11px", color: "#7A7880" }}>{sub}</div>
+                </div>
+              </label>
+            ))}
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "14px" }}>
+            {pickupOwn && (
+              <>
+                <div style={{ gridColumn: "1 / -1" }}>
+                  <label style={labelStyle}>Name of the place</label>
+                  <input type="text" value={pickup.name} onChange={e => setPickup({ ...pickup, name: e.target.value })} placeholder="e.g. Acme Print Shop" style={inputStyle} />
+                </div>
+                <div style={{ gridColumn: "1 / -1" }}>
+                  <label style={labelStyle}>Street Address</label>
+                  <input type="text" value={pickup.street1} onChange={e => setPickup({ ...pickup, street1: e.target.value })} placeholder="123 Main St" style={inputStyle} />
+                </div>
+                <div>
+                  <label style={labelStyle}>City</label>
+                  <input type="text" value={pickup.city} onChange={e => setPickup({ ...pickup, city: e.target.value })} placeholder="New York" style={inputStyle} />
+                </div>
+                <div>
+                  <label style={labelStyle}>State</label>
+                  <input type="text" value={pickup.state} onChange={e => setPickup({ ...pickup, state: e.target.value.toUpperCase().slice(0, 2) })} placeholder="NY" maxLength={2} style={inputStyle} />
+                </div>
+                <div>
+                  <label style={labelStyle}>ZIP Code</label>
+                  <input type="text" value={pickup.zip} onChange={e => setPickup({ ...pickup, zip: e.target.value })} placeholder="10001" style={inputStyle} />
+                </div>
+              </>
+            )}
+            <div style={{ gridColumn: "1 / -1" }}>
+              <label style={labelStyle}>Pickup hours (optional)</label>
+              <input type="text" value={pickup.hours} onChange={e => setPickup({ ...pickup, hours: e.target.value })} placeholder="Mon to Fri, 9 AM to 5 PM" style={inputStyle} />
+            </div>
+            <div style={{ gridColumn: "1 / -1" }}>
+              <label style={labelStyle}>Note for the customer (optional)</label>
+              <input type="text" value={pickup.note} onChange={e => setPickup({ ...pickup, note: e.target.value })} placeholder="Bring your order number and a photo ID" style={inputStyle} />
+            </div>
+          </div>
+          {(() => {
+            // The same choice the server makes, shown before it is saved.
+            const place = pickupOwn && pickup.street1.trim() ? pickup : shipFrom;
+            const region = [place.state.trim(), place.zip.trim()].filter(Boolean).join(" ");
+            const line = [place.street1.trim(), place.city.trim(), region].filter(Boolean).join(", ");
+            return (
+              <div data-pickup-preview style={{ marginTop: "16px", background: "#F7F8FA", border: "1px solid #E9EBEF", borderRadius: "8px", padding: "12px 14px", fontSize: "12.5px", color: "#2A2830", lineHeight: 1.6 }}>
+                <div style={{ fontSize: "10.5px", fontWeight: 700, textTransform: "uppercase", letterSpacing: ".08em", color: "#7A7880", marginBottom: "4px" }}>What your customers see</div>
+                {line
+                  ? <div style={{ fontWeight: 600 }}>{place.name.trim() ? `${place.name.trim()}, ` : ""}{line}</div>
+                  : <div style={{ color: "#B45309" }}>No address yet. Customers are told the pickup address comes with their order confirmation.</div>}
+                {pickup.hours.trim() && <div style={{ color: "#5B6170" }}>{pickup.hours.trim()}</div>}
+                {pickup.note.trim() && <div style={{ color: "#5B6170" }}>{pickup.note.trim()}</div>}
+              </div>
+            );
+          })()}
         </div>
 
         <div style={{ background: "#fff", border: "1.5px solid #E3E3E3", borderRadius: "12px", padding: "24px" }}>

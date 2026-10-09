@@ -95,6 +95,13 @@ async def _send_order_status_email(order: Order, new_status: str, db: AsyncSessi
         color = _COLOR.get(new_status, "#7A7880")
         email_svc = EmailService(db)
 
+        # "Ready for pickup" is only news with the place and the hours in it:
+        # the brand's own pickup location (Admin → Shipping), never another shop's.
+        pickup_block = ""
+        if new_status == "ready_for_pickup":
+            from app.services.pickup import email_block, pickup_location
+            pickup_block = email_block(await pickup_location(db, order.tenant_id))
+
         # ── Guest orders ─────────────────────────────────────────────────────
         if order.is_guest_order and order.guest_email:
             name = order.guest_name or "there"
@@ -167,6 +174,7 @@ async def _send_order_status_email(order: Order, new_status: str, db: AsyncSessi
                         f'<p style="margin:12px 0 0;color:#6b7280;font-size:12px;text-transform:uppercase;letter-spacing:.06em">New Status</p>'
                         f'<p style="margin:4px 0 0;font-weight:700;color:{color}">{label}</p>'
                         f'</div>'
+                        f'{pickup_block}'
                         f'{help_line}'
                     ),
                 )
@@ -265,6 +273,7 @@ async def _send_order_status_email(order: Order, new_status: str, db: AsyncSessi
                     f'<p>Hi {first},</p>'
                     f'<p>Your order <b>{order.order_number}</b> has been updated to '
                     f'<b style="color:{color}">{label}</b>.</p>'
+                    f'{pickup_block}'
                     f'<p style="margin:20px 0">'
                     f'<a href="{order_url}" style="background:#1A5CFF;color:#fff;padding:12px 24px;'
                     f'border-radius:6px;text-decoration:none;font-weight:700;display:inline-block">'

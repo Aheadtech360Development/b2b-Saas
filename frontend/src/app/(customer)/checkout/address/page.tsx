@@ -76,8 +76,11 @@ const sectionHintStyle: React.CSSProperties = {
 const EXPEDITED_SURCHARGE = 45;
 
 export default function CheckoutAddressPage() {
-  const { pickup_address } = useBranding();
+  const { pickup_address, pickup_name, pickup_hours, pickup_note } = useBranding();
   const pickupAddress = (pickup_address ?? "").trim();
+  const pickupName = (pickup_name ?? "").trim();
+  const pickupHours = (pickup_hours ?? "").trim();
+  const pickupNote = (pickup_note ?? "").trim();
   const router = useRouter();
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated());
   const authIsLoading = useAuthStore((s) => s.isLoading);
@@ -733,9 +736,15 @@ export default function CheckoutAddressPage() {
                               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--brand-primary, var(--ui-ink))" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginTop: "1px" }}>
                                 <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" />
                               </svg>
-                              <span style={{ fontSize: "12px", fontWeight: 600, color: "var(--ui-ink)" }}>{pickupAddress || "Pickup address is sent with your order confirmation"}</span>
+                              <span style={{ fontSize: "12px", fontWeight: 600, color: "var(--ui-ink)" }}>
+                                {pickupAddress
+                                  ? <>{pickupName && <>{pickupName}, </>}{pickupAddress}</>
+                                  : "Pickup address is sent with your order confirmation"}
+                              </span>
                             </div>
                             <div style={{ fontSize: "11px", color: "var(--ui-muted)", lineHeight: 1.6, paddingLeft: "18px" }}>
+                              {pickupHours && <div data-pickup-hours>{pickupHours}</div>}
+                              {pickupNote && <div data-pickup-note>{pickupNote}</div>}
                               <div>We&apos;ll email you when your order is ready to collect.</div>
                             </div>
                           </div>

@@ -330,6 +330,9 @@ def send_ready_for_pickup_email(self, order_id: str) -> dict:
                 svc = EmailService(db)
                 company_name = company.name if company else ""
                 order_url = f"{settings.FRONTEND_URL}/account/orders/{order_id}"
+                # The brand's own pickup location and hours, not one shop's printed in the template.
+                from app.services.pickup import pickup_location
+                place = await pickup_location(db, order.tenant_id)
                 sent = 0
                 for contact in contacts:
                     ok = svc.send_from_file(
@@ -342,6 +345,10 @@ def send_ready_for_pickup_email(self, order_id: str) -> dict:
                             "company_name": company_name,
                             "order_total": f"${float(order.total):.2f}",
                             "order_url": order_url,
+                            "pickup_name": place["name"],
+                            "pickup_address": place["address"],
+                            "pickup_hours": place["hours"],
+                            "pickup_note": place["note"],
                         },
                     )
                     if ok:

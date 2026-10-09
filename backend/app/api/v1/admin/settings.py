@@ -130,7 +130,7 @@ async def update_platform_settings(
         "mov", "moq", "guest_pricing_mode", "tax_rate",
         "low_stock_threshold", "notification_email", "standard_shipping",
         "standard_shipping_method", "ship_from", "shippo_api_key", "tax_mode",
-        "cod_enabled",
+        "cod_enabled", "pickup_location",
     }
 
     # Shipping keys are stored per-brand (namespaced); everything else stays global.

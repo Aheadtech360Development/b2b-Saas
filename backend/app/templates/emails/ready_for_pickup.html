@@ -13,17 +13,23 @@
       <div style="font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:#047857;font-weight:700;margin-bottom:12px;">Pickup Location</div>
       <table width="100%" cellpadding="0" cellspacing="0">
         <tr>
-          <td style="font-size:14px;font-weight:700;color:#1B3A5C;">{{ brand_name }}</td>
+          <td style="font-size:14px;font-weight:700;color:#1B3A5C;">{{ pickup_name or brand_name }}</td>
         </tr>
+        {% if pickup_address %}
         <tr>
-          <td style="padding-top:4px;font-size:13px;color:#374151;">2041 Luna Rd, Carrollton, TX 75006</td>
+          <td style="padding-top:4px;font-size:13px;color:#374151;">{{ pickup_address }}</td>
         </tr>
+        {% endif %}
+        {% if pickup_hours %}
         <tr>
-          <td style="padding-top:8px;font-size:12px;color:#6b7280;">Mon–Fri: 9:00 AM – 5:00 PM CST</td>
+          <td style="padding-top:8px;font-size:12px;color:#6b7280;">{{ pickup_hours }}</td>
         </tr>
+        {% endif %}
+        {% if pickup_note %}
         <tr>
-          <td style="padding-top:2px;font-size:12px;color:#6b7280;">Closed Sat &amp; Sun</td>
+          <td style="padding-top:2px;font-size:12px;color:#6b7280;">{{ pickup_note }}</td>
         </tr>
+        {% endif %}
       </table>
     </td>
   </tr>
