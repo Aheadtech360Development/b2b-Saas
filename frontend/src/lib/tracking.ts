@@ -67,6 +67,35 @@ function money(items: TrackedItem[]): number {
   return items.reduce((sum, i) => sum + i.price * (i.quantity ?? 1), 0);
 }
 
+// ── Google Tag Manager ──────────────────────────────────────────────────────
+
+function dataLayerItems(items: TrackedItem[]) {
+  return items.map(i => ({
+    item_id: i.sku ?? i.id, item_name: i.name, price: i.price, quantity: i.quantity ?? 1,
+    ...(i.category ? { item_category: i.category } : {}),
+    ...(i.variant ? { item_variant: i.variant } : {}),
+  }));
+}
+
+/**
+ * A shopping event for the shop's own Tag Manager container, in the shape its
+ * tags read: `event` plus `ecommerce`, the same data layer a Shopify or
+ * WooCommerce store hands it. The other tools above are each called by name;
+ * a container is not, so without this a shop that connects only its container
+ * gets page loads and nothing a purchase tag could be built on.
+ *
+ * `ecommerce: null` goes first, as Google's own guide has it: it stops one
+ * event's items staying on for the next.
+ */
+function toDataLayer(event: string, ecommerce: Record<string, unknown>): void {
+  safely(() => {
+    if (!has("gtm")) return;
+    window.dataLayer = window.dataLayer || [];
+    window.dataLayer.push({ ecommerce: null });
+    window.dataLayer.push({ event, ecommerce });
+  });
+}
+
 // ── Page view ───────────────────────────────────────────────────────────────
 
 /** A navigation. The App Router never reloads the document, so without this
@@ -89,6 +118,7 @@ export function trackViewItem(item: TrackedItem): void {
   if (!on("products")) return;
   const value = item.price * (item.quantity ?? 1);
 
+  toDataLayer("view_item", { currency: "USD", value, items: dataLayerItems([item]) });
   safely(() => {
     if (has("ga4")) window.gtag?.("event", "view_item", {
       currency: "USD", value,
@@ -113,6 +143,7 @@ export function trackAddToCart(items: TrackedItem[]): void {
   const value = money(items);
   const ids = items.map(i => i.sku ?? i.id);
 
+  toDataLayer("add_to_cart", { currency: "USD", value, items: dataLayerItems(items) });
   safely(() => {
     if (has("ga4")) window.gtag?.("event", "add_to_cart", {
       currency: "USD", value,
@@ -132,6 +163,7 @@ export function trackBeginCheckout(items: TrackedItem[]): void {
   const value = money(items);
   const ids = items.map(i => i.sku ?? i.id);
 
+  toDataLayer("begin_checkout", { currency: "USD", value, items: dataLayerItems(items) });
   safely(() => {
     if (has("ga4")) window.gtag?.("event", "begin_checkout", {
       currency: "USD", value,
@@ -154,6 +186,9 @@ export function trackPurchase(orderNumber: string, total: number, items: Tracked
   if (!on("checkout")) return;
   const ids = items.map(i => i.sku ?? i.id);
 
+  toDataLayer("purchase", {
+    transaction_id: orderNumber, currency: "USD", value: total, items: dataLayerItems(items),
+  });
   safely(() => {
     if (has("ga4")) window.gtag?.("event", "purchase", {
       transaction_id: orderNumber, currency: "USD", value: total,
