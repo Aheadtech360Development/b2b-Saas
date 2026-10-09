@@ -1,0 +1,46 @@
+# Local development only: a database and a cache on this machine, reachable
+# from this machine alone (127.0.0.1). No deploy reads this file, and nothing
+# in it knows where production is.
+#
+#   docker compose -f docker-compose.local.yml up -d      (or: .\local.ps1)
+#
+# The data lives in the volume below and stays across restarts. To start again
+# from nothing:  docker compose -f docker-compose.local.yml down -v
+#
+# Ports are deliberately not the usual 5432 / 6379, so this never collides with
+# another project's database on the same machine, and deliberately low: Windows
+# reserves blocks of high ports after a restart, which is what kept the test
+# database's 55432 from binding.
+name: printcopilot-local
+
+services:
+  db:
+    image: postgres:16
+    container_name: printcopilot-local-db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: local
+      POSTGRES_DB: printcopilot_local
+    ports:
+      - "127.0.0.1:5440:5432"
+    volumes:
+      - db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d printcopilot_local"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:7
+    container_name: printcopilot-local-redis
+    ports:
+      - "127.0.0.1:6390:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  db:
