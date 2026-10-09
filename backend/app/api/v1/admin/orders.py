@@ -1777,8 +1777,20 @@ async def list_admin_rma(
         query.order_by(RMARequest.created_at.desc())
         .offset((page - 1) * page_size).limit(page_size)
     )
+    rows = list(result.scalars().all())
+    # Which order each return is for, in one query.
+    numbers = dict((await db.execute(
+        select(Order.id, Order.order_number).where(Order.id.in_([r.order_id for r in rows]))
+    )).all()) if rows else {}
     return PaginatedResponse(
-        items=list(result.scalars().all()),
+        # Plain values: the rows themselves cannot be written out as JSON, so
+        # this list answered 500 as soon as a shop had one return.
+        items=[{
+            "id": str(r.id), "rma_number": r.rma_number,
+            "order_id": str(r.order_id), "order_number": numbers.get(r.order_id),
+            "status": r.status, "reason": r.reason, "notes": r.notes, "admin_notes": r.admin_notes,
+            "created_at": r.created_at.isoformat() if r.created_at else None,
+        } for r in rows],
         total=total,
         page=page,
         page_size=page_size,

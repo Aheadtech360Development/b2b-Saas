@@ -31,9 +31,10 @@ export default function AdminReturnsPage() {
 
   useEffect(() => {
     adminService.listRmas(statusFilter || undefined).then((d) => {
-      const data = d as RMA[];
-      setRmas(Array.isArray(data) ? data : []);
-    });
+      // The list comes a page at a time, inside `items`.
+      const data = d as RMA[] | { items?: RMA[] };
+      setRmas(Array.isArray(data) ? data : data?.items ?? []);
+    }).catch(() => setRmas([]));
   }, [statusFilter]);
 
   async function handleAction(e: React.FormEvent) {
@@ -41,7 +42,7 @@ export default function AdminReturnsPage() {
     if (!actionTarget) return;
     setIsUpdating(true);
     try {
-      await adminService.updateRma(actionTarget.id, { status: actionStatus, notes: adminNotes || undefined });
+      await adminService.updateRma(actionTarget.id, { status: actionStatus, admin_notes: adminNotes || undefined });
       setRmas((prev) => prev.map((r) => (r.id === actionTarget.id ? { ...r, status: actionStatus, admin_notes: adminNotes } : r)));
       setActionTarget(null); setAdminNotes("");
     } finally { setIsUpdating(false); }

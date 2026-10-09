@@ -378,7 +378,7 @@ export const adminService = {
     return apiClient.get(`/api/v1/admin/rma${qs}`);
   },
 
-  async updateRma(id: string, data: { status: string; notes?: string }) {
+  async updateRma(id: string, data: { status: string; admin_notes?: string }) {
     return apiClient.patch(`/api/v1/admin/rma/${id}`, data);
   },
 
