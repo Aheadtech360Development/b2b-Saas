@@ -41,8 +41,26 @@ export interface TrackedItem {
 
 let config: AnalyticsConfig | null = null;
 
+// Shopping events sent before the shop's settings have been read. The
+// settings are fetched by the browser after the page is up, and a product
+// page reports its view as soon as it is drawn: on a visitor's first page,
+// the one an advert or a search result lands them on, the view came first
+// and was dropped, because nothing yet said which tools the shop uses.
+let waiting: (() => void)[] = [];
+
 export function setTrackingConfig(next: AnalyticsConfig | null): void {
   config = next;
+  const queued = waiting;
+  waiting = [];
+  if (next) queued.forEach(send => safely(send));
+}
+
+/** True when the event has been put aside to be sent once the settings
+ *  are in. A handful at most: this is a page's first moments, not a log. */
+function held(send: () => void): boolean {
+  if (config || typeof window === "undefined") return false;
+  if (waiting.length < 20) waiting.push(send);
+  return true;
 }
 
 function on(feature: "products" | "checkout" = "products"): boolean {
@@ -115,6 +133,7 @@ export function trackPageView(path: string): void {
 // ── Shopping ────────────────────────────────────────────────────────────────
 
 export function trackViewItem(item: TrackedItem): void {
+  if (held(() => trackViewItem(item))) return;
   if (!on("products")) return;
   const value = item.price * (item.quantity ?? 1);
 
@@ -139,6 +158,7 @@ export function trackViewItem(item: TrackedItem): void {
 }
 
 export function trackAddToCart(items: TrackedItem[]): void {
+  if (held(() => trackAddToCart(items))) return;
   if (!on("products") || !items.length) return;
   const value = money(items);
   const ids = items.map(i => i.sku ?? i.id);
@@ -159,6 +179,7 @@ export function trackAddToCart(items: TrackedItem[]): void {
 }
 
 export function trackBeginCheckout(items: TrackedItem[]): void {
+  if (held(() => trackBeginCheckout(items))) return;
   if (!on("checkout") || !items.length) return;
   const value = money(items);
   const ids = items.map(i => i.sku ?? i.id);
@@ -183,6 +204,7 @@ export function trackBeginCheckout(items: TrackedItem[]): void {
  * confirmation page is de-duplicated rather than counted as a second sale.
  */
 export function trackPurchase(orderNumber: string, total: number, items: TrackedItem[] = []): void {
+  if (held(() => trackPurchase(orderNumber, total, items))) return;
   if (!on("checkout")) return;
   const ids = items.map(i => i.sku ?? i.id);
 

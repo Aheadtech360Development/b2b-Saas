@@ -22,7 +22,7 @@ import { DesignUploadModal, type UploadedArtwork } from "@/components/storefront
 import type { ProductDetail } from "@/types/product.types";
 import { cartService } from "@/services/cart.service";
 import { useAuthStore } from "@/stores/auth.store";
-import { trackAddToCart } from "@/lib/tracking";
+import { trackAddToCart, trackViewItem } from "@/lib/tracking";
 import { addToGuestCart, configuredKey } from "@/lib/guestCart";
 
 export interface ThemeVariant {
@@ -85,6 +85,21 @@ export default function ThemeProductBuy({ product }: { product: ThemeProductData
   // sheet sizes this product sells, so the sizes on the page are still theirs
   // to hide — the uploader shows them in its own words.
   const byOwnSheet = product.gang_sheet && product.gang_sheet_type === "upload_own";
+
+  // The product view, once per product, for the shop's tracking tools. The
+  // older product page sends its own. A product the website builder draws
+  // comes through here instead and sent none, so on a shop built with it no
+  // tool was ever told a product had been looked at.
+  useEffect(() => {
+    const first = product.variants?.[0];
+    trackViewItem({
+      id: product.id,
+      sku: first?.sku || undefined,
+      name: product.name,
+      price: Number(product.from_price ?? first?.price ?? product.sheets?.[0]?.price ?? 0),
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [product.id]);
 
   useEffect(() => {
     const root = document.querySelector<HTMLElement>(`[data-product-id="${CSS.escape(product.id)}"]`);

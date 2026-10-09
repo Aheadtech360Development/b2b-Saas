@@ -71,3 +71,41 @@ describe("the data layer for a shop's own Tag Manager container", () => {
     expect(layer()).toEqual([]);
   });
 });
+
+/**
+ * A visitor's first page. The shop's settings are read by the browser after
+ * the page is up, and a product page reports its view the moment it is drawn,
+ * so on the page an advert lands somebody on the view came before the settings
+ * and was dropped.
+ */
+describe("an event sent before the shop's settings have been read", () => {
+  beforeEach(() => { window.dataLayer = []; setTrackingConfig(null); });
+
+  it("is kept and sent once the settings arrive", () => {
+    trackViewItem({ ...tee, quantity: undefined });
+    expect(layer()).toEqual([]);
+    shop({ gtm: "GTM-TEST123" });
+    expect(layer().filter(e => e.event).map(e => e.event)).toEqual(["view_item"]);
+  });
+
+  it("is sent once, not again when the settings are read a second time", () => {
+    trackViewItem(tee);
+    shop({ gtm: "GTM-TEST123" });
+    shop({ gtm: "GTM-TEST123" });
+    expect(layer().filter(e => e.event)).toHaveLength(1);
+  });
+
+  it("is dropped when the settings say the shop tracks nothing", () => {
+    trackViewItem(tee);
+    trackPurchase("1044", 68, [tee]);
+    shop({ gtm: "GTM-TEST123" }, { enabled: false });
+    expect(layer()).toEqual([]);
+  });
+
+  it("is one of twenty at most: a page's first moments, not a log", () => {
+    for (let i = 0; i < 50; i++) trackAddToCart([tee]);
+    expect(layer()).toEqual([]);
+    shop({ gtm: "GTM-TEST123" });
+    expect(layer().filter(e => e.event)).toHaveLength(20);
+  });
+});
