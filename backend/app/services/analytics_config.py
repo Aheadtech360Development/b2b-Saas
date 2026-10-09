@@ -38,16 +38,21 @@ class Tool(dict):
 
     def __init__(self, key: str, name: str, field_label: str, blurb: str,
                  placeholder: str = "", pattern: str = "", where: str = "",
-                 docs_url: str = ""):
+                 docs_url: str = "", extract: str = ""):
         super().__init__(
             key=key, name=name, field_label=field_label, blurb=blurb,
             placeholder=placeholder, pattern=pattern, where=where, docs_url=docs_url,
         )
+        # Not part of the dict, so it never reaches the admin screen.
+        self.extract = extract
 
 
 # `pattern` is checked on save so a mistyped ID is caught here rather than
 # discovered weeks later as an empty report. `where` tells the admin where to
 # find the value, because that is the part people actually get stuck on.
+# `extract` finds the ID inside the vendor's install snippet, because pasting
+# the whole snippet into the ID field is the most common mistake of all; its
+# first group (or the whole match) is the ID.
 TOOLS: list[Tool] = [
     Tool(
         "ga4", "Google Analytics 4", "Measurement ID",
@@ -55,6 +60,7 @@ TOOLS: list[Tool] = [
         "G-XXXXXXXXXX", r"^G-[A-Z0-9]{6,15}$",
         "Google Analytics → Admin → Data streams → your web stream.",
         "https://support.google.com/analytics/answer/9539598",
+        extract=r"\bG-[A-Z0-9]{6,15}\b",
     ),
     Tool(
         "gtm", "Google Tag Manager", "Container ID",
@@ -62,6 +68,7 @@ TOOLS: list[Tool] = [
         "GTM-XXXXXXX", r"^GTM-[A-Z0-9]{4,10}$",
         "Tag Manager → Workspace, top of the page beside the container name.",
         "https://support.google.com/tagmanager/answer/6103696",
+        extract=r"\bGTM-[A-Z0-9]{4,10}\b",
     ),
     Tool(
         "clarity", "Microsoft Clarity", "Project ID",
@@ -69,6 +76,7 @@ TOOLS: list[Tool] = [
         "abcdefghij", r"^[a-z0-9]{8,15}$",
         "Clarity → Settings → Setup, in the tracking code.",
         "https://clarity.microsoft.com/",
+        extract=r"""["']clarity["']\s*,\s*["']script["']\s*,\s*["']([a-z0-9]{8,15})["']""",
     ),
     Tool(
         "meta_pixel", "Meta Pixel", "Pixel ID",
@@ -76,6 +84,7 @@ TOOLS: list[Tool] = [
         "123456789012345", r"^\d{10,20}$",
         "Meta Events Manager → Data sources → your pixel.",
         "https://www.facebook.com/business/help/952192354843755",
+        extract=r"""fbq\(\s*["']init["']\s*,\s*["']?(\d{10,20})""",
     ),
     Tool(
         "tiktok_pixel", "TikTok Pixel", "Pixel ID",
@@ -83,6 +92,7 @@ TOOLS: list[Tool] = [
         "CXXXXXXXXXXXXXXXXXXX", r"^[A-Z0-9]{15,30}$",
         "TikTok Ads Manager → Assets → Events → Web events.",
         "https://ads.tiktok.com/help/article/get-started-pixel",
+        extract=r"""ttq\.load\(\s*["']([A-Z0-9]{15,30})["']""",
     ),
     Tool(
         "pinterest_tag", "Pinterest Tag", "Tag ID",
@@ -90,6 +100,7 @@ TOOLS: list[Tool] = [
         "2612345678901", r"^\d{10,20}$",
         "Pinterest Ads → Conversions → Tag manager.",
         "https://help.pinterest.com/en/business/article/install-the-pinterest-tag",
+        extract=r"""pintrk\(\s*["']load["']\s*,\s*["'](\d{10,20})["']""",
     ),
     Tool(
         "snap_pixel", "Snap Pixel", "Pixel ID",
@@ -98,6 +109,7 @@ TOOLS: list[Tool] = [
         r"^[0-9a-fA-F-]{20,40}$",
         "Snapchat Ads Manager → Events Manager.",
         "https://businesshelp.snapchat.com/s/article/snap-pixel-about",
+        extract=r"""snaptr\(\s*["']init["']\s*,\s*["']([0-9a-fA-F-]{20,40})["']""",
     ),
     Tool(
         "klaviyo", "Klaviyo", "Public API key",
@@ -105,6 +117,7 @@ TOOLS: list[Tool] = [
         "XXXXXX", r"^[A-Za-z0-9]{5,12}$",
         "Klaviyo → Settings → API keys → Public API key / Site ID.",
         "https://help.klaviyo.com/hc/en-us/articles/115005062267",
+        extract=r"company_id=([A-Za-z0-9]{5,12})\b",
     ),
     Tool(
         "omnisend", "Omnisend", "Brand ID",
@@ -112,6 +125,7 @@ TOOLS: list[Tool] = [
         "60f0a1b2c3d4e5f6a7b8c9d0", r"^[A-Za-z0-9]{16,40}$",
         "Omnisend → Store settings → Integrations & API.",
         "https://support.omnisend.com/",
+        extract=r"""["']accountID["']\s*,\s*["']([A-Za-z0-9]{16,40})["']""",
     ),
 ]
 
@@ -138,10 +152,24 @@ def blank() -> dict[str, Any]:
     }
 
 
+def _from_snippet(tool: Tool, value: str) -> str:
+    """The ID inside a pasted install snippet, or the value as it was.
+
+    Only when the value is not already a valid ID, so a correct entry is never
+    rewritten.
+    """
+    if not tool.extract or (tool["pattern"] and re.match(tool["pattern"], value)):
+        return value
+    found = re.search(tool.extract, value)
+    if not found:
+        return value
+    return found.group(1) if found.groups() else found.group(0)
+
+
 def _clean_tool(key: str, raw: Any) -> dict[str, Any]:
     if not isinstance(raw, dict):
         raw = {}
-    value = str(raw.get("id") or "").strip()
+    value = _from_snippet(_BY_KEY[key], str(raw.get("id") or "").strip())
     return {"id": value[:200], "enabled": bool(raw.get("enabled")) and bool(value)}
 
 

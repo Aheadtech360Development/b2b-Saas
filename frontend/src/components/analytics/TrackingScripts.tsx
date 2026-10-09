@@ -61,7 +61,13 @@ export function TrackingScripts() {
   }, [pathname, config?.enabled]);
 
   if (!config?.enabled) return null;
-  const id = (key: string) => config.tools[key];
+  // Every real ID is letters, digits and dashes. Anything else (an ID saved past
+  // its format check) is skipped, because it goes straight into the scripts
+  // below and would break them.
+  const id = (key: string) => {
+    const value = config.tools[key];
+    return value && /^[A-Za-z0-9_-]+$/.test(value) ? value : undefined;
+  };
 
   return (
     <>

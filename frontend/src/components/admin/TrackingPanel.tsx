@@ -71,9 +71,11 @@ export function TrackingPanel() {
     setSaving(true);
     setNote(null);
     try {
-      const res = await apiClient.put<{ message: string; warnings: string[] }>(
+      const res = await apiClient.put<{ config: Config; message: string; warnings: string[] }>(
         "/api/v1/admin/analytics-settings", { config, force }
       );
+      // Show what was saved: a pasted install snippet comes back as just its ID.
+      if (res.config) setConfig(res.config);
       setConfirmProblem(null);
       setNote({ kind: res.warnings?.length ? "warn" : "ok", text: res.message });
     } catch (err) {
