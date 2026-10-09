@@ -1072,6 +1072,9 @@ app.include_router(admin_product_options.router, prefix=_V1)
 from app.api.v1.admin import nav_counts as admin_nav_counts  # noqa: E402
 app.include_router(admin_nav_counts.router, prefix=_V1)
 
+from app.api.v1.admin import home as admin_home  # noqa: E402
+app.include_router(admin_home.router, prefix=_V1)
+
 from app.api.v1.admin import entitlements as admin_entitlements  # noqa: E402
 app.include_router(admin_entitlements.router, prefix=_V1)
 

@@ -405,6 +405,7 @@ async def list_admin_orders(
     utm_source: str | None = Query(None, description="Only orders from this traffic source"),
     utm_campaign: str | None = Query(None, description="Only orders from this campaign"),
     drafts_only: bool = Query(False, description="Show only draft orders (DRAFT-…)"),
+    queue: str | None = Query(None, description="A named slice of the list, e.g. to_ship (services/order_queues)"),
     date_from: date | None = Query(None, description="Filter orders created on or after this date"),
     date_to: date | None = Query(None, description="Filter orders created on or before this date"),
     page: int = Query(1, ge=1),
@@ -434,6 +435,15 @@ async def list_admin_orders(
         query = query.where(Order.status == status)
     if payment_status:
         query = query.where(Order.payment_status == payment_status)
+    if queue:
+        # The slice Home counted, from the same definition, so the button
+        # beside "3 paid orders to ship" opens those three.
+        from app.services import order_queues
+
+        wanted = order_queues.conditions(queue.strip())
+        if wanted is None:
+            raise HTTPException(status_code=400, detail=f"There is no order queue called '{queue}'.")
+        query = query.where(*wanted)
     if company_id:
         query = query.where(Order.company_id == company_id)
     if guest_only:

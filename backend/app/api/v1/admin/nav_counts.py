@@ -57,10 +57,21 @@ async def get_nav_counts(
     returns = await _count(
         select(func.count(RMARequest.id)).where(RMARequest.status == "pending")
     )
+    # Print jobs the shop has to look at: paid, and nobody has reviewed them yet.
+    production = 0
+    try:
+        from app.api.v1.gang_sheets import STATUS_IN_REVIEW, GangSheetOrder
+
+        production = await _count(
+            select(func.count(GangSheetOrder.id)).where(GangSheetOrder.status == STATUS_IN_REVIEW)
+        )
+    except Exception as exc:                # the nav stands without it
+        logger.warning("nav production count failed: %s", exc)
 
     return {
         "products": products,
         "orders": orders,
         "customers": customers,
         "returns": returns,
+        "production": production,
     }

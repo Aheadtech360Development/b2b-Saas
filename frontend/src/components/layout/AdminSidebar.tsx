@@ -1,452 +1,256 @@
 "use client";
 
+/**
+ * The admin's sidebar: eight places and Settings.
+ *
+ * It used to list every screen, twenty-five links in seven headed groups, and
+ * a shop owner had to read the whole column to find one. Each screen now
+ * belongs to one of eight places; the place that is open shows its own screens
+ * under it, and the rest stay one line each.
+ *
+ * What a person may see is still decided by their role (`can`) and what the
+ * shop's plan includes (a screen the plan lacks is shown locked, not hidden:
+ * a shop that never sees a feature never buys the tier that has it).
+ */
 import Link from "next/link";
-import { usePathname, useSearchParams, useRouter } from "next/navigation";
-import { useState, useEffect } from "react";
+import { usePathname, useSearchParams } from "next/navigation";
+import { useEffect, useState } from "react";
+import {
+  BarChart3, Home, Lock, Megaphone, Package, Printer, ShoppingBag, SlidersHorizontal, Store, Users,
+  type LucideIcon,
+} from "lucide-react";
 import { useAuthStore } from "@/stores/auth.store";
 import { hasScope, type Scope } from "@/lib/permissions";
 import { contactService } from "@/services/contact.service";
 import { apiClient } from "@/lib/api-client";
-import {
-  LayoutDashboard, ShoppingBag, RotateCcw, ClipboardList, Shirt, Boxes, LayoutGrid,
-  Users, MessageSquare, Percent, Truck, FileText, Store, File, Image as ImageIcon,
-  Settings, Compass, LayoutTemplate,
-} from "lucide-react";
 import { HIDDEN_ADMIN_SECTIONS } from "@/lib/constants";
 import { useEntitlements } from "@/lib/entitlements";
 
-const ICON_PROPS = { size: 17, strokeWidth: 1.75 } as const;
-
-/** A small padlock, drawn rather than imported — the sidebar's icon set has no
- *  lock and one shape is not worth another dependency. */
-function LockIcon() {
-  return (
-    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-         strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden
-         style={{ flexShrink: 0 }}>
-      <rect x="4" y="11" width="16" height="10" rx="2" />
-      <path d="M8 11V7a4 4 0 0 1 8 0v4" />
-    </svg>
-  );
+interface Child {
+  href: string;
+  label: string;
+  /** Shown only to somebody with this section. */
+  scope?: Scope;
+  /** A plan feature: without it the link is drawn locked. */
+  feature?: string;
+  /** Opens outside the admin, in a new tab. */
+  external?: boolean;
+  count?: number;
+  hidden?: boolean;
 }
 
-const SECTION_HEAD: React.CSSProperties = {
-  fontSize: "11.5px", fontWeight: 600, color: "#A3A1A8",
-  letterSpacing: ".01em", padding: "16px 12px 6px",
-};
+interface Place {
+  key: string;
+  label: string;
+  icon: LucideIcon;
+  href: string;
+  /** Any one of these sections lets a person in. None: everybody. */
+  scopes?: Scope[];
+  /** Addresses that belong here besides its children's own. */
+  also?: string[];
+  count?: number;
+  children?: Child[];
+}
 
-const NAV_LINK_BASE: React.CSSProperties = {
-  display: "flex", alignItems: "center", gap: "10px",
-  padding: "9px 12px", borderRadius: "10px", textDecoration: "none",
-  fontSize: "13px", fontWeight: 600, transition: "all .15s", cursor: "pointer",
-};
+interface Counts { products?: number; orders?: number; customers?: number; returns?: number; production?: number }
 
-const SUB_LINK_BASE: React.CSSProperties = {
-  display: "block", padding: "7px 12px", borderRadius: "8px",
-  textDecoration: "none", fontSize: "13px", fontWeight: 500,
-  marginBottom: "1px", transition: "all .15s",
-  borderLeft: "2px solid transparent",
-};
+/** Asked for by the top bar's menu button on a phone, where the sidebar is a drawer. */
+export const OPEN_NAV = "pc:open-nav";
 
 export function AdminSidebar() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const router = useRouter();
-  const { user, clearAuth } = useAuthStore();
+  const { user } = useAuthStore();
   const can = (s: Scope) => hasScope(user?.role, s, user?.scopes);
-  // What this shop's plan sells. A screen its tier does not include is shown
-  // locked, not hidden: a shop that never sees a feature never buys the tier
-  // that has it, and one that clicks into a 403 thinks the product is broken.
   const { locked } = useEntitlements();
   const lockOf = (feature: string) => locked.find((l) => l.feature === feature) ?? null;
 
-  function handleLogout() {
-    clearAuth();
-    router.replace("/login");
-  }
-  const isOrdersActive = pathname.startsWith("/admin/orders") || pathname === "/admin/abandoned-carts" || pathname.startsWith("/admin/purchase-orders");
-  const isProductsActive = pathname.startsWith("/admin/products") || pathname.startsWith("/admin/inventory");
-  const isCustomersActive = pathname.startsWith("/admin/customers");
-  const isSettingsActive = pathname.startsWith("/admin/settings") || pathname.startsWith("/admin/users") || pathname === "/admin/analytics" || pathname.startsWith("/admin/billing");
-  const isContentActive = pathname.startsWith("/admin/style-sheets") || pathname.startsWith("/admin/product-specs") || pathname.startsWith("/admin/pages") || pathname.startsWith("/admin/blogs");
-  const [ordersOpen, setOrdersOpen] = useState(isOrdersActive);
-  const [productsOpen, setProductsOpen] = useState(isProductsActive);
-  const [customersOpen, setCustomersOpen] = useState(isCustomersActive);
-  const [settingsOpen, setSettingsOpen] = useState(isSettingsActive);
-  const [contentOpen, setContentOpen] = useState(isContentActive);
-  const [mobileOpen, setMobileOpen] = useState(false);
   const [unreadMsgs, setUnreadMsgs] = useState(0);
-  /** Live counts beside each nav group — see the /admin/nav-counts endpoint. */
-  const [counts, setCounts] = useState<{ products?: number; orders?: number; customers?: number; returns?: number }>({});
+  const [counts, setCounts] = useState<Counts>({});
+  const [mobileOpen, setMobileOpen] = useState(false);
 
-  // Close mobile drawer on route change
   useEffect(() => { setMobileOpen(false); }, [pathname]);
+  useEffect(() => {
+    const open = () => setMobileOpen(true);
+    window.addEventListener(OPEN_NAV, open);
+    return () => window.removeEventListener(OPEN_NAV, open);
+  }, []);
 
-  // Unread contact-form submissions count (refreshes on navigation so it drops
-  // after you read messages, and picks up new ones as you move around).
+  // Unread contact-form messages: read again on every navigation, so it drops
+  // after they are read and picks up new ones as the admin moves around.
   useEffect(() => {
     if (!can("customers")) return;
     contactService.list().then((r) => setUnreadMsgs(r.unread || 0)).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname, user?.role]);
 
-  // Re-read on navigation so a new order or product shows up without a reload.
-  // A failure leaves the badges off rather than breaking the nav.
+  // A failure leaves the counts off rather than breaking the nav.
   useEffect(() => {
-    apiClient.get<typeof counts>("/api/v1/admin/nav-counts")
-      .then(setCounts)
-      .catch(() => {});
+    apiClient.get<Counts>("/api/v1/admin/nav-counts").then(setCounts).catch(() => {});
   }, [pathname]);
 
-  useEffect(() => { if (isOrdersActive) setOrdersOpen(true); }, [isOrdersActive]);
-  useEffect(() => { if (isProductsActive) setProductsOpen(true); }, [isProductsActive]);
-  useEffect(() => { if (isCustomersActive) setCustomersOpen(true); }, [isCustomersActive]);
-  useEffect(() => { if (isSettingsActive) setSettingsOpen(true); }, [isSettingsActive]);
-  useEffect(() => { if (isContentActive) setContentOpen(true); }, [isContentActive]);
+  const places: Place[] = [
+    { key: "home", label: "Home", icon: Home, href: "/admin/dashboard" },
+    {
+      key: "orders", label: "Orders", icon: ShoppingBag, href: "/admin/orders", scopes: ["orders", "inventory"], count: counts.orders,
+      children: [
+        { href: "/admin/orders", label: "All orders", scope: "orders" },
+        { href: "/admin/orders/drafts", label: "Drafts", scope: "orders" },
+        { href: "/admin/orders/shipping-labels", label: "Shipping labels", scope: "orders" },
+        { href: "/admin/abandoned-carts", label: "Abandoned carts", scope: "orders" },
+        { href: "/admin/returns", label: "Returns", scope: "orders", count: counts.returns },
+        { href: "/admin/purchase-orders", label: "Purchase orders", scope: "inventory" },
+      ],
+    },
+    { key: "production", label: "Production", icon: Printer, href: "/admin/gang-sheets", scopes: ["products"], count: counts.production },
+    {
+      key: "products", label: "Products", icon: Package, href: "/admin/products", scopes: ["products"], also: ["/admin/inventory"],
+      children: [
+        { href: "/admin/products", label: "All products" },
+        { href: "/admin/products/collections", label: "Collections" },
+        { href: "/admin/products/categories", label: "Categories" },
+        { href: "/admin/products/reviews", label: "Reviews" },
+        { href: "/admin/inventory", label: "Inventory" },
+        { href: "/admin/suppliers", label: "Suppliers" },
+      ],
+    },
+    {
+      key: "customers", label: "Customers", icon: Users, href: "/admin/customers", scopes: ["customers"],
+      children: [
+        { href: "/admin/customers", label: "All customers" },
+        { href: "/admin/customers/segments", label: "Segments" },
+        { href: "/admin/customers/applications", label: "Applications", feature: "wholesale_accounts" },
+        { href: "/admin/customers/tiers?tab=groups", label: "Discount groups", feature: "customer_tiers" },
+        { href: "/admin/customers/tiers?tab=variants", label: "Customer pricing", feature: "customer_tiers" },
+        { href: "/admin/messages", label: "Messages", count: unreadMsgs },
+      ],
+    },
+    {
+      key: "storefront", label: "Storefront", icon: Store, href: "/site-builder", scopes: ["storefront", "media"],
+      children: [
+        { href: "/site-builder", label: "Website builder", scope: "storefront" },
+        { href: "/", label: "View store", scope: "storefront", external: true },
+        { href: "/admin/storefront", label: "Storefront", scope: "storefront", hidden: HIDDEN_ADMIN_SECTIONS.storefront },
+        { href: "/admin/storefront/pages", label: "Pages", scope: "storefront", hidden: HIDDEN_ADMIN_SECTIONS.pages },
+        { href: "/admin/storefront/product-templates", label: "Product templates", scope: "storefront", hidden: HIDDEN_ADMIN_SECTIONS.productTemplates },
+        { href: "/admin/storefront/menus", label: "Menus", scope: "storefront", hidden: HIDDEN_ADMIN_SECTIONS.menus },
+        { href: "/admin/media", label: "Media library", scope: "media" },
+      ],
+    },
+    { key: "marketing", label: "Marketing", icon: Megaphone, href: "/admin/discounts", scopes: ["discounts"],
+      children: [{ href: "/admin/discounts", label: "Discounts" }] },
+    {
+      key: "reports", label: "Reports", icon: BarChart3, href: "/admin/reports", scopes: ["analytics"],
+      children: [
+        { href: "/admin/reports", label: "Overview" },
+        { href: "/admin/reports/sales", label: "Sales" },
+        { href: "/admin/reports/customers", label: "Customers" },
+        { href: "/admin/reports/inventory", label: "Inventory" },
+        { href: "/admin/analytics", label: "Analytics" },
+      ],
+    },
+  ];
 
-  function NavLink({ href, label, icon, exact, badge }: { href: string; label: string; icon: React.ReactNode; exact?: boolean; badge?: number }) {
-    // `exact` links only light up on their own path — used when a child route has
-    // its own nav entry (e.g. Storefront vs Storefront → Pages) so both don't
-    // appear active at once.
-    const active = pathname === href || (!exact && href !== "/admin" && pathname.startsWith(href + "/"));
-    return (
-      <Link href={href} style={{
-        ...NAV_LINK_BASE,
-        background: active ? "#1A1A1A" : "transparent",
-        color: active ? "#fff" : "#555",
-      }}
-        onMouseEnter={e => { if (!active) (e.currentTarget as HTMLElement).style.background = "#F6F6F7"; }}
-        onMouseLeave={e => { if (!active) (e.currentTarget as HTMLElement).style.background = "transparent"; }}
-      >
-        <span style={{ fontSize: "15px", flexShrink: 0 }}>{icon}</span>
-        <span>{label}</span>
-        {badge !== undefined && badge > 0 && (
-          <span style={{ marginLeft: "auto", background: active ? "rgba(255,255,255,.2)" : "#E5E5E4", color: active ? "#fff" : "#4A4A4A", fontSize: "11px", fontWeight: 700, minWidth: "18px", height: "18px", borderRadius: "10px", display: "flex", alignItems: "center", justifyContent: "center", padding: "0 5px" }}>
-            {badge > 99 ? "99+" : badge}
-          </span>
-        )}
-      </Link>
-    );
-  }
+  const settings: Place = {
+    key: "settings", label: "Settings", icon: SlidersHorizontal, href: "/admin/settings",
+    scopes: ["settings", "staff", "billing", "payouts", "audit"], also: ["/admin/users"],
+    children: [
+      { href: "/admin/settings", label: "General and email", scope: "settings" },
+      { href: "/admin/billing", label: "Billing and payouts", hidden: !(can("billing") || can("payouts")) },
+      { href: "/admin/standard-shipping", label: "Shipping", scope: "settings" },
+      { href: "/admin/settings/taxes", label: "Taxes and duties", scope: "settings" },
+      { href: "/admin/settings/tracking", label: "Tracking", scope: "settings" },
+      { href: "/admin/users", label: "Users", scope: "staff" },
+      { href: "/admin/settings/security", label: "Security (2FA)" },
+      { href: "/admin/settings/audit-log", label: "Audit log", scope: "audit" },
+    ],
+  };
 
-  /** Count pill for a collapsible group header, sitting before the chevron. */
-  function GroupCount({ n }: { n?: number }) {
-    if (!n) return null;
-    return (
-      <span style={{ marginLeft: "auto", marginRight: "8px", background: "#E5E5E4", color: "#4A4A4A", fontSize: "11px", fontWeight: 700, minWidth: "18px", height: "18px", borderRadius: "10px", display: "flex", alignItems: "center", justifyContent: "center", padding: "0 5px" }}>
-        {n > 999 ? "999+" : n}
-      </span>
-    );
-  }
+  const shown = (c: Child) => !c.hidden && (!c.scope || can(c.scope));
+  const allowed = (p: Place) => !p.scopes || p.scopes.some(can);
+  const path = (href: string) => href.split("?")[0]!;
 
-  /** A sub-link the plan does not include: visible, not clickable, and it
-   *  says which tier has it. */
-  function LockedSubLink({ label, upgradeTo }: { label: string; upgradeTo: string | null }) {
-    const why = upgradeTo ? `Included from ${upgradeTo}` : "Not available on this shop";
-    return (
-      <span
-        title={why}
-        style={{
-          ...SUB_LINK_BASE, display: "flex", alignItems: "center", gap: "6px",
-          color: "#B4B2B8", cursor: "not-allowed",
-        }}
-      >
-        <LockIcon />
-        <span>{label}</span>
-        {upgradeTo && (
-          <span style={{ marginLeft: "auto", fontSize: "10px", fontWeight: 700, color: "#B45309", background: "#FFFBEB", border: "1px solid #FDE68A", borderRadius: "20px", padding: "1px 7px" }}>
-            {upgradeTo}
-          </span>
-        )}
-      </span>
-    );
-  }
-
-  /** One sub-link, locked or not, decided by the shop's plan. */
-  function PlanSubLink({ href, label, feature }: { href: string; label: string; feature: string }) {
-    const lock = lockOf(feature);
-    return lock
-      ? <LockedSubLink label={label} upgradeTo={lock.upgrade_to} />
-      : <SubLink href={href} label={label} />;
-  }
-
-  function SubLink({ href, label }: { href: string; label: string }) {
-    const [hrefPath, hrefQuery] = href.split("?");
+  /** Whether an address is this child's own: the longest match wins, so
+   *  /admin/orders/drafts lights Drafts and not All orders as well. */
+  function childActive(c: Child, siblings: Child[]): boolean {
+    if (c.external) return false;
+    const [p, query] = c.href.split("?");
+    const tab = query ? new URLSearchParams(query).get("tab") ?? "" : "";
     const currentTab = searchParams.get("tab") ?? "";
-    const hrefTab = hrefQuery ? new URLSearchParams(hrefQuery).get("tab") ?? "" : "";
-    const active = hrefQuery
-      ? pathname === hrefPath && currentTab === hrefTab
-      : pathname === href && !currentTab;
-    return (
-      <Link href={href} style={{
-        ...SUB_LINK_BASE,
-        background: active ? "#F1F0EC" : "transparent",
-        color: active ? "#1A1A1A" : "#7A7880",
-        borderLeftColor: active ? "#1A1A1A" : "transparent",
-        fontWeight: active ? 700 : 500,
-      }}
-        onMouseEnter={e => { if (!active) (e.currentTarget as HTMLElement).style.background = "#F6F6F7"; }}
-        onMouseLeave={e => { if (!active) (e.currentTarget as HTMLElement).style.background = "transparent"; }}
-      >
-        {label}
-      </Link>
-    );
+    const under = pathname === p || pathname.startsWith(p + "/");
+    if (!under) return false;
+    if (tab) return currentTab === tab || (!currentTab && siblings.filter((s) => path(s.href) === p)[0] === c);
+    const longer = siblings.some((s) => s !== c && !s.external && path(s.href).length > p!.length
+      && (pathname === path(s.href) || pathname.startsWith(path(s.href) + "/")));
+    return !longer;
   }
 
-  const sidebarInner = (
-    <div style={{ padding: "8px 10px 32px" }}>
+  function placeActive(p: Place): boolean {
+    const own = [p.href, ...(p.also ?? []), ...(p.children ?? []).filter((c) => !c.external).map((c) => path(c.href))];
+    return own.some((h) => pathname === path(h) || pathname.startsWith(path(h) + "/"));
+  }
 
-      {/* ── HOME ── */}
-      <div style={SECTION_HEAD}>Workspace</div>
-      <NavLink href="/admin/dashboard" label="Command Center" icon={<LayoutDashboard {...ICON_PROPS} />} />
-
-      {/* ── ORDERS ── */}
-      {can("orders") && <>
-      <div style={SECTION_HEAD}>Sales</div>
-
-      {/* Orders dropdown trigger */}
-      <div
-        onClick={() => setOrdersOpen(!ordersOpen)}
-        style={{
-          ...NAV_LINK_BASE,
-          justifyContent: "space-between",
-          background: isOrdersActive ? "#F1F0EC" : "transparent",
-          color: isOrdersActive ? "#1A1A1A" : "#555",
-          userSelect: "none",
-        }}
-        onMouseEnter={e => { if (!isOrdersActive) (e.currentTarget as HTMLElement).style.background = "#F6F6F7"; }}
-        onMouseLeave={e => { if (!isOrdersActive) (e.currentTarget as HTMLElement).style.background = isOrdersActive ? "#F1F0EC" : "transparent"; }}
-      >
-        <span style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-          <ShoppingBag {...ICON_PROPS} />
-          <span>Orders</span>
-        </span>
-        <GroupCount n={counts.orders} />
-        <span style={{ fontSize: "10px", color: "#aaa", transition: "transform .2s", transform: ordersOpen ? "rotate(180deg)" : "rotate(0deg)", display: "inline-block" }}>▼</span>
-      </div>
-
-      {ordersOpen && (
-        <div style={{ paddingLeft: "18px", marginTop: "3px", marginBottom: "3px" }}>
-          <SubLink href="/admin/orders" label="All Orders" />
-          <SubLink href="/admin/orders/drafts" label="Drafts" />
-          <SubLink href="/admin/orders/shipping-labels" label="Shipping Labels" />
-          <SubLink href="/admin/abandoned-carts" label="Abandoned carts" />
-        </div>
-      )}
-
-      <NavLink href="/admin/returns" label="Returns" icon={<RotateCcw {...ICON_PROPS} />} badge={counts.returns} />
-      </>}
-      {can("inventory") && <NavLink href="/admin/purchase-orders" label="Purchase Orders" icon={<ClipboardList {...ICON_PROPS} />} />}
-
-      {/* ── PRODUCTS ── */}
-      {can("products") && <>
-      <div style={SECTION_HEAD}>Catalogue</div>
-
-      {/* Products dropdown */}
-      <div
-        onClick={() => setProductsOpen(!productsOpen)}
-        style={{
-          ...NAV_LINK_BASE,
-          justifyContent: "space-between",
-          background: isProductsActive ? "#F1F0EC" : "transparent",
-          color: isProductsActive ? "#1A1A1A" : "#555",
-          userSelect: "none",
-        }}
-        onMouseEnter={e => { if (!isProductsActive) (e.currentTarget as HTMLElement).style.background = "#F6F6F7"; }}
-        onMouseLeave={e => { if (!isProductsActive) (e.currentTarget as HTMLElement).style.background = isProductsActive ? "#F1F0EC" : "transparent"; }}
-      >
-        <span style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-          <Shirt {...ICON_PROPS} />
-          <span>Products</span>
-        </span>
-        <GroupCount n={counts.products} />
-        <span style={{ fontSize: "10px", color: "#aaa", transition: "transform .2s", transform: productsOpen ? "rotate(180deg)" : "rotate(0deg)", display: "inline-block" }}>▼</span>
-      </div>
-
-      {productsOpen && (
-        <div style={{ paddingLeft: "18px", marginTop: "3px", marginBottom: "3px" }}>
-          <SubLink href="/admin/products" label="All Products" />
-          <SubLink href="/admin/products/collections" label="Collections" />
-          <SubLink href="/admin/products/categories" label="Categories" />
-          <SubLink href="/admin/products/reviews" label="Reviews" />
-          <SubLink href="/admin/inventory" label="Inventory" />
-        </div>
-      )}
-
-      <NavLink href="/admin/suppliers" label="Suppliers" icon={<Boxes {...ICON_PROPS} />} />
-      <NavLink href="/admin/gang-sheets" label="Gang Sheets" icon={<LayoutGrid {...ICON_PROPS} />} />
-      </>}
-
-      {/* ── CUSTOMERS ── */}
-      {can("customers") && <>
-      <div style={SECTION_HEAD}>Buyers</div>
-
-      {/* Customers dropdown */}
-      <div
-        onClick={() => setCustomersOpen(!customersOpen)}
-        style={{
-          ...NAV_LINK_BASE,
-          justifyContent: "space-between",
-          background: isCustomersActive ? "#F1F0EC" : "transparent",
-          color: isCustomersActive ? "#1A1A1A" : "#555",
-          userSelect: "none",
-        }}
-        onMouseEnter={e => { if (!isCustomersActive) (e.currentTarget as HTMLElement).style.background = "#F6F6F7"; }}
-        onMouseLeave={e => { if (!isCustomersActive) (e.currentTarget as HTMLElement).style.background = isCustomersActive ? "#F1F0EC" : "transparent"; }}
-      >
-        <span style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-          <Users {...ICON_PROPS} />
-          <span>Customers</span>
-        </span>
-        <GroupCount n={counts.customers} />
-        <span style={{ fontSize: "10px", color: "#aaa", transition: "transform .2s", transform: customersOpen ? "rotate(180deg)" : "rotate(0deg)", display: "inline-block" }}>▼</span>
-      </div>
-
-      {customersOpen && (
-        <div style={{ paddingLeft: "18px", marginTop: "3px", marginBottom: "3px" }}>
-          <SubLink href="/admin/customers" label="All Customers" />
-          <SubLink href="/admin/customers/segments" label="Segments" />
-          <PlanSubLink href="/admin/customers/applications" label="Applications" feature="wholesale_accounts" />
-          <PlanSubLink href="/admin/customers/tiers?tab=groups" label="Discount Groups" feature="customer_tiers" />
-          <PlanSubLink href="/admin/customers/tiers?tab=variants" label="Customer pricing" feature="customer_tiers" />
-        </div>
-      )}
-
-      <NavLink href="/admin/messages" label="Messages" icon={<MessageSquare {...ICON_PROPS} />} badge={unreadMsgs} />
-      </>}
-
-      {/* ── DISCOUNTS ── */}
-      {(can("discounts") || can("settings")) && <>
-      <div style={SECTION_HEAD}>Marketing</div>
-      {can("discounts") && <NavLink href="/admin/discounts" label="Discounts" icon={<Percent {...ICON_PROPS} />} />}
-      {can("settings") && <NavLink href="/admin/standard-shipping" label="Shipping" icon={<Truck {...ICON_PROPS} />} />}
-      </>}
-
-      {/* The Content group (Pages SEO / Blogs / Style Sheets / Product Specs) was
-          taken out of the nav — those routes still exist and can be linked again
-          by restoring this section. */}
-
-      {/* ── ONLINE STORE ── */}
-      {(can("storefront") || can("media")) && <>
-      <div style={SECTION_HEAD}>Storefront</div>
-      {can("storefront") && <NavLink href="/site-builder" label="Website builder" icon={<LayoutTemplate {...ICON_PROPS} />} />}
-      {can("storefront") && (
-        <a href="/" target="_blank" rel="noreferrer" style={{ ...NAV_LINK_BASE, color: "#555", textDecoration: "none" }}>
-          <span style={{ fontSize: "15px", flexShrink: 0 }}><Store {...ICON_PROPS} /></span>
-          <span>Store view ↗</span>
-        </a>
-      )}
-      {can("storefront") && !HIDDEN_ADMIN_SECTIONS.storefront && <NavLink href="/admin/storefront" label="Storefront" icon={<Store {...ICON_PROPS} />} exact />}
-      {can("storefront") && !HIDDEN_ADMIN_SECTIONS.pages && <NavLink href="/admin/storefront/pages" label="Pages" icon={<File {...ICON_PROPS} />} />}
-      {can("storefront") && !HIDDEN_ADMIN_SECTIONS.productTemplates && <NavLink href="/admin/storefront/product-templates" label="Product templates" icon={<LayoutTemplate {...ICON_PROPS} />} />}
-      {can("storefront") && !HIDDEN_ADMIN_SECTIONS.menus && <NavLink href="/admin/storefront/menus" label="Menus" icon={<Compass {...ICON_PROPS} />} />}
-      {can("media") && <NavLink href="/admin/media" label="Media Library" icon={<ImageIcon {...ICON_PROPS} />} />}
-      </>}
-
-      {/* ── SETTINGS ── */}
-      {(can("settings") || can("staff") || can("analytics")) && <>
-      <div style={SECTION_HEAD}>Admin</div>
-
-      {/* Settings dropdown */}
-      <div
-        onClick={() => setSettingsOpen(!settingsOpen)}
-        style={{
-          ...NAV_LINK_BASE,
-          justifyContent: "space-between",
-          background: isSettingsActive ? "#F1F0EC" : "transparent",
-          color: isSettingsActive ? "#1A1A1A" : "#555",
-          userSelect: "none",
-        }}
-        onMouseEnter={e => { if (!isSettingsActive) (e.currentTarget as HTMLElement).style.background = "#F6F6F7"; }}
-        onMouseLeave={e => { if (!isSettingsActive) (e.currentTarget as HTMLElement).style.background = isSettingsActive ? "#F1F0EC" : "transparent"; }}
-      >
-        <span style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-          <Settings {...ICON_PROPS} />
-          <span>Settings</span>
-        </span>
-        <span style={{ fontSize: "10px", color: "#aaa", transition: "transform .2s", transform: settingsOpen ? "rotate(180deg)" : "rotate(0deg)", display: "inline-block" }}>▼</span>
-      </div>
-
-      {settingsOpen && (
-        <div style={{ paddingLeft: "18px", marginTop: "3px", marginBottom: "3px" }}>
-          {/* General settings holds the store details and the email (Resend)
-              connection, and had no way in from the nav at all. */}
-          {can("settings") && <SubLink href="/admin/settings" label="General & Email" />}
-          {(can("billing") || can("payouts")) && <SubLink href="/admin/billing" label="Billing & Payouts" />}
-          {can("settings") && <SubLink href="/admin/settings/taxes" label="Taxes & Duties" />}
-          {can("analytics") && <SubLink href="/admin/analytics" label="Analytics" />}
-          {can("settings") && <SubLink href="/admin/settings/tracking" label="Tracking & Analytics" />}
-          {can("staff") && <SubLink href="/admin/users" label="Users" />}
-          <SubLink href="/admin/settings/security" label="Security (2FA)" />
-          {can("audit") && <SubLink href="/admin/settings/audit-log" label="Audit Log" />}
-        </div>
-      )}
-      </>}
-
-      {/* ── Account / Sign out (bottom) ── */}
-      <div style={{ marginTop: "20px", paddingTop: "16px", borderTop: "1px solid #E3E3E3" }}>
-        {user && (
-          <div style={{ padding: "0 12px 10px", fontSize: "12px", color: "#7A7880", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-            {user.first_name ? `${user.first_name} ${user.last_name ?? ""}`.trim() : user.email}
+  function render(p: Place) {
+    if (!allowed(p)) return null;
+    const kids = (p.children ?? []).filter(shown);
+    const active = placeActive(p);
+    // The place somebody is in shows its screens; the others are one line each.
+    const open = active && kids.length > 1;
+    const first = kids.find((c) => !c.external)?.href ?? p.href;
+    const Icon = p.icon;
+    return (
+      <div key={p.key}>
+        <Link
+          href={first}
+          className="pc-nav"
+          data-active={active && !open ? "" : undefined}
+          data-open={open ? "" : undefined}
+          aria-current={active ? "page" : undefined}
+        >
+          <Icon size={18} strokeWidth={1.9} />
+          <span>{p.label}</span>
+          {!!p.count && <span className="pc-nav-count">{p.count > 99 ? "99+" : p.count}</span>}
+        </Link>
+        {open && (
+          <div className="pc-sub">
+            {kids.map((c) => {
+              const lock = c.feature ? lockOf(c.feature) : null;
+              if (lock) {
+                return (
+                  <span key={c.href} data-locked title={lock.upgrade_to ? `Included from ${lock.upgrade_to}` : "Not available on this shop"}>
+                    <Lock size={12} strokeWidth={2} /> {c.label}
+                    {lock.upgrade_to && <span className="pc-sub-chip">{lock.upgrade_to}</span>}
+                  </span>
+                );
+              }
+              if (c.external) {
+                return <a key={c.href} href={c.href} target="_blank" rel="noreferrer">{c.label} ↗</a>;
+              }
+              return (
+                <Link key={c.href} href={c.href} data-active={childActive(c, kids) ? "" : undefined}>
+                  {c.label}
+                  {!!c.count && <span className="pc-sub-count">{c.count > 99 ? "99+" : c.count}</span>}
+                </Link>
+              );
+            })}
           </div>
         )}
-        <button
-          onClick={handleLogout}
-          style={{
-            ...NAV_LINK_BASE,
-            width: "100%", border: "1px solid #E3E3E3", background: "#fff",
-            color: "#B91C1C", justifyContent: "flex-start",
-          }}
-          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#FEF2F2"; }}
-          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "#fff"; }}
-        >
-          <span style={{ fontSize: "15px" }}>⎋</span> Sign out
-        </button>
       </div>
-    </div>
-  );
+    );
+  }
 
   return (
     <>
-      {/* Mobile hamburger button — fixed bottom-left */}
-      <button
-        className="admin-mobile-menu-btn"
-        onClick={() => setMobileOpen(true)}
-        aria-label="Open admin menu"
-        style={{
-          position: "fixed", bottom: "20px", left: "16px", zIndex: 150,
-          background: "#1A1A1A", color: "#fff", border: "none", borderRadius: "50%",
-          width: "48px", height: "48px", cursor: "pointer",
-          alignItems: "center", justifyContent: "center",
-          boxShadow: "0 4px 16px rgba(0,0,0,.25)",
-        }}
-      >
-        <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} strokeLinecap="round">
-          <line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="18" x2="21" y2="18" />
-        </svg>
-      </button>
-
-      {/* Mobile overlay drawer */}
-      {mobileOpen && (
-        <div className="admin-mobile-menu-btn" style={{ position: "fixed", inset: 0, zIndex: 160 }}>
-          <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.5)" }} onClick={() => setMobileOpen(false)} />
-          <aside style={{
-            position: "fixed", left: 0, top: 0, bottom: 0, width: "260px",
-            background: "#fff", overflowY: "auto", zIndex: 161,
-            borderRight: "1px solid #E3E3E3",
-            boxShadow: "4px 0 24px rgba(0,0,0,.15)",
-          }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 16px", borderBottom: "1px solid #E3E3E3" }}>
-              <span style={{ fontSize: "12px", fontWeight: 700, textTransform: "uppercase", letterSpacing: ".1em", color: "#7A7880" }}>Admin</span>
-              <button onClick={() => setMobileOpen(false)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "18px", color: "#7A7880" }}>✕</button>
-            </div>
-            {sidebarInner}
-          </aside>
-        </div>
-      )}
-
-      {/* Desktop sidebar */}
-      <aside className="admin-sidebar-desktop" style={{ width: "220px", flexShrink: 0, borderRight: "1px solid #E3E3E3", background: "#fff", minHeight: "calc(100vh - 68px)" }}>
-        {sidebarInner}
+      {mobileOpen && <div className="pc-side-back" onClick={() => setMobileOpen(false)} aria-hidden />}
+      <aside className="pc-side" data-open={mobileOpen ? "" : undefined} aria-label="Admin">
+        <Link href="/admin/dashboard" className="pc-brand">
+          <span className="pc-brand-mark" aria-hidden><Printer size={17} strokeWidth={1.9} /></span>
+          <span className="pc-brand-name">PrintCoPilot</span>
+        </Link>
+        <nav className="pc-side-scroll">
+          {places.map(render)}
+          <div className="pc-side-foot">{render(settings)}</div>
+        </nav>
       </aside>
     </>
   );

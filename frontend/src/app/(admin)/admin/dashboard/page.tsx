@@ -1,398 +1,236 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { apiClient } from "@/lib/api-client";
+/**
+ * Home: what needs the shop today, in the order to do it.
+ *
+ * Everything on it comes from one answer, GET /admin/home, which the server
+ * works out from the shop's own orders, print jobs and settings. A count of
+ * orders is taken from a queue the server defines once, and its button opens
+ * the order list on that same queue, so "3 paid orders to ship" opens those
+ * three.
+ */
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { Check, Plus, Sparkles } from "lucide-react";
+import { apiClient } from "@/lib/api-client";
+import { hasScope } from "@/lib/permissions";
 import { useAuthStore } from "@/stores/auth.store";
 
-/** Time-of-day greeting (shop-local) for a warm dashboard welcome. */
-function greeting(): string {
-  const h = new Date().getHours();
-  if (h < 12) return "Good morning";
-  if (h < 17) return "Good afternoon";
-  if (h < 21) return "Good evening";
-  return "Working late";
-}
-import { PackageIcon, ClipboardIcon, AlertTriangleIcon } from "@/components/ui/icons";
-import { CopilotPanel } from "@/components/admin/CopilotPanel";
+type Severity = "urgent" | "attention" | "info";
+interface Need { key: string; severity: Severity; count: number; label: string; detail: string; action: string; href: string }
+interface Stage { key: string; label: string; count: number; href: string }
+interface Step { key: string; title: string; detail: string; done: boolean; href: string }
+interface Sales { total: number; orders: number; average: number }
+interface RecentOrder { id: string; order_number: string; customer: string; created_at: string | null; total: number; status: string }
+type Range = "7d" | "30d" | "all";
 
-interface RecentOrder {
-  id: string;
-  order_number: string;
-  company_name: string;
-  total: number;
-  status: string;
-  created_at: string;
-  items_count?: number;
+interface HomeData {
+  needs: Need[];
+  pipeline: Stage[];
+  checklist: Step[];
+  sales: Partial<Record<Range, Sales>>;
+  recent_orders: RecentOrder[];
 }
 
-interface Application {
-  id: string;
-  company_name: string;
-  business_type: string;
-  created_at: string;
-  status: string;
-}
-
-interface DashboardState {
-  totalRevenue: number;
-  totalOrders: number;
-  avgOrderValue: number;
-  pendingOrders: number;
-  pendingApplications: number;
-  lowStockCount: number;
-  recentOrders: RecentOrder[];
-  recentApplications: Application[];
-  dailyCounts: number[];
-  conversionRate: number;
-  customerCount: number;
-}
-
-const STATUS_STYLE: Record<string, { bg: string; color: string }> = {
-  pending:    { bg: "rgba(217,119,6,.1)",   color: "#D97706" },
-  confirmed:  { bg: "rgba(0,91,211,.10)",  color: "#1A1A1A" },
-  processing: { bg: "rgba(99,102,241,.1)",  color: "#6366F1" },
-  shipped:    { bg: "rgba(139,92,246,.1)",  color: "#8B5CF6" },
-  delivered:  { bg: "rgba(5,150,105,.1)",   color: "#059669" },
-  cancelled:  { bg: "rgba(232,36,42,.1)",   color: "#E8242A" },
+const RANGES: [Range, string][] = [["7d", "7 days"], ["30d", "30 days"], ["all", "All time"]];
+/** How many things to do are shown before "Show more". */
+const FIRST_NEEDS = 5;
+const STATUS_TONE: Record<string, string> = {
+  pending: "amber", confirmed: "blue", processing: "blue", ready_for_pickup: "blue",
+  shipped: "green", delivered: "green", cancelled: "red", refunded: "red",
 };
+const money = (n: number) => `$${Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const day = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString() : "");
 
-function StatusBadge({ status }: { status: string }) {
-  const s = STATUS_STYLE[status] ?? { bg: "rgba(0,0,0,.06)", color: "#555" };
-  return (
-    <span style={{ background: s.bg, color: s.color, padding: "3px 10px", borderRadius: "20px", fontSize: "11px", fontWeight: 700, textTransform: "capitalize" as const }}>
-      {status}
-    </span>
-  );
-}
-
-function Sparkline({ counts }: { counts: number[] }) {
-  const max = Math.max(...counts, 1);
-  const W = 240, H = 56, PAD = 4;
-  const pts = counts.map((v, i) => {
-    const x = PAD + (i / (counts.length - 1)) * (W - PAD * 2);
-    const y = H - PAD - (v / max) * (H - PAD * 2);
-    return `${x},${y}`;
-  }).join(" ");
-
-  const area = `M ${PAD},${H - PAD} ` +
-    counts.map((v, i) => {
-      const x = PAD + (i / (counts.length - 1)) * (W - PAD * 2);
-      const y = H - PAD - (v / max) * (H - PAD * 2);
-      return `L ${x},${y}`;
-    }).join(" ") +
-    ` L ${W - PAD},${H - PAD} Z`;
-
-  return (
-    <svg width={W} height={H} style={{ display: "block" }}>
-      <defs>
-        <linearGradient id="spGrad" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#1A1A1A" stopOpacity="0.15" />
-          <stop offset="100%" stopColor="#1A1A1A" stopOpacity="0" />
-        </linearGradient>
-      </defs>
-      <path d={area} fill="url(#spGrad)" />
-      <polyline points={pts} fill="none" stroke="#1A1A1A" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function AlertCard({ icon, count, label, color, href }: { icon: React.ReactNode; count: number; label: string; color: string; href: string }) {
-  return (
-    <Link href={href} style={{ textDecoration: "none" }}>
-      <div style={{ background: "#fff", border: `1.5px solid ${color}22`, borderRadius: "10px", padding: "16px 20px", display: "flex", alignItems: "center", gap: "14px", minWidth: "200px", cursor: "pointer", transition: "box-shadow .2s" }}
-        onMouseEnter={e => (e.currentTarget.style.boxShadow = `0 0 0 3px ${color}22`)}
-        onMouseLeave={e => (e.currentTarget.style.boxShadow = "none")}
-      >
-        <div style={{ width: "42px", height: "42px", borderRadius: "10px", background: `${color}15`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "20px", flexShrink: 0 }}>
-          {icon}
-        </div>
-        <div>
-          <div style={{ fontFamily: "var(--font-bebas)", fontSize: "28px", color, lineHeight: 1 }}>{count}</div>
-          <div style={{ fontSize: "12px", color: "#7A7880", fontWeight: 600 }}>{label}</div>
-        </div>
-      </div>
-    </Link>
-  );
-}
-
-const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-
-export default function AdminDashboard() {
+export default function AdminHome() {
+  const router = useRouter();
   const { user } = useAuthStore();
-  const [state, setState] = useState<Partial<DashboardState>>({});
-  const [loading, setLoading] = useState(true);
+  const canOrders = hasScope(user?.role, "orders", user?.scopes);
+  const canReports = hasScope(user?.role, "analytics", user?.scopes);
+  const canSettings = hasScope(user?.role, "settings", user?.scopes);
+
+  const [data, setData] = useState<HomeData | null>(null);
+  const [failed, setFailed] = useState(false);
+  const [range, setRange] = useState<Range>("all");
+  const [domainLive, setDomainLive] = useState(false);
+  const [allNeeds, setAllNeeds] = useState(false);
 
   useEffect(() => {
-    Promise.allSettled([
-      apiClient.get("/api/v1/admin/reports/sales?period=week"),
-      apiClient.get("/api/v1/admin/wholesale-applications?status=pending"),
-      apiClient.get("/api/v1/admin/reports/inventory?low_stock_only=true"),
-      apiClient.get("/api/v1/admin/orders?page_size=10"),
-      apiClient.get("/api/v1/admin/orders?status=pending&page_size=50"),
-      apiClient.get("/api/v1/admin/analytics?period=7d"),
-      apiClient.get("/api/v1/admin/companies?page_size=1"),
-    ]).then(([salesRes, appsRes, stockRes, ordersRes, pendingRes, analyticsRes, customersRes]) => {
-      const s: Partial<DashboardState> = {};
-
-      if (salesRes.status === "fulfilled") {
-        const summary = (salesRes.value as any)?.summary;
-        s.totalRevenue = summary?.total_revenue ?? 0;
-        s.totalOrders = summary?.total_orders ?? 0;
-        s.avgOrderValue = summary?.avg_order_value ?? 0;
-      }
-
-      if (appsRes.status === "fulfilled") {
-        const list = appsRes.value as any[];
-        s.pendingApplications = Array.isArray(list) ? list.length : 0;
-        s.recentApplications = Array.isArray(list)
-          ? list.slice(0, 5).map((a: any) => ({
-              id: a.id,
-              company_name: a.company_name ?? "—",
-              business_type: a.business_type ?? "—",
-              created_at: a.created_at,
-              status: a.status ?? "pending",
-            }))
-          : [];
-      }
-
-      if (stockRes.status === "fulfilled") {
-        const list = stockRes.value as any[];
-        s.lowStockCount = Array.isArray(list) ? list.length : 0;
-      }
-
-      if (ordersRes.status === "fulfilled") {
-        const items: any[] = (ordersRes.value as any)?.items ?? [];
-        s.recentOrders = items.map((o: any) => ({
-          id: o.id,
-          order_number: o.order_number,
-          company_name: o.company?.name ?? o.company_name ?? "—",
-          total: o.total,
-          status: o.status,
-          created_at: o.created_at,
-          items_count: o.items?.length ?? o.items_count,
-        }));
-
-        // Build last-7-days sparkline from order created_at timestamps
-        const now = new Date();
-        const daily = Array.from({ length: 7 }, (_, i) => {
-          const d = new Date(now);
-          d.setDate(d.getDate() - (6 - i));
-          const key = d.toISOString().split("T")[0];
-          return items.filter((o: any) => o.created_at?.startsWith(key)).length;
-        });
-        s.dailyCounts = daily;
-      }
-
-      if (pendingRes.status === "fulfilled") {
-        const items: any[] = (pendingRes.value as any)?.items ?? [];
-        s.pendingOrders = items.length;
-      }
-
-      if (analyticsRes.status === "fulfilled") {
-        s.conversionRate = (analyticsRes.value as any)?.overview?.conversion_rate ?? 0;
-      }
-
-      if (customersRes.status === "fulfilled") {
-        const v = customersRes.value as any;
-        s.customerCount = v?.total ?? (Array.isArray(v?.items) ? v.items.length : (Array.isArray(v) ? v.length : 0));
-      }
-
-      setState(s);
-    }).finally(() => setLoading(false));
+    apiClient.get<HomeData>("/api/v1/admin/home").then(setData).catch(() => setFailed(true));
   }, []);
 
-  async function handleApprove(id: string) {
-    try {
-      await apiClient.patch(`/api/v1/admin/wholesale-applications/${id}/approve`, {});
-      setState(prev => ({
-        ...prev,
-        recentApplications: prev.recentApplications?.filter(a => a.id !== id),
-        pendingApplications: Math.max(0, (prev.pendingApplications ?? 1) - 1),
-      }));
-    } catch { /* ignore */ }
-  }
+  // Whether a shop's own domain has caught up is a live lookup, so it is asked
+  // for separately, and only by somebody who may see the domain at all.
+  useEffect(() => {
+    const step = data?.checklist.find((s) => s.key === "domain");
+    if (!step || step.done || !/waiting for DNS/i.test(step.detail) || !canSettings) return;
+    apiClient.post<{ status?: string }>("/api/v1/admin/storefront/domain/check", {})
+      .then((r) => setDomainLive(r?.status === "live"))
+      .catch(() => {});
+  }, [data, canSettings]);
 
-  async function handleReject(id: string) {
-    try {
-      await apiClient.post(`/api/v1/admin/wholesale-applications/${id}/reject`, { rejection_reason: "Rejected by admin" });
-      setState(prev => ({
-        ...prev,
-        recentApplications: prev.recentApplications?.filter(a => a.id !== id),
-        pendingApplications: Math.max(0, (prev.pendingApplications ?? 1) - 1),
-      }));
-    } catch { /* ignore */ }
-  }
-
-  if (loading && !AdminDashboard) {
-    return (
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "320px" }}>
-        <div style={{ fontSize: "13px", color: "#aaa" }}>Loading dashboard…</div>
-      </div>
-    );
-  }
-
-  const dailyCounts = state.dailyCounts ?? [0, 0, 0, 0, 0, 0, 0];
-
-  const statCards = [
-    { label: "Customers", value: String(state.customerCount ?? 0), sub: "active accounts" },
-    {
-      label: "Total Sales",
-      value: `$${(state.totalRevenue ?? 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}`,
-      sub: `${state.totalOrders ?? 0} orders`,
-    },
-    {
-      label: "Orders",
-      value: String(state.totalOrders ?? 0),
-      sub: `avg $${(state.avgOrderValue ?? 0).toFixed(0)}`,
-    },
-    { label: "Conversion Rate", value: `${(state.conversionRate ?? 0).toFixed(1)}%`, sub: "paid / total orders" },
-  ];
+  const steps = (data?.checklist ?? []).map((s) =>
+    s.key === "domain" && domainLive ? { ...s, done: true, detail: s.detail.replace(/: waiting for DNS/i, " is live") } : s);
+  const doneCount = steps.filter((s) => s.done).length;
+  const sales = data?.sales?.[range];
+  // The first few are today's work; the rest is one press away, so a long list
+  // does not push the pipeline off the screen.
+  const needs = allNeeds ? data?.needs ?? [] : (data?.needs ?? []).slice(0, FIRST_NEEDS);
+  const more = (data?.needs.length ?? 0) - needs.length;
 
   return (
-    <div style={{ fontFamily: "var(--font-jakarta)", maxWidth: "1200px" }}>
-      {/* Header — warm, time-aware welcome */}
-      <div style={{ marginBottom: "28px" }}>
-        <div style={{ fontSize: "12px", fontWeight: 600, color: "#9A98A0", letterSpacing: ".04em", marginBottom: "6px" }}>Command Center</div>
-        <h1 style={{ fontSize: "28px", fontWeight: 800, color: "#1A1A1A", letterSpacing: "-0.02em", lineHeight: 1.1 }}>
-          {greeting()}{user?.first_name ? `, ${user.first_name}` : ""} 👋
-        </h1>
-        <p style={{ fontSize: "14px", color: "#6B6B6B", marginTop: "6px" }}>Here&apos;s what&apos;s happening with your store today.</p>
-      </div>
-
-      <CopilotPanel />
-
-      {/* Needs attention — action strip pinned to the top (command-centre concept) */}
-      <div style={{ marginBottom: "24px" }}>
-        <div style={{ fontSize: "12px", fontWeight: 700, color: "#8A8A8A", textTransform: "uppercase" as const, letterSpacing: ".06em", marginBottom: "10px" }}>Needs attention</div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "16px" }}>
-          <AlertCard icon={<PackageIcon size={20} color="#E8242A" />} count={state.pendingOrders ?? 0} label="orders to fulfill" color="#E8242A" href="/admin/orders?status=pending" />
-          <AlertCard icon={<ClipboardIcon size={20} color="#D97706" />} count={state.pendingApplications ?? 0} label="applications pending" color="#D97706" href="/admin/customers/applications" />
-          <AlertCard icon={<AlertTriangleIcon size={20} color="#6366F1" />} count={state.lowStockCount ?? 0} label="low stock SKUs" color="#6366F1" href="/admin/reports/inventory" />
+    <div className="pc-page">
+      <div className="pc-head">
+        <div>
+          <div className="pc-eyebrow">Home</div>
+          <h1 className="pc-h1">Today</h1>
+          <p className="pc-lede">What needs you right now, in the order to do it.</p>
         </div>
-      </div>
-
-      {/* Stat Cards */}
-      <div className="admin-dash-stat-grid" style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: "16px", marginBottom: "24px" }}>
-        {statCards.map(stat => (
-          <div key={stat.label} style={{ background: "#fff", border: "1px solid #E3E3E3", borderRadius: "10px", padding: "20px 24px" }}>
-            <div>
-              <div style={{ fontSize: "13px", color: "#7A7880", marginBottom: "6px" }}>{stat.label}</div>
-              <div style={{ fontFamily: "var(--font-bebas)", fontSize: "32px", color: "#2A2830", lineHeight: 1 }}>{stat.value}</div>
-              <div style={{ fontSize: "11px", color: "#aaa", marginTop: "4px" }}>{stat.sub}</div>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* Orders chart — full width */}
-      <div className="admin-table-card" style={{ background: "#fff", border: "1px solid #E3E3E3", borderRadius: "10px", padding: "20px 24px", marginBottom: "24px" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
-          <div>
-            <div style={{ fontFamily: "var(--font-bebas)", fontSize: "16px", letterSpacing: "-0.01em", color: "#2A2830" }}>Orders — Last 7 Days</div>
-            <div style={{ fontSize: "12px", color: "#7A7880" }}>Daily order volume</div>
-          </div>
-          <div style={{ fontFamily: "var(--font-bebas)", fontSize: "28px", color: "#1A1A1A" }}>
-            {dailyCounts.reduce((a, b) => a + b, 0)}
-          </div>
-        </div>
-        <Sparkline counts={dailyCounts} />
-        <div style={{ display: "flex", justifyContent: "space-between", marginTop: "6px" }}>
-          {DAY_LABELS.map(d => (
-            <span key={d} style={{ fontSize: "10px", color: "#bbb", fontWeight: 600, textTransform: "uppercase" as const }}>{d}</span>
-          ))}
-        </div>
-      </div>
-
-      {/* Recent Orders */}
-      <div className="admin-table-card" style={{ background: "#fff", border: "1px solid #E3E3E3", borderRadius: "10px", overflow: "hidden", marginBottom: "24px" }}>
-        <div style={{ padding: "16px 24px", borderBottom: "1px solid #E3E3E3", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <h2 style={{ fontFamily: "var(--font-bebas)", fontSize: "16px", letterSpacing: "-0.01em", color: "#2A2830" }}>Recent Orders</h2>
-          <Link href="/admin/orders" style={{ fontSize: "12px", color: "#1A1A1A", textDecoration: "none", fontWeight: 700 }}>View all →</Link>
-        </div>
-        {!state.recentOrders?.length ? (
-          <div style={{ padding: "32px", textAlign: "center", color: "#aaa", fontSize: "13px" }}>No recent orders.</div>
-        ) : (
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
-            <thead>
-              <tr style={{ borderBottom: "1px solid #E3E3E3", background: "#F6F6F7" }}>
-                {["Order #", "Customer", "Date", "Items", "Total", "Status"].map(h => (
-                  <th key={h} style={{ padding: "10px 16px", textAlign: h === "Total" ? "right" : "left", fontSize: "11px", fontWeight: 700, color: "#7A7880", textTransform: "uppercase" as const, letterSpacing: ".06em" }}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {state.recentOrders.map((order, i) => (
-                <tr key={order.id} style={{ borderBottom: i < state.recentOrders!.length - 1 ? "1px solid #F0EDE8" : "none" }}
-                  onMouseEnter={e => (e.currentTarget.style.background = "#FAFAF8")}
-                  onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
-                >
-                  <td style={{ padding: "12px 16px" }}>
-                    <Link href={`/admin/orders/${order.id}`} style={{ color: "#1A1A1A", textDecoration: "none", fontFamily: "monospace", fontSize: "12px", fontWeight: 700 }}>
-                      {order.order_number}
-                    </Link>
-                  </td>
-                  <td style={{ padding: "12px 16px", color: "#2A2830" }}>{order.company_name}</td>
-                  <td style={{ padding: "12px 16px", color: "#7A7880" }}>
-                    {order.created_at ? new Date(order.created_at).toLocaleDateString() : "—"}
-                  </td>
-                  <td style={{ padding: "12px 16px", color: "#7A7880" }}>{order.items_count ?? "—"}</td>
-                  <td style={{ padding: "12px 16px", textAlign: "right", fontWeight: 700, color: "#2A2830" }}>${Number(order.total).toFixed(2)}</td>
-                  <td style={{ padding: "12px 16px" }}><StatusBadge status={order.status} /></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        {canOrders && (
+          <Link href="/admin/orders/drafts" className="pc-btn" data-kind="primary">
+            <Plus size={17} strokeWidth={2.4} /> New order
+          </Link>
         )}
       </div>
 
-      {/* Recent Applications */}
-      <div className="admin-table-card" style={{ background: "#fff", border: "1px solid #E3E3E3", borderRadius: "10px", overflow: "hidden" }}>
-        <div style={{ padding: "16px 24px", borderBottom: "1px solid #E3E3E3", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <h2 style={{ fontFamily: "var(--font-bebas)", fontSize: "16px", letterSpacing: "-0.01em", color: "#2A2830" }}>Recent Applications</h2>
-          <Link href="/admin/customers/applications" style={{ fontSize: "12px", color: "#1A1A1A", textDecoration: "none", fontWeight: 700 }}>View all →</Link>
-        </div>
-        {!state.recentApplications?.length ? (
-          <div style={{ padding: "32px", textAlign: "center", color: "#aaa", fontSize: "13px" }}>No pending applications.</div>
-        ) : (
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
-            <thead>
-              <tr style={{ borderBottom: "1px solid #E3E3E3", background: "#F6F6F7" }}>
-                {["Company", "Type", "Date", "Status", "Actions"].map(h => (
-                  <th key={h} style={{ padding: "10px 16px", textAlign: "left", fontSize: "11px", fontWeight: 700, color: "#7A7880", textTransform: "uppercase" as const, letterSpacing: ".06em" }}>{h}</th>
+      {failed && <div className="pc-card pc-empty">Could not load today&apos;s work. Reload to try again.</div>}
+
+      {!failed && (
+        <div className="pc-home">
+          <div className="pc-stack">
+            {/* ── Needs you today ───────────────────────────────────────── */}
+            <section className="pc-card" aria-labelledby="needs-title">
+              <div className="pc-card-head" style={{ borderBottom: 0 }}>
+                <h2 className="pc-h2" id="needs-title">Needs you today</h2>
+                <span className="pc-sorted"><Sparkles size={14} strokeWidth={2} /> Sorted by Copilot</span>
+              </div>
+              {!data && [0, 1, 2].map((i) => (
+                <div key={i} className="pc-need"><div className="at-skel" style={{ height: "44px", width: "100%", borderRadius: "9px" }} /></div>
+              ))}
+              {data && data.needs.length === 0 && (
+                <div className="pc-need" style={{ color: "var(--pc-green)", fontWeight: 600 }}>
+                  <span className="pc-step-dot" style={{ background: "var(--pc-green)", borderColor: "var(--pc-green)" }}><Check size={13} strokeWidth={3} /></span>
+                  Nothing needs you right now. No orders waiting, no artwork to review, and stock is fine.
+                </div>
+              )}
+              {needs.map((n) => (
+                <div key={n.key} className="pc-need" data-need={n.key}>
+                  <span className="pc-need-tile" data-tone={n.severity}>{n.count > 99 ? "99+" : n.count}</span>
+                  <div className="pc-need-text">
+                    <div className="pc-need-title">{n.label}</div>
+                    {n.detail && <div className="pc-need-detail">{n.detail}</div>}
+                  </div>
+                  <Link href={n.href} className="pc-btn">{n.action}</Link>
+                </div>
+              ))}
+              {more > 0 && (
+                <div className="pc-need" style={{ justifyContent: "center", padding: "12px 20px" }}>
+                  <button type="button" className="pc-link" onClick={() => setAllNeeds(true)}>Show {more} more</button>
+                </div>
+              )}
+            </section>
+
+            {/* ── Production pipeline ───────────────────────────────────── */}
+            <section className="pc-card" aria-labelledby="pipe-title">
+              <div className="pc-card-head">
+                <h2 className="pc-h2" id="pipe-title">Production pipeline</h2>
+                <Link href="/admin/gang-sheets" className="pc-link">Open Production</Link>
+              </div>
+              <div className="pc-pipe">
+                {(data?.pipeline ?? [{ key: "a" }, { key: "b" }, { key: "c" }, { key: "d" }, { key: "e" }] as Stage[]).map((s) => (
+                  <Link key={s.key} href={s.href ?? "#"} data-live={s.count > 0 ? "" : undefined} data-stage={s.key}>
+                    <div className="pc-pipe-n">{data ? s.count : "–"}</div>
+                    <div className="pc-pipe-l">{s.label ?? ""}</div>
+                  </Link>
                 ))}
-              </tr>
-            </thead>
-            <tbody>
-              {state.recentApplications.map((app, i) => (
-                <tr key={app.id} style={{ borderBottom: i < state.recentApplications!.length - 1 ? "1px solid #F0EDE8" : "none" }}
-                  onMouseEnter={e => (e.currentTarget.style.background = "#FAFAF8")}
-                  onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
-                >
-                  <td style={{ padding: "12px 16px", fontWeight: 600, color: "#2A2830" }}>{app.company_name}</td>
-                  <td style={{ padding: "12px 16px", color: "#7A7880" }}>{app.business_type}</td>
-                  <td style={{ padding: "12px 16px", color: "#7A7880" }}>
-                    {app.created_at ? new Date(app.created_at).toLocaleDateString() : "—"}
-                  </td>
-                  <td style={{ padding: "12px 16px" }}><StatusBadge status={app.status} /></td>
-                  <td style={{ padding: "12px 16px" }}>
-                    <div style={{ display: "flex", gap: "8px" }}>
-                      <button onClick={() => handleApprove(app.id)}
-                        style={{ background: "rgba(5,150,105,.1)", color: "#059669", border: "none", padding: "5px 12px", borderRadius: "6px", fontSize: "12px", fontWeight: 700, cursor: "pointer" }}>
-                        ✓ Approve
-                      </button>
-                      <button onClick={() => handleReject(app.id)}
-                        style={{ background: "rgba(232,36,42,.08)", color: "#E8242A", border: "none", padding: "5px 12px", borderRadius: "6px", fontSize: "12px", fontWeight: 700, cursor: "pointer" }}>
-                        ✕ Reject
-                      </button>
+              </div>
+            </section>
+
+            {/* ── Recent orders ─────────────────────────────────────────── */}
+            {canOrders && (
+              <section className="pc-card" aria-labelledby="recent-title">
+                <div className="pc-card-head">
+                  <h2 className="pc-h2" id="recent-title">Recent orders</h2>
+                  <Link href="/admin/orders" className="pc-link">View all orders</Link>
+                </div>
+                {data && data.recent_orders.length === 0 ? (
+                  <div className="pc-empty">No orders yet. The first one will show here.</div>
+                ) : (
+                  <table className="pc-table">
+                    <thead>
+                      <tr><th>Order</th><th>Customer</th><th>Date</th><th className="pc-num">Total</th><th>Status</th></tr>
+                    </thead>
+                    <tbody>
+                      {(data?.recent_orders ?? []).map((o) => (
+                        <tr key={o.id} data-href onClick={() => router.push(`/admin/orders/${o.id}`)}>
+                          <td><Link href={`/admin/orders/${o.id}`} style={{ color: "inherit", textDecoration: "none", fontWeight: 600 }} onClick={(e) => e.stopPropagation()}>{o.order_number}</Link></td>
+                          <td>{o.customer}</td>
+                          <td>{day(o.created_at)}</td>
+                          <td className="pc-num">{money(o.total)}</td>
+                          <td><span className="pc-pill" data-tone={STATUS_TONE[o.status]}>{o.status.replace(/_/g, " ")}</span></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </section>
+            )}
+          </div>
+
+          <div className="pc-stack">
+            {/* ── Get ready to go live ──────────────────────────────────── */}
+            {steps.length > 0 && doneCount < steps.length && (
+              <section className="pc-card" aria-labelledby="live-title" style={{ paddingBottom: "8px" }}>
+                <div className="pc-card-head" style={{ paddingBottom: "12px" }}>
+                  <h2 className="pc-h2" id="live-title">Get ready to go live</h2>
+                  <span style={{ fontSize: "13px", color: "var(--pc-muted)", whiteSpace: "nowrap" }}>{doneCount} of {steps.length} done</span>
+                </div>
+                <div style={{ borderTop: 0 }}>
+                  <div className="pc-progress" role="progressbar" aria-valuemin={0} aria-valuemax={steps.length} aria-valuenow={doneCount}>
+                    <i style={{ width: `${(doneCount / steps.length) * 100}%` }} />
+                  </div>
+                  {steps.map((s) => (
+                    <div key={s.key} className="pc-step" data-done={s.done ? "" : undefined} data-step={s.key}>
+                      <span className="pc-step-dot" aria-hidden>{s.done && <Check size={13} strokeWidth={3} />}</span>
+                      <div style={{ minWidth: 0 }}>
+                        <div className="pc-step-title">{s.title}</div>
+                        {s.detail && <div className="pc-step-detail">{s.detail}</div>}
+                      </div>
+                      {s.done
+                        ? <span className="pc-step-done">Done</span>
+                        : <Link href={s.href} className="pc-link" style={{ marginLeft: "auto", whiteSpace: "nowrap" }}>Set up</Link>}
                     </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {/* ── Sales ─────────────────────────────────────────────────── */}
+            {canReports && (
+              <section className="pc-card" aria-labelledby="sales-title" style={{ padding: "20px" }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "10px", flexWrap: "wrap" }}>
+                  <h2 className="pc-h2" id="sales-title">Sales</h2>
+                  <div className="pc-seg" role="group" aria-label="Period">
+                    {RANGES.map(([key, label]) => (
+                      <button key={key} type="button" aria-pressed={range === key} onClick={() => setRange(key)}>{label}</button>
+                    ))}
+                  </div>
+                </div>
+                <div className="pc-big" style={{ marginTop: "22px" }}>{sales ? money(sales.total) : "–"}</div>
+                <div className="pc-stat-l" style={{ marginTop: "4px" }}>
+                  {sales ? `Total sales from ${sales.orders} ${sales.orders === 1 ? "order" : "orders"}` : " "}
+                </div>
+                <div style={{ display: "flex", gap: "28px", marginTop: "18px", paddingTop: "18px", borderTop: "1px solid var(--pc-line)" }}>
+                  <div><div className="pc-stat-l">Average order</div><div className="pc-stat-v">{sales ? money(sales.average) : "–"}</div></div>
+                  <div><div className="pc-stat-l">Orders</div><div className="pc-stat-v">{sales ? sales.orders : "–"}</div></div>
+                </div>
+                <div style={{ marginTop: "18px" }}><Link href="/admin/reports" className="pc-link">Open Reports</Link></div>
+              </section>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

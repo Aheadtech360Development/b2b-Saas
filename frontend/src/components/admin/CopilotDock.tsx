@@ -8,28 +8,19 @@
  * them go back to the dashboard to ask is how a feature stops being used, so it
  * sits in the corner of every admin page instead.
  *
- * The dashboard has the full panel already, so the dock stays out of its way.
+ * It is opened by the Copilot button in the bar at the top of every page,
+ * Home included, and stays as it was left from one page to the next.
  */
-import { usePathname } from "next/navigation";
 import { CopilotChat } from "@/components/admin/CopilotChat";
 import { useCopilotStore } from "@/stores/copilot.store";
 
 export function CopilotDock() {
-  const pathname = usePathname();
   // Open/closed is remembered too: clicking an order from an answer and coming
   // back should leave the dock as it was, not shut it.
   const open = useCopilotStore((s) => s.open);
   const setOpen = useCopilotStore((s) => s.setOpen);
 
-  if (pathname?.startsWith("/admin/dashboard")) return null;
-
-  if (!open) {
-    return (
-      <button onClick={() => setOpen(true)} aria-label="Ask the copilot" style={S.fab}>
-        <span aria-hidden>✦</span> Ask
-      </button>
-    );
-  }
+  if (!open) return null;
 
   return (
     <div role="dialog" aria-label="AI Copilot" style={S.panel}>
@@ -48,7 +39,6 @@ export function CopilotDock() {
 }
 
 const S: Record<string, React.CSSProperties> = {
-  fab: { position: "fixed", right: "20px", bottom: "20px", zIndex: 70, display: "flex", alignItems: "center", gap: "8px", padding: "11px 18px", background: "#1A1A1A", color: "#fff", border: "none", borderRadius: "999px", fontSize: "13px", fontWeight: 700, cursor: "pointer", boxShadow: "0 6px 20px rgba(0,0,0,.18)" },
   panel: { position: "fixed", right: "16px", bottom: "16px", zIndex: 70, width: "min(420px, calc(100vw - 32px))", height: "min(560px, calc(100vh - 32px))", background: "#fff", border: "1px solid #E3E3E3", borderRadius: "14px", boxShadow: "0 12px 40px rgba(0,0,0,.18)", display: "flex", flexDirection: "column", overflow: "hidden" },
   head: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 16px", borderBottom: "1px solid #EDEDEA" },
   close: { border: "none", background: "none", fontSize: "15px", cursor: "pointer", color: "#6B6B6B" },

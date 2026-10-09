@@ -48,9 +48,19 @@ export function remainingUntil(iso: string | null): Remaining | null {
   };
 }
 
+const HIDE_KEY = "pc_trial_bar_hidden";
+
 export function TrialBanner() {
   const [trial, setTrial] = useState<Trial | null>(null);
   const [left, setLeft] = useState<Remaining | null>(null);
+  const [hidden, setHidden] = useState(false);
+  useEffect(() => {
+    try { setHidden(sessionStorage.getItem(HIDE_KEY) === "1"); } catch { /* private mode */ }
+  }, []);
+  function dismiss() {
+    setHidden(true);
+    try { sessionStorage.setItem(HIDE_KEY, "1"); } catch { /* private mode */ }
+  }
 
   useEffect(() => {
     apiClient.get<{ trial?: Trial }>("/api/v1/admin/billing")
@@ -74,105 +84,35 @@ export function TrialBanner() {
   if (!trial.expired && !trial.on_trial) return null;
 
   const over = trial.expired || left?.over === true;
-  // Red on the last day as well as after it: by then the hours are the story.
+  // The last day is told in hours: by then the hours are the story.
   const urgent = !over && (left?.days ?? 0) < 1;
   const soon = !over && !urgent && (left?.days ?? 0) <= 3;
+  // Put away for this visit, while there is still time to spare. Once it is
+  // the last day or past it, it stays: that is not news to be dismissed.
+  if (hidden && !over && !urgent) return null;
 
-  const tone = over
-    ? { bg: "#FDF3F2", line: "#F3D6D3", fg: "#B3261E", chip: "#B3261E" }
-    : urgent
-      ? { bg: "#FDF3F2", line: "#F3D6D3", fg: "#B3261E", chip: "#B3261E" }
-      : soon
-        ? { bg: "#FDF7EC", line: "#F0E2C8", fg: "#8A5A00", chip: "#8A5A00" }
-        : { bg: "#F7F7F5", line: "#E7E7E3", fg: "#3F4350", chip: "#18181B" };
-
-  const spoken = over
-    ? "Your free trial has ended."
-    : left
-      ? `${left.days} days, ${left.hours} hours and ${left.minutes} minutes left on your free trial.`
-      : "Free trial running.";
+  const remaining = over
+    ? "Your free trial has ended"
+    : !left
+      ? "Free trial"
+      : urgent
+        ? `Free trial: ${left.hours} ${left.hours === 1 ? "hour" : "hours"} ${left.minutes} min left`
+        : `Free trial: ${left.days} ${left.days === 1 ? "day" : "days"} left`;
 
   return (
-    <div
-      style={{
-        display: "flex", alignItems: "center", gap: "14px", flexWrap: "wrap",
-        background: tone.bg, border: `1px solid ${tone.line}`, borderRadius: "12px",
-        padding: "12px 16px", marginBottom: "18px",
-        fontFamily: "'DM Sans', system-ui, sans-serif",
-      }}
-    >
-      <span
-        style={{
-          fontSize: "10.5px", fontWeight: 700, letterSpacing: ".08em",
-          textTransform: "uppercase", color: tone.fg, whiteSpace: "nowrap",
-        }}
-      >
-        {over ? "Trial ended" : "Free trial"}
+    <div className="pc-trial" data-tone={over || urgent ? "over" : soon ? "soon" : undefined} role="status">
+      <strong>{remaining}</strong>
+      <span>
+        {over
+          ? "Your shop, products and orders are all still here. Pick a plan to keep going."
+          : urgent ? "Ends today" : `Ends ${when(trial.ends_at)}`}
       </span>
-
-      {/* Read out once as a sentence; the ticking digits themselves are not
-          announced, or a screen reader would talk over every second. */}
-      <span role="status" style={SR_ONLY}>{spoken}</span>
-
-      {over ? (
-        <span style={{ fontSize: "13.5px", color: tone.fg, fontWeight: 600, flex: 1 }}>
-          Your shop, products and orders are all still here. Pick a plan to keep going.
-        </span>
-      ) : (
-        <>
-          <span aria-hidden style={{ display: "flex", alignItems: "flex-end", gap: "6px" }}>
-            <Unit value={left?.days ?? 0} label={left?.days === 1 ? "day" : "days"} color={tone.chip} wide />
-            <Colon color={tone.line} />
-            <Unit value={left?.hours ?? 0} label="hrs" color={tone.chip} />
-            <Colon color={tone.line} />
-            <Unit value={left?.minutes ?? 0} label="min" color={tone.chip} />
-            <Colon color={tone.line} />
-            <Unit value={left?.seconds ?? 0} label="sec" color={tone.chip} />
-          </span>
-          <span style={{ fontSize: "12.5px", color: tone.fg, opacity: 0.85, flex: 1, minWidth: "140px" }}>
-            {urgent ? "Ends today" : `Ends ${when(trial.ends_at)}`}
-          </span>
-        </>
+      <Link href="/admin/billing">{over ? "Choose a plan" : "See plans"}</Link>
+      {!over && !urgent && (
+        <button type="button" className="pc-trial-x" aria-label="Hide this for now" onClick={dismiss}>×</button>
       )}
-
-      <Link
-        href="/admin/billing"
-        style={{
-          fontSize: "12.5px", fontWeight: 600, textDecoration: "none",
-          color: "#fff",
-          background: tone.chip,
-          borderRadius: "8px", padding: "8px 15px", whiteSpace: "nowrap",
-        }}
-      >
-        {over ? "Choose a plan" : "See plans"}
-      </Link>
     </div>
   );
-}
-
-/** One segment of the clock: the number, and what it counts underneath. */
-function Unit({ value, label, color, wide }: { value: number; label: string; color: string; wide?: boolean }) {
-  return (
-    <span style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "1px" }}>
-      <span
-        style={{
-          fontSize: "19px", fontWeight: 700, lineHeight: 1.05, color,
-          fontVariantNumeric: "tabular-nums",
-          // Fixed width so the row does not twitch sideways once a second.
-          minWidth: wide ? "30px" : "26px", textAlign: "center",
-        }}
-      >
-        {wide ? value : String(value).padStart(2, "0")}
-      </span>
-      <span style={{ fontSize: "9px", letterSpacing: ".06em", textTransform: "uppercase", color, opacity: 0.6 }}>
-        {label}
-      </span>
-    </span>
-  );
-}
-
-function Colon({ color }: { color: string }) {
-  return <span style={{ fontSize: "15px", color, paddingBottom: "13px", lineHeight: 1 }}>:</span>;
 }
 
 function when(iso: string | null): string {
@@ -182,10 +122,5 @@ function when(iso: string | null): string {
     ? "soon"
     : d.toLocaleDateString(undefined, { day: "numeric", month: "long" });
 }
-
-const SR_ONLY: React.CSSProperties = {
-  position: "absolute", width: "1px", height: "1px", overflow: "hidden",
-  clip: "rect(0 0 0 0)", whiteSpace: "nowrap",
-};
 
 export default TrialBanner;

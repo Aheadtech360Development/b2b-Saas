@@ -1,8 +1,23 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { adminService } from "@/services/admin.service";
+
+/** The statuses the dropdown offers. */
+const STATUS_CHOICES = ["pending", "confirmed", "processing", "shipped", "delivered", "cancelled"];
+/** The queues Home opens, in words. What is in each is decided on the server
+ *  (services/order_queues), where Home counts them too. */
+const QUEUE_WORDS: Record<string, string> = {
+  to_ship: "paid orders still to ship",
+  late: "paid orders placed more than three days ago and not shipped",
+  pickups: "Will Call orders to hand over",
+  unpaid: "orders not paid in full",
+  new: "new orders to confirm",
+  production: "orders in production",
+  ready: "orders ready to ship or collect",
+  shipped: "orders shipped and not delivered yet",
+};
 
 interface AdminOrder {
   id: string;
@@ -73,12 +88,18 @@ export default function AdminOrdersPage() {
   // boundary for one optional filter.
   const [source, setSource] = useState("");
   const [campaign, setCampaign] = useState("");
+  // A queue opened from Home ("Open ship queue", "Open pickups"): a slice the
+  // controls below have no place for. Shown in words, cleared with the rest.
+  const [queue, setQueue] = useState("");
+  const [ready, setReady] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [exportLoading, setExportLoading] = useState(false);
+  const asked = useRef(0);
   const PAGE_SIZE = 50;
 
   async function load() {
     setIsLoading(true);
+    const mine = ++asked.current;
     try {
       const params: Record<string, string | undefined> = {
         q: q || undefined,
@@ -90,19 +111,28 @@ export default function AdminOrdersPage() {
       if (activeTab === "guest") params.guest_only = "true";
       if (source) params.utm_source = source;
       if (campaign) params.utm_campaign = campaign;
+      if (queue) params.queue = queue;
       const data = await adminService.listOrders(params) as { items: AdminOrder[]; total: number };
+      // An answer to an earlier question must not land on top of a later one.
+      if (mine !== asked.current) return;
       setOrders(data.items ?? []);
       setTotal(data.total ?? 0);
-    } finally { setIsLoading(false); }
+    } finally { if (mine === asked.current) setIsLoading(false); }
   }
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     setSource(params.get("utm_source") ?? "");
     setCampaign(params.get("utm_campaign") ?? "");
+    setQueue(params.get("queue") ?? "");
+    const status = params.get("status") ?? "";
+    if (STATUS_CHOICES.includes(status)) setStatusFilter(status);
+    setReady(true);
   }, []);
 
-  useEffect(() => { load(); }, [q, statusFilter, activeTab, dateFrom, dateTo, page, source, campaign]);
+  // Not before the address has been read: the list would be asked for once
+  // unfiltered and once filtered, and show the wrong one first.
+  useEffect(() => { if (ready) load(); }, [ready, q, statusFilter, activeTab, dateFrom, dateTo, page, source, campaign, queue]);
 
   async function handleExport() {
     setExportLoading(true);
@@ -118,11 +148,12 @@ export default function AdminOrdersPage() {
 
   function clearFilters() {
     setQ(""); setStatusFilter(""); setDateFrom(""); setDateTo(""); setPage(1);
-    setSource(""); setCampaign("");
+    setSource(""); setCampaign(""); setQueue("");
     window.history.replaceState(null, "", "/admin/orders");
   }
 
-  const hasFilters = q || statusFilter || dateFrom || dateTo || source || campaign;
+  const queueWords = queue ? QUEUE_WORDS[queue] ?? queue.replace(/_/g, " ") : "";
+  const hasFilters = q || statusFilter || dateFrom || dateTo || source || campaign || queue;
   const pages = Math.ceil(total / PAGE_SIZE);
 
   return (
@@ -159,6 +190,14 @@ export default function AdminOrdersPage() {
         <div className="mb-4 flex items-center gap-2 rounded-md bg-violet-50 border border-violet-200 px-3 py-2 text-sm text-violet-900">
           <span className="font-semibold">Showing orders from</span>
           <span>{[source, campaign].filter(Boolean).join(" · ")}</span>
+        </div>
+      )}
+
+      {queueWords && (
+        <div className="mb-4 flex items-center gap-2 rounded-md bg-blue-50 border border-blue-200 px-3 py-2 text-sm text-blue-900" data-queue>
+          <span className="font-semibold">Showing only</span>
+          <span>{queueWords}</span>
+          <button onClick={clearFilters} className="ml-auto text-xs text-blue-700 hover:text-blue-900 font-medium">Show all orders</button>
         </div>
       )}
 

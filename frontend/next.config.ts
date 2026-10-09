@@ -2,6 +2,9 @@ import type { NextConfig } from "next";
 import path from "path";
 
 const nextConfig: NextConfig = {
+  // Development only: Next's own badge sits in a corner of the page, and every
+  // corner of the admin has something in it (bottom left is Settings).
+  devIndicators: false,
   turbopack: {
     // Silence the "multiple lockfiles" workspace root warning
     root: path.resolve(__dirname),
