@@ -560,3 +560,25 @@
 .pc-drawer { width: min(460px, 100%); height: 100%; overflow-y: auto; background: #fff; box-shadow: -16px 0 40px rgba(12, 31, 63, .22); }
 .pc-drawer .pc-panel-head { position: sticky; top: 0; background: #fff; z-index: 1; }
 [data-inventory] .pc-pill { text-transform: none; min-width: 28px; justify-content: center; }
+
+/* ── The options builder (a made-to-order product's Pricing and options) ── */
+.pc-builder { display: grid; gap: 16px; }
+.pc-builder .pc-savebar { margin-bottom: 0; }
+.pc-builder-mode { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.pc-builder-how > summary { cursor: pointer; font-size: 13px; font-weight: 600; color: var(--pc-blue); }
+.pc-builder-start { border: 1px dashed #C9D2DE; border-radius: var(--pc-radius); padding: 18px; background: #FAFBFD; }
+.pc-builder-templates { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; }
+.pc-admin button.pc-builder-template { display: grid; gap: 4px; text-align: left; padding: 14px; border: 1px solid var(--pc-line); border-radius: var(--pc-radius-sm); background: #fff; cursor: pointer; font: inherit; color: var(--pc-ink); font-size: 13px; }
+.pc-admin button.pc-builder-template:hover { border-color: var(--pc-blue); filter: none; box-shadow: none; }
+.pc-q { border: 1px solid var(--pc-line); border-radius: var(--pc-radius); background: #F8FAFC; padding: 14px 16px; margin-bottom: 12px; }
+.pc-q-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.pc-admin button.pc-q-fold { border: 0; background: none; width: 22px; padding: 0; cursor: pointer; color: var(--pc-muted); font-size: 14px; }
+.pc-q-n { font-size: 14px; font-weight: 600; color: var(--pc-ink); white-space: nowrap; }
+.pc-admin .pc-q-name { flex: 1 1 140px; min-width: 120px; font-weight: 600; }
+.pc-q-move { display: inline-flex; gap: 4px; }
+.pc-q-move .pc-btn, .pc-q-head .pc-btn { height: 38px; padding: 0 12px; }
+.pc-q-table { background: #fff; border: 1px solid var(--pc-line); border-radius: var(--pc-radius-sm); min-width: 640px; }
+.pc-q-table td { vertical-align: top; }
+.pc-q-table .pc-input { height: 38px; }
+.pc-admin button.pc-q-img { width: 38px; height: 38px; border: 1px solid var(--pc-line); border-radius: 8px; background: #fff; padding: 0; overflow: hidden; display: grid; place-items: center; color: var(--pc-muted); cursor: pointer; font-size: 16px; }
+.pc-builder-mode .pc-seg { max-width: 100%; flex-wrap: wrap; }

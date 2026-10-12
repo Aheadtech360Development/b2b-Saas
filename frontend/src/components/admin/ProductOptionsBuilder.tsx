@@ -197,19 +197,6 @@ const RULE_ACTION_LABEL: Record<RuleAction, string> = {
   disable_value: "grey out one choice",
 };
 
-function Step({ n, title, blurb, children }: { n: number; title: string; blurb: string; children?: React.ReactNode }) {
-  return (
-    <div style={{ display: "flex", alignItems: "flex-start", gap: "12px", margin: "28px 0 12px" }}>
-      <span style={{ width: "24px", height: "24px", borderRadius: "50%", background: "#1A1A1A", color: "#fff", fontSize: "12px", fontWeight: 800, display: "grid", placeItems: "center", flexShrink: 0, marginTop: "1px" }}>{n}</span>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: "15px", fontWeight: 800, color: "#1A1A1A", letterSpacing: "-0.01em" }}>{title}</div>
-        <div style={{ fontSize: "12.5px", color: "#6B6B6B", marginTop: "3px", lineHeight: 1.6 }}>{blurb}</div>
-      </div>
-      {children}
-    </div>
-  );
-}
-
 export function ProductOptionsBuilder({ productId }: { productId: string }) {
   const [mode, setMode] = useState<"variant" | "configurable">("variant");
   const [basePrice, setBasePrice] = useState<string>("");
@@ -229,6 +216,9 @@ export function ProductOptionsBuilder({ productId }: { productId: string }) {
   // wait while the editor holds changes it has not sent yet.
   const [savedStamp, setSavedStamp] = useState(0);
   const [dirtySinceLoad, setDirtySinceLoad] = useState(false);
+  // What was loaded, to tell when anything in the builder changed (the Save bar).
+  const [snapshot, setSnapshot] = useState<string | null>(null);
+  const [showGrid, setShowGrid] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -243,10 +233,13 @@ export function ProductOptionsBuilder({ productId }: { productId: string }) {
       setDirtySinceLoad(false);
       setTiers(cfg.qty_tiers ?? []);
       setRules(cfg.rules ?? []);
+      setSnapshot(JSON.stringify({ mode: cfg.pricing_mode ?? "variant", basePrice: cfg.base_price != null ? String(cfg.base_price) : "",
+        options: cfg.options ?? [], tiers: cfg.qty_tiers ?? [], rules: cfg.rules ?? [] }));
     } catch (e) {
       // A product with nothing configured yet 404s, which is normal. Anything
       // else means the page is showing blank state that isn't real, so say so.
       const err = e as { status?: number; message?: string };
+      if (err?.status === 404) setSnapshot(JSON.stringify({ mode: "variant", basePrice: "", options: [], tiers: [], rules: [] }));
       if (err?.status && err.status !== 404) {
         setMsg({ ok: false, text: `Could not load this product's options — ${err.message ?? "please reload"}` });
       }
@@ -397,323 +390,279 @@ export function ProductOptionsBuilder({ productId }: { productId: string }) {
     setSaving(false);
   }
 
+  const shape = () => JSON.stringify({ mode, basePrice, options, tiers, rules });
+
   if (loading) {
-    return <div style={CARD}>{[60, 85, 50].map((w, i) => (
+    return <div className="pc-card pc-pad">{[60, 85, 50].map((w, i) => (
       <div key={i} className="at-skel" style={{ height: "14px", width: `${w}%`, marginBottom: "12px" }} />
     ))}</div>;
   }
 
   const p = preview();
+  const dirty = snapshot !== null && snapshot !== shape();
 
   return (
-    <div style={CARD}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "6px", flexWrap: "wrap", gap: "10px" }}>
-        <h2 style={{ fontSize: "15px", fontWeight: 700, color: "#1A1A1A" }}>Options &amp; pricing</h2>
-        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-          {msg && <span style={{ fontSize: "12px", fontWeight: 700, color: msg.ok ? "#166534" : "#B91C1C" }}>{msg.text}</span>}
-          <button onClick={save} disabled={saving} style={BTN_DARK}>{saving ? "Saving…" : "Save configuration"}</button>
+    <div className="pc-builder" data-options-builder>
+      {(dirty || saving || (msg && !msg.ok)) && (
+        <div className="pc-savebar" role="region" aria-label="Pricing and options" data-builder-savebar>
+          <span style={{ fontWeight: 600 }}>{msg && !msg.ok ? msg.text : saving ? "Saving pricing and options…" : "Unsaved changes in pricing and options"}</span>
+          <span style={{ display: "flex", gap: "10px" }}>
+            <button type="button" className="pc-btn" data-kind="ghost-dark" disabled={saving} onClick={() => { setMsg(null); void load(); }}>Discard</button>
+            <button type="button" className="pc-btn" data-kind="primary" disabled={saving} onClick={() => void save()}>{saving ? "Saving…" : "Save"}</button>
+          </span>
+        </div>
+      )}
+      {msg && msg.ok && <div className="pc-flash" role="status">{msg.text}</div>}
+
+      {/* How it sells: made to order (priced by its answers) or stocked variants */}
+      <div className="pc-builder-mode">
+        <span className="pc-label" style={{ margin: 0 }}>Sold as</span>
+        <div className="pc-seg" role="group" aria-label="Sold as">
+          <button type="button" aria-pressed={mode === "configurable"} onClick={() => setMode("configurable")}>Made to order</button>
+          <button type="button" aria-pressed={mode === "variant"} onClick={() => setMode("variant")}>Stocked variants</button>
         </div>
       </div>
 
-      {/* Pricing mode */}
-      <p style={HINT}>Choose how this product is priced and sold.</p>
-      <div style={{ display: "grid", gap: "10px", gridTemplateColumns: "repeat(auto-fit,minmax(260px,1fr))", marginBottom: "18px" }}>
-        {([
-          ["variant", "Stocked variants", "Colour × Size combinations, each with its own SKU, stock and image. Best for apparel."],
-          ["configurable", "Configurable (unlimited options)", "Add any fields — paper, coating, finishing — priced live. Combinations aren't stored, so there's no limit."],
-        ] as const).map(([val, title, desc]) => {
-          const active = mode === val;
-          return (
-            <label key={val} style={{ display: "flex", gap: "10px", alignItems: "flex-start", padding: "14px 16px", border: `1.5px solid ${active ? "#1A1A1A" : "#E3E3E3"}`, borderRadius: "10px", cursor: "pointer", background: active ? "#F6F6F7" : "#fff" }}>
-              <input type="radio" name="pricing_mode" checked={active} onChange={() => setMode(val)} style={{ marginTop: "3px", accentColor: "#1A1A1A" }} />
-              <span>
-                <span style={{ display: "block", fontSize: "13px", fontWeight: 700, color: "#1A1A1A" }}>{title}</span>
-                <span style={{ display: "block", fontSize: "12px", color: "#6B6B6B", marginTop: "2px", lineHeight: 1.5 }}>{desc}</span>
-              </span>
-            </label>
-          );
-        })}
-      </div>
-
       {mode !== "configurable" ? (
-        <div style={NOTE}>This product uses stocked variants — manage them in the Variants section above.</div>
-      ) : (
-        <>
-          {/* Base price + preview */}
-          <div style={{ display: "flex", gap: "18px", flexWrap: "wrap", alignItems: "flex-end", marginBottom: "20px" }}>
-            <div>
-              <label style={LABEL}>Price per item, before options</label>
-              <input type="number" step="0.0001" min="0" value={basePrice} onChange={e => setBasePrice(e.target.value)} placeholder="0.00" style={{ ...INPUT, width: "170px" }} />
-            </div>
-            <div>
-              <label style={LABEL}>Check the price for</label>
-              <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                <input type="number" min={1} value={previewQty} onChange={e => setPreviewQty(Math.max(1, num(e.target.value, 1)))} style={{ ...INPUT, width: "110px" }} />
-                <span style={{ fontSize: "13px", color: "#6B6B6B" }}>items</span>
-              </div>
-            </div>
-            <div style={{ background: "#FAFAF9", border: "1px solid #EFEFEC", borderRadius: "12px", padding: "12px 16px", minWidth: "250px" }}>
-              <div style={{ fontSize: "12px", color: "#6B6B6B", fontWeight: 700 }}>What the customer would pay</div>
-              <div style={{ fontSize: "24px", fontWeight: 800, color: "#1A1A1A", marginTop: "2px" }}>${p.total.toFixed(2)}</div>
-              <div style={{ fontSize: "12px", color: "#6B6B6B" }}>
-                ${p.unit.toFixed(4)} each × {previewQty}{p.flat ? ` + $${p.flat.toFixed(2)} once` : ""}
-              </div>
-              <div style={{ fontSize: "11.5px", color: "#9CA3AF", marginTop: "4px" }}>with the pre-picked answers below</div>
-            </div>
+        <div className="pc-note" data-tone="blue">This product sells as stocked variants: colour × size, each with its own SKU and stock, on the Variants and stock tab.</div>
+      ) : (<>
+        {/* Price */}
+        <section className="pc-card pc-pad" aria-labelledby="ob-price">
+          <h2 className="pc-h2" id="ob-price" style={{ marginBottom: "12px" }}>Price</h2>
+          <label><span className="pc-label">Base price per item</span>
+            <input className="pc-input" type="number" step="0.0001" min="0" value={basePrice} onChange={e => setBasePrice(e.target.value)} placeholder="0.00" /></label>
+          <p className="pc-sub-line" style={{ fontSize: "12.5px", margin: "4px 0 12px" }}>Before any options.</p>
+          <div className="pc-note" data-tone="blue" style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }} data-price-check>
+            <span>Price check:</span>
+            <input className="pc-input" type="number" min={1} value={previewQty} aria-label="Items to price"
+              onChange={e => setPreviewQty(Math.max(1, num(e.target.value, 1)))} style={{ width: "86px", height: "32px", padding: "0 8px" }} />
+            <span>items = <b>${p.total.toFixed(2)}</b> (${(p.total / Math.max(1, previewQty)).toFixed(2)} each{p.flat ? `, with $${p.flat.toFixed(2)} once` : ""}), with the pre-picked answers.</span>
           </div>
+          <details className="pc-builder-how" style={{ marginTop: "12px" }}>
+            <summary>How the price is built</summary>
+            <div style={{ lineHeight: 1.75, marginTop: "8px", fontSize: "13px", color: "var(--pc-muted)" }}>
+              <div>It starts from the base price per item, or the quantity break the order reaches.</div>
+              <div><b>Per item</b>: added to every item. {PRICE_MODE_HINT.per_unit}.</div>
+              <div><b>% of the item price</b>: {PRICE_MODE_HINT.percent}.</div>
+              <div><b>Once per order</b>: {PRICE_MODE_HINT.flat}. Use it for setup and design fees.</div>
+              <div style={{ color: "var(--pc-amber)", marginTop: "6px" }}>A design fee left on &quot;Per item&quot; is the costly mistake: $45 on 500 becomes $22,500.</div>
+            </div>
+          </details>
+        </section>
 
-          {/* Step 1 — the choices */}
-          <Step n={1} title="What the customer chooses"
-            blurb="Each group is one question on the product page — Size, Paper stock, Turnaround. Every answer can change the price." />
-
+        {/* The questions */}
+        <section className="pc-card pc-pad" aria-labelledby="ob-questions">
+          <h2 className="pc-h2" id="ob-questions" style={{ marginBottom: "12px" }}>Questions the customer answers</h2>
           {options.length === 0 ? (
-            <div style={{ border: "1px dashed #D8D6D0", borderRadius: "14px", padding: "24px", background: "#FCFCFB" }}>
-              <div style={{ fontSize: "14px", fontWeight: 800, color: "#1A1A1A" }}>Start with a ready-made setup</div>
-              <div style={{ fontSize: "12.5px", color: "#6B6B6B", marginTop: "4px", marginBottom: "14px" }}>
-                Everything is editable afterwards — names, choices and prices.
-              </div>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))", gap: "10px" }}>
+            <div className="pc-builder-start">
+              <b>Start with a ready-made setup</b>
+              <p className="pc-sub-line" style={{ fontSize: "13px", margin: "2px 0 12px" }}>Everything is editable afterwards: names, choices and prices.</p>
+              <div className="pc-builder-templates">
                 {TEMPLATES.map(t => (
-                  <button key={t.key} onClick={() => applyTemplate(t)}
-                    style={{ textAlign: "left", background: "#fff", border: "1px solid #E3E3E3", borderRadius: "12px", padding: "14px", cursor: "pointer", fontFamily: "inherit" }}
-                    onMouseEnter={e => { e.currentTarget.style.borderColor = "#1A1A1A"; }}
-                    onMouseLeave={e => { e.currentTarget.style.borderColor = "#E3E3E3"; }}>
-                    <div style={{ fontSize: "13.5px", fontWeight: 800, color: "#1A1A1A" }}>{t.label}</div>
-                    <div style={{ fontSize: "12px", color: "#6B6B6B", marginTop: "4px", lineHeight: 1.5 }}>{t.blurb}</div>
-                    <div style={{ fontSize: "11.5px", color: "#9CA3AF", marginTop: "8px" }}>
-                      {t.options.length} questions · {t.tiers.length} price breaks
-                    </div>
+                  <button key={t.key} type="button" className="pc-builder-template" onClick={() => applyTemplate(t)}>
+                    <b>{t.label}</b>
+                    <span>{t.blurb}</span>
+                    <span className="pc-sub-line" style={{ fontSize: "12px" }}>{t.options.length} questions · {t.tiers.length} price breaks</span>
                   </button>
                 ))}
               </div>
-              <div style={{ display: "flex", alignItems: "center", gap: "10px", marginTop: "16px" }}>
-                <button onClick={addOption} style={BTN_DARK}>+ Build it myself</button>
-                <span style={{ fontSize: "12px", color: "#9CA3AF" }}>Start with one empty question.</span>
-              </div>
+              <button type="button" className="pc-btn" style={{ marginTop: "14px" }} onClick={addOption}>+ Build it myself</button>
             </div>
-          ) : (
-            <>
-              {options.map((o, oi) => {
-                const open = folded[oi] !== true;
-                const chosen = o.values.find(v => v.is_default) ?? o.values[0];
-                return (
-                  <div key={o.id ?? `new-${oi}`} style={{ border: "1px solid #E3E3E3", borderRadius: "12px", marginBottom: "12px", overflow: "hidden", background: "#fff" }}>
-                    {/* Header: name, how it is asked, and the fold control */}
-                    <div style={{ display: "flex", gap: "10px", alignItems: "center", padding: "10px 12px", background: "#FAFAF9", borderBottom: open ? "1px solid #EFEFEC" : "none", flexWrap: "wrap" }}>
-                      <button onClick={() => setFolded(f => ({ ...f, [oi]: open }))} title={open ? "Collapse" : "Expand"}
-                        style={{ ...ICON_BTN, border: "none", background: "none", width: "22px" }}>{open ? "▾" : "▸"}</button>
-                      <span style={{ fontSize: "11px", fontWeight: 700, color: "#9CA3AF", minWidth: "58px" }}>Question {oi + 1}</span>
-                      <input value={o.name} onChange={e => patchOpt(oi, { name: e.target.value })} placeholder="e.g. Paper stock"
-                        style={{ ...INPUT, flex: 1, minWidth: "170px", fontWeight: 700 }} />
-                      {open ? (
-                        <>
-                          <select value={o.input_type} onChange={e => patchOpt(oi, { input_type: e.target.value as InputType })} style={{ ...INPUT, width: "auto" }}>
-                            {(["select", "radio", "swatch", "checkbox"] as const).map(t => <option key={t} value={t}>{INPUT_TYPE_LABEL[t]}</option>)}
-                          </select>
-                          <label style={CHECK} title="The customer cannot order without answering">
-                            <input type="checkbox" checked={o.required} onChange={e => patchOpt(oi, { required: e.target.checked })} /> Must answer
-                          </label>
-
-                        </>
-                      ) : (
-                        <span style={{ fontSize: "12px", color: "#6B6B6B" }}>
-                          {o.values.length} choice{o.values.length === 1 ? "" : "s"}
-                          {chosen?.label ? ` · default ${chosen.label}` : ""}
-                        </span>
-                      )}
-                      <button onClick={() => moveOption(oi, -1)} disabled={oi === 0} style={ICON_BTN} title="Move up">↑</button>
-                      <button onClick={() => moveOption(oi, 1)} disabled={oi === options.length - 1} style={ICON_BTN} title="Move down">↓</button>
-                      <button onClick={() => removeOption(oi)} style={{ ...ICON_BTN, color: "#B91C1C" }} title="Remove this question">✕</button>
-                    </div>
-
-                    {open && (
-                      <div style={{ padding: "12px 14px" }}>
-                        <input value={o.help_text ?? ""} onChange={e => patchOpt(oi, { help_text: e.target.value })}
-                          placeholder="Note under the question for the customer (optional)" style={{ ...INPUT, width: "100%", marginBottom: "12px", fontSize: "13px" }} />
-
-                        <div style={{ overflowX: "auto" }}>
-                          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px", minWidth: "640px" }}>
-                            <thead>
-                              <tr style={{ background: "#FAFAF9" }}>
-                                {["Choice", "Extra cost", "Charged", "What that means", "Image", ...(o.input_type === "swatch" ? ["Colour"] : []), "Pre-picked", ""].map(h => (
-                                  <th key={h} style={TH}>{h}</th>
-                                ))}
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {o.values.map((v, vi) => (
-                                <tr key={v.id ?? `nv-${vi}`}>
-                                  <td style={TD}><input value={v.label} onChange={e => patchVal(oi, vi, { label: e.target.value })} placeholder="e.g. 16pt Coated" style={{ ...INPUT, width: "100%" }} /></td>
-                                  <td style={TD}><input type="number" step="0.0001" value={v.price_delta} onChange={e => patchVal(oi, vi, { price_delta: num(e.target.value) })} style={{ ...INPUT, width: "96px" }} /></td>
-                                  <td style={TD}>
-                                    <select value={v.price_mode} onChange={e => patchVal(oi, vi, { price_mode: e.target.value as PriceMode })} style={{ ...INPUT, width: "auto" }}>
-                                      {(Object.keys(PRICE_MODE_LABEL) as PriceMode[]).map(m => <option key={m} value={m}>{PRICE_MODE_LABEL[m]}</option>)}
-                                    </select>
-                                  </td>
-                                  <td style={{ ...TD, fontSize: "12px", color: v.price_delta ? "#1A1A1A" : "#9CA3AF", whiteSpace: "nowrap" }}>
-                                    {priceEffect(v, p.unit, previewQty)}
-                                  </td>
-                                  <td style={TD}>
-                                    <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-                                      <button onClick={() => setPicker({ oi, vi })} title={v.image_url ? "Change image" : "Add an image for this choice"}
-                                        style={{ width: "34px", height: "30px", border: "1px solid #E3E3E3", borderRadius: "6px", background: "#fff", padding: 0, cursor: "pointer", overflow: "hidden", display: "grid", placeItems: "center", color: "#6B6B6B", fontSize: "15px" }}>
-                                        {v.image_url
-                                          // eslint-disable-next-line @next/next/no-img-element
-                                          ? <img src={v.image_url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                                          : "+"}
-                                      </button>
-                                      {v.image_url && (
-                                        <button onClick={() => patchVal(oi, vi, { image_url: null })} title="Remove image"
-                                          style={{ border: "none", background: "none", cursor: "pointer", color: "#B91C1C", fontSize: "12px", padding: "2px" }}>✕</button>
-                                      )}
-                                    </div>
-                                  </td>
-                                  {o.input_type === "swatch" && (
-                                    <td style={TD}>
-                                      <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-                                        <label title={v.image_url ? "The image fills this circle — the colour is only used without one" : v.swatch_hex ? "Change colour" : knownColor(v.label) ? "Drawn from its name — click to choose another colour" : "Pick a colour"}
-                                          style={v.swatch_hex ? SWATCH_WELL(v.swatch_hex) : knownColor(v.label) ? { ...SWATCH_WELL(knownColor(v.label)!), borderStyle: "dashed" } : SWATCH_EMPTY}>
-                                          <input type="color" value={(v.swatch_hex ?? knownColor(v.label) ?? "#000000").toLowerCase()}
-                                            onChange={e => patchVal(oi, vi, { swatch_hex: e.target.value })}
-                                            style={SWATCH_INPUT} />
-                                        </label>
-                                        {v.swatch_hex && (
-                                          <button onClick={() => patchVal(oi, vi, { swatch_hex: null })} title="Clear colour"
-                                            style={{ border: "none", background: "none", cursor: "pointer", color: "#B91C1C", fontSize: "12px", padding: "2px" }}>✕</button>
-                                        )}
-                                      </div>
-                                    </td>
-                                  )}
-                                  <td style={{ ...TD, textAlign: "center" }}><input type="radio" name={`def-${oi}`} checked={v.is_default} onChange={() => patchVal(oi, vi, { is_default: true })} style={{ accentColor: "#1A1A1A" }} title="Selected for the customer before they choose" /></td>
-                                  <td style={{ ...TD, textAlign: "center" }}><button onClick={() => removeVal(oi, vi)} style={{ ...ICON_BTN, color: "#B91C1C" }} title="Remove this choice">✕</button></td>
-                                </tr>
-                              ))}
-                              {o.values.length === 0 && (
-                                <tr><td colSpan={o.input_type === "swatch" ? 8 : 7} style={{ ...TD, color: "#9CA3AF", textAlign: "center" }}>No choices yet — add the first one below.</td></tr>
-                              )}
-                            </tbody>
-                          </table>
-                        </div>
-                        <div style={{ display: "flex", alignItems: "center", gap: "10px", marginTop: "10px", flexWrap: "wrap" }}>
-                          <button onClick={() => addVal(oi)} style={BTN_LIGHT}>+ Add choice</button>
-                          <span style={{ fontSize: "11.5px", color: "#9CA3AF" }}>
-                            {o.input_type === "swatch"
-                              ? "Colour circles: give each choice a colour, or an image to fill the circle."
-                              : o.input_type === "checkbox"
-                                ? "Checkboxes: the customer can tick any number of these."
-                                : "Add an image to a choice and they become picture tiles."}
-                          </span>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-
-              <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
-                <button onClick={addOption} style={{ ...BTN_LIGHT, borderStyle: "dashed", fontWeight: 700 }}>+ Add another question</button>
-                {options.length > 1 && (
-                  <button onClick={() => setFolded(Object.fromEntries(options.map((_, i) => [i, options.every((_, k) => folded[k] === true) ? false : true])))}
-                    style={{ ...BTN_LIGHT, border: "none", background: "none", color: "#6B6B6B" }}>
-                    {options.every((_, i) => folded[i] === true) ? "Expand all" : "Collapse all"}
-                  </button>
-                )}
-              </div>
-            </>
-          )}
-
-          <details style={{ marginTop: "14px", fontSize: "12px", color: "#6B6B6B", background: "#FAFAF9", border: "1px solid #EFEFEC", borderRadius: "10px", padding: "10px 14px" }}>
-            <summary style={{ cursor: "pointer", fontWeight: 700, color: "#1A1A1A" }}>How the price is built</summary>
-            <div style={{ lineHeight: 1.8, marginTop: "8px" }}>
-              <div>Start from the <strong>base unit price</strong> (or the quantity break the order reaches).</div>
-              <div><strong>Per item</strong> — added to every item. {PRICE_MODE_HINT.per_unit}.</div>
-              <div><strong>% of the item price</strong> — {PRICE_MODE_HINT.percent}.</div>
-              <div><strong>Once per order</strong> — {PRICE_MODE_HINT.flat}. Use it for setup and design fees.</div>
-              <div style={{ color: "#B45309", marginTop: "6px" }}>A design fee left on &quot;Per item&quot; is the costly mistake: $45 on 500 becomes $22,500.</div>
-            </div>
-          </details>
-
-          {/* Quantity tiers */}
-          <Step n={2} title="Cheaper by the dozen (optional)"
-            blurb="Set the unit price at quantity steps. The highest step the order reaches wins — e.g. 50 → $0.57, 500 → $0.25." />
-          <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginTop: "10px" }}>
-            {tiers.map((t, i) => (
-              <div key={t.id ?? `nt-${i}`} style={{ display: "flex", gap: "10px", alignItems: "center" }}>
-                <span style={{ fontSize: "12px", color: "#6B6B6B", width: "60px" }}>From qty</span>
-                <input type="number" min={1} value={t.min_qty} onChange={e => setTiers(x => x.map((y, k) => k === i ? { ...y, min_qty: Math.max(1, num(e.target.value, 1)) } : y))} style={{ ...INPUT, width: "110px" }} />
-                <span style={{ fontSize: "12px", color: "#6B6B6B" }}>unit $</span>
-                <input type="number" step="0.0001" min={0} value={t.unit_price} onChange={e => setTiers(x => x.map((y, k) => k === i ? { ...y, unit_price: Math.max(0, num(e.target.value)) } : y))} style={{ ...INPUT, width: "130px" }} />
-                <button onClick={() => setTiers(x => x.filter((_, k) => k !== i))} style={{ ...ICON_BTN, color: "#B91C1C" }}>✕</button>
-              </div>
-            ))}
-          </div>
-          <button onClick={() => setTiers(t => [...t, { min_qty: (t[t.length - 1]?.min_qty ?? 0) + 50, unit_price: 0 }])} style={{ ...BTN_LIGHT, marginTop: "10px" }}>+ Add break</button>
-
-          {/* Conditional rules */}
-          <Step n={3} title="Answers that rule others out (optional)"
-            blurb="Switch a question off when another answer makes it impossible — e.g. Coating = UV greys out Laminating. The customer sees your note, and a hidden question is left out of the price." />
-
-          <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginTop: "10px" }}>
-            {rules.map((r, ri) => {
-              const whenOpt = options[r.when_option];
-              const targetOpt = r.target_option != null ? options[r.target_option] : undefined;
-              const patchRule = (p: Partial<Rule>) => setRules(x => x.map((y, k) => k === ri ? { ...y, ...p } : y));
+          ) : (<>
+            {options.map((o, oi) => {
+              const open = folded[oi] !== true;
+              const chosen = o.values.find(v => v.is_default) ?? o.values[0];
               return (
-                <div key={r.id ?? `nr-${ri}`} style={{ border: "1px solid #E3E3E3", borderRadius: "10px", padding: "12px 14px", display: "flex", flexWrap: "wrap", gap: "8px", alignItems: "center" }}>
-                  <span style={RULE_WORD}>When</span>
-                  <select value={r.when_option} onChange={e => patchRule({ when_option: Number(e.target.value), when_value: 0 })} style={{ ...INPUT, width: "auto", maxWidth: "180px" }}>
-                    {options.map((o, i) => <option key={i} value={i}>{o.name || `Field ${i + 1}`}</option>)}
-                  </select>
-                  <span style={RULE_WORD}>is</span>
-                  <select value={r.when_value} onChange={e => patchRule({ when_value: Number(e.target.value) })} style={{ ...INPUT, width: "auto", maxWidth: "180px" }}>
-                    {(whenOpt?.values ?? []).map((v, i) => <option key={i} value={i}>{v.label || `Choice ${i + 1}`}</option>)}
-                  </select>
-                  <span style={RULE_WORD}>→</span>
-                  <select value={r.action} onChange={e => patchRule({ action: e.target.value as RuleAction, target_value: null })} style={{ ...INPUT, width: "auto" }}>
-                    {(Object.keys(RULE_ACTION_LABEL) as RuleAction[]).map(a => <option key={a} value={a}>{RULE_ACTION_LABEL[a]}</option>)}
-                  </select>
-                  <select value={r.target_option ?? ""} onChange={e => patchRule({ target_option: e.target.value === "" ? null : Number(e.target.value), target_value: null })} style={{ ...INPUT, width: "auto", maxWidth: "180px" }}>
-                    <option value="">Choose a field…</option>
-                    {options.map((o, i) => i === r.when_option ? null : <option key={i} value={i}>{o.name || `Field ${i + 1}`}</option>)}
-                  </select>
-                  {r.action === "disable_value" && (
-                    <select value={r.target_value ?? ""} onChange={e => patchRule({ target_value: e.target.value === "" ? null : Number(e.target.value) })} style={{ ...INPUT, width: "auto", maxWidth: "180px" }}>
-                      <option value="">Choose a choice…</option>
-                      {(targetOpt?.values ?? []).map((v, i) => <option key={i} value={i}>{v.label || `Choice ${i + 1}`}</option>)}
+                <div key={o.id ?? `new-${oi}`} className="pc-q" data-question={oi + 1}>
+                  <div className="pc-q-head">
+                    <button type="button" className="pc-q-fold" onClick={() => setFolded(f => ({ ...f, [oi]: open }))} aria-label={open ? "Fold" : "Open"} aria-expanded={open}>{open ? "▾" : "▸"}</button>
+                    <span className="pc-q-n">Question {oi + 1}:</span>
+                    <input className="pc-input pc-q-name" value={o.name} onChange={e => patchOpt(oi, { name: e.target.value })} placeholder="e.g. Paper stock" aria-label={`Question ${oi + 1}`} />
+                    <select className="pc-input" style={{ width: "auto" }} value={o.input_type} onChange={e => patchOpt(oi, { input_type: e.target.value as InputType })} aria-label="How it is asked">
+                      {(["select", "radio", "swatch", "checkbox"] as const).map(t => <option key={t} value={t}>{INPUT_TYPE_LABEL[t]}</option>)}
                     </select>
-                  )}
-                  <input value={r.note ?? ""} onChange={e => patchRule({ note: e.target.value })} maxLength={200}
-                    placeholder='Note shown to the customer — e.g. "N/A with UV Coating"'
-                    style={{ ...INPUT, flex: 1, minWidth: "200px" }} />
-                  <button onClick={() => setRules(x => x.filter((_, k) => k !== ri))} style={{ ...ICON_BTN, color: "#B91C1C" }} title="Remove rule">✕</button>
+                    <span className="pc-q-move">
+                      <button type="button" className="pc-btn" disabled={oi === 0} onClick={() => moveOption(oi, -1)} title="Move up">↑</button>
+                      <button type="button" className="pc-btn" disabled={oi === options.length - 1} onClick={() => moveOption(oi, 1)} title="Move down">↓</button>
+                    </span>
+                    <button type="button" className="pc-btn" data-kind="danger" onClick={() => removeOption(oi)}>Delete</button>
+                  </div>
+                  {!open ? (
+                    <p className="pc-sub-line" style={{ fontSize: "12.5px", margin: "8px 0 0" }}>
+                      {o.values.length} choice{o.values.length === 1 ? "" : "s"}{chosen?.label ? ` · pre-picked ${chosen.label}` : ""}
+                    </p>
+                  ) : (<>
+                    <div className="pc-switch-row" style={{ margin: "12px 0" }}>
+                      <span>Customer must answer</span>
+                      <button type="button" className="pc-switch" role="switch" aria-checked={o.required} data-on={o.required ? "" : undefined}
+                        aria-label={`Question ${oi + 1} must be answered`} onClick={() => patchOpt(oi, { required: !o.required })} />
+                    </div>
+                    <input className="pc-input" value={o.help_text ?? ""} onChange={e => patchOpt(oi, { help_text: e.target.value })}
+                      placeholder="A note under the question for the customer (optional)" style={{ marginBottom: "12px", fontSize: "13.5px" }} />
+                    <div className="pc-scroll-x">
+                      <table className="pc-table pc-q-table">
+                        <thead>
+                          <tr>
+                            <th>Choice</th><th>Extra cost</th><th>Charged</th><th>Image</th>
+                            {o.input_type === "swatch" && <th>Colour</th>}
+                            <th>Pre-picked</th><th />
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {o.values.map((v, vi) => (
+                            <tr key={v.id ?? `nv-${vi}`}>
+                              <td><input className="pc-input" value={v.label} onChange={e => patchVal(oi, vi, { label: e.target.value })} placeholder="e.g. 16pt Coated" aria-label="Choice" /></td>
+                              <td>
+                                <input className="pc-input" type="number" step="0.0001" value={v.price_delta} onChange={e => patchVal(oi, vi, { price_delta: num(e.target.value) })} style={{ width: "96px" }} aria-label="Extra cost" />
+                                <span className="pc-sub-line" style={{ display: "block", fontSize: "11.5px", whiteSpace: "nowrap" }}>{priceEffect(v, p.unit, previewQty)}</span>
+                              </td>
+                              <td>
+                                <select className="pc-input" style={{ width: "auto" }} value={v.price_mode} onChange={e => patchVal(oi, vi, { price_mode: e.target.value as PriceMode })} aria-label="Charged">
+                                  {(Object.keys(PRICE_MODE_LABEL) as PriceMode[]).map(m => <option key={m} value={m}>{PRICE_MODE_LABEL[m]}</option>)}
+                                </select>
+                              </td>
+                              <td>
+                                <span style={{ display: "inline-flex", alignItems: "center", gap: "4px" }}>
+                                  <button type="button" className="pc-q-img" onClick={() => setPicker({ oi, vi })} title={v.image_url ? "Change image" : "Add an image for this choice"}>
+                                    {v.image_url
+                                      // eslint-disable-next-line @next/next/no-img-element
+                                      ? <img src={v.image_url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                                      : "+"}
+                                  </button>
+                                  {v.image_url && <button type="button" className="pc-link" style={{ color: "var(--pc-red)" }} onClick={() => patchVal(oi, vi, { image_url: null })} aria-label="Remove image">✕</button>}
+                                </span>
+                              </td>
+                              {o.input_type === "swatch" && (
+                                <td>
+                                  <span style={{ display: "inline-flex", alignItems: "center", gap: "4px" }}>
+                                    <label title={v.image_url ? "The image fills this circle; the colour is used without one" : v.swatch_hex ? "Change colour" : knownColor(v.label) ? "Drawn from its name: click to choose another" : "Pick a colour"}
+                                      style={v.swatch_hex ? SWATCH_WELL(v.swatch_hex) : knownColor(v.label) ? { ...SWATCH_WELL(knownColor(v.label)!), borderStyle: "dashed" } : SWATCH_EMPTY}>
+                                      <input type="color" value={(v.swatch_hex ?? knownColor(v.label) ?? "#000000").toLowerCase()} onChange={e => patchVal(oi, vi, { swatch_hex: e.target.value })} style={SWATCH_INPUT} />
+                                    </label>
+                                    {v.swatch_hex && <button type="button" className="pc-link" style={{ color: "var(--pc-red)" }} onClick={() => patchVal(oi, vi, { swatch_hex: null })} aria-label="Clear colour">✕</button>}
+                                  </span>
+                                </td>
+                              )}
+                              <td>
+                                <label style={{ display: "inline-flex", alignItems: "center", gap: "6px", fontSize: "13px" }}>
+                                  <input type="radio" name={`def-${oi}`} checked={v.is_default} onChange={() => patchVal(oi, vi, { is_default: true })} />
+                                  {v.is_default ? "Yes" : "No"}
+                                </label>
+                              </td>
+                              <td style={{ textAlign: "right" }}><button type="button" className="pc-link" style={{ color: "var(--pc-red)" }} onClick={() => removeVal(oi, vi)} aria-label="Remove this choice">Remove</button></td>
+                            </tr>
+                          ))}
+                          {o.values.length === 0 && (
+                            <tr><td colSpan={o.input_type === "swatch" ? 7 : 6} style={{ color: "var(--pc-muted)", textAlign: "center" }}>No choices yet: add the first one.</td></tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: "10px", marginTop: "10px", flexWrap: "wrap" }}>
+                      <button type="button" className="pc-btn" onClick={() => addVal(oi)}>+ Add choice</button>
+                      <span className="pc-sub-line" style={{ fontSize: "12px" }}>
+                        {o.input_type === "swatch" ? "Colour circles: give each choice a colour, or an image to fill the circle."
+                          : o.input_type === "checkbox" ? "Checkboxes: the customer can tick any number of these."
+                          : "Give a choice an image and the choices become picture tiles."}
+                      </span>
+                    </div>
+                  </>)}
                 </div>
               );
             })}
-          </div>
+            <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", alignItems: "center" }}>
+              <button type="button" className="pc-btn" onClick={addOption}>+ Add question</button>
+              {options.length > 1 && (
+                <button type="button" className="pc-link" onClick={() => setFolded(Object.fromEntries(options.map((_, i) => [i, options.every((_, k) => folded[k] === true) ? false : true])))}>
+                  {options.every((_, i) => folded[i] === true) ? "Open all" : "Fold all"}
+                </button>
+              )}
+            </div>
+          </>)}
+        </section>
 
-          {options.length < 2 ? (
-            <div style={{ ...NOTE, marginTop: "10px" }}>Add at least two option groups to link them with a rule.</div>
-          ) : (
-            <button onClick={() => setRules(r => [...r, { when_option: 0, when_value: 0, action: "disable_option", target_option: null, target_value: null, note: "" }])}
-              style={{ ...BTN_LIGHT, marginTop: "10px" }}>+ Add rule</button>
+        {/* Quantity discounts */}
+        <section className="pc-card pc-pad" aria-labelledby="ob-breaks">
+          <h2 className="pc-h2" id="ob-breaks" style={{ marginBottom: "4px" }}>Quantity discounts</h2>
+          <p className="pc-sub-line" style={{ fontSize: "13px", margin: "0 0 12px" }}>Cheaper by the dozen. Add price breaks by quantity: the highest break the order reaches sets the price per item.</p>
+          {tiers.length > 0 && (
+            <div style={{ display: "grid", gap: "8px", marginBottom: "12px" }}>
+              {tiers.map((t, i) => (
+                <div key={t.id ?? `nt-${i}`} style={{ display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap" }} data-break>
+                  <span className="pc-sub-line" style={{ fontSize: "13px" }}>From</span>
+                  <input className="pc-input" type="number" min={1} value={t.min_qty} aria-label="From quantity" style={{ width: "100px" }}
+                    onChange={e => setTiers(x => x.map((y, k) => k === i ? { ...y, min_qty: Math.max(1, num(e.target.value, 1)) } : y))} />
+                  <span className="pc-sub-line" style={{ fontSize: "13px" }}>items, each $</span>
+                  <input className="pc-input" type="number" step="0.0001" min={0} value={t.unit_price} aria-label="Price per item" style={{ width: "120px" }}
+                    onChange={e => setTiers(x => x.map((y, k) => k === i ? { ...y, unit_price: Math.max(0, num(e.target.value)) } : y))} />
+                  <button type="button" className="pc-link" style={{ color: "var(--pc-red)" }} onClick={() => setTiers(x => x.filter((_, k) => k !== i))}>Remove</button>
+                </div>
+              ))}
+            </div>
           )}
-        </>
-      )}
+          <button type="button" className="pc-btn" onClick={() => setTiers(t => [...t, { min_qty: (t[t.length - 1]?.min_qty ?? 0) + 50, unit_price: 0 }])}>+ Add break</button>
+        </section>
 
-      {mode === "configurable" && (
-        <>
-          {/* Heading and table stacked, not side by side: `Step` lays its
-              children out beside the title, which is right for a button and
-              squeezed a whole table into a sliver. */}
-          <Step n={4} title="Price for every combination"
-            blurb="Each row is one combination of your options. Type its price." />
-          <CombinationPricing
-            key={savedStamp}
-            productId={productId}
-            unsaved={dirtySinceLoad}
-          />
-        </>
-      )}
+        {/* Answers that rule others out */}
+        <section className="pc-card pc-pad" aria-labelledby="ob-rules">
+          <h2 className="pc-h2" id="ob-rules" style={{ marginBottom: "4px" }}>Answers that rule others out</h2>
+          <p className="pc-sub-line" style={{ fontSize: "13px", margin: "0 0 12px" }}>Switch a question off when another answer makes it impossible: Coating = UV greys out Laminating. The customer sees your note, and a switched-off question is left out of the price.</p>
+          {rules.map((r, ri) => {
+            const whenOpt = options[r.when_option];
+            const targetOpt = r.target_option != null ? options[r.target_option] : undefined;
+            const patchRule = (pr: Partial<Rule>) => setRules(x => x.map((y, k) => k === ri ? { ...y, ...pr } : y));
+            return (
+              <div key={r.id ?? `nr-${ri}`} className="pc-q" style={{ display: "flex", flexWrap: "wrap", gap: "8px", alignItems: "center" }}>
+                <span className="pc-q-n">When</span>
+                <select className="pc-input" style={{ width: "auto", maxWidth: "180px" }} value={r.when_option} onChange={e => patchRule({ when_option: Number(e.target.value), when_value: 0 })}>
+                  {options.map((o, i) => <option key={i} value={i}>{o.name || `Question ${i + 1}`}</option>)}
+                </select>
+                <span className="pc-q-n">is</span>
+                <select className="pc-input" style={{ width: "auto", maxWidth: "180px" }} value={r.when_value} onChange={e => patchRule({ when_value: Number(e.target.value) })}>
+                  {(whenOpt?.values ?? []).map((v, i) => <option key={i} value={i}>{v.label || `Choice ${i + 1}`}</option>)}
+                </select>
+                <select className="pc-input" style={{ width: "auto" }} value={r.action} onChange={e => patchRule({ action: e.target.value as RuleAction, target_value: null })}>
+                  {(Object.keys(RULE_ACTION_LABEL) as RuleAction[]).map(a => <option key={a} value={a}>{RULE_ACTION_LABEL[a]}</option>)}
+                </select>
+                <select className="pc-input" style={{ width: "auto", maxWidth: "180px" }} value={r.target_option ?? ""} onChange={e => patchRule({ target_option: e.target.value === "" ? null : Number(e.target.value), target_value: null })}>
+                  <option value="">Choose a question…</option>
+                  {options.map((o, i) => i === r.when_option ? null : <option key={i} value={i}>{o.name || `Question ${i + 1}`}</option>)}
+                </select>
+                {r.action === "disable_value" && (
+                  <select className="pc-input" style={{ width: "auto", maxWidth: "180px" }} value={r.target_value ?? ""} onChange={e => patchRule({ target_value: e.target.value === "" ? null : Number(e.target.value) })}>
+                    <option value="">Choose a choice…</option>
+                    {(targetOpt?.values ?? []).map((v, i) => <option key={i} value={i}>{v.label || `Choice ${i + 1}`}</option>)}
+                  </select>
+                )}
+                <input className="pc-input" value={r.note ?? ""} onChange={e => patchRule({ note: e.target.value })} maxLength={200}
+                  placeholder='Note for the customer, e.g. "N/A with UV Coating"' style={{ flex: 1, minWidth: "200px" }} />
+                <button type="button" className="pc-link" style={{ color: "var(--pc-red)" }} onClick={() => setRules(x => x.filter((_, k) => k !== ri))}>Remove</button>
+              </div>
+            );
+          })}
+          {options.length < 2
+            ? <p className="pc-sub-line" style={{ fontSize: "13px", margin: 0 }}>Add at least two questions to link them with a rule.</p>
+            : <button type="button" className="pc-btn" onClick={() => setRules(r => [...r, { when_option: 0, when_value: 0, action: "disable_option", target_option: null, target_value: null, note: "" }])}>+ Add rule</button>}
+        </section>
+
+        {/* Price for every combination */}
+        <section className="pc-card pc-pad" aria-labelledby="ob-combos" data-combinations>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "12px", flexWrap: "wrap" }}>
+            <div>
+              <h2 className="pc-h2" id="ob-combos" style={{ marginBottom: "4px" }}>Price for every combination</h2>
+              <p className="pc-sub-line" style={{ fontSize: "13px", margin: 0 }}>A combination left empty is priced by rule, from the base price and its choices&apos; extra costs. Type a price to set that one combination.</p>
+            </div>
+            <button type="button" className="pc-btn" data-kind={showGrid ? undefined : "primary"} onClick={() => setShowGrid(!showGrid)} aria-expanded={showGrid}>
+              {showGrid ? "Close the price grid" : "Open price grid"}
+            </button>
+          </div>
+          {showGrid && (
+            <div style={{ marginTop: "14px" }}>
+              <CombinationPricing key={savedStamp} productId={productId} unsaved={dirtySinceLoad || dirty} />
+            </div>
+          )}
+        </section>
+      </>)}
 
       {picker && (
         <MediaPicker
