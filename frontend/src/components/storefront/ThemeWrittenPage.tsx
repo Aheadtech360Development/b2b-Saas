@@ -12,6 +12,7 @@
  */
 import { useState } from "react";
 import { apiClient } from "@/lib/api-client";
+import { trackLead } from "@/lib/tracking";
 
 export interface WrittenPage {
   slug: string;
@@ -151,6 +152,7 @@ function EnquiryForm({ page, builder }: { page: WrittenPage; builder?: boolean }
         form_name: page.form === "quote" ? "Quote request" : "Contact form",
         data,
       }, { skipAuth: true });
+      trackLead(page.form === "quote" ? "Quote request" : "Contact form");
       setSent(true);
       form.reset();
     } catch {

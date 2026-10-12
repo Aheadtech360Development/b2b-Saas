@@ -7,6 +7,7 @@ import { useBranding } from "@/components/providers/BrandingProvider";
 import { useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { accountService } from "@/services/account.service";
+import { trackReorder } from "@/lib/tracking";
 import { apiClient } from "@/lib/api-client";
 import { useAuthStore } from "@/stores/auth.store";
 import { ConfigurationDetail } from "@/components/shared/ConfigurationDetail";
@@ -272,7 +273,8 @@ export default function OrderDetailPage() {
   async function handleReorder() {
     setIsReordering(true);
     try {
-      await accountService.reorder(order?.id ?? id);
+      const again = await accountService.reorder(order?.id ?? id) as { added?: unknown } | null;
+      trackReorder(order?.items, again?.added);
       router.push("/cart");
     } finally {
       setIsReordering(false);

@@ -15,6 +15,7 @@ import {
 } from "@/services/gangSheets.service";
 import { GangSheetTimeline } from "@/components/storefront/GangSheetTimeline";
 import { cartService } from "@/services/cart.service";
+import { trackSheetAdd } from "@/lib/tracking";
 
 /** Older rows predate `kind`; a job with no sheet size is an upload by size. */
 const kindOf = (o: GangSheetOrder) => o.kind ?? (o.sheet_size_id ? "gang_sheet" : "upload_by_size");
@@ -55,6 +56,7 @@ export default function AccountGangSheetsPage() {
     try {
       const clone = await gangSheetsService.reorder(id);
       await cartService.addGangSheet(clone.id);
+      trackSheetAdd(clone, { navigating: true });
       window.location.href = "/cart";
     } catch {
       setErr("Could not reorder this job. Please try again.");

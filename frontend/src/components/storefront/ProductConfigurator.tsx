@@ -17,6 +17,8 @@ import { resolveColor } from "@/lib/colors";
 import { apiClient } from "@/lib/api-client";
 import { cartService } from "@/services/cart.service";
 import { useAuthStore } from "@/stores/auth.store";
+import { trackConfiguredAdd } from "@/lib/tracking";
+import type { Cart } from "@/types/order.types";
 
 interface OptValue {
   id: string; label: string; price_delta: number; price_mode: string;
@@ -145,7 +147,8 @@ export function ProductConfigurator({ productId, productName }: { productId: str
     }
     setAdding(true); setError(null);
     try {
-      await apiClient.post("/api/v1/cart/add-configured", { product_id: productId, selections: sel, quantity: qty });
+      const cart = await apiClient.post<Cart>("/api/v1/cart/add-configured", { product_id: productId, selections: sel, quantity: qty });
+      trackConfiguredAdd(cart, { product_id: productId, selections: sel, quantity: qty }, { navigating: true });
       window.location.href = "/cart";
     } catch (e) {
       setError((e as { message?: string })?.message || "Could not add to cart.");

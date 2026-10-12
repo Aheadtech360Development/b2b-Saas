@@ -36,6 +36,7 @@ import {
 } from "@/services/gangSheets.service";
 import { analyzeArtwork } from "@/lib/artworkAnalysis";
 import { cartService } from "@/services/cart.service";
+import { trackSheetAdd, trackSignUp } from "@/lib/tracking";
 import { addToGuestCart, gangSheetLine } from "@/lib/guestCart";
 import { useAuthStore } from "@/stores/auth.store";
 import { authService } from "@/services/auth.service";
@@ -2324,6 +2325,7 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
         return;
       }
       await establishSession(tokens.access_token);
+      if (joining_) trackSignUp();
       setGuest({ name: `${join.first_name} ${join.last_name}`.trim(), email: join.email.trim() });
       say.done(joining_ ? "Account created — you're signed in." : "Signed in.");
 
@@ -2407,6 +2409,9 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
             if (authed) await cartService.addGangSheet(o.id);
             else addToGuestCart(gangSheetLine(o));
           }
+          // The cart is loaded afresh a moment from now, so the event is left
+          // for that page to send.
+          trackSheetAdd(orders, { navigating: true });
           draftOff.current = true;
           try { localStorage.removeItem(draftKey); } catch { /* blocked */ }
           window.location.href = "/cart";

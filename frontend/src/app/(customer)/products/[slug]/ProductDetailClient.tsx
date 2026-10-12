@@ -788,6 +788,7 @@ export function ProductDetailClient({ slug }: ProductDetailClientProps) {
       }
       localStorage.setItem("af_guest_cart", JSON.stringify(guestCart));
       window.dispatchEvent(new Event("af_guest_cart_updated"));
+      trackAddToCart(trackedItems(rowItems));
       const added = rowItems.reduce((s, i) => s + i.quantity, 0);
       setQuantities(prev => { const next = { ...prev }; rowItems.forEach(i => delete next[i.variant_id]); return next; });
       setCartMsg({ type: "success", text: `${added} unit${added !== 1 ? "s" : ""} added to cart!` });
@@ -799,6 +800,7 @@ export function ProductDetailClient({ slug }: ProductDetailClientProps) {
     try {
       await cartService.addMatrix(product!.id, rowItems);
       window.dispatchEvent(new Event("cart_updated"));
+      trackAddToCart(trackedItems(rowItems));
       const added = rowItems.reduce((s, i) => s + i.quantity, 0);
       setQuantities(prev => { const next = { ...prev }; rowItems.forEach(i => delete next[i.variant_id]); return next; });
       setCartMsg({ type: "success", text: `${added} unit${added !== 1 ? "s" : ""} added to cart!` });

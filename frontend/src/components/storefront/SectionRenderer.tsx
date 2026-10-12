@@ -9,6 +9,7 @@
 import Link from "next/link";
 import { useState, useEffect } from "react";
 import { apiClient } from "@/lib/api-client";
+import { trackLead } from "@/lib/tracking";
 import { useBranding } from "@/components/providers/BrandingProvider";
 import CustomCodeFrame from "@/components/storefront/CustomCodeFrame";
 
@@ -236,6 +237,7 @@ function ContactForm({ s, primary }: { s: PageSection; primary: string }) {
       await apiClient.post("/api/v1/storefront/contact", {
         page_slug, form_name: s.heading || "Contact", data: values,
       }, { skipAuth: true });
+      trackLead(s.heading || "Contact");
       setStatus("sent");
       setValues({});
     } catch {
@@ -463,6 +465,7 @@ function Newsletter({ s, primary }: { s: PageSection; primary: string }) {
         form_name: s.heading || "Newsletter",
         data: { Email: email },
       }, { skipAuth: true });
+      trackLead("Newsletter");
       setStatus("sent"); setEmail("");
     } catch { setStatus("error"); }
   }

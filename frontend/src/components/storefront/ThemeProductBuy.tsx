@@ -22,7 +22,8 @@ import { DesignUploadModal, type UploadedArtwork } from "@/components/storefront
 import type { ProductDetail } from "@/types/product.types";
 import { cartService } from "@/services/cart.service";
 import { useAuthStore } from "@/stores/auth.store";
-import { trackAddToCart, trackViewItem } from "@/lib/tracking";
+import { trackAddToCart, trackCartAdd, trackConfiguredAdd, trackLineAdd, trackViewItem } from "@/lib/tracking";
+import type { Cart } from "@/types/order.types";
 import { addToGuestCart, configuredKey } from "@/lib/guestCart";
 
 export interface ThemeVariant {
@@ -329,7 +330,9 @@ export default function ThemeProductBuy({ product }: { product: ThemeProductData
             if (!variant) { say("Choose a colour and size first.", false); return; }
             if (variant.stock <= 0) { say("That one is out of stock.", false); return; }
             if (isAuthenticated) {
-              await cartService.addMatrix(product.id, [{ variant_id: variant.id, quantity }]);
+              const added = [{ variant_id: variant.id, quantity }];
+              // A signed-in shopper's add was never reported: only the guest's below was.
+              trackCartAdd(await cartService.addMatrix(product.id, added), added);
             } else {
               // No account needed to shop: the same guest cart the rest of the
               // storefront keeps, and the same guest checkout at the end of it.
@@ -354,9 +357,10 @@ export default function ThemeProductBuy({ product }: { product: ThemeProductData
             const missing = product.options.find((o) => o.required && !chosen[o.id]);
             if (missing) { say(`Choose ${missing.name.toLowerCase()} first.`, false); return; }
             if (isAuthenticated) {
-              await apiClient.post("/api/v1/cart/add-configured", {
+              const cart = await apiClient.post<Cart>("/api/v1/cart/add-configured", {
                 product_id: product.id, selections: chosen, quantity,
               });
+              trackConfiguredAdd(cart, { product_id: product.id, selections: chosen, quantity });
             } else {
               // No account needed for a made-to-order product either: the
               // choices travel with the line and the server prices them again
@@ -380,6 +384,7 @@ export default function ThemeProductBuy({ product }: { product: ThemeProductData
                 image_url: product.images?.[0]?.url ?? null,
                 selections: { ...chosen },
               });
+              trackLineAdd({ product_id: product.id, product_name: product.name, unit_price: priced.unit_price, quantity });
               say("Added to your cart.");
               return;
             }
@@ -416,9 +421,10 @@ export default function ThemeProductBuy({ product }: { product: ThemeProductData
           onReady={async (artwork: UploadedArtwork) => {
             const { selections, quantity } = chosenRef.current;
             if (isAuthenticated) {
-              await apiClient.post("/api/v1/cart/add-configured", {
+              const cart = await apiClient.post<Cart>("/api/v1/cart/add-configured", {
                 product_id: product.id, selections, quantity, artwork,
               });
+              trackConfiguredAdd(cart, { product_id: product.id, selections, quantity, artwork_url: artwork.url }, { navigating: true });
               window.dispatchEvent(new Event("cart_updated"));
             } else {
               const priced = await apiClient.post<{ unit_price: number }>(
@@ -441,6 +447,7 @@ export default function ThemeProductBuy({ product }: { product: ThemeProductData
                 selections: { ...selections },
                 artwork,
               });
+              trackLineAdd({ product_id: product.id, product_name: product.name, unit_price: priced.unit_price, quantity }, { navigating: true });
             }
             setArtworkOpen(false);
             window.location.href = "/cart";

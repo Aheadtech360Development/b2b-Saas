@@ -8,6 +8,7 @@ import Image from "next/image";
 import { formatCurrency } from "@/lib/utils";
 import { productsService } from "@/services/products.service";
 import { cartService } from "@/services/cart.service";
+import { trackCartAdd } from "@/lib/tracking";
 import type { ProductListItem, ProductDetail, ProductVariant } from "@/types/product.types";
 
 // ─── Size ordering ────────────────────────────────────────────────────────────
@@ -219,7 +220,7 @@ export default function QuickOrderPage() {
           })
       );
       if (items.length > 0) {
-        try { await cartService.addMatrix(row.productDetail!.id, items); added++; }
+        try { trackCartAdd(await cartService.addMatrix(row.productDetail!.id, items), items); added++; }
         catch { errors++; }
       }
     }

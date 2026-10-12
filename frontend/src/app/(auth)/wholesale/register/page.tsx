@@ -8,6 +8,7 @@ import Link from "next/link";
 import dynamic from "next/dynamic";
 import type ReCAPTCHAType from "react-google-recaptcha";
 import { authService } from "@/services/auth.service";
+import { trackSignUp } from "@/lib/tracking";
 import { ApiClientError } from "@/lib/api-client";
 import { useAuthStore } from "@/stores/auth.store";
 import { AuthCard, authStyles as S } from "@/components/auth/AuthCard";
@@ -231,6 +232,7 @@ function WholesaleRegisterForm() {
         num_employees: form.num_employees || undefined,
         num_sales_reps: form.num_sales_reps || undefined,
       });
+      trackSignUp("wholesale");
       recaptchaRef.current?.reset();
       setRecaptchaToken(null);
       router.push("/wholesale/pending");

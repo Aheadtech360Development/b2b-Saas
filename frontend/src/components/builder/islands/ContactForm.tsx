@@ -10,6 +10,7 @@
  */
 import { useRef, useState } from "react";
 import { apiClient } from "@/lib/api-client";
+import { trackLead } from "@/lib/tracking";
 
 export interface FormFieldDef {
   label?: string;
@@ -112,6 +113,7 @@ export function ContactForm({ id, formName, fields, button, success, buttonWidth
         form_name: formName.trim() || "Contact form",
         data: { ...data, _gotcha: trap.current?.value ?? "" },
       }, { skipAuth: true });
+      trackLead(formName.trim() || "Contact form");
       setState("done");
       setValues({});
     } catch {

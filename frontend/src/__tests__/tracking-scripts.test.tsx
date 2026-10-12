@@ -10,7 +10,7 @@ vi.mock("next/script", () => ({
   ),
 }));
 vi.mock("next/navigation", () => ({ usePathname: () => "/" }));
-vi.mock("@/lib/tracking", () => ({ setTrackingConfig: vi.fn(), trackPageView: vi.fn() }));
+vi.mock("@/lib/tracking", () => ({ setTrackingConfig: vi.fn(), trackPageView: vi.fn(), trackSearch: vi.fn() }));
 vi.mock("@/lib/api-client", () => ({
   apiClient: {
     get: () => Promise.resolve({

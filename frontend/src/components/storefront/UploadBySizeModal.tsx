@@ -19,6 +19,7 @@ import {
   type ArtworkInspection, type GangSheetOrder,
 } from "@/services/gangSheets.service";
 import { cartService } from "@/services/cart.service";
+import { trackSheetAdd, type SheetJobLike } from "@/lib/tracking";
 import { useAuthStore } from "@/stores/auth.store";
 import { Crop, Eraser, Grip, ImageUpscale, Palette } from "lucide-react";
 import { ImageEditorModal } from "@/components/storefront/ImageEditorModal";
@@ -330,6 +331,7 @@ export function UploadBySizeModal({ product, onClose, revise = null, onRevised }
     try {
       // Each design is its own print job, so each becomes its own order and its
       // own cart line — the same shape the sheet builder uses.
+      const jobs: SheetJobLike[] = [];
       for (const it of items) {
         const order = await gangSheetsService.submitUploadBySize({
           product_id: product.id,
@@ -341,7 +343,9 @@ export function UploadBySizeModal({ product, onClose, revise = null, onRevised }
           file_type: it.file_type,
         });
         await cartService.addGangSheet(order.id);
+        jobs.push(order);
       }
+      trackSheetAdd(jobs, { navigating: true });
       window.location.href = "/cart";
     } catch (e) {
       setError((e as { message?: string })?.message || "Could not add this to your cart. Please try again.");

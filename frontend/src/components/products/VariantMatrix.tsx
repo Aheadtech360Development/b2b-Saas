@@ -4,6 +4,7 @@ import { useCallback, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { formatCurrency } from "@/lib/utils";
 import { cartService } from "@/services/cart.service";
+import { trackCartAdd } from "@/lib/tracking";
 import type { ProductVariant } from "@/types/product.types";
 
 interface VariantMatrixProps {
@@ -84,7 +85,7 @@ export function VariantMatrix({ productId, variants }: VariantMatrixProps) {
     setError(null);
     setIsSubmitting(true);
     try {
-      await cartService.addMatrix(productId, items);
+      trackCartAdd(await cartService.addMatrix(productId, items), items);
       setSuccessMessage(`${items.length} variant${items.length !== 1 ? "s" : ""} added to cart!`);
       setQuantities({});
       setTimeout(() => setSuccessMessage(null), 3000);

@@ -19,6 +19,7 @@ import { apiClient } from "@/lib/api-client";
 import { useAuthStore } from "@/stores/auth.store";
 import type { Cart, CartItem } from "@/types/order.types";
 import { adoptGuestCart } from "@/lib/guestCart";
+import { trackCartViewed, trackLineAdd, trackLinesRemoved } from "@/lib/tracking";
 import { ConfigurationDetail } from "@/components/shared/ConfigurationDetail";
 
 // ── Color map (same as quick-order) ──────────────────────────────────────────
@@ -209,6 +210,7 @@ export default function CartView({ embedded = false }: { embedded?: boolean }) {
                 guestCart.validation.estimated_shipping = String(est.estimated_shipping);
               } catch { /* keep buildGuestCart default */ }
               setCart(guestCart);
+              trackCartViewed(guestCart.items);
             } else {
               setCart(null);
             }
@@ -227,7 +229,7 @@ export default function CartView({ embedded = false }: { embedded?: boolean }) {
         .then((r) => { if (r.dropped.length) setAdoptDropped(r.dropped.map((l) => l.product_name)); })
         .catch(() => {})
         .finally(() => {
-          cartService.getCart().then(setCart).catch(console.error).finally(() => setIsLoading(false));
+          cartService.getCart().then((c) => { setCart(c); trackCartViewed(c.items); }).catch(console.error).finally(() => setIsLoading(false));
         });
     }
   }, [authIsLoading, isAuthenticated]);
@@ -251,6 +253,7 @@ export default function CartView({ embedded = false }: { embedded?: boolean }) {
         else setCart(await cartService.getCart());
         window.dispatchEvent(new Event("cart_updated"));
       }
+      trackLinesRemoved(group.items);
     } catch (err) {
       console.error(err);
     } finally {
@@ -337,6 +340,7 @@ export default function CartView({ embedded = false }: { embedded?: boolean }) {
         else setCart(await cartService.getCart());
         window.dispatchEvent(new Event("cart_updated"));
       }
+      trackLinesRemoved([item]);
     } catch (err) { console.error(err); }
   }
 
@@ -355,6 +359,10 @@ export default function CartView({ embedded = false }: { embedded?: boolean }) {
         if (updated) setCart(updated);
         window.dispatchEvent(new Event("cart_updated"));
       }
+      // More of a line is an add, fewer is a removal, each by the difference.
+      const change = quantity - item.quantity;
+      if (change > 0) trackLineAdd({ ...item, quantity: change });
+      else if (change < 0) trackLinesRemoved([{ ...item, quantity: -change }]);
     } catch (err) { console.error(err); }
   }
 

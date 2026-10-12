@@ -8,6 +8,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiClient } from "@/lib/api-client";
+import { trackLead } from "@/lib/tracking";
 import { safeSrc } from "@/lib/builder/sanitize";
 
 export function Tabs({ id, items }: { id: string; items: { title: string; body: string }[] }) {
@@ -55,6 +56,7 @@ export function Newsletter({ id, placeholder, button, success, edit }: {
         form_name: "Newsletter",
         data: { Email: email.trim() },
       }, { skipAuth: true });
+      trackLead("Newsletter");
       setState("done");
       setEmail("");
     } catch {

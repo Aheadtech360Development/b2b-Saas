@@ -14,7 +14,7 @@ import { StripePaymentForm } from "@/components/checkout/StripePaymentForm";
 import type { Cart } from "@/types/order.types";
 import { ConfigurationDetail } from "@/components/shared/ConfigurationDetail";
 import { clearAttribution, getAttribution } from "@/lib/attribution";
-import { trackPurchase } from "@/lib/tracking";
+import { cartLines, trackPaymentChosen, trackPurchase } from "@/lib/tracking";
 
 import { guestCheckoutItem, type GuestLine as GuestCartEntry } from "@/lib/guestCart";
 
@@ -257,6 +257,7 @@ export default function CheckoutReviewPage() {
     if (stripePaymentIntentId) setPaidIntentId(stripePaymentIntentId);
     setIsPlacing(true);
     setError(null);
+    trackPaymentChosen(paymentMethod);
 
     // Belt-and-suspenders: read from store first, fall back to sessionStorage
     const _storeSnap = useCheckoutStore.getState();
@@ -327,11 +328,9 @@ export default function CheckoutReviewPage() {
         };
         // A guest cart line carries no SKU, so the variant id is the product
         // identifier every tool gets.
-        trackPurchase(order.order_number, order.total, guestEntries.map(e => ({
-          id: e.variant_id ?? e.product_name,
-          name: e.product_name, price: e.unit_price,
-          quantity: e.quantity, variant: [e.color, e.size].filter(Boolean).join(" / "),
-        })));
+        trackPurchase(order.order_number, order.total, cartLines(guestEntries), {
+          tax: taxAmount, shipping: shippingCost,
+        });
         // The campaign has done its job; a later order is a new question.
         clearAttribution();
 
@@ -426,11 +425,11 @@ export default function CheckoutReviewPage() {
         shippingCost,
         paymentMethod,
       };
-      trackPurchase(order.order_number, orderTotal, (cart?.items ?? []).map(i => ({
-        id: i.variant_id ?? i.sku ?? i.product_name,
-        sku: i.sku, name: i.product_name, price: Number(i.unit_price),
-        quantity: i.quantity, variant: [i.color, i.size].filter(Boolean).join(" / "),
-      })));
+      // A sheet's line has no variant and no SKU, and went out with an empty
+      // product id; cartLines names it the way the add to cart did.
+      trackPurchase(order.order_number, orderTotal, cartLines(cart?.items), {
+        tax: taxAmount, shipping: shippingCost, coupon: appliedCoupon?.code,
+      });
       clearAttribution();
 
       setConfirmedOrder(confirmedData);
