@@ -8,6 +8,9 @@ hand.
 Four of Home's pipeline stages are slices too (new, in production, ready,
 shipped), and no order is in two of them. An accepted order with a print job
 still to approve is in none: that job is counted under "Awaiting artwork".
+
+The order list's tabs are slices as well, so a tab's count and the rows under
+it are the same rows.
 """
 from __future__ import annotations
 
@@ -45,9 +48,12 @@ def _artwork_waiting():
     return _job("submitted", "in_review", "revision_requested")
 
 
-def _all_printed():
-    # At least one print job, and none still to approve or to print.
-    return and_(_job("completed"), ~_job("submitted", "in_review", "revision_requested", "approved", "production"))
+def _packed():
+    # Somebody pressed "Mark packed": a recorded event, the same row the
+    # order's timeline shows. Nothing is inferred from a status.
+    from app.models.order import OrderEvent
+
+    return exists(select(OrderEvent.id).where(OrderEvent.order_id == Order.id, OrderEvent.type == "packed"))
 
 
 def _to_ship() -> list:
@@ -76,13 +82,26 @@ def _new() -> list:
 
 
 def _ready() -> list:
-    # Packed and waiting for the customer, or printed and waiting for a label.
+    # Waiting at the counter for the customer, or packed and waiting for a label.
     return [real(), or_(Order.status == "ready_for_pickup",
-                        and_(Order.status.in_(IN_HAND), ~_artwork_waiting(), _all_printed()))]
+                        and_(Order.status.in_(IN_HAND), ~_artwork_waiting(), _packed()))]
 
 
 def _production() -> list:
-    return [real(), Order.status.in_(IN_HAND), ~_artwork_waiting(), ~_all_printed()]
+    return [real(), Order.status.in_(IN_HAND), ~_artwork_waiting(), ~_packed()]
+
+
+def _ready_for_pickup() -> list:
+    return [real(), Order.status == "ready_for_pickup"]
+
+
+def _all() -> list:
+    return [real()]
+
+
+def _sent() -> list:
+    # On its way or arrived: what the Shipments tab lists.
+    return [real(), Order.status.in_(("shipped", "delivered")), func.coalesce(Order.shipping_method, "") != "will_call"]
 
 
 def _shipped() -> list:
@@ -99,6 +118,9 @@ QUEUES: dict[str, tuple[str, object]] = {
     "production": ("Orders in production", _production),
     "ready": ("Orders ready to ship or collect", _ready),
     "shipped": ("Orders shipped and not delivered yet", _shipped),
+    "ready_for_pickup": ("Orders ready for pickup", _ready_for_pickup),
+    "all": ("Every order that is not a draft", _all),
+    "sent": ("Orders shipped or delivered", _sent),
 }
 
 

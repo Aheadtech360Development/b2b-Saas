@@ -1,25 +1,33 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+/**
+ * The order list: confirm, print and ship from one place.
+ *
+ * Everything that narrows the list lives in the address (the tab, the search,
+ * payment, method, dates), so a filtered list can be linked to, saved as a
+ * view, and exported as it stands. What each row says about itself (paid,
+ * artwork, fulfilment, what is next) is worked out on the server in one place
+ * (services/order_progress), the same place the order's own page reads.
+ */
 import Link from "next/link";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { Search, X } from "lucide-react";
+import { apiClient } from "@/lib/api-client";
 import { adminService } from "@/services/admin.service";
+import { ask, askText, tell } from "@/lib/dialog";
+import { OrdersFrame, useOrdersOverview, type OrdersTab } from "@/components/admin/orders/OrdersFrame";
+import { BuyLabelsDialog, type LabelTarget } from "@/components/admin/orders/BuyLabelsDialog";
+import { pickListHtml, printHtml, toPrintOrder } from "@/lib/orderPrint";
 
-/** The statuses the dropdown offers. */
-const STATUS_CHOICES = ["pending", "confirmed", "processing", "shipped", "delivered", "cancelled"];
-/** The queues Home opens, in words. What is in each is decided on the server
- *  (services/order_queues), where Home counts them too. */
-const QUEUE_WORDS: Record<string, string> = {
-  to_ship: "paid orders still to ship",
-  late: "paid orders placed more than three days ago and not shipped",
-  pickups: "Will Call orders to hand over",
-  unpaid: "orders not paid in full",
-  new: "new orders to confirm",
-  production: "orders in production",
-  ready: "orders ready to ship or collect",
-  shipped: "orders shipped and not delivered yet",
-};
-
-interface AdminOrder {
+interface Pill { key: string; label: string; tone: string }
+interface Progress {
+  payment: Pill; artwork: Pill; fulfilment: Pill;
+  next: { key: string; label: string; hint: string };
+  packed: boolean; pickup: boolean;
+}
+interface SupplierSummary { supplier: string; status: string; error: string | null }
+interface Row {
   id: string;
   order_number: string;
   company_name: string | null;
@@ -34,297 +42,532 @@ interface AdminOrder {
   guest_name?: string | null;
   supplier?: SupplierSummary | null;
   attribution?: { label: string; campaign?: string | null } | null;
+  shipping_method?: string | null;
+  progress?: Progress | null;
 }
+interface SavedView { id: string; name: string; params: Record<string, string> }
 
-interface SupplierSummary {
-  supplier: string; items: number; lines: number;
-  status: "not_sent" | "sending" | "test" | "placed" | "shipped" | "failed";
-  test: boolean; po_number: string | null; supplier_order_numbers: string | null;
-  tracking_number: string | null; carrier: string | null; error: string | null; sent_at: string | null;
-}
-
-// Where an order's S&S purchase order stands, as a short label and colour.
-function supplierBadge(sup: SupplierSummary): { text: string; bg: string; fg: string } {
-  const map: Record<string, [string, string, string]> = {
-    not_sent: ["S&S · not sent", "#FFF7ED", "#C2410C"],
-    sending: ["S&S · sending", "#EFF6FF", "#1D4ED8"],
-    test: ["S&S · test only", "#FEFCE8", "#A16207"],
-    placed: ["S&S · ordered", "#EFF6FF", "#1D4ED8"],
-    shipped: ["S&S · shipped", "#ECFDF5", "#047857"],
-    failed: ["S&S · failed", "#FEF2F2", "#B91C1C"],
-  };
-  const [text, bg, fg] = map[sup.status] ?? ["S&S", "#F4F4F5", "#52525B"];
-  return { text, bg, fg };
-}
-
-const STATUS_COLORS: Record<string, string> = {
-  pending:           "bg-yellow-100 text-yellow-700",
-  confirmed:         "bg-blue-100 text-blue-700",
-  processing:        "bg-indigo-100 text-indigo-700",
-  ready_for_pickup:  "bg-teal-100 text-teal-700",
-  shipped:           "bg-purple-100 text-purple-700",
-  delivered:         "bg-green-100 text-green-700",
-  cancelled:         "bg-red-100 text-red-700",
+const PAGE_SIZE = 50;
+/** What a saved view remembers: the list's own address parameters. */
+const VIEW_KEYS = ["queue", "q", "payment", "method", "from", "to"] as const;
+/** The queues that have a tab of their own. */
+const QUEUE_TABS: Record<string, OrdersTab> = { new: "new", to_ship: "to_ship", ready_for_pickup: "ready_for_pickup" };
+/** The queues Home opens that have no tab, in words. What is in each is decided
+ *  on the server (services/order_queues), where Home counts them too. */
+const QUEUE_WORDS: Record<string, string> = {
+  late: "paid orders placed more than three days ago and not shipped",
+  pickups: "Will Call orders to hand over",
+  unpaid: "orders not paid in full",
+  production: "orders in production",
+  ready: "orders ready to ship or collect",
+  shipped: "orders shipped and not delivered yet",
+  sent: "orders shipped or delivered",
+};
+const PAYMENTS: [string, string][] = [["", "All"], ["paid", "Paid"], ["unpaid", "Unpaid"], ["refunded", "Refunded"]];
+const METHODS: [string, string][] = [["", "All"], ["ship", "Ship"], ["pickup", "Pickup"]];
+const STATUS_WORDS: Record<string, [string, string]> = {
+  pending: ["Pending", "amber"], confirmed: ["Confirmed", "blue"], processing: ["Processing", "blue"],
+  ready_for_pickup: ["Ready for pickup", "blue"], shipped: ["Shipped", "green"], delivered: ["Delivered", "green"],
+  cancelled: ["Cancelled", ""], refunded: ["Refunded", ""],
+};
+const SUPPLIER_WORDS: Record<string, string> = {
+  not_sent: "not sent", sending: "sending", test: "test only", placed: "ordered", shipped: "shipped", failed: "failed",
 };
 
-const PAYMENT_COLORS: Record<string, string> = {
-  unpaid:  "bg-red-100 text-red-700",
-  pending: "bg-orange-100 text-orange-700",
-  due:     "bg-orange-100 text-orange-700",
-  failed:  "bg-red-100 text-red-700",
-};
+const money = (n: unknown) => `$${Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const day = (iso: string) => new Date(iso).toLocaleDateString();
+const shortDay = (iso: string) => new Date(`${iso}T00:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+const customerOf = (r: Row) => (r.is_guest_order ? r.guest_name || r.guest_email : r.company_name) || r.company_name || r.guest_name || r.guest_email || "Guest";
+const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
 export default function AdminOrdersPage() {
-  const [orders, setOrders] = useState<AdminOrder[]>([]);
-  const [total, setTotal] = useState(0);
-  const [q, setQ] = useState("");
-  const [statusFilter, setStatusFilter] = useState("");
-  const [activeTab, setActiveTab] = useState<"all" | "guest">("all");
-  const [dateFrom, setDateFrom] = useState("");
-  const [dateTo, setDateTo] = useState("");
-  const [page, setPage] = useState(1);
-  // Set by the "All orders from this campaign" link on an order. Read from the
-  // URL rather than useSearchParams, which would push this page into a Suspense
-  // boundary for one optional filter.
-  const [source, setSource] = useState("");
-  const [campaign, setCampaign] = useState("");
-  // A queue opened from Home ("Open ship queue", "Open pickups"): a slice the
-  // controls below have no place for. Shown in words, cleared with the rest.
-  const [queue, setQueue] = useState("");
-  const [ready, setReady] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [exportLoading, setExportLoading] = useState(false);
-  const asked = useRef(0);
-  const PAGE_SIZE = 50;
+  // The address is read with useSearchParams, which wants a boundary above it.
+  return <Suspense fallback={null}><OrdersList /></Suspense>;
+}
 
-  async function load() {
-    setIsLoading(true);
+function OrdersList() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const sp = useSearchParams();
+  const address = sp.toString();
+  const { overview, refresh: refreshOverview } = useOrdersOverview();
+
+  const queue = sp.get("queue") ?? "";
+  const status = sp.get("status") ?? "";
+  const payment = sp.get("payment") ?? "";
+  const method = sp.get("method") ?? "";
+  const from = sp.get("from") ?? "";
+  const to = sp.get("to") ?? "";
+  const source = sp.get("utm_source") ?? "";
+  const campaign = sp.get("utm_campaign") ?? "";
+  const companyId = sp.get("company_id") ?? sp.get("company") ?? "";
+  const page = Math.max(1, Number(sp.get("page") ?? "1") || 1);
+
+  const [rows, setRows] = useState<Row[]>([]);
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [failed, setFailed] = useState(false);
+  const [qText, setQText] = useState(sp.get("q") ?? "");
+  const [picked, setPicked] = useState<Set<string>>(new Set());
+  const [openId, setOpenId] = useState<string | null>(null);
+  const [pop, setPop] = useState<"payment" | "method" | "dates" | null>(null);
+  const [dates, setDates] = useState({ from, to });
+  const [views, setViews] = useState<SavedView[]>([]);
+  const [working, setWorking] = useState("");
+  const [flash, setFlash] = useState<{ text: string; bad?: boolean } | null>(null);
+  const [labelsFor, setLabelsFor] = useState<LabelTarget[] | null>(null);
+  const [exporting, setExporting] = useState(false);
+  // Which address the rows on screen answer, once they have arrived.
+  const [shownFor, setShownFor] = useState<string | null>(null);
+  const asked = useRef(0);
+
+  /** Change the address. Anything that narrows the list goes back to page one. */
+  const setParams = useCallback((changes: Record<string, string | null>) => {
+    const next = new URLSearchParams(sp.toString());
+    if (!("page" in changes)) next.delete("page");
+    for (const [key, value] of Object.entries(changes)) {
+      if (value) next.set(key, value); else next.delete(key);
+    }
+    const qs = next.toString();
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+  }, [sp, router, pathname]);
+
+  /** The server's names for what the address holds. */
+  const serverParams = useMemo(() => {
+    const p: Record<string, string | undefined> = {
+      // "Every order that is not a draft", unless the address asks for one status.
+      queue: queue || (status ? undefined : "all"),
+      status: status || undefined,
+      q: sp.get("q") ?? undefined,
+      payment: payment || undefined,
+      method: method || undefined,
+      date_from: from || undefined,
+      date_to: to || undefined,
+      company_id: companyId || undefined,
+      utm_source: source || undefined,
+      utm_campaign: campaign || undefined,
+    };
+    return p;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [address]);
+
+  const load = useCallback(async () => {
     const mine = ++asked.current;
+    setLoading(true);
     try {
-      const params: Record<string, string | undefined> = {
-        q: q || undefined,
-        status: statusFilter || undefined,
-        date_from: dateFrom || undefined,
-        date_to: dateTo || undefined,
-        page: String(page),
-      };
-      if (activeTab === "guest") params.guest_only = "true";
-      if (source) params.utm_source = source;
-      if (campaign) params.utm_campaign = campaign;
-      if (queue) params.queue = queue;
-      const data = await adminService.listOrders(params) as { items: AdminOrder[]; total: number };
+      const query = new URLSearchParams();
+      for (const [key, value] of Object.entries(serverParams)) if (value) query.set(key, value);
+      query.set("page", String(page));
+      query.set("page_size", String(PAGE_SIZE));
+      const data = await apiClient.get<{ items: Row[]; total: number }>(`/api/v1/admin/orders?${query}`);
       // An answer to an earlier question must not land on top of a later one.
       if (mine !== asked.current) return;
-      setOrders(data.items ?? []);
+      setRows(data.items ?? []);
       setTotal(data.total ?? 0);
-    } finally { if (mine === asked.current) setIsLoading(false); }
-  }
+      setFailed(false);
+      setShownFor(address);
+    } catch {
+      if (mine !== asked.current) return;
+      setRows([]); setTotal(0); setFailed(true);
+    } finally {
+      if (mine === asked.current) setLoading(false);
+    }
+  }, [serverParams, page]);
+
+  useEffect(() => { load(); }, [load]);
+  // A different list: nothing from the last one stays selected or open.
+  useEffect(() => {
+    setPicked(new Set()); setOpenId(null);
+    setQText(sp.get("q") ?? ""); setDates({ from, to });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [address]);
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    setSource(params.get("utm_source") ?? "");
-    setCampaign(params.get("utm_campaign") ?? "");
-    setQueue(params.get("queue") ?? "");
-    const status = params.get("status") ?? "";
-    if (STATUS_CHOICES.includes(status)) setStatusFilter(status);
-    setReady(true);
+    apiClient.get<{ views: SavedView[] }>("/api/v1/admin/orders/views").then((r) => setViews(r.views ?? [])).catch(() => {});
   }, []);
 
-  // Not before the address has been read: the list would be asked for once
-  // unfiltered and once filtered, and show the wrong one first.
-  useEffect(() => { if (ready) load(); }, [ready, q, statusFilter, activeTab, dateFrom, dateTo, page, source, campaign, queue]);
+  // Typing searches once the typing stops.
+  useEffect(() => {
+    if (qText.trim() === (sp.get("q") ?? "")) return;
+    const timer = window.setTimeout(() => setParams({ q: qText.trim() || null }), 350);
+    return () => window.clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [qText]);
 
-  async function handleExport() {
-    setExportLoading(true);
+  useEffect(() => {
+    if (!pop) return;
+    const close = (e: MouseEvent) => { if (!(e.target as HTMLElement).closest?.(".pc-pop-wrap")) setPop(null); };
+    const esc = (e: KeyboardEvent) => { if (e.key === "Escape") setPop(null); };
+    window.addEventListener("mousedown", close);
+    window.addEventListener("keydown", esc);
+    return () => { window.removeEventListener("mousedown", close); window.removeEventListener("keydown", esc); };
+  }, [pop]);
+
+  const tab: OrdersTab = QUEUE_TABS[queue] ?? "all";
+  const otherQueue = queue && !QUEUE_TABS[queue] && queue !== "all" ? queue : "";
+  const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const chosen = rows.filter((r) => picked.has(r.id));
+  const open = rows.find((r) => r.id === openId) ?? null;
+  const carriers = overview?.carriers ?? [];
+  const narrowed = !!(sp.get("q") || payment || method || from || to || source || campaign || companyId || status || otherQueue);
+  const only = [
+    otherQueue ? QUEUE_WORDS[otherQueue] ?? otherQueue.replace(/_/g, " ") : "",
+    source || campaign ? `orders from ${[source, campaign].filter(Boolean).join(" · ")}` : "",
+    companyId ? "this customer's orders" : "",
+    status ? `${(STATUS_WORDS[status]?.[0] ?? status.replace(/_/g, " ")).toLowerCase()} orders` : "",
+  ].filter(Boolean).join(", ");
+
+  function togglePick(id: string) {
+    setPicked((prev) => { const next = new Set(prev); if (next.has(id)) next.delete(id); else next.add(id); return next; });
+  }
+  const allPicked = rows.length > 0 && rows.every((r) => picked.has(r.id));
+
+  async function afterChange(text: string, bad = false) {
+    setFlash({ text, bad });
+    await load();
+    refreshOverview();
+  }
+
+  /** Do one thing to several orders, one after another, and say what happened. */
+  async function each(doing: string, done: string, targets: Row[], act: (r: Row) => Promise<unknown>) {
+    let ok = 0;
+    const failures: string[] = [];
+    for (let i = 0; i < targets.length; i++) {
+      const r = targets[i]!;
+      setWorking(`${doing} ${i + 1} of ${targets.length}…`);
+      try { await act(r); ok += 1; }
+      catch (e) { failures.push(`${r.order_number}: ${e instanceof Error ? e.message : "failed"}`); }
+    }
+    setWorking("");
+    setPicked(new Set());
+    await afterChange(
+      failures.length ? `${ok} ${done}, ${failures.length} not. ${failures[0]}` : `${plural(ok, "order")} ${done}.`,
+      failures.length > 0,
+    );
+  }
+
+  async function confirmPicked() {
+    const targets = chosen.filter((r) => r.status === "pending");
+    if (!targets.length) { await tell("None of the selected orders is waiting to be confirmed.", { title: "Nothing to confirm" }); return; }
+    const skipped = chosen.length - targets.length;
+    const yes = await ask(
+      `Confirm ${plural(targets.length, "order")}? Each customer is emailed that their order is confirmed.`
+      + (skipped ? ` ${plural(skipped, "order")} already past that step will be left as ${skipped === 1 ? "it is" : "they are"}.` : ""),
+      { title: "Confirm orders", ok: "Confirm" },
+    );
+    if (!yes) return;
+    await each("Confirming", "confirmed", targets, (r) => adminService.updateOrder(r.id, { status: "confirmed" }));
+  }
+
+  // Ready to go out: accepted, not a pickup, and no print job on it still open.
+  // Sending several orders at once never sends one whose artwork is not approved.
+  const artOpen = (r: Row) => ["in_review", "revision"].includes(r.progress?.artwork.key ?? "");
+  const shippable = (r: Row) => ["confirmed", "processing"].includes(r.status) && !r.progress?.pickup && !artOpen(r);
+
+  async function shipPicked() {
+    const targets = chosen.filter(shippable);
+    if (!targets.length) {
+      await tell("None of the selected orders can be marked shipped. An order has to be confirmed, not shipped yet, not a pickup, and its artwork approved.", { title: "Nothing to mark shipped" });
+      return;
+    }
+    const skipped = chosen.length - targets.length;
+    const yes = await ask(
+      `Mark ${plural(targets.length, "order")} as shipped without a tracking number? Each customer is emailed that their order has shipped.`
+      + (skipped ? ` ${plural(skipped, "order")} will be left as ${skipped === 1 ? "it is" : "they are"}.` : ""),
+      { title: "Mark shipped", ok: "Mark shipped" },
+    );
+    if (!yes) return;
+    await each("Marking shipped", "marked shipped", targets, (r) => apiClient.patch(`/api/v1/admin/orders/${r.id}/status`, { status: "shipped" }));
+  }
+
+  async function printPickList(targets: Row[]) {
+    if (!targets.length) return;
+    setWorking("Getting the pick list ready…");
     try {
-      await adminService.exportOrdersCsv({
-        q: q || undefined,
-        status: statusFilter || undefined,
-        date_from: dateFrom || undefined,
-        date_to: dateTo || undefined,
-      });
-    } catch { /* ignore */ } finally { setExportLoading(false); }
+      const orders = [];
+      for (const r of targets) orders.push(toPrintOrder(await adminService.getOrder(r.id) as Parameters<typeof toPrintOrder>[0]));
+      printHtml("Pick list", pickListHtml(orders));
+    } catch (e) {
+      setFlash({ text: e instanceof Error ? e.message : "The pick list could not be made.", bad: true });
+    }
+    setWorking("");
   }
 
-  function clearFilters() {
-    setQ(""); setStatusFilter(""); setDateFrom(""); setDateTo(""); setPage(1);
-    setSource(""); setCampaign(""); setQueue("");
-    window.history.replaceState(null, "", "/admin/orders");
+  async function saveView() {
+    const params: Record<string, string> = {};
+    for (const key of VIEW_KEYS) { const v = sp.get(key); if (v) params[key] = v; }
+    const name = (await askText("It keeps the tab, the search and the filters as they are now, for everyone in your shop.", "", {
+      title: "Save this view", ok: "Save view", placeholder: "For example: Unpaid pickups",
+    }))?.trim();
+    if (!name) return;
+    const id = typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : String(Date.now());
+    const next = [...views.filter((v) => v.name.toLowerCase() !== name.toLowerCase()), { id, name: name.slice(0, 60), params }].slice(-20);
+    try {
+      const saved = await apiClient.put<{ views: SavedView[] }>("/api/v1/admin/orders/views", { views: next });
+      setViews(saved.views ?? next);
+      setFlash({ text: `Saved the view "${name}".` });
+    } catch (e) {
+      setFlash({ text: e instanceof Error ? e.message : "The view could not be saved.", bad: true });
+    }
   }
 
-  const queueWords = queue ? QUEUE_WORDS[queue] ?? queue.replace(/_/g, " ") : "";
-  const hasFilters = q || statusFilter || dateFrom || dateTo || source || campaign || queue;
-  const pages = Math.ceil(total / PAGE_SIZE);
+  async function removeView(view: SavedView) {
+    if (!await ask(`Remove the saved view "${view.name}"?`, { title: "Remove this view", ok: "Remove", danger: true })) return;
+    const next = views.filter((v) => v.id !== view.id);
+    try {
+      const saved = await apiClient.put<{ views: SavedView[] }>("/api/v1/admin/orders/views", { views: next });
+      setViews(saved.views ?? next);
+    } catch (e) {
+      setFlash({ text: e instanceof Error ? e.message : "The view could not be removed.", bad: true });
+    }
+  }
+
+  function applyView(view: SavedView) {
+    const qs = new URLSearchParams(view.params).toString();
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+  }
+
+  async function exportList() {
+    setExporting(true);
+    try { await adminService.exportOrdersCsv(serverParams); }
+    catch { setFlash({ text: "The export could not be made.", bad: true }); }
+    setExporting(false);
+  }
+
+  const paymentLabel = PAYMENTS.find(([v]) => v === payment)?.[1] ?? "All";
+  const methodLabel = METHODS.find(([v]) => v === method)?.[1] ?? "All";
+  const datesLabel = from || to ? `${from ? shortDay(from) : "Start"} to ${to ? shortDay(to) : "today"}` : "Date range";
+  const pill = (p: Pill) => <span className="pc-pill" data-tone={p.tone || undefined} style={{ textTransform: "none" }}>{p.label}</span>;
 
   return (
-    <div className="p-6 at-refresh">
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-xl font-bold text-gray-900">Orders</h1>
-          <p className="text-sm text-gray-500 mt-0.5">{total} total orders</p>
-        </div>
-        <div className="flex gap-2">
-          <button
-            onClick={handleExport}
-            disabled={exportLoading}
-            className="border border-gray-300 rounded-md px-3 py-1.5 text-sm hover:bg-gray-50 disabled:opacity-50">
-            {exportLoading ? "Exporting…" : "Export CSV"}
-          </button>
-        </div>
-      </div>
-
-      {/* Tabs */}
-      <div className="flex gap-1 mb-4 border-b border-gray-200">
-        {(["all", "guest"] as const).map(tab => (
-          <button
-            key={tab}
-            onClick={() => { setActiveTab(tab); setPage(1); }}
-            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${activeTab === tab ? "border-blue-600 text-blue-600" : "border-transparent text-gray-500 hover:text-gray-700"}`}
-          >
-            {tab === "all" ? "All Orders" : "Guest Orders"}
-          </button>
-        ))}
-      </div>
-
-      {(source || campaign) && (
-        <div className="mb-4 flex items-center gap-2 rounded-md bg-violet-50 border border-violet-200 px-3 py-2 text-sm text-violet-900">
-          <span className="font-semibold">Showing orders from</span>
-          <span>{[source, campaign].filter(Boolean).join(" · ")}</span>
+    <OrdersFrame
+      active={tab}
+      overview={overview}
+      actions={<button type="button" className="pc-btn" onClick={exportList} disabled={exporting}>{exporting ? "Exporting…" : "Export"}</button>}
+    >
+      {flash && (
+        <div className="pc-flash" data-bad={flash.bad ? "" : undefined} role="status">
+          <span>{flash.text}</span>
+          <button type="button" className="pc-x" aria-label="Dismiss" onClick={() => setFlash(null)} style={{ color: "inherit" }}><X size={16} strokeWidth={2.2} /></button>
         </div>
       )}
 
-      {queueWords && (
-        <div className="mb-4 flex items-center gap-2 rounded-md bg-blue-50 border border-blue-200 px-3 py-2 text-sm text-blue-900" data-queue>
-          <span className="font-semibold">Showing only</span>
-          <span>{queueWords}</span>
-          <button onClick={clearFilters} className="ml-auto text-xs text-blue-700 hover:text-blue-900 font-medium">Show all orders</button>
+      {only && (
+        <div className="pc-note" data-tone="blue" data-only style={{ marginBottom: "14px", display: "flex", justifyContent: "space-between", gap: "12px" }}>
+          <span>Showing only {only}</span>
+          <button type="button" className="pc-inline" onClick={() => setParams({ queue: otherQueue ? null : queue || null, utm_source: null, utm_campaign: null, company_id: null, company: null, status: null })}>Show all orders</button>
         </div>
       )}
 
-      {/* Filters */}
-      <div className="flex gap-3 mb-4 flex-wrap items-center">
-        <input
-          type="text" value={q}
-          onChange={(e) => { setQ(e.target.value); setPage(1); }}
-          placeholder="Search order # or PO…"
-          className="rounded-md border border-gray-300 px-3 py-2 text-sm w-56"
-        />
-        <select
-          value={statusFilter}
-          onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
-          className="rounded-md border border-gray-300 px-3 py-2 text-sm">
-          <option value="">All statuses</option>
-          <option value="pending">Pending</option>
-          <option value="confirmed">Confirmed</option>
-          <option value="processing">Processing</option>
-          <option value="shipped">Shipped</option>
-          <option value="delivered">Delivered</option>
-          <option value="cancelled">Cancelled</option>
-        </select>
-        <div className="flex items-center gap-2">
-          <label className="text-xs text-gray-500 font-medium whitespace-nowrap">From</label>
-          <input
-            type="date" value={dateFrom}
-            onChange={(e) => { setDateFrom(e.target.value); setPage(1); }}
-            className="rounded-md border border-gray-300 px-3 py-2 text-sm"
-          />
-        </div>
-        <div className="flex items-center gap-2">
-          <label className="text-xs text-gray-500 font-medium whitespace-nowrap">To</label>
-          <input
-            type="date" value={dateTo}
-            onChange={(e) => { setDateTo(e.target.value); setPage(1); }}
-            className="rounded-md border border-gray-300 px-3 py-2 text-sm"
-          />
-        </div>
-        {hasFilters && (
-          <button
-            onClick={clearFilters}
-            className="text-xs text-blue-600 hover:text-blue-800 font-medium">
-            Clear filters
+      <div className="pc-filters no-print">
+        <label className="pc-field">
+          <Search size={17} strokeWidth={2} />
+          <input value={qText} onChange={(e) => setQText(e.target.value)} placeholder="Order number, customer or PO" aria-label="Search orders" />
+        </label>
+
+        <div className="pc-pop-wrap">
+          <button type="button" className="pc-btn" aria-haspopup="menu" aria-expanded={pop === "payment"} onClick={() => setPop(pop === "payment" ? null : "payment")}>
+            Payment: {paymentLabel}
           </button>
+          {pop === "payment" && (
+            <div className="pc-pop" role="menu">
+              {PAYMENTS.map(([value, label]) => (
+                <button key={value} type="button" role="menuitemradio" aria-checked={payment === value} className="pc-pop-item" data-on={payment === value ? "" : undefined}
+                  onClick={() => { setParams({ payment: value || null }); setPop(null); }}>{label}</button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="pc-pop-wrap">
+          <button type="button" className="pc-btn" aria-haspopup="menu" aria-expanded={pop === "method"} onClick={() => setPop(pop === "method" ? null : "method")}>
+            Method: {methodLabel}
+          </button>
+          {pop === "method" && (
+            <div className="pc-pop" role="menu">
+              {METHODS.map(([value, label]) => (
+                <button key={value} type="button" role="menuitemradio" aria-checked={method === value} className="pc-pop-item" data-on={method === value ? "" : undefined}
+                  onClick={() => { setParams({ method: value || null }); setPop(null); }}>{label}</button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="pc-pop-wrap">
+          <button type="button" className="pc-btn" aria-haspopup="dialog" aria-expanded={pop === "dates"} onClick={() => setPop(pop === "dates" ? null : "dates")}>
+            {datesLabel}
+          </button>
+          {pop === "dates" && (
+            <div className="pc-pop" role="dialog" aria-label="Date range">
+              <form className="pc-pop-form" onSubmit={(e) => { e.preventDefault(); setParams({ from: dates.from || null, to: dates.to || null }); setPop(null); }}>
+                <div>
+                  <label className="pc-label" htmlFor="orders-from">Placed from</label>
+                  <input id="orders-from" type="date" className="pc-input" value={dates.from} max={dates.to || undefined} onChange={(e) => setDates((d) => ({ ...d, from: e.target.value }))} />
+                </div>
+                <div>
+                  <label className="pc-label" htmlFor="orders-to">To</label>
+                  <input id="orders-to" type="date" className="pc-input" value={dates.to} min={dates.from || undefined} onChange={(e) => setDates((d) => ({ ...d, to: e.target.value }))} />
+                </div>
+                <div className="pc-row-actions" style={{ justifyContent: "flex-end" }}>
+                  {(from || to) && <button type="button" className="pc-link" onClick={() => { setParams({ from: null, to: null }); setPop(null); }}>Any date</button>}
+                  <button type="submit" className="pc-btn" data-kind="primary" style={{ height: "38px" }}>Apply</button>
+                </div>
+              </form>
+            </div>
+          )}
+        </div>
+
+        <button type="button" className="pc-btn" onClick={saveView}>Save view</button>
+        {narrowed && (
+          <button type="button" className="pc-link" onClick={() => router.replace(QUEUE_TABS[queue] ? `${pathname}?queue=${queue}` : pathname, { scroll: false })}>Clear filters</button>
         )}
       </div>
 
-      <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="bg-gray-50 border-b border-gray-200">
-            <tr>
-              <th className="text-left px-4 py-3 text-gray-600 font-medium">Order #</th>
-              <th className="text-left px-4 py-3 text-gray-600 font-medium">Company</th>
-              <th className="text-left px-4 py-3 text-gray-600 font-medium">Status</th>
-              <th className="text-right px-4 py-3 text-gray-600 font-medium">Total</th>
-              <th className="text-left px-4 py-3 text-gray-600 font-medium">Date</th>
-              <th className="px-4 py-3" />
-            </tr>
-          </thead>
-          <tbody>
-            {isLoading && orders.length === 0 ? (
-              <tr><td colSpan={6} style={{ padding: "40px", textAlign: "center", color: "#bbb", fontSize: "14px" }}><div className="at-skel" style={{ height: "14px", width: "60%", margin: "0 auto" }} /></td></tr>
-            ) : orders.length === 0 ? (
-              <tr><td colSpan={6} className="py-8 text-center text-gray-400">No orders found</td></tr>
-            ) : orders.map((o) => (
-              <tr key={o.id} className="border-b border-gray-100 last:border-0 hover:bg-gray-50">
-                <td className="px-4 py-3 font-mono text-xs font-medium text-gray-800">
-                  <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
-                    {o.order_number}
-                    {o.is_guest_order && <span style={{ background: '#E8F4FD', color: '#1A6FA8', fontSize: '11px', fontWeight: 600, padding: '2px 8px', borderRadius: '20px' }}>Retail</span>}
-                    {o.attribution && (
-                      <span
-                        title={o.attribution.campaign ? `Campaign: ${o.attribution.campaign}` : "Where this order came from"}
-                        style={{ background: "#F5F3FF", color: "#6D28D9", fontSize: "11px", fontWeight: 600, padding: "2px 8px", borderRadius: "20px" }}>
-                        {o.attribution.label}
-                      </span>
-                    )}
-                    {o.supplier && (() => {
-                      const b = supplierBadge(o.supplier);
-                      return (
-                        <span title={o.supplier.error ?? `${o.supplier.items} item(s) fulfilled by ${o.supplier.supplier}`}
-                          style={{ background: b.bg, color: b.fg, fontSize: "11px", fontWeight: 600, padding: "2px 8px", borderRadius: "20px", fontFamily: "var(--font-jakarta)" }}>
-                          {b.text}
-                        </span>
-                      );
-                    })()}
-                  </div>
-                </td>
-                <td className="px-4 py-3 text-gray-700">
-                  {o.is_guest_order ? (
-                    <div>
-                      <div className="text-sm font-medium">{o.guest_name || "Guest"}</div>
-                      <div className="text-xs text-gray-400">{o.guest_email}</div>
-                    </div>
-                  ) : (o.company_name ?? "—")}
-                </td>
-                <td className="px-4 py-3">
-                  <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
-                    <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${STATUS_COLORS[o.status] ?? "bg-gray-100 text-gray-600"}`}>
-                      {o.status}
-                    </span>
-                    {o.payment_status !== "paid" && PAYMENT_COLORS[o.payment_status] && (
-                      <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${PAYMENT_COLORS[o.payment_status]}`}>
-                        {o.payment_status}
-                      </span>
-                    )}
-                  </div>
-                </td>
-                <td className="px-4 py-3 text-right text-gray-700 font-medium">${Number(o.total).toFixed(2)}</td>
-                <td className="px-4 py-3 text-gray-500">{new Date(o.created_at).toLocaleDateString()}</td>
-                <td className="px-4 py-3">
-                  <Link href={`/admin/orders/${o.order_number}`} className="text-xs text-blue-600 hover:text-blue-800 font-medium">View</Link>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      {pages > 1 && (
-        <div className="flex items-center justify-center gap-2 mt-4">
-          <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1} className="px-3 py-1 text-sm border border-gray-300 rounded disabled:opacity-40 hover:bg-gray-50">Prev</button>
-          <span className="text-sm text-gray-600">{page} / {pages}</span>
-          <button onClick={() => setPage((p) => Math.min(pages, p + 1))} disabled={page === pages} className="px-3 py-1 text-sm border border-gray-300 rounded disabled:opacity-40 hover:bg-gray-50">Next</button>
+      {views.length > 0 && (
+        <div className="pc-chips no-print" data-views>
+          Saved views
+          {views.map((v) => (
+            <span key={v.id} className="pc-chip">
+              <button type="button" onClick={() => applyView(v)}>{v.name}</button>
+              <button type="button" data-x aria-label={`Remove the view ${v.name}`} onClick={() => removeView(v)}>×</button>
+            </span>
+          ))}
         </div>
       )}
-    </div>
+
+      {(chosen.length > 0 || working) && (
+        <div className="pc-bulk no-print" role="toolbar" aria-label="Selected orders">
+          <span className="pc-bulk-n">{working || `${chosen.length} selected`}</span>
+          <button type="button" disabled={!!working} onClick={confirmPicked}>Confirm</button>
+          <button type="button" disabled={!!working} onClick={() => printPickList(chosen)}>Print pick list</button>
+          <button type="button" disabled={!!working}
+            onClick={() => setLabelsFor(chosen.filter(shippable).map((r) => ({ id: r.id, order_number: r.order_number, customer: customerOf(r) })))}>Buy labels</button>
+          <button type="button" disabled={!!working} onClick={shipPicked}>Mark shipped</button>
+          <button type="button" className="pc-bulk-clear" disabled={!!working} onClick={() => setPicked(new Set())}>Clear</button>
+        </div>
+      )}
+
+      <div className="pc-list" data-panel={open ? "" : undefined}>
+        <div className="pc-card" data-shown={shownFor ?? undefined} aria-busy={loading}>
+          <div className="pc-scroll-x">
+            <table className="pc-table" style={{ minWidth: "760px" }}>
+              <thead>
+                <tr>
+                  <th className="pc-td-check">
+                    <input type="checkbox" className="pc-check" aria-label="Select every order on this page" checked={allPicked} disabled={rows.length === 0}
+                      ref={(el) => { if (el) el.indeterminate = !allPicked && chosen.length > 0; }}
+                      onChange={() => setPicked(allPicked ? new Set() : new Set(rows.map((r) => r.id)))} />
+                  </th>
+                  <th>Order</th><th>Customer</th><th>Date</th><th>Payment</th><th>Artwork</th><th>Fulfilment</th><th className="pc-num">Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {loading && rows.length === 0 && [0, 1, 2, 3].map((i) => (
+                  <tr key={i}><td colSpan={8}><div className="at-skel" style={{ height: "18px", width: `${70 - i * 9}%`, borderRadius: "6px" }} /></td></tr>
+                ))}
+                {!loading && rows.length === 0 && (
+                  <tr><td colSpan={8} className="pc-empty">
+                    {failed ? "The orders could not be loaded. Reload to try again."
+                      : narrowed ? "No orders match this search and these filters."
+                      : tab === "all" ? "No orders yet. The first one will show here."
+                      : "Nothing in this queue right now."}
+                  </td></tr>
+                )}
+                {rows.map((r) => {
+                  const p = r.progress;
+                  return (
+                    <tr key={r.id} data-href data-order={r.order_number} tabIndex={0}
+                      data-selected={picked.has(r.id) ? "" : undefined} data-open={openId === r.id ? "" : undefined}
+                      onClick={() => setOpenId(openId === r.id ? null : r.id)}
+                      onKeyDown={(e) => { if (e.key === "Enter") setOpenId(openId === r.id ? null : r.id); }}>
+                      <td className="pc-td-check" onClick={(e) => e.stopPropagation()}>
+                        <input type="checkbox" className="pc-check" aria-label={`Select order ${r.order_number}`} checked={picked.has(r.id)} onChange={() => togglePick(r.id)} />
+                      </td>
+                      <td style={{ fontWeight: 600, whiteSpace: "nowrap" }}>{r.order_number}</td>
+                      <td className="pc-td-clip" title={customerOf(r)}>{customerOf(r)}</td>
+                      <td style={{ color: "var(--pc-muted)", whiteSpace: "nowrap" }}>{day(r.created_at)}</td>
+                      <td>{p && pill(p.payment)}</td>
+                      <td>{p && pill(p.artwork)}</td>
+                      <td>{p && pill(p.fulfilment)}</td>
+                      <td className="pc-num" style={{ fontWeight: 600 }}>{money(r.total)}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          <div className="pc-table-foot">
+            <span data-total>{plural(total, "order")}</span>
+            {pages > 1 ? (
+              <span className="pc-row-actions no-print">
+                <button type="button" className="pc-link" disabled={page <= 1} onClick={() => setParams({ page: page > 2 ? String(page - 1) : null })} style={{ opacity: page <= 1 ? 0.4 : 1 }}>Previous</button>
+                <span>Page {page} of {pages}</span>
+                <button type="button" className="pc-link" disabled={page >= pages} onClick={() => setParams({ page: String(page + 1) })} style={{ opacity: page >= pages ? 0.4 : 1 }}>Next</button>
+              </span>
+            ) : <span>Click a row to open it in the side panel</span>}
+          </div>
+        </div>
+
+        {open && (
+          <aside className="pc-panel" aria-label={`Order ${open.order_number}`} data-panel-order={open.order_number}>
+            <div className="pc-panel-head">
+              <div style={{ minWidth: 0 }}>
+                <h2 className="pc-h2" style={{ fontSize: "22px" }}>Order {open.order_number}</h2>
+                <div className="pc-sub-line">{customerOf(open)}, {day(open.created_at)}</div>
+              </div>
+              <button type="button" className="pc-x" aria-label="Close the panel" onClick={() => setOpenId(null)}><X size={19} strokeWidth={2.2} /></button>
+            </div>
+            <div className="pc-panel-body">
+              <div className="pc-pills">
+                {open.progress && pill(open.progress.payment)}
+                {open.progress && pill(open.progress.fulfilment)}
+                {/* The status too, when the fulfilment pill is not already saying it. */}
+                {["confirmed", "processing"].includes(open.status)
+                  && <span className="pc-pill" data-tone={STATUS_WORDS[open.status]![1] || undefined} style={{ textTransform: "none" }}>{STATUS_WORDS[open.status]![0]}</span>}
+              </div>
+
+              {open.progress && (
+                <div>
+                  <div className="pc-small-head">Next step</div>
+                  <div style={{ fontSize: "15.5px", fontWeight: 600 }}>{open.progress.next.label}</div>
+                  {open.progress.next.hint && <div className="pc-sub-line">{open.progress.next.hint}</div>}
+                </div>
+              )}
+
+              {open.progress?.next.key === "ship" && overview && carriers.length === 0 && (
+                <div className="pc-note">
+                  No carrier is connected yet, so rates can&apos;t load. <Link href="/admin/standard-shipping">Connect a carrier</Link>
+                </div>
+              )}
+              {open.progress?.next.key === "artwork" && (
+                <div className="pc-note" data-tone="blue">Artwork is approved on the Production screen. <Link href="/admin/gang-sheets">Open Production</Link></div>
+              )}
+              {open.supplier && (
+                <div className="pc-kv"><span>{open.supplier.supplier} purchase order</span><b>{SUPPLIER_WORDS[open.supplier.status] ?? open.supplier.status}</b></div>
+              )}
+              {open.attribution && <div className="pc-kv"><span>Came from</span><b>{open.attribution.label}</b></div>}
+              {open.po_number && <div className="pc-kv"><span>PO number</span><b>{open.po_number}</b></div>}
+              <div className="pc-kv"><span>Items</span><b>{open.item_count}</b></div>
+
+              <hr className="pc-rule" />
+              <div className="pc-kv"><span>Order total</span><b style={{ fontSize: "16px" }}>{money(open.total)}</b></div>
+
+              <Link href={`/admin/orders/${open.id}`} className="pc-btn" data-kind="primary" data-block="" style={{ height: "46px" }}>Open order</Link>
+              <button type="button" className="pc-btn" data-block="" disabled={!!working} onClick={() => printPickList([open])} style={{ height: "46px" }}>Print pick list</button>
+            </div>
+          </aside>
+        )}
+      </div>
+
+      {labelsFor && (
+        <BuyLabelsDialog
+          targets={labelsFor}
+          carriers={carriers}
+          notify
+          onClose={() => setLabelsFor(null)}
+          onBought={() => { setPicked(new Set()); load(); refreshOverview(); }}
+        />
+      )}
+    </OrdersFrame>
   );
 }

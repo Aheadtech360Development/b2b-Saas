@@ -185,6 +185,14 @@ class AdminOrderListItem(BaseModel):
     # is what the order page reads.
     timeline: list[dict] = []
     events: list[dict] = []
+    # Where the order stands, in the words the list shows: payment, artwork,
+    # fulfilment and what is next (services/order_progress).
+    progress: dict | None = None
+    shipping_method: str | None = None
+    shipping_cost: Decimal | None = None
+    carrier: str | None = None
+    tracking_url: str | None = None
+    label_url: str | None = None
     # A one-line "where this came from", so the list reads by campaign.
     attribution: dict | None = None
 
@@ -195,6 +203,10 @@ class AdminOrderDetail(OrderOut):
     company_id: UUID | None
     company_name: str | None
     supplier: dict | None = None
+    # Where the order stands and its steps (services/order_progress), and
+    # the carriers this shop can buy a label from (empty: none connected).
+    progress: dict | None = None
+    carriers: list[str] = []
     tracking_number: str | None
     tracking_url: str | None = None
     label_url: str | None = None
@@ -278,6 +290,8 @@ class OrderStatusUpdate(BaseModel):
     tracking_number: str | None = None
     courier: str | None = None
     courier_service: str | None = None
+    # False when the shop would rather tell the customer itself.
+    notify: bool = True
 
 
 class CancelOrderRequest(BaseModel):

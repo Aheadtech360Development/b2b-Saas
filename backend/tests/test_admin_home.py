@@ -67,15 +67,28 @@ def test_unpaid_keeps_delivered_orders_and_counts_what_is_left():
     assert "cancelled" in values and "refunded" in values
 
 
-def test_in_production_and_ready_split_the_accepted_orders_on_their_print_jobs():
+def test_in_production_and_ready_split_the_accepted_orders_on_being_packed():
     production, ready = _sql("production"), _sql("ready")
-    # Both look at the order's own print jobs.
+    # Neither holds an order whose artwork is still to approve.
     assert "gang_sheet_orders.order_id = orders.id" in production
     assert "gang_sheet_orders.order_id = orders.id" in ready
-    # Ready also takes an order packed for the counter; production does not.
+    # Packed is the recorded event, the row the order's own timeline shows.
+    assert "order_events.order_id = orders.id" in production
+    assert "order_events.order_id = orders.id" in ready
+    assert "packed" in _values("ready") and "packed" in _values("production")
+    assert "NOT (EXISTS" in production
+    # Ready also takes an order waiting at the counter; production does not.
     assert "ready_for_pickup" in _values("ready")
     assert "ready_for_pickup" not in _values("production")
-    assert "completed" in _values("ready") and "completed" in _values("production")
+
+
+def test_the_order_lists_tabs_are_queues_too():
+    for name in ("all", "new", "to_ship", "ready_for_pickup", "sent"):
+        assert name in order_queues.QUEUES, name
+    assert _values("ready_for_pickup").count("ready_for_pickup") == 1
+    # Shipments are parcels: an order collected at the counter is not one.
+    assert "will_call" in _values("sent")
+    assert "shipped" in _values("sent") and "delivered" in _values("sent")
 
 
 def test_every_button_home_can_show_opens_a_queue_that_exists():

@@ -91,17 +91,9 @@ export function AdminSidebar() {
 
   const places: Place[] = [
     { key: "home", label: "Home", icon: Home, href: "/admin/dashboard" },
-    {
-      key: "orders", label: "Orders", icon: ShoppingBag, href: "/admin/orders", scopes: ["orders", "inventory"], count: counts.orders,
-      children: [
-        { href: "/admin/orders", label: "All orders", scope: "orders" },
-        { href: "/admin/orders/drafts", label: "Drafts", scope: "orders" },
-        { href: "/admin/orders/shipping-labels", label: "Shipping labels", scope: "orders" },
-        { href: "/admin/abandoned-carts", label: "Abandoned carts", scope: "orders" },
-        { href: "/admin/returns", label: "Returns", scope: "orders", count: counts.returns },
-        { href: "/admin/purchase-orders", label: "Purchase orders", scope: "inventory" },
-      ],
-    },
+    // One line: its screens (drafts, returns, shipments) are the tabs across
+    // the top of the order list.
+    { key: "orders", label: "Orders", icon: ShoppingBag, href: "/admin/orders", scopes: ["orders"], count: counts.orders, also: ["/admin/returns"] },
     { key: "production", label: "Production", icon: Printer, href: "/admin/gang-sheets", scopes: ["products"], count: counts.production },
     {
       key: "products", label: "Products", icon: Package, href: "/admin/products", scopes: ["products"], also: ["/admin/inventory"],
@@ -112,6 +104,8 @@ export function AdminSidebar() {
         { href: "/admin/products/reviews", label: "Reviews" },
         { href: "/admin/inventory", label: "Inventory" },
         { href: "/admin/suppliers", label: "Suppliers" },
+        // What the shop buys in, beside the stock it becomes.
+        { href: "/admin/purchase-orders", label: "Purchase orders", scope: "inventory" },
       ],
     },
     {
@@ -137,8 +131,12 @@ export function AdminSidebar() {
         { href: "/admin/media", label: "Media library", scope: "media" },
       ],
     },
-    { key: "marketing", label: "Marketing", icon: Megaphone, href: "/admin/discounts", scopes: ["discounts"],
-      children: [{ href: "/admin/discounts", label: "Discounts" }] },
+    { key: "marketing", label: "Marketing", icon: Megaphone, href: "/admin/discounts", scopes: ["discounts", "orders"],
+      children: [
+        { href: "/admin/discounts", label: "Discounts", scope: "discounts" },
+        // Carts to win back: a reminder is marketing, not an order.
+        { href: "/admin/abandoned-carts", label: "Abandoned carts", scope: "orders" },
+      ] },
     {
       key: "reports", label: "Reports", icon: BarChart3, href: "/admin/reports", scopes: ["analytics"],
       children: [

@@ -241,6 +241,21 @@ async def _recent_orders(db: AsyncSession, limit: int = 5) -> list[dict]:
     } for o, name in rows]
 
 
+async def carrier_names(db: AsyncSession, tenant_id: Any) -> list[str]:
+    """The carriers this shop can buy a label from: its own UPS, FedEx or USPS
+    accounts, or Shippo. Empty when there is none, which is when rates cannot
+    load and a label cannot be bought."""
+    from app.services import integrations_service as integrations
+
+    found = await integrations.list_connections(db, tenant_id=tenant_id, category="carrier")
+    names = [str(p.get("name") or p.get("provider")) for p in found if (p.get("connection") or {}).get("connected")]
+    if names:
+        return names
+    own_key = (await db.execute(text("SELECT value FROM settings WHERE key = :k"),
+                                {"k": scoped_key("shippo_api_key", tenant_id)})).scalar()
+    return ["Shippo"] if own_key else []
+
+
 async def _checklist(db: AsyncSession, tenant_id: Any, user_id: Any) -> list[dict]:
     """What a shop sets up once before it takes real orders. Each step is read
     from where that thing is actually kept, so "Done" means it is done."""
@@ -275,14 +290,9 @@ async def _checklist(db: AsyncSession, tenant_id: Any, user_id: Any) -> list[dic
         return False, "Stripe is not connected, so cards cannot be taken"
 
     async def carrier():
-        from app.services import integrations_service as integrations
-
-        found = await integrations.list_connections(db, tenant_id=tenant_id, category="carrier")
-        names = [p.get("name") or p.get("provider") for p in found if (p.get("connection") or {}).get("connected")]
+        names = await carrier_names(db, tenant_id)
         if names:
-            return True, ", ".join(str(n) for n in names) + " connected"
-        if await setting("shippo_api_key"):
-            return True, "Shippo connected"
+            return True, ", ".join(names) + " connected"
         return False, "UPS, FedEx and USPS are not connected"
 
     async def email():

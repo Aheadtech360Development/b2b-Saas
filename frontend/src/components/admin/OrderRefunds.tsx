@@ -15,7 +15,7 @@
  * The button only appears for people allowed to use it (billing, with write);
  * the server refuses everyone else regardless.
  */
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { apiClient } from "@/lib/api-client";
 import { canWrite } from "@/lib/permissions";
 import { useAuthStore } from "@/stores/auth.store";
@@ -81,8 +81,10 @@ function disputeWords(d: DisputeRow): { text: string; tone: string } {
 }
 
 export function OrderRefunds({
-  orderId, total, amountRefunded, remaining, refundable, refunds, disputes, onChanged,
+  orderId, total, amountRefunded, remaining, refundable, refunds, disputes, onChanged, openSignal = 0,
 }: {
+  /** Raised by the order page's own Refund button: each new value opens the form. */
+  openSignal?: number;
   orderId: string;
   total: number;
   amountRefunded: number;
@@ -109,6 +111,14 @@ export function OrderRefunds({
 
   const left = remaining ?? 0;
   const canRefund = refundable && left > 0;
+
+  const card = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!openSignal || !canRefund || !allowed) return;
+    start();
+    card.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openSignal]);
 
   if (!refunds.length && !disputes.length && !canRefund) return null;
 
@@ -151,7 +161,7 @@ export function OrderRefunds({
   const openDisputes = disputes.filter(d => OPEN.has(d.status ?? "") && !d.outcome);
 
   return (
-    <div style={CARD}>
+    <div style={CARD} ref={card} data-refunds>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px", flexWrap: "wrap", marginBottom: "12px" }}>
         <div>
           <h3 style={HEAD}>Refunds</h3>

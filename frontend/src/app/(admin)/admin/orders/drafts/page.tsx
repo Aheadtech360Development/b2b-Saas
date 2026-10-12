@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { apiClient } from "@/lib/api-client";
 import { adminService } from "@/services/admin.service";
-import { FileTextIcon } from "@/components/ui/icons";
+import { ask } from "@/lib/dialog";
+import { OrdersFrame, useOrdersOverview } from "@/components/admin/orders/OrdersFrame";
 
 interface DraftOrder {
   id: string;
@@ -424,12 +425,27 @@ function CreateDraftModal({ onClose, onSuccess }: { onClose: () => void; onSucce
 // ── Main Page ──────────────────────────────────────────────────────────────────
 
 export default function DraftOrdersPage() {
+  // The address is read with useSearchParams, which wants a boundary above it.
+  return <Suspense fallback={null}><Drafts /></Suspense>;
+}
+
+function Drafts() {
   const router = useRouter();
+  const sp = useSearchParams();
+  const { overview, refresh } = useOrdersOverview();
   const [orders, setOrders] = useState<DraftOrder[]>([]);
-  const [total, setTotal] = useState(0);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
+  const [busyId, setBusyId] = useState("");
+
+  // "New order" anywhere in Orders lands here with the form already open.
+  useEffect(() => { if (sp.get("new") === "1") setShowCreate(true); }, [sp]);
+
+  function closeCreate() {
+    setShowCreate(false);
+    if (sp.get("new")) router.replace("/admin/orders/drafts", { scroll: false });
+  }
 
   async function load() {
     setIsLoading(true);
@@ -441,7 +457,6 @@ export default function DraftOrdersPage() {
         "/api/v1/admin/orders?drafts_only=true&status=pending&page_size=200"
       );
       setOrders(data?.items ?? []);
-      setTotal(data?.total ?? (data?.items?.length ?? 0));
       setLoadError(null);
     } catch (e) {
       setLoadError((e as { message?: string })?.message || "Could not load drafts.");
@@ -452,28 +467,31 @@ export default function DraftOrdersPage() {
 
   useEffect(() => { load(); }, []);
 
-  async function handleConvert(orderId: string) {
+  async function handleConvert(o: DraftOrder) {
+    const yes = await ask(
+      `Confirm draft ${o.order_number} for ${o.company_name}? It becomes an order and the invoice for $${Number(o.total).toFixed(2)} is emailed to the customer.`,
+      { title: "Confirm this draft", ok: "Confirm and send invoice" },
+    );
+    if (!yes) return;
+    setBusyId(o.id);
     try {
-      await apiClient.patch(`/api/v1/admin/orders/${orderId}`, { status: "confirmed" });
-      // Reload rather than patch in place: a converted draft is no longer
+      await apiClient.patch(`/api/v1/admin/orders/${o.id}`, { status: "confirmed" });
+      // Read again rather than patch in place: a confirmed draft is no longer
       // pending, so the list should stop showing it as one.
       await load();
+      refresh();
     } catch (e) {
-      setLoadError((e as { message?: string })?.message || "Could not convert this draft.");
+      setLoadError((e as { message?: string })?.message || "Could not confirm this draft.");
     }
+    setBusyId("");
   }
 
   return (
-    <div style={{ fontFamily: "var(--font-jakarta)" }}>
-      {loadError && (
-        <div style={{ background: "#FEF2F2", border: "1px solid #FCA5A5", color: "#991B1B",
-                      borderRadius: "8px", padding: "10px 14px", fontSize: "13px", marginBottom: "14px" }}>
-          {loadError}
-        </div>
-      )}
+    <OrdersFrame active="drafts" overview={overview}>
+      {loadError && <div className="pc-flash" data-bad="" role="status">{loadError}</div>}
       {showCreate && (
         <CreateDraftModal
-          onClose={() => setShowCreate(false)}
+          onClose={closeCreate}
           onSuccess={(id) => {
             setShowCreate(false);
             router.push(`/admin/orders/${id}`);
@@ -481,78 +499,52 @@ export default function DraftOrdersPage() {
         />
       )}
 
-      {/* Header */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "24px" }}>
-        <div>
-          <h1 style={{ fontFamily: "var(--font-bebas)", fontSize: "32px", color: "#2A2830", letterSpacing: "-0.01em", lineHeight: 1 }}>Draft Orders</h1>
-          <p style={{ fontSize: "13px", color: "#7A7880", marginTop: "4px" }}>Pending orders awaiting confirmation · {total} total</p>
+      <div className="pc-card">
+        <div className="pc-card-head">
+          <div>
+            <h2 className="pc-h2">Drafts</h2>
+            <div className="pc-sub-line">Orders you are writing for a customer. Confirming one makes it an order and emails the invoice.</div>
+          </div>
+          <button type="button" className="pc-btn" onClick={() => setShowCreate(true)}>Create a draft</button>
         </div>
-        <button
-          onClick={() => setShowCreate(true)}
-          style={{ background: "#1A1A1A", color: "#fff", border: "none", padding: "10px 20px", borderRadius: "6px", fontWeight: 700, cursor: "pointer", fontSize: "13px" }}>
-          + Create Draft
-        </button>
-      </div>
-
-      {/* Table */}
-      <div style={{ background: "#fff", border: "1px solid #E3E3E3", borderRadius: "10px", overflow: "hidden" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
-          <thead>
-            <tr style={{ background: "#F6F6F7", borderBottom: "1px solid #E3E3E3" }}>
-              {["Order #", "Company", "Status", "PO #", "Items", "Total", "Created", "Actions"].map(h => (
-                <th key={h} style={{ padding: "11px 16px", textAlign: h === "Total" ? "right" as const : "left" as const, fontSize: "11px", fontWeight: 700, color: "#7A7880", textTransform: "uppercase" as const, letterSpacing: ".06em" }}>
-                  {h}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {isLoading && orders.length === 0 ? (
-              <tr><td colSpan={8} style={{ padding: "40px", textAlign: "center", color: "#bbb", fontSize: "14px" }}><div className="at-skel" style={{ height: "14px", width: "60%", margin: "0 auto" }} /></td></tr>
-            ) : orders.length === 0 ? (
-              <tr>
-                <td colSpan={8} style={{ padding: "56px", textAlign: "center" as const }}>
-                  <div style={{ marginBottom: "10px" }}><FileTextIcon size={32} color="#aaa" /></div>
-                  <div style={{ fontSize: "14px", color: "#aaa", fontWeight: 600 }}>No draft orders</div>
-                  <div style={{ fontSize: "12px", color: "#bbb", marginTop: "4px" }}>Pending orders will appear here</div>
-                </td>
-              </tr>
-            ) : orders.map((o, i) => (
-              <tr key={o.id}
-                style={{ borderBottom: i < orders.length - 1 ? "1px solid #F0EDE8" : "none" }}
-                onMouseEnter={e => (e.currentTarget.style.background = "#FAFAF8")}
-                onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
-              >
-                <td style={{ padding: "13px 16px" }}>
-                  <Link href={`/admin/orders/${o.id}`} style={{ color: "#1A1A1A", textDecoration: "none", fontFamily: "monospace", fontSize: "12px", fontWeight: 700 }}>
-                    {o.order_number}
-                  </Link>
-                </td>
-                <td style={{ padding: "13px 16px", color: "#2A2830", fontWeight: 600 }}>{o.company_name}</td>
-                <td style={{ padding: "13px 16px" }}><StatusBadge status={o.status} /></td>
-                <td style={{ padding: "13px 16px", color: "#7A7880" }}>{o.po_number ?? "—"}</td>
-                <td style={{ padding: "13px 16px", color: "#2A2830" }}>{o.item_count}</td>
-                <td style={{ padding: "13px 16px", textAlign: "right" as const, fontWeight: 700, color: "#2A2830" }}>${Number(o.total).toFixed(2)}</td>
-                <td style={{ padding: "13px 16px", color: "#7A7880" }}>{new Date(o.created_at).toLocaleDateString()}</td>
-                <td style={{ padding: "13px 16px" }}>
-                  <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" as const }}>
-                    {o.status === "pending" && (
-                      <button onClick={() => handleConvert(o.id)}
-                        style={{ background: "rgba(5,150,105,.1)", color: "#059669", border: "none", padding: "5px 12px", borderRadius: "6px", fontSize: "11px", fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" as const }}>
-                        ✓ Confirm
+        <div className="pc-scroll-x">
+          <table className="pc-table" style={{ minWidth: "720px" }}>
+            <thead>
+              <tr><th>Draft</th><th>Customer</th><th>PO</th><th className="pc-num">Items</th><th className="pc-num">Total</th><th>Created</th><th aria-label="Actions" /></tr>
+            </thead>
+            <tbody>
+              {isLoading && orders.length === 0 && (
+                <tr><td colSpan={7}><div className="at-skel" style={{ height: "18px", width: "60%", borderRadius: "6px" }} /></td></tr>
+              )}
+              {!isLoading && orders.length === 0 && (
+                <tr><td colSpan={7} className="pc-empty">No drafts. Use &quot;New order&quot; to write one for a customer.</td></tr>
+              )}
+              {orders.map((o) => (
+                <tr key={o.id} data-draft={o.order_number}>
+                  <td style={{ fontWeight: 600, whiteSpace: "nowrap" }}>
+                    <Link href={`/admin/orders/${o.id}`} style={{ color: "inherit", textDecoration: "none" }}>{o.order_number}</Link>
+                  </td>
+                  <td>{o.company_name}</td>
+                  <td style={{ color: "var(--pc-muted)" }}>{o.po_number ?? ""}</td>
+                  <td className="pc-num">{o.item_count}</td>
+                  <td className="pc-num" style={{ fontWeight: 600 }}>${Number(o.total).toFixed(2)}</td>
+                  <td style={{ color: "var(--pc-muted)", whiteSpace: "nowrap" }}>{new Date(o.created_at).toLocaleDateString()}</td>
+                  <td>
+                    <div className="pc-row-actions" style={{ justifyContent: "flex-end", flexWrap: "nowrap" }}>
+                      <button type="button" className="pc-btn" style={{ height: "36px" }} disabled={busyId === o.id || o.item_count === 0}
+                        title={o.item_count === 0 ? "Add a product to this draft first" : undefined} onClick={() => handleConvert(o)}>
+                        {busyId === o.id ? "Confirming…" : "Confirm"}
                       </button>
-                    )}
-                    <Link href={`/admin/orders/${o.id}`}
-                      style={{ background: "#F6F6F7", color: "#2A2830", border: "1px solid #E3E3E3", padding: "5px 12px", borderRadius: "6px", fontSize: "11px", fontWeight: 700, textDecoration: "none" }}>
-                      Edit
-                    </Link>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                      <Link href={`/admin/orders/${o.id}`} className="pc-link">Open</Link>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <div className="pc-table-foot"><span>{orders.length} {orders.length === 1 ? "draft" : "drafts"}</span></div>
       </div>
-    </div>
+    </OrdersFrame>
   );
 }

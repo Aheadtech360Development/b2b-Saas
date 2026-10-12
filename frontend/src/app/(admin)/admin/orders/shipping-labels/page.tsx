@@ -1,278 +1,146 @@
 "use client";
 
-import { useEffect, useState } from "react";
+/**
+ * Shipments: every order that has left, with its carrier, tracking and label.
+ *
+ * Read from the orders themselves. "In transit" is an order whose status is
+ * shipped and "Delivered" one whose status is delivered: nothing is guessed
+ * from how many days have passed, which is what this screen used to do.
+ */
 import Link from "next/link";
+import { useCallback, useEffect, useState } from "react";
 import { apiClient } from "@/lib/api-client";
-import { PackageIcon, TruckIcon, CheckCircleIcon, TagIcon, DownloadIcon, PrinterIcon, FileTextIcon } from "@/components/ui/icons";
+import { ask, tell } from "@/lib/dialog";
+import { OrdersFrame, useOrdersOverview } from "@/components/admin/orders/OrdersFrame";
 
-interface ShippingLabel {
+interface Shipment {
   id: string;
   order_number: string;
-  company_name: string;
-  item_count: number;
-  weight_lbs: number;
-  shipping_cost: string;
+  company_name: string | null;
+  guest_name?: string | null;
+  guest_email?: string | null;
+  status: string;
   courier: string | null;
   courier_service: string | null;
   tracking_number: string | null;
-  label_status: "printed" | "pending";
-  delivery_status: "in_transit" | "delivered" | "pending";
+  tracking_url?: string | null;
+  label_url?: string | null;
   shipped_at: string | null;
-  // editable local state
-  pkg_type: string;
+  item_count: number;
 }
 
-const COURIERS = ["FedEx", "UPS", "USPS", "DHL", "Other"];
+const SHOW: [string, string][] = [["", "All"], ["shipped", "In transit"], ["delivered", "Delivered"]];
 
-const LABEL_STYLE: Record<string, { bg: string; color: string }> = {
-  printed: { bg: "rgba(5,150,105,.1)", color: "#059669" },
-  pending: { bg: "rgba(217,119,6,.1)", color: "#D97706" },
-  in_transit: { bg: "rgba(26,26,26,.1)", color: "#1A1A1A" },
-  delivered: { bg: "rgba(5,150,105,.1)", color: "#059669" },
-};
+export default function ShipmentsPage() {
+  const { overview, refresh } = useOrdersOverview();
+  const [rows, setRows] = useState<Shipment[]>([]);
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [failed, setFailed] = useState(false);
+  const [show, setShow] = useState("");
+  const [busyId, setBusyId] = useState("");
 
-function Badge({ label, type }: { label: string; type: string }) {
-  const s = LABEL_STYLE[type] ?? { bg: "rgba(0,0,0,.06)", color: "#555" };
-  return (
-    <span style={{ background: s.bg, color: s.color, padding: "3px 10px", borderRadius: "20px", fontSize: "11px", fontWeight: 700, textTransform: "capitalize" as const, whiteSpace: "nowrap" as const }}>
-      {label}
-    </span>
-  );
-}
-
-const PKG_TYPES = ["Box", "Poly Bag", "Flat Pack", "Pallet", "Envelope"];
-
-export default function ShippingLabelsPage() {
-  const [labels, setLabels] = useState<ShippingLabel[]>([]);
-  const [filtered, setFiltered] = useState<ShippingLabel[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [tab, setTab] = useState<"all" | "pending" | "in_transit" | "delivered">("all");
-  const [weights, setWeights] = useState<Record<string, string>>({});
-  const [pkgTypes, setPkgTypes] = useState<Record<string, string>>({});
-
-  async function load() {
-    setIsLoading(true);
+  const load = useCallback(async () => {
+    setLoading(true);
     try {
-      const data = await apiClient.get<{ items: any[]; total: number }>(
-        "/api/v1/admin/orders?status=shipped&page_size=100"
+      const data = await apiClient.get<{ items: Shipment[]; total: number }>(
+        `/api/v1/admin/orders?queue=sent&page_size=200${show ? `&status=${show}` : ""}`,
       );
-      const items: ShippingLabel[] = (data?.items ?? []).map((o: any) => {
-        // Infer delivery_status from shipped_at date (>5 days → delivered heuristic)
-        let delivery_status: ShippingLabel["delivery_status"] = "pending";
-        if (o.shipped_at) {
-          const daysSince = (Date.now() - new Date(o.shipped_at).getTime()) / 86400000;
-          delivery_status = daysSince > 5 ? "delivered" : "in_transit";
-        }
-        return {
-          id: o.id,
-          order_number: o.order_number,
-          company_name: o.company_name,
-          item_count: o.item_count,
-          weight_lbs: 0,
-          shipping_cost: o.shipping_cost ?? "0",
-          courier: o.courier,
-          courier_service: o.courier_service,
-          tracking_number: o.tracking_number,
-          label_status: o.tracking_number ? "printed" : "pending",
-          delivery_status,
-          shipped_at: o.shipped_at,
-          pkg_type: "Box",
-        };
-      });
-      setLabels(items);
+      setRows(data?.items ?? []);
+      setTotal(data?.total ?? 0);
+      setFailed(false);
+    } catch {
+      setRows([]); setTotal(0); setFailed(true);
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
+  }, [show]);
+
+  useEffect(() => { load(); }, [load]);
+
+  function openLabel(s: Shipment) {
+    const url = s.label_url ?? "";
+    if (!url) return;
+    // A label kept on the order is served by the admin API, which needs the
+    // admin's sign-in: a plain link cannot carry it.
+    if (!url.startsWith("/api/")) { window.open(url, "_blank", "noopener"); return; }
+    const win = window.open("", "_blank");
+    apiClient.blob(url)
+      .then((b) => {
+        const obj = URL.createObjectURL(b);
+        if (win) win.location.href = obj; else window.location.href = obj;
+        setTimeout(() => URL.revokeObjectURL(obj), 60_000);
+      })
+      .catch((e) => { win?.close(); tell(e instanceof Error ? e.message : "The label could not be opened."); });
   }
 
-  useEffect(() => { load(); }, []);
-
-  useEffect(() => {
-    if (tab === "all") setFiltered(labels);
-    else if (tab === "pending") setFiltered(labels.filter(l => l.label_status === "pending"));
-    else if (tab === "in_transit") setFiltered(labels.filter(l => l.delivery_status === "in_transit"));
-    else if (tab === "delivered") setFiltered(labels.filter(l => l.delivery_status === "delivered"));
-  }, [tab, labels]);
-
-  const stats = {
-    total: labels.length,
-    in_transit: labels.filter(l => l.delivery_status === "in_transit").length,
-    delivered: labels.filter(l => l.delivery_status === "delivered").length,
-    pending_label: labels.filter(l => l.label_status === "pending").length,
-  };
-
-  const TABS: { key: typeof tab; label: string; count: number }[] = [
-    { key: "all", label: "All Shipments", count: labels.length },
-    { key: "pending", label: "Pending Label", count: stats.pending_label },
-    { key: "in_transit", label: "In Transit", count: stats.in_transit },
-    { key: "delivered", label: "Delivered", count: stats.delivered },
-  ];
-
-  const STAT_CARDS = [
-    { label: "Total Shipments", value: stats.total, icon: <PackageIcon size={20} color="#1A1A1A" />, color: "#1A1A1A" },
-    { label: "In Transit", value: stats.in_transit, icon: <TruckIcon size={20} color="#1A1A1A" />, color: "#1A1A1A" },
-    { label: "Delivered", value: stats.delivered, icon: <CheckCircleIcon size={20} color="#059669" />, color: "#059669" },
-    { label: "Pending Label", value: stats.pending_label, icon: <TagIcon size={20} color="#D97706" />, color: "#D97706" },
-  ];
+  async function markDelivered(s: Shipment) {
+    if (!await ask(`Mark order ${s.order_number} as delivered? The customer is emailed.`, { title: "Mark delivered", ok: "Mark delivered" })) return;
+    setBusyId(s.id);
+    try {
+      await apiClient.patch(`/api/v1/admin/orders/${s.id}/status`, { status: "delivered" });
+      await load();
+      refresh();
+    } catch (e) {
+      await tell(e instanceof Error ? e.message : "That could not be saved.");
+    }
+    setBusyId("");
+  }
 
   return (
-    <div style={{ fontFamily: "var(--font-jakarta)" }}>
-      {/* Header */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "24px" }}>
-        <div>
-          <h1 style={{ fontFamily: "var(--font-bebas)", fontSize: "32px", color: "#2A2830", letterSpacing: "-0.01em", lineHeight: 1 }}>Shipping Labels</h1>
-          <p style={{ fontSize: "13px", color: "#7A7880", marginTop: "4px" }}>Manage shipments, print labels & packing slips · {stats.total} shipped orders</p>
-        </div>
-        <div style={{ display: "flex", gap: "10px" }}>
-          <button style={{ background: "#F6F6F7", color: "#2A2830", border: "1px solid #E3E3E3", padding: "10px 18px", borderRadius: "6px", fontWeight: 700, cursor: "pointer", fontSize: "13px" }}>
-            ↓ Export CSV
-          </button>
-          <button style={{ background: "#1A1A1A", color: "#fff", border: "none", padding: "10px 18px", borderRadius: "6px", fontWeight: 700, cursor: "pointer", fontSize: "13px", display: "inline-flex", alignItems: "center", gap: "6px" }}>
-            <PrinterIcon size={14} color="#fff" /> Print All
-          </button>
+    <OrdersFrame active="shipments" overview={overview}>
+      <div className="pc-filters no-print" role="group" aria-label="Show">
+        <div className="pc-seg">
+          {SHOW.map(([value, label]) => (
+            <button key={value} type="button" aria-pressed={show === value} onClick={() => setShow(value)}>{label}</button>
+          ))}
         </div>
       </div>
 
-      {/* Stats Cards */}
-      <div className="admin-stats-grid" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "16px", marginBottom: "24px" }}>
-        {STAT_CARDS.map(c => (
-          <div key={c.label} style={{ background: "#fff", border: "1px solid #E3E3E3", borderRadius: "10px", padding: "18px 20px", display: "flex", alignItems: "center", gap: "14px" }}>
-            <div style={{ width: "42px", height: "42px", borderRadius: "10px", background: `rgba(${c.color === "#059669" ? "5,150,105" : c.color === "#D97706" ? "217,119,6" : "26,92,255"},.1)`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "20px", flexShrink: 0 }}>
-              {c.icon}
-            </div>
-            <div>
-              <div style={{ fontSize: "24px", fontWeight: 800, color: "#2A2830", lineHeight: 1 }}>{c.value}</div>
-              <div style={{ fontSize: "12px", color: "#7A7880", marginTop: "3px" }}>{c.label}</div>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* Filter Tabs */}
-      <div style={{ display: "flex", gap: "4px", marginBottom: "16px", background: "#F6F6F7", padding: "4px", borderRadius: "8px", width: "fit-content" }}>
-        {TABS.map(t => (
-          <button key={t.key} onClick={() => setTab(t.key)}
-            style={{ background: tab === t.key ? "#fff" : "transparent", color: tab === t.key ? "#2A2830" : "#7A7880", border: "none", padding: "7px 16px", borderRadius: "6px", fontWeight: 700, fontSize: "12px", cursor: "pointer", boxShadow: tab === t.key ? "0 1px 3px rgba(0,0,0,.08)" : "none", transition: "all .15s" }}>
-            {t.label} <span style={{ marginLeft: "4px", background: tab === t.key ? "#F6F6F7" : "rgba(0,0,0,.08)", color: "#7A7880", padding: "1px 6px", borderRadius: "10px", fontSize: "10px", fontWeight: 700 }}>{t.count}</span>
-          </button>
-        ))}
-      </div>
-
-      {/* Table */}
-      <div style={{ background: "#fff", border: "1px solid #E3E3E3", borderRadius: "10px", overflow: "hidden" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
-          <thead>
-            <tr style={{ background: "#F6F6F7", borderBottom: "1px solid #E3E3E3" }}>
-              {["Order #", "Company", "Package Type", "Weight (lbs)", "Courier", "Tracking #", "Label", "Delivery", "Shipped", "Actions"].map(h => (
-                <th key={h} style={{ padding: "11px 14px", textAlign: "left" as const, fontSize: "11px", fontWeight: 700, color: "#7A7880", textTransform: "uppercase" as const, letterSpacing: ".06em", whiteSpace: "nowrap" as const }}>
-                  {h}
-                </th>
+      <div className="pc-card">
+        <div className="pc-scroll-x">
+          <table className="pc-table" style={{ minWidth: "820px" }}>
+            <thead>
+              <tr><th>Order</th><th>Customer</th><th>Carrier</th><th>Tracking</th><th>Shipped</th><th>Status</th><th aria-label="Actions" /></tr>
+            </thead>
+            <tbody>
+              {loading && rows.length === 0 && <tr><td colSpan={7}><div className="at-skel" style={{ height: "18px", width: "60%", borderRadius: "6px" }} /></td></tr>}
+              {!loading && rows.length === 0 && (
+                <tr><td colSpan={7} className="pc-empty">
+                  {failed ? "The shipments could not be loaded. Reload to try again." : "Nothing has shipped yet. An order shows here once it is marked shipped or a label is bought."}
+                </td></tr>
+              )}
+              {rows.map((s) => (
+                <tr key={s.id} data-shipment={s.order_number}>
+                  <td style={{ fontWeight: 600, whiteSpace: "nowrap" }}>
+                    <Link href={`/admin/orders/${s.id}`} style={{ color: "inherit", textDecoration: "none" }}>{s.order_number}</Link>
+                  </td>
+                  <td>{s.company_name || s.guest_name || s.guest_email || "Guest"}</td>
+                  <td>{s.courier ? `${String(s.courier).toUpperCase()}${s.courier_service ? ` ${s.courier_service}` : ""}` : <span style={{ color: "var(--pc-faint)" }}>Not recorded</span>}</td>
+                  <td style={{ fontVariantNumeric: "tabular-nums" }}>
+                    {s.tracking_number
+                      ? (s.tracking_url ? <a href={s.tracking_url} target="_blank" rel="noopener noreferrer" className="pc-link" style={{ fontWeight: 500 }}>{s.tracking_number}</a> : s.tracking_number)
+                      : <span style={{ color: "var(--pc-faint)" }}>None</span>}
+                  </td>
+                  <td style={{ color: "var(--pc-muted)", whiteSpace: "nowrap" }}>{s.shipped_at ? new Date(s.shipped_at).toLocaleDateString() : ""}</td>
+                  <td><span className="pc-pill" data-tone={s.status === "delivered" ? "green" : "blue"} style={{ textTransform: "none" }}>{s.status === "delivered" ? "Delivered" : "In transit"}</span></td>
+                  <td>
+                    <div className="pc-row-actions" style={{ justifyContent: "flex-end", flexWrap: "nowrap" }}>
+                      {s.label_url && <button type="button" className="pc-link" onClick={() => openLabel(s)}>Label</button>}
+                      {s.status === "shipped" && (
+                        <button type="button" className="pc-btn" style={{ height: "36px" }} disabled={busyId === s.id} onClick={() => markDelivered(s)}>
+                          {busyId === s.id ? "Saving…" : "Mark delivered"}
+                        </button>
+                      )}
+                    </div>
+                  </td>
+                </tr>
               ))}
-            </tr>
-          </thead>
-          <tbody>
-            {isLoading && filtered.length === 0 ? (
-              <tr><td colSpan={8} style={{ padding: "40px", textAlign: "center", color: "#bbb", fontSize: "14px" }}><div className="at-skel" style={{ height: "14px", width: "60%", margin: "0 auto" }} /></td></tr>
-            ) : filtered.length === 0 ? (
-              <tr>
-                <td colSpan={10} style={{ padding: "56px", textAlign: "center" as const }}>
-                  <div style={{ marginBottom: "10px" }}><TruckIcon size={32} color="#aaa" /></div>
-                  <div style={{ fontSize: "14px", color: "#aaa", fontWeight: 600 }}>No shipments found</div>
-                  <div style={{ fontSize: "12px", color: "#bbb", marginTop: "4px" }}>Shipped orders will appear here</div>
-                </td>
-              </tr>
-            ) : filtered.map((l, i) => (
-              <tr key={l.id}
-                style={{ borderBottom: i < filtered.length - 1 ? "1px solid #F0EDE8" : "none" }}
-                onMouseEnter={e => (e.currentTarget.style.background = "#FAFAF8")}
-                onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
-              >
-                <td style={{ padding: "12px 14px" }}>
-                  <Link href={`/admin/orders/${l.id}`} style={{ color: "#1A1A1A", textDecoration: "none", fontFamily: "monospace", fontSize: "12px", fontWeight: 700 }}>
-                    {l.order_number}
-                  </Link>
-                </td>
-                <td style={{ padding: "12px 14px", color: "#2A2830", fontWeight: 600, maxWidth: "150px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{l.company_name}</td>
-
-                {/* Package Type */}
-                <td style={{ padding: "12px 14px" }}>
-                  <select
-                    value={pkgTypes[l.id] ?? "Box"}
-                    onChange={e => setPkgTypes(prev => ({ ...prev, [l.id]: e.target.value }))}
-                    style={{ border: "1px solid #E3E3E3", borderRadius: "6px", padding: "4px 8px", fontSize: "12px", color: "#2A2830", background: "#fff", cursor: "pointer" }}
-                  >
-                    {PKG_TYPES.map(p => <option key={p}>{p}</option>)}
-                  </select>
-                </td>
-
-                {/* Weight */}
-                <td style={{ padding: "12px 14px" }}>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.1"
-                    placeholder="0.0"
-                    value={weights[l.id] ?? ""}
-                    onChange={e => setWeights(prev => ({ ...prev, [l.id]: e.target.value }))}
-                    style={{ width: "68px", border: "1px solid #E3E3E3", borderRadius: "6px", padding: "4px 8px", fontSize: "12px", color: "#2A2830", textAlign: "right" as const }}
-                  />
-                </td>
-
-                {/* Courier */}
-                <td style={{ padding: "12px 14px" }}>
-                  <div style={{ fontSize: "12px", fontWeight: 700, color: "#2A2830" }}>{l.courier ?? "—"}</div>
-                  {l.courier_service && <div style={{ fontSize: "11px", color: "#7A7880", marginTop: "1px" }}>{l.courier_service}</div>}
-                </td>
-
-                {/* Tracking */}
-                <td style={{ padding: "12px 14px" }}>
-                  {l.tracking_number ? (
-                    <span style={{ fontFamily: "monospace", fontSize: "11px", color: "#2A2830", background: "#F6F6F7", padding: "2px 6px", borderRadius: "6px" }}>{l.tracking_number}</span>
-                  ) : (
-                    <span style={{ color: "#bbb", fontSize: "12px" }}>—</span>
-                  )}
-                </td>
-
-                {/* Label Status */}
-                <td style={{ padding: "12px 14px" }}>
-                  <Badge label={l.label_status === "printed" ? "Printed" : "Pending"} type={l.label_status} />
-                </td>
-
-                {/* Delivery Status */}
-                <td style={{ padding: "12px 14px" }}>
-                  <Badge
-                    label={l.delivery_status === "in_transit" ? "In Transit" : l.delivery_status === "delivered" ? "Delivered" : "Pending"}
-                    type={l.delivery_status}
-                  />
-                </td>
-
-                {/* Shipped At */}
-                <td style={{ padding: "12px 14px", color: "#7A7880", fontSize: "12px", whiteSpace: "nowrap" as const }}>
-                  {l.shipped_at ? new Date(l.shipped_at).toLocaleDateString() : "—"}
-                </td>
-
-                {/* Actions */}
-                <td style={{ padding: "12px 14px" }}>
-                  <div style={{ display: "flex", gap: "5px", flexWrap: "nowrap" as const }}>
-                    <button
-                      style={{ background: "rgba(26,26,26,.08)", color: "#1A1A1A", border: "none", padding: "5px 11px", borderRadius: "6px", fontSize: "11px", fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" as const, display: "inline-flex", alignItems: "center", gap: "4px" }}
-                      onClick={() => window.print()}
-                    >
-                      <PrinterIcon size={11} color="#1A1A1A" /> Label
-                    </button>
-                    <button
-                      style={{ background: "#F6F6F7", color: "#2A2830", border: "1px solid #E3E3E3", padding: "5px 11px", borderRadius: "6px", fontSize: "11px", fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" as const, display: "inline-flex", alignItems: "center", gap: "4px" }}
-                      onClick={() => window.print()}
-                    >
-                      <FileTextIcon size={11} color="#2A2830" /> Slip
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+            </tbody>
+          </table>
+        </div>
+        <div className="pc-table-foot"><span>{total} {total === 1 ? "shipment" : "shipments"}</span></div>
       </div>
-    </div>
+    </OrdersFrame>
   );
 }

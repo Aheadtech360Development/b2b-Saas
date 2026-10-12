@@ -303,12 +303,11 @@ export const adminService = {
     return apiClient.get(`/api/v1/admin/orders${qs ? `?${qs}` : ""}`);
   },
 
-  async exportOrdersCsv(params?: { q?: string; status?: string; date_from?: string; date_to?: string }) {
+  /** The export takes the list's own filters (the server reads both from one
+   *  place), so the file holds the rows that are on the screen. */
+  async exportOrdersCsv(params?: Record<string, string | undefined>) {
     const query = new URLSearchParams();
-    if (params?.q) query.set("q", params.q);
-    if (params?.status) query.set("status", params.status);
-    if (params?.date_from) query.set("date_from", params.date_from);
-    if (params?.date_to) query.set("date_to", params.date_to);
+    for (const [key, value] of Object.entries(params ?? {})) if (value) query.set(key, value);
     const qs = query.toString();
     return downloadCsv(`/api/v1/admin/orders/export-csv${qs ? `?${qs}` : ""}`, "orders-export.csv");
   },

@@ -1,16 +1,38 @@
 "use client";
 
-import { ask, tell } from "@/lib/dialog";
-import { useEffect, useRef, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+/**
+ * One order: where it stands, what is in it, how it leaves, and the money.
+ *
+ * The steps across the top, the main button and the pills come from the server
+ * (services/order_progress), the same answer the order list shows, so the two
+ * screens cannot disagree about what is next. Every action here calls the
+ * route that already did that job; what is new is "packed" and the team's
+ * notes, both kept as entries in the order's own history.
+ */
+import Link from "next/link";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useParams } from "next/navigation";
+import { ArrowLeft, Check, ChevronDown, Lock, X } from "lucide-react";
+import { ask, askText, tell } from "@/lib/dialog";
 import { adminService } from "@/services/admin.service";
 import { apiClient } from "@/lib/api-client";
-import { ConfigurationDetail } from "@/components/shared/ConfigurationDetail";
+import { canWrite } from "@/lib/permissions";
+import { useAuthStore } from "@/stores/auth.store";
+import { useBranding } from "@/components/providers/BrandingProvider";
 import { OrderGangSheets } from "@/components/admin/OrderGangSheets";
 import { GangSheetLineFiles, type GangSheetProduction } from "@/components/admin/GangSheetLineFiles";
-import { discountAmount, discountLabel } from "@/lib/orderMoney";
 import { OrderRefunds, type DisputeRow, type RefundRow } from "@/components/admin/OrderRefunds";
+import { discountAmount, discountLabel } from "@/lib/orderMoney";
+import { methodWords, packingSlipHtml, pickListHtml, printHtml, toPrintOrder } from "@/lib/orderPrint";
 import type { LineConfiguration, OrderDiscountLine } from "@/types/order.types";
+
+interface Pill { key: string; label: string; tone: string }
+interface Step { key: string; label: string; state: "done" | "current" | "todo" | "stopped" }
+interface Progress {
+  payment: Pill; artwork: Pill; fulfilment: Pill;
+  next: { key: string; label: string; hint: string };
+  packed: boolean; pickup: boolean; steps: Step[];
+}
 
 interface OrderItem {
   id: string;
@@ -21,21 +43,13 @@ interface OrderItem {
   quantity: number;
   unit_price: string;
   line_total: string;
-  /** Configured products: what production needs to make this line. */
   configuration?: LineConfiguration | null;
-  /** A gang sheet line: its size, preview, edit links, print file and resolution. */
   gang_sheet?: GangSheetProduction | null;
 }
 
 interface ShippingAddress {
-  full_name?: string;
-  address_line1?: string;
-  address_line2?: string;
-  city?: string;
-  state?: string;
-  zip_code?: string;
-  postal_code?: string;
-  country?: string;
+  full_name?: string; address_line1?: string; address_line2?: string;
+  city?: string; state?: string; zip_code?: string; postal_code?: string; country?: string;
 }
 
 interface SupplierSummary {
@@ -45,26 +59,25 @@ interface SupplierSummary {
   tracking_number: string | null; carrier: string | null; error: string | null; sent_at: string | null;
 }
 
-// Where an order's S&S purchase order stands, as a short label and colour.
-function supplierBadge(sup: SupplierSummary): { text: string; bg: string; fg: string } {
-  const map: Record<string, [string, string, string]> = {
-    not_sent: ["S&S · not sent", "#FFF7ED", "#C2410C"],
-    sending: ["S&S · sending", "#EFF6FF", "#1D4ED8"],
-    test: ["S&S · test only", "#FEFCE8", "#A16207"],
-    placed: ["S&S · ordered", "#EFF6FF", "#1D4ED8"],
-    shipped: ["S&S · shipped", "#ECFDF5", "#047857"],
-    failed: ["S&S · failed", "#FEF2F2", "#B91C1C"],
-  };
-  const [text, bg, fg] = map[sup.status] ?? ["S&S", "#F4F4F5", "#52525B"];
-  return { text, bg, fg };
+interface OrderAttribution {
+  label: string; utm_source?: string; utm_term?: string; utm_content?: string; campaign?: string | null;
+  referrer?: string | null; landing_page?: string | null; visits?: number | null; device?: string | null;
+  first_seen?: string | null; paid_click?: string | null;
+}
+
+interface OrderEvent {
+  id: string; type: string; label: string; message: string; actor_type: string;
+  actor_name: string | null; meta: Record<string, unknown>; occurred_at: string;
 }
 
 interface AdminOrder {
   id: string;
   order_number: string;
   supplier?: SupplierSummary | null;
-  company_name: string;
-  company_id: string;
+  progress?: Progress | null;
+  carriers?: string[];
+  company_name: string | null;
+  company_id: string | null;
   status: string;
   payment_status: string;
   po_number: string | null;
@@ -80,281 +93,151 @@ interface AdminOrder {
   subtotal: string;
   shipping_cost: string;
   tax_amount?: string;
-  /** "Tax (WY · 6%)": where the tax was charged and at what rate. */
   tax_label?: string | null;
-  /** What took money off the total: each code, and anything else short of the parts. */
   discounts?: OrderDiscountLine[];
   total: string;
   items: OrderItem[];
   created_at: string;
-  updated_at: string;
-  shipping_address?: ShippingAddress;
+  shipping_address?: ShippingAddress | null;
   shipping_method?: string | null;
-  // Customer fields (may not be present)
-  customer_name?: string;
-  customer_email?: string;
-  customer_phone?: string;
-  pricing_tier?: string;
-  payment_method?: string;
-  // ACH fields
+  customer_name?: string | null;
+  customer_email?: string | null;
+  customer_phone?: string | null;
+  guest_name?: string | null;
+  guest_email?: string | null;
+  is_guest_order?: boolean;
+  pricing_tier?: string | null;
+  payment_method?: string | null;
   ach_bank_name?: string | null;
   ach_account_holder?: string | null;
   ach_account_last4?: string | null;
   ach_account_type?: string | null;
   ach_verified?: boolean | null;
-  // Invoice & payment tracking
   payment_terms?: string | null;
   invoice_sent_at?: string | null;
-  marked_paid_at?: string | null;
-  marked_paid_by?: string | null;
   amount_paid?: string | null;
   balance_due?: string | null;
-  is_fully_paid?: boolean;
-  // Timeline. `events` is the stored history — one row per thing that actually
-  // happened, written by the code that did it. `timeline` is the old JSONB
-  // array, still sent, and only used if a backend predates the events table.
   events?: OrderEvent[];
-  // How the buyer arrived. Null when nothing was recorded — which is not the
-  // same as "they came direct".
   attribution?: OrderAttribution | null;
-  timeline?: Array<{ status: string; message: string; created_by: string; created_at: string }>;
-  // Pre-calculated shipment weight from backend (used to pre-fill rate fetch)
   calculated_weight_lbs?: number;
-  // Admin edits
   items_edited?: boolean;
   convenience_fee?: string | null;
-  // Money that went back, and chargebacks — see OrderRefunds.
   amount_refunded?: string | number | null;
   refundable_remaining?: string | number | null;
   refunds?: RefundRow[];
   disputes?: DisputeRow[];
-  stripe_payment_intent_id?: string | null;
 }
 
-interface CustomerStats {
-  total_orders: number;
-  total_spent: number;
-  created_at: string;
-}
-
-interface CompanyRegistration {
-  company_email: string | null;
-  address_line1: string | null;
-  address_line2: string | null;
-  city: string | null;
-  state_province: string | null;
-  postal_code: string | null;
-  country: string | null;
-  how_heard: string | null;
-  num_employees: string | null;
-  num_sales_reps: string | null;
-  secondary_business: string | null;
-  estimated_annual_volume: string | null;
-  ppac_number: string | null;
-  ppai_number: string | null;
-  asi_number: string | null;
-  fax: string | null;
-}
-
-interface AdminRate {
-  rate_id: string;
-  carrier: string;
-  service: string;
-  cost: number;
-  currency: string;
-  days: number | null;
-}
-
-const CARRIER_LOGOS: Record<string, string> = {
-  USPS: "https://shippo-static.s3.amazonaws.com/providers/75/USPS.png",
-  UPS: "https://shippo-static.s3.amazonaws.com/providers/75/UPS.png",
-  FedEx: "https://shippo-static.s3.amazonaws.com/providers/75/FedEx.png",
-  DHL: "https://shippo-static.s3.amazonaws.com/providers/75/DHL_Express.png",
-};
-
-const STATUSES = ["pending", "confirmed", "processing", "ready_for_pickup", "shipped", "delivered", "cancelled", "refunded"];
-
-function getAvailableStatuses(currentStatus: string): string[] {
-  if (currentStatus === "delivered") return ["delivered", "refunded"];
-  if (currentStatus === "cancelled") return ["cancelled", "refunded"];
-  return STATUSES.filter(s => s !== "refunded");
-}
-
-interface OrderAttribution {
-  label: string;
-  utm_source?: string;
-  utm_medium?: string;
-  utm_campaign?: string | null;
-  utm_term?: string;
-  utm_content?: string;
-  campaign?: string | null;
-  referrer?: string | null;
-  landing_page?: string | null;
-  visits?: number | null;
-  device?: string | null;
-  first_seen?: string | null;
-  paid_click?: string | null;
-}
-
-interface OrderEvent {
-  id: string;
-  type: string;
-  label: string;
-  message: string;
-  actor_type: string;
-  actor_name: string | null;
-  meta: Record<string, unknown>;
-  occurred_at: string;
-  recorded_at: string | null;
-}
-
-// A colour per kind of event, so a glance down the timeline separates money
-// from movement from trouble.
-const EVENT_COLOR: Record<string, string> = {
-  order_created: "#1A1A1A",
-  order_confirmed: "#1A5CFF",
-  payment_authorized: "#0891B2",
-  payment_received: "#059669",
-  payment_failed: "#E8242A",
-  invoice_sent: "#0891B2",
-  discount_applied: "#7C3AED",
-  processing_started: "#6366F1",
-  items_edited: "#6B7280",
-  status_changed: "#6B7280",
-  ready_for_pickup: "#0891B2",
-  label_purchased: "#8B5CF6",
-  tracking_added: "#8B5CF6",
-  shipped: "#8B5CF6",
-  delivered: "#059669",
-  cancelled: "#E8242A",
-  return_requested: "#D97706",
-  return_approved: "#D97706",
-  return_rejected: "#E8242A",
-  return_completed: "#059669",
-  refund_issued: "#E8242A",
-  restocked: "#6B7280",
-  note: "#9CA3AF",
-  comment: "#9CA3AF",
-  email_sent: "#9CA3AF",
-  supplier_po_sent: "#1D4ED8",
-  supplier_po_failed: "#E8242A",
-  supplier_shipped: "#047857",
-};
-
-// Who did it, in words rather than a role name.
-function actorLabel(e: OrderEvent): string {
-  if (e.actor_name) return e.actor_name;
-  const map: Record<string, string> = {
-    system: "Automatically",
-    admin: "Staff",
-    customer: "Customer",
-    supplier: "Supplier",
-    carrier: "Carrier",
-  };
-  return map[e.actor_type] ?? e.actor_type;
-}
-
-/** "Today", "Yesterday", or the date — the heading each group of events sits under. */
-function dayHeading(iso: string): string {
-  const d = new Date(iso);
-  const today = new Date();
-  const yesterday = new Date(today);
-  yesterday.setDate(today.getDate() - 1);
-  const same = (a: Date, b: Date) => a.toDateString() === b.toDateString();
-  if (same(d, today)) return "Today";
-  if (same(d, yesterday)) return "Yesterday";
-  return d.toLocaleDateString(undefined, { day: "numeric", month: "long", year: "numeric" });
-}
-
-function getStatusColor(status: string): string {
-  const map: Record<string, string> = {
-    pending: "#D97706",
-    confirmed: "#1A5CFF",
-    processing: "#6366F1",
-    ready_for_pickup: "#0891B2",
-    shipped: "#8B5CF6",
-    delivered: "#059669",
-    cancelled: "#E8242A",
-    refunded: "#6B7280",
-  };
-  return map[status] ?? "#7A7880";
-}
+interface Rate { rate_id: string; carrier: string; service: string; cost: number; currency: string; days: number | null }
+interface LabelResult { success?: boolean; tracking_number?: string; error?: string; carrier?: string; service?: string }
+interface PickupPlace { name?: string; street1?: string; city?: string; state?: string; zip?: string; hours?: string }
+interface CustomerStats { total_orders: number; total_spent: number; last_order_date: string | null }
+interface FoundVariant { variant_id: string; sku: string; product_name: string; color: string | null; size: string | null; price: number }
 
 const STATUS_LABEL: Record<string, string> = {
-  pending: "Pending",
-  confirmed: "Confirmed",
-  processing: "Processing",
-  ready_for_pickup: "Ready for Pickup",
-  shipped: "Shipped",
-  delivered: "Delivered",
-  cancelled: "Cancelled",
-  refunded: "Refunded",
+  pending: "Pending", confirmed: "Confirmed", processing: "Processing", ready_for_pickup: "Ready for pickup",
+  shipped: "Shipped", delivered: "Delivered", cancelled: "Cancelled", refunded: "Refunded",
+};
+const STATUS_TONE: Record<string, string> = {
+  pending: "amber", confirmed: "blue", processing: "blue", ready_for_pickup: "blue", shipped: "green", delivered: "green",
+};
+/** A print job's state as it reads beside its line. */
+const JOB_WORDS: Record<string, [string, string]> = {
+  submitted: ["Submitted", "amber"], in_review: ["Awaiting approval", "amber"], revision_requested: ["Revision asked", "red"],
+  approved: ["Approved", "green"], production: ["Printing", "blue"], completed: ["Printed", "green"], rejected: ["Rejected", "red"],
+};
+const PAY_METHOD: Record<string, string> = { ach: "ACH / bank transfer", cod: "Cash on delivery", net_30: "Net 30", card: "Card" };
+const PAID_CLICK: Record<string, string> = { gclid: "Google Ads", fbclid: "Meta Ads", msclkid: "Microsoft Ads", ttclid: "TikTok Ads" };
+const SUPPLIER_WORDS: Record<string, [string, string]> = {
+  not_sent: ["Not sent", "amber"], sending: ["Sending", "blue"], test: ["Test only", "amber"],
+  placed: ["Ordered", "blue"], shipped: ["Shipped", "green"], failed: ["Failed", "red"],
+};
+const BAD_EVENTS = new Set(["cancelled", "payment_failed", "refund_issued", "return_rejected", "supplier_po_failed", "dispute_opened", "dispute_lost"]);
+
+const money = (n: unknown) => `$${Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const day = (iso: string | null | undefined) => (iso ? new Date(iso).toLocaleDateString() : "");
+const moment = (iso: string) => new Date(iso).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
+const errorText = (e: unknown, fallback: string) => {
+  const err = e as { detail?: unknown; message?: string };
+  return (typeof err?.detail === "string" && err.detail) || err?.message || fallback;
 };
 
-const COURIERS = [
-  { id: "fedex", name: "FedEx",  icon: "FX",  services: ["Ground", "2-Day", "Overnight", "Express Saver"] },
-  { id: "ups",   name: "UPS",    icon: "UPS", services: ["Ground", "2-Day Air", "Next Day Air", "3-Day Select"] },
-  { id: "usps",  name: "USPS",   icon: "US",  services: ["Priority Mail", "Priority Express", "First Class", "Parcel Select"] },
-  { id: "dhl",   name: "DHL",    icon: "DHL", services: ["Express", "Economy Select", "Expedited"] },
-  { id: "other", name: "Other",  icon: "→",   services: ["Standard", "Express"] },
-];
-
-const STATUS_STYLE: Record<string, { bg: string; color: string }> = {
-  pending:           { bg: "rgba(217,119,6,.1)",   color: "#D97706" },
-  confirmed:         { bg: "rgba(26,26,26,.1)",   color: "#1A1A1A" },
-  processing:        { bg: "rgba(99,102,241,.1)",  color: "#6366F1" },
-  ready_for_pickup:  { bg: "rgba(8,145,178,.1)",   color: "#0891B2" },
-  shipped:           { bg: "rgba(139,92,246,.1)",  color: "#8B5CF6" },
-  delivered:         { bg: "rgba(5,150,105,.1)",   color: "#059669" },
-  cancelled:         { bg: "rgba(232,36,42,.1)",   color: "#E8242A" },
-  refunded:          { bg: "rgba(107,114,128,.1)", color: "#6B7280" },
-  authorized:        { bg: "rgba(245,158,11,.1)",  color: "#D97706" },
-  paid:              { bg: "rgba(5,150,105,.1)",   color: "#059669" },
-  unpaid:            { bg: "rgba(107,114,128,.1)", color: "#6B7280" },
-};
-
-function StatusBadge({ status }: { status: string }) {
-  const s = STATUS_STYLE[status] ?? { bg: "rgba(0,0,0,.06)", color: "#555" };
-  const label = STATUS_LABEL[status] ?? status.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
-  return (
-    <span style={{ background: s.bg, color: s.color, padding: "4px 12px", borderRadius: "20px", fontSize: "12px", fontWeight: 700 }}>
-      {label}
-    </span>
-  );
+/** The statuses the order may be moved to by hand, as the old order page allowed. */
+function statusChoices(current: string, pickup: boolean): string[] {
+  if (current === "delivered") return ["refunded"];
+  if (current === "cancelled") return ["refunded"];
+  return ["pending", "confirmed", "processing", "ready_for_pickup", "shipped", "delivered"]
+    .filter((s) => s !== current && !(s === "shipped" && pickup) && !(s === "ready_for_pickup" && !pickup));
 }
-
-function generateTrackingNumber(courier: string): string {
-  const prefix: Record<string, string> = { fedex: "7489", ups: "1Z", usps: "9400", dhl: "JD", other: "TRK" };
-  const p = prefix[courier] ?? "TRK";
-  const random = Math.random().toString(36).substring(2, 12).toUpperCase();
-  const ts = Date.now().toString().slice(-6);
-  return `${p}${ts}${random}`;
-}
-
-const LabelStyle: React.CSSProperties = {
-  fontSize: "12.5px", fontWeight: 600,
-  color: "#4A4850", marginBottom: "7px", display: "block",
-};
-
-const CardStyle: React.CSSProperties = {
-  background: "#fff", border: "1px solid #ECECEC",
-  borderRadius: "14px", padding: "20px 22px", marginBottom: "16px",
-  boxShadow: "0 1px 2px rgba(0,0,0,.03)",
-};
-
-const SectionHead: React.CSSProperties = {
-  fontFamily: "var(--font-jakarta)", fontSize: "15px", fontWeight: 800,
-  letterSpacing: "-0.01em", color: "#1A1A1A",
-};
 
 export default function AdminOrderDetailPage() {
   const { id } = useParams<{ id: string }>();
-  const router = useRouter();
+  const user = useAuthStore((s) => s.user);
+  const branding = useBranding();
+  const mayRefund = canWrite(user?.role, "billing", user?.scopes, user?.read_only);
+
   const [order, setOrder] = useState<AdminOrder | null>(null);
-  // Will-call orders are collected from this brand's pickup location, or from
-  // its ship-from address when it has not set one: the same rule the checkout
-  // and the customer's mail follow (backend services/pickup).
-  const [pickupAddress, setPickupAddress] = useState<{ name?: string; street1?: string; city?: string; state?: string; zip?: string; hours?: string } | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [flash, setFlash] = useState<{ text: string; bad?: boolean } | null>(null);
+  const [busy, setBusy] = useState("");
+  const [menu, setMenu] = useState<"print" | "more" | null>(null);
+  const [pickupPlace, setPickupPlace] = useState<PickupPlace | null>(null);
+  const [stats, setStats] = useState<CustomerStats | null>(null);
+  const [refundSignal, setRefundSignal] = useState(0);
+
+  // Fulfil
+  const [weight, setWeight] = useState("");
+  const [tracking, setTracking] = useState("");
+  const [notify, setNotify] = useState(true);
+  const [rates, setRates] = useState<Rate[] | null>(null);
+  const [rateId, setRateId] = useState("");
+  const [ratesError, setRatesError] = useState("");
+
+  // Notes
+  const [noteOpen, setNoteOpen] = useState(false);
+  const [noteText, setNoteText] = useState("");
+  const [orderNoteOpen, setOrderNoteOpen] = useState(false);
+  const [orderNoteText, setOrderNoteText] = useState("");
+
+  // Items
+  const [editing, setEditing] = useState(false);
+  const [itemSearch, setItemSearch] = useState("");
+  const [found, setFound] = useState<FoundVariant[]>([]);
+  const [variant, setVariant] = useState<FoundVariant | null>(null);
+  const [addQty, setAddQty] = useState(1);
+  const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const reload = useCallback(async () => {
+    const o = await adminService.getOrder(id) as AdminOrder;
+    setOrder(o);
+    return o;
+  }, [id]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setLoadError(null);
+    adminService.getOrder(id)
+      .then((d) => {
+        if (cancelled) return;
+        const o = d as AdminOrder;
+        setOrder(o);
+        setWeight(String(o.calculated_weight_lbs ?? 1));
+        setTracking(o.tracking_number ?? "");
+        setOrderNoteText(o.order_notes ?? "");
+        if (o.company_id) {
+          apiClient.get<CustomerStats>(`/api/v1/admin/companies/${o.company_id}/stats`)
+            .then((s) => { if (!cancelled && s) setStats(s); }).catch(() => {});
+        }
+      })
+      .catch((e) => { if (!cancelled) setLoadError(errorText(e, "The order could not be loaded.")); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [id]);
+
+  // Where a Will Call order is collected: the shop's pickup location, or its
+  // ship-from address when it has not set one (the rule the checkout follows).
   useEffect(() => {
     apiClient.get<Record<string, string>>("/api/v1/admin/settings")
       .then((s) => {
@@ -362,1370 +245,809 @@ export default function AdminOrderDetailPage() {
         const own = read(s?.pickup_location);
         const from = read(s?.ship_from);
         const place = own?.street1 ? own : from;
-        setPickupAddress(place ? { ...place, hours: own?.hours } : null);
+        setPickupPlace(place ? { ...place, hours: own?.hours } : null);
       })
-      .catch(() => setPickupAddress(null));
+      .catch(() => setPickupPlace(null));
   }, []);
-  const [orderLoading, setOrderLoading] = useState(true);
-  const [orderError, setOrderError] = useState<string | null>(null);
-  const [customerStats, setCustomerStats] = useState<CustomerStats | null>(null);
-  const [companyReg, setCompanyReg] = useState<CompanyRegistration | null>(null);
-  const [status, setStatus] = useState("");
-  const [tracking, setTracking] = useState("");
-  const [isSaving, setIsSaving] = useState(false);
-  const [isCapturing, setIsCapturing] = useState(false);
-  const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null);
-
-  // Courier state (legacy manual shipping)
-  const [selectedCourier, setSelectedCourier] = useState("");
-  const [selectedService, setSelectedService] = useState("");
-  const [trackingNumber, setTrackingNumber] = useState("");
-  const [isShipping, setIsShipping] = useState(false);
-
-  // Shippo label generation state
-  const [selectedCarrier, setSelectedCarrier] = useState("");
-  const [labelLoading, setLabelLoading] = useState(false);
-  const [labelResult, setLabelResult] = useState<{
-    success?: boolean;
-    tracking_number?: string;
-    tracking_url?: string;
-    label_url?: string;
-    carrier?: string;
-    service?: string;
-    rate?: number;
-    error?: string;
-  } | null>(null);
-
-  const [manualWeight, setManualWeight] = useState<number>(1.0);
-  const [manualLabelLoading, setManualLabelLoading] = useState(false);
-  const [adminRates, setAdminRates] = useState<AdminRate[]>([]);
-  const [adminRatesLoading, setAdminRatesLoading] = useState(false);
-  const [adminSelectedRateId, setAdminSelectedRateId] = useState<string | null>(null);
-  const adminRatesRef = useRef<AdminRate[]>([]);
-
-  const [isVerifyingAch, setIsVerifyingAch] = useState(false);
-  const [isResendingInvoice, setIsResendingInvoice] = useState(false);
-  const [isMarkingPaid, setIsMarkingPaid] = useState(false);
-
-  // Notes state
-  const [editingNote, setEditingNote] = useState(false);
-  const [noteText, setNoteText] = useState("");
-
-  // Order items edit mode
-  const [editingItems, setEditingItems] = useState(false);
-
-  // Add item state
-  const [itemSearch, setItemSearch] = useState("");
-  const [itemResults, setItemResults] = useState<{ variant_id: string; sku: string; product_name: string; color: string | null; size: string | null; price: number }[]>([]);
-  const [addingItem, setAddingItem] = useState(false);
-  const [selectedVariant, setSelectedVariant] = useState<{ variant_id: string; sku: string; product_name: string; color: string | null; size: string | null; price: number } | null>(null);
-  const [addQty, setAddQty] = useState(1);
-  const [addItemMsg, setAddItemMsg] = useState<{ text: string; ok: boolean } | null>(null);
-  const searchDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    setOrderLoading(true);
-    setOrderError(null);
-    adminService.getOrder(id)
-      .then(async (d) => {
-        const o = d as AdminOrder;
-        setOrder(o);
-        setStatus(o.status);
-        setManualWeight(o.calculated_weight_lbs ?? 1.0);
-        setTracking(o.tracking_number ?? "");
-        setNoteText(o.order_notes ?? "");
-        if (o.courier) setSelectedCourier(o.courier);
-        if (o.courier_service) setSelectedService(o.courier_service);
-        if (o.tracking_number) setTrackingNumber(o.tracking_number);
-        const _cMap: Record<string, string> = { USPS: "usps", UPS: "ups", FedEx: "fedex" };
-        if (o.tracking_number && o.label_url) {
-          setLabelResult({
-            success: true,
-            tracking_number: o.tracking_number,
-            tracking_url: o.tracking_url ?? undefined,
-            label_url: o.label_url,
-            carrier: o.courier ?? "",
-            service: o.courier_service ?? "",
-          });
-          const raw = o.courier ?? "";
-          setSelectedCarrier(_cMap[raw] ?? raw.toLowerCase());
-        } else if (o.carrier) {
-          // Pre-select the carrier the customer chose at checkout
-          setSelectedCarrier(_cMap[o.carrier] ?? o.carrier.toLowerCase());
-        }
+    if (!menu) return;
+    const close = (e: MouseEvent) => { if (!(e.target as HTMLElement).closest?.(".pc-pop-wrap")) setMenu(null); };
+    const esc = (e: KeyboardEvent) => { if (e.key === "Escape") setMenu(null); };
+    window.addEventListener("mousedown", close);
+    window.addEventListener("keydown", esc);
+    return () => { window.removeEventListener("mousedown", close); window.removeEventListener("keydown", esc); };
+  }, [menu]);
 
-        // Fetch customer stats and company registration info (best-effort)
-        if (o.company_id) {
-          try {
-            const stats = await apiClient.get<CustomerStats>(`/api/v1/admin/customers/${o.company_id}/stats`);
-            if (stats) setCustomerStats(stats);
-          } catch { /* stats are optional */ }
-          try {
-            const co = await apiClient.get<CompanyRegistration>(`/api/v1/admin/customers/${o.company_id}`);
-            if (co) setCompanyReg(co);
-          } catch { /* company info optional */ }
-        }
-      })
-      .catch((err) => {
-        setOrderError(err?.message || "Failed to load order.");
-      })
-      .finally(() => {
-        setOrderLoading(false);
-      });
-  }, [id]);
+  /** Run one action: say it is running, do it, read the order again, say how it went. */
+  async function run(name: string, done: string, action: () => Promise<unknown>): Promise<boolean> {
+    setBusy(name);
+    setMenu(null);
+    try {
+      await action();
+      await reload();
+      setFlash({ text: done });
+      return true;
+    } catch (e) {
+      setFlash({ text: errorText(e, "That did not work. Nothing was changed."), bad: true });
+      return false;
+    } finally {
+      setBusy("");
+    }
+  }
 
-  // Auto-fetch Shippo rates when a Standard Ground order loads (no manual click needed)
-  useEffect(() => {
-    if (!order?.id) return;
-    const isWillCall = !!(
-      order.shipping_method?.toLowerCase().includes("will_call") ||
-      order.shipping_method?.toLowerCase().includes("pickup")
+  if (loading) {
+    return <div className="pc-page"><div className="pc-card pc-empty">Loading the order…</div></div>;
+  }
+  if (loadError || !order) {
+    return (
+      <div className="pc-page">
+        <Link href="/admin/orders" className="pc-back"><ArrowLeft size={16} strokeWidth={2.2} /> Orders</Link>
+        <div className="pc-card pc-empty">{loadError || "This order could not be found."}</div>
+      </div>
     );
-    const hasLiveRate = !!order.shipping_rate_id;
-    const hasExistingLabel = !!(order.tracking_number && order.label_url);
-    if (hasLiveRate || isWillCall || hasExistingLabel) return;  // only Standard Ground without a label
+  }
 
-    // Standard Ground: reset state and auto-fetch rates immediately on load
-    const weight = order.calculated_weight_lbs ?? 1.0;
-    adminRatesRef.current = [];
-    setAdminRates([]);
-    setAdminSelectedRateId(null);
-    setAdminRatesLoading(true);
-    apiClient.post<{ rates: AdminRate[]; error?: string }>(
-      `/api/v1/admin/orders/${order.id}/fetch-rates`,
-      { weight_lbs: weight }
-    ).then(result => {
-      const rates = result.rates ?? [];
-      adminRatesRef.current = rates;
-      setAdminRates(rates);
-      if (rates.length > 0) setAdminSelectedRateId(rates[0]!.rate_id);
-    }).catch(() => {
-      adminRatesRef.current = [];
-    }).finally(() => {
-      setAdminRatesLoading(false);
-    });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [order?.id]);
+  const o = order;
+  const progress = o.progress ?? null;
+  const pickup = progress?.pickup ?? !!o.shipping_method?.toLowerCase().includes("will_call");
+  const accepted = ["confirmed", "processing"].includes(o.status);
+  const open = ["pending", "confirmed", "processing"].includes(o.status);
+  const paid = o.payment_status === "paid";
+  const carriers = o.carriers ?? [];
+  const customer = o.company_name || o.customer_name || o.guest_name || o.guest_email || "Guest";
+  const addr = o.shipping_address ?? null;
+  const zip = addr?.zip_code ?? addr?.postal_code ?? "";
+  const mapQuery = [addr?.address_line1, addr?.city, addr?.state].filter(Boolean).join(", ");
+  const left = o.refundable_remaining != null ? Number(o.refundable_remaining) : null;
+  const canRefund = mayRefund && paid && left != null && left > 0;
+  const events = (o.events ?? []).slice().sort((a, b) => new Date(b.occurred_at).getTime() - new Date(a.occurred_at).getTime());
+  const notes = events.filter((e) => e.type === "note");
+  const hasLiveRate = !!o.shipping_rate_id;
+  const hasLabel = !!(o.tracking_number && o.label_url);
+  const waitingJob = o.items.find((i) => i.gang_sheet && ["in_review", "submitted"].includes(i.gang_sheet.status))?.gang_sheet ?? null;
+  // A print job the shop has not approved, or one sent back to the customer.
+  // Sending the order out before that is almost always a slip, so it is asked about first.
+  const artOpen = ["in_review", "revision"].includes(progress?.artwork.key ?? "");
+  const artHref = waitingJob ? `/admin/gang-sheets?sheet=${waitingJob.id}` : "/admin/gang-sheets";
+  const artWarning = artOpen ? "The artwork on this order is not approved yet. " : "";
 
-  // Safeguard: restore rates from ref if React wipes state unexpectedly
-  useEffect(() => {
-    if (!adminRatesLoading && adminRates.length === 0 && adminRatesRef.current.length > 0) {
-      setAdminRates(adminRatesRef.current);
+  // ── Actions ────────────────────────────────────────────────────────────────
+
+  const confirmOrder = () => run("confirm", "Order confirmed. The customer has been told.",
+    () => adminService.updateOrder(o.id, { status: "confirmed" }));
+
+  async function changeStatus(status: string) {
+    const out = ["shipped", "ready_for_pickup", "delivered"].includes(status);
+    const yes = await ask(
+      `${out ? artWarning : ""}Change this order to ${STATUS_LABEL[status] ?? status}? The customer is emailed about the change.`,
+      { title: "Change the status", ok: `Mark ${(STATUS_LABEL[status] ?? status).toLowerCase()}`, danger: out && artOpen },
+    );
+    if (!yes) return;
+    await run("status", `The order is now ${(STATUS_LABEL[status] ?? status).toLowerCase()}.`, () => adminService.updateOrder(o.id, { status }));
+  }
+
+  async function markShipped() {
+    const yes = await ask(
+      artWarning + (tracking.trim()
+        ? `Mark this order shipped with tracking number ${tracking.trim()}?${notify ? " The customer is emailed." : " The customer is not emailed."}`
+        : `Mark this order shipped without a tracking number?${notify ? " The customer is emailed that it has shipped." : " The customer is not emailed."}`),
+      { title: "Mark shipped", ok: artOpen ? "Mark shipped anyway" : "Mark shipped", danger: artOpen },
+    );
+    if (!yes) return;
+    await run("ship", "Marked as shipped.", () => apiClient.patch(`/api/v1/admin/orders/${o.id}/status`, {
+      status: "shipped", tracking_number: tracking.trim() || undefined, notify,
+    }));
+  }
+
+  async function markReady() {
+    if (artOpen && !await ask(
+      `${artWarning}Mark it ready for pickup anyway?${notify ? " The customer is emailed to come and collect it." : ""}`,
+      { title: "Artwork not approved", ok: "Mark ready anyway", danger: true },
+    )) return;
+    await run("ready", `Marked ready for pickup.${notify ? " The customer has been emailed." : ""}`,
+      () => apiClient.patch(`/api/v1/admin/orders/${o.id}/status`, { status: "ready_for_pickup", notify }));
+  }
+  const markDelivered = (word: string) => run("deliver", `Marked as ${word}.`,
+    () => apiClient.patch(`/api/v1/admin/orders/${o.id}/status`, { status: "delivered", notify }));
+  const markPacked = () => run("pack", "Marked as packed.", () => apiClient.post(`/api/v1/admin/orders/${o.id}/packed`, {}));
+
+  async function markPaid() {
+    if (!await ask(`Mark this order as paid? ${money(o.balance_due ?? o.total)} is recorded as received.`, { title: "Mark as paid", ok: "Mark as paid" })) return;
+    await run("paid", "Marked as paid.", () => apiClient.post(`/api/v1/admin/orders/${o.id}/mark-paid`, {}));
+  }
+
+  const sendInvoice = () => run("invoice", "The invoice has been emailed to the customer.",
+    () => apiClient.post(`/api/v1/admin/orders/${o.id}/send-invoice`, {}));
+  const verifyAch = () => run("ach", "The bank payment is verified and the order is paid.",
+    () => apiClient.post(`/api/v1/admin/orders/${o.id}/verify-ach`, {}));
+
+  async function cancelOrder() {
+    const reason = (await askText("The customer is emailed that the order was cancelled. Say why, for your own records.", "", {
+      title: "Cancel this order", ok: "Cancel the order", cancel: "Keep it", danger: true, placeholder: "Reason",
+    }))?.trim();
+    if (!reason) return;
+    await run("cancel", "The order was cancelled.", () => adminService.cancelOrder(o.id, reason));
+  }
+
+  async function addNote() {
+    const text = noteText.trim();
+    if (!text) return;
+    setBusy("note");
+    try {
+      const r = await apiClient.post<{ events: OrderEvent[] }>(`/api/v1/admin/orders/${o.id}/notes`, { text });
+      setOrder((prev) => (prev ? { ...prev, events: r.events } : prev));
+      setNoteText(""); setNoteOpen(false);
+    } catch (e) {
+      setFlash({ text: errorText(e, "The note could not be saved."), bad: true });
     }
-  });
-
-  function handleCourierSelect(courierId: string) {
-    setSelectedCourier(courierId);
-    setSelectedService("");
-    setTrackingNumber(generateTrackingNumber(courierId));
+    setBusy("");
   }
 
-  async function handleUpdate(e: React.FormEvent) {
-    e.preventDefault();
-    setIsSaving(true); setMsg(null);
-    try {
-      await adminService.updateOrder(order?.id ?? id, { status });
-      setMsg({ text: "Order updated successfully.", ok: true });
-      setOrder(prev => prev ? { ...prev, status, tracking_number: tracking || null } : prev);
-    } catch {
-      setMsg({ text: "Failed to update order.", ok: false });
-    } finally { setIsSaving(false); }
+  async function saveOrderNote() {
+    const ok = await run("ordernote", "The note on the order was saved.", () => apiClient.patch(`/api/v1/admin/orders/${o.id}`, { notes: orderNoteText }));
+    if (ok) setOrderNoteOpen(false);
   }
 
-  async function handleMarkShipped() {
-    if (!selectedCourier || !selectedService) return;
-    setIsShipping(true); setMsg(null);
+  async function getRates() {
+    setBusy("rates"); setRatesError(""); setRates(null); setRateId("");
     try {
-      await apiClient.patch(`/api/v1/admin/orders/${order?.id ?? id}/status`, {
-        status: "shipped",
-        tracking_number: trackingNumber || undefined,
-        courier: selectedCourier,
-        courier_service: selectedService,
+      const r = await apiClient.post<{ rates: Rate[]; error?: string }>(`/api/v1/admin/orders/${o.id}/fetch-rates`, {
+        weight_lbs: Number(weight) > 0 ? Number(weight) : undefined,
       });
-      const courierLabel = COURIERS.find(c => c.id === selectedCourier)?.name ?? selectedCourier;
-      setMsg({ text: `Order marked as shipped via ${courierLabel} ${selectedService}.`, ok: true });
-      setOrder(prev => prev ? {
-        ...prev, status: "shipped",
-        tracking_number: trackingNumber || null,
-        courier: selectedCourier, courier_service: selectedService,
-        shipped_at: new Date().toISOString(),
-      } : prev);
-      setStatus("shipped");
-      setTracking(trackingNumber);
-    } catch {
-      setMsg({ text: "Failed to mark as shipped.", ok: false });
-    } finally { setIsShipping(false); }
-  }
-
-  async function handleGenerateLabel() {
-    if (!selectedCarrier) return;
-    setLabelLoading(true); setMsg(null); setLabelResult(null);
-    try {
-      const result = await apiClient.post<{
-        success?: boolean; tracking_number?: string; tracking_url?: string;
-        label_url?: string; carrier?: string; service?: string; rate?: number; error?: string;
-      }>(`/api/v1/admin/orders/${order?.id ?? id}/labels`, { carrier: selectedCarrier });
-      setLabelResult(result);
-      if (result.success) {
-        setMsg({ text: `Label generated — ${result.carrier?.toUpperCase()} ${result.service}`, ok: true });
-        setOrder(prev => prev ? {
-          ...prev,
-          status: "shipped",
-          tracking_number: result.tracking_number ?? prev.tracking_number,
-          tracking_url: result.tracking_url ?? prev.tracking_url,
-          label_url: result.label_url ?? prev.label_url,
-          courier: result.carrier ?? prev.courier,
-          courier_service: result.service ?? prev.courier_service,
-          shipped_at: prev.shipped_at ?? new Date().toISOString(),
-        } : prev);
-        setStatus("shipped");
-        if (result.tracking_number) setTracking(result.tracking_number);
-      } else {
-        setMsg({ text: result.error ?? "Label generation failed.", ok: false });
-      }
-    } catch (err: unknown) {
-      const errMsg = err instanceof Error ? err.message : "Failed to generate label.";
-      setLabelResult({ success: false, error: errMsg });
-      setMsg({ text: errMsg, ok: false });
-    } finally {
-      setLabelLoading(false);
+      const list = (r.rates ?? []).slice().sort((a, b) => a.cost - b.cost);
+      setRates(list);
+      if (list.length) setRateId(list[0]!.rate_id);
+      else setRatesError(r.error || "No carrier offered a rate for this address and weight.");
+    } catch (e) {
+      setRatesError(errorText(e, "The rates could not be read."));
     }
+    setBusy("");
   }
 
-  async function handleFetchAdminRates() {
-    setAdminRatesLoading(true);
-    adminRatesRef.current = [];
-    setAdminRates([]);
-    setAdminSelectedRateId(null);
-    try {
-      const result = await apiClient.post<{ rates: AdminRate[]; error?: string }>(
-        `/api/v1/admin/orders/${order?.id ?? id}/fetch-rates`,
-        { weight_lbs: manualWeight }
+  async function buyLabel() {
+    // The buyer picked a carrier's own rate at checkout: that is the rate bought.
+    if (hasLiveRate) {
+      const yes = await ask(
+        `${artWarning}Buy the ${o.carrier ?? "carrier"} label the customer chose at checkout (${money(o.shipping_cost)} charged to them)? The order is marked shipped${notify ? " and the customer is emailed" : ""}.`,
+        { title: "Buy the label", ok: artOpen ? "Buy label anyway" : "Buy label", danger: artOpen },
       );
-      const rates = result.rates ?? [];
-      adminRatesRef.current = rates;
-      setAdminRates(rates);
-      if (rates.length > 0) setAdminSelectedRateId(rates[0]!.rate_id);
-    } catch {
-      adminRatesRef.current = [];
-      setAdminRates([]);
-    } finally {
-      setAdminRatesLoading(false);
-    }
-  }
-
-  async function handleGenerateManualLabel() {
-    const selectedRate = adminRates.find(r => r.rate_id === adminSelectedRateId);
-    if (!selectedRate) return;
-    setManualLabelLoading(true); setMsg(null); setLabelResult(null);
-    try {
-      const result = await apiClient.post<{
-        success?: boolean; tracking_number?: string; tracking_url?: string;
-        label_url?: string; carrier?: string; service?: string; rate?: number; error?: string;
-      }>(`/api/v1/admin/orders/${order?.id ?? id}/generate-label-manual`, {
-        rate_id: selectedRate.rate_id,
-        carrier: selectedRate.carrier,
-        service: selectedRate.service,
-      });
-      setLabelResult(result);
-      if (result.success) {
-        setMsg({ text: `Label generated — ${result.carrier?.toUpperCase()} ${result.service}`, ok: true });
-        setOrder(prev => prev ? {
-          ...prev,
-          status: "shipped",
-          tracking_number: result.tracking_number ?? prev.tracking_number,
-          tracking_url: result.tracking_url ?? prev.tracking_url,
-          label_url: result.label_url ?? prev.label_url,
-          courier: result.carrier ?? prev.courier,
-          courier_service: result.service ?? prev.courier_service,
-          shipped_at: prev.shipped_at ?? new Date().toISOString(),
-        } : prev);
-        setStatus("shipped");
-        if (result.tracking_number) setTracking(result.tracking_number);
-      } else {
-        setMsg({ text: result.error ?? "Label generation failed.", ok: false });
-      }
-    } catch (err: unknown) {
-      const errMsg = err instanceof Error ? err.message : "Failed to generate label.";
-      setLabelResult({ success: false, error: errMsg });
-      setMsg({ text: errMsg, ok: false });
-    } finally {
-      setManualLabelLoading(false);
-    }
-  }
-
-  async function handleCapturePayment() {
-    setIsCapturing(true); setMsg(null);
-    try {
-      await apiClient.post(`/api/v1/admin/orders/${order?.id ?? id}/capture`, {});
-      setMsg({ text: "Payment captured successfully.", ok: true });
-      setOrder(prev => prev ? { ...prev, payment_status: "paid" } : prev);
-    } catch {
-      setMsg({ text: "Failed to capture payment.", ok: false });
-    } finally { setIsCapturing(false); }
-  }
-
-  async function handleVerifyAch() {
-    setIsVerifyingAch(true); setMsg(null);
-    try {
-      await apiClient.post(`/api/v1/admin/orders/${order?.id ?? id}/verify-ach`, {});
-      setMsg({ text: "ACH payment verified. Order payment status updated to Paid.", ok: true });
-      setOrder(prev => prev ? { ...prev, payment_status: "paid", ach_verified: true } : prev);
-    } catch {
-      setMsg({ text: "Failed to verify ACH payment.", ok: false });
-    } finally { setIsVerifyingAch(false); }
-  }
-
-  async function handleResendInvoice() {
-    setIsResendingInvoice(true); setMsg(null);
-    try {
-      await apiClient.post(`/api/v1/admin/orders/${order?.id ?? id}/send-invoice`, {});
-      setMsg({ text: "Invoice emailed to customer.", ok: true });
-      setOrder(prev => prev ? { ...prev, invoice_sent_at: new Date().toISOString() } : prev);
-    } catch {
-      setMsg({ text: "Failed to send invoice email.", ok: false });
-    } finally { setIsResendingInvoice(false); }
-  }
-
-  async function handleMarkAsPaid() {
-    if (!await ask("Mark this order as paid?")) return;
-    setIsMarkingPaid(true); setMsg(null);
-    try {
-      await apiClient.post(`/api/v1/admin/orders/${order?.id ?? id}/mark-paid`, {});
-      setMsg({ text: "Order marked as paid.", ok: true });
-      setOrder(prev => prev ? { ...prev, payment_status: "paid", marked_paid_at: new Date().toISOString() } : prev);
-    } catch {
-      setMsg({ text: "Failed to mark as paid.", ok: false });
-    } finally { setIsMarkingPaid(false); }
-  }
-
-  async function handleSaveNote() {
-    try {
-      await apiClient.patch(`/api/v1/admin/orders/${order?.id ?? id}`, { notes: noteText });
-      setEditingNote(false);
-      setOrder(prev => prev ? { ...prev, order_notes: noteText } : prev);
-      setMsg({ text: "Note saved.", ok: true });
-    } catch {
-      setMsg({ text: "Failed to save note.", ok: false });
-    }
-  }
-
-  function handleItemSearchChange(val: string) {
-    setItemSearch(val);
-    setSelectedVariant(null);
-    if (searchDebounce.current) clearTimeout(searchDebounce.current);
-    if (!val.trim()) { setItemResults([]); return; }
-    searchDebounce.current = setTimeout(async () => {
+      if (!yes) return;
+      setBusy("label");
       try {
-        const data = await apiClient.get<{ id: string; name: string; variants: { id: string; sku: string; color: string | null; size: string | null; retail_price: number }[] }[]>(
-          `/api/v1/admin/products?q=${encodeURIComponent(val)}&page_size=20`
+        const r = await apiClient.post<LabelResult>(`/api/v1/admin/orders/${o.id}/labels`, {
+          carrier: (o.carrier ?? "usps").toLowerCase(), weight_lbs: Number(weight) > 0 ? Number(weight) : undefined, notify,
+        });
+        await afterLabel(r);
+      } catch (e) { setFlash({ text: errorText(e, "The label was not bought."), bad: true }); }
+      setBusy("");
+      return;
+    }
+    if (!rates) { await getRates(); return; }
+    const rate = rates.find((r) => r.rate_id === rateId);
+    if (!rate) return;
+    if (artOpen && !await ask(
+      `${artWarning}Buy the ${rate.carrier} ${rate.service} label for ${money(rate.cost)} anyway? The order is marked shipped${notify ? " and the customer is emailed" : ""}.`,
+      { title: "Artwork not approved", ok: "Buy label anyway", danger: true },
+    )) return;
+    setBusy("label");
+    try {
+      const r = await apiClient.post<LabelResult>(`/api/v1/admin/orders/${o.id}/generate-label-manual`, {
+        rate_id: rate.rate_id, carrier: rate.carrier, service: rate.service, weight_lbs: Number(weight) > 0 ? Number(weight) : 1, notify,
+      });
+      await afterLabel(r);
+    } catch (e) { setFlash({ text: errorText(e, "The label was not bought."), bad: true }); }
+    setBusy("");
+  }
+
+  async function afterLabel(r: LabelResult) {
+    if (r.success) {
+      const fresh = await reload();
+      setTracking(fresh.tracking_number ?? "");
+      setRates(null);
+      setFlash({ text: `Label bought${r.carrier ? `: ${r.carrier.toUpperCase()} ${r.service ?? ""}` : ""}. The order is marked shipped.` });
+    } else {
+      setFlash({ text: r.error || "The label was not bought.", bad: true });
+    }
+  }
+
+  function openLabel() {
+    const url = o.label_url ?? "";
+    if (!url) return;
+    // A label kept on the order is served by the admin API, which needs the
+    // admin's sign-in: a plain link cannot carry it.
+    if (!url.startsWith("/api/")) { window.open(url, "_blank", "noopener"); return; }
+    const win = window.open("", "_blank");
+    apiClient.blob(url)
+      .then((b) => {
+        const obj = URL.createObjectURL(b);
+        if (win) win.location.href = obj; else window.location.href = obj;
+        setTimeout(() => URL.revokeObjectURL(obj), 60_000);
+      })
+      .catch((e) => { win?.close(); tell(errorText(e, "The label could not be opened.")); });
+  }
+
+  function searchItems(value: string) {
+    setItemSearch(value);
+    setVariant(null);
+    if (searchTimer.current) clearTimeout(searchTimer.current);
+    if (!value.trim()) { setFound([]); return; }
+    searchTimer.current = setTimeout(async () => {
+      try {
+        const data = await apiClient.get<{ name: string; variants: { id: string; sku: string; color: string | null; size: string | null; retail_price: number }[] }[] | { items?: unknown[] }>(
+          `/api/v1/admin/products?q=${encodeURIComponent(value)}&page_size=20`,
         );
-        const results: typeof itemResults = [];
-        for (const p of (Array.isArray(data) ? data : []) as typeof data) {
-          for (const v of p.variants ?? []) {
-            results.push({ variant_id: v.id, sku: v.sku, product_name: p.name, color: v.color, size: v.size, price: Number(v.retail_price || 0) });
-          }
+        const products = (Array.isArray(data) ? data : (data as { items?: unknown[] }).items ?? []) as { name: string; variants?: { id: string; sku: string; color: string | null; size: string | null; retail_price: number }[] }[];
+        const list: FoundVariant[] = [];
+        for (const p of products) for (const v of p.variants ?? []) {
+          list.push({ variant_id: v.id, sku: v.sku, product_name: p.name, color: v.color, size: v.size, price: Number(v.retail_price || 0) });
         }
-        setItemResults(results.slice(0, 30));
-      } catch { /* ignore */ }
+        setFound(list.slice(0, 30));
+      } catch { setFound([]); }
     }, 350);
   }
 
-  async function handleAddItem() {
-    if (!selectedVariant || addQty < 1) return;
-    setAddingItem(true); setAddItemMsg(null);
-    try {
-      const result = await apiClient.post<{ subtotal: number; total: number }>(
-        `/api/v1/admin/orders/${order?.id ?? id}/items`,
-        { variant_id: selectedVariant.variant_id, quantity: addQty, unit_price: selectedVariant.price }
-      );
-      setOrder(prev => prev ? {
-        ...prev,
-        subtotal: String(result.subtotal),
-        total: String(result.total),
-        items_edited: true,
-        items: [...prev.items, {
-          id: crypto.randomUUID(),
-          sku: selectedVariant.sku,
-          product_name: selectedVariant.product_name,
-          color: selectedVariant.color,
-          size: selectedVariant.size,
-          quantity: addQty,
-          unit_price: String(selectedVariant.price),
-          line_total: String(selectedVariant.price * addQty),
-        }],
-      } : prev);
-      setAddItemMsg({ text: `Added ${addQty}x ${selectedVariant.product_name}`, ok: true });
-      setSelectedVariant(null); setItemSearch(""); setItemResults([]); setAddQty(1);
-    } catch (err: unknown) {
-      setAddItemMsg({ text: err instanceof Error ? err.message : "Failed to add item", ok: false });
-    } finally {
-      setAddingItem(false);
-    }
+  async function addItem() {
+    if (!variant || addQty < 1) return;
+    const ok = await run("additem", `Added ${addQty} x ${variant.product_name}.`, () => apiClient.post(`/api/v1/admin/orders/${o.id}/items`, {
+      variant_id: variant.variant_id, quantity: addQty, unit_price: variant.price,
+    }));
+    if (ok) { setVariant(null); setItemSearch(""); setFound([]); setAddQty(1); }
   }
 
-  async function handleRemoveItem(itemId: string, lineTotal: string) {
-    try {
-      await apiClient.delete(`/api/v1/admin/orders/${order?.id ?? id}/items/${itemId}`);
-      setOrder(prev => prev ? {
-        ...prev,
-        items: prev.items.filter(i => i.id !== itemId),
-        subtotal: String(Math.max(0, Number(prev.subtotal) - Number(lineTotal))),
-        total: String(Math.max(0, Number(prev.total) - Number(lineTotal))),
-        items_edited: true,
-      } : prev);
-    } catch {
-      setMsg({ text: "Failed to remove item.", ok: false });
-    }
+  async function removeItem(item: OrderItem) {
+    if (!await ask(`Remove ${item.product_name} from this order? The order's total goes down by ${money(item.line_total)}.`, { title: "Remove this line", ok: "Remove", danger: true })) return;
+    await run("removeitem", "The line was removed.", () => apiClient.delete(`/api/v1/admin/orders/${o.id}/items/${item.id}`));
   }
 
-  if (orderLoading) {
-    return (
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "320px" }}>
-        <div style={{ fontSize: "13px", color: "#aaa" }}>Loading order…</div>
-      </div>
-    );
+  function printPick() { setMenu(null); printHtml(`Pick list ${o.order_number}`, pickListHtml([toPrintOrder(o)])); }
+  function printSlip() {
+    setMenu(null);
+    const shop = branding?.store_name && branding.store_name !== "Store" ? branding.store_name : "";
+    printHtml(`Packing slip ${o.order_number}`, packingSlipHtml(toPrintOrder(o), shop));
   }
 
-  if (orderError || !order) {
-    return (
-      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "320px", gap: "12px" }}>
-        <div style={{ fontSize: "14px", color: "#E8242A", fontWeight: 600 }}>{orderError || "Order not found."}</div>
-        <button onClick={() => router.back()} style={{ fontSize: "13px", color: "#1A1A1A", background: "none", border: "none", cursor: "pointer", fontWeight: 700 }}>← Back to Orders</button>
-      </div>
-    );
-  }
-
-  const courierObj = COURIERS.find(c => c.id === selectedCourier);
-  const courierDisplayName = COURIERS.find(c => c.id === order.courier)?.name ?? order.courier;
-  const _carrierMap: Record<string, string> = { USPS: "usps", UPS: "ups", FedEx: "fedex" };
-  const customerCarrier = order.carrier
-    ? (_carrierMap[order.carrier] ?? order.carrier.toLowerCase())
+  // ── The main button: the order's next step ─────────────────────────────────
+  const next = progress?.next.key ?? "none";
+  const main: { label: string; act?: () => void; href?: string } | null =
+    next === "confirm" ? { label: "Confirm order", act: confirmOrder }
+    : next === "artwork" ? { label: "Review artwork", href: artHref }
+    : next === "ready" ? { label: "Mark ready for pickup", act: markReady }
+    : next === "ship" ? { label: "Mark shipped", act: markShipped }
+    : next === "collected" ? { label: "Mark collected", act: () => markDelivered("collected") }
+    : next === "deliver" ? { label: "Mark delivered", act: () => markDelivered("delivered") }
+    : next === "collect" ? { label: "Mark as paid", act: markPaid }
     : null;
 
-  const isWillCallPickup = !!(
-    order.shipping_method?.toLowerCase().includes("will_call") ||
-    order.shipping_method?.toLowerCase().includes("pickup")
-  );
-  const hasLiveRate = !!order.shipping_rate_id;
-  const isStandardGround = !hasLiveRate && !isWillCallPickup;
-
-  const addr = order.shipping_address;
-  const zip = addr?.zip_code ?? addr?.postal_code ?? "";
-
-  // The timeline shows stored events only. Nothing here is derived from a
-  // status or a date on the order: a status says where an order is, never when
-  // it got there, and a timeline that guessed would be telling the brand
-  // something untrue. A backend that predates the events table still sends the
-  // old array, so fall back to it rather than showing an empty history.
-  const storedEvents: OrderEvent[] = order.events ?? [];
-  const legacyEvents: OrderEvent[] = storedEvents.length
-    ? []
-    : (order.timeline ?? []).map((entry, i) => ({
-        id: `legacy-${i}`,
-        type: entry.status,
-        label: entry.status.replace(/_/g, " ").replace(/^./, c => c.toUpperCase()),
-        message: entry.message,
-        actor_type: entry.created_by === "system" ? "system" : "admin",
-        actor_name: entry.created_by === "admin" ? null : entry.created_by,
-        meta: {},
-        occurred_at: entry.created_at,
-        recorded_at: entry.created_at,
-      }));
-  const timelineEvents = (storedEvents.length ? storedEvents : legacyEvents)
-    .slice()
-    .sort((a, b) => new Date(b.occurred_at).getTime() - new Date(a.occurred_at).getTime());
-
-  // Grouped under a date heading, newest day first.
-  const timelineDays: { day: string; events: OrderEvent[] }[] = [];
-  for (const event of timelineEvents) {
-    const day = dayHeading(event.occurred_at);
-    const last = timelineDays[timelineDays.length - 1];
-    if (last && last.day === day) last.events.push(event);
-    else timelineDays.push({ day, events: [event] });
-  }
-
-  const avatarInitial = order.customer_name?.[0]?.toUpperCase() ?? order.company_name?.[0]?.toUpperCase() ?? "C";
-  const mapQuery = [addr?.address_line1, addr?.city, addr?.state].filter(Boolean).join(", ");
+  const choices = statusChoices(o.status, pickup);
+  const pill = (p: Pill) => <span className="pc-pill" data-tone={p.tone || undefined} style={{ textTransform: "none" }}>{p.label}</span>;
 
   return (
-    <div style={{ fontFamily: "var(--font-jakarta)", maxWidth: "1200px" }}>
-      {/* Back */}
-      <button onClick={() => router.back()} style={{ background: "none", border: "none", color: "#1A1A1A", cursor: "pointer", fontSize: "13px", fontWeight: 700, padding: 0, marginBottom: "20px", display: "flex", alignItems: "center", gap: "6px" }}>
-        ← Back to Orders
-      </button>
+    <div className="pc-page" style={{ maxWidth: "1240px" }} data-order-page={o.order_number}>
+      <Link href="/admin/orders" className="pc-back no-print"><ArrowLeft size={16} strokeWidth={2.2} /> Orders</Link>
 
-      {/* Header */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "24px", flexWrap: "wrap", gap: "12px" }}>
+      <div className="pc-head" style={{ alignItems: "flex-start", marginBottom: "20px" }}>
         <div>
-          <h1 style={{ fontFamily: "var(--font-jakarta)", fontSize: "26px", fontWeight: 800, color: "#1A1A1A", letterSpacing: "-0.02em", lineHeight: 1.15 }}>
-            {order.order_number}
-          </h1>
-          <p style={{ fontSize: "13px", color: "#7A7880", marginTop: "6px", display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" as const }}>
-            <span>{order.company_name}</span>
-            <span>·</span>
-            <span>{new Date(order.created_at).toLocaleDateString()}</span>
-            <span>·</span>
-            <StatusBadge status={order.status} />
-            <StatusBadge status={order.payment_status} />
-          </p>
+          <div className="pc-title-row">
+            <h1 className="pc-h1" style={{ margin: 0 }}>Order {o.order_number}</h1>
+            {progress && pill(progress.payment)}
+            <span className="pc-pill" data-tone={STATUS_TONE[o.status]} style={{ textTransform: "none" }}>{pickup && o.status === "delivered" ? "Collected" : STATUS_LABEL[o.status] ?? o.status}</span>
+            {o.items_edited && <span className="pc-pill" style={{ textTransform: "none" }}>Items changed</span>}
+          </div>
+          <p className="pc-lede" style={{ marginTop: "8px" }}>{customer}, placed {day(o.created_at)}{o.po_number ? ` · PO ${o.po_number}` : ""}</p>
         </div>
-        <button
-          onClick={() => window.print()}
-          style={{ display: "flex", alignItems: "center", gap: "6px", background: "#fff", border: "1.5px solid #E3E3E3", borderRadius: "8px", padding: "8px 16px", fontSize: "13px", fontWeight: 700, color: "#2A2830", cursor: "pointer" }}
-          className="no-print"
-        >
-          🖨️ Print
-        </button>
-      </div>
-      <style>{`
-        @media print {
-          nav, header, aside, [data-sidebar], .no-print { display: none !important; }
-          body { font-size: 12px; }
-          main, .main-content { margin: 0 !important; padding: 0 !important; width: 100% !important; }
-        }
-      `}</style>
 
-      {/* Feedback */}
-      {msg && (
-        <div style={{ marginBottom: "16px", padding: "12px 16px", borderRadius: "8px", fontSize: "13px", fontWeight: 600, background: msg.ok ? "rgba(5,150,105,.1)" : "rgba(232,36,42,.1)", color: msg.ok ? "#059669" : "#E8242A", border: `1px solid ${msg.ok ? "rgba(5,150,105,.2)" : "rgba(232,36,42,.2)"}` }}>
-          {msg.text}
-        </div>
-      )}
-
-      {/* Payment Capture Alert */}
-      {order.payment_status === "authorized" && (
-        <div style={{ background: "#fff8f0", border: "1.5px solid #fed7aa", borderRadius: "10px", padding: "20px 24px", marginBottom: "16px" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "16px", flexWrap: "wrap" as const }}>
-            <div>
-              <h4 style={{ fontWeight: 700, color: "#c2410c", marginBottom: "4px", fontSize: "15px" }}>⏰ Payment Authorized</h4>
-              <p style={{ fontSize: "13px", color: "#7A7880" }}>Capture payment before authorization expires</p>
-            </div>
-            <button onClick={handleCapturePayment} disabled={isCapturing}
-              style={{ background: "#059669", color: "#fff", border: "none", padding: "10px 20px", borderRadius: "6px", fontWeight: 700, cursor: "pointer", fontSize: "14px", opacity: isCapturing ? .6 : 1, whiteSpace: "nowrap" as const }}>
-              {isCapturing ? "Capturing…" : `Capture $${Number(order.total).toFixed(2)}`}
+        <div className="pc-row-actions no-print">
+          <div className="pc-pop-wrap">
+            <button type="button" className="pc-btn" aria-haspopup="menu" aria-expanded={menu === "print"} onClick={() => setMenu(menu === "print" ? null : "print")}>
+              Print <ChevronDown size={16} strokeWidth={2.2} />
             </button>
+            {menu === "print" && (
+              <div className="pc-pop" data-side="right" role="menu">
+                <button type="button" role="menuitem" className="pc-pop-item" onClick={printPick}>Pick list</button>
+                <button type="button" role="menuitem" className="pc-pop-item" onClick={printSlip}>Packing slip</button>
+                <button type="button" role="menuitem" className="pc-pop-item" onClick={() => { setMenu(null); window.setTimeout(() => window.print(), 50); }}>This page</button>
+                {o.label_url && <button type="button" role="menuitem" className="pc-pop-item" onClick={() => { setMenu(null); openLabel(); }}>Shipping label</button>}
+              </div>
+            )}
           </div>
+
+          {canRefund && (
+            <button type="button" className="pc-btn" onClick={() => setRefundSignal((n) => n + 1)}>Refund</button>
+          )}
+
+          <div className="pc-pop-wrap">
+            <button type="button" className="pc-btn" aria-haspopup="menu" aria-expanded={menu === "more"} onClick={() => setMenu(menu === "more" ? null : "more")}>
+              More <ChevronDown size={16} strokeWidth={2.2} />
+            </button>
+            {menu === "more" && (
+              <div className="pc-pop" data-side="right" role="menu" style={{ minWidth: "230px" }}>
+                {!paid && o.status !== "cancelled" && <button type="button" role="menuitem" className="pc-pop-item" onClick={() => { setMenu(null); markPaid(); }}>Mark as paid</button>}
+                {o.status !== "cancelled" && (
+                  <button type="button" role="menuitem" className="pc-pop-item" onClick={sendInvoice}>{o.invoice_sent_at ? "Send the invoice again" : "Email the invoice"}</button>
+                )}
+                {accepted && !pickup && !progress?.packed && <button type="button" role="menuitem" className="pc-pop-item" onClick={markPacked}>Mark packed</button>}
+                {choices.length > 0 && <div className="pc-pop-sep" />}
+                {choices.map((s) => (
+                  <button key={s} type="button" role="menuitem" className="pc-pop-item" onClick={() => { setMenu(null); changeStatus(s); }}>
+                    Move to {(STATUS_LABEL[s] ?? s).toLowerCase()}
+                  </button>
+                ))}
+                {open && (
+                  <>
+                    <div className="pc-pop-sep" />
+                    <button type="button" role="menuitem" className="pc-pop-item" data-danger="" onClick={() => { setMenu(null); cancelOrder(); }}>Cancel the order…</button>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+
+          {main && (main.href
+            ? <Link href={main.href} className="pc-btn" data-kind="primary" data-main>{main.label}</Link>
+            : <button type="button" className="pc-btn" data-kind="primary" data-main disabled={!!busy} onClick={main.act}>{busy && busy !== "note" ? "Working…" : main.label}</button>)}
+        </div>
+      </div>
+
+      {flash && (
+        <div className="pc-flash" data-bad={flash.bad ? "" : undefined} role="status">
+          <span>{flash.text}</span>
+          <button type="button" className="pc-x" aria-label="Dismiss" onClick={() => setFlash(null)} style={{ color: "inherit" }}><X size={16} strokeWidth={2.2} /></button>
         </div>
       )}
 
-      {/* ── 2-COLUMN LAYOUT ── */}
-      <div className="admin-two-col" style={{ display: "grid", gridTemplateColumns: "1fr 360px", gap: "20px", alignItems: "flex-start" }}>
+      {/* ── Where it stands ─────────────────────────────────────────────── */}
+      {progress && (
+        <div className="pc-card pc-steps" data-steps>
+          {progress.steps.map((s) => (
+            <div key={s.key} className="pc-step-col" data-state={s.state} data-step={s.key}>
+              <span className="pc-step-ring" aria-hidden>
+                {s.state === "done" && <Check size={15} strokeWidth={3} />}
+                {s.state === "stopped" && <X size={14} strokeWidth={3} />}
+              </span>
+              {s.label}
+            </div>
+          ))}
+        </div>
+      )}
 
-        {/* ── LEFT: Main content ── */}
-        <div>
-          {/* SHIPPING & COURIER — always shown; content varies by order type */}
-          <div style={{ ...CardStyle, padding: "24px" }}>
-            <h3 style={{ ...SectionHead, fontSize: "18px", letterSpacing: ".05em", marginBottom: "14px" }}>Shipping & Courier</h3>
-
-            {/* Already-shipped summary */}
-            {order.status === "shipped" && order.courier && (
-              <div style={{ fontSize: "12px", color: "#059669", fontWeight: 600, marginBottom: "14px", padding: "8px 12px", background: "rgba(5,150,105,.08)", borderRadius: "6px" }}>
-                ✓ Shipped via {courierDisplayName} {order.courier_service}
-                {order.tracking_number && ` · Tracking: ${order.tracking_number}`}
-                {order.shipped_at && ` · ${new Date(order.shipped_at).toLocaleDateString()}`}
-              </div>
-            )}
-
-            {/* CASE 3: Will Call Pickup */}
-            {isWillCallPickup ? (
-              <div style={{ background: "rgba(26,26,26,.05)", border: "1.5px solid rgba(26,26,26,.2)", borderRadius: "10px", padding: "18px 20px" }}>
-                <div style={{ fontSize: "13px", fontWeight: 700, color: "#1A1A1A", marginBottom: "10px" }}>📦 Customer selected: Will Call Pickup</div>
-                <div style={{ fontSize: "13px", color: "#2A2830", fontWeight: 600, marginBottom: "6px" }}>Pickup location:</div>
-                <div style={{ fontSize: "13px", color: "#7A7880", lineHeight: 1.7 }}>
-                  {pickupAddress?.street1 ? (
-                    <>
-                      {pickupAddress.name && <>{pickupAddress.name}<br /></>}
-                      {pickupAddress.street1 && <>{pickupAddress.street1}<br /></>}
-                      {[pickupAddress.city, [pickupAddress.state, pickupAddress.zip].filter(Boolean).join(" ")].filter(Boolean).join(", ")}
-                      {pickupAddress.hours && <><br />{pickupAddress.hours}</>}
-                    </>
-                  ) : (
-                    <>No pickup location set. Add it under <a href="/admin/standard-shipping" style={{ color: "#1A1A1A", fontWeight: 600 }}>Shipping → Pickup location</a>.</>
-                  )}
-                </div>
-                <div style={{ marginTop: "12px", fontSize: "12px", color: "#059669", fontWeight: 700, background: "rgba(5,150,105,.08)", padding: "6px 10px", borderRadius: "6px", display: "inline-block" }}>
-                  ✓ No shipping label required — customer will pick up
-                </div>
-              </div>
-            ) : (
-              /* CASE 1 & 2: Shippo label generation */
-              <div style={{ marginBottom: "16px" }}>
-                <label style={{ ...LabelStyle, marginBottom: "10px" }}>Generate Shipping Label via Shippo</label>
-
-                {/* Customer selection info banner */}
-                {order.shipping_method && (
-                  <div style={{ background: "rgba(26,26,26,.06)", border: "1px solid rgba(26,26,26,.2)", borderRadius: "8px", padding: "10px 14px", marginBottom: "12px" }}>
-                    <div style={{ fontSize: "12px", color: "#1A1A1A", fontWeight: 700, marginBottom: "2px" }}>Customer Selected:</div>
-                    <div style={{ fontSize: "12px", color: "#1A1A1A", fontWeight: 600 }}>
-                      {hasLiveRate && order.carrier
-                        ? `${order.carrier} — ${order.courier_service ?? ""} — $${Number(order.shipping_cost).toFixed(2)}`
-                        : `${order.shipping_method} — Flat Rate — $${Number(order.shipping_cost).toFixed(2)}`
-                      }
-                    </div>
-                    {order.shipping_rate_id && (
-                      <div style={{ fontSize: "11px", color: "#7A7880", marginTop: "4px" }}>Rate ID: {order.shipping_rate_id}</div>
-                    )}
-                  </div>
-                )}
-
-                {/* CASE 2 (Standard Ground): live rates fetch UI */}
-                {isStandardGround ? (
-                  <>
-                    {!labelResult?.success && (
-                      <>
-                        {/* Weight input + Fetch Rates button */}
-                        <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "14px", flexWrap: "wrap" as const }}>
-                          <label style={{ ...LabelStyle, marginBottom: 0, whiteSpace: "nowrap" as const }}>Package Weight (lbs)</label>
-                          <input
-                            type="number" min="0.1" step="0.1" value={manualWeight}
-                            onChange={e => setManualWeight(parseFloat(e.target.value) || 0.5)}
-                            style={{ width: "80px", padding: "8px 10px", border: "1.5px solid #E3E3E3", borderRadius: "6px", fontSize: "14px", fontFamily: "var(--font-jakarta)" }}
-                          />
-                          <button onClick={handleFetchAdminRates} disabled={adminRatesLoading}
-                            style={{ padding: "8px 18px", background: "#1A1A1A", color: "#fff", border: "none", borderRadius: "6px", fontSize: "13px", fontWeight: 700, cursor: adminRatesLoading ? "not-allowed" : "pointer", opacity: adminRatesLoading ? .65 : 1, whiteSpace: "nowrap" as const }}>
-                            {adminRatesLoading ? "Fetching…" : "Refresh Rates"}
-                          </button>
-                        </div>
-
-                        {/* Loading */}
-                        {adminRatesLoading && (
-                          <div style={{ fontSize: "12px", color: "#7A7880", padding: "6px 0", marginBottom: "10px" }}>Fetching live carrier rates…</div>
-                        )}
-
-                        {/* Rate list */}
-                        {!adminRatesLoading && adminRates.length > 0 && (
-                          <div style={{ display: "flex", flexDirection: "column" as const, gap: "6px", marginBottom: "14px" }}>
-                            {adminRates.map(rate => {
-                              const isRateSelected = adminSelectedRateId === rate.rate_id;
-                              return (
-                                <div key={rate.rate_id}
-                                  onClick={() => setAdminSelectedRateId(rate.rate_id)}
-                                  style={{
-                                    display: "flex", alignItems: "center", justifyContent: "space-between",
-                                    padding: "10px 14px", cursor: "pointer",
-                                    border: `1px solid ${isRateSelected ? "#1A1A1A" : "#E3E3E3"}`,
-                                    borderRadius: "6px",
-                                    background: isRateSelected ? "rgba(26,26,26,.04)" : "#fff",
-                                    transition: "all .1s",
-                                  }}>
-                                  <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                                    <div style={{
-                                      width: "14px", height: "14px", borderRadius: "50%", flexShrink: 0,
-                                      border: `2px solid ${isRateSelected ? "#1A1A1A" : "#E3E3E3"}`,
-                                      background: isRateSelected ? "#1A1A1A" : "#fff",
-                                      display: "flex", alignItems: "center", justifyContent: "center",
-                                    }}>
-                                      {isRateSelected && <div style={{ width: "4px", height: "4px", borderRadius: "50%", background: "#fff" }} />}
-                                    </div>
-                                    {CARRIER_LOGOS[rate.carrier] && (
-                                      // eslint-disable-next-line @next/next/no-img-element
-                                      <img src={CARRIER_LOGOS[rate.carrier]} alt={rate.carrier}
-                                        style={{ maxHeight: "20px", width: "auto", objectFit: "contain", flexShrink: 0 }} />
-                                    )}
-                                    <div>
-                                      <div style={{ fontSize: "12px", fontWeight: 700, color: "#2A2830" }}>{rate.service}</div>
-                                      {rate.days != null && <div style={{ fontSize: "11px", color: "#7A7880", marginTop: "1px" }}>{rate.days} business day{rate.days !== 1 ? "s" : ""}</div>}
-                                    </div>
-                                  </div>
-                                  <span style={{ fontSize: "13px", fontWeight: 800, color: "#2A2830" }}>${Number(rate.cost).toFixed(2)}</span>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        )}
-
-                        {/* No rates yet */}
-                        {!adminRatesLoading && adminRates.length === 0 && (
-                          <div style={{ fontSize: "12px", color: "#7A7880", marginBottom: "14px" }}>
-                            Enter a package weight and click "Refresh Rates" to load available carrier options.
-                          </div>
-                        )}
-
-                        {/* Generate Label button */}
-                        <button onClick={handleGenerateManualLabel} disabled={!adminSelectedRateId || manualLabelLoading}
-                          style={{ background: adminSelectedRateId ? "#1A1A1A" : "#E3E3E3", color: "#fff", border: "none", padding: "12px 24px", borderRadius: "6px", fontSize: "14px", fontWeight: 700, cursor: adminSelectedRateId ? "pointer" : "not-allowed", opacity: manualLabelLoading ? .65 : 1, marginBottom: "14px" }}>
-                          {manualLabelLoading ? "Generating label…" : adminSelectedRateId ? "Generate Label" : "Select a rate first"}
-                        </button>
-                      </>
-                    )}
-                  </>
-                ) : (
-                  /* CASE 1 (Live Rate): customer's rate already known — generate label directly */
-                  <>
-                    <button onClick={handleGenerateLabel} disabled={!selectedCarrier || labelLoading}
-                      style={{ background: selectedCarrier ? "#1A1A1A" : "#E3E3E3", color: "#fff", border: "none", padding: "12px 24px", borderRadius: "6px", fontSize: "14px", fontWeight: 700, cursor: selectedCarrier ? "pointer" : "not-allowed", opacity: labelLoading ? .65 : 1, marginBottom: "14px" }}>
-                      {labelLoading ? "Generating label…" : `Generate ${(order.carrier ?? selectedCarrier ?? "").toUpperCase()} Label`}
-                    </button>
-                  </>
-                )}
-
-                {/* Label result */}
-                {labelResult && labelResult.success && (
-                  <div style={{ background: "rgba(5,150,105,.06)", border: "1px solid rgba(5,150,105,.2)", borderRadius: "8px", padding: "14px 16px" }}>
-                    <div style={{ fontSize: "12px", fontWeight: 700, color: "#059669", marginBottom: "10px" }}>✓ Label generated</div>
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px 16px", fontSize: "13px", color: "#2A2830", marginBottom: "12px" }}>
-                      {labelResult.carrier && <div><span style={{ color: "#7A7880", fontWeight: 600 }}>Carrier: </span>{labelResult.carrier.toUpperCase()}</div>}
-                      {labelResult.service && <div><span style={{ color: "#7A7880", fontWeight: 600 }}>Service: </span>{labelResult.service}</div>}
-                      {labelResult.tracking_number && <div style={{ gridColumn: "1 / -1" }}><span style={{ color: "#7A7880", fontWeight: 600 }}>Tracking: </span>{labelResult.tracking_number}</div>}
-                      {labelResult.rate != null && <div><span style={{ color: "#7A7880", fontWeight: 600 }}>Rate: </span>${Number(labelResult.rate).toFixed(2)}</div>}
-                    </div>
-                    <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" as const }}>
-                      {labelResult.label_url && (
-                        <a href={labelResult.label_url} target="_blank" rel="noreferrer"
-                          onClick={(e) => {
-                            // Labels bought on the brand's own carrier account are kept
-                            // on the order and served by the admin API, which needs the
-                            // admin's token — a plain link can't carry it.
-                            const url = labelResult.label_url ?? "";
-                            if (!url.startsWith("/api/")) return;
-                            e.preventDefault();
-                            const win = window.open("", "_blank");
-                            apiClient.blob(url)
-                              .then((b) => {
-                                const obj = URL.createObjectURL(b);
-                                if (win) win.location.href = obj; else window.location.href = obj;
-                                setTimeout(() => URL.revokeObjectURL(obj), 60_000);
-                              })
-                              .catch((err) => { win?.close(); tell(err instanceof Error ? err.message : "Couldn't open the label."); });
-                          }}
-                          style={{ background: "#1A1A1A", color: "#fff", padding: "8px 16px", borderRadius: "6px", fontSize: "13px", fontWeight: 700, textDecoration: "none" }}>
-                          ↓ Download Label
-                        </a>
-                      )}
-                      {labelResult.tracking_url && (
-                        <a href={labelResult.tracking_url} target="_blank" rel="noreferrer"
-                          style={{ background: "#fff", color: "#1A1A1A", padding: "8px 16px", borderRadius: "6px", fontSize: "13px", fontWeight: 700, textDecoration: "none", border: "1.5px solid #1A1A1A" }}>
-                          Track Package →
-                        </a>
-                      )}
-                    </div>
-                  </div>
-                )}
-                {labelResult && !labelResult.success && (
-                  <div style={{ background: "rgba(232,36,42,.06)", border: "1px solid rgba(232,36,42,.2)", borderRadius: "8px", padding: "12px 16px", fontSize: "13px", color: "#E8242A", fontWeight: 600 }}>
-                    ✗ {labelResult.error ?? "Label generation failed. Check that Shippo API key and shipping address are set."}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* STATUS UPDATE */}
-          <div style={{ ...CardStyle, padding: "24px" }}>
-            <h3 style={{ ...SectionHead, fontSize: "18px", letterSpacing: ".05em", marginBottom: "16px" }}>Update Order</h3>
-            <form onSubmit={handleUpdate} style={{ display: "flex", gap: "12px", alignItems: "flex-end", flexWrap: "wrap" as const }}>
-              <div>
-                <label style={LabelStyle}>Status</label>
-                <select value={status} onChange={e => setStatus(e.target.value)}
-                  style={{ padding: "10px 14px", border: "1.5px solid #E3E3E3", borderRadius: "6px", fontSize: "14px", fontFamily: "var(--font-jakarta)", background: "#fff" }}>
-                  {getAvailableStatuses(order.status).filter(s => !(s === "shipped" && order.shipping_method === "will_call")).map(s => (
-                    <option key={s} value={s}>{STATUS_LABEL[s] ?? s}</option>
-                  ))}
-                </select>
-              </div>
-              {/* Tracking is managed via Shipping & Courier section above */}
-              <button type="submit" disabled={isSaving}
-                style={{ background: "#1A1A1A", color: "#fff", border: "none", padding: "11px 24px", borderRadius: "6px", fontSize: "14px", fontWeight: 700, cursor: "pointer", opacity: isSaving ? .6 : 1 }}>
-                {isSaving ? "Saving…" : "Update Order"}
-              </button>
-            </form>
-          </div>
-
-          {/* GANG SHEETS — renders itself only when this order has any */}
-          <OrderGangSheets orderId={order.id} />
-
-          {/* ORDER ITEMS */}
-          <div style={{ ...CardStyle, padding: "24px" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
-              <h3 style={{ ...SectionHead, fontSize: "18px", letterSpacing: ".05em" }}>Order Items</h3>
-              {["pending", "confirmed", "processing"].includes(order.status) && (
-                editingItems ? (
-                  <button
-                    onClick={() => setEditingItems(false)}
-                    style={{ display: "flex", alignItems: "center", gap: "5px", background: "none", border: "1.5px solid #E3E3E3", borderRadius: "6px", padding: "6px 12px", fontSize: "12px", fontWeight: 700, cursor: "pointer", color: "#7A7880" }}>
-                    ✕ Done Editing
-                  </button>
-                ) : (
-                  <button
-                    onClick={() => setEditingItems(true)}
-                    style={{ display: "flex", alignItems: "center", gap: "5px", background: "#F6F6F7", border: "1px solid #E3E3E3", borderRadius: "6px", padding: "6px 12px", fontSize: "12px", fontWeight: 700, cursor: "pointer", color: "#2A2830" }}>
-                    ✎ Edit
-                  </button>
-                )
+      <div className="pc-cols">
+        <div className="pc-stack">
+          {/* ── Items and artwork ───────────────────────────────────────── */}
+          <section className="pc-card" aria-labelledby="items-title">
+            <div className="pc-card-head">
+              <h2 className="pc-h2" id="items-title">Items and artwork</h2>
+              {open && (
+                <button type="button" className="pc-btn no-print" onClick={() => { setEditing((v) => !v); setVariant(null); setItemSearch(""); setFound([]); }}>
+                  {editing ? "Done editing" : "Edit items"}
+                </button>
               )}
             </div>
 
-            {/* Add Items — only in edit mode */}
-            {editingItems && (
-              <div style={{ background: "#F6F6F7", borderRadius: "8px", padding: "16px", marginBottom: "20px" }}>
-                <div style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: ".08em", color: "#7A7880", marginBottom: "10px" }}>Add Product</div>
-                <div style={{ display: "flex", gap: "8px", marginBottom: "8px" }}>
-                  <div style={{ flex: 1, position: "relative" }}>
-                    <input
-                      value={itemSearch}
-                      onChange={e => handleItemSearchChange(e.target.value)}
-                      placeholder="Search product by name or SKU…"
-                      style={{ width: "100%", padding: "9px 12px", border: "1.5px solid #E3E3E3", borderRadius: "6px", fontSize: "13px", fontFamily: "var(--font-jakarta)", outline: "none", boxSizing: "border-box" as const, background: "#fff" }}
-                    />
-                    {itemResults.length > 0 && !selectedVariant && (
-                      <div style={{ position: "absolute", top: "100%", left: 0, right: 0, background: "#fff", border: "1.5px solid #E3E3E3", borderRadius: "6px", boxShadow: "0 8px 24px rgba(0,0,0,.12)", zIndex: 50, maxHeight: "200px", overflowY: "auto" as const }}>
-                        {itemResults.map(v => (
-                          <div
-                            key={v.variant_id}
-                            onClick={() => { setSelectedVariant(v); setItemSearch(`${v.product_name} — ${[v.color, v.size].filter(Boolean).join(" / ")}`); setItemResults([]); }}
-                            style={{ padding: "9px 12px", fontSize: "13px", cursor: "pointer", borderBottom: "1px solid #F6F6F7" }}
-                            onMouseEnter={e => (e.currentTarget.style.background = "#F6F6F7")}
-                            onMouseLeave={e => (e.currentTarget.style.background = "#fff")}
-                          >
-                            <span style={{ fontWeight: 600, color: "#2A2830" }}>{v.product_name}</span>
-                            <span style={{ color: "#7A7880", marginLeft: "8px" }}>
-                              {[v.color, v.size].filter(Boolean).join(" / ")}
-                            </span>
-                            <span style={{ color: "#1A1A1A", marginLeft: "8px", fontFamily: "monospace", fontSize: "11px" }}>{v.sku}</span>
-                            <span style={{ color: "#059669", marginLeft: "8px", fontWeight: 700 }}>${v.price.toFixed(2)}</span>
-                          </div>
+            {editing && (
+              <div className="pc-pad no-print" style={{ borderBottom: "1px solid var(--pc-line)", background: "#F8FAFC" }} data-add-item>
+                <label className="pc-label" htmlFor="add-item">Add a product</label>
+                <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+                  <div style={{ flex: "1 1 260px", position: "relative" }}>
+                    <input id="add-item" className="pc-input" value={itemSearch} onChange={(e) => searchItems(e.target.value)} placeholder="Search by product name or SKU" autoComplete="off" />
+                    {found.length > 0 && !variant && (
+                      <div className="pc-pop" style={{ right: 0, maxHeight: "240px", overflowY: "auto" }}>
+                        {found.map((v) => (
+                          <button key={v.variant_id} type="button" className="pc-pop-item"
+                            onClick={() => { setVariant(v); setItemSearch(`${v.product_name}${[v.color, v.size].filter(Boolean).length ? ` (${[v.color, v.size].filter(Boolean).join(" / ")})` : ""}`); setFound([]); }}>
+                            <span>{v.product_name} <span style={{ color: "var(--pc-muted)" }}>{[v.color, v.size].filter(Boolean).join(" / ")} · {v.sku}</span></span>
+                            <span>{money(v.price)}</span>
+                          </button>
                         ))}
                       </div>
                     )}
                   </div>
-                  <input
-                    type="number"
-                    min={1}
-                    value={addQty}
-                    onChange={e => setAddQty(Math.max(1, Number(e.target.value)))}
-                    placeholder="Qty"
-                    style={{ width: "72px", padding: "9px 8px", border: "1.5px solid #E3E3E3", borderRadius: "6px", fontSize: "13px", textAlign: "center" as const, background: "#fff" }}
-                  />
-                  <button
-                    onClick={handleAddItem}
-                    disabled={!selectedVariant || addingItem}
-                    style={{ background: selectedVariant && !addingItem ? "#059669" : "#E3E3E3", color: selectedVariant && !addingItem ? "#fff" : "#aaa", border: "none", padding: "9px 18px", borderRadius: "6px", fontSize: "13px", fontWeight: 700, cursor: selectedVariant && !addingItem ? "pointer" : "not-allowed", whiteSpace: "nowrap" as const }}>
-                    {addingItem ? "Adding…" : "+ Add"}
-                  </button>
+                  <input type="number" min={1} className="pc-input" style={{ width: "92px" }} aria-label="Quantity" value={addQty} onChange={(e) => setAddQty(Math.max(1, Number(e.target.value) || 1))} />
+                  <button type="button" className="pc-btn" data-kind="primary" disabled={!variant || !!busy} onClick={addItem}>{busy === "additem" ? "Adding…" : "Add"}</button>
                 </div>
-                {selectedVariant && (
-                  <div style={{ fontSize: "12px", color: "#059669", fontWeight: 600 }}>
-                    Selected: {selectedVariant.product_name} — {[selectedVariant.color, selectedVariant.size].filter(Boolean).join(" / ")} @ ${selectedVariant.price.toFixed(2)}/unit
-                    <button onClick={() => { setSelectedVariant(null); setItemSearch(""); }} style={{ marginLeft: "8px", fontSize: "11px", color: "#E8242A", background: "none", border: "none", cursor: "pointer" }}>✕</button>
-                  </div>
-                )}
-                {addItemMsg && (
-                  <div style={{ marginTop: "8px", fontSize: "12px", fontWeight: 600, color: addItemMsg.ok ? "#059669" : "#E8242A" }}>{addItemMsg.text}</div>
+                <p className="pc-sub-line" style={{ marginTop: "8px" }}>Adding or removing a line changes the order&apos;s total. Send the invoice again afterwards if the customer still has to pay.</p>
+                {o.items.some((i) => i.gang_sheet) && (
+                  <p className="pc-sub-line" style={{ marginTop: "4px" }}>A line with a print job can&apos;t be removed here. Reject the job in Production, or cancel the order.</p>
                 )}
               </div>
             )}
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
-              <thead>
-                <tr style={{ borderBottom: "1px solid #E3E3E3" }}>
-                  {["Product", "SKU", "Color / Size", "Qty", "Unit Price", "Total", ""].map(h => (
-                    <th key={h} style={{ textAlign: (h === "Qty" || h === "Unit Price" || h === "Total") ? "right" as const : "left" as const, padding: "10px 12px", fontSize: "11px", fontWeight: 700, textTransform: "uppercase" as const, letterSpacing: ".06em", color: "#7A7880" }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {order.items.map((item, i) => (
-                  <tr key={item.id} style={{ borderBottom: i < order.items.length - 1 ? "1px solid #F6F6F7" : "none" }}>
-                    <td style={{ padding: "14px 12px", fontWeight: 700, fontSize: "14px", color: "#2A2830" }}>
-                      {item.product_name}
-                      <ConfigurationDetail configuration={item.configuration} />
-                      {item.gang_sheet && <GangSheetLineFiles sheet={item.gang_sheet} />}
-                    </td>
-                    <td style={{ padding: "14px 12px", fontSize: "12px", color: "#7A7880", fontFamily: "monospace" }}>{item.sku}</td>
-                    <td style={{ padding: "14px 12px" }}>
-                      {item.color && <span style={{ fontSize: "13px", color: "#2A2830", marginRight: "6px" }}>{item.color}</span>}
-                      {item.size && <span style={{ background: "#F6F6F7", padding: "2px 8px", borderRadius: "6px", fontSize: "11px", fontWeight: 700, color: "#2A2830" }}>{item.size}</span>}
-                      {!item.color && !item.size && <span style={{ color: "#aaa" }}>—</span>}
-                    </td>
-                    <td style={{ padding: "14px 12px", textAlign: "right" as const, fontWeight: 700, color: "#2A2830" }}>{item.quantity}</td>
-                    <td style={{ padding: "14px 12px", textAlign: "right" as const, color: "#7A7880" }}>${Number(item.unit_price).toFixed(2)}</td>
-                    <td style={{ padding: "14px 12px", textAlign: "right" as const, fontWeight: 800, fontFamily: "var(--font-jakarta)", fontSize: "15px", color: "#2A2830" }}>${Number(item.line_total).toFixed(2)}</td>
-                    <td style={{ padding: "14px 12px", textAlign: "right" as const }}>
-                      {editingItems && (
-                        <button
-                          onClick={() => handleRemoveItem(item.id, item.line_total)}
-                          style={{ background: "none", border: "none", cursor: "pointer", color: "#E8242A", fontSize: "14px", fontWeight: 700, padding: "2px 6px" }}
-                          title="Remove item">
-                          ✕
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            {/* Totals */}
-            <div style={{ borderTop: "2px solid #E3E3E3", marginTop: "16px", paddingTop: "16px", display: "flex", justifyContent: "flex-end" }}>
-              <div style={{ minWidth: "260px" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "8px", fontSize: "14px", color: "#7A7880" }}>
-                  <span>Subtotal</span><span>${Number(order.subtotal).toFixed(2)}</span>
-                </div>
-                {(order.discounts ?? []).map((d, i) => (
-                  <div key={i} style={{ display: "flex", justifyContent: "space-between", gap: "12px", marginBottom: "8px", fontSize: "14px", color: "#047857" }}>
-                    <span>{discountLabel(d)}</span><span style={{ whiteSpace: "nowrap" }}>{discountAmount(d)}</span>
-                  </div>
-                ))}
-                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "8px", fontSize: "14px", color: "#7A7880" }}>
-                  <span>Shipping</span><span>${Number(order.shipping_cost).toFixed(2)}</span>
-                </div>
-                {/* Always shown, at $0.00 too: "how much tax" has an answer either way. */}
-                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "8px", fontSize: "14px", color: "#7A7880" }}>
-                  <span>{order.tax_label || "Tax"}</span><span>${Number(order.tax_amount ?? 0).toFixed(2)}</span>
-                </div>
-                {order.convenience_fee && Number(order.convenience_fee) > 0 && (
-                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "8px", fontSize: "14px", color: "#D97706" }}>
-                    <span>Convenience Fee (3%)</span><span>${Number(order.convenience_fee).toFixed(2)}</span>
-                  </div>
-                )}
-                <div style={{ display: "flex", justifyContent: "space-between", fontFamily: "var(--font-jakarta)", fontWeight: 800, fontSize: "19px", color: "#1A1A1A", borderTop: "1px solid #E3E3E3", paddingTop: "10px", marginTop: "4px" }}>
-                  <span>Total</span><span>${Number(order.total).toFixed(2)}</span>
-                </div>
-              </div>
-            </div>
-          </div>
 
-          {/* INVOICE & PAYMENT — always visible unless paid+card+no edits */}
-          {(order.payment_status !== "paid" || order.items_edited) && (
-          <div style={{ background: '#f8f9fa', border: '1px solid #E3E3E3', borderRadius: '8px', padding: '16px', marginTop: '16px', display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' as const }}>
-            <div style={{ flex: 1 }}>
-              <p style={{ margin: 0, fontSize: '13px', fontWeight: 600, color: '#1A1A1A' }}>Invoice &amp; Payment</p>
-              <p style={{ margin: '2px 0 0', fontSize: '12px', color: '#888' }}>
-                {order.payment_method === "cod" && order.payment_status !== "paid"
-                  // Nothing has been paid yet: the cash is collected at the door,
-                  // and "Mark as Paid" beside this is how the shop records it.
-                  ? `Cash on delivery: collect $${Number(order.total ?? 0).toFixed(2)} when it is delivered, then mark it paid`
-                  : order.payment_status === "paid" && !order.invoice_sent_at
-                  ? `Payment received via ${order.payment_method === "ach" ? "ACH / Bank Transfer" : order.payment_method === "cod" ? "cash on delivery" : "Card"}`
-                  : order.invoice_sent_at
-                    ? `Invoice sent ${new Date(order.invoice_sent_at).toLocaleDateString()}`
-                    : 'Invoice not yet sent'}
-                {Number(order.amount_paid) > 0 && order.payment_status !== "paid" && (
-                  <span style={{ color: '#D97706', marginLeft: '6px' }}>
-                    · ${Number(order.amount_paid).toFixed(2)} paid · ${Number(order.balance_due ?? 0).toFixed(2)} remaining
-                  </span>
-                )}
-              </p>
+            <div className="pc-scroll-x">
+              <table className="pc-table" style={{ minWidth: "560px" }}>
+                <thead>
+                  <tr><th>Product</th><th>Options</th><th>Artwork</th><th className="pc-num">Qty</th><th className="pc-num">Total</th>{editing && <th aria-label="Remove" />}</tr>
+                </thead>
+                <tbody>
+                  {o.items.length === 0 && <tr><td colSpan={editing ? 6 : 5} className="pc-empty">This order has no lines.</td></tr>}
+                  {o.items.map((item) => {
+                    const sheet = item.gang_sheet ?? null;
+                    const file = item.configuration?.artwork ?? null;
+                    const options = [item.color, item.size].filter(Boolean).join(" / ")
+                      || (item.configuration?.breakdown ?? []).map((b) => `${b.option}: ${b.value}`).join(" · ")
+                      || (sheet ? `${sheet.width_in} x ${sheet.height_in} in` : "");
+                    const job = sheet ? JOB_WORDS[sheet.status] ?? [sheet.status.replace(/_/g, " "), ""] : null;
+                    return [
+                      <tr key={item.id} data-line={item.sku}>
+                        <td>
+                          <div style={{ fontWeight: 600 }}>{item.product_name}</div>
+                          <div className="pc-sub-line" style={{ fontSize: "12.5px" }}>{item.sku} · {money(item.unit_price)} each</div>
+                        </td>
+                        <td style={{ color: "var(--pc-ink-2)" }}>{options || <span style={{ color: "var(--pc-faint)" }}>None</span>}</td>
+                        <td>
+                          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                            {sheet?.preview_url && (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img src={sheet.preview_url} alt="" className="pc-thumb" onError={(e) => { e.currentTarget.style.display = "none"; }} />
+                            )}
+                            {job ? <span className="pc-pill" data-tone={job[1] || undefined} style={{ textTransform: "none" }}>{job[0]}</span>
+                              : file ? <a href={file.url} target="_blank" rel="noopener noreferrer" className="pc-pill" data-tone="blue" style={{ textTransform: "none", textDecoration: "none" }} title={file.file_name}>File attached</a>
+                              : <span className="pc-pill" style={{ textTransform: "none" }}>No file needed</span>}
+                          </div>
+                        </td>
+                        <td className="pc-num">{item.quantity}</td>
+                        <td className="pc-num" style={{ fontWeight: 600 }}>{money(item.line_total)}</td>
+                        {editing && (
+                          <td className="pc-num">
+                            {/* A line with a print job stays: taking the line off would leave its job in Production with no line to belong to. */}
+                            {sheet ? <span role="img" aria-label="Has a print job" title="Has a print job, so it can't be removed here" data-line-kept style={{ display: "inline-flex", padding: "6px", color: "var(--pc-faint)" }}><Lock size={15} strokeWidth={2.2} /></span>
+                              : <button type="button" className="pc-x" style={{ color: "var(--pc-red)" }} aria-label={`Remove ${item.product_name}`} disabled={!!busy} onClick={() => removeItem(item)}><X size={17} strokeWidth={2.2} /></button>}
+                          </td>
+                        )}
+                      </tr>,
+                      sheet ? (
+                        <tr key={`${item.id}-files`}>
+                          <td colSpan={editing ? 6 : 5} style={{ paddingTop: 0, background: "#FBFCFE" }}><GangSheetLineFiles sheet={sheet} /></td>
+                        </tr>
+                      ) : null,
+                    ];
+                  })}
+                </tbody>
+              </table>
             </div>
-            <button
-              onClick={handleResendInvoice}
-              disabled={isResendingInvoice}
-              style={{ background: '#fff', color: '#1A1A1A', border: '1px solid #1A1A1A', padding: '8px 16px', borderRadius: '6px', fontSize: '13px', fontWeight: 700, cursor: isResendingInvoice ? 'not-allowed' : 'pointer', opacity: isResendingInvoice ? 0.6 : 1 }}>
-              {isResendingInvoice ? 'Sending…' : (order.invoice_sent_at ? 'Resend Invoice' : 'Send Invoice')}
-            </button>
-            {order.payment_status !== "paid" && (
-              <button
-                onClick={handleMarkAsPaid}
-                disabled={isMarkingPaid}
-                style={{ background: '#10B981', color: '#fff', border: 'none', padding: '8px 16px', borderRadius: '6px', fontSize: '13px', fontWeight: 700, cursor: isMarkingPaid ? 'not-allowed' : 'pointer', opacity: isMarkingPaid ? 0.6 : 1 }}>
-                {isMarkingPaid ? 'Saving…' : '✓ Mark as Paid'}
-              </button>
-            )}
-          </div>
+          </section>
+
+          {/* The print jobs on this order, with their layouts, files and review buttons.
+              Folded away unless reviewing artwork is the next thing to do. */}
+          {o.items.some((i) => i.gang_sheet) && (
+            <details className="pc-card pc-details" open={next === "artwork"} data-jobs>
+              <summary>
+                <h2 className="pc-h2">Print jobs and artwork files</h2>
+                <span className="pc-link pc-details-more" aria-hidden />
+              </summary>
+              <div style={{ padding: "0 20px 4px" }}><OrderGangSheets orderId={o.id} /></div>
+            </details>
           )}
 
-          {/* REFUNDS & CHARGEBACKS */}
+          {/* ── Fulfil ──────────────────────────────────────────────────── */}
+          <section className="pc-card pc-pad" aria-labelledby="fulfil-title" data-fulfil>
+            <h2 className="pc-h2" id="fulfil-title">Fulfil</h2>
+            <p className="pc-sub-line" style={{ margin: "4px 0 16px" }}>
+              Method: {methodWords(o.shipping_method)}
+              {!pickup && (hasLiveRate && o.carrier ? `, ${o.carrier} ${o.courier_service ?? ""}`.trimEnd() : ", flat rate")}
+              {!pickup && ` · ${money(o.shipping_cost)} charged`}
+            </p>
+
+            {artOpen && ["pending", "confirmed", "processing"].includes(o.status) && (
+              <div className="pc-note" data-tone="red" style={{ marginBottom: "16px" }} data-art-open>
+                {progress?.artwork.key === "revision"
+                  ? "The customer was asked to send the artwork again, and it has not come back."
+                  : "A print job on this order is not approved yet."}
+                {" "}<Link href={artHref}>Review the artwork</Link> before this order goes out.
+              </div>
+            )}
+
+            {["cancelled", "refunded"].includes(o.status) ? (
+              <div className="pc-note" data-tone="red">This order was {o.status}. There is nothing to send.</div>
+            ) : pickup ? (
+              <div style={{ display: "grid", gap: "16px" }}>
+                <div>
+                  <div className="pc-small-head">Collected from</div>
+                  {pickupPlace?.street1 ? (
+                    <div style={{ fontSize: "14.5px", lineHeight: 1.55 }}>
+                      {pickupPlace.name && <div style={{ fontWeight: 600 }}>{pickupPlace.name}</div>}
+                      <div>{pickupPlace.street1}</div>
+                      <div>{[pickupPlace.city, [pickupPlace.state, pickupPlace.zip].filter(Boolean).join(" ")].filter(Boolean).join(", ")}</div>
+                      {pickupPlace.hours && <div className="pc-sub-line">{pickupPlace.hours}</div>}
+                    </div>
+                  ) : (
+                    <div className="pc-note">No pickup location is set, so the customer is not told where to come. <Link href="/admin/standard-shipping">Set the pickup location</Link></div>
+                  )}
+                </div>
+                <div className="pc-note" data-tone="blue">The customer collects this order. No shipping label is needed.</div>
+                {o.status !== "delivered" && (
+                  <label className="pc-check-row">
+                    <input type="checkbox" className="pc-check" checked={notify} onChange={(e) => setNotify(e.target.checked)} />
+                    Email the customer when this changes
+                  </label>
+                )}
+                <div className="pc-row-actions no-print">
+                  {["pending", "confirmed", "processing"].includes(o.status) && (
+                    <button type="button" className="pc-btn" data-kind={accepted ? "primary" : undefined} disabled={!!busy} onClick={markReady}>Mark ready for pickup</button>
+                  )}
+                  {o.status === "ready_for_pickup" && <button type="button" className="pc-btn" data-kind="primary" disabled={!!busy} onClick={() => markDelivered("collected")}>Mark collected</button>}
+                  {o.status === "delivered" && <span className="pc-pill" data-tone="green" style={{ textTransform: "none" }}>Collected</span>}
+                </div>
+              </div>
+            ) : ["shipped", "delivered"].includes(o.status) ? (
+              <div style={{ display: "grid", gap: "14px" }}>
+                <div className="pc-note" data-tone="green">
+                  {o.status === "delivered" ? "Delivered" : "Shipped"}
+                  {o.courier ? ` with ${String(o.courier).toUpperCase()}${o.courier_service ? ` ${o.courier_service}` : ""}` : ""}
+                  {o.shipped_at ? ` on ${day(o.shipped_at)}` : ""}
+                  {o.tracking_number ? `. Tracking ${o.tracking_number}` : ". No tracking number was added"}
+                </div>
+                <div className="pc-row-actions no-print">
+                  {o.label_url && <button type="button" className="pc-btn" onClick={openLabel}>Open the label</button>}
+                  {o.tracking_url && <a href={o.tracking_url} target="_blank" rel="noopener noreferrer" className="pc-btn">Track the parcel</a>}
+                  {o.status === "shipped" && <button type="button" className="pc-btn" data-kind="primary" disabled={!!busy} onClick={() => markDelivered("delivered")}>Mark delivered</button>}
+                </div>
+              </div>
+            ) : (
+              <div style={{ display: "grid", gap: "16px" }}>
+                {carriers.length === 0 && (
+                  <div className="pc-note" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "14px", flexWrap: "wrap" }} data-no-carrier>
+                    <span style={{ flex: "1 1 260px" }}>No carrier is connected, so live rates can&apos;t load. Connect UPS, FedEx or USPS to buy labels here.</span>
+                    <Link href="/admin/standard-shipping" className="pc-btn" style={{ textDecoration: "none", color: "var(--pc-ink)", fontWeight: 600 }}>Connect a carrier</Link>
+                  </div>
+                )}
+                <div className="pc-grid-2">
+                  <div>
+                    <label className="pc-label" htmlFor="weight">Package weight (lb)</label>
+                    <input id="weight" type="number" min="0.1" step="0.1" className="pc-input" value={weight} placeholder="0.0"
+                      onChange={(e) => { setWeight(e.target.value); setRates(null); }} />
+                  </div>
+                  <div>
+                    <label className="pc-label" htmlFor="tracking">Tracking number</label>
+                    <input id="tracking" className="pc-input" value={tracking} onChange={(e) => setTracking(e.target.value)} placeholder="Added automatically when you buy a label" />
+                  </div>
+                </div>
+                <label className="pc-check-row">
+                  <input type="checkbox" className="pc-check" checked={notify} onChange={(e) => setNotify(e.target.checked)} />
+                  Email the customer when this ships
+                </label>
+
+                {rates && rates.length > 0 && (
+                  <div data-rates>
+                    <div className="pc-small-head">Choose a rate</div>
+                    <div className="pc-rates">
+                      {rates.map((r) => (
+                        <button key={r.rate_id} type="button" className="pc-rate" data-on={rateId === r.rate_id ? "" : undefined} aria-pressed={rateId === r.rate_id} onClick={() => setRateId(r.rate_id)}>
+                          <span>{r.carrier} {r.service}{r.days != null ? <span style={{ color: "var(--pc-muted)" }}> · {r.days} business {r.days === 1 ? "day" : "days"}</span> : null}</span>
+                          <b>{money(r.cost)}</b>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {ratesError && <div className="pc-note" data-tone="red">{ratesError}</div>}
+
+                <div className="pc-row-actions no-print">
+                  <button type="button" className="pc-btn" data-kind={carriers.length ? "primary" : undefined} disabled={carriers.length === 0 || !!busy} onClick={buyLabel}
+                    title={carriers.length === 0 ? "Connect a carrier first" : undefined} data-buy-label>
+                    {busy === "rates" ? "Getting rates…" : busy === "label" ? "Buying…"
+                      : hasLiveRate ? "Buy label"
+                      : rates && rates.length > 0 ? `Buy label · ${money(rates.find((r) => r.rate_id === rateId)?.cost ?? 0)}`
+                      : "Buy label"}
+                  </button>
+                  <button type="button" className="pc-btn" disabled={!!busy} onClick={markShipped}>Mark shipped without a label</button>
+                  {accepted && !progress?.packed && <button type="button" className="pc-link" disabled={!!busy} onClick={markPacked}>Mark packed</button>}
+                  {progress?.packed && <span className="pc-pill" data-tone="blue" style={{ textTransform: "none" }}>Packed</span>}
+                </div>
+              </div>
+            )}
+          </section>
+
+          {/* Refunds and chargebacks. Draws itself only when there is something to show or to refund. */}
           <OrderRefunds
-            orderId={order.id}
-            total={Number(order.total) || 0}
-            amountRefunded={Number(order.amount_refunded ?? 0) || 0}
-            remaining={order.refundable_remaining != null ? Number(order.refundable_remaining) : null}
-            refundable={order.refundable_remaining != null && order.payment_status === "paid"}
-            refunds={order.refunds ?? []}
-            disputes={order.disputes ?? []}
-            onChanged={async () => {
-              const fresh = await adminService.getOrder(order.id) as AdminOrder;
-              setOrder(fresh);
-            }}
+            orderId={o.id}
+            total={Number(o.total) || 0}
+            amountRefunded={Number(o.amount_refunded ?? 0) || 0}
+            remaining={left}
+            refundable={left != null && paid}
+            refunds={o.refunds ?? []}
+            disputes={o.disputes ?? []}
+            openSignal={refundSignal}
+            onChanged={async () => { await reload(); }}
           />
 
-          {/* TIMELINE — stored events, grouped by the day they happened */}
-          <div style={{ ...CardStyle, padding: "24px", marginBottom: 0 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: "12px", marginBottom: "18px", flexWrap: "wrap" as const }}>
-              <h3 style={{ ...SectionHead, fontSize: "18px", letterSpacing: ".05em", margin: 0 }}>Timeline</h3>
-              <span style={{ fontSize: "12px", color: "#9CA3AF" }}>
-                {timelineEvents.length} {timelineEvents.length === 1 ? "event" : "events"} · newest first
-              </span>
+          {/* ── Notes ───────────────────────────────────────────────────── */}
+          <section className="pc-card pc-pad" aria-labelledby="notes-title" data-notes>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px" }}>
+              <h2 className="pc-h2" id="notes-title">Notes</h2>
+              {!noteOpen && <button type="button" className="pc-btn no-print" onClick={() => setNoteOpen(true)}>Add note</button>}
             </div>
 
-            {timelineEvents.length === 0 ? (
-              <p style={{ fontSize: "13px", color: "#7A7880", margin: 0 }}>
-                Nothing has been recorded for this order yet.
-              </p>
-            ) : (
-              timelineDays.map(group => (
-                <div key={group.day} style={{ marginBottom: "18px" }}>
-                  <div style={{ fontSize: "11px", fontWeight: 800, letterSpacing: ".08em", textTransform: "uppercase" as const, color: "#9CA3AF", marginBottom: "12px" }}>
-                    {group.day}
-                  </div>
-                  <div style={{ position: "relative", paddingLeft: "28px" }}>
-                    <div style={{ position: "absolute", left: "23px", top: "8px", bottom: "8px", width: "2px", background: "#E3E3E3" }} />
-                    {group.events.map(event => {
-                      const color = EVENT_COLOR[event.type] ?? "#7A7880";
-                      const when = new Date(event.occurred_at);
-                      const tracking = typeof event.meta?.tracking_number === "string" ? event.meta.tracking_number : null;
-                      return (
-                        <div key={event.id} style={{ display: "flex", gap: "16px", marginBottom: "20px", position: "relative", alignItems: "flex-start" }}>
-                          <div style={{ width: "20px", height: "20px", borderRadius: "50%", background: color, border: "2px solid #fff", boxShadow: `0 0 0 2px ${color}`, flexShrink: 0, zIndex: 1, marginLeft: "-14px", marginTop: "2px" }} />
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ display: "flex", gap: "8px", alignItems: "baseline", flexWrap: "wrap" as const }}>
-                              <span style={{ fontWeight: 700, fontSize: "14px", color: "#2A2830" }}>{event.label}</span>
-                              <span
-                                style={{ fontSize: "11px", color: "#9CA3AF", fontVariantNumeric: "tabular-nums" as const }}
-                                title={when.toLocaleString(undefined, { dateStyle: "full", timeStyle: "long" })}
-                              >
-                                {when.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}
-                              </span>
-                            </div>
-                            <div style={{ fontSize: "13px", color: "#4B5563", marginTop: "3px", lineHeight: 1.45, wordBreak: "break-word" as const }}>
-                              {event.message}
-                            </div>
-                            <div style={{ fontSize: "11.5px", color: "#9CA3AF", marginTop: "4px" }}>
-                              {actorLabel(event)}
-                              {tracking && (
-                                <>
-                                  {" · "}
-                                  <span style={{ fontVariantNumeric: "tabular-nums" as const }}>{tracking}</span>
-                                </>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
+            {noteOpen && (
+              <div style={{ marginTop: "14px" }} className="no-print">
+                <textarea className="pc-input" autoFocus value={noteText} maxLength={2000} onChange={(e) => setNoteText(e.target.value)} placeholder="Something your team should know about this order" aria-label="Note" />
+                <div className="pc-row-actions" style={{ marginTop: "10px" }}>
+                  <button type="button" className="pc-btn" data-kind="primary" disabled={!noteText.trim() || busy === "note"} onClick={addNote}>{busy === "note" ? "Saving…" : "Save note"}</button>
+                  <button type="button" className="pc-btn" onClick={() => { setNoteOpen(false); setNoteText(""); }}>Cancel</button>
                 </div>
-              ))
+              </div>
             )}
-          </div>
+
+            {notes.length === 0 && !noteOpen && <p className="pc-sub-line" style={{ margin: "12px 0 0", fontSize: "14.5px" }}>No notes yet. Notes are private to your team.</p>}
+            {notes.length > 0 && (
+              <div style={{ display: "grid", gap: "14px", marginTop: "16px" }}>
+                {notes.map((n) => (
+                  <div key={n.id} data-note>
+                    <div style={{ fontSize: "14.5px", lineHeight: 1.5, whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{n.message}</div>
+                    <div className="pc-event-when">{n.actor_name || (n.actor_type === "system" ? "Added automatically" : "Staff")} · {moment(n.occurred_at)}</div>
+                  </div>
+                ))}
+                <p className="pc-sub-line" style={{ margin: 0 }}>Notes are private to your team.</p>
+              </div>
+            )}
+
+            {(o.order_notes || orderNoteOpen) && (
+              <div style={{ marginTop: "18px", paddingTop: "16px", borderTop: "1px solid var(--pc-line)" }} data-order-note>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: "12px" }}>
+                  <div className="pc-small-head">Written on the order</div>
+                  {!orderNoteOpen && <button type="button" className="pc-link no-print" onClick={() => { setOrderNoteText(o.order_notes ?? ""); setOrderNoteOpen(true); }}>Edit</button>}
+                </div>
+                {orderNoteOpen ? (
+                  <div className="no-print">
+                    <textarea className="pc-input" value={orderNoteText} onChange={(e) => setOrderNoteText(e.target.value)} aria-label="Note written on the order" />
+                    <div className="pc-row-actions" style={{ marginTop: "10px" }}>
+                      <button type="button" className="pc-btn" data-kind="primary" disabled={!!busy} onClick={saveOrderNote}>Save</button>
+                      <button type="button" className="pc-btn" onClick={() => setOrderNoteOpen(false)}>Cancel</button>
+                    </div>
+                  </div>
+                ) : <div style={{ fontSize: "14.5px", lineHeight: 1.5, whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{o.order_notes}</div>}
+              </div>
+            )}
+          </section>
         </div>
 
-        {/* ── RIGHT SIDEBAR ── */}
-        <div>
-          {/* ── SECTION 0: DOCUMENTS ── */}
-          {/* <div style={CardStyle}>
-            <h3 style={{ ...SectionHead, marginBottom: "14px" }}>Documents</h3>
-            <div style={{ display: "flex", flexDirection: "column" as const, gap: "8px" }}>
-              <button
-                onClick={handleResendInvoice}
-                disabled={isResendingInvoice}
-                style={{ display: "flex", alignItems: "center", gap: "8px", background: isResendingInvoice ? "#F6F6F7" : "#1A1A1A", color: isResendingInvoice ? "#7A7880" : "#fff", border: "none", padding: "10px 16px", borderRadius: "6px", fontSize: "13px", fontWeight: 700, cursor: isResendingInvoice ? "not-allowed" : "pointer", opacity: isResendingInvoice ? .6 : 1, width: "100%", justifyContent: "center" as const }}>
-                {isResendingInvoice ? "Sending…" : "📄 Email Invoice to Customer"}
-              </button>
-              <a
-                href={`/api/v1/orders/${id}/pdf/invoice`}
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{ display: "flex", alignItems: "center", justifyContent: "center" as const, gap: "8px", background: "#F6F6F7", color: "#2A2830", border: "1px solid #E3E3E3", padding: "10px 16px", borderRadius: "6px", fontSize: "13px", fontWeight: 700, textDecoration: "none" }}>
-                ⬇ Download Invoice PDF
-              </a>
+        <div className="pc-stack">
+          {/* ── Customer ────────────────────────────────────────────────── */}
+          <section className="pc-card pc-pad" aria-labelledby="customer-title" data-customer>
+            <h2 className="pc-h2" id="customer-title">Customer</h2>
+            <div style={{ marginTop: "12px", fontSize: "15.5px", fontWeight: 600 }}>{customer}</div>
+            <div className="pc-sub-line" style={{ overflowWrap: "anywhere" }}>
+              {[o.customer_name && o.customer_name !== customer ? o.customer_name : "", o.customer_email ?? o.guest_email ?? "", o.customer_phone ?? ""].filter(Boolean).join(" · ") || "No contact details on this order"}
             </div>
-          </div> */}
-
-          {/* ── SECTION 1: NOTES ── */}
-          <div style={CardStyle}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px" }}>
-              <h3 style={SectionHead}>Notes</h3>
-              <button onClick={() => { setEditingNote(true); setNoteText(order.order_notes ?? ""); }}
-                style={{ background: "none", border: "none", cursor: "pointer", fontSize: "16px", lineHeight: 1 }}>✏️</button>
-            </div>
-
-            {editingNote ? (
-              <div>
-                <textarea value={noteText} onChange={e => setNoteText(e.target.value)}
-                  placeholder="Add note about this order…"
-                  style={{ width: "100%", padding: "10px 12px", border: "1.5px solid #1A1A1A", borderRadius: "6px", fontSize: "13px", fontFamily: "var(--font-jakarta)", minHeight: "80px", resize: "vertical" as const, outline: "none", boxSizing: "border-box" as const }} />
-                <div style={{ display: "flex", gap: "8px", marginTop: "8px" }}>
-                  <button onClick={handleSaveNote}
-                    style={{ background: "#1A1A1A", color: "#fff", border: "none", padding: "8px 16px", borderRadius: "6px", fontSize: "13px", fontWeight: 700, cursor: "pointer" }}>
-                    Save
-                  </button>
-                  <button onClick={() => setEditingNote(false)}
-                    style={{ background: "none", border: "1px solid #E3E3E3", padding: "8px 16px", borderRadius: "6px", fontSize: "13px", cursor: "pointer", color: "#555" }}>
-                    Cancel
-                  </button>
-                </div>
+            {stats && (
+              <div className="pc-sub-line" style={{ marginTop: "6px" }}>
+                {stats.total_orders} {stats.total_orders === 1 ? "order" : "orders"} with you · {money(stats.total_spent)} in all
               </div>
-            ) : (
-              <p style={{ fontSize: "13px", color: order.order_notes ? "#2A2830" : "#bbb", fontStyle: order.order_notes ? "normal" : "italic" as const, lineHeight: 1.65 }}>
-                {order.order_notes || "No notes added yet"}
-              </p>
             )}
+            {o.pricing_tier && <div style={{ marginTop: "10px" }}><span className="pc-pill" data-tone="blue" style={{ textTransform: "none" }}>{o.pricing_tier}</span></div>}
+            <div className="pc-row-actions no-print" style={{ marginTop: "12px", gap: "18px" }}>
+              {o.company_id && <Link href={`/admin/customers/${o.company_id}`} className="pc-link">View profile</Link>}
+              {o.company_id && <Link href={`/admin/orders?company_id=${o.company_id}`} className="pc-link">All their orders</Link>}
+            </div>
 
-            {order.po_number && (
-              <div style={{ marginTop: "14px", paddingTop: "14px", borderTop: "1px solid #F6F6F7" }}>
-                <div style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase" as const, letterSpacing: ".08em", color: "#aaa", marginBottom: "8px" }}>Additional Details</div>
-                {order.po_number && (
-                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: "13px", marginBottom: "5px" }}>
-                    <span style={{ color: "#7A7880" }}>PO Number</span>
-                    <span style={{ fontWeight: 600, color: "#2A2830" }}>{order.po_number}</span>
-                  </div>
+            <hr className="pc-rule" style={{ margin: "16px 0" }} />
+            <div className="pc-small-head">{pickup ? "Collects in person" : "Ship to"}</div>
+            {addr && (addr.address_line1 || addr.city) ? (
+              <div style={{ fontSize: "14.5px", lineHeight: 1.55, color: "var(--pc-ink-2)" }}>
+                {addr.full_name && <div style={{ color: "var(--pc-ink)", fontWeight: 500 }}>{addr.full_name}</div>}
+                {addr.address_line1 && <div>{addr.address_line1}</div>}
+                {addr.address_line2 && <div>{addr.address_line2}</div>}
+                <div>{[addr.city, [addr.state, zip].filter(Boolean).join(" ")].filter(Boolean).join(", ")}</div>
+                <div>{addr.country ?? "United States"}</div>
+                {mapQuery && !pickup && (
+                  <a href={`https://maps.google.com/?q=${encodeURIComponent(mapQuery)}`} target="_blank" rel="noopener noreferrer" className="pc-link no-print" style={{ display: "inline-block", marginTop: "6px", fontSize: "13.5px" }}>Open in Maps</a>
                 )}
               </div>
-            )}
-          </div>
+            ) : <div className="pc-sub-line">No address on this order.</div>}
+          </section>
 
-          {/* ── WHERE THIS ORDER CAME FROM ── */}
-          {order.attribution && (() => {
-            const a = order.attribution;
-            const row = (label: string, value: React.ReactNode) => (
-              <div key={label} style={{ display: "flex", justifyContent: "space-between", gap: "12px", fontSize: "13px", marginTop: "8px" }}>
-                <span style={{ color: "#7A7880", flexShrink: 0 }}>{label}</span>
-                <span style={{ fontWeight: 600, textAlign: "right" as const, wordBreak: "break-word" as const, minWidth: 0 }}>{value}</span>
-              </div>
-            );
-            const paidClickName: Record<string, string> = {
-              gclid: "Google Ads", fbclid: "Meta Ads", msclkid: "Microsoft Ads", ttclid: "TikTok Ads",
-            };
-            return (
-              <div style={CardStyle}>
-                <h3 style={{ ...SectionHead, marginBottom: "10px" }}>Where this order came from</h3>
-                <div style={{ fontSize: "15px", fontWeight: 800, color: "#1A1A1A" }}>{a.label}</div>
-                {a.campaign && row("Campaign", a.campaign)}
-                {a.utm_term && row("Search term", a.utm_term)}
-                {a.utm_content && row("Ad / content", a.utm_content)}
-                {a.paid_click && row("Paid click", paidClickName[a.paid_click] ?? a.paid_click)}
-                {a.referrer && row("Came from", <span style={{ fontSize: "12px" }}>{a.referrer}</span>)}
-                {a.landing_page && row("First page seen", <span style={{ fontSize: "12px" }}>{a.landing_page}</span>)}
-                {!!a.visits && row("Visits before ordering", a.visits)}
-                {a.device && row("Device", a.device)}
-                {a.first_seen && row("First visit", new Date(a.first_seen).toLocaleDateString())}
-                {a.utm_source && (
-                  <a
-                    href={`/admin/orders?utm_source=${encodeURIComponent(a.utm_source)}${a.campaign ? `&utm_campaign=${encodeURIComponent(a.campaign)}` : ""}`}
-                    style={{ display: "inline-block", marginTop: "12px", fontSize: "12.5px", fontWeight: 700, color: "#1A1A1A" }}
-                  >
-                    All orders from this {a.campaign ? "campaign" : "source"} →
-                  </a>
-                )}
-              </div>
-            );
-          })()}
-
-          {/* ── SUPPLIER: the purchase order behind this sale ── */}
-          {order.supplier && (() => {
-            const sup = order.supplier;
-            const b = supplierBadge(sup);
-            const row = { display: "flex", justifyContent: "space-between", gap: "12px", fontSize: "13px", marginTop: "8px" } as const;
-            return (
-              <div style={CardStyle}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px", gap: "8px", flexWrap: "wrap" }}>
-                  <h3 style={SectionHead}>Supplier</h3>
-                  <span style={{ background: b.bg, color: b.fg, fontSize: "11px", fontWeight: 700, padding: "3px 9px", borderRadius: "20px" }}>{b.text}</span>
-                </div>
-                <p style={{ fontSize: "12.5px", color: "#7A7880", margin: 0, lineHeight: 1.5 }}>
-                  {sup.items} item{sup.items === 1 ? "" : "s"} in this order {sup.items === 1 ? "is" : "are"} fulfilled by {sup.supplier}. This is the customer&apos;s order; the purchase order below is yours to {sup.supplier}.
-                </p>
-                {sup.supplier_order_numbers && <div style={row}><span style={{ color: "#7A7880" }}>S&amp;S order</span><span style={{ fontWeight: 600 }}>{sup.supplier_order_numbers}</span></div>}
-                {sup.po_number && <div style={row}><span style={{ color: "#7A7880" }}>Your PO</span><span style={{ fontWeight: 600 }}>{sup.po_number}</span></div>}
-                {sup.tracking_number && <div style={row}><span style={{ color: "#7A7880" }}>Tracking</span><span style={{ fontWeight: 600 }}>{sup.carrier ? `${sup.carrier} ` : ""}{sup.tracking_number}</span></div>}
-                {sup.sent_at && <div style={row}><span style={{ color: "#7A7880" }}>Sent</span><span>{new Date(sup.sent_at).toLocaleString()}</span></div>}
-                {sup.error && <div style={{ fontSize: "12px", color: "#B91C1C", marginTop: "8px" }}>{sup.error}</div>}
-                {sup.status === "not_sent" && <div style={{ fontSize: "12px", color: "#C2410C", marginTop: "8px" }}>Not sent to {sup.supplier} yet.</div>}
-                {sup.test && sup.status === "test" && <div style={{ fontSize: "12px", color: "#A16207", marginTop: "8px" }}>Sent as a test — S&amp;S cancelled it, nothing ships.</div>}
-                <a href="/admin/suppliers" style={{ display: "inline-block", marginTop: "12px", fontSize: "12.5px", fontWeight: 700, color: "#1A1A1A" }}>Manage in Suppliers →</a>
-              </div>
-            );
-          })()}
-
-          {/* ── SECTION 2: CUSTOMER ── */}
-          <div style={CardStyle}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px" }}>
-              <h3 style={SectionHead}>Customer</h3>
-              <span onClick={() => router.push(`/admin/customers/${order.company_id}`)}
-                style={{ fontSize: "12px", color: "#1A1A1A", fontWeight: 700, cursor: "pointer" }}>
-                View Profile →
-              </span>
+          {/* ── Money ───────────────────────────────────────────────────── */}
+          <section className="pc-card pc-pad" aria-labelledby="money-title" data-money>
+            <h2 className="pc-h2" id="money-title" style={{ marginBottom: "14px" }}>Money</h2>
+            <div className="pc-money">
+              <div><span>Subtotal</span><span>{money(o.subtotal)}</span></div>
+              {(o.discounts ?? []).map((d, i) => (
+                <div key={i} style={{ color: "var(--pc-green)" }}><span>{discountLabel(d)}</span><span>{discountAmount(d)}</span></div>
+              ))}
+              <div><span>Shipping</span><span>{money(o.shipping_cost)}</span></div>
+              <div><span>{o.tax_label || "Tax"}</span><span>{money(o.tax_amount ?? 0)}</span></div>
+              {Number(o.convenience_fee ?? 0) > 0 && <div><span>Convenience fee (3%)</span><span>{money(o.convenience_fee)}</span></div>}
+              <div className="pc-money-total"><span>Total</span><span>{money(o.total)}</span></div>
             </div>
 
-            {/* Avatar + company */}
-            <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "14px" }}>
-              <div style={{ width: "40px", height: "40px", borderRadius: "50%", background: "#1A1A1A", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 700, fontSize: "16px", flexShrink: 0 }}>
-                {avatarInitial}
-              </div>
-              <div>
-                <div style={{ fontWeight: 700, fontSize: "14px", color: "#2A2830" }}>{order.customer_name ?? order.company_name}</div>
-                {order.customer_name && <div style={{ fontSize: "12px", color: "#7A7880" }}>{order.company_name}</div>}
-              </div>
-            </div>
-
-            {/* Contact */}
-            {(order.customer_email || order.customer_phone) && (
-              <div style={{ fontSize: "13px", marginBottom: "14px" }}>
-                {order.customer_email && <div style={{ color: "#1A1A1A", marginBottom: "4px" }}>📧 {order.customer_email}</div>}
-                {order.customer_phone && <div style={{ color: "#7A7880" }}>📞 {order.customer_phone}</div>}
-              </div>
-            )}
-
-            {/* All orders link */}
-            <div style={{ background: "#F6F6F7", borderRadius: "6px", padding: "10px 14px", marginBottom: "14px", fontSize: "13px" }}>
-              <span style={{ color: "#7A7880" }}>Orders from this company: </span>
-              <span onClick={() => router.push(`/admin/orders?company=${order.company_id}`)}
-                style={{ fontWeight: 700, color: "#1A1A1A", cursor: "pointer" }}>
-                View all →
-              </span>
-            </div>
-
-            {/* Shipping Address */}
-            {addr && (
-              <div style={{ borderTop: "1px solid #F6F6F7", paddingTop: "14px", marginBottom: "14px" }}>
-                <div style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase" as const, letterSpacing: ".08em", color: "#aaa", marginBottom: "8px" }}>Shipping Address</div>
-                <div style={{ fontSize: "13px", color: "#2A2830", lineHeight: 1.7 }}>
-                  {addr.full_name && <div style={{ fontWeight: 600 }}>{addr.full_name}</div>}
-                  {addr.address_line1 && <div>{addr.address_line1}</div>}
-                  {addr.address_line2 && <div>{addr.address_line2}</div>}
-                  {(addr.city || addr.state) && <div>{[addr.city, addr.state, zip].filter(Boolean).join(", ")}</div>}
-                  <div>{addr.country ?? "United States"}</div>
-                </div>
-                {mapQuery && (
-                  <a href={`https://maps.google.com/?q=${encodeURIComponent(mapQuery)}`}
-                    target="_blank" rel="noopener noreferrer"
-                    style={{ fontSize: "12px", color: "#1A1A1A", fontWeight: 700, textDecoration: "none", display: "inline-block", marginTop: "6px" }}>
-                    View map →
-                  </a>
-                )}
-              </div>
-            )}
-
-            <div style={{ borderTop: "1px solid #F6F6F7", paddingTop: "14px" }}>
-              <div style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase" as const, letterSpacing: ".08em", color: "#aaa", marginBottom: "8px" }}>Billing Address</div>
-              <div style={{ fontSize: "13px", color: "#7A7880" }}>Same as shipping address</div>
-            </div>
-
-            {/* Company Registration Info */}
-            {companyReg && (companyReg.company_email || companyReg.address_line1 || companyReg.city || companyReg.secondary_business || companyReg.ppac_number || companyReg.how_heard) && (
-              <div style={{ borderTop: "1px solid #F6F6F7", paddingTop: "14px", marginTop: "4px" }}>
-                <div style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase" as const, letterSpacing: ".08em", color: "#aaa", marginBottom: "10px" }}>Company Registration Info</div>
-                <div style={{ display: "flex", flexDirection: "column" as const, gap: "6px", fontSize: "13px" }}>
-                  {companyReg.company_email && (
-                    <div><span style={{ color: "#7A7880", fontSize: "11px" }}>Company Email: </span><span style={{ color: "#2A2830", fontWeight: 600 }}>{companyReg.company_email}</span></div>
-                  )}
-                  {(companyReg.address_line1 || companyReg.city) && (
-                    <div>
-                      <span style={{ color: "#7A7880", fontSize: "11px" }}>Address: </span>
-                      <span style={{ color: "#2A2830" }}>
-                        {[companyReg.address_line1, companyReg.address_line2, companyReg.city, companyReg.state_province, companyReg.postal_code, companyReg.country].filter(Boolean).join(", ")}
-                      </span>
-                    </div>
-                  )}
-                  {companyReg.secondary_business && (
-                    <div><span style={{ color: "#7A7880", fontSize: "11px" }}>Secondary Business: </span><span style={{ color: "#2A2830" }}>{companyReg.secondary_business}</span></div>
-                  )}
-                  {companyReg.estimated_annual_volume && (
-                    <div><span style={{ color: "#7A7880", fontSize: "11px" }}>Est. Annual Volume: </span><span style={{ color: "#2A2830" }}>{companyReg.estimated_annual_volume}</span></div>
-                  )}
-                  {(companyReg.ppac_number || companyReg.ppai_number || companyReg.asi_number) && (
-                    <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" as const }}>
-                      {companyReg.ppac_number && <span><span style={{ color: "#7A7880", fontSize: "11px" }}>PPAC: </span><span style={{ color: "#2A2830" }}>{companyReg.ppac_number}</span></span>}
-                      {companyReg.ppai_number && <span><span style={{ color: "#7A7880", fontSize: "11px" }}>PPAI: </span><span style={{ color: "#2A2830" }}>{companyReg.ppai_number}</span></span>}
-                      {companyReg.asi_number && <span><span style={{ color: "#7A7880", fontSize: "11px" }}>ASI: </span><span style={{ color: "#2A2830" }}>{companyReg.asi_number}</span></span>}
-                    </div>
-                  )}
-                  {(companyReg.num_employees || companyReg.num_sales_reps) && (
-                    <div style={{ display: "flex", gap: "16px" }}>
-                      {companyReg.num_employees && <span><span style={{ color: "#7A7880", fontSize: "11px" }}>Employees: </span><span style={{ color: "#2A2830" }}>{companyReg.num_employees}</span></span>}
-                      {companyReg.num_sales_reps && <span><span style={{ color: "#7A7880", fontSize: "11px" }}>Sales Reps: </span><span style={{ color: "#2A2830" }}>{companyReg.num_sales_reps}</span></span>}
-                    </div>
-                  )}
-                  {companyReg.how_heard && (
-                    <div><span style={{ color: "#7A7880", fontSize: "11px" }}>How heard: </span><span style={{ color: "#2A2830" }}>{companyReg.how_heard}</span></div>
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* ── SECTION 3: CONVERSION SUMMARY ── */}
-          <div style={{ ...CardStyle, marginBottom: 0 }}>
-            <h3 style={{ ...SectionHead, marginBottom: "14px" }}>Conversion Summary</h3>
-
-            {/* Key metrics */}
-            <div style={{ display: "flex", flexDirection: "column" as const, gap: "10px", marginBottom: "16px" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 12px", background: "#F6F6F7", borderRadius: "8px" }}>
-                <span style={{ fontSize: "18px" }}>🛒</span>
-                <div>
-                  <div style={{ fontSize: "13px", fontWeight: 700, color: "#2A2830" }}>
-                    {customerStats?.total_orders ?? 1} total orders
-                  </div>
-                  <div style={{ fontSize: "11px", color: "#7A7880" }}>from this customer</div>
-                </div>
-              </div>
-              <div style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 12px", background: "#F6F6F7", borderRadius: "8px" }}>
-                <span style={{ fontSize: "18px" }}>💰</span>
-                <div>
-                  <div style={{ fontSize: "13px", fontWeight: 700, color: "#2A2830" }}>
-                    ${customerStats ? Number(customerStats.total_spent).toFixed(2) : Number(order.total).toFixed(2)} lifetime value
-                  </div>
-                  <div style={{ fontSize: "11px", color: "#7A7880" }}>total revenue from customer</div>
-                </div>
-              </div>
-              <div style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 12px", background: "#F6F6F7", borderRadius: "8px" }}>
-                <span style={{ fontSize: "18px" }}>📅</span>
-                <div>
-                  <div style={{ fontSize: "13px", fontWeight: 700, color: "#2A2830" }}>
-                    {customerStats?.created_at
-                      ? new Date(customerStats.created_at).toLocaleDateString("en-US", { month: "short", year: "numeric" })
-                      : "New Customer"}
-                  </div>
-                  <div style={{ fontSize: "11px", color: "#7A7880" }}>customer since</div>
-                </div>
-              </div>
-            </div>
-
-            {/* Order source */}
-            <div style={{ borderTop: "1px solid #F6F6F7", paddingTop: "14px", marginBottom: "14px" }}>
-              <div style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase" as const, letterSpacing: ".08em", color: "#aaa", marginBottom: "10px" }}>Order Source</div>
-              <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "13px", color: "#2A2830", marginBottom: "6px" }}>
-                <span>🌐</span><span>Online Store — Direct</span>
-              </div>
-              <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "13px", color: "#2A2830" }}>
-                <span>📱</span><span>Device: Desktop</span>
-              </div>
-            </div>
-
-            {/* Pricing tier */}
-            {order.pricing_tier && (
-              <div style={{ borderTop: "1px solid #F6F6F7", paddingTop: "14px", marginBottom: "14px" }}>
-                <div style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase" as const, letterSpacing: ".08em", color: "#aaa", marginBottom: "8px" }}>Pricing Tier</div>
-                <span style={{ background: "rgba(26,26,26,.1)", color: "#1A1A1A", padding: "4px 12px", borderRadius: "20px", fontSize: "12px", fontWeight: 700 }}>
-                  {order.pricing_tier}
-                </span>
-              </div>
-            )}
-
-            {/* Payment */}
-            <div style={{ borderTop: "1px solid #F6F6F7", paddingTop: "14px" }}>
-              <div style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase" as const, letterSpacing: ".08em", color: "#aaa", marginBottom: "8px" }}>Payment</div>
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: "13px", marginBottom: "5px" }}>
-                <span style={{ color: "#7A7880" }}>Method</span>
-                <span style={{ fontWeight: 600, color: "#2A2830" }}>{order.payment_method === "ach" ? "ACH / Bank Transfer" : order.payment_method === "cod" ? "Cash on delivery" : order.payment_method === "net_30" ? "Net 30" : (order.payment_method ?? "Card")}</span>
-              </div>
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: "13px", marginBottom: "5px" }}>
-                <span style={{ color: "#7A7880" }}>Status</span>
-                <span style={{ background: order.payment_status === "paid" ? "rgba(5,150,105,.1)" : "rgba(217,119,6,.1)", color: order.payment_status === "paid" ? "#059669" : "#D97706", padding: "2px 8px", borderRadius: "10px", fontSize: "11px", fontWeight: 700 }}>
-                  {order.payment_status.toUpperCase()}
-                </span>
-              </div>
-              {order.payment_method === "ach" && (
-                <div style={{ marginTop: "10px", padding: "12px 14px", background: "#F6F6F7", borderRadius: "8px", fontSize: "12px", display: "flex", flexDirection: "column" as const, gap: "4px" }}>
-                  {order.ach_bank_name && <div><span style={{ color: "#7A7880" }}>Bank: </span><span style={{ fontWeight: 600, color: "#2A2830" }}>{order.ach_bank_name}</span></div>}
-                  {order.ach_account_holder && <div><span style={{ color: "#7A7880" }}>Holder: </span><span style={{ fontWeight: 600, color: "#2A2830" }}>{order.ach_account_holder}</span></div>}
-                  {order.ach_account_last4 && <div><span style={{ color: "#7A7880" }}>Account: </span><span style={{ fontWeight: 600, color: "#2A2830" }}>****{order.ach_account_last4}</span></div>}
-                  {order.ach_account_type && <div><span style={{ color: "#7A7880" }}>Type: </span><span style={{ fontWeight: 600, color: "#2A2830" }}>{order.ach_account_type.charAt(0).toUpperCase() + order.ach_account_type.slice(1)}</span></div>}
-                  <div style={{ marginTop: "8px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                    <span style={{ background: order.ach_verified ? "rgba(5,150,105,.12)" : "rgba(217,119,6,.12)", color: order.ach_verified ? "#059669" : "#D97706", padding: "3px 10px", borderRadius: "10px", fontSize: "11px", fontWeight: 700 }}>
-                      {order.ach_verified ? "Verified" : "Pending Verification"}
-                    </span>
-                    {!order.ach_verified && (
-                      <button onClick={handleVerifyAch} disabled={isVerifyingAch}
-                        style={{ background: "#059669", color: "#fff", border: "none", padding: "6px 12px", borderRadius: "6px", fontSize: "12px", fontWeight: 700, cursor: "pointer", opacity: isVerifyingAch ? .6 : 1 }}>
-                        {isVerifyingAch ? "Verifying…" : "Mark as Verified"}
-                      </button>
-                    )}
-                  </div>
-                </div>
+            <div className="pc-money" style={{ marginTop: "14px", fontSize: "13.5px", color: "var(--pc-muted)" }}>
+              <div><span>Paid by</span><span>{PAY_METHOD[o.payment_method ?? "card"] ?? o.payment_method ?? "Card"}</span></div>
+              {!paid && Number(o.amount_paid ?? 0) > 0 && <div><span>Paid so far</span><span>{money(o.amount_paid)} · {money(o.balance_due ?? 0)} left</span></div>}
+              {o.invoice_sent_at && <div><span>Invoice sent</span><span>{day(o.invoice_sent_at)}</span></div>}
+              {(left != null || Number(o.amount_refunded ?? 0) > 0) && (
+                <div data-refund-line><span>Refunded {money(o.amount_refunded ?? 0)}</span><span>{left != null ? `Left to refund ${money(left)}` : ""}</span></div>
               )}
             </div>
-          </div>
+
+            {!paid && o.status !== "cancelled" && (
+              <>
+                {o.payment_method === "cod" && <div className="pc-note" style={{ marginTop: "14px" }}>Cash on delivery: collect {money(o.total)} when it is handed over, then mark it paid.</div>}
+                <div className="pc-row-actions no-print" style={{ marginTop: "14px" }}>
+                  <button type="button" className="pc-btn" disabled={!!busy} onClick={markPaid}>Mark as paid</button>
+                  <button type="button" className="pc-btn" disabled={!!busy} onClick={sendInvoice}>{busy === "invoice" ? "Sending…" : o.invoice_sent_at ? "Send invoice again" : "Email the invoice"}</button>
+                </div>
+              </>
+            )}
+
+            {o.payment_method === "ach" && (
+              <div style={{ marginTop: "14px", paddingTop: "14px", borderTop: "1px solid var(--pc-line)" }} data-ach>
+                <div className="pc-small-head">Bank payment</div>
+                <div className="pc-money" style={{ fontSize: "13.5px" }}>
+                  {o.ach_bank_name && <div><span>Bank</span><span>{o.ach_bank_name}</span></div>}
+                  {o.ach_account_holder && <div><span>Holder</span><span>{o.ach_account_holder}</span></div>}
+                  {o.ach_account_last4 && <div><span>Account</span><span>ending {o.ach_account_last4}{o.ach_account_type ? ` (${o.ach_account_type})` : ""}</span></div>}
+                </div>
+                <div className="pc-row-actions" style={{ marginTop: "10px" }}>
+                  <span className="pc-pill" data-tone={o.ach_verified ? "green" : "amber"} style={{ textTransform: "none" }}>{o.ach_verified ? "Verified" : "Waiting to be verified"}</span>
+                  {!o.ach_verified && <button type="button" className="pc-btn no-print" disabled={!!busy} onClick={verifyAch}>Mark as verified</button>}
+                </div>
+              </div>
+            )}
+          </section>
+
+          {/* ── Timeline ────────────────────────────────────────────────── */}
+          <section className="pc-card pc-pad" aria-labelledby="timeline-title" data-timeline>
+            <h2 className="pc-h2" id="timeline-title" style={{ marginBottom: "16px" }}>Timeline</h2>
+            {events.length === 0 ? <p className="pc-sub-line" style={{ margin: 0 }}>Nothing has been recorded for this order yet.</p> : (
+              <div className="pc-timeline">
+                {events.map((e) => (
+                  <div key={e.id} className="pc-event" data-kind={e.type === "note" ? "note" : BAD_EVENTS.has(e.type) ? "bad" : undefined} data-event={e.type}>
+                    <span className="pc-event-dot" aria-hidden />
+                    <div>
+                      <div className="pc-event-title">{e.type === "note" ? `Note: ${e.message}` : e.message || e.label}</div>
+                      <div className="pc-event-when">{moment(e.occurred_at)}{e.actor_name ? ` · ${e.actor_name}` : e.actor_type === "customer" ? " · Customer" : e.actor_type === "system" ? "" : ` · ${e.actor_type}`}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+
+          {/* ── The purchase order behind the sale ──────────────────────── */}
+          {o.supplier && (
+            <section className="pc-card pc-pad" aria-labelledby="supplier-title" data-supplier>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "10px" }}>
+                <h2 className="pc-h2" id="supplier-title">Supplier</h2>
+                <span className="pc-pill" data-tone={SUPPLIER_WORDS[o.supplier.status]?.[1] || undefined} style={{ textTransform: "none" }}>{SUPPLIER_WORDS[o.supplier.status]?.[0] ?? o.supplier.status}</span>
+              </div>
+              <p className="pc-sub-line" style={{ margin: "8px 0 12px" }}>
+                {o.supplier.items} {o.supplier.items === 1 ? "item" : "items"} on this order {o.supplier.items === 1 ? "is" : "are"} filled by {o.supplier.supplier}. The purchase order below is yours to them.
+              </p>
+              <div className="pc-money" style={{ fontSize: "13.5px" }}>
+                {o.supplier.supplier_order_numbers && <div><span>Their order</span><span>{o.supplier.supplier_order_numbers}</span></div>}
+                {o.supplier.po_number && <div><span>Your PO</span><span>{o.supplier.po_number}</span></div>}
+                {o.supplier.tracking_number && <div><span>Tracking</span><span>{o.supplier.carrier ? `${o.supplier.carrier} ` : ""}{o.supplier.tracking_number}</span></div>}
+                {o.supplier.sent_at && <div><span>Sent</span><span>{moment(o.supplier.sent_at)}</span></div>}
+              </div>
+              {o.supplier.error && <div className="pc-note" data-tone="red" style={{ marginTop: "10px" }}>{o.supplier.error}</div>}
+              {o.supplier.test && o.supplier.status === "test" && <div className="pc-note" style={{ marginTop: "10px" }}>Sent as a test. The supplier cancelled it and nothing ships.</div>}
+              <Link href="/admin/suppliers" className="pc-link no-print" style={{ display: "inline-block", marginTop: "12px" }}>Manage in Suppliers</Link>
+            </section>
+          )}
+
+          {/* ── Where the order came from ───────────────────────────────── */}
+          {o.attribution && (
+            <section className="pc-card pc-pad" aria-labelledby="source-title" data-source>
+              <h2 className="pc-h2" id="source-title">Where it came from</h2>
+              <div style={{ marginTop: "10px", fontSize: "15.5px", fontWeight: 600 }}>{o.attribution.label}</div>
+              <div className="pc-money" style={{ fontSize: "13.5px", marginTop: "10px" }}>
+                {o.attribution.campaign && <div><span>Campaign</span><span>{o.attribution.campaign}</span></div>}
+                {o.attribution.utm_term && <div><span>Search term</span><span>{o.attribution.utm_term}</span></div>}
+                {o.attribution.utm_content && <div><span>Ad</span><span>{o.attribution.utm_content}</span></div>}
+                {o.attribution.paid_click && <div><span>Paid click</span><span>{PAID_CLICK[o.attribution.paid_click] ?? o.attribution.paid_click}</span></div>}
+                {!!o.attribution.visits && <div><span>Visits before ordering</span><span>{o.attribution.visits}</span></div>}
+                {o.attribution.device && <div><span>Device</span><span>{o.attribution.device}</span></div>}
+                {o.attribution.first_seen && <div><span>First visit</span><span>{day(o.attribution.first_seen)}</span></div>}
+              </div>
+              {o.attribution.referrer && <div className="pc-sub-line" style={{ marginTop: "8px", overflowWrap: "anywhere" }}>From {o.attribution.referrer}</div>}
+              {o.attribution.landing_page && <div className="pc-sub-line" style={{ overflowWrap: "anywhere" }}>First page: {o.attribution.landing_page}</div>}
+              {o.attribution.utm_source && (
+                <Link className="pc-link no-print" style={{ display: "inline-block", marginTop: "12px" }}
+                  href={`/admin/orders?utm_source=${encodeURIComponent(o.attribution.utm_source)}${o.attribution.campaign ? `&utm_campaign=${encodeURIComponent(o.attribution.campaign)}` : ""}`}>
+                  All orders from this {o.attribution.campaign ? "campaign" : "source"}
+                </Link>
+              )}
+            </section>
+          )}
         </div>
       </div>
     </div>

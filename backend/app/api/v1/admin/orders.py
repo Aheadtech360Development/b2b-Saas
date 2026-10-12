@@ -10,7 +10,7 @@ from uuid import UUID
 logger = logging.getLogger(__name__)
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from fastapi.responses import StreamingResponse
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -395,23 +395,18 @@ async def create_draft_order(
     return {"id": str(order.id), "order_number": order.order_number}
 
 
-@router.get("/orders", response_model=PaginatedResponse[AdminOrderListItem])
-async def list_admin_orders(
-    q: str | None = None,
-    status: str | None = None,
-    payment_status: str | None = None,
-    company_id: str | None = None,
-    guest_only: bool = Query(False, description="Show only guest orders"),
-    utm_source: str | None = Query(None, description="Only orders from this traffic source"),
-    utm_campaign: str | None = Query(None, description="Only orders from this campaign"),
-    drafts_only: bool = Query(False, description="Show only draft orders (DRAFT-…)"),
-    queue: str | None = Query(None, description="A named slice of the list, e.g. to_ship (services/order_queues)"),
-    date_from: date | None = Query(None, description="Filter orders created on or after this date"),
-    date_to: date | None = Query(None, description="Filter orders created on or before this date"),
-    page: int = Query(1, ge=1),
-    page_size: int = Query(50, ge=1, le=200),
-    db: AsyncSession = Depends(get_db),
+def _filtered_orders(
+    *, q: str | None = None, status: str | None = None, payment_status: str | None = None,
+    company_id: str | None = None, guest_only: bool = False, utm_source: str | None = None,
+    utm_campaign: str | None = None, drafts_only: bool = False, queue: str | None = None,
+    payment: str | None = None, method: str | None = None,
+    date_from: date | None = None, date_to: date | None = None,
 ):
+    """The order list's filters, in one place.
+
+    The list and its CSV export both read this, so "Export" hands over the
+    rows that are on the screen and not some other set.
+    """
     # LEFT JOIN so guest orders (company_id=NULL) are included. It has to be
     # the ORM .outerjoin(): with the core outerjoin() the brand filter on
     # Company lands in WHERE and silently drops every guest order.
@@ -419,22 +414,37 @@ async def list_admin_orders(
         Company, Order.company_id == Company.id
     )
     # Drafts are identified by their number. Filtering here rather than in the
-    # browser means the draft list pages properly — it used to fetch one page of
+    # browser means the draft list pages properly: it used to fetch one page of
     # pending orders and sift it client-side, so a store with more pending orders
     # than that page simply stopped showing its own drafts.
     if drafts_only:
         query = query.where(Order.order_number.like("DRAFT-%"))
 
-    if q:
+    if q and q.strip():
+        like = f"%{q.strip()}%"
+        # The number, the PO, or who it is for: the company, or a guest's name
+        # or email.
         query = query.where(
-            (Order.order_number.ilike(f"%{q}%"))
-            | (Order.po_number.ilike(f"%{q}%"))
-            | (Order.guest_email.ilike(f"%{q}%"))
+            Order.order_number.ilike(like) | Order.po_number.ilike(like)
+            | Order.guest_email.ilike(like) | Order.guest_name.ilike(like)
+            | Company.name.ilike(like)
         )
     if status:
         query = query.where(Order.status == status)
     if payment_status:
         query = query.where(Order.payment_status == payment_status)
+    # The list's own Payment filter. "unpaid" is everything not settled (unpaid,
+    # pending, part paid), which is what somebody chasing money means by it.
+    if payment == "paid":
+        query = query.where(Order.payment_status == "paid")
+    elif payment == "unpaid":
+        query = query.where(Order.payment_status.notin_(("paid", "refunded")))
+    elif payment == "refunded":
+        query = query.where(Order.payment_status == "refunded")
+    if method == "pickup":
+        query = query.where(Order.shipping_method == "will_call")
+    elif method == "ship":
+        query = query.where(func.coalesce(Order.shipping_method, "") != "will_call")
     if queue:
         # The slice Home counted, from the same definition, so the button
         # beside "3 paid orders to ship" opens those three.
@@ -447,8 +457,8 @@ async def list_admin_orders(
     if company_id:
         query = query.where(Order.company_id == company_id)
     if guest_only:
-        query = query.where(Order.is_guest_order == True)
-    # "Show me what that campaign brought in" — the question a brand running
+        query = query.where(Order.is_guest_order == True)  # noqa: E712
+    # "Show me what that campaign brought in": the question a brand running
     # ads actually asks of this list.
     if utm_source:
         query = query.where(func.lower(Order.utm_source) == utm_source.strip().lower())
@@ -458,6 +468,33 @@ async def list_admin_orders(
         query = query.where(Order.created_at >= datetime.combine(date_from, datetime.min.time()))
     if date_to:
         query = query.where(Order.created_at <= datetime.combine(date_to, datetime.max.time()))
+    return query
+
+
+@router.get("/orders", response_model=PaginatedResponse[AdminOrderListItem])
+async def list_admin_orders(
+    q: str | None = None,
+    status: str | None = None,
+    payment_status: str | None = None,
+    company_id: str | None = None,
+    guest_only: bool = Query(False, description="Show only guest orders"),
+    utm_source: str | None = Query(None, description="Only orders from this traffic source"),
+    utm_campaign: str | None = Query(None, description="Only orders from this campaign"),
+    drafts_only: bool = Query(False, description="Show only draft orders (DRAFT-…)"),
+    queue: str | None = Query(None, description="A named slice of the list, e.g. to_ship (services/order_queues)"),
+    payment: str | None = Query(None, description="paid, unpaid (anything not settled) or refunded"),
+    method: str | None = Query(None, description="ship or pickup"),
+    date_from: date | None = Query(None, description="Filter orders created on or after this date"),
+    date_to: date | None = Query(None, description="Filter orders created on or before this date"),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=200),
+    db: AsyncSession = Depends(get_db),
+):
+    query = _filtered_orders(
+        q=q, status=status, payment_status=payment_status, company_id=company_id, guest_only=guest_only,
+        utm_source=utm_source, utm_campaign=utm_campaign, drafts_only=drafts_only, queue=queue,
+        payment=payment, method=method, date_from=date_from, date_to=date_to,
+    )
 
     count_q = select(func.count()).select_from(query.subquery())
     total = (await db.execute(count_q)).scalar_one()
@@ -473,12 +510,21 @@ async def list_admin_orders(
     except Exception:
         _supplier = {}
 
+    # How many lines each order has, in one query and not one per row.
+    _ids = [r[0].id for r in rows]
+    _counts = dict((await db.execute(
+        select(OrderItem.order_id, func.count(OrderItem.id))
+        .where(OrderItem.order_id.in_(_ids)).group_by(OrderItem.order_id)
+    )).all()) if _ids else {}
+    # Where each one stands: paid, artwork, fulfilment, what is next.
+    from app.services import order_progress as _progress
+
+    _facts = await _progress.facts_for(db, [r[0] for r in rows])
+
     items = []
     for row in rows:
         order, company_name = row
-        item_count = (await db.execute(
-            select(func.count(OrderItem.id)).where(OrderItem.order_id == order.id)
-        )).scalar_one()
+        item_count = _counts.get(order.id, 0)
         items.append(AdminOrderListItem(
             id=order.id,
             order_number=order.order_number,
@@ -499,6 +545,12 @@ async def list_admin_orders(
             timeline=order.timeline or [],
             supplier=_supplier.get(order.id),
             attribution=attribution.summary(order),
+            shipping_method=order.shipping_method,
+            shipping_cost=order.shipping_cost,
+            carrier=order.carrier,
+            tracking_url=order.tracking_url,
+            label_url=order.label_url,
+            progress=_progress.summary(_facts[order.id]),
         ))
 
     return PaginatedResponse(items=items, total=total, page=page, page_size=page_size, pages=(total + page_size - 1) // page_size)
@@ -508,16 +560,25 @@ async def list_admin_orders(
 async def export_orders_csv(
     q: str | None = None,
     status: str | None = None,
+    payment: str | None = None,
+    method: str | None = None,
+    queue: str | None = None,
+    drafts_only: bool = False,
+    company_id: str | None = None,
+    utm_source: str | None = None,
+    utm_campaign: str | None = None,
+    date_from: date | None = None,
+    date_to: date | None = None,
     request: Request = None,
     db: AsyncSession = Depends(get_db),
 ):
-    query = select(Order, Company.name.label("company_name")).outerjoin(
-        Company, Order.company_id == Company.id
+    # The list's own filters, so the file holds the rows that are on the
+    # screen. It used to take the search and the status and drop the rest.
+    query = _filtered_orders(
+        q=q, status=status, payment=payment, method=method, queue=queue, drafts_only=drafts_only,
+        company_id=company_id, utm_source=utm_source, utm_campaign=utm_campaign,
+        date_from=date_from, date_to=date_to,
     )
-    if q:
-        query = query.where(Order.order_number.ilike(f"%{q}%"))
-    if status:
-        query = query.where(Order.status == status)
     result = await db.execute(query.order_by(Order.created_at.desc()))
     rows = result.all()
 
@@ -552,7 +613,7 @@ async def export_orders_csv(
                     filter_desc += f', search=&ldquo;{q}&rdquo;'
                 _ExportEmailSvc(db).send_raw(
                     to_email=admin.email,
-                    subject="Orders CSV Export Complete &#8212; AF Apparels",
+                    subject="Your orders export is ready",
                     body_html=_af_email(
                         f'<h2 style="color:#2A2830;margin:0 0 12px">Export Complete</h2>'
                         f'<p>Hi {admin.first_name or "there"},</p>'
@@ -575,6 +636,80 @@ async def export_orders_csv(
         media_type="text/csv",
         headers={"Content-Disposition": "attachment; filename=orders.csv"},
     )
+
+
+@router.get("/orders/overview")
+async def orders_overview(db: AsyncSession = Depends(get_db)) -> dict:
+    """What the order list's tabs count, and which carriers a label can be bought from.
+
+    Each count is taken from the queue its tab lists (services/order_queues),
+    so a tab's number is the number of rows under it.
+    """
+    from app.core.tenant_context import get_current_tenant_id
+    from app.services import order_queues
+    from app.services.admin_home import carrier_names
+
+    tabs: dict[str, int] = {}
+    for name in ("all", "new", "to_ship", "ready_for_pickup", "sent"):
+        try:
+            tabs[name] = await order_queues.count(db, name)
+        except Exception as exc:  # one tab that cannot be counted must not blank the others
+            logger.warning("orders overview: %s could not be counted: %s", name, exc)
+            tabs[name] = 0
+            await db.rollback()
+
+    async def _count(stmt) -> int:
+        try:
+            return int((await db.execute(stmt)).scalar_one() or 0)
+        except Exception as exc:
+            logger.warning("orders overview: a count failed: %s", exc)
+            await db.rollback()
+            return 0
+
+    tabs["drafts"] = await _count(select(func.count(Order.id)).where(Order.order_number.like("DRAFT-%")))
+    tabs["returns"] = await _count(select(func.count(RMARequest.id)).where(RMARequest.status == "pending"))
+
+    try:
+        carriers = await carrier_names(db, get_current_tenant_id())
+    except Exception as exc:
+        logger.warning("orders overview: carriers unreadable: %s", exc)
+        carriers = []
+        await db.rollback()
+    return {"tabs": tabs, "carriers": carriers}
+
+
+class _SavedView(BaseModel):
+    id: str = Field(..., min_length=1, max_length=40)
+    name: str = Field(..., min_length=1, max_length=60)
+    # The list's own address parameters: tab, q, payment, method, from, to.
+    params: dict[str, str] = {}
+
+
+class _SavedViews(BaseModel):
+    views: list[_SavedView] = Field(default_factory=list, max_length=20)
+
+
+@router.get("/orders/views")
+async def get_order_views(db: AsyncSession = Depends(get_db)) -> dict:
+    """The filters this shop has saved on its order list, shared by its staff."""
+    from app.core.tenant_settings import get_setting
+
+    raw = await get_setting(db, "order_views")
+    try:
+        views = _json.loads(raw) if raw else []
+    except Exception:
+        views = []
+    return {"views": views if isinstance(views, list) else []}
+
+
+@router.put("/orders/views")
+async def save_order_views(payload: _SavedViews, db: AsyncSession = Depends(get_db)) -> dict:
+    from app.core.tenant_settings import set_setting
+
+    views = [v.model_dump() for v in payload.views]
+    await set_setting(db, "order_views", _json.dumps(views))
+    await db.commit()
+    return {"views": views}
 
 
 @router.get("/orders/{order_id}", response_model=AdminOrderDetail)
@@ -606,7 +741,10 @@ async def get_admin_order(order_id: str, db: AsyncSession = Depends(get_db)):
         raise NotFoundError(f"Order {order_id} not found")
     order, company_name = row
 
-    items_result = await db.execute(select(OrderItem).where(OrderItem.order_id == order.id))
+    # In the order they were added, so a line does not jump when another changes.
+    items_result = await db.execute(
+        select(OrderItem).where(OrderItem.order_id == order.id).order_by(OrderItem.created_at, OrderItem.id)
+    )
     items = items_result.scalars().all()
 
     # Calculate shipment weight from variant weights (used to pre-fill Shippo label weight)
@@ -712,9 +850,24 @@ async def get_admin_order(order_id: str, db: AsyncSession = Depends(get_db)):
     except Exception:
         logger.warning("Could not load gang sheet details for order %s", order.id, exc_info=True)
 
+    from app.services import order_progress as _progress
+
+    _f = (await _progress.facts_for(db, [order]))[order.id]
+    _progress_out = {**_progress.summary(_f), "steps": _progress.steps(_f)}
+    try:
+        from app.core.tenant_context import get_current_tenant_id as _tid_now
+        from app.services.admin_home import carrier_names as _carrier_names
+
+        async with db.begin_nested():
+            _carriers_on = await _carrier_names(db, _tid_now())
+    except Exception:
+        _carriers_on = []
+
     try:
         return AdminOrderDetail(
             supplier=_supplier_detail,
+            progress=_progress_out,
+            carriers=_carriers_on,
             id=order.id,
             order_number=order.order_number,
             status=order.status,
@@ -1069,7 +1222,7 @@ async def update_order_status(
 
     await db.commit()
 
-    if payload.status != old_status:
+    if payload.status != old_status and payload.notify:
         await _send_order_status_email(order, payload.status, db)
 
     return {"success": True, "status": order.status}
@@ -1079,6 +1232,8 @@ class _LabelRequest(BaseModel):
     carrier: str  # "usps" | "ups" | "fedex"
     # Optional parcel override; the order page pre-fills it from item weights.
     weight_lbs: float | None = None
+    # False when the shop would rather tell the customer itself.
+    notify: bool = True
     length_in: float | None = None
     width_in: float | None = None
     height_in: float | None = None
@@ -1180,7 +1335,8 @@ async def generate_shipping_label(
         await _record_label_events(db, request, order, result)
 
         await db.commit()
-        await _send_order_status_email(order, "shipped", db)
+        if payload.notify:
+            await _send_order_status_email(order, "shipped", db)
 
     return result
 
@@ -1211,7 +1367,8 @@ async def download_order_label(order_id: UUID, db: AsyncSession = Depends(get_db
 
 
 class _FetchRatesRequest(BaseModel):
-    weight_lbs: float = 1.0
+    # Left out: worked out from the order's own lines.
+    weight_lbs: float | None = None
 
 
 @router.post("/orders/{order_id}/fetch-rates", status_code=200)
@@ -1242,7 +1399,7 @@ async def fetch_order_rates(
     if not to_address["state"] or not to_address["zip"]:
         raise HTTPException(status_code=422, detail="Incomplete shipping address on order (missing state or ZIP)")
 
-    weight_lbs = max(payload.weight_lbs, 0.5)
+    weight_lbs = max(payload.weight_lbs or await _order_weight_lbs(db, order.id), 0.5)
     # Quote from THIS brand's warehouse, not the platform default — the origin
     # changes the price, so a brand in NY must not be rated from Dallas.
     from app.core.tenant_context import get_current_tenant_id as _gtid_wh
@@ -1335,6 +1492,7 @@ class _ManualLabelRequest(BaseModel):
     carrier: str = ""             # carrier name (metadata when rate_id used; fallback key otherwise)
     service: str = ""             # service name (metadata when rate_id used)
     weight_lbs: float = 1.0      # used only when rate_id is not provided
+    notify: bool = True          # False when the shop would rather tell the customer itself
 
 
 @router.post("/orders/{order_id}/generate-label-manual", status_code=200)
@@ -1451,9 +1609,84 @@ async def generate_label_manual(
         await _record_label_events(db, request, order, result)
 
         await db.commit()
-        await _send_order_status_email(order, "shipped", db)
+        if payload.notify:
+            await _send_order_status_email(order, "shipped", db)
 
     return result
+
+
+async def _order_weight_lbs(db: AsyncSession, order_id) -> float:
+    """What an order weighs, from its variants' weights, or half a pound a unit
+    when none is recorded. The same sum the order page pre-fills its weight box
+    with, for a caller that has not been given one."""
+    try:
+        from app.models.product import ProductVariant as _PV
+
+        lines = (await db.execute(
+            select(OrderItem.variant_id, OrderItem.quantity).where(OrderItem.order_id == order_id)
+        )).all()
+        ids = [v for v, _ in lines if v]
+        grams = dict((await db.execute(
+            select(_PV.id, _PV.weight_grams).where(_PV.id.in_(ids))
+        )).all()) if ids else {}
+        total = sum(float(grams.get(v) or 0) * q for v, q in lines)
+        if total > 0:
+            return max(round(total / 453.592, 2), 0.5)
+        return max(round(sum(q for _, q in lines) * 0.5, 2), 0.5)
+    except Exception:
+        return 1.0
+
+
+@router.post("/orders/{order_id}/packed", response_model=dict)
+async def mark_order_packed(order_id: UUID, request: Request, db: AsyncSession = Depends(get_db)):
+    """Packed, and waiting for a label or a courier.
+
+    Not a status: a packed order is still confirmed or processing, so every
+    screen that reads statuses goes on working. It is a recorded event, which is
+    what the order's timeline, its steps and Home's "Ready to ship" read.
+    """
+    from app.models.order import OrderEvent
+
+    order = (await db.execute(select(Order).where(Order.id == order_id))).scalar_one_or_none()
+    if not order:
+        raise NotFoundError(f"Order {order_id} not found")
+    if order.status not in ("confirmed", "processing"):
+        raise HTTPException(
+            status_code=409,
+            detail="Only an order that is confirmed and has not shipped can be marked packed.",
+        )
+    already = (await db.execute(
+        select(OrderEvent.id).where(OrderEvent.order_id == order.id, OrderEvent.type == "packed").limit(1)
+    )).scalar_one_or_none()
+    if already:
+        return {"packed": True, "already": True}
+    await order_events.record_admin(db, request, order, "packed", "Packed and ready to go")
+    await db.commit()
+    return {"packed": True}
+
+
+class _NoteRequest(BaseModel):
+    text: str = Field(..., min_length=1, max_length=2000)
+
+
+@router.post("/orders/{order_id}/notes", response_model=dict)
+async def add_order_note(
+    order_id: UUID,
+    payload: _NoteRequest,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """A note for the shop's own team, kept in the order's history with who
+    wrote it and when. The customer never sees it."""
+    order = (await db.execute(select(Order).where(Order.id == order_id))).scalar_one_or_none()
+    if not order:
+        raise NotFoundError(f"Order {order_id} not found")
+    text_ = payload.text.strip()
+    if not text_:
+        raise HTTPException(status_code=422, detail="Write the note first.")
+    await order_events.record_admin(db, request, order, "note", text_)
+    await db.commit()
+    return {"events": await order_events.for_order(db, order.id)}
 
 
 @router.post("/orders/{order_id}/cancel", response_model=dict)

@@ -1,12 +1,23 @@
 "use client";
 
+/**
+ * Returns and reprints: what customers have asked to send back or have redone.
+ *
+ * A fault with a print comes in the same way a return does (the customer says
+ * what is wrong with an order), so both are one list. Approving or rejecting
+ * one emails the customer and is written on the order's own history.
+ */
+import Link from "next/link";
 import { useEffect, useState } from "react";
+import { X } from "lucide-react";
 import { adminService } from "@/services/admin.service";
+import { OrdersFrame, useOrdersOverview } from "@/components/admin/orders/OrdersFrame";
 
 interface RMA {
   id: string;
   rma_number: string;
   order_id: string;
+  order_number?: string | null;
   status: string;
   reason: string;
   notes: string | null;
@@ -14,115 +25,136 @@ interface RMA {
   created_at: string;
 }
 
-const STATUS_COLORS: Record<string, string> = {
-  pending: "bg-yellow-100 text-yellow-700",
-  approved: "bg-green-100 text-green-700",
-  rejected: "bg-red-100 text-red-700",
-  completed: "bg-blue-100 text-blue-700",
-};
+const STATUS: [string, string][] = [["pending", "To review"], ["approved", "Approved"], ["rejected", "Rejected"], ["completed", "Completed"], ["", "All"]];
+const TONE: Record<string, string> = { pending: "amber", approved: "green", rejected: "red", completed: "blue" };
 
 export default function AdminReturnsPage() {
+  const { overview, refresh } = useOrdersOverview();
   const [rmas, setRmas] = useState<RMA[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [failed, setFailed] = useState(false);
   const [statusFilter, setStatusFilter] = useState("pending");
   const [actionTarget, setActionTarget] = useState<RMA | null>(null);
   const [actionStatus, setActionStatus] = useState<"approved" | "rejected">("approved");
   const [adminNotes, setAdminNotes] = useState("");
   const [isUpdating, setIsUpdating] = useState(false);
+  const [error, setError] = useState("");
 
   useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
     adminService.listRmas(statusFilter || undefined).then((d) => {
+      if (cancelled) return;
       // The list comes a page at a time, inside `items`.
       const data = d as RMA[] | { items?: RMA[] };
       setRmas(Array.isArray(data) ? data : data?.items ?? []);
-    }).catch(() => setRmas([]));
+      setFailed(false);
+    }).catch(() => { if (!cancelled) { setRmas([]); setFailed(true); } })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
   }, [statusFilter]);
 
   async function handleAction(e: React.FormEvent) {
     e.preventDefault();
     if (!actionTarget) return;
     setIsUpdating(true);
+    setError("");
     try {
       await adminService.updateRma(actionTarget.id, { status: actionStatus, admin_notes: adminNotes || undefined });
-      setRmas((prev) => prev.map((r) => (r.id === actionTarget.id ? { ...r, status: actionStatus, admin_notes: adminNotes } : r)));
+      setRmas((prev) => prev
+        .map((r) => (r.id === actionTarget.id ? { ...r, status: actionStatus, admin_notes: adminNotes } : r))
+        // Decided: it leaves a list that shows only what is still to review.
+        .filter((r) => !statusFilter || r.status === statusFilter));
       setActionTarget(null); setAdminNotes("");
+      refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "That could not be saved.");
     } finally { setIsUpdating(false); }
   }
 
   return (
-    <div className="p-6">
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-xl font-bold text-gray-900">Returns (RMA)</h1>
-        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="rounded-md border border-gray-300 px-3 py-2 text-sm">
-          <option value="">All</option>
-          <option value="pending">Pending</option>
-          <option value="approved">Approved</option>
-          <option value="rejected">Rejected</option>
-          <option value="completed">Completed</option>
-        </select>
+    <OrdersFrame active="returns" overview={overview}>
+      <div className="pc-filters no-print" role="group" aria-label="Show">
+        <div className="pc-seg">
+          {STATUS.map(([value, label]) => (
+            <button key={value} type="button" aria-pressed={statusFilter === value} onClick={() => setStatusFilter(value)}>{label}</button>
+          ))}
+        </div>
       </div>
 
-      <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="bg-gray-50 border-b border-gray-200">
-            <tr>
-              <th className="text-left px-4 py-3 text-gray-600 font-medium">RMA #</th>
-              <th className="text-left px-4 py-3 text-gray-600 font-medium">Reason</th>
-              <th className="text-left px-4 py-3 text-gray-600 font-medium">Status</th>
-              <th className="text-left px-4 py-3 text-gray-600 font-medium">Date</th>
-              <th className="px-4 py-3" />
-            </tr>
-          </thead>
-          <tbody>
-            {rmas.length === 0 ? (
-              <tr><td colSpan={5} className="py-8 text-center text-gray-400">No RMAs</td></tr>
-            ) : rmas.map((r) => (
-              <tr key={r.id} className="border-b border-gray-100 last:border-0 hover:bg-gray-50">
-                <td className="px-4 py-3 font-mono text-xs font-medium text-gray-800">{r.rma_number}</td>
-                <td className="px-4 py-3 text-gray-700 max-w-xs truncate">{r.reason}</td>
-                <td className="px-4 py-3">
-                  <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${STATUS_COLORS[r.status] ?? "bg-gray-100 text-gray-600"}`}>
-                    {r.status}
-                  </span>
-                </td>
-                <td className="px-4 py-3 text-gray-500">{new Date(r.created_at).toLocaleDateString()}</td>
-                <td className="px-4 py-3">
-                  {r.status === "pending" && (
-                    <button onClick={() => { setActionTarget(r); setActionStatus("approved"); }} className="text-xs text-brand-600 hover:text-brand-800">Review</button>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <div className="pc-card">
+        <div className="pc-scroll-x">
+          <table className="pc-table" style={{ minWidth: "680px" }}>
+            <thead>
+              <tr><th>Return</th><th>Order</th><th>Reason</th><th>Status</th><th>Asked on</th><th aria-label="Actions" /></tr>
+            </thead>
+            <tbody>
+              {loading && rmas.length === 0 && <tr><td colSpan={6}><div className="at-skel" style={{ height: "18px", width: "55%", borderRadius: "6px" }} /></td></tr>}
+              {!loading && rmas.length === 0 && (
+                <tr><td colSpan={6} className="pc-empty">
+                  {failed ? "The returns could not be loaded. Reload to try again."
+                    : statusFilter === "pending" ? "Nothing to review. A customer's request to return or reprint an order shows here."
+                    : "None."}
+                </td></tr>
+              )}
+              {rmas.map((r) => (
+                <tr key={r.id} data-return={r.rma_number}>
+                  <td style={{ fontWeight: 600, whiteSpace: "nowrap" }}>{r.rma_number}</td>
+                  <td style={{ whiteSpace: "nowrap" }}>
+                    <Link href={`/admin/orders/${r.order_id}`} className="pc-link">{r.order_number ? `Order ${r.order_number}` : "Open order"}</Link>
+                  </td>
+                  <td>
+                    <div>{r.reason}</div>
+                    {r.notes && <div className="pc-sub-line">{r.notes}</div>}
+                    {r.admin_notes && <div className="pc-sub-line">Your note: {r.admin_notes}</div>}
+                  </td>
+                  <td><span className="pc-pill" data-tone={TONE[r.status]}>{r.status}</span></td>
+                  <td style={{ color: "var(--pc-muted)", whiteSpace: "nowrap" }}>{new Date(r.created_at).toLocaleDateString()}</td>
+                  <td className="pc-num">
+                    {r.status === "pending" && (
+                      <button type="button" className="pc-btn" style={{ height: "36px" }} onClick={() => { setActionTarget(r); setActionStatus("approved"); setAdminNotes(""); setError(""); }}>Review</button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <div className="pc-table-foot"><span>{rmas.length} {rmas.length === 1 ? "request" : "requests"}</span></div>
       </div>
 
       {actionTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-          <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-sm">
-            <h2 className="text-base font-semibold text-gray-900 mb-1">Review RMA</h2>
-            <p className="text-sm text-gray-500 mb-4">{actionTarget.rma_number}</p>
-            <form onSubmit={handleAction} className="space-y-4">
-              <div className="flex gap-2">
-                <button type="button" onClick={() => setActionStatus("approved")}
-                  className={`flex-1 py-2 rounded-md text-sm font-medium border ${actionStatus === "approved" ? "bg-green-600 text-white border-green-600" : "border-gray-300 text-gray-700"}`}>
-                  Approve
-                </button>
-                <button type="button" onClick={() => setActionStatus("rejected")}
-                  className={`flex-1 py-2 rounded-md text-sm font-medium border ${actionStatus === "rejected" ? "bg-red-600 text-white border-red-600" : "border-gray-300 text-gray-700"}`}>
-                  Reject
-                </button>
+        <div className="pc-modal-back" onMouseDown={(e) => { if (e.target === e.currentTarget && !isUpdating) setActionTarget(null); }}>
+          <div className="pc-modal" role="dialog" aria-label={`Review ${actionTarget.rma_number}`} style={{ width: "min(460px, 100%)" }}>
+            <div className="pc-panel-head">
+              <div>
+                <h2 className="pc-h2">Review {actionTarget.rma_number}</h2>
+                <div className="pc-sub-line">{actionTarget.reason}</div>
               </div>
-              <textarea rows={2} value={adminNotes} onChange={(e) => setAdminNotes(e.target.value)} placeholder="Admin notes (optional)" className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm" />
-              <div className="flex gap-3">
-                <button type="button" onClick={() => { setActionTarget(null); setAdminNotes(""); }} className="flex-1 border border-gray-300 rounded-md py-2 text-sm hover:bg-gray-50">Cancel</button>
-                <button type="submit" disabled={isUpdating} className="flex-1 bg-brand-600 text-white rounded-md py-2 text-sm font-medium hover:bg-brand-700 disabled:opacity-50">
-                  {isUpdating ? "Saving…" : "Confirm"}
+              <button type="button" className="pc-x" aria-label="Close" onClick={() => setActionTarget(null)} disabled={isUpdating}><X size={18} strokeWidth={2.2} /></button>
+            </div>
+            <form onSubmit={handleAction} className="pc-panel-body">
+              {actionTarget.notes && <div className="pc-note" data-tone="blue">The customer wrote: {actionTarget.notes}</div>}
+              <div className="pc-seg" role="group" aria-label="Decision" style={{ justifySelf: "start" }}>
+                <button type="button" aria-pressed={actionStatus === "approved"} onClick={() => setActionStatus("approved")}>Approve</button>
+                <button type="button" aria-pressed={actionStatus === "rejected"} onClick={() => setActionStatus("rejected")}>Reject</button>
+              </div>
+              <div>
+                <label className="pc-label" htmlFor="return-note">A note for your records (optional)</label>
+                <textarea id="return-note" className="pc-input" value={adminNotes} onChange={(e) => setAdminNotes(e.target.value)} />
+              </div>
+              <p className="pc-sub-line" style={{ margin: 0 }}>The customer is emailed your decision, and it is written on the order&apos;s history.</p>
+              {error && <div className="pc-note" data-tone="red">{error}</div>}
+              <div className="pc-row-actions" style={{ justifyContent: "flex-end" }}>
+                <button type="button" className="pc-btn" onClick={() => setActionTarget(null)} disabled={isUpdating}>Cancel</button>
+                <button type="submit" className="pc-btn" data-kind="primary" disabled={isUpdating}>
+                  {isUpdating ? "Saving…" : actionStatus === "approved" ? "Approve the return" : "Reject the return"}
                 </button>
               </div>
             </form>
           </div>
         </div>
       )}
-    </div>
+    </OrdersFrame>
   );
 }

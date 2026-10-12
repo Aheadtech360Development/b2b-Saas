@@ -66,6 +66,7 @@ EVENTS: dict[str, dict[str, Any]] = {
     "items_edited":        {"label": "Items changed",             "customer": True},
     "status_changed":      {"label": "Status changed",            "customer": True},
     "ready_for_pickup":    {"label": "Ready for pickup",          "customer": True},
+    "packed":              {"label": "Order packed",              "customer": True},
     # Getting it there
     "label_purchased":     {"label": "Shipping label bought",     "customer": False},
     "tracking_added":      {"label": "Tracking added",            "customer": True},
