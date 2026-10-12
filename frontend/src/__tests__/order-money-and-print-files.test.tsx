@@ -20,7 +20,8 @@ vi.mock("next/navigation", () => ({
   useParams: () => ({ id: "ord-1" }),
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), back: vi.fn(), refresh: vi.fn() }),
 }));
-vi.mock("@/lib/download", () => ({
+vi.mock("@/lib/download", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/download")>()),
   downloadFile: (url: string, name?: string) => { downloads.push([url, name]); return Promise.resolve(true); },
 }));
 vi.mock("@/lib/api-client", () => ({
@@ -149,6 +150,15 @@ describe("a gang sheet's line, as the Shopify print apps list it", () => {
     fireEvent.click(within(row("Not in the PNG")).getByRole("button", { name: "logo.ai" }));
     expect(downloads).toEqual([["https://ik.imagekit.io/shop/logo.ai", "logo.ai"]]);
     expect(row("Not in the PNG").textContent).toContain("print from the original");
+  });
+
+  it("…and saves it under the order's number and the customer's name, once it has them", () => {
+    render(<GangSheetLineFiles sheet={sheet({
+      order_number: "1042", customer: "Zain Ahmed",
+      left_out: ["logo.ai"], originals: [{ name: "logo.ai", url: "https://ik.imagekit.io/shop/logo.ai" }],
+    })} />);
+    fireEvent.click(within(row("Not in the PNG")).getByRole("button", { name: "logo.ai" }));
+    expect(downloads).toEqual([["https://ik.imagekit.io/shop/logo.ai", "1042-Zain-Ahmed-logo.ai"]]);
   });
 });
 

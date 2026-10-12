@@ -2,7 +2,7 @@
 
 import { ask } from "@/lib/dialog";
 import { useCallback, useEffect, useState } from "react";
-import { downloadFile } from "@/lib/download";
+import { downloadFile, withOwner } from "@/lib/download";
 import {
   GANG_SHEET_STATUS_COLOR,
   GANG_SHEET_STATUS_LABEL,
@@ -221,8 +221,8 @@ function DashboardTab() {
             return (
               <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 18px", borderBottom: i < data.recent_designs.length - 1 ? "1px solid #F6F5F2" : "none" }}>
                 <div style={{ minWidth: 0 }}>
-                  <div style={{ fontSize: "13px", fontWeight: 600, color: "#2A2830" }}>{d.reference}</div>
-                  <div style={{ fontSize: "11px", color: "#9CA3AF" }}>{d.contact || "—"} · {d.sheet_name}</div>
+                  <div style={{ fontSize: "13px", fontWeight: 600, color: "#2A2830" }}>{d.order_number ? `Order #${d.order_number} · ` : ""}{d.reference}</div>
+                  <div style={{ fontSize: "11px", color: "#9CA3AF" }}>{d.contact || "Guest"} · {d.sheet_name}</div>
                 </div>
                 <span style={{ background: c.bg, color: c.fg, padding: "2px 9px", borderRadius: "20px", fontSize: "11px", fontWeight: 700, whiteSpace: "nowrap" }}>{GANG_SHEET_STATUS_LABEL[d.status] ?? d.status}</span>
               </div>
@@ -237,8 +237,8 @@ function DashboardTab() {
           ) : data.recent_orders.map((o, i) => (
             <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 18px", borderBottom: i < data.recent_orders.length - 1 ? "1px solid #F6F5F2" : "none" }}>
               <div>
-                <div style={{ fontSize: "13px", fontWeight: 600, color: "#2A2830" }}>{o.reference}</div>
-                <div style={{ fontSize: "11px", color: "#9CA3AF" }}>{o.created_at ? new Date(o.created_at).toLocaleDateString() : ""}</div>
+                <div style={{ fontSize: "13px", fontWeight: 600, color: "#2A2830" }}>{o.order_number ? `Order #${o.order_number} · ` : ""}{o.reference}</div>
+                <div style={{ fontSize: "11px", color: "#9CA3AF" }}>{o.contact || "Guest"}{o.created_at ? ` · ${new Date(o.created_at).toLocaleDateString()}` : ""}</div>
               </div>
               <div style={{ textAlign: "right" }}>
                 <div style={{ fontSize: "13px", fontWeight: 700 }}>${o.subtotal.toFixed(2)}</div>
@@ -610,7 +610,7 @@ function OrdersTab({ openId }: { openId?: string | null }) {
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
             <thead>
               <tr style={{ background: "#F6F6F7", borderBottom: "1px solid #E8E6E1" }}>
-                {["Reference", "Customer", "Sheet", "Qty", "Total", "Status", ""].map((h) => (
+                {["Reference", "Order", "Customer", "Sheet", "Qty", "Total", "Status", ""].map((h) => (
                   <th key={h} style={{ padding: "10px 14px", textAlign: "left", fontSize: "11px", fontWeight: 700, color: "#6B6B6B", textTransform: "uppercase" }}>{h}</th>
                 ))}
               </tr>
@@ -621,7 +621,14 @@ function OrdersTab({ openId }: { openId?: string | null }) {
                 return (
                   <tr key={o.id} style={{ borderBottom: "1px solid #F1EFEB" }}>
                     <td style={{ padding: "11px 14px", fontWeight: 700 }}>{o.reference}</td>
-                    <td style={{ padding: "11px 14px", color: "#555" }}>{o.contact_name || "—"}</td>
+                    <td style={{ padding: "11px 14px", whiteSpace: "nowrap" }}>
+                      {o.order_id && o.order_number ? (
+                        <a href={`/admin/orders/${o.order_id}`} style={{ color: "#1A1A1A", fontWeight: 700, textDecoration: "none" }}>#{o.order_number}</a>
+                      ) : (
+                        <span style={{ color: "#9CA3AF" }}>Not checked out</span>
+                      )}
+                    </td>
+                    <td style={{ padding: "11px 14px", color: "#555" }}>{o.contact_name || "Guest"}</td>
                     <td style={{ padding: "11px 14px", color: "#555" }}>
                       {o.sheet_name} <span style={{ color: "#999" }}>({o.sheet_width_in}″×{o.sheet_height_in}″)</span>
                     </td>
@@ -781,7 +788,7 @@ function ReviewModal({ order, onClose, onChanged }: { order: GangSheetOrder; onC
             </div>
             {order.order_id && (
               <a href={`/admin/orders/${order.order_id}`} style={{ fontSize: "12px", color: "#1A1A1A", fontWeight: 700, textDecoration: "none" }}>
-                View linked order →
+                {order.order_number ? `Order #${order.order_number} →` : "View linked order →"}
               </a>
             )}
           </div>
@@ -820,7 +827,7 @@ function ReviewModal({ order, onClose, onChanged }: { order: GangSheetOrder; onC
                 <PrintCheckBadge inspection={a.inspection} />
               </div>
               <button
-                onClick={() => { void downloadFile(a.file_url, a.file_name); }}
+                onClick={() => { void downloadFile(a.file_url, withOwner(a.file_name, order.order_number, order.contact_name)); }}
                 style={{ fontSize: "12px", color: "#666", whiteSpace: "nowrap", marginLeft: "12px", background: "none", border: "none", cursor: "pointer", padding: 0, fontFamily: "inherit" }}
               >
                 Download ↓
@@ -844,7 +851,7 @@ function ReviewModal({ order, onClose, onChanged }: { order: GangSheetOrder; onC
                 {savingLayout ? "Saving…" : "Save layout"}
               </button>
               <button
-                onClick={() => openSheetPdf({ reference: order.reference, customerName: order.contact_name, sheet: { width_in: order.sheet_width_in, height_in: order.sheet_height_in, bleed_in: margins.bleed_in }, artworks: order.artworks ?? [], layout })}
+                onClick={() => openSheetPdf({ reference: order.reference, orderNumber: order.order_number, customerName: order.contact_name, sheet: { width_in: order.sheet_width_in, height_in: order.sheet_height_in, bleed_in: margins.bleed_in }, artworks: order.artworks ?? [], layout })}
                 style={{ ...BTN, background: "#fff", color: "#1A1A1A", border: "1px solid #E3E3E3" }}
               >
                 Download PDF

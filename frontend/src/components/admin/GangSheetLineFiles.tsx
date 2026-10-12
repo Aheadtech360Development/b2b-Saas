@@ -16,12 +16,15 @@
  */
 import { useState } from "react";
 import { API_BASE_URL } from "@/lib/constants";
-import { downloadFile } from "@/lib/download";
+import { downloadFile, withOwner } from "@/lib/download";
 import { GANG_SHEET_STATUS_LABEL, type GangSheetStatus } from "@/services/gangSheets.service";
 
 export interface GangSheetProduction {
   id: string;
   reference: string;
+  /** Whose it is: the order's number and the customer, for a download's name. */
+  order_number?: string | null;
+  customer?: string | null;
   kind: "gang_sheet" | "upload_by_size" | "upload_own";
   status: string;
   sheet_name: string;
@@ -116,7 +119,7 @@ export function GangSheetLineFiles({ sheet }: { sheet: GangSheetProduction }) {
           <span key={name}>
             {i > 0 && ", "}
             {o
-              ? <button type="button" onClick={() => { void downloadFile(apiHref(o.url), o.name); }} style={LINK_BUTTON}>{name}</button>
+              ? <button type="button" onClick={() => { void downloadFile(apiHref(o.url), withOwner(o.name, sheet.order_number, sheet.customer)); }} style={LINK_BUTTON}>{name}</button>
               : name}
           </span>
         );

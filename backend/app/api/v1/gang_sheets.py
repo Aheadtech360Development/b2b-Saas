@@ -315,7 +315,11 @@ def _order_row(
     artworks: list[GangSheetArtwork] | None = None,
     admin: bool = False,
     product_slug: str | None = None,
+    linked: dict | None = None,
 ) -> dict:
+    # The order it was checked out on, for the shop (_linked_orders): its
+    # number, and who bought it.
+    linked = linked or {}
     data = {
         "id": str(o.id),
         "reference": o.reference,
@@ -331,16 +335,19 @@ def _order_row(
         "customer_notes": o.customer_notes,
         "supplier_notes": o.supplier_notes,
         "revision_count": o.revision_count,
-        "contact_email": o.contact_email,
+        "contact_email": o.contact_email or linked.get("email"),
         # Who to put on the review screen. A submission with nobody's name on
-        # it is a reference number the shop cannot act on.
-        "contact_name": o.contact_name or "Guest",
+        # it is a reference number the shop cannot act on. A guest's job is
+        # made before checkout and their name is typed only at checkout, onto
+        # the order, so it is read from there.
+        "contact_name": o.contact_name or linked.get("name") or "Guest",
         "product_id": str(o.product_id) if o.product_id else None,
         "sheet_size_id": str(o.sheet_size_id) if o.sheet_size_id else None,
         "created_at": o.created_at.isoformat() if o.created_at else None,
         "updated_at": o.updated_at.isoformat() if o.updated_at else None,
         "layout": o.layout or [],
         "order_id": str(o.order_id) if getattr(o, "order_id", None) else None,
+        "order_number": linked.get("number"),
         "paid": bool(getattr(o, "paid_at", None)),
         # Upload-by-size has no builder to reopen — a revision happens back on the
         # product page, and the buyer's list needs the slug to link there.
@@ -376,6 +383,48 @@ async def _product_slugs(db: AsyncSession, product_ids) -> dict[str, str]:
 
     rows = await db.execute(select(Product.id, Product.slug).where(Product.id.in_(ids)))
     return {str(i): slug for i, slug in rows.all() if slug}
+
+
+async def _linked_orders(db: AsyncSession, order_ids) -> dict[str, dict]:
+    """{sales order id: {"number", "name", "email"}} for the orders these jobs
+    were checked out on, in one query.
+
+    A job is made before checkout, from the builder or an upload, so a guest's
+    job carries no name: the guest types it at checkout, onto the order. The
+    shop's queue reads it from there, with the order's number. The account's
+    company comes first, as _submitter has it; then the guest's name; then the
+    person who placed the order.
+    """
+    ids = {i for i in order_ids if i}
+    if not ids:
+        return {}
+    from app.models.company import Company
+    from app.models.order import Order
+    from app.models.user import User
+
+    rows = (await db.execute(
+        select(Order.id, Order.order_number, Order.guest_name, Order.guest_email,
+               Company.name, User.first_name, User.last_name, User.email)
+        .outerjoin(Company, Company.id == Order.company_id)
+        .outerjoin(User, User.id == Order.placed_by_id)
+        .where(Order.id.in_(ids))
+    )).all()
+    out: dict[str, dict] = {}
+    for oid, number, guest, guest_email, company, first, last, email in rows:
+        person = " ".join(x for x in (first, last) if x).strip()
+        out[str(oid)] = {
+            "number": number,
+            "name": (company or "").strip() or (guest or "").strip() or person or None,
+            "email": guest_email or email or None,
+        }
+    return out
+
+
+async def _linked_order_of(db: AsyncSession, o: "GangSheetOrder") -> dict | None:
+    """_linked_orders for one job; None until it is checked out."""
+    if not getattr(o, "order_id", None):
+        return None
+    return (await _linked_orders(db, [o.order_id])).get(str(o.order_id))
 
 
 async def _submitter(request, db: AsyncSession, payload) -> tuple[str | None, str | None]:
@@ -1395,21 +1444,29 @@ async def admin_dashboard(
     recent = (await db.execute(
         select(GangSheetOrder).order_by(GangSheetOrder.created_at.desc()).limit(8)
     )).scalars().all()
+    recent_ord_rows = (await db.execute(
+        select(GangSheetOrder).where(GangSheetOrder.order_id.isnot(None))
+        .order_by(GangSheetOrder.created_at.desc()).limit(8)
+    )).scalars().all()
+    # Each with its order's number and the buyer's name, as the queue has them.
+    linked = await _linked_orders(db, [o.order_id for o in [*recent, *recent_ord_rows]])
+
+    def _who(o) -> dict:
+        lk = linked.get(str(o.order_id)) or {}
+        return {"order_number": lk.get("number"), "contact": o.contact_name or lk.get("name")}
+
     recent_designs = [{
         "reference": o.reference,
-        "contact": o.contact_name,
+        **_who(o),
         "status": o.status,
         "sheet_name": o.sheet_name,
         "subtotal": float(o.subtotal),
         "created_at": o.created_at.isoformat() if o.created_at else None,
     } for o in recent]
 
-    recent_ord_rows = (await db.execute(
-        select(GangSheetOrder).where(GangSheetOrder.order_id.isnot(None))
-        .order_by(GangSheetOrder.created_at.desc()).limit(8)
-    )).scalars().all()
     recent_orders = [{
         "reference": o.reference,
+        **_who(o),
         "subtotal": float(o.subtotal),
         "paid": bool(getattr(o, "paid_at", None)),
         "created_at": o.created_at.isoformat() if o.created_at else None,
@@ -1639,8 +1696,9 @@ async def admin_list_orders(
     stmt = select(GangSheetOrder)
     if status_filter:
         stmt = stmt.where(GangSheetOrder.status == status_filter)
-    rows = await db.execute(stmt.order_by(GangSheetOrder.created_at.desc()))
-    return [_order_row(o, admin=True) for o in rows.scalars().all()]
+    jobs = (await db.execute(stmt.order_by(GangSheetOrder.created_at.desc()))).scalars().all()
+    linked = await _linked_orders(db, [o.order_id for o in jobs])
+    return [_order_row(o, admin=True, linked=linked.get(str(o.order_id))) for o in jobs]
 
 
 @admin_router.get("/orders/{order_id}")
@@ -1652,7 +1710,8 @@ async def admin_order_detail(
     ).scalar_one_or_none()
     if not order:
         raise HTTPException(status_code=404, detail="Gang sheet order not found")
-    return _order_row(order, await _load_artworks(db, order.id), admin=True)
+    return _order_row(order, await _load_artworks(db, order.id), admin=True,
+                      linked=await _linked_order_of(db, order))
 
 
 # ── Production files: what the print team prints from ─────────────────────────
@@ -1756,9 +1815,72 @@ def _too_large(a: GangSheetArtwork) -> bool:
     return w * h > MAX_SOURCE_PIXELS
 
 
-def _print_name(o: GangSheetOrder) -> str:
+# The print file's name when the brand has not set its own (gang sheet
+# Settings → Print file-name format, whose box shows "{order}-{customer}-{design}").
+PRINT_NAME_FORMAT = "{order}-{customer}-{design}-{size}-300dpi"
+_UNSAFE_IN_NAME = re.compile(r'[\\/:*?"<>|#%\x00-\x1f]+')
+
+
+def _tidy_name(name: str, limit: int | None = 150) -> str:
+    """A file name every system takes: no characters a folder refuses, no
+    spaces, no run of separators where a part was empty."""
+    name = _UNSAFE_IN_NAME.sub("", name)
+    name = re.sub(r"\s+", "-", name.strip())
+    name = re.sub(r"([-_.])[-_.]+", r"\1", name)
+    return name.strip("-_.")[:limit]
+
+
+def _print_name(o: GangSheetOrder, number: str | None = None, buyer: str | None = None,
+                fmt: str | None = None) -> str:
+    """The print-ready file's name: the order's number and the customer first,
+    so a folder of downloads says whose each sheet is, then the job's reference
+    and size. A brand's own format may use {order}, {customer}, {design} (the
+    job's reference), {size} and {qty}; ".png" follows it."""
     w, h = f"{float(o.sheet_width_in):g}", f"{float(o.sheet_height_in):g}"
-    return f"{o.reference}-{w}x{h}in-300dpi.png"
+    values = {
+        "order": number or "",
+        "customer": buyer or "",
+        "design": o.reference,
+        "reference": o.reference,
+        "size": f"{w}x{h}in",
+        "qty": str(o.sheet_quantity or 1),
+    }
+    name = re.sub(r"\{(\w+)\}", lambda m: _tidy_name(values.get(m.group(1).lower(), "")),
+                  (fmt or "").strip() or PRINT_NAME_FORMAT)
+    return f"{_tidy_name(name) or _tidy_name(o.reference + '-' + values['size'])}.png"
+
+
+def _owned_name(file_name: str, number: str | None = None, buyer: str | None = None) -> str:
+    """A buyer's own file, named for whose it is: the order's number and the
+    customer in front of the name it was uploaded with."""
+    lead = _tidy_name("-".join(p for p in (number, buyer) if p))
+    return f"{lead}-{file_name}" if lead else file_name
+
+
+def _download_header(name: str, disposition: str = "attachment") -> str:
+    """Content-Disposition for a name that may not be plain ASCII. A customer's
+    name is theirs (José, Zoë) and a header is Latin-1, so the name goes as
+    UTF-8 in filename*, with a plain-letters copy for anything older."""
+    import unicodedata
+    from urllib.parse import quote
+
+    plain = _tidy_name(unicodedata.normalize("NFKD", name).encode("ascii", "ignore").decode(), None)
+    if "." not in plain:  # nothing but the extension was plain letters
+        plain = "sheet.png"
+    return f"{disposition}; filename=\"{plain}\"; filename*=UTF-8''{quote(name)}"
+
+
+async def _print_name_format(db: AsyncSession, tenant_id=None) -> str | None:
+    """The brand's own print file-name format, when it has set one."""
+    import json as _json
+
+    from app.core.tenant_settings import get_setting
+
+    try:
+        raw = await get_setting(db, "gs_settings", tenant_id=tenant_id)
+        return ((_json.loads(raw) if raw else {}) or {}).get("filename_format") or None
+    except (ValueError, TypeError, AttributeError):
+        return None
 
 
 async def production_details(db: AsyncSession, sales_order_id) -> list[dict]:
@@ -1784,10 +1906,14 @@ async def production_details(db: AsyncSession, sales_order_id) -> list[dict]:
             "SELECT CAST(id AS text), gang_sheet_type, slug FROM products WHERE CAST(id AS text) = ANY(:ids)"
         ), {"ids": [str(p) for p in pids]})).all():
             types[pid] = (ptype, slug)
+    # Whose order it is, for the files' names.
+    linked = (await _linked_orders(db, [sales_order_id])).get(str(sales_order_id)) or {}
+    name_format = await _print_name_format(db)
 
     out = []
     for o in rows:
         arts = await _load_artworks(db, o.id)
+        buyer = o.contact_name or linked.get("name")
         ptype, slug = types.get(str(o.product_id), (None, None)) if o.product_id else (None, None)
         kind = _sheet_kind(o, ptype)
         layout = _drawn_layout(o, kind, arts)
@@ -1799,13 +1925,17 @@ async def production_details(db: AsyncSession, sales_order_id) -> list[dict]:
                            if (a.file_type or "").lower() not in DRAWABLE or _too_large(a)})
 
         if kind == "upload_own" and arts:
-            # The buyer's own sheet is already the print file: theirs, untouched.
-            print_file = {"url": arts[0].file_url, "name": arts[0].file_name, "signed": False}
+            # The buyer's own sheet is already the print file: theirs, untouched
+            # but for whose it is in front of its name.
+            print_file = {"url": arts[0].file_url, "signed": False,
+                          "name": _owned_name(arts[0].file_name, linked.get("number"), buyer)}
         elif kind == "upload_by_size" and used and len(left_out) == len(used):
             # One design, and the PNG cannot hold it: the design is the file.
-            print_file = {"url": used[0].file_url, "name": used[0].file_name, "signed": False}
+            print_file = {"url": used[0].file_url, "signed": False,
+                          "name": _owned_name(used[0].file_name, linked.get("number"), buyer)}
         elif layout:
-            print_file = {"url": file_link(o, "print"), "name": _print_name(o), "signed": True}
+            print_file = {"url": file_link(o, "print"), "signed": True,
+                          "name": _print_name(o, linked.get("number"), buyer, name_format)}
         else:
             print_file = None
 
@@ -1821,6 +1951,9 @@ async def production_details(db: AsyncSession, sales_order_id) -> list[dict]:
         out.append({
             "id": str(o.id),
             "reference": o.reference,
+            # Whose it is: the page names a design's download after them too.
+            "order_number": linked.get("number"),
+            "customer": buyer,
             "kind": kind,
             "status": o.status,
             "sheet_name": o.sheet_name,
@@ -1884,6 +2017,13 @@ async def sheet_file(sheet_id: uuid.UUID, kind: str, exp: int, sig: str):
             if o.product_id:
                 ptype = (await db.execute(_text("SELECT gang_sheet_type FROM products WHERE id = :p"),
                                           {"p": str(o.product_id)})).scalar()
+            # Whose order it is, for the print file's name, in the brand the
+            # link was signed for.
+            linked, name_format = {}, None
+            if kind == "print":
+                if o.order_id:
+                    linked = (await _linked_orders(db, [o.order_id])).get(str(o.order_id)) or {}
+                name_format = await _print_name_format(db, o.tenant_id)
     finally:
         set_bypass_scoping(previous)
 
@@ -1909,7 +2049,8 @@ async def sheet_file(sheet_id: uuid.UUID, kind: str, exp: int, sig: str):
             "Cache-Control": "private, max-age=600",
         })
     headers = {
-        "Content-Disposition": f'attachment; filename="{_print_name(o)}"',
+        "Content-Disposition": _download_header(_print_name(
+            o, linked.get("number"), o.contact_name or linked.get("name"), name_format)),
         "Cache-Control": "private, max-age=600",
         "X-Sheet-Pixels": f"{sheet.width}x{sheet.height}",
     }
@@ -1941,9 +2082,10 @@ async def admin_sheets_for_order(
         .order_by(GangSheetOrder.created_at)
     )).scalars().all()
 
+    linked = (await _linked_orders(db, [sales_order_id])).get(str(sales_order_id))
     sheets = []
     for o in rows:
-        row = _order_row(o, await _load_artworks(db, o.id), admin=True)
+        row = _order_row(o, await _load_artworks(db, o.id), admin=True, linked=linked)
         # The size record carries bleed/spacing, which the preview needs to draw
         # the safe area the same way the buyer saw it.
         if o.sheet_size_id:
@@ -2002,7 +2144,8 @@ async def admin_set_status(
              if payload.status == STATUS_REVISION and order.supplier_notes else "")
     await _notify(db, order, payload.status, extra_html=extra)
     await db.refresh(order)
-    return _order_row(order, await _load_artworks(db, order.id), admin=True)
+    return _order_row(order, await _load_artworks(db, order.id), admin=True,
+                      linked=await _linked_order_of(db, order))
 
 
 @admin_router.patch("/orders/{order_id}/layout")
@@ -2023,7 +2166,7 @@ async def admin_save_layout(
     order.layout = _validate_layout(order, artworks, payload.layout)
     await db.flush()
     await db.refresh(order)  # reload onupdate'd updated_at before serialising
-    return _order_row(order, artworks, admin=True)
+    return _order_row(order, artworks, admin=True, linked=await _linked_order_of(db, order))
 
 
 # ── Admin: design library ─────────────────────────────────────────────────────

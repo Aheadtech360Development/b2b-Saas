@@ -244,8 +244,8 @@ async def main():
         check("…no, when the lowest is still printable (250 DPI)",
               s["resolution"]["low"] is False and s["resolution"]["lowest_dpi"] == 250, s["resolution"])
         check("a file the PNG cannot hold is named, to print from the original", b.get("left_out") == ["logo.ai"], b.get("left_out"))
-        check("a buyer's own sheet is already the print file: theirs, untouched",
-              o["print_file"] == {"url": own, "name": "own-sheet.png", "signed": False}, o.get("print_file"))
+        check("a buyer's own sheet is already the print file: theirs, untouched, named for the order and the buyer",
+              o["print_file"] == {"url": own, "name": f"P-{RUN}-Sam-Prints-own-sheet.png", "signed": False}, o.get("print_file"))
 
         async def get(path):
             return await client.get(path)
@@ -253,9 +253,10 @@ async def main():
         # ── 3. The files themselves ─────────────────────────────────────────
         print("\nthe files")
         r = await get(b["print_file"]["url"])
-        check("the builder sheet's print file downloads as a PNG named for the job",
+        check("the builder sheet's print file downloads as a PNG named for the order, the buyer and the job",
               r.status_code == 200 and r.headers["content-type"] == "image/png"
-              and f'filename="{ref_b}-22x10in-300dpi.png"' in r.headers.get("content-disposition", ""), r.status_code)
+              and f'filename="P-{RUN}-Sam-Prints-{ref_b}-22x10in-300dpi.png"' in r.headers.get("content-disposition", ""),
+              (r.status_code, r.headers.get("content-disposition")))
         im = Image.open(io.BytesIO(r.content))
         check("…at its true size: 22″ × 10″ at 300 DPI is 6600 × 3000, and says 300 DPI",
               im.size == (6600, 3000) and round(im.info.get("dpi", (0,))[0]) == 300, (im.size, im.info.get("dpi")))

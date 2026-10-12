@@ -11,7 +11,7 @@
  * has to go hunting through.
  */
 import { useCallback, useEffect, useState } from "react";
-import { downloadFile } from "@/lib/download";
+import { downloadFile, withOwner } from "@/lib/download";
 import { apiClient } from "@/lib/api-client";
 import { GangSheetCanvas } from "@/components/storefront/GangSheetCanvas";
 import { openSheetPdf } from "@/lib/gangSheetPdf";
@@ -45,6 +45,7 @@ interface Sheet {
   sheet_height_in: number;
   sheet_quantity: number;
   subtotal: number;
+  order_number?: string | null;
   contact_name?: string | null;
   customer_notes?: string | null;
   artworks?: Artwork[];
@@ -151,6 +152,7 @@ export function OrderGangSheets({ orderId }: { orderId: string }) {
                   <button
                     onClick={() => openSheetPdf({
                       reference: s.reference,
+                      orderNumber: s.order_number,
                       customerName: s.contact_name ?? undefined,
                       sheet: { width_in: s.sheet_width_in, height_in: s.sheet_height_in, bleed_in: s.bleed_in ?? 0.125 },
                       artworks: arts,
@@ -181,7 +183,7 @@ export function OrderGangSheets({ orderId }: { orderId: string }) {
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(150px,1fr))", gap: "10px" }}>
                     {arts.map((a) => (
                       <button key={a.id} type="button"
-                        onClick={() => { void downloadFile(a.file_url, a.file_name); }}
+                        onClick={() => { void downloadFile(a.file_url, withOwner(a.file_name, s.order_number, s.contact_name)); }}
                         title={`Download ${a.file_name}`}
                         style={{ border: "1px solid #E3E3E3", borderRadius: "8px", padding: "8px", textAlign: "left", color: "inherit", background: "#fff", cursor: "pointer", font: "inherit" }}>
                         <div style={{ background: "#F6F6F7", borderRadius: "6px", aspectRatio: "1", display: "grid", placeItems: "center", overflow: "hidden", marginBottom: "7px" }}>
