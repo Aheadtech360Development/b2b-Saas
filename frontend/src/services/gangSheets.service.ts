@@ -345,6 +345,10 @@ export const gangSheetsService = {
       internal_notes,
     }),
 
+  /** The team's private note on its own: no status change, nobody emailed. */
+  adminSaveNotes: (id: string, internal_notes: string) =>
+    apiClient.patch<GangSheetOrder>(`/api/v1/admin/gang-sheets/orders/${id}/notes`, { internal_notes }),
+
   /** Live stats for the gang-sheet admin Dashboard (this brand only). */
   adminDashboard: () => apiClient.get<GangSheetDashboard>("/api/v1/admin/gang-sheets/dashboard"),
 

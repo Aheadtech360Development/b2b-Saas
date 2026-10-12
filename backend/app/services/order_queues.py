@@ -56,9 +56,16 @@ def _packed():
     return exists(select(OrderEvent.id).where(OrderEvent.order_id == Order.id, OrderEvent.type == "packed"))
 
 
+def _printing():
+    # A print job not finished yet: in review, sent back, approved, or on the press.
+    return _job("submitted", "in_review", "revision_requested", "approved", "production")
+
+
 def _to_ship() -> list:
+    # Marking the last print job ready to ship (Production) is what puts an
+    # order with a sheet on it here.
     return [real(), Order.payment_status == "paid", Order.status.in_(UNSHIPPED), Order.shipped_at.is_(None),
-            func.coalesce(Order.shipping_method, "") != "will_call"]
+            func.coalesce(Order.shipping_method, "") != "will_call", ~_printing()]
 
 
 def _late() -> list:

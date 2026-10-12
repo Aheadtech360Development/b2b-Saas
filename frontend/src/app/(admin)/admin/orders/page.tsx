@@ -540,7 +540,10 @@ function OrdersList() {
                 </div>
               )}
               {open.progress?.next.key === "artwork" && (
-                <div className="pc-note" data-tone="blue">Artwork is approved on the Production screen. <Link href="/admin/gang-sheets">Open Production</Link></div>
+                <div className="pc-note" data-tone="blue">Artwork is approved on the Production screen. <Link href="/admin/production">Open Production</Link></div>
+              )}
+              {open.progress?.next.key === "print" && (
+                <div className="pc-note" data-tone="blue">The sheet is being printed. Mark it ready to ship on the Production screen. <Link href="/admin/production">Open Production</Link></div>
               )}
               {open.supplier && (
                 <div className="pc-kv"><span>{open.supplier.supplier} purchase order</span><b>{SUPPLIER_WORDS[open.supplier.status] ?? open.supplier.status}</b></div>

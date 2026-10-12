@@ -44,6 +44,7 @@ TENANT_SCOPED_KEYS: frozenset[str] = frozenset({
     "storefront_pages",  # contact, quote and the footer's policies (JSON) — see services/storefront_pages
     "cod_enabled",  # "true" when this brand takes cash on delivery at checkout — see api/v1/checkout.cod_offered
     "order_views",  # the filters a shop saved on its order list (JSON) — see admin/orders.get_order_views
+    "production_cutoff",  # same-day cutoff for print jobs, "HH:MM" — see services/production_board
 })
 
 _SEP = "@"

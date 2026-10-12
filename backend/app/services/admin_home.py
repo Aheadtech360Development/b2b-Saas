@@ -206,7 +206,7 @@ async def _pipeline(db: AsyncSession) -> list[dict]:
     out = []
     for key, label in PIPELINE:
         if key == "artwork":
-            out.append({"key": key, "label": label, "count": int(artwork), "href": "/admin/gang-sheets"})
+            out.append({"key": key, "label": label, "count": int(artwork), "href": "/admin/production"})
         else:
             out.append({"key": key, "label": label, "count": await order_queues.count(db, key),
                         "href": f"/admin/orders?queue={key}"})

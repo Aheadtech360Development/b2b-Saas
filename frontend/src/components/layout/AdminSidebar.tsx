@@ -94,7 +94,15 @@ export function AdminSidebar() {
     // One line: its screens (drafts, returns, shipments) are the tabs across
     // the top of the order list.
     { key: "orders", label: "Orders", icon: ShoppingBag, href: "/admin/orders", scopes: ["orders"], count: counts.orders, also: ["/admin/returns"] },
-    { key: "production", label: "Production", icon: Printer, href: "/admin/gang-sheets", scopes: ["products"], count: counts.production },
+    {
+      key: "production", label: "Production", icon: Printer, href: "/admin/production", scopes: ["products"], count: counts.production,
+      also: ["/admin/gang-sheets"],
+      children: [
+        { href: "/admin/production", label: "Print queue" },
+        // The sheet sizes, prices, builder settings and design library: not redone yet.
+        { href: "/admin/gang-sheets", label: "Gang sheet setup" },
+      ],
+    },
     {
       key: "products", label: "Products", icon: Package, href: "/admin/products", scopes: ["products"], also: ["/admin/inventory"],
       children: [

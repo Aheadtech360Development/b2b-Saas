@@ -309,7 +309,10 @@ export default function AdminOrderDetailPage() {
   // A print job the shop has not approved, or one sent back to the customer.
   // Sending the order out before that is almost always a slip, so it is asked about first.
   const artOpen = ["in_review", "revision"].includes(progress?.artwork.key ?? "");
-  const artHref = waitingJob ? `/admin/gang-sheets?sheet=${waitingJob.id}` : "/admin/gang-sheets";
+  const artHref = waitingJob ? `/admin/production/${waitingJob.id}` : "/admin/production";
+  // A job approved or on the press: printing it is the next step, on Production.
+  const printingJob = o.items.find((i) => i.gang_sheet && ["approved", "production"].includes(i.gang_sheet.status))?.gang_sheet ?? null;
+  const printHref = printingJob ? `/admin/production/${printingJob.id}` : "/admin/production";
   const artWarning = artOpen ? "The artwork on this order is not approved yet. " : "";
 
   // ── Actions ────────────────────────────────────────────────────────────────
@@ -512,6 +515,7 @@ export default function AdminOrderDetailPage() {
   const main: { label: string; act?: () => void; href?: string } | null =
     next === "confirm" ? { label: "Confirm order", act: confirmOrder }
     : next === "artwork" ? { label: "Review artwork", href: artHref }
+    : next === "print" ? { label: "Open the print job", href: printHref }
     : next === "ready" ? { label: "Mark ready for pickup", act: markReady }
     : next === "ship" ? { label: "Mark shipped", act: markShipped }
     : next === "collected" ? { label: "Mark collected", act: () => markDelivered("collected") }

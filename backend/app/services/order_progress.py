@@ -128,6 +128,8 @@ def next_step(f: Facts) -> dict:
         return step("artwork", "Review the artwork", "A print job on this order is waiting for approval.")
     if art == "revision":
         return step("customer", "Wait for the customer", "They were asked to send the artwork again.")
+    if art in ("approved", "printing"):
+        return step("print", "Print the job", "Mark it ready to ship on the Production screen when it is printed.")
     if is_pickup(f.shipping_method):
         return step("ready", "Mark it ready for pickup", "The customer is told where and when to collect it.")
     return step("ship", "Buy a shipping label", "Or mark it shipped with a tracking number of your own.")

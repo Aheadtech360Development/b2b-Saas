@@ -111,11 +111,12 @@ interface SizeRow { id?: string; name: string; width_in: number; height_in: numb
 
 export default function AdminGangSheetsPage() {
   const [tab, setTab] = useState<"dashboard" | "setup" | "products" | "orders" | "sizes" | "library" | "settings">("dashboard");
-  // ?sheet=<id> — an order's "Admin edit" link: that sheet, open in review.
+  // ?sheet=<id> — an order's "Admin edit" link, from before the Production
+  // screens: that sheet now has a page of its own.
   const [openSheet, setOpenSheet] = useState<string | null>(null);
   useEffect(() => {
     const id = new URLSearchParams(window.location.search).get("sheet");
-    if (id) { setOpenSheet(id); setTab("orders"); }
+    if (id) window.location.replace(`/admin/production/${encodeURIComponent(id)}`);
   }, []);
   const TAB_LABEL: Record<string, string> = { dashboard: "Dashboard", setup: "Set up", products: "Products", orders: "Designs", sizes: "Sheet Sizes", library: "Design Library", settings: "Settings" };
 

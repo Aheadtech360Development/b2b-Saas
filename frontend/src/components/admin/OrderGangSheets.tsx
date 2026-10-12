@@ -98,8 +98,8 @@ export function OrderGangSheets({ orderId }: { orderId: string }) {
         <h2 style={{ fontSize: "15px", fontWeight: 700, color: "#1A1A1A", margin: 0 }}>
           Gang sheet{sheets.length > 1 ? `s (${sheets.length})` : ""}
         </h2>
-        <a href="/admin/gang-sheets" style={{ fontSize: "12px", fontWeight: 600, color: "#6B6B6B", textDecoration: "none" }}>
-          Open review queue →
+        <a href="/admin/production" style={{ fontSize: "12px", fontWeight: 600, color: "#6B6B6B", textDecoration: "none" }}>
+          Open Production →
         </a>
       </div>
 
@@ -161,8 +161,8 @@ export function OrderGangSheets({ orderId }: { orderId: string }) {
                   >
                     Download print PDF
                   </button>
-                  <a href={`/admin/gang-sheets?sheet=${s.id}`} style={{ ...BTN_LIGHT, textDecoration: "none", display: "inline-block" }}>
-                    Edit layout
+                  <a href={`/admin/production/${s.id}`} style={{ ...BTN_LIGHT, textDecoration: "none", display: "inline-block" }}>
+                    Open the job
                   </a>
                 </div>
 

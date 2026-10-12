@@ -46,6 +46,10 @@ def test_the_ship_queue_is_paid_not_shipped_and_not_a_pickup():
     for status in ("pending", "confirmed", "processing"):
         assert status in values
     assert "shipped" not in values
+    # An order whose sheet is still in review or on the press is not ready to ship.
+    assert "NOT (EXISTS (SELECT gang_sheet_orders.id" in sql
+    for job in ("in_review", "revision_requested", "approved", "production"):
+        assert job in values
 
 
 def test_late_is_the_ship_queue_with_an_age():

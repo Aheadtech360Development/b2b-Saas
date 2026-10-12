@@ -95,7 +95,7 @@ describe("an order whose print job is not approved yet", () => {
     await screen.findByText("Order 1042");
     const note = fulfil().querySelector("[data-art-open]") as HTMLElement;
     expect(note.textContent).toContain("A print job on this order is not approved yet.");
-    expect(within(note).getByRole("link", { name: "Review the artwork" })).toHaveAttribute("href", "/admin/gang-sheets?sheet=s1");
+    expect(within(note).getByRole("link", { name: "Review the artwork" })).toHaveAttribute("href", "/admin/production/s1");
   });
 
   it("asks before it is marked shipped, and sends nothing when the answer is no", async () => {

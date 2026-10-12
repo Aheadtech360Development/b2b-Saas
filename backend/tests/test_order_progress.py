@@ -53,8 +53,9 @@ def test_approved_artwork_is_in_production_until_it_is_packed():
     assert fulfilment(making)["label"] == "In production"
     packed = Facts(status="processing", payment_status="paid", jobs=("completed",), packed=True)
     assert fulfilment(packed)["label"] == "Packed"
-    # Packing is not required first: the next step is still the label.
-    assert next_step(making)["key"] == "ship" and next_step(packed)["key"] == "ship"
+    # While the sheet is on the press the next step is to finish printing it
+    # (Production); once it is printed, the label. Packing is not required first.
+    assert next_step(making)["key"] == "print" and next_step(packed)["key"] == "ship"
 
 
 def test_a_pickup_order_is_never_to_ship():

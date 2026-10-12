@@ -135,7 +135,7 @@ export default function AdminHome() {
             <section className="pc-card" aria-labelledby="pipe-title">
               <div className="pc-card-head">
                 <h2 className="pc-h2" id="pipe-title">Production pipeline</h2>
-                <Link href="/admin/gang-sheets" className="pc-link">Open Production</Link>
+                <Link href="/admin/production" className="pc-link">Open Production</Link>
               </div>
               <div className="pc-pipe">
                 {(data?.pipeline ?? [{ key: "a" }, { key: "b" }, { key: "c" }, { key: "d" }, { key: "e" }] as Stage[]).map((s) => (

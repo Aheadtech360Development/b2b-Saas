@@ -807,6 +807,28 @@ async def submit_order(
     return _order_row(order, arts)
 
 
+async def _admin_job(db: AsyncSession, order: "GangSheetOrder", artworks: list) -> dict:
+    """One job for the shop: the job, its order, and where it stands — the same
+    answer the Production board gives (services/production_board)."""
+    from app.services import production_board as pb
+
+    data = _order_row(order, artworks, admin=True)
+    data.update(pb.describe(
+        order.status, await pb.linked_order(db, order.order_id),
+        sheet_size_id=order.sheet_size_id, product_type=await _gang_sheet_type(db, order.product_id),
+    ))
+    # Its print-ready file and preview, as the order page lists them. Only an
+    # ordered job has them (they are listed per order).
+    data["production"] = None
+    if order.order_id:
+        try:
+            data["production"] = next(
+                (s for s in await production_details(db, order.order_id) if s.get("id") == str(order.id)), None)
+        except Exception:  # the job's page stands without its file links
+            data["production"] = None
+    return data
+
+
 async def _gang_sheet_type(db: AsyncSession, product_id) -> str | None:
     """Which builder a product sells through: 'gang_sheet', 'upload_by_size',
     'upload_own', or None."""
@@ -1652,7 +1674,7 @@ async def admin_order_detail(
     ).scalar_one_or_none()
     if not order:
         raise HTTPException(status_code=404, detail="Gang sheet order not found")
-    return _order_row(order, await _load_artworks(db, order.id), admin=True)
+    return await _admin_job(db, order, await _load_artworks(db, order.id))
 
 
 # ── Production files: what the print team prints from ─────────────────────────
@@ -1997,12 +2019,42 @@ async def admin_set_status(
     if payload.internal_notes is not None:
         order.internal_notes = payload.internal_notes
     await db.flush()
-    # Tell the buyer what changed. A revision passes the supplier note along.
-    extra = (f"<p style='background:#FFF7ED;border-radius:6px;padding:10px 12px;font-size:13px;color:#9A3412'>{order.supplier_notes}</p>"
-             if payload.status == STATUS_REVISION and order.supplier_notes else "")
+    # Tell the buyer what changed, with the shop's message when it wrote one.
+    # A revision always carries the note it was sent back with; an approval or
+    # a rejection carries the message sent with it, not an older note.
+    import html as _html
+    message = order.supplier_notes if payload.status == STATUS_REVISION else (
+        payload.supplier_notes if payload.status in (STATUS_APPROVED, STATUS_REJECTED) else None)
+    extra = (f"<p style='background:#FFF7ED;border-radius:6px;padding:10px 12px;font-size:13px;color:#9A3412'>{_html.escape(message)}</p>"
+             if message and message.strip() else "")
     await _notify(db, order, payload.status, extra_html=extra)
     await db.refresh(order)
-    return _order_row(order, await _load_artworks(db, order.id), admin=True)
+    return await _admin_job(db, order, await _load_artworks(db, order.id))
+
+
+class NotesIn(BaseModel):
+    internal_notes: Optional[str] = Field(None, max_length=5000)
+
+
+@admin_router.patch("/orders/{order_id}/notes")
+async def admin_save_notes(
+    order_id: uuid.UUID,
+    payload: NotesIn,
+    _: None = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """The team's private note on a job, kept on its own: no status changes and
+    nobody is emailed."""
+    order = (
+        await db.execute(select(GangSheetOrder).where(GangSheetOrder.id == order_id))
+    ).scalar_one_or_none()
+    if not order:
+        raise HTTPException(status_code=404, detail="Gang sheet order not found")
+    if payload.internal_notes is not None:
+        order.internal_notes = payload.internal_notes.strip() or None
+    await db.flush()
+    await db.refresh(order)
+    return await _admin_job(db, order, await _load_artworks(db, order.id))
 
 
 @admin_router.patch("/orders/{order_id}/layout")
@@ -2023,7 +2075,7 @@ async def admin_save_layout(
     order.layout = _validate_layout(order, artworks, payload.layout)
     await db.flush()
     await db.refresh(order)  # reload onupdate'd updated_at before serialising
-    return _order_row(order, artworks, admin=True)
+    return await _admin_job(db, order, artworks)
 
 
 # ── Admin: design library ─────────────────────────────────────────────────────

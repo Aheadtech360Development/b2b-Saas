@@ -44,6 +44,9 @@ interface Props {
   value: Placement[];
   onChange: (next: Placement[]) => void;
   readOnly?: boolean;
+  /** "admin": the shop's own screens draw the tools as their buttons, with a title beside them. */
+  variant?: "admin";
+  title?: React.ReactNode;
 }
 
 const IMAGE_TYPES = new Set(["png", "jpg", "jpeg", "webp", "gif"]);
@@ -56,7 +59,7 @@ function footprint(p: Placement): { w: number; h: number } {
 const round3 = (n: number) => Math.round(n * 1000) / 1000;
 const clamp = (n: number, lo: number, hi: number) => Math.max(lo, Math.min(n, hi));
 
-export function GangSheetCanvas({ sheet, artworks, value, onChange, readOnly }: Props) {
+export function GangSheetCanvas({ sheet, artworks, value, onChange, readOnly, variant, title }: Props) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [fitPpi, setFitPpi] = useState(10);
@@ -376,9 +379,32 @@ export function GangSheetCanvas({ sheet, artworks, value, onChange, readOnly }: 
   const usedLength = value.reduce((mx, p) => Math.max(mx, p.y_in + footprint(p).h), 0);
   const sel = selected != null ? value[selected] : undefined;
 
+  const admin = variant === "admin";
+
   return (
     <div style={{ display: "grid", gap: "12px" }}>
-      {!readOnly && (
+      {/* The shop's own screens: the admin's buttons and words, the same tools. */}
+      {admin && (
+        <div className="pc-gsc-head">
+          {title}
+          {!readOnly && (
+            <div className="pc-gsc-tools" role="toolbar" aria-label="Sheet layout tools">
+              <button type="button" className="pc-btn" onClick={autoNest}>Auto-nest</button>
+              <button type="button" className="pc-btn" onClick={() => commit([])} disabled={value.length === 0}>Clear</button>
+              <button type="button" className="pc-btn" onClick={undo} disabled={!canUndo} title="Undo (Ctrl+Z)">Undo</button>
+              <button type="button" className="pc-btn" onClick={redo} disabled={!canRedo} title="Redo (Ctrl+Shift+Z)">Redo</button>
+              <button type="button" className="pc-btn" aria-pressed={snap} data-on={snap ? "" : undefined} onClick={() => setSnap((s) => !s)} title="Snap to the grid">Snap</button>
+              <button type="button" className="pc-btn" onClick={() => zoomBy(1 / 1.2)} aria-label="Zoom out">−</button>
+              <button type="button" className="pc-btn" onClick={() => zoomBy(1.2)} aria-label="Zoom in">+</button>
+              <button type="button" className="pc-btn" onClick={fitScreen} title="Fit the sheet to the window">Fit</button>
+            </div>
+          )}
+          <div className="pc-gsc-stats" data-sheet-stats>
+            {value.length} placed, {utilisation}% used, {usedLength.toFixed(1)}″ used
+          </div>
+        </div>
+      )}
+      {!readOnly && !admin && (
         <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
           <button type="button" onClick={autoNest} style={{ ...btn, background: "var(--brand-primary, #1C3557)", color: "#fff", borderColor: "transparent" }}>Auto-nest</button>
           <button type="button" onClick={() => commit([])} style={{ ...btn, color: "#B91C1C", borderColor: "#F3C7C7" }}>Clear</button>
