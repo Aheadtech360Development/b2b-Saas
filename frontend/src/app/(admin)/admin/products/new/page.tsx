@@ -1,837 +1,410 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { ColorSwatchPicker } from "@/components/admin/ColorSwatchPicker";
-import { useRouter } from "next/navigation";
+/**
+ * Add a product: what it is first, then the rest in four short steps.
+ *
+ * The type decides which fields come after it (lib/productKinds). The product
+ * is made as a draft once its basics are in, so its pricing and images are
+ * saved on it as they are entered, by the same parts its own page uses; the
+ * address then names it (?p=<slug>&step=N), so a refresh carries on where it
+ * was instead of making a second one. Publish puts it on the store.
+ */
+import Link from "next/link";
+import dynamic from "next/dynamic";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { ArrowLeft, Check, X } from "lucide-react";
+import { apiClient } from "@/lib/api-client";
 import { adminService } from "@/services/admin.service";
 import { productsService } from "@/services/products.service";
-import { apiClient } from "@/lib/api-client";
-import { displayUrl } from "@/lib/brand";
-import dynamic from "next/dynamic";
-import type { Category } from "@/types/product.types";
+import { gangSheetsService } from "@/services/gangSheets.service";
+import { ProductOptionsBuilder } from "@/components/admin/ProductOptionsBuilder";
 import { VariantOptionsEditor, type ColorOption } from "@/components/admin/VariantOptionsEditor";
+import { GangSheetProductEditor } from "@/components/admin/GangSheetProductEditor";
+import { KIND_WORDS, PRODUCT_KINDS, kindFields, kindOf, type ProductKind } from "@/lib/productKinds";
+import type { Category, ProductDetail, ProductVariant } from "@/types/product.types";
 
 const RichTextEditor = dynamic(
-  () => import("@/components/admin/RichTextEditor").then(m => m.RichTextEditor),
-  {
-    ssr: false,
-    loading: () => (
-      <div style={{ border: "1.5px solid #E3E3E3", borderRadius: "8px", padding: "14px 16px", minHeight: "160px", color: "#aaa", fontSize: "14px" }}>
-        Loading editor…
-      </div>
-    ),
-  }
+  () => import("@/components/admin/RichTextEditor").then((m) => m.RichTextEditor),
+  { ssr: false, loading: () => <div className="pc-input" style={{ minHeight: "150px", color: "var(--pc-muted)" }}>Loading the editor…</div> },
 );
 
-const labelStyle: React.CSSProperties = {
-  fontSize: "12.5px", fontWeight: 600, color: "#4A4850", marginBottom: "7px", display: "block",
-};
-const inputStyle: React.CSSProperties = {
-  width: "100%", padding: "11px 14px", border: "1px solid #E2E2E4", borderRadius: "10px", background: "#FCFCFC",
-  fontSize: "14px", fontFamily: "var(--font-jakarta)", outline: "none", boxSizing: "border-box",
-};
-const sectionCard: React.CSSProperties = {
-  background: "#fff", border: "1px solid #ECECEC", borderRadius: "14px",
-  padding: "22px 24px", marginBottom: "16px", boxShadow: "0 1px 2px rgba(0,0,0,.03)",
-};
-const sectionTitle: React.CSSProperties = {
-  fontFamily: "var(--font-jakarta)", fontSize: "15px", fontWeight: 800, letterSpacing: "-0.01em",
-  color: "#1A1A1A", marginBottom: "16px", paddingBottom: "12px", borderBottom: "1px solid #F2F2F2", display: "block",
-};
-const thStyle: React.CSSProperties = {
-  padding: "10px 12px", textAlign: "left", fontSize: "11px", textTransform: "uppercase",
-  letterSpacing: ".06em", color: "#7A7880", fontWeight: 700,
-};
+const STEPS = ["Type", "Basics", "Pricing", "Images", "Publish"] as const;
 
+const slugify = (s: string) =>
+  s.toLowerCase().normalize("NFKD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 80) || "product";
 
+const errorText = (e: unknown, fallback: string) => (e instanceof Error && e.message ? e.message : fallback);
 
-interface PendingVariant {
-  id: string;
-  color: string;
-  color_hex?: string;
-  size: string;
-  price: string;
-  sku: string;
+interface CatalogRow { id: string; price_from: { amount: number; per: string } | null; attention: string[] }
+
+export default function AddProductPage() {
+  return (
+    <Suspense fallback={<div className="pc-page"><div className="pc-card pc-empty">Loading…</div></div>}>
+      <AddProduct />
+    </Suspense>
+  );
 }
 
-interface SizeChartRow {
-  size: string;
-  chest: string;
-  length: string;
-  sleeve: string;
-}
-
-export default function NewProductPage() {
+function AddProduct() {
   const router = useRouter();
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const flyerInputRef = useRef<HTMLInputElement>(null);
+  const pathname = usePathname();
+  const params = useSearchParams();
+  const slug = params.get("p");
+  const step = Math.min(5, Math.max(1, Number(params.get("step")) || 1));
 
-  const [saving, setSaving] = useState(false);
-  const [success, setSuccess] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [product, setProduct] = useState<ProductDetail | null>(null);
+  const [kind, setKind] = useState<ProductKind | null>(null);
+  const [basics, setBasics] = useState({ name: "", description: "", category_id: "", product_code: "" });
   const [categories, setCategories] = useState<Category[]>([]);
+  const [busy, setBusy] = useState("");
+  const [error, setError] = useState("");
+  const [loadingProduct, setLoadingProduct] = useState(!!slug);
+  const fileInput = useRef<HTMLInputElement>(null);
 
-  // Media
-  const [pendingImages, setPendingImages] = useState<File[]>([]);
-  const [imagePreviewUrls, setImagePreviewUrls] = useState<string[]>([]);
+  const go = useCallback((n: number, p: string | null = slug) => {
+    const q = new URLSearchParams();
+    if (p) q.set("p", p);
+    if (n > 1) q.set("step", String(n));
+    setError("");
+    router.replace(`${pathname}${q.toString() ? `?${q}` : ""}`, { scroll: true });
+  }, [pathname, router, slug]);
 
-  // Flyer
-  const [pendingFlyer, setPendingFlyer] = useState<File | null>(null);
-
-  // Tags
-  const [tagInput, setTagInput] = useState("");
-
-  // SEO toggle
-  const [editSEO, setEditSEO] = useState(false);
-
-  // Variant modal
-  const [showAddVariant, setShowAddVariant] = useState(false);
-  /**
-   * How this product is sold, asked before anything else.
-   *
-   * A t-shirt is Colour × Size and nothing more; a yard sign has its own set of
-   * fields entirely. Choosing up front is what keeps the simple case simple —
-   * an apparel product never sees the options builder, and a print product is
-   * never asked for variants it doesn't have.
-   */
-  const [pricingMode, setPricingMode] = useState<"variant" | "configurable">("variant");
-  const [pendingVariants, setPendingVariants] = useState<PendingVariant[]>([]);
-
-  const [form, setForm] = useState({
-    name: "",
-    slug: "",
-    description: "",
-    status: "draft",
-    product_type: "",
-    vendor: "",
-    gender: "",
-    fabric: "",
-    product_code: "",
-    weight: "",
-    category_id: "",
-    tags: [] as string[],
-    meta_title: "",
-    meta_description: "",
-    care_instructions: "",
-    print_guide_methods: [] as string[],
-    size_chart_data: [] as SizeChartRow[],
-  });
-
-  useEffect(() => {
-    productsService.getCategories().then(cats => setCategories(cats ?? [])).catch(() => {});
+  const reload = useCallback(async (s: string) => {
+    const p = await adminService.getProduct(s);
+    setProduct(p);
+    setKind(kindOf(p));
+    return p;
   }, []);
 
-  function setField(name: string, value: unknown) {
-    setForm(prev => {
-      const updated = { ...prev, [name]: value } as typeof prev;
-      if (name === "name") {
-        const autoSlug = (value as string).toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
-        if (prev.slug === prev.name.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "")) {
-          updated.slug = autoSlug;
+  useEffect(() => { productsService.getCategories().then((c) => setCategories(c ?? [])).catch(() => setCategories([])); }, []);
+
+  // Carrying on with a product already made (a refresh, or Back).
+  useEffect(() => {
+    if (!slug) { setLoadingProduct(false); return; }
+    if (product?.slug === slug) return;
+    setLoadingProduct(true);
+    reload(slug)
+      .then((p) => setBasics({
+        name: p.name, description: p.description ?? "", category_id: p.categories?.[0]?.id ?? "",
+        product_code: (p as { product_code?: string | null }).product_code ?? "",
+      }))
+      .catch((e) => setError(errorText(e, "That product could not be opened.")))
+      .finally(() => setLoadingProduct(false));
+  }, [slug, product?.slug, reload]);
+
+  // ── Step 2: the product is made here ───────────────────────────────────────
+  async function saveBasics() {
+    if (!kind) { go(1); return; }
+    const name = basics.name.trim();
+    if (!name) { setError("Give the product a name."); return; }
+    setBusy("basics");
+    setError("");
+    try {
+      const fields = {
+        name, description: basics.description || null, product_code: basics.product_code.trim() || null,
+        category_ids: basics.category_id ? [basics.category_id] : [],
+      };
+      let made = product;
+      if (!made) {
+        const { pricing_mode, gang_sheet_type } = kindFields(kind);
+        const base = slugify(name);
+        // The address must be the shop's own: when it is taken, the next free one.
+        for (let attempt = 0; attempt < 4 && !made; attempt++) {
+          const candidate = attempt === 0 ? base : `${base}-${Math.random().toString(36).slice(2, 6)}`;
+          try {
+            made = await adminService.createProduct({ ...fields, slug: candidate, status: "draft", pricing_mode });
+          } catch (e) {
+            if (!/slug|exists|unique|taken/i.test(errorText(e, ""))) throw e;
+          }
+        }
+        if (!made) throw new Error("No free web address could be found for that name. Change the name a little.");
+        if (gang_sheet_type) await gangSheetsService.adminUpdateProduct(made.id, { gang_sheet_enabled: true, gang_sheet_type });
+        const fresh = await reload(made.slug);
+        go(3, fresh.slug);
+      } else {
+        await adminService.updateProduct(made.id, fields);
+        await reload(made.slug);
+        go(3);
+      }
+    } catch (e) {
+      setError(errorText(e, "The product could not be saved."));
+    }
+    setBusy("");
+  }
+
+  // ── Step 3, stocked: colours × sizes become variants ───────────────────────
+  async function addVariants(colors: ColorOption[], sizes: string[], priceStr: string) {
+    if (!product) return;
+    setBusy("variants");
+    setError("");
+    try {
+      const code = (product as { product_code?: string | null }).product_code || product.name.split(" ").map((w) => w[0] ?? "").join("").toUpperCase();
+      const price = parseFloat(priceStr) || 0;
+      const have = new Set(product.variants.map((v) => `${(v.color ?? "").toLowerCase()}|${(v.size ?? "").toLowerCase()}`));
+      for (const color of colors) {
+        for (const size of sizes) {
+          if (have.has(`${color.name.toLowerCase()}|${size.toLowerCase()}`)) continue;
+          await apiClient.post<ProductVariant>(`/api/v1/admin/products/${product.id}/variants`, {
+            sku: `${code}-${color.name.slice(0, 3).toUpperCase()}-${size.toUpperCase().replace(/\//g, "")}-${Date.now().toString(36).toUpperCase()}`,
+            color: color.name, color_hex: color.hex || null, size, retail_price: price, status: "active",
+          });
         }
       }
-      return updated;
-    });
-  }
-
-  function handleChange(e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) {
-    setField(e.target.name, e.target.value);
-  }
-
-  function addTag() {
-    const t = tagInput.trim().replace(/,/g, "");
-    if (!t || form.tags.includes(t)) { setTagInput(""); return; }
-    setForm(p => ({ ...p, tags: [...p.tags, t] }));
-    setTagInput("");
-  }
-
-  function removeTag(tag: string) {
-    setForm(p => ({ ...p, tags: p.tags.filter(t => t !== tag) }));
-  }
-
-  function handleImageSelect(e: React.ChangeEvent<HTMLInputElement>) {
-    const files = Array.from(e.target.files ?? []);
-    setPendingImages(prev => [...prev, ...files]);
-    files.forEach(file => {
-      const reader = new FileReader();
-      reader.onload = ev => setImagePreviewUrls(prev => [...prev, ev.target?.result as string]);
-      reader.readAsDataURL(file);
-    });
-    e.target.value = "";
-  }
-
-  function removePendingImage(index: number) {
-    setPendingImages(prev => prev.filter((_, i) => i !== index));
-    setImagePreviewUrls(prev => prev.filter((_, i) => i !== index));
-  }
-
-  function handleFlyerSelect(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0] ?? null;
-    setPendingFlyer(file);
-    e.target.value = "";
-  }
-
-  function handleAddVariants(colors: ColorOption[], sizes: string[], price: string) {
-    if (!colors.length || !sizes.length) return;
-    const productCode = form.name.split(" ").map(w => w[0] ?? "").join("").toUpperCase() || "SKU";
-    const newRows: PendingVariant[] = [];
-    for (const color of colors) {
-      for (const size of sizes) {
-        // Skip a combination that already exists in the pending list.
-        if (pendingVariants.some(v => v.color.toLowerCase() === color.name.toLowerCase() && v.size.toLowerCase() === size.toLowerCase())) continue;
-        const colorCode = color.name.slice(0, 3).toUpperCase();
-        const sizeCode = size.toUpperCase().replace(/\//g, "");
-        newRows.push({
-          id: crypto.randomUUID(),
-          color: color.name,
-          color_hex: color.hex || undefined,
-          size,
-          price,
-          sku: `${productCode}-${colorCode}-${sizeCode}-${Date.now().toString(36).toUpperCase()}`,
-        });
-      }
+      await reload(product.slug);
+    } catch (e) {
+      setError(errorText(e, "Some variants could not be made."));
     }
-    setPendingVariants(prev => [...prev, ...newRows]);
-    setShowAddVariant(false);
+    setBusy("");
   }
 
-  function removePendingVariant(id: string) {
-    setPendingVariants(prev => prev.filter(v => v.id !== id));
-  }
-
-  function addSizeChartRow() {
-    setForm(p => ({ ...p, size_chart_data: [...p.size_chart_data, { size: "", chest: "", length: "", sleeve: "" }] }));
-  }
-
-  function removeSizeChartRow(i: number) {
-    setForm(p => ({ ...p, size_chart_data: p.size_chart_data.filter((_, idx) => idx !== i) }));
-  }
-
-  function updateSizeChartRow(i: number, field: keyof SizeChartRow, value: string) {
-    setForm(p => {
-      const rows = [...p.size_chart_data];
-      rows[i] = { ...rows[i], [field]: value } as SizeChartRow;
-      return { ...p, size_chart_data: rows };
-    });
-  }
-
-  function togglePrintMethod(method: string) {
-    setForm(p => {
-      const cur = p.print_guide_methods;
-      const next = cur.includes(method) ? cur.filter(m => m !== method) : [...cur, method];
-      return { ...p, print_guide_methods: next };
-    });
-  }
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!form.name.trim() || !form.slug.trim()) return;
-    setSaving(true);
-    setError(null);
-
+  // ── Step 4: images ─────────────────────────────────────────────────────────
+  async function addImages(files: FileList | null) {
+    if (!product || !files?.length) return;
+    setBusy("images");
+    setError("");
     try {
-      const payload: Record<string, unknown> = {
-        name: form.name.trim(),
-        slug: form.slug.trim(),
-        description: form.description || null,
-        status: form.status,
-        product_type: form.product_type || null,
-        vendor: form.vendor || null,
-        gender: form.gender || null,
-        fabric: form.fabric || null,
-        product_code: form.product_code || null,
-        weight: form.weight || null,
-        tags: form.tags.length ? form.tags : null,
-        category_ids: form.category_id ? [form.category_id] : [],
-        meta_title: form.meta_title || null,
-        meta_description: form.meta_description || null,
-        care_instructions: form.care_instructions || null,
-        print_guide: form.print_guide_methods.length ? { methods: form.print_guide_methods } : null,
-        size_chart_data: form.size_chart_data.length ? form.size_chart_data : null,
-        pricing_mode: pricingMode,
-      };
+      for (const file of Array.from(files)) await adminService.uploadImage(product.id, file);
+      await reload(product.slug);
+    } catch (e) {
+      setError(errorText(e, "An image could not be uploaded."));
+    }
+    setBusy("");
+    if (fileInput.current) fileInput.current.value = "";
+  }
+  async function removeImage(id: string) {
+    if (!product) return;
+    await adminService.deleteImage(product.id, id).catch(() => {});
+    await reload(product.slug);
+  }
+  async function makeFirst(id: string) {
+    if (!product) return;
+    await adminService.reorderImages(product.id, [id, ...product.images.filter((i) => i.id !== id).map((i) => i.id)]).catch(() => {});
+    await reload(product.slug);
+  }
 
-      const product = await adminService.createProduct(payload) as { id: string; slug: string };
+  // ── Step 5: what is missing, from the catalog's own answer ─────────────────
+  const [check, setCheck] = useState<CatalogRow | null>(null);
+  useEffect(() => {
+    if (step !== 5 || !product) return;
+    apiClient.get<{ rows: CatalogRow[] }>(`/api/v1/admin/catalog/products?q=${encodeURIComponent(product.name)}&page_size=200`)
+      .then((d) => setCheck(d.rows.find((r) => r.id === product.id) ?? null))
+      .catch(() => setCheck(null));
+  }, [step, product]);
 
-      // Upload images
-      for (const file of pendingImages) {
-        await adminService.uploadImage(product.id, file).catch(() => {});
-      }
-
-      // Create variants
-      for (const v of pendingVariants) {
-        await apiClient.post(`/api/v1/admin/products/${product.id}/variants`, {
-          sku: v.sku,
-          color: v.color,
-          color_hex: v.color_hex,
-          size: v.size,
-          retail_price: parseFloat(v.price) || 0,
-          status: "active",
-        }).catch(() => {});
-      }
-
-      // Upload flyer
-      if (pendingFlyer) {
-        const fd = new FormData();
-        fd.append("file", pendingFlyer);
-        await apiClient.postForm(`/api/v1/admin/products/${product.id}/upload-flyer`, fd).catch(() => {});
-      }
-
-      setSuccess(true);
-      setTimeout(
-        () => router.push(
-          pricingMode === "configurable"
-            ? `/admin/products/${product.slug}/edit#options`
-            : "/admin/products"
-        ),
-        1200,
-      );
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Failed to create product");
-      setSaving(false);
+  async function finish(publish: boolean) {
+    if (!product) return;
+    setBusy(publish ? "publish" : "draft");
+    try {
+      if (publish) await adminService.updateProduct(product.id, { status: "active" });
+      router.push(`/admin/products/${product.slug}/edit${publish ? "?published=1" : ""}`);
+    } catch (e) {
+      setError(errorText(e, "The product could not be published."));
+      setBusy("");
     }
   }
 
-  // Group pending variants by color for display
-  const variantsByColor: Record<string, PendingVariant[]> = {};
-  pendingVariants.forEach(v => {
-    if (!variantsByColor[v.color]) variantsByColor[v.color] = [];
-    variantsByColor[v.color]!.push(v);
-  });
+  // ── Words for the step ─────────────────────────────────────────────────────
+  const heading: Record<number, [string, string]> = {
+    1: ["What are you selling?", "Pick a type first. It decides which fields you see."],
+    2: ["The basics", "A name and a few words. Every other detail can be added on the product later."],
+    3: kind === "stocked" ? ["Colours, sizes and price", "Each colour and size becomes its own item, with its own SKU and stock."]
+      : kind === "made" ? ["Price and questions", "A base price, the questions the customer answers, and price breaks."]
+      : kind === "upload_by_size" ? ["Price by area", "Buyers pick any size; the price comes from its area."]
+      : ["Sheet sizes and prices", "The sheet sizes buyers choose from, and what each costs."],
+    4: ["Images", "The first image is the one shoppers see first."],
+    5: ["Ready to publish?", "Publish to put it on your store now, or keep it as a draft and finish it later."],
+  };
+  const [title, sub] = heading[step]!;
+  const reachable = (n: number) => n === 1 || (n === 2 && !!kind) || !!product;
+  const nonDraft = (check?.attention ?? []).filter((a) => a !== "Draft");
+
+  if (loadingProduct) return <div className="pc-page"><div className="pc-card pc-empty">Opening the product…</div></div>;
 
   return (
-    <div style={{ fontFamily: "var(--font-jakarta)" }}>
-      {/* Header */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "24px" }}>
+    <div className="pc-page" style={{ maxWidth: "1100px" }} data-add-product data-step={step}>
+      <Link href="/admin/products" className="pc-back"><ArrowLeft size={16} strokeWidth={2.2} /> Products</Link>
+      <div className="pc-head" style={{ marginBottom: "18px" }}>
         <div>
-          <button
-            onClick={() => router.push("/admin/products")}
-            style={{ background: "none", border: "none", color: "#7A7880", cursor: "pointer", fontSize: "13px", padding: 0, marginBottom: "4px" }}
-          >
-            ← Products
-          </button>
-          <h1 style={{ fontFamily: "var(--font-jakarta)", fontSize: "26px", fontWeight: 800, color: "#1A1A1A", letterSpacing: "-0.02em", lineHeight: 1.15, margin: "2px 0 0" }}>
-            Add product
-          </h1>
-        </div>
-        <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-          <button
-            type="button"
-            onClick={() => router.push("/admin/products")}
-            style={{ padding: "10px 20px", border: "1px solid #E3E3E3", borderRadius: "8px", background: "#fff", fontSize: "13px", fontWeight: 600, cursor: "pointer" }}
-          >
-            Cancel
-          </button>
-          <button
-            form="new-product-form"
-            type="submit"
-            disabled={saving || success || !form.name.trim() || !form.slug.trim()}
-            style={{ padding: "10px 24px", background: success ? "#059669" : "#1A1A1A", color: "#fff", border: "none", borderRadius: "8px", fontWeight: 700, cursor: (saving || success || !form.name.trim() || !form.slug.trim()) ? "not-allowed" : "pointer", opacity: (saving || success || !form.name.trim() || !form.slug.trim()) ? 0.6 : 1, fontSize: "14px" }}
-          >
-            {saving ? "Creating…" : success ? "Created!" : "Create Product"}
-          </button>
+          <div className="pc-eyebrow">Add product{product ? ` · ${product.name}` : ""}</div>
+          <h1 className="pc-h1">{title}</h1>
+          <p className="pc-sub-line">{sub}</p>
         </div>
       </div>
 
-      {success && (
-        <div style={{ background: "rgba(5,150,105,.08)", border: "1px solid rgba(5,150,105,.3)", borderRadius: "8px", padding: "12px 16px", marginBottom: "16px", fontSize: "13px", color: "#059669", fontWeight: 600 }}>
-          ✓ Product created successfully! Redirecting to product list…
-        </div>
-      )}
+      <ol className="pc-card pc-stepper" aria-label="Steps">
+        {STEPS.map((label, i) => {
+          const n = i + 1;
+          const state = n === step ? "current" : n < step && reachable(n) ? "done" : "todo";
+          return (
+            <li key={label} data-state={state}>
+              <button type="button" disabled={!reachable(n) || n === step} onClick={() => go(n)} aria-current={n === step ? "step" : undefined}>
+                <span className="pc-stepper-n">{state === "done" ? <Check size={13} strokeWidth={3} /> : n}</span>
+                {label}
+              </button>
+            </li>
+          );
+        })}
+      </ol>
+
       {error && (
-        <div style={{ background: "rgba(232,36,42,.06)", border: "1px solid #FECACA", borderRadius: "8px", padding: "12px 16px", marginBottom: "16px", fontSize: "13px", color: "#E8242A" }}>
-          {error}
+        <div className="pc-flash" data-bad role="alert" style={{ display: "flex", justifyContent: "space-between", gap: "12px" }}>
+          <span>{error}</span>
+          <button type="button" className="pc-x" aria-label="Dismiss" onClick={() => setError("")}><X size={16} /></button>
         </div>
       )}
 
-      <form id="new-product-form" onSubmit={handleSubmit}>
-        <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 340px", gap: "16px", alignItems: "start" }}>
-
-          {/* ── LEFT COLUMN ── */}
-          <div style={{ minWidth: 0 }}>
-
-            {/* ── What kind of product is this? Asked first, because it decides
-                   whether the rest of the form is about variants or options. ── */}
-            <div style={sectionCard}>
-              <span style={sectionTitle}>What kind of product is this?</span>
-              <p style={{ fontSize: "12px", color: "#7A7880", marginTop: "-4px", marginBottom: "14px" }}>
-                This decides how customers buy it. You can change it later.
-              </p>
-              <div style={{ display: "grid", gap: "10px", gridTemplateColumns: "repeat(auto-fit,minmax(250px,1fr))" }}>
-                {([
-                  ["variant", "Apparel / stocked item", "Colour × Size, each with its own SKU and stock. T-shirts, hoodies, caps."],
-                  ["configurable", "Made to order — custom options", "Add any fields you like and price them live. Yard signs, banners, business cards."],
-                ] as const).map(([val, title, desc]) => {
-                  const active = pricingMode === val;
-                  return (
-                    <label
-                      key={val}
-                      style={{
-                        display: "flex", gap: "10px", alignItems: "flex-start", cursor: "pointer",
-                        padding: "14px 16px", borderRadius: "10px",
-                        border: `1.5px solid ${active ? "#1A1A1A" : "#E3E3E3"}`,
-                        background: active ? "#F6F6F7" : "#fff",
-                      }}
-                    >
-                      <input
-                        type="radio"
-                        name="pricing_mode"
-                        checked={active}
-                        onChange={() => setPricingMode(val)}
-                        style={{ marginTop: "3px", accentColor: "#1A1A1A" }}
-                      />
-                      <span>
-                        <span style={{ display: "block", fontSize: "13px", fontWeight: 700, color: "#2A2830" }}>{title}</span>
-                        <span style={{ display: "block", fontSize: "12px", color: "#7A7880", marginTop: "3px", lineHeight: 1.5 }}>{desc}</span>
-                      </span>
-                    </label>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Title & Description */}
-            <div style={sectionCard}>
-              <div style={{ marginBottom: "18px" }}>
-                <label style={labelStyle}>Product Name <span style={{ color: "#E8242A" }}>*</span></label>
-                <input
-                  name="name"
-                  value={form.name}
-                  onChange={handleChange}
-                  required
-                  placeholder="e.g. Classic Cotton T-Shirt"
-                  style={{ ...inputStyle, fontSize: "16px", fontWeight: 600 }}
-                />
-              </div>
-              <div style={{ marginBottom: "18px" }}>
-                <label style={labelStyle}>URL Slug <span style={{ color: "#E8242A" }}>*</span></label>
-                <input
-                  name="slug"
-                  value={form.slug}
-                  onChange={handleChange}
-                  required
-                  placeholder="e.g. classic-cotton-t-shirt"
-                  style={inputStyle}
-                />
-                <div style={{ fontSize: "11px", color: "#aaa", marginTop: "4px" }}>Auto-generated from name. Must be unique.</div>
-              </div>
-              <div>
-                <label style={labelStyle}>Description</label>
-                <RichTextEditor
-                  value={form.description}
-                  onChange={val => setForm(p => ({ ...p, description: val }))}
-                  placeholder="Describe this product — fabric details, print compatibility, sizing notes…"
-                />
-              </div>
-            </div>
-
-            {/* Media */}
-            <div style={sectionCard}>
-              <span style={sectionTitle}>Media</span>
-              <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginBottom: "12px" }}>
-                {imagePreviewUrls.map((url, i) => (
-                  <div key={i} style={{ display: "flex", gap: "12px", alignItems: "center", padding: "10px 12px", border: "1px solid #E3E3E3", borderRadius: "8px", background: i === 0 ? "rgba(26,26,26,.03)" : "#fff" }}>
-                    <div style={{ width: "64px", height: "64px", borderRadius: "6px", overflow: "hidden", flexShrink: 0, border: "1px solid #E3E3E3", background: "#F6F6F7" }}>
-                      <img src={url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                    </div>
-                    <div style={{ flex: 1 }}>
-                      <span style={{ background: i === 0 ? "#1A1A1A" : "#F6F6F7", color: i === 0 ? "#fff" : "#7A7880", fontSize: "9px", fontWeight: 700, padding: "2px 8px", borderRadius: "3px" }}>
-                        {i === 0 ? "★ PRIMARY" : `Image ${i + 1}`}
-                      </span>
-                      <div style={{ fontSize: "11px", color: "#aaa", marginTop: "4px" }}>{pendingImages[i]?.name}</div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => removePendingImage(i)}
-                      style={{ background: "none", border: "none", cursor: "pointer", color: "#E8242A", fontSize: "18px", lineHeight: 1, padding: "0 4px", flexShrink: 0 }}
-                    >×</button>
-                  </div>
-                ))}
-              </div>
-              <div
-                onClick={() => fileInputRef.current?.click()}
-                style={{ borderRadius: "8px", border: "2px dashed #E3E3E3", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", cursor: "pointer", background: "#F6F6F7", padding: "16px", transition: "border-color .2s" }}
-                onMouseEnter={e => (e.currentTarget.style.borderColor = "#1A1A1A")}
-                onMouseLeave={e => (e.currentTarget.style.borderColor = "#E3E3E3")}
-              >
-                <span style={{ fontSize: "20px", color: "#aaa" }}>+</span>
-                <span style={{ fontSize: "13px", color: "#7A7880" }}>Add media</span>
-              </div>
-              <input ref={fileInputRef} type="file" accept="image/*" multiple style={{ display: "none" }} onChange={handleImageSelect} />
-              <p style={{ fontSize: "11px", color: "#aaa", marginTop: "8px" }}>Images are uploaded after creation. First image becomes primary.</p>
-            </div>
-
-            {/* Variants — only for stocked apparel. A configurable product's
-                fields are defined in the options builder after it exists. */}
-            {pricingMode === "configurable" ? (
-              <div style={sectionCard}>
-                <span style={sectionTitle}>OPTIONS &amp; PRICING</span>
-                <div style={{ padding: "22px", textAlign: "center", border: "1.5px dashed #E3E3E3", borderRadius: "8px" }}>
-                  <div style={{ fontSize: "13px", fontWeight: 700, color: "#2A2830", marginBottom: "6px" }}>
-                    You&apos;ll build the fields next
-                  </div>
-                  <p style={{ fontSize: "12px", color: "#7A7880", lineHeight: 1.6, margin: "0 auto", maxWidth: "420px" }}>
-                    Create the product, and it opens straight into the options builder — add any
-                    fields you need (size, material, finishing…), price each choice, and set
-                    quantity breaks. Nothing here is fixed: add or remove whatever you like.
-                  </p>
-                </div>
-              </div>
-            ) : (
-            <div style={sectionCard}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
-                <span style={{ ...sectionTitle, marginBottom: 0, paddingBottom: 0, borderBottom: "none" }}>Variants</span>
-                <button
-                  type="button"
-                  onClick={() => setShowAddVariant(true)}
-                  style={{ padding: "6px 14px", background: "#1A1A1A", color: "#fff", border: "none", borderRadius: "6px", fontSize: "12px", fontWeight: 700, cursor: "pointer" }}
-                >
-                  + Add Variants
-                </button>
-              </div>
-              <p style={{ fontSize: "12px", color: "#7A7880", marginTop: "-4px", marginBottom: "14px" }}>
-                Generate color/size combinations. You can add more variants after creation.
-              </p>
-
-              {pendingVariants.length === 0 ? (
-                <div style={{ padding: "24px", textAlign: "center", border: "1.5px dashed #E3E3E3", borderRadius: "8px", color: "#aaa", fontSize: "13px" }}>
-                  No variants added yet. Click <strong>+ Add Variants</strong> to generate color/size combinations.
-                </div>
-              ) : (
-                <div>
-                  {Object.entries(variantsByColor).map(([color, rows]) => (
-                    <div key={color} style={{ border: "1px solid #E3E3E3", borderRadius: "8px", marginBottom: "10px", overflow: "hidden" }}>
-                      {/* Color header */}
-                      <div style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 14px", background: "#F6F6F7" }}>
-                        <ColorSwatchPicker name={color} hex={rows.find((r) => r.color_hex)?.color_hex} size={18}
-                          onPick={(hex) => setPendingVariants((list) => list.map((v) => (v.color === color ? { ...v, color_hex: hex } : v)))} />
-                        <span style={{ fontWeight: 700, fontSize: "13px", color: "#2A2830" }}>{color}</span>
-                        <span style={{ fontSize: "12px", color: "#7A7880" }}>({rows.length} size{rows.length !== 1 ? "s" : ""})</span>
-                      </div>
-                      {/* Size rows */}
-                      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
-                        <thead>
-                          <tr style={{ background: "#F6F6F7", borderBottom: "1px solid #E3E3E3" }}>
-                            {["Size", "SKU", "Price", ""].map(h => (
-                              <th key={h} style={thStyle}>{h}</th>
-                            ))}
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {rows.map(v => (
-                            <tr key={v.id} style={{ borderBottom: "1px solid #F6F6F7" }}>
-                              <td style={{ padding: "8px 12px", fontWeight: 700 }}>{v.size}</td>
-                              <td style={{ padding: "8px 12px", color: "#7A7880", fontSize: "12px" }}>{v.sku}</td>
-                              <td style={{ padding: "8px 12px" }}>{v.price ? `$${v.price}` : "—"}</td>
-                              <td style={{ padding: "8px 12px", textAlign: "right" }}>
-                                <button
-                                  type="button"
-                                  onClick={() => removePendingVariant(v.id)}
-                                  style={{ background: "none", border: "none", cursor: "pointer", color: "#E8242A", fontSize: "16px", lineHeight: 1, padding: "0 4px" }}
-                                >×</button>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  ))}
-                  <div style={{ fontSize: "11px", color: "#aaa", marginTop: "8px" }}>
-                    {pendingVariants.length} variant{pendingVariants.length !== 1 ? "s" : ""} will be created after saving.
-                  </div>
-                </div>
-              )}
-            </div>
-            )}
-
+      {step === 1 && (
+        <>
+          <div className="pc-kinds" role="radiogroup" aria-label="What are you selling?">
+            {PRODUCT_KINDS.map((k) => (
+              <button key={k.kind} type="button" role="radio" aria-checked={kind === k.kind} className="pc-kind" data-on={kind === k.kind ? "" : undefined}
+                disabled={!!product && kind !== k.kind} onClick={() => setKind(k.kind)} data-kind-card={k.kind}>
+                <span className="pc-kind-title">{k.title}</span>
+                <span className="pc-kind-blurb">{k.blurb}</span>
+              </button>
+            ))}
           </div>
+          {product && <p className="pc-sub-line" style={{ marginTop: "12px" }}>The type is set for this product. It can be changed later on its Pricing tab.</p>}
+          <div className="pc-wizard-foot">
+            <Link href="/admin/products" className="pc-btn">Cancel</Link>
+            <button type="button" className="pc-btn" data-kind="primary" disabled={!kind} onClick={() => go(2)}>Continue</button>
+          </div>
+        </>
+      )}
 
-          {/* ── RIGHT SIDEBAR ── */}
-          <div>
-
-
-            {/* Status */}
-            <div style={sectionCard}>
-              <span style={sectionTitle}>Status</span>
-              <select name="status" value={form.status} onChange={handleChange} style={{ ...inputStyle, background: "#fff" }}>
-                <option value="draft">○ Draft</option>
-                <option value="active">● Active</option>
-              </select>
-              <div style={{ marginTop: "12px" }}>
-                <button
-                  form="new-product-form"
-                  type="submit"
-                  disabled={saving || success || !form.name.trim() || !form.slug.trim()}
-                  style={{ width: "100%", padding: "10px", background: success ? "#059669" : "#1A1A1A", color: "#fff", border: "none", borderRadius: "8px", fontWeight: 700, cursor: (saving || success || !form.name.trim() || !form.slug.trim()) ? "not-allowed" : "pointer", fontSize: "14px", opacity: (saving || success || !form.name.trim() || !form.slug.trim()) ? 0.6 : 1 }}
-                >
-                  {saving ? "Creating…" : success ? "Created!" : "Create Product"}
-                </button>
-              </div>
+      {step === 2 && (
+        <>
+          <section className="pc-card pc-pad" style={{ display: "grid", gap: "16px" }}>
+            <div>
+              <label className="pc-label" htmlFor="p-name">Name</label>
+              <input id="p-name" className="pc-input" value={basics.name} autoFocus onChange={(e) => setBasics((b) => ({ ...b, name: e.target.value }))}
+                placeholder={kind === "stocked" ? "e.g. Classic Cotton Tee" : kind === "made" ? "e.g. Business Cards" : "e.g. DTF Gang Sheet"} />
+              {basics.name.trim() && !product && <p className="pc-sub-line" style={{ fontSize: "12.5px" }}>Web address: /products/{slugify(basics.name)}</p>}
             </div>
-
-            {/* Product Organization */}
-            <div style={sectionCard}>
-              <span style={sectionTitle}>Product organization</span>
-
-              <div style={{ marginBottom: "14px" }}>
-                <label style={labelStyle}>Product Type</label>
-                <input name="product_type" value={form.product_type} onChange={handleChange} placeholder="e.g. T-Shirt, Hoodie" style={inputStyle} />
-              </div>
-              <div style={{ marginBottom: "14px" }}>
-                <label style={labelStyle}>Vendor</label>
-                <input name="vendor" value={form.vendor} onChange={handleChange} placeholder="e.g. your brand" style={inputStyle} />
-              </div>
-              <div style={{ marginBottom: "14px" }}>
-                <label style={labelStyle}>Gender</label>
-                <select name="gender" value={form.gender} onChange={handleChange} style={{ ...inputStyle, background: "#fff" }}>
-                  <option value="">Select gender…</option>
-                  <option value="mens">Men's</option>
-                  <option value="womens">Women's</option>
-                  <option value="youth">Youth</option>
-                  <option value="unisex">Unisex</option>
-                </select>
-              </div>
-              <div style={{ marginBottom: "14px" }}>
-                <label style={labelStyle}>Fabric</label>
-                <input name="fabric" value={form.fabric} onChange={handleChange} placeholder="e.g. 100% Cotton, 50/50 Cotton-Poly" style={inputStyle} />
-              </div>
-              <div style={{ marginBottom: "14px" }}>
-                <label style={labelStyle}>Product Code</label>
-                <input name="product_code" value={form.product_code} onChange={handleChange} placeholder="e.g. G5000, PC61" style={inputStyle} />
-              </div>
-              <div style={{ marginBottom: "14px" }}>
-                <label style={labelStyle}>Weight (g)</label>
-                <input name="weight" value={form.weight} onChange={handleChange} placeholder="e.g. 150, 175" style={inputStyle} />
-              </div>
-              <div style={{ marginBottom: "14px" }}>
-                <label style={labelStyle}>Category</label>
-                <select name="category_id" value={form.category_id} onChange={handleChange} style={{ ...inputStyle, background: "#fff" }}>
-                  <option value="">Select category…</option>
-                  {categories.map(cat => (
-                    <option key={cat.id} value={cat.id}>{cat.name}</option>
-                  ))}
+            <div>
+              <label className="pc-label">Description</label>
+              <RichTextEditor value={basics.description} onChange={(v: string) => setBasics((b) => ({ ...b, description: v }))} placeholder="What it is, what it is made of, what it is good for…" />
+            </div>
+            <div className="pc-grid-2">
+              <div>
+                <label className="pc-label" htmlFor="p-cat">Category</label>
+                <select id="p-cat" className="pc-input" value={basics.category_id} onChange={(e) => setBasics((b) => ({ ...b, category_id: e.target.value }))}>
+                  <option value="">No category</option>
+                  {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </select>
               </div>
               <div>
-                <label style={labelStyle}>Tags</label>
-                <div
-                  style={{ display: "flex", flexWrap: "wrap", gap: "6px", padding: "10px", border: "1.5px solid #E3E3E3", borderRadius: "8px", minHeight: "44px", cursor: "text" }}
-                  onClick={e => (e.currentTarget.querySelector("input") as HTMLInputElement)?.focus()}
-                >
-                  {form.tags.map(tag => (
-                    <span key={tag} style={{ background: "#F6F6F7", padding: "3px 10px", borderRadius: "20px", fontSize: "12px", fontWeight: 600, display: "flex", alignItems: "center", gap: "4px" }}>
-                      {tag}
-                      <button type="button" onClick={() => removeTag(tag)} style={{ background: "none", border: "none", cursor: "pointer", color: "#aaa", fontSize: "14px", lineHeight: 1, padding: 0 }}>×</button>
-                    </span>
-                  ))}
-                  <input
-                    value={tagInput}
-                    onChange={e => setTagInput(e.target.value)}
-                    onKeyDown={e => { if (e.key === "Enter" || e.key === ",") { e.preventDefault(); addTag(); } }}
-                    onBlur={addTag}
-                    placeholder={form.tags.length ? "" : "Add tag…"}
-                    style={{ border: "none", outline: "none", fontSize: "13px", minWidth: "100px", fontFamily: "var(--font-jakarta)", flexGrow: 1 }}
-                  />
-                </div>
-                <div style={{ fontSize: "11px", color: "#aaa", marginTop: "4px" }}>Press Enter or comma to add</div>
+                <label className="pc-label" htmlFor="p-code">Product code (optional)</label>
+                <input id="p-code" className="pc-input" value={basics.product_code} onChange={(e) => setBasics((b) => ({ ...b, product_code: e.target.value }))} placeholder="e.g. G5000" />
               </div>
             </div>
+          </section>
+          <div className="pc-wizard-foot">
+            <button type="button" className="pc-btn" onClick={() => go(1)}>Back</button>
+            <button type="button" className="pc-btn" data-kind="primary" disabled={busy === "basics"} onClick={saveBasics}>
+              {busy === "basics" ? "Saving…" : product ? "Continue" : "Save and continue"}
+            </button>
+          </div>
+        </>
+      )}
 
-            {/* Product Tabs Content */}
-            <div style={sectionCard}>
-              <span style={sectionTitle}>Product tabs content</span>
-              <p style={{ fontSize: "12px", color: "#7A7880", marginBottom: "20px", marginTop: "-8px" }}>
-                Appears in the Description, Print Guide, and Size Chart tabs on the product page.
-              </p>
-
-              {/* Care Instructions */}
-              <div style={{ marginBottom: "20px" }}>
-                <label style={labelStyle}>Care Instructions</label>
-                <textarea
-                  rows={4}
-                  name="care_instructions"
-                  value={form.care_instructions}
-                  onChange={handleChange}
-                  placeholder="e.g. Machine wash cold, tumble dry low, do not bleach…"
-                  style={{ ...inputStyle, resize: "vertical" }}
-                />
-                <div style={{ fontSize: "11px", color: "#aaa", marginTop: "3px" }}>Appears in the Specifications tab.</div>
-              </div>
-
-              {/* Print Guide */}
-              <div style={{ marginBottom: "20px" }}>
-                <label style={labelStyle}>Print Guide — Supported Methods</label>
-                <div className="checkout-form-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px" }}>
-                  {["DTF (Direct to Film)", "Screen Printing", "Embroidery", "DTG (Direct to Garment)", "Heat Transfer", "Sublimation", "Vinyl / HTV", "Laser Engraving"].map(method => {
-                    const checked = form.print_guide_methods.includes(method);
-                    return (
-                      <label key={method} style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "13px", color: "#2A2830", cursor: "pointer", padding: "6px 10px", border: `1.5px solid ${checked ? "#1A1A1A" : "#E3E3E3"}`, borderRadius: "8px", background: checked ? "rgba(26,26,26,.05)" : "#fff", transition: "all .15s" }}>
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          onChange={() => togglePrintMethod(method)}
-                          style={{ accentColor: "#1A1A1A" }}
-                        />
-                        {method}
-                      </label>
-                    );
-                  })}
-                </div>
-                <div style={{ fontSize: "11px", color: "#aaa", marginTop: "6px" }}>Checked methods appear as green ticks in the Print Guide tab.</div>
-              </div>
-
-              {/* Size Chart */}
-              <div>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
-                  <label style={{ ...labelStyle, marginBottom: 0 }}>Size Chart</label>
-                  <button
-                    type="button"
-                    onClick={addSizeChartRow}
-                    style={{ fontSize: "12px", color: "#1A1A1A", fontWeight: 700, background: "none", border: "none", cursor: "pointer", padding: 0 }}
-                  >
-                    + Add Row
-                  </button>
-                </div>
-                {form.size_chart_data.length === 0 ? (
-                  <div style={{ textAlign: "center", padding: "20px", border: "1.5px dashed #E3E3E3", borderRadius: "8px", color: "#aaa", fontSize: "13px" }}>
-                    No size chart rows yet. Click + Add Row to build one.
-                  </div>
-                ) : (
-                  <div style={{ overflowX: "auto" }}>
-                    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
-                      <thead>
-                        <tr style={{ background: "#F6F6F7" }}>
-                          {["Size", "Chest (in)", "Length (in)", "Sleeve (in)", ""].map(h => (
-                            <th key={h} style={{ padding: "8px 10px", textAlign: "left", fontSize: "10px", textTransform: "uppercase", letterSpacing: ".06em", color: "#7A7880", fontWeight: 700, whiteSpace: "nowrap" }}>{h}</th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {form.size_chart_data.map((row, i) => (
-                          <tr key={i} style={{ borderBottom: "1px solid #F6F6F7" }}>
-                            {(["size", "chest", "length", "sleeve"] as const).map(field => (
-                              <td key={field} style={{ padding: "4px 6px" }}>
-                                <input
-                                  value={row[field]}
-                                  onChange={e => updateSizeChartRow(i, field, e.target.value)}
-                                  placeholder={field === "size" ? "XL" : "—"}
-                                  style={{ width: "100%", padding: "5px 8px", border: "1px solid #E3E3E3", borderRadius: "6px", fontSize: "12px", fontFamily: "var(--font-jakarta)", outline: "none" }}
-                                />
-                              </td>
-                            ))}
-                            <td style={{ padding: "4px 6px" }}>
-                              <button
-                                type="button"
-                                onClick={() => removeSizeChartRow(i)}
-                                style={{ background: "none", border: "none", cursor: "pointer", color: "#E8242A", fontSize: "16px", lineHeight: 1, padding: "0 4px" }}
-                              >×</button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
+      {step === 3 && product && (
+        <>
+          {kind === "stocked" && (
+            <div className="pc-stack" style={{ gap: "16px" }}>
+              <section className="pc-card pc-pad" data-variant-maker>
+                <h2 className="pc-h2">Make the variants</h2>
+                <p className="pc-sub-line" style={{ margin: "4px 0 14px" }}>Add the colours and sizes, and the price they start at. Each combination becomes an item; prices and stock can be set one by one on the product later.</p>
+                <VariantOptionsEditor busy={busy === "variants"} onAdd={addVariants} />
+              </section>
+              <section className="pc-card" data-variant-list>
+                <div className="pc-card-head"><h2 className="pc-h2">{product.variants.length === 1 ? "1 variant" : `${product.variants.length} variants`}</h2></div>
+                {product.variants.length === 0 ? <div className="pc-empty">None yet.</div> : (
+                  <div className="pc-scroll-x">
+                    <table className="pc-table" style={{ minWidth: "480px" }}>
+                      <thead><tr><th>Colour</th><th>Size</th><th>SKU</th><th className="pc-num">Price</th></tr></thead>
+                      <tbody>{product.variants.slice(0, 60).map((v) => (
+                        <tr key={v.id}><td>{v.color ?? "–"}</td><td>{v.size ?? "–"}</td><td style={{ color: "var(--pc-muted)" }}>{v.sku}</td><td className="pc-num">${Number(v.retail_price ?? 0).toFixed(2)}</td></tr>
+                      ))}</tbody>
                     </table>
                   </div>
                 )}
-                <div style={{ fontSize: "11px", color: "#aaa", marginTop: "6px" }}>Appears in the Size Chart tab on the product page.</div>
-              </div>
+              </section>
             </div>
+          )}
+          {kind === "made" && <ProductOptionsBuilder productId={product.id} />}
+          {(kind === "gang_sheet" || kind === "upload_by_size" || kind === "upload_own") && (
+            <GangSheetProductEditor productId={product.id} productName={product.name} kind={kind} config={product.gang_sheet_config ?? null} fixedKind
+              onSaved={() => { void reload(product.slug); }} />
+          )}
+          <div className="pc-wizard-foot">
+            <button type="button" className="pc-btn" onClick={() => go(2)}>Back</button>
+            <button type="button" className="pc-btn" data-kind="primary" onClick={() => go(4)}>Continue</button>
+          </div>
+        </>
+      )}
 
-            {/* SEO */}
-            <div style={sectionCard}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px" }}>
-                <span style={{ ...sectionTitle, marginBottom: 0, paddingBottom: 0, borderBottom: "none" }}>Search engine listing</span>
-                <button
-                  type="button"
-                  onClick={() => setEditSEO(v => !v)}
-                  style={{ fontSize: "12px", color: "#1A1A1A", fontWeight: 700, background: "none", border: "none", cursor: "pointer" }}
-                >
-                  {editSEO ? "Preview" : "Edit"}
-                </button>
+      {step === 4 && product && (
+        <>
+          <section className="pc-card pc-pad" data-image-step>
+            <input ref={fileInput} type="file" accept="image/*" multiple hidden onChange={(e) => void addImages(e.target.files)} />
+            <button type="button" className="pc-drop" onClick={() => fileInput.current?.click()} disabled={busy === "images"}>
+              {busy === "images" ? "Uploading…" : "Choose images to upload"}
+              <span className="pc-sub-line" style={{ margin: 0 }}>PNG, JPG or WebP. Several at once is fine.</span>
+            </button>
+            {product.images.length > 0 && (
+              <div className="pc-image-grid" style={{ marginTop: "16px" }}>
+                {product.images.map((img, i) => (
+                  <figure key={img.id} className="pc-image-tile" data-image>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={img.url_medium} alt={img.alt_text ?? ""} />
+                    <figcaption>
+                      {i === 0 ? <span className="pc-pill" data-tone="blue">First</span> : <button type="button" className="pc-link" style={{ fontSize: "13px" }} onClick={() => void makeFirst(img.id)}>Make first</button>}
+                      <button type="button" className="pc-link" style={{ fontSize: "13px", color: "var(--pc-red)" }} onClick={() => void removeImage(img.id)}>Remove</button>
+                    </figcaption>
+                  </figure>
+                ))}
               </div>
-              {editSEO ? (
-                <div>
-                  <div style={{ marginBottom: "12px" }}>
-                    <label style={labelStyle}>SEO Title</label>
-                    <input
-                      name="meta_title"
-                      value={form.meta_title}
-                      onChange={handleChange}
-                      placeholder={form.name || "Product title"}
-                      style={inputStyle}
-                    />
-                    <div style={{ fontSize: "11px", marginTop: "3px", color: (form.meta_title || form.name).length > 60 ? "#E8242A" : "#aaa" }}>
-                      {(form.meta_title || form.name).length}/60 characters
-                    </div>
-                  </div>
-                  <div>
-                    <label style={labelStyle}>Meta Description</label>
-                    <textarea
-                      name="meta_description"
-                      value={form.meta_description}
-                      onChange={handleChange}
-                      rows={3}
-                      style={{ ...inputStyle, resize: "vertical" }}
-                    />
-                    <div style={{ fontSize: "11px", marginTop: "3px", color: form.meta_description.length > 160 ? "#E8242A" : "#aaa" }}>
-                      {form.meta_description.length}/160 characters
-                    </div>
-                  </div>
-                </div>
+            )}
+          </section>
+          <div className="pc-wizard-foot">
+            <button type="button" className="pc-btn" onClick={() => go(3)}>Back</button>
+            <button type="button" className="pc-btn" data-kind="primary" onClick={() => go(5)}>Continue</button>
+          </div>
+        </>
+      )}
+
+      {step === 5 && product && (
+        <>
+          <section className="pc-card pc-pad" data-publish-step>
+            <div className="pc-kv"><span>Type</span><b>{kind ? KIND_WORDS[kind] : "–"}</b></div>
+            <div className="pc-kv"><span>Name</span><b>{product.name}</b></div>
+            <div className="pc-kv"><span>Web address</span><b>/products/{product.slug}</b></div>
+            <div className="pc-kv"><span>Price from</span><b>{check?.price_from ? `$${check.price_from.amount.toFixed(check.price_from.amount < 0.1 ? 4 : 2)}${check.price_from.per === "item" ? "" : ` / ${check.price_from.per}`}` : "Not set"}</b></div>
+            <div className="pc-kv"><span>Images</span><b>{product.images.length}</b></div>
+            <div style={{ marginTop: "14px" }} data-publish-check>
+              {check === null ? (
+                <div className="pc-note">Checking what the product still needs…</div>
+              ) : nonDraft.length ? (
+                <div className="pc-note">Before it sells: {nonDraft.join(", ").toLowerCase()}. You can publish now and finish on the product&apos;s page.</div>
               ) : (
-                <div style={{ border: "1px solid #E3E3E3", borderRadius: "8px", padding: "14px 16px", background: "#F6F6F7" }}>
-                  <div style={{ fontSize: "11px", color: "#059669", marginBottom: "3px" }}>
-                    {displayUrl(`/products/${form.slug || "product-slug"}`)}
-                  </div>
-                  <div style={{ fontSize: "16px", color: "#1a0dab", marginBottom: "4px", fontWeight: 400 }}>
-                    {form.meta_title || form.name || "Product Title"}
-                  </div>
-                  <div style={{ fontSize: "13px", color: "#545454", lineHeight: 1.5 }}>
-                    {form.meta_description || form.description?.replace(/<[^>]+>/g, "").slice(0, 160) || "No description"}
-                  </div>
-                </div>
+                <div className="pc-note" data-tone="green">Everything a shopper needs is there.</div>
               )}
             </div>
-
-            {/* Marketing Flyer */}
-            <div style={sectionCard}>
-              <span style={sectionTitle}>Marketing flyer</span>
-              {pendingFlyer && (
-                <div style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 12px", border: "1px solid #E3E3E3", borderRadius: "8px", background: "#F6F6F7", marginBottom: "12px" }}>
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#E8242A" strokeWidth={2}><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: "13px", fontWeight: 600, color: "#2A2830", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{pendingFlyer.name}</div>
-                    <div style={{ fontSize: "11px", color: "#7A7880" }}>PDF Flyer — will upload after creation</div>
-                  </div>
-                  <button type="button" onClick={() => setPendingFlyer(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "#E8242A", fontSize: "16px", lineHeight: 1, padding: "2px 4px" }}>×</button>
-                </div>
-              )}
-              <input ref={flyerInputRef} type="file" accept=".pdf,application/pdf" style={{ display: "none" }} onChange={handleFlyerSelect} />
-              <button
-                type="button"
-                onClick={() => flyerInputRef.current?.click()}
-                style={{ width: "100%", padding: "10px", border: "1.5px dashed #E3E3E3", borderRadius: "8px", background: "#fff", cursor: "pointer", fontSize: "13px", fontWeight: 600, color: "#1A1A1A", fontFamily: "var(--font-jakarta)" }}
-              >
-                {pendingFlyer ? "Replace Flyer (PDF)" : "Upload Flyer (PDF)"}
-              </button>
-            </div>
-
+          </section>
+          <div className="pc-wizard-foot">
+            <button type="button" className="pc-btn" onClick={() => go(4)}>Back</button>
+            <span style={{ display: "flex", gap: "10px" }}>
+              <button type="button" className="pc-btn" disabled={!!busy} onClick={() => void finish(false)}>{busy === "draft" ? "Opening…" : "Keep as draft"}</button>
+              <button type="button" className="pc-btn" data-kind="primary" disabled={!!busy} onClick={() => void finish(true)} data-publish>{busy === "publish" ? "Publishing…" : "Publish product"}</button>
+            </span>
           </div>
-        </div>
-      </form>
+        </>
+      )}
 
-      {/* ── Add Variants Modal ── */}
-      {showAddVariant && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }}>
-          <div style={{ background: "#fff", borderRadius: "12px", width: "540px", maxHeight: "90vh", overflowY: "auto", padding: "28px", boxShadow: "0 20px 60px rgba(0,0,0,.2)" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
-              <h3 style={{ fontFamily: "var(--font-jakarta)", fontSize: "18px", fontWeight: 800, color: "#1A1A1A", letterSpacing: "-0.01em" }}>Add Variants</h3>
-              <button type="button" onClick={() => setShowAddVariant(false)} style={{ background: "none", border: "none", fontSize: "20px", cursor: "pointer", color: "#aaa" }}>✕</button>
-            </div>
-            <p style={{ fontSize: "12px", color: "#7A7880", marginBottom: "18px" }}>Define your options (Color &amp; Size values), then generate every combination.</p>
-
-            <VariantOptionsEditor onAdd={handleAddVariants} onCancel={() => setShowAddVariant(false)} />
-          </div>
-        </div>
+      {step >= 3 && !product && (
+        <div className="pc-card pc-empty">This step needs the product made first. <button type="button" className="pc-link" onClick={() => go(kind ? 2 : 1)}>Go back</button></div>
       )}
     </div>
   );

@@ -448,3 +448,65 @@
   .pc-file { grid-template-columns: 40px minmax(0, 1fr); }
   .pc-file > :nth-child(n + 3) { grid-column: 2; justify-self: start; }
 }
+
+/* ── Products ──────────────────────────────────────────────────────────────── */
+/* A screen's own sections under the place's tabs: smaller, pill shaped. */
+.pc-subtabs { display: flex; gap: 6px; flex-wrap: wrap; margin: -6px 0 20px; }
+.pc-admin a.pc-subtab { display: inline-flex; align-items: center; height: 34px; padding: 0 13px; border-radius: 17px; font: 500 13.5px var(--pc-sans); color: var(--pc-ink-2); text-decoration: none; border: 1px solid transparent; }
+.pc-admin a.pc-subtab:hover { color: var(--pc-ink); background: #EEF1F5; }
+.pc-admin a.pc-subtab[data-on] { color: var(--pc-blue); background: var(--pc-blue-tint); font-weight: 600; }
+.pc-admin a.pc-row-title { font-weight: 600; font-size: 14.5px; color: var(--pc-ink); text-decoration: none; overflow-wrap: anywhere; }
+.pc-admin a.pc-row-title:hover { color: var(--pc-blue); }
+.pc-admin .pc-btn[aria-pressed="true"] { background: var(--pc-blue-tint); border-color: #BFD3F8; color: var(--pc-blue); }
+.pc-admin button.pc-pop-item { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
+/* Tabs that switch a panel on the same page are buttons; they look like the linked ones. */
+.pc-admin button.pc-tab { display: inline-flex; align-items: center; gap: 8px; padding: 10px 2px 13px; margin-bottom: -1px; border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: none; color: var(--pc-ink-2); font: 500 14.5px var(--pc-sans); white-space: nowrap; cursor: pointer; }
+.pc-admin button.pc-tab:hover { color: var(--pc-ink); filter: none; box-shadow: none; }
+.pc-admin button.pc-tab[data-on] { color: var(--pc-ink); font-weight: 600; border-bottom-color: var(--pc-blue); }
+
+/* The type cards: the new-product steps and a sheet product's builder. */
+.pc-kinds { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.pc-admin button.pc-kind { display: grid; gap: 6px; align-content: start; text-align: left; padding: 16px 18px; border: 1px solid var(--pc-line); border-radius: 10px; background: #fff; cursor: pointer; font-family: var(--pc-sans); min-height: 92px; }
+.pc-admin button.pc-kind:hover:not(:disabled) { border-color: #C5CFDC; filter: none; box-shadow: none; }
+.pc-admin button.pc-kind[data-on] { border-color: var(--pc-blue); background: #F3F7FF; box-shadow: 0 0 0 1px var(--pc-blue); }
+.pc-admin button.pc-kind:disabled { opacity: .55; cursor: not-allowed; }
+.pc-kind-title { font-size: 15px; font-weight: 600; color: var(--pc-ink); }
+.pc-kind-blurb { font-size: 13px; line-height: 1.5; color: var(--pc-muted); }
+
+/* The new-product steps. */
+.pc-stepper { display: flex; gap: 8px 22px; flex-wrap: wrap; list-style: none; margin: 0 0 18px; padding: 14px 18px; }
+.pc-admin .pc-stepper button { display: inline-flex; align-items: center; gap: 9px; border: 0; background: none; padding: 0; font: 500 14px var(--pc-sans); color: var(--pc-muted); cursor: pointer; }
+.pc-admin .pc-stepper button:disabled { cursor: default; }
+.pc-admin .pc-stepper button:hover:not(:disabled) { color: var(--pc-ink); filter: none; box-shadow: none; }
+.pc-stepper-n { width: 26px; height: 26px; border-radius: 50%; display: inline-grid; place-items: center; font-size: 12.5px; font-weight: 600; background: #E3E8EF; color: var(--pc-ink-2, var(--pc-ink)); }
+.pc-stepper li[data-state="current"] button { color: var(--pc-ink); font-weight: 600; }
+.pc-stepper li[data-state="current"] .pc-stepper-n { background: var(--pc-navy); color: #fff; }
+.pc-stepper li[data-state="done"] .pc-stepper-n { background: var(--pc-blue); color: #fff; }
+.pc-wizard-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 22px; }
+.pc-admin button.pc-drop { width: 100%; display: grid; gap: 4px; justify-items: center; padding: 28px 16px; border: 1.5px dashed #C9D2DE; border-radius: 12px; background: #FAFBFD; font: 600 14.5px var(--pc-sans); color: var(--pc-blue); cursor: pointer; }
+.pc-admin button.pc-drop:hover { border-color: var(--pc-blue); filter: none; box-shadow: none; }
+.pc-image-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+.pc-image-tile { margin: 0; border: 1px solid var(--pc-line); border-radius: 10px; overflow: hidden; background: #fff; }
+.pc-image-tile img { display: block; width: 100%; aspect-ratio: 1; object-fit: cover; background: #F5F7FA; }
+.pc-image-tile figcaption { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 10px; }
+
+/* One Save bar for the product's page. */
+.pc-savebar { position: sticky; top: 76px; z-index: 30; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 14px 12px 20px; margin-bottom: 16px; border-radius: 12px; background: var(--pc-navy); color: #fff; font-weight: 600; font-size: 14.5px; box-shadow: 0 8px 24px rgba(12, 31, 63, .18); }
+.pc-admin .pc-btn[data-kind="ghost-dark"] { background: transparent; border-color: rgba(255, 255, 255, .35); color: #fff; height: 38px; }
+.pc-admin .pc-btn[data-kind="ghost-dark"]:hover { background: rgba(255, 255, 255, .08); border-color: rgba(255, 255, 255, .55); }
+.pc-savebar .pc-btn { height: 38px; }
+.pc-switch-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; font-size: 14px; font-weight: 500; color: var(--pc-ink); }
+.pc-admin button.pc-switch { flex: none; position: relative; width: 40px; height: 24px; border-radius: 12px; border: 0; padding: 0; background: #C9D2DE; cursor: pointer; transition: background .15s; }
+.pc-admin button.pc-switch::after { content: ""; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0, 0, 0, .2); transition: left .15s; }
+.pc-admin button.pc-switch[data-on] { background: var(--pc-blue); }
+.pc-admin button.pc-switch[data-on]::after { left: 19px; }
+.pc-admin button.pc-switch:hover { filter: none; box-shadow: none; }
+[data-products-frame] .pc-pill, [data-product-editor] .pc-pill, [data-add-product] .pc-pill { text-transform: none; }
+
+@media (max-width: 1180px) {
+  .pc-kinds { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 768px) {
+  .pc-kinds { grid-template-columns: minmax(0, 1fr); }
+  .pc-savebar { top: 64px; }
+}

@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { apiClient } from "@/lib/api-client";
 import { SearchIcon, TrashIcon } from "@/components/ui/icons";
 import { GoogleReviewsConnect } from "@/components/admin/GoogleReviewsConnect";
+import { ProductsFrame } from "@/components/admin/products/ProductsFrame";
 
 const thStyle: React.CSSProperties = {
   padding: "12px 16px", textAlign: "left", fontSize: "11px",
@@ -37,7 +38,7 @@ function StarDisplay({ rating }: { rating: number }) {
   );
 }
 
-export default function AdminReviewsPage() {
+function AdminReviewsPageBody() {
   const router = useRouter();
   const [reviews, setReviews] = useState<AdminReview[]>([]);
   const [total, setTotal] = useState(0);
@@ -293,5 +294,15 @@ export default function AdminReviewsPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+
+/** This screen as one of the Products tabs (components/admin/products/ProductsFrame). */
+export default function AdminReviewsPage() {
+  return (
+    <ProductsFrame active="reviews">
+      <AdminReviewsPageBody />
+    </ProductsFrame>
   );
 }

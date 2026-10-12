@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { apiClient } from "@/lib/api-client";
+import { ProductsFrame } from "@/components/admin/products/ProductsFrame";
 
 const STATUS_COLORS: Record<string, { bg: string; color: string }> = {
   draft:      { bg: "#F3F4F6", color: "#6B7280" },
@@ -28,7 +29,7 @@ function fmt(n: number) {
   return "$" + n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
 }
 
-export default function PurchaseOrdersPage() {
+function PurchaseOrdersPageBody() {
   const [pos, setPos] = useState<PO[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -125,5 +126,15 @@ export default function PurchaseOrdersPage() {
         </table>
       </div>
     </div>
+  );
+}
+
+
+/** This screen as one of the Products tabs (components/admin/products/ProductsFrame). */
+export default function PurchaseOrdersPage() {
+  return (
+    <ProductsFrame active="purchase-orders">
+      <PurchaseOrdersPageBody />
+    </ProductsFrame>
   );
 }

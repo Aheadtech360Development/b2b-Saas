@@ -20,6 +20,7 @@ export const dynamic = "force-dynamic";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { apiClient } from "@/lib/api-client";
 import { WebsiteTemplateField } from "@/components/admin/WebsiteTemplateField";
+import { ProductsFrame } from "@/components/admin/products/ProductsFrame";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -109,7 +110,7 @@ function generateSlug(name: string) {
 
 // ── Page ─────────────────────────────────────────────────────────────────────
 
-export default function CollectionsPage() {
+function CollectionsPageBody() {
   const [collections, setCollections] = useState<Collection[]>([]);
   const [fields, setFields] = useState<FieldOption[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -760,5 +761,15 @@ function ProductPicker({ exclude, onAdd, onClose }: {
         </div>
       </div>
     </div>
+  );
+}
+
+
+/** This screen as one of the Products tabs (components/admin/products/ProductsFrame). */
+export default function CollectionsPage() {
+  return (
+    <ProductsFrame active="collections">
+      <CollectionsPageBody />
+    </ProductsFrame>
   );
 }

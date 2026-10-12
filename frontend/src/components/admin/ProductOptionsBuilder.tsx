@@ -725,17 +725,19 @@ export function ProductOptionsBuilder({ productId }: { productId: string }) {
   );
 }
 
-const CARD: React.CSSProperties = { background: "#fff", border: "1px solid #E3E3E3", borderRadius: "10px", padding: "24px", marginBottom: "16px" };
-const LABEL: React.CSSProperties = { fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: ".06em", color: "#6B6B6B", marginBottom: "6px", display: "block" };
-const HINT: React.CSSProperties = { fontSize: "12px", color: "#6B6B6B", marginBottom: "12px", lineHeight: 1.6 };
-const NOTE: React.CSSProperties = { background: "#F6F6F7", border: "1px solid #E3E3E3", borderRadius: "8px", padding: "14px 16px", fontSize: "13px", color: "#6B6B6B" };
-const INPUT: React.CSSProperties = { padding: "9px 11px", border: "1px solid #E3E3E3", borderRadius: "8px", fontSize: "13px", boxSizing: "border-box", background: "#fff" };
-const TH: React.CSSProperties = { padding: "9px 10px", textAlign: "left", fontSize: "10px", fontWeight: 700, color: "#6B6B6B", textTransform: "uppercase", letterSpacing: ".06em" };
-const TD: React.CSSProperties = { padding: "6px 10px", borderTop: "1px solid #F1F1F1" };
+// The admin's look (admin-shell.css tokens): this builder sits on the product's
+// Pricing tab and in the new-product steps.
+const CARD: React.CSSProperties = { background: "#fff", border: "1px solid var(--pc-line)", borderRadius: "12px", padding: "20px", marginBottom: "16px" };
+const LABEL: React.CSSProperties = { fontSize: "13.5px", fontWeight: 600, color: "var(--pc-ink)", marginBottom: "6px", display: "block" };
+const HINT: React.CSSProperties = { fontSize: "13px", color: "var(--pc-muted)", marginBottom: "12px", lineHeight: 1.55 };
+const NOTE: React.CSSProperties = { background: "#F5F7FA", border: "1px solid var(--pc-line)", borderRadius: "8px", padding: "14px 16px", fontSize: "13.5px", color: "var(--pc-muted)" };
+const INPUT: React.CSSProperties = { padding: "10px 12px", border: "1px solid var(--pc-line)", borderRadius: "8px", fontSize: "14px", fontFamily: "inherit", color: "var(--pc-ink)", boxSizing: "border-box", background: "#fff" };
+const TH: React.CSSProperties = { padding: "10px 12px", textAlign: "left", fontSize: "11.5px", fontWeight: 600, color: "var(--pc-muted)", textTransform: "uppercase", letterSpacing: ".07em" };
+const TD: React.CSSProperties = { padding: "8px 12px", borderTop: "1px solid var(--pc-line-soft)" };
 const CHECK: React.CSSProperties = { display: "inline-flex", alignItems: "center", gap: "5px", fontSize: "12px", fontWeight: 600, color: "#444", whiteSpace: "nowrap" };
 const ICON_BTN: React.CSSProperties = { width: "30px", height: "30px", border: "1px solid #E3E3E3", background: "#fff", borderRadius: "8px", cursor: "pointer", fontSize: "13px", lineHeight: 1, color: "#444" };
-const BTN_DARK: React.CSSProperties = { padding: "9px 18px", background: "#1A1A1A", color: "#fff", border: "none", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: "pointer" };
-const BTN_LIGHT: React.CSSProperties = { padding: "9px 16px", background: "#fff", color: "#1A1A1A", border: "1px solid #E3E3E3", borderRadius: "8px", fontSize: "13px", fontWeight: 600, cursor: "pointer" };
+const BTN_DARK: React.CSSProperties = { padding: "0 16px", height: "40px", background: "var(--pc-blue)", color: "#fff", border: "1px solid var(--pc-blue)", borderRadius: "8px", fontSize: "14px", fontWeight: 600, fontFamily: "inherit", cursor: "pointer" };
+const BTN_LIGHT: React.CSSProperties = { padding: "0 14px", height: "40px", background: "#fff", color: "var(--pc-ink)", border: "1px solid var(--pc-line)", borderRadius: "8px", fontSize: "14px", fontWeight: 600, fontFamily: "inherit", cursor: "pointer" };
 const SWATCH_WELL = (hex: string): React.CSSProperties => ({
   width: "30px", height: "30px", borderRadius: "50%", display: "inline-block",
   background: hex, border: "1.5px solid rgba(0,0,0,.14)", boxShadow: "inset 0 0 0 2px #fff",

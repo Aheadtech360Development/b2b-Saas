@@ -6,6 +6,7 @@ export const dynamic = "force-dynamic";
 
 import { useEffect, useRef, useState } from "react";
 import { apiClient } from "@/lib/api-client";
+import { ProductsFrame } from "@/components/admin/products/ProductsFrame";
 
 interface Collection {
   id: string;
@@ -31,7 +32,7 @@ function generateSlug(name: string) {
   return name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 }
 
-export default function CategoriesPage() {
+function CategoriesPageBody() {
   const [collections, setCollections] = useState<Collection[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [showModal, setShowModal] = useState(false);
@@ -337,5 +338,15 @@ export default function CategoriesPage() {
         </div>
       )}
     </div>
+  );
+}
+
+
+/** This screen as one of the Products tabs (components/admin/products/ProductsFrame). */
+export default function CategoriesPage() {
+  return (
+    <ProductsFrame active="categories">
+      <CategoriesPageBody />
+    </ProductsFrame>
   );
 }

@@ -94,27 +94,13 @@ export function AdminSidebar() {
     // One line: its screens (drafts, returns, shipments) are the tabs across
     // the top of the order list.
     { key: "orders", label: "Orders", icon: ShoppingBag, href: "/admin/orders", scopes: ["orders"], count: counts.orders, also: ["/admin/returns"] },
+    // One line each: Production is the print queue and its jobs; Products'
+    // screens (collections, inventory, purchase orders, suppliers, gang sheet
+    // setup…) are the tabs across the top of the product list.
+    { key: "production", label: "Production", icon: Printer, href: "/admin/production", scopes: ["products"], count: counts.production },
     {
-      key: "production", label: "Production", icon: Printer, href: "/admin/production", scopes: ["products"], count: counts.production,
-      also: ["/admin/gang-sheets"],
-      children: [
-        { href: "/admin/production", label: "Print queue" },
-        // Every sheet job, and the sizes, prices, builder and design library.
-        { href: "/admin/gang-sheets", label: "Gang sheets" },
-      ],
-    },
-    {
-      key: "products", label: "Products", icon: Package, href: "/admin/products", scopes: ["products"], also: ["/admin/inventory"],
-      children: [
-        { href: "/admin/products", label: "All products" },
-        { href: "/admin/products/collections", label: "Collections" },
-        { href: "/admin/products/categories", label: "Categories" },
-        { href: "/admin/products/reviews", label: "Reviews" },
-        { href: "/admin/inventory", label: "Inventory" },
-        { href: "/admin/suppliers", label: "Suppliers" },
-        // What the shop buys in, beside the stock it becomes.
-        { href: "/admin/purchase-orders", label: "Purchase orders", scope: "inventory" },
-      ],
+      key: "products", label: "Products", icon: Package, href: "/admin/products", scopes: ["products"],
+      also: ["/admin/inventory", "/admin/suppliers", "/admin/purchase-orders", "/admin/gang-sheets"],
     },
     {
       key: "customers", label: "Customers", icon: Users, href: "/admin/customers", scopes: ["customers"],

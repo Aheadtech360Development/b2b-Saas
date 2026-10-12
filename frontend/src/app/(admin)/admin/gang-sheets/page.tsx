@@ -5,6 +5,8 @@ import { Suspense, useCallback, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Search } from "lucide-react";
 import { ask } from "@/lib/dialog";
+import { GangSheetProductEditor } from "@/components/admin/GangSheetProductEditor";
+import { ProductsFrame } from "@/components/admin/products/ProductsFrame";
 import {
   gangSheetsService,
   type GangSheetOrder,
@@ -176,19 +178,12 @@ function GangSheetsAdmin() {
   const href = (key: TabKey, s = "") => `/admin/gang-sheets?tab=${key}${s ? `&status=${encodeURIComponent(s)}` : ""}`;
 
   return (
-    <div className="pc-page" data-gang-sheets data-tab={tab}>
-      <div className="pc-head">
-        <div>
-          <div className="pc-eyebrow">Production</div>
-          <h1 className="pc-h1">Gang sheets</h1>
-          <p className="pc-sub-line">Every sheet job, and the sizes, prices and builder your customers order from.</p>
-        </div>
-        <Link href="/admin/production" className="pc-btn" data-kind="primary">Open the print queue</Link>
-      </div>
-
-      <nav className="pc-tabs" aria-label="Gang sheets">
+    <ProductsFrame active="gang-sheets" sub="The sheet sizes, prices, builder and design library your customers order from, and every sheet job."
+      actions={<Link href="/admin/production" className="pc-btn" data-kind="primary">Open the print queue</Link>}>
+    <div data-gang-sheets data-tab={tab}>
+      <nav className="pc-subtabs" aria-label="Gang sheets">
         {TABS.map((t) => (
-          <Link key={t.key} href={href(t.key)} className="pc-tab" data-tab={t.key}
+          <Link key={t.key} href={href(t.key)} className="pc-subtab" data-tab={t.key}
             data-on={tab === t.key ? "" : undefined} aria-current={tab === t.key ? "page" : undefined}>
             {t.label}
           </Link>
@@ -203,6 +198,7 @@ function GangSheetsAdmin() {
         : tab === "library" ? <LibraryTab />
         : <SettingsTab />}
     </div>
+    </ProductsFrame>
   );
 }
 
@@ -391,7 +387,18 @@ function ProductsTab({ onGoToSizes }: { onGoToSizes: () => void }) {
   }
 
   if (editing) {
-    return <ProductEditor product={editing} onBack={() => { setEditing(null); load(); }} onGoToSizes={onGoToSizes} />;
+    return (
+      <div className="pc-stack" style={{ gap: "16px" }} data-gs-product-editor={editing.slug}>
+        <div style={{ display: "flex", alignItems: "center", gap: "14px", flexWrap: "wrap" }}>
+          <button type="button" className="pc-link" onClick={() => { setEditing(null); load(); }}>← All gang sheet products</button>
+          <h2 style={{ ...H2, fontSize: "20px" }}>{editing.name}</h2>
+          <span style={{ flex: 1 }} />
+          <Link href={`/admin/products/${editing.slug}/edit?tab=pricing`} className="pc-link">Open the product</Link>
+          <button type="button" className="pc-link" onClick={onGoToSizes}>Default sizes</button>
+        </div>
+        <GangSheetProductEditor productId={editing.id} productName={editing.name} kind={editing.gang_sheet_type} config={editing.gang_sheet_config} />
+      </div>
+    );
   }
 
   return (
@@ -460,182 +467,6 @@ function ProductsTab({ onGoToSizes }: { onGoToSizes: () => void }) {
         </div>
       )}
     </>
-  );
-}
-
-// ── Per-product builder editor (opened from the Products edit button) ───────────
-function ProductEditor({ product, onBack, onGoToSizes }: { product: GangSheetProduct; onBack: () => void; onGoToSizes: () => void }) {
-  const [type, setType] = useState<GSType>(product.gang_sheet_type ?? "gang_sheet");
-  const [cfg, setCfg] = useState<GangSheetConfig>(product.gang_sheet_config ?? { printer_width: 22, max_height: 312, tiers: [] });
-  const [saving, setSaving] = useState(false);
-  const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null);
-
-  // This product's OWN fixed sizes (Gang Sheet type). Loaded once; saved as a diff.
-  const [rows, setRows] = useState<SizeRow[]>([]);
-  const [origIds, setOrigIds] = useState<string[]>([]);
-  useEffect(() => {
-    gangSheetsService.adminListSizes(product.id).then((list) => {
-      setRows(list.map((s) => ({ id: s.id, name: s.name, width_in: s.width_in, height_in: s.height_in, price_per_sheet: s.price_per_sheet })));
-      setOrigIds(list.map((s) => s.id));
-    }).catch(() => {});
-  }, [product.id]);
-
-  function setRow(i: number, field: keyof SizeRow, val: string | number) {
-    setRows((r) => r.map((row, idx) => (idx === i ? { ...row, [field]: val } : row)));
-  }
-  function addRow() { setRows((r) => [...r, { name: "", width_in: 22, height_in: 24, price_per_sheet: 0 }]); }
-  function removeRow(i: number) { setRows((r) => r.filter((_, idx) => idx !== i)); }
-  function addStandardFeet() {
-    setRows((r) => [...r, ...STANDARD_FEET_SIZES.map((s) => ({ name: s.name, width_in: 22, height_in: s.height_in, price_per_sheet: s.price_per_sheet }))]);
-  }
-
-  const tiers: GangSheetTier[] = cfg.tiers ?? [];
-  function setTier(i: number, field: keyof GangSheetTier, val: number) {
-    setCfg((c) => ({ ...c, tiers: (c.tiers ?? []).map((t, idx) => (idx === i ? { ...t, [field]: val } : t)) }));
-  }
-  function addTier() {
-    setCfg((c) => ({ ...c, tiers: [...(c.tiers ?? []), { max_height: 0, max_area: 0, price_per_sqin: 0, discount: 0 }] }));  // discount kept in the shape for stored rows; it is not priced on
-  }
-  function removeTier(i: number) {
-    setCfg((c) => ({ ...c, tiers: (c.tiers ?? []).filter((_, idx) => idx !== i) }));
-  }
-
-  async function save() {
-    setSaving(true); setMsg(null);
-    try {
-      const data: { gang_sheet_type: string; gang_sheet_config?: GangSheetConfig } = { gang_sheet_type: type };
-      if (type === "upload_by_size") data.gang_sheet_config = cfg;
-      await gangSheetsService.adminUpdateProduct(product.id, data);
-
-      // Persist this product's own sizes (create / update / delete) when it's a
-      // Gang Sheet product — each product is configured on its own, no shared set.
-      if (type === "gang_sheet") {
-        const keptIds = new Set(rows.filter((r) => r.id).map((r) => r.id as string));
-        for (const id of origIds) if (!keptIds.has(id)) await gangSheetsService.adminDeleteSize(id);
-        for (let i = 0; i < rows.length; i++) {
-          const r = rows[i]!;
-          const payload = { name: r.name || `Sheet ${i + 1}`, width_in: Number(r.width_in) || 22, height_in: Number(r.height_in) || 24, price_per_sheet: Number(r.price_per_sheet) || 0, sort_order: i, pricing_mode: "fixed" as const };
-          if (r.id) await gangSheetsService.adminUpdateSize(r.id, payload);
-          else await gangSheetsService.adminCreateSize({ ...EMPTY_SIZE, ...payload, product_id: product.id });
-        }
-        const list = await gangSheetsService.adminListSizes(product.id);
-        setRows(list.map((s) => ({ id: s.id, name: s.name, width_in: s.width_in, height_in: s.height_in, price_per_sheet: s.price_per_sheet })));
-        setOrigIds(list.map((s) => s.id));
-      }
-      setMsg({ text: "Saved", ok: true });
-    } catch {
-      setMsg({ text: "Could not save", ok: false });
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  const numInput: React.CSSProperties = { ...INPUT, width: "100%" };
-  const cellInput: React.CSSProperties = { ...INPUT, padding: "6px 8px", width: "100%" };
-
-  return (
-    <div>
-      <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "16px", flexWrap: "wrap" }}>
-        <button onClick={onBack} style={{ background: "none", border: "none", fontSize: "18px", cursor: "pointer", color: "#6B6B6B" }}>←</button>
-        <h2 style={{ ...H2, fontSize: "20px" }}>{product.name}</h2>
-        <div style={{ flex: 1 }} />
-        {msg && <span style={{ fontSize: "13px", fontWeight: 600, color: msg.ok ? "#166534" : "#B91C1C" }}>{msg.text}</span>}
-        <button onClick={save} disabled={saving} style={BTN}>{saving ? "Saving…" : "Save"}</button>
-      </div>
-
-      <div style={{ ...CARD, marginBottom: "16px", display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
-        <span style={LABEL}>Builder type</span>
-        <select value={type} onChange={(e) => setType(e.target.value as GSType)} style={{ ...INPUT, width: "auto", minWidth: "240px" }}>
-          <option value="gang_sheet">Gang Sheet (combine designs)</option>
-          <option value="upload_by_size">Upload By Size (area-priced)</option>
-          <option value="upload_own">Upload Your Own Gang Sheet (buyer sends a finished sheet)</option>
-        </select>
-      </div>
-
-      {type === "gang_sheet" ? (
-        <div style={{ ...CARD }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px", flexWrap: "wrap", gap: "8px" }}>
-            <div style={H2}>Sizes &amp; Prices</div>
-            <button onClick={addStandardFeet} style={BTN_LIGHT}>
-              + Add standard sizes (2–20 ft)
-            </button>
-          </div>
-          <p style={{ fontSize: "12px", color: "#9CA3AF", marginBottom: "12px" }}>
-            These sizes belong only to <strong>{product.name}</strong>. Buyers pick from exactly these on this product&apos;s builder — nothing is shared or auto-filled.
-          </p>
-          <div style={{ overflowX: "auto" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px", minWidth: "520px" }}>
-              <thead>
-                <tr style={{ background: "#F6F6F7" }}>
-                  {["Size name", "Width (in)", "Height (in)", "Price ($)", ""].map((h) => (
-                    <th key={h} style={{ padding: "7px 10px", textAlign: "left", fontSize: "10px", fontWeight: 700, color: "#6B6B6B", textTransform: "uppercase" }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((r, i) => (
-                  <tr key={r.id ?? `new-${i}`}>
-                    <td style={{ padding: "5px 8px", minWidth: "180px" }}><input value={r.name} placeholder="e.g. 2 feet" onChange={(e) => setRow(i, "name", e.target.value)} style={cellInput} /></td>
-                    <td style={{ padding: "5px 8px" }}><input type="number" step="0.25" value={r.width_in} onChange={(e) => setRow(i, "width_in", Number(e.target.value))} style={cellInput} /></td>
-                    <td style={{ padding: "5px 8px" }}><input type="number" step="1" value={r.height_in} onChange={(e) => setRow(i, "height_in", Number(e.target.value))} style={cellInput} /></td>
-                    <td style={{ padding: "5px 8px" }}><input type="number" step="0.01" value={r.price_per_sheet} onChange={(e) => setRow(i, "price_per_sheet", Number(e.target.value))} style={cellInput} /></td>
-                    <td style={{ padding: "5px 8px", textAlign: "center" }}><button onClick={() => removeRow(i)} style={{ background: "none", border: "none", color: "#B91C1C", cursor: "pointer", fontSize: "16px" }}>×</button></td>
-                  </tr>
-                ))}
-                {rows.length === 0 && (
-                  <tr><td colSpan={5} style={{ padding: "14px", textAlign: "center", color: "#9CA3AF", fontSize: "12px" }}>No sizes yet — add a row, or click “Add standard sizes (2–20 ft)”.</td></tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-          <div style={{ display: "flex", gap: "10px", alignItems: "center", marginTop: "10px", flexWrap: "wrap" }}>
-            <button onClick={addRow} style={{ ...BTN, background: "#F6F6F7", color: "#2A2830" }}>+ Add size</button>
-            <button onClick={onGoToSizes} style={{ background: "none", border: "none", color: "#9CA3AF", fontSize: "12px", cursor: "pointer", textDecoration: "underline" }}>Open full Sheet Sizes manager →</button>
-          </div>
-          <p style={{ fontSize: "11px", color: "#9CA3AF", marginTop: "8px" }}>Save (top-right) to apply. Buyers see the size name + an auto “Save %” based on these prices.</p>
-        </div>
-      ) : (
-        <div style={{ ...CARD }}>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))", gap: "14px", marginBottom: "18px" }}>
-            <div>
-              <label style={LABEL}>Printer width (in)</label>
-              <input type="number" step="0.25" min="1" value={cfg.printer_width ?? 22} onChange={(e) => setCfg((c) => ({ ...c, printer_width: Number(e.target.value) }))} style={numInput} />
-            </div>
-            <div>
-              <label style={LABEL}>Max height (in)</label>
-              <input type="number" step="1" min="1" value={cfg.max_height ?? 312} onChange={(e) => setCfg((c) => ({ ...c, max_height: Number(e.target.value) }))} style={numInput} />
-            </div>
-          </div>
-
-          <div style={{ fontSize: "13px", fontWeight: 700, marginBottom: "8px" }}>Tiered pricing (per square inch, by area)</div>
-          <div style={{ overflowX: "auto" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px", minWidth: "560px" }}>
-              <thead>
-                <tr style={{ background: "#F6F6F7" }}>
-                  {["~Max height (in)", "Max area (sq in)", "Price ($/sq in)", ""].map((h) => (
-                    <th key={h} style={{ padding: "7px 10px", textAlign: "left", fontSize: "10px", fontWeight: 700, color: "#6B6B6B", textTransform: "uppercase" }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {tiers.map((t, i) => (
-                  <tr key={i}>
-                    <td style={{ padding: "5px 8px" }}><input type="number" step="0.01" value={t.max_height} onChange={(e) => setTier(i, "max_height", Number(e.target.value))} style={{ ...INPUT, padding: "6px 8px" }} /></td>
-                    <td style={{ padding: "5px 8px" }}><input type="number" step="0.01" value={t.max_area} onChange={(e) => setTier(i, "max_area", Number(e.target.value))} style={{ ...INPUT, padding: "6px 8px" }} /></td>
-                    <td style={{ padding: "5px 8px" }}><input type="number" step="0.0001" value={t.price_per_sqin} onChange={(e) => setTier(i, "price_per_sqin", Number(e.target.value))} style={{ ...INPUT, padding: "6px 8px" }} /></td>
-                    <td style={{ padding: "5px 8px", textAlign: "center" }}><button onClick={() => removeTier(i)} style={{ background: "none", border: "none", color: "#B91C1C", cursor: "pointer", fontSize: "16px" }}>×</button></td>
-                  </tr>
-                ))}
-                {tiers.length === 0 && (
-                  <tr><td colSpan={4} style={{ padding: "12px", textAlign: "center", color: "#9CA3AF", fontSize: "12px" }}>No tiers yet. Add a row below.</td></tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-          <button onClick={addTier} style={{ marginTop: "10px", ...BTN, background: "#F6F6F7", color: "#2A2830" }}>+ Add tier</button>
-        </div>
-      )}
-    </div>
   );
 }
 

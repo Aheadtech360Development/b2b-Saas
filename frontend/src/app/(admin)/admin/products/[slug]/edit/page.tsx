@@ -4,8 +4,12 @@ import { ask, tell } from "@/lib/dialog";
 import { colorHex } from "@/lib/colors";
 import { ColorSwatchPicker } from "@/components/admin/ColorSwatchPicker";
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import Link from "next/link";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
+import { ArrowLeft } from "lucide-react";
+import { GangSheetProductEditor, type SheetKind } from "@/components/admin/GangSheetProductEditor";
+import { APPAREL_FIELDS_NOTE, KIND_WORDS, STATUS_PILL, kindOf } from "@/lib/productKinds";
 import { adminService } from "@/services/admin.service";
 import { productsService } from "@/services/products.service";
 import { apiClient } from "@/lib/api-client";
@@ -34,21 +38,44 @@ import { displayUrl } from "@/lib/brand";
 const METAFIELD_KEY = /^[a-z][a-z0-9_]{0,39}$/;
 
 // ── Style constants ────────────────────────────────────────────────────────
+// The new admin's look (admin-shell.css tokens), shared by every card below.
 const labelStyle: React.CSSProperties = {
-  fontSize: "12.5px", fontWeight: 600, color: "#4A4850", marginBottom: "7px", display: "block",
+  fontSize: "13.5px", fontWeight: 600, color: "var(--pc-ink)", marginBottom: "6px", display: "block",
 };
 const inputStyle: React.CSSProperties = {
-  width: "100%", padding: "11px 14px", border: "1px solid #E2E2E4", borderRadius: "10px", background: "#FCFCFC",
-  fontSize: "14px", fontFamily: "var(--font-jakarta)", outline: "none", boxSizing: "border-box",
+  width: "100%", padding: "10px 12px", border: "1px solid var(--pc-line)", borderRadius: "8px", background: "#fff",
+  fontSize: "14px", fontFamily: "inherit", color: "var(--pc-ink)", outline: "none", boxSizing: "border-box",
 };
 const sectionCard: React.CSSProperties = {
-  background: "#fff", border: "1px solid #ECECEC", borderRadius: "14px",
-  padding: "22px 24px", marginBottom: "16px", boxShadow: "0 1px 2px rgba(0,0,0,.03)",
+  background: "#fff", border: "1px solid var(--pc-line)", borderRadius: "12px",
+  padding: "20px", marginBottom: "16px",
 };
 const sectionTitle: React.CSSProperties = {
-  fontFamily: "var(--font-jakarta)", fontSize: "15px", fontWeight: 800, letterSpacing: "-0.01em",
-  color: "#1A1A1A", marginBottom: "16px", paddingBottom: "12px", borderBottom: "1px solid #F2F2F2", display: "block",
+  fontFamily: "var(--pc-display)", fontSize: "18px", fontWeight: 600, letterSpacing: "-0.01em",
+  color: "var(--pc-ink)", marginBottom: "14px", display: "block",
 };
+
+const TABS = [
+  { key: "basics", label: "Basics" }, { key: "media", label: "Media" }, { key: "pricing", label: "Pricing and options" },
+  { key: "variants", label: "Variants and stock" }, { key: "storefront", label: "Storefront" }, { key: "advanced", label: "Advanced" },
+] as const;
+type TabKey = (typeof TABS)[number]["key"];
+
+// The fields the Save bar saves. An unsaved change is one of these differing
+// from what the server last sent.
+const SAVED_FIELDS = [
+  "name", "description", "status", "meta_title", "meta_description", "product_type", "vendor", "tags", "categories",
+  "fabric", "product_code", "weight", "gender", "care_instructions", "print_guide", "size_chart_data",
+  "highlight_text", "template_id", "allow_design_upload",
+] as const;
+function savedFields(p: ProductDetail): Record<string, unknown> {
+  const all = p as unknown as Record<string, unknown>;
+  return Object.fromEntries(SAVED_FIELDS.map((k) => [k, all[k] ?? null]));
+}
+function editKey(p: ProductDetail, meta: { key: string; value: string }[]): string {
+  const f = savedFields(p);
+  return JSON.stringify({ ...f, categories: (p.categories ?? []).map((c) => c.id), meta: meta.filter((r) => r.key.trim() || r.value.trim()) });
+}
 const thStyle: React.CSSProperties = {
   padding: "10px 16px", textAlign: "left", fontSize: "11px", textTransform: "uppercase",
   letterSpacing: ".06em", color: "#7A7880", fontWeight: 700,
@@ -63,7 +90,7 @@ interface VariantGroup {
   variants: ProductVariant[];
 }
 
-export default function AdminProductEditPage() {
+function ProductEditor() {
   const { slug } = useParams<{ slug: string }>();
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -88,6 +115,17 @@ export default function AdminProductEditPage() {
   // Whether the Website builder is what draws this shop's product pages. null
   // until it is known, so a builder shop never sees the theme's card flash by.
   const [builderLive, setBuilderLive] = useState<boolean | null>(null);
+
+  // The tab is in the address (?tab=), so a link or a refresh opens the same one.
+  const params = useSearchParams();
+  const pathname = usePathname();
+  const asked = params.get("tab");
+  const tab: TabKey = TABS.some((t) => t.key === asked) ? (asked as TabKey) : "basics";
+  const setTab = (key: TabKey) => router.replace(`${pathname}?tab=${key}`, { scroll: false });
+  // What the server last sent for the fields the Save bar saves.
+  const [snapshot, setSnapshot] = useState("");
+  const dirtyRef = useRef(false);
+  const [notice, setNotice] = useState<string | null>(null);
 
   // Variant expand state
   const [expandedGroups, setExpandedGroups] = useState<string[]>([]);
@@ -181,7 +219,9 @@ export default function AdminProductEditPage() {
   // previous version failed silently.
   const [variantMsg, setVariantMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
-  async function load() {
+  /** Read the product again. `keepEdits`: what was typed and not saved stays
+   *  (an image upload refreshes the page's data, and must not lose a name). */
+  async function load(keepEdits = true) {
     setIsLoading(true);
     setLoadError(null);
     try {
@@ -193,8 +233,14 @@ export default function AdminProductEditPage() {
         setLoadError("Product not returned by API");
         return;
       }
-      setProduct(p);
-      setMetaRows(Object.entries(p.metafields ?? {}).map(([key, value]) => ({ key, value: String(value) })));
+      const rows = Object.entries(p.metafields ?? {}).map(([key, value]) => ({ key, value: String(value) }));
+      if (keepEdits && dirtyRef.current) {
+        setProduct((prev) => (prev ? ({ ...p, ...savedFields(prev) } as ProductDetail) : p));
+      } else {
+        setProduct(p);
+        setMetaRows(rows);
+      }
+      setSnapshot(editKey(p, rows));
       setCategories(cats ?? []);
       if (p.variants?.length) {
         const firstColor = p.variants[0]?.color ?? "No Color";
@@ -214,12 +260,10 @@ export default function AdminProductEditPage() {
   // resolves that hash before this page has fetched anything, so the jump has to
   // happen once the product is actually on screen.
   useEffect(() => {
-    if (!product || window.location.hash !== "#options") return;
-    const t = setTimeout(
-      () => document.getElementById("options")?.scrollIntoView({ behavior: "smooth", block: "start" }),
-      120,
-    );
-    return () => clearTimeout(t);
+    if (!product) return;
+    if (params.get("published") === "1") setNotice("Published. It is on your store now.");
+    if (window.location.hash !== "#options") return;
+    router.replace(`${pathname}?tab=pricing`, { scroll: false });
   }, [product]);
 
   const groupedVariants = useMemo<VariantGroup[]>(() => {
@@ -405,8 +449,9 @@ export default function AdminProductEditPage() {
     }
   }
 
-  async function handleSave() {
+  async function handleSave(status?: ProductDetail["status"]) {
     if (!product) return;
+    setNotice(null);
     const badKey = metaRows.find(r => (r.key.trim() || r.value.trim()) && !METAFIELD_KEY.test(r.key.trim()));
     if (badKey) {
       setSaveSuccess(false);
@@ -425,7 +470,7 @@ export default function AdminProductEditPage() {
       const productSave = adminService.updateProduct(product.id, {
         name: product.name,
         description: product.description,
-        status: product.status,
+        status: status ?? product.status,
         meta_title: product.meta_title,
         meta_description: product.meta_description,
         product_type: product.product_type,
@@ -447,8 +492,10 @@ export default function AdminProductEditPage() {
       await Promise.all([...variantSaves, productSave]);
       setVariantEdits({});
       setSaveSuccess(true);
-      setSaveMsg("Saved! Redirecting to products…");
-      setTimeout(() => router.push("/admin/products"), 1200);
+      const saved = status ? ({ ...product, status } as ProductDetail) : product;
+      if (status) setProduct(saved);
+      setSnapshot(editKey(saved, metaRows));
+      setSaveMsg(status === "active" ? "Published. It is on your store now." : status === "draft" ? "Moved back to draft. It is off your store." : "Saved.");
     } catch (e) {
       setSaveSuccess(false);
       setSaveMsg(e instanceof Error && e.message ? `Not saved — ${e.message}` : "Not saved — please try again.");
@@ -468,9 +515,19 @@ export default function AdminProductEditPage() {
     setProduct(p => p ? { ...p, tags: (p.tags ?? []).filter(t => t !== tag) } : p);
   }
 
+  const dirty = !!product && !!snapshot && editKey(product, metaRows) !== snapshot;
+  dirtyRef.current = dirty;
+  // Leaving with changes not saved asks first.
+  useEffect(() => {
+    if (!dirty) return;
+    const warn = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ""; };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [dirty]);
+
   if (isLoading && !product) {
     return (
-      <div style={{ fontFamily: "var(--font-jakarta)", display: "flex", alignItems: "center", justifyContent: "center", height: "300px", color: "#aaa", fontSize: "14px" }}>
+      <div style={{ fontFamily: "inherit", display: "flex", alignItems: "center", justifyContent: "center", height: "300px", color: "#aaa", fontSize: "14px" }}>
         Loading product…
       </div>
     );
@@ -478,7 +535,7 @@ export default function AdminProductEditPage() {
 
   if (!product) {
     return (
-      <div style={{ fontFamily: "var(--font-jakarta)", padding: "48px", textAlign: "center" }}>
+      <div style={{ fontFamily: "inherit", padding: "48px", textAlign: "center" }}>
         <div style={{ marginBottom: "12px" }}><SearchIcon size={32} color="#aaa" /></div>
         <div style={{ fontSize: "16px", color: "#2A2830", fontWeight: 600 }}>
           {loadError ? "Error loading product" : "Product not found"}
@@ -506,45 +563,51 @@ export default function AdminProductEditPage() {
     );
   }
 
+  const kind = kindOf(product);
+  const stocked = kind === "stocked";
+  const sheetKind = kind === "gang_sheet" || kind === "upload_by_size" || kind === "upload_own";
+  const [statusLabel, statusTone] = STATUS_PILL[product.status] ?? [product.status, ""];
+  const allowUpload = Boolean((product as any).allow_design_upload);
+
   return (
-    <div style={{ fontFamily: "var(--font-jakarta)" }}>
-      {/* Top Bar */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "24px" }}>
+    <div className="pc-page" style={{ maxWidth: "1240px" }} data-product-editor={product.slug} data-tab={tab}>
+      <Link href="/admin/products" className="pc-back"><ArrowLeft size={16} strokeWidth={2.2} /> Products</Link>
+      <div className="pc-head" style={{ alignItems: "flex-start", marginBottom: "18px" }}>
         <div>
-          <button
-            onClick={() => router.push("/admin/products")}
-            style={{ background: "none", border: "none", color: "#7A7880", cursor: "pointer", fontSize: "13px", padding: 0, display: "flex", alignItems: "center", gap: "4px", marginBottom: "4px" }}
-          >
-            ← Products
-          </button>
-          <h1 style={{ fontFamily: "var(--font-jakarta)", fontSize: "26px", fontWeight: 800, color: "#1A1A1A", letterSpacing: "-0.02em", lineHeight: 1.15, margin: "2px 0 0" }}>
-            {product.name}
-          </h1>
-        </div>
-        <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-          {saveMsg && <span style={{ color: saveSuccess ? "#059669" : "#B91C1C", fontSize: "13px", fontWeight: 600 }}>{saveMsg}</span>}
-          <button
-            onClick={() => router.push(`/products/${product.slug}`)}
-            style={{ padding: "10px 14px", border: "1px solid #E3E3E3", borderRadius: "8px", background: "#fff", fontSize: "13px", cursor: "pointer", fontWeight: 600 }}
-          >
-            👁 Preview
-          </button>
-          <button
-            onClick={handleSave}
-            disabled={isSaving || saveSuccess}
-            style={{ padding: "10px 24px", background: saveSuccess ? "#059669" : "#1A1A1A", color: "#fff", border: "none", borderRadius: "8px", fontWeight: 700, cursor: (isSaving || saveSuccess) ? "not-allowed" : "pointer", opacity: isSaving ? 0.7 : 1, fontSize: "14px" }}
-          >
-            {isSaving ? "Saving…" : saveSuccess ? "Saved!" : "Save"}
-          </button>
+          <div className="pc-eyebrow">Product</div>
+          <h1 className="pc-h1">{product.name || "Untitled product"}</h1>
+          <p className="pc-sub-line">
+            {KIND_WORDS[kind]} · <a href={`/products/${product.slug}`} target="_blank" rel="noopener noreferrer" className="pc-link" style={{ fontSize: "inherit", fontWeight: 500 }}>/products/{product.slug}</a>
+          </p>
         </div>
       </div>
 
-      {/* 2-column layout */}
-      <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 340px", gap: "16px", alignItems: "start" }}>
+      <nav className="pc-tabs" aria-label="Product">
+        {TABS.map((t) => (
+          <button key={t.key} type="button" className="pc-tab" data-tab={t.key} data-on={tab === t.key ? "" : undefined}
+            aria-current={tab === t.key ? "page" : undefined} onClick={() => setTab(t.key)}>{t.label}</button>
+        ))}
+      </nav>
 
-        {/* ── LEFT COLUMN ────────────────────────────────────────────────── */}
-        <div style={{ minWidth: 0 }}>
+      {dirty && (
+        <div className="pc-savebar" role="region" aria-label="Unsaved changes" data-savebar>
+          <span>Unsaved changes</span>
+          <span style={{ display: "flex", gap: "10px" }}>
+            <button type="button" className="pc-btn" data-kind="ghost-dark" disabled={isSaving} onClick={() => { setSaveMsg(""); void load(false); }}>Discard</button>
+            <button type="button" className="pc-btn" data-kind="primary" disabled={isSaving} onClick={() => void handleSave()}>{isSaving ? "Saving…" : "Save"}</button>
+          </span>
+        </div>
+      )}
+      {(saveMsg || notice) && (
+        <div className="pc-flash" data-bad={saveMsg && !saveSuccess && !/^Saved|^Published|^Moved/.test(saveMsg) ? "" : undefined} role="status">
+          {saveMsg || notice}
+        </div>
+      )}
 
+      <div className="pc-cols">
+        <div className="pc-stack" style={{ gap: 0 }}>
+          {/* ── Basics ─────────────────────────────────────────────────────── */}
+          <div hidden={tab !== "basics"} data-panel="basics">
           {/* Title & Description */}
           <div style={sectionCard}>
             <div style={{ marginBottom: "18px" }}>
@@ -583,51 +646,131 @@ export default function AdminProductEditPage() {
                 builder type it depends on. Two places to switch the same thing
                 on is how they drift apart. */}
           </div>
-
-          {/* Metafields — product data a template can print */}
+          {/* Product Organization */}
           <div style={sectionCard}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: "10px", flexWrap: "wrap" }}>
-              <span style={{ ...sectionTitle, marginBottom: 0, paddingBottom: 0, borderBottom: "none" }}>Metafields</span>
-              <span style={{ fontSize: "11px", color: "#aaa" }}>shown by product templates — {"{{ product.metafields.key }}"}</span>
+            <span style={sectionTitle}>Product organization</span>
+
+            <div style={{ marginBottom: "14px" }}>
+              <label style={labelStyle}>Product Type</label>
+              <input
+                value={product.product_type ?? ""}
+                onChange={e => setProduct(p => p ? { ...p, product_type: e.target.value } : p)}
+                placeholder="e.g. T-Shirt, Hoodie"
+                style={inputStyle}
+              />
             </div>
-            <p style={{ fontSize: "12px", color: "#7A7880", margin: "8px 0 12px", lineHeight: 1.5 }}>
-              Extra details for this product only, like <code>ship_days</code> = <code>3</code> or <code>guarantee</code> = <code>Lifetime</code>. A template can print them, or show a block only when one is filled in.
-            </p>
-            {metaRows.map((row, i) => {
-              const bad = row.key.trim() !== "" && !METAFIELD_KEY.test(row.key.trim());
-              return (
-                <div key={i} style={{ display: "grid", gridTemplateColumns: "minmax(120px, 200px) 1fr 32px", gap: "8px", marginBottom: "8px", alignItems: "start" }}>
-                  <div>
-                    <input
-                      value={row.key}
-                      onChange={e => { const key = e.target.value.toLowerCase().replace(/\s+/g, "_"); setMetaRows(rs => rs.map((r, x) => x === i ? { ...r, key } : r)); }}
-                      placeholder="key"
-                      aria-label="Metafield key"
-                      style={{ ...inputStyle, fontFamily: "'IBM Plex Mono', ui-monospace, monospace", fontSize: "13px", borderColor: bad ? "#E8242A" : undefined }}
-                    />
-                    {bad && <div style={{ fontSize: "11px", color: "#E8242A", marginTop: "3px" }}>letters, numbers, _</div>}
-                  </div>
-                  <textarea
-                    value={row.value}
-                    onChange={e => setMetaRows(rs => rs.map((r, x) => x === i ? { ...r, value: e.target.value } : r))}
-                    placeholder="value"
-                    aria-label="Metafield value"
-                    rows={1}
-                    style={{ ...inputStyle, resize: "vertical", minHeight: "40px", lineHeight: 1.5 }}
-                  />
-                  <button onClick={() => setMetaRows(rs => rs.filter((_, x) => x !== i))} title="Remove" style={{ background: "transparent", border: "none", color: "#B91C1C", fontSize: "18px", cursor: "pointer", height: "40px" }}>×</button>
-                </div>
-              );
-            })}
-            <button
-              onClick={() => setMetaRows(rs => [...rs, { key: "", value: "" }])}
-              disabled={metaRows.length >= 50}
-              style={{ background: "#F6F6F7", border: "1px solid #C9D6E8", color: "#1A1A1A", padding: "8px 14px", borderRadius: "8px", fontSize: "12px", fontWeight: 700, cursor: "pointer" }}
-            >
-              + Add metafield
-            </button>
+
+            <div style={{ marginBottom: "14px" }}>
+              <label style={labelStyle}>Vendor</label>
+              <input
+                value={product.vendor ?? ""}
+                onChange={e => setProduct(p => p ? { ...p, vendor: e.target.value } : p)}
+                placeholder="e.g. your brand"
+                style={inputStyle}
+              />
+            </div>
+            {stocked && (
+            <div style={{ marginBottom: "14px" }}>
+              <label style={labelStyle}>Gender</label>
+              <select
+                value={(product as any).gender ?? ""}
+                onChange={e => setProduct(p => p ? { ...p, gender: e.target.value } as any : p)}
+                style={{ ...inputStyle, background: "#fff" }}
+              >
+                <option value="">Select gender…</option>
+                <option value="mens">Men's</option>
+                <option value="womens">Women's</option>
+                <option value="youth">Youth</option>
+                <option value="unisex">Unisex</option>
+              </select>
+            </div>
+            )}
+
+            {stocked && (
+            <div style={{ marginBottom: "14px" }}>
+              <label style={labelStyle}>Fabric</label>
+              <input
+                value={(product as any).fabric ?? ""}
+                onChange={e => setProduct(p => p ? { ...p, fabric: e.target.value } as any : p)}
+                placeholder="e.g. 100% Cotton, 50/50 Cotton-Poly"
+                style={inputStyle}
+              />
+            </div>
+            )}
+
+            <div style={{ marginBottom: "14px" }}>
+              <label style={labelStyle}>Product Code</label>
+              <input
+                value={(product as any).product_code ?? ""}
+                onChange={e => setProduct(p => p ? { ...p, product_code: e.target.value } as any : p)}
+                placeholder="e.g. G5000, PC61"
+                style={inputStyle}
+              />
+            </div>
+
+            {stocked && (
+            <div style={{ marginBottom: "14px" }}>
+              <label style={labelStyle}>Weight (g)</label>
+              <input
+                value={(product as any).weight ?? ""}
+                onChange={e => setProduct(p => p ? { ...p, weight: e.target.value } as any : p)}
+                placeholder="e.g. 150, 175"
+                style={inputStyle}
+              />
+            </div>
+            )}
+
+            <div style={{ marginBottom: "14px" }}>
+              <label style={labelStyle}>Category</label>
+              <select
+                value={product.categories?.[0]?.id ?? ""}
+                onChange={e => {
+                  const cat = categories.find(c => c.id === e.target.value);
+                  setProduct(p => p ? { ...p, categories: cat ? [cat] : [] } : p);
+                }}
+                style={{ ...inputStyle, background: "#fff" }}
+              >
+                <option value="">Select category…</option>
+                {categories.map(cat => (
+                  <option key={cat.id} value={cat.id}>{cat.name}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label style={labelStyle}>Tags</label>
+              <div
+                style={{ display: "flex", flexWrap: "wrap", gap: "6px", padding: "10px", border: "1.5px solid #E3E3E3", borderRadius: "8px", minHeight: "44px", cursor: "text" }}
+                onClick={e => (e.currentTarget.querySelector("input") as HTMLInputElement)?.focus()}
+              >
+                {(product.tags ?? []).map(tag => (
+                  <span key={tag} style={{ background: "#F6F6F7", padding: "3px 10px", borderRadius: "20px", fontSize: "12px", fontWeight: 600, display: "flex", alignItems: "center", gap: "4px" }}>
+                    {tag}
+                    <button
+                      onClick={() => removeTag(tag)}
+                      style={{ background: "none", border: "none", cursor: "pointer", color: "#aaa", fontSize: "14px", lineHeight: 1, padding: 0 }}
+                    >×</button>
+                  </span>
+                ))}
+                <input
+                  placeholder={product.tags?.length ? "" : "Add tag…"}
+                  onKeyDown={e => {
+                    if (e.key === "Enter" || e.key === ",") {
+                      e.preventDefault();
+                      addTag(e.currentTarget.value.replace(",", "").trim());
+                      e.currentTarget.value = "";
+                    }
+                  }}
+                  style={{ border: "none", outline: "none", fontSize: "13px", minWidth: "100px", fontFamily: "inherit", flexGrow: 1 }}
+                />
+              </div>
+              <div style={{ fontSize: "11px", color: "#aaa", marginTop: "4px" }}>Press Enter or comma to add</div>
+            </div>
+          </div>
           </div>
 
+          {/* ── Media ──────────────────────────────────────────────────────── */}
+          <div hidden={tab !== "media"} data-panel="media">
           {/* Media */}
           <div style={sectionCard}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
@@ -727,7 +870,90 @@ export default function AdminProductEditPage() {
             </div>
             <input ref={fileInputRef} type="file" accept="image/*" multiple style={{ display: "none" }} onChange={handleImageUpload} />
           </div>
+          {/* Marketing Flyer */}
+          <div style={sectionCard}>
+            <span style={sectionTitle}>Marketing flyer</span>
+            {(() => {
+              const flyer = product?.assets?.find((a: any) => a.asset_type === "flyer");
+              return (
+                <>
+                  {flyer && (
+                    <div style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 12px", border: "1px solid #E3E3E3", borderRadius: "8px", background: "#F6F6F7", marginBottom: "12px" }}>
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#E8242A" strokeWidth={2}><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: "13px", fontWeight: 600, color: "#2A2830", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{flyer.file_name}</div>
+                        <div style={{ fontSize: "11px", color: "#7A7880" }}>PDF Flyer</div>
+                      </div>
+                      <a href={flyer.url} target="_blank" rel="noreferrer" style={{ fontSize: "11px", color: "#1A1A1A", fontWeight: 700, whiteSpace: "nowrap" }}>View</a>
+                      <button onClick={handleDeleteFlyer} style={{ background: "none", border: "none", cursor: "pointer", color: "#E8242A", padding: "2px 4px", fontSize: "16px", lineHeight: 1 }}>×</button>
+                    </div>
+                  )}
+                  <input ref={flyerInputRef} type="file" accept=".pdf,application/pdf" style={{ display: "none" }} onChange={handleFlyerUpload} />
+                  <button
+                    onClick={() => flyerInputRef.current?.click()}
+                    disabled={uploadingFlyer}
+                    style={{ width: "100%", padding: "10px", border: "1.5px dashed #E3E3E3", borderRadius: "8px", background: uploadingFlyer ? "#f9fafb" : "#fff", cursor: uploadingFlyer ? "not-allowed" : "pointer", fontSize: "13px", fontWeight: 600, color: uploadingFlyer ? "#aaa" : "#1A1A1A", fontFamily: "inherit" }}
+                  >
+                    {uploadingFlyer ? "Uploading…" : flyer ? "Replace Flyer (PDF)" : "Upload Flyer (PDF)"}
+                  </button>
+                  {flyerMsg && (
+                    <p style={{ marginTop: "8px", fontSize: "12px", color: flyerMsg.includes("success") ? "#059669" : "#E8242A" }}>{flyerMsg}</p>
+                  )}
+                </>
+              );
+            })()}
+          </div>
+          </div>
 
+          {/* ── Pricing and options ────────────────────────────────────────── */}
+          <div hidden={tab !== "pricing"} data-panel="pricing">
+            {stocked && (
+              <div style={sectionCard}>
+                <span style={sectionTitle}>Price</span>
+                <p style={{ fontSize: "13.5px", color: "var(--pc-muted)", margin: "0 0 12px", lineHeight: 1.55 }}>
+                  Each colour and size of a stocked item has its own price, set on <button type="button" className="pc-link" onClick={() => setTab("variants")}>Variants and stock</button>. To give every variant the same price at once:
+                </p>
+                <div style={{ display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
+                  <span style={{ fontSize: "14px", color: "var(--pc-muted)" }}>$</span>
+                  <input type="number" min="0" step="0.01" placeholder="0.00" value={bulkApply.price} onChange={e => setBulkApply(p => ({ ...p, price: e.target.value }))}
+                    style={{ ...inputStyle, width: "140px" }} aria-label="Price for every variant" />
+                  <button type="button" className="pc-btn" data-kind="primary" disabled={!bulkApply.price || !product.variants.length} onClick={applyToAllVariants}>Set for all {product.variants.length} variants</button>
+                </div>
+                {variantMsg && <div style={{ marginTop: "10px", fontSize: "13px", fontWeight: 600, color: variantMsg.ok ? "var(--pc-green)" : "var(--pc-red)" }}>{variantMsg.text}</div>}
+              </div>
+            )}
+            {sheetKind && (
+              <GangSheetProductEditor productId={product.id} productName={product.name} kind={kind as SheetKind}
+                config={(product as any).gang_sheet_config ?? null} onSaved={() => void load()} />
+            )}
+            {!sheetKind && (
+              stocked ? (
+                <details className="pc-card pc-details" style={{ marginBottom: "16px" }}>
+                  <summary><h2 className="pc-h2" style={{ fontSize: "16px" }}>Sell it made to order instead</h2><span className="pc-link pc-details-more" aria-hidden /></summary>
+                  <div style={{ padding: "0 20px 16px" }}>
+          {/* Options & pricing — stocked variants vs unlimited configurable options.
+              The id is the anchor a freshly created configurable product lands on. */}
+          <div id="options" style={{ scrollMarginTop: "80px" }}>
+            <ProductOptionsBuilder productId={product.id} />
+          </div>
+                  </div>
+                </details>
+              ) : (
+                <>
+          {/* Options & pricing — stocked variants vs unlimited configurable options.
+              The id is the anchor a freshly created configurable product lands on. */}
+          <div id="options" style={{ scrollMarginTop: "80px" }}>
+            <ProductOptionsBuilder productId={product.id} />
+          </div>
+                </>
+              )
+            )}
+          </div>
+
+          {/* ── Variants and stock ─────────────────────────────────────────── */}
+          <div hidden={tab !== "variants"} data-panel="variants">
+            {stocked ? (
+              <>
           {/* Variants */}
           <div style={sectionCard}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
@@ -975,71 +1201,21 @@ export default function AdminProductEditPage() {
               </div>
             ))}
           </div>
-
-          {/* Options & pricing — stocked variants vs unlimited configurable options.
-              The id is the anchor a freshly created configurable product lands on. */}
-          <div id="options" style={{ scrollMarginTop: "80px" }}>
-            <ProductOptionsBuilder productId={product.id} />
+              </>
+            ) : (
+              <div style={sectionCard}>
+                <span style={sectionTitle}>Variants and stock</span>
+                <p style={{ fontSize: "13.5px", color: "var(--pc-muted)", margin: 0, lineHeight: 1.55 }}>
+                  {kind === "made"
+                    ? "A made-to-order product has no variants: the customer's answers to its questions make each one. Its stock is not counted."
+                    : "A sheet product has no variants: the buyer's sheet is the item, printed when it is ordered. Its stock is not counted."}
+                </p>
+              </div>
+            )}
           </div>
 
-          {/* Printed from a file the buyer supplies. The design already draws
-              an "Upload Artwork & Order" button on these pages; this is what
-              decides whether it is there. */}
-          <div style={{ ...sectionCard, marginTop: "16px" }}>
-            <label style={{ display: "flex", gap: "10px", alignItems: "flex-start", cursor: "pointer" }}>
-              <input
-                type="checkbox"
-                checked={Boolean((product as any).allow_design_upload)}
-                onChange={e => setProduct(p => p ? { ...p, allow_design_upload: e.target.checked } as any : p)}
-                style={{ width: "17px", height: "17px", marginTop: "2px", cursor: "pointer", flexShrink: 0 }}
-              />
-              <span>
-                <span style={{ fontSize: "14px", fontWeight: 700, color: "#2A2830", display: "block" }}>
-                  Buyers upload their own design
-                </span>
-                <span style={{ fontSize: "12.5px", color: "#7A7880", lineHeight: 1.6 }}>
-                  Puts an <strong>Upload Artwork &amp; Order</strong> button on this product.
-                  The buyer picks their options, sends the print file, and it arrives on the
-                  order with their line. Leave it off and the button is not shown.
-                </span>
-              </span>
-            </label>
-          </div>
-
-        </div>
-
-        {/* ── RIGHT SIDEBAR ──────────────────────────────────────────────── */}
-        <div>
-
-          {/* Status Card */}
-          <div style={sectionCard}>
-            <span style={sectionTitle}>Status</span>
-            <select
-              value={product.status}
-              onChange={e => setProduct(p => p ? { ...p, status: e.target.value as ProductDetail["status"] } : p)}
-              style={{ ...inputStyle, background: "#fff" }}
-            >
-              <option value="active">● Active</option>
-              <option value="draft">○ Draft</option>
-              <option value="archived">✕ Archived</option>
-            </select>
-            <div style={{ marginTop: "12px", display: "flex", gap: "8px" }}>
-              <button
-                onClick={handleSave}
-                disabled={isSaving || saveSuccess}
-                style={{ flex: 1, padding: "10px", background: saveSuccess ? "#059669" : "#1A1A1A", color: "#fff", border: "none", borderRadius: "8px", fontWeight: 700, cursor: (isSaving || saveSuccess) ? "not-allowed" : "pointer", fontSize: "14px", opacity: isSaving ? 0.7 : 1 }}
-              >
-                {isSaving ? "Saving…" : saveSuccess ? "Saved!" : "Save"}
-              </button>
-              <button
-                onClick={() => router.push(`/products/${product.slug}`)}
-                style={{ padding: "10px 14px", border: "1px solid #E3E3E3", borderRadius: "8px", background: "#fff", cursor: "pointer", fontSize: "13px" }}
-              >
-                👁
-              </button>
-            </div>
-          </div>
-
+          {/* ── Storefront ─────────────────────────────────────────────────── */}
+          <div hidden={tab !== "storefront"} data-panel="storefront">
           {/* Which Website builder template draws this product's page. Saved to the
               builder's draft, not with this form: it goes live on Publish. */}
           <WebsiteTemplateField
@@ -1052,7 +1228,6 @@ export default function AdminProductEditPage() {
               </div>
             )}
           />
-
           {/* Product page template — the older kind, read by the app's own product
               page. A shop on the Website builder draws its product pages from
               "Website template" above, so this one is left out there:
@@ -1080,123 +1255,8 @@ export default function AdminProductEditPage() {
             </p>
           </div>
           )}
-
-          {/* Product Organization */}
-          <div style={sectionCard}>
-            <span style={sectionTitle}>Product organization</span>
-
-            <div style={{ marginBottom: "14px" }}>
-              <label style={labelStyle}>Product Type</label>
-              <input
-                value={product.product_type ?? ""}
-                onChange={e => setProduct(p => p ? { ...p, product_type: e.target.value } : p)}
-                placeholder="e.g. T-Shirt, Hoodie"
-                style={inputStyle}
-              />
-            </div>
-
-            <div style={{ marginBottom: "14px" }}>
-              <label style={labelStyle}>Vendor</label>
-              <input
-                value={product.vendor ?? ""}
-                onChange={e => setProduct(p => p ? { ...p, vendor: e.target.value } : p)}
-                placeholder="e.g. your brand"
-                style={inputStyle}
-              />
-            </div>
-            <div style={{ marginBottom: "14px" }}>
-              <label style={labelStyle}>Gender</label>
-              <select
-                value={(product as any).gender ?? ""}
-                onChange={e => setProduct(p => p ? { ...p, gender: e.target.value } as any : p)}
-                style={{ ...inputStyle, background: "#fff" }}
-              >
-                <option value="">Select gender…</option>
-                <option value="mens">Men's</option>
-                <option value="womens">Women's</option>
-                <option value="youth">Youth</option>
-                <option value="unisex">Unisex</option>
-              </select>
-            </div>
-
-            <div style={{ marginBottom: "14px" }}>
-              <label style={labelStyle}>Fabric</label>
-              <input
-                value={(product as any).fabric ?? ""}
-                onChange={e => setProduct(p => p ? { ...p, fabric: e.target.value } as any : p)}
-                placeholder="e.g. 100% Cotton, 50/50 Cotton-Poly"
-                style={inputStyle}
-              />
-            </div>
-
-            <div style={{ marginBottom: "14px" }}>
-              <label style={labelStyle}>Product Code</label>
-              <input
-                value={(product as any).product_code ?? ""}
-                onChange={e => setProduct(p => p ? { ...p, product_code: e.target.value } as any : p)}
-                placeholder="e.g. G5000, PC61"
-                style={inputStyle}
-              />
-            </div>
-
-            <div style={{ marginBottom: "14px" }}>
-              <label style={labelStyle}>Weight (g)</label>
-              <input
-                value={(product as any).weight ?? ""}
-                onChange={e => setProduct(p => p ? { ...p, weight: e.target.value } as any : p)}
-                placeholder="e.g. 150, 175"
-                style={inputStyle}
-              />
-            </div>
-
-            <div style={{ marginBottom: "14px" }}>
-              <label style={labelStyle}>Category</label>
-              <select
-                value={product.categories?.[0]?.id ?? ""}
-                onChange={e => {
-                  const cat = categories.find(c => c.id === e.target.value);
-                  setProduct(p => p ? { ...p, categories: cat ? [cat] : [] } : p);
-                }}
-                style={{ ...inputStyle, background: "#fff" }}
-              >
-                <option value="">Select category…</option>
-                {categories.map(cat => (
-                  <option key={cat.id} value={cat.id}>{cat.name}</option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label style={labelStyle}>Tags</label>
-              <div
-                style={{ display: "flex", flexWrap: "wrap", gap: "6px", padding: "10px", border: "1.5px solid #E3E3E3", borderRadius: "8px", minHeight: "44px", cursor: "text" }}
-                onClick={e => (e.currentTarget.querySelector("input") as HTMLInputElement)?.focus()}
-              >
-                {(product.tags ?? []).map(tag => (
-                  <span key={tag} style={{ background: "#F6F6F7", padding: "3px 10px", borderRadius: "20px", fontSize: "12px", fontWeight: 600, display: "flex", alignItems: "center", gap: "4px" }}>
-                    {tag}
-                    <button
-                      onClick={() => removeTag(tag)}
-                      style={{ background: "none", border: "none", cursor: "pointer", color: "#aaa", fontSize: "14px", lineHeight: 1, padding: 0 }}
-                    >×</button>
-                  </span>
-                ))}
-                <input
-                  placeholder={product.tags?.length ? "" : "Add tag…"}
-                  onKeyDown={e => {
-                    if (e.key === "Enter" || e.key === ",") {
-                      e.preventDefault();
-                      addTag(e.currentTarget.value.replace(",", "").trim());
-                      e.currentTarget.value = "";
-                    }
-                  }}
-                  style={{ border: "none", outline: "none", fontSize: "13px", minWidth: "100px", fontFamily: "var(--font-jakarta)", flexGrow: 1 }}
-                />
-              </div>
-              <div style={{ fontSize: "11px", color: "#aaa", marginTop: "4px" }}>Press Enter or comma to add</div>
-            </div>
-          </div>
-
+            {stocked && (
+              <>
           {/* Product Tabs Content */}
           <div style={sectionCard}>
             <span style={sectionTitle}>Product tabs content</span>
@@ -1287,7 +1347,7 @@ export default function AdminProductEditPage() {
                                   setProduct(p => p ? { ...p, size_chart_data: rows } as any : p);
                                 }}
                                 placeholder={field === "size" ? "XL" : "—"}
-                                style={{ width: "100%", padding: "5px 8px", border: "1px solid #E3E3E3", borderRadius: "6px", fontSize: "12px", fontFamily: "var(--font-jakarta)", outline: "none" }}
+                                style={{ width: "100%", padding: "5px 8px", border: "1px solid #E3E3E3", borderRadius: "6px", fontSize: "12px", fontFamily: "inherit", outline: "none" }}
                               />
                             </td>
                           ))}
@@ -1310,7 +1370,8 @@ export default function AdminProductEditPage() {
               <div style={{ fontSize: "11px", color: "#aaa", marginTop: "6px" }}>This table appears in the Size Chart tab on the product page.</div>
             </div>
           </div>
-
+              </>
+            )}
           {/* SEO */}
           <div style={sectionCard}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px" }}>
@@ -1363,41 +1424,66 @@ export default function AdminProductEditPage() {
               </div>
             )}
           </div>
-
-          {/* Marketing Flyer */}
-          <div style={sectionCard}>
-            <span style={sectionTitle}>Marketing flyer</span>
-            {(() => {
-              const flyer = product?.assets?.find((a: any) => a.asset_type === "flyer");
-              return (
-                <>
-                  {flyer && (
-                    <div style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 12px", border: "1px solid #E3E3E3", borderRadius: "8px", background: "#F6F6F7", marginBottom: "12px" }}>
-                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#E8242A" strokeWidth={2}><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: "13px", fontWeight: 600, color: "#2A2830", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{flyer.file_name}</div>
-                        <div style={{ fontSize: "11px", color: "#7A7880" }}>PDF Flyer</div>
-                      </div>
-                      <a href={flyer.url} target="_blank" rel="noreferrer" style={{ fontSize: "11px", color: "#1A1A1A", fontWeight: 700, whiteSpace: "nowrap" }}>View</a>
-                      <button onClick={handleDeleteFlyer} style={{ background: "none", border: "none", cursor: "pointer", color: "#E8242A", padding: "2px 4px", fontSize: "16px", lineHeight: 1 }}>×</button>
-                    </div>
-                  )}
-                  <input ref={flyerInputRef} type="file" accept=".pdf,application/pdf" style={{ display: "none" }} onChange={handleFlyerUpload} />
-                  <button
-                    onClick={() => flyerInputRef.current?.click()}
-                    disabled={uploadingFlyer}
-                    style={{ width: "100%", padding: "10px", border: "1.5px dashed #E3E3E3", borderRadius: "8px", background: uploadingFlyer ? "#f9fafb" : "#fff", cursor: uploadingFlyer ? "not-allowed" : "pointer", fontSize: "13px", fontWeight: 600, color: uploadingFlyer ? "#aaa" : "#1A1A1A", fontFamily: "var(--font-jakarta)" }}
-                  >
-                    {uploadingFlyer ? "Uploading…" : flyer ? "Replace Flyer (PDF)" : "Upload Flyer (PDF)"}
-                  </button>
-                  {flyerMsg && (
-                    <p style={{ marginTop: "8px", fontSize: "12px", color: flyerMsg.includes("success") ? "#059669" : "#E8242A" }}>{flyerMsg}</p>
-                  )}
-                </>
-              );
-            })()}
           </div>
 
+          {/* ── Advanced ───────────────────────────────────────────────────── */}
+          <div hidden={tab !== "advanced"} data-panel="advanced">
+          {/* Metafields — product data a template can print */}
+          <div style={sectionCard}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: "10px", flexWrap: "wrap" }}>
+              <span style={{ ...sectionTitle, marginBottom: 0, paddingBottom: 0, borderBottom: "none" }}>Metafields</span>
+              <span style={{ fontSize: "11px", color: "#aaa" }}>shown by product templates — {"{{ product.metafields.key }}"}</span>
+            </div>
+            <p style={{ fontSize: "12px", color: "#7A7880", margin: "8px 0 12px", lineHeight: 1.5 }}>
+              Extra details for this product only, like <code>ship_days</code> = <code>3</code> or <code>guarantee</code> = <code>Lifetime</code>. A template can print them, or show a block only when one is filled in.
+            </p>
+            {metaRows.map((row, i) => {
+              const bad = row.key.trim() !== "" && !METAFIELD_KEY.test(row.key.trim());
+              return (
+                <div key={i} style={{ display: "grid", gridTemplateColumns: "minmax(120px, 200px) 1fr 32px", gap: "8px", marginBottom: "8px", alignItems: "start" }}>
+                  <div>
+                    <input
+                      value={row.key}
+                      onChange={e => { const key = e.target.value.toLowerCase().replace(/\s+/g, "_"); setMetaRows(rs => rs.map((r, x) => x === i ? { ...r, key } : r)); }}
+                      placeholder="key"
+                      aria-label="Metafield key"
+                      style={{ ...inputStyle, fontFamily: "'IBM Plex Mono', ui-monospace, monospace", fontSize: "13px", borderColor: bad ? "#E8242A" : undefined }}
+                    />
+                    {bad && <div style={{ fontSize: "11px", color: "#E8242A", marginTop: "3px" }}>letters, numbers, _</div>}
+                  </div>
+                  <textarea
+                    value={row.value}
+                    onChange={e => setMetaRows(rs => rs.map((r, x) => x === i ? { ...r, value: e.target.value } : r))}
+                    placeholder="value"
+                    aria-label="Metafield value"
+                    rows={1}
+                    style={{ ...inputStyle, resize: "vertical", minHeight: "40px", lineHeight: 1.5 }}
+                  />
+                  <button onClick={() => setMetaRows(rs => rs.filter((_, x) => x !== i))} title="Remove" style={{ background: "transparent", border: "none", color: "#B91C1C", fontSize: "18px", cursor: "pointer", height: "40px" }}>×</button>
+                </div>
+              );
+            })}
+            <button
+              onClick={() => setMetaRows(rs => [...rs, { key: "", value: "" }])}
+              disabled={metaRows.length >= 50}
+              style={{ background: "#F6F6F7", border: "1px solid #C9D6E8", color: "#1A1A1A", padding: "8px 14px", borderRadius: "8px", fontSize: "12px", fontWeight: 700, cursor: "pointer" }}
+            >
+              + Add metafield
+            </button>
+          </div>
+            <div style={sectionCard}>
+              <span style={sectionTitle}>Status</span>
+              <select
+                value={product.status}
+                onChange={e => setProduct(p => p ? { ...p, status: e.target.value as ProductDetail["status"] } : p)}
+                style={inputStyle}
+                aria-label="Status"
+              >
+                <option value="active">Active: on the store</option>
+                <option value="draft">Draft: only you can see it</option>
+                <option value="archived">Archived: hidden, kept for its orders</option>
+              </select>
+            </div>
           {/* Danger Zone */}
           <div style={{ background: "#fff", border: "1px solid #FECACA", borderRadius: "10px", padding: "20px" }}>
             <span style={{ ...sectionTitle, color: "#E8242A", marginBottom: "12px" }}>Danger zone</span>
@@ -1412,7 +1498,57 @@ export default function AdminProductEditPage() {
               <TrashIcon size={14} color="#E8242A" /> Delete Product
             </button>
           </div>
+          </div>
+        </div>
 
+        {/* ── The side: the product, publishing, what this type leaves out ── */}
+        <div className="pc-stack">
+          <section className="pc-card pc-pad" aria-label="Product" data-side-product>
+            <h2 className="pc-h2">Product</h2>
+            <div style={{ marginTop: "12px", fontWeight: 600, fontSize: "15px" }}>{product.name}</div>
+            <div className="pc-pills" style={{ marginTop: "8px" }}>
+              <span className="pc-pill" data-tone={statusTone || undefined}>{statusLabel}</span>
+              <span className="pc-pill" data-tone="blue">{KIND_WORDS[kind]}</span>
+            </div>
+            {!sheetKind && (
+              <div className="pc-switch-row" style={{ marginTop: "16px" }}>
+                <span>
+                  Buyers can upload their own design
+                  <span className="pc-sub-line" style={{ display: "block", fontSize: "12.5px" }}>Adds an Upload Artwork &amp; Order button to the product page.</span>
+                </span>
+                <button type="button" role="switch" aria-checked={allowUpload} aria-label="Buyers can upload their own design" className="pc-switch"
+                  onClick={() => setProduct(p => p ? { ...p, allow_design_upload: !allowUpload } as any : p)} data-on={allowUpload ? "" : undefined} />
+              </div>
+            )}
+          </section>
+
+          <section className="pc-card pc-pad" aria-label="Publish" data-side-publish>
+            <h2 className="pc-h2">Publish</h2>
+            {product.status === "active" ? (
+              <>
+                <p className="pc-sub-line" style={{ margin: "6px 0 14px" }}>On your store now.</p>
+                <a href={`/products/${product.slug}`} target="_blank" rel="noopener noreferrer" className="pc-btn" data-block>View on the store</a>
+                <button type="button" className="pc-btn" data-block style={{ marginTop: "8px" }} disabled={isSaving} onClick={() => void handleSave("draft")}>Unpublish</button>
+              </>
+            ) : (
+              <>
+                <p className="pc-sub-line" style={{ margin: "6px 0 14px" }}>
+                  {product.status === "archived" ? "Archived: hidden from the store." : "Draft: only you can see it."}
+                </p>
+                <button type="button" className="pc-btn" data-kind="primary" data-block disabled={isSaving} onClick={() => void handleSave("active")} data-publish-product>
+                  {isSaving ? "Publishing…" : "Publish product"}
+                </button>
+                <a href={`/products/${product.slug}`} target="_blank" rel="noopener noreferrer" className="pc-btn" data-block style={{ marginTop: "8px" }}>Preview</a>
+              </>
+            )}
+          </section>
+
+          {!stocked && (
+            <section className="pc-card pc-pad" aria-label="Fields hidden for this type">
+              <h2 className="pc-h2" style={{ fontSize: "16px" }}>Fields hidden for this type</h2>
+              <p className="pc-sub-line" style={{ marginTop: "6px" }}>{APPAREL_FIELDS_NOTE}</p>
+            </section>
+          )}
         </div>
       </div>
 
@@ -1421,7 +1557,7 @@ export default function AdminProductEditPage() {
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }}>
           <div style={{ background: "#fff", borderRadius: "12px", width: "540px", maxHeight: "90vh", overflowY: "auto", padding: "28px", boxShadow: "0 20px 60px rgba(0,0,0,.2)" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
-              <h3 style={{ fontFamily: "var(--font-jakarta)", fontSize: "18px", fontWeight: 800, color: "#1A1A1A", letterSpacing: "-0.01em" }}>Add Variants</h3>
+              <h3 style={{ fontFamily: "inherit", fontSize: "18px", fontWeight: 800, color: "#1A1A1A", letterSpacing: "-0.01em" }}>Add Variants</h3>
               <button onClick={() => setShowAddVariant(false)} style={{ background: "none", border: "none", fontSize: "20px", cursor: "pointer", color: "#aaa" }}>✕</button>
             </div>
             <p style={{ fontSize: "12px", color: "#7A7880", marginBottom: "18px" }}>Define your options (Color &amp; Size values), then generate every combination. Existing combinations are skipped.</p>
@@ -1439,5 +1575,13 @@ export default function AdminProductEditPage() {
         />
       )}
     </div>
+  );
+}
+
+export default function AdminProductEditPage() {
+  return (
+    <Suspense fallback={<div className="pc-page"><div className="pc-card pc-empty">Loading product…</div></div>}>
+      <ProductEditor />
+    </Suspense>
   );
 }

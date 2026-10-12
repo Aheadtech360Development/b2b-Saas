@@ -1,448 +1,378 @@
 "use client";
 
+/**
+ * Products: the catalog.
+ *
+ * Every row, the counts on the status tabs and what needs a look come from one
+ * answer (GET /admin/catalog/products, services/product_catalog), so a count
+ * never disagrees with the rows under it. The filters live in the address, so
+ * a link, Back and a refresh all show the same list. Selecting rows offers the
+ * actions the old list had: set a status, edit a few details, delete.
+ */
+import Link from "next/link";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { Search, X } from "lucide-react";
 import { ask, tell } from "@/lib/dialog";
-import { useEffect, useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { apiClient } from "@/lib/api-client";
 import { adminService } from "@/services/admin.service";
-import type { ProductDetail } from "@/types/product.types";
 import { ImportProductsModal } from "@/components/admin/ImportProductsModal";
-import { SearchIcon, DownloadIcon, EditIcon, TrashIcon } from "@/components/ui/icons";
+import { ProductsFrame } from "@/components/admin/products/ProductsFrame";
+import { KIND_WORDS, PRODUCT_KINDS, STATUS_PILL, type ProductKind } from "@/lib/productKinds";
 
-// ── Style constants ────────────────────────────────────────────────────────
-const thStyle: React.CSSProperties = {
-  padding: "12px 16px", textAlign: "left", fontSize: "11px",
-  textTransform: "uppercase", letterSpacing: ".06em", color: "#7A7880", fontWeight: 700,
-};
-const bulkBtnStyle: React.CSSProperties = {
-  background: "rgba(255,255,255,.15)", color: "#fff", border: "1px solid rgba(255,255,255,.3)",
-  padding: "5px 12px", borderRadius: "6px", fontSize: "12px", fontWeight: 600, cursor: "pointer",
-};
-const pageBtn: React.CSSProperties = {
-  padding: "7px 12px", border: "1px solid #E6E6E6", borderRadius: "9px",
-  background: "#fff", fontSize: "13px", fontWeight: 600, cursor: "pointer",
-};
-const ghostBtn: React.CSSProperties = {
-  padding: "10px 16px", border: "1px solid #E6E6E6", borderRadius: "10px", background: "#fff",
-  fontSize: "13px", fontWeight: 600, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "6px",
-  fontFamily: "var(--font-jakarta)", color: "#1A1A1A",
-};
-const primaryBtn: React.CSSProperties = {
-  padding: "10px 18px", background: "#1A1A1A", color: "#fff", border: "none", borderRadius: "10px",
-  fontSize: "13px", fontWeight: 700, cursor: "pointer", fontFamily: "var(--font-jakarta)",
-};
+interface Row {
+  id: string; slug: string; name: string; status: string; kind: ProductKind; image: string | null;
+  product_code: string | null; price_from: { amount: number; per: string } | null;
+  stock: { label: string; tone: string }; attention: string[]; variants: number; updated_at: string | null;
+}
+interface Catalog {
+  rows: Row[]; total: number;
+  counts: { all: number; active: number; draft: number; archived: number };
+  attention: number; kinds: Record<ProductKind, number>;
+}
 
-// Bulk edit modal cell label
-const labelStyle: React.CSSProperties = {
-  fontSize: "11px", fontWeight: 700, textTransform: "uppercase",
-  letterSpacing: ".08em", color: "#7A7880", marginBottom: "6px", display: "block",
-};
+const PAGE_SIZE = 50;
+const STATUSES: [string, string][] = [["", "All"], ["active", "Active"], ["draft", "Draft"], ["archived", "Archived"]];
 
-export default function AdminProductsPage() {
-  const router = useRouter();
-  const [products, setProducts] = useState<ProductDetail[]>([]);
-  const [total, setTotal] = useState(0);
-  const [isLoading, setIsLoading] = useState(false);
-  const [loadError, setLoadError] = useState<string | null>(null);
-  const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("");
-  const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [showBulkEdit, setShowBulkEdit] = useState(false);
-  const [showImport, setShowImport] = useState(false);
-  const [page, setPage] = useState(1);
-  const pageSize = 50;
-  const loadSeqRef = useRef(0);
+function price(p: Row["price_from"]): string {
+  if (!p) return "–";
+  const digits = p.amount >= 0.1 ? 2 : 4;
+  const amount = `$${p.amount.toFixed(digits).replace(/(\.\d\d\d*?)0+$/, "$1")}`;
+  return p.per === "item" ? amount : `${amount} / ${p.per}`;
+}
 
-  // Bulk edit state: productId → partial edits
-  const [bulkEdits, setBulkEdits] = useState<Record<string, Record<string, string>>>({});
-  const bulkFields = ["status", "vendor", "product_type"] as const;
-
-  async function load(p = page) {
-    const seq = ++loadSeqRef.current;
-    setIsLoading(true);
-    setLoadError(null);
-    try {
-      const data = await adminService.listProducts({
-        q: search || undefined,
-        status: statusFilter || undefined,
-        page: p,
-      });
-      if (seq !== loadSeqRef.current) return; // stale — a newer request is in flight
-      const items = data ?? [];
-      setProducts(items);
-      setTotal(items.length < pageSize ? (p - 1) * pageSize + items.length : p * pageSize + 1);
-    } catch (err: unknown) {
-      if (seq !== loadSeqRef.current) return;
-      const msg = err instanceof Error ? err.message : "Failed to load products";
-      setLoadError(msg);
-      setProducts([]);
-    } finally {
-      if (seq === loadSeqRef.current) setIsLoading(false);
-    }
-  }
-
-  // When filters change, reset to page 1 and reload immediately
-  useEffect(() => { setPage(1); load(1); }, [search, statusFilter]); // eslint-disable-line
-  // When page changes (pagination), reload with current filters
-  useEffect(() => { load(page); }, [page]); // eslint-disable-line
-
-  const selectedProducts = useMemo(
-    () => products.filter(p => selectedIds.includes(p.id)),
-    [products, selectedIds]
+export default function ProductsPage() {
+  return (
+    <Suspense fallback={<div className="pc-page"><div className="pc-card pc-empty">Loading products…</div></div>}>
+      <ProductsList />
+    </Suspense>
   );
+}
 
-  async function handleBulkAction(action: string) {
-    if (!selectedIds.length) return;
-    await adminService.bulkAction(selectedIds, action);
-    setSelectedIds([]);
-    load();
-  }
+function ProductsList() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const params = useSearchParams();
+  const q = params.get("q") ?? "";
+  const status = params.get("status") ?? "";
+  const kind = (params.get("kind") ?? "") as ProductKind | "";
+  const attention = params.get("attention") === "1";
+  const page = Math.max(1, Number(params.get("page")) || 1);
+  const here = params.toString();
 
-  async function handleBulkDelete() {
-    if (!selectedIds.length) return;
-    if (!await ask(`Permanently delete ${selectedIds.length} product(s)? This cannot be undone.`)) return;
+  const [data, setData] = useState<Catalog | null>(null);
+  const [shownFor, setShownFor] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState("");
+  const [qText, setQText] = useState(q);
+  const [pop, setPop] = useState<"status" | "kind" | null>(null);
+  const [picked, setPicked] = useState<Set<string>>(new Set());
+  const [working, setWorking] = useState("");
+  const [flash, setFlash] = useState<{ text: string; bad?: boolean } | null>(null);
+  const [importing, setImporting] = useState(false);
+  const [editing, setEditing] = useState<Record<string, { status: string; vendor: string; product_type: string }> | null>(null);
+  const seq = useRef(0);
+
+  const setParams = useCallback((next: Record<string, string | null>) => {
+    const p = new URLSearchParams(params.toString());
+    for (const [k, v] of Object.entries(next)) { if (v) p.set(k, v); else p.delete(k); }
+    if (!("page" in next)) p.delete("page");
+    const s = p.toString();
+    router.replace(`${pathname}${s ? `?${s}` : ""}`, { scroll: false });
+  }, [params, pathname, router]);
+
+  // The search box writes the address a moment after typing stops.
+  useEffect(() => { setQText(q); }, [q]);
+  useEffect(() => {
+    if (qText === q) return;
+    const t = setTimeout(() => setParams({ q: qText.trim() || null }), 350);
+    return () => clearTimeout(t);
+  }, [qText, q, setParams]);
+
+  const load = useCallback(async () => {
+    const mine = ++seq.current;
+    const qs = new URLSearchParams();
+    if (q) qs.set("q", q);
+    if (status) qs.set("status", status);
+    if (kind) qs.set("kind", kind);
+    if (attention) qs.set("attention", "true");
+    qs.set("page", String(page));
+    qs.set("page_size", String(PAGE_SIZE));
     try {
-      const results = await Promise.allSettled(selectedIds.map(id => adminService.deleteProduct(id)));
-      const failed = results.filter(r => r.status === "rejected");
-      if (failed.length > 0) {
-        const reason = (failed[0] as PromiseRejectedResult).reason;
-        tell(`Delete failed: ${reason instanceof Error ? reason.message : "Server error. The product may be referenced by existing orders."}`);
-      }
-    } catch (err: unknown) {
-      tell(`Delete failed: ${err instanceof Error ? err.message : "Server error."}`);
+      const d = await apiClient.get<Catalog>(`/api/v1/admin/catalog/products?${qs}`);
+      if (mine !== seq.current) return;
+      setData(d);
+      setShownFor(here);
+      setLoadError("");
+    } catch (e) {
+      if (mine !== seq.current) return;
+      setLoadError(e instanceof Error ? e.message : "The products could not be loaded.");
+      setShownFor(here);
     }
-    setSelectedIds([]);
-    load();
+  }, [q, status, kind, attention, page, here]);
+  useEffect(() => { void load(); }, [load]);
+  useEffect(() => { setPicked(new Set()); }, [here]);
+
+  useEffect(() => {
+    if (!pop) return;
+    const close = (e: MouseEvent) => { if (!(e.target as HTMLElement).closest?.(".pc-pop-wrap")) setPop(null); };
+    window.addEventListener("mousedown", close);
+    return () => window.removeEventListener("mousedown", close);
+  }, [pop]);
+
+  const rows = useMemo(() => data?.rows ?? [], [data]);
+  const chosen = rows.filter((r) => picked.has(r.id));
+  const allPicked = rows.length > 0 && rows.every((r) => picked.has(r.id));
+
+  async function bulk(action: "active" | "draft" | "archived") {
+    const one = chosen.length === 1;
+    const words = { active: "active", draft: one ? "a draft" : "drafts", archived: "archived" }[action];
+    setWorking(`Setting ${chosen.length}…`);
+    try {
+      await adminService.bulkAction(chosen.map((r) => r.id), action);
+      setFlash({ text: `${one ? "1 product is" : `${chosen.length} products are`} now ${words}.` });
+    } catch (e) {
+      setFlash({ text: e instanceof Error ? e.message : "That did not work. Nothing was changed.", bad: true });
+    }
+    setWorking("");
+    setPicked(new Set());
+    await load();
   }
 
-  async function handleBulkSave() {
-    await Promise.all(
-      Object.entries(bulkEdits).map(([id, changes]) =>
-        Object.keys(changes).length > 0
-          ? adminService.updateProduct(id, changes)
-          : Promise.resolve()
-      )
-    );
-    setBulkEdits({});
-    setShowBulkEdit(false);
-    load();
+  async function bulkDelete() {
+    if (!await ask(`Delete ${chosen.length === 1 ? `"${chosen[0]!.name}"` : `${chosen.length} products`}? This cannot be undone. A product with orders on it is kept and archived instead.`, { title: "Delete products", ok: "Delete", danger: true })) return;
+    setWorking("Deleting…");
+    const results = await Promise.allSettled(chosen.map((r) => adminService.deleteProduct(r.id)));
+    const failed = results.filter((r) => r.status === "rejected") as PromiseRejectedResult[];
+    setWorking("");
+    setPicked(new Set());
+    setFlash(failed.length
+      ? { text: `${results.length - failed.length} deleted, ${failed.length} not: ${failed[0]!.reason instanceof Error ? failed[0]!.reason.message : "it may be on an order"}.`, bad: true }
+      : { text: `${results.length === 1 ? "1 product" : `${results.length} products`} deleted.` });
+    await load();
   }
 
-  function setBulkEdit(productId: string, field: string, value: string) {
-    setBulkEdits(prev => ({
-      ...prev,
-      [productId]: { ...(prev[productId] ?? {}), [field]: value },
-    }));
+  function openEdit() {
+    setEditing(Object.fromEntries(chosen.map((r) => [r.id, { status: r.status, vendor: "", product_type: "" }])));
+    // Vendor and type are not on the list: read them for the rows picked.
+    void Promise.all(chosen.map((r) => adminService.getProduct(r.slug).then((p) => [r.id, p] as const).catch(() => null)))
+      .then((found) => setEditing((cur) => {
+        if (!cur) return cur;
+        const next = { ...cur };
+        for (const hit of found) if (hit && next[hit[0]]) next[hit[0]] = { ...next[hit[0]]!, vendor: hit[1]?.vendor ?? "", product_type: hit[1]?.product_type ?? "" };
+        return next;
+      }));
   }
 
-  function initBulkEdits() {
-    const initial: Record<string, Record<string, string>> = {};
-    selectedProducts.forEach(p => {
-      initial[p.id] = {
-        status: p.status,
-        vendor: p.vendor ?? "",
-        product_type: p.product_type ?? "",
-      };
-    });
-    setBulkEdits(initial);
+  async function saveEdit() {
+    if (!editing) return;
+    setWorking("Saving…");
+    try {
+      await Promise.all(Object.entries(editing).map(([id, v]) => adminService.updateProduct(id, { status: v.status, vendor: v.vendor || null, product_type: v.product_type || null })));
+      setFlash({ text: "Saved." });
+      setEditing(null);
+      setPicked(new Set());
+    } catch (e) {
+      setFlash({ text: e instanceof Error ? e.message : "Not saved.", bad: true });
+    }
+    setWorking("");
+    await load();
   }
 
-  const totalInventory = (p: ProductDetail) =>
-    p.variants.reduce((s, v) => s + (v.stock_quantity ?? 0), 0);
-
-  const openProduct = (slug: string) => router.push(`/admin/products/${slug}/edit`);
-  const STATUS_TABS: { id: string; label: string }[] = [
-    { id: "", label: "All" }, { id: "active", label: "Active" },
-    { id: "draft", label: "Draft" }, { id: "archived", label: "Archived" },
-  ];
-  const statusTone = (st: string) =>
-    st === "active" ? { bg: "rgba(5,150,105,.1)", fg: "#059669", label: "Active" }
-      : st === "draft" ? { bg: "rgba(156,163,175,.16)", fg: "#6B7280", label: "Draft" }
-        : { bg: "rgba(232,36,42,.1)", fg: "#E8242A", label: "Archived" };
-  const allChecked = selectedIds.length === products.length && products.length > 0;
+  const counts = data?.counts;
+  const statusLabel = STATUSES.find(([v]) => v === status)?.[1] ?? "All";
+  const kindLabel = kind ? KIND_WORDS[kind] : "All";
+  const loaded = shownFor === here;
+  const first = (page - 1) * PAGE_SIZE + 1;
 
   return (
-    <div style={{ fontFamily: "var(--font-jakarta)" }}>
-      {/* Header */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: "16px", flexWrap: "wrap", marginBottom: "22px" }}>
-        <div>
-          <div style={{ fontSize: "12px", fontWeight: 600, color: "#9A98A0", letterSpacing: ".04em", marginBottom: "6px" }}>Catalogue</div>
-          <h1 style={{ fontSize: "26px", fontWeight: 800, color: "#1A1A1A", letterSpacing: "-0.02em", lineHeight: 1.1, margin: 0 }}>Products</h1>
-          <p style={{ fontSize: "13px", color: "#7A7880", marginTop: "6px" }}>{products.length} item{products.length === 1 ? "" : "s"} on this page</p>
-        </div>
-        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-          <button onClick={() => setShowImport(true)} style={ghostBtn}>
-            <DownloadIcon size={14} color="#2A2830" /> Import
-          </button>
-          <button onClick={() => adminService.exportProductsCsv()} style={ghostBtn}>↓ Export</button>
-          <button onClick={() => router.push("/admin/products/new")} style={primaryBtn}>+ Add Product</button>
-        </div>
-      </div>
-
-      {/* Filters */}
-      <div style={{ background: "#fff", border: "1px solid #ECECEC", borderRadius: "14px", padding: "6px 6px 6px 8px", display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap", marginBottom: "14px", boxShadow: "0 1px 2px rgba(0,0,0,.03)" }}>
-        <div role="tablist" aria-label="Status" style={{ display: "flex", gap: "2px", flexWrap: "wrap" }}>
-          {STATUS_TABS.map(t => {
-            const on = statusFilter === t.id;
-            return (
-              <button key={t.id || "all"} role="tab" aria-selected={on} onClick={() => setStatusFilter(t.id)} style={{
-                padding: "7px 14px", borderRadius: "9px", border: "none", cursor: "pointer", fontSize: "13px",
-                fontWeight: on ? 700 : 500, background: on ? "#1A1A1A" : "transparent", color: on ? "#fff" : "#5A5860",
-                fontFamily: "var(--font-jakarta)",
-              }}>{t.label}</button>
-            );
-          })}
-        </div>
-        <div style={{ flex: 1, minWidth: "220px", position: "relative" }}>
-          <span style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)", display: "flex" }}><SearchIcon size={14} color="#aaa" /></span>
-          <input
-            placeholder="Search by name or SKU…"
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            style={{ width: "100%", padding: "10px 12px 10px 36px", border: "1px solid transparent", background: "#F6F6F7", borderRadius: "10px", fontSize: "14px", fontFamily: "var(--font-jakarta)", boxSizing: "border-box", outline: "none" }}
-          />
-        </div>
-      </div>
-
-      {/* Bulk Toolbar */}
-      {selectedIds.length > 0 && (
-        <div style={{ position: "sticky", top: "env(safe-area-inset-top, 0px)", zIndex: 5, background: "#1A1A1A", color: "#fff", padding: "10px 16px", borderRadius: "12px", marginBottom: "12px", display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap", boxShadow: "0 6px 20px rgba(0,0,0,.15)" }}>
-          <span style={{ fontWeight: 700, marginRight: "4px" }}>{selectedIds.length} selected</span>
-          <button onClick={() => handleBulkAction("active")} style={bulkBtnStyle}>Set Active</button>
-          <button onClick={() => handleBulkAction("draft")} style={bulkBtnStyle}>Set Draft</button>
-          <button onClick={() => handleBulkAction("archived")} style={bulkBtnStyle}>Archive</button>
-          <button
-            onClick={() => { initBulkEdits(); setShowBulkEdit(true); }}
-            style={{ ...bulkBtnStyle, background: "rgba(255,255,255,.2)", display: "inline-flex", alignItems: "center", gap: "5px" }}
-          >
-            <EditIcon size={13} color="#fff" /> Bulk Edit
-          </button>
-          <button
-            onClick={handleBulkDelete}
-            style={{ ...bulkBtnStyle, background: "rgba(232,36,42,.4)", display: "inline-flex", alignItems: "center", gap: "5px" }}
-          >
-            <TrashIcon size={13} color="#fff" /> Delete
-          </button>
-          <button
-            onClick={() => setSelectedIds([])}
-            aria-label="Clear selection"
-            style={{ marginLeft: "auto", background: "none", border: "none", color: "#fff", cursor: "pointer", fontSize: "18px" }}
-          >
-            ✕
-          </button>
+    <ProductsFrame
+      active="catalog"
+      count={counts?.all ?? null}
+      actions={<>
+        <button type="button" className="pc-btn" onClick={() => setImporting(true)}>Import</button>
+        <button type="button" className="pc-btn" onClick={() => { void adminService.exportProductsCsv(); }}>Export</button>
+        <Link href="/admin/products/new" className="pc-btn" data-kind="primary">+ Add product</Link>
+      </>}
+    >
+      {flash && (
+        <div className="pc-flash" data-bad={flash.bad ? "" : undefined} role="status" style={{ display: "flex", justifyContent: "space-between", gap: "12px" }}>
+          <span>{flash.text}</span>
+          <button type="button" className="pc-x" aria-label="Dismiss" onClick={() => setFlash(null)}><X size={16} /></button>
         </div>
       )}
 
-      {/* List */}
-      <div style={{ background: "#fff", border: "1px solid #ECECEC", borderRadius: "14px", overflow: "hidden", boxShadow: "0 1px 2px rgba(0,0,0,.03)" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "14px", padding: "12px 18px", borderBottom: "1px solid #F0F0F0", fontSize: "12px", color: "#9A98A0", fontWeight: 600 }}>
-          <input
-            type="checkbox"
-            aria-label="Select all"
-            checked={allChecked}
-            onChange={e => setSelectedIds(e.target.checked ? products.map(p => p.id) : [])}
-          />
-          <span>{allChecked ? "All on this page selected" : "Select all"}</span>
+      <div className="pc-filters">
+        <label className="pc-field" style={{ flex: "1 1 320px", maxWidth: "none" }}>
+          <Search size={17} strokeWidth={2} />
+          <input value={qText} onChange={(e) => setQText(e.target.value)} placeholder="Search by name or SKU" aria-label="Search products" />
+        </label>
+        <div className="pc-pop-wrap">
+          <button type="button" className="pc-btn" aria-haspopup="menu" aria-expanded={pop === "status"} onClick={() => setPop(pop === "status" ? null : "status")}>Status: {statusLabel}</button>
+          {pop === "status" && (
+            <div className="pc-pop" role="menu">
+              {STATUSES.map(([value, label]) => (
+                <button key={value} type="button" role="menuitemradio" aria-checked={status === value} className="pc-pop-item" data-on={status === value ? "" : undefined}
+                  onClick={() => { setParams({ status: value || null }); setPop(null); }}>{label}</button>
+              ))}
+            </div>
+          )}
         </div>
+        <div className="pc-pop-wrap">
+          <button type="button" className="pc-btn" aria-haspopup="menu" aria-expanded={pop === "kind"} onClick={() => setPop(pop === "kind" ? null : "kind")}>Type: {kindLabel}</button>
+          {pop === "kind" && (
+            <div className="pc-pop" role="menu">
+              <button type="button" role="menuitemradio" aria-checked={!kind} className="pc-pop-item" data-on={!kind ? "" : undefined}
+                onClick={() => { setParams({ kind: null }); setPop(null); }}>All</button>
+              {PRODUCT_KINDS.map(({ kind: k, title }) => (
+                <button key={k} type="button" role="menuitemradio" aria-checked={kind === k} className="pc-pop-item" data-on={kind === k ? "" : undefined}
+                  onClick={() => { setParams({ kind: k }); setPop(null); }}>
+                  <span>{title}</span>{data && <span style={{ color: "var(--pc-muted)" }}>{data.kinds[k] ?? 0}</span>}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+        <button type="button" className="pc-btn" aria-pressed={attention} data-on={attention ? "" : undefined}
+          onClick={() => setParams({ attention: attention ? null : "1" })} data-attention-filter>
+          Needs attention{data ? ` · ${data.attention}` : ""}
+        </button>
+      </div>
 
-        {isLoading && products.length === 0 ? (
-          Array.from({ length: 6 }).map((_, i) => (
-            <div key={`sk-${i}`} style={{ display: "flex", alignItems: "center", gap: "14px", padding: "14px 18px", borderBottom: "1px solid #F4F4F4" }}>
-              <div className="at-skel" style={{ width: "14px", height: "14px" }} />
-              <div className="at-skel" style={{ width: "56px", height: "56px", borderRadius: "12px" }} />
-              <div style={{ flex: 1 }}>
-                <div className="at-skel" style={{ height: "12px", width: `${40 + (i % 3) * 12}%`, marginBottom: "8px" }} />
-                <div className="at-skel" style={{ height: "10px", width: "26%" }} />
-              </div>
-              <div className="at-skel" style={{ height: "22px", width: "70px", borderRadius: "20px" }} />
-            </div>
-          ))
-        ) : loadError ? (
-          <div style={{ padding: "48px", textAlign: "center" }}>
-            <div style={{ fontSize: "14px", color: "#E8242A", fontWeight: 600, marginBottom: "8px" }}>Failed to load products</div>
-            <div style={{ fontSize: "12px", color: "#aaa", maxWidth: "480px", margin: "0 auto 16px" }}>{loadError}</div>
-            <button onClick={() => load()} style={primaryBtn}>Retry</button>
-          </div>
-        ) : products.length === 0 ? (
-          <div style={{ padding: "64px 24px", textAlign: "center" }}>
-            <div style={{ width: "56px", height: "56px", borderRadius: "16px", background: "#F4F4F5", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 14px", fontSize: "24px" }}>👕</div>
-            <div style={{ fontSize: "15px", color: "#1A1A1A", fontWeight: 700, marginBottom: "4px" }}>
-              {search || statusFilter ? "No products match your filters" : "No products yet"}
-            </div>
-            <div style={{ fontSize: "13px", color: "#7A7880", marginBottom: "18px" }}>
-              {search || statusFilter ? "Try a different search, or clear the filters to see everything." : "Add your first product to start selling."}
-            </div>
-            {search || statusFilter ? (
-              <button onClick={() => { setSearch(""); setStatusFilter(""); }} style={ghostBtn}>Clear filters</button>
-            ) : (
-              <button onClick={() => router.push("/admin/products/new")} style={primaryBtn}>+ Add product</button>
-            )}
-          </div>
-        ) : products.map(product => {
-          const tone = statusTone(product.status);
-          const stock = totalInventory(product);
-          const checked = selectedIds.includes(product.id);
-          const meta = [product.product_type, product.vendor].filter(Boolean).join(" · ");
-          const category = [product.fabric, product.product_code, product.weight].filter(Boolean).join(" · ") || product.categories?.[0]?.name || "Apparel";
+      <nav className="pc-tabs" aria-label="Status" style={{ marginBottom: "14px" }} data-status-tabs>
+        {STATUSES.map(([value, label]) => {
+          const n = counts ? (value ? counts[value as "active"] : counts.all) : null;
           return (
-            <div
-              key={product.id}
-              onClick={() => openProduct(product.slug)}
-              style={{ display: "flex", alignItems: "center", gap: "14px", padding: "12px 18px", borderBottom: "1px solid #F4F4F4", cursor: "pointer", background: checked ? "#FAFAF7" : "#fff", transition: "background .15s", flexWrap: "wrap" }}
-              onMouseEnter={e => { if (!checked) e.currentTarget.style.background = "#FAFAFA"; }}
-              onMouseLeave={e => { e.currentTarget.style.background = checked ? "#FAFAF7" : "#fff"; }}
-            >
-              <span onClick={e => e.stopPropagation()} style={{ display: "flex" }}>
-                <input
-                  type="checkbox"
-                  aria-label={`Select ${product.name}`}
-                  checked={checked}
-                  onChange={e => {
-                    if (e.target.checked) setSelectedIds(prev => [...prev, product.id]);
-                    else setSelectedIds(prev => prev.filter(id => id !== product.id));
-                  }}
-                />
-              </span>
-              <div style={{ width: "56px", height: "56px", borderRadius: "12px", overflow: "hidden", background: "#F4F2EE", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                {product.images?.[0] ? (
-                  <img src={product.images[0].url_thumbnail} alt={product.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                ) : (
-                  <span style={{ fontSize: "20px", opacity: 0.4 }}>👕</span>
-                )}
-              </div>
-              <div style={{ flex: "1 1 220px", minWidth: 0 }}>
-                <div style={{ fontWeight: 700, fontSize: "14px", color: "#1A1A1A", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{product.name}</div>
-                <div style={{ fontSize: "12px", color: "#8A8890", marginTop: "3px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                  {category}{meta ? ` · ${meta}` : ""}
-                </div>
-              </div>
-              <div style={{ flex: "0 0 150px", textAlign: "right" }}>
-                <div style={{ fontSize: "13px", fontWeight: 700, color: stock > 0 ? "#1A1A1A" : "#9A98A0" }}>{stock.toLocaleString()} in stock</div>
-                <div style={{ fontSize: "11px", color: "#9A98A0", marginTop: "2px" }}>{product.variants?.length || 0} variants</div>
-              </div>
-              <span style={{ flex: "0 0 auto", padding: "5px 11px", borderRadius: "20px", fontSize: "11px", fontWeight: 700, background: tone.bg, color: tone.fg, minWidth: "72px", textAlign: "center" }}>
-                {tone.label}
-              </span>
-              <span aria-hidden style={{ color: "#C4C2C8", fontSize: "18px", flex: "0 0 auto" }}>›</span>
-            </div>
+            <Link key={value || "all"} href={`${pathname}?${(() => { const p = new URLSearchParams(params.toString()); if (value) p.set("status", value); else p.delete("status"); p.delete("page"); return p.toString(); })()}`}
+              className="pc-tab" data-on={status === value ? "" : undefined} aria-current={status === value ? "page" : undefined} data-status-tab={value || "all"} scroll={false}>
+              {label}{n ? <span className="pc-tab-count">{n}</span> : null}
+            </Link>
           );
         })}
+      </nav>
 
-        {/* Pagination */}
-        <div style={{ padding: "12px 18px", display: "flex", justifyContent: "space-between", alignItems: "center", background: "#FCFCFC" }}>
-          <span style={{ fontSize: "13px", color: "#7A7880" }}>{products.length} products</span>
-          <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
-            <button disabled={page === 1} onClick={() => setPage(p => p - 1)} style={{ ...pageBtn, opacity: page === 1 ? 0.4 : 1 }}>← Prev</button>
-            <span style={{ padding: "6px 12px", fontSize: "13px", fontWeight: 600 }}>Page {page}</span>
-            <button disabled={products.length < pageSize} onClick={() => setPage(p => p + 1)} style={{ ...pageBtn, opacity: products.length < pageSize ? 0.4 : 1 }}>Next →</button>
-          </div>
+      {(chosen.length > 0 || working) && (
+        <div className="pc-bulk" role="toolbar" aria-label="Selected products">
+          <span className="pc-bulk-n">{working || `${chosen.length} selected`}</span>
+          <button type="button" disabled={!!working} onClick={() => bulk("active")}>Set active</button>
+          <button type="button" disabled={!!working} onClick={() => bulk("draft")}>Set draft</button>
+          <button type="button" disabled={!!working} onClick={() => bulk("archived")}>Archive</button>
+          <button type="button" disabled={!!working} onClick={openEdit}>Edit details</button>
+          <button type="button" disabled={!!working} onClick={bulkDelete}>Delete</button>
+          <button type="button" className="pc-bulk-clear" disabled={!!working} onClick={() => setPicked(new Set())}>Clear</button>
         </div>
-      </div>
-
-      {/* Import Modal */}
-      {showImport && (
-        <ImportProductsModal
-          onClose={() => setShowImport(false)}
-          onSuccess={() => { setShowImport(false); load(); }}
-        />
       )}
 
-      {/* Bulk Edit Modal */}
-      {showBulkEdit && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <div style={{ background: "#fff", borderRadius: "12px", width: "90%", maxWidth: "960px", maxHeight: "80vh", overflow: "auto", boxShadow: "0 20px 60px rgba(0,0,0,.2)" }}>
-            <div style={{ padding: "20px 24px", borderBottom: "1px solid #E3E3E3", display: "flex", justifyContent: "space-between", alignItems: "center", position: "sticky", top: 0, background: "#fff", zIndex: 1 }}>
-              <h2 style={{ fontFamily: "var(--font-bebas)", fontSize: "24px", color: "#2A2830", letterSpacing: "-0.01em" }}>
-                BULK EDIT — {selectedIds.length} PRODUCTS
-              </h2>
-              <button onClick={() => setShowBulkEdit(false)} style={{ background: "none", border: "none", fontSize: "22px", cursor: "pointer", color: "#aaa" }}>✕</button>
-            </div>
-
-            <div style={{ padding: "20px 24px" }}>
-              <p style={{ fontSize: "12px", color: "#7A7880", marginBottom: "12px" }}>
-                💡 Tip: You can paste rows from Excel/Sheets (columns: Vendor, Type) directly into the table cells.
-              </p>
-              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
-                <thead>
-                  <tr style={{ background: "#F6F6F7", borderBottom: "1px solid #E3E3E3" }}>
-                    {["Product", "Status", "Vendor", "Type"].map(h => (
-                      <th key={h} style={thStyle}>{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody
-                  onPaste={e => {
-                    // Support pasting tab-separated data from Excel/Sheets
-                    const text = e.clipboardData.getData("text");
-                    if (!text.includes("\t") && !text.includes("\n")) return;
-                    e.preventDefault();
-                    const lines = text.trim().split("\n");
-                    lines.forEach((line, i) => {
-                      const product = selectedProducts[i];
-                      if (!product) return;
-                      const cols = line.split("\t");
-                      const updates: Record<string, string> = {};
-                      if (cols[0] !== undefined) updates.vendor = cols[0]!.trim();
-                      if (cols[1] !== undefined) updates.product_type = cols[1]!.trim();
-                      setBulkEdits(prev => ({
-                        ...prev,
-                        [product.id]: { ...(prev[product.id] ?? {}), ...updates },
-                      }));
-                    });
-                  }}
-                >
-                  {selectedProducts.map(p => (
-                    <tr key={p.id} style={{ borderBottom: "1px solid #F6F6F7" }}>
-                      <td style={{ padding: "10px 12px", fontWeight: 600, fontSize: "13px", color: "#2A2830" }}>{p.name}</td>
-                      <td style={{ padding: "10px 12px" }}>
-                        <select
-                          value={bulkEdits[p.id]?.status ?? p.status}
-                          onChange={e => setBulkEdit(p.id, "status", e.target.value)}
-                          style={{ padding: "6px 10px", border: "1px solid #E3E3E3", borderRadius: "6px", fontSize: "12px" }}
-                        >
-                          <option value="active">Active</option>
-                          <option value="draft">Draft</option>
-                          <option value="archived">Archived</option>
-                        </select>
+      <div className="pc-card" data-shown={shownFor ?? undefined} aria-busy={!loaded} data-catalog>
+        {loadError ? (
+          <div className="pc-empty">{loadError} <button type="button" className="pc-link" onClick={() => void load()}>Try again</button></div>
+        ) : !data ? (
+          <div className="pc-empty">Loading products…</div>
+        ) : rows.length === 0 ? (
+          <div className="pc-empty">
+            {q || kind || attention || status ? "No product matches these filters." : <>No products yet. <Link href="/admin/products/new" className="pc-link">Add your first product</Link></>}
+          </div>
+        ) : (
+          <div className="pc-scroll-x">
+            <table className="pc-table" style={{ minWidth: "940px" }}>
+              <thead>
+                <tr>
+                  <th className="pc-td-check"><input type="checkbox" className="pc-check" aria-label="Select all on this page" checked={allPicked}
+                    onChange={(e) => setPicked(e.target.checked ? new Set(rows.map((r) => r.id)) : new Set())} /></th>
+                  <th>Product</th><th>Type</th><th>Status</th><th>Price from</th><th>Stock</th><th>Needs attention</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((r) => {
+                  const [sLabel, sTone] = STATUS_PILL[r.status] ?? [r.status, ""];
+                  return (
+                    <tr key={r.id} data-href data-product={r.slug} data-selected={picked.has(r.id) ? "" : undefined}
+                      onClick={() => router.push(`/admin/products/${r.slug}/edit`)}>
+                      <td className="pc-td-check" onClick={(e) => e.stopPropagation()}>
+                        <input type="checkbox" className="pc-check" aria-label={`Select ${r.name}`} checked={picked.has(r.id)}
+                          onChange={(e) => setPicked((cur) => { const n = new Set(cur); if (e.target.checked) n.add(r.id); else n.delete(r.id); return n; })} />
                       </td>
-                      <td style={{ padding: "10px 12px" }}>
-                        <input
-                          value={bulkEdits[p.id]?.vendor ?? (p.vendor ?? "")}
-                          onChange={e => setBulkEdit(p.id, "vendor", e.target.value)}
-                          placeholder="Vendor"
-                          style={{ padding: "6px 8px", border: "1px solid #E3E3E3", borderRadius: "6px", fontSize: "12px", width: "120px" }}
-                        />
+                      <td>
+                        <div style={{ display: "flex", alignItems: "center", gap: "12px", minWidth: 0 }}>
+                          {r.image
+                            // eslint-disable-next-line @next/next/no-img-element
+                            ? <img src={r.image} alt="" className="pc-thumb" style={{ width: "40px", height: "40px", objectFit: "cover" }} onError={(e) => { e.currentTarget.style.visibility = "hidden"; }} />
+                            : <span className="pc-thumb" style={{ width: "40px", height: "40px", background: "#EEF1F5", display: "inline-block" }} aria-hidden />}
+                          <span style={{ minWidth: 0 }}>
+                            <Link href={`/admin/products/${r.slug}/edit`} className="pc-row-title" onClick={(e) => e.stopPropagation()}>{r.name}</Link>
+                            {r.product_code && <span className="pc-sub-line" style={{ display: "block", fontSize: "12.5px", marginTop: "1px" }}>{r.product_code}</span>}
+                          </span>
+                        </div>
                       </td>
-                      <td style={{ padding: "10px 12px" }}>
-                        <input
-                          value={bulkEdits[p.id]?.product_type ?? (p.product_type ?? "")}
-                          onChange={e => setBulkEdit(p.id, "product_type", e.target.value)}
-                          placeholder="Type"
-                          style={{ padding: "6px 8px", border: "1px solid #E3E3E3", borderRadius: "6px", fontSize: "12px", width: "120px" }}
-                        />
+                      <td style={{ color: "var(--pc-ink-2, var(--pc-ink))" }}>{KIND_WORDS[r.kind]}</td>
+                      <td><span className="pc-pill" data-tone={sTone || undefined}>{sLabel}</span></td>
+                      <td>{price(r.price_from)}</td>
+                      <td>{r.stock.tone ? <span className="pc-pill" data-tone={r.stock.tone}>{r.stock.label}</span> : <span style={{ color: "var(--pc-muted)" }}>{r.stock.label}</span>}</td>
+                      <td>
+                        <span className="pc-pills">
+                          {r.attention.slice(0, 2).map((a) => <span key={a} className="pc-pill" data-tone={a === "Draft" ? "amber" : "red"}>{a}</span>)}
+                          {r.attention.length > 2 && <span className="pc-pill" title={r.attention.slice(2).join(", ")}>+{r.attention.length - 2}</span>}
+                        </span>
                       </td>
                     </tr>
-                  ))}
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+        {data && data.total > 0 && (
+          <div className="pc-table-foot" data-total={data.total}>
+            <span>Showing {first}–{Math.min(first + rows.length - 1, data.total)} of {data.total}</span>
+            <span style={{ display: "flex", gap: "8px" }}>
+              <button type="button" className="pc-btn" disabled={page <= 1} onClick={() => setParams({ page: String(page - 1) })}>Previous</button>
+              <button type="button" className="pc-btn" disabled={first + rows.length - 1 >= data.total} onClick={() => setParams({ page: String(page + 1) })}>Next</button>
+            </span>
+          </div>
+        )}
+      </div>
+
+      {importing && (
+        <ImportProductsModal onClose={() => setImporting(false)} onSuccess={() => { setImporting(false); void load(); }} />
+      )}
+
+      {editing && (
+        <div className="pc-modal-back" onMouseDown={(e) => { if (e.target === e.currentTarget && !working) setEditing(null); }}>
+          <div className="pc-modal" role="dialog" aria-label="Edit details" style={{ width: "min(860px, 100%)" }}>
+            <div className="pc-panel-head">
+              <div>
+                <h2 className="pc-h2">Edit details</h2>
+                <div className="pc-sub-line">{Object.keys(editing).length === 1 ? "1 product" : `${Object.keys(editing).length} products`}</div>
+              </div>
+              <button type="button" className="pc-x" aria-label="Close" onClick={() => setEditing(null)}><X size={18} /></button>
+            </div>
+            <div className="pc-scroll-x">
+              <table className="pc-table" style={{ minWidth: "640px" }}>
+                <thead><tr><th>Product</th><th>Status</th><th>Vendor</th><th>Product type</th></tr></thead>
+                <tbody>
+                  {chosen.map((r) => {
+                    const v = editing[r.id] ?? { status: r.status, vendor: "", product_type: "" };
+                    const set = (k: "status" | "vendor" | "product_type", val: string) => setEditing((cur) => (cur ? { ...cur, [r.id]: { ...v, [k]: val } } : cur));
+                    return (
+                      <tr key={r.id}>
+                        <td style={{ fontWeight: 600 }}>{r.name}</td>
+                        <td><select className="pc-input" value={v.status} onChange={(e) => set("status", e.target.value)} aria-label={`Status of ${r.name}`}>
+                          <option value="active">Active</option><option value="draft">Draft</option><option value="archived">Archived</option>
+                        </select></td>
+                        <td><input className="pc-input" value={v.vendor} onChange={(e) => set("vendor", e.target.value)} aria-label={`Vendor of ${r.name}`} /></td>
+                        <td><input className="pc-input" value={v.product_type} onChange={(e) => set("product_type", e.target.value)} aria-label={`Product type of ${r.name}`} /></td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
-
-            <div style={{ padding: "16px 24px", borderTop: "1px solid #E3E3E3", display: "flex", gap: "10px", justifyContent: "flex-end", position: "sticky", bottom: 0, background: "#fff" }}>
-              <button
-                onClick={() => setShowBulkEdit(false)}
-                style={{ padding: "10px 20px", border: "1px solid #E3E3E3", borderRadius: "6px", background: "#fff", cursor: "pointer", fontWeight: 600, fontSize: "13px" }}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleBulkSave}
-                style={{ padding: "10px 20px", background: "#1A1A1A", color: "#fff", border: "none", borderRadius: "6px", cursor: "pointer", fontWeight: 700, fontSize: "13px" }}
-              >
-                Save Changes
-              </button>
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px", padding: "16px 20px" }}>
+              <button type="button" className="pc-btn" onClick={() => setEditing(null)} disabled={!!working}>Cancel</button>
+              <button type="button" className="pc-btn" data-kind="primary" onClick={saveEdit} disabled={!!working}>{working || "Save"}</button>
             </div>
           </div>
         </div>
       )}
-    </div>
+    </ProductsFrame>
   );
 }

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { adminService } from "@/services/admin.service";
 import { StockAdjustmentModal } from "@/components/admin/StockAdjustmentModal";
+import { ProductsFrame } from "@/components/admin/products/ProductsFrame";
 
 interface InventoryRow {
   variant_id: string;
@@ -28,7 +29,7 @@ function exportInventoryToCsv(rows: InventoryRow[]) {
   URL.revokeObjectURL(url);
 }
 
-export default function AdminInventoryPage() {
+function AdminInventoryPageBody() {
   const [rows, setRows] = useState<InventoryRow[]>([]);
   const [lowStockOnly, setLowStockOnly] = useState(false);
   const [adjustTarget, setAdjustTarget] = useState<InventoryRow | null>(null);
@@ -176,5 +177,15 @@ export default function AdminInventoryPage() {
         />
       )}
     </div>
+  );
+}
+
+
+/** This screen as one of the Products tabs (components/admin/products/ProductsFrame). */
+export default function AdminInventoryPage() {
+  return (
+    <ProductsFrame active="inventory">
+      <AdminInventoryPageBody />
+    </ProductsFrame>
   );
 }

@@ -21,6 +21,8 @@ const push = vi.fn();
 vi.mock("next/navigation", () => ({
   useParams: () => ({ slug: "heavyweight-tee" }),
   useRouter: () => ({ push, back: vi.fn(), replace: vi.fn(), refresh: vi.fn() }),
+  usePathname: () => "/admin/products/heavyweight-tee/edit",
+  useSearchParams: () => new URLSearchParams(),
 }));
 vi.mock("next/dynamic", () => ({ default: () => () => null }));
 vi.mock("@/components/admin/VariantOptionsEditor", () => ({ VariantOptionsEditor: () => null }));
@@ -113,10 +115,12 @@ describe("a shop on the Website builder", () => {
     render(<EditProductPage />);
     await loaded();
     await waitFor(() => expect(websiteCard()).not.toBeNull());
+    // Saving is offered once something has changed: here, the title.
+    fireEvent.change(screen.getByDisplayValue("Heavyweight Tee"), { target: { value: "Heavyweight Tee 2" } });
     fireEvent.click(screen.getAllByRole("button", { name: "Save" })[0]!);
     await waitFor(() => expect(updateProduct).toHaveBeenCalled());
     expect(updateProduct.mock.calls[0]![0]).toBe("p-1");
-    expect(updateProduct.mock.calls[0]![1]).toMatchObject({ template_id: "t-care", name: "Heavyweight Tee" });
+    expect(updateProduct.mock.calls[0]![1]).toMatchObject({ template_id: "t-care", name: "Heavyweight Tee 2" });
   });
 });
 
