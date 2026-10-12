@@ -622,8 +622,10 @@ function OrdersTab({ openId }: { openId?: string | null }) {
                   <tr key={o.id} style={{ borderBottom: "1px solid #F1EFEB" }}>
                     <td style={{ padding: "11px 14px", fontWeight: 700 }}>{o.reference}</td>
                     <td style={{ padding: "11px 14px", whiteSpace: "nowrap" }}>
-                      {o.order_id && o.order_number ? (
-                        <a href={`/admin/orders/${o.order_id}`} style={{ color: "#1A1A1A", fontWeight: 700, textDecoration: "none" }}>#{o.order_number}</a>
+                      {o.order_id ? (
+                        <a href={`/admin/orders/${o.order_id}`} style={{ color: "#1A1A1A", fontWeight: 700, textDecoration: "none" }}>
+                          {o.order_number ? `#${o.order_number}` : "View order"}
+                        </a>
                       ) : (
                         <span style={{ color: "#9CA3AF" }}>Not checked out</span>
                       )}
