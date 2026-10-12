@@ -951,25 +951,6 @@ class ContactSubmissionIn(BaseModel):
     data: dict[str, Any]
 
 
-def _submission_row(row: Any) -> dict[str, Any]:
-    d = dict(row)
-    data = d.get("data")
-    if isinstance(data, str):
-        try:
-            data = json.loads(data)
-        except Exception:
-            data = {}
-    created = d.get("created_at")
-    return {
-        "id": str(d["id"]),
-        "page_slug": d.get("page_slug"),
-        "form_name": d.get("form_name"),
-        "data": data or {},
-        "is_read": bool(d.get("is_read", False)),
-        "created_at": created.isoformat() if created is not None else None,
-    }
-
-
 @public_router.post("/contact")
 async def submit_contact_form(
     payload: ContactSubmissionIn, request: Request, db: AsyncSession = Depends(get_db)
@@ -1004,19 +985,96 @@ async def submit_contact_form(
 
 
 @admin_contact_router.get("")
-async def list_contact_submissions(request: Request, db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
-    """Admin: list this brand's form submissions (newest first) + unread count."""
+async def list_contact_submissions(
+    request: Request, box: str = "all", limit: int = 200, db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Admin: the Inbox (services/inbox.py): this brand's form submissions,
+    newest first, in one box (all, messages, quotes or archived), with each
+    box's count and how many nobody has read."""
+    from app.services import inbox
+
     tenant_id = _resolve_tenant_id(request)
     if not tenant_id:
-        return {"items": [], "unread": 0}
-    res = await db.execute(text("""
-        SELECT id, page_slug, form_name, data, is_read, created_at
-        FROM contact_submissions WHERE tenant_id = :tid
-        ORDER BY created_at DESC LIMIT 500
-    """), {"tid": str(tenant_id)})
-    items = [_submission_row(r) for r in res.mappings().all()]
-    unread = sum(1 for i in items if not i["is_read"])
-    return {"items": items, "unread": unread}
+        return {"items": [], "unread": 0, "counts": {}}
+    return await inbox.listing(db, tenant_id, box=box, limit=limit)
+
+
+class SubmissionChange(BaseModel):
+    read: bool | None = None
+    answered: bool | None = None
+    archived: bool | None = None
+
+
+@admin_contact_router.patch("/{submission_id}")
+async def change_contact_submission(
+    submission_id: uuid.UUID, payload: SubmissionChange, request: Request, db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Mark a message read or not, answered or not, archived or back in the Inbox."""
+    from app.services import inbox
+
+    tenant_id = _resolve_tenant_id(request)
+    if not tenant_id:
+        raise HTTPException(status_code=401, detail="No tenant context")
+    sets = []
+    if payload.read is not None:
+        sets.append("is_read = true" if payload.read else "is_read = false")
+    if payload.answered is not None:
+        sets.append("answered_at = now(), is_read = true" if payload.answered else "answered_at = NULL")
+    if payload.archived is not None:
+        sets.append("archived_at = now(), is_read = true" if payload.archived else "archived_at = NULL")
+    if sets:
+        res = await db.execute(text(
+            f"UPDATE contact_submissions SET {', '.join(sets)} WHERE tenant_id = :tid AND id = :sid"),
+            {"tid": str(tenant_id), "sid": str(submission_id)})
+        if res.rowcount == 0:
+            raise HTTPException(status_code=404, detail="Message not found")
+        await db.commit()
+    found = await inbox.one(db, tenant_id, submission_id)
+    if not found:
+        raise HTTPException(status_code=404, detail="Message not found")
+    return found
+
+
+class SubmissionReply(BaseModel):
+    subject: str
+    body: str
+
+
+@admin_contact_router.post("/{submission_id}/reply")
+async def reply_to_contact_submission(
+    submission_id: uuid.UUID, payload: SubmissionReply, request: Request, db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Answer a message by email, in the brand's name: its replies come back to
+    the brand's own address. The message is then answered."""
+    from html import escape
+
+    from app.services import inbox
+    from app.services.email_service import EmailService
+
+    tenant_id = _resolve_tenant_id(request)
+    if not tenant_id:
+        raise HTTPException(status_code=401, detail="No tenant context")
+    found = await inbox.one(db, tenant_id, submission_id)
+    if not found:
+        raise HTTPException(status_code=404, detail="Message not found")
+    to = found["from"]["email"]
+    if not to:
+        raise HTTPException(status_code=422, detail="This message has no email address to reply to.")
+    subject, body = payload.subject.strip(), payload.body.strip()
+    if not subject or not body:
+        raise HTTPException(status_code=422, detail="Write a subject and a reply.")
+    quoted = found["from"]["message"]
+    html = inbox.reply_html(body) + (
+        "<p style='font-size:12px;color:#888;border-left:3px solid #ddd;padding-left:10px;margin-top:22px'>"
+        f"You wrote: {escape(quoted[:1200])}</p>" if quoted else "")
+    sent = EmailService(db).send_raw(to_email=to, subject=subject[:200], body_html=EmailService._base_template(html))
+    if not sent:
+        raise HTTPException(status_code=502, detail="The reply did not send. Nothing was marked answered; try again.")
+    await db.execute(text(
+        "UPDATE contact_submissions SET answered_at = now(), is_read = true WHERE tenant_id = :tid AND id = :sid"),
+        {"tid": str(tenant_id), "sid": str(submission_id)})
+    await db.commit()
+    return await inbox.one(db, tenant_id, submission_id) or found
 
 
 @admin_contact_router.patch("/{submission_id}/read")

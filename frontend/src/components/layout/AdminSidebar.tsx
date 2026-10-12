@@ -82,7 +82,7 @@ export function AdminSidebar() {
   // after they are read and picks up new ones as the admin moves around.
   useEffect(() => {
     if (!can("customers")) return;
-    contactService.list().then((r) => setUnreadMsgs(r.unread || 0)).catch(() => {});
+    contactService.list("all", 1).then((r) => setUnreadMsgs(r.unread || 0)).catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname, user?.role]);
 

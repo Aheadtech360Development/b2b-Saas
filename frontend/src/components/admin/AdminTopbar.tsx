@@ -43,7 +43,7 @@ export function AdminTopbar() {
 
   useEffect(() => {
     if (!can("customers")) return;
-    contactService.list().then((r) => setUnread(r.unread || 0)).catch(() => {});
+    contactService.list("all", 1).then((r) => setUnread(r.unread || 0)).catch(() => {});
   }, [pathname, can]);
 
   useEffect(() => { setMenu(false); setFinding(false); }, [pathname]);
