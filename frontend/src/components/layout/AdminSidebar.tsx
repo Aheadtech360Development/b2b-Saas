@@ -137,7 +137,6 @@ export function AdminSidebar() {
         { href: "/admin/reports", label: "Overview" },
         { href: "/admin/reports/sales", label: "Sales" },
         { href: "/admin/reports/customers", label: "Customers" },
-        { href: "/admin/reports/inventory", label: "Inventory" },
         { href: "/admin/analytics", label: "Analytics" },
       ],
     },

@@ -554,3 +554,9 @@
 @media (max-width: 768px) {
   [data-open-message] .pc-form2 { grid-template-columns: minmax(0, 1fr) !important; }
 }
+
+/* ── A drawer from the right (Inventory's Adjust) ───────────────────────── */
+.pc-drawer-back { position: fixed; inset: 0; z-index: 95; background: rgba(12, 31, 63, .32); display: flex; justify-content: flex-end; }
+.pc-drawer { width: min(460px, 100%); height: 100%; overflow-y: auto; background: #fff; box-shadow: -16px 0 40px rgba(12, 31, 63, .22); }
+.pc-drawer .pc-panel-head { position: sticky; top: 0; background: #fff; z-index: 1; }
+[data-inventory] .pc-pill { text-transform: none; min-width: 28px; justify-content: center; }

@@ -22,9 +22,11 @@ const TABS: { key: ProductsTab; label: string; href: string }[] = [
 ];
 
 export function ProductsFrame({
-  active, count, actions, sub = "What you sell. Pick a type, set a price, publish.", children,
+  active, count, actions, title = "Products", sub = "What you sell. Pick a type, set a price, publish.", children,
 }: {
   active: ProductsTab;
+  /** The screen's own name: Products, or the tab's (Inventory, Gang sheet setup). */
+  title?: string;
   /** The catalog's own count, beside its tab. */
   count?: number | null;
   actions?: ReactNode;
@@ -36,7 +38,7 @@ export function ProductsFrame({
       <div className="pc-head">
         <div>
           <div className="pc-eyebrow">Products</div>
-          <h1 className="pc-h1">Products</h1>
+          <h1 className="pc-h1">{title}</h1>
           <p className="pc-sub-line">{sub}</p>
         </div>
         {actions && <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>{actions}</div>}

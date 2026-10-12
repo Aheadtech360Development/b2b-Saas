@@ -13,7 +13,16 @@ def test_the_parts_are_found_under_the_labels_forms_use():
                         "Quantity": "500", "Empty": "  "})
     assert (who["name"], who["email"], who["company"], who["phone"], who["message"]) == (
         "Rob Castellanos", "rob@example.com", "Rob's Tees", "555-0101", "500 DTF transfers")
-    assert who["fields"] == [{"label": "Quantity", "value": "500"}]
+    # The quote form's own fields are said the way a person reads them.
+    assert who["fields"] == [{"label": "How many", "value": "500"}]
+
+
+def test_the_storefront_quote_form_sends_its_fields_by_name():
+    who = inbox.sender({"name": "Quinn", "email": "q@example.com", "phone": "555", "company": "Parker Print",
+                        "product": "DTF transfers", "quantity": "300", "deadline": "Friday", "message": "Thanks"})
+    assert (who["name"], who["company"], who["message"]) == ("Quinn", "Parker Print", "Thanks")
+    assert who["fields"] == [{"label": "What to print", "value": "DTF transfers"},
+                             {"label": "How many", "value": "300"}, {"label": "Needed by", "value": "Friday"}]
 
 
 def test_an_address_under_an_odd_label_is_still_the_address():
