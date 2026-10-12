@@ -394,6 +394,23 @@
 .pc-rowlink-sub { display: block; font-size: 12.5px; color: var(--pc-muted); margin-top: 2px; overflow-wrap: anywhere; }
 [data-gang-sheets] .pc-pill { text-transform: none; }
 
+/* Old screens inside the new admin drew their main buttons black, inline
+   (#1A1A1A). Until each is redone, they take the admin's own blue here: one rule
+   instead of fifty files. React writes the colour as rgb() when it draws a
+   button in the browser and as written when the server does, so both forms. */
+.pc-admin :is(button, a, label, label > span)[style*="background: rgb(26, 26, 26)"],
+.pc-admin :is(button, a, label, label > span)[style*="background-color: rgb(26, 26, 26)"],
+.pc-admin :is(button, a, label, label > span)[style*="background:#1A1A1A" i],
+.pc-admin :is(button, a, label, label > span)[style*="background: #1A1A1A" i],
+.pc-admin :is(button, a).bg-black, .pc-admin :is(button, a).bg-gray-900, .pc-admin :is(button, a).bg-gray-800 {
+  background: var(--pc-blue) !important;
+  border-color: var(--pc-blue) !important;
+  color: #fff !important;
+  font-family: var(--pc-sans) !important;
+}
+.pc-admin :is(button, a)[style*="background: rgb(26, 26, 26)"]:hover:not(:disabled),
+.pc-admin :is(button, a)[style*="background:#1A1A1A" i]:hover:not(:disabled) { background: var(--pc-blue-dark) !important; }
+
 /* The list's button, smaller than a card's. */
 .pc-admin .pc-list-action .pc-btn { height: 34px; padding: 0 12px; font-size: 13px; }
 

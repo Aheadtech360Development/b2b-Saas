@@ -19,11 +19,21 @@ import {
   type GangSheetSettings,
 } from "@/services/gangSheets.service";
 
+// The new admin's look (admin-shell.css tokens), for the tabs not redone yet.
 const CARD: React.CSSProperties = {
   background: "#fff",
-  border: "1px solid #E8E6E1",
-  borderRadius: "10px",
+  border: "1px solid var(--pc-line)",
+  borderRadius: "12px",
   padding: "20px",
+};
+/** A section's title, in the admin's display font. */
+const H2: React.CSSProperties = {
+  fontFamily: "var(--pc-display)",
+  fontSize: "18px",
+  fontWeight: 600,
+  letterSpacing: "-.01em",
+  color: "var(--pc-ink)",
+  margin: 0,
 };
 /** The three ways a brand can sell a gang sheet, named once. */
 type GSType = "gang_sheet" | "upload_by_size" | "upload_own";
@@ -35,30 +45,41 @@ const TYPE_LABEL: Record<string, string> = {
 
 const INPUT: React.CSSProperties = {
   width: "100%",
-  padding: "8px 10px",
-  border: "1px solid #E3E3E3",
-  borderRadius: "6px",
-  fontSize: "13px",
+  padding: "10px 12px",
+  border: "1px solid var(--pc-line)",
+  borderRadius: "8px",
+  fontSize: "14px",
+  fontFamily: "inherit",
+  color: "var(--pc-ink)",
+  background: "#fff",
+  boxSizing: "border-box",
 };
 const LABEL: React.CSSProperties = {
   display: "block",
-  fontSize: "11px",
-  fontWeight: 700,
-  color: "#6B6B6B",
-  textTransform: "uppercase",
-  letterSpacing: ".05em",
-  marginBottom: "4px",
-};
-const BTN: React.CSSProperties = {
-  background: "#1A1A1A",
-  color: "#fff",
-  border: "none",
-  padding: "9px 16px",
-  borderRadius: "6px",
-  fontSize: "13px",
+  fontSize: "13.5px",
   fontWeight: 600,
-  cursor: "pointer",
+  color: "var(--pc-ink)",
+  marginBottom: "6px",
 };
+/** The admin's main button: the theme's blue. */
+const BTN: React.CSSProperties = {
+  background: "var(--pc-blue)",
+  color: "#fff",
+  border: "1px solid var(--pc-blue)",
+  padding: "0 16px",
+  height: "42px",
+  borderRadius: "8px",
+  fontSize: "14px",
+  fontWeight: 600,
+  fontFamily: "inherit",
+  cursor: "pointer",
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  gap: "6px",
+};
+/** The admin's plain button: white, the ink's colour. */
+const BTN_LIGHT: React.CSSProperties = { ...BTN, background: "#fff", color: "var(--pc-ink)", border: "1px solid var(--pc-line)" };
 
 const EMPTY_SIZE = {
   name: "",
@@ -322,7 +343,7 @@ function SetupTab() {
   return (
     <div style={{ maxWidth: "760px" }}>
       <div style={{ ...CARD, marginBottom: "16px" }}>
-        <h2 style={{ fontSize: "16px", fontWeight: 800, margin: "0 0 4px" }}>Get your gang-sheet builder ready</h2>
+        <h2 style={{ ...H2, margin: "0 0 4px" }}>Get your gang-sheet builder ready</h2>
         <p style={{ fontSize: "13px", color: "#6B6B6B", margin: 0 }}>Complete these steps to start selling custom gang sheets. The ticks update automatically as you go.</p>
       </div>
 
@@ -516,7 +537,7 @@ function ProductEditor({ product, onBack, onGoToSizes }: { product: GangSheetPro
     <div>
       <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "16px", flexWrap: "wrap" }}>
         <button onClick={onBack} style={{ background: "none", border: "none", fontSize: "18px", cursor: "pointer", color: "#6B6B6B" }}>←</button>
-        <h2 style={{ fontSize: "18px", fontWeight: 800, margin: 0 }}>{product.name}</h2>
+        <h2 style={{ ...H2, fontSize: "20px" }}>{product.name}</h2>
         <div style={{ flex: 1 }} />
         {msg && <span style={{ fontSize: "13px", fontWeight: 600, color: msg.ok ? "#166534" : "#B91C1C" }}>{msg.text}</span>}
         <button onClick={save} disabled={saving} style={BTN}>{saving ? "Saving…" : "Save"}</button>
@@ -534,8 +555,8 @@ function ProductEditor({ product, onBack, onGoToSizes }: { product: GangSheetPro
       {type === "gang_sheet" ? (
         <div style={{ ...CARD }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px", flexWrap: "wrap", gap: "8px" }}>
-            <div style={{ fontSize: "14px", fontWeight: 700 }}>Sizes &amp; Prices</div>
-            <button onClick={addStandardFeet} style={{ ...BTN, background: "#fff", color: "#1A1A1A", border: "1px solid #E3E3E3" }}>
+            <div style={H2}>Sizes &amp; Prices</div>
+            <button onClick={addStandardFeet} style={BTN_LIGHT}>
               + Add standard sizes (2–20 ft)
             </button>
           </div>
@@ -802,8 +823,8 @@ function SizesTab() {
 
       <div style={{ ...CARD, marginBottom: "18px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px", flexWrap: "wrap", gap: "8px" }}>
-          <div style={{ fontSize: "14px", fontWeight: 700 }}>Add a sheet size</div>
-          <button onClick={seedStandard} disabled={busy} style={{ ...BTN, background: "#fff", color: "#1A1A1A", border: "1px solid #E3E3E3" }}>
+          <div style={H2}>Add a sheet size</div>
+          <button onClick={seedStandard} disabled={busy} style={BTN_LIGHT}>
             + Add 7 standard DTF sizes
           </button>
         </div>
@@ -815,8 +836,8 @@ function SizesTab() {
             {([["fixed", "Fixed size & price"], ["custom_length", "Custom length (per inch)"]] as const).map(([mode, lbl]) => (
               <button key={mode} type="button" onClick={() => setDraft({ ...draft, pricing_mode: mode })}
                 style={{ padding: "8px 14px", borderRadius: "8px", fontSize: "13px", fontWeight: 600, cursor: "pointer",
-                  border: "1px solid " + (draft.pricing_mode === mode ? "#1A1A1A" : "#E3E3E3"),
-                  background: draft.pricing_mode === mode ? "#1A1A1A" : "#fff",
+                  border: "1px solid " + (draft.pricing_mode === mode ? "var(--pc-blue)" : "var(--pc-line)"),
+                  background: draft.pricing_mode === mode ? "var(--pc-blue)" : "#fff",
                   color: draft.pricing_mode === mode ? "#fff" : "#555" }}>
                 {lbl}
               </button>
@@ -911,7 +932,7 @@ function SizesTab() {
                       </td>
                       <td style={cell} />
                       <td style={{ ...cell, textAlign: "right", whiteSpace: "nowrap" }}>
-                        <button disabled={busy} onClick={() => saveEdit(s.id)} style={{ background: "#1A1A1A", color: "#fff", border: "none", padding: "5px 12px", borderRadius: "6px", fontSize: "12px", fontWeight: 700, cursor: "pointer", marginRight: "6px" }}>Save</button>
+                        <button disabled={busy} onClick={() => saveEdit(s.id)} style={{ background: "var(--pc-blue)", color: "#fff", border: "none", padding: "5px 12px", borderRadius: "6px", fontSize: "12px", fontWeight: 700, cursor: "pointer", marginRight: "6px" }}>Save</button>
                         <button onClick={() => setEditId(null)} style={{ background: "none", border: "none", color: "#666", cursor: "pointer", fontSize: "12px" }}>Cancel</button>
                       </td>
                     </tr>
@@ -935,7 +956,7 @@ function SizesTab() {
                       </button>
                     </td>
                     <td style={{ padding: "11px 14px", textAlign: "right", whiteSpace: "nowrap" }}>
-                      <button onClick={() => startEdit(s)} style={{ background: "none", border: "none", color: "#1A1A1A", cursor: "pointer", fontSize: "12px", fontWeight: 700, marginRight: "12px" }}>Edit</button>
+                      <button onClick={() => startEdit(s)} style={{ background: "none", border: "none", color: "var(--pc-blue)", cursor: "pointer", fontSize: "12px", fontWeight: 700, marginRight: "12px" }}>Edit</button>
                       <button onClick={() => remove(s)} style={{ background: "none", border: "none", color: "#B91C1C", cursor: "pointer", fontSize: "12px" }}>Delete</button>
                     </td>
                   </tr>
@@ -988,7 +1009,7 @@ function SettingsTab() {
   );
   const section = (title: string, children: React.ReactNode) => (
     <div style={{ ...CARD, marginBottom: "16px" }}>
-      <div style={{ fontSize: "14px", fontWeight: 800, marginBottom: "12px" }}>{title}</div>
+      <div style={{ ...H2, marginBottom: "12px" }}>{title}</div>
       {children}
     </div>
   );
@@ -1105,7 +1126,7 @@ function LibraryTab() {
 
   return (
     <div style={CARD}>
-      <div style={{ fontSize: "15px", fontWeight: 700, marginBottom: "4px" }}>Ready-made designs</div>
+      <div style={{ ...H2, marginBottom: "4px" }}>Ready-made designs</div>
       <p style={{ fontSize: "13px", color: "#777", marginBottom: "16px" }}>
         Upload artwork here and it appears in every buyer&apos;s builder under the <strong>Designs</strong> tab, ready to drop onto a sheet.
       </p>
@@ -1117,7 +1138,7 @@ function LibraryTab() {
         </div>
         <label style={{ display: "inline-block" }}>
           <input type="file" multiple accept=".png,.jpg,.jpeg,.webp,.gif,.svg" onChange={(e) => onFiles(e.target.files)} style={{ display: "none" }} />
-          <span style={{ display: "inline-block", background: "#1A1A1A", color: "#fff", padding: "10px 18px", borderRadius: "6px", fontSize: "13px", fontWeight: 700, cursor: "pointer" }}>
+          <span style={{ ...BTN, display: "inline-flex" }}>
             {uploading ? "Uploading…" : "＋ Upload designs"}
           </span>
         </label>
