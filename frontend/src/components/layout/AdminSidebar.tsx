@@ -99,8 +99,8 @@ export function AdminSidebar() {
       also: ["/admin/gang-sheets"],
       children: [
         { href: "/admin/production", label: "Print queue" },
-        // The sheet sizes, prices, builder settings and design library: not redone yet.
-        { href: "/admin/gang-sheets", label: "Gang sheet setup" },
+        // Every sheet job, and the sizes, prices, builder and design library.
+        { href: "/admin/gang-sheets", label: "Gang sheets" },
       ],
     },
     {

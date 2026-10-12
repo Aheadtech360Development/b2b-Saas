@@ -1,16 +1,15 @@
 "use client";
 
+import Link from "next/link";
+import { Suspense, useCallback, useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Search } from "lucide-react";
 import { ask } from "@/lib/dialog";
-import { useCallback, useEffect, useState } from "react";
-import { downloadFile } from "@/lib/download";
 import {
-  GANG_SHEET_STATUS_COLOR,
-  GANG_SHEET_STATUS_LABEL,
   gangSheetsService,
   type GangSheetOrder,
   type GangSheetSize,
   type GangSheetStatus,
-  type GangSheetPlacement,
   type GangSheetLibraryDesign,
   type GangSheetDashboard,
   type GangSheetProduct,
@@ -18,11 +17,7 @@ import {
   type GangSheetConfig,
   type GangSheetTier,
   type GangSheetSettings,
-  type ArtworkInspection,
 } from "@/services/gangSheets.service";
-import { GangSheetCanvas } from "@/components/storefront/GangSheetCanvas";
-import { GangSheetTimeline } from "@/components/storefront/GangSheetTimeline";
-import { openSheetPdf } from "@/lib/gangSheetPdf";
 
 const CARD: React.CSSProperties = {
   background: "#fff",
@@ -109,145 +104,201 @@ const STANDARD_FEET_SIZES = [
 
 interface SizeRow { id?: string; name: string; width_in: number; height_in: number; price_per_sheet: number; }
 
+/** The page's tabs, in the address (?tab=), so a link, Back and a refresh all land on the same one. */
+const TABS = [
+  { key: "dashboard", label: "Dashboard" },
+  { key: "jobs", label: "Print jobs" },
+  { key: "setup", label: "Set up" },
+  { key: "products", label: "Products" },
+  { key: "sizes", label: "Sheet sizes" },
+  { key: "library", label: "Design library" },
+  { key: "settings", label: "Settings" },
+] as const;
+type TabKey = (typeof TABS)[number]["key"];
+
+/** A job's status in the admin's words and tones, the order the work goes in. */
+const JOB_STATUSES: [GangSheetStatus, string, string][] = [
+  ["submitted", "Submitted", ""], ["in_review", "In review", "amber"], ["revision_requested", "Sent back", "red"],
+  ["approved", "Approved", "green"], ["production", "In production", "blue"], ["completed", "Completed", "green"],
+  ["rejected", "Rejected", "red"],
+];
+const jobPill = (s: string): [string, string] => {
+  const hit = JOB_STATUSES.find(([k]) => k === s);
+  return hit ? [hit[1], hit[2]] : [s.replace(/_/g, " "), ""];
+};
+const usd = (n: number) => `$${(Number(n) || 0).toFixed(2)}`;
+const shortDay = (iso: string | null | undefined) => (iso ? new Date(iso).toLocaleDateString() : "–");
+
 export default function AdminGangSheetsPage() {
-  const [tab, setTab] = useState<"dashboard" | "setup" | "products" | "orders" | "sizes" | "library" | "settings">("dashboard");
-  // ?sheet=<id> — an order's "Admin edit" link, from before the Production
+  return (
+    <Suspense fallback={<div className="pc-page"><div className="pc-card pc-empty">Loading gang sheets…</div></div>}>
+      <GangSheetsAdmin />
+    </Suspense>
+  );
+}
+
+function GangSheetsAdmin() {
+  const router = useRouter();
+  const params = useSearchParams();
+  const raw = params.get("tab");
+  // "orders" was this tab's name before; an old link still lands on it.
+  const tab: TabKey = raw === "orders" ? "jobs" : TABS.some((t) => t.key === raw) ? (raw as TabKey) : "dashboard";
+  const status = params.get("status") ?? "";
+
+  // ?sheet=<id> — an order's "Admin edit" link from before the Production
   // screens: that sheet now has a page of its own.
-  const [openSheet, setOpenSheet] = useState<string | null>(null);
   useEffect(() => {
-    const id = new URLSearchParams(window.location.search).get("sheet");
+    const id = params.get("sheet");
     if (id) window.location.replace(`/admin/production/${encodeURIComponent(id)}`);
-  }, []);
-  const TAB_LABEL: Record<string, string> = { dashboard: "Dashboard", setup: "Set up", products: "Products", orders: "Designs", sizes: "Sheet Sizes", library: "Design Library", settings: "Settings" };
+  }, [params]);
+
+  const href = (key: TabKey, s = "") => `/admin/gang-sheets?tab=${key}${s ? `&status=${encodeURIComponent(s)}` : ""}`;
 
   return (
-    <div style={{ padding: "24px", maxWidth: "1100px" }}>
-      <h1 style={{ fontSize: "22px", fontWeight: 800, marginBottom: "4px" }}>Gang Sheets</h1>
-      <p style={{ fontSize: "13px", color: "#6B6B6B", marginBottom: "20px" }}>
-        Review submitted gang sheet jobs and configure the sheet sizes you offer.
-      </p>
-
-      <div style={{ display: "flex", gap: "6px", marginBottom: "18px" }}>
-        {(["dashboard", "setup", "products", "orders", "sizes", "library", "settings"] as const).map((t) => (
-          <button
-            key={t}
-            onClick={() => { setTab(t); setOpenSheet(null); }}
-            style={{
-              padding: "8px 16px",
-              borderRadius: "6px",
-              border: "1px solid " + (tab === t ? "#1A1A1A" : "#E8E6E1"),
-              background: tab === t ? "#1A1A1A" : "#fff",
-              color: tab === t ? "#fff" : "#555",
-              fontSize: "13px",
-              fontWeight: 600,
-              cursor: "pointer",
-            }}
-          >
-            {TAB_LABEL[t]}
-          </button>
-        ))}
+    <div className="pc-page" data-gang-sheets data-tab={tab}>
+      <div className="pc-head">
+        <div>
+          <div className="pc-eyebrow">Production</div>
+          <h1 className="pc-h1">Gang sheets</h1>
+          <p className="pc-sub-line">Every sheet job, and the sizes, prices and builder your customers order from.</p>
+        </div>
+        <Link href="/admin/production" className="pc-btn" data-kind="primary">Open the print queue</Link>
       </div>
 
-      {tab === "dashboard" ? <DashboardTab /> : tab === "setup" ? <SetupTab /> : tab === "products" ? <ProductsTab onGoToSizes={() => setTab("sizes")} /> : tab === "orders" ? <OrdersTab openId={openSheet} /> : tab === "sizes" ? <SizesTab /> : tab === "library" ? <LibraryTab /> : <SettingsTab />}
+      <nav className="pc-tabs" aria-label="Gang sheets">
+        {TABS.map((t) => (
+          <Link key={t.key} href={href(t.key)} className="pc-tab" data-tab={t.key}
+            data-on={tab === t.key ? "" : undefined} aria-current={tab === t.key ? "page" : undefined}>
+            {t.label}
+          </Link>
+        ))}
+      </nav>
+
+      {tab === "dashboard" ? <DashboardTab jobsHref={(s) => href("jobs", s)} />
+        : tab === "jobs" ? <JobsTab status={status} onStatus={(s) => router.replace(href("jobs", s), { scroll: false })} />
+        : tab === "setup" ? <SetupTab />
+        : tab === "products" ? <ProductsTab onGoToSizes={() => router.push(href("sizes"))} />
+        : tab === "sizes" ? <SizesTab />
+        : tab === "library" ? <LibraryTab />
+        : <SettingsTab />}
     </div>
   );
 }
 
 // ── Dashboard ─────────────────────────────────────────────────────────────────
-function DashboardTab() {
+function DashboardTab({ jobsHref }: { jobsHref: (status?: string) => string }) {
   const [data, setData] = useState<GangSheetDashboard | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [failed, setFailed] = useState(false);
 
   useEffect(() => {
-    gangSheetsService.adminDashboard().then(setData).catch(() => setData(null)).finally(() => setLoading(false));
+    gangSheetsService.adminDashboard().then(setData).catch(() => setFailed(true));
   }, []);
 
-  if (loading) return <div style={{ padding: "26px" }}>{[70, 92, 58, 84].map((w, i) => (<div key={i} className="at-skel" style={{ height: "14px", width: `${w}%`, marginBottom: "12px" }} />))}</div>;
-  if (!data) return <div style={{ ...CARD, color: "#888", fontSize: "13px" }}>Could not load dashboard.</div>;
+  if (failed) return <div className="pc-card pc-empty">The dashboard could not be loaded.</div>;
+  if (!data) return <div className="pc-card pc-empty">Loading the dashboard…</div>;
 
-  const stats = [
-    { label: "Total Sheets", value: data.total_sheets.toLocaleString(), sub: `${data.total_jobs.toLocaleString()} designs`, color: "#1A1A1A" },
-    { label: "Total Orders", value: data.total_orders.toLocaleString(), sub: "checked out", color: "#166534" },
-    { label: "Total Order Amount", value: `$${data.total_amount.toFixed(2)}`, sub: "from placed orders", color: "#075985" },
-  ];
-  const totalStatus = data.status_breakdown.reduce((s, r) => s + r.count, 0) || 1;
+  const total = data.status_breakdown.reduce((s, r) => s + r.count, 0) || 1;
+  const waiting = data.status_breakdown.find((r) => r.status === "in_review")?.count ?? 0;
+  const rank = (s: string) => { const i = JOB_STATUSES.findIndex(([k]) => k === s); return i < 0 ? 99 : i; };
+  const rows = [...data.status_breakdown].sort((a, b) => rank(a.status) - rank(b.status));
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "18px" }}>
-      {/* Stat cards */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "14px" }}>
-        {stats.map((s) => (
-          <div key={s.label} style={CARD}>
-            <div style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: ".05em", color: "#6B6B6B" }}>{s.label}</div>
-            <div style={{ fontSize: "28px", fontWeight: 800, color: s.color, margin: "6px 0 2px" }}>{s.value}</div>
-            <div style={{ fontSize: "12px", color: "#9CA3AF" }}>{s.sub}</div>
-          </div>
-        ))}
+    <div className="pc-stack" data-gs-dashboard>
+      <div className="pc-stats4" style={{ marginBottom: 0 }}>
+        <div className="pc-card pc-stat4">
+          <div className="pc-stat4-v">{data.total_sheets.toLocaleString()}</div>
+          <div className="pc-stat4-l">Sheets made</div>
+          <div className="pc-stat4-s">{data.total_jobs.toLocaleString()} {data.total_jobs === 1 ? "job" : "jobs"}</div>
+        </div>
+        <div className="pc-card pc-stat4">
+          <div className="pc-stat4-v">{data.total_orders.toLocaleString()}</div>
+          <div className="pc-stat4-l">Checked out</div>
+          <div className="pc-stat4-s">Jobs on a placed order</div>
+        </div>
+        <div className="pc-card pc-stat4">
+          <div className="pc-stat4-v">{usd(data.total_amount)}</div>
+          <div className="pc-stat4-l">Ordered</div>
+          <div className="pc-stat4-s">From placed orders</div>
+        </div>
+        <div className="pc-card pc-stat4">
+          <div className="pc-stat4-v">{waiting}</div>
+          <div className="pc-stat4-l">Waiting for review</div>
+          <div className="pc-stat4-s"><Link href="/admin/production" className="pc-link" style={{ fontSize: "12.5px" }}>Open the print queue</Link></div>
+        </div>
       </div>
 
-      {/* Status breakdown */}
-      <div style={CARD}>
-        <div style={{ fontSize: "14px", fontWeight: 700, marginBottom: "12px" }}>Designs by status</div>
-        {data.status_breakdown.length === 0 ? (
-          <div style={{ color: "#9CA3AF", fontSize: "13px" }}>No gang sheet designs yet.</div>
+      <section className="pc-card" aria-labelledby="gs-status-title">
+        <div className="pc-card-head">
+          <h2 className="pc-h2" id="gs-status-title">Jobs by status</h2>
+          <Link href={jobsHref()} className="pc-link">All print jobs</Link>
+        </div>
+        {rows.length === 0 ? (
+          <div className="pc-empty">No gang sheet jobs yet.</div>
         ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-            {data.status_breakdown.map((r) => {
-              const c = GANG_SHEET_STATUS_COLOR[r.status as GangSheetStatus] ?? { bg: "#eee", fg: "#555" };
-              const pct = Math.round((r.count / totalStatus) * 100);
+          <div className="pc-pad" style={{ display: "grid", gap: "14px" }}>
+            {rows.map((r) => {
+              const [label, tone] = jobPill(r.status);
+              const pct = Math.round((r.count / total) * 100);
               return (
-                <div key={r.status}>
-                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12px", marginBottom: "3px" }}>
-                    <span style={{ fontWeight: 600, color: c.fg }}>{GANG_SHEET_STATUS_LABEL[r.status as GangSheetStatus] ?? r.status}</span>
-                    <span style={{ color: "#6B6B6B" }}>{r.count} · {pct}%</span>
-                  </div>
-                  <div style={{ height: "8px", background: "#F1EFEB", borderRadius: "20px", overflow: "hidden" }}>
-                    <div style={{ width: `${pct}%`, height: "100%", background: c.fg, borderRadius: "20px" }} />
-                  </div>
-                </div>
+                <Link key={r.status} href={jobsHref(r.status)} className="pc-bar-row" data-status={r.status} title={`Show the ${label.toLowerCase()} jobs`}>
+                  <span className="pc-bar-top">
+                    <span className="pc-pill" data-tone={tone || undefined}>{label}</span>
+                    <span>{r.count} · {pct}%</span>
+                  </span>
+                  <span className="pc-bar"><span data-tone={tone || undefined} style={{ width: `${Math.max(pct, 2)}%` }} /></span>
+                </Link>
               );
             })}
           </div>
         )}
-      </div>
+      </section>
 
-      {/* Recent designs + recent orders */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: "14px" }}>
-        <div style={{ ...CARD, padding: 0, overflow: "hidden" }}>
-          <div style={{ padding: "14px 18px", borderBottom: "1px solid #F1EFEB", fontSize: "14px", fontWeight: 700 }}>Recent designs</div>
-          {data.recent_designs.length === 0 ? (
-            <div style={{ padding: "18px", color: "#9CA3AF", fontSize: "13px" }}>None yet.</div>
-          ) : data.recent_designs.map((d, i) => {
-            const c = GANG_SHEET_STATUS_COLOR[d.status] ?? { bg: "#eee", fg: "#555" };
-            return (
-              <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 18px", borderBottom: i < data.recent_designs.length - 1 ? "1px solid #F6F5F2" : "none" }}>
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ fontSize: "13px", fontWeight: 600, color: "#2A2830" }}>{d.reference}</div>
-                  <div style={{ fontSize: "11px", color: "#9CA3AF" }}>{d.contact || "—"} · {d.sheet_name}</div>
-                </div>
-                <span style={{ background: c.bg, color: c.fg, padding: "2px 9px", borderRadius: "20px", fontSize: "11px", fontWeight: 700, whiteSpace: "nowrap" }}>{GANG_SHEET_STATUS_LABEL[d.status] ?? d.status}</span>
-              </div>
-            );
-          })}
-        </div>
-
-        <div style={{ ...CARD, padding: 0, overflow: "hidden" }}>
-          <div style={{ padding: "14px 18px", borderBottom: "1px solid #F1EFEB", fontSize: "14px", fontWeight: 700 }}>Recent orders</div>
-          {data.recent_orders.length === 0 ? (
-            <div style={{ padding: "18px", color: "#9CA3AF", fontSize: "13px" }}>No orders yet.</div>
-          ) : data.recent_orders.map((o, i) => (
-            <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 18px", borderBottom: i < data.recent_orders.length - 1 ? "1px solid #F6F5F2" : "none" }}>
-              <div>
-                <div style={{ fontSize: "13px", fontWeight: 600, color: "#2A2830" }}>{o.reference}</div>
-                <div style={{ fontSize: "11px", color: "#9CA3AF" }}>{o.created_at ? new Date(o.created_at).toLocaleDateString() : ""}</div>
-              </div>
-              <div style={{ textAlign: "right" }}>
-                <div style={{ fontSize: "13px", fontWeight: 700 }}>${o.subtotal.toFixed(2)}</div>
-                <span style={{ fontSize: "10px", fontWeight: 700, color: o.paid ? "#166534" : "#92400E" }}>{o.paid ? "PAID" : "ORDERED"}</span>
-              </div>
+      <div className="pc-grid-2" style={{ gap: "24px" }}>
+        <section className="pc-card" aria-labelledby="gs-recent-title">
+          <div className="pc-card-head">
+            <h2 className="pc-h2" id="gs-recent-title">Recent jobs</h2>
+            <Link href={jobsHref()} className="pc-link">See all</Link>
+          </div>
+          {data.recent_designs.length === 0 ? <div className="pc-empty">None yet.</div> : (
+            <div>
+              {data.recent_designs.map((d) => {
+                const [label, tone] = jobPill(d.status);
+                return (
+                  <Link key={d.id ?? d.reference} href={d.id ? `/admin/production/${d.id}` : jobsHref()} className="pc-rowlink" data-recent-job={d.reference}>
+                    <span style={{ minWidth: 0 }}>
+                      <span className="pc-rowlink-title">{d.reference}</span>
+                      <span className="pc-rowlink-sub">{d.contact || "Guest"} · {d.sheet_name}</span>
+                    </span>
+                    <span className="pc-pill" data-tone={tone || undefined}>{label}</span>
+                  </Link>
+                );
+              })}
             </div>
-          ))}
-        </div>
+          )}
+        </section>
+
+        <section className="pc-card" aria-labelledby="gs-orders-title">
+          <div className="pc-card-head">
+            <h2 className="pc-h2" id="gs-orders-title">Recent orders</h2>
+            <Link href="/admin/orders" className="pc-link">All orders</Link>
+          </div>
+          {data.recent_orders.length === 0 ? <div className="pc-empty">No orders yet.</div> : (
+            <div>
+              {data.recent_orders.map((o) => (
+                <Link key={o.id ?? o.reference} href={o.id ? `/admin/production/${o.id}` : jobsHref()} className="pc-rowlink" data-recent-order={o.reference}>
+                  <span style={{ minWidth: 0 }}>
+                    <span className="pc-rowlink-title">{o.reference}</span>
+                    <span className="pc-rowlink-sub">{o.order_number ? `Order ${o.order_number} · ` : ""}{shortDay(o.created_at)}</span>
+                  </span>
+                  <span style={{ display: "grid", justifyItems: "end", gap: "4px" }}>
+                    <b style={{ fontSize: "14px" }}>{usd(o.subtotal)}</b>
+                    <span className="pc-pill" data-tone={o.paid ? "green" : "amber"}>{o.paid ? "Paid" : "Unpaid"}</span>
+                  </span>
+                </Link>
+              ))}
+            </div>
+          )}
+        </section>
       </div>
     </div>
   );
@@ -567,354 +618,83 @@ function ProductEditor({ product, onBack, onGoToSizes }: { product: GangSheetPro
   );
 }
 
-// ── Orders / Designs ──────────────────────────────────────────────────────────
-function OrdersTab({ openId }: { openId?: string | null }) {
-  const [orders, setOrders] = useState<GangSheetOrder[]>([]);
-  const [selected, setSelected] = useState<GangSheetOrder | null>(null);
-  // Opened from an order's "Admin edit" link: that sheet, straight away.
+// ── Print jobs: every job, whatever its status ────────────────────────────────
+// A job opens on its own page (/admin/production/<id>), the one the print queue
+// opens, so there is one place a job is reviewed, approved and printed.
+type JobRow = GangSheetOrder & { order_number?: string | null; order_payment_status?: string | null };
+
+function JobsTab({ status, onStatus }: { status: string; onStatus: (status: string) => void }) {
+  const [jobs, setJobs] = useState<JobRow[] | null>(null);
+  const [failed, setFailed] = useState(false);
+  const [q, setQ] = useState("");
+
   useEffect(() => {
-    if (openId) gangSheetsService.adminOrder(openId).then(setSelected).catch(() => {});
-  }, [openId]);
-  const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState("");
+    let cancelled = false;
+    setJobs(null);
+    setFailed(false);
+    gangSheetsService.adminListOrders(status || undefined)
+      .then((rows) => { if (!cancelled) setJobs(rows as JobRow[]); })
+      .catch(() => { if (!cancelled) setFailed(true); });
+    return () => { cancelled = true; };
+  }, [status]);
 
-  const load = useCallback(() => {
-    setLoading(true);
-    gangSheetsService
-      .adminListOrders(filter || undefined)
-      .then(setOrders)
-      .catch(() => setOrders([]))
-      .finally(() => setLoading(false));
-  }, [filter]);
-
-  useEffect(load, [load]);
-
-  if (loading) return <div style={{ padding: "26px" }}>{[70, 92, 58, 84].map((w, i) => (<div key={i} className="at-skel" style={{ height: "14px", width: `${w}%`, marginBottom: "12px" }} />))}</div>;
+  const words = q.trim().toLowerCase();
+  const shown = (jobs ?? []).filter((j) => !words || `${j.reference} ${j.contact_name ?? ""} ${j.contact_email ?? ""} ${j.order_number ?? ""}`.toLowerCase().includes(words));
 
   return (
-    <>
-      <div style={{ marginBottom: "14px" }}>
-        <select style={{ ...INPUT, width: "220px" }} value={filter} onChange={(e) => setFilter(e.target.value)}>
+    <div className="pc-stack" style={{ gap: "16px" }} data-gs-jobs>
+      <div className="pc-filters">
+        <label className="pc-field">
+          <Search size={17} strokeWidth={2} aria-hidden />
+          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Job, customer, email or order" aria-label="Search print jobs" />
+        </label>
+        <select className="pc-input" style={{ width: "220px", height: "42px" }} value={status} onChange={(e) => onStatus(e.target.value)} aria-label="Status">
           <option value="">All statuses</option>
-          {Object.entries(GANG_SHEET_STATUS_LABEL).map(([k, v]) => (
-            <option key={k} value={k}>{v}</option>
-          ))}
+          {JOB_STATUSES.map(([k, label]) => <option key={k} value={k}>{label}</option>)}
         </select>
       </div>
 
-      {orders.length === 0 ? (
-        <div style={{ ...CARD, color: "#888", fontSize: "13px" }}>
-          No gang sheet orders yet.
-        </div>
-      ) : (
-        <div style={{ ...CARD, padding: 0, overflow: "hidden" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
-            <thead>
-              <tr style={{ background: "#F6F6F7", borderBottom: "1px solid #E8E6E1" }}>
-                {["Reference", "Customer", "Sheet", "Qty", "Total", "Status", ""].map((h) => (
-                  <th key={h} style={{ padding: "10px 14px", textAlign: "left", fontSize: "11px", fontWeight: 700, color: "#6B6B6B", textTransform: "uppercase" }}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {orders.map((o) => {
-                const c = GANG_SHEET_STATUS_COLOR[o.status] ?? { bg: "#eee", fg: "#555" };
-                return (
-                  <tr key={o.id} style={{ borderBottom: "1px solid #F1EFEB" }}>
-                    <td style={{ padding: "11px 14px", fontWeight: 700 }}>{o.reference}</td>
-                    <td style={{ padding: "11px 14px", color: "#555" }}>{o.contact_name || "—"}</td>
-                    <td style={{ padding: "11px 14px", color: "#555" }}>
-                      {o.sheet_name} <span style={{ color: "#999" }}>({o.sheet_width_in}″×{o.sheet_height_in}″)</span>
-                    </td>
-                    <td style={{ padding: "11px 14px" }}>{o.sheet_quantity}</td>
-                    <td style={{ padding: "11px 14px" }}>${o.subtotal.toFixed(2)}</td>
-                    <td style={{ padding: "11px 14px" }}>
-                      <span style={{ background: c.bg, color: c.fg, padding: "3px 9px", borderRadius: "20px", fontSize: "11px", fontWeight: 700 }}>
-                        {GANG_SHEET_STATUS_LABEL[o.status] ?? o.status}
-                      </span>
-                      {o.paid ? (
-                        <span style={{ marginLeft: "6px", background: "#DCFCE7", color: "#166534", padding: "2px 8px", borderRadius: "20px", fontSize: "10px", fontWeight: 700 }}>PAID</span>
-                      ) : o.order_id ? (
-                        <span style={{ marginLeft: "6px", background: "#FEF3C7", color: "#92400E", padding: "2px 8px", borderRadius: "20px", fontSize: "10px", fontWeight: 700 }}>ORDERED</span>
-                      ) : (
-                        <span style={{ marginLeft: "6px", background: "#F6F6F7", color: "#6B7280", padding: "2px 8px", borderRadius: "20px", fontSize: "10px", fontWeight: 700 }}>DRAFT</span>
-                      )}
-                      {o.revision_count > 0 && (
-                        <span style={{ marginLeft: "6px", fontSize: "11px", color: "#9A3412" }}>
-                          rev {o.revision_count}
-                        </span>
-                      )}
-                    </td>
-                    <td style={{ padding: "11px 14px", textAlign: "right" }}>
-                      <button
-                        onClick={() => gangSheetsService.adminOrder(o.id).then(setSelected).catch(() => {})}
-                        style={{ background: "none", border: "none", color: "#1A1A1A", fontWeight: 700, cursor: "pointer", fontSize: "13px" }}
-                      >
-                        Review →
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {selected && (
-        <ReviewModal
-          order={selected}
-          onClose={() => setSelected(null)}
-          onChanged={() => { setSelected(null); load(); }}
-        />
-      )}
-    </>
-  );
-}
-
-/**
- * What the print check found, where the print team decides.
- *
- * The check ran when the buyer uploaded the file, at the size they ordered. The
- * reviewer needs the same answer without opening the file and measuring it, and
- * a job whose artwork was never checked has to say so rather than look clean.
- */
-function PrintCheckBadge({ inspection }: { inspection?: ArtworkInspection | null }) {
-  if (!inspection) {
-    return <div style={{ fontSize: "11px", color: "#9CA3AF", marginTop: "3px" }}>Not checked</div>;
-  }
-  const tone = ({
-    ready: { bg: "#DCFCE7", fg: "#166534", label: "Print ready" },
-    check: { bg: "#FEF3C7", fg: "#92400E", label: "Worth a look" },
-    blocked: { bg: "#FEE2E2", fg: "#991B1B", label: "Problem" },
-    unknown: { bg: "#F1F1F0", fg: "#4A4A4A", label: "Not checked" },
-  } as const)[inspection.verdict] ?? { bg: "#F1F1F0", fg: "#4A4A4A", label: "Not checked" };
-  const notes = inspection.findings.filter((f) => f.level !== "ok");
-
-  return (
-    <div style={{ marginTop: "5px" }}>
-      <span style={{ background: tone.bg, color: tone.fg, padding: "2px 8px", borderRadius: "20px", fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: ".04em" }}>
-        {tone.label}
-      </span>
-      {typeof inspection.measured?.effective_dpi === "number" && (
-        <span style={{ fontSize: "11px", color: "#888", marginLeft: "7px" }}>
-          {inspection.measured.effective_dpi} DPI · {String(inspection.measured.pixels ?? "")}
-        </span>
-      )}
-      {notes.map((f, i) => (
-        <div key={i} style={{ fontSize: "11.5px", color: f.level === "blocker" ? "#991B1B" : "#92400E", marginTop: "3px", lineHeight: 1.45 }}>
-          {f.message}
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function ReviewModal({ order, onClose, onChanged }: { order: GangSheetOrder; onClose: () => void; onChanged: () => void }) {
-  const [notes, setNotes] = useState(order.supplier_notes ?? "");
-  const [internalNotes, setInternalNotes] = useState(order.internal_notes ?? "");
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-  const [size, setSize] = useState<GangSheetSize | null>(null);
-  const [layout, setLayout] = useState<GangSheetPlacement[]>(order.layout ?? []);
-  const [layoutMsg, setLayoutMsg] = useState<string | null>(null);
-  const [savingLayout, setSavingLayout] = useState(false);
-  const [showVersions, setShowVersions] = useState(false);
-
-  // Bleed/spacing live on the size, not the order snapshot; fetch them so the
-  // canvas draws the same margins the buyer saw.
-  useEffect(() => {
-    if (!order.sheet_size_id) { setSize(null); return; }
-    gangSheetsService.adminListSizes()
-      .then((sizes) => setSize(sizes.find((s) => s.id === order.sheet_size_id) ?? null))
-      .catch(() => setSize(null));
-  }, [order.sheet_size_id]);
-
-  // An upload-by-size job has no preset sheet: the design IS the sheet, cut to
-  // that size, so there is no margin to trim. Gating the layout and the print
-  // PDF on a size it will never have hid both from the review queue — the admin
-  // could read the order but never print it.
-  const margins = order.sheet_size_id
-    ? (size ? { bleed_in: size.bleed_in, spacing_in: size.spacing_in } : null)
-    : { bleed_in: 0, spacing_in: 0 };
-
-  async function saveLayout() {
-    setSavingLayout(true); setLayoutMsg(null);
-    try {
-      await gangSheetsService.adminSaveLayout(order.id, layout);
-      setLayoutMsg("Layout saved");
-    } catch {
-      setLayoutMsg("Could not save layout");
-    } finally {
-      setSavingLayout(false);
-    }
-  }
-
-  async function setStatus(status: GangSheetStatus) {
-    setBusy(true); setErr(null);
-    try {
-      await gangSheetsService.adminSetStatus(order.id, status, notes || undefined, internalNotes || undefined);
-      onChanged();
-    } catch {
-      setErr("Could not update this order.");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.45)", display: "flex", alignItems: "center", justifyContent: "center", padding: "20px", zIndex: 50 }}>
-      <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", borderRadius: "12px", width: "100%", maxWidth: "620px", maxHeight: "88vh", overflowY: "auto", padding: "24px" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
-          <div>
-            <h2 style={{ fontSize: "18px", fontWeight: 800 }}>
-              {order.reference}
-              {order.paid ? (
-                <span style={{ marginLeft: "10px", background: "#DCFCE7", color: "#166534", padding: "2px 10px", borderRadius: "20px", fontSize: "11px", fontWeight: 700, verticalAlign: "middle" }}>PAID</span>
-              ) : order.order_id ? (
-                <span style={{ marginLeft: "10px", background: "#FEF3C7", color: "#92400E", padding: "2px 10px", borderRadius: "20px", fontSize: "11px", fontWeight: 700, verticalAlign: "middle" }}>ORDERED · unpaid</span>
-              ) : (
-                <span style={{ marginLeft: "10px", background: "#F6F6F7", color: "#6B7280", padding: "2px 10px", borderRadius: "20px", fontSize: "11px", fontWeight: 700, verticalAlign: "middle" }}>DRAFT · not checked out</span>
-              )}
-            </h2>
-            <div style={{ fontSize: "12px", color: "#888" }}>
-              {order.sheet_name} · {order.sheet_width_in}″ × {order.sheet_height_in}″ · {order.sheet_quantity} sheet(s) · ${order.subtotal.toFixed(2)}
-            </div>
-            {order.order_id && (
-              <a href={`/admin/orders/${order.order_id}`} style={{ fontSize: "12px", color: "#1A1A1A", fontWeight: 700, textDecoration: "none" }}>
-                View linked order →
-              </a>
-            )}
-          </div>
-          <button onClick={onClose} style={{ background: "none", border: "none", fontSize: "22px", color: "#999", cursor: "pointer" }}>×</button>
-        </div>
-
-        {/* Progress timeline */}
-        <div style={{ margin: "6px 0 20px" }}>
-          <GangSheetTimeline status={order.status} timeline={order.status_timeline} />
-        </div>
-
-        {order.contact_name || order.contact_email ? (
-          <div style={{ fontSize: "13px", color: "#555", marginBottom: "14px" }}>
-            <strong>Contact:</strong> {order.contact_name} {order.contact_email ? `· ${order.contact_email}` : ""}
-          </div>
-        ) : null}
-
-        {order.customer_notes && (
-          <div style={{ background: "#F6F6F7", border: "1px solid #EFEDE8", borderRadius: "8px", padding: "12px", fontSize: "13px", marginBottom: "16px" }}>
-            <div style={{ ...LABEL, marginBottom: "6px" }}>Customer notes</div>
-            {order.customer_notes}
+      <div className="pc-card" data-shown={jobs ? status : undefined} aria-busy={jobs === null && !failed}>
+        {failed ? (
+          <div className="pc-empty">The print jobs could not be loaded.</div>
+        ) : jobs === null ? (
+          <div className="pc-empty">Loading the print jobs…</div>
+        ) : shown.length === 0 ? (
+          <div className="pc-empty">{words ? "No job matches that search." : status ? "No job has that status." : "No gang sheet jobs yet."}</div>
+        ) : (
+          <div className="pc-scroll-x">
+            <table className="pc-table" style={{ minWidth: "900px" }}>
+              <thead>
+                <tr><th>Job</th><th>Customer</th><th>Sheet</th><th className="pc-num">Qty</th><th className="pc-num">Total</th><th>Status</th><th>Order</th><th>Created</th></tr>
+              </thead>
+              <tbody>
+                {shown.map((j) => {
+                  const [label, tone] = jobPill(j.status);
+                  const paid = j.order_payment_status === "paid";
+                  return (
+                    <tr key={j.id} data-gs-job={j.reference}>
+                      <td><Link href={`/admin/production/${j.id}`} className="pc-link">{j.reference}</Link>{j.revision_count > 0 && <div className="pc-sub-line" style={{ fontSize: "12px" }}>sent back {j.revision_count === 1 ? "once" : `${j.revision_count} times`}</div>}</td>
+                      <td>{j.contact_name || "Guest"}{j.contact_email ? <div className="pc-sub-line" style={{ fontSize: "12.5px" }}>{j.contact_email}</div> : null}</td>
+                      <td>{j.sheet_name} <span style={{ color: "var(--pc-faint)" }}>({j.sheet_width_in}″ × {j.sheet_height_in}″)</span></td>
+                      <td className="pc-num">{j.sheet_quantity}</td>
+                      <td className="pc-num" style={{ fontWeight: 600 }}>{usd(j.subtotal)}</td>
+                      <td><span className="pc-pill" data-tone={tone || undefined}>{label}</span></td>
+                      <td>
+                        {j.order_id ? (
+                          <span style={{ display: "inline-flex", alignItems: "center", gap: "8px" }}>
+                            <Link href={`/admin/orders/${j.order_id}`} className="pc-link">{j.order_number ?? "Order"}</Link>
+                            <span className="pc-pill" data-tone={paid ? "green" : "amber"}>{paid ? "Paid" : "Unpaid"}</span>
+                          </span>
+                        ) : <span className="pc-pill">Draft</span>}
+                      </td>
+                      <td style={{ color: "var(--pc-muted)" }}>{shortDay(j.created_at)}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
         )}
-
-        <div style={{ ...LABEL, marginBottom: "8px" }}>Artwork ({order.artworks?.length ?? 0})</div>
-        <div style={{ border: "1px solid #EFEDE8", borderRadius: "8px", marginBottom: "18px" }}>
-          {(order.artworks ?? []).map((a, i) => (
-            <div key={a.id ?? i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 12px", borderBottom: i < (order.artworks?.length ?? 0) - 1 ? "1px solid #F1EFEB" : "none", fontSize: "13px" }}>
-              <div style={{ minWidth: 0 }}>
-                <a href={a.file_url} target="_blank" rel="noopener noreferrer" style={{ color: "#1A1A1A", fontWeight: 600, textDecoration: "none", wordBreak: "break-all" }}>
-                  {a.file_name}
-                </a>
-                <div style={{ color: "#888", fontSize: "12px" }}>
-                  {a.width_in}″ × {a.height_in}″ · qty {a.quantity}
-                </div>
-                <PrintCheckBadge inspection={a.inspection} />
-              </div>
-              <button
-                onClick={() => { void downloadFile(a.file_url, a.file_name); }}
-                style={{ fontSize: "12px", color: "#666", whiteSpace: "nowrap", marginLeft: "12px", background: "none", border: "none", cursor: "pointer", padding: 0, fontFamily: "inherit" }}
-              >
-                Download ↓
-              </button>
-            </div>
-          ))}
-        </div>
-
-        {/* Sheet layout — supplier arranges for production */}
-        {margins && (order.artworks?.length ?? 0) > 0 && (
-          <div style={{ marginBottom: "18px" }}>
-            <div style={{ ...LABEL, marginBottom: "8px" }}>Sheet layout</div>
-            <GangSheetCanvas
-              sheet={{ width_in: order.sheet_width_in, height_in: order.sheet_height_in, bleed_in: margins.bleed_in, spacing_in: margins.spacing_in }}
-              artworks={order.artworks ?? []}
-              value={layout}
-              onChange={(l) => { setLayout(l); setLayoutMsg(null); }}
-            />
-            <div style={{ display: "flex", alignItems: "center", gap: "10px", marginTop: "12px" }}>
-              <button onClick={saveLayout} disabled={savingLayout} style={{ ...BTN, background: "#1A1A1A" }}>
-                {savingLayout ? "Saving…" : "Save layout"}
-              </button>
-              <button
-                onClick={() => openSheetPdf({ reference: order.reference, customerName: order.contact_name, sheet: { width_in: order.sheet_width_in, height_in: order.sheet_height_in, bleed_in: margins.bleed_in }, artworks: order.artworks ?? [], layout })}
-                style={{ ...BTN, background: "#fff", color: "#1A1A1A", border: "1px solid #E3E3E3" }}
-              >
-                Download PDF
-              </button>
-              {layoutMsg && <span style={{ fontSize: "13px", color: layoutMsg.startsWith("Could") ? "#B91C1C" : "#166534", fontWeight: 600 }}>{layoutMsg}</span>}
-            </div>
-          </div>
-        )}
-
-        <div style={{ marginBottom: "16px" }}>
-          <label style={LABEL}>Notes to customer</label>
-          <textarea
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            rows={3}
-            placeholder="Explain what needs changing if you request a revision…"
-            style={{ ...INPUT, resize: "vertical" }}
-          />
-        </div>
-
-        {/* Internal notes — supplier-only, never shown to the customer */}
-        <div style={{ marginBottom: "16px" }}>
-          <label style={LABEL}>Internal notes <span style={{ fontWeight: 400, textTransform: "none", color: "#9CA3AF" }}>· private, not visible to customer</span></label>
-          <textarea
-            value={internalNotes}
-            onChange={(e) => setInternalNotes(e.target.value)}
-            rows={2}
-            placeholder="Notes for your team only…"
-            style={{ ...INPUT, resize: "vertical", background: "#FFFBEB" }}
-          />
-        </div>
-
-        {/* Version history */}
-        {(order.versions?.length ?? 0) > 1 && (
-          <div style={{ marginBottom: "16px" }}>
-            <button onClick={() => setShowVersions((v) => !v)} style={{ background: "none", border: "none", color: "#1A1A1A", fontWeight: 700, fontSize: "13px", cursor: "pointer", padding: 0 }}>
-              {showVersions ? "▾" : "▸"} Version history ({order.versions!.length})
-            </button>
-            {showVersions && (
-              <div style={{ marginTop: "8px", border: "1px solid #EFEDE8", borderRadius: "8px", overflow: "hidden" }}>
-                {order.versions!.slice().reverse().map((v) => (
-                  <div key={v.version} style={{ padding: "10px 12px", borderBottom: "1px solid #F1EFEB", fontSize: "12px" }}>
-                    <div style={{ fontWeight: 700, marginBottom: "4px" }}>
-                      Version {v.version}{v.version === order.version ? " (current)" : ""}
-                      <span style={{ fontWeight: 400, color: "#9CA3AF", marginLeft: "8px" }}>{v.created_at ? new Date(v.created_at).toLocaleString() : ""}</span>
-                    </div>
-                    {v.artworks.map((a, k) => (
-                      <div key={k} style={{ color: "#666", display: "flex", justifyContent: "space-between", gap: "8px" }}>
-                        <a href={a.file_url} target="_blank" rel="noopener noreferrer" style={{ color: "#1A1A1A", textDecoration: "none", wordBreak: "break-all" }}>{a.file_name}</a>
-                        <span style={{ whiteSpace: "nowrap" }}>{a.width_in}″×{a.height_in}″ · q{a.quantity}</span>
-                      </div>
-                    ))}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
-        {err && <div style={{ color: "#B91C1C", fontSize: "13px", marginBottom: "10px" }}>{err}</div>}
-
-        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-          <button disabled={busy} onClick={() => setStatus("approved")} style={{ ...BTN, background: "#166534" }}>Approve</button>
-          <button disabled={busy} onClick={() => setStatus("production")} style={{ ...BTN, background: "#3730A3" }}>Start production</button>
-          <button disabled={busy} onClick={() => setStatus("revision_requested")} style={{ ...BTN, background: "#C2410C" }}>Request revision</button>
-          <button disabled={busy} onClick={() => setStatus("in_review")} style={{ ...BTN, background: "#B45309" }}>Mark in review</button>
-          <button disabled={busy} onClick={() => setStatus("completed")} style={{ ...BTN, background: "#075985" }}>Completed</button>
-          <button disabled={busy} onClick={() => setStatus("rejected")} style={{ ...BTN, background: "#991B1B" }}>Reject</button>
-        </div>
       </div>
     </div>
   );

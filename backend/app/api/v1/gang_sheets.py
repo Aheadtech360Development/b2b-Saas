@@ -1418,6 +1418,7 @@ async def admin_dashboard(
         select(GangSheetOrder).order_by(GangSheetOrder.created_at.desc()).limit(8)
     )).scalars().all()
     recent_designs = [{
+        "id": str(o.id),
         "reference": o.reference,
         "contact": o.contact_name,
         "status": o.status,
@@ -1430,10 +1431,15 @@ async def admin_dashboard(
         select(GangSheetOrder).where(GangSheetOrder.order_id.isnot(None))
         .order_by(GangSheetOrder.created_at.desc()).limit(8)
     )).scalars().all()
+    linked = await _orders_of(db, [o.order_id for o in recent_ord_rows])
     recent_orders = [{
+        "id": str(o.id),
         "reference": o.reference,
         "subtotal": float(o.subtotal),
-        "paid": bool(getattr(o, "paid_at", None)),
+        # The order's payment: a cash on delivery job is paid on handover.
+        "paid": (linked.get(o.order_id, (None, None))[1] == "paid") or bool(getattr(o, "paid_at", None)),
+        "order_id": str(o.order_id) if o.order_id else None,
+        "order_number": linked.get(o.order_id, (None, None))[0],
         "created_at": o.created_at.isoformat() if o.created_at else None,
     } for o in recent_ord_rows]
 
@@ -1661,8 +1667,28 @@ async def admin_list_orders(
     stmt = select(GangSheetOrder)
     if status_filter:
         stmt = stmt.where(GangSheetOrder.status == status_filter)
-    rows = await db.execute(stmt.order_by(GangSheetOrder.created_at.desc()))
-    return [_order_row(o, admin=True) for o in rows.scalars().all()]
+    jobs = (await db.execute(stmt.order_by(GangSheetOrder.created_at.desc()))).scalars().all()
+    # Each job's order by its number, and whether that order is paid: the job's
+    # own paid_at is only set by a card at checkout.
+    orders = await _orders_of(db, [o.order_id for o in jobs])
+    out = []
+    for o in jobs:
+        row = _order_row(o, admin=True)
+        number, payment = orders.get(o.order_id, (None, None))
+        row["order_number"], row["order_payment_status"] = number, payment
+        out.append(row)
+    return out
+
+
+async def _orders_of(db: AsyncSession, order_ids) -> dict:
+    """{order id: (order number, payment status)} for these orders, in one query."""
+    ids = {i for i in order_ids if i}
+    if not ids:
+        return {}
+    from app.models.order import Order
+
+    rows = (await db.execute(select(Order.id, Order.order_number, Order.payment_status).where(Order.id.in_(ids)))).all()
+    return {oid: (number, payment) for oid, number, payment in rows}
 
 
 @admin_router.get("/orders/{order_id}")

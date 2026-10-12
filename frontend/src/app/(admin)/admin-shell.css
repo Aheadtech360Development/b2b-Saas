@@ -377,6 +377,23 @@
 .pc-cutoff[data-off] { background: #fff; border-color: var(--pc-line); color: var(--pc-muted); }
 .pc-drafts { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
 
+/* Gang sheets: a bar per status, and rows that open a job. */
+.pc-admin a.pc-bar-row { display: grid; gap: 7px; text-decoration: none; color: var(--pc-ink); border-radius: 8px; }
+.pc-admin a.pc-bar-row:hover .pc-bar-top > span:last-child { color: var(--pc-blue); }
+.pc-bar-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 13px; color: var(--pc-muted); }
+.pc-bar { display: block; height: 8px; border-radius: 4px; background: #EEF1F5; overflow: hidden; }
+.pc-bar > span { display: block; height: 100%; border-radius: 4px; background: #9AA6B6; }
+.pc-bar > span[data-tone="amber"] { background: #E19A2B; }
+.pc-bar > span[data-tone="blue"] { background: var(--pc-blue); }
+.pc-bar > span[data-tone="green"] { background: #1F9D61; }
+.pc-bar > span[data-tone="red"] { background: #D9573F; }
+.pc-admin a.pc-rowlink { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 13px 20px; border-top: 1px solid var(--pc-line-soft); text-decoration: none; color: var(--pc-ink); }
+.pc-admin a.pc-rowlink:first-child { border-top: 0; }
+.pc-admin a.pc-rowlink:hover { background: #FAFBFD; }
+.pc-rowlink-title { display: block; font-weight: 600; font-size: 14px; }
+.pc-rowlink-sub { display: block; font-size: 12.5px; color: var(--pc-muted); margin-top: 2px; overflow-wrap: anywhere; }
+[data-gang-sheets] .pc-pill { text-transform: none; }
+
 /* The list's button, smaller than a card's. */
 .pc-admin .pc-list-action .pc-btn { height: 34px; padding: 0 12px; font-size: 13px; }
 

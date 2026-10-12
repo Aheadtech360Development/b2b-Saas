@@ -133,6 +133,7 @@ export interface GangSheetDashboard {
   total_amount: number;
   status_breakdown: { status: string; count: number }[];
   recent_designs: {
+    id?: string;
     reference: string;
     contact: string | null;
     status: GangSheetStatus;
@@ -141,9 +142,13 @@ export interface GangSheetDashboard {
     created_at: string | null;
   }[];
   recent_orders: {
+    id?: string;
     reference: string;
     subtotal: number;
+    /** Whether the job's order is paid (a cash on delivery order is paid on handover). */
     paid: boolean;
+    order_id?: string | null;
+    order_number?: string | null;
     created_at: string | null;
   }[];
 }
