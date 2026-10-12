@@ -18,7 +18,7 @@ const TABS: { key: ProductsTab; label: string; href: string }[] = [
   { key: "purchase-orders", label: "Purchase orders", href: "/admin/purchase-orders" },
   { key: "suppliers", label: "Suppliers", href: "/admin/suppliers" },
   { key: "reviews", label: "Reviews", href: "/admin/products/reviews" },
-  { key: "gang-sheets", label: "Gang sheet setup", href: "/admin/gang-sheets?tab=setup" },
+  { key: "gang-sheets", label: "Gang sheet setup", href: "/admin/gang-sheets" },
 ];
 
 export function ProductsFrame({

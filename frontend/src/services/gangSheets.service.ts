@@ -327,6 +327,10 @@ export const gangSheetsService = {
   adminDeleteSize: (id: string) =>
     apiClient.delete<void>(`/api/v1/admin/gang-sheets/sizes/${id}`),
 
+  /** Sizes repeating another's name in one set: the extras deleted, or hidden when a job was made on them. */
+  adminDedupeSizes: (productId?: string) =>
+    apiClient.post<{ deleted: number; hidden: number }>("/api/v1/admin/gang-sheets/sizes/dedupe", { product_id: productId || null }),
+
   adminListLibrary: () => apiClient.get<GangSheetLibraryDesign[]>("/api/v1/admin/gang-sheets/library"),
 
   adminCreateLibrary: (payload: Partial<GangSheetLibraryDesign>) =>

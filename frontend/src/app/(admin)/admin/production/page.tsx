@@ -179,7 +179,8 @@ function Production() {
           <button type="button" className="pc-cutoff" data-off={board.cutoff ? undefined : ""} onClick={editCutoff} data-cutoff>
             {board.cutoff ? `Same-day cutoff: ${cutoffWords(board.cutoff)}` : "Set a same-day cutoff"}
           </button>
-          <Link href="/admin/gang-sheets?tab=setup" className="pc-link">Gang sheet setup</Link>
+          <Link href="/admin/production/all" className="pc-link" data-all-jobs-link>All print jobs</Link>
+          <Link href="/admin/gang-sheets" className="pc-link">Gang sheet setup</Link>
           <div className="pc-seg" role="group" aria-label="View">
             <button type="button" aria-pressed={view === "board"} onClick={() => setView("board")}>Board</button>
             <button type="button" aria-pressed={view === "list"} onClick={() => setView("list")}>List</button>

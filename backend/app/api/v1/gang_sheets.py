@@ -1658,6 +1658,64 @@ async def admin_delete_size(
     await db.delete(size)
 
 
+class DedupeIn(BaseModel):
+    # Whose sizes: a product's own, or the brand's global default set.
+    product_id: Optional[uuid.UUID] = None
+
+
+def dedupe_plan(sizes: list[dict]) -> tuple[list[str], list[str]]:
+    """Which sizes to delete and which to hide, for sizes sharing a name.
+
+    One size per name is kept: an active one first, then one with a price, then
+    one jobs were made on, then the oldest. Of the rest, one no job was made on
+    is deleted; one a job was made on is hidden instead, so the job still finds
+    the size it was built on (reopening it in the builder reads the size)."""
+    groups: dict[str, list[dict]] = {}
+    for s in sizes:
+        groups.setdefault(" ".join((s["name"] or "").lower().split()), []).append(s)
+    delete, hide = [], []
+    for same in groups.values():
+        if len(same) < 2:
+            continue
+        same.sort(key=lambda s: (not s["is_active"], not s["price"], not s["jobs"], s["created"] or ""))
+        for extra in same[1:]:
+            if extra["jobs"]:
+                if extra["is_active"]:
+                    hide.append(extra["id"])
+            else:
+                delete.append(extra["id"])
+    return delete, hide
+
+
+@admin_router.post("/sizes/dedupe")
+async def admin_dedupe_sizes(
+    payload: DedupeIn, _: None = Depends(require_admin), db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Remove the sizes that repeat another's name in one set (dedupe_plan)."""
+    from sqlalchemy import text as _t
+
+    from app.core.tenant_context import get_current_tenant_id
+
+    rows = (await db.execute(_t("""
+        SELECT CAST(s.id AS text) AS id, s.name, s.is_active,
+               (COALESCE(s.price_per_sheet, 0) > 0 OR COALESCE(s.price_per_inch, 0) > 0) AS price,
+               (SELECT count(*) FROM gang_sheet_orders o WHERE o.sheet_size_id = s.id) AS jobs,
+               CAST(s.created_at AS text) AS created
+        FROM gang_sheet_sizes s
+        WHERE s.tenant_id = CAST(:t AS uuid)
+          AND s.product_id IS NOT DISTINCT FROM CAST(:p AS uuid)
+    """), {"t": str(get_current_tenant_id()), "p": str(payload.product_id) if payload.product_id else None})).mappings().all()
+    delete, hide = dedupe_plan([dict(r) for r in rows])
+    if delete:
+        await db.execute(_t("DELETE FROM gang_sheet_sizes WHERE tenant_id = CAST(:t AS uuid) AND CAST(id AS text) = ANY(:ids)"),
+                         {"t": str(get_current_tenant_id()), "ids": delete})
+    if hide:
+        await db.execute(_t("UPDATE gang_sheet_sizes SET is_active = false WHERE tenant_id = CAST(:t AS uuid) AND CAST(id AS text) = ANY(:ids)"),
+                         {"t": str(get_current_tenant_id()), "ids": hide})
+    await db.commit()
+    return {"deleted": len(delete), "hidden": len(hide)}
+
+
 @admin_router.get("/orders")
 async def admin_list_orders(
     status_filter: Optional[str] = None,

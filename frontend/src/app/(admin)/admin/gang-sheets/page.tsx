@@ -9,11 +9,8 @@ import { GangSheetProductEditor } from "@/components/admin/GangSheetProductEdito
 import { ProductsFrame } from "@/components/admin/products/ProductsFrame";
 import {
   gangSheetsService,
-  type GangSheetOrder,
   type GangSheetSize,
-  type GangSheetStatus,
   type GangSheetLibraryDesign,
-  type GangSheetDashboard,
   type GangSheetProduct,
   type GangSheetSetup,
   type GangSheetConfig,
@@ -127,30 +124,15 @@ const STANDARD_FEET_SIZES = [
 
 interface SizeRow { id?: string; name: string; width_in: number; height_in: number; price_per_sheet: number; }
 
-/** The page's tabs, in the address (?tab=), so a link, Back and a refresh all land on the same one. */
+/** The page's tabs, in the address (?tab=), so a link, Back and a refresh all land on the same one.
+ *  The builder's setup only: its print jobs live in Production. */
 const TABS = [
-  { key: "dashboard", label: "Dashboard" },
-  { key: "jobs", label: "Print jobs" },
-  { key: "setup", label: "Set up" },
   { key: "products", label: "Products" },
   { key: "sizes", label: "Sheet sizes" },
   { key: "library", label: "Design library" },
-  { key: "settings", label: "Settings" },
+  { key: "settings", label: "Builder settings" },
 ] as const;
 type TabKey = (typeof TABS)[number]["key"];
-
-/** A job's status in the admin's words and tones, the order the work goes in. */
-const JOB_STATUSES: [GangSheetStatus, string, string][] = [
-  ["submitted", "Submitted", ""], ["in_review", "In review", "amber"], ["revision_requested", "Sent back", "red"],
-  ["approved", "Approved", "green"], ["production", "In production", "blue"], ["completed", "Completed", "green"],
-  ["rejected", "Rejected", "red"],
-];
-const jobPill = (s: string): [string, string] => {
-  const hit = JOB_STATUSES.find(([k]) => k === s);
-  return hit ? [hit[1], hit[2]] : [s.replace(/_/g, " "), ""];
-};
-const usd = (n: number) => `$${(Number(n) || 0).toFixed(2)}`;
-const shortDay = (iso: string | null | undefined) => (iso ? new Date(iso).toLocaleDateString() : "–");
 
 export default function AdminGangSheetsPage() {
   return (
@@ -164,24 +146,26 @@ function GangSheetsAdmin() {
   const router = useRouter();
   const params = useSearchParams();
   const raw = params.get("tab");
-  // "orders" was this tab's name before; an old link still lands on it.
-  const tab: TabKey = raw === "orders" ? "jobs" : TABS.some((t) => t.key === raw) ? (raw as TabKey) : "dashboard";
-  const status = params.get("status") ?? "";
+  const tab: TabKey = TABS.some((t) => t.key === raw) ? (raw as TabKey) : "products";
 
-  // ?sheet=<id> — an order's "Admin edit" link from before the Production
-  // screens: that sheet now has a page of its own.
+  // Old addresses: a job (?sheet=) has its own page; the Dashboard and Print
+  // jobs tabs ("orders" before that) are All print jobs under Production now.
   useEffect(() => {
     const id = params.get("sheet");
-    if (id) window.location.replace(`/admin/production/${encodeURIComponent(id)}`);
-  }, [params]);
+    if (id) { window.location.replace(`/admin/production/${encodeURIComponent(id)}`); return; }
+    if (raw === "dashboard" || raw === "jobs" || raw === "orders") {
+      const st = params.get("status");
+      window.location.replace(`/admin/production/all${st ? `?status=${encodeURIComponent(st)}` : ""}`);
+    }
+  }, [params, raw]);
 
-  const href = (key: TabKey, s = "") => `/admin/gang-sheets?tab=${key}${s ? `&status=${encodeURIComponent(s)}` : ""}`;
+  const href = (key: TabKey) => `/admin/gang-sheets?tab=${key}`;
 
   return (
-    <ProductsFrame active="gang-sheets" sub="The sheet sizes, prices, builder and design library your customers order from, and every sheet job."
-      actions={<Link href="/admin/production" className="pc-btn" data-kind="primary">Open the print queue</Link>}>
+    <ProductsFrame active="gang-sheets" title="Gang sheet setup" sub="Sizes, prices and builder rules. Print jobs live in Production."
+      actions={<Link href="/admin/production" className="pc-btn">Open the print queue</Link>}>
     <div data-gang-sheets data-tab={tab}>
-      <nav className="pc-subtabs" aria-label="Gang sheets">
+      <nav className="pc-subtabs" aria-label="Gang sheet setup">
         {TABS.map((t) => (
           <Link key={t.key} href={href(t.key)} className="pc-subtab" data-tab={t.key}
             data-on={tab === t.key ? "" : undefined} aria-current={tab === t.key ? "page" : undefined}>
@@ -190,10 +174,7 @@ function GangSheetsAdmin() {
         ))}
       </nav>
 
-      {tab === "dashboard" ? <DashboardTab jobsHref={(s) => href("jobs", s)} />
-        : tab === "jobs" ? <JobsTab status={status} onStatus={(s) => router.replace(href("jobs", s), { scroll: false })} />
-        : tab === "setup" ? <SetupTab />
-        : tab === "products" ? <ProductsTab onGoToSizes={() => router.push(href("sizes"))} />
+      {tab === "products" ? <ProductsTab onGoToSizes={() => router.push(href("sizes"))} />
         : tab === "sizes" ? <SizesTab />
         : tab === "library" ? <LibraryTab />
         : <SettingsTab />}
@@ -202,164 +183,32 @@ function GangSheetsAdmin() {
   );
 }
 
-// ── Dashboard ─────────────────────────────────────────────────────────────────
-function DashboardTab({ jobsHref }: { jobsHref: (status?: string) => string }) {
-  const [data, setData] = useState<GangSheetDashboard | null>(null);
-  const [failed, setFailed] = useState(false);
-
-  useEffect(() => {
-    gangSheetsService.adminDashboard().then(setData).catch(() => setFailed(true));
-  }, []);
-
-  if (failed) return <div className="pc-card pc-empty">The dashboard could not be loaded.</div>;
-  if (!data) return <div className="pc-card pc-empty">Loading the dashboard…</div>;
-
-  const total = data.status_breakdown.reduce((s, r) => s + r.count, 0) || 1;
-  const waiting = data.status_breakdown.find((r) => r.status === "in_review")?.count ?? 0;
-  const rank = (s: string) => { const i = JOB_STATUSES.findIndex(([k]) => k === s); return i < 0 ? 99 : i; };
-  const rows = [...data.status_breakdown].sort((a, b) => rank(a.status) - rank(b.status));
-
-  return (
-    <div className="pc-stack" data-gs-dashboard>
-      <div className="pc-stats4" style={{ marginBottom: 0 }}>
-        <div className="pc-card pc-stat4">
-          <div className="pc-stat4-v">{data.total_sheets.toLocaleString()}</div>
-          <div className="pc-stat4-l">Sheets made</div>
-          <div className="pc-stat4-s">{data.total_jobs.toLocaleString()} {data.total_jobs === 1 ? "job" : "jobs"}</div>
-        </div>
-        <div className="pc-card pc-stat4">
-          <div className="pc-stat4-v">{data.total_orders.toLocaleString()}</div>
-          <div className="pc-stat4-l">Checked out</div>
-          <div className="pc-stat4-s">Jobs on a placed order</div>
-        </div>
-        <div className="pc-card pc-stat4">
-          <div className="pc-stat4-v">{usd(data.total_amount)}</div>
-          <div className="pc-stat4-l">Ordered</div>
-          <div className="pc-stat4-s">From placed orders</div>
-        </div>
-        <div className="pc-card pc-stat4">
-          <div className="pc-stat4-v">{waiting}</div>
-          <div className="pc-stat4-l">Waiting for review</div>
-          <div className="pc-stat4-s"><Link href="/admin/production" className="pc-link" style={{ fontSize: "12.5px" }}>Open the print queue</Link></div>
-        </div>
-      </div>
-
-      <section className="pc-card" aria-labelledby="gs-status-title">
-        <div className="pc-card-head">
-          <h2 className="pc-h2" id="gs-status-title">Jobs by status</h2>
-          <Link href={jobsHref()} className="pc-link">All print jobs</Link>
-        </div>
-        {rows.length === 0 ? (
-          <div className="pc-empty">No gang sheet jobs yet.</div>
-        ) : (
-          <div className="pc-pad" style={{ display: "grid", gap: "14px" }}>
-            {rows.map((r) => {
-              const [label, tone] = jobPill(r.status);
-              const pct = Math.round((r.count / total) * 100);
-              return (
-                <Link key={r.status} href={jobsHref(r.status)} className="pc-bar-row" data-status={r.status} title={`Show the ${label.toLowerCase()} jobs`}>
-                  <span className="pc-bar-top">
-                    <span className="pc-pill" data-tone={tone || undefined}>{label}</span>
-                    <span>{r.count} · {pct}%</span>
-                  </span>
-                  <span className="pc-bar"><span data-tone={tone || undefined} style={{ width: `${Math.max(pct, 2)}%` }} /></span>
-                </Link>
-              );
-            })}
-          </div>
-        )}
-      </section>
-
-      <div className="pc-grid-2" style={{ gap: "24px" }}>
-        <section className="pc-card" aria-labelledby="gs-recent-title">
-          <div className="pc-card-head">
-            <h2 className="pc-h2" id="gs-recent-title">Recent jobs</h2>
-            <Link href={jobsHref()} className="pc-link">See all</Link>
-          </div>
-          {data.recent_designs.length === 0 ? <div className="pc-empty">None yet.</div> : (
-            <div>
-              {data.recent_designs.map((d) => {
-                const [label, tone] = jobPill(d.status);
-                return (
-                  <Link key={d.id ?? d.reference} href={d.id ? `/admin/production/${d.id}` : jobsHref()} className="pc-rowlink" data-recent-job={d.reference}>
-                    <span style={{ minWidth: 0 }}>
-                      <span className="pc-rowlink-title">{d.reference}</span>
-                      <span className="pc-rowlink-sub">{d.contact || "Guest"} · {d.sheet_name}</span>
-                    </span>
-                    <span className="pc-pill" data-tone={tone || undefined}>{label}</span>
-                  </Link>
-                );
-              })}
-            </div>
-          )}
-        </section>
-
-        <section className="pc-card" aria-labelledby="gs-orders-title">
-          <div className="pc-card-head">
-            <h2 className="pc-h2" id="gs-orders-title">Recent orders</h2>
-            <Link href="/admin/orders" className="pc-link">All orders</Link>
-          </div>
-          {data.recent_orders.length === 0 ? <div className="pc-empty">No orders yet.</div> : (
-            <div>
-              {data.recent_orders.map((o) => (
-                <Link key={o.id ?? o.reference} href={o.id ? `/admin/production/${o.id}` : jobsHref()} className="pc-rowlink" data-recent-order={o.reference}>
-                  <span style={{ minWidth: 0 }}>
-                    <span className="pc-rowlink-title">{o.reference}</span>
-                    <span className="pc-rowlink-sub">{o.order_number ? `Order ${o.order_number} · ` : ""}{shortDay(o.created_at)}</span>
-                  </span>
-                  <span style={{ display: "grid", justifyItems: "end", gap: "4px" }}>
-                    <b style={{ fontSize: "14px" }}>{usd(o.subtotal)}</b>
-                    <span className="pc-pill" data-tone={o.paid ? "green" : "amber"}>{o.paid ? "Paid" : "Unpaid"}</span>
-                  </span>
-                </Link>
-              ))}
-            </div>
-          )}
-        </section>
-      </div>
-    </div>
-  );
-}
-
-// ── Set up ────────────────────────────────────────────────────────────────────
-function SetupTab() {
+// ── Set up: what is left before the builder sells ──────────────────────────
+function SetupChecklist() {
   const [data, setData] = useState<GangSheetSetup | null>(null);
-  const [loading, setLoading] = useState(true);
-  useEffect(() => {
-    gangSheetsService.adminSetup().then(setData).catch(() => setData(null)).finally(() => setLoading(false));
-  }, []);
-
+  useEffect(() => { gangSheetsService.adminSetup().then(setData).catch(() => setData(null)); }, []);
+  if (!data) return null;
   const steps = [
-    { done: !!data?.has_products, title: "Enable the builder on a product", desc: "In the Products tab, turn a product on and choose its builder type (Gang Sheet or Upload By Size)." },
-    { done: !!data?.has_sizes, title: "Configure sheet sizes & prices", desc: "In the Sheet Sizes tab, add the sizes and prices you offer — globally or per product." },
-    { done: !!data?.has_library, title: "Add ready-made designs (optional)", desc: "In the Design Library tab, upload artwork customers can drop straight onto a sheet." },
-    { done: !!data?.has_designs, title: "Receive your first design", desc: "Once live, customers build gang sheets on your storefront and they show up under Designs." },
+    { done: !!data.has_products, title: "Turn the builder on for a product", desc: "Below: switch a product on and choose how it sells." },
+    { done: !!data.has_sizes, title: "Add sheet sizes and prices", desc: "Sheet sizes: the sizes you offer, for every product or one." },
+    { done: !!data.has_library, title: "Add ready-made designs (optional)", desc: "Design library: artwork customers can drop onto a sheet." },
+    { done: !!data.has_designs, title: "Receive your first job", desc: "Customers build sheets on your storefront; they land in Production." },
   ];
-
+  const left = steps.filter((x) => !x.done).length;
+  if (left === 0) return null;
   return (
-    <div style={{ maxWidth: "760px" }}>
-      <div style={{ ...CARD, marginBottom: "16px" }}>
-        <h2 style={{ ...H2, margin: "0 0 4px" }}>Get your gang-sheet builder ready</h2>
-        <p style={{ fontSize: "13px", color: "#6B6B6B", margin: 0 }}>Complete these steps to start selling custom gang sheets. The ticks update automatically as you go.</p>
+    <div className="pc-card" style={{ marginBottom: "16px" }} data-gs-checklist>
+      <div className="pc-card-head">
+        <h2 className="pc-h2">Get the builder ready</h2>
+        <span className="pc-sub-line" style={{ fontSize: "13px" }}>{steps.length - left} of {steps.length} done</span>
       </div>
-
-      {loading ? (
-        <div style={{ padding: "26px" }}>{[70, 92, 58, 84].map((w, i) => (<div key={i} className="at-skel" style={{ height: "14px", width: `${w}%`, marginBottom: "12px" }} />))}</div>
-      ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-          {steps.map((s, i) => (
-            <div key={i} style={{ ...CARD, display: "flex", gap: "14px", alignItems: "flex-start" }}>
-              <div style={{ width: "26px", height: "26px", borderRadius: "50%", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "14px", fontWeight: 800, background: s.done ? "#DCFCE7" : "#F3F4F6", color: s.done ? "#166534" : "#9CA3AF" }}>
-                {s.done ? "✓" : i + 1}
-              </div>
-              <div>
-                <div style={{ fontSize: "14px", fontWeight: 700, color: s.done ? "#166534" : "#2A2830" }}>{s.title}</div>
-                <div style={{ fontSize: "13px", color: "#6B6B6B", marginTop: "2px" }}>{s.desc}</div>
-              </div>
-            </div>
-          ))}
+      {steps.map((x) => (
+        <div key={x.title} className="pc-step" data-done={x.done ? "" : undefined}>
+          <span className="pc-step-dot" aria-hidden>{x.done ? "✓" : ""}</span>
+          <span><span className="pc-step-title">{x.title}</span><span className="pc-step-detail" style={{ display: "block" }}>{x.desc}</span></span>
+          {x.done && <span className="pc-step-done">Done</span>}
         </div>
-      )}
+      ))}
     </div>
   );
 }
@@ -403,6 +252,7 @@ function ProductsTab({ onGoToSizes }: { onGoToSizes: () => void }) {
 
   return (
     <>
+      <SetupChecklist />
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px", flexWrap: "wrap", gap: "8px" }}>
         <p style={{ fontSize: "13px", color: "#6B6B6B", margin: 0, maxWidth: "620px" }}>
           Enable the gang-sheet builder on a product and choose its builder type. Configure each product&apos;s sizes &amp; prices with the <strong>edit</strong> button.
@@ -470,100 +320,20 @@ function ProductsTab({ onGoToSizes }: { onGoToSizes: () => void }) {
   );
 }
 
-// ── Print jobs: every job, whatever its status ────────────────────────────────
-// A job opens on its own page (/admin/production/<id>), the one the print queue
-// opens, so there is one place a job is reviewed, approved and printed.
-type JobRow = GangSheetOrder & { order_number?: string | null; order_payment_status?: string | null };
-
-function JobsTab({ status, onStatus }: { status: string; onStatus: (status: string) => void }) {
-  const [jobs, setJobs] = useState<JobRow[] | null>(null);
-  const [failed, setFailed] = useState(false);
-  const [q, setQ] = useState("");
-
-  useEffect(() => {
-    let cancelled = false;
-    setJobs(null);
-    setFailed(false);
-    gangSheetsService.adminListOrders(status || undefined)
-      .then((rows) => { if (!cancelled) setJobs(rows as JobRow[]); })
-      .catch(() => { if (!cancelled) setFailed(true); });
-    return () => { cancelled = true; };
-  }, [status]);
-
-  const words = q.trim().toLowerCase();
-  const shown = (jobs ?? []).filter((j) => !words || `${j.reference} ${j.contact_name ?? ""} ${j.contact_email ?? ""} ${j.order_number ?? ""}`.toLowerCase().includes(words));
-
-  return (
-    <div className="pc-stack" style={{ gap: "16px" }} data-gs-jobs>
-      <div className="pc-filters">
-        <label className="pc-field">
-          <Search size={17} strokeWidth={2} aria-hidden />
-          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Job, customer, email or order" aria-label="Search print jobs" />
-        </label>
-        <select className="pc-input" style={{ width: "220px", height: "42px" }} value={status} onChange={(e) => onStatus(e.target.value)} aria-label="Status">
-          <option value="">All statuses</option>
-          {JOB_STATUSES.map(([k, label]) => <option key={k} value={k}>{label}</option>)}
-        </select>
-      </div>
-
-      <div className="pc-card" data-shown={jobs ? status : undefined} aria-busy={jobs === null && !failed}>
-        {failed ? (
-          <div className="pc-empty">The print jobs could not be loaded.</div>
-        ) : jobs === null ? (
-          <div className="pc-empty">Loading the print jobs…</div>
-        ) : shown.length === 0 ? (
-          <div className="pc-empty">{words ? "No job matches that search." : status ? "No job has that status." : "No gang sheet jobs yet."}</div>
-        ) : (
-          <div className="pc-scroll-x">
-            <table className="pc-table" style={{ minWidth: "900px" }}>
-              <thead>
-                <tr><th>Job</th><th>Customer</th><th>Sheet</th><th className="pc-num">Qty</th><th className="pc-num">Total</th><th>Status</th><th>Order</th><th>Created</th></tr>
-              </thead>
-              <tbody>
-                {shown.map((j) => {
-                  const [label, tone] = jobPill(j.status);
-                  const paid = j.order_payment_status === "paid";
-                  return (
-                    <tr key={j.id} data-gs-job={j.reference}>
-                      <td><Link href={`/admin/production/${j.id}`} className="pc-link">{j.reference}</Link>{j.revision_count > 0 && <div className="pc-sub-line" style={{ fontSize: "12px" }}>sent back {j.revision_count === 1 ? "once" : `${j.revision_count} times`}</div>}</td>
-                      <td>{j.contact_name || "Guest"}{j.contact_email ? <div className="pc-sub-line" style={{ fontSize: "12.5px" }}>{j.contact_email}</div> : null}</td>
-                      <td>{j.sheet_name} <span style={{ color: "var(--pc-faint)" }}>({j.sheet_width_in}″ × {j.sheet_height_in}″)</span></td>
-                      <td className="pc-num">{j.sheet_quantity}</td>
-                      <td className="pc-num" style={{ fontWeight: 600 }}>{usd(j.subtotal)}</td>
-                      <td><span className="pc-pill" data-tone={tone || undefined}>{label}</span></td>
-                      <td>
-                        {j.order_id ? (
-                          <span style={{ display: "inline-flex", alignItems: "center", gap: "8px" }}>
-                            <Link href={`/admin/orders/${j.order_id}`} className="pc-link">{j.order_number ?? "Order"}</Link>
-                            <span className="pc-pill" data-tone={paid ? "green" : "amber"}>{paid ? "Paid" : "Unpaid"}</span>
-                          </span>
-                        ) : <span className="pc-pill">Draft</span>}
-                      </td>
-                      <td style={{ color: "var(--pc-muted)" }}>{shortDay(j.created_at)}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
 // ── Sheet sizes ───────────────────────────────────────────────────────────────
 function SizesTab() {
-  const [sizes, setSizes] = useState<GangSheetSize[]>([]);
+  const [sizes, setSizes] = useState<GangSheetSize[] | null>(null);
   const [draft, setDraft] = useState({ ...EMPTY_SIZE });
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [flash, setFlash] = useState<string | null>(null);
   // Inline edit: which size is open, and its working values.
   const [editId, setEditId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState<Partial<GangSheetSize>>({});
   // Which product these sizes belong to. "" = the brand's global default set.
   const [scopeProductId, setScopeProductId] = useState<string>("");
   const [products, setProducts] = useState<GangSheetProduct[]>([]);
+  const [q, setQ] = useState("");
 
   useEffect(() => {
     gangSheetsService.adminListProducts().then(setProducts).catch(() => setProducts([]));
@@ -574,11 +344,21 @@ function SizesTab() {
   }, [scopeProductId]);
   useEffect(load, [load]);
 
+  // A name used more than once in this set, ignoring case and spaces.
+  const key = (n: string) => n.toLowerCase().split(/\s+/).filter(Boolean).join(" ");
+  const counts = new Map<string, number>();
+  for (const s of sizes ?? []) counts.set(key(s.name), (counts.get(key(s.name)) ?? 0) + 1);
+  const repeated = (sizes ?? []).filter((s) => (counts.get(key(s.name)) ?? 0) > 1).length;
+  const words = q.trim().toLowerCase();
+  const shown = (sizes ?? []).filter((s) => !words || `${s.name} ${s.width_in}x${s.height_in}`.toLowerCase().includes(words));
+  const unpriced = (s: GangSheetSize) => (s.pricing_mode === "custom_length" ? !s.price_per_inch : !s.price_per_sheet);
+
   async function create() {
     if (!draft.name.trim()) { setErr("Give the sheet size a name."); return; }
     setBusy(true); setErr(null);
     try {
       await gangSheetsService.adminCreateSize({ ...draft, product_id: scopeProductId || undefined });
+      setFlash(`Added ${draft.name.trim()}.`);
       setDraft({ ...EMPTY_SIZE });
       load();
     } catch {
@@ -594,9 +374,23 @@ function SizesTab() {
   }
 
   async function remove(s: GangSheetSize) {
-    if (!await ask(`Delete "${s.name}"? Existing orders keep their saved sheet details.`)) return;
+    if (!await ask(`Delete "${s.name}"? Jobs already made on it keep their sheet details.`, { title: "Delete sheet size", ok: "Delete", danger: true })) return;
     await gangSheetsService.adminDeleteSize(s.id).catch(() => {});
     load();
+  }
+
+  async function dedupe() {
+    if (!await ask(`Remove the sizes that repeat another's name? One of each name is kept: an active one with a price first. A size a job was made on is hidden instead of deleted.`, { title: "Remove duplicates", ok: "Remove duplicates", danger: true })) return;
+    setBusy(true); setErr(null);
+    try {
+      const r = await gangSheetsService.adminDedupeSizes(scopeProductId || undefined);
+      setFlash(r.deleted || r.hidden ? `Removed ${r.deleted} ${r.deleted === 1 ? "size" : "sizes"}${r.hidden ? `, hid ${r.hidden} that jobs were made on` : ""}.` : "Nothing to remove.");
+      load();
+    } catch {
+      setErr("The duplicates were not removed.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   function startEdit(s: GangSheetSize) {
@@ -624,6 +418,7 @@ function SizesTab() {
       for (const s of STANDARD_DTF_SIZES) {
         await gangSheetsService.adminCreateSize({ ...EMPTY_SIZE, name: s.name, height_in: s.height_in, price_per_sheet: s.price_per_sheet, product_id: scopeProductId || undefined });
       }
+      setFlash("Added the 7 standard sizes.");
       load();
     } catch {
       setErr("Could not add the standard sizes.");
@@ -633,171 +428,142 @@ function SizesTab() {
   }
 
   const isCustom = draft.pricing_mode === "custom_length";
+  const num = (v: string) => Number(v);
 
   return (
-    <>
-      {/* Scope: the brand's global default sizes, or one product's own sizes */}
-      <div style={{ ...CARD, marginBottom: "18px", display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
-        <span style={LABEL}>Sizes for</span>
-        <select value={scopeProductId} onChange={(e) => setScopeProductId(e.target.value)} style={{ ...INPUT, width: "auto", minWidth: "240px" }}>
-          <option value="">Global default (all products)</option>
-          {products.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.name}{p.gang_sheet_type ? ` — ${TYPE_LABEL[p.gang_sheet_type] ?? "Gang Sheet"}` : ""}
-            </option>
-          ))}
-        </select>
-        <span style={{ fontSize: "12px", color: "#9CA3AF" }}>
-          {scopeProductId ? "Editing this product's own sizes." : "Default set — used when a product has no sizes of its own."}
-        </span>
-      </div>
-
-      <div style={{ ...CARD, marginBottom: "18px" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px", flexWrap: "wrap", gap: "8px" }}>
-          <div style={H2}>Add a sheet size</div>
-          <button onClick={seedStandard} disabled={busy} style={BTN_LIGHT}>
-            + Add 7 standard DTF sizes
-          </button>
-        </div>
-
-        {/* Pricing mode */}
-        <div style={{ marginBottom: "14px" }}>
-          <label style={LABEL}>Pricing</label>
-          <div style={{ display: "flex", gap: "8px" }}>
-            {([["fixed", "Fixed size & price"], ["custom_length", "Custom length (per inch)"]] as const).map(([mode, lbl]) => (
-              <button key={mode} type="button" onClick={() => setDraft({ ...draft, pricing_mode: mode })}
-                style={{ padding: "8px 14px", borderRadius: "8px", fontSize: "13px", fontWeight: 600, cursor: "pointer",
-                  border: "1px solid " + (draft.pricing_mode === mode ? "var(--pc-blue)" : "var(--pc-line)"),
-                  background: draft.pricing_mode === mode ? "var(--pc-blue)" : "#fff",
-                  color: draft.pricing_mode === mode ? "#fff" : "#555" }}>
-                {lbl}
-              </button>
-            ))}
+    <div className="pc-cols" style={{ marginTop: 0 }} data-gs-sizes>
+      <div style={{ minWidth: 0, display: "grid", gap: "16px", alignContent: "start" }}>
+        {flash && <div className="pc-flash" role="status" style={{ marginBottom: 0 }}>{flash}</div>}
+        <div className="pc-card pc-pad" data-sizes-for>
+          <h2 className="pc-h2" style={{ marginBottom: "12px" }}>Sizes for</h2>
+          <div className="pc-form2">
+            <label><span className="pc-label">Show sizes for</span>
+              <select className="pc-input" value={scopeProductId} onChange={(e) => { setScopeProductId(e.target.value); setEditId(null); }}>
+                <option value="">Global default (every product)</option>
+                {products.map((p) => <option key={p.id} value={p.id}>{p.name}{p.gang_sheet_type ? ` — ${TYPE_LABEL[p.gang_sheet_type] ?? "Gang Sheet"}` : ""}</option>)}
+              </select></label>
+            <label><span className="pc-label">Search sizes</span>
+              <span className="pc-field" style={{ maxWidth: "none" }}><Search size={16} strokeWidth={2} aria-hidden />
+                <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="22×10" aria-label="Search sizes" /></span></label>
           </div>
-        </div>
-
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(140px,1fr))", gap: "12px", marginBottom: "14px" }}>
-          <div>
-            <label style={LABEL}>Name</label>
-            <input style={INPUT} value={draft.name} placeholder={isCustom ? "Custom Gang Sheet" : "DTF 22×60"} onChange={(e) => setDraft({ ...draft, name: e.target.value })} />
-          </div>
-          <div>
-            <label style={LABEL}>Width (in)</label>
-            <input style={INPUT} type="number" step="0.25" min="0.25" value={draft.width_in} onChange={(e) => setDraft({ ...draft, width_in: Number(e.target.value) })} />
-          </div>
-          {isCustom ? (
-            <>
-              <div>
-                <label style={LABEL}>Price / inch</label>
-                <input style={INPUT} type="number" step="0.01" min="0" value={draft.price_per_inch} onChange={(e) => setDraft({ ...draft, price_per_inch: Number(e.target.value) })} />
-              </div>
-              <div>
-                <label style={LABEL}>Min length (in)</label>
-                <input style={INPUT} type="number" step="1" min="1" value={draft.min_length_in} onChange={(e) => setDraft({ ...draft, min_length_in: Number(e.target.value) })} />
-              </div>
-              <div>
-                <label style={LABEL}>Max length (in)</label>
-                <input style={INPUT} type="number" step="1" min="1" value={draft.max_length_in} onChange={(e) => setDraft({ ...draft, max_length_in: Number(e.target.value) })} />
-              </div>
-            </>
-          ) : (
-            <>
-              <div>
-                <label style={LABEL}>Height (in)</label>
-                <input style={INPUT} type="number" step="0.25" min="0.25" value={draft.height_in} onChange={(e) => setDraft({ ...draft, height_in: Number(e.target.value) })} />
-              </div>
-              <div>
-                <label style={LABEL}>Price / sheet</label>
-                <input style={INPUT} type="number" step="0.01" min="0" value={draft.price_per_sheet} onChange={(e) => setDraft({ ...draft, price_per_sheet: Number(e.target.value) })} />
-              </div>
-            </>
+          <p className="pc-sub-line" style={{ fontSize: "12.5px", margin: "8px 0 0" }}>
+            {scopeProductId ? "This product's own sizes." : "The default set: used by a product with no sizes of its own."}
+          </p>
+          {repeated > 0 && (
+            <div className="pc-note" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px", marginTop: "12px", flexWrap: "wrap" }} data-dupes>
+              <span>{sizes?.length} sizes, {repeated} of them sharing a name with another. Duplicates are flagged so you can remove them.</span>
+              <button type="button" className="pc-btn" disabled={busy} onClick={() => void dedupe()}>Remove duplicates</button>
+            </div>
           )}
-          <div>
-            <label style={LABEL}>Bleed (in)</label>
-            <input style={INPUT} type="number" step="0.025" min="0" value={draft.bleed_in} onChange={(e) => setDraft({ ...draft, bleed_in: Number(e.target.value) })} />
-          </div>
-          <div>
-            <label style={LABEL}>Spacing (in)</label>
-            <input style={INPUT} type="number" step="0.025" min="0" value={draft.spacing_in} onChange={(e) => setDraft({ ...draft, spacing_in: Number(e.target.value) })} />
-          </div>
         </div>
-        {err && <div style={{ color: "#B91C1C", fontSize: "13px", marginBottom: "10px" }}>{err}</div>}
-        <button style={BTN} disabled={busy} onClick={create}>{busy ? "Saving…" : "Add sheet size"}</button>
+
+        <div className="pc-card" aria-busy={sizes === null}>
+          {sizes === null ? <div className="pc-empty">Loading sizes…</div>
+            : sizes.length === 0 ? <div className="pc-empty">No sheet sizes yet. Customers cannot order a gang sheet until there is an active one.</div>
+            : shown.length === 0 ? <div className="pc-empty">No size matches that search.</div>
+            : (
+              <div className="pc-scroll-x">
+                <table className="pc-table" style={{ minWidth: "720px" }}>
+                  <thead><tr><th>Name</th><th>Mode</th><th>Price</th><th>Bleed / spacing</th><th>Active</th><th>Flag</th><th /></tr></thead>
+                  <tbody>
+                    {shown.map((s) => {
+                      const dupe = (counts.get(key(s.name)) ?? 0) > 1;
+                      if (editId === s.id) {
+                        return (
+                          <tr key={s.id} data-size={s.name} style={{ background: "#F8FAFF" }}>
+                            <td><input className="pc-input" style={{ height: "34px" }} value={editDraft.name ?? ""} onChange={(e) => setEditDraft({ ...editDraft, name: e.target.value })} aria-label="Name" /></td>
+                            <td colSpan={2}>
+                              <span style={{ display: "inline-flex", gap: "6px", alignItems: "center", flexWrap: "wrap" }}>
+                                <input className="pc-input" style={{ height: "34px", width: "70px" }} type="number" step="0.25" value={editDraft.width_in ?? 0} onChange={(e) => setEditDraft({ ...editDraft, width_in: num(e.target.value) })} aria-label="Width" />×
+                                <input className="pc-input" style={{ height: "34px", width: "70px" }} type="number" step="0.25" value={editDraft.height_in ?? 0} onChange={(e) => setEditDraft({ ...editDraft, height_in: num(e.target.value) })} aria-label="Height" />
+                                $<input className="pc-input" style={{ height: "34px", width: "84px" }} type="number" step="0.01" value={editDraft.price_per_sheet ?? 0} onChange={(e) => setEditDraft({ ...editDraft, price_per_sheet: num(e.target.value) })} aria-label="Price per sheet" />
+                              </span>
+                            </td>
+                            <td>
+                              <span style={{ display: "inline-flex", gap: "4px", alignItems: "center" }}>
+                                <input className="pc-input" style={{ height: "34px", width: "64px" }} type="number" step="0.025" value={editDraft.bleed_in ?? 0} onChange={(e) => setEditDraft({ ...editDraft, bleed_in: num(e.target.value) })} aria-label="Bleed" />/
+                                <input className="pc-input" style={{ height: "34px", width: "64px" }} type="number" step="0.025" value={editDraft.spacing_in ?? 0} onChange={(e) => setEditDraft({ ...editDraft, spacing_in: num(e.target.value) })} aria-label="Spacing" />
+                              </span>
+                            </td>
+                            <td colSpan={2} />
+                            <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
+                              <button type="button" className="pc-btn" data-kind="primary" style={{ height: "34px" }} disabled={busy} onClick={() => void saveEdit(s.id)}>Save</button>{" "}
+                              <button type="button" className="pc-btn" style={{ height: "34px" }} onClick={() => setEditId(null)}>Cancel</button>
+                            </td>
+                          </tr>
+                        );
+                      }
+                      return (
+                        <tr key={s.id} data-size={s.name}>
+                          <td style={{ fontWeight: 600 }}>{s.name}<span className="pc-sub-line" style={{ display: "block", fontSize: "12px", fontWeight: 400 }}>{s.pricing_mode === "custom_length" ? `${s.width_in}″ wide, ${s.min_length_in}–${s.max_length_in}″ long` : `${s.width_in}″ × ${s.height_in}″`}</span></td>
+                          <td>{s.pricing_mode === "custom_length" ? "By the inch" : "Fixed"}</td>
+                          <td>{s.pricing_mode === "custom_length" ? `$${s.price_per_inch.toFixed(2)}/in` : `$${s.price_per_sheet.toFixed(2)}`}</td>
+                          <td style={{ color: "var(--pc-muted)" }}>{s.bleed_in}″ / {s.spacing_in}″</td>
+                          <td>
+                            <button type="button" className="pc-switch" role="switch" aria-checked={s.is_active} data-on={s.is_active ? "" : undefined}
+                              aria-label={`${s.name} offered`} onClick={() => void toggle(s)} />
+                          </td>
+                          <td>
+                            <span className="pc-pills">
+                              {dupe && <span className="pc-pill" data-tone="amber">Duplicate</span>}
+                              {unpriced(s) && <span className="pc-pill" data-tone="amber">$0.00</span>}
+                            </span>
+                          </td>
+                          <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
+                            <button type="button" className="pc-link" onClick={() => startEdit(s)} style={{ marginRight: "12px" }}>Edit</button>
+                            <button type="button" className="pc-link" style={{ color: "var(--pc-red)" }} onClick={() => void remove(s)}>Delete</button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+        </div>
       </div>
 
-      {sizes.length === 0 ? (
-        <div style={{ ...CARD, color: "#888", fontSize: "13px" }}>
-          No sheet sizes yet. Customers cannot submit a gang sheet until at least one active size exists.
+      <div className="pc-card pc-pad" style={{ alignSelf: "start" }} data-add-size>
+        <h2 className="pc-h2" style={{ marginBottom: "12px" }}>Add a size</h2>
+        <div style={{ display: "grid", gap: "12px" }}>
+          <label><span className="pc-label">Pricing mode</span>
+            <select className="pc-input" value={draft.pricing_mode} onChange={(e) => setDraft({ ...draft, pricing_mode: e.target.value as "fixed" | "custom_length" })}>
+              <option value="fixed">Fixed size and price</option>
+              <option value="custom_length">Custom length, priced by the inch</option>
+            </select></label>
+          <label><span className="pc-label">Name</span>
+            <input className="pc-input" value={draft.name} placeholder={isCustom ? "Custom gang sheet" : "22×10"} onChange={(e) => setDraft({ ...draft, name: e.target.value })} /></label>
+          <div className="pc-form2">
+            <label><span className="pc-label">Width (in)</span>
+              <input className="pc-input" type="number" step="0.25" min="0.25" value={draft.width_in} onChange={(e) => setDraft({ ...draft, width_in: num(e.target.value) })} /></label>
+            {isCustom ? (
+              <label><span className="pc-label">Price per inch</span>
+                <input className="pc-input" type="number" step="0.01" min="0" value={draft.price_per_inch} onChange={(e) => setDraft({ ...draft, price_per_inch: num(e.target.value) })} /></label>
+            ) : (
+              <label><span className="pc-label">Height (in)</span>
+                <input className="pc-input" type="number" step="0.25" min="0.25" value={draft.height_in} onChange={(e) => setDraft({ ...draft, height_in: num(e.target.value) })} /></label>
+            )}
+            {isCustom ? (<>
+              <label><span className="pc-label">Shortest (in)</span>
+                <input className="pc-input" type="number" step="1" min="1" value={draft.min_length_in} onChange={(e) => setDraft({ ...draft, min_length_in: num(e.target.value) })} /></label>
+              <label><span className="pc-label">Longest (in)</span>
+                <input className="pc-input" type="number" step="1" min="1" value={draft.max_length_in} onChange={(e) => setDraft({ ...draft, max_length_in: num(e.target.value) })} /></label>
+            </>) : (
+              <label className="pc-wide"><span className="pc-label">Price per sheet</span>
+                <input className="pc-input" type="number" step="0.01" min="0" value={draft.price_per_sheet} onChange={(e) => setDraft({ ...draft, price_per_sheet: num(e.target.value) })} /></label>
+            )}
+            <label><span className="pc-label">Bleed (in)</span>
+              <input className="pc-input" type="number" step="0.025" min="0" value={draft.bleed_in} onChange={(e) => setDraft({ ...draft, bleed_in: num(e.target.value) })} /></label>
+            <label><span className="pc-label">Spacing (in)</span>
+              <input className="pc-input" type="number" step="0.025" min="0" value={draft.spacing_in} onChange={(e) => setDraft({ ...draft, spacing_in: num(e.target.value) })} /></label>
+          </div>
+          {err && <div className="pc-note" data-tone="red" role="alert">{err}</div>}
+          <button type="button" className="pc-btn" data-kind="primary" disabled={busy} onClick={() => void create()}>{busy ? "Saving…" : "Add size"}</button>
+          <button type="button" className="pc-link" disabled={busy} onClick={() => void seedStandard()} style={{ justifySelf: "start" }}>Add the 7 standard DTF sizes</button>
+          <p className="pc-sub-line" style={{ fontSize: "12.5px", margin: 0 }}>{scopeProductId ? "Added to this product's own sizes." : "Added to the default set."}</p>
         </div>
-      ) : (
-        <div style={{ ...CARD, padding: 0, overflow: "hidden" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
-            <thead>
-              <tr style={{ background: "#F6F6F7", borderBottom: "1px solid #E8E6E1" }}>
-                {["Name", "Size", "Price", "Bleed / Spacing", "Active", ""].map((h) => (
-                  <th key={h} style={{ padding: "10px 14px", textAlign: "left", fontSize: "11px", fontWeight: 700, color: "#6B6B6B", textTransform: "uppercase" }}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {sizes.map((s) => {
-                const editing = editId === s.id;
-                const cell = { padding: "8px 14px" } as React.CSSProperties;
-                const numIn = { ...INPUT, padding: "6px 8px", width: "70px" } as React.CSSProperties;
-                if (editing) {
-                  return (
-                    <tr key={s.id} style={{ borderBottom: "1px solid #F1EFEB", background: "#F8FAFF" }}>
-                      <td style={cell}><input style={{ ...INPUT, padding: "6px 8px" }} value={editDraft.name ?? ""} onChange={(e) => setEditDraft({ ...editDraft, name: e.target.value })} /></td>
-                      <td style={cell}>
-                        <span style={{ display: "inline-flex", gap: "4px", alignItems: "center" }}>
-                          <input style={numIn} type="number" step="0.25" value={editDraft.width_in ?? 0} onChange={(e) => setEditDraft({ ...editDraft, width_in: Number(e.target.value) })} />×
-                          <input style={numIn} type="number" step="0.25" value={editDraft.height_in ?? 0} onChange={(e) => setEditDraft({ ...editDraft, height_in: Number(e.target.value) })} />
-                        </span>
-                      </td>
-                      <td style={cell}><input style={numIn} type="number" step="0.01" value={editDraft.price_per_sheet ?? 0} onChange={(e) => setEditDraft({ ...editDraft, price_per_sheet: Number(e.target.value) })} /></td>
-                      <td style={cell}>
-                        <span style={{ display: "inline-flex", gap: "4px", alignItems: "center" }}>
-                          <input style={{ ...numIn, width: "56px" }} type="number" step="0.025" value={editDraft.bleed_in ?? 0} onChange={(e) => setEditDraft({ ...editDraft, bleed_in: Number(e.target.value) })} />/
-                          <input style={{ ...numIn, width: "56px" }} type="number" step="0.025" value={editDraft.spacing_in ?? 0} onChange={(e) => setEditDraft({ ...editDraft, spacing_in: Number(e.target.value) })} />
-                        </span>
-                      </td>
-                      <td style={cell} />
-                      <td style={{ ...cell, textAlign: "right", whiteSpace: "nowrap" }}>
-                        <button disabled={busy} onClick={() => saveEdit(s.id)} style={{ background: "var(--pc-blue)", color: "#fff", border: "none", padding: "5px 12px", borderRadius: "6px", fontSize: "12px", fontWeight: 700, cursor: "pointer", marginRight: "6px" }}>Save</button>
-                        <button onClick={() => setEditId(null)} style={{ background: "none", border: "none", color: "#666", cursor: "pointer", fontSize: "12px" }}>Cancel</button>
-                      </td>
-                    </tr>
-                  );
-                }
-                return (
-                  <tr key={s.id} style={{ borderBottom: "1px solid #F1EFEB" }}>
-                    <td style={{ padding: "11px 14px", fontWeight: 700 }}>{s.name}</td>
-                    <td style={{ padding: "11px 14px", color: "#555" }}>
-                      {s.pricing_mode === "custom_length"
-                        ? <>{s.width_in}″ × custom <span style={{ color: "#8B5CF6", fontWeight: 700 }}>({s.min_length_in}–{s.max_length_in}″)</span></>
-                        : <>{s.width_in}″ × {s.height_in}″</>}
-                    </td>
-                    <td style={{ padding: "11px 14px" }}>
-                      {s.pricing_mode === "custom_length" ? `$${s.price_per_inch.toFixed(2)}/in` : `$${s.price_per_sheet.toFixed(2)}`}
-                    </td>
-                    <td style={{ padding: "11px 14px", color: "#888" }}>{s.bleed_in}″ / {s.spacing_in}″</td>
-                    <td style={{ padding: "11px 14px" }}>
-                      <button onClick={() => toggle(s)} style={{ background: s.is_active ? "#DCFCE7" : "#F3F4F6", color: s.is_active ? "#166534" : "#6B7280", border: "none", padding: "3px 10px", borderRadius: "20px", fontSize: "11px", fontWeight: 700, cursor: "pointer" }}>
-                        {s.is_active ? "Active" : "Hidden"}
-                      </button>
-                    </td>
-                    <td style={{ padding: "11px 14px", textAlign: "right", whiteSpace: "nowrap" }}>
-                      <button onClick={() => startEdit(s)} style={{ background: "none", border: "none", color: "var(--pc-blue)", cursor: "pointer", fontSize: "12px", fontWeight: 700, marginRight: "12px" }}>Edit</button>
-                      <button onClick={() => remove(s)} style={{ background: "none", border: "none", color: "#B91C1C", cursor: "pointer", fontSize: "12px" }}>Delete</button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </>
+      </div>
+    </div>
   );
 }
 
