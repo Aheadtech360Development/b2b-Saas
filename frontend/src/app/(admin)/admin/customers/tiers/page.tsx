@@ -3,10 +3,9 @@
 import { ask } from "@/lib/dialog";
 export const dynamic = "force-dynamic";
 
-import { useEffect, useState } from "react";
-import { UpgradeNotice } from "@/components/admin/UpgradeNotice";
-import { useLock } from "@/lib/entitlements";
+import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import { CustomersFrame, PlanLock, useCustomersOverview } from "@/components/admin/customers/CustomersFrame";
 import { adminService } from "@/services/admin.service";
 import { apiClient } from "@/lib/api-client";
 import { TrashIcon } from "@/components/ui/icons";
@@ -208,11 +207,29 @@ function BracketEditor({
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export default function DiscountGroupsPage() {
-  // The plan decides whether this screen exists at all.
-  const lock = useLock("customer_tiers");
-  if (lock) return <UpgradeNotice feature="customer_tiers" />;
+// One of the Customers tabs. On a plan without customer tiers it says which plan
+// has them; the screen itself is never mounted, so its hooks always run in order.
+export default function PricingTiersPage() {
+  return (
+    <Suspense fallback={<div className="pc-page"><div className="pc-card pc-empty">Loading…</div></div>}>
+      <PricingTiersFramed />
+    </Suspense>
+  );
+}
 
+function PricingTiersFramed() {
+  const { overview } = useCustomersOverview();
+  return (
+    <CustomersFrame active="tiers" overview={overview} title="Pricing tiers"
+      sub="Who pays what: discount groups by customer tag, and prices per customer.">
+      {overview == null ? <div className="pc-card pc-empty">Loading…</div>
+        : overview.features.customer_tiers ? <DiscountGroupsPage />
+        : <PlanLock title="Included from the Wholesale plan" blurb="Pricing tiers, discount groups and prices per customer. Upgrade to turn this on." />}
+    </CustomersFrame>
+  );
+}
+
+function DiscountGroupsPage() {
   const searchParams = useSearchParams();
   const initialTab = searchParams.get("tab");
   const [activeTab, setActiveTab] = useState<"groups" | "variants">(
@@ -542,7 +559,7 @@ export default function DiscountGroupsPage() {
       {/* Page header */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
         <div>
-          <h1 style={{ fontFamily: "var(--font-bebas)", fontSize: "32px", color: "#2A2830", letterSpacing: "-0.01em", lineHeight: 1 }}>Discount Groups & Pricing</h1>
+          <h2 className="pc-h2">Discount groups and customer pricing</h2>
           <p style={{ fontSize: "13px", color: "#7A7880", marginTop: "4px" }}>Manage discount groups and individual variant pricing overrides</p>
         </div>
         {activeTab === "groups" && (

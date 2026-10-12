@@ -132,6 +132,9 @@ PATH_FEATURES: list[tuple[str, str]] = [
     # invoice them for it and let them order off the matrix grid — the whole of
     # what the tier above is sold on, for free.
     ("/api/v1/admin/companies", "wholesale_accounts"),
+    # Every customer, retail and guest included: on every plan. Only its
+    # wholesale parts are held back, inside the routes.
+    ("/api/v1/admin/customers", "customers"),
     ("/api/v1/admin/segments", "segments"),
     ("/api/v1/admin/contact-submissions", "messages"),
     ("/api/v1/admin/supplier-catalog", "supplier_catalog"),

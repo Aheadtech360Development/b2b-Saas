@@ -22,7 +22,7 @@ const API_BASE =
     ? (process.env.INTERNAL_API_URL ?? "http://localhost:8000")
     : (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000");
 
-async function downloadCsv(path: string, filename: string): Promise<void> {
+export async function downloadCsv(path: string, filename: string): Promise<void> {
   const token = getAccessToken();
   const response = await fetch(`${API_BASE}${path}`, {
     headers: token ? { Authorization: `Bearer ${token}` } : {},
@@ -245,7 +245,7 @@ export const adminService = {
 
   async approveApplication(
     id: string,
-    data: { pricing_tier_id?: string; discount_group_id?: string; notes?: string; tax_exempt?: boolean }
+    data: { pricing_tier_id?: string; shipping_tier_id?: string; discount_group_id?: string; admin_notes?: string; notes?: string; tax_exempt?: boolean }
   ) {
     return apiClient.post(`/api/v1/admin/wholesale-applications/${id}/approve`, data);
   },

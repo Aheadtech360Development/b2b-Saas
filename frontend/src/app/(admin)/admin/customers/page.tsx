@@ -1,425 +1,238 @@
-// frontend/src/app/%28admin%29/admin/customers/page.tsx
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
-import { adminService } from "@/services/admin.service";
-import { UsersIcon, CheckCircleIcon, BarChartIcon, DollarSignIcon, DownloadIcon } from "@/components/ui/icons";
+/**
+ * Customers — everyone who buys from the shop: accounts (retail and wholesale)
+ * and guests, in one list (services/customer_directory.py on the server).
+ *
+ * The tabs and the Type filter are the same thing (?type=); search, status,
+ * sort and the page are in the address too, so a refresh or a shared link
+ * shows the same rows. A row opens the customer's page.
+ */
+import Link from "next/link";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { Search, X } from "lucide-react";
+import { CustomersFrame, useCustomersOverview, type CustomersTab } from "@/components/admin/customers/CustomersFrame";
+import {
+  customerHref, customersService, type CustomerKind, type CustomerList,
+} from "@/services/customers.service";
+import { KIND_LABEL, KIND_TONE, STATUS_PILL, day, money } from "@/lib/customerWords";
+import { AddCustomerModal } from "@/components/admin/customers/AddCustomerModal";
 
-interface CompanyRow {
-  id: string;
-  name: string;
-  status: string;
-  pricing_tier_id: string | null;
-  shipping_tier_id: string | null;
-  order_count: number;
-  total_spend: string;
-  created_at: string;
-  contact_name?: string;
-  email?: string;
-  phone?: string;
-  last_order_date?: string;
-  account_type?: string;
-}
+const PAGE_SIZE = 50;
 
-interface PricingTier { id: string; name: string; }
+const STATUSES: [string, string][] = [["", "All"], ["active", "Active"], ["pending", "Pending"], ["suspended", "Suspended"], ["guest", "No account"]];
+const SORTS: [string, string][] = [["newest", "Newest"], ["oldest", "Oldest"], ["spent", "Most spent"], ["orders", "Most orders"], ["recent", "Last order"], ["name", "Name"]];
 
-const STATUS_BADGE: Record<string, { bg: string; color: string }> = {
-  active:    { bg: "rgba(5,150,105,.1)",  color: "#059669" },
-  suspended: { bg: "rgba(232,36,42,.1)",  color: "#E8242A" },
-  pending:   { bg: "rgba(217,119,6,.1)",  color: "#D97706" },
-};
-
-// ── Add Customer Modal ─────────────────────────────────────────────────────────
-
-function AddCustomerModal({ pricingTiers, onClose, onSuccess }: {
-  pricingTiers: PricingTier[];
-  onClose: () => void;
-  onSuccess: () => void;
-}) {
-  const [form, setForm] = useState({
-    name: "", business_type: "retailer", tax_id: "", website: "",
-    phone: "", company_email: "",
-    address_line1: "", city: "", state_province: "", postal_code: "", country: "US",
-    contact_first_name: "", contact_last_name: "",
-    contact_email: "", contact_phone: "",
-    pricing_tier_id: "", admin_notes: "",
-  });
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const set = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!form.name.trim()) { setError("Company name is required."); return; }
-    setSaving(true); setError(null);
-    try {
-      await adminService.createCompany({
-        name: form.name,
-        business_type: form.business_type,
-        tax_id: form.tax_id || undefined,
-        website: form.website || undefined,
-        phone: form.phone || undefined,
-        company_email: form.company_email || undefined,
-        address_line1: form.address_line1 || undefined,
-        city: form.city || undefined,
-        state_province: form.state_province || undefined,
-        postal_code: form.postal_code || undefined,
-        country: form.country || "US",
-        contact_first_name: form.contact_first_name || undefined,
-        contact_last_name: form.contact_last_name || undefined,
-        contact_email: form.contact_email || undefined,
-        contact_phone: form.contact_phone || undefined,
-        pricing_tier_id: form.pricing_tier_id || undefined,
-        admin_notes: form.admin_notes || undefined,
-      });
-      onSuccess();
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Failed to create customer");
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  const inp: React.CSSProperties = {
-    width: "100%", padding: "8px 11px", border: "1.5px solid #E3E3E3",
-    borderRadius: "8px", fontSize: "13px", outline: "none", boxSizing: "border-box",
-    fontFamily: "var(--font-jakarta)",
-  };
-  const lbl: React.CSSProperties = {
-    display: "block", fontSize: "11px", fontWeight: 700, textTransform: "uppercase",
-    letterSpacing: ".06em", color: "#7A7880", marginBottom: "5px",
-  };
-
+export default function CustomersPage() {
   return (
-    <div style={{ position: "fixed", inset: 0, zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,.5)", padding: "16px" }}>
-      <div style={{ background: "#fff", borderRadius: "12px", width: "100%", maxWidth: "600px", boxShadow: "0 20px 60px rgba(0,0,0,.2)", maxHeight: "90vh", display: "flex", flexDirection: "column" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "20px 24px", borderBottom: "1px solid #E3E3E3", flexShrink: 0 }}>
-          <h2 style={{ fontFamily: "var(--font-bebas)", fontSize: "22px", color: "#2A2830", letterSpacing: "-0.01em", margin: 0 }}>Add Customer</h2>
-          <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "22px", color: "#7A7880", lineHeight: 1 }}>×</button>
-        </div>
-
-        <form onSubmit={handleSubmit} style={{ padding: "20px 24px", overflowY: "auto", flex: 1 }}>
-          {error && <div style={{ background: "rgba(232,36,42,.08)", border: "1px solid rgba(232,36,42,.2)", borderRadius: "6px", padding: "10px 14px", fontSize: "13px", color: "#E8242A", marginBottom: "16px" }}>{error}</div>}
-
-          <div style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: ".07em", color: "#7A7880", marginBottom: "12px" }}>Company Information</div>
-          <div className="checkout-form-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
-            <div style={{ gridColumn: "1/-1" }}>
-              <label style={lbl}>Company Name *</label>
-              <input style={inp} value={form.name} onChange={e => set("name", e.target.value)} required />
-            </div>
-            <div>
-              <label style={lbl}>Business Type</label>
-              <select style={inp} value={form.business_type} onChange={e => set("business_type", e.target.value)}>
-                {["retailer","distributor","screen_printer","embroiderer","promotional","other"].map(t => (
-                  <option key={t} value={t}>{t.replace(/_/g, " ")}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label style={lbl}>Tax ID / EIN</label>
-              <input style={inp} value={form.tax_id} onChange={e => set("tax_id", e.target.value)} />
-            </div>
-            <div>
-              <label style={lbl}>Phone</label>
-              <input style={inp} value={form.phone} onChange={e => set("phone", e.target.value)} />
-            </div>
-            <div>
-              <label style={lbl}>Company Email</label>
-              <input style={inp} type="email" value={form.company_email} onChange={e => set("company_email", e.target.value)} />
-            </div>
-            <div style={{ gridColumn: "1/-1" }}>
-              <label style={lbl}>Street Address</label>
-              <input style={inp} value={form.address_line1} onChange={e => set("address_line1", e.target.value)} />
-            </div>
-            <div>
-              <label style={lbl}>City</label>
-              <input style={inp} value={form.city} onChange={e => set("city", e.target.value)} />
-            </div>
-            <div>
-              <label style={lbl}>State</label>
-              <input style={inp} value={form.state_province} onChange={e => set("state_province", e.target.value)} />
-            </div>
-            <div>
-              <label style={lbl}>ZIP</label>
-              <input style={inp} value={form.postal_code} onChange={e => set("postal_code", e.target.value)} />
-            </div>
-            <div>
-              <label style={lbl}>Pricing Tier</label>
-              <select style={inp} value={form.pricing_tier_id} onChange={e => set("pricing_tier_id", e.target.value)}>
-                <option value="">None</option>
-                {pricingTiers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-              </select>
-            </div>
-          </div>
-
-          <div style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: ".07em", color: "#7A7880", marginTop: "20px", marginBottom: "12px" }}>Contact Person (optional)</div>
-          <div className="checkout-form-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
-            <div>
-              <label style={lbl}>First Name</label>
-              <input style={inp} value={form.contact_first_name} onChange={e => set("contact_first_name", e.target.value)} />
-            </div>
-            <div>
-              <label style={lbl}>Last Name</label>
-              <input style={inp} value={form.contact_last_name} onChange={e => set("contact_last_name", e.target.value)} />
-            </div>
-            <div>
-              <label style={lbl}>Login Email</label>
-              <input style={inp} type="email" value={form.contact_email} onChange={e => set("contact_email", e.target.value)} />
-            </div>
-            <div>
-              <label style={lbl}>Phone</label>
-              <input style={inp} value={form.contact_phone} onChange={e => set("contact_phone", e.target.value)} />
-            </div>
-          </div>
-
-          <div style={{ marginTop: "16px" }}>
-            <label style={lbl}>Admin Notes</label>
-            <textarea style={{ ...inp, resize: "vertical", minHeight: "60px" }} value={form.admin_notes} onChange={e => set("admin_notes", e.target.value)} />
-          </div>
-
-          <div style={{ display: "flex", gap: "10px", marginTop: "20px", paddingTop: "16px", borderTop: "1px solid #E3E3E3" }}>
-            <button type="button" onClick={onClose}
-              style={{ flex: 1, padding: "10px", border: "1.5px solid #E3E3E3", borderRadius: "8px", fontSize: "13px", fontWeight: 600, cursor: "pointer", background: "#fff" }}>
-              Cancel
-            </button>
-            <button type="submit" disabled={saving}
-              style={{ flex: 2, padding: "10px", background: saving ? "#E3E3E3" : "#1A1A1A", color: saving ? "#aaa" : "#fff", border: "none", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: saving ? "not-allowed" : "pointer" }}>
-              {saving ? "Creating…" : "Create Customer"}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+    <Suspense fallback={<div className="pc-page"><div className="pc-card pc-empty">Loading customers…</div></div>}>
+      <CustomersList />
+    </Suspense>
   );
 }
 
-// ── Main Page ──────────────────────────────────────────────────────────────────
-
-export default function AdminCustomersPage() {
+function CustomersList() {
   const router = useRouter();
-  const [companies, setCompanies] = useState<CompanyRow[]>([]);
-  const [total, setTotal] = useState(0);
-  const [q, setQ] = useState("");
-  const [statusFilter, setStatusFilter] = useState("");
-  const [sortBy, setSortBy] = useState("created_at");
-  const [page, setPage] = useState(1);
-  const [isLoading, setIsLoading] = useState(false);
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [pricingTiers, setPricingTiers] = useState<PricingTier[]>([]);
-  const [exportLoading, setExportLoading] = useState(false);
-  const PAGE_SIZE = 50;
+  const pathname = usePathname();
+  const params = useSearchParams();
+  const q = params.get("q") ?? "";
+  const type = (params.get("type") ?? "") as CustomerKind | "";
+  const status = params.get("status") ?? "";
+  const sort = params.get("sort") ?? "newest";
+  const page = Math.max(1, Number(params.get("page")) || 1);
+  const here = params.toString();
 
-  async function load() {
-    setIsLoading(true);
+  const { overview, refresh: refreshOverview } = useCustomersOverview();
+  const [data, setData] = useState<CustomerList | null>(null);
+  const [shownFor, setShownFor] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState("");
+  const [qText, setQText] = useState(q);
+  const [pop, setPop] = useState<"type" | "status" | "sort" | null>(null);
+  const [adding, setAdding] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [flash, setFlash] = useState<{ text: string; bad?: boolean } | null>(null);
+  const seq = useRef(0);
+
+  const setParams = useCallback((next: Record<string, string | null>) => {
+    const p = new URLSearchParams(params.toString());
+    for (const [k, v] of Object.entries(next)) { if (v) p.set(k, v); else p.delete(k); }
+    if (!("page" in next)) p.delete("page");
+    const s = p.toString();
+    router.replace(`${pathname}${s ? `?${s}` : ""}`, { scroll: false });
+  }, [params, pathname, router]);
+
+  // The search box writes the address a moment after typing stops.
+  useEffect(() => { setQText(q); }, [q]);
+  useEffect(() => {
+    if (qText === q) return;
+    const t = setTimeout(() => setParams({ q: qText.trim() || null }), 350);
+    return () => clearTimeout(t);
+  }, [qText, q, setParams]);
+
+  const load = useCallback(async () => {
+    const mine = ++seq.current;
     try {
-      const data = await adminService.listCompanies({
-        q: q || undefined,
-        status: statusFilter || undefined,
-        page,
-        page_size: PAGE_SIZE,
-      }) as { items: CompanyRow[]; total: number };
-      setCompanies(data.items);
-      setTotal(data.total);
-    } finally {
-      setIsLoading(false);
+      const d = await customersService.list({ q, type, status, sort, page, page_size: PAGE_SIZE });
+      if (mine !== seq.current) return;
+      setData(d);
+      setLoadError("");
+    } catch (e) {
+      if (mine !== seq.current) return;
+      setLoadError(e instanceof Error ? e.message : "The customers could not be loaded.");
     }
-  }
-
-  useEffect(() => { load(); }, [q, statusFilter, page]);
+    setShownFor(here);
+  }, [q, type, status, sort, page, here]);
+  useEffect(() => { void load(); }, [load]);
 
   useEffect(() => {
-    adminService.listPricingTiers().then(t => setPricingTiers(t as PricingTier[])).catch(() => {});
-  }, []);
+    if (!pop) return;
+    const close = (e: MouseEvent) => { if (!(e.target as HTMLElement).closest?.(".pc-pop-wrap")) setPop(null); };
+    window.addEventListener("mousedown", close);
+    return () => window.removeEventListener("mousedown", close);
+  }, [pop]);
 
-  const sorted = useMemo(() => {
-    const list = [...companies];
-    if (sortBy === "total_spend") list.sort((a, b) => Number(b.total_spend) - Number(a.total_spend));
-    else if (sortBy === "order_count") list.sort((a, b) => b.order_count - a.order_count);
-    else list.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-    return list;
-  }, [companies, sortBy]);
-
-  const stats = useMemo(() => ({
-    total,
-    active: companies.filter(c => c.status === "active").length,
-    avg_spend: companies.length ? companies.reduce((s, c) => s + Number(c.total_spend), 0) / companies.length : 0,
-    total_revenue: companies.reduce((s, c) => s + Number(c.total_spend), 0),
-  }), [companies, total]);
-
-  const pages = Math.ceil(total / PAGE_SIZE);
-
-  async function handleExport() {
-    setExportLoading(true);
-    try { await adminService.exportCompaniesCsv(); } catch { /* ignore */ } finally { setExportLoading(false); }
+  async function exportCsv() {
+    setExporting(true);
+    try { await customersService.exportCsv({ q, type, status, sort }); }
+    catch { setFlash({ text: "The export did not download. Try again.", bad: true }); }
+    setExporting(false);
   }
 
-  const thStyle: React.CSSProperties = {
-    padding: "11px 14px", textAlign: "left", fontSize: "10px",
-    textTransform: "uppercase", letterSpacing: ".07em", color: "#7A7880", fontWeight: 700,
-  };
+  const rows = data?.items ?? [];
+  const loaded = shownFor === here;
+  const first = (page - 1) * PAGE_SIZE + 1;
+  const tab: CustomersTab = type || "all";
+  const filtered = !!(q || status);
 
   return (
-    <div style={{ fontFamily: "var(--font-jakarta)" }}>
-
-      {showAddModal && (
-        <AddCustomerModal
-          pricingTiers={pricingTiers}
-          onClose={() => setShowAddModal(false)}
-          onSuccess={() => { setShowAddModal(false); load(); }}
-        />
+    <CustomersFrame
+      active={tab}
+      overview={overview}
+      actions={<>
+        <button type="button" className="pc-btn" onClick={exportCsv} disabled={exporting}>{exporting ? "Exporting…" : "Export"}</button>
+        <button type="button" className="pc-btn" data-kind="primary" onClick={() => setAdding(true)}>+ Add customer</button>
+      </>}
+    >
+      {flash && (
+        <div className="pc-flash" data-bad={flash.bad ? "" : undefined} role="status" style={{ display: "flex", justifyContent: "space-between", gap: "12px" }}>
+          <span>{flash.text}</span>
+          <button type="button" className="pc-x" aria-label="Dismiss" onClick={() => setFlash(null)}><X size={16} /></button>
+        </div>
       )}
 
-      {/* Header */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "24px" }}>
-        <div>
-          <h1 style={{ fontFamily: "var(--font-bebas)", fontSize: "32px", color: "#2A2830", letterSpacing: "-0.01em", lineHeight: 1 }}>Customers</h1>
-          <p style={{ fontSize: "13px", color: "#7A7880", marginTop: "4px" }}>{total} companies · wholesale accounts</p>
-        </div>
-        <div style={{ display: "flex", gap: "10px" }}>
-          <button
-            onClick={handleExport} disabled={exportLoading}
-            style={{ padding: "10px 18px", border: "1px solid #E3E3E3", borderRadius: "8px", background: "#fff", fontSize: "13px", fontWeight: 600, cursor: exportLoading ? "not-allowed" : "pointer", display: "inline-flex", alignItems: "center", gap: "6px", opacity: exportLoading ? .6 : 1 }}>
-            <DownloadIcon size={14} color="#2A2830" /> {exportLoading ? "Exporting…" : "Export CSV"}
-          </button>
-          <button
-            onClick={() => setShowAddModal(true)}
-            style={{ background: "#1A1A1A", color: "#fff", border: "none", padding: "10px 20px", borderRadius: "8px", fontWeight: 700, cursor: "pointer", fontSize: "14px" }}>
-            + Add Customer
-          </button>
-        </div>
+      <div className="pc-filters">
+        <label className="pc-field" style={{ flex: "1 1 320px", maxWidth: "none" }}>
+          <Search size={17} strokeWidth={2} />
+          <input value={qText} onChange={(e) => setQText(e.target.value)} placeholder="Search by name, company or email" aria-label="Search customers" />
+        </label>
+        <Menu id="type" label={`Type: ${type ? KIND_LABEL[type] : "All"}`} pop={pop} setPop={setPop}
+          items={[["", "All"], ["retail", "Retail"], ["wholesale", "Wholesale"], ["guest", "Guest"]]} value={type}
+          counts={data?.counts as unknown as Record<string, number> | undefined}
+          onPick={(v) => setParams({ type: v || null })} />
+        <Menu id="status" label={`Status: ${STATUSES.find(([v]) => v === status)?.[1] ?? "All"}`} pop={pop} setPop={setPop}
+          items={STATUSES} value={status} onPick={(v) => setParams({ status: v || null })} />
+        <Menu id="sort" label={`Sort: ${SORTS.find(([v]) => v === sort)?.[1] ?? "Newest"}`} pop={pop} setPop={setPop}
+          items={SORTS} value={sort} onPick={(v) => setParams({ sort: v === "newest" ? null : v })} />
       </div>
 
-      {/* Stats */}
-      <div className="admin-stats-grid" style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: "12px", marginBottom: "20px" }}>
-        {[
-          { label: "Total Customers", value: stats.total, icon: <UsersIcon size={22} color="#2A2830" />, color: "#2A2830" },
-          { label: "Active Accounts", value: stats.active, icon: <CheckCircleIcon size={22} color="#059669" />, color: "#059669" },
-          { label: "Avg Order Value", value: `$${stats.avg_spend.toLocaleString("en-US", { minimumFractionDigits: 2 })}`, icon: <BarChartIcon size={22} color="#1A1A1A" />, color: "#1A1A1A" },
-          { label: "Total Revenue", value: `$${stats.total_revenue.toLocaleString("en-US", { minimumFractionDigits: 2 })}`, icon: <DollarSignIcon size={22} color="#D97706" />, color: "#D97706" },
-        ].map(s => (
-          <div key={s.label} style={{ background: "#fff", border: "1px solid #E3E3E3", borderRadius: "10px", padding: "16px 18px", display: "flex", alignItems: "center", gap: "12px" }}>
-            {s.icon}
-            <div>
-              <div style={{ fontFamily: "var(--font-bebas)", fontSize: "24px", color: s.color, lineHeight: 1 }}>{s.value}</div>
-              <div style={{ fontSize: "10px", color: "#7A7880", fontWeight: 700, textTransform: "uppercase", letterSpacing: ".05em" }}>{s.label}</div>
-            </div>
+      <div className="pc-card" data-shown={shownFor ?? undefined} aria-busy={!loaded} data-customer-list>
+        {loadError ? (
+          <div className="pc-empty">{loadError} <button type="button" className="pc-link" onClick={() => void load()}>Try again</button></div>
+        ) : !data ? (
+          <div className="pc-empty">Loading customers…</div>
+        ) : rows.length === 0 ? (
+          <div className="pc-empty">
+            {filtered ? "No customer matches these filters." : type === "guest" ? "Nobody has checked out as a guest yet."
+              : type ? `No ${KIND_LABEL[type].toLowerCase()} customers yet.` : "No customers yet. They appear here with their first order or sign-up."}
           </div>
-        ))}
-      </div>
-
-      {/* Filters */}
-      <div style={{ display: "flex", gap: "10px", marginBottom: "16px", flexWrap: "wrap", alignItems: "center" }}>
-        <input
-          value={q} onChange={e => { setQ(e.target.value); setPage(1); }}
-          placeholder="Search customers…"
-          style={{ padding: "9px 14px", border: "1.5px solid #E3E3E3", borderRadius: "8px", fontSize: "13px", fontFamily: "var(--font-jakarta)", outline: "none", width: "220px" }}
-        />
-        <select value={statusFilter} onChange={e => { setStatusFilter(e.target.value); setPage(1); }}
-          style={{ padding: "9px 12px", border: "1.5px solid #E3E3E3", borderRadius: "8px", fontSize: "13px", fontFamily: "var(--font-jakarta)", background: "#fff", cursor: "pointer" }}>
-          <option value="">All Status</option>
-          <option value="active">Active</option>
-          <option value="pending">Pending</option>
-          <option value="suspended">Suspended</option>
-        </select>
-        <select value={sortBy} onChange={e => setSortBy(e.target.value)}
-          style={{ padding: "9px 12px", border: "1.5px solid #E3E3E3", borderRadius: "8px", fontSize: "13px", fontFamily: "var(--font-jakarta)", background: "#fff", cursor: "pointer" }}>
-          <option value="created_at">Sort: Newest</option>
-          <option value="total_spend">Sort: Most Spent</option>
-          <option value="order_count">Sort: Most Orders</option>
-        </select>
-        <span style={{ fontSize: "13px", color: "#7A7880", marginLeft: "auto" }}>
-          {sorted.length} result{sorted.length !== 1 ? "s" : ""}
-        </span>
-      </div>
-
-      {/* Table */}
-      <div style={{ background: "#fff", border: "1px solid #E3E3E3", borderRadius: "10px", overflow: "hidden" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse" }}>
-          <thead>
-            <tr style={{ background: "#F6F6F7", borderBottom: "1px solid #E3E3E3" }}>
-              <th style={thStyle}>Company</th>
-              <th style={thStyle}>Contact</th>
-              <th style={{ ...thStyle, textAlign: "right" }}>Orders</th>
-              <th style={{ ...thStyle, textAlign: "right" }}>Amount Spent</th>
-              <th style={thStyle}>Joined</th>
-              <th style={thStyle}>Status</th>
-              <th style={thStyle}>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {isLoading && sorted.length === 0 ? (
-              <tr><td colSpan={7} style={{ padding: "40px", textAlign: "center", color: "#bbb", fontSize: "14px" }}><div className="at-skel" style={{ height: "14px", width: "60%", margin: "0 auto" }} /></td></tr>
-            ) : sorted.length === 0 ? (
-              <tr><td colSpan={7} style={{ padding: "40px", textAlign: "center", color: "#bbb", fontSize: "14px" }}>No customers found</td></tr>
-            ) : sorted.map(co => {
-              const statusCfg = STATUS_BADGE[co.status] ?? { bg: "rgba(156,163,175,.15)", color: "#9CA3AF" };
-              const isRetail = co.account_type === "retail";
-              return (
-                <tr key={co.id}
-                  onClick={() => router.push(`/admin/customers/${co.id}`)}
-                  style={{ borderBottom: "1px solid #F6F6F7", cursor: "pointer", transition: "background .12s" }}
-                  onMouseEnter={e => (e.currentTarget.style.background = "#FAFAF8")}
-                  onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
-                  <td style={{ padding: "13px 14px" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                      <div style={{ width: "34px", height: "34px", borderRadius: "50%", background: isRetail ? "#7C3AED" : "#1A1A1A", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontFamily: "var(--font-bebas)", fontSize: "15px", flexShrink: 0 }}>
-                        {co.name[0]?.toUpperCase()}
-                      </div>
-                      <div>
-                        <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                          <span style={{ fontWeight: 700, fontSize: "13px", color: "#2A2830" }}>{co.name}</span>
-                          <span style={{ padding: "1px 7px", borderRadius: "20px", fontSize: "10px", fontWeight: 700, background: isRetail ? "rgba(124,58,237,.1)" : "rgba(26,26,26,.1)", color: isRetail ? "#7C3AED" : "#1A1A1A", textTransform: "uppercase", letterSpacing: ".04em", flexShrink: 0 }}>
-                            {isRetail ? "Retail" : "Wholesale"}
-                          </span>
-                        </div>
-                        {co.phone && <div style={{ fontSize: "11px", color: "#7A7880" }}>{co.phone}</div>}
-                      </div>
-                    </div>
-                  </td>
-                  <td style={{ padding: "13px 14px" }}>
-                    {co.contact_name && <div style={{ fontSize: "13px", color: "#2A2830", fontWeight: 600 }}>{co.contact_name}</div>}
-                    {co.email && <div style={{ fontSize: "12px", color: "#7A7880" }}>{co.email}</div>}
-                    {co.phone && <div style={{ fontSize: "12px", color: "#7A7880" }}>📞 {co.phone}</div>}
-                    {!co.contact_name && !co.email && !co.phone && <span style={{ color: "#bbb", fontSize: "13px" }}>—</span>}
-                  </td>
-                  <td style={{ padding: "13px 14px", textAlign: "right", fontWeight: 700, fontSize: "14px", color: "#2A2830" }}>{co.order_count}</td>
-                  <td style={{ padding: "13px 14px", textAlign: "right", fontFamily: "var(--font-bebas)", fontSize: "18px", color: "#2A2830" }}>
-                    ${Number(co.total_spend).toLocaleString("en-US", { minimumFractionDigits: 2 })}
-                  </td>
-                  <td style={{ padding: "13px 14px", fontSize: "12px", color: "#7A7880" }}>{new Date(co.created_at).toLocaleDateString()}</td>
-                  <td style={{ padding: "13px 14px" }}>
-                    <span style={{ padding: "3px 9px", borderRadius: "20px", fontSize: "11px", fontWeight: 700, background: statusCfg.bg, color: statusCfg.color, textTransform: "capitalize" }}>
-                      {co.status}
-                    </span>
-                  </td>
-                  <td style={{ padding: "13px 14px" }} onClick={e => e.stopPropagation()}>
-                    <button
-                      onClick={() => router.push(`/admin/customers/${co.id}`)}
-                      style={{ padding: "5px 12px", border: "1px solid #E3E3E3", borderRadius: "6px", background: "#fff", fontSize: "12px", fontWeight: 600, cursor: "pointer" }}>
-                      View
-                    </button>
-                  </td>
+        ) : (
+          <div className="pc-scroll-x">
+            <table className="pc-table" style={{ minWidth: "860px" }}>
+              <thead>
+                <tr>
+                  <th>Customer</th><th>Type</th><th className="pc-num">Logins</th><th className="pc-num">Orders</th>
+                  <th className="pc-num">Spent</th><th>Joined</th><th>Status</th>
                 </tr>
-              );
-            })}
-          </tbody>
-        </table>
+              </thead>
+              <tbody>
+                {rows.map((r) => {
+                  const [sLabel, sTone] = STATUS_PILL[r.status] ?? [r.status, ""];
+                  const href = customerHref(r);
+                  const sub = r.kind === "guest" ? r.email : [r.contact !== r.name ? r.contact : null, r.email].filter(Boolean).join(" · ");
+                  return (
+                    <tr key={r.id} data-href data-customer={r.id} onClick={() => router.push(href)}>
+                      <td>
+                        <Link href={href} className="pc-row-title" onClick={(e) => e.stopPropagation()}>{r.name}</Link>
+                        {sub && <span className="pc-sub-line" style={{ display: "block", fontSize: "12.5px", marginTop: "1px" }}>{sub}</span>}
+                      </td>
+                      <td><span className="pc-pill" data-tone={KIND_TONE[r.kind] || undefined}>{KIND_LABEL[r.kind]}</span></td>
+                      <td className="pc-num">{r.logins}</td>
+                      <td className="pc-num">{r.orders}</td>
+                      <td className="pc-num">{money(r.spent)}</td>
+                      <td>{day(r.joined)}</td>
+                      <td><span className="pc-pill" data-tone={sTone || undefined}>{sLabel}</span></td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+        {data && data.total > 0 && (
+          <div className="pc-table-foot" data-total={data.total}>
+            <span>Showing {first}–{Math.min(first + rows.length - 1, data.total)} of {data.total}</span>
+            <span style={{ display: "flex", gap: "8px" }}>
+              <button type="button" className="pc-btn" disabled={page <= 1} onClick={() => setParams({ page: String(page - 1) })}>Previous</button>
+              <button type="button" className="pc-btn" disabled={first + rows.length - 1 >= data.total} onClick={() => setParams({ page: String(page + 1) })}>Next</button>
+            </span>
+          </div>
+        )}
       </div>
+      {data && (
+        <p className="pc-sub-line" style={{ fontSize: "13px", marginTop: "10px" }}>
+          Totals come from your {data.counts.orders.toLocaleString()} {data.counts.orders === 1 ? "order" : "orders"}. Spent leaves out cancelled and refunded orders.
+        </p>
+      )}
 
-      {/* Pagination */}
-      {pages > 1 && (
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", marginTop: "16px" }}>
-          <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
-            style={{ padding: "7px 14px", border: "1px solid #E3E3E3", borderRadius: "6px", background: "#fff", cursor: page === 1 ? "not-allowed" : "pointer", opacity: page === 1 ? 0.4 : 1, fontSize: "13px", fontWeight: 600 }}>
-            ← Prev
-          </button>
-          <span style={{ fontSize: "13px", color: "#7A7880" }}>{page} / {pages}</span>
-          <button onClick={() => setPage(p => Math.min(pages, p + 1))} disabled={page === pages}
-            style={{ padding: "7px 14px", border: "1px solid #E3E3E3", borderRadius: "6px", background: "#fff", cursor: page === pages ? "not-allowed" : "pointer", opacity: page === pages ? 0.4 : 1, fontSize: "13px", fontWeight: 600 }}>
-            Next →
-          </button>
+      {adding && (
+        <AddCustomerModal
+          overview={overview}
+          onClose={() => setAdding(false)}
+          onDone={(id, invited) => {
+            setAdding(false);
+            refreshOverview();
+            router.push(`/admin/customers/${id}${invited ? "?invited=1" : ""}`);
+          }}
+        />
+      )}
+    </CustomersFrame>
+  );
+}
+
+function Menu({ id, label, items, value, onPick, pop, setPop, counts }: {
+  id: "type" | "status" | "sort";
+  label: string;
+  items: [string, string][];
+  value: string;
+  onPick: (v: string) => void;
+  pop: string | null;
+  setPop: (v: "type" | "status" | "sort" | null) => void;
+  counts?: Record<string, number>;
+}) {
+  return (
+    <div className="pc-pop-wrap">
+      <button type="button" className="pc-btn" aria-haspopup="menu" aria-expanded={pop === id} data-menu={id}
+        onClick={() => setPop(pop === id ? null : id)}>{label}</button>
+      {pop === id && (
+        <div className="pc-pop" role="menu">
+          {items.map(([v, l]) => (
+            <button key={v || "all"} type="button" role="menuitemradio" aria-checked={value === v} className="pc-pop-item"
+              data-on={value === v ? "" : undefined} onClick={() => { onPick(v); setPop(null); }}>
+              <span>{l}</span>
+              {counts && <span style={{ color: "var(--pc-muted)" }}>{counts[v || "all"] ?? 0}</span>}
+            </button>
+          ))}
         </div>
       )}
     </div>

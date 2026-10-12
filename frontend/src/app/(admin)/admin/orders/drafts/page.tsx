@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { apiClient } from "@/lib/api-client";
 import { adminService } from "@/services/admin.service";
+import { customersService } from "@/services/customers.service";
 import { ask } from "@/lib/dialog";
 import { OrdersFrame, useOrdersOverview } from "@/components/admin/orders/OrdersFrame";
 
@@ -53,16 +54,27 @@ interface DraftLineItem {
 
 // ── Create Draft Modal (3-step) ────────────────────────────────────────────────
 
-function CreateDraftModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: (id: string) => void }) {
+function CreateDraftModal({ initialCompany, onClose, onSuccess }: {
+  initialCompany?: { id: string; name: string };
+  onClose: () => void;
+  onSuccess: (id: string) => void;
+}) {
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const inp: React.CSSProperties = { width: "100%", padding: "9px 12px", border: "1.5px solid #E3E3E3", borderRadius: "8px", fontSize: "13px", outline: "none", boxSizing: "border-box", fontFamily: "var(--font-jakarta)" };
 
   // Step 1
   const [companies, setCompanies] = useState<CompanyOption[]>([]);
-  const [companyId, setCompanyId] = useState("");
-  const [companyName, setCompanyName] = useState("");
-  const [companySearch, setCompanySearch] = useState("");
+  const [companyId, setCompanyId] = useState(initialCompany?.id ?? "");
+  const [companyName, setCompanyName] = useState(initialCompany?.name ?? "");
+  const [companySearch, setCompanySearch] = useState(initialCompany?.name ?? "");
   const [companyDiscount, setCompanyDiscount] = useState(0); // percent
+
+  // A customer named by the address: its discount, as picking it would read.
+  useEffect(() => {
+    if (!initialCompany?.id) return;
+    apiClient.get<{ discount_percent?: number | null }>(`/api/v1/admin/companies/${initialCompany.id}`)
+      .then((d) => setCompanyDiscount(d?.discount_percent ?? 0)).catch(() => setCompanyDiscount(0));
+  }, [initialCompany?.id]);
 
   // Step 2
   const [products, setProducts] = useState<DraftProduct[]>([]);
@@ -78,10 +90,11 @@ function CreateDraftModal({ onClose, onSuccess }: { onClose: () => void; onSucce
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Company search
+  // Company search: every account, retail included, on every plan (guests
+  // have no account to put an order on).
   useEffect(() => {
-    adminService.listCompanies({ q: companySearch || undefined, page_size: 50 })
-      .then((d: unknown) => { const data = d as { items: CompanyOption[] }; setCompanies(data.items ?? []); })
+    customersService.list({ q: companySearch || undefined, page_size: 50, sort: "name" })
+      .then((d) => setCompanies(d.items.filter((r) => r.kind !== "guest").map((r) => ({ id: r.id, name: r.name }))))
       .catch(() => {});
   }, [companySearch]);
 
@@ -491,6 +504,8 @@ function Drafts() {
       {loadError && <div className="pc-flash" data-bad="" role="status">{loadError}</div>}
       {showCreate && (
         <CreateDraftModal
+          // "New order" on a customer's page names the customer.
+          initialCompany={sp.get("company") ? { id: sp.get("company")!, name: sp.get("company_name") ?? "" } : undefined}
           onClose={closeCreate}
           onSuccess={(id) => {
             setShowCreate(false);

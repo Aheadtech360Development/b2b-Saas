@@ -48,6 +48,8 @@ interface Place {
   scopes?: Scope[];
   /** Addresses that belong here besides its children's own. */
   also?: string[];
+  /** Addresses under this one that belong to another place. */
+  not?: string[];
   count?: number;
   children?: Child[];
 }
@@ -102,16 +104,12 @@ export function AdminSidebar() {
       key: "products", label: "Products", icon: Package, href: "/admin/products", scopes: ["products"],
       also: ["/admin/inventory", "/admin/suppliers", "/admin/purchase-orders", "/admin/gang-sheets"],
     },
+    // One line: All, Retail, Wholesale, Guest, Applications and Pricing tiers
+    // are the tabs across the customer list; the Inbox (messages) is its own
+    // page here, and Segments moved to Marketing, where they are used.
     {
       key: "customers", label: "Customers", icon: Users, href: "/admin/customers", scopes: ["customers"],
-      children: [
-        { href: "/admin/customers", label: "All customers" },
-        { href: "/admin/customers/segments", label: "Segments" },
-        { href: "/admin/customers/applications", label: "Applications", feature: "wholesale_accounts" },
-        { href: "/admin/customers/tiers?tab=groups", label: "Discount groups", feature: "customer_tiers" },
-        { href: "/admin/customers/tiers?tab=variants", label: "Customer pricing", feature: "customer_tiers" },
-        { href: "/admin/messages", label: "Messages", count: unreadMsgs },
-      ],
+      also: ["/admin/messages"], not: ["/admin/customers/segments"], count: unreadMsgs || undefined,
     },
     {
       key: "storefront", label: "Storefront", icon: Store, href: "/site-builder", scopes: ["storefront", "media"],
@@ -125,11 +123,13 @@ export function AdminSidebar() {
         { href: "/admin/media", label: "Media library", scope: "media" },
       ],
     },
-    { key: "marketing", label: "Marketing", icon: Megaphone, href: "/admin/discounts", scopes: ["discounts", "orders"],
+    { key: "marketing", label: "Marketing", icon: Megaphone, href: "/admin/discounts", scopes: ["discounts", "orders", "customers"],
       children: [
         { href: "/admin/discounts", label: "Discounts", scope: "discounts" },
         // Carts to win back: a reminder is marketing, not an order.
         { href: "/admin/abandoned-carts", label: "Abandoned carts", scope: "orders" },
+        // Who to send to: a segment is a saved filter of customers.
+        { href: "/admin/customers/segments", label: "Segments", scope: "customers" },
       ] },
     {
       key: "reports", label: "Reports", icon: BarChart3, href: "/admin/reports", scopes: ["analytics"],
@@ -179,7 +179,9 @@ export function AdminSidebar() {
 
   function placeActive(p: Place): boolean {
     const own = [p.href, ...(p.also ?? []), ...(p.children ?? []).filter((c) => !c.external).map((c) => path(c.href))];
-    return own.some((h) => pathname === path(h) || pathname.startsWith(path(h) + "/"));
+    const under = (h: string) => pathname === path(h) || pathname.startsWith(path(h) + "/");
+    if ((p.not ?? []).some(under)) return false;
+    return own.some(under);
   }
 
   function render(p: Place) {

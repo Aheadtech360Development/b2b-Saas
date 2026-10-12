@@ -1078,6 +1078,8 @@ from app.api.v1.admin import production as admin_production  # noqa: E402
 app.include_router(admin_production.router, prefix=_V1)
 from app.api.v1.admin import catalog as admin_catalog  # noqa: E402
 app.include_router(admin_catalog.router, prefix=_V1)
+from app.api.v1.admin import customer_directory as admin_customer_directory  # noqa: E402
+app.include_router(admin_customer_directory.router, prefix=_V1)
 
 from app.api.v1.admin import entitlements as admin_entitlements  # noqa: E402
 app.include_router(admin_entitlements.router, prefix=_V1)

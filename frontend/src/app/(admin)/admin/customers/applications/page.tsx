@@ -1,11 +1,23 @@
-// frontend/src/app/(admin)/admin/customers/applications/page.tsx
 "use client";
 
-import { useEffect, useState } from "react";
-import { UpgradeNotice } from "@/components/admin/UpgradeNotice";
-import { useLock } from "@/lib/entitlements";
+/**
+ * Applications — wholesale sign-ups to approve or reject, one of the Customers
+ * tabs. Approving makes the account (services/wholesale_service.approve) on the
+ * pricing tier, discount group and tax setting chosen here.
+ *
+ * On a plan without wholesale accounts the screen says which plan has them and
+ * shows, greyed out, what an application looks like; nothing is asked of the
+ * API, which would refuse.
+ */
+import Link from "next/link";
+import { Suspense, useCallback, useEffect, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { X } from "lucide-react";
+import { apiClient } from "@/lib/api-client";
+import { askText } from "@/lib/dialog";
+import { CustomersFrame, PlanLock, useCustomersOverview } from "@/components/admin/customers/CustomersFrame";
 import { adminService } from "@/services/admin.service";
-import { ApprovalModal } from "@/components/admin/ApprovalModal";
+import { day, words } from "@/lib/customerWords";
 
 interface Application {
   id: string;
@@ -18,7 +30,6 @@ interface Application {
   tax_id: string | null;
   website: string | null;
   expected_monthly_volume: string | null;
-  // Extended fields
   company_email: string | null;
   address_line1: string | null;
   address_line2: string | null;
@@ -38,297 +49,254 @@ interface Application {
   status: string;
   rejection_reason: string | null;
   admin_notes: string | null;
+  company_id?: string | null;
   created_at: string;
 }
+interface Named { id: string; name: string }
+interface DiscountGroup { id: string; title: string }
 
-const STATUS_COLORS: Record<string, string> = {
-  pending: "bg-yellow-100 text-yellow-700",
-  approved: "bg-green-100 text-green-700",
-  rejected: "bg-red-100 text-red-700",
-};
+const FILTERS: [string, string][] = [["pending", "Waiting"], ["approved", "Approved"], ["rejected", "Rejected"], ["", "All"]];
+const STATUS_PILL: Record<string, [string, string]> = { pending: ["Waiting", "amber"], approved: ["Approved", "green"], rejected: ["Rejected", "red"] };
 
-function DetailField({ label, value }: { label: string; value: string | null | undefined }) {
-  if (!value) return null;
+export default function ApplicationsPage() {
   return (
-    <div>
-      <dt className="text-xs font-semibold text-gray-500 uppercase tracking-wide">{label}</dt>
-      <dd className="text-sm text-gray-900 mt-0.5">{value}</dd>
+    <Suspense fallback={<div className="pc-page"><div className="pc-card pc-empty">Loading applications…</div></div>}>
+      <Applications />
+    </Suspense>
+  );
+}
+
+function Applications() {
+  const { overview, refresh } = useCustomersOverview();
+  const allowed = overview?.features.wholesale_accounts;
+  return (
+    <CustomersFrame active="applications" overview={overview} title="Applications" sub="Approve or reject wholesale sign-ups.">
+      {overview == null ? <div className="pc-card pc-empty">Loading…</div>
+        : allowed ? <ApplicationList onChanged={refresh} tiersOk={overview.features.customer_tiers} />
+        : <Locked />}
+    </CustomersFrame>
+  );
+}
+
+function Locked() {
+  return (
+    <div style={{ display: "grid", gap: "16px" }} data-applications-locked>
+      <PlanLock title="Included from the Wholesale plan"
+        blurb="Wholesale accounts, sign-up and approval. Upgrade to turn this on." />
+      <div className="pc-card pc-pad" aria-hidden style={{ opacity: .75 }}>
+        <div className="pc-eyebrow" style={{ marginBottom: "4px" }}>Preview of what you get</div>
+        <h2 className="pc-h2" style={{ color: "var(--pc-muted)", marginBottom: "14px" }}>A company applied for a wholesale account</h2>
+        <div className="pc-form2" style={{ gridTemplateColumns: "repeat(3, minmax(0, 1fr))" }}>
+          <label><span className="pc-label">Business type</span><input className="pc-input" disabled placeholder="Screen printer" /></label>
+          <label><span className="pc-label">Tax ID</span><input className="pc-input" disabled placeholder="12-3456789" /></label>
+          <label><span className="pc-label">Pricing tier</span><select className="pc-input" disabled><option>Choose a tier</option></select></label>
+        </div>
+        <div style={{ display: "flex", gap: "10px", marginTop: "14px" }}>
+          <button type="button" className="pc-btn" data-kind="primary" disabled>Approve</button>
+          <button type="button" className="pc-btn" disabled>Reject</button>
+        </div>
+      </div>
     </div>
   );
 }
 
-function DetailModal({ app, onClose }: { app: Application; onClose: () => void }) {
-  const fullAddress = [app.address_line1, app.address_line2, app.city, app.state_province, app.postal_code, app.country].filter(Boolean).join(", ");
+function ApplicationList({ onChanged, tiersOk }: { onChanged: () => void; tiersOk: boolean }) {
+  const params = useSearchParams();
+  const pathname = usePathname();
+  const router = useRouter();
+  const status = params.get("status") ?? "pending";
+  const [apps, setApps] = useState<Application[] | null>(null);
+  const [error, setError] = useState("");
+  const [tiers, setTiers] = useState<Named[]>([]);
+  const [groups, setGroups] = useState<DiscountGroup[]>([]);
+  const [flash, setFlash] = useState<{ text: string; bad?: boolean; href?: string } | null>(null);
+  const [open, setOpen] = useState<Application | null>(null);
+
+  const load = useCallback(async () => {
+    try {
+      setApps(await adminService.listApplications(status || undefined) as Application[]);
+      setError("");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "The applications could not be loaded.");
+    }
+  }, [status]);
+  useEffect(() => { setApps(null); void load(); }, [load]);
+  useEffect(() => {
+    if (tiersOk) {
+      adminService.listPricingTiers().then((t) => setTiers((Array.isArray(t) ? t : []) as Named[])).catch(() => {});
+      apiClient.get<DiscountGroup[]>("/api/v1/admin/discount-groups").then((g) => setGroups(Array.isArray(g) ? g : [])).catch(() => {});
+    }
+  }, [tiersOk]);
+
+  const setStatus = (v: string) => {
+    const p = new URLSearchParams(params.toString());
+    if (v === "pending") p.delete("status"); else p.set("status", v || "all");
+    router.replace(`${pathname}${p.toString() ? `?${p}` : ""}`, { scroll: false });
+  };
+  const shownStatus = status === "all" ? "" : status;
+
+  async function done(text: string, href?: string) {
+    setFlash({ text, href });
+    onChanged();
+    await load();
+  }
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4 py-8 overflow-y-auto">
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl my-auto">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
-          <div>
-            <h2 className="text-lg font-bold text-gray-900">{app.company_name}</h2>
-            <p className="text-sm text-gray-500">{app.first_name} {app.last_name} · {app.email}</p>
-          </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl font-medium leading-none">&times;</button>
+    <div data-applications>
+      {flash && (
+        <div className="pc-flash" data-bad={flash.bad ? "" : undefined} role="status" style={{ display: "flex", justifyContent: "space-between", gap: "12px" }}>
+          <span>{flash.text} {flash.href && <Link href={flash.href} className="pc-link">Open the account</Link>}</span>
+          <button type="button" className="pc-x" aria-label="Dismiss" onClick={() => setFlash(null)}><X size={16} /></button>
         </div>
+      )}
+      <div className="pc-seg" role="group" aria-label="Show" style={{ marginBottom: "16px" }}>
+        {FILTERS.map(([v, label]) => (
+          <button key={v || "all"} type="button" aria-pressed={shownStatus === v} onClick={() => setStatus(v)}>{label}</button>
+        ))}
+      </div>
+      {error ? <div className="pc-card pc-empty">{error} <button type="button" className="pc-link" onClick={() => void load()}>Try again</button></div>
+        : apps == null ? <div className="pc-card pc-empty">Loading applications…</div>
+        : apps.length === 0 ? (
+          <div className="pc-card pc-empty">
+            {shownStatus === "pending" ? "No applications waiting. New wholesale sign-ups appear here for you to approve." : "No applications here."}
+          </div>
+        ) : (
+          <div style={{ display: "grid", gap: "14px" }}>
+            {apps.map((a) => (
+              <ApplicationCard key={a.id} a={a} tiers={tiers} groups={groups} tiersOk={tiersOk} onOpen={() => setOpen(a)}
+                onDone={done} onError={(text) => setFlash({ text, bad: true })} />
+            ))}
+          </div>
+        )}
+      {open && <DetailModal a={open} onClose={() => setOpen(null)} />}
+    </div>
+  );
+}
 
-        <div className="px-6 py-5 space-y-6 max-h-[70vh] overflow-y-auto">
-          {/* Contact */}
-          <section>
-            <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">Contact Information</h3>
-            <dl className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <DetailField label="First Name" value={app.first_name} />
-              <DetailField label="Last Name" value={app.last_name} />
-              <DetailField label="Email" value={app.email} />
-              <DetailField label="Phone" value={app.phone} />
-              <DetailField label="Fax" value={app.fax} />
-              <DetailField label="Company Email" value={app.company_email} />
-            </dl>
-          </section>
+function ApplicationCard({ a, tiers, groups, tiersOk, onOpen, onDone, onError }: {
+  a: Application; tiers: Named[]; groups: DiscountGroup[]; tiersOk: boolean; onOpen: () => void;
+  onDone: (text: string, href?: string) => Promise<void>; onError: (text: string) => void;
+}) {
+  const [tier, setTier] = useState("");
+  const [group, setGroup] = useState("");
+  const [taxExempt, setTaxExempt] = useState(false);
+  const [notes, setNotes] = useState("");
+  const [more, setMore] = useState(false);
+  const [busy, setBusy] = useState("");
+  const pending = a.status === "pending";
+  const [label, tone] = STATUS_PILL[a.status] ?? [a.status, ""];
 
-          {/* Company */}
-          <section>
-            <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">Company Details</h3>
-            <dl className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <DetailField label="Company Name" value={app.company_name} />
-              <DetailField label="Business Type" value={app.business_type} />
-              <DetailField label="Tax ID / EIN" value={app.tax_id} />
-              <DetailField label="Website" value={app.website} />
-              <DetailField label="Secondary Business" value={app.secondary_business} />
-              <DetailField label="# Employees" value={app.num_employees} />
-              <DetailField label="# Sales Reps" value={app.num_sales_reps} />
-              <DetailField label="How Heard" value={app.how_heard} />
-            </dl>
-          </section>
+  async function approve() {
+    setBusy("approve");
+    try {
+      const r = await adminService.approveApplication(a.id, {
+        pricing_tier_id: tier || undefined, discount_group_id: group || undefined,
+        tax_exempt: taxExempt, ...(notes.trim() ? { admin_notes: notes.trim() } : {}),
+      }) as { company_id?: string };
+      await onDone(`${a.company_name} is approved. Their account is open.`, r?.company_id ? `/admin/customers/${r.company_id}` : undefined);
+    } catch (e) {
+      onError(e instanceof Error ? e.message : "The application was not approved.");
+    }
+    setBusy("");
+  }
+  async function reject() {
+    const reason = await askText(`Reject ${a.company_name}'s application? Say why: it is kept with the application.`, "", {
+      title: "Reject application", ok: "Reject", danger: true, placeholder: "The reason",
+    });
+    if (reason === null) return;
+    if (!reason.trim()) { onError("Give a reason to reject it."); return; }
+    setBusy("reject");
+    try {
+      await adminService.rejectApplication(a.id, reason);
+      await onDone(`${a.company_name}'s application is rejected.`);
+    } catch (e) {
+      onError(e instanceof Error ? e.message : "The application was not rejected.");
+    }
+    setBusy("");
+  }
 
-          {/* Address */}
-          {fullAddress && (
-            <section>
-              <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">Address</h3>
-              <dl className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <DetailField label="Address Line 1" value={app.address_line1} />
-                <DetailField label="Address Line 2" value={app.address_line2} />
-                <DetailField label="City" value={app.city} />
-                <DetailField label="State / Province" value={app.state_province} />
-                <DetailField label="Postal Code" value={app.postal_code} />
-                <DetailField label="Country" value={app.country} />
-              </dl>
-            </section>
+  return (
+    <div className="pc-card pc-pad" data-application={a.id}>
+      <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", alignItems: "flex-start", flexWrap: "wrap" }}>
+        <div style={{ minWidth: 0 }}>
+          <h2 className="pc-h2">{a.company_name} applied for a wholesale account</h2>
+          <p className="pc-sub-line" style={{ fontSize: "13.5px", margin: "3px 0 0" }}>
+            {[`${a.first_name} ${a.last_name}`.trim(), a.email, a.phone].filter(Boolean).join(" · ")} · {day(a.created_at)}
+          </p>
+        </div>
+        <span className="pc-pills">
+          <span className="pc-pill" data-tone={tone || undefined}>{label}</span>
+          {a.company_id && <Link href={`/admin/customers/${a.company_id}`} className="pc-link" style={{ fontSize: "13.5px" }}>Account</Link>}
+        </span>
+      </div>
+      <div className="pc-form2" style={{ gridTemplateColumns: "repeat(3, minmax(0, 1fr))", marginTop: "14px" }}>
+        <div><span className="pc-label">Business type</span><div>{words(a.business_type) || "—"}</div></div>
+        <div><span className="pc-label">Tax ID</span><div>{a.tax_id || "—"}</div></div>
+        {pending && tiersOk ? (
+          <label><span className="pc-label">Pricing tier</span>
+            <select className="pc-input" value={tier} onChange={(e) => setTier(e.target.value)} disabled={!!busy}>
+              <option value="">Choose a tier</option>
+              {tiers.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+            </select></label>
+        ) : (
+          <div><span className="pc-label">Website</span><div style={{ wordBreak: "break-all" }}>{a.website || "—"}</div></div>
+        )}
+      </div>
+      {a.status === "rejected" && a.rejection_reason && <div className="pc-note" data-tone="red" style={{ marginTop: "12px" }}>Rejected: {a.rejection_reason}</div>}
+      {pending && more && (
+        <div className="pc-form2" style={{ marginTop: "12px" }}>
+          {tiersOk && (
+            <label><span className="pc-label">Discount group</span>
+              <select className="pc-input" value={group} onChange={(e) => setGroup(e.target.value)} disabled={!!busy}>
+                <option value="">None</option>
+                {groups.map((g) => <option key={g.id} value={g.id}>{g.title}</option>)}
+              </select></label>
           )}
-
-          {/* Volume & Industry IDs */}
-          <section>
-            <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">Volume & Industry</h3>
-            <dl className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <DetailField label="Expected Monthly Volume" value={app.expected_monthly_volume} />
-              <DetailField label="Est. Annual Volume" value={app.estimated_annual_volume} />
-              <DetailField label="PPAC #" value={app.ppac_number} />
-              <DetailField label="PPAI #" value={app.ppai_number} />
-              <DetailField label="ASI #" value={app.asi_number} />
-            </dl>
-          </section>
-
-          {/* Status */}
-          <section>
-            <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">Application Status</h3>
-            <dl className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <dt className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Status</dt>
-                <dd className="mt-0.5">
-                  <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${STATUS_COLORS[app.status] ?? "bg-gray-100 text-gray-600"}`}>
-                    {app.status}
-                  </span>
-                </dd>
-              </div>
-              <DetailField label="Submitted" value={new Date(app.created_at).toLocaleDateString()} />
-              {app.rejection_reason && <div className="col-span-2"><DetailField label="Rejection Reason" value={app.rejection_reason} /></div>}
-              {app.admin_notes && <div className="col-span-2"><DetailField label="Admin Notes" value={app.admin_notes} /></div>}
-            </dl>
-          </section>
+          <label className="pc-switch-row" style={{ alignItems: "center", justifyContent: "flex-start", gap: "10px" }}>
+            <input type="checkbox" className="pc-check" checked={taxExempt} onChange={(e) => setTaxExempt(e.target.checked)} />
+            <span>Tax exempt</span>
+          </label>
+          <label className="pc-wide"><span className="pc-label">Notes for your team</span>
+            <textarea className="pc-input" rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} /></label>
         </div>
-
-        <div className="px-6 py-4 border-t border-gray-200 flex justify-end">
-          <button onClick={onClose} className="px-4 py-2 text-sm border border-gray-300 rounded-md hover:bg-gray-50">
-            Close
-          </button>
-        </div>
+      )}
+      <div style={{ display: "flex", gap: "10px", marginTop: "14px", flexWrap: "wrap" }}>
+        {pending && <button type="button" className="pc-btn" data-kind="primary" disabled={!!busy} onClick={() => void approve()}>{busy === "approve" ? "Approving…" : "Approve"}</button>}
+        {pending && <button type="button" className="pc-btn" disabled={!!busy} onClick={() => void reject()}>{busy === "reject" ? "Rejecting…" : "Reject"}</button>}
+        {pending && <button type="button" className="pc-btn" onClick={() => setMore(!more)} aria-expanded={more}>{more ? "Fewer options" : "More options"}</button>}
+        <button type="button" className="pc-btn" onClick={onOpen}>Everything they sent</button>
       </div>
     </div>
   );
 }
 
-export default function AdminApplicationsPage() {
-  // The plan decides whether this screen exists at all.
-  const lock = useLock("wholesale_accounts");
-  if (lock) return <UpgradeNotice feature="wholesale_accounts" />;
+const DETAIL: [keyof Application, string][] = [
+  ["first_name", "First name"], ["last_name", "Last name"], ["email", "Email"], ["phone", "Phone"], ["fax", "Fax"],
+  ["company_email", "Company email"], ["business_type", "Business type"], ["secondary_business", "Also does"],
+  ["tax_id", "Tax ID"], ["website", "Website"], ["num_employees", "Employees"], ["num_sales_reps", "Sales reps"],
+  ["how_heard", "Heard about you"], ["expected_monthly_volume", "Monthly volume"], ["estimated_annual_volume", "Annual volume"],
+  ["ppac_number", "PPAC"], ["ppai_number", "PPAI"], ["asi_number", "ASI"], ["admin_notes", "Notes"],
+];
 
-  const [applications, setApplications] = useState<Application[]>([]);
-  const [statusFilter, setStatusFilter] = useState("pending");
-  const [isLoading, setIsLoading] = useState(false);
-  const [approveTarget, setApproveTarget] = useState<Application | null>(null);
-  const [rejectTarget, setRejectTarget] = useState<Application | null>(null);
-  const [detailTarget, setDetailTarget] = useState<Application | null>(null);
-  const [rejectReason, setRejectReason] = useState("");
-  const [isRejecting, setIsRejecting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  async function load() {
-    setIsLoading(true);
-    try {
-      const data = await adminService.listApplications(statusFilter || undefined) as Application[];
-      setApplications(data);
-    } finally {
-      setIsLoading(false);
-    }
-  }
-
-  useEffect(() => { load(); }, [statusFilter]);
-
-  async function handleReject() {
-    if (!rejectTarget || !rejectReason.trim()) return;
-    setIsRejecting(true);
-    setError(null);
-    try {
-      await adminService.rejectApplication(rejectTarget.id, rejectReason);
-      setRejectTarget(null);
-      setRejectReason("");
-      load();
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Failed to reject");
-    } finally {
-      setIsRejecting(false);
-    }
-  }
-
+function DetailModal({ a, onClose }: { a: Application; onClose: () => void }) {
+  const address = [a.address_line1, a.address_line2, a.city, a.state_province, a.postal_code, a.country].filter(Boolean).join(", ");
   return (
-    <div className="p-6">
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-xl font-bold text-gray-900">Wholesale Applications</h1>
-        <select
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
-          className="rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
-        >
-          <option value="">All</option>
-          <option value="pending">Pending</option>
-          <option value="approved">Approved</option>
-          <option value="rejected">Rejected</option>
-        </select>
-      </div>
-
-      {error && <p className="mb-4 text-sm text-red-600">{error}</p>}
-
-      <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="bg-gray-50 border-b border-gray-200">
-            <tr>
-              <th className="text-left px-4 py-3 text-gray-600 font-medium">Company</th>
-              <th className="text-left px-4 py-3 text-gray-600 font-medium">Contact</th>
-              <th className="text-left px-4 py-3 text-gray-600 font-medium">Business Type</th>
-              <th className="text-left px-4 py-3 text-gray-600 font-medium">Status</th>
-              <th className="text-left px-4 py-3 text-gray-600 font-medium">Submitted</th>
-              <th className="px-4 py-3" />
-            </tr>
-          </thead>
-          <tbody>
-            {isLoading && applications.length === 0 ? (
-              <tr><td colSpan={6} style={{ padding: "40px", textAlign: "center", color: "#bbb", fontSize: "14px" }}><div className="at-skel" style={{ height: "14px", width: "60%", margin: "0 auto" }} /></td></tr>
-            ) : applications.length === 0 ? (
-              <tr><td colSpan={6} className="py-8 text-center text-gray-400">No applications</td></tr>
-            ) : (
-              applications.map((app) => (
-                <tr key={app.id} className="border-b border-gray-100 last:border-0 hover:bg-gray-50">
-                  <td className="px-4 py-3">
-                    <p className="font-medium text-gray-900">{app.company_name}</p>
-                    {app.website && <p className="text-xs text-gray-400">{app.website}</p>}
-                  </td>
-                  <td className="px-4 py-3">
-                    <p className="text-gray-700">{app.first_name} {app.last_name}</p>
-                    <p className="text-xs text-gray-400">{app.email}</p>
-                    {app.phone && <p className="text-xs text-gray-400">{app.phone}</p>}
-                  </td>
-                  <td className="px-4 py-3 text-gray-600">{app.business_type ?? "—"}</td>
-                  <td className="px-4 py-3">
-                    <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${STATUS_COLORS[app.status] ?? "bg-gray-100 text-gray-600"}`}>
-                      {app.status}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-gray-500">{new Date(app.created_at).toLocaleDateString()}</td>
-                  <td className="px-4 py-3">
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => setDetailTarget(app)}
-                        className="text-xs text-blue-600 hover:text-blue-800 font-medium"
-                      >
-                        View
-                      </button>
-                      {app.status === "pending" && (
-                        <>
-                          <button
-                            onClick={() => setApproveTarget(app)}
-                            className="text-xs text-green-700 hover:text-green-900 font-medium"
-                          >
-                            Approve
-                          </button>
-                          <button
-                            onClick={() => setRejectTarget(app)}
-                            className="text-xs text-red-600 hover:text-red-800 font-medium"
-                          >
-                            Reject
-                          </button>
-                        </>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
-
-      {/* Detail modal */}
-      {detailTarget && (
-        <DetailModal app={detailTarget} onClose={() => setDetailTarget(null)} />
-      )}
-
-      {/* Approval modal */}
-      {approveTarget && (
-        <ApprovalModal
-          applicationId={approveTarget.id}
-          companyName={approveTarget.company_name}
-          onClose={() => setApproveTarget(null)}
-          onSuccess={() => { setApproveTarget(null); load(); }}
-        />
-      )}
-
-      {/* Inline reject dialog */}
-      {rejectTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-          <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-sm">
-            <h2 className="text-base font-semibold text-gray-900 mb-1">Reject Application</h2>
-            <p className="text-sm text-gray-500 mb-4">{rejectTarget.company_name}</p>
-            <textarea
-              rows={3}
-              value={rejectReason}
-              onChange={(e) => setRejectReason(e.target.value)}
-              placeholder="Reason for rejection (required)"
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500 mb-4"
-            />
-            {error && <p className="text-sm text-red-600 mb-2">{error}</p>}
-            <div className="flex gap-3">
-              <button onClick={() => { setRejectTarget(null); setRejectReason(""); }} className="flex-1 border border-gray-300 rounded-md py-2 text-sm hover:bg-gray-50">
-                Cancel
-              </button>
-              <button
-                onClick={handleReject}
-                disabled={isRejecting || !rejectReason.trim()}
-                className="flex-1 bg-red-600 text-white rounded-md py-2 text-sm font-medium hover:bg-red-700 disabled:opacity-50"
-              >
-                {isRejecting ? "Rejecting…" : "Reject"}
-              </button>
-            </div>
+    <div className="pc-modal-back" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="pc-modal" role="dialog" aria-label={`${a.company_name}'s application`} style={{ width: "min(680px, 100%)" }}>
+        <div className="pc-panel-head">
+          <div>
+            <h2 className="pc-h2">{a.company_name}</h2>
+            <p className="pc-sub-line" style={{ fontSize: "13.5px", marginTop: "2px" }}>Applied {day(a.created_at)}</p>
           </div>
+          <button type="button" className="pc-x" aria-label="Close" onClick={onClose}><X size={18} /></button>
         </div>
-      )}
+        <div className="pc-pad" style={{ display: "grid", gap: "8px" }}>
+          {address && <div className="pc-kv"><span>Address</span><b style={{ fontWeight: 500 }}>{address}</b></div>}
+          {DETAIL.filter(([k]) => a[k]).map(([k, label]) => (
+            <div key={k} className="pc-kv"><span>{label}</span><b style={{ fontWeight: 500, wordBreak: "break-word" }}>{String(a[k])}</b></div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
