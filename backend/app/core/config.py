@@ -18,6 +18,10 @@ class Settings(BaseSettings):
     # ── Application ───────────────────────────────────────────────────────────
     APP_ENV: Literal["development", "test", "staging", "production"] = "development"
     APP_SECRET_KEY: str = "dev-secret-key-change-in-production"
+    # Encrypts partners' W-9s at rest (a Fernet key: Fernet.generate_key()).
+    # Set it on the live platform; without it a key is derived from
+    # APP_SECRET_KEY. See app/services/partners/docs.py.
+    PARTNER_DOCS_KEY: str = ""
     DEBUG: bool = False
     ALLOWED_ORIGINS: str = "http://localhost:3000,http://localhost:3001"
 

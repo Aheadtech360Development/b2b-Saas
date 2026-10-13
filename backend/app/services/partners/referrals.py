@@ -205,4 +205,23 @@ async def attribute_signup(
         after={"shop": shop_name, "source": source, "code": used, "status": status, "flags": flags},
     )
     return {"referral_id": str(referral_id), "partner_id": str(partner["id"]),
-            "source": source, "status": status, "flags": flags}
+            "source": source, "status": status, "flags": flags, "shop_name": shop_name}
+
+
+async def tell_partner(referral: dict[str, Any]) -> None:
+    """After the sign-up is committed: the partner hears of their new shop,
+    if they asked to. Best effort; runs as a background task."""
+    import asyncio
+
+    from app.services.partners import mail, portal
+    from app.services.partners import db as pdb
+
+    try:
+        async with pdb.session() as db:
+            p = await portal.partner_row(db, referral["partner_id"])
+        if p and p["password_hash"] and portal.email_prefs(p)["new_shop"]:
+            await asyncio.to_thread(mail.new_shop, p["name"], p["email"], referral.get("shop_name") or "A shop")
+    except Exception:  # noqa: BLE001
+        import logging
+
+        logging.getLogger(__name__).warning("could not tell a partner about a new shop", exc_info=True)

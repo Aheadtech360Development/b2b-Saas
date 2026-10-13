@@ -541,14 +541,43 @@ async def handle_event(event: dict) -> None:
                 if outcome is not None:
                     await _record(db, event, outcome)
                 await db.commit()
-                return
             except Exception as exc:  # noqa: BLE001
                 await db.rollback()
                 logger.exception("partner commission: %s %s failed", event.get("type"), event.get("id"))
-                failure = exc
-        await _record_failure(event, failure)
+                outcome, failure = None, exc
+            else:
+                failure = None
+        if failure is not None:
+            await _record_failure(event, failure)
+        elif outcome is not None and outcome.result == "line_created":
+            await _tell_earned(event, outcome)
     except Exception:  # noqa: BLE001
         logger.exception("partner commission: %s could not be read", event.get("id"))
+
+
+async def _tell_earned(event: dict, outcome: Outcome) -> None:
+    """The partner hears they earned, if they asked to. Best effort."""
+    from app.services.partners import mail, portal
+
+    try:
+        inv_id = (event.get("data") or {}).get("object", {}).get("id")
+        async with pdb.session() as db:
+            p = await portal.partner_row(db, outcome.partner_id)
+            line = (await db.execute(text("""
+                SELECT l.amount_cents, l.payable_on, l.status, COALESCE(t.name, r.shop_name) AS shop
+                  FROM partner_commission_lines l
+                  LEFT JOIN partner_referrals r ON r.id = l.referral_id
+                  LEFT JOIN tenants t ON t.id = l.shop_tenant_id
+                 WHERE l.stripe_invoice_id = :i AND l.kind = 'commission'
+            """), {"i": inv_id})).mappings().first()
+        if not (p and line and p["password_hash"] and line["status"] == "open"
+                and portal.email_prefs(p)["commission_earned"]):
+            return
+        due = line["payable_on"]
+        await asyncio.to_thread(mail.commission_earned, p["name"], p["email"], line["shop"] or "A shop",
+                                ledger.money(line["amount_cents"]), f"{due:%b} {due.day}")
+    except Exception:  # noqa: BLE001
+        logger.warning("partner commission: could not send the earned email", exc_info=True)
 
 
 async def note_replay(event_id: str, event_type: str) -> None:

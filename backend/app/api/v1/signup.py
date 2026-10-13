@@ -319,6 +319,10 @@ async def sign_up(payload: SignupIn, request: Request, background: BackgroundTas
     background.add_task(
         _welcome, payload.shop_name.strip(), who, email, payload.plan, shop_url,
     )
+    if referral:
+        from app.services.partners.referrals import tell_partner
+
+        background.add_task(tell_partner, referral)
 
     token = create_access_token(str(user_id), {
         "is_admin": True, "is_platform_admin": False,
