@@ -60,6 +60,7 @@ export default function PrintJobPage() {
   const [internal, setInternal] = useState("");
   const [internalSaved, setInternalSaved] = useState("");
   const [cutoff, setCutoff] = useState<string | null>(null);
+  const [zone, setZone] = useState<string | null>(null);
   const [busy, setBusy] = useState("");
   const [flash, setFlash] = useState<{ text: string; bad?: boolean } | null>(null);
 
@@ -87,7 +88,7 @@ export default function PrintJobPage() {
           .catch(() => { if (!cancelled) setMargins({ bleed_in: 0, spacing_in: 0 }); });
       })
       .catch((e) => { if (!cancelled) setLoadError(errorText(e, "This print job could not be loaded.")); });
-    productionService.settings().then((s) => { if (!cancelled) setCutoff(s.cutoff); }).catch(() => {});
+    productionService.settings().then((s) => { if (!cancelled) { setCutoff(s.cutoff); setZone(s.timezone ?? null); } }).catch(() => {});
     return () => { cancelled = true; };
   }, [id, take]);
 
@@ -114,7 +115,7 @@ export default function PrintJobPage() {
   const stagePill = STAGE[stage] ?? [stage, ""];
   const pay = paymentPill({ paid: j.order_paid, payment_method: j.order_payment_method, order_id: j.order_id });
   const summary = jobSummary({ kind: j.job_kind, sheet_name: j.sheet_name, width_in: j.sheet_width_in, height_in: j.sheet_height_in, quantity: j.sheet_quantity, subtotal: j.subtotal });
-  const note = stage === "review" ? cutoffNote(cutoff) : null;
+  const note = stage === "review" ? cutoffNote(cutoff, new Date(), zone) : null;
   const printFile = j.production?.print_file ?? null;
   const fileHref = (url: string) => (url.startsWith("/") ? `${API_BASE_URL}${url}` : url);
 

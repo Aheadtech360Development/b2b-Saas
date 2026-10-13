@@ -1,4 +1,5 @@
 import { apiClient } from "@/lib/api-client";
+import { minutesIntoDay } from "@/lib/shopClock";
 
 /** Where a job is on the board. "customer" waits in the review column. */
 export type JobStage = "draft" | "review" | "customer" | "approved" | "production" | "ready" | "shipped" | "rejected" | "cancelled";
@@ -42,6 +43,8 @@ export interface ProductionBoard {
   jobs: ProductionJob[];
   /** "HH:MM", 24-hour, or null when the shop has none. */
   cutoff: string | null;
+  /** The clock the cutoff is read on; none means each person's own. */
+  timezone?: string | null;
 }
 
 export interface JobStep { key: string; label: string; state: "done" | "current" | "todo" | "stopped" }
@@ -63,9 +66,15 @@ export interface JobStanding {
 export const productionService = {
   board: () => apiClient.get<ProductionBoard>("/api/v1/admin/production"),
   drafts: (limit = 50) => apiClient.get<{ drafts: ProductionJob[] }>(`/api/v1/admin/production/drafts?limit=${limit}`),
-  settings: () => apiClient.get<{ cutoff: string | null }>("/api/v1/admin/production/settings"),
-  saveCutoff: (cutoff: string) => apiClient.put<{ cutoff: string | null }>("/api/v1/admin/production/settings", { cutoff }),
+  settings: () => apiClient.get<ProductionSettings>("/api/v1/admin/production/settings"),
+  saveCutoff: (cutoff: string) => apiClient.put<ProductionSettings>("/api/v1/admin/production/settings", { cutoff }),
+  /** The cutoff and the clock it is read on, together (Settings, Shipping and pickup). */
+  saveSettings: (cutoff: string, timezone: string) =>
+    apiClient.put<ProductionSettings>("/api/v1/admin/production/settings", { cutoff, timezone }),
 };
+
+/** "HH:MM" or none, and the shop's time zone or none (each person's own clock). */
+export interface ProductionSettings { cutoff: string | null; timezone?: string | null }
 
 // ── Words, said once ─────────────────────────────────────────────────────────
 
@@ -87,14 +96,14 @@ export function cutoffWords(cutoff: string): string {
 }
 
 /**
- * The same-day cutoff, against this computer's clock: before it, "approve by"
- * it to ship today; after it, that today's has passed. Nothing without one.
+ * The same-day cutoff, against the shop's clock (this computer's when the shop
+ * has set no time zone): before it, "approve by" it to ship today; after it,
+ * that today's has passed. Nothing without one.
  */
-export function cutoffNote(cutoff: string | null, now = new Date()): { text: string; late: boolean } | null {
+export function cutoffNote(cutoff: string | null, now = new Date(), timeZone?: string | null): { text: string; late: boolean } | null {
   if (!cutoff) return null;
   const [h, m] = cutoff.split(":").map(Number) as [number, number];
-  const at = new Date(now); at.setHours(h, m, 0, 0);
-  return now < at
+  return minutesIntoDay(timeZone, now) < h * 60 + m
     ? { text: `Approve by ${cutoffWords(cutoff)} to ship today`, late: false }
     : { text: `Past today's ${cutoffWords(cutoff)} cutoff`, late: true };
 }

@@ -67,6 +67,32 @@ async def pickup_location(db: AsyncSession, tenant_id: uuid.UUID | str | None) -
     return resolve(rows.get(keys["p"]), rows.get(keys["s"]))
 
 
+PICKUP_OFF = "This shop doesn't offer pickup. Please choose a shipping method."
+
+
+def offered(value: Any) -> bool:
+    """A saved switch as yes or no. Unset is yes: every shop offered pickup
+    before there was a switch, so one that never touches it keeps it."""
+    return str(value if value is not None else "").strip().lower() not in ("false", "0", "no", "off")
+
+
+async def pickup_offered(db: AsyncSession, tenant_id: uuid.UUID | str | None) -> bool:
+    """Whether this brand lets a customer collect an order (Will Call).
+
+    The brand decides (Settings, Shipping and pickup). Asked again on the
+    server before an order is priced for the card: the checkout hiding the
+    choice is not what stops it.
+    """
+    if not tenant_id:
+        return True
+    from app.core.tenant_settings import get_setting
+
+    try:
+        return offered(await get_setting(db, "pickup_enabled", tenant_id=tenant_id))
+    except Exception:
+        return True
+
+
 def email_block(place: dict[str, str]) -> str:
     """The pickup location as a block for a mail. "" when there is nothing to say."""
     if not (place.get("address") or place.get("hours") or place.get("note")):

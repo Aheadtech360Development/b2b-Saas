@@ -2,11 +2,14 @@
  * The Reports screen: sales, customers and production for a stretch of days
  * (api/v1/admin/reports.py, services/report_view.py).
  *
- * Days are the viewer's: the browser sends its offset from UTC, so "today" and
- * the same-day cutoff mean what they mean on the Production screen.
+ * Days are the shop's own when it has set a time zone (Settings, Shipping and
+ * pickup), else the viewer's: the offset from UTC travels with each request,
+ * so "today" and the same-day cutoff mean what they mean on the Production
+ * screen.
  */
 import { apiClient } from "@/lib/api-client";
 import { downloadCsv } from "@/services/admin.service";
+import { reportOffsetMinutes } from "@/lib/shopClock";
 
 export type ReportRange = "today" | "7d" | "30d" | "90d" | "12m" | "custom";
 export type ReportTab = "sales" | "customers" | "production";
@@ -41,16 +44,17 @@ export interface ReportOverview {
   };
 }
 
-function params(q: ReportQuery): URLSearchParams {
-  const p = new URLSearchParams({ range: q.range, utc_offset: String(-new Date().getTimezoneOffset()) });
+/** The days are the shop's own when it has set a time zone, else this browser's. */
+async function params(q: ReportQuery): Promise<URLSearchParams> {
+  const p = new URLSearchParams({ range: q.range, utc_offset: String(await reportOffsetMinutes()) });
   if (q.range === "custom") { p.set("date_from", q.from ?? ""); p.set("date_to", q.to ?? ""); }
   return p;
 }
 
 export const reportsService = {
-  overview: (q: ReportQuery) => apiClient.get<ReportOverview>(`/api/v1/admin/reports/overview?${params(q)}`),
-  export: (tab: ReportTab, q: ReportQuery, filename: string) => {
-    const p = params(q);
+  overview: async (q: ReportQuery) => apiClient.get<ReportOverview>(`/api/v1/admin/reports/overview?${await params(q)}`),
+  export: async (tab: ReportTab, q: ReportQuery, filename: string) => {
+    const p = await params(q);
     p.set("tab", tab);
     return downloadCsv(`/api/v1/admin/reports/export?${p}`, filename);
   },

@@ -149,6 +149,13 @@ async def guest_payment_intent(
     from app.services.connect_service import ConnectService
     from app.services.payment_service import PaymentService
 
+    # Pickup, at a shop that has switched it off: refused before the card is asked.
+    if (payload.shipping_method or "") == "will_call":
+        from app.services.pickup import PICKUP_OFF, pickup_offered
+
+        if not await pickup_offered(db, get_current_tenant_id()):
+            raise ValidationError(PICKUP_OFF)
+
     tenant_id = getattr(request.state, "tenant_id", None) or get_current_tenant_id()
     if not tenant_id:
         raise ValidationError("No store context on this request")
@@ -424,6 +431,16 @@ async def guest_checkout(
     from app.core.config import get_settings
 
     settings = get_settings()
+
+    # Pickup, at a shop that has switched it off: refused while nothing has been
+    # paid (a card already charged is let through, or the money would be kept
+    # with no order to show for it).
+    if (payload.shipping_method or "") == "will_call" and not payload.payment_intent_id:
+        from app.core.tenant_context import get_current_tenant_id as _pickup_tid
+        from app.services.pickup import PICKUP_OFF, pickup_offered
+
+        if not await pickup_offered(db, _pickup_tid()):
+            raise ValidationError(PICKUP_OFF)
 
     priced = await _price_guest_cart(db, payload)
     order_items_data = priced.items

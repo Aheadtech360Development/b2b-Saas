@@ -131,12 +131,11 @@ export function IntegrationsPanel({
 
   if (loading) {
     return (
-      <div style={{ display: "grid", gap: "12px", gridTemplateColumns: "repeat(auto-fill,minmax(300px,1fr))" }}>
+      <div className="pc-tiles">
         {[0, 1, 2].map((i) => (
-          <div key={i} style={{ ...CARD, height: "150px" }}>
-            <div className="at-skel" style={{ height: "14px", width: "45%", marginBottom: "12px" }} />
-            <div className="at-skel" style={{ height: "12px", width: "85%", marginBottom: "8px" }} />
-            <div className="at-skel" style={{ height: "12px", width: "60%" }} />
+          <div key={i} className="pc-tile">
+            <div className="at-skel" style={{ height: "16px", width: "45%", marginBottom: "12px", borderRadius: "6px" }} />
+            <div className="at-skel" style={{ height: "12px", width: "70%", borderRadius: "6px" }} />
           </div>
         ))}
       </div>
@@ -144,61 +143,41 @@ export function IntegrationsPanel({
   }
 
   if (!providers.length) {
-    return <div style={NOTE}>{emptyHint ?? "Nothing available to connect yet."}</div>;
+    return <div className="pc-note">{emptyHint ?? "Nothing available to connect yet."}</div>;
   }
 
   return (
-    <div style={{ display: "grid", gap: "14px", gridTemplateColumns: "repeat(auto-fill,minmax(320px,1fr))" }}>
+    <div className="pc-tiles" data-integrations={category ?? "all"}>
       {providers.map((p) => {
         const isConnected = !!p.connection?.connected;
         const isOpen = openKey === p.key;
+        const saved = p.fields
+          .filter((f) => f.kind !== "secret" && p.connection?.[f.name])
+          .map((f) => `${f.label}: ${String(p.connection[f.name])}`)
+          .join(" · ");
         return (
-          <div key={p.key} style={{ ...CARD, borderColor: isConnected ? "#1A1A1A" : "#E3E3E3" }}>
-            <div style={{ display: "flex", alignItems: "flex-start", gap: "11px" }}>
-              <span style={{ fontSize: "24px", lineHeight: 1 }}>{p.logo || "🔌"}</span>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
-                  <span style={{ fontSize: "14px", fontWeight: 700, color: "#1A1A1A" }}>{p.name}</span>
-                  <span style={isConnected ? PILL_ON : PILL_OFF}>
-                    {isConnected ? "Connected" : "Not connected"}
-                  </span>
-                </div>
-                <p style={{ fontSize: "12px", color: "#6B6B6B", lineHeight: 1.55, marginTop: "5px" }}>{p.blurb}</p>
-              </div>
-            </div>
-
-            {isConnected && !isOpen && (
-              <div style={{ marginTop: "10px", fontSize: "11px", color: "#8A8A8A", fontFamily: "'IBM Plex Mono', monospace" }}>
-                {p.fields
-                  .filter((f) => f.kind !== "secret" && p.connection?.[f.name])
-                  .map((f) => `${f.label}: ${String(p.connection[f.name])}`)
-                  .join("  ·  ")}
-              </div>
-            )}
+          <div key={p.key} className="pc-tile" data-provider={p.key} data-open={isOpen ? "" : undefined}>
+            <div className="pc-tile-name">{p.name}</div>
+            <div><span className="pc-pill" data-tone={isConnected ? "green" : "amber"} style={{ textTransform: "none" }}>{isConnected ? "Connected" : "Not connected"}</span></div>
+            {isConnected && !isOpen && saved && <div className="pc-sub-line" style={{ fontSize: "12.5px" }}>{saved}</div>}
 
             {!isOpen ? (
-              <div style={{ display: "flex", gap: "8px", marginTop: "14px", flexWrap: "wrap" }}>
-                <button onClick={() => openForm(p)} style={isConnected ? BTN_LIGHT : BTN_DARK}>
-                  {isConnected ? "Manage" : "Connect"}
-                </button>
-                {p.docs_url && (
-                  <a href={p.docs_url} target="_blank" rel="noreferrer" style={{ ...BTN_LIGHT, textDecoration: "none", display: "inline-block" }}>
-                    Where do I find these?
-                  </a>
-                )}
+              <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "4px" }}>
+                <button type="button" className="pc-btn" onClick={() => openForm(p)}>{isConnected ? "Manage" : "Connect"}</button>
               </div>
             ) : (
-              <div style={{ marginTop: "14px", borderTop: "1px solid #F1F1F1", paddingTop: "14px" }}>
+              <div className="pc-tile-form">
+                {p.blurb && <p className="pc-sub-line" style={{ fontSize: "13px", margin: 0 }}>{p.blurb}</p>}
                 {p.fields.map((f) => {
                   const hint = p.connection?.[`${f.name}_hint`];
                   const isSet = !!p.connection?.[`${f.name}_set`];
                   return (
-                    <div key={f.name} style={{ marginBottom: "11px" }}>
-                      <label style={LABEL}>
-                        {f.label}{!f.required && <span style={{ color: "#9CA3AF", fontWeight: 500 }}> (optional)</span>}
+                    <div key={f.name}>
+                      <label className="pc-label" htmlFor={`${p.key}__${f.name}`}>
+                        {f.label}{!f.required && <span style={{ color: "var(--pc-muted)", fontWeight: 400 }}> (optional)</span>}
                       </label>
                       {f.kind === "select" ? (
-                        <select value={values[f.name] ?? ""} onChange={(e) => setValues((v) => ({ ...v, [f.name]: e.target.value }))} style={INPUT}>
+                        <select id={`${p.key}__${f.name}`} className="pc-input" value={values[f.name] ?? ""} onChange={(e) => setValues((v) => ({ ...v, [f.name]: e.target.value }))}>
                           {f.options.map((o) => <option key={o} value={o}>{o}</option>)}
                         </select>
                       ) : (
@@ -209,49 +188,46 @@ export function IntegrationsPanel({
                           // to connect for no visible reason. "new-password" is the
                           // one value it honours, and a name it can't recognise
                           // keeps its heuristics out of these fields.
+                          id={`${p.key}__${f.name}`}
+                          className="pc-input"
                           type={f.kind === "secret" ? "password" : "text"}
                           name={`${p.key}__${f.name}`}
                           value={values[f.name] ?? ""}
                           onChange={(e) => setValues((v) => ({ ...v, [f.name]: e.target.value }))}
-                          placeholder={f.kind === "secret" && isSet ? `Saved — ${hint}. Leave blank to keep it.` : (f.placeholder || "")}
+                          placeholder={f.kind === "secret" && isSet ? `Saved, ${hint}. Leave blank to keep it.` : (f.placeholder || "")}
                           autoComplete="new-password"
                           autoCorrect="off"
                           autoCapitalize="off"
                           spellCheck={false}
                           data-1p-ignore
                           data-lpignore="true"
-                          style={INPUT}
                         />
                       )}
-                      {f.help && <div style={{ fontSize: "11px", color: "#9CA3AF", marginTop: "4px", lineHeight: 1.5 }}>{f.help}</div>}
+                      {f.help && <div className="pc-sub-line" style={{ fontSize: "12.5px", marginTop: "5px" }}>{f.help}</div>}
                     </div>
                   );
                 })}
 
-                {result && (
-                  <div style={{ ...RESULT, background: result.ok ? "#F0FDF4" : "#FEF2F2", borderColor: result.ok ? "#86EFAC" : "#FCA5A5", color: result.ok ? "#166534" : "#991B1B" }}>
-                    {result.text}
-                  </div>
-                )}
+                {result && <div className="pc-note" data-tone={result.ok ? "green" : "red"} role="status">{result.text}</div>}
 
-                <div style={{ display: "flex", gap: "8px", marginTop: "12px", flexWrap: "wrap" }}>
-                  <button onClick={() => connect(p)} disabled={!!busy} style={BTN_DARK}>
-                    {busy === "save" ? "Connecting…" : "Test & connect"}
+                <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
+                  <button type="button" className="pc-btn" data-kind="primary" onClick={() => connect(p)} disabled={!!busy}>
+                    {busy === "save" ? "Connecting…" : "Test and connect"}
                   </button>
-                  <button onClick={() => test(p)} disabled={!!busy} style={BTN_LIGHT}>
+                  <button type="button" className="pc-btn" onClick={() => test(p)} disabled={!!busy}>
                     {busy === "test" ? "Testing…" : "Test only"}
                   </button>
-                  <button onClick={() => { setOpenKey(null); setResult(null); }} style={BTN_PLAIN}>Cancel</button>
+                  <button type="button" className="pc-link" onClick={() => { setOpenKey(null); setResult(null); }}>Cancel</button>
+                  {p.docs_url && <a href={p.docs_url} target="_blank" rel="noreferrer" className="pc-link">Where do I find these?</a>}
                   {isConnected && (
-                    <button onClick={() => disconnect(p)} disabled={!!busy} style={{ ...BTN_PLAIN, color: "#B91C1C", marginLeft: "auto" }}>
+                    <button type="button" className="pc-link" onClick={() => disconnect(p)} disabled={!!busy} style={{ color: "#B91C1C", marginLeft: "auto" }}>
                       {busy === "remove" ? "Removing…" : "Disconnect"}
                     </button>
                   )}
                 </div>
 
                 {result && !result.ok && (
-                  <button onClick={() => connect(p, true)} disabled={!!busy}
-                    style={{ ...BTN_PLAIN, marginTop: "8px", color: "#6B6B6B" }}>
+                  <button type="button" className="pc-link" onClick={() => connect(p, true)} disabled={!!busy} style={{ justifySelf: "start" }}>
                     Save anyway without testing
                   </button>
                 )}
@@ -263,14 +239,3 @@ export function IntegrationsPanel({
     </div>
   );
 }
-
-const CARD: React.CSSProperties = { background: "#fff", border: "1.5px solid #E3E3E3", borderRadius: "10px", padding: "16px 18px" };
-const NOTE: React.CSSProperties = { background: "#F6F6F7", border: "1px solid #E3E3E3", borderRadius: "8px", padding: "16px", fontSize: "13px", color: "#6B6B6B" };
-const LABEL: React.CSSProperties = { display: "block", fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: ".06em", color: "#6B6B6B", marginBottom: "5px" };
-const INPUT: React.CSSProperties = { width: "100%", boxSizing: "border-box", padding: "9px 11px", border: "1px solid #E3E3E3", borderRadius: "8px", fontSize: "13px", background: "#fff" };
-const RESULT: React.CSSProperties = { marginTop: "10px", border: "1px solid", borderRadius: "8px", padding: "9px 12px", fontSize: "12px", lineHeight: 1.55, fontWeight: 600 };
-const PILL_ON: React.CSSProperties = { fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: ".05em", background: "#1A1A1A", color: "#fff", borderRadius: "20px", padding: "2px 9px" };
-const PILL_OFF: React.CSSProperties = { fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: ".05em", background: "#F1F1F0", color: "#8A8A8A", borderRadius: "20px", padding: "2px 9px" };
-const BTN_DARK: React.CSSProperties = { padding: "9px 16px", background: "#1A1A1A", color: "#fff", border: "none", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: "pointer" };
-const BTN_LIGHT: React.CSSProperties = { padding: "9px 16px", background: "#fff", color: "#1A1A1A", border: "1px solid #E3E3E3", borderRadius: "8px", fontSize: "13px", fontWeight: 600, cursor: "pointer" };
-const BTN_PLAIN: React.CSSProperties = { padding: "9px 10px", background: "none", color: "#6B6B6B", border: "none", fontSize: "13px", fontWeight: 600, cursor: "pointer" };

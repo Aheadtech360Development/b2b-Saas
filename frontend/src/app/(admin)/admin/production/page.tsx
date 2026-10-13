@@ -121,7 +121,7 @@ function Production() {
   if (!board) return <div className="pc-page"><div className="pc-card pc-empty">Loading production…</div></div>;
 
   const c = board.counts;
-  const note = cutoffNote(board.cutoff);
+  const note = cutoffNote(board.cutoff, new Date(), board.timezone);
 
   /** The card's own button: the next step for where the job stands. */
   function action(job: ProductionJob, compact = false) {

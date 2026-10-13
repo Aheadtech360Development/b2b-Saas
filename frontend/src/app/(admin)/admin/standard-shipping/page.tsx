@@ -1,507 +1,355 @@
-// frontend/src/app/(admin)/admin/standard-shipping/page.tsx
 "use client";
-export const dynamic = "force-dynamic";
 
+/**
+ * Settings, Shipping and pickup: how orders leave the shop.
+ *
+ * Everything here is the shop's own saved setting, and each is read by the
+ * checkout the moment it is saved:
+ * - carriers: the shop's own UPS, FedEx and USPS accounts (IntegrationsPanel);
+ * - the ship-from address live rates and labels are worked out from;
+ * - the standard rate, for customers without a shipping tier or discount
+ *   group: one price, live carrier rates, or steps by order size. "Free
+ *   shipping above" is saved as two order-value steps, which is how the
+ *   checkout has always known it, so no second rule had to be taught to it;
+ * - pickup (Will Call): offered or not, where it is, its hours and a note;
+ * - the same-day cutoff and the clock it is read on (the Production screen
+ *   counts down to it, and Reports measures on-time against it).
+ */
+import Link from "next/link";
 import { useEffect, useState } from "react";
+import { X } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { IntegrationsPanel } from "@/components/admin/IntegrationsPanel";
 import { SettingsFrame } from "@/components/admin/settings/SettingsFrame";
+import { cutoffWords, productionService } from "@/services/production.service";
+import { US_ZONES, allZones, forgetShopZone, offsetWords } from "@/lib/shopClock";
+import { rateWords as describeRate, readRate, writeRate, type Bracket, type RateCalc as Calc, type RateMode as Mode } from "@/lib/shippingRate";
 
-interface FullShippingBracket {
-  min_units: number;
-  max_units: number | null;
-  min_order_value: number | null;
-  max_order_value: number | null;
-  cost: number;
-}
+const COUNTRY_NAMES: Record<string, string> = { US: "United States", CA: "Canada" };
+/** Every half hour of the day, as "HH:MM". */
+const HALF_HOURS = Array.from({ length: 48 }, (_, i) => `${String(Math.floor(i / 2)).padStart(2, "0")}:${i % 2 ? "30" : "00"}`);
 
-const labelStyle: React.CSSProperties = {
-  fontSize: "11px", fontWeight: 700, textTransform: "uppercase",
-  letterSpacing: ".08em", color: "#7A7880", display: "block", marginBottom: "5px",
-};
-
-const inputStyle: React.CSSProperties = {
-  width: "100%", padding: "9px 12px", border: "1.5px solid #E3E3E3",
-  borderRadius: "8px", fontSize: "13px", fontFamily: "var(--font-jakarta)",
-  outline: "none", boxSizing: "border-box", background: "#fff",
-};
-
-function emptyBracket(): FullShippingBracket {
-  return { min_units: 0, max_units: null, min_order_value: null, max_order_value: null, cost: 0 };
-}
-
-function BracketEditor({
-  brackets, calcType, onChange,
-}: {
-  brackets: FullShippingBracket[];
-  calcType: "units" | "order_value";
-  onChange: (b: FullShippingBracket[]) => void;
-}) {
-  const thS: React.CSSProperties = {
-    padding: "8px 12px", textAlign: "left", fontSize: "10px",
-    textTransform: "uppercase", letterSpacing: ".06em", color: "#7A7880", fontWeight: 700,
-  };
-
-  function update(i: number, field: string, val: string) {
-    onChange(brackets.map((b, idx) => {
-      if (idx !== i) return b;
-      if (field === "cost") return { ...b, cost: parseFloat(val) || 0 };
-      if (field === "min_units" || field === "max_units")
-        return { ...b, [field]: val === "" ? null : parseInt(val) || 0 };
-      if (field === "min_order_value" || field === "max_order_value")
-        return { ...b, [field]: val === "" ? null : parseFloat(val) || null };
-      return b;
-    }));
-  }
-
-  return (
-    <div>
-      <div style={{ overflowX: "auto", border: "1px solid #E3E3E3", borderRadius: "8px", background: "#fff" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px", minWidth: "420px" }}>
-          <thead>
-            <tr style={{ background: "#F6F6F7", borderBottom: "1px solid #E3E3E3" }}>
-              {calcType === "units" ? (
-                <><th style={thS}>Min Units</th><th style={thS}>Max Units (blank = no limit)</th></>
-              ) : (
-                <><th style={thS}>Min Order $</th><th style={thS}>Max Order $ (blank = no limit)</th></>
-              )}
-              <th style={thS}>Shipping Cost ($)</th>
-              <th style={{ ...thS, width: "36px" }} />
-            </tr>
-          </thead>
-          <tbody>
-            {brackets.map((b, i) => (
-              <tr key={i} style={{ borderBottom: "1px solid #F6F6F7" }}>
-                {calcType === "units" ? (
-                  <>
-                    <td style={{ padding: "7px 10px" }}>
-                      <input type="number" min={0} value={b.min_units}
-                        onChange={e => update(i, "min_units", e.target.value)}
-                        style={{ ...inputStyle, width: "100px" }} />
-                    </td>
-                    <td style={{ padding: "7px 10px" }}>
-                      <input type="number" min={1} value={b.max_units ?? ""}
-                        onChange={e => update(i, "max_units", e.target.value)}
-                        placeholder="∞ unlimited"
-                        style={{ ...inputStyle, width: "130px" }} />
-                    </td>
-                  </>
-                ) : (
-                  <>
-                    <td style={{ padding: "7px 10px" }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-                        <span style={{ color: "#aaa" }}>$</span>
-                        <input type="number" min={0} step="0.01" value={b.min_order_value ?? ""}
-                          onChange={e => update(i, "min_order_value", e.target.value)}
-                          placeholder="0.00" style={{ ...inputStyle, width: "100px" }} />
-                      </div>
-                    </td>
-                    <td style={{ padding: "7px 10px" }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-                        <span style={{ color: "#aaa" }}>$</span>
-                        <input type="number" min={0} step="0.01" value={b.max_order_value ?? ""}
-                          onChange={e => update(i, "max_order_value", e.target.value)}
-                          placeholder="∞ unlimited" style={{ ...inputStyle, width: "110px" }} />
-                      </div>
-                    </td>
-                  </>
-                )}
-                <td style={{ padding: "7px 10px" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                    <span style={{ color: "#aaa" }}>$</span>
-                    <input type="number" min={0} step="0.01" value={b.cost}
-                      onChange={e => update(i, "cost", e.target.value)}
-                      style={{ ...inputStyle, width: "80px" }} />
-                    {Number(b.cost) === 0 && (
-                      <span style={{
-                        fontSize: "10px", fontWeight: 700, color: "#059669",
-                        background: "rgba(5,150,105,.1)", padding: "2px 6px", borderRadius: "6px"
-                      }}>FREE</span>
-                    )}
-                  </div>
-                </td>
-                <td style={{ padding: "7px 6px", textAlign: "center" }}>
-                  <button onClick={() => onChange(brackets.filter((_, j) => j !== i))}
-                    style={{ background: "none", border: "none", cursor: "pointer", color: "#E8242A", fontSize: "18px", lineHeight: 1, padding: "0 4px" }}>×</button>
-                </td>
-              </tr>
-            ))}
-            {brackets.length === 0 && (
-              <tr><td colSpan={4} style={{ padding: "14px 12px", textAlign: "center", color: "#aaa", fontSize: "12px" }}>
-                No brackets yet. Click &quot;+ Add Bracket&quot; below.
-              </td></tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-      <button onClick={() => onChange([...brackets, emptyBracket()])}
-        style={{
-          marginTop: "8px", padding: "6px 14px", background: "#F6F6F7", border: "1px solid #E3E3E3",
-          borderRadius: "6px", fontSize: "12px", fontWeight: 700, cursor: "pointer", color: "#2A2830"
-        }}>
-        + Add Bracket
-      </button>
-    </div>
-  );
-}
-
-function StandardShippingPageBody() {
-  const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
+export default function ShippingAndPickupPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [flash, setFlash] = useState<{ text: string; bad?: boolean } | null>(null);
 
-  // "live_shippo" is kept as the stored identifier so existing saved settings
-  // keep working; it now means live rates from the brand's connected carriers.
-  const [shippingType, setShippingType] = useState<"store_default" | "flat_rate" | "live_shippo">("store_default");
-  const [shippingAmount, setShippingAmount] = useState(0);
-  const [calcType, setCalcType] = useState<"units" | "order_value">("order_value");
-  const [cutoffTime, setCutoffTime] = useState("");
-  const [brackets, setBrackets] = useState<FullShippingBracket[]>([]);
-  // Ship-from (origin) — live carrier rates and labels are computed FROM this
-  // address, so each brand quotes and ships from its own warehouse.
-  const [shipFrom, setShipFrom] = useState({
-    name: "", street1: "", city: "", state: "", zip: "", phone: "",
-  });
-  // Where will-call orders are collected: the ship-from address above unless
-  // the brand says it is somewhere else. The hours and the note are its own
-  // either way. One rule with the checkout and the mail: backend services/pickup.
-  const [pickup, setPickup] = useState({ name: "", street1: "", city: "", state: "", zip: "", hours: "", note: "" });
+  const [mode, setMode] = useState<Mode>("flat");
+  const [amount, setAmount] = useState("0");
+  const [freeOver, setFreeOver] = useState("");
+  const [calc, setCalc] = useState<Calc>("order_value");
+  const [steps, setSteps] = useState<Bracket[]>([]);
+  // A line the old screen saved with the steps; kept as it is, nothing shows it.
+  const [oldCutoffText, setOldCutoffText] = useState("");
+  const [shipFrom, setShipFrom] = useState({ name: "", street1: "", city: "", state: "", zip: "", phone: "" });
+  const [pickupOn, setPickupOn] = useState(true);
   const [pickupOwn, setPickupOwn] = useState(false);
+  const [pickup, setPickup] = useState({ name: "", street1: "", city: "", state: "", zip: "", hours: "", note: "" });
+  const [cutoff, setCutoff] = useState("");
+  const [zone, setZone] = useState("");
+  // As loaded, so an unchanged cutoff is not saved again.
+  const [savedClock, setSavedClock] = useState({ cutoff: "", zone: "" });
+  const [countries, setCountries] = useState<string[]>(["US", "CA"]);
 
-  function showToast(msg: string, ok = true) {
-    setToast({ msg, ok });
-    setTimeout(() => setToast(null), 3000);
-  }
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const [settings, production] = await Promise.allSettled([
+        apiClient.get<Record<string, string>>("/api/v1/admin/settings"),
+        productionService.settings(),
+      ]);
+      if (cancelled) return;
+      if (settings.status === "fulfilled") {
+        const s = settings.value ?? {};
+        const read = (key: string) => { try { return s[key] ? JSON.parse(s[key]!) : null; } catch { return null; } };
+        const cfg = read("standard_shipping");
+        if (cfg) {
+          const rate = readRate(cfg);
+          setOldCutoffText(cfg.cutoff_time ?? "");
+          setMode(rate.mode); setCalc(rate.calc); setSteps(rate.steps);
+          setAmount(String(rate.amount)); setFreeOver(rate.freeOver ? String(rate.freeOver) : "");
+        }
+        const from = read("ship_from");
+        if (from) setShipFrom({ name: from.name ?? "", street1: from.street1 ?? "", city: from.city ?? "", state: from.state ?? "", zip: from.zip ?? "", phone: from.phone ?? "" });
+        const place = read("pickup_location");
+        if (place) {
+          setPickup({ name: place.name ?? "", street1: place.street1 ?? "", city: place.city ?? "", state: place.state ?? "", zip: place.zip ?? "", hours: place.hours ?? "", note: place.note ?? "" });
+          setPickupOwn(!!String(place.street1 ?? "").trim());
+        }
+        // Offered unless the shop has said no: the rule the checkout applies.
+        setPickupOn(!["false", "0", "no", "off"].includes(String(s.pickup_enabled ?? "").trim().toLowerCase()));
+        const markets = read("markets");
+        if (Array.isArray(markets?.countries)) setCountries(["US", ...markets.countries.filter((c: string) => c === "CA")]);
+      } else {
+        setFlash({ text: "The saved settings could not be loaded. Reload before changing anything.", bad: true });
+      }
+      if (production.status === "fulfilled") {
+        const c = production.value.cutoff ?? "", z = production.value.timezone ?? "";
+        setCutoff(c); setZone(z); setSavedClock({ cutoff: c, zone: z });
+      }
+      setLoading(false);
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
-  async function loadSettings() {
-    setLoading(true);
-    try {
-      const settings = await apiClient.get<Record<string, string>>("/api/v1/admin/settings");
-      if (settings?.standard_shipping) {
-        const cfg = JSON.parse(settings.standard_shipping);
-        setShippingType(cfg.shipping_type === "flat_rate" ? "flat_rate" : cfg.shipping_type === "live_shippo" ? "live_shippo" : "store_default");
-        setShippingAmount(Number(cfg.shipping_amount ?? 0));
-        setCalcType(cfg.calc_type === "units" ? "units" : "order_value");
-        setCutoffTime(cfg.cutoff_time ?? "");
-        setBrackets(Array.isArray(cfg.brackets) ? cfg.brackets : []);
-      }
-      if (settings?.ship_from) {
-        try {
-          const sf = JSON.parse(settings.ship_from);
-          setShipFrom({
-            name: sf.name ?? "", street1: sf.street1 ?? "", city: sf.city ?? "",
-            state: sf.state ?? "", zip: sf.zip ?? "", phone: sf.phone ?? "",
-          });
-        } catch { /* ignore malformed */ }
-      }
-      if (settings?.pickup_location) {
-        try {
-          const p = JSON.parse(settings.pickup_location);
-          setPickup({
-            name: p.name ?? "", street1: p.street1 ?? "", city: p.city ?? "", state: p.state ?? "",
-            zip: p.zip ?? "", hours: p.hours ?? "", note: p.note ?? "",
-          });
-          setPickupOwn(!!(p.street1 ?? "").trim());
-        } catch { /* ignore malformed */ }
-      }
-    } catch { /* use defaults */ }
-    setLoading(false);
-  }
+  const flatAmount = Number(amount) || 0;
+  const over = Number(freeOver) || 0;
+  // The rate as it stands on the screen, in the shape that is saved and read.
+  const current = { mode, amount: flatAmount, freeOver: over, calc, steps };
 
-  async function handleSave() {
-    setSaving(true);
+  async function save() {
+    if (mode === "flat" && over > 0 && flatAmount > 0 && over <= 0.01) { setFlash({ text: "Free shipping needs an order amount above one cent.", bad: true }); return; }
+    setSaving(true); setFlash(null);
     try {
       await apiClient.patch("/api/v1/admin/settings", {
-        standard_shipping: JSON.stringify({
-          shipping_type: shippingType,
-          shipping_amount: shippingType === "store_default" ? shippingAmount : 0,
-          calc_type: calcType,
-          cutoff_time: cutoffTime,
-          brackets: shippingType === "flat_rate" ? brackets : [],
-        }),
+        standard_shipping: JSON.stringify(writeRate(current, { cutoff_time: oldCutoffText })),
         ship_from: JSON.stringify(shipFrom),
         // Its own address only when one was asked for: left out, the ship-from address is used.
         pickup_location: JSON.stringify(pickupOwn ? pickup : { hours: pickup.hours, note: pickup.note }),
-        // keeps the existing connection (the server never returns the raw key).
+        pickup_enabled: pickupOn ? "true" : "false",
       });
-      showToast("Standard shipping saved");
-    } catch {
-      showToast("Save failed", false);
-    } finally {
-      setSaving(false);
+      if (cutoff !== savedClock.cutoff || zone !== savedClock.zone) {
+        try {
+          const saved = await productionService.saveSettings(cutoff, zone);
+          const c = saved.cutoff ?? "", z = saved.timezone ?? "";
+          setCutoff(c); setZone(z); setSavedClock({ cutoff: c, zone: z });
+          forgetShopZone();
+        } catch (e) {
+          setFlash({ text: `Shipping and pickup are saved. The production cutoff is not: ${e instanceof Error && e.message ? e.message : "try again"}.`, bad: true });
+          setSaving(false);
+          return;
+        }
+      }
+      setFlash({ text: "Saved. Checkout uses these from now on." });
+    } catch (e) {
+      setFlash({ text: e instanceof Error && e.message ? e.message : "The settings could not be saved. Try again.", bad: true });
     }
+    setSaving(false);
   }
 
-  useEffect(() => { loadSettings(); }, []);
+  const rateWords = describeRate(current);
+  const sellsTo = countries.map((c) => COUNTRY_NAMES[c] ?? c).join(", ");
+  // The same choice the server makes, shown before it is saved.
+  const place = pickupOwn && pickup.street1.trim() ? pickup : shipFrom;
+  const placeLine = [place.street1.trim(), place.city.trim(), [place.state.trim(), place.zip.trim()].filter(Boolean).join(" ")].filter(Boolean).join(", ");
+  const cutoffTimes = cutoff && !HALF_HOURS.includes(cutoff) ? [cutoff, ...HALF_HOURS].sort() : HALF_HOURS;
+  const everyZone = allZones().filter((z) => !US_ZONES.some(([known]) => known === z));
 
   return (
-    <div style={{ fontFamily: "var(--font-jakarta)" }}>
-
-      {/* Toast */}
-      {toast && (
-        <div style={{ position: "fixed", top: "20px", right: "20px", zIndex: 9999, background: toast.ok ? "#059669" : "#E8242A", color: "#fff", padding: "10px 18px", borderRadius: "8px", fontSize: "13px", fontWeight: 600, boxShadow: "0 4px 16px rgba(0,0,0,.15)" }}>
-          {toast.msg}
+    <SettingsFrame active="shipping" title="Shipping and pickup" sub="How orders leave your shop."
+      actions={<button type="button" className="pc-btn" data-kind="primary" onClick={save} disabled={saving || loading}>{saving ? "Saving…" : "Save"}</button>}>
+      {flash && (
+        <div className="pc-flash" data-bad={flash.bad ? "" : undefined} role="status">
+          <span>{flash.text}</span>
+          <button type="button" className="pc-x" aria-label="Dismiss" onClick={() => setFlash(null)} style={{ color: "inherit" }}><X size={16} strokeWidth={2.2} /></button>
         </div>
       )}
 
-      {/* Page header */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px", flexWrap: "wrap", marginBottom: "20px" }}>
-        <p style={{ fontSize: "13px", color: "#7A7880", margin: 0 }}>The standard rate is for customers without a discount group or shipping tier.</p>
-        <button
-          onClick={handleSave}
-          disabled={saving}
-          style={{ padding: "10px 20px", background: "#1A1A1A", color: "#fff", border: "none", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: saving ? "not-allowed" : "pointer", opacity: saving ? 0.6 : 1 }}
-        >
-          {saving ? "Saving…" : "Save"}
-        </button>
-      </div>
-
-      {/* Info banner */}
-      <div style={{ background: "rgba(26,26,26,.04)", border: "1px solid rgba(26,26,26,.15)", borderRadius: "8px", padding: "14px 18px", marginBottom: "24px", fontSize: "13px", color: "#2A2830", lineHeight: 1.7 }}>
-        <strong>Standard Shipping</strong> — applies to customers who are not in any discount group and have no shipping tier assigned, including logged-out users.
-        Configure a flat rate, bracket-based rate, or live rates from your own connected carriers.
-      </div>
-
-      {loading ? (
-        <div style={{ padding: "26px" }}>{[70, 92, 58, 84].map((w, i) => (<div key={i} className="at-skel" style={{ height: "14px", width: `${w}%`, marginBottom: "12px" }} />))}</div>
-      ) : (
-        <>
-        {/* Carrier accounts — each brand connects its own, so postage bills to it */}
-        <div style={{ background: "#fff", border: "1.5px solid #E3E3E3", borderRadius: "12px", padding: "24px", marginBottom: "20px" }}>
-          <h2 style={{ fontSize: "15px", fontWeight: 700, color: "#2A2830", marginBottom: "4px" }}>Your shipping carriers</h2>
-          <p style={{ fontSize: "12px", color: "#7A7880", marginBottom: "18px", lineHeight: 1.6 }}>
-            Connect <strong>your own</strong> UPS, FedEx or USPS account. Rate quotes at checkout and every
-            label you buy go through the account you connect here, so the postage is charged to you at
-            your negotiated rates — nothing runs through the platform.
+      <div style={{ display: "grid", gap: "18px" }} data-shipping aria-busy={loading}>
+        {/* Carrier accounts: each shop connects its own, so postage bills to it. */}
+        <section className="pc-card" style={{ padding: "18px 20px" }} data-card="carriers">
+          <h2 className="pc-h2">Carriers</h2>
+          <p className="pc-sub-line" style={{ margin: "6px 0 14px" }}>
+            Connect your own account. Rates at checkout and every label you buy go through it, at your negotiated prices.
           </p>
           <IntegrationsPanel category="carrier" />
-        </div>
+        </section>
 
-        {/* Ship-From (origin) address — labels & live rates are computed from this */}
-        <div style={{ background: "#fff", border: "1.5px solid #E3E3E3", borderRadius: "12px", padding: "24px", marginBottom: "20px" }}>
-          <h2 style={{ fontSize: "15px", fontWeight: 700, color: "#2A2830", marginBottom: "4px" }}>Ship-From Address</h2>
-          <p style={{ fontSize: "12px", color: "#7A7880", marginBottom: "16px", lineHeight: 1.6 }}>
-            Your warehouse / origin address. <strong>Live carrier rates and shipping labels are calculated from here</strong>, so set your real location. Leave blank to use the platform default.
-          </p>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "14px" }}>
-            <div style={{ gridColumn: "1 / -1" }}>
-              <label style={labelStyle}>Warehouse / Business Name</label>
-              <input type="text" value={shipFrom.name} onChange={e => setShipFrom({ ...shipFrom, name: e.target.value })} placeholder="e.g. Acme Apparel Warehouse" style={inputStyle} />
-            </div>
-            <div style={{ gridColumn: "1 / -1" }}>
-              <label style={labelStyle}>Street Address</label>
-              <input type="text" value={shipFrom.street1} onChange={e => setShipFrom({ ...shipFrom, street1: e.target.value })} placeholder="123 Main St" style={inputStyle} />
-            </div>
-            <div>
-              <label style={labelStyle}>City</label>
-              <input type="text" value={shipFrom.city} onChange={e => setShipFrom({ ...shipFrom, city: e.target.value })} placeholder="New York" style={inputStyle} />
-            </div>
-            <div>
-              <label style={labelStyle}>State</label>
-              <input type="text" value={shipFrom.state} onChange={e => setShipFrom({ ...shipFrom, state: e.target.value.toUpperCase().slice(0, 2) })} placeholder="NY" maxLength={2} style={inputStyle} />
-            </div>
-            <div>
-              <label style={labelStyle}>ZIP Code</label>
-              <input type="text" value={shipFrom.zip} onChange={e => setShipFrom({ ...shipFrom, zip: e.target.value })} placeholder="10001" style={inputStyle} />
-            </div>
-            <div>
-              <label style={labelStyle}>Phone</label>
-              <input type="text" value={shipFrom.phone} onChange={e => setShipFrom({ ...shipFrom, phone: e.target.value })} placeholder="2125550100" style={inputStyle} />
-            </div>
+        {/* Where parcels leave from: live rates and labels are worked out from here. */}
+        <section className="pc-card" style={{ padding: "18px 20px" }} data-card="ship-from">
+          <h2 className="pc-h2">Ship-from address</h2>
+          <p className="pc-sub-line" style={{ margin: "6px 0 14px" }}>Live carrier rates and shipping labels are worked out from here, so use where parcels really leave from. It is a United States address.</p>
+          <div className="pc-form3">
+            <label><span className="pc-label">Business name</span>
+              <input className="pc-input" value={shipFrom.name} onChange={(e) => setShipFrom({ ...shipFrom, name: e.target.value })} placeholder="Acme Apparel Warehouse" /></label>
+            <label><span className="pc-label">Street</span>
+              <input className="pc-input" value={shipFrom.street1} onChange={(e) => setShipFrom({ ...shipFrom, street1: e.target.value })} placeholder="123 Main St" /></label>
+            <label><span className="pc-label">City</span>
+              <input className="pc-input" value={shipFrom.city} onChange={(e) => setShipFrom({ ...shipFrom, city: e.target.value })} /></label>
+            <label><span className="pc-label">State</span>
+              <input className="pc-input" value={shipFrom.state} maxLength={2} placeholder="TX" onChange={(e) => setShipFrom({ ...shipFrom, state: e.target.value.toUpperCase().slice(0, 2) })} /></label>
+            <label><span className="pc-label">ZIP code</span>
+              <input className="pc-input" value={shipFrom.zip} onChange={(e) => setShipFrom({ ...shipFrom, zip: e.target.value })} /></label>
+            <label><span className="pc-label">Phone</span>
+              <input className="pc-input" value={shipFrom.phone} onChange={(e) => setShipFrom({ ...shipFrom, phone: e.target.value })} placeholder="Carriers ask for one" /></label>
           </div>
-        </div>
+        </section>
 
-        {/* Pickup location: what a customer who chooses Will Call Pickup is told */}
-        <div data-pickup-card style={{ background: "#fff", border: "1.5px solid #E3E3E3", borderRadius: "12px", padding: "24px", marginBottom: "20px" }}>
-          <h2 style={{ fontSize: "15px", fontWeight: 700, color: "#2A2830", marginBottom: "4px" }}>Pickup location (Will Call)</h2>
-          <p style={{ fontSize: "12px", color: "#7A7880", marginBottom: "16px", lineHeight: 1.6 }}>
-            Where customers collect an order when they choose <strong>Will Call Pickup</strong> at checkout.
-            They see it at checkout, and again in the email that tells them the order is ready.
-          </p>
-          <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginBottom: "16px" }}>
-            {([[false, "Same as my ship-from address", "The address above is where customers come."],
-               [true, "A different address", "A shop counter or office that is not where parcels leave from."]] as const).map(([own, title, sub]) => (
-              <label key={String(own)} style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 14px", background: pickupOwn === own ? "rgba(26,26,26,.06)" : "#fff", border: `1.5px solid ${pickupOwn === own ? "#1A1A1A" : "#E3E3E3"}`, borderRadius: "8px", cursor: "pointer" }}>
-                <input type="radio" name="pickup_own" checked={pickupOwn === own} onChange={() => setPickupOwn(own)} style={{ accentColor: "#1A1A1A" }} />
-                <div>
-                  <div style={{ fontSize: "13px", fontWeight: 600, color: "#2A2830" }}>{title}</div>
-                  <div style={{ fontSize: "11px", color: "#7A7880" }}>{sub}</div>
-                </div>
-              </label>
-            ))}
+        {/* The standard rate: what a customer with no tier of their own pays. */}
+        <section className="pc-card" data-card="rates">
+          <div className="pc-card-head" style={{ display: "block" }}>
+            <h2 className="pc-h2">Shipping rates</h2>
+            <p className="pc-sub-line" style={{ margin: "4px 0 0" }}>The standard rate, for customers without a shipping tier or a discount group of their own.</p>
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "14px" }}>
-            {pickupOwn && (
-              <>
-                <div style={{ gridColumn: "1 / -1" }}>
-                  <label style={labelStyle}>Name of the place</label>
-                  <input type="text" value={pickup.name} onChange={e => setPickup({ ...pickup, name: e.target.value })} placeholder="e.g. Acme Print Shop" style={inputStyle} />
-                </div>
-                <div style={{ gridColumn: "1 / -1" }}>
-                  <label style={labelStyle}>Street Address</label>
-                  <input type="text" value={pickup.street1} onChange={e => setPickup({ ...pickup, street1: e.target.value })} placeholder="123 Main St" style={inputStyle} />
-                </div>
-                <div>
-                  <label style={labelStyle}>City</label>
-                  <input type="text" value={pickup.city} onChange={e => setPickup({ ...pickup, city: e.target.value })} placeholder="New York" style={inputStyle} />
-                </div>
-                <div>
-                  <label style={labelStyle}>State</label>
-                  <input type="text" value={pickup.state} onChange={e => setPickup({ ...pickup, state: e.target.value.toUpperCase().slice(0, 2) })} placeholder="NY" maxLength={2} style={inputStyle} />
-                </div>
-                <div>
-                  <label style={labelStyle}>ZIP Code</label>
-                  <input type="text" value={pickup.zip} onChange={e => setPickup({ ...pickup, zip: e.target.value })} placeholder="10001" style={inputStyle} />
-                </div>
-              </>
-            )}
-            <div style={{ gridColumn: "1 / -1" }}>
-              <label style={labelStyle}>Pickup hours (optional)</label>
-              <input type="text" value={pickup.hours} onChange={e => setPickup({ ...pickup, hours: e.target.value })} placeholder="Mon to Fri, 9 AM to 5 PM" style={inputStyle} />
-            </div>
-            <div style={{ gridColumn: "1 / -1" }}>
-              <label style={labelStyle}>Note for the customer (optional)</label>
-              <input type="text" value={pickup.note} onChange={e => setPickup({ ...pickup, note: e.target.value })} placeholder="Bring your order number and a photo ID" style={inputStyle} />
-            </div>
+          <div className="pc-scroll-x">
+            <table className="pc-table" style={{ minWidth: "480px" }}>
+              <thead><tr><th>Zone</th><th>Countries</th><th>Rate</th></tr></thead>
+              <tbody>
+                <tr data-zone>
+                  <td style={{ fontWeight: 600 }}>{countries.length > 1 ? "Everywhere you ship" : "Domestic"}</td>
+                  <td>{sellsTo} <Link href="/admin/settings/markets" className="pc-inline" style={{ marginLeft: "6px" }}>Change</Link></td>
+                  <td data-rate-words>{rateWords}</td>
+                </tr>
+              </tbody>
+            </table>
           </div>
-          {(() => {
-            // The same choice the server makes, shown before it is saved.
-            const place = pickupOwn && pickup.street1.trim() ? pickup : shipFrom;
-            const region = [place.state.trim(), place.zip.trim()].filter(Boolean).join(" ");
-            const line = [place.street1.trim(), place.city.trim(), region].filter(Boolean).join(", ");
-            return (
-              <div data-pickup-preview style={{ marginTop: "16px", background: "#F7F8FA", border: "1px solid #E9EBEF", borderRadius: "8px", padding: "12px 14px", fontSize: "12.5px", color: "#2A2830", lineHeight: 1.6 }}>
-                <div style={{ fontSize: "10.5px", fontWeight: 700, textTransform: "uppercase", letterSpacing: ".08em", color: "#7A7880", marginBottom: "4px" }}>What your customers see</div>
-                {line
-                  ? <div style={{ fontWeight: 600 }}>{place.name.trim() ? `${place.name.trim()}, ` : ""}{line}</div>
-                  : <div style={{ color: "#B45309" }}>No address yet. Customers are told the pickup address comes with their order confirmation.</div>}
-                {pickup.hours.trim() && <div style={{ color: "#5B6170" }}>{pickup.hours.trim()}</div>}
-                {pickup.note.trim() && <div style={{ color: "#5B6170" }}>{pickup.note.trim()}</div>}
+          <div style={{ padding: "18px 20px", display: "grid", gap: "16px", borderTop: "1px solid var(--pc-line)" }}>
+            <div>
+              <span className="pc-label">How shipping is charged</span>
+              <div className="pc-seg" role="group" aria-label="How shipping is charged">
+                {([["flat", "One price"], ["live", "Live carrier rates"], ["steps", "By order size"]] as const).map(([k, label]) => (
+                  <button key={k} type="button" aria-pressed={mode === k} onClick={() => {
+                    // Steps start from the price the shop has now, so switching loses nothing.
+                    if (k === "steps" && mode === "flat" && steps.length === 0) {
+                      const now = writeRate({ ...current, mode: "flat" });
+                      setCalc("order_value");
+                      setSteps(now.brackets.length ? now.brackets : [{ min_units: 0, max_units: null, min_order_value: 0, max_order_value: null, cost: flatAmount }]);
+                    }
+                    setMode(k);
+                  }}>{label}</button>
+                ))}
               </div>
-            );
-          })()}
-        </div>
-
-        <div style={{ background: "#fff", border: "1.5px solid #E3E3E3", borderRadius: "12px", padding: "24px" }}>
-          <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-
-            {/* Flat Rate option */}
-            <div>
-              <label style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 14px", background: shippingType === "store_default" ? "rgba(26,26,26,.06)" : "#fff", border: `1.5px solid ${shippingType === "store_default" ? "#1A1A1A" : "#E3E3E3"}`, borderRadius: "8px", cursor: "pointer" }}>
-                <input type="radio" name="shipping_type" value="store_default" checked={shippingType === "store_default"} onChange={() => setShippingType("store_default")} style={{ accentColor: "#1A1A1A" }} />
-                <div>
-                  <div style={{ fontSize: "13px", fontWeight: 600, color: "#2A2830" }}>Flat Rate</div>
-                  <div style={{ fontSize: "11px", color: "#7A7880" }}>A single shipping cost applied to every order</div>
-                </div>
-              </label>
-              {shippingType === "store_default" && (
-                <div style={{ marginTop: "10px", marginLeft: "12px", border: "1px solid #E3E3E3", borderRadius: "8px", background: "#fff", padding: "14px 16px" }}>
-                  <label style={labelStyle}>Shipping Amount</label>
-                  <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                    <span style={{ fontSize: "14px", color: "#7A7880" }}>$</span>
-                    <input
-                      type="number" min={0} step="0.01" value={shippingAmount}
-                      onChange={e => setShippingAmount(parseFloat(e.target.value) || 0)}
-                      placeholder="0.00" style={{ ...inputStyle, width: "130px" }}
-                    />
-                    {shippingAmount === 0 && (
-                      <span style={{ fontSize: "11px", fontWeight: 700, color: "#059669", background: "rgba(5,150,105,.1)", padding: "2px 8px", borderRadius: "6px" }}>FREE</span>
-                    )}
-                  </div>
-                  <p style={{ fontSize: "11px", color: "#7A7880", marginTop: "6px" }}>Set 0.00 for free shipping on all standard orders.</p>
-                </div>
-              )}
             </div>
 
-            {/* Live carrier rates — priced by whichever carriers the brand connected above. */}
-            <div>
-              <label style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 14px", background: shippingType === "live_shippo" ? "rgba(26,26,26,.06)" : "#fff", border: `1.5px solid ${shippingType === "live_shippo" ? "#1A1A1A" : "#E3E3E3"}`, borderRadius: "8px", cursor: "pointer" }}>
-                <input type="radio" name="shipping_type" value="live_shippo" checked={shippingType === "live_shippo"} onChange={() => setShippingType("live_shippo")} style={{ accentColor: "#1A1A1A" }} />
+            {mode === "flat" && (
+              <div className="pc-form2" style={{ maxWidth: "520px" }}>
+                <label><span className="pc-label">Shipping price ($)</span>
+                  <input className="pc-input" type="number" min="0" step="0.01" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} />
+                  <span className="pc-sub-line" style={{ fontSize: "12.5px", marginTop: "6px", display: "block" }}>0 makes shipping free on every order.</span></label>
+                <label><span className="pc-label">Free shipping above ($)</span>
+                  <input className="pc-input" type="number" min="0" step="0.01" inputMode="decimal" value={freeOver} placeholder="Leave empty for none"
+                    disabled={flatAmount === 0} onChange={(e) => setFreeOver(e.target.value)} />
+                  <span className="pc-sub-line" style={{ fontSize: "12.5px", marginTop: "6px", display: "block" }}>Orders of this much or more ship free.</span></label>
+              </div>
+            )}
+
+            {mode === "live" && (
+              <p className="pc-sub-line" style={{ margin: 0, maxWidth: "640px" }}>
+                Customers see each service your connected carriers offer, with its live price, and pick one before they pay.
+                Until you connect a carrier, live rates are quoted through the platform&apos;s account, so the prices are standard published rates and not yours.
+              </p>
+            )}
+
+            {mode === "steps" && (
+              <div style={{ display: "grid", gap: "12px" }}>
                 <div>
-                  <div style={{ fontSize: "13px", fontWeight: 600, color: "#2A2830" }}>Live carrier rates</div>
-                  <div style={{ fontSize: "11px", color: "#7A7880" }}>Real-time carrier rates fetched at checkout based on the customer&apos;s address</div>
-                </div>
-              </label>
-              {shippingType === "live_shippo" && (
-                <div style={{ marginTop: "10px", marginLeft: "12px", border: "1px solid #E3E3E3", borderRadius: "8px", background: "#fff", padding: "14px 16px" }}>
-                  <p style={{ fontSize: "12px", color: "#2A2830", lineHeight: 1.6, margin: 0 }}>
-                    Customers see every service from the carriers you connected above — UPS, FedEx and USPS —
-                    with live pricing at checkout, and pick the one they want before placing the order.
-                  </p>
-                  <p style={{ fontSize: "11px", color: "#7A7880", marginTop: "8px", marginBottom: 0 }}>
-                    Connect a carrier above to quote on your own account at your negotiated rates.
-                    Until you do, live rates still work &mdash; they are quoted through the platform&rsquo;s
-                    account, so the prices shown are standard published rates rather than yours.
-                  </p>
-                </div>
-              )}
-            </div>
-
-            {/* Bracket-based option */}
-            <div>
-              <label style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 14px", background: shippingType === "flat_rate" ? "rgba(26,26,26,.06)" : "#fff", border: `1.5px solid ${shippingType === "flat_rate" ? "#1A1A1A" : "#E3E3E3"}`, borderRadius: "8px", cursor: "pointer" }}>
-                <input type="radio" name="shipping_type" value="flat_rate" checked={shippingType === "flat_rate"} onChange={() => setShippingType("flat_rate")} style={{ accentColor: "#1A1A1A" }} />
-                <div>
-                  <div style={{ fontSize: "13px", fontWeight: 600, color: "#2A2830" }}>Bracket-Based Rate</div>
-                  <div style={{ fontSize: "11px", color: "#7A7880" }}>Shipping cost varies by order size or value</div>
-                </div>
-              </label>
-
-              {shippingType === "flat_rate" && (
-                <div style={{ marginTop: "10px", marginLeft: "12px", border: "1px solid #E3E3E3", borderRadius: "8px", background: "#fff", padding: "16px" }}>
-                  <div style={{ marginBottom: "14px" }}>
-                    <label style={labelStyle}>Calculation Type</label>
-                    <div style={{ display: "flex", gap: "8px" }}>
-                      {(["units", "order_value"] as const).map(t => (
-                        <button key={t} type="button"
-                          onClick={() => { setCalcType(t); setBrackets([]); }}
-                          style={{
-                            flex: 1, padding: "9px 12px", border: `2px solid ${calcType === t ? "#1A1A1A" : "#E3E3E3"}`,
-                            borderRadius: "8px", fontSize: "12px", fontWeight: 700, cursor: "pointer",
-                            background: calcType === t ? "rgba(26,26,26,.06)" : "#fff",
-                            color: calcType === t ? "#1A1A1A" : "#7A7880",
-                          }}>
-                          {t === "units" ? "Per Unit Count" : "Per Order Value"}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div style={{ marginBottom: "14px" }}>
-                    <label style={labelStyle}>Order Cutoff Time</label>
-                    <input
-                      value={cutoffTime} onChange={e => setCutoffTime(e.target.value)}
-                      placeholder="e.g. 12PM CT" style={{ ...inputStyle, width: "130px" }}
-                    />
-                    <div style={{ fontSize: "11px", color: "#aaa", marginTop: "4px" }}>Shown to customers at checkout.</div>
-                  </div>
-
-                  <div>
-                    <label style={{ ...labelStyle, marginBottom: "10px" }}>Pricing Brackets</label>
-                    <BracketEditor brackets={brackets} calcType={calcType} onChange={setBrackets} />
-                    <div style={{ fontSize: "11px", color: "#aaa", marginTop: "6px" }}>
-                      {calcType === "units"
-                        ? "Each row covers a unit range. Leave Max blank on the last row to cover all quantities above."
-                        : "Each row covers a dollar range. Set cost $0.00 to offer free shipping above a certain amount."}
-                    </div>
+                  <span className="pc-label">Steps go by</span>
+                  <div className="pc-seg" role="group" aria-label="Steps go by">
+                    {([["order_value", "Order value"], ["units", "Number of units"]] as const).map(([k, label]) => (
+                      <button key={k} type="button" aria-pressed={calc === k} onClick={() => { if (calc !== k) { setCalc(k); setSteps([]); } }}>{label}</button>
+                    ))}
                   </div>
                 </div>
-              )}
-            </div>
+                <div className="pc-scroll-x" style={{ border: "1px solid var(--pc-line)", borderRadius: "10px" }}>
+                  <table className="pc-table" style={{ minWidth: "460px" }}>
+                    <thead><tr>
+                      <th>{calc === "units" ? "From units" : "From order ($)"}</th>
+                      <th>{calc === "units" ? "To units" : "To order ($)"}</th>
+                      <th>Shipping ($)</th><th aria-label="Remove" />
+                    </tr></thead>
+                    <tbody>
+                      {steps.length === 0 && <tr><td colSpan={4} className="pc-empty">No steps yet. Add the first one.</td></tr>}
+                      {steps.map((b, i) => {
+                        const lo = calc === "units" ? "min_units" : "min_order_value";
+                        const hi = calc === "units" ? "max_units" : "max_order_value";
+                        const change = (field: keyof Bracket, raw: string) => setSteps(steps.map((row, j) => j !== i ? row : {
+                          ...row, [field]: field === "cost" ? Number(raw) || 0 : raw === "" ? (field === lo ? 0 : null) : Number(raw) || 0,
+                        }));
+                        return (
+                          <tr key={i} data-step>
+                            <td><input className="pc-input" type="number" min="0" step={calc === "units" ? "1" : "0.01"} value={b[lo] ?? ""} onChange={(e) => change(lo, e.target.value)} aria-label="From" /></td>
+                            <td><input className="pc-input" type="number" min="0" step={calc === "units" ? "1" : "0.01"} value={b[hi] ?? ""} placeholder="No limit" onChange={(e) => change(hi, e.target.value)} aria-label="To" /></td>
+                            <td><input className="pc-input" type="number" min="0" step="0.01" value={b.cost} onChange={(e) => change("cost", e.target.value)} aria-label="Shipping" /></td>
+                            <td><button type="button" className="pc-x" aria-label="Remove this step" onClick={() => setSteps(steps.filter((_, j) => j !== i))}><X size={16} /></button></td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+                <div style={{ display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap" }}>
+                  <button type="button" className="pc-btn" onClick={() => setSteps([...steps, { min_units: 0, max_units: null, min_order_value: null, max_order_value: null, cost: 0 }])}>+ Add a step</button>
+                  <span className="pc-sub-line" style={{ fontSize: "12.5px" }}>Leave the last step&apos;s &quot;to&quot; empty to cover everything above it. A step that costs 0 ships free.</span>
+                </div>
+              </div>
+            )}
           </div>
-        </div>
-        </>
-      )}
-    </div>
-  );
-}
+        </section>
 
+        {/* Pickup: whether the checkout offers it, and what a customer is told. */}
+        <section className="pc-card" style={{ padding: "18px 20px" }} data-card="pickup">
+          <h2 className="pc-h2">Pickup</h2>
+          <div className="pc-switch-row" style={{ margin: "14px 0 0", alignItems: "center" }}>
+            <span>Offer pickup (Will Call)
+              <div className="pc-sub-line" style={{ fontSize: "12.5px", fontWeight: 400 }}>Customers can choose to collect their order at checkout, with no shipping charged.</div>
+            </span>
+            <button type="button" className="pc-switch" role="switch" aria-label="Offer pickup" aria-checked={pickupOn} data-on={pickupOn ? "" : undefined} onClick={() => setPickupOn(!pickupOn)} />
+          </div>
+          {pickupOn && (
+            <div style={{ display: "grid", gap: "14px", marginTop: "16px" }}>
+              <div>
+                <span className="pc-label">Where customers collect</span>
+                <div className="pc-seg" role="group" aria-label="Where customers collect">
+                  <button type="button" aria-pressed={!pickupOwn} onClick={() => setPickupOwn(false)}>My ship-from address</button>
+                  <button type="button" aria-pressed={pickupOwn} onClick={() => setPickupOwn(true)}>A different address</button>
+                </div>
+              </div>
+              {pickupOwn && (
+                <div className="pc-form3">
+                  <label><span className="pc-label">Name of the place</span>
+                    <input className="pc-input" value={pickup.name} onChange={(e) => setPickup({ ...pickup, name: e.target.value })} placeholder="Acme Print Shop" /></label>
+                  <label><span className="pc-label">Street</span>
+                    <input className="pc-input" value={pickup.street1} onChange={(e) => setPickup({ ...pickup, street1: e.target.value })} /></label>
+                  <label><span className="pc-label">City</span>
+                    <input className="pc-input" value={pickup.city} onChange={(e) => setPickup({ ...pickup, city: e.target.value })} /></label>
+                  <label><span className="pc-label">State</span>
+                    <input className="pc-input" value={pickup.state} maxLength={2} onChange={(e) => setPickup({ ...pickup, state: e.target.value.toUpperCase().slice(0, 2) })} /></label>
+                  <label><span className="pc-label">ZIP code</span>
+                    <input className="pc-input" value={pickup.zip} onChange={(e) => setPickup({ ...pickup, zip: e.target.value })} /></label>
+                </div>
+              )}
+              <div className="pc-form2">
+                <label><span className="pc-label">Hours</span>
+                  <input className="pc-input" value={pickup.hours} onChange={(e) => setPickup({ ...pickup, hours: e.target.value })} placeholder="Mon to Fri, 9 AM to 5 PM" /></label>
+                <label><span className="pc-label">Note for the customer</span>
+                  <input className="pc-input" value={pickup.note} onChange={(e) => setPickup({ ...pickup, note: e.target.value })} placeholder="Bring your order number and a photo ID" /></label>
+              </div>
+              <div className="pc-note" data-tone="blue" data-pickup-preview>
+                <div className="pc-small-head" style={{ marginBottom: "4px" }}>What your customers see</div>
+                {placeLine
+                  ? <div style={{ fontWeight: 600 }}>{place.name.trim() ? `${place.name.trim()}, ` : ""}{placeLine}</div>
+                  : <div>No address yet. Customers are told the pickup address comes with their order confirmation.</div>}
+                {pickup.hours.trim() && <div>{pickup.hours.trim()}</div>}
+                {pickup.note.trim() && <div>{pickup.note.trim()}</div>}
+              </div>
+            </div>
+          )}
+        </section>
 
-/** This screen as one of the Settings screens (components/admin/settings/SettingsFrame). */
-export default function StandardShippingPage() {
-  return (
-    <SettingsFrame active="shipping" title="Shipping and pickup" sub="Your carriers, what shipping costs, where you ship from and where pickups are collected.">
-      <StandardShippingPageBody />
+        {/* The same-day cutoff, and the clock it is read on. */}
+        <section className="pc-card" style={{ padding: "18px 20px" }} data-card="cutoff">
+          <h2 className="pc-h2">Production cutoff</h2>
+          <div className="pc-form2" style={{ marginTop: "14px" }}>
+            <label><span className="pc-label">Artwork approved by</span>
+              <select className="pc-input" value={cutoff} onChange={(e) => setCutoff(e.target.value)} data-cutoff-select>
+                <option value="">No cutoff</option>
+                {cutoffTimes.map((t) => <option key={t} value={t}>{cutoffWords(t)}</option>)}
+              </select>
+              <span className="pc-sub-line" style={{ fontSize: "12.5px", marginTop: "6px", display: "block" }}>Ships the same day. The Production screen counts down to it.</span></label>
+            <label><span className="pc-label">Time zone</span>
+              <select className="pc-input" value={zone} onChange={(e) => setZone(e.target.value)} data-zone-select>
+                <option value="">Each person&apos;s own clock</option>
+                <optgroup label="United States">
+                  {US_ZONES.map(([z, name]) => <option key={z} value={z}>{name} ({offsetWords(z)})</option>)}
+                </optgroup>
+                <optgroup label="Everywhere">
+                  {everyZone.map((z) => <option key={z} value={z}>{z.replace(/_/g, " ")}</option>)}
+                </optgroup>
+              </select>
+              <span className="pc-sub-line" style={{ fontSize: "12.5px", marginTop: "6px", display: "block" }}>The cutoff and the days in Reports are read on this clock.</span></label>
+          </div>
+        </section>
+      </div>
     </SettingsFrame>
   );
 }

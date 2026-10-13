@@ -4,6 +4,9 @@ import { ask } from "@/lib/dialog";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { apiClient } from "@/lib/api-client";
 import { useAuthStore } from "@/stores/auth.store";
+import { useBranding } from "@/components/providers/BrandingProvider";
+
+const COUNTRY_CHOICES: [string, string][] = [["US", "United States"], ["CA", "Canada"]];
 import { useAddressAutocomplete } from "@/hooks/useAddressAutocomplete";
 
 interface Address {
@@ -46,6 +49,8 @@ const inputCls =
 
 export default function AddressBookPage() {
   const { isAuthenticated, isLoading } = useAuthStore();
+  const { ship_countries } = useBranding();
+  const shipCountries = ship_countries?.length ? ship_countries : ["US", "CA"];
   const [addresses, setAddresses] = useState<Address[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -343,8 +348,11 @@ export default function AddressBookPage() {
               required
               className={inputCls}
             >
-              <option value="US">United States</option>
-              <option value="CA">Canada</option>
+              {/* The countries this shop sells to (its admin's Settings, Markets);
+                  an address already in another keeps its own. */}
+              {COUNTRY_CHOICES.filter(([code]) => shipCountries.includes(code) || code === form.country).map(([code, name]) => (
+                <option key={code} value={code}>{name}</option>
+              ))}
             </select>
           </div>
 

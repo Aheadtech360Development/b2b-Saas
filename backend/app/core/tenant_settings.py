@@ -45,6 +45,9 @@ TENANT_SCOPED_KEYS: frozenset[str] = frozenset({
     "cod_enabled",  # "true" when this brand takes cash on delivery at checkout — see api/v1/checkout.cod_offered
     "order_views",  # the filters a shop saved on its order list (JSON) — see admin/orders.get_order_views
     "production_cutoff",  # same-day cutoff for print jobs, "HH:MM" — see services/production_board
+    "pickup_enabled",  # "false" when this brand does not offer Will Call pickup; unset = offered — see services/pickup.pickup_offered
+    "shop_timezone",  # the shop's own time zone (an IANA name); the same-day cutoff is read on it — see services/production_board.clean_timezone
+    "markets",  # the countries this brand sells to (JSON) — see services/markets
 })
 
 _SEP = "@"

@@ -130,7 +130,7 @@ async def update_platform_settings(
         "mov", "moq", "guest_pricing_mode", "tax_rate",
         "low_stock_threshold", "notification_email", "standard_shipping",
         "standard_shipping_method", "ship_from", "shippo_api_key", "tax_mode",
-        "cod_enabled", "pickup_location",
+        "cod_enabled", "pickup_location", "pickup_enabled", "markets",
     }
 
     # Shipping keys are stored per-brand (namespaced); everything else stays global.
@@ -142,6 +142,15 @@ async def update_platform_settings(
     for key, value in payload.items():
         if key not in ALLOWED_KEYS:
             continue
+        # Kept to what each may be, so a reader never has to guess.
+        if key == "pickup_enabled":
+            from app.services.pickup import offered as _offered
+
+            value = "true" if _offered(value) else "false"
+        elif key == "markets":
+            from app.services import markets as _markets
+
+            value = _markets.dumps(_markets.clean(value))
         store_key = scoped_key(key, tid)
         result = await db.execute(
             select(PlatformSettings).where(PlatformSettings.key == store_key)

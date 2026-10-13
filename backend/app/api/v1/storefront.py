@@ -226,9 +226,16 @@ async def _fetch_branding(db: AsyncSession, tenant_id: uuid.UUID) -> dict[str, A
     branding["footer_menu_items"] = footer_items or []
     # Where will-call orders are collected: the brand's own pickup location,
     # or its ship-from address when it has not set one.
-    from app.services.pickup import pickup_location
+    from app.services.pickup import pickup_location, pickup_offered
 
     pickup = await pickup_location(db, tenant_id)
+    # Off when the brand has switched Will Call off: the checkout leaves it out.
+    branding["pickup_enabled"] = await pickup_offered(db, tenant_id)
+    # The countries an address may be in (services/markets): the address book
+    # offers these and no others.
+    from app.services import markets as _markets
+
+    branding["ship_countries"] = await _markets.countries(db, tenant_id)
     branding["pickup_address"] = pickup["address"]
     branding["pickup_name"] = pickup["name"]
     branding["pickup_hours"] = pickup["hours"]

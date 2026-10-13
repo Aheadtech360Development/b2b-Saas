@@ -25,7 +25,9 @@ async def production_board(_: None = Depends(require_admin), db: AsyncSession = 
 
     rows = await pb.load_queue(db)
     drafts, drafts_value = await pb.drafts_summary(db)
-    return pb.board(rows, drafts, drafts_value, await get_setting(db, pb.CUTOFF_KEY))
+    board = pb.board(rows, drafts, drafts_value, await get_setting(db, pb.CUTOFF_KEY))
+    # The clock the cutoff is read on; none means each person's own.
+    return {**board, "timezone": (await get_setting(db, pb.TIMEZONE_KEY)) or None}
 
 
 @router.get("/drafts")
@@ -41,12 +43,16 @@ async def production_drafts(
 async def production_settings(_: None = Depends(require_admin), db: AsyncSession = Depends(get_db)) -> dict:
     from app.core.tenant_settings import get_setting
 
-    return {"cutoff": (await get_setting(db, pb.CUTOFF_KEY)) or None}
+    return {"cutoff": (await get_setting(db, pb.CUTOFF_KEY)) or None,
+            "timezone": (await get_setting(db, pb.TIMEZONE_KEY)) or None}
 
 
 class _Settings(BaseModel):
     # "12:00", 24-hour; empty switches the cutoff off.
     cutoff: str = Field("", max_length=5)
+    # The clock the cutoff is read on ("America/Chicago"). Left out, it stays
+    # as it is; empty goes back to each person's own clock.
+    timezone: str | None = Field(None, max_length=64)
 
 
 @router.put("/settings")
@@ -60,5 +66,13 @@ async def save_production_settings(
     except ValueError:
         raise HTTPException(status_code=400, detail="Write the time as HH:MM, for example 12:00 or 15:30.")
     await set_setting(db, pb.CUTOFF_KEY, cutoff)
+    if payload.timezone is not None:
+        try:
+            zone = pb.clean_timezone(payload.timezone)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="That is not a time zone we know. Pick one from the list.")
+        await set_setting(db, pb.TIMEZONE_KEY, zone)
     await db.commit()
-    return {"cutoff": cutoff or None}
+    from app.core.tenant_settings import get_setting
+
+    return {"cutoff": cutoff or None, "timezone": (await get_setting(db, pb.TIMEZONE_KEY)) or None}

@@ -96,6 +96,17 @@ async def list_addresses(request: Request, db: AsyncSession = Depends(get_db)):
     return result.scalars().all()
 
 
+async def _country_sold_to(db: AsyncSession, request: Request, country: str | None) -> None:
+    """Refuse an address in a country this shop does not sell to (Settings, Markets)."""
+    from app.core.exceptions import ValidationError as _Invalid
+    from app.core.tenant_context import get_current_tenant_id
+    from app.services import markets
+
+    tenant_id = getattr(request.state, "tenant_id", None) or get_current_tenant_id()
+    if not markets.allows(await markets.countries(db, tenant_id), country):
+        raise _Invalid(markets.refusal(country))
+
+
 @router.post("/addresses", response_model=AddressOut, status_code=status.HTTP_201_CREATED)
 async def create_address(
     payload: AddressIn,
@@ -105,6 +116,8 @@ async def create_address(
     company_id = getattr(request.state, "company_id", None)
     if not company_id:
         raise ForbiddenError("Company account required")
+
+    await _country_sold_to(db, request, payload.country)
 
     count = (await db.execute(
         select(func.count(UserAddress.id)).where(UserAddress.company_id == company_id)
@@ -189,6 +202,10 @@ async def update_address(
     addr.city = payload.city
     addr.state = payload.state
     addr.postal_code = payload.postal_code
+    if (payload.country or "") != (addr.country or ""):
+        # Only a change of country is asked about: an address saved while the
+        # shop sold there can still have its street corrected.
+        await _country_sold_to(db, request, payload.country)
     addr.country = payload.country
     addr.phone = payload.phone
     addr.is_default = payload.is_default

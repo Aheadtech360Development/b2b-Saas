@@ -126,6 +126,14 @@ async def create_payment_intent(
     if not tenant_id:
         raise ValidationError("No store context on this request")
 
+    # A shop that has switched pickup off does not take a pickup order. Asked
+    # here, before the card is: the page leaving the choice out is not a rule.
+    if payload.shipping_method == "will_call":
+        from app.services.pickup import PICKUP_OFF, pickup_offered
+
+        if not await pickup_offered(db, tenant_id):
+            raise ValidationError(PICKUP_OFF)
+
     from app.services.connect_service import ConnectService
 
     def _blame_early(step: str) -> HTTPException:
@@ -359,6 +367,16 @@ async def _confirm_checkout_inner(
             "Payment required: supply payment_intent_id, payment_method=ach, "
             "payment_method=net_30 or payment_method=cod"
         )
+
+    # Pickup, at a shop that has switched it off: refused while nothing has been
+    # paid. An order whose card was already charged is let through, because
+    # refusing it now would keep the money and place nothing.
+    if payload.shipping_method == "will_call" and not payload.payment_intent_id:
+        from app.core.tenant_context import get_current_tenant_id as _pickup_tid
+        from app.services.pickup import PICKUP_OFF, pickup_offered
+
+        if not await pickup_offered(db, getattr(request.state, "tenant_id", None) or _pickup_tid()):
+            raise ValidationError(PICKUP_OFF)
 
     # Only a shop that takes cash on delivery takes it — asked here, not left
     # to the page, or anybody could place an order without paying.

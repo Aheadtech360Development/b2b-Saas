@@ -2,6 +2,7 @@
 "use client";
 
 import { useBranding } from "@/components/providers/BrandingProvider";
+import { tell } from "@/lib/dialog";
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useAddressAutocomplete } from "@/hooks/useAddressAutocomplete";
@@ -76,7 +77,15 @@ const sectionHintStyle: React.CSSProperties = {
 const EXPEDITED_SURCHARGE = 45;
 
 export default function CheckoutAddressPage() {
-  const { pickup_address, pickup_name, pickup_hours, pickup_note } = useBranding();
+  const { pickup_address, pickup_name, pickup_hours, pickup_note, pickup_enabled, ship_countries } = useBranding();
+  // What the shop has set for itself (its admin's Settings): pickup offered or
+  // not, and the countries it ships to. The server refuses a pickup order when
+  // pickup is off, and a new address outside these countries; an address saved
+  // before a country was switched off is stopped here.
+  const pickupOffered = pickup_enabled !== false;
+  const shipCountries = ship_countries?.length ? ship_countries : ["US", "CA"];
+  const shipsTo = (country: string | null | undefined) => shipCountries.includes((country || "US").toUpperCase());
+  const countryName = (country: string) => (country === "CA" ? "Canada" : country === "US" ? "the United States" : country);
   const pickupAddress = (pickup_address ?? "").trim();
   const pickupName = (pickup_name ?? "").trim();
   const pickupHours = (pickup_hours ?? "").trim();
@@ -390,7 +399,13 @@ export default function CheckoutAddressPage() {
     return Object.keys(e).length === 0;
   }
 
-  function handleContinue() {
+  // Pickup chosen on an earlier visit, at a shop that has since switched it off.
+  useEffect(() => {
+    if (!pickupOffered && shippingMethod === "will_call") setShippingMethod("standard");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pickupOffered, shippingMethod]);
+
+  async function handleContinue() {
     // Block if live_shippo user hasn't selected a rate yet
     if (shippingTypeForUser === "live_shippo" && shippingMethod === "standard" && !selectedLiveRate) {
       setShippingGateError(true);
@@ -437,6 +452,11 @@ export default function CheckoutAddressPage() {
     if (!showNewForm && selectedAddressId) {
       const addr = savedAddresses.find(a => a.id === selectedAddressId);
       if (!addr) return;
+      // An address saved while the shop sold there: it can be collected from, not shipped to.
+      if (shippingMethod !== "will_call" && !shipsTo(addr.country)) {
+        await tell(`This shop doesn't ship to ${countryName(addr.country)}. Choose another address${pickupOffered ? ", or pick your order up" : ""}.`, { title: "We can't ship there" });
+        return;
+      }
       setCompanyName(form.company || companyName);
       setContactName(addr.full_name || contactName);
       setShippingPhone(addr.phone || "");
@@ -502,7 +522,8 @@ export default function CheckoutAddressPage() {
 
   const SHIPPING_OPTIONS: { id: ShippingMethod; label: string; sub: string }[] = [
     { id: "standard", label: "Standard Ground", sub: "3–5 business days" },
-    { id: "will_call", label: "Will Call Pickup", sub: `Pick up at our warehouse${pickupAddress ? ` · ${pickupAddress}` : ""} · No shipping fee` },
+    // Left out at a shop that has switched pickup off.
+    ...(pickupOffered ? [{ id: "will_call" as ShippingMethod, label: "Will Call Pickup", sub: `Pick up at our warehouse${pickupAddress ? ` · ${pickupAddress}` : ""} · No shipping fee` }] : []),
   ];
 
   return (
@@ -557,6 +578,9 @@ export default function CheckoutAddressPage() {
                             {addr.line1}{addr.line2 ? `, ${addr.line2}` : ""}, {addr.city}, {addr.state} {addr.postal_code}
                           </div>
                           {addr.phone && <div style={{ fontSize: "11px", color: "var(--ui-muted)", marginTop: "2px" }}>{addr.phone}</div>}
+                          {!shipsTo(addr.country) && (
+                            <div data-no-ship style={{ fontSize: "12px", color: "#B45309", marginTop: "4px" }}>We don&apos;t ship to {countryName(addr.country)}.</div>
+                          )}
                         </div>
                       </label>
                     );

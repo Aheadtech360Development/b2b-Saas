@@ -130,6 +130,33 @@ def clean_cutoff(value: str | None) -> str:
     return f"{int(m.group(1)):02d}:{m.group(2)}"
 
 
+TIMEZONE_KEY = "shop_timezone"
+_ZONE = re.compile(r"^(?:UTC|[A-Za-z]+(?:/[A-Za-z0-9_+\-]+){1,2})$")
+
+
+def clean_timezone(value: str | None) -> str:
+    """A time zone as its IANA name ("America/Chicago"), or "" for none.
+    ValueError for anything that is not one.
+
+    Checked against the machine's own list when it has one; a machine without
+    the list (some slim images) can only check the shape.
+    """
+    text = (value or "").strip()
+    if not text:
+        return ""
+    if not _ZONE.match(text) or len(text) > 64:
+        raise ValueError(text)
+    try:
+        import zoneinfo
+
+        known = zoneinfo.available_timezones()
+    except Exception:
+        known = set()
+    if known and text not in known:
+        raise ValueError(text)
+    return text
+
+
 def _money(v: Any) -> float:
     try:
         return round(float(v or 0), 2)

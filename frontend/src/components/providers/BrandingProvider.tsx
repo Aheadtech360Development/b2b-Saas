@@ -128,6 +128,10 @@ export interface Branding {
   pickup_name?: string;
   pickup_hours?: string;
   pickup_note?: string;
+  /** False when the shop has switched Will Call pickup off (Settings, Shipping and pickup). */
+  pickup_enabled?: boolean;
+  /** The countries an address may be in (Settings, Markets), home first. */
+  ship_countries?: string[];
   email_sender_name: string;
 }
 
