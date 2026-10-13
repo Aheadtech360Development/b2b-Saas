@@ -1087,6 +1087,12 @@ from app.api.v1 import signup as signup_api  # noqa: E402
 app.include_router(signup_api.router, prefix=_V1)
 from app.api.v1 import partners_public  # noqa: E402
 app.include_router(partners_public.router, prefix=_V1)
+from app.api.v1 import partners_auth  # noqa: E402
+app.include_router(partners_auth.router, prefix=_V1)
+from app.api.v1 import partners_portal  # noqa: E402
+app.include_router(partners_portal.router, prefix=_V1)
+from app.api.v1.platform import affiliates as platform_affiliates  # noqa: E402
+app.include_router(platform_affiliates.router, prefix=_V1)
 
 from app.api.v1.admin import integrations as admin_integrations  # noqa: E402
 app.include_router(admin_integrations.router, prefix=_V1)
