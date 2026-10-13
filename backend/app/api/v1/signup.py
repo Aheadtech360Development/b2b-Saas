@@ -36,6 +36,8 @@ RESERVED = {
     # Names the platform's mail already owns in DNS. A shop taking one would
     # not just clash with a page — it would break sending for every brand.
     "send", "rsend", "resend", "email", "mx", "dmarc", "bounce", "track",
+    # The partner program lives on the platform's own address.
+    "partners", "partner", "affiliates", "affiliate", "ref",
 }
 
 _SLUG_OK = re.compile(r"^[a-z0-9][a-z0-9-]{1,48}[a-z0-9]$")
@@ -62,6 +64,10 @@ class SignupIn(BaseModel):
     email: EmailStr
     password: str = Field(min_length=8, max_length=200)
     phone: str = Field(default="", max_length=40)
+    # A partner's code, typed by the owner, and the cookie a partner's link
+    # left (`CODE.<click id>`). Both optional; see services/partners/referrals.py.
+    referral_code: str | None = Field(default=None, max_length=40)
+    referral_cookie: str | None = Field(default=None, max_length=80)
 
 
 @router.get("/plans")
@@ -203,6 +209,7 @@ async def sign_up(payload: SignupIn, request: Request, background: BackgroundTas
     email = payload.email.lower()
     tenant_id = uuid.uuid4()
     user_id = uuid.uuid4()
+    referral: dict | None = None
 
     # A shop is created by somebody who does not belong to it yet, so the
     # request carries no tenant and row-level security would refuse every row
@@ -267,6 +274,25 @@ async def sign_up(payload: SignupIn, request: Request, background: BackgroundTas
                 "fn": payload.first_name.strip(), "ln": payload.last_name.strip(),
                 "phone": payload.phone.strip() or None,
             })
+
+            # A shop a partner brought in is saved to them in the same
+            # transaction, under a savepoint: a problem with the referral
+            # costs the partner the referral, never the shop its sign-up.
+            if payload.referral_code or payload.referral_cookie:
+                from app.services.partners.referrals import attribute_signup
+
+                try:
+                    async with new_db.begin_nested():
+                        referral = await attribute_signup(
+                            new_db, tenant_id=tenant_id, shop_name=payload.shop_name.strip(),
+                            owner_email=email, typed_code=payload.referral_code,
+                            cookie=payload.referral_cookie,
+                        )
+                except Exception:
+                    import logging
+
+                    logging.getLogger(__name__).warning("referral not saved for %s", slug, exc_info=True)
+                    referral = None
             await new_db.commit()
 
     except IntegrityError:
@@ -310,4 +336,5 @@ async def sign_up(payload: SignupIn, request: Request, background: BackgroundTas
         "access_token": token,
         "next": "/admin/dashboard",
         "billing": "pending",
+        "referred": bool(referral),
     }

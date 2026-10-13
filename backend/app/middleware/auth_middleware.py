@@ -319,6 +319,11 @@ class AuthMiddleware(BaseHTTPMiddleware):
         # Signing a new shop up. Nobody has an account yet, by definition.
         if path.startswith("/api/v1/signup"):
             return True
+        # The partner program. A partner is not a user of any shop and does
+        # not carry a shop token: its routes check their own partner token
+        # (services/partners/auth.py), which no shop or admin route accepts.
+        if path.startswith("/api/v1/partners/"):
+            return True
         # Public content pages — no auth required
         if path.startswith("/api/v1/style-sheets"):
             return True
