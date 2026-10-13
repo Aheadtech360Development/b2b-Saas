@@ -1,16 +1,7 @@
 import { SuppliersManager } from "@/components/admin/suppliers/SuppliersManager";
-import { ProductsFrame } from "@/components/admin/products/ProductsFrame";
 
-function SuppliersPageBody() {
-  return <SuppliersManager />;
-}
-
-
-/** This screen as one of the Products tabs (components/admin/products/ProductsFrame). */
+/** One of the Products tabs: the manager draws the frame (components/admin/products/ProductsFrame),
+ *  so its "Add manual supplier" button can open the form on the overview. */
 export default function SuppliersPage() {
-  return (
-    <ProductsFrame active="suppliers">
-      <SuppliersPageBody />
-    </ProductsFrame>
-  );
+  return <SuppliersManager />;
 }

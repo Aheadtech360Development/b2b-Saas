@@ -29,7 +29,7 @@ from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -131,12 +131,22 @@ async def list_suppliers(
             # when the account was connected.
             from app.services.integrations_service import get_connection
             cfg["created_at"] = ((await get_connection(db, sid)) or {}).get("connected_at")
+        from app.models.product import Product
+
+        # How far the shop has come: products brought in, and whether its
+        # orders go to the supplier (the Suppliers screen's four steps).
+        imported = int((await db.execute(
+            select(func.count(Product.id)).where(Product.supplier == sid)
+        )).scalar() or 0)
+        orders = cfg.get("orders") or {}
         out.append({
             "id": sid, "label": meta["label"], "available": True, "name": cfg["name"],
             "active": cfg.get("active", True),
             "connected": conn["connected"], "account": conn["account"],
             "auto_import": cfg["auto_import"], "automatic_sync": cfg["automatic_sync"],
             "last_sync_at": cfg.get("last_sync_at"), "created_at": cfg.get("created_at"),
+            "imported": imported,
+            "orders": {"sync": orders.get("sync", "disabled"), "test_mode": bool(orders.get("test_mode", True))},
             "job": await jobs.progress(tid, sid),
         })
     return out

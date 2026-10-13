@@ -2,160 +2,40 @@
 
 import { ask } from "@/lib/dialog";
 /**
- * Manage Suppliers — the brand's supplier connections, what it imports from
+ * Suppliers — the brand's supplier connections, what it imports from
  * each, how it prices those imports and how often stock is synced.
  *
- * List → View (Products for Import · Browse Catalog · Edit Supplier). Every
+ * Overview (SupplierOverview) → Advanced settings (Products for Import · Browse
+ * Catalog · Edit Supplier). Every
  * setting is saved on the brand's own supplier setup on the server; imports and
  * syncs run there too, and this screen polls their progress.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { suppliersService, type SupplierDetail, type SupplierJob, type SupplierRow } from "@/services/suppliers.service";
+import { suppliersService, type SupplierDetail, type SupplierJob } from "@/services/suppliers.service";
 import { ProductsForImport } from "./ProductsForImport";
 import { BrowseCatalog } from "./BrowseCatalog";
 import { EditSupplier } from "./EditSupplier";
-import { Badge, Btn, CARD, JobBanner, MUTED, Spinner, Toggle, errText, fmtDate } from "./ui";
+import { Badge, Btn, CARD, JobBanner, MUTED, Spinner, errText, fmtDate } from "./ui";
+import { SupplierOverview } from "./SupplierOverview";
+import { ProductsFrame } from "@/components/admin/products/ProductsFrame";
 
 type Tab = "import" | "browse" | "edit";
 
 export function SuppliersManager() {
   const [open, setOpen] = useState<{ id: string; tab: Tab } | null>(null);
+  const [adding, setAdding] = useState(false);
   if (open) {
-    return <SupplierView id={open.id} initialTab={open.tab} onBack={() => setOpen(null)} />;
+    return (
+      <ProductsFrame active="suppliers" title="Suppliers" sub="Advanced settings: what is imported, how it is priced and synced, and how orders are sent.">
+        <SupplierView id={open.id} initialTab={open.tab} onBack={() => setOpen(null)} />
+      </ProductsFrame>
+    );
   }
-  return <SupplierList onOpen={(id, tab) => setOpen({ id, tab })} />;
-}
-
-// ── List ─────────────────────────────────────────────────────────────────────
-
-function SupplierList({ onOpen }: { onOpen: (id: string, tab: Tab) => void }) {
-  const [rows, setRows] = useState<SupplierRow[] | null>(null);
-  const [error, setError] = useState("");
-  const [saving, setSaving] = useState("");
-
-  const load = useCallback(async () => {
-    try {
-      setRows(await suppliersService.list());
-      setError("");
-    } catch (e) {
-      setError(errText(e));
-      setRows([]);
-    }
-  }, []);
-
-  useEffect(() => { load(); }, [load]);
-
-  // Keep the list's progress fresh while a job is running.
-  const running = rows?.some((r) => r.job?.status === "running");
-  useEffect(() => {
-    if (!running) return;
-    const t = setInterval(load, 4000);
-    return () => clearInterval(t);
-  }, [running, load]);
-
-  const toggleActive = async (row: SupplierRow) => {
-    const turningOff = row.active !== false;
-    if (turningOff && !await ask(
-      `Turn off ${row.name || row.label}?
-
-Nothing will be imported, synced or sent to S&S until you turn it back on. Your API key, settings and imported products stay as they are.`,
-    )) return;
-    setSaving(`active:${row.id}`);
-    try {
-      await suppliersService.update(row.id, { active: !turningOff });
-      await load();
-    } catch (e) {
-      setError(errText(e));
-    }
-    setSaving("");
-  };
-
-  const toggleAuto = async (row: SupplierRow) => {
-    setSaving(row.id);
-    try {
-      await suppliersService.update(row.id, { auto_import: !row.auto_import });
-      await load();
-    } catch (e) {
-      setError(errText(e));
-    }
-    setSaving("");
-  };
-
   return (
-    <div style={{ maxWidth: 1100 }}>
-      <div style={{ marginBottom: 18 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, color: "#1A1A1A" }}>Manage Suppliers</h1>
-        <p style={{ ...MUTED, marginTop: 4 }}>
-          Connect a supplier, choose which of its products to import, and keep their stock in sync.
-        </p>
-      </div>
-
-      {error && <div style={{ ...CARD, borderColor: "#F5C2C0", background: "#FFF5F5", color: "#B42318", marginBottom: 12 }}>{error}</div>}
-
-      <div style={{ ...CARD, padding: 0, overflowX: "auto" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, minWidth: 760 }}>
-          <thead>
-            <tr style={{ background: "#FAFAFA", textAlign: "left", color: "#6B6B6B" }}>
-              {["Supplier", "Status", "Auto import", "Last sync", "Date created", ""].map((h) => (
-                <th key={h} style={{ padding: "11px 14px", fontWeight: 600, fontSize: 12, borderBottom: "1px solid #EEE" }}>{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {rows === null && (
-              <tr><td colSpan={6} style={{ padding: 24, textAlign: "center" }}><Spinner /></td></tr>
-            )}
-            {rows?.map((r) => {
-              const inactive = !r.available;
-              return (
-                <tr key={r.id} style={{ borderBottom: "1px solid #F2F2F2", opacity: inactive ? 0.55 : 1 }}>
-                  <td style={{ padding: "12px 14px" }}>
-                    <div style={{ fontWeight: 600, color: "#1A1A1A" }}>{r.name || r.label}</div>
-                    <div style={{ fontSize: 12, color: "#8A8A8A" }}>
-                      {r.label}{r.account ? ` · Account ${r.account}` : ""}
-                    </div>
-                    {r.job?.status === "running" && (
-                      <div style={{ fontSize: 12, color: "#2563EB", marginTop: 4 }}>
-                        {r.job.kind === "import" ? "Importing" : "Syncing"}… {r.job.message}
-                      </div>
-                    )}
-                  </td>
-                  <td style={{ padding: "12px 14px" }}>
-                    {inactive ? <Badge text="Inactive · coming soon" color="#8A8A8A" />
-                      : !r.connected ? <Badge text="Not connected" color="#D97706" />
-                        : (
-                          <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
-                            <Toggle on={r.active !== false} busy={saving === `active:${r.id}`} onChange={() => toggleActive(r)}
-                              title={r.active !== false ? "Turn off: stops all syncs, imports and orders. Your key and settings are kept." : "Turn on"} />
-                            {r.active !== false ? <Badge text="Active" color="#16A34A" /> : <Badge text="Off" color="#6B6B6B" />}
-                          </span>
-                        )}
-                  </td>
-                  <td style={{ padding: "12px 14px" }}>
-                    {inactive || r.active === false ? <span style={{ color: "#B0B0B0" }}>—</span> : (
-                      <Toggle on={!!r.auto_import} busy={saving === r.id} onChange={() => toggleAuto(r)}
-                        title="When on, every automatic sync also imports new products that match your import filters" />
-                    )}
-                  </td>
-                  <td style={{ padding: "12px 14px", color: "#4A4A4A" }}>{inactive ? "—" : fmtDate(r.last_sync_at) || "Never"}</td>
-                  <td style={{ padding: "12px 14px", color: "#4A4A4A" }}>{inactive ? "—" : fmtDate(r.created_at, false) || "—"}</td>
-                  <td style={{ padding: "12px 14px", textAlign: "right", whiteSpace: "nowrap" }}>
-                    {inactive ? (
-                      <span style={{ fontSize: 12, color: "#8A8A8A" }}>Available soon</span>
-                    ) : (
-                      <>
-                        <Btn onClick={() => onOpen(r.id, r.connected ? "import" : "edit")}>View</Btn>{" "}
-                        <Btn kind="ghost" onClick={() => onOpen(r.id, "edit")}>Edit</Btn>
-                      </>
-                    )}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-    </div>
+    <ProductsFrame active="suppliers" title="Suppliers" sub="Connect a blank catalogue and keep it in sync."
+      actions={<button type="button" className="pc-btn" onClick={() => setAdding(true)}>+ Add manual supplier</button>}>
+      <SupplierOverview onOpen={(id, tab) => setOpen({ id, tab })} addOpen={adding} onAddClosed={() => setAdding(false)} />
+    </ProductsFrame>
   );
 }
 
@@ -276,7 +156,7 @@ function SupplierView({ id, initialTab, onBack }: { id: string; initialTab: Tab;
   return (
     <div style={{ maxWidth: 1180 }}>
       <button onClick={async () => { if (await leaveOk()) onBack(); }} style={{ background: "none", border: "none", padding: 0, color: "#6B6B6B", fontSize: 13, cursor: "pointer", marginBottom: 10 }}>
-        ← Manage Suppliers
+        ← All suppliers
       </button>
 
       <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 14 }}>

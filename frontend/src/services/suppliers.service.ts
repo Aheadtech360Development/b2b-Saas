@@ -126,6 +126,10 @@ export interface SupplierRow {
   automatic_sync?: { enabled: boolean; every_hours: number };
   last_sync_at?: string | null;
   created_at?: string | null;
+  /** Products in the catalog that came from this supplier. */
+  imported?: number;
+  /** Whether store orders are sent to it, and in test mode. */
+  orders?: { sync: "disabled" | "manual" | "automatic" | "scheduled" | string; test_mode: boolean };
   job?: SupplierJob | null;
 }
 

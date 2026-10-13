@@ -187,7 +187,7 @@ function ConnectionTab({ label, name, onName, conn, onConn, onDisconnected }: {
 
 Your account number and API key are removed from this store. Nothing is imported, synced or sent until you connect again. Imported products and your settings stay.
 
-To pause it without removing the key, turn it off in Manage Suppliers instead.`,
+To pause it without removing the key, turn it off on the Suppliers screen instead.`,
     )) return;
     setRemoving(true);
     setResult(null);
@@ -250,7 +250,7 @@ To pause it without removing the key, turn it off in Manage Suppliers instead.`,
         <div style={{ borderTop: "1px solid #EEE", paddingTop: 16, display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
           <div style={{ flex: "1 1 260px" }}>
             <div style={{ fontWeight: 700, fontSize: 14 }}>Disconnect Supplier</div>
-            <p style={MUTED}>Remove your account number and API key from this store. To pause without removing them, use the on/off switch in Manage Suppliers.</p>
+            <p style={MUTED}>Remove your account number and API key from this store. To pause without removing them, use the on/off switch on the Suppliers screen.</p>
           </div>
           <Btn kind="danger" onClick={disconnect} busy={removing}>Disconnect</Btn>
         </div>
