@@ -1,6 +1,7 @@
 "use client";
 
 import { ask } from "@/lib/dialog";
+import { SettingsFrame } from "@/components/admin/settings/SettingsFrame";
 /**
  * Roles & permissions.
  *
@@ -45,7 +46,7 @@ interface Draft {
 
 const BLANK: Draft = { id: "", name: "", access: "partial", scopes: {} };
 
-export default function RolesPage() {
+function RolesPageBody() {
   const [catalog, setCatalog] = useState<ScopeCatalog | null>(null);
   const [roles, setRoles] = useState<CustomRole[]>([]);
   const [editing, setEditing] = useState<Draft | null>(null);
@@ -130,17 +131,10 @@ export default function RolesPage() {
   }
 
   return (
-    <div style={{ padding: "24px", maxWidth: "860px" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "6px", flexWrap: "wrap", gap: "12px" }}>
-        <div>
-          <h1 style={{ fontSize: "22px", fontWeight: 800 }}>Roles &amp; permissions</h1>
-          <p style={{ fontSize: "13px", color: "#6B6B6B", marginTop: "4px" }}>
-            Give each person exactly the access their job needs — someone who ships orders does not
-            need to change prices, and someone checking a tax rate does not need to move your payouts.
-          </p>
-        </div>
+    <div style={{ maxWidth: "860px" }}>
+      <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "flex-start", marginBottom: "6px", flexWrap: "wrap", gap: "12px" }}>
         <div style={{ display: "flex", gap: "8px" }}>
-          <Link href="/admin/users" style={{ ...BTN, background: "#fff", color: "#555", border: "1px solid #E3E3E3", textDecoration: "none" }}>← Users</Link>
+          <Link href="/admin/users" style={{ ...BTN, background: "#fff", color: "#555", border: "1px solid #E3E3E3", textDecoration: "none" }}>← Team and roles</Link>
           <button onClick={() => { setEditing({ ...BLANK, scopes: {} }); setError(null); }} style={{ ...BTN, background: "#1A1A1A" }}>＋ New role</button>
         </div>
       </div>
@@ -327,5 +321,17 @@ export default function RolesPage() {
         </div>
       )}
     </div>
+  );
+}
+
+
+/** This screen as one of the Settings screens, under Team and roles
+ *  (components/admin/settings/SettingsFrame). */
+export default function RolesPage() {
+  return (
+    <SettingsFrame active="team" title="Custom roles"
+      sub="Give each person exactly the access their job needs: someone who ships orders does not need to change prices.">
+      <RolesPageBody />
+    </SettingsFrame>
   );
 }

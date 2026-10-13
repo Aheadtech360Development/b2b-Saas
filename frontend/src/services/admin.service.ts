@@ -7,13 +7,18 @@ export interface AdminUser {
   first_name: string;
   last_name: string;
   full_name: string;
-  role: "admin" | "staff" | "customer";
+  /** administrator | manager | editor | order_manager | viewer | production | customer (and two older names). */
+  role: string;
   custom_role_id?: string | null;
   is_admin: boolean;
   is_active: boolean;
   email_verified: boolean;
   company_name: string | null;
   last_login: string | null;
+  /** A second step guards their sign-in. */
+  two_factor?: boolean;
+  /** Sent an invite and still to set a password from it. */
+  invited?: boolean;
   created_at: string | null;
 }
 
@@ -410,8 +415,10 @@ export const adminService = {
   },
 
   // Users
-  async listUsers(params?: { q?: string; role?: string; status?: string; page?: number; page_size?: number }) {
+  async listUsers(params?: { q?: string; role?: string; status?: string; staff_only?: boolean; page?: number; page_size?: number }) {
     const query = new URLSearchParams();
+    // Staff only: buyers are listed under Customers.
+    if (params?.staff_only) query.set("staff_only", "true");
     if (params?.q) query.set("q", params.q);
     if (params?.role) query.set("role", params.role);
     if (params?.status) query.set("status", params.status);
@@ -421,11 +428,18 @@ export const adminService = {
     return apiClient.get<{ items: AdminUser[]; total: number }>(`/api/v1/admin/users${qs ? `?${qs}` : ""}`);
   },
 
+  /** Adds a team member and emails them a link to set their own password.
+   *  `invite_sent` is false when the mail could not go out. */
   async createUser(data: {
     email: string; first_name: string; last_name: string;
-    role?: string; custom_role_id?: string | null; password?: string; send_welcome_email?: boolean;
+    role?: string; custom_role_id?: string | null;
   }) {
-    return apiClient.post<AdminUser>("/api/v1/admin/users", data);
+    return apiClient.post<AdminUser & { invite_sent?: boolean }>("/api/v1/admin/users", data);
+  },
+
+  /** Sends the set-password link again. */
+  async inviteUserAgain(id: string) {
+    return apiClient.post<{ invite_sent: boolean }>(`/api/v1/admin/users/${id}/invite`, {});
   },
 
   async updateUser(id: string, data: {

@@ -20,6 +20,8 @@ from app.core.permissions import (
     SENSITIVE_SCOPES,
     WRITE,
     normalise_scopes,
+    role_table,
+    scopes_for_role,
 )
 from app.middleware.auth_middleware import require_admin
 from app.models.role import CustomRole
@@ -35,6 +37,7 @@ _SCOPE_LABELS = {
     "staff": "Staff & roles", "settings": "Settings", "analytics": "Analytics",
     "billing": "Billing & disputes", "payouts": "Payment account & payouts",
     "audit": "Activity log",
+    "production": "Production (print queue)",
 }
 
 # What each section actually lets somebody do, in the words the person setting
@@ -62,6 +65,8 @@ _SCOPE_HELP = {
     "payouts": ("See the payment account and payouts",
                 "Connect and change where money is paid out"),
     "audit": ("See the activity log", "Nothing extra — the log is never edited here"),
+    "production": ("See the print queue and its jobs",
+                   "Approve artwork, send a job back, start printing and mark it ready"),
 }
 
 
@@ -153,10 +158,18 @@ async def list_scopes(_: None = Depends(require_admin)) -> dict:
             }
             for s in sorted(SCOPES)
         ],
-        "fixed_roles": [{"key": k, "label": ROLE_LABELS[k], "scopes": sorted(ROLE_SCOPES.get(k, set()))}
+        "fixed_roles": [{"key": k, "label": ROLE_LABELS[k], "scopes": scopes_for_role(k)}
                         for k in ROLE_LABELS],
         "levels": [READ, WRITE],
     }
+
+
+@router.get("/matrix")
+async def roles_matrix(_: None = Depends(require_admin), db: AsyncSession = Depends(get_db)) -> dict:
+    """Every role against every place in the admin: the fixed roles and the
+    shop's own, from the rules the API enforces (core/permissions.role_table)."""
+    rows = (await db.execute(select(CustomRole).order_by(CustomRole.name))).scalars().all()
+    return role_table([(str(r.id), r.name, normalise_scopes(r.scopes or {}, r.read_only)) for r in rows])
 
 
 @router.get("")

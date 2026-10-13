@@ -1,569 +1,308 @@
-// frontend/src/app/(admin)/admin/users/page.tsx
 "use client";
 
-import { useEffect, useState } from "react";
+/**
+ * Settings, Team and roles: who can sign in to this admin, and what each role
+ * may do.
+ *
+ * Staff only: buyers are customers and live under Customers. A new person is
+ * emailed a link to set their own password; nobody types one for them. The
+ * roles table is not written here: it is read from the rules the API enforces
+ * on every request (backend core/permissions.role_table), so the screen cannot
+ * say one thing and the server do another.
+ */
+import Link from "next/link";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
+import { Plus, Search, X } from "lucide-react";
 import { SettingsFrame } from "@/components/admin/settings/SettingsFrame";
 import { adminService, type AdminUser } from "@/services/admin.service";
-import { UsersIcon } from "@/components/ui/icons";
 import { ASSIGNABLE_ROLES, ROLE_LABELS } from "@/lib/permissions";
-import { rolesService, summariseScopes, type CustomRole } from "@/services/roles.service";
-import Link from "next/link";
+import { rolesService, type AreaLevel, type CustomRole, type RoleTable } from "@/services/roles.service";
+import { ask, tell } from "@/lib/dialog";
 
-// ── Shared styles ──────────────────────────────────────────────────────────────
-
-const inp: React.CSSProperties = {
-  width: "100%", padding: "8px 11px", border: "1.5px solid #E3E3E3",
-  borderRadius: "8px", fontSize: "13px", outline: "none", boxSizing: "border-box",
-  fontFamily: "var(--font-jakarta)",
+const PAGE_SIZE = 50;
+const LEVEL_WORDS: Record<AreaLevel, [string, string]> = { edit: ["Edit", "green"], view: ["View", "blue"], part: ["Some", "amber"], none: ["None", ""] };
+const SECTION_WORDS: Record<string, string> = {
+  orders: "Orders", production: "Print queue", products: "Products", collections: "Collections", inventory: "Inventory",
+  customers: "Customers", storefront: "Storefront", media: "Media", content: "Content", discounts: "Discounts",
+  analytics: "Reports", settings: "Settings", staff: "Team and roles", billing: "Billing and disputes", payouts: "Payouts", audit: "Audit log",
 };
-const lbl: React.CSSProperties = {
-  display: "block", fontSize: "11px", fontWeight: 700, textTransform: "uppercase",
-  letterSpacing: ".06em", color: "#7A7880", marginBottom: "5px",
-};
-const thStyle: React.CSSProperties = {
-  padding: "11px 14px", textAlign: "left", fontSize: "10px",
-  textTransform: "uppercase", letterSpacing: ".07em", color: "#7A7880", fontWeight: 700,
-};
+const day = (iso: string) => new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+const errorText = (e: unknown, fallback: string) => (e instanceof Error && e.message ? e.message : fallback);
 
-const ROLE_BADGE: Record<string, { bg: string; color: string }> = {
-  administrator: { bg: "rgba(232,36,42,.1)",  color: "#E8242A" },
-  manager:       { bg: "rgba(139,92,246,.12)", color: "#7C3AED" },
-  editor:        { bg: "rgba(26,26,26,.1)",   color: "#1A1A1A" },
-  order_manager: { bg: "rgba(217,119,6,.12)",  color: "#D97706" },
-  viewer:        { bg: "rgba(107,114,128,.12)", color: "#4B5563" },
-  customer:      { bg: "rgba(5,150,105,.1)",   color: "#059669" },
-  admin:         { bg: "rgba(232,36,42,.1)",   color: "#E8242A" },
-  staff:         { bg: "rgba(26,26,26,.1)",   color: "#1A1A1A" },
-};
-
-function autoPassword() {
-  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#";
-  return Array.from({ length: 12 }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
-}
-
-// ── Create / Edit Modal ────────────────────────────────────────────────────────
-
-function UserModal({
-  user,
-  onClose,
-  onSuccess,
-}: {
-  user: AdminUser | null;
-  onClose: () => void;
-  onSuccess: () => void;
-}) {
-  const isEdit = !!user;
-  const [form, setForm] = useState({
-    first_name: user?.first_name ?? "",
-    last_name: user?.last_name ?? "",
-    email: user?.email ?? "",
-    role: user?.custom_role_id ? `custom:${user.custom_role_id}` : (user?.role ?? "editor"),
-    is_active: user?.is_active ?? true,
-    password: "",
-    send_welcome_email: false,
-  });
-  const [customRoles, setCustomRoles] = useState<CustomRole[]>([]);
-  useEffect(() => { rolesService.list().then(setCustomRoles).catch(() => {}); }, []);
-  const [autoGen, setAutoGen] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [resetMsg, setResetMsg] = useState<string | null>(null);
-
-  function set(k: string, v: string | boolean) {
-    setForm(f => ({ ...f, [k]: v }));
-  }
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!form.email.trim() || !form.first_name.trim()) {
-      setError("First name and email are required.");
-      return;
-    }
-    setSaving(true);
-    setError(null);
-    // A "custom:<id>" selection assigns a custom role; anything else is a fixed role.
-    const isCustom = form.role.startsWith("custom:");
-    const roleVal = isCustom ? undefined : form.role;
-    const customRoleId = isCustom ? form.role.slice("custom:".length) : null;
-    try {
-      if (isEdit) {
-        await adminService.updateUser(user!.id, {
-          first_name: form.first_name,
-          last_name: form.last_name,
-          email: form.email,
-          role: roleVal,
-          custom_role_id: customRoleId,
-          is_active: form.is_active,
-        });
-      } else {
-        const pwd = autoGen ? autoPassword() : form.password;
-        await adminService.createUser({
-          first_name: form.first_name,
-          last_name: form.last_name,
-          email: form.email,
-          role: roleVal,
-          custom_role_id: customRoleId ?? undefined,
-          password: pwd || undefined,
-          send_welcome_email: form.send_welcome_email,
-        });
-      }
-      onSuccess();
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Failed to save user");
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function handleResetPassword() {
-    setResetMsg(null);
-    try {
-      await adminService.resetUserPassword(user!.id);
-      setResetMsg("Password reset email sent.");
-    } catch {
-      setResetMsg("Failed to send reset email.");
-    }
-  }
-
-  return (
-    <div style={{ position: "fixed", inset: 0, zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,.5)", padding: "16px" }}>
-      <div style={{ background: "#fff", borderRadius: "12px", width: "100%", maxWidth: "520px", boxShadow: "0 20px 60px rgba(0,0,0,.2)", maxHeight: "90vh", display: "flex", flexDirection: "column" }}>
-
-        {/* Header */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "20px 24px", borderBottom: "1px solid #E3E3E3", flexShrink: 0 }}>
-          <h2 style={{ fontFamily: "var(--font-bebas)", fontSize: "22px", color: "#2A2830", letterSpacing: "-0.01em", margin: 0 }}>
-            {isEdit ? "EDIT USER" : "ADD USER"}
-          </h2>
-          <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "22px", color: "#7A7880", lineHeight: 1 }}>×</button>
-        </div>
-
-        <form onSubmit={handleSubmit} style={{ padding: "20px 24px", overflowY: "auto", flex: 1 }}>
-          {error && (
-            <div style={{ background: "rgba(232,36,42,.08)", border: "1px solid rgba(232,36,42,.2)", borderRadius: "6px", padding: "10px 14px", fontSize: "13px", color: "#E8242A", marginBottom: "16px" }}>
-              {error}
-            </div>
-          )}
-
-          {/* Name row */}
-          <div className="checkout-form-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginBottom: "12px" }}>
-            <div>
-              <label style={lbl}>First Name *</label>
-              <input style={inp} value={form.first_name} onChange={e => set("first_name", e.target.value)} required />
-            </div>
-            <div>
-              <label style={lbl}>Last Name</label>
-              <input style={inp} value={form.last_name} onChange={e => set("last_name", e.target.value)} />
-            </div>
-          </div>
-
-          {/* Email */}
-          <div style={{ marginBottom: "12px" }}>
-            <label style={lbl}>Email *</label>
-            <input style={inp} type="email" value={form.email} onChange={e => set("email", e.target.value)} required />
-          </div>
-
-          {/* Role + Status row */}
-          <div className="checkout-form-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginBottom: "12px" }}>
-            <div>
-              <label style={lbl}>Role</label>
-              <select style={inp} value={form.role} onChange={e => set("role", e.target.value)}>
-                {ASSIGNABLE_ROLES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
-                {customRoles.length > 0 && (
-                  <optgroup label="Custom roles">
-                    {customRoles.map(r => <option key={r.id} value={`custom:${r.id}`}>{r.name}</option>)}
-                  </optgroup>
-                )}
-              </select>
-              <div style={{ fontSize: "11px", color: "#9A98A0", marginTop: "4px" }}>
-                {form.role.startsWith("custom:")
-                  ? (() => {
-                      // A custom role now holds a level per section, so it is
-                      // summarised rather than listed — "Manages Orders · Views
-                      // Settings" says what the person can actually do.
-                      const picked = customRoles.find(r => `custom:${r.id}` === form.role);
-                      return picked ? summariseScopes(picked.scopes) : null;
-                    })()
-                  : ASSIGNABLE_ROLES.find(r => r.value === form.role)?.desc}
-                {" · "}<Link href="/admin/users/roles" style={{ color: "#1A1A1A", fontWeight: 600 }}>Manage roles</Link>
-              </div>
-            </div>
-            {isEdit && (
-              <div>
-                <label style={lbl}>Status</label>
-                <select style={inp} value={form.is_active ? "active" : "inactive"} onChange={e => set("is_active", e.target.value === "active")}>
-                  <option value="active">Active</option>
-                  <option value="inactive">Inactive</option>
-                </select>
-              </div>
-            )}
-          </div>
-
-          {/* Password (create only) */}
-          {!isEdit && (
-            <div style={{ marginBottom: "12px" }}>
-              <label style={lbl}>Password</label>
-              <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-                <input
-                  style={{ ...inp, opacity: autoGen ? 0.4 : 1 }}
-                  type="text"
-                  placeholder="Leave blank to auto-generate"
-                  value={autoGen ? "(auto-generated)" : form.password}
-                  onChange={e => set("password", e.target.value)}
-                  disabled={autoGen}
-                />
-                <button
-                  type="button"
-                  onClick={() => setAutoGen(v => !v)}
-                  style={{ flexShrink: 0, padding: "8px 12px", border: `1.5px solid ${autoGen ? "#1A1A1A" : "#E3E3E3"}`, borderRadius: "8px", fontSize: "11px", fontWeight: 700, cursor: "pointer", background: autoGen ? "rgba(26,26,26,.08)" : "#fff", color: autoGen ? "#1A1A1A" : "#7A7880", whiteSpace: "nowrap" }}
-                >
-                  Auto-generate
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* Send welcome email toggle (create only) */}
-          {!isEdit && (
-            <label style={{ display: "flex", alignItems: "center", gap: "10px", cursor: "pointer", marginBottom: "16px" }}>
-              <input
-                type="checkbox"
-                checked={form.send_welcome_email}
-                onChange={e => set("send_welcome_email", e.target.checked)}
-                style={{ width: "16px", height: "16px", accentColor: "#1A1A1A", flexShrink: 0 }}
-              />
-              <span style={{ fontSize: "13px", color: "#2A2830" }}>Send welcome email with login credentials</span>
-            </label>
-          )}
-
-          {/* Reset password (edit only) */}
-          {isEdit && (
-            <div style={{ marginBottom: "16px", padding: "12px 14px", background: "#F6F6F7", borderRadius: "8px", border: "1px solid #E3E3E3" }}>
-              <div style={{ fontSize: "12px", fontWeight: 700, color: "#2A2830", marginBottom: "6px" }}>Password Reset</div>
-              <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                <button
-                  type="button"
-                  onClick={handleResetPassword}
-                  style={{ padding: "7px 14px", background: "#fff", border: "1.5px solid #E3E3E3", borderRadius: "6px", fontSize: "12px", fontWeight: 600, cursor: "pointer", color: "#2A2830" }}
-                >
-                  Send Reset Email
-                </button>
-                {resetMsg && (
-                  <span style={{ fontSize: "12px", color: resetMsg.startsWith("Failed") ? "#E8242A" : "#059669", fontWeight: 600 }}>
-                    {resetMsg}
-                  </span>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Actions */}
-          <div style={{ display: "flex", gap: "10px", paddingTop: "16px", borderTop: "1px solid #E3E3E3" }}>
-            <button type="button" onClick={onClose}
-              style={{ flex: 1, padding: "10px", border: "1.5px solid #E3E3E3", borderRadius: "8px", fontSize: "13px", fontWeight: 600, cursor: "pointer", background: "#fff" }}>
-              Cancel
-            </button>
-            <button type="submit" disabled={saving}
-              style={{ flex: 2, padding: "10px", background: saving ? "#E3E3E3" : "#1A1A1A", color: saving ? "#aaa" : "#fff", border: "none", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: saving ? "not-allowed" : "pointer" }}>
-              {saving ? "Saving…" : isEdit ? "Save Changes" : "Create User"}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-}
-
-// ── Delete Confirmation ────────────────────────────────────────────────────────
-
-function DeleteDialog({ user, onClose, onSuccess }: { user: AdminUser; onClose: () => void; onSuccess: () => void }) {
-  const [deleting, setDeleting] = useState(false);
-  // Why it could not be done, in the server's words. It used to be swallowed,
-  // so a refused delete looked like a button that did nothing.
-  const [problem, setProblem] = useState<string | null>(null);
-
-  async function handleDelete() {
-    setDeleting(true);
-    setProblem(null);
-    try {
-      await adminService.deleteUser(user.id);
-      onSuccess();
-    } catch (e) {
-      setProblem((e as { message?: string })?.message || "Couldn't delete this user. Please try again.");
-      setDeleting(false);
-    }
-  }
-
-  return (
-    <div style={{ position: "fixed", inset: 0, zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,.5)", padding: "16px" }}>
-      <div style={{ background: "#fff", borderRadius: "12px", width: "100%", maxWidth: "420px", padding: "28px", boxShadow: "0 20px 60px rgba(0,0,0,.2)" }}>
-        <h3 style={{ fontFamily: "var(--font-bebas)", fontSize: "20px", color: "#2A2830", letterSpacing: "-0.01em", marginBottom: "10px" }}>Delete User</h3>
-        <p style={{ fontSize: "14px", color: "#7A7880", lineHeight: 1.6, marginBottom: "20px" }}>
-          Are you sure you want to delete <strong style={{ color: "#2A2830" }}>{user.full_name}</strong> ({user.email})? Their messages and saved carts go with them. This action cannot be undone.
-        </p>
-        {problem && (
-          <p role="alert" style={{ fontSize: "13px", color: "#991B1B", background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: "8px", padding: "10px 12px", lineHeight: 1.55, margin: "-8px 0 16px" }}>
-            {problem}
-          </p>
-        )}
-        <div style={{ display: "flex", gap: "10px" }}>
-          <button onClick={onClose} style={{ flex: 1, padding: "10px", border: "1.5px solid #E3E3E3", borderRadius: "8px", fontSize: "13px", fontWeight: 600, cursor: "pointer", background: "#fff" }}>
-            Cancel
-          </button>
-          <button onClick={handleDelete} disabled={deleting}
-            style={{ flex: 1, padding: "10px", background: deleting ? "#E3E3E3" : "#E8242A", color: deleting ? "#aaa" : "#fff", border: "none", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: deleting ? "not-allowed" : "pointer" }}>
-            {deleting ? "Deleting…" : "Delete User"}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ── Main Page ──────────────────────────────────────────────────────────────────
-
-function AdminUsersPageBody() {
+export default function TeamAndRolesPage() {
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [total, setTotal] = useState(0);
+  const [qText, setQText] = useState("");
   const [q, setQ] = useState("");
   const [roleFilter, setRoleFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [page, setPage] = useState(1);
-  const [isLoading, setIsLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [failed, setFailed] = useState(false);
+  const [customRoles, setCustomRoles] = useState<CustomRole[]>([]);
+  const [table, setTable] = useState<RoleTable | null>(null);
+  const [editing, setEditing] = useState<AdminUser | "new" | null>(null);
+  const [flash, setFlash] = useState<{ text: string; bad?: boolean } | null>(null);
+  const asked = useRef(0);
 
-  const [showCreate, setShowCreate] = useState(false);
-  const [editUser, setEditUser] = useState<AdminUser | null>(null);
-  const [deleteUser, setDeleteUser] = useState<AdminUser | null>(null);
-  const [togglingId, setTogglingId] = useState<string | null>(null);
-
-  const PAGE_SIZE = 50;
-
-  async function load() {
-    setIsLoading(true);
+  const load = useCallback(async () => {
+    const mine = ++asked.current;
+    setLoading(true);
     try {
-      const data = await adminService.listUsers({
-        q: q || undefined,
-        role: roleFilter || undefined,
-        status: statusFilter || undefined,
-        page,
-        page_size: PAGE_SIZE,
-      });
-      setUsers(data.items);
-      setTotal(data.total);
+      const data = await adminService.listUsers({ staff_only: true, q: q || undefined, role: roleFilter || undefined, status: statusFilter || undefined, page, page_size: PAGE_SIZE });
+      if (mine !== asked.current) return;
+      setUsers(data.items ?? []); setTotal(data.total ?? 0); setFailed(false);
+    } catch {
+      if (mine === asked.current) { setUsers([]); setFailed(true); }
     } finally {
-      setIsLoading(false);
+      if (mine === asked.current) setLoading(false);
     }
-  }
+  }, [q, roleFilter, statusFilter, page]);
 
-  useEffect(() => { load(); }, [q, roleFilter, statusFilter, page]); // eslint-disable-line
+  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    const t = window.setTimeout(() => { setPage(1); setQ(qText.trim()); }, 300);
+    return () => window.clearTimeout(t);
+  }, [qText]);
+  useEffect(() => {
+    rolesService.list().then(setCustomRoles).catch(() => {});
+    rolesService.table().then(setTable).catch(() => {});
+  }, []);
 
-  async function handleToggleActive(user: AdminUser) {
-    setTogglingId(user.id);
-    try {
-      await adminService.updateUser(user.id, { is_active: !user.is_active });
-      await load();
-    } finally {
-      setTogglingId(null);
-    }
-  }
-
-  const pages = Math.ceil(total / PAGE_SIZE);
-
-  const stats = {
-    total,
-    admins: users.filter(u => u.role === "admin").length,
-    active: users.filter(u => u.is_active).length,
-    inactive: users.filter(u => !u.is_active).length,
-  };
+  const roleOf = (u: AdminUser) => (u.custom_role_id ? customRoles.find((r) => r.id === u.custom_role_id)?.name ?? "Custom role" : ROLE_LABELS[u.role] ?? u.role);
+  const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const narrowed = !!(q || roleFilter || statusFilter);
 
   return (
-    <div style={{ fontFamily: "var(--font-jakarta)" }}>
-
-      {showCreate && (
-        <UserModal user={null} onClose={() => setShowCreate(false)} onSuccess={() => { setShowCreate(false); load(); }} />
-      )}
-      {editUser && (
-        <UserModal user={editUser} onClose={() => setEditUser(null)} onSuccess={() => { setEditUser(null); load(); }} />
-      )}
-      {deleteUser && (
-        <DeleteDialog user={deleteUser} onClose={() => setDeleteUser(null)} onSuccess={() => { setDeleteUser(null); load(); }} />
-      )}
-
-      {/* Header */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "24px" }}>
-        <p style={{ fontSize: "13px", color: "#7A7880", margin: 0 }}>{total} {total === 1 ? "user" : "users"}</p>
-        <button
-          onClick={() => setShowCreate(true)}
-          style={{ background: "#1A1A1A", color: "#fff", border: "none", padding: "10px 20px", borderRadius: "8px", fontWeight: 700, cursor: "pointer", fontSize: "14px" }}
-        >
-          + Add User
-        </button>
-      </div>
-
-      {/* Stats */}
-      <div className="admin-stats-grid" style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: "12px", marginBottom: "20px" }}>
-        {[
-          { label: "Total Users",   value: stats.total,    color: "#2A2830" },
-          { label: "Admins",        value: stats.admins,   color: "#E8242A" },
-          { label: "Active",        value: stats.active,   color: "#059669" },
-          { label: "Inactive",      value: stats.inactive, color: "#D97706" },
-        ].map(s => (
-          <div key={s.label} style={{ background: "#fff", border: "1px solid #E3E3E3", borderRadius: "10px", padding: "16px 18px", display: "flex", alignItems: "center", gap: "12px" }}>
-            <UsersIcon size={22} color={s.color} />
-            <div>
-              <div style={{ fontFamily: "var(--font-bebas)", fontSize: "24px", color: s.color, lineHeight: 1 }}>{s.value}</div>
-              <div style={{ fontSize: "10px", color: "#7A7880", fontWeight: 700, textTransform: "uppercase", letterSpacing: ".05em" }}>{s.label}</div>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* Filters */}
-      <div style={{ display: "flex", gap: "10px", marginBottom: "16px", flexWrap: "wrap", alignItems: "center" }}>
-        <input
-          value={q}
-          onChange={e => { setQ(e.target.value); setPage(1); }}
-          placeholder="Search by name or email…"
-          style={{ padding: "9px 14px", border: "1.5px solid #E3E3E3", borderRadius: "8px", fontSize: "13px", fontFamily: "var(--font-jakarta)", outline: "none", width: "240px" }}
-        />
-        <select value={roleFilter} onChange={e => { setRoleFilter(e.target.value); setPage(1); }}
-          style={{ padding: "9px 12px", border: "1.5px solid #E3E3E3", borderRadius: "8px", fontSize: "13px", fontFamily: "var(--font-jakarta)", background: "#fff", cursor: "pointer" }}>
-          <option value="">All Roles</option>
-          {ASSIGNABLE_ROLES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
-        </select>
-        <select value={statusFilter} onChange={e => { setStatusFilter(e.target.value); setPage(1); }}
-          style={{ padding: "9px 12px", border: "1.5px solid #E3E3E3", borderRadius: "8px", fontSize: "13px", fontFamily: "var(--font-jakarta)", background: "#fff", cursor: "pointer" }}>
-          <option value="">All Status</option>
-          <option value="active">Active</option>
-          <option value="inactive">Inactive</option>
-        </select>
-        <span style={{ fontSize: "13px", color: "#7A7880", marginLeft: "auto" }}>
-          {users.length} of {total} result{total !== 1 ? "s" : ""}
-        </span>
-      </div>
-
-      {/* Table */}
-      <div style={{ background: "#fff", border: "1px solid #E3E3E3", borderRadius: "10px", overflow: "hidden" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse" }}>
-          <thead>
-            <tr style={{ background: "#F6F6F7", borderBottom: "1px solid #E3E3E3" }}>
-              <th style={thStyle}>Name</th>
-              <th style={thStyle}>Email</th>
-              <th style={thStyle}>Role</th>
-              <th style={thStyle}>Company</th>
-              <th style={thStyle}>Status</th>
-              <th style={thStyle}>Joined</th>
-              <th style={thStyle}>Last Login</th>
-              <th style={thStyle}>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {isLoading && users.length === 0 ? (
-              <tr><td colSpan={8} style={{ padding: "40px", textAlign: "center", color: "#bbb", fontSize: "14px" }}><div className="at-skel" style={{ height: "14px", width: "60%", margin: "0 auto" }} /></td></tr>
-            ) : users.length === 0 ? (
-              <tr><td colSpan={8} style={{ padding: "40px", textAlign: "center", color: "#bbb", fontSize: "14px" }}>No users found</td></tr>
-            ) : users.map(user => {
-              const roleCfg = ROLE_BADGE[user.role] ?? { bg: "rgba(156,163,175,.15)", color: "#9CA3AF" };
-              const isToggling = togglingId === user.id;
-              return (
-                <tr key={user.id} style={{ borderBottom: "1px solid #F6F6F7" }}>
-
-                  {/* Name */}
-                  <td style={{ padding: "13px 14px" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: "9px" }}>
-                      <div style={{ width: "32px", height: "32px", borderRadius: "50%", background: user.is_admin ? "#E8242A" : "#1A1A1A", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontFamily: "var(--font-bebas)", fontSize: "14px", flexShrink: 0 }}>
-                        {(user.first_name[0] ?? "?").toUpperCase()}
-                      </div>
-                      <div style={{ fontWeight: 700, fontSize: "13px", color: "#2A2830" }}>{user.full_name}</div>
-                    </div>
-                  </td>
-
-                  {/* Email */}
-                  <td style={{ padding: "13px 14px", fontSize: "13px", color: "#7A7880" }}>{user.email}</td>
-
-                  {/* Role */}
-                  <td style={{ padding: "13px 14px" }}>
-                    <span style={{ padding: "3px 9px", borderRadius: "20px", fontSize: "11px", fontWeight: 700, background: roleCfg.bg, color: roleCfg.color }}>
-                      {ROLE_LABELS[user.role] ?? user.role}
-                    </span>
-                  </td>
-
-                  {/* Company */}
-                  <td style={{ padding: "13px 14px", fontSize: "13px", color: "#7A7880" }}>
-                    {user.company_name ?? <span style={{ color: "#ccc" }}>—</span>}
-                  </td>
-
-                  {/* Status */}
-                  <td style={{ padding: "13px 14px" }}>
-                    <span style={{ padding: "3px 9px", borderRadius: "20px", fontSize: "11px", fontWeight: 700, background: user.is_active ? "rgba(5,150,105,.1)" : "rgba(156,163,175,.15)", color: user.is_active ? "#059669" : "#9CA3AF" }}>
-                      {user.is_active ? "Active" : "Inactive"}
-                    </span>
-                  </td>
-
-                  {/* Joined */}
-                  <td style={{ padding: "13px 14px", fontSize: "12px", color: "#7A7880" }}>
-                    {user.created_at ? new Date(user.created_at).toLocaleDateString() : "—"}
-                  </td>
-
-                  {/* Last Login */}
-                  <td style={{ padding: "13px 14px", fontSize: "12px", color: "#7A7880" }}>
-                    {user.last_login ? new Date(user.last_login).toLocaleDateString() : <span style={{ color: "#ccc" }}>Never</span>}
-                  </td>
-
-                  {/* Actions */}
-                  <td style={{ padding: "13px 14px" }}>
-                    <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
-                      <button
-                        onClick={() => setEditUser(user)}
-                        style={{ padding: "5px 11px", border: "1px solid #E3E3E3", borderRadius: "6px", background: "#fff", fontSize: "12px", fontWeight: 600, cursor: "pointer", color: "#2A2830" }}
-                      >
-                        Edit
-                      </button>
-                      <button
-                        onClick={() => handleToggleActive(user)}
-                        disabled={isToggling}
-                        style={{ padding: "5px 11px", border: `1px solid ${user.is_active ? "#E3E3E3" : "rgba(5,150,105,.3)"}`, borderRadius: "6px", background: user.is_active ? "#fff" : "rgba(5,150,105,.06)", fontSize: "12px", fontWeight: 600, cursor: isToggling ? "not-allowed" : "pointer", color: user.is_active ? "#D97706" : "#059669", opacity: isToggling ? 0.5 : 1 }}
-                      >
-                        {user.is_active ? "Deactivate" : "Reactivate"}
-                      </button>
-                      <button
-                        onClick={() => setDeleteUser(user)}
-                        style={{ padding: "5px 11px", border: "1px solid rgba(232,36,42,.25)", borderRadius: "6px", background: "rgba(232,36,42,.04)", fontSize: "12px", fontWeight: 600, cursor: "pointer", color: "#E8242A" }}
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-
-      {/* Pagination */}
-      {pages > 1 && (
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", marginTop: "16px" }}>
-          <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
-            style={{ padding: "7px 14px", border: "1px solid #E3E3E3", borderRadius: "6px", background: "#fff", cursor: page === 1 ? "not-allowed" : "pointer", opacity: page === 1 ? 0.4 : 1, fontSize: "13px", fontWeight: 600 }}>
-            ← Prev
-          </button>
-          <span style={{ fontSize: "13px", color: "#7A7880" }}>{page} / {pages}</span>
-          <button onClick={() => setPage(p => Math.min(pages, p + 1))} disabled={page === pages}
-            style={{ padding: "7px 14px", border: "1px solid #E3E3E3", borderRadius: "6px", background: "#fff", cursor: page === pages ? "not-allowed" : "pointer", opacity: page === pages ? 0.4 : 1, fontSize: "13px", fontWeight: 600 }}>
-            Next →
-          </button>
+    <SettingsFrame active="team" title="Team and roles" sub="Staff only. Buyers live under Customers."
+      actions={<button type="button" className="pc-btn" data-kind="primary" onClick={() => setEditing("new")}><Plus size={17} strokeWidth={2.4} /> Invite someone</button>}>
+      {flash && (
+        <div className="pc-flash" data-bad={flash.bad ? "" : undefined} role="status">
+          <span>{flash.text}</span>
+          <button type="button" className="pc-x" aria-label="Dismiss" onClick={() => setFlash(null)} style={{ color: "inherit" }}><X size={16} strokeWidth={2.2} /></button>
         </div>
       )}
-    </div>
+
+      <div style={{ display: "grid", gap: "18px" }}>
+        <section className="pc-card" data-card="team" aria-busy={loading}>
+          <div className="pc-card-head"><h2 className="pc-h2">Team</h2></div>
+          <div className="pc-filters" style={{ padding: "14px 20px 0", margin: 0 }}>
+            <label className="pc-field" style={{ flex: 1, minWidth: "200px" }}>
+              <Search size={17} strokeWidth={2} />
+              <input value={qText} onChange={(e) => setQText(e.target.value)} placeholder="Name or email" aria-label="Search the team" />
+            </label>
+            <select className="pc-input" style={{ width: "auto" }} value={roleFilter} aria-label="Role" onChange={(e) => { setRoleFilter(e.target.value); setPage(1); }}>
+              <option value="">Every role</option>
+              {ASSIGNABLE_ROLES.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
+            </select>
+            <select className="pc-input" style={{ width: "auto" }} value={statusFilter} aria-label="Status" onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}>
+              <option value="">Active and deactivated</option>
+              <option value="active">Active</option>
+              <option value="inactive">Deactivated</option>
+            </select>
+          </div>
+          <div className="pc-scroll-x" style={{ marginTop: "14px", borderTop: "1px solid var(--pc-line)" }}>
+            <table className="pc-table" style={{ minWidth: "680px" }}>
+              <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>2-step</th><th>Last active</th></tr></thead>
+              <tbody>
+                {loading && users.length === 0 && [0, 1].map((i) => (
+                  <tr key={i}><td colSpan={5}><div className="at-skel" style={{ height: "18px", width: `${60 - i * 12}%`, borderRadius: "6px" }} /></td></tr>
+                ))}
+                {!loading && users.length === 0 && (
+                  <tr><td colSpan={5} className="pc-empty">{failed ? "The team could not be loaded. Reload to try again." : narrowed ? "Nobody matches this search." : "Nobody yet. Invite the first person."}</td></tr>
+                )}
+                {users.map((u) => (
+                  <tr key={u.id} data-href data-user={u.email} tabIndex={0} onClick={() => setEditing(u)} onKeyDown={(e) => { if (e.key === "Enter") setEditing(u); }}
+                    style={{ opacity: u.is_active ? 1 : 0.6 }}>
+                    <td style={{ fontWeight: 600 }}>{u.full_name || u.first_name || u.email}
+                      {!u.is_active && <span className="pc-pill" style={{ marginLeft: "8px", textTransform: "none" }}>Deactivated</span>}</td>
+                    <td className="pc-td-clip" title={u.email}>{u.email}</td>
+                    <td><span className="pc-pill" data-tone={u.role === "administrator" || u.role === "admin" ? "blue" : undefined} style={{ textTransform: "none" }}>{roleOf(u)}</span></td>
+                    <td><span className="pc-pill" data-tone={u.two_factor ? "green" : "amber"} style={{ textTransform: "none" }}>{u.two_factor ? "On" : "Off"}</span></td>
+                    <td style={{ whiteSpace: "nowrap", color: u.last_login ? undefined : "var(--pc-muted)" }}>{u.last_login ? day(u.last_login) : u.invited ? "Invited, not signed in yet" : "Never signed in"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="pc-table-foot">
+            <span>{total} {total === 1 ? "person" : "people"}</span>
+            {pages > 1 ? (
+              <span className="pc-row-actions">
+                <button type="button" className="pc-link" disabled={page <= 1} onClick={() => setPage(page - 1)} style={{ opacity: page <= 1 ? 0.4 : 1 }}>Previous</button>
+                <span>Page {page} of {pages}</span>
+                <button type="button" className="pc-link" disabled={page >= pages} onClick={() => setPage(page + 1)} style={{ opacity: page >= pages ? 0.4 : 1 }}>Next</button>
+              </span>
+            ) : <span>Click a person to change their role or access</span>}
+          </div>
+          <div style={{ padding: "0 20px 18px" }}>
+            <div className="pc-note" data-tone="blue">New people get an email invite and set their own password. You never type one for them.</div>
+          </div>
+        </section>
+
+        <section className="pc-card" data-card="roles">
+          <div className="pc-card-head">
+            <h2 className="pc-h2">Roles</h2>
+            <Link href="/admin/users/roles" className="pc-btn" style={{ height: "36px" }}>Custom roles</Link>
+          </div>
+          <div className="pc-scroll-x">
+            <table className="pc-table" style={{ minWidth: `${240 + (table?.roles.length ?? 6) * 118}px` }} data-roles-table>
+              <thead><tr><th>Area</th>{table?.roles.map((r) => <th key={r.key} data-role={r.key} style={{ textTransform: "none", letterSpacing: 0, fontSize: "13px" }}>{r.label}</th>)}</tr></thead>
+              <tbody>
+                {!table && <tr><td colSpan={7}><div className="at-skel" style={{ height: "18px", width: "55%", borderRadius: "6px" }} /></td></tr>}
+                {table?.areas.map((a) => (
+                  <tr key={a.key} data-area={a.key}>
+                    <td style={{ fontWeight: 600 }}>{a.label}</td>
+                    {table.roles.map((r) => {
+                      const cell = a.levels[r.key];
+                      const [label, tone] = LEVEL_WORDS[cell?.level ?? "none"];
+                      // What the cell is made of, for a role that has part of a place.
+                      const made = Object.entries(cell?.sections ?? {}).map(([s, l]) => `${SECTION_WORDS[s] ?? s}: ${l === "write" ? "edit" : l === "read" ? "view" : "none"}`).join(" · ");
+                      return (
+                        <td key={r.key} data-level={cell?.level ?? "none"} title={made}>
+                          {cell?.level && cell.level !== "none"
+                            ? <span className="pc-pill" data-tone={tone} style={{ textTransform: "none" }}>{label}</span>
+                            : <span style={{ color: "var(--pc-muted)" }}>None</span>}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="pc-sub-line" style={{ margin: 0, padding: "12px 20px 16px", fontSize: "13px" }}>
+            Production gives a press operator the print queue and a look at orders, and nothing else. &quot;Some&quot; means part of a place: hover it to see which part. Need something different? Make a custom role.
+          </p>
+        </section>
+      </div>
+
+      {editing && (
+        <PersonModal
+          user={editing === "new" ? null : editing}
+          customRoles={customRoles}
+          onClose={() => setEditing(null)}
+          onDone={(text, bad) => { setEditing(null); setFlash({ text, bad }); load(); }}
+        />
+      )}
+    </SettingsFrame>
   );
 }
 
+// ── Invite somebody, or change one person ────────────────────────────────────
 
-/** This screen as one of the Settings screens (components/admin/settings/SettingsFrame). */
-export default function AdminUsersPage() {
+function PersonModal({ user, customRoles, onClose, onDone }: {
+  user: AdminUser | null;
+  customRoles: CustomRole[];
+  onClose: () => void;
+  onDone: (text: string, bad?: boolean) => void;
+}) {
+  const [f, setF] = useState({
+    first_name: user?.first_name ?? "", last_name: user?.last_name ?? "", email: user?.email ?? "",
+    role: user?.custom_role_id ? `custom:${user.custom_role_id}` : user && ASSIGNABLE_ROLES.some((r) => r.value === user.role) ? user.role : user?.role === "admin" ? "administrator" : "editor",
+    is_active: user?.is_active ?? true,
+  });
+  const [saving, setSaving] = useState("");
+  const [error, setError] = useState("");
+  const set = (k: keyof typeof f, v: string | boolean) => setF((p) => ({ ...p, [k]: v }));
+  const picked = f.role.startsWith("custom:") ? null : ASSIGNABLE_ROLES.find((r) => r.value === f.role);
+  const name = user?.full_name || user?.email || "";
+
+  async function save(e: FormEvent) {
+    e.preventDefault();
+    if (!f.first_name.trim() || !f.email.trim()) { setError("A first name and an email are needed."); return; }
+    setSaving("save"); setError("");
+    const custom = f.role.startsWith("custom:") ? f.role.slice(7) : null;
+    try {
+      if (user) {
+        await adminService.updateUser(user.id, { first_name: f.first_name, last_name: f.last_name, email: f.email, role: custom ? undefined : f.role, custom_role_id: custom, is_active: f.is_active });
+        onDone(`Saved ${f.first_name.trim()}.`);
+      } else {
+        const made = await adminService.createUser({ first_name: f.first_name.trim(), last_name: f.last_name.trim(), email: f.email.trim(), role: custom ? undefined : f.role, custom_role_id: custom ?? undefined });
+        if (made.invite_sent === false) onDone(`${f.first_name.trim()} was added, but the invite email could not be sent. Open them and send it again.`, true);
+        else onDone(`Invite sent to ${f.email.trim()}. They set their own password from it.`);
+      }
+    } catch (err) {
+      setError(errorText(err, "That could not be saved."));
+      setSaving("");
+    }
+  }
+
+  async function send(kind: "invite" | "reset") {
+    if (!user) return;
+    setSaving(kind); setError("");
+    try {
+      if (kind === "invite") await adminService.inviteUserAgain(user.id);
+      else await adminService.resetUserPassword(user.id);
+      onDone(kind === "invite" ? `Invite sent again to ${user.email}.` : `A password reset link was emailed to ${user.email}.`);
+    } catch (err) {
+      setError(errorText(err, "The email could not be sent."));
+      setSaving("");
+    }
+  }
+
+  async function remove() {
+    if (!user || !await ask(`Delete ${name}? Their messages and saved carts go with them. This cannot be undone.`, { title: "Delete this person", ok: "Delete", danger: true })) return;
+    setSaving("delete"); setError("");
+    try {
+      await adminService.deleteUser(user.id);
+      onDone(`${name} was deleted.`);
+    } catch (err) {
+      // The server says why (orders on record, the account you are signed in with…).
+      await tell(errorText(err, "This person could not be deleted."), { title: "Not deleted" });
+      setSaving("");
+    }
+  }
+
   return (
-    <SettingsFrame active="team" title="Team and roles" sub="Who can sign in to this admin, and what each of them can do.">
-      <AdminUsersPageBody />
-    </SettingsFrame>
+    <div className="pc-modal-back" onMouseDown={(e) => { if (e.target === e.currentTarget && !saving) onClose(); }}>
+      <form className="pc-modal" role="dialog" aria-label={user ? name : "Invite someone"} onSubmit={save} data-person-modal>
+        <div className="pc-panel-head">
+          <div>
+            <h2 className="pc-h2">{user ? name : "Invite someone"}</h2>
+            <p className="pc-sub-line" style={{ fontSize: "13.5px", marginTop: "2px" }}>
+              {user ? (user.last_login ? `Last signed in ${day(user.last_login)}.` : user.invited ? "Invited, not signed in yet." : "Has never signed in.")
+                : "They get an email with a link to set their own password."}
+            </p>
+          </div>
+          <button type="button" className="pc-x" aria-label="Close" onClick={onClose}><X size={18} /></button>
+        </div>
+        <div style={{ padding: "4px 22px 18px", display: "grid", gap: "14px" }}>
+          {error && <div className="pc-note" data-tone="red" role="alert">{error}</div>}
+          <div className="pc-form2">
+            <label><span className="pc-label">First name *</span><input className="pc-input" value={f.first_name} onChange={(e) => set("first_name", e.target.value)} autoFocus required /></label>
+            <label><span className="pc-label">Last name</span><input className="pc-input" value={f.last_name} onChange={(e) => set("last_name", e.target.value)} /></label>
+            <label className="pc-wide"><span className="pc-label">Email *</span><input className="pc-input" type="email" value={f.email} onChange={(e) => set("email", e.target.value)} required /></label>
+            <label className="pc-wide"><span className="pc-label">Role</span>
+              <select className="pc-input" value={f.role} onChange={(e) => set("role", e.target.value)} data-role-select>
+                {ASSIGNABLE_ROLES.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
+                {customRoles.length > 0 && <optgroup label="Custom roles">{customRoles.map((r) => <option key={r.id} value={`custom:${r.id}`}>{r.name}</option>)}</optgroup>}
+              </select>
+              <span className="pc-sub-line" style={{ fontSize: "12.5px", marginTop: "6px", display: "block" }}>{picked ? picked.desc : "A role you made under Custom roles."}</span></label>
+          </div>
+          {user && (
+            <div className="pc-switch-row" style={{ alignItems: "center" }}>
+              <span>Can sign in
+                <div className="pc-sub-line" style={{ fontSize: "12.5px", fontWeight: 400 }}>Switch off to deactivate: they keep their history and cannot sign in.</div>
+              </span>
+              <button type="button" className="pc-switch" role="switch" aria-label="Can sign in" aria-checked={f.is_active} data-on={f.is_active ? "" : undefined} onClick={() => set("is_active", !f.is_active)} />
+            </div>
+          )}
+          {user && (
+            <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+              {user.invited && <button type="button" className="pc-btn" disabled={!!saving} onClick={() => send("invite")}>{saving === "invite" ? "Sending…" : "Send the invite again"}</button>}
+              <button type="button" className="pc-btn" disabled={!!saving} onClick={() => send("reset")}>{saving === "reset" ? "Sending…" : "Email a password reset link"}</button>
+            </div>
+          )}
+        </div>
+        <div className="pc-panel-foot" style={{ display: "flex", justifyContent: "space-between", gap: "10px", padding: "14px 22px", borderTop: "1px solid var(--pc-line)" }}>
+          {user ? <button type="button" className="pc-btn" onClick={remove} disabled={!!saving}>{saving === "delete" ? "Deleting…" : "Delete"}</button> : <span />}
+          <div style={{ display: "flex", gap: "10px" }}>
+            <button type="button" className="pc-btn" onClick={onClose} disabled={!!saving}>Cancel</button>
+            <button type="submit" className="pc-btn" data-kind="primary" disabled={!!saving}>{saving === "save" ? "Saving…" : user ? "Save" : "Send invite"}</button>
+          </div>
+        </div>
+      </form>
+    </div>
   );
 }

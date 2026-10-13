@@ -1,7 +1,7 @@
 """
 Role-Based Access Control (RBAC) — fixed roles with preset permissions.
 
-Brand team members get one of 5 roles. Each role grants access to a set of
+Brand team members get one of 6 roles. Each role grants access to a set of
 "sections" (scopes). Enforcement happens in the auth middleware for every
 /api/v1/admin/* request, and the frontend mirrors this to hide sections.
 
@@ -11,6 +11,11 @@ Roles (DB `users.role` values):
   tenant_editor      → Editor         (products, storefront, media, content)
   tenant_fulfillment → Order Manager  (orders, customers, inventory, discounts)
   tenant_viewer      → Viewer         (read-only everywhere)
+  tenant_production  → Production     (the print queue, and a look at orders)
+
+The print queue ("production") became a section with the Production role.
+Before it, its paths were mapped to nothing, so every fixed role could work
+them: each of those roles has the section now, and can do what it did.
 """
 from __future__ import annotations
 
@@ -22,6 +27,8 @@ SCOPES = {
     "products", "collections", "orders", "customers", "storefront", "media",
     "content", "inventory", "discounts", "staff", "settings", "analytics",
     "billing", "payouts", "audit",
+    # The print queue and its jobs (the Production screen).
+    "production",
 }
 _ALL = set(SCOPES)
 
@@ -37,7 +44,7 @@ READ, WRITE = "read", "write"
 # Operational sections (everything except staff-management, settings and money).
 _OPERATIONAL = {
     "products", "collections", "orders", "customers", "storefront", "media",
-    "content", "inventory", "discounts", "analytics",
+    "content", "inventory", "discounts", "analytics", "production",
 }
 
 # Role → accessible sections. Viewer accesses the operational set but READ-ONLY
@@ -46,9 +53,18 @@ ROLE_SCOPES: dict[str, set[str]] = {
     "platform_admin": _ALL,
     "tenant_admin": _ALL,
     "tenant_manager": set(_OPERATIONAL),
-    "tenant_editor": {"products", "collections", "storefront", "media", "content", "analytics"},
-    "tenant_fulfillment": {"orders", "customers", "inventory", "discounts", "analytics"},
+    "tenant_editor": {"products", "collections", "storefront", "media", "content", "analytics", "production"},
+    "tenant_fulfillment": {"orders", "customers", "inventory", "discounts", "analytics", "production"},
     "tenant_viewer": set(_OPERATIONAL),  # read-only
+}
+
+# A fixed role that is a set of levels, section by section, in place of a list
+# of sections it writes everywhere. Production works the print queue and may
+# look at orders (a job belongs to one), and that is all: it is read by the
+# rules a custom role is read by, so a path nobody has mapped is look-only for
+# it and a section it does not name is closed.
+ROLE_LEVELS: dict[str, dict[str, str]] = {
+    "tenant_production": {"production": "write", "orders": "read"},
 }
 
 # Roles that can view but not modify anything.
@@ -61,6 +77,7 @@ ROLE_LABELS: dict[str, str] = {
     "tenant_editor": "Editor",
     "tenant_fulfillment": "Order Manager",
     "tenant_viewer": "Viewer",
+    "tenant_production": "Production",
 }
 
 # Admin path prefix → required scope. Longest/most-specific first.
@@ -114,6 +131,10 @@ _PATH_SCOPES: list[tuple[str, str]] = [
     ("/api/v1/admin/standard-shipping", "settings"),
     ("/api/v1/admin/analytics", "analytics"),
     ("/api/v1/admin/reports", "analytics"),
+    # The print queue and its jobs. A gang sheet's setup (its products, sizes
+    # and library) stays unmapped, as it was.
+    ("/api/v1/admin/production", "production"),
+    ("/api/v1/admin/gang-sheets/orders", "production"),
 ]
 
 _READ_METHODS = {"GET", "HEAD", "OPTIONS"}
@@ -205,6 +226,10 @@ def can_access(
 
     also = extra_scope_for(path, method)
 
+    # A role that is a set of levels is read like a custom one.
+    if scopes is None and role in ROLE_LEVELS:
+        scopes = ROLE_LEVELS[role]
+
     # Partial access: an explicit permission set.
     if scopes is not None:
         allowed = normalise_scopes(scopes, read_only)
@@ -217,7 +242,10 @@ def can_access(
             return is_read
         level = allowed.get(scope)
         if level is None:
-            return False
+            # The print queue became a section after custom roles existed. One
+            # saved before then could look at it (its paths were unmapped), so
+            # it still can; changing a job needs the section granted by name.
+            return is_read and scope == "production" and role not in ROLE_LEVELS
         return is_read if level == READ else True
 
     # Fixed role. The second section is always a sensitive one, which a fixed
@@ -242,6 +270,8 @@ def scopes_for_role(role: str | None) -> list[str]:
     role = role or ""
     if role in ("platform_admin", "tenant_admin"):
         return sorted(_ALL)
+    if role in ROLE_LEVELS:
+        return sorted(ROLE_LEVELS[role])
     return sorted(ROLE_SCOPES.get(role, set()))
 
 
@@ -258,10 +288,65 @@ def permissions_for(role: str | None, scopes: Any = None,
         return {scope: WRITE for scope in sorted(_ALL)}
     if scopes is not None:
         return normalise_scopes(scopes, read_only)
+    if role in ROLE_LEVELS:
+        return dict(ROLE_LEVELS[role])
     allowed = ROLE_SCOPES.get(role, set())
     if role in READ_ONLY_ROLES:
         return {scope: READ for scope in sorted(allowed)}
     return {
         scope: (READ if scope in SENSITIVE_SCOPES else WRITE)
         for scope in sorted(allowed)
+    }
+
+
+# ── The roles as a table: the admin's places down, the roles across ──────────
+
+# The admin's places, as its sidebar names them, and the sections each is made
+# of. `look_only` marks a place with nothing to change in it (a report is read).
+AREAS: list[tuple[str, str, tuple[str, ...], bool]] = [
+    ("orders", "Orders", ("orders",), False),
+    ("production", "Production", ("production",), False),
+    ("products", "Products", ("products", "collections", "inventory"), False),
+    ("customers", "Customers", ("customers",), False),
+    ("storefront", "Storefront", ("storefront", "media", "content"), False),
+    ("marketing", "Marketing", ("discounts",), False),
+    ("reports", "Reports", ("analytics",), True),
+    ("settings", "Settings", ("settings", "staff", "billing", "payouts", "audit"), False),
+]
+
+
+def area_level(perms: dict[str, str], sections: tuple[str, ...], look_only: bool = False) -> str:
+    """What a set of permissions comes to for one place: "edit" (changes
+    everything in it), "view" (looks, changes nothing), "part" (changes some of
+    it) or "none"."""
+    levels = [perms.get(section) for section in sections]
+    if not any(levels):
+        return "none"
+    if look_only:
+        return "view"
+    if all(level == WRITE for level in levels):
+        return "edit"
+    return "part" if WRITE in levels else "view"
+
+
+def role_table(custom: list[tuple[str, str, dict[str, str]]] | None = None) -> dict:
+    """Every role against every place, from the rules `can_access` enforces.
+
+    `custom` is the shop's own roles as (id, name, {section: level}).
+    """
+    columns: list[tuple[str, str, dict[str, str], bool]] = [
+        (key, label, permissions_for(key), True) for key, label in ROLE_LABELS.items()
+    ] + [(f"custom:{rid}", name, perms, False) for rid, name, perms in (custom or [])]
+    return {
+        "roles": [{"key": key, "label": label, "fixed": fixed} for key, label, _, fixed in columns],
+        "areas": [{
+            "key": key, "label": label,
+            "levels": {
+                role_key: {
+                    "level": area_level(perms, sections, look_only),
+                    "sections": {section: perms.get(section) for section in sections},
+                }
+                for role_key, _, perms, _ in columns
+            },
+        } for key, label, sections, look_only in AREAS],
     }

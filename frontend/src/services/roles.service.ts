@@ -31,8 +31,23 @@ export interface ScopeCatalog {
   levels: Level[];
 }
 
+/** What a role comes to for one place in the admin. "part": it changes some of it. */
+export type AreaLevel = "edit" | "view" | "part" | "none";
+
+/** Every role against every place, from the rules the API enforces
+ *  (backend core/permissions.role_table). */
+export interface RoleTable {
+  /** key is the stored role ("tenant_manager") or "custom:<id>". */
+  roles: { key: string; label: string; fixed: boolean }[];
+  areas: {
+    key: string; label: string;
+    levels: Record<string, { level: AreaLevel; sections: Record<string, Level | null> }>;
+  }[];
+}
+
 export const rolesService = {
   scopes: () => apiClient.get<ScopeCatalog>("/api/v1/admin/roles/scopes"),
+  table: () => apiClient.get<RoleTable>("/api/v1/admin/roles/matrix"),
   list: () => apiClient.get<CustomRole[]>("/api/v1/admin/roles"),
   create: (p: { name: string; scopes: ScopeMap; read_only: boolean }) =>
     apiClient.post<CustomRole>("/api/v1/admin/roles", p),

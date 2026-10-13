@@ -27,7 +27,7 @@ REFRESH_TOKEN_EXPIRE_DAYS = 7
 # 'tenant_custom' = a user on a tenant-defined custom role (scopes in the token).
 _ADMIN_PANEL_ROLES = {
     "platform_admin", "tenant_admin", "tenant_manager",
-    "tenant_editor", "tenant_fulfillment", "tenant_viewer", "tenant_custom",
+    "tenant_editor", "tenant_fulfillment", "tenant_viewer", "tenant_production", "tenant_custom",
 }
 
 

@@ -99,7 +99,8 @@ export function AdminSidebar() {
     // One line each: Production is the print queue and its jobs; Products'
     // screens (collections, inventory, purchase orders, suppliers, gang sheet
     // setup…) are the tabs across the top of the product list.
-    { key: "production", label: "Production", icon: Printer, href: "/admin/production", scopes: ["products"], count: counts.production },
+    // The print queue's own section; a role with Products saw this line before it existed, and still does.
+    { key: "production", label: "Production", icon: Printer, href: "/admin/production", scopes: ["production", "products"], count: counts.production },
     {
       key: "products", label: "Products", icon: Package, href: "/admin/products", scopes: ["products"],
       also: ["/admin/inventory", "/admin/suppliers", "/admin/purchase-orders", "/admin/gang-sheets"],

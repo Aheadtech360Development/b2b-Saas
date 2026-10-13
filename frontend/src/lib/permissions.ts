@@ -6,26 +6,36 @@
 export type Scope =
   | "products" | "collections" | "orders" | "customers" | "storefront" | "media"
   | "content" | "inventory" | "discounts" | "staff" | "settings" | "analytics"
-  | "billing" | "payouts" | "audit";
+  | "billing" | "payouts" | "audit"
+  // The print queue and its jobs (the Production screen).
+  | "production";
 
 const ALL: Scope[] = [
   "products", "collections", "orders", "customers", "storefront", "media", "content",
   "inventory", "discounts", "staff", "settings", "analytics", "billing", "payouts", "audit",
+  "production",
 ];
 
 // Operational sections (everything except staff-management, settings and money).
 const OPERATIONAL: Scope[] = [
   "products", "collections", "orders", "customers", "storefront", "media", "content",
-  "inventory", "discounts", "analytics",
+  "inventory", "discounts", "analytics", "production",
 ];
 
 const ROLE_SCOPES: Record<string, Scope[]> = {
   platform_admin: ALL,
   tenant_admin: ALL,
   tenant_manager: OPERATIONAL,
-  tenant_editor: ["products", "collections", "storefront", "media", "content", "analytics"],
-  tenant_fulfillment: ["orders", "customers", "inventory", "discounts", "analytics"],
+  tenant_editor: ["products", "collections", "storefront", "media", "content", "analytics", "production"],
+  tenant_fulfillment: ["orders", "customers", "inventory", "discounts", "analytics", "production"],
   tenant_viewer: OPERATIONAL, // sees operational sections, but read-only
+};
+
+/** A fixed role that is a level per section, in place of a list it writes
+ *  everywhere: Production works the print queue and may look at orders, and
+ *  that is all (backend core/permissions.ROLE_LEVELS). */
+const ROLE_LEVELS: Record<string, Partial<Record<Scope, "read" | "write">>> = {
+  tenant_production: { production: "write", orders: "read" },
 };
 
 /** A custom role's permissions: the older plain list of sections, or the
@@ -43,6 +53,7 @@ export function hasScope(role: string | undefined | null, scope: Scope, scopes?:
   if (r === "tenant_admin" || r === "platform_admin") return true;
   if (Array.isArray(scopes)) return scopes.includes(scope);
   if (scopes && typeof scopes === "object") return scope in scopes;
+  if (ROLE_LEVELS[r]) return scope in ROLE_LEVELS[r];
   return (ROLE_SCOPES[r] ?? []).includes(scope);
 }
 
@@ -53,6 +64,7 @@ export function canWrite(role: string | undefined | null, scope: Scope, scopes?:
   if (readOnly) return false;
   if (scopes && !Array.isArray(scopes) && typeof scopes === "object") return scopes[scope] === "write";
   if (Array.isArray(scopes)) return scopes.includes(scope);
+  if (ROLE_LEVELS[r]) return ROLE_LEVELS[r][scope] === "write";
   if (r === "tenant_viewer") return false;
   return (ROLE_SCOPES[r] ?? []).includes(scope);
 }
@@ -63,13 +75,14 @@ export function isReadOnly(role: string | undefined | null, readOnly?: boolean |
   return role === "tenant_viewer";
 }
 
-/** The 5 assignable roles (for the Users page dropdown). value = API role. */
+/** The 6 assignable roles (for the Team page's list). value = API role. */
 export const ASSIGNABLE_ROLES: { value: string; label: string; desc: string }[] = [
   { value: "administrator", label: "Administrator", desc: "Full access to everything" },
   { value: "manager", label: "Manager", desc: "Everything except staff & settings" },
   { value: "editor", label: "Editor", desc: "Products, Storefront, Media, Content" },
   { value: "order_manager", label: "Order Manager", desc: "Orders, Customers, Inventory, Discounts" },
   { value: "viewer", label: "Viewer", desc: "Read-only — can view, not edit" },
+  { value: "production", label: "Production", desc: "The print queue and its jobs, and a look at orders. Nothing else." },
 ];
 
 /** DB role -> friendly label. */
@@ -79,12 +92,14 @@ export const ROLE_LABELS: Record<string, string> = {
   tenant_editor: "Editor",
   tenant_fulfillment: "Order Manager",
   tenant_viewer: "Viewer",
+  tenant_production: "Production",
   tenant_custom: "Custom role",
   administrator: "Administrator",
   manager: "Manager",
   editor: "Editor",
   order_manager: "Order Manager",
   viewer: "Viewer",
+  production: "Production",
   admin: "Administrator",
   staff: "Editor",
   customer: "Customer",

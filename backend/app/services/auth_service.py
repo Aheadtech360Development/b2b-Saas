@@ -48,7 +48,7 @@ REFRESH_TOKEN_EXPIRE_DAYS = 7
 # that reaches the console has to arrive with is_admin set.
 _CONSOLE_ROLES = {
     "platform_admin", "tenant_admin", "tenant_manager",
-    "tenant_editor", "tenant_fulfillment", "tenant_viewer",
+    "tenant_editor", "tenant_fulfillment", "tenant_viewer", "tenant_production",
 }
 
 

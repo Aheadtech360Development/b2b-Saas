@@ -27,6 +27,7 @@ _ROLE_TO_DB = {
     "editor": "tenant_editor",
     "order_manager": "tenant_fulfillment",
     "viewer": "tenant_viewer",
+    "production": "tenant_production",
     # legacy aliases
     "admin": "tenant_admin", "staff": "tenant_editor", "customer": "buyer",
 }
@@ -34,6 +35,7 @@ _DB_TO_UI = {
     "tenant_admin": "administrator", "platform_admin": "administrator",
     "tenant_manager": "manager", "tenant_editor": "editor",
     "tenant_fulfillment": "order_manager", "tenant_viewer": "viewer",
+    "tenant_production": "production",
     "tenant_staff": "editor", "buyer": "customer",
 }
 
@@ -66,6 +68,10 @@ def _user_to_dict(user: User) -> dict:
         "email_verified": user.email_verified,
         "company_name": company_name,
         "last_login": user.last_login.isoformat() if user.last_login else None,
+        # Whether a second step guards their sign-in, and whether they are
+        # still to set a password from the invite they were sent.
+        "two_factor": bool(getattr(user, "two_factor_enabled", False)),
+        "invited": user.last_login is None and bool(getattr(user, "password_reset_token", None)),
         "created_at": user.created_at.isoformat() if hasattr(user, "created_at") and user.created_at else None,
     }
 
@@ -81,11 +87,14 @@ async def list_users(
     q: str | None = None,
     role: str | None = None,
     status: str | None = None,
+    staff_only: bool = Query(False, description="Leave buyers out: they are listed under Customers"),
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=200),
     db: AsyncSession = Depends(get_db),
 ):
     query = _base_query()
+    if staff_only:
+        query = query.where(User.role != "buyer")
 
     # Tenant isolation: a brand admin only sees their own tenant's users.
     _tid = get_current_tenant_id()
@@ -117,6 +126,59 @@ async def list_users(
     users = result.scalars().all()
 
     return {"items": [_user_to_dict(u) for u in users], "total": total}
+
+
+INVITE_DAYS = 3
+
+
+async def _send_staff_invite(db: AsyncSession, user: User) -> bool:
+    """Email a team member the link that sets their password, which is how
+    they first sign in. No password travels in the mail. Best-effort: an invite
+    that will not send leaves the account in place, and it can be sent again.
+
+    The link opens on the shop's own address, and the mail is in its name.
+    """
+
+    from app.core.config import settings
+    from app.core.permissions import ROLE_LABELS
+    from app.core.tenant_context import get_current_brand_name
+    from app.services.email_service import EmailService
+
+    token = secrets.token_urlsafe(32)
+    try:
+        # On the person, not beside them: the answer that follows reads the same
+        # object, and has to say they are invited.
+        from datetime import datetime, timedelta, timezone
+
+        user.password_reset_token = token
+        user.password_reset_expires = datetime.now(timezone.utc) + timedelta(days=INVITE_DAYS)
+        await db.commit()
+        path = f"/reset-password?token={token}"
+        try:
+            from app.services import brand_urls
+
+            link = await brand_urls.for_tenant(db, user.tenant_id, path)
+        except Exception:
+            link = f"{settings.FRONTEND_URL.rstrip('/')}{path}"
+        store = get_current_brand_name() or "our store"
+        who = (user.first_name or "").strip() or "there"
+        role = "a custom role" if getattr(user, "custom_role_id", None) else ROLE_LABELS.get(user.role or "", "a team member")
+        return bool(EmailService(db).send_raw(
+            to_email=user.email,
+            subject=f"You have been added to the {store} team",
+            body_html=(
+                f"<h2>Welcome to the {store} team</h2>"
+                f"<p>Hi {who},</p>"
+                f"<p>You have been given access to the {store} admin as <b>{role}</b>. "
+                "Choose a password to sign in:</p>"
+                f"<p><a href=\"{link}\">Set your password</a></p>"
+                f"<p style='color:#666;font-size:13px'>The link works for {INVITE_DAYS} days. "
+                "After that, use “Forgot password” on the sign-in page.</p>"
+            ),
+        ))
+    except Exception:
+        logger.warning("Staff invite for %s did not go out", getattr(user, "email", "?"), exc_info=True)
+        return False
 
 
 def _taken_message(owner: dict, email: str) -> str:
@@ -159,7 +221,6 @@ async def create_user(
     first_name: str = (payload.get("first_name") or "").strip()
     last_name: str = (payload.get("last_name") or "").strip()
     role: str = payload.get("role", "staff")
-    send_welcome: bool = bool(payload.get("send_welcome_email", False))
 
     if not email or not first_name:
         raise HTTPException(status_code=422, detail="email and first_name are required")
@@ -173,7 +234,9 @@ async def create_user(
     if owner:
         raise HTTPException(status_code=409, detail=_taken_message(owner, email))
 
-    raw_password: str = payload.get("password") or secrets.token_urlsafe(12)
+    # Nobody types a password for somebody else. The account is made with one
+    # no one knows, and the person sets their own from the link they are sent.
+    raw_password: str = secrets.token_urlsafe(24)
     custom_role_id = payload.get("custom_role_id")
     db_role = "tenant_custom" if custom_role_id else _ROLE_TO_DB.get(role, "tenant_editor")
 
@@ -197,32 +260,28 @@ async def create_user(
         raise HTTPException(status_code=409, detail="This email address already has an account. Use a different address, or ask that person to sign in with it.")
     await db.refresh(user)
 
-    if send_welcome:
-        try:
-            from app.services.email_service import EmailService
-            svc = EmailService(db)
-            svc.send_raw(
-                to_email=email,
-                subject="Your staff account is ready",
-                body_html=f"""
-                <div style="font-family:sans-serif;max-width:560px;margin:0 auto">
-                  <div style="padding:32px;background:#fff;border:1px solid #eee">
-                    <h2 style="color:#2A2830;margin:0 0 16px">Welcome, {first_name}!</h2>
-                    <p style="color:#374151;font-size:14px;line-height:1.7">A staff account has been created for you.</p>
-                    <p style="color:#374151;font-size:14px"><b>Email:</b> {email}<br>
-                    <b>Temporary password:</b> {raw_password}</p>
-                    <p style="color:#374151;font-size:14px">Please log in and change your password.</p>
-                  </div>
-                </div>
-                """,
-            )
-        except Exception:
-            pass  # non-fatal
+    invited = await _send_staff_invite(db, user)
 
     # Reload with relationships
     result = await db.execute(_base_query().where(User.id == user.id))
     user = result.scalar_one()
-    return _user_to_dict(user)
+    return {**_user_to_dict(user), "invite_sent": invited}
+
+
+@router.post("/{user_id}/invite")
+async def invite_user_again(user_id: UUID, db: AsyncSession = Depends(get_db)) -> dict:
+    """Send the set-password link again, to somebody who has not signed in yet
+    or whose link ran out."""
+    _tid = get_current_tenant_id()
+    q = select(User).where(User.id == user_id, User.role != "buyer")
+    if _tid is not None:
+        q = q.where(User.tenant_id == _tid)
+    user = (await db.execute(q)).scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    if not await _send_staff_invite(db, user):
+        raise HTTPException(status_code=502, detail="The invite could not be sent. Check your shop's email under Settings, then try again.")
+    return {"invite_sent": True}
 
 
 @router.patch("/{user_id}")
