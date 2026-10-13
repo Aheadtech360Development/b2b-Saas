@@ -524,6 +524,26 @@
 .pc-form2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 14px; }
 .pc-form2 > .pc-wide { grid-column: 1 / -1; }
 [data-customers-frame] .pc-pill, [data-customer-page] .pc-pill { text-transform: none; }
+/* Copilot: a drawer under the top bar, on every admin page. */
+.pc-cp { position: fixed; top: var(--pc-cp-top, 76px); right: 16px; z-index: 70; width: min(400px, calc(100vw - 32px)); height: min(640px, calc(100vh - var(--pc-cp-top, 76px) - 16px)); background: #fff; border: 1px solid var(--pc-line); border-radius: var(--pc-radius); box-shadow: 0 16px 44px rgba(15, 27, 45, .16); display: flex; flex-direction: column; overflow: hidden; }
+.pc-cp-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; padding: 16px 18px 14px; border-bottom: 1px solid var(--pc-line); }
+.pc-cp-log { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding: 16px 18px; }
+.pc-cp-hello { font-size: 14px; color: var(--pc-muted); margin: 0; line-height: 1.5; }
+.pc-cp-you { align-self: flex-end; max-width: 85%; background: var(--pc-navy); color: #fff; padding: 9px 13px; border-radius: 12px 12px 3px 12px; font-size: 14px; font-weight: 500; line-height: 1.45; white-space: pre-wrap; }
+.pc-cp-bot { align-self: stretch; background: #F5F7FA; border: 1px solid var(--pc-line); color: var(--pc-ink); padding: 11px 13px; border-radius: 12px; font-size: 14px; line-height: 1.55; overflow-wrap: anywhere; }
+.pc-cp-links { display: grid; justify-items: start; gap: 8px; margin-top: 10px; }
+.pc-admin .pc-cp-links .pc-btn { height: 36px; font-size: 13.5px; }
+.pc-cp-confirm { display: grid; gap: 6px; background: #FFFBEB; border: 1px solid #FDE68A; border-radius: 12px; padding: 12px 14px; }
+.pc-cp-clear { align-self: center; font-size: 12.5px; }
+.pc-cp-foot { border-top: 1px solid var(--pc-line); padding: 12px 18px 14px; }
+.pc-cp-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.pc-admin button.pc-cp-chip { border: 1px solid var(--pc-line); background: #EEF2F7; color: var(--pc-ink); border-radius: 14px; height: auto; padding: 4px 10px; font: 600 12.5px var(--pc-sans); cursor: pointer; }
+.pc-cp-ask { display: flex; gap: 8px; }
+.pc-admin .pc-cp-ask .pc-input, .pc-admin .pc-cp-ask .pc-btn { height: 42px; }
+.pc-cp-note { font-size: 12px; color: var(--pc-muted); margin-top: 8px; }
+@media (max-width: 768px) {
+  .pc-cp { top: auto; bottom: 0; right: 0; left: 0; width: 100%; height: min(86vh, 640px); border-radius: 14px 14px 0 0; }
+}
 /* Suppliers: a catalogue's four setup steps across its card. */
 .pc-steps4 { list-style: none; margin: 16px 0 18px; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
 .pc-steps4 li { display: grid; gap: 3px; font-size: 13px; color: var(--pc-muted); }

@@ -74,6 +74,19 @@ class ChatIn(BaseModel):
         return v
 
 
+class OwnerChatIn(ChatIn):
+    """A question from the admin, with the name of the screen they have open
+    (the drawer's "Looking at"), so "these orders" or "this job" can be read."""
+    page: str | None = Field(None, max_length=120)
+
+
+def page_note(page: str | None) -> str:
+    """The open screen, said once beside the newest question, as a fact and
+    not an instruction."""
+    words = " ".join((page or "").split())[:120]
+    return f"(The admin has this screen open: {words}. Use it only to understand what they mean.)" if words else ""
+
+
 PROPOSE_TOOL = {
     "name": "propose_action",
     "description": (
@@ -174,7 +187,7 @@ async def briefing(
 
 @admin_router.post("/chat")
 async def owner_chat(
-    payload: ChatIn, _: None = Depends(require_admin), db: AsyncSession = Depends(get_db),
+    payload: OwnerChatIn, _: None = Depends(require_admin), db: AsyncSession = Depends(get_db),
     __: None = Depends(require_brand),
 ) -> dict:
     # Whatever the model proposes lands here, and travels back to the admin as a
@@ -200,6 +213,7 @@ async def owner_chat(
         result = await run_copilot(
             system=_owner_system(), tools=[*OWNER_TOOLS, PROPOSE_TOOL], handlers=handlers,
             messages=[m.model_dump() for m in payload.messages], scope="owner", db=db,
+            context_note=page_note(payload.page),
         )
     except (CopilotUnavailable, CopilotLimitReached, CopilotError) as exc:
         _raise_for(exc, verbose=True)

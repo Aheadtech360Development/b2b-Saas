@@ -8,10 +8,12 @@
  * — a separate request naming the action and its target — that actually runs it.
  * So the button is the authority, not the sentence above it.
  *
- * Used inline on the dashboard and inside the floating dock on every other admin
- * screen, so both behave identically.
+ * The screen the admin has open travels with each question (`page`), so "these
+ * orders" can be understood. Links an answer gives to admin screens are also
+ * shown as buttons under it.
  */
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { apiClient } from "@/lib/api-client";
 import { ChatMarkdown } from "@/components/ui/ChatMarkdown";
 import { useCopilotStore, type CopilotTurn as Turn, type PreparedAction } from "@/stores/copilot.store";
@@ -23,7 +25,23 @@ export const COPILOT_SUGGESTIONS = [
   "How many products do I have?",
 ];
 
-export function CopilotChat({ compact = false }: { compact?: boolean }) {
+/** Up to three admin screens an answer links to, as buttons. Only links the
+ *  answer itself gave (the copilot is told to use tool links only). */
+function screensIn(text: string): { label: string; href: string }[] {
+  const out: { label: string; href: string }[] = [];
+  for (const m of text.matchAll(/\[([^\]]{1,60})\]\((\/admin\/[^)\s]*)\)/g)) {
+    if (!out.some((o) => o.href === m[2])) out.push({ label: m[1]!, href: m[2]! });
+    if (out.length === 3) break;
+  }
+  return out;
+}
+
+export function CopilotChat({ page, chips = COPILOT_SUGGESTIONS.slice(0, 2) }: {
+  /** Words for the screen that is open, sent with every question. */
+  page?: () => string;
+  /** The questions offered under the conversation. */
+  chips?: string[];
+}) {
   // The thread lives in the store, so opening an order from an answer and
   // coming back doesn't wipe the conversation.
   const turns = useCopilotStore((s) => s.turns);
@@ -52,7 +70,7 @@ export function CopilotChat({ compact = false }: { compact?: boolean }) {
     setAction(null);
     try {
       const res = await apiClient.post<{ reply: string; action?: PreparedAction }>(
-        "/api/v1/admin/copilot/chat", { messages: next },
+        "/api/v1/admin/copilot/chat", { messages: next, page: page?.() || undefined },
       );
       setTurns([...next, { role: "assistant", content: res.reply }]);
       if (res.action) setAction(res.action);
@@ -83,29 +101,32 @@ export function CopilotChat({ compact = false }: { compact?: boolean }) {
     }
   }
 
+  // An empty thread offers more to start from, the screen's own question first.
+  const offered = turns.length === 0 ? Array.from(new Set([...chips, ...COPILOT_SUGGESTIONS])).slice(0, 4) : chips;
+
   return (
     <>
-      {turns.length > 0 && (
-        <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "6px" }}>
-          <button onClick={() => { clearThread(); setError(null); }} style={S.clear}>Clear chat</button>
-        </div>
-      )}
-
-      <div ref={scroller} style={{ ...S.log, maxHeight: compact ? "none" : "300px" }}>
+      <div ref={scroller} className="pc-cp-log" data-copilot-log>
         {turns.length === 0 && (
-          <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
-            {COPILOT_SUGGESTIONS.map((s) => (
-              <button key={s} onClick={() => ask(s)} disabled={asking} style={S.chip}>{s}</button>
-            ))}
-          </div>
+          <p className="pc-cp-hello">Ask about orders, sales, customers or print jobs. Answers come from your store&apos;s own data.</p>
         )}
-        {turns.map((t, i) => (
-          <div key={i} style={t.role === "user" ? S.user : S.bot}>
-            {t.role === "user" ? t.content : <ChatMarkdown text={t.content} />}
-          </div>
-        ))}
+        {turns.map((t, i) => {
+          const links = t.role === "assistant" ? screensIn(t.content) : [];
+          return t.role === "user" ? (
+            <div key={i} className="pc-cp-you">{t.content}</div>
+          ) : (
+            <div key={i} className="pc-cp-bot">
+              <ChatMarkdown text={t.content} />
+              {links.length > 0 && (
+                <div className="pc-cp-links">
+                  {links.map((l) => <Link key={l.href} href={l.href} className="pc-btn">{l.label}</Link>)}
+                </div>
+              )}
+            </div>
+          );
+        })}
         {asking && (
-          <div style={{ ...S.bot, color: "#6B6B6B" }}>
+          <div className="pc-cp-bot" style={{ color: "var(--pc-muted)" }}>
             <style>{`@keyframes cpDot{0%,80%,100%{opacity:.25}40%{opacity:1}}`}</style>
             Looking it up
             {[0, 1, 2].map((d) => <span key={d} style={{ animation: `cpDot 1.2s ${d * 0.2}s infinite` }}>.</span>)}
@@ -113,52 +134,35 @@ export function CopilotChat({ compact = false }: { compact?: boolean }) {
         )}
 
         {action && (
-          <div style={S.confirmCard}>
-            <div style={{ fontSize: "12px", fontWeight: 700, textTransform: "uppercase", letterSpacing: ".05em", color: "#92400E" }}>
-              Confirm this change
-            </div>
-            <div style={{ fontSize: "13px", color: "#1A1A1A", lineHeight: 1.5 }}>{action.summary}</div>
-            {action.note && <div style={{ fontSize: "12px", color: "#78350F" }}>{action.note}</div>}
-            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "2px" }}>
-              <button onClick={confirm} disabled={running} style={{ ...S.send, opacity: running ? 0.5 : 1 }}>
-                {running ? "Working…" : "Confirm"}
-              </button>
-              <button onClick={() => setAction(null)} disabled={running} style={S.cancel}>Cancel</button>
+          <div className="pc-cp-confirm" data-copilot-confirm>
+            <div className="pc-small-head" style={{ color: "#92400E" }}>Confirm this change</div>
+            <div style={{ fontSize: "14px", lineHeight: 1.5 }}>{action.summary}</div>
+            {action.note && <div style={{ fontSize: "12.5px", color: "#78350F" }}>{action.note}</div>}
+            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "4px" }}>
+              <button type="button" className="pc-btn" data-kind="primary" onClick={confirm} disabled={running}>{running ? "Working…" : "Confirm"}</button>
+              <button type="button" className="pc-btn" onClick={() => setAction(null)} disabled={running}>Cancel</button>
             </div>
           </div>
         )}
+        {turns.length > 0 && (
+          <button type="button" className="pc-link pc-cp-clear" onClick={() => { clearThread(); setError(null); }}>Clear chat</button>
+        )}
       </div>
 
-      {error && <div style={S.error}>{error}</div>}
-
-      <form onSubmit={(e) => { e.preventDefault(); ask(draft); }} style={{ display: "flex", gap: "8px", marginTop: "10px" }}>
-        <input
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          placeholder="e.g. Which orders are pending?"
-          maxLength={4000}
-          disabled={asking}
-          style={S.input}
-        />
-        <button type="submit" disabled={asking || !draft.trim()} style={{ ...S.send, opacity: asking || !draft.trim() ? 0.45 : 1 }}>
-          Ask
-        </button>
-      </form>
-      <div style={S.foot}>Answers come from your store&apos;s data. Changes only happen when you confirm them.</div>
+      <div className="pc-cp-foot">
+        {error && <div className="pc-note" data-tone="red" role="alert" style={{ marginBottom: "10px" }}>{error}</div>}
+        <div className="pc-cp-chips">
+          {offered.map((s) => (
+            <button key={s} type="button" className="pc-cp-chip" onClick={() => ask(s)} disabled={asking}>{s}</button>
+          ))}
+        </div>
+        <form onSubmit={(e) => { e.preventDefault(); ask(draft); }} className="pc-cp-ask">
+          <input className="pc-input" value={draft} onChange={(e) => setDraft(e.target.value)} aria-label="Ask the copilot"
+            placeholder="Ask about orders, sales or print jobs" maxLength={4000} disabled={asking} />
+          <button type="submit" className="pc-btn" data-kind="primary" disabled={asking || !draft.trim()}>Ask</button>
+        </form>
+        <div className="pc-cp-note">Changes are prepared for you. Nothing happens until you confirm.</div>
+      </div>
     </>
   );
 }
-
-const S: Record<string, React.CSSProperties> = {
-  log: { flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: "8px", paddingRight: "2px" },
-  chip: { padding: "7px 12px", border: "1px solid #E3E3E3", background: "#F6F6F7", borderRadius: "20px", fontSize: "12px", fontWeight: 600, color: "#1A1A1A", cursor: "pointer" },
-  user: { alignSelf: "flex-end", maxWidth: "85%", background: "#1A1A1A", color: "#fff", padding: "9px 12px", borderRadius: "12px 12px 2px 12px", fontSize: "13px", lineHeight: 1.5, whiteSpace: "pre-wrap" },
-  bot: { alignSelf: "flex-start", maxWidth: "92%", background: "#F4F4F2", color: "#1A1A1A", padding: "9px 12px", borderRadius: "12px 12px 12px 2px", fontSize: "13px", lineHeight: 1.55 },
-  confirmCard: { alignSelf: "stretch", display: "grid", gap: "7px", background: "#FFFBEB", border: "1px solid #FDE68A", borderRadius: "10px", padding: "12px 14px" },
-  error: { marginTop: "8px", background: "#FEF2F2", border: "1px solid #FECACA", color: "#991B1B", borderRadius: "8px", padding: "8px 10px", fontSize: "12px" },
-  input: { flex: 1, minWidth: 0, padding: "10px 12px", border: "1px solid #E3E3E3", borderRadius: "8px", fontSize: "13px", outline: "none" },
-  send: { padding: "10px 18px", background: "#1A1A1A", color: "#fff", border: "none", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: "pointer" },
-  clear: { border: "none", background: "none", color: "#8A8A8A", fontSize: "11px", fontWeight: 600, cursor: "pointer", padding: "2px 4px" },
-  cancel: { padding: "10px 16px", background: "#fff", color: "#1A1A1A", border: "1px solid #E3E3E3", borderRadius: "8px", fontSize: "13px", fontWeight: 600, cursor: "pointer" },
-  foot: { fontSize: "11px", color: "#9CA3AF", marginTop: "8px" },
-};
