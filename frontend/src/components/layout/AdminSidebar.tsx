@@ -103,6 +103,8 @@ export function AdminSidebar() {
     {
       key: "products", label: "Products", icon: Package, href: "/admin/products", scopes: ["products"],
       also: ["/admin/inventory", "/admin/suppliers", "/admin/purchase-orders", "/admin/gang-sheets"],
+      // Reviews are a Marketing tab.
+      not: ["/admin/products/reviews"],
     },
     // One line: All, Retail, Wholesale, Guest, Applications and Pricing tiers
     // are the tabs across the customer list; the Inbox (messages) is its own
@@ -123,27 +125,24 @@ export function AdminSidebar() {
         { href: "/admin/media", label: "Media library", scope: "media" },
       ],
     },
-    { key: "marketing", label: "Marketing", icon: Megaphone, href: "/admin/discounts", scopes: ["discounts", "orders", "customers"],
-      children: [
-        { href: "/admin/discounts", label: "Discounts", scope: "discounts" },
-        // Carts to win back: a reminder is marketing, not an order.
-        { href: "/admin/abandoned-carts", label: "Abandoned carts", scope: "orders" },
-        // Who to send to: a segment is a saved filter of customers.
-        { href: "/admin/customers/segments", label: "Segments", scope: "customers" },
-      ] },
+    // One line: Discounts, Abandoned carts, Reviews, Segments and Tracking are
+    // the tabs across Marketing (components/admin/marketing/MarketingFrame).
+    {
+      key: "marketing", label: "Marketing", icon: Megaphone, href: "/admin/discounts", scopes: ["discounts", "orders", "customers"],
+      also: ["/admin/abandoned-carts", "/admin/products/reviews", "/admin/customers/segments", "/admin/settings/tracking"],
+    },
     // One line: Sales, Customers and Production are the tabs across Reports.
     { key: "reports", label: "Reports", icon: BarChart3, href: "/admin/reports", scopes: ["analytics"], also: ["/admin/analytics"] },
   ];
 
   const settings: Place = {
     key: "settings", label: "Settings", icon: SlidersHorizontal, href: "/admin/settings",
-    scopes: ["settings", "staff", "billing", "payouts", "audit"], also: ["/admin/users"],
+    scopes: ["settings", "staff", "billing", "payouts", "audit"], also: ["/admin/users"], not: ["/admin/settings/tracking"],
     children: [
       { href: "/admin/settings", label: "General and email", scope: "settings" },
       { href: "/admin/billing", label: "Billing and payouts", hidden: !(can("billing") || can("payouts")) },
       { href: "/admin/standard-shipping", label: "Shipping", scope: "settings" },
       { href: "/admin/settings/taxes", label: "Taxes and duties", scope: "settings" },
-      { href: "/admin/settings/tracking", label: "Tracking", scope: "settings" },
       { href: "/admin/users", label: "Users", scope: "staff" },
       { href: "/admin/settings/security", label: "Security (2FA)" },
       { href: "/admin/settings/audit-log", label: "Audit log", scope: "audit" },

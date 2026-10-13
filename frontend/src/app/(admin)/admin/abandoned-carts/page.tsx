@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { apiClient } from "@/lib/api-client";
+import { MarketingFrame } from "@/components/admin/marketing/MarketingFrame";
 import { ShoppingCartIcon } from "@/components/ui/icons";
 
 interface CartItem {
@@ -44,7 +45,7 @@ function formatDate(dateStr: string) {
   }
 }
 
-export default function AdminAbandonedCartsPage() {
+function AbandonedCartsBody() {
   const hasLoaded = useRef(false);
   const [carts, setCarts] = useState<AdminAbandonedCart[]>([]);
   const [loading, setLoading] = useState(true);
@@ -100,12 +101,6 @@ export default function AdminAbandonedCartsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Abandoned Carts</h1>
-        <p className="text-sm text-gray-500 mt-1">
-          Company carts inactive for 24+ hours across all accounts.
-        </p>
-      </div>
 
       {/* Summary cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -268,5 +263,15 @@ export default function AdminAbandonedCartsPage() {
         </div>
       )}
     </div>
+  );
+}
+
+
+/** This screen as one of the Marketing tabs (components/admin/marketing/MarketingFrame). */
+export default function AdminAbandonedCartsPage() {
+  return (
+    <MarketingFrame active="abandoned-carts" title="Abandoned carts" sub="Account carts nobody has touched for a day or more, and the ones that came back.">
+      <AbandonedCartsBody />
+    </MarketingFrame>
   );
 }

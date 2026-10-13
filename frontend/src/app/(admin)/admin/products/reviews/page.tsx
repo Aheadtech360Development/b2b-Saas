@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { apiClient } from "@/lib/api-client";
 import { SearchIcon, TrashIcon } from "@/components/ui/icons";
 import { GoogleReviewsConnect } from "@/components/admin/GoogleReviewsConnect";
-import { ProductsFrame } from "@/components/admin/products/ProductsFrame";
+import { MarketingFrame } from "@/components/admin/marketing/MarketingFrame";
 
 const thStyle: React.CSSProperties = {
   padding: "12px 16px", textAlign: "left", fontSize: "11px",
@@ -89,19 +89,7 @@ function AdminReviewsPageBody() {
 
   return (
     <div style={{ fontFamily: "var(--font-jakarta)" }}>
-      {/* Header */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
-        <div>
-          <button
-            onClick={() => router.push("/admin/products")}
-            style={{ background: "none", border: "none", color: "#7A7880", cursor: "pointer", fontSize: "13px", padding: 0, marginBottom: "4px" }}
-          >
-            ← Products
-          </button>
-          <h1 style={{ fontFamily: "var(--font-bebas)", fontSize: "32px", color: "#2A2830", letterSpacing: "-0.01em", lineHeight: 1 }}>Reviews</h1>
-          <p style={{ fontSize: "13px", color: "#7A7880", marginTop: "4px" }}>Manage customer reviews · {total} total</p>
-        </div>
-      </div>
+      <p className="pc-sub-line" style={{ margin: "0 0 14px" }} data-review-total>{total} {total === 1 ? "review" : "reviews"} in all</p>
 
       <GoogleReviewsConnect onChanged={() => load(1)} />
 
@@ -298,11 +286,11 @@ function AdminReviewsPageBody() {
 }
 
 
-/** This screen as one of the Products tabs (components/admin/products/ProductsFrame). */
+/** This screen as one of the Marketing tabs (components/admin/marketing/MarketingFrame). */
 export default function AdminReviewsPage() {
   return (
-    <ProductsFrame active="reviews">
+    <MarketingFrame active="reviews" title="Reviews" sub="What buyers say about your products. Approve or remove each one.">
       <AdminReviewsPageBody />
-    </ProductsFrame>
+    </MarketingFrame>
   );
 }

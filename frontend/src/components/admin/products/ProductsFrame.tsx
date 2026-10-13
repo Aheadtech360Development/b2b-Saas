@@ -8,7 +8,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 
-export type ProductsTab = "catalog" | "collections" | "categories" | "inventory" | "purchase-orders" | "suppliers" | "reviews" | "gang-sheets";
+export type ProductsTab = "catalog" | "collections" | "categories" | "inventory" | "purchase-orders" | "suppliers" | "gang-sheets";
 
 const TABS: { key: ProductsTab; label: string; href: string }[] = [
   { key: "catalog", label: "Catalog", href: "/admin/products" },
@@ -17,7 +17,6 @@ const TABS: { key: ProductsTab; label: string; href: string }[] = [
   { key: "inventory", label: "Inventory", href: "/admin/inventory" },
   { key: "purchase-orders", label: "Purchase orders", href: "/admin/purchase-orders" },
   { key: "suppliers", label: "Suppliers", href: "/admin/suppliers" },
-  { key: "reviews", label: "Reviews", href: "/admin/products/reviews" },
   { key: "gang-sheets", label: "Gang sheet setup", href: "/admin/gang-sheets" },
 ];
 

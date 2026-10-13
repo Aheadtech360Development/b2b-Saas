@@ -1,6 +1,7 @@
 "use client";
 
 import { ask } from "@/lib/dialog";
+import { MarketingFrame } from "@/components/admin/marketing/MarketingFrame";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   segmentsService,
@@ -25,7 +26,7 @@ const NO_VALUE_OPS = new Set(["is_set", "is_not_set"]);
 function emptyGroup(): SegmentGroup { return { op: "and", conditions: [] }; }
 function newCondition(field = "total_spend"): SegmentCondition { return { field, operator: "gt", value: 0 }; }
 
-export default function SegmentsPage() {
+function SegmentsBody() {
   const [fields, setFields] = useState<FieldSpec[]>([]);
   const [segments, setSegments] = useState<Segment[]>([]);
   const [mode, setMode] = useState<"list" | "editor">("list");
@@ -58,12 +59,8 @@ export default function SegmentsPage() {
   }
 
   return (
-    <div style={{ padding: "24px", maxWidth: "1000px" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "18px", flexWrap: "wrap", gap: "12px" }}>
-        <div>
-          <h1 style={{ fontSize: "22px", fontWeight: 800, marginBottom: "4px" }}>Customer Segments</h1>
-          <p style={{ fontSize: "13px", color: "#6B6B6B" }}>Group customers by spend, orders, tags, location and what they buy — reused across notifications, marketing and exports.</p>
-        </div>
+    <div style={{ maxWidth: "1000px" }}>
+      <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "flex-start", marginBottom: "18px", flexWrap: "wrap", gap: "12px" }}>
         <div style={{ display: "flex", gap: "8px" }}>
           <button onClick={() => segmentsService.recomputeAll().then(() => load()).catch(() => {})} style={{ ...BTN, background: "#fff", color: "#555", border: "1px solid #E3E3E3" }} title="Rebuild every customer's metrics (first rollout / manual refresh)">Refresh metrics</button>
           <button onClick={openNew} style={{ ...BTN, background: "#1A1A1A" }}>＋ Create segment</button>
@@ -342,4 +339,14 @@ function ValueInput({ type, operator, value, onChange }: { type: string; operato
   }
   // string / id / json_array single value
   return <input value={String(value ?? "")} onChange={(e) => onChange(e.target.value)} placeholder={type === "id" ? "id…" : "value…"} style={{ ...INPUT, minWidth: "160px" }} />;
+}
+
+
+/** This screen as one of the Marketing tabs (components/admin/marketing/MarketingFrame). */
+export default function SegmentsPage() {
+  return (
+    <MarketingFrame active="segments" title="Segments" sub="Groups of customers by spend, orders, tags, place and what they buy, to send to and export.">
+      <SegmentsBody />
+    </MarketingFrame>
+  );
 }
