@@ -135,18 +135,15 @@ export function AdminSidebar() {
     { key: "reports", label: "Reports", icon: BarChart3, href: "/admin/reports", scopes: ["analytics"], also: ["/admin/analytics"] },
   ];
 
+  // One line: Store details, Markets, Shipping, Taxes, Billing and the rest are
+  // the list down the left of every settings screen (components/admin/settings/SettingsFrame).
   const settings: Place = {
-    key: "settings", label: "Settings", icon: SlidersHorizontal, href: "/admin/settings",
-    scopes: ["settings", "staff", "billing", "payouts", "audit"], also: ["/admin/users"], not: ["/admin/settings/tracking"],
-    children: [
-      { href: "/admin/settings", label: "General and email", scope: "settings" },
-      { href: "/admin/billing", label: "Billing and payouts", hidden: !(can("billing") || can("payouts")) },
-      { href: "/admin/standard-shipping", label: "Shipping", scope: "settings" },
-      { href: "/admin/settings/taxes", label: "Taxes and duties", scope: "settings" },
-      { href: "/admin/users", label: "Users", scope: "staff" },
-      { href: "/admin/settings/security", label: "Security (2FA)" },
-      { href: "/admin/settings/audit-log", label: "Audit log", scope: "audit" },
-    ],
+    key: "settings", label: "Settings", icon: SlidersHorizontal,
+    // Opens on the first settings screen this person's role can use.
+    href: can("settings") ? "/admin/settings" : can("billing") || can("payouts") ? "/admin/billing"
+      : can("staff") ? "/admin/users" : can("audit") ? "/admin/settings/audit-log" : "/admin/settings/security",
+    scopes: ["settings", "staff", "billing", "payouts", "audit"],
+    also: ["/admin/settings", "/admin/users", "/admin/billing", "/admin/standard-shipping"], not: ["/admin/settings/tracking"],
   };
 
   const shown = (c: Child) => !c.hidden && (!c.scope || can(c.scope));

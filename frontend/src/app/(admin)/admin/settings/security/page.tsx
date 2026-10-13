@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { PasswordField } from "@/components/ui/PasswordField";
+import { SettingsFrame } from "@/components/admin/settings/SettingsFrame";
 import { authService } from "@/services/auth.service";
 
 const CARD: React.CSSProperties = { background: "#fff", border: "1px solid #E8E6E1", borderRadius: "10px", padding: "22px", maxWidth: "560px" };
@@ -10,7 +11,7 @@ const INPUT: React.CSSProperties = { width: "100%", boxSizing: "border-box", pad
 
 type Stage = "idle" | "setup" | "backup" | "disabling";
 
-export default function SecurityPage() {
+function SecurityPageBody() {
   const [enabled, setEnabled] = useState<boolean | null>(null);
   const [stage, setStage] = useState<Stage>("idle");
   const [secret, setSecret] = useState("");
@@ -51,9 +52,7 @@ export default function SecurityPage() {
   }
 
   return (
-    <div style={{ padding: "24px" }}>
-      <h1 style={{ fontSize: "22px", fontWeight: 800, marginBottom: "4px" }}>Security</h1>
-      <p style={{ fontSize: "13px", color: "#6B6B6B", marginBottom: "20px" }}>Add a second step to your sign-in with an authenticator app.</p>
+    <div>
 
       <div style={CARD}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: stage === "idle" ? 0 : "18px" }}>
@@ -113,5 +112,15 @@ export default function SecurityPage() {
         )}
       </div>
     </div>
+  );
+}
+
+
+/** This screen as one of the Settings screens (components/admin/settings/SettingsFrame). */
+export default function SecurityPage() {
+  return (
+    <SettingsFrame active="account" title="My account" sub="Add a second step to your sign-in with an authenticator app.">
+      <SecurityPageBody />
+    </SettingsFrame>
   );
 }

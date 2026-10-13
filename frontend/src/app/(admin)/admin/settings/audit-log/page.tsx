@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import React from "react";
+import { SettingsFrame } from "@/components/admin/settings/SettingsFrame";
 import { apiClient } from "@/lib/api-client";
 import { AuditLogDetail } from "@/components/admin/AuditLogDetail";
 
@@ -31,7 +32,7 @@ const ACTION_COLORS: Record<string, string> = {
   DELETE: "bg-red-100 text-red-700",
 };
 
-export default function AuditLogPage() {
+function AuditLogPageBody() {
   const [data, setData] = useState<AuditResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
@@ -61,12 +62,6 @@ export default function AuditLogPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Audit Log</h1>
-        <p className="text-sm text-gray-500 mt-1">
-          All admin write operations are recorded here.
-        </p>
-      </div>
 
       {/* Filters */}
       <form onSubmit={handleFilter} className="flex gap-3 flex-wrap items-end">
@@ -224,5 +219,15 @@ export default function AuditLogPage() {
         </>
       ) : null}
     </div>
+  );
+}
+
+
+/** This screen as one of the Settings screens (components/admin/settings/SettingsFrame). */
+export default function AuditLogPage() {
+  return (
+    <SettingsFrame active="audit" title="Audit log" sub="Every change made in this admin: who made it, and when.">
+      <AuditLogPageBody />
+    </SettingsFrame>
   );
 }

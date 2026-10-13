@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { adminService } from "@/services/admin.service";
+import { SettingsFrame } from "@/components/admin/settings/SettingsFrame";
 import { EmailTemplateEditor } from "@/components/admin/EmailTemplateEditor";
 
 interface EmailTemplate {
@@ -15,7 +16,7 @@ interface EmailTemplate {
   available_variables: string | null;
 }
 
-export default function AdminEmailTemplatesPage() {
+function AdminEmailTemplatesPageBody() {
   const [templates, setTemplates] = useState<EmailTemplate[]>([]);
   const [editing, setEditing] = useState<EmailTemplate | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -56,9 +57,8 @@ export default function AdminEmailTemplatesPage() {
   }
 
   return (
-    <div className="p-6">
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-xl font-bold text-gray-900">Email Templates</h1>
+    <div>
+      <div className="flex items-center justify-between mb-4">
         <span className="text-sm text-gray-500">{templates.length} templates</span>
       </div>
 
@@ -104,5 +104,15 @@ export default function AdminEmailTemplatesPage() {
         </table>
       </div>
     </div>
+  );
+}
+
+
+/** This screen as one of the Settings screens (components/admin/settings/SettingsFrame). */
+export default function AdminEmailTemplatesPage() {
+  return (
+    <SettingsFrame active="notifications" title="Notifications" sub="The emails your shop sends to customers, and what each one says.">
+      <AdminEmailTemplatesPageBody />
+    </SettingsFrame>
   );
 }

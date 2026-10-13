@@ -1,6 +1,7 @@
 "use client";
 
 import { ask } from "@/lib/dialog";
+import { SettingsFrame } from "@/components/admin/settings/SettingsFrame";
 import { useEffect, useState } from "react";
 import { apiClient } from "@/lib/api-client";
 
@@ -52,7 +53,7 @@ const labelStyle: React.CSSProperties = {
 
 const blankForm = { name: "", region: "", rate: "", applies_to: "all" };
 
-export default function TaxesPage() {
+function TaxesPageBody() {
   const [rates, setRates] = useState<TaxRate[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -144,11 +145,7 @@ export default function TaxesPage() {
 
   return (
     <div style={{ maxWidth: "900px" }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "24px" }}>
-        <div>
-          <h1 style={{ fontSize: "22px", fontWeight: 800, color: "#2A2830", marginBottom: "4px" }}>Taxes &amp; Duties</h1>
-          <p style={{ fontSize: "13px", color: "#7A7880" }}>Configure tax rates by region applied at checkout.</p>
-        </div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", marginBottom: "24px" }}>
         <button
           onClick={openNew}
           style={{ background: "#1A1A1A", color: "#fff", border: "none", borderRadius: "8px", padding: "10px 20px", fontSize: "13px", fontWeight: 700, cursor: "pointer" }}
@@ -296,5 +293,15 @@ export default function TaxesPage() {
         </div>
       )}
     </div>
+  );
+}
+
+
+/** This screen as one of the Settings screens (components/admin/settings/SettingsFrame). */
+export default function TaxesPage() {
+  return (
+    <SettingsFrame active="taxes" title="Taxes" sub="How sales tax is worked out at checkout, and your own rates by region.">
+      <TaxesPageBody />
+    </SettingsFrame>
   );
 }

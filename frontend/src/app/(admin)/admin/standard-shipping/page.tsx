@@ -5,6 +5,7 @@ export const dynamic = "force-dynamic";
 import { useEffect, useState } from "react";
 import { apiClient } from "@/lib/api-client";
 import { IntegrationsPanel } from "@/components/admin/IntegrationsPanel";
+import { SettingsFrame } from "@/components/admin/settings/SettingsFrame";
 
 interface FullShippingBracket {
   min_units: number;
@@ -144,7 +145,7 @@ function BracketEditor({
   );
 }
 
-export default function StandardShippingPage() {
+function StandardShippingPageBody() {
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -244,11 +245,8 @@ export default function StandardShippingPage() {
       )}
 
       {/* Page header */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
-        <div>
-          <h1 style={{ fontFamily: "var(--font-bebas)", fontSize: "32px", color: "#2A2830", letterSpacing: "-0.01em", lineHeight: 1 }}>Standard Shipping</h1>
-          <p style={{ fontSize: "13px", color: "#7A7880", marginTop: "4px" }}>Shipping rate for customers without a discount group or shipping tier</p>
-        </div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px", flexWrap: "wrap", marginBottom: "20px" }}>
+        <p style={{ fontSize: "13px", color: "#7A7880", margin: 0 }}>The standard rate is for customers without a discount group or shipping tier.</p>
         <button
           onClick={handleSave}
           disabled={saving}
@@ -495,5 +493,15 @@ export default function StandardShippingPage() {
         </>
       )}
     </div>
+  );
+}
+
+
+/** This screen as one of the Settings screens (components/admin/settings/SettingsFrame). */
+export default function StandardShippingPage() {
+  return (
+    <SettingsFrame active="shipping" title="Shipping and pickup" sub="Your carriers, what shipping costs, where you ship from and where pickups are collected.">
+      <StandardShippingPageBody />
+    </SettingsFrame>
   );
 }

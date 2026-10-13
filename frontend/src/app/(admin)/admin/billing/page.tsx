@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { ApiClientError } from "@/lib/api-client";
+import { SettingsFrame } from "@/components/admin/settings/SettingsFrame";
 import { apiClient } from "@/lib/api-client";
 import { CashOnDeliveryPanel } from "@/components/admin/CashOnDeliveryPanel";
 
@@ -115,7 +116,7 @@ function reason(e: unknown, fallback: string): string {
 }
 
 
-export default function BillingPage() {
+function BillingPageBody() {
   const [billing, setBilling] = useState<BillingData | null>(null);
   const [connect, setConnect] = useState<ConnectData | null>(null);
   const [disputes, setDisputes] = useState<Dispute[]>([]);
@@ -241,10 +242,6 @@ export default function BillingPage() {
 
   return (
     <div className="space-y-8 max-w-5xl">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Billing &amp; Payouts</h1>
-        <p className="text-sm text-gray-500 mt-1">Manage your subscription and get paid by your customers.</p>
-      </div>
 
       {toast && (
         <div className={`rounded-lg border p-3 text-sm ${
@@ -467,5 +464,15 @@ export default function BillingPage() {
         )}
       </section>
     </div>
+  );
+}
+
+
+/** This screen as one of the Settings screens (components/admin/settings/SettingsFrame). */
+export default function BillingPage() {
+  return (
+    <SettingsFrame active="billing" title="Payments and billing" sub="Your plan, and the account your customers' payments are paid out to.">
+      <BillingPageBody />
+    </SettingsFrame>
   );
 }

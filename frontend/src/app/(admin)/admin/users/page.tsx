@@ -2,6 +2,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { SettingsFrame } from "@/components/admin/settings/SettingsFrame";
 import { adminService, type AdminUser } from "@/services/admin.service";
 import { UsersIcon } from "@/components/ui/icons";
 import { ASSIGNABLE_ROLES, ROLE_LABELS } from "@/lib/permissions";
@@ -320,7 +321,7 @@ function DeleteDialog({ user, onClose, onSuccess }: { user: AdminUser; onClose: 
 
 // ── Main Page ──────────────────────────────────────────────────────────────────
 
-export default function AdminUsersPage() {
+function AdminUsersPageBody() {
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [total, setTotal] = useState(0);
   const [q, setQ] = useState("");
@@ -389,10 +390,7 @@ export default function AdminUsersPage() {
 
       {/* Header */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "24px" }}>
-        <div>
-          <h1 style={{ fontFamily: "var(--font-bebas)", fontSize: "32px", color: "#2A2830", letterSpacing: "-0.01em", lineHeight: 1 }}>Users</h1>
-          <p style={{ fontSize: "13px", color: "#7A7880", marginTop: "4px" }}>{total} platform users</p>
-        </div>
+        <p style={{ fontSize: "13px", color: "#7A7880", margin: 0 }}>{total} {total === 1 ? "user" : "users"}</p>
         <button
           onClick={() => setShowCreate(true)}
           style={{ background: "#1A1A1A", color: "#fff", border: "none", padding: "10px 20px", borderRadius: "8px", fontWeight: 700, cursor: "pointer", fontSize: "14px" }}
@@ -557,5 +555,15 @@ export default function AdminUsersPage() {
         </div>
       )}
     </div>
+  );
+}
+
+
+/** This screen as one of the Settings screens (components/admin/settings/SettingsFrame). */
+export default function AdminUsersPage() {
+  return (
+    <SettingsFrame active="team" title="Team and roles" sub="Who can sign in to this admin, and what each of them can do.">
+      <AdminUsersPageBody />
+    </SettingsFrame>
   );
 }
