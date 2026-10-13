@@ -520,6 +520,26 @@ async def list_admin_orders(
     from app.services import order_progress as _progress
 
     _facts = await _progress.facts_for(db, [r[0] for r in rows])
+    # What each weighs, for the ship queue, in one query: the variants'
+    # weights, or half a pound a unit when none is recorded (_order_weight_lbs).
+    _weigh: dict = {}
+    if _ids:
+        from app.models.product import ProductVariant as _PV
+
+        for _oid, _qty, _grams in (await db.execute(
+            select(OrderItem.order_id, OrderItem.quantity, _PV.weight_grams)
+            .outerjoin(_PV, _PV.id == OrderItem.variant_id)
+            .where(OrderItem.order_id.in_(_ids))
+        )).all():
+            _w = _weigh.setdefault(_oid, [0.0, 0])
+            _w[0] += float(_grams or 0) * (_qty or 0)
+            _w[1] += int(_qty or 0)
+
+    def _lbs(oid) -> float | None:
+        grams, units = _weigh.get(oid, [0.0, 0])
+        if grams > 0:
+            return max(round(grams / 453.592, 2), 0.5)
+        return max(round(units * 0.5, 2), 0.5) if units else None
 
     items = []
     for row in rows:
@@ -551,6 +571,7 @@ async def list_admin_orders(
             tracking_url=order.tracking_url,
             label_url=order.label_url,
             progress=_progress.summary(_facts[order.id]),
+            weight_lbs=_lbs(order.id),
         ))
 
     return PaginatedResponse(items=items, total=total, page=page, page_size=page_size, pages=(total + page_size - 1) // page_size)

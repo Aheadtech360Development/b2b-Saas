@@ -18,7 +18,8 @@ import { adminService } from "@/services/admin.service";
 import { ask, askText, tell } from "@/lib/dialog";
 import { OrdersFrame, useOrdersOverview, type OrdersTab } from "@/components/admin/orders/OrdersFrame";
 import { BuyLabelsDialog, type LabelTarget } from "@/components/admin/orders/BuyLabelsDialog";
-import { pickListHtml, printHtml, toPrintOrder } from "@/lib/orderPrint";
+import { useBranding } from "@/components/providers/BrandingProvider";
+import { methodWords, packingSlipHtml, pickListHtml, printHtml, toPrintOrder } from "@/lib/orderPrint";
 
 interface Pill { key: string; label: string; tone: string }
 interface Progress {
@@ -43,6 +44,10 @@ interface Row {
   supplier?: SupplierSummary | null;
   attribution?: { label: string; campaign?: string | null } | null;
   shipping_method?: string | null;
+  // The rate the buyer chose at checkout, when it was a live one.
+  carrier?: string | null;
+  courier_service?: string | null;
+  weight_lbs?: number | null;
   progress?: Progress | null;
 }
 interface SavedView { id: string; name: string; params: Record<string, string> }
@@ -70,6 +75,9 @@ const STATUS_WORDS: Record<string, [string, string]> = {
   ready_for_pickup: ["Ready for pickup", "blue"], shipped: ["Shipped", "green"], delivered: ["Delivered", "green"],
   cancelled: ["Cancelled", ""], refunded: ["Refunded", ""],
 };
+/** A paid order not shipped this many days after it was placed is late (the
+ *  server's line, services/order_queues.LATE_AFTER_DAYS). */
+const LATE_AFTER_DAYS = 3;
 const SUPPLIER_WORDS: Record<string, string> = {
   not_sent: "not sent", sending: "sending", test: "test only", placed: "ordered", shipped: "shipped", failed: "failed",
 };
@@ -79,6 +87,23 @@ const day = (iso: string) => new Date(iso).toLocaleDateString();
 const shortDay = (iso: string) => new Date(`${iso}T00:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric" });
 const customerOf = (r: Row) => (r.is_guest_order ? r.guest_name || r.guest_email : r.company_name) || r.company_name || r.guest_name || r.guest_email || "Guest";
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+const weight = (lbs: number | null | undefined) => (lbs ? `${lbs.toFixed(1)} lb` : "Not set");
+/** How it goes out: the buyer's chosen rate when there is one, else the method. */
+function shipBy(r: Row): string {
+  const service = (r.courier_service ?? "").trim();
+  const carrier = (r.carrier ?? "").trim();
+  if (service) return carrier && !service.toLowerCase().startsWith(carrier.toLowerCase()) ? `${carrier.toUpperCase()} ${service}` : service;
+  const words = methodWords(r.shipping_method).replace(/^Ship, /, "");
+  return words.charAt(0).toUpperCase() + words.slice(1);
+}
+/** Where a paid order stands against the day it should have gone out. */
+function shipState(r: Row): Pill {
+  const over = (Date.now() - new Date(r.created_at).getTime()) / 86_400_000 - LATE_AFTER_DAYS;
+  if (over > 0) return { key: "late", label: `${plural(Math.max(1, Math.floor(over)), "day")} late`, tone: "red" };
+  if (r.status === "pending") return { key: "confirm", label: "Confirm first", tone: "amber" };
+  if (r.progress?.packed) return { key: "packed", label: "Packed", tone: "blue" };
+  return { key: "on_time", label: "On time", tone: "green" };
+}
 
 export default function AdminOrdersPage() {
   // The address is read with useSearchParams, which wants a boundary above it.
@@ -91,6 +116,8 @@ function OrdersList() {
   const sp = useSearchParams();
   const address = sp.toString();
   const { overview, refresh: refreshOverview } = useOrdersOverview();
+  const branding = useBranding();
+  const shop = branding?.store_name && branding.store_name !== "Store" ? branding.store_name : "";
 
   const queue = sp.get("queue") ?? "";
   const status = sp.get("status") ?? "";
@@ -204,6 +231,8 @@ function OrdersList() {
   }, [pop]);
 
   const tab: OrdersTab = QUEUE_TABS[queue] ?? "all";
+  // The To ship tab is the Ship queue: its own head, columns and batch steps.
+  const shipQ = tab === "to_ship";
   const otherQueue = queue && !QUEUE_TABS[queue] && queue !== "all" ? queue : "";
   const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const chosen = rows.filter((r) => picked.has(r.id));
@@ -280,18 +309,31 @@ function OrdersList() {
     await each("Marking shipped", "marked shipped", targets, (r) => apiClient.patch(`/api/v1/admin/orders/${r.id}/status`, { status: "shipped" }));
   }
 
-  async function printPickList(targets: Row[]) {
+  /** Labels for the orders that can go out; the dialog fetches each one's rates. */
+  async function buyLabels(targets: Row[]) {
+    const ready = targets.filter(shippable);
+    if (!ready.length) {
+      await tell("None of these orders can have a label yet. An order has to be confirmed, not shipped yet, not a pickup, and its artwork approved.", { title: "No labels to buy" });
+      return;
+    }
+    setLabelsFor(ready.map((r) => ({ id: r.id, order_number: r.order_number, customer: customerOf(r) })));
+  }
+
+  async function printEach(targets: Row[], what: string, make: (orders: ReturnType<typeof toPrintOrder>[]) => string) {
     if (!targets.length) return;
-    setWorking("Getting the pick list ready…");
+    setWorking(`Getting the ${what.toLowerCase()} ready…`);
     try {
       const orders = [];
       for (const r of targets) orders.push(toPrintOrder(await adminService.getOrder(r.id) as Parameters<typeof toPrintOrder>[0]));
-      printHtml("Pick list", pickListHtml(orders));
+      printHtml(what, make(orders));
     } catch (e) {
-      setFlash({ text: e instanceof Error ? e.message : "The pick list could not be made.", bad: true });
+      setFlash({ text: e instanceof Error ? e.message : `The ${what.toLowerCase()} could not be made.`, bad: true });
     }
     setWorking("");
   }
+  const printPickList = (targets: Row[]) => printEach(targets, "Pick list", pickListHtml);
+  // One slip per order, each on its own page.
+  const printSlips = (targets: Row[]) => printEach(targets, "Packing slips", (orders) => orders.map((o) => packingSlipHtml(o, shop)).join(""));
 
   async function saveView() {
     const params: Record<string, string> = {};
@@ -343,8 +385,23 @@ function OrdersList() {
     <OrdersFrame
       active={tab}
       overview={overview}
-      actions={<button type="button" className="pc-btn" onClick={exportList} disabled={exporting}>{exporting ? "Exporting…" : "Export"}</button>}
+      {...(shipQ ? {
+        title: "Ship queue",
+        lede: "Paid orders ready to go out. Buy labels in one batch.",
+        // With nothing ticked, the head's buttons act on every order shown.
+        actions: <button type="button" className="pc-btn" disabled={!!working || rows.length === 0} onClick={() => printPickList(chosen.length ? chosen : rows)}>Print pick list</button>,
+        primary: <button type="button" className="pc-btn" data-kind="primary" disabled={!!working || rows.length === 0} onClick={() => buyLabels(chosen.length ? chosen : rows)}>Buy labels</button>,
+      } : {
+        actions: <button type="button" className="pc-btn" onClick={exportList} disabled={exporting}>{exporting ? "Exporting…" : "Export"}</button>,
+      })}
     >
+      {shipQ && overview && carriers.length === 0 && (
+        <div className="pc-note" data-carrier-banner style={{ marginBottom: "14px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
+          <span>No carrier is connected. Connect UPS, FedEx or USPS to buy labels here. You can still mark orders shipped by hand.</span>
+          <Link href="/admin/standard-shipping" className="pc-btn" style={{ height: "36px" }}>Connect a carrier</Link>
+        </div>
+      )}
+
       {flash && (
         <div className="pc-flash" data-bad={flash.bad ? "" : undefined} role="status">
           <span>{flash.text}</span>
@@ -379,19 +436,22 @@ function OrdersList() {
           )}
         </div>
 
-        <div className="pc-pop-wrap">
-          <button type="button" className="pc-btn" aria-haspopup="menu" aria-expanded={pop === "method"} onClick={() => setPop(pop === "method" ? null : "method")}>
-            Method: {methodLabel}
-          </button>
-          {pop === "method" && (
-            <div className="pc-pop" role="menu">
-              {METHODS.map(([value, label]) => (
-                <button key={value} type="button" role="menuitemradio" aria-checked={method === value} className="pc-pop-item" data-on={method === value ? "" : undefined}
-                  onClick={() => { setParams({ method: value || null }); setPop(null); }}>{label}</button>
-              ))}
-            </div>
-          )}
-        </div>
+        {/* Nothing in the Ship queue is a pickup, so there is no method to choose. */}
+        {!shipQ && (
+          <div className="pc-pop-wrap">
+            <button type="button" className="pc-btn" aria-haspopup="menu" aria-expanded={pop === "method"} onClick={() => setPop(pop === "method" ? null : "method")}>
+              Method: {methodLabel}
+            </button>
+            {pop === "method" && (
+              <div className="pc-pop" role="menu">
+                {METHODS.map(([value, label]) => (
+                  <button key={value} type="button" role="menuitemradio" aria-checked={method === value} className="pc-pop-item" data-on={method === value ? "" : undefined}
+                    onClick={() => { setParams({ method: value || null }); setPop(null); }}>{label}</button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         <div className="pc-pop-wrap">
           <button type="button" className="pc-btn" aria-haspopup="dialog" aria-expanded={pop === "dates"} onClick={() => setPop(pop === "dates" ? null : "dates")}>
@@ -438,11 +498,20 @@ function OrdersList() {
       {(chosen.length > 0 || working) && (
         <div className="pc-bulk no-print" role="toolbar" aria-label="Selected orders">
           <span className="pc-bulk-n">{working || `${chosen.length} selected`}</span>
-          <button type="button" disabled={!!working} onClick={confirmPicked}>Confirm</button>
-          <button type="button" disabled={!!working} onClick={() => printPickList(chosen)}>Print pick list</button>
-          <button type="button" disabled={!!working}
-            onClick={() => setLabelsFor(chosen.filter(shippable).map((r) => ({ id: r.id, order_number: r.order_number, customer: customerOf(r) })))}>Buy labels</button>
-          <button type="button" disabled={!!working} onClick={shipPicked}>Mark shipped</button>
+          {shipQ ? (
+            <>
+              <button type="button" disabled={!!working} onClick={() => buyLabels(chosen)}>Buy labels for {chosen.length}</button>
+              <button type="button" disabled={!!working} onClick={shipPicked}>Mark shipped</button>
+              <button type="button" disabled={!!working} onClick={() => printSlips(chosen)}>Print packing slips</button>
+            </>
+          ) : (
+            <>
+              <button type="button" disabled={!!working} onClick={confirmPicked}>Confirm</button>
+              <button type="button" disabled={!!working} onClick={() => printPickList(chosen)}>Print pick list</button>
+              <button type="button" disabled={!!working} onClick={() => buyLabels(chosen)}>Buy labels</button>
+              <button type="button" disabled={!!working} onClick={shipPicked}>Mark shipped</button>
+            </>
+          )}
           <button type="button" className="pc-bulk-clear" disabled={!!working} onClick={() => setPicked(new Set())}>Clear</button>
         </div>
       )}
@@ -458,18 +527,21 @@ function OrdersList() {
                       ref={(el) => { if (el) el.indeterminate = !allPicked && chosen.length > 0; }}
                       onChange={() => setPicked(allPicked ? new Set() : new Set(rows.map((r) => r.id)))} />
                   </th>
-                  <th>Order</th><th>Customer</th><th>Date</th><th>Payment</th><th>Artwork</th><th>Fulfilment</th><th className="pc-num">Total</th>
+                  {shipQ
+                    ? <><th>Order</th><th>Customer</th><th>Date</th><th className="pc-num">Weight</th><th>Method</th><th>State</th></>
+                    : <><th>Order</th><th>Customer</th><th>Date</th><th>Payment</th><th>Artwork</th><th>Fulfilment</th><th className="pc-num">Total</th></>}
                 </tr>
               </thead>
               <tbody>
                 {loading && rows.length === 0 && [0, 1, 2, 3].map((i) => (
-                  <tr key={i}><td colSpan={8}><div className="at-skel" style={{ height: "18px", width: `${70 - i * 9}%`, borderRadius: "6px" }} /></td></tr>
+                  <tr key={i}><td colSpan={shipQ ? 7 : 8}><div className="at-skel" style={{ height: "18px", width: `${70 - i * 9}%`, borderRadius: "6px" }} /></td></tr>
                 ))}
                 {!loading && rows.length === 0 && (
-                  <tr><td colSpan={8} className="pc-empty">
+                  <tr><td colSpan={shipQ ? 7 : 8} className="pc-empty">
                     {failed ? "The orders could not be loaded. Reload to try again."
                       : narrowed ? "No orders match this search and these filters."
                       : tab === "all" ? "No orders yet. The first one will show here."
+                      : shipQ ? "Nothing to ship right now. Paid orders show here once their print jobs are ready."
                       : "Nothing in this queue right now."}
                   </td></tr>
                 )}
@@ -486,10 +558,20 @@ function OrdersList() {
                       <td style={{ fontWeight: 600, whiteSpace: "nowrap" }}>{r.order_number}</td>
                       <td className="pc-td-clip" title={customerOf(r)}>{customerOf(r)}</td>
                       <td style={{ color: "var(--pc-muted)", whiteSpace: "nowrap" }}>{day(r.created_at)}</td>
-                      <td>{p && pill(p.payment)}</td>
-                      <td>{p && pill(p.artwork)}</td>
-                      <td>{p && pill(p.fulfilment)}</td>
-                      <td className="pc-num" style={{ fontWeight: 600 }}>{money(r.total)}</td>
+                      {shipQ ? (
+                        <>
+                          <td className="pc-num" style={{ whiteSpace: "nowrap", color: r.weight_lbs ? undefined : "var(--pc-muted)" }}>{weight(r.weight_lbs)}</td>
+                          <td className="pc-td-clip" title={shipBy(r)}>{shipBy(r)}</td>
+                          <td data-ship-state={shipState(r).key}>{pill(shipState(r))}</td>
+                        </>
+                      ) : (
+                        <>
+                          <td>{p && pill(p.payment)}</td>
+                          <td>{p && pill(p.artwork)}</td>
+                          <td>{p && pill(p.fulfilment)}</td>
+                          <td className="pc-num" style={{ fontWeight: 600 }}>{money(r.total)}</td>
+                        </>
+                      )}
                     </tr>
                   );
                 })}
@@ -504,7 +586,7 @@ function OrdersList() {
                 <span>Page {page} of {pages}</span>
                 <button type="button" className="pc-link" disabled={page >= pages} onClick={() => setParams({ page: String(page + 1) })} style={{ opacity: page >= pages ? 0.4 : 1 }}>Next</button>
               </span>
-            ) : <span>Click a row to open it in the side panel</span>}
+            ) : <span>{shipQ ? "Pickup orders live in their own tab and never show a label step." : "Click a row to open it in the side panel"}</span>}
           </div>
         </div>
 
@@ -551,12 +633,15 @@ function OrdersList() {
               {open.attribution && <div className="pc-kv"><span>Came from</span><b>{open.attribution.label}</b></div>}
               {open.po_number && <div className="pc-kv"><span>PO number</span><b>{open.po_number}</b></div>}
               <div className="pc-kv"><span>Items</span><b>{open.item_count}</b></div>
+              {shipQ && <div className="pc-kv"><span>Weight</span><b>{weight(open.weight_lbs)}</b></div>}
+              {shipQ && <div className="pc-kv"><span>Goes by</span><b>{shipBy(open)}</b></div>}
 
               <hr className="pc-rule" />
               <div className="pc-kv"><span>Order total</span><b style={{ fontSize: "16px" }}>{money(open.total)}</b></div>
 
               <Link href={`/admin/orders/${open.id}`} className="pc-btn" data-kind="primary" data-block="" style={{ height: "46px" }}>Open order</Link>
               <button type="button" className="pc-btn" data-block="" disabled={!!working} onClick={() => printPickList([open])} style={{ height: "46px" }}>Print pick list</button>
+              {shipQ && <button type="button" className="pc-btn" data-block="" disabled={!!working} onClick={() => printSlips([open])} style={{ height: "46px" }}>Print packing slip</button>}
             </div>
           </aside>
         )}

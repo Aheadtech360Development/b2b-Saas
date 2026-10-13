@@ -43,12 +43,17 @@ export function useOrdersOverview(): { overview: OrdersOverview | null; refresh:
 }
 
 export function OrdersFrame({
-  active, overview, actions, children,
+  active, overview, actions, title = "Orders", lede = "Confirm, print and ship from one list.", primary, children,
 }: {
   active: OrdersTab;
   overview: OrdersOverview | null;
   /** Buttons before "New order", e.g. Export on the list. */
   actions?: ReactNode;
+  /** A tab's own name and line (the Ship queue's). */
+  title?: string;
+  lede?: string;
+  /** In place of New order, e.g. the Ship queue's Buy labels. */
+  primary?: ReactNode;
   children: ReactNode;
 }) {
   return (
@@ -56,14 +61,16 @@ export function OrdersFrame({
       <div className="pc-head">
         <div>
           <div className="pc-eyebrow">Orders</div>
-          <h1 className="pc-h1">Orders</h1>
-          <p className="pc-lede">Confirm, print and ship from one list.</p>
+          <h1 className="pc-h1">{title}</h1>
+          <p className="pc-lede">{lede}</p>
         </div>
         <div className="pc-row-actions no-print">
           {actions}
-          <Link href="/admin/orders/drafts?new=1" className="pc-btn" data-kind="primary">
-            <Plus size={17} strokeWidth={2.4} /> New order
-          </Link>
+          {primary ?? (
+            <Link href="/admin/orders/drafts?new=1" className="pc-btn" data-kind="primary">
+              <Plus size={17} strokeWidth={2.4} /> New order
+            </Link>
+          )}
         </div>
       </div>
 

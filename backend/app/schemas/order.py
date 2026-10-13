@@ -193,6 +193,8 @@ class AdminOrderListItem(BaseModel):
     carrier: str | None = None
     tracking_url: str | None = None
     label_url: str | None = None
+    # What it weighs, for the ship queue (the same sum the label step uses).
+    weight_lbs: float | None = None
     # A one-line "where this came from", so the list reads by campaign.
     attribution: dict | None = None
 
