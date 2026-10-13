@@ -1,4 +1,5 @@
 """Stripe webhook handler with idempotency and event routing."""
+import json
 import logging
 
 import stripe
@@ -76,6 +77,7 @@ async def stripe_webhook(
         select(WebhookLog).where(WebhookLog.event_id == event_id)
     )
     if existing.scalar_one_or_none():
+        await _partners_replay(event_id, event_type)
         return {"status": "already_processed"}
 
     # Log event. provider + payload are NOT NULL; status is an enum
@@ -145,9 +147,34 @@ async def stripe_webhook(
         logger.exception("Webhook handler error for event %s: %s", event_id, exc)
         log_entry.status = "failed"
         await db.commit()
+        await _partners_read(payload)
         raise HTTPException(status_code=500, detail="Webhook processing failed")
 
+    await _partners_read(payload)
     return {"status": "ok"}
+
+
+async def _partners_read(payload: bytes) -> None:
+    """The partner program reads the platform's billing events too, in its own
+    transaction after the shop's billing above is settled, so nothing it does
+    can undo or fail that. It records and retries its own failures, and runs
+    even when the handling above failed, so a commission or a clawback does
+    not depend on it."""
+    from app.services.partners import commissions
+
+    try:
+        await commissions.handle_event(json.loads(payload))
+    except Exception:  # noqa: BLE001
+        logger.exception("Partner program could not read a webhook payload")
+
+
+async def _partners_replay(event_id: str, event_type: str) -> None:
+    from app.services.partners import commissions
+
+    try:
+        await commissions.note_replay(event_id, event_type)
+    except Exception:  # noqa: BLE001
+        logger.exception("Partner program could not note a replayed event")
 
 
 def _invoice_subscription(invoice: dict) -> str | None:

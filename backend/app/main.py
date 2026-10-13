@@ -835,11 +835,15 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # Brands' Google reviews, re-imported every few hours.
     from app.services.google_reviews import scheduler_loop as _google_reviews_loop
     _google_reviews_scheduler = _asyncio.create_task(_google_reviews_loop())
+    # The partner program's failed Stripe events, retried on their own.
+    from app.services.partners.commissions import retry_loop as _partner_retry_loop
+    _partner_retry = _asyncio.create_task(_partner_retry_loop())
 
     yield
 
     _supplier_scheduler.cancel()
     _google_reviews_scheduler.cancel()
+    _partner_retry.cancel()
 
 
 app = FastAPI(
@@ -1086,6 +1090,8 @@ app.include_router(admin_entitlements.router, prefix=_V1)
 
 from app.api.v1 import signup as signup_api  # noqa: E402
 app.include_router(signup_api.router, prefix=_V1)
+from app.api.v1 import partners_public  # noqa: E402
+app.include_router(partners_public.router, prefix=_V1)
 
 from app.api.v1.admin import integrations as admin_integrations  # noqa: E402
 app.include_router(admin_integrations.router, prefix=_V1)
