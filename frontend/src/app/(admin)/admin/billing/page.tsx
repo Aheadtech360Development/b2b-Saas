@@ -1,9 +1,18 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { ApiClientError } from "@/lib/api-client";
+/**
+ * Settings, Payments and billing: the shop's plan, how it is paid by its
+ * customers, and money that went back.
+ *
+ * Nothing on this screen is typed in here: the plans, their prices, limits and
+ * commission come from the platform's own plan list (core/billing_plans.py),
+ * the payout state from the shop's Stripe account, disputes and refunds from
+ * its orders. So a plan change on the platform shows here without an edit.
+ */
+import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { X } from "lucide-react";
+import { ApiClientError, apiClient } from "@/lib/api-client";
 import { SettingsFrame } from "@/components/admin/settings/SettingsFrame";
-import { apiClient } from "@/lib/api-client";
 import { CashOnDeliveryPanel } from "@/components/admin/CashOnDeliveryPanel";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -11,6 +20,7 @@ type Plan = {
   key: string;
   name: string;
   price_display: string;
+  commission_display?: string;
   features: string[];
   limits: Record<string, number | null>;
   description: string;
@@ -26,7 +36,9 @@ type BillingData = {
     cancel_at_period_end: boolean;
   } | null;
   plans: Plan[];
+  trial?: { ends_at: string | null; on_trial: boolean; expired: boolean } | null;
 };
+type SyncResult = { card_on_file?: { started: boolean; reason?: string; status?: string; message?: string; trial_end?: number | null } | null };
 type ConnectData = {
   connected: boolean;
   account_id: string | null;
@@ -65,16 +77,11 @@ type Refund = {
 
 const money = (n: number, c = "usd") =>
   new Intl.NumberFormat("en-US", { style: "currency", currency: c.toUpperCase() }).format(n);
-
-function Badge({ tone, children }: { tone: "green" | "yellow" | "red" | "gray"; children: React.ReactNode }) {
-  const map = {
-    green: "bg-green-100 text-green-800",
-    yellow: "bg-amber-100 text-amber-800",
-    red: "bg-red-100 text-red-800",
-    gray: "bg-gray-100 text-gray-700",
-  };
-  return <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${map[tone]}`}>{children}</span>;
-}
+const day = (iso: string) => new Date(iso).toLocaleDateString(undefined, { month: "long", day: "numeric" });
+const words = (s: string | null | undefined) => (s ?? "").replace(/_/g, " ");
+const limit = (n: number | null | undefined) => (n == null ? "Unlimited" : n.toLocaleString("en-US"));
+/** "$97/mo" as it reads in a sentence. */
+const aMonth = (p: { price_display: string }) => p.price_display.replace("/mo", " a month");
 
 /** A message with its links clickable.
  *
@@ -94,9 +101,7 @@ function Linkified({ text }: { text: string }) {
         const tail = part.slice(href.length);
         return (
           <span key={i}>
-            <a href={href} target="_blank" rel="noopener noreferrer" style={{ textDecoration: "underline", fontWeight: 600 }}>
-              {href}
-            </a>
+            <a href={href} target="_blank" rel="noopener noreferrer" style={{ textDecoration: "underline", fontWeight: 600 }}>{href}</a>
             {tail}
           </span>
         );
@@ -115,8 +120,9 @@ function reason(e: unknown, fallback: string): string {
   return e instanceof ApiClientError && e.message ? e.message : fallback;
 }
 
+const pill = (label: string, tone: string) => <span className="pc-pill" data-tone={tone || undefined} style={{ textTransform: "none" }}>{label}</span>;
 
-function BillingPageBody() {
+export default function BillingPage() {
   const [billing, setBilling] = useState<BillingData | null>(null);
   const [connect, setConnect] = useState<ConnectData | null>(null);
   const [disputes, setDisputes] = useState<Dispute[]>([]);
@@ -142,7 +148,7 @@ function BillingPageBody() {
     }
   }, []);
 
-  // Handle Stripe redirects (?status=success|cancelled|return|refresh) then load.
+  // Handle Stripe redirects (?status=success|portal|cancelled|return|refresh) then load.
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const status = params.get("status");
@@ -150,7 +156,17 @@ function BillingPageBody() {
       if (status === "success") {
         // Webhook-independent fallback so the plan activates immediately.
         try { await apiClient.post("/api/v1/admin/billing/sync"); } catch { /* ignore */ }
-        setToast({ type: "success", text: "Subscription active — thank you!" });
+        setToast({ type: "success", text: "Subscription active. Thank you!" });
+      }
+      else if (status === "portal") {
+        // Back from Manage billing: a card put on file there starts the plan.
+        try {
+          const r = await apiClient.post<SyncResult>("/api/v1/admin/billing/sync");
+          const c = r?.card_on_file;
+          if (c?.started && c.trial_end) setToast({ type: "success", text: `Your card is on file. Your plan starts when the trial ends, on ${new Date(c.trial_end * 1000).toLocaleDateString()}, and is charged to it every month.` });
+          else if (c?.started) setToast({ type: "success", text: "Your plan has started on your card. It is charged every month." });
+          else if (c?.reason === "card_declined") setToast({ type: "error", text: `Your card was declined: ${c.message ?? "try another card"}. Choose a plan below to pay another way.` });
+        } catch { /* ignore */ }
       }
       else if (status === "cancelled") setToast({ type: "info", text: "Checkout cancelled." });
       else if (status === "return") {
@@ -158,7 +174,7 @@ function BillingPageBody() {
         try { await apiClient.post("/api/v1/admin/connect/refresh"); } catch { /* ignore */ }
         setToast({ type: "info", text: "Payout setup updated." });
       } else if (status === "refresh") {
-        setToast({ type: "info", text: "Onboarding link expired — click Set up payouts again." });
+        setToast({ type: "info", text: "Onboarding link expired. Click Set up payouts again." });
       }
       if (status) window.history.replaceState({}, "", "/admin/billing");
       await load();
@@ -182,10 +198,7 @@ function BillingPageBody() {
       // What the server actually said. "Try again" sent people round the same
       // loop when the answer was a missing key or the wrong Stripe mode —
       // neither of which trying again fixes.
-      const msg = e instanceof ApiClientError && e.message
-        ? e.message
-        : "Could not start checkout. Try again.";
-      setToast({ type: "error", text: msg });
+      setToast({ type: "error", text: reason(e, "Could not start checkout. Try again.") });
       setBusy(null);
     }
   }
@@ -235,244 +248,188 @@ function BillingPageBody() {
     }
   }
 
-  if (loading) return <div style={{ padding: "26px" }}>{[70, 92, 58, 84].map((w, i) => (<div key={i} className="at-skel" style={{ height: "14px", width: `${w}%`, marginBottom: "12px" }} />))}</div>;
-
   const currentPlan = billing?.plan;
-  const subActive = billing?.subscription?.status === "active" || billing?.subscription?.status === "trialing";
+  const sub = billing?.subscription;
+  // Active only when Stripe has a subscription for it: a status left on the
+  // record with nothing in Stripe behind it showed a plan nobody was paying for.
+  const subActive = !!sub?.stripe_subscription_id && (sub?.status === "active" || sub?.status === "trialing");
+  const plans = billing?.plans ?? [];
+  const mine = plans.find((p) => p.key === currentPlan);
+  const planName = billing?.plan_name ?? mine?.name ?? currentPlan ?? "your plan";
+  const trial = billing?.trial;
+
+  /** Where the shop stands with its plan, in one sentence each. */
+  function standing(): { text: string; tone: string } {
+    if (subActive && sub?.status === "trialing" && trial?.ends_at)
+      return { text: `${planName} starts when your trial ends, on ${day(trial.ends_at)}, charged to your card${mine ? ` at ${aMonth(mine)}` : ""}.`, tone: "blue" };
+    if (subActive && sub?.cancel_at_period_end)
+      return { text: `You are on ${planName}. It is set to cancel${sub.current_period_end ? ` on ${day(sub.current_period_end)}` : " at the end of the period"}.`, tone: "" };
+    if (subActive)
+      return { text: `You are on ${planName}.${sub?.current_period_end ? ` Your card is charged next on ${day(sub.current_period_end)}.` : ""}`, tone: "blue" };
+    if (sub?.status === "past_due")
+      return { text: "Your last payment failed. Update your card under Manage billing to keep your shop open.", tone: "red" };
+    if (trial?.on_trial && trial.ends_at)
+      return { text: `You are on ${planName}. Free trial ends ${day(trial.ends_at)}. Put a card on file under Manage billing and ${planName}${mine ? ` (${aMonth(mine)})` : ""} starts that day, or choose a plan above to start now.`, tone: "blue" };
+    if (trial?.expired)
+      return { text: "Your free trial has ended. Choose a plan to keep your shop open.", tone: "red" };
+    return { text: "Choose a plan to unlock your storefront features.", tone: "" };
+  }
+
+  const rows: [string, (p: Plan) => ReactNode][] = [
+    ["Price", (p) => p.price_display.replace("/", " /")],
+    ["Orders a month", (p) => limit(p.limits?.orders_per_month)],
+    ["Staff", (p) => limit(p.limits?.staff_accounts)],
+    ["Custom domains", (p) => limit(p.limits?.custom_domains)],
+    ["Gang Sheet commission", (p) => p.commission_display ?? ""],
+    ["Wholesale accounts, tiers and net terms", (p) => (p.features.includes("wholesale_accounts") ? "Included" : "Not included")],
+    ["Mobile app", (p) => (p.features.includes("mobile_app") ? "Included" : "Paid add-on")],
+  ];
+  const state = standing();
 
   return (
-    <div className="space-y-8 max-w-5xl">
-
+    <SettingsFrame active="billing" title="Payments and billing" sub="Your plan, your payouts and what changes between plans."
+      actions={<button type="button" className="pc-btn" onClick={openPortal} disabled={busy === "portal" || loading}>{busy === "portal" ? "Opening…" : "Manage billing"}</button>}>
       {toast && (
-        <div className={`rounded-lg border p-3 text-sm ${
-          toast.type === "success" ? "bg-green-50 border-green-200 text-green-800"
-          : toast.type === "error" ? "bg-red-50 border-red-200 text-red-800"
-          : "bg-blue-50 border-blue-200 text-blue-800"}`}>
-          <Linkified text={toast.text} />
+        <div className="pc-flash" data-bad={toast.type === "error" ? "" : undefined} role="status">
+          <span><Linkified text={toast.text} /></span>
+          <button type="button" className="pc-x" aria-label="Dismiss" onClick={() => setToast(null)} style={{ color: "inherit" }}><X size={16} strokeWidth={2.2} /></button>
         </div>
       )}
 
-      {/* ── Payouts (Stripe Connect) ─────────────────────────────────────────── */}
-      <section className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-          <div>
-            <h2 className="font-semibold text-gray-900">Payment Account</h2>
-            <p className="text-xs text-gray-500 mt-0.5">Accept card payments from your customers and get paid to your bank.</p>
-          </div>
-          {connect?.ready_to_accept_payments
-            ? <Badge tone="green">Active</Badge>
-            : connect?.connected
-              ? <Badge tone="yellow">Setup incomplete</Badge>
-              : <Badge tone="gray">Not connected</Badge>}
-        </div>
-        <div className="px-6 py-5">
-          <p className="text-[11px] text-gray-400 mb-3">Payments are processed securely by Stripe.</p>
-          {connect?.ready_to_accept_payments ? (
-            <div className="space-y-4">
-              <div className="flex flex-wrap gap-3">
-                <span className="text-sm text-gray-700">✅ Charges enabled</span>
-                <span className="text-sm text-gray-700">{connect.payouts_enabled ? "✅ Payouts enabled" : "⏳ Payouts pending"}</span>
-              </div>
-              <button onClick={openDashboard} disabled={busy === "dashboard"}
-                className="px-5 py-2 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-800 disabled:opacity-50">
-                {busy === "dashboard" ? "Opening…" : "Open payouts dashboard →"}
-              </button>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              <p className="text-sm text-gray-600">
-                {connect?.connected
-                  ? "You've started setup but haven't finished. Complete onboarding to start accepting payments."
-                  : "Connect your payment account so your store can accept card payments. Money and payouts land directly with you."}
-              </p>
-              <div className="flex items-center gap-3">
-                <button onClick={setupPayouts} disabled={busy === "connect"}
-                  className="px-5 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50">
-                  {busy === "connect" ? "Redirecting…" : connect?.connected ? "Finish payment account setup →" : "Connect payment account →"}
-                </button>
-                {connect?.connected && (
-                  <button onClick={refreshStatus} disabled={busy === "refresh"}
-                    className="px-5 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50">
-                    {busy === "refresh" ? "Checking…" : "Refresh status"}
-                  </button>
-                )}
-              </div>
-            </div>
-          )}
-        </div>
-      </section>
-
-      {/* ── Cash on delivery: a second way to be paid, if the shop wants it ──── */}
-      <CashOnDeliveryPanel />
-
-      {/* ── Subscription (platform billing) ──────────────────────────────────── */}
-      <section className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-          <div>
-            <h2 className="font-semibold text-gray-900">Your Plan</h2>
-            <p className="text-xs text-gray-500 mt-0.5">
-              {subActive ? `Currently on ${billing?.plan_name ?? currentPlan}.` : "Choose a plan to unlock your storefront features."}
-            </p>
-          </div>
-          {subActive
-            ? <Badge tone="green">Active</Badge>
-            : billing?.subscription?.status === "past_due"
-              ? <Badge tone="red">Payment failed</Badge>
-              : <Badge tone="gray">No active plan</Badge>}
-        </div>
-
-        <div className="px-6 py-6 grid gap-4 sm:grid-cols-3">
-          {billing?.plans.map((p) => {
-            const isCurrent = subActive && currentPlan === p.key;
-            return (
-              <div key={p.key} className={`rounded-xl border p-5 flex flex-col ${isCurrent ? "border-blue-500 ring-1 ring-blue-500" : "border-gray-200"}`}>
-                <div className="flex items-center justify-between">
-                  <h3 className="font-semibold text-gray-900">{p.name}</h3>
-                  {isCurrent && <Badge tone="green">Current</Badge>}
-                </div>
-                <div className="mt-2 text-2xl font-bold text-gray-900">{p.price_display}</div>
-                <p className="mt-1 text-xs text-gray-500">{p.description}</p>
-                <ul className="mt-3 space-y-1 text-xs text-gray-600 flex-1">
-                  {p.features.map((f) => (
-                    <li key={f}>✓ {f.replace(/_/g, " ")}</li>
+      {loading ? (
+        <div className="pc-card" style={{ padding: "24px" }} aria-busy>{[70, 92, 58].map((w, i) => (<div key={i} className="at-skel" style={{ height: "16px", width: `${w}%`, marginBottom: "12px", borderRadius: "6px" }} />))}</div>
+      ) : (
+        <div style={{ display: "grid", gap: "18px" }} data-billing>
+          {/* ── The plans, side by side, from the platform's own plan list ───── */}
+          <section className="pc-card" data-card="plans">
+            <div className="pc-card-head"><h2 className="pc-h2">Plans</h2>
+              {subActive ? pill("Active", "green") : sub?.status === "past_due" ? pill("Payment failed", "red") : pill("No active plan", "")}</div>
+            <div className="pc-scroll-x">
+              <table className="pc-table" style={{ minWidth: "620px" }}>
+                <thead>
+                  <tr>
+                    <th />
+                    {plans.map((p) => <th key={p.key} data-plan={p.key}>{p.name}{subActive && currentPlan === p.key ? <span style={{ marginLeft: "8px" }}>{pill("Current", "green")}</span> : null}</th>)}
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map(([label, value]) => (
+                    <tr key={label}>
+                      <td style={{ fontWeight: 600 }}>{label}</td>
+                      {plans.map((p) => <td key={p.key}>{value(p)}</td>)}
+                    </tr>
                   ))}
-                </ul>
-                <button
-                  onClick={() => subscribe(p.key)}
-                  disabled={isCurrent || busy === p.key}
-                  className={`mt-4 px-4 py-2 rounded-lg text-sm font-medium ${
-                    isCurrent ? "bg-gray-100 text-gray-400 cursor-default"
-                    : "bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"}`}>
-                  {isCurrent ? "Current plan" : busy === p.key ? "Redirecting…" : subActive ? "Switch to this" : "Subscribe"}
-                </button>
+                  <tr>
+                    <td />
+                    {plans.map((p) => {
+                      const isCurrent = subActive && currentPlan === p.key;
+                      return (
+                        <td key={p.key}>
+                          {isCurrent
+                            ? <span style={{ color: "var(--pc-muted)", fontSize: "13.5px" }}>Your plan</span>
+                            : <button type="button" className="pc-btn" data-kind={subActive ? undefined : "primary"} disabled={busy === p.key} onClick={() => subscribe(p.key)} style={{ height: "38px" }}>
+                                {busy === p.key ? "Redirecting…" : subActive ? `Switch to ${p.name}` : `Choose ${p.name}`}
+                              </button>}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <div style={{ padding: "14px 20px 18px" }}>
+              <div className="pc-note" data-tone={state.tone || undefined} data-plan-standing>{state.text}</div>
+            </div>
+          </section>
+
+          {/* ── Payouts (the shop's own Stripe account) ──────────────────────── */}
+          <section className="pc-card" style={{ padding: "18px 20px" }} data-card="payouts">
+            <h2 className="pc-h2">Payouts</h2>
+            <p className="pc-sub-line" style={{ margin: "6px 0 12px" }}>Card payments from your customers land in your own account and are paid out to your bank. Payments are processed securely by Stripe.</p>
+            {connect?.ready_to_accept_payments ? (
+              <div style={{ display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
+                {pill("Active", "green")}
+                {pill("Charges enabled", "green")}
+                {connect.payouts_enabled ? pill("Payouts enabled", "green") : pill("Payouts pending", "amber")}
+                <button type="button" className="pc-inline" onClick={openDashboard} disabled={busy === "dashboard"}>{busy === "dashboard" ? "Opening…" : "Open payouts dashboard"}</button>
               </div>
-            );
-          })}
+            ) : (
+              <div style={{ display: "grid", gap: "12px" }}>
+                <div style={{ display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
+                  {connect?.connected ? pill("Setup incomplete", "amber") : pill("Not connected", "")}
+                  <span className="pc-sub-line" style={{ fontSize: "13.5px" }}>
+                    {connect?.connected
+                      ? "You started setup but have not finished. Finish it to take card payments."
+                      : "Connect a payment account so your store can take card payments. The money and the payouts are yours."}
+                  </span>
+                </div>
+                <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+                  <button type="button" className="pc-btn" data-kind="primary" onClick={setupPayouts} disabled={busy === "connect"}>
+                    {busy === "connect" ? "Redirecting…" : connect?.connected ? "Finish payment account setup" : "Connect payment account"}
+                  </button>
+                  {connect?.connected && (
+                    <button type="button" className="pc-btn" onClick={refreshStatus} disabled={busy === "refresh"}>{busy === "refresh" ? "Checking…" : "Refresh status"}</button>
+                  )}
+                </div>
+              </div>
+            )}
+          </section>
+
+          {/* ── Cash on delivery: a second way to be paid, if the shop wants it ─ */}
+          <CashOnDeliveryPanel />
+
+          {/* ── Disputes and refunds ─────────────────────────────────────────── */}
+          <section className="pc-card" data-card="disputes">
+            <div className="pc-card-head" style={{ display: "block" }}>
+              <h2 className="pc-h2">Disputes and refunds</h2>
+              <p className="pc-sub-line" style={{ margin: "4px 0 0" }}>A dispute is a customer contesting a payment with their bank: answer from your payouts dashboard before the date shown, or the bank decides without your side. Refunds are issued from each order.</p>
+            </div>
+            <div className="pc-scroll-x">
+              <table className="pc-table" style={{ minWidth: "640px" }} data-table="disputes">
+                <thead><tr><th>Dispute on order</th><th className="pc-num">Amount</th><th>Reason</th><th>Status</th><th>Answer by</th><th>Money</th></tr></thead>
+                <tbody>
+                  {disputes.length === 0 && <tr><td colSpan={6} className="pc-empty">No disputes.</td></tr>}
+                  {disputes.map((d) => {
+                    const end = d.outcome ?? d.status;
+                    return (
+                      <tr key={d.stripe_dispute_id}>
+                        <td style={{ fontWeight: 600 }}>{d.order_number ?? "Not linked"}</td>
+                        <td className="pc-num">{money(d.amount, d.currency)}</td>
+                        <td>{words(d.reason)}</td>
+                        <td>{pill(words(end), end === "won" ? "green" : end === "lost" ? "red" : end === "warning_closed" ? "" : "amber")}</td>
+                        <td>{d.outcome ? "Closed" : d.evidence_due_by ? new Date(d.evidence_due_by).toLocaleDateString() : "No date"}</td>
+                        <td>{d.funds_reinstated_at ? `Returned ${new Date(d.funds_reinstated_at).toLocaleDateString()}`
+                          : d.funds_withdrawn_at ? `Withdrawn ${new Date(d.funds_withdrawn_at).toLocaleDateString()}` : "Not yet withdrawn"}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+            <div className="pc-scroll-x" style={{ borderTop: "1px solid var(--pc-line)" }}>
+              <table className="pc-table" style={{ minWidth: "640px" }} data-table="refunds">
+                <thead><tr><th>Refund on order</th><th className="pc-num">Amount</th><th>Reason</th><th>Status</th><th>By</th><th>Date</th></tr></thead>
+                <tbody>
+                  {(!refunds || refunds.items.length === 0) && <tr><td colSpan={6} className="pc-empty">No refunds yet.</td></tr>}
+                  {refunds?.items.map((r) => (
+                    <tr key={r.refund_id}>
+                      <td style={{ fontWeight: 600 }}>{r.order_number ? <a href={`/admin/orders/${r.order_number}`} className="pc-inline">{r.order_number}</a> : "Not linked"}</td>
+                      <td className="pc-num">{money(r.amount, r.currency)}</td>
+                      <td>{words(r.reason) || "None given"}</td>
+                      <td>{pill(r.status, r.status === "succeeded" ? "green" : r.status === "failed" || r.status === "canceled" ? "red" : "amber")}</td>
+                      <td>{r.by ?? (r.source === "stripe" ? "Payouts dashboard" : "Staff")}</td>
+                      <td>{r.at ? new Date(r.at).toLocaleDateString() : "No date"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {refunds && refunds.total > 0 && (
+              <div className="pc-table-foot"><span>{refunds.total} {refunds.total === 1 ? "refund" : "refunds"}</span><span>{money(refunds.refunded_total)} refunded in all</span></div>
+            )}
+          </section>
         </div>
-
-        {subActive && (
-          <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-between">
-            <span className="text-xs text-gray-500">
-              {billing?.subscription?.cancel_at_period_end ? "Your plan will cancel at the end of the period." : "Manage your card or cancel anytime."}
-            </span>
-            <button onClick={openPortal} disabled={busy === "portal"}
-              className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50">
-              {busy === "portal" ? "Opening…" : "Manage billing"}
-            </button>
-          </div>
-        )}
-      </section>
-
-      {/* ── Disputes / chargebacks ───────────────────────────────────────────── */}
-      <section className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-        <div className="px-6 py-4 border-b border-gray-100">
-          <h2 className="font-semibold text-gray-900">Disputes &amp; Chargebacks</h2>
-          <p className="text-xs text-gray-500 mt-0.5">When a customer disputes a payment with their bank. Respond from your payouts dashboard before the date shown, or the bank decides without your side.</p>
-        </div>
-        {disputes.length === 0 ? (
-          <div className="px-6 py-8 text-center text-sm text-gray-500">No disputes. 🎉</div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-gray-50 text-gray-500 text-xs uppercase">
-                <tr>
-                  <th className="text-left px-6 py-3 font-medium">Order</th>
-                  <th className="text-left px-6 py-3 font-medium">Amount</th>
-                  <th className="text-left px-6 py-3 font-medium">Reason</th>
-                  <th className="text-left px-6 py-3 font-medium">Status</th>
-                  <th className="text-left px-6 py-3 font-medium">Respond by</th>
-                  <th className="text-left px-6 py-3 font-medium">Money</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {disputes.map((d) => (
-                  <tr key={d.stripe_dispute_id}>
-                    <td className="px-6 py-3 text-gray-900">{d.order_number ?? "—"}</td>
-                    <td className="px-6 py-3">{money(d.amount, d.currency)}</td>
-                    <td className="px-6 py-3 text-gray-600">{d.reason?.replace(/_/g, " ")}</td>
-                    <td className="px-6 py-3">
-                      <Badge tone={(d.outcome ?? d.status) === "won" ? "green" : (d.outcome ?? d.status) === "lost" ? "red" : (d.outcome ?? d.status) === "warning_closed" ? "gray" : "yellow"}>
-                        {(d.outcome ?? d.status)?.replace(/_/g, " ")}
-                      </Badge>
-                    </td>
-                    <td className="px-6 py-3 text-gray-600">
-                      {d.outcome ? "—" : d.evidence_due_by ? new Date(d.evidence_due_by).toLocaleDateString() : "—"}
-                    </td>
-                    <td className="px-6 py-3 text-gray-600 text-xs">
-                      {d.funds_reinstated_at
-                        ? `Returned ${new Date(d.funds_reinstated_at).toLocaleDateString()}`
-                        : d.funds_withdrawn_at
-                          ? `Withdrawn ${new Date(d.funds_withdrawn_at).toLocaleDateString()}`
-                          : "Not yet withdrawn"}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
-
-      {/* ── Refunds ──────────────────────────────────────────────────────────── */}
-      <section className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-          <div>
-            <h2 className="font-semibold text-gray-900">Refunds</h2>
-            <p className="text-xs text-gray-500 mt-0.5">
-              Every refund on your orders — issued here or in your payouts dashboard.
-            </p>
-          </div>
-          {refunds && refunds.total > 0 && (
-            <span className="text-sm text-gray-700">{money(refunds.refunded_total)} refunded</span>
-          )}
-        </div>
-        {!refunds || refunds.items.length === 0 ? (
-          <div className="px-6 py-8 text-center text-sm text-gray-500">No refunds yet.</div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-gray-50 text-gray-500 text-xs uppercase">
-                <tr>
-                  <th className="text-left px-6 py-3 font-medium">Order</th>
-                  <th className="text-left px-6 py-3 font-medium">Amount</th>
-                  <th className="text-left px-6 py-3 font-medium">Reason</th>
-                  <th className="text-left px-6 py-3 font-medium">Status</th>
-                  <th className="text-left px-6 py-3 font-medium">By</th>
-                  <th className="text-left px-6 py-3 font-medium">Date</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {refunds.items.map((r) => (
-                  <tr key={r.refund_id}>
-                    <td className="px-6 py-3 text-gray-900">
-                      {r.order_number ? <a href={`/admin/orders/${r.order_number}`} className="underline">{r.order_number}</a> : "—"}
-                    </td>
-                    <td className="px-6 py-3">{money(r.amount, r.currency)}</td>
-                    <td className="px-6 py-3 text-gray-600">{r.reason?.replace(/_/g, " ") ?? "—"}</td>
-                    <td className="px-6 py-3">
-                      <Badge tone={r.status === "succeeded" ? "green" : r.status === "failed" || r.status === "canceled" ? "red" : "yellow"}>
-                        {r.status}
-                      </Badge>
-                    </td>
-                    <td className="px-6 py-3 text-gray-600">{r.by ?? (r.source === "stripe" ? "Payouts dashboard" : "Staff")}</td>
-                    <td className="px-6 py-3 text-gray-600">{r.at ? new Date(r.at).toLocaleDateString() : "—"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
-    </div>
-  );
-}
-
-
-/** This screen as one of the Settings screens (components/admin/settings/SettingsFrame). */
-export default function BillingPage() {
-  return (
-    <SettingsFrame active="billing" title="Payments and billing" sub="Your plan, and the account your customers' payments are paid out to.">
-      <BillingPageBody />
+      )}
     </SettingsFrame>
   );
 }

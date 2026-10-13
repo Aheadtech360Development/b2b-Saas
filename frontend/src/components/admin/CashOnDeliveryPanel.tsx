@@ -52,33 +52,21 @@ export function CashOnDeliveryPanel() {
   }
 
   return (
-    <section className="bg-white border border-gray-200 rounded-xl overflow-hidden" data-cod-panel>
-      <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between gap-4">
-        <div>
-          <h2 className="font-semibold text-gray-900">Cash on delivery</h2>
-          <p className="text-xs text-gray-500 mt-0.5">Let a customer place an order now and pay in cash when it arrives.</p>
-        </div>
-        <button
-          type="button" role="switch" aria-checked={on} aria-label="Cash on delivery"
-          onClick={toggle} disabled={loading || busy || readOnly}
-          className="shrink-0 disabled:opacity-50"
-          style={{
-            width: "46px", height: "26px", borderRadius: "999px", border: "none", padding: "3px",
-            background: on ? "#16A34A" : "#D1D5DB", cursor: loading || busy || readOnly ? "not-allowed" : "pointer",
-            display: "inline-flex", justifyContent: on ? "flex-end" : "flex-start", transition: "background .15s",
-          }}
-        >
-          <span style={{ width: "20px", height: "20px", borderRadius: "50%", background: "#fff", boxShadow: "0 1px 3px rgba(0,0,0,.25)" }} />
-        </button>
+    <section className="pc-card" style={{ padding: "18px 20px" }} data-cod-panel>
+      <div className="pc-switch-row" style={{ alignItems: "center" }}>
+        <span>
+          <h2 className="pc-h2">Cash on delivery</h2>
+          <div className="pc-sub-line" style={{ fontWeight: 400, marginTop: "4px" }}>Let a customer place an order now and pay in cash when it arrives.</div>
+        </span>
+        <button type="button" className="pc-switch" role="switch" aria-checked={on} aria-label="Cash on delivery" data-on={on ? "" : undefined}
+          onClick={toggle} disabled={loading || busy || readOnly} style={{ cursor: loading || busy || readOnly ? "not-allowed" : undefined, opacity: readOnly ? 0.55 : undefined }} />
       </div>
-      <div className="px-6 py-4 space-y-2">
-        <p className="text-sm text-gray-600">
-          {on
-            ? "Checkout offers it beside the card. An order paid this way arrives as unpaid: collect the cash when you deliver, then press Mark as Paid on the order."
-            : "Checkout offers the card only. Turn this on if you deliver or hand over orders yourself and take cash."}
-        </p>
-        {note && <p className={`text-sm ${note.ok ? "text-green-700" : "text-red-700"}`}>{note.text}</p>}
-      </div>
+      <p className="pc-sub-line" style={{ margin: "12px 0 0" }}>
+        {on
+          ? "Checkout offers it beside the card. An order paid this way arrives as unpaid: collect the cash when you deliver, then press Mark as Paid on the order."
+          : "Checkout offers the card only. Turn this on if you deliver or hand over orders yourself and take cash."}
+      </p>
+      {note && <div className="pc-note" data-tone={note.ok ? "green" : "red"} role="status" style={{ marginTop: "12px" }}>{note.text}</div>}
     </section>
   );
 }
