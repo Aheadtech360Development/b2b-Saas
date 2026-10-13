@@ -25,7 +25,9 @@ type BillingData = {
     cancel_at_period_end: boolean;
   } | null;
   plans: Plan[];
+  trial?: { ends_at: string | null; on_trial: boolean; expired: boolean } | null;
 };
+type SyncResult = { card_on_file?: { started: boolean; reason?: string; status?: string; message?: string; trial_end?: number | null } | null };
 type ConnectData = {
   connected: boolean;
   account_id: string | null;
@@ -151,6 +153,16 @@ export default function BillingPage() {
         try { await apiClient.post("/api/v1/admin/billing/sync"); } catch { /* ignore */ }
         setToast({ type: "success", text: "Subscription active — thank you!" });
       }
+      else if (status === "portal") {
+        // Back from Manage billing: a card put on file there starts the plan.
+        try {
+          const r = await apiClient.post<SyncResult>("/api/v1/admin/billing/sync");
+          const c = r?.card_on_file;
+          if (c?.started && c.trial_end) setToast({ type: "success", text: `Your card is on file. Your plan starts when the trial ends, on ${new Date(c.trial_end * 1000).toLocaleDateString()}, and is charged to it every month.` });
+          else if (c?.started) setToast({ type: "success", text: "Your plan has started on your card. It is charged every month." });
+          else if (c?.reason === "card_declined") setToast({ type: "error", text: `Your card was declined: ${c.message ?? "try another card"}. Choose a plan below to pay another way.` });
+        } catch { /* ignore */ }
+      }
       else if (status === "cancelled") setToast({ type: "info", text: "Checkout cancelled." });
       else if (status === "return") {
         // Back from Connect onboarding — pull the latest readiness from Stripe.
@@ -237,7 +249,10 @@ export default function BillingPage() {
   if (loading) return <div style={{ padding: "26px" }}>{[70, 92, 58, 84].map((w, i) => (<div key={i} className="at-skel" style={{ height: "14px", width: `${w}%`, marginBottom: "12px" }} />))}</div>;
 
   const currentPlan = billing?.plan;
-  const subActive = billing?.subscription?.status === "active" || billing?.subscription?.status === "trialing";
+  // Active only when Stripe has a subscription for it: a status left on the
+  // record with nothing in Stripe behind it showed a plan nobody was paying for.
+  const subActive = !!billing?.subscription?.stripe_subscription_id
+    && (billing?.subscription?.status === "active" || billing?.subscription?.status === "trialing");
 
   return (
     <div className="space-y-8 max-w-5xl">
@@ -314,7 +329,11 @@ export default function BillingPage() {
           <div>
             <h2 className="font-semibold text-gray-900">Your Plan</h2>
             <p className="text-xs text-gray-500 mt-0.5">
-              {subActive ? `Currently on ${billing?.plan_name ?? currentPlan}.` : "Choose a plan to unlock your storefront features."}
+              {subActive
+                ? billing?.subscription?.status === "trialing" && billing?.trial?.ends_at
+                  ? `${billing?.plan_name ?? currentPlan} starts when your trial ends, on ${new Date(billing.trial.ends_at).toLocaleDateString()}, charged to your card.`
+                  : `Currently on ${billing?.plan_name ?? currentPlan}.`
+                : "Choose a plan to unlock your storefront features."}
             </p>
           </div>
           {subActive

@@ -835,11 +835,15 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # Brands' Google reviews, re-imported every few hours.
     from app.services.google_reviews import scheduler_loop as _google_reviews_loop
     _google_reviews_scheduler = _asyncio.create_task(_google_reviews_loop())
+    # A card on file with no plan behind it: the plan is started (hourly).
+    from app.services.billing_autostart import scheduler_loop as _billing_autostart_loop
+    _billing_autostart = _asyncio.create_task(_billing_autostart_loop())
 
     yield
 
     _supplier_scheduler.cancel()
     _google_reviews_scheduler.cancel()
+    _billing_autostart.cancel()
 
 
 app = FastAPI(

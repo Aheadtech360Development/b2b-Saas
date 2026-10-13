@@ -64,7 +64,9 @@ async def status(db: AsyncSession, tenant_id: object) -> dict[str, Any]:
         return {"on_trial": False, "days_left": None, "ends_at": None, "expired": False, "plan": None}
 
     ends_at = row["trial_ends_at"]
-    paying = bool(row["stripe_subscription_id"]) and row["status"] in ("active", "past_due")
+    # A trialing subscription is a card on file with the plan starting when the
+    # trial ends: paying, as far as the countdown is concerned.
+    paying = bool(row["stripe_subscription_id"]) and row["status"] in ("active", "trialing", "past_due")
     left = days_left(ends_at)
     return {
         "on_trial": ends_at is not None and not paying and (left or 0) > 0,
@@ -137,7 +139,7 @@ async def due_for_notice(db: AsyncSession) -> list[dict[str, Any]]:
           JOIN tenants t ON t.id = s.tenant_id
          WHERE s.trial_ends_at IS NOT NULL
            AND t.status = 'active'
-           AND (s.stripe_subscription_id IS NULL OR s.status NOT IN ('active', 'past_due'))
+           AND (s.stripe_subscription_id IS NULL OR s.status NOT IN ('active', 'trialing', 'past_due'))
     """))).mappings().all()
 
     out: list[dict[str, Any]] = []
