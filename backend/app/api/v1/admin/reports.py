@@ -4,7 +4,7 @@ import io
 from datetime import date, datetime, timedelta
 from typing import Literal
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from sqlalchemy import case, cast, func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -321,6 +321,61 @@ async def customer_report(
             for r in top_rows
         ],
     }
+
+
+# ── The Reports screen: Sales, Customers and Production (services/report_view) ─
+
+def _report_span(range_key: str, date_from: str | None, date_to: str | None, utc_offset: int):
+    from app.core.tenant_context import get_current_tenant_id
+    from app.services import report_view as rv
+
+    tid = get_current_tenant_id()
+    if not tid:
+        raise HTTPException(status_code=400, detail="Open this from your shop's admin.")
+    try:
+        return tid, rv.span(range_key, date_from=date_from, date_to=date_to, offset_minutes=utc_offset)
+    except ValueError:
+        raise HTTPException(status_code=422, detail="A custom range needs a start and an end date, written YYYY-MM-DD.")
+
+
+_RANGE = Query("30d", pattern="^(today|7d|30d|90d|12m|custom)$")
+# The viewer's clock, in minutes east of UTC: "today" and the cutoff are theirs.
+_OFFSET = Query(0, ge=-840, le=840)
+
+
+@router.get("/reports/overview")
+async def reports_overview(
+    range: str = _RANGE,
+    date_from: str | None = Query(None),
+    date_to: str | None = Query(None),
+    utc_offset: int = _OFFSET,
+    _: None = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    from app.services import report_view as rv
+
+    tid, span = _report_span(range, date_from, date_to, utc_offset)
+    return await rv.overview(db, tid, span, range)
+
+
+@router.get("/reports/export")
+async def reports_export(
+    tab: Literal["sales", "customers", "production"] = Query("sales"),
+    range: str = _RANGE,
+    date_from: str | None = Query(None),
+    date_to: str | None = Query(None),
+    utc_offset: int = _OFFSET,
+    _: None = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    from app.services import report_view as rv
+
+    tid, span = _report_span(range, date_from, date_to, utc_offset)
+    filename, body = await rv.export_csv(db, tid, span, tab)
+    return StreamingResponse(
+        iter([body]), media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 # ── T188: CSV Export ──────────────────────────────────────────────────────────

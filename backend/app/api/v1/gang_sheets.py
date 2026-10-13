@@ -2078,6 +2078,7 @@ async def admin_sheets_for_order(
 async def admin_set_status(
     order_id: uuid.UUID,
     payload: StatusIn,
+    request: Request,
     _: None = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
@@ -2096,6 +2097,20 @@ async def admin_set_status(
     # supplier a job is churning.
     if payload.status == STATUS_REVISION and order.status != STATUS_REVISION:
         order.revision_count += 1
+
+    # When the artwork was approved and the sheets printed go on the order's
+    # history: Reports measures on-time against the same-day cutoff from them.
+    if order.order_id and payload.status != order.status and payload.status in (STATUS_APPROVED, STATUS_COMPLETED):
+        from app.services import order_events
+
+        sheets = int(order.sheet_quantity or 1)
+        await order_events.record_admin(
+            db, request, order.order_id,
+            "artwork_approved" if payload.status == STATUS_APPROVED else "sheet_printed",
+            f"Artwork approved for {order.reference}" if payload.status == STATUS_APPROVED
+            else f"{order.reference} printed, {sheets} {'sheet' if sheets == 1 else 'sheets'}",
+            meta={"job_id": str(order.id), "reference": order.reference, "sheets": sheets},
+        )
 
     order.status = payload.status
     if payload.supplier_notes is not None:

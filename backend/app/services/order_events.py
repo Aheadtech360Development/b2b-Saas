@@ -67,6 +67,10 @@ EVENTS: dict[str, dict[str, Any]] = {
     "status_changed":      {"label": "Status changed",            "customer": True},
     "ready_for_pickup":    {"label": "Ready for pickup",          "customer": True},
     "packed":              {"label": "Order packed",              "customer": True},
+    # A print job's artwork approved and its sheets printed: Reports measures
+    # on-time against the same-day cutoff from these.
+    "artwork_approved":    {"label": "Artwork approved",          "customer": True},
+    "sheet_printed":       {"label": "Sheets printed",            "customer": False},
     # Getting it there
     "label_purchased":     {"label": "Shipping label bought",     "customer": False},
     "tracking_added":      {"label": "Tracking added",            "customer": True},

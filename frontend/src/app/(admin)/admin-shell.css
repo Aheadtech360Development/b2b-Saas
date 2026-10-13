@@ -524,8 +524,11 @@
 .pc-form2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 14px; }
 .pc-form2 > .pc-wide { grid-column: 1 / -1; }
 [data-customers-frame] .pc-pill, [data-customer-page] .pc-pill { text-transform: none; }
+/* Reports: three numbers across, and the cards below them. */
+.pc-stats3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin-bottom: 18px; }
+[data-reports] .pc-cols { gap: 18px; }
 @media (max-width: 768px) {
-  .pc-stats2, .pc-form2 { grid-template-columns: minmax(0, 1fr); }
+  .pc-stats2, .pc-form2, .pc-stats3 { grid-template-columns: minmax(0, 1fr); }
 }
 
 /* ── Inbox ──────────────────────────────────────────────────────────────── */

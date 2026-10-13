@@ -131,15 +131,8 @@ export function AdminSidebar() {
         // Who to send to: a segment is a saved filter of customers.
         { href: "/admin/customers/segments", label: "Segments", scope: "customers" },
       ] },
-    {
-      key: "reports", label: "Reports", icon: BarChart3, href: "/admin/reports", scopes: ["analytics"],
-      children: [
-        { href: "/admin/reports", label: "Overview" },
-        { href: "/admin/reports/sales", label: "Sales" },
-        { href: "/admin/reports/customers", label: "Customers" },
-        { href: "/admin/analytics", label: "Analytics" },
-      ],
-    },
+    // One line: Sales, Customers and Production are the tabs across Reports.
+    { key: "reports", label: "Reports", icon: BarChart3, href: "/admin/reports", scopes: ["analytics"], also: ["/admin/analytics"] },
   ];
 
   const settings: Place = {
