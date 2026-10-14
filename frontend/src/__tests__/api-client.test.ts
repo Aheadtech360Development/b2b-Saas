@@ -35,7 +35,7 @@ describe("api-client", () => {
 
     await apiClient.get("/api/v1/test");
 
-    const headers: Headers = fetchSpy.mock.calls[0][1].headers;
+    const headers: Headers = fetchSpy.mock.calls[0]![1].headers;
     expect(headers.get("Authorization")).toBe("Bearer test-token-123");
   });
 
@@ -44,7 +44,7 @@ describe("api-client", () => {
 
     await apiClient.get("/api/v1/test", { skipAuth: true });
 
-    const headers: Headers = fetchSpy.mock.calls[0][1].headers;
+    const headers: Headers = fetchSpy.mock.calls[0]![1].headers;
     expect(headers.get("Authorization")).toBeNull();
   });
 
@@ -81,7 +81,7 @@ describe("api-client", () => {
 
     fetchSpy.mockImplementation((url: string) => {
       callCount++;
-      if (url.includes("/api/v1/refresh")) {
+      if (url.includes("/api/v1/auth/refresh")) {
         return Promise.resolve(makeResponse(200, { access_token: "new-token-456" }));
       }
       if (callCount === 1) {
@@ -104,7 +104,7 @@ describe("api-client", () => {
     const refreshCalls: string[] = [];
 
     fetchSpy.mockImplementation((url: string) => {
-      if (url.includes("/api/v1/refresh")) {
+      if (url.includes("/api/v1/auth/refresh")) {
         refreshCalls.push(url);
         return new Promise((resolve) =>
           setTimeout(() => resolve(makeResponse(200, { access_token: "new-token" })), 10)
