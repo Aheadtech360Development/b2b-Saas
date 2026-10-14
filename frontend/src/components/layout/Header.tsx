@@ -6,6 +6,7 @@ import { useRouter, usePathname } from "next/navigation";
 import { useAuthStore } from "@/stores/auth.store";
 import { authService } from "@/services/auth.service";
 import { apiClient } from "@/lib/api-client";
+import { forgetOrderKeys } from "@/lib/orderThanks";
 import { AnnouncementBar } from "@/components/layout/AnnouncementBar";
 import { ShoppingCartIcon } from "@/components/ui/icons";
 import { useBranding, type MenuItem } from "@/components/providers/BrandingProvider";
@@ -120,6 +121,7 @@ export function Header() {
       // ignore
     }
     clearAuth();
+    forgetOrderKeys();
     setCartCount(0);
     router.push("/login");
   }

@@ -43,7 +43,10 @@ def view_key(order_id: Any, tenant_id: Any) -> str:
 def key_opens(order: Any, key: str | None) -> bool:
     if not key:
         return False
-    return hmac.compare_digest(view_key(order.id, order.tenant_id), key.strip())
+    # As bytes: compare_digest refuses a str with anything but ASCII in it,
+    # and a 500 for a real order beside a 404 for a made-up one would say
+    # which numbers exist.
+    return hmac.compare_digest(view_key(order.id, order.tenant_id).encode(), key.strip().encode())
 
 
 def owned_by(order: Any, *, user_id: Any, company_id: Any, account_type: str | None) -> bool:
@@ -90,6 +93,16 @@ def _ship_to(snapshot: str | None) -> dict[str, str] | None:
     }
 
 
+def _first_pictures(rows: Any) -> dict[str, str]:
+    """One picture per product, from (product id, url) rows that come main
+    picture first."""
+    pictures: dict[str, str] = {}
+    for pid, url in rows:
+        if url:
+            pictures.setdefault(str(pid), url)
+    return pictures
+
+
 def _money(value: Any) -> float:
     return float(value or 0)
 
@@ -98,7 +111,7 @@ async def summary(db: AsyncSession, order: Any) -> dict[str, Any]:
     """What the thank-you page shows. `order` comes with its items, placed_by
     and company loaded."""
     from app.api.v1.gang_sheets import GangSheetOrder
-    from app.models.product import ProductImage
+    from app.models.product import ProductImage, ProductVariant
     from app.services import order_money
     from app.services.pickup import pickup_location
 
@@ -108,17 +121,26 @@ async def summary(db: AsyncSession, order: Any) -> dict[str, Any]:
         name = " ".join(filter(None, [buyer.first_name, buyer.last_name])).strip()
     email = order.guest_email or (buyer.email if buyer is not None else None)
 
-    # One picture per product: its main one, else its first.
-    product_ids = {i.product_id for i in order.items if i.product_id}
+    # One picture per product: its main one, else its first. A stocked line
+    # names its variant only, so its product is found through that.
+    variants = {i.variant_id for i in order.items if i.variant_id and not i.product_id}
+    product_of: dict[str, Any] = {}
+    if variants:
+        product_of = {str(v): p for v, p in (await db.execute(
+            select(ProductVariant.id, ProductVariant.product_id).where(ProductVariant.id.in_(variants))
+        )).all()}
+
+    def line_product(line: Any) -> Any:
+        return line.product_id or product_of.get(str(line.variant_id))
+
+    product_ids = {pid for pid in (line_product(i) for i in order.items) if pid}
     pictures: dict[str, str] = {}
     if product_ids:
-        rows = (await db.execute(
+        pictures = _first_pictures((await db.execute(
             select(ProductImage.product_id, ProductImage.url_thumbnail)
             .where(ProductImage.product_id.in_(product_ids))
             .order_by(ProductImage.is_primary.desc(), ProductImage.sort_order)
-        )).all()
-        for product_id, url in rows:
-            pictures.setdefault(str(product_id), url)
+        )).all())
 
     sheets = (await db.execute(
         select(func.count()).select_from(GangSheetOrder).where(GangSheetOrder.order_id == order.id)
@@ -144,7 +166,7 @@ async def summary(db: AsyncSession, order: Any) -> dict[str, Any]:
                 "unit_price": _money(i.unit_price),
                 "line_total": _money(i.line_total),
                 "configuration": i.configuration,
-                "image_url": pictures.get(str(i.product_id)) if i.product_id else None,
+                "image_url": pictures.get(str(line_product(i))),
                 "gang_sheet": i.sku == GANG_SHEET_SKU,
             }
             for i in order.items

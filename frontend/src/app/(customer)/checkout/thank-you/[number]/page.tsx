@@ -50,6 +50,17 @@ function shippingWords(o: ThankYouOrder): string {
   return o.shipping_method !== "will_call" && service ? `${base}, ${service}` : base;
 }
 
+/** Whether this tab is the one that just placed this order: the review page
+ *  leaves its number behind (af_confirmed_order, sessionStorage). */
+function placedHere(orderNumber: string): boolean {
+  try {
+    const kept = JSON.parse(sessionStorage.getItem("af_confirmed_order") || "{}") as { number?: string };
+    return kept.number === orderNumber;
+  } catch {
+    return false;
+  }
+}
+
 function AddressLines({ a }: { a: ThankYouAddress }) {
   const region = [a.city, [a.state, a.postal_code].filter(Boolean).join(" ")].filter(Boolean).join(", ");
   return (
@@ -99,9 +110,10 @@ export default function ThankYouPage() {
     asked.current = number;
     setOrder(null);
     setMissing(false);
-    const query = key ? `?key=${encodeURIComponent(key)}` : "";
+    // In a header, not the query string, which the API's access log keeps.
     apiClient
-      .get<ThankYouOrder>(`/api/v1/guest/orders/${encodeURIComponent(number)}/thank-you${query}`)
+      .get<ThankYouOrder>(`/api/v1/guest/orders/${encodeURIComponent(number)}/thank-you`,
+        key ? { headers: { "X-Order-Key": key } } : undefined)
       .then(setOrder)
       .catch(() => setMissing(true));
   }, [number, authLoading]);
@@ -109,12 +121,18 @@ export default function ThankYouPage() {
   const signedIn = !authLoading && isAuthenticated();
 
   if (missing) {
+    // The tab that placed the order still holds its number. If the order
+    // could not be read back (the network, or the minutes while a release
+    // reaches the API), that tab still gets its thank-you, not a dead end.
+    const justPlaced = placedHere(number);
     return (
-      <div className="ui-page" style={{ padding: "72px 24px" }}>
+      <div style={{ padding: "72px 24px" }}>
         <div style={{ maxWidth: 520, margin: "0 auto", textAlign: "center" }}>
-          <h1 className="ui-h1">Order {number}</h1>
+          <h1 className="ui-h1">{justPlaced ? "Thank you for your order!" : `Order ${number}`}</h1>
           <p className="ui-lede">
-            We could not open this order here. Its confirmation email has the details, and you can follow the order at any time.
+            {justPlaced
+              ? <>Order <b className="ui-num">{number}</b> is placed. A confirmation is on its way to your inbox.</>
+              : "We could not open this order here. Its confirmation email has the details, and you can follow the order at any time."}
           </p>
           <div className="ty-actions" style={{ justifyContent: "center" }}>
             <Link href={signedIn ? "/account/orders" : "/track-order"} className="ui-btn">
@@ -129,7 +147,7 @@ export default function ThankYouPage() {
 
   if (!order) {
     return (
-      <div className="ui-page" style={{ padding: "72px 24px", textAlign: "center", color: "var(--ui-muted)", fontSize: 14 }}>
+      <div style={{ padding: "72px 24px", textAlign: "center", color: "var(--ui-muted)", fontSize: 14 }}>
         Loading your order&hellip;
       </div>
     );
@@ -143,7 +161,8 @@ export default function ThankYouPage() {
   const trackHref = signedIn ? `/account/orders/${encodeURIComponent(order.order_number)}` : "/track-order";
 
   return (
-    <div className="ui-page" style={{ padding: "48px 0 72px" }}>
+    // The checkout layout already draws the page (.ui-page) around this.
+    <div style={{ padding: "48px 0 72px" }}>
       <div className="ui-wrap">
         <div className="ty-grid">
           <div className="ty-main">

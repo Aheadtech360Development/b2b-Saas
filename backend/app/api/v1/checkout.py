@@ -402,7 +402,11 @@ async def _confirm_checkout_inner(
         if _existing:
             # Asked again for the same payment: the page retries an answer
             # that was lost. The order it already made, with the lines the
-            # answer lists (not loaded by the lookup above).
+            # answer lists (not loaded by the lookup above), and only to the
+            # buyer whose order it is: the answer carries the key that opens
+            # its thank-you page. Never a new order on someone else's payment.
+            if str(_existing.company_id or "") != str(company_id):
+                raise ValidationError("This payment belongs to another order.")
             from sqlalchemy.orm import selectinload as _sil_pi
 
             return (await db.execute(

@@ -88,13 +88,29 @@ export function rememberOrderKey(orderNumber: string, key: string | null | undef
   if (!key) return;
   try {
     const now = Date.now();
-    const entries = Object.entries({ ...kept(), [orderNumber]: { key, at: now } })
-      .filter(([, v]) => v && typeof v.key === "string" && now - (v.at || 0) < KEEP_MS)
+    const others = Object.entries(kept())
+      .filter(([n, v]) => n !== orderNumber && v && typeof v.key === "string" && now - (v.at || 0) < KEEP_MS);
+    // Always the newest, even beside a key saved in the same millisecond:
+    // the oldest are the ones let go.
+    const at = Math.max(now, ...others.map(([, v]) => (v.at || 0) + 1));
+    const entries = [...others, [orderNumber, { key, at }] as const]
       .sort((a, b) => b[1].at - a[1].at)
       .slice(0, KEEP);
     localStorage.setItem(STORE, JSON.stringify(Object.fromEntries(entries)));
   } catch {
     // Storage refused: the page falls back to the sign-in, or to the email.
+  }
+}
+
+/** Forget every order key in this browser: on signing out, so the next person
+ *  at a shared computer cannot open the last buyer's orders from its history.
+ *  Not on clearing the sign-in in general: a new tab clears it on every load,
+ *  and the key is what opens the page there. */
+export function forgetOrderKeys(): void {
+  try {
+    localStorage.removeItem(STORE);
+  } catch {
+    // Storage refused: there is nothing kept to forget.
   }
 }
 
