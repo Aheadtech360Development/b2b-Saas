@@ -110,6 +110,21 @@ async def save_draft(data: DraftIn, request: Request, _: None = Depends(require_
     site = await site_svc.get_site(db, tid)
     if site is None:
         raise HTTPException(status_code=404, detail="Open the builder first.")
+    # JavaScript in a Custom HTML block is an Administrator's to add or change
+    # (services/builder/scripts.py). Anybody may keep what is there already,
+    # in the draft or on the live site, or take it out.
+    from app.services.builder import scripts as block_scripts
+
+    if not block_scripts.may_write_scripts(getattr(request.state, "role", None),
+                                           getattr(request.state, "scopes", None),
+                                           bool(getattr(request.state, "is_platform_admin", False))):
+        live = (await site_svc.published_document(db, tid, site.published_version_id)
+                if site.published_version_id else None)
+        if block_scripts.new_scripts(data.draft, site.draft or {}, live[0] if live else {}):
+            raise HTTPException(status_code=403, detail={
+                "code": "SCRIPT_ADMIN_ONLY",
+                "message": "Only an Administrator can add or change JavaScript in a Custom HTML block.",
+            })
     try:
         site = await site_svc.save_draft(db, site, data.draft, data.revision)
     except site_svc.DraftConflict as exc:

@@ -30,6 +30,7 @@ import CartLink from "./islands/CartLink";
 import AuthButtons from "./islands/AuthButtons";
 import CartIsland from "./islands/CartIsland";
 import Reviews, { Stars } from "./islands/Reviews";
+import BlockScript from "./islands/BlockScript";
 import { Newsletter, ProductGallery, SortSelect, Tabs } from "./islands/Interactive";
 import { ContactForm } from "./islands/ContactForm";
 import { SearchBox, SearchIcon } from "./islands/SearchBox";
@@ -659,10 +660,16 @@ export function Node({ node, ctx }: { node: BuilderNode; ctx: RenderCtx }): Reac
     }
     case "html": {
       const css = ctx.trusted ? str(p.css) : scopeCss(str(p.css), `.bsite [data-b="${id}"]`);
+      const script = str(p.js);
       return (
         <div data-b={id} className="b-html">
           {css && <style dangerouslySetInnerHTML={{ __html: css.replace(/<\/?style/gi, "") }} />}
           <div dangerouslySetInnerHTML={{ __html: html(ctx, p.html) }} />
+          {/* Its JavaScript runs on the live site only: never in the editor,
+              which is the admin's own session (islands/BlockScript). */}
+          {script.trim() && (ctx.edit
+            ? <div className="b-note">This block&apos;s JavaScript runs on the live site, not in the editor.</div>
+            : ctx.trusted ? <BlockScript id={id} code={script} /> : null)}
         </div>
       );
     }

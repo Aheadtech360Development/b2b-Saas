@@ -492,6 +492,12 @@ def _safe(tree: Any) -> Any:
             nid = str(node.get("id") or "")
             css = str(props.get("css") or "")
             props["css"] = scope_css(css, f'.bsite [data-b="{nid}"]').value if css and _ID_OK.match(nid) else ""
+            # The block's own script goes as it was written, an Administrator's
+            # (services/builder/scripts.py); nothing over the limit, nothing
+            # that is not text.
+            from app.services.builder.scripts import MAX_SCRIPT
+            script = props.get("js")
+            props["js"] = script if isinstance(script, str) and len(script) <= MAX_SCRIPT and _ID_OK.match(nid) else ""
     return out
 
 
