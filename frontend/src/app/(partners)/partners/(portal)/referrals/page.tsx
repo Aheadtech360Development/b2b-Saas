@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
+import { usePartner, type Partner } from "@/components/partners/PartnerShell";
 import { ShopChip } from "@/components/partners/states";
 import { Banner, Chip, Count, Drawer, Empty, Icon, Skeleton, errorText } from "@/components/partners/ui";
 import { day, money, papi } from "@/lib/partnerApi";
@@ -10,6 +11,8 @@ import { day, money, papi } from "@/lib/partnerApi";
 type Shop = {
   id: string; shop_name: string; plan: string | null; plan_name: string; state: string; trial_ended: boolean;
   signed_up: string; monthly_cents: number | null; in_review: boolean;
+  /** When the shop stops earning for you; null while it earns for as long as it pays. */
+  earn_until: string | null;
 };
 type Detail = Shop & {
   source: string; campaign: string | null; earned_cents: number;
@@ -20,6 +23,8 @@ const FILTERS: [string, string][] = [["all", "All"], ["active", "Active"], ["tri
   ["past_due", "Past due"], ["canceled", "Canceled"]];
 
 export default function ReferralsPage() {
+  // The program's return window, from GET /partners/me.
+  const back = (usePartner().partner as Partner & { return_window_days?: number }).return_window_days;
   const [state, setState] = useState("all");
   const [data, setData] = useState<{ rows: Shop[]; counts: Record<string, number> } | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -95,7 +100,7 @@ export default function ReferralsPage() {
           </div>
         )}
         <div className="tfoot">
-          <span>If a canceled shop returns within 90 days, it stays yours.</span>
+          {typeof back === "number" ? <span>If a canceled shop returns within {back} day{back === 1 ? "" : "s"}, it stays yours.</span> : null}
         </div>
       </section>
 
@@ -105,6 +110,7 @@ export default function ReferralsPage() {
           <dl className="kv">
             <dt>Source</dt><dd>{open.source}{open.campaign ? `, tag ${open.campaign}` : ""}</dd>
             <dt>Signed up</dt><dd>{day(open.signed_up, true)}</dd>
+            {open.earn_until ? <><dt>Earns until</dt><dd>{day(open.earn_until, true)}</dd></> : null}
             <dt>Commission so far</dt><dd className="b">{money(open.earned_cents)}</dd>
           </dl>
           <div className="col" style={{ gap: 10 }}>

@@ -12,13 +12,13 @@ import json
 import re
 import uuid
 from dataclasses import dataclass
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 from typing import Any
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.services.partners import activity, auth, ledger, program, referrals
+from app.services.partners import activity, auth, ledger, portal, program, referrals
 
 
 class ActionError(ValueError):
@@ -400,13 +400,16 @@ async def add_referral(db: AsyncSession, actor: Actor, partner_id: Any, shop_ten
                          {"t": shop["id"]})).first():
         raise ActionError("That shop is already referred. Reassign it instead.", 409)
     flags = ["added_by_admin"] + referrals.self_referral_flags(shop["email"] or "", p["email"], p["website"])
+    # Earns from today for the program's earning period, like a sign-up made now.
+    now = datetime.now(timezone.utc)
+    until = program.earn_until(now, (await program.load(db))["earning_months"])
     rid = (await db.execute(text("""
         INSERT INTO partner_referrals (partner_id, shop_tenant_id, shop_name, owner_email, source, status, flags,
-                                       decided_by, decided_at, decision_reason)
-        VALUES (:p, :t, :name, :email, 'manual', 'active', CAST(:flags AS jsonb), :by, now(), :reason)
+                                       decided_by, decided_at, decision_reason, attributed_at, earn_until)
+        VALUES (:p, :t, :name, :email, 'manual', 'active', CAST(:flags AS jsonb), :by, now(), :reason, :at, :until)
         RETURNING id
     """), {"p": p["id"], "t": shop["id"], "name": shop["name"], "email": (shop["email"] or "").lower(),
-           "flags": json.dumps(flags), "by": actor.name, "reason": reason})).scalar()
+           "flags": json.dumps(flags), "by": actor.name, "reason": reason, "at": now, "until": until})).scalar()
     await _log(db, actor, "referral_added", partner_id=p["id"], subject_kind="referral", subject_id=rid,
                reason=reason, after={"shop": shop["name"], "flags": flags})
     return {"id": str(rid), "flags": flags}
@@ -507,7 +510,11 @@ async def _payable(db: AsyncSession, partner_id: Any) -> list[dict]:
 
 async def create_batch(db: AsyncSession, actor: Actor, partner_ids: list[Any], *, name: str | None,
                        note: str | None, w9_overrides: dict[str, str] | None = None) -> dict:
-    """Lock the payable lines of these partners until the payout is recorded or the batch cancelled."""
+    """Lock the payable lines of these partners until the payout is recorded or the batch cancelled.
+
+    An ended partnership is paid what it earned: its payable lines go in as
+    a final payout, whatever the minimum (ledger.payout_readiness).
+    """
     if not partner_ids:
         raise ActionError("Select at least one affiliate.")
     settings = await program.load(db)
@@ -529,11 +536,15 @@ async def create_batch(db: AsyncSession, actor: Actor, partner_ids: list[Any], *
         has_w9 = bool((await db.execute(text("""
             SELECT 1 FROM partner_documents WHERE partner_id = :p AND kind = 'w9' AND replaced_at IS NULL
         """), {"p": p["id"]})).first())
+        this_year = (await portal.paid_in_year(db, today.year, p["id"])).get(str(p["id"]), 0)
         lines = await _payable(db, p["id"])
         amount = sum(int(ln["amount_cents"]) for ln in lines)
         state, words = ledger.payout_readiness(partner_status=p["status"], payable=amount,
-                                               minimum=settings["minimum_payout_cents"], has_w9=has_w9)
-        if state == "blocked" and overrides.get(str(p["id"])):
+                                               minimum=settings["minimum_payout_cents"], has_w9=has_w9,
+                                               paid_this_year=this_year, w9_from=settings["w9_required_from_cents"])
+        # An override only stands in for a W-9 this payout needs.
+        override = overrides.get(str(p["id"])) if state == "blocked" else None
+        if override:
             state = "ready"
         if state != "ready":
             raise ActionError(f"{p['name']} cannot be paid in this batch: {words}.", 409)
@@ -541,7 +552,7 @@ async def create_batch(db: AsyncSession, actor: Actor, partner_ids: list[Any], *
             UPDATE partner_commission_lines SET batch_id = :b WHERE id = ANY(CAST(:ids AS uuid[]))
         """), {"b": bid, "ids": [str(ln["id"]) for ln in lines]})
         included.append({"partner_id": str(p["id"]), "name": p["name"], "amount_cents": amount,
-                         "lines": len(lines), "w9_override": overrides.get(str(p["id"])) if not has_w9 else None})
+                         "lines": len(lines), "w9_override": override})
         total += amount
         locked += len(lines)
         # On the affiliate's own Activity tab too, not only the batch's.
@@ -596,16 +607,21 @@ async def record_payout(db: AsyncSession, actor: Actor, batch_id: Any, partner_i
         SELECT 1 FROM partner_documents WHERE partner_id = :p AND kind = 'w9' AND replaced_at IS NULL
     """), {"p": p["id"]})).first())
     override = (w9_override_reason or "").strip() or None
-    if not has_w9 and not override:
-        raise ActionError(f"{p['name']} has no W-9. Upload it, or override with a reason.", 409)
     amount = sum(int(ln["amount_cents"]) for ln in lines)
+    # The year the payout is paid in decides, this payout included.
+    settings = await program.load(db)
+    this_year = (await portal.paid_in_year(db, paid_on.year, p["id"])).get(str(p["id"]), 0)
+    needs_w9 = not has_w9 and ledger.w9_needed(paid_this_year=this_year, payout=amount,
+                                               required_from=settings["w9_required_from_cents"])
+    if needs_w9 and not override:
+        raise ActionError(f"{p['name']} has no W-9. Upload it, or override with a reason.", 409)
     pay_id = (await db.execute(text("""
         INSERT INTO partner_payouts (batch_id, partner_id, amount_cents, method, reference, paid_on,
                                      recorded_by, w9_override_reason)
         VALUES (:b, :p, :amount, :method, :ref, :paid_on, :by, :override) RETURNING id
     """), {"b": b["id"], "p": p["id"], "amount": amount, "method": method,
            "ref": (reference or "").strip()[:200] or None, "paid_on": paid_on, "by": actor.name,
-           "override": override if not has_w9 else None})).scalar()
+           "override": override if needs_w9 else None})).scalar()
     await db.execute(text("""
         UPDATE partner_commission_lines SET status = 'paid', payout_id = :po WHERE id = ANY(CAST(:ids AS uuid[]))
     """), {"po": pay_id, "ids": [str(ln["id"]) for ln in lines]})
@@ -616,9 +632,9 @@ async def record_payout(db: AsyncSession, actor: Actor, batch_id: Any, partner_i
         await db.execute(text("UPDATE partner_payout_batches SET status = 'paid', closed_at = now() WHERE id = :b"),
                          {"b": b["id"]})
     await _log(db, actor, "payout_recorded", partner_id=p["id"], subject_kind="payout", subject_id=pay_id,
-               reason=override if not has_w9 else None,
+               reason=override if needs_w9 else None,
                after={"batch": b["name"], "amount_cents": amount, "method": method, "paid_on": paid_on,
-                      "lines": len(lines), "w9_override": bool(override and not has_w9)})
+                      "lines": len(lines), "w9_override": bool(override and needs_w9)})
     return {"id": str(pay_id), "amount_cents": amount, "lines": len(lines), "partner": p}
 
 

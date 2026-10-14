@@ -56,7 +56,7 @@ export default function EarningsPage() {
         <div className="card tile">
           <span className="k"><Icon name="clock" size="s" />Pending</span>
           <span className="v">{s ? money(s.balances.pending) : "..."}</span>
-          <span className="s">Becomes payable after the {s?.hold_days ?? 30} day hold</span>
+          <span className="s">{s ? `Becomes payable after the ${s.hold_days} day hold` : ""}</span>
         </div>
         <div className="card tile">
           <span className="k"><Icon name="wallet" size="s" />Payable now</span>

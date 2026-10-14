@@ -4,7 +4,7 @@ import { Fragment, useEffect, useState } from "react";
 
 import { LineChip, ShopChip, METHODS } from "@/components/partners/states";
 import { Banner, Chip, Empty, Field, Icon, Modal, Skeleton, errorText, useToast } from "@/components/partners/ui";
-import { day, initials, money } from "@/lib/partnerApi";
+import { day, initials, money, moneyShort } from "@/lib/partnerApi";
 import { aff } from "./api";
 import type { Go } from "./AffiliatesTab";
 import { StatusChip, actorWords, activityWords, diffLines, type Activity } from "./shared";
@@ -15,7 +15,7 @@ type Affiliate = {
   invited: boolean; terms: { accepted: number | null; latest: number | null };
   payout_method: keyof typeof METHODS | null; payout_account: string | null; has_w9: boolean; two_factor: boolean;
   money: { balances: { pending: number; payable: number; clawbacks: number; on_hold: number }; paid_count: number; paid_cents: number;
-           readiness: { state: string; words: string } };
+           readiness: { state: string; words: string }; w9_required_from_cents: number };
   shops: { total: number; active: number; trial: number };
   rate: { bps: number; words: string; from: "plan" | "override"; plan_id: string; plan: string; custom_bps: number | null; custom_ends_on: string | null };
   rate_plans: { id: string; key: string; name: string; rate_bps: number }[];
@@ -367,7 +367,13 @@ function TaxTab({ a }: { a: Affiliate }) {
       <section className="card pad col">
         <h3>W-9</h3>
         <p className="sm muted">Stored encrypted. Every download is written to the activity log with your name.</p>
-        {!docs ? <Skeleton h={60} /> : !docs.length ? <Banner tone="warn">No W-9 on file. Recording a payout is blocked until it is uploaded or overridden.</Banner> : (
+        {!docs ? <Skeleton h={60} /> : !docs.length ? (
+          <Banner tone="warn">
+            {a.money.w9_required_from_cents
+              ? `No W-9 on file. Once this affiliate's payouts in a year reach ${moneyShort(a.money.w9_required_from_cents)}, recording a payout is blocked until it is uploaded or overridden.`
+              : "No W-9 on file. Recording a payout is blocked until it is uploaded or overridden."}
+          </Banner>
+        ) : (
           <div className="tw">
             <table className="tbl">
               <thead><tr><th>File</th><th>Uploaded</th><th>State</th><th /></tr></thead>

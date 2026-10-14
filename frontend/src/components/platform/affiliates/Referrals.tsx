@@ -13,6 +13,8 @@ type Row = {
   id: string; shop_name: string; shop_tenant_id: string; partner_id: string; partner_name: string; plan: string | null;
   plan_name: string; state: string; source: "code" | "cookie" | "manual"; attributed_at: string; flags: string[];
   review: boolean; excluded: boolean;
+  /** The end of the earning period the referral was made under; null earns for as long as the shop pays. */
+  earn_until: string | null;
 };
 type Detail = Row & {
   owner_email: string | null; source_words: string; stripe_customer: string | null; held_lines: number; held_cents: number;
@@ -151,7 +153,7 @@ function ReferralDrawer({ r, people, onClose, onDone, go }: { r: Detail; people:
   }
 
   const options: { key: "exclude" | "reassign" | "clear"; title: string; text: string; show: boolean }[] = [
-    { key: "exclude", title: "Exclude from commission", text: "Shop stays attributed, no commission. Held lines are voided.", show: !r.excluded },
+    { key: "exclude", title: "Exclude from commission", text: "Shop stays attributed, no commission. Its lines not yet paid or in a payout batch are voided.", show: !r.excluded },
     { key: "reassign", title: "Reassign affiliate", text: "Move the shop to someone else. Future lines follow.", show: true },
     { key: "clear", title: "Not a self referral", text: "Clear the flag and release the held lines.", show: flagged || r.review },
   ];
@@ -169,6 +171,7 @@ function ReferralDrawer({ r, people, onClose, onDone, go }: { r: Detail; people:
         <dt>Affiliate</dt><dd><a href={`#affiliates/affiliates/${r.partner_id}`} onClick={(e) => { e.preventDefault(); go("affiliates", r.partner_id); }}>{r.partner_name}</a></dd>
         <dt>Source</dt><dd>{r.source_words}</dd>
         <dt>Attributed</dt><dd>{day(r.attributed_at, true)}</dd>
+        {r.earn_until ? <><dt>Earns until</dt><dd>{day(r.earn_until, true)}</dd></> : null}
         <dt>Owner email</dt><dd>{r.owner_email ?? "Unknown"}</dd>
         <dt>Stripe customer</dt><dd className="mono">{r.stripe_customer ?? "None yet"}</dd>
         <dt>Held lines</dt><dd>{r.held_lines ? `${r.held_lines} line${r.held_lines === 1 ? "" : "s"}, ${money(r.held_cents)}` : "None"}</dd>

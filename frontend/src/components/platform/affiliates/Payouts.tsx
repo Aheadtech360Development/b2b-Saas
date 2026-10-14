@@ -11,16 +11,22 @@ import type { Go } from "./AffiliatesTab";
 type Payable = {
   partner_id: string; name: string; payable_cents: number; lines: number; clawback_cents: number;
   method: keyof typeof METHODS | null; has_w9: boolean; ready: "ready" | "blocked" | "under_min" | "held"; ready_words: string; paused: boolean;
+  /** An ended partnership: its last balance is paid whatever the minimum. */
+  final: boolean;
 };
-type Payables = { rows: Payable[]; ready_total_cents: number; on_hold_cents: number; payable_total_cents: number; minimum_cents: number };
+type Payables = {
+  rows: Payable[]; ready_total_cents: number; on_hold_cents: number; payable_total_cents: number; minimum_cents: number;
+  w9_required_from_cents: number; form_1099_threshold_cents: number;
+};
 type Batch = {
   id: string; name: string; note: string | null; status: "open" | "paid" | "cancelled"; created_by: string | null;
   created_at: string; closed_at: string | null; total_cents: number; partners: number; recorded: number;
-  waiting?: { partner_id: string; name: string; payout_method: keyof typeof METHODS | null; amount_cents: number; lines: number; has_w9: boolean }[];
+  waiting?: { partner_id: string; name: string; payout_method: keyof typeof METHODS | null; amount_cents: number; lines: number; has_w9: boolean;
+              w9_needed: boolean }[];
 };
 type Paid = { id: string; paid_on: string; amount_cents: number; method: keyof typeof METHODS; reference: string | null; recorded_by: string | null;
   w9_override_reason: string | null; partner_id: string; partner_name: string; batch: string | null; lines: number };
-type Year = { year: number; id: string; name: string; email: string; cents: number; payouts: number; has_w9: boolean };
+type Year = { year: number; id: string; name: string; email: string; cents: number; payouts: number; has_w9: boolean; form_1099: boolean };
 
 type Tab = "payables" | "batches" | "history" | "yearly";
 
@@ -85,7 +91,9 @@ export function Payouts({ go }: { go: Go }) {
                 <div className="bulk">
                   <b>{chosen.length} affiliate{chosen.length === 1 ? "" : "s"} selected, {money(sum)}</b>
                   <span className="sm" style={{ color: "#B6C5DA" }}>Net of clawbacks. All above the {moneyShort(payables?.minimum_cents)} minimum
-                    {chosen.some((r) => !r.has_w9) ? ", W-9 overridden where missing." : " with a W-9."}</span>
+                    {chosen.some((r) => r.final) ? " or a final payout" : ""}
+                    {chosen.some((r) => overrides[r.partner_id]) ? ", W-9 overridden where missing."
+                      : chosen.every((r) => r.has_w9) ? " with a W-9." : ", with a W-9 where one is needed."}</span>
                   <div className="sp" />
                   <button className="btn sm" onClick={() => setCreating(true)}><Icon name="layers" size="s" />Create batch</button>
                 </div>
@@ -123,7 +131,9 @@ export function Payouts({ go }: { go: Go }) {
                 )}
             <div className="tfoot">
               <span>Payable total {money(payables?.payable_total_cents)}{payables?.on_hold_cents ? ` excludes ${money(payables.on_hold_cents)} on hold` : ""}</span>
-              <span>Recording is blocked without a W-9 unless overridden, with a reason.</span>
+              <span>{payables?.w9_required_from_cents
+                ? `Once a partner's payouts in a year reach ${moneyShort(payables.w9_required_from_cents)}, recording is blocked without a W-9 unless overridden, with a reason.`
+                : "Recording is blocked without a W-9 unless overridden, with a reason."}</span>
             </div>
           </div>
         ) : null}
@@ -195,13 +205,15 @@ export function Payouts({ go }: { go: Go }) {
                       <tbody>{yearly.map((y) => (
                         <tr key={`${y.year}-${y.id}`}>
                           <td className="ink" data-l="Year">{y.year}</td><td data-l="Affiliate">{y.name}</td><td data-l="Email">{y.email}</td>
-                          <td className="num b" data-l="Paid">{money(y.cents)}</td><td className="num" data-l="Payouts">{y.payouts}</td>
+                          <td className="num b" data-l="Paid">{money(y.cents)}{y.form_1099 ? <> <Chip tone="info">1099</Chip></> : null}</td>
+                          <td className="num" data-l="Payouts">{y.payouts}</td>
                           <td data-l="W-9">{y.has_w9 ? <Chip tone="ok">On file</Chip> : <Chip tone="warn">Missing</Chip>}</td>
                         </tr>
                       ))}</tbody>
                     </table>
                   </div>
-                  <div className="tfoot"><span>Paid in each calendar year, by the day each payout was paid. Your accountant files the 1099s from these.</span></div>
+                  <div className="tfoot"><span>Paid in each calendar year, by the day each payout was paid. Your accountant files the 1099s from these.
+                    {payables?.form_1099_threshold_cents ? ` Marked 1099: paid ${moneyShort(payables.form_1099_threshold_cents)} or more in the year.` : ""}</span></div>
                 </>
               )
         ) : null}
@@ -277,12 +289,14 @@ function RecordDialog({ batch, row, override, onClose, onDone }: {
   const [why, setWhy] = useState(override ?? "");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // Under the program's W-9 amount for the year a payout needs none (Payout rules).
+  const w9Ok = row.has_w9 || !row.w9_needed;
 
   async function record() {
     setBusy(true); setError(null);
     try {
       await aff.post(`/payouts/batches/${batch.id}/record`, { partner_id: row.partner_id, paid_on: paidOn, method, reference: reference || null,
-                                                             w9_override_reason: row.has_w9 ? null : why || null });
+                                                             w9_override_reason: w9Ok ? null : why || null });
       onDone();
     } catch (e) { setError(errorText(e)); setBusy(false); }
   }
@@ -290,7 +304,7 @@ function RecordDialog({ batch, row, override, onClose, onDone }: {
   return (
     <Modal title="Record payout" sub="Record it after you have paid outside the system. A statement is emailed to the affiliate." onClose={onClose}
            footer={<><button className="btn" onClick={onClose}>Cancel</button>
-             <button className="btn pri" disabled={busy || !paidOn || (!row.has_w9 && !why.trim())} onClick={record}>Record and email statement</button></>}>
+             <button className="btn pri" disabled={busy || !paidOn || (!w9Ok && !why.trim())} onClick={record}>Record and email statement</button></>}>
       <div className="g2">
         <Field label="Affiliate" htmlFor="rc-who"><input id="rc-who" className="input" readOnly value={row.name} /></Field>
         <Field label="Amount" htmlFor="rc-amt"><input id="rc-amt" className="input" readOnly value={money(row.amount_cents)} /></Field>
@@ -302,7 +316,8 @@ function RecordDialog({ batch, row, override, onClose, onDone }: {
         </Field>
       </div>
       <Field label="Reference" htmlFor="rc-ref"><input id="rc-ref" className="input mono" placeholder="Transaction id" value={reference} onChange={(e) => setReference(e.target.value)} /></Field>
-      {row.has_w9 ? <Banner tone="ok" icon="check">W-9 is on file.</Banner> : (
+      {row.has_w9 ? <Banner tone="ok" icon="check">W-9 is on file.</Banner>
+        : !row.w9_needed ? <Banner icon="info">No W-9 on file, and none is needed yet: this year&apos;s payouts stay under the W-9 amount.</Banner> : (
         <>
           <Banner tone="warn" icon="alert">No W-9 on file. Recording needs an override reason.</Banner>
           <Field label="Override reason, required" htmlFor="rc-why"><textarea id="rc-why" className="area" value={why} onChange={(e) => setWhy(e.target.value)} /></Field>

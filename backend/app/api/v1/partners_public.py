@@ -54,6 +54,8 @@ async def program_page(db: AsyncSession = Depends(get_partner_db, scope="functio
         "hold_days": settings["hold_days"],
         "minimum_payout_cents": settings["minimum_payout_cents"],
         "cookie_days": settings["cookie_days"],
+        "earning_months": settings["earning_months"],
+        "application_response_days": settings["application_response_days"],
         "support_email": settings["support_email"] or None,
         "terms": {"version": terms["version"], "clauses": terms["clauses"],
                   "published_at": terms["published_at"]} if terms else None,
@@ -176,9 +178,11 @@ async def apply(payload: ApplyIn, request: Request, background: BackgroundTasks,
         plan = await program.default_rate_plan(db)
         background.add_task(mail.invite, partner["name"], partner["email"],
                             mail.portal_url(f"/partners/invite?token={token}"), partner["code"],
-                            program.rate_words(plan["rate_bps"]) if plan else None)
+                            program.rate_words(plan["rate_bps"]) if plan else None,
+                            support=settings["support_email"])
         return {"ok": True, "status": "approved"}
-    background.add_task(mail.application_received, payload.name, email)
+    background.add_task(mail.application_received, payload.name, email, settings["application_response_days"],
+                        support=settings["support_email"])
     background.add_task(mail.notify_new_application, payload.name.strip(), email, payload.business_name,
                         payload.website, flags)
     return {"ok": True, "status": "waiting"}

@@ -210,7 +210,8 @@ async def forgot(payload: ForgotIn, request: Request, background: BackgroundTask
                    reset_expires_at = now() + make_interval(mins => :m) WHERE id = :id
         """), {"h": digest, "m": auth.RESET_MINUTES, "id": p["id"]})
         background.add_task(mail.password_reset, p["name"], p["email"],
-                            mail.portal_url(f"/partners/reset?token={raw}"))
+                            mail.portal_url(f"/partners/reset?token={raw}"),
+                            support=(await program.load(db))["support_email"])
     return {"ok": True, "message": "If that email has a partner account, a link to reset the password is on its way."}
 
 

@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 
 import { Banner, Chip, Count, Empty, Field, Icon, Modal, Skeleton, errorText, useToast } from "@/components/partners/ui";
 import { day, initials, money } from "@/lib/partnerApi";
-import { aff, type RatePlan } from "./api";
+import { aff, defaultPlanId, type RatePlan } from "./api";
 import type { Go } from "./AffiliatesTab";
 import { StatusChip } from "./shared";
 
@@ -122,7 +122,7 @@ function AddAffiliate({ onClose, onDone }: { onClose: () => void; onDone: (id: s
   useEffect(() => {
     aff.get<{ rate_plans: RatePlan[] }>("/settings").then((s) => {
       setPlans(s.rate_plans);
-      setForm((f) => ({ ...f, rate_plan_id: s.rate_plans.find((p) => p.key === "standard")?.id ?? s.rate_plans[0]?.id ?? "" }));
+      setForm((f) => ({ ...f, rate_plan_id: defaultPlanId(s.rate_plans) }));
     }).catch(() => undefined);
   }, []);
 

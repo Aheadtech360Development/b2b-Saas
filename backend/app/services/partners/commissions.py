@@ -6,10 +6,10 @@ own. A problem here never undoes or fails what the webhook did for the shop:
 it is recorded on Stripe events, retried on its own, and can be retried by
 hand.
 
-  invoice.paid                   a commission line, one per invoice
+  invoice.paid                   a commission line, one per invoice, inside the referral's earning period
   invoice.payment_failed         noted; nothing earns until the invoice is paid
-  charge.refunded                a minus line for the refunded share
-  charge.dispute.created         a minus line for the disputed share
+  charge.refunded                a minus line for the refunded share, inside the clawback window
+  charge.dispute.created         a minus line for the disputed share, inside the clawback window
   customer.subscription.updated  a plan change, noted; the new base reaches the next invoice
   customer.subscription.deleted  the referral ends, and comes back if the shop pays again in time
 
@@ -90,6 +90,17 @@ def _paid_at(invoice: dict, event: dict) -> datetime:
     return datetime.fromtimestamp(int(ts), tz=timezone.utc) if ts else datetime.now(timezone.utc)
 
 
+def _happened_at(event: dict) -> datetime:
+    """When Stripe says the event happened, not when it was read: a retried
+    event is judged by the day of the refund, not of the retry."""
+    ts = event.get("created")
+    return datetime.fromtimestamp(int(ts), tz=timezone.utc) if ts else datetime.now(timezone.utc)
+
+
+def _date_words(at: datetime) -> str:
+    return f"{at:%b} {at.day}, {at.year}"
+
+
 # ── Who an event is about ─────────────────────────────────────────────────────
 
 async def _shop_for(db: AsyncSession, *, subscription_id: str | None, customer_id: str | None,
@@ -121,7 +132,7 @@ async def _shop_for(db: AsyncSession, *, subscription_id: str | None, customer_i
 
 async def _referral(db: AsyncSession, tenant_id: str, *, lock: bool = False) -> dict | None:
     row = (await db.execute(text(f"""
-        SELECT r.id, r.partner_id, r.status, r.flags, r.attributed_at, r.ended_at, r.shop_name,
+        SELECT r.id, r.partner_id, r.status, r.flags, r.attributed_at, r.ended_at, r.earn_until, r.shop_name,
                p.status AS partner_status, p.name AS partner_name,
                p.custom_rate_bps, p.custom_rate_ends_on, p.terms_version AS partner_terms,
                rp.rate_bps AS plan_rate_bps
@@ -207,6 +218,9 @@ async def _invoice_paid(db: AsyncSession, event: dict, same_world: bool) -> Outc
         return ignored("Partner terminated")
 
     paid_at = _paid_at(inv, event)
+    # The earning period the referral was made under, kept on it (program.earn_until).
+    if ref["earn_until"] and paid_at > ref["earn_until"]:
+        return ignored(f"Paid after the referral's earning period ended on {_date_words(ref['earn_until'])}")
     if ref["ended_at"]:
         away = (paid_at - ref["ended_at"]).days
         if away > settings["return_window_days"]:
@@ -273,7 +287,7 @@ async def _invoice_paid(db: AsyncSession, event: dict, same_world: bool) -> Outc
 # ── Refunds and disputes ──────────────────────────────────────────────────────
 
 _LINE_COLUMNS = """id, partner_id, referral_id, shop_tenant_id, stripe_invoice_id, plan_key,
-                   base_cents, rate_bps, amount_cents, status, hold_reason, livemode"""
+                   base_cents, rate_bps, amount_cents, status, hold_reason, livemode, earned_at"""
 
 
 async def _line_by_invoice(db: AsyncSession, invoice_id: str) -> dict | None:
@@ -328,13 +342,18 @@ async def _line_for_payment(db: AsyncSession, *, invoice_id: str | None, payment
 
 async def _take_back(db: AsyncSession, line: dict, *, reversed_total: int, paid: int,
                      source_ref: str, what: str, payment_ref: str | None,
-                     same_world: bool) -> Outcome:
+                     same_world: bool, at: datetime) -> Outcome:
     shop = str(line["shop_tenant_id"]) if line["shop_tenant_id"] else None
     pid = str(line["partner_id"])
     if not same_world:
         return Outcome("ignored", OTHER_WORLD, shop, pid)
     if line["status"] == "void":
         return Outcome("ignored", "The line was already void", shop, pid)
+    # Past the program's clawback window (0 is none) the commission stays earned.
+    window = (await program.load(db))["clawback_window_days"]
+    if window and at - line["earned_at"] > timedelta(days=window):
+        return Outcome("ignored", f"{what} more than {window} days after the commission was earned, "
+                                  "past the clawback window; nothing is taken back", shop, pid)
     taken = (await db.execute(text("""
         SELECT COALESCE(-SUM(amount_cents), 0), COALESCE(-SUM(base_cents), 0)
           FROM partner_commission_lines
@@ -386,7 +405,8 @@ async def _charge_refunded(db: AsyncSession, event: dict, same_world: bool) -> O
     return await _take_back(
         db, line, reversed_total=refunded, paid=int(ch.get("amount_captured") or ch.get("amount") or 0),
         source_ref=f"refund:{ch.get('id')}:{refunded}", what="Refund",
-        payment_ref=_id(ch.get("payment_intent")) or ch.get("id"), same_world=same_world)
+        payment_ref=_id(ch.get("payment_intent")) or ch.get("id"), same_world=same_world,
+        at=_happened_at(event))
 
 
 async def _dispute_created(db: AsyncSession, event: dict, same_world: bool) -> Outcome | None:
@@ -410,7 +430,7 @@ async def _dispute_created(db: AsyncSession, event: dict, same_world: bool) -> O
     return await _take_back(
         db, line, reversed_total=min(paid, refunded + disputed), paid=paid,
         source_ref=f"dispute:{d.get('id')}", what="Dispute opened",
-        payment_ref=pi or charge_id, same_world=same_world)
+        payment_ref=pi or charge_id, same_world=same_world, at=_happened_at(event))
 
 
 # ── Payment failures and subscription changes ────────────────────────────────
@@ -563,6 +583,7 @@ async def _tell_earned(event: dict, outcome: Outcome) -> None:
         inv_id = (event.get("data") or {}).get("object", {}).get("id")
         async with pdb.session() as db:
             p = await portal.partner_row(db, outcome.partner_id)
+            support = (await program.load(db))["support_email"]
             line = (await db.execute(text("""
                 SELECT l.amount_cents, l.payable_on, l.status, COALESCE(t.name, r.shop_name) AS shop
                   FROM partner_commission_lines l
@@ -575,7 +596,7 @@ async def _tell_earned(event: dict, outcome: Outcome) -> None:
             return
         due = line["payable_on"]
         await asyncio.to_thread(mail.commission_earned, p["name"], p["email"], line["shop"] or "A shop",
-                                ledger.money(line["amount_cents"]), f"{due:%b} {due.day}")
+                                ledger.money(line["amount_cents"]), f"{due:%b} {due.day}", support=support)
     except Exception:  # noqa: BLE001
         logger.warning("partner commission: could not send the earned email", exc_info=True)
 

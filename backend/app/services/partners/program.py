@@ -1,19 +1,22 @@
 """The program's own settings and rates.
 
 Every number the deal is made of lives here, not in code: the hold, the
-minimum payout, how long a click is remembered, which plans earn, the rates.
-The super admin changes them on Program settings, so a decision about the
-deal is a setting changed, never a release. A rate change reaches only lines
-still to come: each line stores the rate it was earned at.
+minimum payout, how long a click is remembered, how long a referral earns,
+how late a refund still takes commission back, when a W-9 is needed, which
+plans earn, the rates. The super admin changes them on Program settings, so
+a decision about the deal is a setting changed, never a release. A rate
+change reaches only lines still to come: each line stores the rate it was
+earned at, and each referral the earning period it was made under.
 
 The settings are one JSON row in app_settings. Read with defaults, so a
 setting nobody has saved yet still means what the design says it does.
 """
 from __future__ import annotations
 
+import calendar
 import json
 import re
-from datetime import date
+from datetime import date, datetime
 from typing import Any
 
 from sqlalchemy import text
@@ -46,6 +49,16 @@ DEFAULTS: dict[str, Any] = {
     "minimum_payout_cents": 5000,
     "cookie_days": 90,
     "return_window_days": 90,
+    # 0 in each of these keeps the deal as it was before it was a setting:
+    # a referral earns for as long as the shop pays, a refund is taken back
+    # however late, a W-9 comes before every payout, and nobody is marked
+    # for a 1099.
+    "earning_months": 0,
+    "clawback_window_days": 0,
+    "w9_required_from_cents": 0,
+    "form_1099_threshold_cents": 0,
+    "application_response_days": 2,
+    "rate_change_notice_days": 30,
     "commissionable_plans": list(PLAN_ORDER),
     "support_email": "",
     "captions": DEFAULT_CAPTIONS,
@@ -58,6 +71,12 @@ _INTS = {
     "minimum_payout_cents": (0, 10_000_000),
     "cookie_days": (1, 365),
     "return_window_days": (0, 365),
+    "earning_months": (0, 120),
+    "clawback_window_days": (0, 730),
+    "w9_required_from_cents": (0, 10_000_000),
+    "form_1099_threshold_cents": (0, 10_000_000),
+    "application_response_days": (1, 30),
+    "rate_change_notice_days": (0, 365),
 }
 _EMAIL = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
@@ -149,6 +168,25 @@ async def save(db: AsyncSession, changes: dict) -> tuple[dict, dict]:
         ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = now()
     """), {"k": KEY, "v": json.dumps(after)})
     return before, after
+
+
+# ── How long a referral earns ─────────────────────────────────────────────────
+
+def earn_until(attributed_at: datetime, months: int) -> datetime | None:
+    """When a referral made at `attributed_at` stops earning: `months`
+    calendar months on, or None (no end) when the program sets no limit.
+
+    Kept on the referral when it is made, so a later change to the setting
+    never shortens or stretches a referral that already exists. A day the
+    later month does not have is its last day: a shop referred on Jan 31
+    with one month earns until the end of February.
+    """
+    if months <= 0:
+        return None
+    total = attributed_at.month - 1 + months
+    year, month = attributed_at.year + total // 12, total % 12 + 1
+    return attributed_at.replace(year=year, month=month,
+                                 day=min(attributed_at.day, calendar.monthrange(year, month)[1]))
 
 
 # ── Rates ─────────────────────────────────────────────────────────────────────

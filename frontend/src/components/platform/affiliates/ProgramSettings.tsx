@@ -9,8 +9,11 @@ import { aff, type RatePlan } from "./api";
 type Settings = {
   accepting_applications: boolean; accepting_referrals: boolean; earning: boolean; auto_approve: boolean; show_standard_rate: boolean;
   hold_days: number; minimum_payout_cents: number; cookie_days: number; return_window_days: number;
+  earning_months: number; clawback_window_days: number; w9_required_from_cents: number; form_1099_threshold_cents: number;
+  application_response_days: number; rate_change_notice_days: number;
   commissionable_plans: string[]; support_email: string; captions: { title: string; text: string }[];
 };
+type Save = (c: Partial<Settings> & { reason?: string }, done?: string) => Promise<boolean>;
 type Data = {
   settings: Settings;
   rate_plans: (RatePlan & { is_public: boolean; is_default: boolean })[];
@@ -75,6 +78,9 @@ export function ProgramSettings() {
                 <div className="r"><Switch label={title} checked={s[key]} onChange={(v) => void save({ [key]: v })} /></div>
               </div>
             ))}
+            <NumberSetting title="Answer applications within" unit="days" value={s.application_response_days}
+                           text="What the program page and the Application received email promise. An application waiting longer shows on Overview."
+                           onSave={(n) => save({ application_response_days: n })} />
             <div className="setrow">
               <div className="l"><b>Commissionable plans</b><span>The Stripe prices that count. Add-ons, the Gang Sheet Builder commission and taxes never do.</span></div>
               <div className="r row" style={{ gap: 6 }}>
@@ -92,7 +98,7 @@ export function ProgramSettings() {
           </>
         ) : null}
 
-        {tab === "rates" ? <RatesTab data={data} onChanged={() => { toast.show("Saved"); void load(); }} /> : null}
+        {tab === "rates" ? <RatesTab data={data} save={save} onChanged={() => { toast.show("Saved"); void load(); }} /> : null}
         {tab === "payout" ? <PayoutRules s={s} save={save} /> : null}
         {tab === "terms" ? <TermsTab data={data} onPublished={(v) => { toast.show(`Version ${v} published`); void load(); }} /> : null}
         {tab === "emails" ? <EmailsTab s={s} save={save} /> : null}
@@ -103,27 +109,79 @@ export function ProgramSettings() {
   );
 }
 
-function RatesTab({ data, onChanged }: { data: Data; onChanged: () => void }) {
+function RatesTab({ data, save, onChanged }: { data: Data; save: Save; onChanged: () => void }) {
   const [editing, setEditing] = useState<null | (RatePlan & { is_public: boolean }) | "new">(null);
+  const [defaulting, setDefaulting] = useState<RatePlan | null>(null);
+  // The biggest plan the platform sells, at its price from the API.
+  const example = data.plans[data.plans.length - 1];
   return (
-    <div className="pad col">
-      <p className="sm muted">A rate plan is what an affiliate is approved on. Changing a rate reaches only lines still to come: each line keeps the rate it was earned at. One plan can be shown on the program page.</p>
-      <div className="tw">
-        <table className="tbl">
-          <thead><tr><th>Plan</th><th className="num">Rate</th><th>Shown on the program page</th><th>Example, one Scale shop</th><th /></tr></thead>
-          <tbody>{data.rate_plans.map((p) => (
-            <tr key={p.id}>
-              <td className="ink">{p.name}{p.is_default ? <> <Chip tone="mut">Default</Chip></> : null}</td>
-              <td className="num b">{p.rate ?? `${p.rate_bps / 100}%`}</td>
-              <td>{p.is_public ? <Chip tone="ok">Shown</Chip> : <Chip tone="mut">Private</Chip>}</td>
-              <td>{money(Math.round((49700 * p.rate_bps) / 10000))} a month</td>
-              <td className="tr"><button className="btn sm" onClick={() => setEditing(p)}><Icon name="edit" size="s" />Edit</button></td>
-            </tr>
-          ))}</tbody>
-        </table>
+    <>
+      <div className="pad col">
+        <p className="sm muted">A rate plan is what an affiliate is approved on. Changing a rate reaches only lines still to come: each line keeps the rate it was earned at. One plan can be shown on the program page. The default plan is picked for you when you approve an application or add an affiliate, and auto approve uses it.</p>
+        <div className="tw">
+          <table className="tbl">
+            <thead><tr><th>Plan</th><th className="num">Rate</th><th>Shown on the program page</th>{example ? <th>Example, one {example.name} shop</th> : null}<th /></tr></thead>
+            <tbody>{data.rate_plans.map((p) => (
+              <tr key={p.id}>
+                <td className="ink">{p.name}{p.is_default ? <> <Chip tone="mut">Default</Chip></> : null}</td>
+                <td className="num b">{p.rate ?? `${p.rate_bps / 100}%`}</td>
+                <td>{p.is_public ? <Chip tone="ok">Shown</Chip> : <Chip tone="mut">Private</Chip>}</td>
+                {example ? <td>{money(Math.round((example.price_cents * p.rate_bps) / 10000))} a month</td> : null}
+                <td className="tr">
+                  <span className="row nw" style={{ gap: 6, justifyContent: "flex-end" }}>
+                    {!p.is_default ? <button className="btn sm" onClick={() => setDefaulting(p)}>Make default</button> : null}
+                    <button className="btn sm" onClick={() => setEditing(p)}><Icon name="edit" size="s" />Edit</button>
+                  </span>
+                </td>
+              </tr>
+            ))}</tbody>
+          </table>
+        </div>
+        <div><button className="btn sm" onClick={() => setEditing("new")}><Icon name="plus" size="s" />Add rate plan</button></div>
+        {editing ? <RatePlanDialog plan={editing === "new" ? null : editing} onClose={() => setEditing(null)} onDone={() => { setEditing(null); onChanged(); }} /> : null}
+        {defaulting ? <DefaultPlanDialog plan={defaulting} onClose={() => setDefaulting(null)} onDone={() => { setDefaulting(null); onChanged(); }} /> : null}
       </div>
-      <div><button className="btn sm" onClick={() => setEditing("new")}><Icon name="plus" size="s" />Add rate plan</button></div>
-      {editing ? <RatePlanDialog plan={editing === "new" ? null : editing} onClose={() => setEditing(null)} onDone={() => { setEditing(null); onChanged(); }} /> : null}
+      <NumberSetting title="Rate change notice" unit="days" value={data.settings.rate_change_notice_days}
+                     text="The notice the portal promises before a rate changes. Nothing is sent for you: publish new terms or write to partners that many days ahead. 0 says a change applies from the day it is made."
+                     onSave={(n) => save({ rate_change_notice_days: n })} />
+    </>
+  );
+}
+
+function DefaultPlanDialog({ plan, onClose, onDone }: { plan: RatePlan; onClose: () => void; onDone: () => void }) {
+  const [reason, setReason] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
+  async function save() {
+    setError(null);
+    try {
+      await aff.post(`/rate-plans/${plan.id}/default`, { reason });
+      onDone();
+    } catch (e) { setError(errorText(e)); }
+  }
+
+  return (
+    <Modal title={`Make ${plan.name} the default`} sub="New affiliates start on it unless you pick another plan. Affiliates already on a plan keep theirs." onClose={onClose}
+           footer={<><button className="btn" onClick={onClose}>Cancel</button><button className="btn pri" disabled={!reason.trim()} onClick={save}>Make default</button></>}>
+      <Field label="Reason, required" htmlFor="rp-def-why" error={error}><input id="rp-def-why" className="input" value={reason} onChange={(e) => setReason(e.target.value)} /></Field>
+    </Modal>
+  );
+}
+
+/** One number saved on its own, like the switches around it. */
+/** A unit word longer than the design's ("months") needs more room in the box. */
+const unitBox = (unit: string) => (unit.length > 4 ? "unit wide" : "unit");
+
+function NumberSetting({ title, text, unit, value, onSave }: { title: string; text: string; unit: string; value: number; onSave: (n: number) => Promise<boolean> }) {
+  const [v, setV] = useState(String(value));
+  const n = Number(v);
+  return (
+    <div className="setrow">
+      <div className="l"><b>{title}</b><span>{text}</span></div>
+      <div className="r row nw" style={{ gap: 8 }}>
+        <span className={unitBox(unit)}><input className="input" aria-label={title} inputMode="numeric" value={v} onChange={(e) => setV(e.target.value)} /><i>{unit}</i></span>
+        <button className="btn sm" disabled={!v.trim() || !Number.isFinite(n) || n === value} onClick={() => void onSave(Math.round(n))}>Save</button>
+      </div>
     </div>
   );
 }
@@ -162,32 +220,48 @@ function RatePlanDialog({ plan, onClose, onDone }: { plan: (RatePlan & { is_publ
   );
 }
 
-function PayoutRules({ s, save }: { s: Settings; save: (c: Partial<Settings> & { reason?: string }, done?: string) => Promise<boolean> }) {
-  const [v, setV] = useState({ hold: String(s.hold_days), min: String(s.minimum_payout_cents / 100), cookie: String(s.cookie_days), back: String(s.return_window_days) });
+function PayoutRules({ s, save }: { s: Settings; save: Save }) {
+  const [v, setV] = useState({
+    hold: String(s.hold_days), min: String(s.minimum_payout_cents / 100), cookie: String(s.cookie_days), back: String(s.return_window_days),
+    months: String(s.earning_months), claw: String(s.clawback_window_days),
+    w9: String(s.w9_required_from_cents / 100), f1099: String(s.form_1099_threshold_cents / 100),
+  });
   const [reason, setReason] = useState("");
   const rows: [keyof typeof v, string, string, string][] = [
-    ["hold", "Hold", "Days a line waits before it is payable. Refunds inside the hold never reach a payout.", "days"],
-    ["min", "Minimum payout", "Smaller balances roll over to the next batch.", "USD"],
+    ["hold", "Hold", "Days a line waits before it is payable. A refund or dispute nets against the next payout, inside the hold or after it.", "days"],
+    ["min", "Minimum payout", "Smaller balances roll over to the next batch. An ended partnership's last balance is paid whatever the minimum.", "USD"],
     ["cookie", "Cookie window", "Days a click keeps a shop with the partner until it signs up.", "days"],
     ["back", "Return window", "A shop that cancels and pays again within this many days stays with its partner.", "days"],
+    ["months", "Earning period", "Months a referred shop earns its partner, counted from its sign-up. 0 earns for as long as the shop pays.", "months"],
+    ["claw", "Clawback window", "Days after a line is earned that a refund or dispute still takes it back. 0 takes it back however late.", "days"],
+    ["w9", "W-9 needed from", "A W-9 is needed once a partner's payouts in a calendar year, the next one included, reach this. 0 needs one before every payout.", "USD"],
+    ["f1099", "1099 marker", "Yearly totals marks partners paid this much or more in a calendar year. 0 marks nobody.", "USD"],
   ];
   return (
     <>
       {rows.map(([k, title, text, unit]) => (
         <div className="setrow" key={k}>
           <div className="l"><b>{title}</b><span>{text}</span></div>
-          <div className="r"><span className="unit"><input className="input" aria-label={title} inputMode="decimal" value={v[k]} onChange={(e) => setV({ ...v, [k]: e.target.value })} /><i>{unit}</i></span></div>
+          <div className="r"><span className={unitBox(unit)}><input className="input" aria-label={title} inputMode="decimal" value={v[k]} onChange={(e) => setV({ ...v, [k]: e.target.value })} /><i>{unit}</i></span></div>
         </div>
       ))}
       <div className="pad row" style={{ alignItems: "flex-end" }}>
         <Field label="Reason, required" htmlFor="pr-why"><input id="pr-why" className="input" style={{ width: 320 }} value={reason} onChange={(e) => setReason(e.target.value)} /></Field>
         <button className="btn pri" disabled={!reason.trim()} onClick={async () => {
           const ok = await save({ hold_days: Math.round(Number(v.hold)), minimum_payout_cents: Math.round(Number(v.min) * 100),
-                                  cookie_days: Math.round(Number(v.cookie)), return_window_days: Math.round(Number(v.back)), reason });
+                                  cookie_days: Math.round(Number(v.cookie)), return_window_days: Math.round(Number(v.back)),
+                                  earning_months: Math.round(Number(v.months)), clawback_window_days: Math.round(Number(v.claw)),
+                                  w9_required_from_cents: Math.round(Number(v.w9) * 100),
+                                  form_1099_threshold_cents: Math.round(Number(v.f1099) * 100), reason });
           if (ok) setReason("");
         }}>Save payout rules</button>
       </div>
-      <p className="pad sm muted" style={{ paddingTop: 0 }}>A new hold or minimum applies to lines earned from now on; lines already earned keep the payable date they were given.</p>
+      <p className="pad sm muted" style={{ paddingTop: 0 }}>
+        A new hold applies to lines earned from now on; lines already earned keep the payable date they were given.
+        A new minimum, clawback window or W-9 amount applies at once.
+        A new earning period reaches shops referred from now on; shops already referred keep the period they were referred under.
+        The terms state these numbers in words: publish a new version when you change them.
+      </p>
     </>
   );
 }
@@ -259,11 +333,11 @@ const EMAILS: [string, string][] = [
   ["Reset your password", "When they ask for it. The link works one hour."],
 ];
 
-function EmailsTab({ s, save }: { s: Settings; save: (c: Partial<Settings>, done?: string) => Promise<boolean> }) {
+function EmailsTab({ s, save }: { s: Settings; save: Save }) {
   const [support, setSupport] = useState(s.support_email);
   return (
     <div className="pad col">
-      <Field label="Support email" htmlFor="em-support" hint="Shown on the sign in page, the program page and every partner email. Empty uses the platform's support address.">
+      <Field label="Support email" htmlFor="em-support" hint="Shown on the sign in page, the program page and every partner email, and replies to partner emails go to it. Empty uses the platform's support address.">
         <div className="row nw">
           <input id="em-support" className="input" type="email" value={support} onChange={(e) => setSupport(e.target.value)} />
           <button className="btn" onClick={() => void save({ support_email: support.trim() })}>Save</button>

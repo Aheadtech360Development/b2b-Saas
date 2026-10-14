@@ -10,7 +10,7 @@ import { day, money, moneyShort, papi, partnerDownload } from "@/lib/partnerApi"
 
 type Payouts = {
   balances: { pending: number; payable: number; clawbacks: number };
-  paid_count: number; paid_cents: number; minimum_cents: number; hold_days: number;
+  paid_count: number; paid_cents: number; minimum_cents: number; hold_days: number; w9_required_from_cents: number;
   readiness: { state: string; words: string };
   method: keyof typeof METHODS | null; account: string | null; has_w9: boolean;
   history: { id: string; paid_on: string; amount_cents: number; method: keyof typeof METHODS; reference: string | null; lines: number }[];
@@ -30,8 +30,10 @@ export default function PayoutsPage() {
   if (!data) return <><Skeleton h={34} w={260} /><div className="g3">{[0, 1, 2].map((i) => <Skeleton key={i} h={110} />)}</div><Skeleton h={240} /></>;
 
   const b = data.balances;
-  const above = b.payable >= data.minimum_cents && data.minimum_cents > 0;
-  const progress = data.minimum_cents ? Math.min(100, Math.max(0, (b.payable / data.minimum_cents) * 100)) : 100;
+  // As the batch decides it: a $0 minimum still pays only a balance of a cent or more.
+  const reach = Math.max(data.minimum_cents, 1);
+  const above = b.payable >= reach;
+  const progress = Math.min(100, Math.max(0, (b.payable / reach) * 100));
 
   return (
     <>
@@ -44,7 +46,9 @@ export default function PayoutsPage() {
 
       {!data.has_w9 ? (
         <Banner tone="warn" icon="file" action={partner.read_only ? undefined : <Link className="btn sm" href="/partners/settings#w9">Upload W-9</Link>}>
-          <b>W-9 missing.</b> Add your W-9 to be paid. We cannot record a payout until it is on file.
+          <b>W-9 missing.</b> {data.w9_required_from_cents
+            ? `Add your W-9 before your payouts this year reach ${moneyShort(data.w9_required_from_cents)}. We cannot record a payout past that until it is on file.`
+            : "Add your W-9 to be paid. We cannot record a payout until it is on file."}
         </Banner>
       ) : null}
 
@@ -80,7 +84,7 @@ export default function PayoutsPage() {
             <p className="sm muted">
               {above
                 ? "When your payable balance is above the minimum, it is included in the next batch. Each refund or dispute is netted from the next payout."
-                : `Smaller balances roll over. You will be included in the first batch after you reach ${moneyShort(data.minimum_cents)}.`}
+                : `Smaller balances roll over. You will be included in the first batch after you reach ${moneyShort(reach)}.`}
             </p>
           </div>
         </section>
@@ -108,7 +112,7 @@ export default function PayoutsPage() {
         </div>
         {data.history.length === 0 ? (
           <div className="pad"><Empty icon="wallet" title="No payouts yet">
-            Your first payout shows here once your payable balance reaches {moneyShort(data.minimum_cents)} and a batch is paid.
+            Your first payout shows here once your payable balance reaches {moneyShort(reach)} and a batch is paid.
           </Empty></div>
         ) : (
           <div className="tw">
