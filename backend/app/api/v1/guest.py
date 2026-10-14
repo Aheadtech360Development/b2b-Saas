@@ -766,14 +766,13 @@ async def guest_shipping_estimate(
 
 
 # ---------------------------------------------------------------------------
-# GET /api/v1/guest/orders/{order_number}/thank-you?key={view_key}
+# GET /api/v1/guest/orders/{order_number}/thank-you   (X-Order-Key: view key)
 # ---------------------------------------------------------------------------
 
 @router.get("/orders/{order_number}/thank-you")
 async def order_thank_you(
     order_number: str,
     request: Request,
-    key: str | None = Query(None, max_length=80),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """What an order's thank-you page shows (services/order_view.py).
@@ -782,12 +781,16 @@ async def order_thank_you(
     answered with, and to the signed-in buyer the order belongs to. Anyone else
     gets the answer a wrong number gets, so an order number on its own says
     nothing about whether that order exists.
+
+    The key comes in a header, not the query string: a URL is written to the
+    access log, and the key does not expire.
     """
     from sqlalchemy.orm import selectinload
 
     from app.core.tenant_context import get_current_tenant_id
     from app.services import order_view
 
+    key = (request.headers.get("x-order-key") or "")[:80]
     tenant_id = get_current_tenant_id()
     order = None
     if tenant_id:

@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuthStore } from "@/stores/auth.store";
 import { authService } from "@/services/auth.service";
+import { forgetOrderKeys } from "@/lib/orderThanks";
 import { useBranding } from "@/components/providers/BrandingProvider";
 import { SupportChat } from "@/components/storefront/SupportChat";
 
@@ -93,6 +94,7 @@ export default function AccountLayout({ children }: { children: React.ReactNode 
   async function handleSignOut() {
     try { await authService.logout(); } catch { /* ignore */ }
     useAuthStore.getState().clearAuth();
+    forgetOrderKeys();
     router.push("/login" + (typeof window !== "undefined" ? window.location.search : ""));
   }
 

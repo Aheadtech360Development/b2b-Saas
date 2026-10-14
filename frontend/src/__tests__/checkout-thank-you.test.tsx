@@ -22,7 +22,7 @@ vi.mock("@/stores/auth.store", () => ({ useAuthStore: () => auth }));
 vi.mock("@/lib/api-client", () => ({ apiClient: { get: (...args: unknown[]) => get(...args) } }));
 
 import ThankYouPage from "@/app/(customer)/checkout/thank-you/[number]/page";
-import { orderKey, rememberOrderKey, thankYouPath } from "@/lib/orderThanks";
+import { forgetOrderKeys, orderKey, rememberOrderKey, thankYouPath } from "@/lib/orderThanks";
 
 const KEY = "a1".repeat(20);
 
@@ -49,6 +49,7 @@ const read = (rel: string) => readFileSync(path.join(SRC, rel), "utf8");
 beforeEach(() => {
   get.mockReset();
   localStorage.clear();
+  sessionStorage.clear();
   auth.isAuthenticated = () => false;
   auth.isLoading = false;
 });
@@ -61,7 +62,8 @@ describe("the thank-you page", () => {
 
     await waitFor(() => expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Thank you, Sara!"));
     expect(get).toHaveBeenCalledTimes(1);
-    expect(get).toHaveBeenCalledWith(`/api/v1/guest/orders/1045/thank-you?key=${KEY}`);
+    // The key goes in a header: a query string lands in the API's access log.
+    expect(get).toHaveBeenCalledWith("/api/v1/guest/orders/1045/thank-you", { headers: { "X-Order-Key": KEY } });
     expect(screen.getByText("Your order is placed")).toBeInTheDocument();
     expect(screen.getAllByText("sara@example.com").length).toBeGreaterThan(0);
     expect(screen.getByText("5 Main St")).toBeInTheDocument();
@@ -83,7 +85,7 @@ describe("the thank-you page", () => {
     auth.isLoading = false;
     auth.isAuthenticated = () => true;
     rerender(<ThankYouPage />);
-    await waitFor(() => expect(get).toHaveBeenCalledWith("/api/v1/guest/orders/1045/thank-you"));
+    await waitFor(() => expect(get).toHaveBeenCalledWith("/api/v1/guest/orders/1045/thank-you", undefined));
     expect(await screen.findByText("Paid")).toBeInTheDocument();
     // A signed-in buyer goes to the order in their account.
     expect(screen.getByRole("link", { name: "Track this order" })).toHaveAttribute("href", "/account/orders/1045");
@@ -95,6 +97,17 @@ describe("the thank-you page", () => {
     expect(await screen.findByRole("heading", { name: "Order 1045" })).toBeInTheDocument();
     expect(screen.getByText(/could not open this order here/)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Track an order" })).toHaveAttribute("href", "/track-order");
+  });
+
+  it("still thanks the tab that just placed the order when the order cannot be read back", async () => {
+    // The minutes while a release reaches the API, or a network blip.
+    sessionStorage.setItem("af_confirmed_order", JSON.stringify({ id: "x", number: "1045" }));
+    get.mockRejectedValue(Object.assign(new Error("Not Found"), { status: 404 }));
+    render(<ThankYouPage />);
+    expect(await screen.findByRole("heading", { name: "Thank you for your order!" })).toBeInTheDocument();
+    expect(screen.getByText("1045")).toBeInTheDocument();
+    expect(screen.queryByText(/could not open this order/)).not.toBeInTheDocument();
+    sessionStorage.clear();
   });
 
   it("shows where to collect a will-call order, not an address", async () => {
@@ -136,6 +149,15 @@ describe("the key this browser keeps", () => {
     expect(kept).toHaveLength(10);
     expect(kept).not.toContain("2000");
     expect(kept).not.toContain("1001");
+  });
+
+  it("is forgotten on signing out, from the header and from the account", () => {
+    rememberOrderKey("1045", KEY);
+    forgetOrderKeys();
+    expect(orderKey("1045")).toBeNull();
+    for (const file of ["components/layout/Header.tsx", "app/(customer)/account/layout.tsx"]) {
+      expect(read(file)).toMatch(/clearAuth\(\);\s*forgetOrderKeys\(\);/);
+    }
   });
 });
 

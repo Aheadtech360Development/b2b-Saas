@@ -43,6 +43,14 @@ def test_no_key_or_a_wrong_one_opens_nothing():
         assert not order_view.key_opens(mine, key)
 
 
+def test_a_key_with_other_characters_is_just_wrong():
+    # Not a server error: that would say the order exists, where a made-up
+    # number gets a plain 404.
+    mine = _order()
+    for key in ("é", "é" * 40, "😀"):
+        assert not order_view.key_opens(mine, key)
+
+
 def test_the_key_is_worked_out_again_not_stored():
     mine = _order()
     key = order_view.view_key(mine.id, mine.tenant_id)
@@ -87,6 +95,13 @@ def test_the_address_is_read_from_either_shape_of_the_saved_copy():
     assert (copy["line1"], copy["postal_code"], copy["country"]) == ("9 Elm Ave", "75024", "US")
     # "Shipping" names the address in the book, not the person.
     assert copy["full_name"] == ""
+
+
+def test_one_picture_per_product_the_main_one():
+    tee, cap = uuid.uuid4(), uuid.uuid4()
+    rows = [(tee, "https://img/tee-main.jpg"), (tee, "https://img/tee-back.jpg"), (cap, ""), (cap, "https://img/cap.jpg")]
+    assert order_view._first_pictures(rows) == {str(tee): "https://img/tee-main.jpg", str(cap): "https://img/cap.jpg"}
+    assert order_view._first_pictures([]) == {}
 
 
 def test_no_address_rather_than_a_broken_one():
