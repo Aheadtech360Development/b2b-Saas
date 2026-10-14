@@ -665,10 +665,10 @@ export function Node({ node, ctx }: { node: BuilderNode; ctx: RenderCtx }): Reac
         <div data-b={id} className="b-html">
           {css && <style dangerouslySetInnerHTML={{ __html: css.replace(/<\/?style/gi, "") }} />}
           <div dangerouslySetInnerHTML={{ __html: html(ctx, p.html) }} />
-          {/* Its JavaScript runs on the live site only: never in the editor,
-              which is the admin's own session (islands/BlockScript). */}
+          {/* Its JavaScript runs on the live site and the draft preview,
+              never in the editor (islands/BlockScript). */}
           {script.trim() && (ctx.edit
-            ? <div className="b-note">This block&apos;s JavaScript runs on the live site, not in the editor.</div>
+            ? <div className="b-note">This block&apos;s JavaScript runs on the live site, not in the editor. Use Preview to try it.</div>
             : ctx.trusted ? <BlockScript id={id} code={script} /> : null)}
         </div>
       );

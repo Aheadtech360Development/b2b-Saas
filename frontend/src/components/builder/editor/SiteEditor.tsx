@@ -45,7 +45,8 @@ import type { EditorEnv } from "./fields";
 import { EDITOR_CSS, Modal, Popover, confirmAction } from "./ui";
 import { MenuEditor, type MenuDialog } from "./MenuEditor";
 
-type SaveState = "saved" | "dirty" | "saving" | "error" | "conflict";
+// "refused": the draft brings JavaScript only an Administrator may write.
+type SaveState = "saved" | "dirty" | "saving" | "error" | "conflict" | "refused";
 const HOME: Target = { kind: "template", type: "home", id: "default" };
 
 function message(err: unknown, fallback: string): string {
@@ -150,6 +151,9 @@ export default function SiteEditor({ backHref = "/admin/dashboard" }: { backHref
       } catch (err) {
         if (err instanceof ApiClientError && err.status === 409) {
           setSave("conflict");
+        } else if (err instanceof ApiClientError && err.code === "SCRIPT_ADMIN_ONLY") {
+          // Trying again would be refused again: it saves once the change is undone.
+          setSave("refused");
         } else {
           setSave("error");
           window.clearTimeout(saveTimer.current);
@@ -689,6 +693,11 @@ export default function SiteEditor({ backHref = "/admin/dashboard" }: { backHref
               <button type="button" className="sbe-btn sm" onClick={() => void loadAll()}>Load the latest</button>
             </div>
           )}
+          {save === "refused" && (
+            <div className="sbe-banner bad">
+              <AlertTriangle size={16} /> Not saved: only an Administrator can add or change the JavaScript in a Custom HTML block. Undo that change to keep saving.
+            </div>
+          )}
           {!builderLive && state.liveVersion === null && save !== "conflict" && (
             <div className="sbe-banner">
               <span>Your shop keeps showing its current design while you work here. Nothing changes for shoppers until you publish <b>and</b> switch the shop over.</span>
@@ -841,6 +850,7 @@ function SaveStatus({ state, onRetry }: { state: SaveState; onRetry: () => void 
   if (state === "dirty") return <span className="sbe-status"><span className="sbe-dot busy" /> Unsaved</span>;
   if (state === "error") return <button type="button" className="sbe-btn sm danger" onClick={onRetry}><span className="sbe-dot bad" /> Not saved — retry</button>;
   if (state === "conflict") return <span className="sbe-status" style={{ color: "#B42318" }}><span className="sbe-dot bad" /> Not saving</span>;
+  if (state === "refused") return <span className="sbe-status" style={{ color: "#B42318" }}><span className="sbe-dot bad" /> Not saved</span>;
   return <span className="sbe-status"><Check size={14} style={{ color: "#22A35A" }} /> Draft saved</span>;
 }
 

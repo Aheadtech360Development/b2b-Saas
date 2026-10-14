@@ -98,6 +98,29 @@ async def get_site(request: Request, _: None = Depends(require_admin),
     return await _state(db, site)
 
 
+def _writes_scripts(request: Request) -> bool:
+    """Whether this user may add or change a Custom HTML block's JavaScript
+    (services/builder/scripts.py)."""
+    from app.services.builder import scripts as block_scripts
+
+    return block_scripts.may_write_scripts(getattr(request.state, "role", None),
+                                           getattr(request.state, "scopes", None),
+                                           bool(getattr(request.state, "is_platform_admin", False)))
+
+
+async def _refuse_new_scripts(db: AsyncSession, site: Any, tid: uuid.UUID, incoming: dict[str, Any],
+                              message: str = "Only an Administrator can add or change JavaScript "
+                                             "in a Custom HTML block.") -> None:
+    """403 when `incoming` brings a Custom HTML script that neither the draft
+    nor the live site has. For a user who may not write scripts."""
+    from app.services.builder import scripts as block_scripts
+
+    live = (await site_svc.published_document(db, tid, site.published_version_id)
+            if site.published_version_id else None)
+    if block_scripts.new_scripts(incoming, site.draft or {}, live[0] if live else {}):
+        raise HTTPException(status_code=403, detail={"code": "SCRIPT_ADMIN_ONLY", "message": message})
+
+
 class DraftIn(BaseModel):
     draft: dict = Field(default_factory=dict)
     revision: int | None = None
@@ -113,18 +136,8 @@ async def save_draft(data: DraftIn, request: Request, _: None = Depends(require_
     # JavaScript in a Custom HTML block is an Administrator's to add or change
     # (services/builder/scripts.py). Anybody may keep what is there already,
     # in the draft or on the live site, or take it out.
-    from app.services.builder import scripts as block_scripts
-
-    if not block_scripts.may_write_scripts(getattr(request.state, "role", None),
-                                           getattr(request.state, "scopes", None),
-                                           bool(getattr(request.state, "is_platform_admin", False))):
-        live = (await site_svc.published_document(db, tid, site.published_version_id)
-                if site.published_version_id else None)
-        if block_scripts.new_scripts(data.draft, site.draft or {}, live[0] if live else {}):
-            raise HTTPException(status_code=403, detail={
-                "code": "SCRIPT_ADMIN_ONLY",
-                "message": "Only an Administrator can add or change JavaScript in a Custom HTML block.",
-            })
+    if not _writes_scripts(request):
+        await _refuse_new_scripts(db, site, tid, data.draft)
     try:
         site = await site_svc.save_draft(db, site, data.draft, data.revision)
     except site_svc.DraftConflict as exc:
@@ -207,6 +220,18 @@ async def rollback(data: RollbackIn, request: Request, _: None = Depends(require
     site = await site_svc.get_site(db, tid)
     if site is None:
         raise HTTPException(status_code=404, detail="Open the builder first.")
+    # Going back puts a version's scripts live again. One that neither the
+    # draft nor the live site has now (taken out since, or a js field saved
+    # before this box existed, when it did nothing) is an Administrator's to
+    # bring back, the same as writing it (services/builder/scripts.py).
+    if not _writes_scripts(request):
+        try:
+            target = await site_svc.published_document(db, tid, uuid.UUID(data.version_id))
+        except ValueError:
+            target = None  # not a version id at all: the rollback below says it is not found
+        if target is not None:
+            await _refuse_new_scripts(db, site, tid, target[0], "This version has JavaScript your site no longer "
+                                      "has. Only an Administrator can make it the published version.")
     try:
         version = await site_svc.rollback(db, site, data.version_id)
     except LookupError as exc:

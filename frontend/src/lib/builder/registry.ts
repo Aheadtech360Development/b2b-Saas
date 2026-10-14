@@ -623,7 +623,7 @@ export const REGISTRY: ComponentDef[] = [
         help: "Applies inside this block and nowhere else on the page." },
       // backend services/builder/scripts.py; it runs from islands/BlockScript.
       { key: "js", label: "JavaScript", kind: "js",
-        help: "Runs on your live site once the page has loaded, not in this editor. `block` is this block's element. Only an Administrator can add or change it." },
+        help: "Runs on your live site and in Preview once the page has loaded, not in this editor. `block` is this block's element. Only an Administrator can add or change it." },
     ],
     styles: ["spacing"],
     create: () => node("html", { html: "<div class=\"note\"><p>Your HTML here.</p></div>", css: ".note { padding: 16px; }" }),

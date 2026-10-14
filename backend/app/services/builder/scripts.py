@@ -10,7 +10,7 @@ apart from the HTML and never mixed into it:
   the same address as the admin, where an Administrator's session lives: an
   Editor must not be able to put one there.
 - It runs on the storefront only, once the page has loaded, and never inside
-  the builder's editor (frontend: components/builder/BlockScript.tsx).
+  the builder's editor (frontend: components/builder/islands/BlockScript.tsx).
 - What the script does is the brand's own business, as with the custom code
   box in Tracking & Analytics. It is limited in size, not checked.
 """
@@ -24,12 +24,17 @@ MAX_SCRIPT = 20_000
 FULL_ADMIN_ROLES = {"tenant_admin", "platform_admin"}
 
 
-def scripts_in(doc: Any) -> set[tuple[str, str]]:
-    """(block id, script) for every Custom HTML block with a script, in every
-    tree of a builder document."""
+def scripts_in(doc: Any) -> set[str]:
+    """Every Custom HTML block's script, in every tree of a builder document.
+
+    The script itself, not where it is: copying or moving a block that has the
+    Administrator's script in it is not writing one. Whoever may do that may
+    already change the block's HTML the script works on, so it gives nothing
+    more away.
+    """
     from app.services.builder.schema import all_trees, iter_nodes
 
-    found: set[tuple[str, str]] = set()
+    found: set[str] = set()
     if not isinstance(doc, dict):
         return found
     for _path, tree, _ttype in all_trees(doc):
@@ -39,14 +44,14 @@ def scripts_in(doc: Any) -> set[tuple[str, str]]:
             props = node.get("props")
             script = props.get("js") if isinstance(props, dict) else None
             if isinstance(script, str) and script.strip():
-                found.add((str(node.get("id") or ""), script))
+                found.add(script)
     return found
 
 
-def new_scripts(incoming: Any, *known: Any) -> set[tuple[str, str]]:
+def new_scripts(incoming: Any, *known: Any) -> set[str]:
     """The scripts in `incoming` that none of the `known` documents had: added,
     or changed. Taking one out is not in it: that is never a risk."""
-    seen: set[tuple[str, str]] = set()
+    seen: set[str] = set()
     for doc in known:
         seen |= scripts_in(doc)
     return scripts_in(incoming) - seen
