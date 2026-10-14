@@ -59,6 +59,9 @@ class CreatePaymentIntentRequest(BaseModel):
 class CheckoutConfirmRequest(BaseModel):
     # Stripe PaymentIntent the buyer confirmed before this call.
     payment_intent_id: str | None = None
+    # One per checkout attempt: a retry of it gets the order it already made
+    # (services/order_attempts.py).
+    idempotency_key: str | None = Field(default=None, max_length=64)
 
     address_id: UUID | None = None
     shipping_address: AddressIn | None = None

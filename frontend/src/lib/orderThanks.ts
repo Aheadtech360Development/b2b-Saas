@@ -79,6 +79,21 @@ function kept(): Kept {
   }
 }
 
+/**
+ * Run as the page's HTML is read, before the shop's tracking tools load: a
+ * link from an email (the order's page, an invoice) carries the key in its
+ * #fragment, `#k=<key>`, which no server and no log ever sees. This keeps it
+ * for the order named last in the path and takes it off the address, so no
+ * tool collects it with the URL. The layouts of those pages render it inline.
+ */
+export const KEY_FROM_LINK = `(function(){try{
+var m=/(?:^#|&)k=([0-9a-f]{40})(?:&|$)/.exec(location.hash);if(!m)return;
+var parts=location.pathname.split("/").filter(Boolean);var n=decodeURIComponent(parts[parts.length-1]||"");
+if(n){var s={};try{s=JSON.parse(localStorage.getItem("${STORE}")||"{}")||{}}catch(e){}
+s[n]={key:m[1],at:Date.now()};localStorage.setItem("${STORE}",JSON.stringify(s));}
+history.replaceState(history.state,"",location.pathname+location.search);
+}catch(e){}})();`;
+
 export function thankYouPath(orderNumber: string): string {
   return `/checkout/thank-you/${encodeURIComponent(orderNumber)}`;
 }

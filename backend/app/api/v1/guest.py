@@ -114,6 +114,9 @@ class GuestCheckoutRequest(BaseModel):
     shipping_service: str | None = None
     # How the buyer got here — see services/attribution.py.
     attribution: dict | None = None
+    # One per checkout attempt: a retry of it gets the order it already made
+    # (services/order_attempts.py).
+    idempotency_key: str | None = None
 
 
 class GuestOrderOut(BaseModel):
@@ -425,8 +428,21 @@ async def guest_checkout(
 ) -> GuestOrderOut:
     """Place an order as a guest (retail pricing, no account required)."""
     from app.core.config import get_settings
+    from app.services import order_attempts, order_view
 
     settings = get_settings()
+
+    # A retry of an attempt that already made its order gets that order: a
+    # card, cash on delivery or ACH alike (services/order_attempts.py).
+    _attempt = order_attempts.clean(payload.idempotency_key)
+    _done = await order_attempts.already_placed(db, _attempt)
+    if _done is not None:
+        if (_done.guest_email or "").lower() != payload.guest_email.lower().strip():
+            raise ValidationError("This order attempt belongs to another buyer.")
+        return GuestOrderOut(
+            order_id=str(_done.id), order_number=_done.order_number, total=float(_done.total),
+            status=_done.status, view_key=order_view.view_key(_done.id, _done.tenant_id),
+        )
 
     priced = await _price_guest_cart(db, payload)
     order_items_data = priced.items
@@ -441,7 +457,9 @@ async def guest_checkout(
 
     # 3. Verify the card payment (ACH is collected manually, so nothing to check)
     if payload.payment_method == "ach":
-        _payment_status = "paid"  # ACH / bank transfer treated as immediately paid
+        # Bank details, not money: unpaid until the shop marks it paid when the
+        # transfer arrives (it was marked paid here with nothing in).
+        _payment_status = "unpaid"
     elif payload.payment_method == "cod" and not payload.payment_intent_id:
         # Cash on delivery: placed now, paid for when it arrives. Only at a
         # shop that takes it — asked here, not left to the page.
@@ -566,7 +584,9 @@ async def guest_checkout(
         actor_type="customer",
         actor_name=payload.guest_name or payload.guest_email,
         meta={"total": float(total), "subtotal": float(subtotal), "channel": "retail",
-              "payment_method": payload.payment_method, "guest_email": payload.guest_email},
+              "payment_method": payload.payment_method, "guest_email": payload.guest_email,
+              # The attempt that made it: a retry of it finds this order.
+              **({"idempotency_key": _attempt} if _attempt else {})},
         occurred_at=order.created_at,
     )
     if _payment_status == "paid":
@@ -587,6 +607,12 @@ async def guest_checkout(
             db, order, "note",
             f"Cash on delivery: ${float(total):.2f} to collect when it is delivered",
             meta={"amount": float(total), "method": "cod"},
+        )
+    elif payload.payment_method == "ach":
+        await _events.record(
+            db, order, "payment_authorized",
+            f"ACH payment of ${float(total):.2f} submitted: mark it paid when the transfer arrives",
+            meta={"amount": float(total), "method": "ach"},
         )
 
     # The sheets this checkout paid for now belong to the order, and go into
@@ -696,8 +722,6 @@ async def guest_checkout(
         logger.warning("Order confirmation email failed: %s", exc)
 
     await db.commit()
-
-    from app.services import order_view
 
     return GuestOrderOut(
         order_id=str(order.id),

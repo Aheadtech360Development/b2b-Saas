@@ -1294,6 +1294,9 @@ export default function AdminOrderDetailPage() {
                   // Nothing has been paid yet: the cash is collected at the door,
                   // and "Mark as Paid" beside this is how the shop records it.
                   ? `Cash on delivery: collect $${Number(order.total ?? 0).toFixed(2)} when it is delivered, then mark it paid`
+                  : order.payment_method === "ach" && order.payment_status !== "paid"
+                  // Checkout took the buyer's bank details, not money.
+                  ? `Bank transfer (ACH): mark it paid once $${Number(order.total ?? 0).toFixed(2)} is in your account`
                   : order.payment_status === "paid" && !order.invoice_sent_at
                   ? `Payment received via ${order.payment_method === "ach" ? "ACH / Bank Transfer" : order.payment_method === "cod" ? "cash on delivery" : "Card"}`
                   : order.invoice_sent_at

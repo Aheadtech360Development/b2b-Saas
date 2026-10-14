@@ -346,6 +346,17 @@ async def _confirm_checkout_inner(
     if not company_id:
         raise ForbiddenError("Company account required")
 
+    # A retry of an attempt that already made its order gets that order, for
+    # every way of paying (services/order_attempts.py). Only the buyer's own.
+    from app.services import order_attempts
+
+    _attempt = order_attempts.clean(payload.idempotency_key)
+    _done = await order_attempts.already_placed(db, _attempt)
+    if _done is not None:
+        if str(_done.company_id or "") != str(company_id):
+            raise ValidationError("This order attempt belongs to another account.")
+        return _done
+
     _log.info(
         "confirm_checkout called — company: %s, fields_set: %s",
         company_id,
@@ -531,6 +542,8 @@ async def _confirm_checkout_inner(
             "items": len(order.items or []), "channel": "wholesale",
             "payment_method": payload.payment_method or ("card" if has_stripe else None),
             "po_number": order.po_number,
+            # The attempt that made it: a retry of it finds this order.
+            **({"idempotency_key": _attempt} if _attempt else {}),
         },
         occurred_at=order.created_at,
     )
@@ -549,9 +562,11 @@ async def _confirm_checkout_inner(
             meta={"amount": float(order.total), "method": "net_30", "terms_days": NET30_DAYS},
         )
     elif has_ach:
+        # Bank details, not money: the order stays unpaid (order_service) until
+        # the shop marks it paid.
         await _events.record(
             db, order, "payment_authorized",
-            f"ACH payment of ${float(order.total):.2f} submitted",
+            f"ACH payment of ${float(order.total):.2f} submitted: mark it paid when the transfer arrives",
             meta={"amount": float(order.total), "method": "ach"},
         )
     elif has_cod:

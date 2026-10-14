@@ -609,12 +609,21 @@ class EmailService:
             if getattr(order, "tax_amount", None) and float(order.tax_amount) > 0 else ""
         )
 
+        # A guest has no account page: their link is the order's own page, opened
+        # by its view key (services/order_view.py). The key rides in the
+        # #fragment, which no server and no log ever sees, and the page takes it
+        # off the address before the shop's tracking tools read it.
+        is_guest = getattr(order, "is_guest_order", False)
+        if is_guest:
+            from app.services import order_view
+
+            order_url = (f"{_s.FRONTEND_URL}/checkout/thank-you/{order.order_number}"
+                         f"#k={order_view.view_key(order.id, order.tenant_id)}")
         cta = (
             f'<p style="margin:20px 0 0">'
             f'<a href="{order_url}" style="background:#E8242A;color:#fff;padding:12px 28px;'
             f'border-radius:6px;font-weight:700;text-decoration:none;font-size:14px;'
-            f'display:inline-block">View Order →</a></p>'
-            if not getattr(order, "is_guest_order", False) else ""
+            f'display:inline-block">{"View your order" if is_guest else "View Order"} →</a></p>'
         )
 
         content_html = (
@@ -698,7 +707,12 @@ class EmailService:
         total_val = float(getattr(order, 'total', 0))
         amount_paid_val = float(getattr(order, 'amount_paid', None) or 0)
         balance_due_val = max(0.0, total_val - amount_paid_val)
-        pay_url = f"{settings.FRONTEND_URL}/checkout/invoice/{order_num}"
+        # The invoice page opens to the order's view key, carried in the
+        # #fragment (no server or log sees it); without it, the buyer signs in.
+        from app.services import order_view
+
+        pay_url = (f"{settings.FRONTEND_URL}/checkout/invoice/{order_num}"
+                   f"#k={order_view.view_key(getattr(order, 'id', ''), getattr(order, 'tenant_id', None))}")
         btn_label = f'Pay Balance — ${balance_due_val:.2f}' if amount_paid_val > 0 else f'Pay Now — ${total_val:.2f}'
 
         if amount_paid_val > 0:

@@ -35,12 +35,11 @@ const PAYMENT_LABELS: Record<string, string> = {
   cod: "Cash on delivery",
 };
 
-/** Where the order stands on money, said the way the buyer needs to hear it.
- *  Nothing for a bank transfer: it is marked paid at checkout, before any
- *  money has moved, so "Paid" would not be true. */
+/** Where the order stands on money, said the way the buyer needs to hear it. */
 function paymentNote(o: ThankYouOrder): string | null {
-  if (o.payment_method === "ach") return null;
   if (o.payment_status === "paid") return "Paid";
+  // Checkout took bank details, not money: the shop marks it paid on arrival.
+  if (o.payment_method === "ach") return "Waiting for your bank transfer";
   if (o.payment_method === "cod") return `Pay ${formatCurrency(o.total)} when it arrives`;
   if (o.payment_method === "net_30") return "Pay by invoice, net 30";
   return "Not paid yet";

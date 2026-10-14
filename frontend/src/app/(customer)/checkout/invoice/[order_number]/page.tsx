@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { useAuthStore } from '@/stores/auth.store'
 import { apiClient } from '@/lib/api-client'
+import { orderKey } from '@/lib/orderThanks'
 import { StripePaymentForm } from '@/components/checkout/StripePaymentForm'
 import { ConfigurationDetail } from '@/components/shared/ConfigurationDetail'
 import type { LineConfiguration } from '@/types/order.types'
@@ -44,6 +45,8 @@ export default function InvoicePaymentPage() {
   const [paying, setPaying] = useState(false)
   const [paid, setPaid] = useState(false)
   const [showLoginPrompt, setShowLoginPrompt] = useState(false)
+  // An old link, or one opened elsewhere: no key, so sign in first.
+  const [needsSignIn, setNeedsSignIn] = useState(false)
 
   useEffect(() => {
     if (isLoading) return
@@ -56,11 +59,16 @@ export default function InvoicePaymentPage() {
           setOrder(data)
           if (data.payment_status === 'paid' && !(Number(data.balance_due) > 0)) setPaid(true)
         } else {
-          // Not authenticated — use public invoice summary endpoint
-          const apiBase = process.env.NEXT_PUBLIC_API_URL ?? ''
-          const res = await fetch(`${apiBase}/api/v1/orders/${orderNumber}/invoice-summary`)
-          if (!res.ok) throw new Error('not found')
-          const data = await res.json()
+          // Not signed in: the invoice email's link carries the order's key in
+          // its #fragment, kept by this page's layout as it opened. Without
+          // it the summary is not shown to anybody: sign in to see it.
+          const key = orderKey(orderNumber)
+          if (!key) {
+            setNeedsSignIn(true)
+            return
+          }
+          const data = await apiClient.get<OrderDetail>(`/api/v1/orders/${orderNumber}/invoice-summary`,
+            { headers: { 'X-Order-Key': key } })
           setOrder(data)
           if (data.payment_status === 'paid' && !(Number(data.balance_due) > 0)) setPaid(true)
           setShowLoginPrompt(true)
@@ -92,6 +100,28 @@ export default function InvoicePaymentPage() {
     return (
       <div style={{ padding: '60px', textAlign: 'center', color: '#888', fontSize: '14px' }}>
         Loading invoice…
+      </div>
+    )
+  }
+
+  if (needsSignIn) {
+    return (
+      <div style={{ maxWidth: '500px', margin: '60px auto', padding: '0 20px', textAlign: 'center' }}>
+        <h1 style={{ fontFamily: 'var(--font-bebas)', fontSize: '28px', color: '#1B3A5C', margin: '0 0 8px', letterSpacing: '.04em' }}>
+          PAY INVOICE
+        </h1>
+        <p style={{ color: '#374151', fontSize: '14px', margin: '0 0 6px' }}>
+          Sign in to see and pay the invoice for order {orderNumber}.
+        </p>
+        <p style={{ color: '#6b7280', fontSize: '13px', margin: '0 0 22px' }}>
+          Use the email address your invoice was sent to.
+        </p>
+        <a
+          href={`/login?next=${encodeURIComponent(`/checkout/invoice/${orderNumber}`)}`}
+          style={{ display: 'inline-block', background: '#1B3A5C', color: '#fff', padding: '12px 32px', borderRadius: '6px', fontWeight: 700, fontSize: '14px', textDecoration: 'none' }}
+        >
+          Log In to Pay
+        </a>
       </div>
     )
   }
@@ -212,7 +242,7 @@ export default function InvoicePaymentPage() {
             Use the email address your invoice was sent to.
           </p>
           <a
-            href={`/login?redirect=/checkout/invoice/${orderNumber}`}
+            href={`/login?next=${encodeURIComponent(`/checkout/invoice/${orderNumber}`)}`}
             style={{ display: 'inline-block', background: '#1B3A5C', color: '#fff', padding: '12px 32px', borderRadius: '6px', fontWeight: 700, fontSize: '14px', textDecoration: 'none' }}
           >
             Log In to Pay
