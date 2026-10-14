@@ -2,15 +2,16 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { useAuthStore } from "@/stores/auth.store";
 
 /**
  * Platform (Super Admin) layout — only accessible to is_platform_admin users.
- * Regular brand admins are redirected to their own /admin panel.
+ * Regular brand admins are redirected to their own /admin panel. The console's
+ * bar and content area are the page's (components/platform/ConsoleBar), since
+ * the bar holds the page's tabs.
  */
 export default function PlatformLayout({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, isPlatformAdmin, isAdmin, isLoading, user, clearAuth } = useAuthStore();
+  const { isAuthenticated, isPlatformAdmin, isAdmin, isLoading } = useAuthStore();
   const router = useRouter();
   const redirectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -51,73 +52,9 @@ export default function PlatformLayout({ children }: { children: React.ReactNode
     return null;
   }
 
-  function handleLogout() {
-    clearAuth();
-    router.replace("/login");
-  }
-
   return (
     <div style={{ minHeight: "100vh", background: "#F7F7F8", fontFamily: "var(--font-jakarta), system-ui, sans-serif" }}>
-      {/* Top bar */}
-      <header
-        style={{
-          background: "#FFFFFF",
-          borderBottom: "1px solid #E4E4E7",
-          padding: "0 28px",
-          height: "60px",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-        }}
-      >
-        <div style={{ display: "flex", alignItems: "center", gap: "28px" }}>
-          <Link href="/platform" style={{ textDecoration: "none", display: "flex", alignItems: "center", gap: "10px" }}>
-            <span
-              style={{
-                width: "28px", height: "28px", borderRadius: "7px",
-                background: "#18181B",
-                display: "flex", alignItems: "center", justifyContent: "center",
-                fontSize: "15px", fontWeight: 800, color: "#18181B",
-              }}
-            >
-              ⬡
-            </span>
-            <span style={{ color: "#18181B", fontWeight: 700, fontSize: "15px", letterSpacing: ".02em" }}>
-              Platform Console
-            </span>
-          </Link>
-          <nav style={{ display: "flex", gap: "20px" }}>
-            <Link href="/platform" style={{ color: "#52525B", textDecoration: "none", fontSize: "13px", fontWeight: 600 }}>
-              Brands
-            </Link>
-          </nav>
-        </div>
-
-        <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
-          <span style={{ color: "#6B7280", fontSize: "12px" }}>
-            {user?.email}
-          </span>
-          <span
-            style={{
-              background: "#F4F4F5", color: "#52525B",
-              padding: "3px 10px", borderRadius: "20px", fontSize: "11px", fontWeight: 700,
-            }}
-          >
-            SUPER ADMIN
-          </span>
-          <button
-            onClick={handleLogout}
-            style={{
-              background: "transparent", border: "1px solid #D4D4D8", color: "#52525B",
-              padding: "6px 14px", borderRadius: "7px", fontSize: "12px", fontWeight: 600, cursor: "pointer",
-            }}
-          >
-            Log out
-          </button>
-        </div>
-      </header>
-
-      <main style={{ padding: "32px 28px", maxWidth: "1200px", margin: "0 auto" }}>{children}</main>
+      {children}
     </div>
   );
 }

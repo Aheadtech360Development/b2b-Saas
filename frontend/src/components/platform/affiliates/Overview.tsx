@@ -8,7 +8,7 @@ import { aff } from "./api";
 import type { Go } from "./AffiliatesTab";
 
 type OverviewData = {
-  applications: { open: number; old: number };
+  applications: { open: number; old: number; days: number };
   affiliates: { active: number; paused: number; suspended: number; terminated: number };
   active_shops: number; pending_cents: number; payable_cents: number; on_hold_cents: number;
   paid_month_cents: number; paid_month_count: number;
@@ -83,7 +83,9 @@ export function Overview({ go }: { go: Go }) {
       <div className="g3">
         <div className="card tile"><span className="k"><Icon name="file" size="s" />New applications</span>
           <span className="v">{data.applications.open}</span>
-          <span className="s">{data.applications.old ? `${data.applications.old} waiting over 2 days` : "None waiting long"}</span></div>
+          <span className="s">{data.applications.old
+            ? `${data.applications.old} waiting over ${data.applications.days} day${data.applications.days === 1 ? "" : "s"}`
+            : "None waiting long"}</span></div>
         <div className="card tile"><span className="k"><Icon name="users" size="s" />Active affiliates</span>
           <span className="v">{a.active}</span>
           <span className="s">{a.paused} paused, {a.suspended} suspended</span></div>
@@ -144,8 +146,10 @@ export function Overview({ go }: { go: Go }) {
             ))}
           </section>
           <section className="card pad col" style={{ gap: 10 }}>
-            <h2>Stripe handlers</h2>
-            <dl className="kv" style={{ gridTemplateColumns: "minmax(0,1fr) auto" }}>
+            {/* A card's own heading, the size of Program switches' beside it. */}
+            <h2 style={{ fontSize: 16 }}>Stripe handlers</h2>
+            {/* Each figure against the card's right edge, as the design has them. */}
+            <dl className="kv end" style={{ gridTemplateColumns: "minmax(0,1fr) auto" }}>
               <dt>Last event received</dt><dd className="b">{ago(data.stripe.last_received)}</dd>
               <dt>Processed, last 24h</dt><dd className="b">{data.stripe.processed_24h}</dd>
               <dt>Replays ignored</dt><dd className="b">{data.stripe.replays_24h}</dd>

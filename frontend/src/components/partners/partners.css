@@ -199,6 +199,8 @@
 .pcp .unit{position:relative;display:inline-flex;align-items:center}
 .pcp .unit .input{padding-right:40px;text-align:right}
 .pcp .unit i{position:absolute;right:12px;font-style:normal;color:var(--muted);font-size:14px}
+.pcp .unit.wide .input{padding-right:68px}
+.pcp .kv.end dd{justify-self:end}
 .pcp .tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);overflow-x:auto}
 .pcp .tab{display:inline-flex;align-items:center;gap:8px;padding:12px 14px;font:600 14px/20px Inter;color:var(--muted);border:0;background:none;border-bottom:2px solid transparent;cursor:pointer;white-space:nowrap;text-decoration:none;margin-bottom:-1px}
 .pcp .tab.on{color:var(--blue-600);border-bottom-color:var(--blue-500)}
@@ -304,3 +306,30 @@
 @media (prefers-reduced-motion:reduce){.pcp .pcp-skel{animation:none}}
 .pcp .kv dd{overflow-wrap:anywhere}
 @media (max-width:600px){.pcp .bars .v{display:none}.pcp .bars{gap:8px}}
+
+/* The rest of the app's CSS reaches in here too: Tailwind's base (preflight
+ * and its forms plugin) and globals.css's .card restyle what the design leaves
+ * to the browser. A card gained padding and a shadow, checkboxes, radios and
+ * selects lost their own look, links their underline, a timeline dot its
+ * border. These hand each back to the browser; :where() keeps them at the
+ * weight of .pcp alone, so every design rule above still wins. */
+.pcp :where(.card){padding:revert;box-shadow:revert}
+.pcp :where(a:any-link){text-decoration:revert}
+.pcp :where(input,select,textarea){appearance:revert;box-shadow:revert}
+.pcp :where(input,textarea)::placeholder{color:revert;opacity:revert}
+.pcp :where(input[type=checkbox],input[type=radio]){margin:revert;width:revert;height:revert;border:revert;border-radius:revert;background:revert;color:revert;vertical-align:revert;flex-shrink:revert;user-select:revert}
+.pcp ::before,.pcp ::after{box-sizing:revert}
+
+/* The Platform Console's bar (.contop). Its tabs switch the view in place, so
+ * they are buttons drawn as the design's links; the wordmark opens Brands; the
+ * avatar opens who is signed in, with Log out. */
+.pcp .contop .brand button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
+.pcp .ctabs button{padding:0 14px;min-height:56px;display:flex;align-items:center;gap:8px;color:#C9D5E6;font:500 14px Inter;background:none;border:0;border-bottom:3px solid transparent;cursor:pointer;white-space:nowrap}
+.pcp .ctabs button.on{color:#fff;border-bottom-color:var(--blue-500)}
+.pcp .ctabs button:focus-visible{outline-offset:-3px}
+.pcp .acct{position:relative;flex:none}
+.pcp .contop .acct .av{border:0;padding:0;background:var(--navy-800);color:#fff;cursor:pointer}
+.pcp .acct .menu{position:absolute;top:calc(100% + 8px);right:0;z-index:30}
+.pcp .acct .who{padding:8px 10px 10px;margin-bottom:6px;border-bottom:1px solid var(--line);overflow-wrap:anywhere}
+.pcp .menu button{display:flex;align-items:center;gap:10px;width:100%;min-height:40px;padding:0 10px;border:0;border-radius:8px;background:none;color:var(--text);font:500 14px Inter;cursor:pointer}
+.pcp .menu button:hover{background:var(--soft)}
