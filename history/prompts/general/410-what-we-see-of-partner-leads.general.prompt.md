@@ -42,6 +42,8 @@ Yes, and all of it is in our own database and the Platform Console, with no outs
 
 Recommendation: add an "Add referral" button to Referrals before the push. It is small and waits for the owner's yes.
 
+**Correction (record 411):** the button exists. It is "Add by hand" on Referrals, with its modal and a shop search. The search that said it was missing had been cut short by `head`.
+
 ## Outcome
 
 - ✅ Impact: the owner knows what the system records about partner leads, and the one gap.
