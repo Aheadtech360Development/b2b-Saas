@@ -24,6 +24,7 @@ import { cartService } from "@/services/cart.service";
 import { useAuthStore } from "@/stores/auth.store";
 import { trackAddToCart } from "@/lib/tracking";
 import { addToGuestCart, configuredKey } from "@/lib/guestCart";
+import { takeResume } from "@/lib/builderDraft";
 
 export interface ThemeVariant {
   id: string;
@@ -85,6 +86,14 @@ export default function ThemeProductBuy({ product }: { product: ThemeProductData
   // sheet sizes this product sells, so the sizes on the page are still theirs
   // to hide — the uploader shows them in its own words.
   const byOwnSheet = product.gang_sheet && product.gang_sheet_type === "upload_own";
+
+  // Back from making an account mid-design (lib/builderDraft): the uploader the
+  // buyer left opens again, and finds their design kept.
+  useEffect(() => {
+    const resume = takeResume();
+    if ((resume === "upload-by-size" && byUpload) || (resume === "own-sheet" && byOwnSheet)) setUploadOpen(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     const root = document.querySelector<HTMLElement>(`[data-product-id="${CSS.escape(product.id)}"]`);

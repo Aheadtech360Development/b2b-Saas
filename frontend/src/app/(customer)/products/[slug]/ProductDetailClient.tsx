@@ -16,6 +16,7 @@ import { UploadBySizeModal } from "@/components/storefront/UploadBySizeModal";
 import { UploadOwnSheetModal } from "@/components/storefront/UploadOwnSheetModal";
 import { gangSheetsService, type GangSheetOrder, type GangSheetSize } from "@/services/gangSheets.service";
 import { ProductConfigurator } from "@/components/storefront/ProductConfigurator";
+import { takeResume } from "@/lib/builderDraft";
 import { trackAddToCart, trackViewItem, type TrackedItem } from "@/lib/tracking";
 import SectionRenderer from "@/components/storefront/SectionRenderer";
 import {
@@ -414,6 +415,13 @@ export function ProductDetailClient({ slug }: ProductDetailClientProps) {
         setShowUploadBySize(true);
       })
       .catch(() => { /* not theirs, or gone — just show the product */ });
+  }, []);
+  // Back from making an account mid-design (lib/builderDraft): the uploader the
+  // buyer left opens again, and finds their design kept.
+  useEffect(() => {
+    const resume = takeResume();
+    if (resume === "upload-by-size") setShowUploadBySize(true);
+    else if (resume === "own-sheet") setShowOwnSheet(true);
   }, []);
   // Which product template this page uses (null → the page as it has always
   // been). ?preview_template=<id> shows an admin that template's draft.

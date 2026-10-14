@@ -17,6 +17,7 @@ import { resolveColor } from "@/lib/colors";
 import { apiClient } from "@/lib/api-client";
 import { cartService } from "@/services/cart.service";
 import { useAuthStore } from "@/stores/auth.store";
+import { dropDraft, keepDraft, readDraft, signInAndComeBack } from "@/lib/builderDraft";
 
 interface OptValue {
   id: string; label: string; price_delta: number; price_mode: string;
@@ -76,15 +77,20 @@ export function ProductConfigurator({ productId, productName }: { productId: str
   const [error, setError] = useState<string | null>(null);
   const seq = useRef(0);
 
+  // What a guest had chosen before making an account (lib/builderDraft).
+  const draftKey = `configure:${productId}`;
   useEffect(() => {
     apiClient.get<Config>(`/api/v1/products/${productId}/options`)
       .then((c) => {
         setCfg(c);
-        setSel(c.default_selections ?? {});
+        const kept = readDraft<{ sel?: Record<string, string | string[]>; qty?: number }>(draftKey);
+        setSel(kept?.sel ?? c.default_selections ?? {});
         const firstTier = c.qty_tiers?.[0]?.min_qty;
-        if (firstTier) setQty(firstTier);
+        if (kept?.qty) setQty(kept.qty);
+        else if (firstTier) setQty(firstTier);
       })
       .catch(() => setError("Could not load this product's options."));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [productId]);
 
   // Re-price on every change — the server is the only authority.
@@ -140,12 +146,16 @@ export function ProductConfigurator({ productId, productName }: { productId: str
 
   async function addToCart() {
     if (!isAuthenticated()) {
-      window.location.href = `/login?next=${encodeURIComponent(window.location.pathname)}`;
+      // The choices are kept, and the buyer comes back to them once the
+      // account is made.
+      keepDraft(draftKey, { sel, qty });
+      signInAndComeBack("configure");
       return;
     }
     setAdding(true); setError(null);
     try {
       await apiClient.post("/api/v1/cart/add-configured", { product_id: productId, selections: sel, quantity: qty });
+      dropDraft(draftKey);
       window.location.href = "/cart";
     } catch (e) {
       setError((e as { message?: string })?.message || "Could not add to cart.");

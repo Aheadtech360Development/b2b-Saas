@@ -18,6 +18,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Eye, EyeOff } from "lucide-react";
 import { authService } from "@/services/auth.service";
 import { establishSession } from "@/lib/session";
+import { safeNext } from "@/lib/safeNext";
 import { useBranding } from "@/components/providers/BrandingProvider";
 
 function CreateAccountForm() {
@@ -25,9 +26,11 @@ function CreateAccountForm() {
   const params = useSearchParams();
   const { store_name: shop } = useBranding();
   // Only ever a path on this shop: a next that can point anywhere is an open
-  // redirect, and this page hands out a session.
-  const raw = params.get("next") ?? "/";
-  const next = raw.startsWith("/") && !raw.startsWith("//") ? raw : "/";
+  // redirect, and this page hands out a session (lib/safeNext also refuses
+  // "/\elsewhere.com", which a browser reads as another site).
+  const next = safeNext(params.get("next")) ?? "/";
+  // Sent from a builder or a page that is not the cart: the way back is there.
+  const fromElsewhere = next !== "/" && !next.startsWith("/cart");
 
   const [mode, setMode] = useState<"join" | "signin">("join");
   const [form, setForm] = useState({
@@ -169,7 +172,9 @@ function CreateAccountForm() {
       </button>
 
       <p style={{ textAlign: "center", marginTop: "18px", fontSize: "13px", color: "var(--ui-muted)" }}>
-        <Link href="/cart" style={{ color: "inherit" }}>Back to my cart</Link>
+        <Link href={fromElsewhere ? next : "/cart"} style={{ color: "inherit" }}>
+          {fromElsewhere ? "Go back" : "Back to my cart"}
+        </Link>
       </p>
     </div>
   );
