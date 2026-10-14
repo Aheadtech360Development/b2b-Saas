@@ -621,7 +621,9 @@
   .text-4xl { font-size: 28px; }
 }
 @media (max-width: 600px) {
-  h1 { font-size: 28px !important; line-height: 1.2 !important; }
+  /* Not inside the partner program's design (.pcp), which sizes its own
+     headings on a phone and cannot outweigh !important. */
+  h1:where(:not(.pcp *)) { font-size: 28px !important; line-height: 1.2 !important; }
   .text-5xl, .text-6xl { font-size: 28px !important; line-height: 1.2 !important; }
   .text-4xl { font-size: 26px !important; line-height: 1.2 !important; }
   .text-3xl { font-size: 24px !important; }

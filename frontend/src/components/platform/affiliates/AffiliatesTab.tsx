@@ -78,15 +78,11 @@ export function AffiliatesTab({ onCount }: { onCount?: (n: number) => void }) {
   };
 
   const { section, id } = route;
-  // The console's column is 1200px wide; the design's tab is the width of
-  // the screen. The tab steps out of the column, centred under it, up to
-  // the design's width. (A margin, not a transform: a transform would pull
-  // the toasts' fixed position in with it.)
+  // The width of the screen, under the console's bar, as the design draws it:
+  // it fills the page to the bottom, so the menu runs down the left side all
+  // the way, however short the screen beside it.
   return (
-    <div className={ROOT} style={{
-      border: "1px solid var(--line)", borderRadius: 12, overflow: "hidden",
-      width: "min(1392px, calc(100vw - 32px))", marginLeft: "calc(50% - min(696px, 50vw - 16px))",
-    }}>
+    <div className={ROOT} style={{ flex: 1, display: "flex", flexDirection: "column" }}>
       <div className="conbody">
         <nav className="sub" aria-label="Affiliates">
           <span className="eyebrow">Affiliates</span>

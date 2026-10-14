@@ -14,6 +14,7 @@ import {
   type ClearedTestData,
 } from "@/services/platform.service";
 import { AnalyticsTab, ActivityTab, SearchTab, HealthTab } from "@/components/platform/InsightTabs";
+import { ConsoleBar, type ConsoleTab } from "@/components/platform/ConsoleBar";
 import { StripeModePanel } from "@/components/platform/StripeModePanel";
 import { TaxTab } from "@/components/platform/TaxTab";
 import { AffiliatesTab } from "@/components/platform/affiliates/AffiliatesTab";
@@ -41,7 +42,7 @@ export default function PlatformDashboard() {
   const [showCreate, setShowCreate] = useState(false);
   const [createdInfo, setCreatedInfo] = useState<CreateTenantResponse | null>(null);
   const [manageTenant, setManageTenant] = useState<Tenant | null>(null);
-  const [tab, setTab] = useState<"brands" | "analytics" | "taxes" | "activity" | "search" | "health" | "affiliates">("brands");
+  const [tab, setTab] = useState<ConsoleTab>("brands");
   // Applications waiting for a decision, shown on the Affiliates tab.
   const [affiliateCount, setAffiliateCount] = useState(0);
 
@@ -103,10 +104,17 @@ export default function PlatformDashboard() {
     }
   }
 
+  // The bar is on every tab. Affiliates is drawn the width of the screen, as
+  // its design is; every other tab keeps the console's centred column.
   return (
-    <div style={{ color: "#18181B" }}>
-      {/* Header */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: "28px" }}>
+    <div style={{ color: "#18181B", minHeight: "100vh", display: "flex", flexDirection: "column" }}>
+      <ConsoleBar tab={tab} onTab={chooseTab} affiliates={affiliateCount} />
+
+      {tab === "affiliates" && <AffiliatesTab onCount={setAffiliateCount} />}
+
+      {tab !== "affiliates" && <main style={{ padding: "32px 28px", maxWidth: "1200px", margin: "0 auto", width: "100%" }}>
+      {/* Header: the Brands tab's own */}
+      {tab === "brands" && <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: "28px" }}>
         <div>
           <h1 style={{ fontSize: "26px", fontWeight: 800, color: "#18181B", letterSpacing: ".01em" }}>Brands</h1>
           <p style={{ fontSize: "13px", color: "#6B7280", marginTop: "4px" }}>
@@ -123,43 +131,8 @@ export default function PlatformDashboard() {
         >
           + Create Brand
         </button>
-      </div>
+      </div>}
 
-      {/* Tabs */}
-      <div style={{ display: "flex", gap: "4px", borderBottom: "1px solid #E4E4E7", marginBottom: "24px" }}>
-        {([
-          ["brands", "Brands"],
-          ["analytics", "Analytics"],
-          ["taxes", "Taxes"],
-          ["activity", "Activity"],
-          ["search", "Search"],
-          ["health", "Brand Health"],
-          ["affiliates", "Affiliates"],
-        ] as const).map(([key, label]) => (
-          <button
-            key={key}
-            onClick={() => chooseTab(key)}
-            style={{
-              background: "transparent", border: "none", cursor: "pointer",
-              padding: "10px 16px", fontSize: "13px",
-              color: tab === key ? "#18181B" : "#71717A",
-              fontWeight: tab === key ? 700 : 500,
-              borderBottom: "2px solid " + (tab === key ? "#18181B" : "transparent"),
-              marginBottom: "-1px",
-            }}
-          >
-            {label}
-            {key === "affiliates" && affiliateCount > 0 ? (
-              <span style={{ marginLeft: 6, display: "inline-block", minWidth: 20, padding: "0 6px", borderRadius: 99,
-                             background: "#FFF4DB", color: "#7A5200", fontSize: 11, fontWeight: 700, lineHeight: "20px" }}>
-                {affiliateCount}
-              </span>
-            ) : null}
-          </button>
-        ))}
-      </div>
-
-      {tab === "affiliates" && <AffiliatesTab onCount={setAffiliateCount} />}
       {tab === "analytics" && <AnalyticsTab />}
       {tab === "taxes" && <TaxTab />}
       {tab === "activity" && <ActivityTab tenants={tenants} />}
@@ -277,6 +250,7 @@ export default function PlatformDashboard() {
         )}
       </div>
       </>}
+      </main>}
 
       {/* Create modal */}
       {showCreate && (
