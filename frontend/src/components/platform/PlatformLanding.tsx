@@ -1,5 +1,7 @@
 import Link from "next/link";
 
+import { ReferralCapture } from "@/components/partners/ReferralCapture";
+
 /**
  * printcopilot.co — the platform's own page.
  *
@@ -217,6 +219,8 @@ export default function PlatformLanding() {
   return (
     <>
       <style>{CSS}</style>
+      {/* A partner's link lands here (`?ref=CODE`). */}
+      <ReferralCapture />
       <div className="pc">
         <header className="pc-header">
           <div className="pc-wrap pc-header-in">
@@ -385,6 +389,7 @@ export default function PlatformLanding() {
             <span className="pc-footer-links">
               <a href="#pricing">Pricing</a>
               <a href="#contact">Contact</a>
+              <Link href="/partners">Partner program</Link>
               <Link href="/login?tenant=">Log in</Link>
             </span>
           </div>

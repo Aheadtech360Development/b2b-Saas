@@ -95,7 +95,7 @@ async def _blocked(db: AsyncSession, p: dict) -> HTTPException | None:
 
 @router.post("/login")
 async def login(payload: LoginIn, request: Request, response: Response,
-                db: AsyncSession = Depends(get_partner_db)) -> dict[str, Any]:
+                db: AsyncSession = Depends(get_partner_db, scope="function")) -> dict[str, Any]:
     await enforce_rate_limit(request, "partner_login", limit=10, window=900, extra=payload.email)
     await enforce_rate_limit(request, "partner_login_ip", limit=30, window=900)
     p = (await db.execute(text("SELECT * FROM partners WHERE lower(email) = :e"),
@@ -129,7 +129,7 @@ async def login(payload: LoginIn, request: Request, response: Response,
 
 @router.post("/2fa")
 async def two_factor(payload: TwoFactorIn, request: Request, response: Response,
-                     db: AsyncSession = Depends(get_partner_db)) -> dict[str, Any]:
+                     db: AsyncSession = Depends(get_partner_db, scope="function")) -> dict[str, Any]:
     await enforce_rate_limit(request, "partner_2fa", limit=10, window=900)
     from app.services import two_factor_service
 
@@ -157,7 +157,7 @@ async def two_factor(payload: TwoFactorIn, request: Request, response: Response,
 
 @router.post("/refresh")
 async def refresh(request: Request, response: Response,
-                  db: AsyncSession = Depends(get_partner_db)) -> dict[str, Any]:
+                  db: AsyncSession = Depends(get_partner_db, scope="function")) -> dict[str, Any]:
     from app.core.redis import redis_exists
 
     claims = auth.read(request.cookies.get(auth.REFRESH_COOKIE), auth.REFRESH)
@@ -198,7 +198,7 @@ async def logout(request: Request, response: Response) -> dict[str, bool]:
 
 @router.post("/forgot")
 async def forgot(payload: ForgotIn, request: Request, background: BackgroundTasks,
-                 db: AsyncSession = Depends(get_partner_db)) -> dict[str, Any]:
+                 db: AsyncSession = Depends(get_partner_db, scope="function")) -> dict[str, Any]:
     await enforce_rate_limit(request, "partner_forgot", limit=5, window=3600, extra=payload.email)
     await enforce_rate_limit(request, "partner_forgot_ip", limit=20, window=3600)
     p = (await db.execute(text("SELECT id, name, email, status, password_hash FROM partners WHERE lower(email) = :e"),
@@ -215,7 +215,7 @@ async def forgot(payload: ForgotIn, request: Request, background: BackgroundTask
 
 
 @router.post("/reset")
-async def reset(payload: ResetIn, request: Request, db: AsyncSession = Depends(get_partner_db)) -> dict[str, Any]:
+async def reset(payload: ResetIn, request: Request, db: AsyncSession = Depends(get_partner_db, scope="function")) -> dict[str, Any]:
     await enforce_rate_limit(request, "partner_reset", limit=10, window=3600)
     problem = auth.password_problem(payload.password)
     if problem:
@@ -236,7 +236,7 @@ async def reset(payload: ResetIn, request: Request, db: AsyncSession = Depends(g
 
 
 @router.get("/invite")
-async def invite_info(token: str, db: AsyncSession = Depends(get_partner_db)) -> dict[str, Any]:
+async def invite_info(token: str, db: AsyncSession = Depends(get_partner_db, scope="function")) -> dict[str, Any]:
     p = (await db.execute(text("""
         SELECT id, name, email, code FROM partners WHERE invite_token_hash = :h AND invite_expires_at > now()
     """), {"h": auth.digest(token)})).mappings().first()
@@ -249,7 +249,7 @@ async def invite_info(token: str, db: AsyncSession = Depends(get_partner_db)) ->
 
 @router.post("/invite")
 async def accept_invite(payload: InviteIn, request: Request, response: Response,
-                        db: AsyncSession = Depends(get_partner_db)) -> dict[str, Any]:
+                        db: AsyncSession = Depends(get_partner_db, scope="function")) -> dict[str, Any]:
     await enforce_rate_limit(request, "partner_invite", limit=10, window=3600)
     if not payload.accept_terms:
         raise _refuse(400, "TERMS", "Accept the partner terms to continue.")
@@ -280,7 +280,7 @@ async def accept_invite(payload: InviteIn, request: Request, response: Response,
 
 
 @router.get("/final-statement")
-async def final_statement(ticket: str, db: AsyncSession = Depends(get_partner_db)) -> Response:
+async def final_statement(ticket: str, db: AsyncSession = Depends(get_partner_db, scope="function")) -> Response:
     """The final statement an ended partner can download from the sign-in page."""
     claims = auth.read(ticket, auth.STATEMENT)
     if not claims:

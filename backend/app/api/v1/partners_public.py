@@ -29,7 +29,7 @@ class ClickIn(BaseModel):
 
 
 @router.get("/program")
-async def program_page(db: AsyncSession = Depends(get_partner_db)) -> dict[str, Any]:
+async def program_page(db: AsyncSession = Depends(get_partner_db, scope="function")) -> dict[str, Any]:
     """What the public program page and the application form show."""
     settings = await program.load(db)
     standard = None
@@ -62,7 +62,7 @@ async def program_page(db: AsyncSession = Depends(get_partner_db)) -> dict[str, 
 
 @router.post("/click")
 async def click(payload: ClickIn, request: Request,
-                db: AsyncSession = Depends(get_partner_db)) -> dict[str, Any]:
+                db: AsyncSession = Depends(get_partner_db, scope="function")) -> dict[str, Any]:
     """A visitor arrived on a partner's link. Says whether the link works,
     and what the browser should remember if it does."""
     await enforce_rate_limit(request, "partner_click", limit=120, window=3600)
@@ -75,7 +75,7 @@ async def click(payload: ClickIn, request: Request,
 
 @router.get("/codes/{code}")
 async def code(code: str, request: Request,
-               db: AsyncSession = Depends(get_partner_db)) -> dict[str, Any]:
+               db: AsyncSession = Depends(get_partner_db, scope="function")) -> dict[str, Any]:
     """Whether a code typed at sign-up will count."""
     await enforce_rate_limit(request, "partner_code", limit=60, window=3600)
     return await referrals.code_status(db, code)
@@ -105,7 +105,7 @@ def _spam_flags(payload: ApplyIn) -> list[str]:
 
 @router.post("/apply")
 async def apply(payload: ApplyIn, request: Request, background: BackgroundTasks,
-                db: AsyncSession = Depends(get_partner_db)) -> dict[str, Any]:
+                db: AsyncSession = Depends(get_partner_db, scope="function")) -> dict[str, Any]:
     """Apply to the partner program. The super admin decides; with auto
     approve on, an application with nothing to look at is approved at once."""
     from app.services.partners import actions, activity, auth, mail

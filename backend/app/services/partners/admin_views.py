@@ -151,7 +151,10 @@ async def overview(db: AsyncSession) -> dict[str, Any]:
          WHERE l.kind = 'commission' AND l.status <> 'void' AND l.earned_at >= :m
          GROUP BY p.id, rp.name, rp.rate_bps ORDER BY earned DESC LIMIT 5
     """), {"m": month})).mappings().all()
-    stats = await stripe_stats(db)
+    from app.services import stripe_mode
+
+    # The Stripe mode the platform is in, as Stripe events opens on.
+    stats = await stripe_stats(db, await stripe_mode.current(db) == stripe_mode.LIVE)
     return {
         "applications": {"open": apps["open"], "old": apps["old"]},
         "affiliates": {"active": by_status["active"], "paused": by_status["paused"],
@@ -575,11 +578,20 @@ async def yearly_totals(db: AsyncSession) -> list[dict]:
 
 # ── Activity and Stripe events ────────────────────────────────────────────────
 
-async def activity_view(db: AsyncSession, partner_id: str | None, q: str | None, page: int) -> dict[str, Any]:
+async def activity_view(db: AsyncSession, partner_id: str | None, q: str | None, page: int,
+                        actor: str | None = None, days: int = 0) -> dict[str, Any]:
     where, params = [], {}
     if partner_id:
         where.append("partner_id = CAST(:p AS uuid)")
         params["p"] = partner_id
+    if actor == "system":
+        where.append("actor_kind IN ('system', 'stripe')")
+    elif actor in ("admin", "partner"):
+        where.append("actor_kind = :actor")
+        params["actor"] = actor
+    if days:
+        where.append("at > now() - make_interval(days => :days)")
+        params["days"] = int(days)
     if q:
         where.append("(action ILIKE :q OR actor_name ILIKE :q OR reason ILIKE :q)")
         params["q"] = f"%{q.strip()}%"

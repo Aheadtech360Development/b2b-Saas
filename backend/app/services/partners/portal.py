@@ -30,9 +30,11 @@ def _day(value: date | datetime | None) -> str:
 async def partner_row(db: AsyncSession, partner_id: Any) -> dict | None:
     row = (await db.execute(text("""
         SELECT p.*, rp.key AS rate_plan_key, rp.name AS rate_plan_name, rp.rate_bps AS plan_rate_bps,
-               EXISTS (SELECT 1 FROM partner_documents d WHERE d.partner_id = p.id AND d.kind = 'w9'
-                        AND d.replaced_at IS NULL) AS has_w9
+               w9.uploaded_at AS w9_uploaded_at, (w9.uploaded_at IS NOT NULL) AS has_w9
           FROM partners p JOIN partner_rate_plans rp ON rp.id = p.rate_plan_id
+          LEFT JOIN LATERAL (SELECT d.uploaded_at FROM partner_documents d
+                              WHERE d.partner_id = p.id AND d.kind = 'w9' AND d.replaced_at IS NULL
+                              ORDER BY d.uploaded_at DESC LIMIT 1) w9 ON true
          WHERE p.id = CAST(:id AS uuid)
     """), {"id": str(partner_id)})).mappings().first()
     return dict(row) if row else None
@@ -43,7 +45,7 @@ def current_rate(p: dict) -> tuple[int, str]:
                                   p.get("custom_rate_ends_on"), ledger.utc_today())
 
 
-EMAIL_DEFAULTS = {"new_shop": True, "commission_earned": False}
+EMAIL_DEFAULTS = {"new_shop": True, "commission_earned": True}
 
 
 def email_prefs(p: dict) -> dict[str, bool]:
@@ -67,7 +69,8 @@ def summary(p: dict, *, read_only: bool = False) -> dict[str, Any]:
         "terms_version": p.get("terms_version"),
         "two_factor_enabled": bool(p.get("two_factor_enabled")),
         "payout_method": p.get("payout_method"), "payout_account": p.get("payout_account"),
-        "has_w9": bool(p.get("has_w9")), "email_prefs": email_prefs(p),
+        "has_w9": bool(p.get("has_w9")), "w9_uploaded_at": p.get("w9_uploaded_at"),
+        "email_prefs": email_prefs(p),
         "joined": p.get("approved_at") or p.get("created_at"),
         "read_only": read_only,
     }
@@ -194,9 +197,9 @@ def line_view(ln: dict, today: date) -> dict[str, Any]:
     if state == "pending":
         detail = f"Payable {_day(ln['payable_on'])}"
     elif state == "payable":
-        detail = "In the next batch" if not ln.get("batch_id") else "In a batch being paid"
+        detail = f"Payable since {_day(ln['payable_on'])}" if not ln.get("batch_id") else "In a batch being paid"
     elif state == "clawback":
-        detail = "Nets against next payout"
+        detail = "Refund, nets next payout" if ln["kind"] == "clawback" else "Nets against next payout"
     elif state == "on_hold":
         detail = "On hold, under review"
     elif state == "paid":
@@ -212,17 +215,27 @@ def line_view(ln: dict, today: date) -> dict[str, Any]:
     }
 
 
-async def earnings(db: AsyncSession, p: dict, state: str | None, page: int) -> dict[str, Any]:
+async def earnings(db: AsyncSession, p: dict, state: str | None, page: int, months: int = 0,
+                   q: str | None = None) -> dict[str, Any]:
     today = ledger.utc_today()
-    views = [line_view(ln, today) for ln in await all_lines(db, p["id"])]
-    counts: dict[str, int] = {}
+    money = await money_summary(db, p)
+    lines = money.pop("lines")
+    if months:
+        since = datetime.now(timezone.utc) - timedelta(days=31 * months)
+        lines = [ln for ln in lines if ln["earned_at"] >= since]
+    views = [line_view(ln, today) for ln in lines]
+    if q:
+        needle = q.strip().lower()
+        views = [v for v in views if needle in f"{v['shop_name']} {v['plan_name']}".lower()]
+    counts: dict[str, int] = {"all": len(views)}
     for v in views:
         counts[v["state"]] = counts.get(v["state"], 0) + 1
     if state and state != "all":
         views = [v for v in views if v["state"] == state]
     page = max(1, page)
     return {"lines": views[(page - 1) * PAGE_SIZE: page * PAGE_SIZE], "total": len(views),
-            "page": page, "pages": max(1, -(-len(views) // PAGE_SIZE)), "counts": counts}
+            "page": page, "pages": max(1, -(-len(views) // PAGE_SIZE)), "counts": counts,
+            "summary": money}
 
 
 async def earnings_csv(db: AsyncSession, p: dict) -> str:
@@ -276,32 +289,54 @@ async def dashboard(db: AsyncSession, p: dict) -> dict[str, Any]:
             if slot:
                 slot["cents"] += int(ln["amount_cents"])
 
-    # What happened lately, from the lines, the shops and the payouts.
+    # What happened lately, in the design's words, each with its state.
     recent: list[dict[str, Any]] = []
+    chips = {"pending": "Pending", "payable": "Payable", "paid": "Paid", "on_hold": "On hold",
+             "void": "Void", "clawback": "Clawback"}
     for ln in lines[:12]:
+        state = ledger.line_state(ln["kind"], ln["status"], ln["payable_on"], today)
+        amount = ledger.money(abs(int(ln["amount_cents"])))
         if ln["kind"] == "commission":
-            words = f"{ln['shop_name']} paid its {program.plan_name(ln['plan_key'])} plan"
+            words = f"Commission earned: {amount} from {ln['shop_name']}"
         elif ln["kind"] == "clawback":
-            words = f"Refund on {ln['shop_name']}, taken back"
+            words = f"Refund on {ln['shop_name']}: clawback of {amount}"
         else:
-            words = "Adjustment"
-        recent.append({"at": ln["created_at"], "words": words, "amount_cents": ln["amount_cents"]})
+            words = f"Adjustment: {ledger.money(int(ln['amount_cents']))}"
+        recent.append({"at": ln["created_at"], "words": words, "state": state, "chip": chips.get(state, state)})
     for s in shop_list[:8]:
-        recent.append({"at": s["signed_up"], "words": f"{s['shop_name']} signed up", "amount_cents": None})
+        recent.append({"at": s["signed_up"], "state": "trial", "chip": "Trial",
+                       "words": f"{s['shop_name']} started a trial"})
     payouts = (await db.execute(text("""
-        SELECT recorded_at, amount_cents FROM partner_payouts WHERE partner_id = :p
+        SELECT recorded_at, amount_cents, method FROM partner_payouts WHERE partner_id = :p
          ORDER BY recorded_at DESC LIMIT 4
     """), {"p": str(p["id"])})).mappings().all()
+    methods = {"paypal": "PayPal", "wise": "Wise", "bank": "bank transfer"}
     for po in payouts:
-        recent.append({"at": po["recorded_at"], "words": "Payout recorded", "amount_cents": po["amount_cents"]})
+        recent.append({"at": po["recorded_at"], "state": "paid", "chip": "Paid",
+                       "words": f"Payout recorded: {ledger.money(po['amount_cents'])} via "
+                                f"{methods.get(po['method'], po['method'])}"})
+    failed = (await db.execute(text("""
+        SELECT e.received_at, COALESCE(t.name, r.shop_name) AS shop
+          FROM partner_stripe_events e
+          LEFT JOIN tenants t ON t.id = e.shop_tenant_id
+          LEFT JOIN partner_referrals r ON r.shop_tenant_id = e.shop_tenant_id
+         WHERE e.partner_id = :p AND e.result = 'payment_failed'
+         ORDER BY e.received_at DESC LIMIT 4
+    """), {"p": str(p["id"])})).mappings().all()
+    for f in failed:
+        recent.append({"at": f["received_at"], "state": "past_due", "chip": "Past due",
+                       "words": f"{f['shop'] or 'A shop'} payment failed, commission paused"})
     recent.sort(key=lambda x: x["at"], reverse=True)
+    by_state: dict[str, int] = {}
+    for s in shop_list:
+        by_state[s["state"]] = by_state.get(s["state"], 0) + 1
 
     terms = await program.latest_terms(db)
     settings = await program.load(db)
     return {
         **money,
         "active_shops": sum(1 for s in shop_list if s["state"] in ("active", "past_due")),
-        "shops_total": len(shop_list),
+        "shops_total": len(shop_list), "shops_by_state": by_state,
         "chart": months, "recent": recent[:8],
         "terms": {"latest": terms["version"] if terms else None,
                   "published_at": terms["published_at"] if terms else None,

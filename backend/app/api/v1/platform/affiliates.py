@@ -51,29 +51,32 @@ def _csv(body: str, name: str) -> Response:
 # ── Overview ──────────────────────────────────────────────────────────────────
 
 @router.get("/overview")
-async def overview(db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
+async def overview(db: AsyncSession = Depends(get_db, scope="function")) -> dict[str, Any]:
     return await admin_views.overview(db)
 
 
 @router.get("/badge")
-async def badge(db: AsyncSession = Depends(get_db)) -> dict[str, int]:
-    """The count on the Affiliates tab: applications waiting for a decision."""
-    n = (await db.execute(text(
-        "SELECT COUNT(*) FROM partner_applications WHERE status IN ('waiting', 'info_requested')"
-    ))).scalar() or 0
-    return {"applications": int(n)}
+async def badge(db: AsyncSession = Depends(get_db, scope="function")) -> dict[str, int]:
+    """The counts on the tab and its menu: applications waiting for a
+    decision, referrals waiting for review, Stripe events that failed."""
+    row = (await db.execute(text("""
+        SELECT (SELECT COUNT(*) FROM partner_applications WHERE status IN ('waiting', 'info_requested')) AS a,
+               (SELECT COUNT(*) FROM partner_referrals WHERE status = 'review') AS r,
+               (SELECT COUNT(*) FROM partner_stripe_events WHERE result = 'failed') AS f
+    """))).first()
+    return {"applications": int(row[0] or 0), "review": int(row[1] or 0), "failed": int(row[2] or 0)}
 
 
 # ── Applications ──────────────────────────────────────────────────────────────
 
 @router.get("/applications")
 async def applications(tab: str = "waiting", flagged: bool = False, q: str | None = None,
-                       db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
+                       db: AsyncSession = Depends(get_db, scope="function")) -> dict[str, Any]:
     return await admin_views.applications(db, tab, flagged, q)
 
 
 @router.get("/applications/{application_id}")
-async def application(application_id: str, db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
+async def application(application_id: str, db: AsyncSession = Depends(get_db, scope="function")) -> dict[str, Any]:
     found = await admin_views.application(db, application_id)
     if not found:
         raise _not_found("application")
@@ -88,7 +91,7 @@ class ApproveIn(BaseModel):
 
 @router.post("/applications/{application_id}/approve")
 async def approve(application_id: str, payload: ApproveIn, request: Request, background: BackgroundTasks,
-                  db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
+                  db: AsyncSession = Depends(get_db, scope="function")) -> dict[str, Any]:
     try:
         partner, token = await actions.approve(db, await _actor(request, db), application_id,
                                                rate_plan_id=payload.rate_plan_id, code=payload.code)
@@ -109,7 +112,7 @@ class QuestionIn(BaseModel):
 
 @router.post("/applications/{application_id}/request-info")
 async def request_info(application_id: str, payload: QuestionIn, request: Request, background: BackgroundTasks,
-                       db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
+                       db: AsyncSession = Depends(get_db, scope="function")) -> dict[str, Any]:
     try:
         app = await actions.request_info(db, await _actor(request, db), application_id, payload.question)
     except ActionError as exc:
@@ -125,7 +128,7 @@ class RejectIn(BaseModel):
 
 @router.post("/applications/{application_id}/reject")
 async def reject(application_id: str, payload: RejectIn, request: Request, background: BackgroundTasks,
-                 db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
+                 db: AsyncSession = Depends(get_db, scope="function")) -> dict[str, Any]:
     try:
         app = await actions.reject(db, await _actor(request, db), application_id, payload.reason)
     except ActionError as exc:
@@ -141,7 +144,7 @@ class NoteIn(BaseModel):
 
 @router.post("/{subject_kind}/{subject_id}/notes")
 async def add_note(subject_kind: Literal["applications", "affiliates", "referrals"], subject_id: str,
-                   payload: NoteIn, request: Request, db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
+                   payload: NoteIn, request: Request, db: AsyncSession = Depends(get_db, scope="function")) -> dict[str, Any]:
     """An internal note. Only admins see it; it lives in the activity log."""
     actor = await _actor(request, db)
     kind = {"applications": "application", "affiliates": "partner", "referrals": "referral"}[subject_kind]
@@ -160,12 +163,12 @@ async def add_note(subject_kind: Literal["applications", "affiliates", "referral
 
 @router.get("/affiliates")
 async def affiliates(status: str | None = None, rate_plan: str | None = None, w9_missing: bool = False,
-                     q: str | None = None, db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
+                     q: str | None = None, db: AsyncSession = Depends(get_db, scope="function")) -> dict[str, Any]:
     return await admin_views.affiliates(db, status, rate_plan, w9_missing, q)
 
 
 @router.get("/affiliates.csv")
-async def affiliates_csv(db: AsyncSession = Depends(get_db)) -> Response:
+async def affiliates_csv(db: AsyncSession = Depends(get_db, scope="function")) -> Response:
     import csv
     import io
 
@@ -189,7 +192,7 @@ class AddAffiliateIn(BaseModel):
 
 @router.post("/affiliates")
 async def add_affiliate(payload: AddAffiliateIn, request: Request, background: BackgroundTasks,
-                        db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
+                        db: AsyncSession = Depends(get_db, scope="function")) -> dict[str, Any]:
     from pydantic import TypeAdapter
     from pydantic import EmailStr
 
@@ -212,7 +215,7 @@ async def add_affiliate(payload: AddAffiliateIn, request: Request, background: B
 
 
 @router.get("/affiliates/{partner_id}")
-async def affiliate(partner_id: str, db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
+async def affiliate(partner_id: str, db: AsyncSession = Depends(get_db, scope="function")) -> dict[str, Any]:
     found = await admin_views.affiliate(db, partner_id)
     if not found:
         raise _not_found("affiliate")
@@ -220,23 +223,23 @@ async def affiliate(partner_id: str, db: AsyncSession = Depends(get_db)) -> dict
 
 
 @router.get("/affiliates/{partner_id}/referrals")
-async def affiliate_referrals(partner_id: str, db: AsyncSession = Depends(get_db)) -> list[dict]:
+async def affiliate_referrals(partner_id: str, db: AsyncSession = Depends(get_db, scope="function")) -> list[dict]:
     return await admin_views.affiliate_shops(db, partner_id)
 
 
 @router.get("/affiliates/{partner_id}/payouts")
-async def affiliate_payouts(partner_id: str, db: AsyncSession = Depends(get_db)) -> list[dict]:
+async def affiliate_payouts(partner_id: str, db: AsyncSession = Depends(get_db, scope="function")) -> list[dict]:
     return await admin_views.affiliate_payouts(db, partner_id)
 
 
 @router.get("/affiliates/{partner_id}/documents")
-async def affiliate_documents(partner_id: str, db: AsyncSession = Depends(get_db)) -> list[dict]:
+async def affiliate_documents(partner_id: str, db: AsyncSession = Depends(get_db, scope="function")) -> list[dict]:
     return await admin_views.affiliate_documents(db, partner_id)
 
 
 @router.get("/affiliates/{partner_id}/documents/{document_id}")
 async def affiliate_document(partner_id: str, document_id: str, request: Request,
-                             db: AsyncSession = Depends(get_db)) -> Response:
+                             db: AsyncSession = Depends(get_db, scope="function")) -> Response:
     """A W-9, decrypted for the admin who asked. Every download is logged."""
     row = (await db.execute(text("""
         SELECT id, filename, mime, data FROM partner_documents
@@ -260,7 +263,7 @@ async def affiliate_document(partner_id: str, document_id: str, request: Request
 
 @router.get("/affiliates/{partner_id}/activity")
 async def affiliate_activity(partner_id: str, page: int = Query(1, ge=1),
-                             db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
+                             db: AsyncSession = Depends(get_db, scope="function")) -> dict[str, Any]:
     return await admin_views.activity_view(db, partner_id, None, page)
 
 
@@ -273,7 +276,7 @@ class RateIn(BaseModel):
 
 @router.put("/affiliates/{partner_id}/rate")
 async def set_rate(partner_id: str, payload: RateIn, request: Request,
-                   db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
+                   db: AsyncSession = Depends(get_db, scope="function")) -> dict[str, Any]:
     try:
         return await actions.set_rate(db, await _actor(request, db), partner_id, rate_plan_id=payload.rate_plan_id,
                                       custom_rate_bps=payload.custom_rate_bps,
@@ -289,7 +292,7 @@ class CodeIn(BaseModel):
 
 @router.put("/affiliates/{partner_id}/code")
 async def set_code(partner_id: str, payload: CodeIn, request: Request,
-                   db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
+                   db: AsyncSession = Depends(get_db, scope="function")) -> dict[str, Any]:
     try:
         return {"code": await actions.set_code(db, await _actor(request, db), partner_id, payload.code, payload.reason)}
     except ActionError as exc:
@@ -305,7 +308,7 @@ class StatusIn(BaseModel):
 
 @router.post("/affiliates/{partner_id}/status")
 async def set_status(partner_id: str, payload: StatusIn, request: Request, background: BackgroundTasks,
-                     db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
+                     db: AsyncSession = Depends(get_db, scope="function")) -> dict[str, Any]:
     try:
         out = await actions.set_status(db, await _actor(request, db), partner_id, payload.status, payload.reason,
                                        forfeit=payload.forfeit)
@@ -320,7 +323,7 @@ async def set_status(partner_id: str, payload: StatusIn, request: Request, backg
 
 @router.post("/affiliates/{partner_id}/invite")
 async def resend_invite(partner_id: str, request: Request, background: BackgroundTasks,
-                        db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
+                        db: AsyncSession = Depends(get_db, scope="function")) -> dict[str, Any]:
     try:
         p, token = await actions.new_invite(db, await _actor(request, db), partner_id)
     except ActionError as exc:
@@ -333,7 +336,7 @@ async def resend_invite(partner_id: str, request: Request, background: Backgroun
 
 
 @router.post("/affiliates/{partner_id}/view-as")
-async def view_as(partner_id: str, request: Request, db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
+async def view_as(partner_id: str, request: Request, db: AsyncSession = Depends(get_db, scope="function")) -> dict[str, Any]:
     """A read-only partner session, so the admin sees exactly what the affiliate sees."""
     p = await portal.partner_row(db, partner_id)
     if not p:
@@ -352,12 +355,12 @@ async def view_as(partner_id: str, request: Request, db: AsyncSession = Depends(
 @router.get("/referrals")
 async def referral_list(tab: str = "all", partner_id: str | None = None, plan: str | None = None,
                         source: str | None = None, q: str | None = None,
-                        db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
+                        db: AsyncSession = Depends(get_db, scope="function")) -> dict[str, Any]:
     return await admin_views.referral_list(db, tab, partner_id, plan, source, q)
 
 
 @router.get("/referrals.csv")
-async def referrals_csv(db: AsyncSession = Depends(get_db)) -> Response:
+async def referrals_csv(db: AsyncSession = Depends(get_db, scope="function")) -> Response:
     import csv
     import io
 
@@ -372,7 +375,7 @@ async def referrals_csv(db: AsyncSession = Depends(get_db)) -> Response:
 
 
 @router.get("/referrals/{referral_id}")
-async def referral(referral_id: str, db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
+async def referral(referral_id: str, db: AsyncSession = Depends(get_db, scope="function")) -> dict[str, Any]:
     found = await admin_views.referral(db, referral_id)
     if not found:
         raise _not_found("referral")
@@ -387,7 +390,7 @@ class DecisionIn(BaseModel):
 
 @router.post("/referrals/{referral_id}/decision")
 async def referral_decision(referral_id: str, payload: DecisionIn, request: Request,
-                            db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
+                            db: AsyncSession = Depends(get_db, scope="function")) -> dict[str, Any]:
     try:
         return await actions.referral_decision(db, await _actor(request, db), referral_id, payload.decision,
                                                payload.reason, new_partner_id=payload.new_partner_id)
@@ -402,7 +405,7 @@ class ManualReferralIn(BaseModel):
 
 
 @router.post("/referrals")
-async def add_referral(payload: ManualReferralIn, request: Request, db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
+async def add_referral(payload: ManualReferralIn, request: Request, db: AsyncSession = Depends(get_db, scope="function")) -> dict[str, Any]:
     try:
         return await actions.add_referral(db, await _actor(request, db), payload.partner_id, payload.shop_tenant_id,
                                           payload.reason)
@@ -411,7 +414,7 @@ async def add_referral(payload: ManualReferralIn, request: Request, db: AsyncSes
 
 
 @router.get("/shops")
-async def shops(q: str = Query(min_length=2, max_length=80), db: AsyncSession = Depends(get_db)) -> list[dict]:
+async def shops(q: str = Query(min_length=2, max_length=80), db: AsyncSession = Depends(get_db, scope="function")) -> list[dict]:
     """Shops to choose from when adding a referral by hand."""
     rows = (await db.execute(text("""
         SELECT t.id, t.name, t.slug, t.plan,
@@ -426,12 +429,12 @@ async def shops(q: str = Query(min_length=2, max_length=80), db: AsyncSession = 
 @router.get("/ledger")
 async def ledger_view(state: str | None = None, partner_id: str | None = None, months: int = Query(6, ge=0, le=120),
                       q: str | None = None, page: int = Query(1, ge=1),
-                      db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
+                      db: AsyncSession = Depends(get_db, scope="function")) -> dict[str, Any]:
     return await admin_views.ledger_view(db, state, partner_id, months, q, page)
 
 
 @router.get("/ledger.csv")
-async def ledger_csv(db: AsyncSession = Depends(get_db)) -> Response:
+async def ledger_csv(db: AsyncSession = Depends(get_db, scope="function")) -> Response:
     return _csv(await admin_views.ledger_csv(db), "ledger.csv")
 
 
@@ -443,7 +446,7 @@ class LinesIn(BaseModel):
 
 @router.post("/ledger/{what}")
 async def ledger_action(what: Literal["hold", "release", "void"], payload: LinesIn, request: Request,
-                        db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
+                        db: AsyncSession = Depends(get_db, scope="function")) -> dict[str, Any]:
     actor = await _actor(request, db)
     try:
         if what == "hold":
@@ -464,7 +467,7 @@ class AdjustmentIn(BaseModel):
 
 
 @router.post("/adjustments")
-async def adjustment(payload: AdjustmentIn, request: Request, db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
+async def adjustment(payload: AdjustmentIn, request: Request, db: AsyncSession = Depends(get_db, scope="function")) -> dict[str, Any]:
     try:
         line_id = await actions.add_adjustment(db, await _actor(request, db), payload.partner_id,
                                                payload.amount_cents, payload.reason)
@@ -476,27 +479,27 @@ async def adjustment(payload: AdjustmentIn, request: Request, db: AsyncSession =
 # ── Payouts ───────────────────────────────────────────────────────────────────
 
 @router.get("/payouts/payables")
-async def payables(db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
+async def payables(db: AsyncSession = Depends(get_db, scope="function")) -> dict[str, Any]:
     return await admin_views.payables(db)
 
 
 @router.get("/payouts/batches")
-async def batches(db: AsyncSession = Depends(get_db)) -> list[dict]:
+async def batches(db: AsyncSession = Depends(get_db, scope="function")) -> list[dict]:
     return await admin_views.batches(db)
 
 
 @router.get("/payouts/history")
-async def history(db: AsyncSession = Depends(get_db)) -> list[dict]:
+async def history(db: AsyncSession = Depends(get_db, scope="function")) -> list[dict]:
     return await admin_views.paid_history(db)
 
 
 @router.get("/payouts/yearly")
-async def yearly(db: AsyncSession = Depends(get_db)) -> list[dict]:
+async def yearly(db: AsyncSession = Depends(get_db, scope="function")) -> list[dict]:
     return await admin_views.yearly_totals(db)
 
 
 @router.get("/payouts.csv")
-async def payouts_csv(db: AsyncSession = Depends(get_db)) -> Response:
+async def payouts_csv(db: AsyncSession = Depends(get_db, scope="function")) -> Response:
     import csv
     import io
 
@@ -517,7 +520,7 @@ class BatchIn(BaseModel):
 
 
 @router.post("/payouts/batches")
-async def create_batch(payload: BatchIn, request: Request, db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
+async def create_batch(payload: BatchIn, request: Request, db: AsyncSession = Depends(get_db, scope="function")) -> dict[str, Any]:
     try:
         return await actions.create_batch(db, await _actor(request, db), payload.partner_ids, name=payload.name,
                                           note=payload.note, w9_overrides=payload.w9_overrides)
@@ -531,7 +534,7 @@ class ReasonIn(BaseModel):
 
 @router.post("/payouts/batches/{batch_id}/cancel")
 async def cancel_batch(batch_id: str, payload: ReasonIn, request: Request,
-                       db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
+                       db: AsyncSession = Depends(get_db, scope="function")) -> dict[str, Any]:
     try:
         return {"ok": True, "lines_freed": await actions.cancel_batch(db, await _actor(request, db), batch_id,
                                                                       payload.reason)}
@@ -549,7 +552,7 @@ class RecordIn(BaseModel):
 
 @router.post("/payouts/batches/{batch_id}/record")
 async def record_payout(batch_id: str, payload: RecordIn, request: Request, background: BackgroundTasks,
-                        db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
+                        db: AsyncSession = Depends(get_db, scope="function")) -> dict[str, Any]:
     try:
         out = await actions.record_payout(db, await _actor(request, db), batch_id, payload.partner_id,
                                           paid_on=payload.paid_on, method=payload.method, reference=payload.reference,
@@ -574,7 +577,7 @@ async def record_payout(batch_id: str, payload: RecordIn, request: Request, back
 # ── Program settings, rates, terms and assets ─────────────────────────────────
 
 @router.get("/settings")
-async def settings_view(db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
+async def settings_view(db: AsyncSession = Depends(get_db, scope="function")) -> dict[str, Any]:
     from app.core.billing_plans import PLAN_ORDER
 
     terms = await program.latest_terms(db)
@@ -590,7 +593,7 @@ async def settings_view(db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
 
 
 @router.put("/settings")
-async def save_settings(payload: dict, request: Request, db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
+async def save_settings(payload: dict, request: Request, db: AsyncSession = Depends(get_db, scope="function")) -> dict[str, Any]:
     reason = str(payload.pop("reason", "") or "").strip() or None
     try:
         before, after = await program.save(db, payload)
@@ -616,7 +619,7 @@ class RatePlanIn(BaseModel):
 
 @router.put("/rate-plans/{plan_id}")
 async def update_rate_plan(plan_id: str, payload: RatePlanIn, request: Request,
-                           db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
+                           db: AsyncSession = Depends(get_db, scope="function")) -> dict[str, Any]:
     before = (await db.execute(text("SELECT * FROM partner_rate_plans WHERE id = CAST(:id AS uuid)"),
                                {"id": plan_id})).mappings().first()
     if not before:
@@ -643,7 +646,7 @@ class NewRatePlanIn(RatePlanIn):
 
 
 @router.post("/rate-plans")
-async def add_rate_plan(payload: NewRatePlanIn, request: Request, db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
+async def add_rate_plan(payload: NewRatePlanIn, request: Request, db: AsyncSession = Depends(get_db, scope="function")) -> dict[str, Any]:
     if (await db.execute(text("SELECT 1 FROM partner_rate_plans WHERE key = :k"), {"k": payload.key})).first():
         raise HTTPException(409, detail={"code": "TAKEN", "message": "There is already a rate plan with that key."})
     plan_id = (await db.execute(text("""
@@ -666,7 +669,7 @@ class TermsIn(BaseModel):
 
 @router.post("/terms")
 async def publish_terms(payload: TermsIn, request: Request, background: BackgroundTasks,
-                        db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
+                        db: AsyncSession = Depends(get_db, scope="function")) -> dict[str, Any]:
     try:
         version = await actions.publish_terms(db, await _actor(request, db), payload.clauses, payload.changes)
     except ActionError as exc:
@@ -681,7 +684,7 @@ async def publish_terms(payload: TermsIn, request: Request, background: Backgrou
 
 
 @router.get("/terms/{version}.pdf")
-async def terms_pdf(version: int, db: AsyncSession = Depends(get_db)) -> Response:
+async def terms_pdf(version: int, db: AsyncSession = Depends(get_db, scope="function")) -> Response:
     row = (await db.execute(text("SELECT version, clauses, published_at FROM partner_terms_versions WHERE version = :v"),
                             {"v": version})).mappings().first()
     if not row:
@@ -696,7 +699,7 @@ _ASSET_KINDS = {b"\x89PNG": "image/png", b"\xff\xd8\xff": "image/jpeg", b"GIF8":
 
 @router.post("/assets")
 async def add_asset(request: Request, title: str = Form(..., min_length=2, max_length=120),
-                    file: UploadFile = File(...), db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
+                    file: UploadFile = File(...), db: AsyncSession = Depends(get_db, scope="function")) -> dict[str, Any]:
     """A banner partners can download. Kept in the database, not the image
     library, which is the live shops' own."""
     data = await file.read(3 * 1024 * 1024 + 1)
@@ -725,7 +728,7 @@ async def add_asset(request: Request, title: str = Form(..., min_length=2, max_l
 
 
 @router.delete("/assets/{asset_id}")
-async def delete_asset(asset_id: str, request: Request, db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
+async def delete_asset(asset_id: str, request: Request, db: AsyncSession = Depends(get_db, scope="function")) -> dict[str, Any]:
     gone = (await db.execute(text("DELETE FROM partner_assets WHERE id = CAST(:id AS uuid) RETURNING title"),
                              {"id": asset_id})).scalar()
     if not gone:
@@ -739,7 +742,7 @@ async def delete_asset(asset_id: str, request: Request, db: AsyncSession = Depen
 
 
 @router.get("/assets/{asset_id}")
-async def asset(asset_id: str, db: AsyncSession = Depends(get_db)) -> Response:
+async def asset(asset_id: str, db: AsyncSession = Depends(get_db, scope="function")) -> Response:
     row = (await db.execute(text("SELECT mime, data FROM partner_assets WHERE id = CAST(:id AS uuid)"),
                             {"id": asset_id})).mappings().first()
     if not row:
@@ -751,18 +754,46 @@ async def asset(asset_id: str, db: AsyncSession = Depends(get_db)) -> Response:
 
 @router.get("/activity")
 async def activity_log(partner_id: str | None = None, q: str | None = None, page: int = Query(1, ge=1),
-                       db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
-    return await admin_views.activity_view(db, partner_id, q, page)
+                       actor: Literal["admin", "system", "partner"] | None = None,
+                       days: int = Query(0, ge=0, le=3650),
+                       db: AsyncSession = Depends(get_db, scope="function")) -> dict[str, Any]:
+    return await admin_views.activity_view(db, partner_id, q, page, actor, days)
+
+
+@router.get("/activity.csv")
+async def activity_csv(db: AsyncSession = Depends(get_db, scope="function")) -> Response:
+    import csv
+    import io
+
+    rows = (await db.execute(text("""
+        SELECT a.at, a.actor_kind, a.actor_name, a.actor_email, a.action, a.subject_kind, a.subject_id,
+               p.name AS partner_name, a.reason, a.before, a.after
+          FROM partner_activity a LEFT JOIN partners p ON p.id = a.partner_id ORDER BY a.at DESC, a.id DESC
+    """))).mappings().all()
+    out = io.StringIO()
+    w = csv.writer(out)
+    w.writerow(["When", "By", "Kind", "Action", "Affiliate", "Record", "Reason", "Before", "After"])
+    for r in rows:
+        w.writerow([r["at"].isoformat(), r["actor_email"] or r["actor_name"] or "", r["actor_kind"], r["action"],
+                    r["partner_name"] or "", f"{r['subject_kind'] or ''} {r['subject_id'] or ''}".strip(),
+                    r["reason"] or "", json.dumps(r["before"]) if r["before"] is not None else "",
+                    json.dumps(r["after"]) if r["after"] is not None else ""])
+    return _csv(out.getvalue(), "partner-activity.csv")
 
 
 @router.get("/stripe-events")
-async def stripe_events(mode: Literal["live", "test"] = "live", result: str | None = None, q: str | None = None,
-                        page: int = Query(1, ge=1), db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
-    return await admin_views.stripe_events(db, mode == "live", result, q, page)
+async def stripe_events(mode: Literal["live", "test"] | None = None, result: str | None = None, q: str | None = None,
+                        page: int = Query(1, ge=1), db: AsyncSession = Depends(get_db, scope="function")) -> dict[str, Any]:
+    """Opens on the Stripe mode the platform is in, unless asked for the other."""
+    if mode is None:
+        from app.services import stripe_mode
+
+        mode = "live" if await stripe_mode.current(db) == stripe_mode.LIVE else "test"
+    return {**await admin_views.stripe_events(db, mode == "live", result, q, page), "mode": mode}
 
 
 @router.post("/stripe-events/{event_row_id}/retry")
-async def retry_event(event_row_id: int, request: Request, db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
+async def retry_event(event_row_id: int, request: Request, db: AsyncSession = Depends(get_db, scope="function")) -> dict[str, Any]:
     from app.services.partners import activity, commissions
 
     out = await commissions.retry(event_row_id)
