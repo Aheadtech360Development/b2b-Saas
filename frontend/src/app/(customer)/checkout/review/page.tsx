@@ -15,7 +15,7 @@ import type { Cart } from "@/types/order.types";
 import { ConfigurationDetail } from "@/components/shared/ConfigurationDetail";
 import { clearAttribution, getAttribution } from "@/lib/attribution";
 import { rememberOrderKey, thankYouPath } from "@/lib/orderThanks";
-import { trackPurchase } from "@/lib/tracking";
+import { holdPurchase } from "@/lib/tracking";
 
 import { guestCheckoutItem, type GuestLine as GuestCartEntry } from "@/lib/guestCart";
 
@@ -328,7 +328,8 @@ export default function CheckoutReviewPage() {
         };
         // A guest cart line carries no SKU, so the variant id is the product
         // identifier every tool gets.
-        trackPurchase(order.order_number, order.total, guestEntries.map(e => ({
+        // Sent by the thank-you page as it opens, once (lib/tracking holdPurchase).
+        holdPurchase(order.order_number, order.total, guestEntries.map(e => ({
           id: e.variant_id ?? e.product_name,
           name: e.product_name, price: e.unit_price,
           quantity: e.quantity, variant: [e.color, e.size].filter(Boolean).join(" / "),
@@ -431,7 +432,7 @@ export default function CheckoutReviewPage() {
         shippingCost,
         paymentMethod,
       };
-      trackPurchase(order.order_number, orderTotal, (cart?.items ?? []).map(i => ({
+      holdPurchase(order.order_number, orderTotal, (cart?.items ?? []).map(i => ({
         id: i.variant_id ?? i.sku ?? i.product_name,
         sku: i.sku, name: i.product_name, price: Number(i.unit_price),
         quantity: i.quantity, variant: [i.color, i.size].filter(Boolean).join(" / "),

@@ -20,6 +20,8 @@ const auth = { isAuthenticated: () => false, isLoading: false };
 vi.mock("next/navigation", () => ({ useParams: () => ({ number: "1045" }) }));
 vi.mock("@/stores/auth.store", () => ({ useAuthStore: () => auth }));
 vi.mock("@/lib/api-client", () => ({ apiClient: { get: (...args: unknown[]) => get(...args) } }));
+const sendHeld = vi.fn();
+vi.mock("@/lib/tracking", () => ({ sendHeldPurchase: (...args: unknown[]) => sendHeld(...args) }));
 
 import ThankYouPage from "@/app/(customer)/checkout/thank-you/[number]/page";
 import { forgetOrderKeys, orderKey, rememberOrderKey, thankYouPath } from "@/lib/orderThanks";
@@ -48,6 +50,7 @@ const read = (rel: string) => readFileSync(path.join(SRC, rel), "utf8");
 
 beforeEach(() => {
   get.mockReset();
+  sendHeld.mockReset();
   localStorage.clear();
   sessionStorage.clear();
   auth.isAuthenticated = () => false;
@@ -74,6 +77,9 @@ describe("the thank-you page", () => {
     expect(screen.getAllByText("$121.49").length).toBeGreaterThan(0);
     // A guest follows the order on the lookup page.
     expect(screen.getByRole("link", { name: "Track this order" })).toHaveAttribute("href", "/track-order");
+    // The Purchase goes as the page opens, with the server's figures.
+    expect(sendHeld).toHaveBeenCalledTimes(1);
+    expect(sendHeld).toHaveBeenCalledWith("1045", { total: 121.49, tax: 8.5, shipping: 9.99 });
   });
 
   it("waits for the sign-in to be read before asking without a key", async () => {
@@ -107,6 +113,8 @@ describe("the thank-you page", () => {
     expect(await screen.findByRole("heading", { name: "Thank you for your order!" })).toBeInTheDocument();
     expect(screen.getByText("1045")).toBeInTheDocument();
     expect(screen.queryByText(/could not open this order/)).not.toBeInTheDocument();
+    // Its Purchase still goes, with the figures held when it was placed.
+    expect(sendHeld).toHaveBeenCalledWith("1045");
     sessionStorage.clear();
   });
 
@@ -170,9 +178,11 @@ describe("placing the order", () => {
     expect(review).not.toContain('router.push("/checkout/confirmed")');
   });
 
-  it("sends the Purchase event from the review page only, so a reload does not count the sale again", () => {
-    expect(review).toContain("trackPurchase(");
+  it("holds the Purchase for the thank-you page instead of sending it from the review page", () => {
+    expect(review.match(/holdPurchase\(order\.order_number,/g)).toHaveLength(2);
+    expect(review).not.toContain("trackPurchase(");
     const page = read("app/(customer)/checkout/thank-you/[number]/page.tsx");
-    expect(page).not.toMatch(/trackPurchase|@\/lib\/tracking/);
+    expect(page).toContain("sendHeldPurchase(number, { total: o.total, tax: o.tax_amount, shipping: o.shipping_cost })");
+    expect(page).not.toContain("trackPurchase(");
   });
 });

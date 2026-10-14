@@ -174,3 +174,46 @@ export function identify(email: string, extra: Record<string, unknown> = {}): vo
   safely(() => { if (has("omnisend")) window.omnisend?.push(["identifyContact", { email, ...extra }]); });
   safely(() => { if (has("meta_pixel")) window.fbq?.("init", config!.tools.meta_pixel, { em: email }); });
 }
+
+// The Purchase belongs to the order's thank-you page, sent as it opens: tag
+// managers trigger on that page, and marketers ask for it there. The review
+// page holds it for the tab that placed the order (sessionStorage); the
+// thank-you page sends it once, with the order's real figures, and marks it
+// sent in this browser, so a reload or a second tab does not count the sale
+// twice. trackPurchase itself has no such guard.
+export type PurchaseExtra = { tax?: number; shipping?: number; coupon?: string };
+const HELD_PURCHASE = "pc_purchase_held";
+const SENT_PURCHASES = "pc_purchase_sent";
+
+type HeldPurchase = { orderNumber: string; total: number; items: TrackedItem[]; extra: PurchaseExtra };
+
+/** The order is placed: hold its Purchase for its thank-you page. */
+export function holdPurchase(orderNumber: string, total: number, items: TrackedItem[] = [], extra: PurchaseExtra = {}): void {
+  try {
+    sessionStorage.setItem(HELD_PURCHASE, JSON.stringify({ orderNumber, total, items, extra } satisfies HeldPurchase));
+  } catch {
+    // Storage refused: sent now, where it used to be, rather than not at all.
+    trackPurchase(orderNumber, total, items);
+  }
+}
+
+/** On the order's thank-you page: its held Purchase, once, with the server's
+ *  total when the order was read back. */
+export function sendHeldPurchase(orderNumber: string, real?: { total: number; tax: number; shipping: number }): void {
+  let held: HeldPurchase | null = null;
+  try {
+    held = JSON.parse(sessionStorage.getItem(HELD_PURCHASE) || "null") as HeldPurchase | null;
+  } catch {
+    held = null;
+  }
+  if (!held || held.orderNumber !== orderNumber) return;
+  try { sessionStorage.removeItem(HELD_PURCHASE); } catch { /* sent once below either way */ }
+
+  let sent: string[] = [];
+  try { sent = JSON.parse(localStorage.getItem(SENT_PURCHASES) || "[]") as string[]; } catch { sent = []; }
+  if (!Array.isArray(sent)) sent = [];
+  if (sent.includes(orderNumber)) return;
+  try { localStorage.setItem(SENT_PURCHASES, JSON.stringify([...sent, orderNumber].slice(-20))); } catch { /* still sent once: the held copy is gone */ }
+
+  trackPurchase(orderNumber, real?.total ?? held.total, held.items);
+}
