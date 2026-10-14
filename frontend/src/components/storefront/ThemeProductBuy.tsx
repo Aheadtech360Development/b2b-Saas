@@ -26,6 +26,7 @@ import { trackAddToCart, trackCartAdd, trackConfiguredAdd, trackLineAdd, trackVi
 import type { Cart } from "@/types/order.types";
 import { addToGuestCart, configuredKey } from "@/lib/guestCart";
 import { takeResume } from "@/lib/builderDraft";
+import { announceColour } from "@/lib/colourPictures";
 
 export interface ThemeVariant {
   id: string;
@@ -271,6 +272,8 @@ export default function ThemeProductBuy({ product }: { product: ThemeProductData
           else if (label.startsWith("colo")) colour = item.dataset.label ?? "";
           else if (label.startsWith("size")) size = item.dataset.label ?? "";
           showChoice(item.dataset.label ?? "");
+          // The gallery shows this colour's pictures (lib/colourPictures).
+          if (label.startsWith("colo")) announceColour(product.id, item.dataset.label ?? "");
           setMessage(null);
           refresh();
         };
