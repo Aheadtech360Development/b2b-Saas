@@ -5,10 +5,11 @@
  * product's pictures, and a collection's sort. Each is server-rendered in its
  * first state, so the page reads correctly before any script has run.
  */
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiClient } from "@/lib/api-client";
 import { safeSrc } from "@/lib/builder/sanitize";
+import { COLOUR_CHOSEN, picturesOfColour, type ColourChosen } from "@/lib/colourPictures";
 
 export function Tabs({ id, items }: { id: string; items: { title: string; body: string }[] }) {
   const [active, setActive] = useState(0);
@@ -80,33 +81,103 @@ export function Newsletter({ id, placeholder, button, success, edit }: {
   );
 }
 
-export function ProductGallery({ id, images, layout }: {
-  id: string; images: { url: string; alt: string }[]; layout: string;
+const Chevron = ({ back }: { back?: boolean }) => (
+  <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+    <path d={back ? "M15 18l-6-6 6-6" : "M9 18l6-6-6-6"} fill="none" stroke="currentColor" strokeWidth="2"
+          strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
+export function ProductGallery({ id, productId, images, layout }: {
+  id: string; productId?: string; images: { url: string; alt: string }[]; layout: string;
 }) {
   const pics = images.filter((i) => safeSrc(i.url));
   const [index, setIndex] = useState(0);
+  // The colour last picked in the buy box, when it has pictures of its own
+  // (lib/colourPictures): those are shown, the first one large.
+  const [colour, setColour] = useState("");
+  const picsRef = useRef(pics);
+  picsRef.current = pics;
+  const colourRef = useRef("");
+  const strip = useRef<HTMLDivElement>(null);
+  const [ends, setEnds] = useState({ start: true, end: true });
+
+  useEffect(() => {
+    if (!productId) return;
+    const onChosen = (e: Event) => {
+      const chosen = (e as CustomEvent<ColourChosen>).detail;
+      if (!chosen || chosen.productId !== productId) return;
+      const next = picturesOfColour(picsRef.current, chosen.colour).length ? chosen.colour : "";
+      // A colour with no pictures of its own leaves the gallery as it is.
+      if (next || colourRef.current) {
+        setIndex(0);
+        if (strip.current) strip.current.scrollLeft = 0;
+      }
+      colourRef.current = next;
+      setColour(next);
+    };
+    window.addEventListener(COLOUR_CHOSEN, onChosen);
+    return () => window.removeEventListener(COLOUR_CHOSEN, onChosen);
+  }, [productId]);
+
+  const ofColour = colour ? picturesOfColour(pics, colour) : [];
+  const shown = ofColour.length ? ofColour : pics;
+
+  // The thumbnails are one row. More than fit slide along it, with an arrow
+  // at each end while there is more that way.
+  const measure = useCallback(() => {
+    const el = strip.current;
+    if (!el) return;
+    setEnds({ start: el.scrollLeft <= 1, end: el.scrollLeft + el.clientWidth >= el.scrollWidth - 1 });
+  }, []);
+  useEffect(() => {
+    measure();
+    const el = strip.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const watch = new ResizeObserver(measure);
+    watch.observe(el);
+    return () => watch.disconnect();
+  }, [measure, shown.length]);
+  const slide = (dir: number) => {
+    const el = strip.current;
+    if (!el) return;
+    if (typeof el.scrollBy === "function") el.scrollBy({ left: dir * el.clientWidth, behavior: "smooth" });
+    else el.scrollLeft += dir * el.clientWidth;
+  };
+
   if (!pics.length) return <div data-b={id} className="b-pgallery"><div className="b-pgallery-main" /></div>;
   if (layout === "grid") {
     return (
       <div data-b={id} className="b-pgallery">
         <div className="b-pgallery-grid">
-          {pics.map((p, i) => <img key={i} src={p.url} alt={p.alt} loading={i > 1 ? "lazy" : "eager"} />)}
+          {shown.map((p, i) => <img key={p.url + i} src={p.url} alt={p.alt} loading={i > 1 ? "lazy" : "eager"} />)}
         </div>
       </div>
     );
   }
-  const main = pics[Math.min(index, pics.length - 1)]!;
+  const main = shown[Math.min(index, shown.length - 1)]!;
+  const sliding = !(ends.start && ends.end);
   return (
     <div data-b={id} className="b-pgallery">
       <div className="b-pgallery-main"><img src={main.url} alt={main.alt} /></div>
-      {layout !== "single" && pics.length > 1 && (
-        <div className="b-pgallery-thumbs">
-          {pics.map((p, i) => (
-            <button key={i} type="button" className="b-pgallery-thumb" aria-current={i === index}
-                    aria-label={`Show picture ${i + 1}`} onClick={() => setIndex(i)}>
-              <img src={p.url} alt="" loading="lazy" />
-            </button>
-          ))}
+      {layout !== "single" && shown.length > 1 && (
+        <div className="b-pgallery-strip">
+          {sliding && (
+            <button type="button" className="b-pgallery-nav" data-dir="prev" aria-label="Previous pictures"
+                    disabled={ends.start} onClick={() => slide(-1)}><Chevron back /></button>
+          )}
+          <div className="b-pgallery-thumbs" ref={strip} onScroll={measure}>
+            {shown.map((p, i) => (
+              <button key={p.url + i} type="button" className="b-pgallery-thumb" aria-current={i === index}
+                      aria-label={`Show picture ${i + 1}`} onClick={() => setIndex(i)}>
+                <img src={p.url} alt="" loading="lazy" />
+              </button>
+            ))}
+          </div>
+          {sliding && (
+            <button type="button" className="b-pgallery-nav" data-dir="next" aria-label="More pictures"
+                    disabled={ends.end} onClick={() => slide(1)}><Chevron /></button>
+          )}
         </div>
       )}
     </div>

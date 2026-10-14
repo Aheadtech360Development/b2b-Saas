@@ -305,8 +305,14 @@ export const BASE_CSS = `
 .bsite :where(.b-pgallery){display:flex;flex-direction:column;gap:10px;min-width:0}
 .bsite :where(.b-pgallery-main){aspect-ratio:1/1;border-radius:var(--b-radius);background:var(--b-surface,#FAFAF8);overflow:hidden}
 .bsite :where(.b-pgallery-main img){width:100%;height:100%;object-fit:contain}
-.bsite :where(.b-pgallery-thumbs){display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px}
-.bsite :where(.b-pgallery-thumb){aspect-ratio:1/1;padding:0;border:2px solid transparent;border-radius:calc(var(--b-radius) * .7);overflow:hidden;background:var(--b-surface,#FAFAF8);cursor:pointer}
+.bsite :where(.b-pgallery-strip){position:relative;min-width:0}
+.bsite :where(.b-pgallery-thumbs){display:grid;grid-auto-flow:column;grid-auto-columns:calc((100% - 32px) / 5);gap:8px;overflow-x:auto;overscroll-behavior-x:contain;scroll-snap-type:x mandatory;scrollbar-width:none}
+.bsite :where(.b-pgallery-thumbs)::-webkit-scrollbar{display:none}
+.bsite :where(.b-pgallery-thumb){aspect-ratio:1/1;padding:0;border:2px solid transparent;border-radius:calc(var(--b-radius) * .7);overflow:hidden;background:var(--b-surface,#FAFAF8);cursor:pointer;scroll-snap-align:start}
+.bsite :where(.b-pgallery-nav){position:absolute;top:50%;z-index:1;transform:translateY(-50%);display:flex;align-items:center;justify-content:center;width:32px;height:32px;padding:0;border:1px solid rgba(20,22,27,.12);border-radius:50%;background:#fff;color:#14161B;box-shadow:0 2px 6px rgba(20,22,27,.18);cursor:pointer}
+.bsite :where(.b-pgallery-nav[data-dir=prev]){left:6px}
+.bsite :where(.b-pgallery-nav[data-dir=next]){right:6px}
+.bsite :where(.b-pgallery-nav:disabled){opacity:0;pointer-events:none}
 .bsite :where(.b-pgallery-thumb[aria-current=true]){border-color:var(--b-primary,#14161B)}
 .bsite :where(.b-pgallery-thumb img){width:100%;height:100%;object-fit:cover}
 .bsite :where(.b-pgallery-grid){display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
@@ -360,7 +366,7 @@ ${PHONE}{
   .bsite :where(.b-grid,.b-gallery){grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
   .bsite :where(.b-quotes){grid-template-columns:minmax(0,1fr)}
   .bsite :where(.b-banner){padding:40px 20px}
-  .bsite :where(.b-pgallery-thumbs){grid-template-columns:repeat(4,minmax(0,1fr))}
+  .bsite :where(.b-pgallery-thumbs){grid-auto-columns:calc((100% - 24px) / 4)}
   .bsite :where(.b-search-field){max-width:none}
   .bsite :where(.b-storename){font-size:17px}
   .bsite :where(.b-logo[data-auto] img){max-width:min(150px,100%)}

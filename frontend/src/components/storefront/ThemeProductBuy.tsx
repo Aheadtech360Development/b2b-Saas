@@ -25,6 +25,7 @@ import { useAuthStore } from "@/stores/auth.store";
 import { trackAddToCart } from "@/lib/tracking";
 import { addToGuestCart, configuredKey } from "@/lib/guestCart";
 import { takeResume } from "@/lib/builderDraft";
+import { announceColour } from "@/lib/colourPictures";
 
 export interface ThemeVariant {
   id: string;
@@ -255,6 +256,8 @@ export default function ThemeProductBuy({ product }: { product: ThemeProductData
           else if (label.startsWith("colo")) colour = item.dataset.label ?? "";
           else if (label.startsWith("size")) size = item.dataset.label ?? "";
           showChoice(item.dataset.label ?? "");
+          // The gallery shows this colour's pictures (lib/colourPictures).
+          if (label.startsWith("colo")) announceColour(product.id, item.dataset.label ?? "");
           setMessage(null);
           refresh();
         };

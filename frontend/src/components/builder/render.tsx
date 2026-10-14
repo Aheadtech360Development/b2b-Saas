@@ -563,7 +563,7 @@ export function Node({ node, ctx }: { node: BuilderNode; ctx: RenderCtx }): Reac
     }
     case "product_gallery":
       if (!product) return note(ctx, id, "The product's pictures show here.");
-      return <ProductGallery id={id} images={product.images ?? []} layout={str(p.layout, "thumbs-below")} />;
+      return <ProductGallery id={id} productId={product.id} images={product.images ?? []} layout={str(p.layout, "thumbs-below")} />;
     case "product_buy":
       if (!product) return note(ctx, id, "Options, quantity and Add to cart show here, for each product.");
       return <BuyBox id={id} p={p} product={product} />;
