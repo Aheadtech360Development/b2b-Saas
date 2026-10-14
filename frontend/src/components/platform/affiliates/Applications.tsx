@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { Banner, Chip, Count, Empty, Field, Icon, Modal, Skeleton, errorText, useToast } from "@/components/partners/ui";
 import { day, initials, money } from "@/lib/partnerApi";
-import { aff } from "./api";
+import { aff, defaultPlanId } from "./api";
 import type { Go } from "./AffiliatesTab";
 import { Flags } from "./shared";
 
@@ -24,6 +24,8 @@ export function Applications({ go }: { go: Go }) {
   const [q, setQ] = useState("");
   const [data, setData] = useState<{ rows: Row[]; counts: Record<string, number> } | null>(null);
   const [autoApprove, setAutoApprove] = useState<boolean | null>(null);
+  // The answer time the program promises; past it an application is waiting long, as on Overview.
+  const [answerDays, setAnswerDays] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -36,10 +38,13 @@ export function Applications({ go }: { go: Go }) {
   }, [tab, flagged, q]);
 
   useEffect(() => {
-    aff.get<{ settings: { auto_approve: boolean } }>("/settings").then((s) => setAutoApprove(s.settings.auto_approve)).catch(() => undefined);
+    aff.get<{ settings: { auto_approve: boolean; application_response_days: number } }>("/settings")
+      .then((s) => { setAutoApprove(s.settings.auto_approve); setAnswerDays(s.settings.application_response_days); })
+      .catch(() => undefined);
   }, []);
 
-  const rows = useMemo(() => (data?.rows ?? []).filter((r) => !old || (r.waiting_days ?? 0) > 2), [data, old]);
+  const rows = useMemo(() => (data?.rows ?? []).filter((r) => !old || answerDays === null || (r.waiting_days ?? 0) >= answerDays),
+    [data, old, answerDays]);
 
   return (
     <>
@@ -69,8 +74,10 @@ export function Applications({ go }: { go: Go }) {
                    value={q} onChange={(e) => setQ(e.target.value)} />
           </div>
           <button className={`pill${flagged ? " on" : ""}`} aria-pressed={flagged} onClick={() => setFlagged(!flagged)}><Icon name="flag" size="s" />Flagged only</button>
-          {tab === "waiting" ? (
-            <button className={`pill${old ? " on" : ""}`} aria-pressed={old} onClick={() => setOld(!old)}><Icon name="clock" size="s" />Waiting over 2 days</button>
+          {tab === "waiting" && answerDays !== null ? (
+            <button className={`pill${old ? " on" : ""}`} aria-pressed={old} onClick={() => setOld(!old)}>
+              <Icon name="clock" size="s" />Waiting over {answerDays} day{answerDays === 1 ? "" : "s"}
+            </button>
           ) : null}
         </div>
         {!data ? <div className="pad col">{[0, 1, 2].map((i) => <Skeleton key={i} h={44} />)}</div>
@@ -111,8 +118,9 @@ type Detail = Row & {
   info_request: string | null; decided_by: string | null; decided_at: string | null; decision_reason: string | null;
   checks: { ok: boolean; words: string }[];
   notes: { at: string; actor_name: string; reason: string }[];
-  rate_plans: { id: string; key: string; name: string; rate_bps: number; rate: string; examples: Record<string, number> }[];
+  rate_plans: { id: string; key: string; name: string; rate_bps: number; rate: string; is_default: boolean; examples: Record<string, number> }[];
   suggested_code: string | null;
+  support_email: string | null;
 };
 
 const STATUS_CHIP: Record<string, { label: string; tone: "warn" | "info" | "ok" | "mut" }> = {
@@ -238,7 +246,7 @@ export function ApplicationDetail({ id, go, onChanged }: { id: string; go: Go; o
 }
 
 function ApproveDialog({ app, onClose, onDone }: { app: Detail; onClose: () => void; onDone: (partnerId: string) => void }) {
-  const [planId, setPlanId] = useState(app.rate_plans.find((p) => p.key === "standard")?.id ?? app.rate_plans[0]?.id ?? "");
+  const [planId, setPlanId] = useState(defaultPlanId(app.rate_plans));
   const [code, setCode] = useState(app.suggested_code ?? "");
   const [invite, setInvite] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -298,7 +306,8 @@ function AskDialog({ app, onClose, onDone }: { app: Detail; onClose: () => void;
     }
   }
   return (
-    <Modal title={`Ask ${app.name.split(" ")[0]} a question`} sub="Emailed to the applicant. Their answer comes back to the platform inbox." onClose={onClose}
+    <Modal title={`Ask ${app.name.split(" ")[0]} a question`}
+           sub={`Emailed to the applicant. Their answer comes back to ${app.support_email ?? "the platform inbox"}.`} onClose={onClose}
            footer={<><button className="btn" onClick={onClose}>Cancel</button><button className="btn pri" disabled={!question.trim()} onClick={send}>Send question</button></>}>
       <Field label="Question" htmlFor="ask-q" error={error}>
         <textarea id="ask-q" className="area" value={question} onChange={(e) => setQuestion(e.target.value)}

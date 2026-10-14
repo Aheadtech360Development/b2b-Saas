@@ -55,8 +55,10 @@ export default function SignupPage() {
   const [slugFree, setSlugFree] = useState<null | { available: boolean; reason: string }>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // A partner's link leaves a cookie, and that wins; without one, the owner
-  // can type the partner's code (services/partners/referrals.py).
+  // A partner's link leaves a cookie, and a valid click wins; without one, the
+  // owner can type the partner's code (services/partners/referrals.py). The
+  // field shows either way and a typed code goes with the cookie: a cookie can
+  // outlive its click (the window was shortened), and then the code decides.
   const [refCookie, setRefCookie] = useState<string | null>(null);
   const [refCode, setRefCode] = useState("");
   const [refOk, setRefOk] = useState<null | boolean>(null);
@@ -121,7 +123,7 @@ export default function SignupPage() {
         password: form.password,
         phone: form.phone.trim(),
         referral_cookie: refCookie,
-        referral_code: refCookie ? null : refCode.trim() || null,
+        referral_code: refCode.trim() || null,
       }, { skipAuth: true });
 
       // Straight into their own shop, already signed in. The token is handed
@@ -250,16 +252,15 @@ export default function SignupPage() {
 
               {refCookie ? (
                 <p className="su-hint">Referred by a PrintCoPilot partner ({refCookie.split(".")[0]}).</p>
-              ) : (
-                <label>Partner code <span className="su-opt">(optional)</span>
-                  <input value={refCode} maxLength={20} autoComplete="off" spellCheck={false}
-                    onChange={(e) => setRefCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ""))} />
-                  <span className={`su-hint${refOk === false ? " su-hint-bad" : ""}`}>
-                    {refOk === true ? "Code found." : refOk === false ? "That code is not active. You can leave it empty."
-                      : "If a partner sent you, type their code."}
-                  </span>
-                </label>
-              )}
+              ) : null}
+              <label>Partner code <span className="su-opt">(optional)</span>
+                <input value={refCode} maxLength={20} autoComplete="off" spellCheck={false}
+                  onChange={(e) => setRefCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ""))} />
+                <span className={`su-hint${refOk === false ? " su-hint-bad" : ""}`}>
+                  {refOk === true ? "Code found." : refOk === false ? "That code is not active. You can leave it empty."
+                    : "If a partner sent you, type their code."}
+                </span>
+              </label>
 
               <label>Password
                 <PasswordField wrapperClassName="su-pw" value={form.password} required

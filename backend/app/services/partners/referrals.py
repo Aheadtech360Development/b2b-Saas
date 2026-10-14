@@ -5,7 +5,8 @@ the browser keeps `CODE.<click id>` for the cookie window (90 days unless the
 program says otherwise); a later valid click replaces it. At sign-up the shop
 is saved to the partner that cookie names, or, with no valid cookie, to the
 code the owner typed: "Last valid click wins. A typed code beats a missing
-cookie."
+cookie." A cookie whose click is no longer valid counts as missing: after the
+window is shortened the browser still has it, and the typed code decides.
 
 A shop whose owner is the partner, or shares the partner's own email domain
 or website, is still saved to them but goes to the review queue, and its
@@ -178,6 +179,7 @@ async def attribute_signup(
             if click:
                 partner, source, used = candidate, "cookie", candidate["code"]
                 click_id, src = click["id"], click["src"]
+    # No cookie, or one whose click no longer counts: the typed code decides.
     if partner is None and typed_code:
         candidate = await partner_by_code(db, typed_code)
         if candidate and candidate["status"] == "active":
@@ -187,17 +189,20 @@ async def attribute_signup(
 
     flags = self_referral_flags(owner_email, partner["email"], partner["website"])
     status = "review" if flags else "active"
+    now = datetime.now(timezone.utc)
     referral_id = (await db.execute(text("""
         INSERT INTO partner_referrals
             (partner_id, shop_tenant_id, shop_name, owner_email, source, code_used, click_id,
-             src, status, flags)
-        VALUES (:p, :t, :name, :email, :source, :code, :click, :src, :status, CAST(:flags AS jsonb))
+             src, status, flags, attributed_at, earn_until)
+        VALUES (:p, :t, :name, :email, :source, :code, :click, :src, :status, CAST(:flags AS jsonb),
+                :at, :until)
         RETURNING id
     """), {
         "p": str(partner["id"]), "t": str(tenant_id), "name": (shop_name or "")[:200],
         "email": (owner_email or "").lower(), "source": source, "code": used,
         "click": click_id, "src": src, "status": status,
         "flags": json.dumps(flags),
+        "at": now, "until": program.earn_until(now, settings["earning_months"]),
     })).scalar()
     await activity.log(
         db, action="referral_attributed", actor_kind="system", partner_id=partner["id"],
@@ -219,8 +224,10 @@ async def tell_partner(referral: dict[str, Any]) -> None:
     try:
         async with pdb.session() as db:
             p = await portal.partner_row(db, referral["partner_id"])
+            support = (await program.load(db))["support_email"]
         if p and p["password_hash"] and portal.email_prefs(p)["new_shop"]:
-            await asyncio.to_thread(mail.new_shop, p["name"], p["email"], referral.get("shop_name") or "A shop")
+            await asyncio.to_thread(mail.new_shop, p["name"], p["email"], referral.get("shop_name") or "A shop",
+                                    support=support)
     except Exception:  # noqa: BLE001
         import logging
 

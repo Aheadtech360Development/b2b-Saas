@@ -44,6 +44,11 @@ def _not_found(what: str) -> HTTPException:
     return HTTPException(status_code=404, detail={"code": "NOT_FOUND", "message": f"No such {what}."})
 
 
+async def _support(db: AsyncSession) -> str:
+    """The program's support email for the emails a change sends (mail.py)."""
+    return (await program.load(db))["support_email"]
+
+
 def _csv(body: str, name: str) -> Response:
     return Response(body, media_type="text/csv", headers={"Content-Disposition": f'attachment; filename="{name}"'})
 
@@ -102,7 +107,7 @@ async def approve(application_id: str, payload: ApproveIn, request: Request, bac
                                  {"id": partner["rate_plan_id"]})).scalar()
         background.add_task(mail.invite, partner["name"], partner["email"],
                             mail.portal_url(f"/partners/invite?token={token}"), partner["code"],
-                            program.rate_words(plan) if plan is not None else None)
+                            program.rate_words(plan) if plan is not None else None, support=await _support(db))
     return {"ok": True, "partner_id": str(partner["id"]), "code": partner["code"]}
 
 
@@ -117,7 +122,7 @@ async def request_info(application_id: str, payload: QuestionIn, request: Reques
         app = await actions.request_info(db, await _actor(request, db), application_id, payload.question)
     except ActionError as exc:
         raise _fail(exc) from exc
-    background.add_task(mail.info_requested, app["name"], app["email"], payload.question)
+    background.add_task(mail.info_requested, app["name"], app["email"], payload.question, support=await _support(db))
     return {"ok": True}
 
 
@@ -134,7 +139,7 @@ async def reject(application_id: str, payload: RejectIn, request: Request, backg
     except ActionError as exc:
         raise _fail(exc) from exc
     if payload.notify:
-        background.add_task(mail.application_declined, app["name"], app["email"])
+        background.add_task(mail.application_declined, app["name"], app["email"], support=await _support(db))
     return {"ok": True}
 
 
@@ -210,7 +215,7 @@ async def add_affiliate(payload: AddAffiliateIn, request: Request, background: B
                              {"id": partner["rate_plan_id"]})).scalar()
     background.add_task(mail.invite, partner["name"], partner["email"],
                         mail.portal_url(f"/partners/invite?token={token}"), partner["code"],
-                        program.rate_words(plan) if plan is not None else None)
+                        program.rate_words(plan) if plan is not None else None, support=await _support(db))
     return {"ok": True, "partner_id": str(partner["id"]), "code": partner["code"]}
 
 
@@ -317,7 +322,7 @@ async def set_status(partner_id: str, payload: StatusIn, request: Request, backg
     if payload.notify:
         p = (await db.execute(text("SELECT name, email FROM partners WHERE id = CAST(:id AS uuid)"),
                               {"id": partner_id})).mappings().first()
-        background.add_task(mail.status_changed, p["name"], p["email"], payload.status)
+        background.add_task(mail.status_changed, p["name"], p["email"], payload.status, support=await _support(db))
     return out
 
 
@@ -331,7 +336,7 @@ async def resend_invite(partner_id: str, request: Request, background: Backgroun
     if p["password_hash"]:
         raise HTTPException(409, detail={"code": "ACTIVE", "message": "This affiliate already set a password."})
     background.add_task(mail.invite, p["name"], p["email"], mail.portal_url(f"/partners/invite?token={token}"),
-                        p["code"], None)
+                        p["code"], None, support=await _support(db))
     return {"ok": True}
 
 
@@ -568,7 +573,8 @@ async def record_payout(batch_id: str, payload: RecordIn, request: Request, back
     method = {"paypal": "PayPal", "wise": "Wise", "bank": "Bank transfer"}[payload.method]
     background.add_task(mail.payout_recorded, p["name"], p["email"], money(out["amount_cents"]),
                         f"{payload.paid_on:%b} {payload.paid_on.day}, {payload.paid_on.year}", method,
-                        payload.reference, pdf, f"statement-{payload.paid_on.isoformat()}.pdf")
+                        payload.reference, pdf, f"statement-{payload.paid_on.isoformat()}.pdf",
+                        support=await _support(db))
     await db.execute(text("UPDATE partner_payouts SET statement_sent_at = now() WHERE id = CAST(:id AS uuid)"),
                      {"id": out["id"]})
     return {"ok": True, **out}
@@ -661,6 +667,32 @@ async def add_rate_plan(payload: NewRatePlanIn, request: Request, db: AsyncSessi
     return {"ok": True, "id": str(plan_id)}
 
 
+@router.post("/rate-plans/{plan_id}/default")
+async def make_default_rate_plan(plan_id: str, payload: ReasonIn, request: Request,
+                                 db: AsyncSession = Depends(get_db, scope="function")) -> dict[str, Any]:
+    """The plan an affiliate is approved on unless the admin picks another,
+    auto approve included. One plan at a time: the old default and the new
+    one change in the same statement, in the request's one transaction."""
+    plan = (await db.execute(text("SELECT id, name, is_default FROM partner_rate_plans WHERE id = CAST(:id AS uuid)"),
+                             {"id": plan_id})).mappings().first()
+    if not plan:
+        raise _not_found("rate plan")
+    if plan["is_default"]:
+        return {"ok": True}
+    was = (await db.execute(text("SELECT name FROM partner_rate_plans WHERE is_default LIMIT 1"))).scalar()
+    await db.execute(text("""
+        UPDATE partner_rate_plans SET is_default = (id = CAST(:id AS uuid)), updated_at = now()
+         WHERE is_default OR id = CAST(:id AS uuid)
+    """), {"id": plan_id})
+    actor = await _actor(request, db)
+    from app.services.partners import activity
+
+    await activity.log(db, action="rate_plan_changed", actor_kind="admin", actor_name=actor.name,
+                       actor_email=actor.email, subject_kind="rate_plan", subject_id=plan_id, reason=payload.reason,
+                       before={"default": was}, after={"default": plan["name"]})
+    return {"ok": True}
+
+
 class TermsIn(BaseModel):
     clauses: list[dict] = Field(min_length=1, max_length=40)
     changes: str = Field(min_length=1, max_length=4000)
@@ -678,8 +710,10 @@ async def publish_terms(payload: TermsIn, request: Request, background: Backgrou
         people = (await db.execute(text("""
             SELECT name, email FROM partners WHERE status IN ('active', 'paused') AND password_hash IS NOT NULL
         """))).mappings().all()
+        support = await _support(db)
         for person in people:
-            background.add_task(mail.terms_changed, person["name"], person["email"], version, payload.changes)
+            background.add_task(mail.terms_changed, person["name"], person["email"], version, payload.changes,
+                                support=support)
     return {"ok": True, "version": version}
 
 

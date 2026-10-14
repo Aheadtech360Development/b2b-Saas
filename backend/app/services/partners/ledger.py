@@ -266,15 +266,31 @@ def balances(lines: Iterable[dict], today: date) -> dict[str, int]:
     return out
 
 
-def payout_readiness(*, partner_status: str, payable: int, minimum: int,
-                     has_w9: bool) -> tuple[str, str]:
-    """Whether a partner can be paid in the next batch, and why not."""
-    if partner_status in ("suspended", "terminated"):
-        return "held", "Held, suspended" if partner_status == "suspended" else "Held, terminated"
-    if payable < max(minimum, 1):
-        return "under_min", f"Under {money_short(minimum)}, rolls over"
-    if not has_w9:
+def w9_needed(*, paid_this_year: int, payout: int, required_from: int) -> bool:
+    """Whether a payout needs a W-9 on file first.
+
+    With no amount set (0) every payout does. Otherwise only once what the
+    partner was paid in the calendar year, this payout included, reaches it.
+    """
+    return required_from <= 0 or paid_this_year + payout >= required_from
+
+
+def payout_readiness(*, partner_status: str, payable: int, minimum: int, has_w9: bool,
+                     paid_this_year: int = 0, w9_from: int = 0) -> tuple[str, str]:
+    """Whether a partner can be paid in the next batch, and why not.
+
+    An ended partnership is paid what it earned, whatever the minimum: no
+    new lines will ever lift a small last balance over it.
+    """
+    if partner_status == "suspended":
+        return "held", "Held, suspended"
+    ended = partner_status == "terminated"
+    if payable < (1 if ended else max(minimum, 1)):
+        return "under_min", "Nothing payable" if ended else f"Under {money_short(minimum)}, rolls over"
+    if not has_w9 and w9_needed(paid_this_year=paid_this_year, payout=payable, required_from=w9_from):
         return "blocked", "Blocked, no W-9"
+    if ended:
+        return "ready", "Final payout"
     if partner_status == "paused":
         return "ready", "Paused, still paid"
     return "ready", "Ready"

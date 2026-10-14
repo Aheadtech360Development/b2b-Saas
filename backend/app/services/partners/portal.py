@@ -81,7 +81,7 @@ def summary(p: dict, *, read_only: bool = False) -> dict[str, Any]:
 _SHOPS = """
     SELECT r.id, r.shop_tenant_id, COALESCE(t.name, r.shop_name) AS shop_name, t.plan,
            t.status AS tenant_status, s.status AS sub_status, s.trial_ends_at,
-           r.status AS referral_status, r.source, r.src, r.attributed_at, r.ended_at
+           r.status AS referral_status, r.source, r.src, r.attributed_at, r.ended_at, r.earn_until
       FROM partner_referrals r
       LEFT JOIN tenants t ON t.id = r.shop_tenant_id
       LEFT JOIN tenant_subscriptions s ON s.tenant_id = r.shop_tenant_id
@@ -110,14 +110,17 @@ def shop_state(row: dict) -> str:
 def _shop(row: dict, rate_bps: int) -> dict[str, Any]:
     state = shop_state(row)
     trial_ends = row.get("trial_ends_at")
+    earn_until = row.get("earn_until")
+    now = datetime.now(timezone.utc)
     monthly = None
-    if state in ("active", "past_due") and row.get("plan"):
+    # A shop past its earning period still pays its plan, but earns nothing.
+    if state in ("active", "past_due") and row.get("plan") and not (earn_until and earn_until < now):
         monthly = ledger.commission_cents(program.plan_price_cents(row["plan"]), rate_bps)
     return {
         "id": str(row["id"]), "shop_name": row["shop_name"], "plan": row.get("plan"),
         "plan_name": program.plan_name(row.get("plan")), "state": state,
-        "trial_ended": bool(state == "trial" and trial_ends and trial_ends < datetime.now(timezone.utc)),
-        "signed_up": row["attributed_at"], "monthly_cents": monthly,
+        "trial_ended": bool(state == "trial" and trial_ends and trial_ends < now),
+        "signed_up": row["attributed_at"], "monthly_cents": monthly, "earn_until": earn_until,
         "in_review": row.get("referral_status") == "review",
     }
 
@@ -254,6 +257,19 @@ async def earnings_csv(db: AsyncSession, p: dict) -> str:
     return out.getvalue()
 
 
+async def paid_in_year(db: AsyncSession, year: int, partner_id: Any = None) -> dict[str, int]:
+    """What each partner was paid in a calendar year, by the day each payout
+    was paid: what decides whether a W-9 is needed yet."""
+    rows = (await db.execute(text("""
+        SELECT partner_id, COALESCE(SUM(amount_cents), 0) FROM partner_payouts
+         WHERE paid_on >= :start AND paid_on < :end
+           AND (CAST(:p AS uuid) IS NULL OR partner_id = CAST(:p AS uuid))
+         GROUP BY partner_id
+    """), {"start": date(year, 1, 1), "end": date(year + 1, 1, 1),
+           "p": str(partner_id) if partner_id else None})).all()
+    return {str(r[0]): int(r[1]) for r in rows}
+
+
 async def money_summary(db: AsyncSession, p: dict) -> dict[str, Any]:
     today = ledger.utc_today()
     lines = await all_lines(db, p["id"])
@@ -262,10 +278,13 @@ async def money_summary(db: AsyncSession, p: dict) -> dict[str, Any]:
         SELECT COUNT(*), COALESCE(SUM(amount_cents), 0) FROM partner_payouts WHERE partner_id = :p
     """), {"p": str(p["id"])})).first()
     settings = await program.load(db)
+    this_year = (await paid_in_year(db, today.year, p["id"])).get(str(p["id"]), 0)
     readiness = ledger.payout_readiness(partner_status=p["status"], payable=b["payable"],
-                                        minimum=settings["minimum_payout_cents"], has_w9=bool(p.get("has_w9")))
+                                        minimum=settings["minimum_payout_cents"], has_w9=bool(p.get("has_w9")),
+                                        paid_this_year=this_year, w9_from=settings["w9_required_from_cents"])
     return {"balances": b, "paid_count": int(paid[0]), "paid_cents": int(paid[1]),
             "minimum_cents": settings["minimum_payout_cents"], "hold_days": settings["hold_days"],
+            "w9_required_from_cents": settings["w9_required_from_cents"],
             "readiness": {"state": readiness[0], "words": readiness[1]}, "lines": lines}
 
 

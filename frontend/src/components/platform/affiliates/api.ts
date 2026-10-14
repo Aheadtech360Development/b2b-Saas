@@ -30,4 +30,9 @@ export const aff = {
   },
 };
 
-export type RatePlan = { id: string; key: string; name: string; rate_bps: number; rate?: string; is_public?: boolean };
+export type RatePlan = { id: string; key: string; name: string; rate_bps: number; rate?: string; is_public?: boolean; is_default?: boolean };
+
+/** The plan a new affiliate starts on: the default, else the first (the lowest rate), as the API picks it. */
+export function defaultPlanId(plans: { id: string; is_default?: boolean }[]): string {
+  return plans.find((p) => p.is_default)?.id ?? plans[0]?.id ?? "";
+}

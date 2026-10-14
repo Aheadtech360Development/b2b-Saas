@@ -9,12 +9,26 @@
 import Link from "next/link";
 import { useState } from "react";
 
-import { useProgram } from "./AuthFrame";
+import { useProgram, type ProgramInfo } from "./AuthFrame";
 import { Banner, Field, Icon, ROOT, Skeleton, errorText } from "./ui";
 import { money, moneyShort, papi } from "@/lib/partnerApi";
 
+const NUMBER_WORDS = ["", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"];
+
+/** 2 -> "two working days", the way the promise has always been worded (as in the email). */
+function workingDays(n: number): string {
+  return `${NUMBER_WORDS[n] ?? n} working day${n === 1 ? "" : "s"}`;
+}
+
 export function ProgramPage() {
-  const program = useProgram();
+  // The program's own numbers: how long a shop earns, how soon applications are answered.
+  const program = useProgram() as (ProgramInfo & { earning_months?: number; application_response_days?: number }) | null;
+  const days = program?.application_response_days;
+  const months = program?.earning_months ?? 0;
+  // Said once the numbers are in: nothing here may promise more than the program gives.
+  const lasting = !program ? ""
+    : months ? `, for ${months} month${months === 1 ? "" : "s"} from the day it signs up, while it stays on a paid plan`
+      : ", for as long as it stays on a paid plan";
   const [form, setForm] = useState({ name: "", email: "", business_name: "", website: "", promote_how: "", audience_size: "", company: "" });
   const [agree, setAgree] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -56,19 +70,19 @@ export function ProgramPage() {
           <div className="pad col" style={{ gap: 14, padding: "40px 32px" }}>
             <span className="eyebrow" style={{ color: "#8FA3BD" }}>Partner program</span>
             <h1 style={{ color: "#fff", fontSize: 34, lineHeight: "42px", maxWidth: 640 }}>
-              Bring print shops to PrintCoPilot. Earn every month they stay.
+              Bring print shops to PrintCoPilot. Earn every month they stay{months ? `, for up to ${months} month${months === 1 ? "" : "s"}` : ""}.
             </h1>
             <p style={{ color: "#C9D5E6", maxWidth: 640 }}>
               {program?.standard_rate
-                ? `Earn ${program.standard_rate} of a shop's plan fee on every paid invoice, for as long as it stays on a paid plan.`
-                : "Earn a share of a shop's plan fee on every paid invoice, for as long as it stays on a paid plan."}
+                ? `Earn ${program.standard_rate} of a shop's plan fee on every paid invoice${lasting}.`
+                : `Earn a share of a shop's plan fee on every paid invoice${lasting}.`}
             </p>
             <div><a className="btn pri" href="#apply">Apply now</a></div>
           </div>
         </section>
 
         <div className="g3">
-          {[["send", "Apply", "Tell us how you would share PrintCoPilot. We answer within two working days."],
+          {[["send", "Apply", `Tell us how you would share PrintCoPilot.${days ? ` We answer within ${workingDays(days)}.` : ""}`],
             ["link", "Share your link", "Your own link, code, captions, banners and a QR code, in one portal."],
             ["dollar", "Earn every month", "Commission on each paid plan invoice, paid out by PayPal or Wise."]].map(([icon, title, text]) => (
             <div className="card pad col" key={title} style={{ gap: 8 }}>
@@ -107,7 +121,7 @@ export function ProgramPage() {
               <Banner tone="ok">
                 {sent === "approved"
                   ? "You are in. Check your email for the link that sets your password."
-                  : "Thanks, your application is in. We read every application ourselves and usually answer within two working days."}
+                  : `Thanks, your application is in. We read every application ourselves${days ? ` and usually answer within ${workingDays(days)}` : ""}.`}
               </Banner>
             ) : !program.accepting_applications ? (
               <Banner tone="warn">We are not taking applications right now. Please check back later.</Banner>

@@ -72,12 +72,14 @@ async def _partners(db: AsyncSession) -> list[dict]:
 async def overview(db: AsyncSession) -> dict[str, Any]:
     today = ledger.utc_today()
     settings = await program.load(db)
+    # Waiting long is past the answer the program page and the email promise.
+    days = settings["application_response_days"]
     apps = (await db.execute(text("""
         SELECT COUNT(*) FILTER (WHERE status IN ('waiting', 'info_requested')) AS open,
-               COUNT(*) FILTER (WHERE status = 'waiting' AND created_at < now() - interval '2 days') AS old,
+               COUNT(*) FILTER (WHERE status = 'waiting' AND created_at < now() - make_interval(days => :days)) AS old,
                MIN(created_at) FILTER (WHERE status = 'waiting') AS oldest
           FROM partner_applications
-    """))).mappings().first()
+    """), {"days": days})).mappings().first()
     partners = await _partners(db)
     by_status = defaultdict(int)
     for p in partners:
@@ -92,16 +94,23 @@ async def overview(db: AsyncSession) -> dict[str, Any]:
     for ln in lines:
         per[str(ln["partner_id"])].append(ln)
     w9 = await _w9_set(db)
+    this_year = await portal.paid_in_year(db, today.year)
     pending = payable = on_hold = 0
     ready_count, ready_sum, no_w9 = 0, 0, []
+    final_count, final_sum = 0, 0
     for p in partners:
         b = ledger.balances(per.get(str(p["id"]), []), today)
         pending += b["pending"]
         on_hold += b["on_hold"]
         payable += b["payable"]
         state, _ = ledger.payout_readiness(partner_status=p["status"], payable=b["payable"],
-                                           minimum=settings["minimum_payout_cents"], has_w9=str(p["id"]) in w9)
-        if state == "ready":
+                                           minimum=settings["minimum_payout_cents"], has_w9=str(p["id"]) in w9,
+                                           paid_this_year=this_year.get(str(p["id"]), 0),
+                                           w9_from=settings["w9_required_from_cents"])
+        if state == "ready" and p["status"] == "terminated":
+            final_count += 1
+            final_sum += b["payable"]
+        elif state == "ready":
             ready_count += 1
             ready_sum += b["payable"]
         elif state == "blocked":
@@ -119,12 +128,17 @@ async def overview(db: AsyncSession) -> dict[str, Any]:
     attention: list[dict[str, Any]] = []
     if apps["old"]:
         attention.append({"kind": "applications", "title": f"{apps['old']} application"
-                          f"{'s' if apps['old'] != 1 else ''} waiting over 2 days",
+                          f"{'s' if apps['old'] != 1 else ''} waiting over {days} day{'s' if days != 1 else ''}",
                           "detail": f"Oldest has been waiting {_ago_days(apps['oldest'])} days.", "action": "review"})
     if ready_count:
         attention.append({"kind": "batch", "title": f"{ready_count} affiliate{'s are' if ready_count != 1 else ' is'} "
                           f"above the {ledger.money_short(settings['minimum_payout_cents'])} minimum",
                           "detail": f"{ledger.money(ready_sum)} payable. Ready for a batch.", "action": "create_batch"})
+    if final_count:
+        attention.append({"kind": "batch", "title": f"{final_count} ended partnership{'s have' if final_count != 1 else ' has'} "
+                          "a final payout",
+                          "detail": f"{ledger.money(final_sum)} earned and payable, paid whatever the minimum.",
+                          "action": "create_batch"})
     for name in no_w9[:3]:
         attention.append({"kind": "w9", "title": f"{name} has no W-9 on file",
                           "detail": "Recording a payout is blocked until it is uploaded or overridden.", "action": "open"})
@@ -156,7 +170,7 @@ async def overview(db: AsyncSession) -> dict[str, Any]:
     # The Stripe mode the platform is in, as Stripe events opens on.
     stats = await stripe_stats(db, await stripe_mode.current(db) == stripe_mode.LIVE)
     return {
-        "applications": {"open": apps["open"], "old": apps["old"]},
+        "applications": {"open": apps["open"], "old": apps["old"], "days": days},
         "affiliates": {"active": by_status["active"], "paused": by_status["paused"],
                        "suspended": by_status["suspended"], "terminated": by_status["terminated"]},
         "active_shops": int(shops),
@@ -229,10 +243,13 @@ async def application(db: AsyncSession, application_id: str) -> dict[str, Any] |
          WHERE subject_kind = 'application' AND subject_id = :id AND action = 'note' ORDER BY at DESC
     """), {"id": application_id})).mappings().all()
     plans = await program.rate_plans(db)
+    settings = await program.load(db)
     from app.services.partners.actions import suggest_code
 
     return {
         **app, "id": str(app["id"]), "partner_id": str(app["partner_id"]) if app["partner_id"] else None,
+        # Where an answer to a question lands: partner emails reply to it.
+        "support_email": settings["support_email"] or None,
         "waiting_days": _ago_days(app["created_at"]),
         "checks": [
             {"ok": "duplicate_email" not in flags, "words": "Email not used by another affiliate"
@@ -245,7 +262,7 @@ async def application(db: AsyncSession, application_id: str) -> dict[str, Any] |
         ],
         "notes": [dict(n) for n in notes],
         "rate_plans": [{"id": str(p["id"]), "key": p["key"], "name": p["name"], "rate_bps": p["rate_bps"],
-                        "rate": program.rate_words(p["rate_bps"]),
+                        "rate": program.rate_words(p["rate_bps"]), "is_default": p["is_default"],
                         "examples": {k: ledger.commission_cents(program.plan_price_cents(k), p["rate_bps"])
                                      for k in ("starter", "wholesale", "scale")}} for p in plans],
         "suggested_code": await suggest_code(db, app["name"]) if app["status"] not in ("approved", "rejected") else None,
@@ -267,6 +284,7 @@ async def affiliates(db: AsyncSession, status: str | None, rate_plan: str | None
     shop_counts = dict((await db.execute(text(
         "SELECT partner_id, COUNT(*) FROM partner_referrals GROUP BY partner_id"
     ))).all())
+    this_year = await portal.paid_in_year(db, today.year)
     counts = defaultdict(int)
     rows = []
     for p in partners:
@@ -282,7 +300,9 @@ async def affiliates(db: AsyncSession, status: str | None, rate_plan: str | None
             continue
         b = ledger.balances(per.get(pid, []), today)
         state, _ = ledger.payout_readiness(partner_status=p["status"], payable=b["payable"],
-                                           minimum=settings["minimum_payout_cents"], has_w9=pid in w9)
+                                           minimum=settings["minimum_payout_cents"], has_w9=pid in w9,
+                                           paid_this_year=this_year.get(pid, 0),
+                                           w9_from=settings["w9_required_from_cents"])
         note = None
         if b["on_hold"]:
             note = "On hold"
@@ -359,7 +379,8 @@ _REF = """
     SELECT r.id, r.partner_id, p.name AS partner_name, r.shop_tenant_id,
            COALESCE(t.name, r.shop_name) AS shop_name, t.plan, t.email AS shop_email, r.owner_email,
            s.status AS sub_status, s.trial_ends_at, s.stripe_customer_id, r.status AS referral_status,
-           r.source, r.code_used, r.src, r.flags, r.attributed_at, r.ended_at, r.decided_by, r.decision_reason
+           r.source, r.code_used, r.src, r.flags, r.attributed_at, r.ended_at, r.earn_until,
+           r.decided_by, r.decision_reason
       FROM partner_referrals r
       JOIN partners p ON p.id = r.partner_id
       LEFT JOIN tenants t ON t.id = r.shop_tenant_id
@@ -372,8 +393,8 @@ def _ref_row(r: dict) -> dict[str, Any]:
     return {"id": str(r["id"]), "shop_name": r["shop_name"], "shop_tenant_id": str(r["shop_tenant_id"]),
             "partner_id": str(r["partner_id"]), "partner_name": r["partner_name"], "plan": r.get("plan"),
             "plan_name": program.plan_name(r.get("plan")), "state": portal.shop_state(r),
-            "source": r["source"], "attributed_at": r["attributed_at"], "flags": flags,
-            "review": r["referral_status"] == "review", "excluded": r["referral_status"] == "excluded"}
+            "source": r["source"], "attributed_at": r["attributed_at"], "earn_until": r.get("earn_until"),
+            "flags": flags, "review": r["referral_status"] == "review", "excluded": r["referral_status"] == "excluded"}
 
 
 async def referral_list(db: AsyncSession, tab: str, partner_id: str | None, plan: str | None,
@@ -497,6 +518,7 @@ async def payables(db: AsyncSession) -> dict[str, Any]:
     settings = await program.load(db)
     partners = {str(p["id"]): p for p in await _partners(db)}
     w9 = await _w9_set(db)
+    this_year = await portal.paid_in_year(db, today.year)
     per = defaultdict(list)
     for ln in await _all_lines(db, "WHERE l.status IN ('open', 'held')"):
         per[str(ln["partner_id"])].append(ln)
@@ -508,7 +530,9 @@ async def payables(db: AsyncSession) -> dict[str, Any]:
         if not open_lines and not b["on_hold"]:
             continue
         state, words = ledger.payout_readiness(partner_status=p["status"], payable=b["payable"],
-                                               minimum=settings["minimum_payout_cents"], has_w9=pid in w9)
+                                               minimum=settings["minimum_payout_cents"], has_w9=pid in w9,
+                                               paid_this_year=this_year.get(pid, 0),
+                                               w9_from=settings["w9_required_from_cents"])
         if p["status"] == "suspended":
             amount = b["on_hold"]
         else:
@@ -517,14 +541,17 @@ async def payables(db: AsyncSession) -> dict[str, Any]:
                      "lines": len(open_lines) if p["status"] != "suspended" else
                      sum(1 for ln in lines if ln["status"] == "held"),
                      "clawback_cents": b["clawbacks"], "method": p.get("payout_method"), "has_w9": pid in w9,
-                     "ready": state, "ready_words": words, "paused": p["status"] == "paused"})
+                     "ready": state, "ready_words": words, "paused": p["status"] == "paused",
+                     "final": p["status"] == "terminated"})
         if state == "ready":
             total += b["payable"]
         held_total += b["on_hold"]
     rows.sort(key=lambda r: (r["ready"] != "ready", -r["payable_cents"]))
     return {"rows": rows, "ready_total_cents": total, "on_hold_cents": held_total,
             "payable_total_cents": sum(r["payable_cents"] for r in rows if r["ready"] != "held"),
-            "minimum_cents": settings["minimum_payout_cents"]}
+            "minimum_cents": settings["minimum_payout_cents"],
+            "w9_required_from_cents": settings["w9_required_from_cents"],
+            "form_1099_threshold_cents": settings["form_1099_threshold_cents"]}
 
 
 async def batches(db: AsyncSession) -> list[dict]:
@@ -536,16 +563,22 @@ async def batches(db: AsyncSession) -> list[dict]:
           FROM partner_payout_batches b ORDER BY b.created_at DESC
     """))).mappings().all()
     out = []
+    w9_from = (await program.load(db))["w9_required_from_cents"]
+    this_year = await portal.paid_in_year(db, ledger.utc_today().year)
     for b in rows:
         item = {**dict(b), "id": str(b["id"]), "total_cents": int(b["total"])}
         if b["status"] == "open":
-            item["waiting"] = [dict(x) | {"partner_id": str(x["partner_id"])} for x in (await db.execute(text("""
+            waiting = (await db.execute(text("""
                 SELECT l.partner_id, p.name, p.payout_method, SUM(l.amount_cents) AS amount_cents, COUNT(*) AS lines,
                        EXISTS (SELECT 1 FROM partner_documents d WHERE d.partner_id = l.partner_id AND d.kind = 'w9'
                                 AND d.replaced_at IS NULL) AS has_w9
                   FROM partner_commission_lines l JOIN partners p ON p.id = l.partner_id
                  WHERE l.batch_id = :b AND l.status = 'open' GROUP BY l.partner_id, p.name, p.payout_method
-            """), {"b": b["id"]})).mappings().all()]
+            """), {"b": b["id"]})).mappings().all()
+            # Recording asks for a W-9, or an override, only when the payout needs one.
+            item["waiting"] = [dict(x) | {"partner_id": str(x["partner_id"]), "w9_needed": ledger.w9_needed(
+                paid_this_year=this_year.get(str(x["partner_id"]), 0), payout=int(x["amount_cents"]),
+                required_from=w9_from)} for x in waiting]
         out.append(item)
     return out
 
@@ -564,7 +597,9 @@ async def paid_history(db: AsyncSession) -> list[dict]:
 
 async def yearly_totals(db: AsyncSession) -> list[dict]:
     """Paid per affiliate per calendar year, by the day each payout was paid:
-    the figure an accountant needs for each partner's 1099."""
+    the figure an accountant needs for each partner's 1099. A partner paid
+    the program's 1099 amount or more in a year is marked (none while it is 0)."""
+    threshold = (await program.load(db))["form_1099_threshold_cents"]
     rows = (await db.execute(text("""
         SELECT EXTRACT(YEAR FROM po.paid_on)::int AS year, p.id, p.name, p.email,
                SUM(po.amount_cents) AS cents, COUNT(*) AS payouts,
@@ -573,7 +608,8 @@ async def yearly_totals(db: AsyncSession) -> list[dict]:
           FROM partner_payouts po JOIN partners p ON p.id = po.partner_id
          GROUP BY year, p.id, p.name, p.email ORDER BY year DESC, cents DESC
     """))).mappings().all()
-    return [{**dict(r), "id": str(r["id"]), "cents": int(r["cents"])} for r in rows]
+    return [{**dict(r), "id": str(r["id"]), "cents": int(r["cents"]),
+             "form_1099": bool(threshold) and int(r["cents"]) >= threshold} for r in rows]
 
 
 # ── Activity and Stripe events ────────────────────────────────────────────────

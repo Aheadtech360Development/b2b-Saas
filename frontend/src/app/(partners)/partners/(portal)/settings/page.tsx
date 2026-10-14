@@ -4,12 +4,21 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
-import { usePartner } from "@/components/partners/PartnerShell";
+import { usePartner, type Partner } from "@/components/partners/PartnerShell";
 import { Banner, Field, Icon, Modal, Switch, errorText, useToast } from "@/components/partners/ui";
-import { day, initials, papi, setPartnerToken } from "@/lib/partnerApi";
+import { day, initials, moneyShort, papi, setPartnerToken } from "@/lib/partnerApi";
+
+/** What the program promises before a rate changes (rate_change_notice_days). */
+function noticeWords(days: number | undefined): string {
+  if (days === undefined) return "";
+  return days > 0 ? `Rate changes get ${days} day${days === 1 ? "" : "s"} notice by email.`
+    : "Rate changes apply from the day they are made.";
+}
 
 export default function SettingsPage() {
   const { partner, reload, signOut } = usePartner();
+  // The program's numbers GET /partners/me carries with the partner.
+  const deal = partner as Partner & { rate_change_notice_days?: number; w9_required_from_cents?: number };
   const router = useRouter();
   const toast = useToast();
   const ro = partner.read_only;
@@ -181,7 +190,11 @@ export default function SettingsPage() {
             <Icon name="file" />
             <div style={{ flex: 1 }}>
               <div className="b ink">{partner.w9_uploaded_at ? `W-9, uploaded ${day(partner.w9_uploaded_at, true)}` : "W-9"}</div>
-              <div className="sm muted">Needed before the first payout. Stored encrypted, only visible to the PrintCoPilot team.</div>
+              <div className="sm muted">
+                {deal.w9_required_from_cents
+                  ? `Needed once your payouts in a year reach ${moneyShort(deal.w9_required_from_cents)}.`
+                  : "Needed before the first payout."} Stored encrypted, only visible to the PrintCoPilot team.
+              </div>
             </div>
             <input ref={file} type="file" accept="application/pdf,image/png,image/jpeg" hidden
                    onChange={(e) => { const f = e.target.files?.[0]; if (f) void uploadW9(f); e.target.value = ""; }} />
@@ -233,7 +246,7 @@ export default function SettingsPage() {
           ["new_shop", "New shop signed up", "When a shop starts a trial through your link or code.", false],
           ["commission_earned", "Commission earned", "When a first or monthly invoice creates a commission line.", false],
           ["payout", "Payout recorded", "When we pay you. The statement is attached.", true],
-          ["terms", "Program news and terms changes", "Rate changes get 30 days notice by email.", true],
+          ["terms", "Program news and terms changes", noticeWords(deal.rate_change_notice_days), true],
         ] as const).map(([key, title, text, always]) => (
           <div className="setrow" key={key}>
             <div className="l"><b>{title}</b><span>{text}</span></div>

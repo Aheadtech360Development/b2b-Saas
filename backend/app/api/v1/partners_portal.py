@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import io
 import json
-from datetime import date
 from typing import Any, Literal
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Query, Request, Response, UploadFile
@@ -64,7 +63,11 @@ async def me(p: dict = Depends(current_partner), db: AsyncSession = Depends(get_
     return {**portal.summary(p, read_only=p["read_only"]),
             "support_email": settings["support_email"] or platform_inbox(),
             "terms_latest": terms["version"] if terms else None,
-            "accepting_referrals": settings["accepting_referrals"]}
+            "accepting_referrals": settings["accepting_referrals"],
+            # The deal's numbers the portal's own words state.
+            "return_window_days": settings["return_window_days"],
+            "rate_change_notice_days": settings["rate_change_notice_days"],
+            "w9_required_from_cents": settings["w9_required_from_cents"]}
 
 
 @router.get("/dashboard")
@@ -397,5 +400,6 @@ async def leave(payload: LeaveIn, background: BackgroundTasks, p: dict = Depends
     """The partner ends the partnership. What they earned is paid as usual."""
     actor = actions.Actor(name=p["name"], email=p["email"], kind="partner")
     await actions.set_status(db, actor, p["id"], "terminated", payload.reason, forfeit=False)
-    background.add_task(mail.status_changed, p["name"], p["email"], "terminated")
+    background.add_task(mail.status_changed, p["name"], p["email"], "terminated",
+                        support=(await program.load(db))["support_email"])
     return {"ok": True, "statement": auth.statement_ticket(p["id"])}
