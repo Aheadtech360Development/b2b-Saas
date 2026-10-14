@@ -306,11 +306,14 @@ class OrderService:
         # 8. Create Order record
         import json as _json
         # Determine payment_status based on payment method:
-        # Net 30 = unpaid (pay later via invoice), all other methods (card/ach/bank) = paid immediately.
-        # Cash on delivery = unpaid until the shop marks it paid, unless a card
-        # did pay for it after all.
+        # Net 30 = unpaid (pay later via invoice). Cash on delivery = unpaid
+        # until the shop marks it paid, unless a card did pay for it after all.
+        # A bank transfer (ACH) = unpaid too: checkout takes the buyer's bank
+        # details, not money, and the order was marked paid with nothing in.
+        # The shop marks it paid when the transfer arrives. A card = paid,
+        # Stripe having confirmed it.
         _pm = getattr(confirm, "payment_method", None) or ""
-        if _pm == "net_30" or (_pm == "cod" and not confirm.payment_intent_id):
+        if _pm in ("net_30", "ach") or (_pm == "cod" and not confirm.payment_intent_id):
             _payment_status = "unpaid"
         else:
             _payment_status = "paid"

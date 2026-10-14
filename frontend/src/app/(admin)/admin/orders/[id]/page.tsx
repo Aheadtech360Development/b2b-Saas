@@ -965,6 +965,8 @@ export default function AdminOrderDetailPage() {
             {!paid && o.status !== "cancelled" && (
               <>
                 {o.payment_method === "cod" && <div className="pc-note" style={{ marginTop: "14px" }}>Cash on delivery: collect {money(o.total)} when it is handed over, then mark it paid.</div>}
+                {/* Checkout took the buyer's bank details, not money. */}
+                {o.payment_method === "ach" && <div className="pc-note" style={{ marginTop: "14px" }}>Bank transfer (ACH): mark it paid once {money(o.total)} is in your account.</div>}
                 <div className="pc-row-actions no-print" style={{ marginTop: "14px" }}>
                   <button type="button" className="pc-btn" disabled={!!busy} onClick={markPaid}>Mark as paid</button>
                   <button type="button" className="pc-btn" disabled={!!busy} onClick={sendInvoice}>{busy === "invoice" ? "Sending…" : o.invoice_sent_at ? "Send invoice again" : "Email the invoice"}</button>

@@ -1,7 +1,7 @@
 // frontend/src/app/(customer)/checkout/review/page.tsx
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useCheckoutStore } from "@/stores/checkout.store";
 import { useCartStore } from "@/stores/cart.store";
@@ -114,6 +114,10 @@ export default function CheckoutReviewPage() {
   const [isPlacing, setIsPlacing] = useState(false);
   /** Set the moment Stripe confirms the charge — see `handlePlaceOrder`. */
   const [paidIntentId, setPaidIntentId] = useState<string | null>(null);
+  /** This attempt to place the order, the same through every retry: the
+   *  server answers a repeat with the order it already made, so a lost answer
+   *  on cash on delivery, ACH or Net 30 no longer makes a second order. */
+  const attempt = useRef("");
   const [error, setError] = useState<string | null>(null);
   const [appliedCoupon, setAppliedCoupon] = useState<{ code: string; discount_amount: number; discount_type: string } | null>(null);
   // Whether the code from the cart, and a guest's cart, have been read from
@@ -258,6 +262,11 @@ export default function CheckoutReviewPage() {
     if (stripePaymentIntentId) setPaidIntentId(stripePaymentIntentId);
     setIsPlacing(true);
     setError(null);
+    if (!attempt.current) {
+      attempt.current = typeof crypto !== "undefined" && "randomUUID" in crypto
+        ? crypto.randomUUID()
+        : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
+    }
 
     // Belt-and-suspenders: read from store first, fall back to sessionStorage
     const _storeSnap = useCheckoutStore.getState();
@@ -272,6 +281,7 @@ export default function CheckoutReviewPage() {
         // ── Guest checkout ─────────────────────────────────────────────────
         const guestData = JSON.parse(sessionStorage.getItem("af_guest_checkout") || "{}");
         const guestPayload = {
+          idempotency_key: attempt.current,
           guest_name: guestData.name || contactName || "Guest",
           guest_email: guestData.email || "",
           guest_phone: guestData.phone || shippingPhone || undefined,
@@ -364,6 +374,7 @@ export default function CheckoutReviewPage() {
       };
 
       const basePayload = {
+        idempotency_key: attempt.current,
         // Which campaign brought this buyer, collected on their first visit.
         attribution: getAttribution() ?? undefined,
         address_id: addressId ?? undefined,

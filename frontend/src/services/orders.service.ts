@@ -12,6 +12,9 @@ export interface CreatePaymentIntentResponse {
 export interface ConfirmOrderPayload {
   /** Stripe PaymentIntent the buyer confirmed before placing the order. */
   payment_intent_id?: string;
+  /** One per attempt to place the order: a retry of it gets the order it
+   *  already made, however it is paid (backend services/order_attempts.py). */
+  idempotency_key?: string;
   address_id?: string;
   shipping_address?: {
     line1: string;

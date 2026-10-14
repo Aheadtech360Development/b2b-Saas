@@ -420,15 +420,38 @@ async def add_order_comment(
 
 
 @router.get("/{order_id}/invoice-summary")
-async def get_order_invoice_summary(order_id: str, db: AsyncSession = Depends(get_db)):
-    """Public endpoint — returns limited order data for invoice payment links."""
+async def get_order_invoice_summary(order_id: str, request: Request, db: AsyncSession = Depends(get_db)):
+    """What an invoice's pay link shows.
+
+    Public as an address, but not by order number alone: numbers run in
+    sequence, and this answered anybody with the lines, the money and the
+    order's id. It opens to the order's view key (services/order_view.py),
+    which the invoice email's link carries in its #fragment and the page sends
+    in X-Order-Key, and to the signed-in buyer the order belongs to. Anyone
+    else gets the answer a wrong number gets.
+    """
     from sqlalchemy.orm import selectinload as _sil
-    result = await db.execute(
-        select(Order).options(_sil(Order.items))
-        .where(Order.order_number == order_id.upper())
+
+    from app.core.tenant_context import get_current_tenant_id
+    from app.services import order_view
+
+    tenant_id = get_current_tenant_id()
+    order = None
+    if tenant_id:
+        order = (await db.execute(
+            select(Order).options(_sil(Order.items))
+            .where(Order.order_number == order_id.upper(), Order.tenant_id == tenant_id)
+        )).scalar_one_or_none()
+    allowed = order is not None and (
+        order_view.key_opens(order, (request.headers.get("x-order-key") or "")[:80])
+        or order_view.owned_by(
+            order,
+            user_id=getattr(request.state, "user_id", None),
+            company_id=getattr(request.state, "company_id", None),
+            account_type=getattr(request.state, "account_type", None),
+        )
     )
-    order = result.scalar_one_or_none()
-    if not order:
+    if not allowed:
         raise NotFoundError(f"Order {order_id} not found")
     _total = float(order.total)
     _paid = float(order.amount_paid or 0)

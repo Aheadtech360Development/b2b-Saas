@@ -131,12 +131,14 @@ describe("the thank-you page", () => {
     expect(screen.queryByText("Shipping address")).not.toBeInTheDocument();
   });
 
-  it("does not call a bank transfer paid", async () => {
-    // ACH is marked paid at checkout before any money moves.
+  it("says a bank transfer is still to come, not that it is paid", async () => {
+    // Checkout takes the bank details, not the money: the order is unpaid
+    // until the shop marks it paid.
     rememberOrderKey("1045", KEY);
-    get.mockResolvedValue({ ...ORDER, payment_method: "ach", payment_status: "paid" });
+    get.mockResolvedValue({ ...ORDER, payment_method: "ach", payment_status: "unpaid" });
     render(<ThankYouPage />);
     expect(await screen.findByText("ACH / Bank transfer")).toBeInTheDocument();
+    expect(screen.getByText("Waiting for your bank transfer")).toBeInTheDocument();
     expect(screen.queryByText("Paid")).not.toBeInTheDocument();
   });
 });
