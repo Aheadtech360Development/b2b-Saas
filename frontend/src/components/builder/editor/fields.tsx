@@ -12,6 +12,7 @@ import { ArrowDown, ArrowUp, Bold, ImagePlus, Italic, Link2, List, ListOrdered, 
 import type { Field } from "@/lib/builder/registry";
 import type { PickCollection, PickMenu, PickProduct } from "@/services/builder.service";
 import { cleanHtml, safeSrc } from "@/lib/builder/sanitize";
+import { useAuthStore } from "@/stores/auth.store";
 import { TextInput, Toggle } from "./ui";
 
 export interface EditorEnv {
@@ -206,10 +207,38 @@ function ItemsEditor({ field, value, onChange, env }: { field: Field; value: unk
   );
 }
 
+/** A Custom HTML block's JavaScript. Only an Administrator writes it; the
+ *  server refuses anybody else (backend services/builder/scripts.py), and this
+ *  says so before they type. */
+function ScriptField({ field, value, onChange }: { field: Field; value: unknown; onChange: (v: unknown) => void }) {
+  const user = useAuthStore((s) => s.user);
+  const scopes = user?.scopes;
+  const partial = !!scopes && (Array.isArray(scopes) ? scopes.length > 0 : Object.keys(scopes).length > 0);
+  const allowed = !!user?.is_platform_admin || (user?.role === "tenant_admin" && !partial);
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+      <textarea className="sbe-in code" spellCheck={false} value={str(value)} aria-label={field.label}
+                readOnly={!allowed} placeholder="block.querySelector('p').textContent = 'Hello';"
+                onChange={(e) => allowed && onChange(e.target.value)}
+                onKeyDown={(e) => {
+                  if (!allowed || e.key !== "Tab") return;
+                  e.preventDefault();
+                  const t = e.currentTarget;
+                  const at = t.selectionStart;
+                  onChange(`${t.value.slice(0, at)}  ${t.value.slice(t.selectionEnd)}`);
+                  requestAnimationFrame(() => { t.selectionStart = t.selectionEnd = at + 2; });
+                }} />
+      {!allowed && <div className="sbe-help">Only an Administrator can add or change JavaScript.</div>}
+    </div>
+  );
+}
+
 export function FieldControl({ field, value, onChange, env }: {
   field: Field; value: unknown; onChange: (v: unknown) => void; env: EditorEnv;
 }) {
   switch (field.kind) {
+    case "js":
+      return <ScriptField field={field} value={value} onChange={onChange} />;
     case "text":
     case "url":
       return <TextInput value={str(value)} onChange={onChange} ariaLabel={field.label}

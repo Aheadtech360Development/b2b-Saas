@@ -17,7 +17,7 @@ import type { BuilderNode, TemplateType } from "./types";
 
 export type FieldKind =
   | "text" | "textarea" | "number" | "select" | "toggle" | "color" | "url" | "image"
-  | "menu" | "products" | "collection" | "collections" | "global" | "items" | "html" | "css" | "richtext";
+  | "menu" | "products" | "collection" | "collections" | "global" | "items" | "html" | "css" | "js" | "richtext";
 
 export interface Field {
   key: string;
@@ -615,12 +615,15 @@ export const REGISTRY: ComponentDef[] = [
   },
   {
     type: "html", label: "Custom HTML", category: "advanced", icon: "Code",
-    blurb: "Your own markup. Scripts are removed.",
+    blurb: "Your own markup, styles and script.",
     fields: [
       { key: "html", label: "HTML", kind: "html",
-        help: "Scripts, forms, iframes and event handlers are removed before this is shown." },
+        help: "Scripts, forms, iframes and event handlers are removed from the HTML before this is shown. JavaScript goes in its own box below." },
       { key: "css", label: "CSS for this block only", kind: "css",
         help: "Applies inside this block and nowhere else on the page." },
+      // backend services/builder/scripts.py; it runs from islands/BlockScript.
+      { key: "js", label: "JavaScript", kind: "js",
+        help: "Runs on your live site once the page has loaded, not in this editor. `block` is this block's element. Only an Administrator can add or change it." },
     ],
     styles: ["spacing"],
     create: () => node("html", { html: "<div class=\"note\"><p>Your HTML here.</p></div>", css: ".note { padding: 16px; }" }),

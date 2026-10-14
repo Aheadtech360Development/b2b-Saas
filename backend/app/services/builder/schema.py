@@ -419,6 +419,14 @@ def _check_tree(
                 issues.append(Issue(f"{path}.props.css", "css_cleaned",
                                     "Some of this CSS is not allowed and will be left out: "
                                     + ", ".join(sorted(set(css_out.removed))[:6]), "warning"))
+            # The block's own script (services/builder/scripts.py): text, and not a whole program.
+            from app.services.builder.scripts import MAX_SCRIPT
+            script = props.get("js")
+            if script is not None and not isinstance(script, str):
+                issues.append(Issue(f"{path}.props.js", "js_shape", "The JavaScript is not in the expected form."))
+            elif isinstance(script, str) and len(script) > MAX_SCRIPT:
+                issues.append(Issue(f"{path}.props.js", "js_too_long",
+                                    f"The JavaScript is longer than {MAX_SCRIPT:,} characters."))
 
         for bp in ("style", "tablet", "mobile"):
             _check_style(node.get(bp), f"{path}.{bp}", families, issues)
