@@ -14,6 +14,7 @@ import { StripePaymentForm } from "@/components/checkout/StripePaymentForm";
 import type { Cart } from "@/types/order.types";
 import { ConfigurationDetail } from "@/components/shared/ConfigurationDetail";
 import { clearAttribution, getAttribution } from "@/lib/attribution";
+import { rememberOrderKey, thankYouPath } from "@/lib/orderThanks";
 import { cartLines, trackPaymentChosen, trackPurchase } from "@/lib/tracking";
 
 import { guestCheckoutItem, type GuestLine as GuestCartEntry } from "@/lib/guestCart";
@@ -308,7 +309,7 @@ export default function CheckoutReviewPage() {
           attribution: getAttribution() ?? undefined,
         };
         console.log("[Review] Guest order payload:", JSON.stringify(guestPayload, null, 2));
-        const order = await apiClient.post<{ order_id: string; order_number: string; total: number }>("/api/v1/guest/checkout", guestPayload);
+        const order = await apiClient.post<{ order_id: string; order_number: string; total: number; view_key?: string | null }>("/api/v1/guest/checkout", guestPayload);
 
         const guestSubtotal = guestEntries.reduce((s, e) => s + e.unit_price * e.quantity, 0);
         const productName = guestEntries[0]?.product_name ?? "Your Order";
@@ -339,7 +340,11 @@ export default function CheckoutReviewPage() {
         localStorage.removeItem("af_guest_cart");
         sessionStorage.removeItem("af_guest_checkout");
         window.dispatchEvent(new Event("af_guest_cart_updated"));
-        router.push("/checkout/confirmed");
+        // The order's own page, which this browser can open by the key the
+        // checkout answered with. Replace, not push: Back must not lead into
+        // a checkout that has already been paid.
+        rememberOrderKey(order.order_number, order.view_key);
+        router.replace(thankYouPath(order.order_number));
         return;
       }
 
@@ -438,7 +443,10 @@ export default function CheckoutReviewPage() {
       if (typeof window !== "undefined") localStorage.removeItem("af_coupon");
       clearCart();
       window.dispatchEvent(new Event("cart_updated"));
-      router.push("/checkout/confirmed");
+      // The order's own page. Sign-in is kept per tab, so the key is what
+      // opens it in a new one; the sign-in still opens it in this tab.
+      rememberOrderKey(order.order_number, order.view_key);
+      router.replace(thankYouPath(order.order_number));
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Failed to place order. Please try again.");
       setIsPlacing(false);

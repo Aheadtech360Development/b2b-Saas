@@ -142,6 +142,13 @@ class OrderOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class ConfirmedOrderOut(OrderOut):
+    """The answer to a checkout: the order, and the key that opens its
+    thank-you page (services/order_view.py). Sign-in is kept per browser tab,
+    so a new tab of that page is opened by the key, not by the sign-in."""
+    view_key: str | None = None
+
+
 class OrderListItem(BaseModel):
     id: UUID
     order_number: str
