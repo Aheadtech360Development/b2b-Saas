@@ -93,8 +93,9 @@ def _footer() -> list:
                       "invoices; refunds and disputes are deducted from later payouts. All amounts in USD.", _small)]
 
 
-def payout_statement(partner: dict, payout: dict, lines: list[dict]) -> bytes:
-    """What one payout paid, line by line."""
+def payout_statement(partner: dict, payout: dict, lines: list[dict], year_cents: int | None = None) -> bytes:
+    """What one payout paid, line by line, and what the year has paid so far:
+    the figure a partner's own tax records need."""
     buf = io.BytesIO()
     doc = _doc(buf, f"Payout statement {_day(payout['paid_on'])}")
     story = [
@@ -104,7 +105,8 @@ def payout_statement(partner: dict, payout: dict, lines: list[dict]) -> bytes:
         _pairs([["Paid on", _day(payout["paid_on"])], ["Amount", money(payout["amount_cents"])],
                 ["Method", {"paypal": "PayPal", "wise": "Wise", "bank": "Bank transfer"}.get(payout["method"],
                                                                                           payout["method"])],
-                ["Reference", payout.get("reference") or ""], ["Lines", str(len(lines))]]),
+                ["Reference", payout.get("reference") or ""], ["Lines", str(len(lines))]]
+               + ([[f"Paid in {payout['paid_on'].year}", money(year_cents)]] if year_cents is not None else [])),
         Paragraph("Lines in this payout", _h2), _lines_table(lines), *_footer(),
     ]
     doc.build(story)

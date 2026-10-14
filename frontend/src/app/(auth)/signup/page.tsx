@@ -16,6 +16,7 @@ import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { apiClient, ApiClientError } from "@/lib/api-client";
 import { PasswordField } from "@/components/ui/PasswordField";
+import { ReferralCapture, readReferralCookie } from "@/components/partners/ReferralCapture";
 
 interface Plan {
   key: string;
@@ -54,6 +55,25 @@ export default function SignupPage() {
   const [slugFree, setSlugFree] = useState<null | { available: boolean; reason: string }>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // A partner's link leaves a cookie, and that wins; without one, the owner
+  // can type the partner's code (services/partners/referrals.py).
+  const [refCookie, setRefCookie] = useState<string | null>(null);
+  const [refCode, setRefCode] = useState("");
+  const [refOk, setRefOk] = useState<null | boolean>(null);
+
+  useEffect(() => {
+    setRefCookie(readReferralCookie());
+  }, []);
+
+  useEffect(() => {
+    const code = refCode.trim();
+    if (!code) { setRefOk(null); return; }
+    const t = window.setTimeout(() => {
+      apiClient.get<{ valid: boolean }>(`/api/v1/partners/codes/${encodeURIComponent(code)}`, { skipAuth: true })
+        .then((r) => setRefOk(r.valid)).catch(() => setRefOk(null));
+    }, 400);
+    return () => window.clearTimeout(t);
+  }, [refCode]);
 
   useEffect(() => {
     apiClient.get<{ plans: Plan[] }>("/api/v1/signup/plans", { skipAuth: true })
@@ -100,6 +120,8 @@ export default function SignupPage() {
         email: form.email.trim(),
         password: form.password,
         phone: form.phone.trim(),
+        referral_cookie: refCookie,
+        referral_code: refCookie ? null : refCode.trim() || null,
       }, { skipAuth: true });
 
       // Straight into their own shop, already signed in. The token is handed
@@ -129,6 +151,7 @@ export default function SignupPage() {
   return (
     <>
       <style>{CSS}</style>
+      <ReferralCapture onCaptured={setRefCookie} />
       <div className="su">
         <header className="su-top">
           <Link href="/" className="su-logo"><span className="su-mark" aria-hidden />PrintCopilot</Link>
@@ -224,6 +247,19 @@ export default function SignupPage() {
                 <input type="tel" value={form.phone} autoComplete="tel"
                   onChange={(e) => setForm({ ...form, phone: e.target.value })} />
               </label>
+
+              {refCookie ? (
+                <p className="su-hint">Referred by a PrintCoPilot partner ({refCookie.split(".")[0]}).</p>
+              ) : (
+                <label>Partner code <span className="su-opt">(optional)</span>
+                  <input value={refCode} maxLength={20} autoComplete="off" spellCheck={false}
+                    onChange={(e) => setRefCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ""))} />
+                  <span className={`su-hint${refOk === false ? " su-hint-bad" : ""}`}>
+                    {refOk === true ? "Code found." : refOk === false ? "That code is not active. You can leave it empty."
+                      : "If a partner sent you, type their code."}
+                  </span>
+                </label>
+              )}
 
               <label>Password
                 <PasswordField wrapperClassName="su-pw" value={form.password} required

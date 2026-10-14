@@ -63,6 +63,20 @@ function resolveSlug(request: NextRequest): string | null {
 export function middleware(request: NextRequest) {
   const hostname = request.nextUrl.hostname;
 
+  // The partner program belongs to the platform, not to any shop: opened on
+  // a shop's address, it moves to the platform's own.
+  if (
+    request.nextUrl.pathname.startsWith("/partners") &&
+    PLATFORM_DOMAIN !== "localhost" &&
+    hostname.endsWith(`.${PLATFORM_DOMAIN}`) &&
+    !isPlatformHost(hostname)
+  ) {
+    const to = request.nextUrl.clone();
+    to.hostname = PLATFORM_DOMAIN;
+    to.port = "";
+    return NextResponse.redirect(to, 307);
+  }
+
   // A shop asked for on the platform's own address goes to its own address
   // instead of being served here under a second one. One shop, one place.
   const wanted = request.nextUrl.searchParams.get("tenant");

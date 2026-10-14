@@ -28,7 +28,7 @@ def _refuse(status: int, code: str, message: str) -> HTTPException:
     return HTTPException(status_code=status, detail={"code": code, "message": message})
 
 
-async def current_partner(request: Request, db: AsyncSession = Depends(get_partner_db)) -> dict:
+async def current_partner(request: Request, db: AsyncSession = Depends(get_partner_db, scope="function")) -> dict:
     header = request.headers.get("Authorization", "")
     claims = auth.read(header[7:] if header.startswith("Bearer ") else None, auth.ACCESS)
     if not claims:
@@ -56,7 +56,7 @@ def _who(p: dict) -> dict[str, Any]:
 # ── Reading ───────────────────────────────────────────────────────────────────
 
 @router.get("")
-async def me(p: dict = Depends(current_partner), db: AsyncSession = Depends(get_partner_db)) -> dict[str, Any]:
+async def me(p: dict = Depends(current_partner), db: AsyncSession = Depends(get_partner_db, scope="function")) -> dict[str, Any]:
     from app.services.email_service import platform_inbox
 
     settings = await program.load(db)
@@ -68,12 +68,12 @@ async def me(p: dict = Depends(current_partner), db: AsyncSession = Depends(get_
 
 
 @router.get("/dashboard")
-async def dashboard(p: dict = Depends(current_partner), db: AsyncSession = Depends(get_partner_db)) -> dict[str, Any]:
+async def dashboard(p: dict = Depends(current_partner), db: AsyncSession = Depends(get_partner_db, scope="function")) -> dict[str, Any]:
     return await portal.dashboard(db, p)
 
 
 @router.get("/link")
-async def link(p: dict = Depends(current_partner), db: AsyncSession = Depends(get_partner_db)) -> dict[str, Any]:
+async def link(p: dict = Depends(current_partner), db: AsyncSession = Depends(get_partner_db, scope="function")) -> dict[str, Any]:
     return await portal.link_page(db, p)
 
 
@@ -99,7 +99,7 @@ async def qr(kind: Literal["svg", "png"], src: str | None = None,
 
 @router.get("/assets/{asset_id}")
 async def asset(asset_id: str, p: dict = Depends(current_partner),
-                db: AsyncSession = Depends(get_partner_db)) -> Response:
+                db: AsyncSession = Depends(get_partner_db, scope="function")) -> Response:
     row = (await db.execute(text("""
         SELECT title, mime, data FROM partner_assets WHERE id = CAST(:id AS uuid)
     """), {"id": asset_id})).mappings().first()
@@ -113,7 +113,7 @@ async def asset(asset_id: str, p: dict = Depends(current_partner),
 
 @router.get("/referrals")
 async def referrals(state: str | None = None, p: dict = Depends(current_partner),
-                    db: AsyncSession = Depends(get_partner_db)) -> dict[str, Any]:
+                    db: AsyncSession = Depends(get_partner_db, scope="function")) -> dict[str, Any]:
     rows = await portal.shops(db, p)
     counts: dict[str, int] = {"all": len(rows)}
     for r in rows:
@@ -125,7 +125,7 @@ async def referrals(state: str | None = None, p: dict = Depends(current_partner)
 
 @router.get("/referrals/{referral_id}")
 async def referral(referral_id: str, p: dict = Depends(current_partner),
-                   db: AsyncSession = Depends(get_partner_db)) -> dict[str, Any]:
+                   db: AsyncSession = Depends(get_partner_db, scope="function")) -> dict[str, Any]:
     found = await portal.shop_detail(db, p, referral_id)
     if not found:
         raise _refuse(404, "NOT_FOUND", "That shop is not one of your referrals.")
@@ -133,25 +133,26 @@ async def referral(referral_id: str, p: dict = Depends(current_partner),
 
 
 @router.get("/earnings")
-async def earnings(state: str | None = None, page: int = Query(1, ge=1), p: dict = Depends(current_partner),
-                   db: AsyncSession = Depends(get_partner_db)) -> dict[str, Any]:
-    return await portal.earnings(db, p, state, page)
+async def earnings(state: str | None = None, page: int = Query(1, ge=1), months: int = Query(0, ge=0, le=120),
+                   q: str | None = Query(None, max_length=80), p: dict = Depends(current_partner),
+                   db: AsyncSession = Depends(get_partner_db, scope="function")) -> dict[str, Any]:
+    return await portal.earnings(db, p, state, page, months, q)
 
 
 @router.get("/earnings.csv")
-async def earnings_csv(p: dict = Depends(current_partner), db: AsyncSession = Depends(get_partner_db)) -> Response:
+async def earnings_csv(p: dict = Depends(current_partner), db: AsyncSession = Depends(get_partner_db, scope="function")) -> Response:
     return Response(await portal.earnings_csv(db, p), media_type="text/csv",
                     headers={"Content-Disposition": 'attachment; filename="earnings.csv"'})
 
 
 @router.get("/payouts")
-async def payouts(p: dict = Depends(current_partner), db: AsyncSession = Depends(get_partner_db)) -> dict[str, Any]:
+async def payouts(p: dict = Depends(current_partner), db: AsyncSession = Depends(get_partner_db, scope="function")) -> dict[str, Any]:
     return await portal.payouts_page(db, p)
 
 
 @router.get("/payouts/{payout_id}/statement.pdf")
 async def statement(payout_id: str, p: dict = Depends(current_partner),
-                    db: AsyncSession = Depends(get_partner_db)) -> Response:
+                    db: AsyncSession = Depends(get_partner_db, scope="function")) -> Response:
     pdf = await payout_statement_pdf(db, p, payout_id)
     if pdf is None:
         raise _refuse(404, "NOT_FOUND", "No such payout.")
@@ -170,11 +171,17 @@ async def payout_statement_pdf(db: AsyncSession, p: dict, payout_id: str) -> byt
     paid = (await db.execute(text("SELECT id FROM partner_commission_lines WHERE payout_id = :po"),
                              {"po": payout["id"]})).scalars().all()
     paid_ids = {str(i) for i in paid}
-    return statements.payout_statement(p, dict(payout), [ln for ln in lines if str(ln["id"]) in paid_ids])
+    # The year's total up to and including this payout.
+    year_cents = (await db.execute(text("""
+        SELECT COALESCE(SUM(amount_cents), 0) FROM partner_payouts
+         WHERE partner_id = :p AND EXTRACT(YEAR FROM paid_on)::int = :y AND paid_on <= :d
+    """), {"p": p["id"], "y": payout["paid_on"].year, "d": payout["paid_on"]})).scalar()
+    return statements.payout_statement(p, dict(payout), [ln for ln in lines if str(ln["id"]) in paid_ids],
+                                       int(year_cents or 0))
 
 
 @router.get("/terms")
-async def terms(p: dict = Depends(current_partner), db: AsyncSession = Depends(get_partner_db)) -> dict[str, Any]:
+async def terms(p: dict = Depends(current_partner), db: AsyncSession = Depends(get_partner_db, scope="function")) -> dict[str, Any]:
     latest = await program.latest_terms(db)
     history = (await db.execute(text("""
         SELECT v.version, v.published_at, v.changes, a.accepted_at
@@ -191,7 +198,7 @@ async def terms(p: dict = Depends(current_partner), db: AsyncSession = Depends(g
 
 @router.get("/terms/{version}.pdf")
 async def terms_pdf(version: int, p: dict = Depends(current_partner),
-                    db: AsyncSession = Depends(get_partner_db)) -> Response:
+                    db: AsyncSession = Depends(get_partner_db, scope="function")) -> Response:
     row = (await db.execute(text("""
         SELECT version, clauses, published_at FROM partner_terms_versions WHERE version = :v
     """), {"v": version})).mappings().first()
@@ -210,7 +217,7 @@ class AcceptIn(BaseModel):
 
 @router.post("/terms/accept")
 async def accept(payload: AcceptIn, request: Request, p: dict = Depends(writable),
-                 db: AsyncSession = Depends(get_partner_db)) -> dict[str, Any]:
+                 db: AsyncSession = Depends(get_partner_db, scope="function")) -> dict[str, Any]:
     try:
         released = await actions.accept_terms(db, p, payload.version, ip=client_ip(request),
                                               user_agent=request.headers.get("user-agent"))
@@ -227,7 +234,7 @@ class ProfileIn(BaseModel):
 
 @router.put("/profile")
 async def profile(payload: ProfileIn, p: dict = Depends(writable),
-                  db: AsyncSession = Depends(get_partner_db)) -> dict[str, Any]:
+                  db: AsyncSession = Depends(get_partner_db, scope="function")) -> dict[str, Any]:
     before = {"name": p["name"], "business_name": p.get("business_name"), "website": p.get("website")}
     after = {"name": payload.name.strip(), "business_name": (payload.business_name or "").strip() or None,
              "website": (payload.website or "").strip() or None}
@@ -247,7 +254,7 @@ class PayoutIn(BaseModel):
 
 @router.put("/payout")
 async def payout_details(payload: PayoutIn, p: dict = Depends(writable),
-                         db: AsyncSession = Depends(get_partner_db)) -> dict[str, Any]:
+                         db: AsyncSession = Depends(get_partner_db, scope="function")) -> dict[str, Any]:
     account = payload.account.strip()
     if payload.method in ("paypal", "wise") and "@" not in account:
         raise _refuse(400, "PAYOUT", f"Give the email your {'PayPal' if payload.method == 'paypal' else 'Wise'} "
@@ -263,7 +270,7 @@ async def payout_details(payload: PayoutIn, p: dict = Depends(writable),
 
 @router.post("/w9")
 async def upload_w9(request: Request, file: UploadFile = File(...), p: dict = Depends(writable),
-                    db: AsyncSession = Depends(get_partner_db)) -> dict[str, Any]:
+                    db: AsyncSession = Depends(get_partner_db, scope="function")) -> dict[str, Any]:
     await enforce_rate_limit(request, "partner_w9", limit=10, window=3600, extra=str(p["id"]))
     data = await file.read(docs.MAX_BYTES + 1)
     try:
@@ -292,7 +299,7 @@ class PasswordIn(BaseModel):
 
 @router.post("/password")
 async def change_password(payload: PasswordIn, request: Request, response: Response, p: dict = Depends(writable),
-                          db: AsyncSession = Depends(get_partner_db)) -> dict[str, Any]:
+                          db: AsyncSession = Depends(get_partner_db, scope="function")) -> dict[str, Any]:
     await enforce_rate_limit(request, "partner_password", limit=10, window=3600, extra=str(p["id"]))
     if not p.get("password_hash") or not verify_password(payload.current, p["password_hash"]):
         raise _refuse(400, "WRONG", "Your current password is not right.")
@@ -311,7 +318,7 @@ async def change_password(payload: PasswordIn, request: Request, response: Respo
 
 
 @router.post("/2fa/setup")
-async def two_factor_setup(p: dict = Depends(writable), db: AsyncSession = Depends(get_partner_db)) -> dict[str, Any]:
+async def two_factor_setup(p: dict = Depends(writable), db: AsyncSession = Depends(get_partner_db, scope="function")) -> dict[str, Any]:
     from app.services import two_factor_service as tfa
 
     if p.get("two_factor_enabled"):
@@ -327,7 +334,7 @@ class CodeIn(BaseModel):
 
 @router.post("/2fa/enable")
 async def two_factor_enable(payload: CodeIn, p: dict = Depends(writable),
-                            db: AsyncSession = Depends(get_partner_db)) -> dict[str, Any]:
+                            db: AsyncSession = Depends(get_partner_db, scope="function")) -> dict[str, Any]:
     from app.services import two_factor_service as tfa
 
     if not p.get("two_factor_secret"):
@@ -349,7 +356,7 @@ class DisableIn(BaseModel):
 
 @router.post("/2fa/disable")
 async def two_factor_disable(payload: DisableIn, p: dict = Depends(writable),
-                             db: AsyncSession = Depends(get_partner_db)) -> dict[str, Any]:
+                             db: AsyncSession = Depends(get_partner_db, scope="function")) -> dict[str, Any]:
     from app.services import two_factor_service as tfa
 
     if not verify_password(payload.password, p.get("password_hash") or ""):
@@ -373,7 +380,7 @@ class EmailsIn(BaseModel):
 
 @router.put("/emails")
 async def emails(payload: EmailsIn, p: dict = Depends(writable),
-                 db: AsyncSession = Depends(get_partner_db)) -> dict[str, Any]:
+                 db: AsyncSession = Depends(get_partner_db, scope="function")) -> dict[str, Any]:
     prefs = {"new_shop": payload.new_shop, "commission_earned": payload.commission_earned}
     await db.execute(text("UPDATE partners SET email_prefs = CAST(:e AS jsonb) WHERE id = :id"),
                      {"e": json.dumps(prefs), "id": p["id"]})
@@ -386,7 +393,7 @@ class LeaveIn(BaseModel):
 
 @router.post("/leave")
 async def leave(payload: LeaveIn, background: BackgroundTasks, p: dict = Depends(writable),
-                db: AsyncSession = Depends(get_partner_db)) -> dict[str, Any]:
+                db: AsyncSession = Depends(get_partner_db, scope="function")) -> dict[str, Any]:
     """The partner ends the partnership. What they earned is paid as usual."""
     actor = actions.Actor(name=p["name"], email=p["email"], kind="partner")
     await actions.set_status(db, actor, p["id"], "terminated", payload.reason, forfeit=False)

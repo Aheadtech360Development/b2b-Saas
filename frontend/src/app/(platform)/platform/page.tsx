@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { ApiClientError } from "@/lib/api-client";
+import { ApiClientError, apiClient } from "@/lib/api-client";
 import { PlanAndTrial } from "@/components/platform/PlanAndTrial";
 import {
   platformService,
@@ -16,6 +16,7 @@ import {
 import { AnalyticsTab, ActivityTab, SearchTab, HealthTab } from "@/components/platform/InsightTabs";
 import { StripeModePanel } from "@/components/platform/StripeModePanel";
 import { TaxTab } from "@/components/platform/TaxTab";
+import { AffiliatesTab } from "@/components/platform/affiliates/AffiliatesTab";
 import type { Tenant } from "@/types/user.types";
 
 // The service is sold as a single flat offering — there are no tiers to choose
@@ -40,7 +41,31 @@ export default function PlatformDashboard() {
   const [showCreate, setShowCreate] = useState(false);
   const [createdInfo, setCreatedInfo] = useState<CreateTenantResponse | null>(null);
   const [manageTenant, setManageTenant] = useState<Tenant | null>(null);
-  const [tab, setTab] = useState<"brands" | "analytics" | "taxes" | "activity" | "search" | "health">("brands");
+  const [tab, setTab] = useState<"brands" | "analytics" | "taxes" | "activity" | "search" | "health" | "affiliates">("brands");
+  // Applications waiting for a decision, shown on the Affiliates tab.
+  const [affiliateCount, setAffiliateCount] = useState(0);
+
+  // The Affiliates tab keeps its place in the address (#affiliates/...), so
+  // a reload or a shared link opens it again.
+  useEffect(() => {
+    const follow = () => {
+      if (window.location.hash.startsWith("#affiliates")) setTab("affiliates");
+    };
+    follow();
+    window.addEventListener("hashchange", follow);
+    apiClient.get<{ applications: number }>("/api/v1/platform/affiliates/badge")
+      .then((b) => setAffiliateCount(b.applications)).catch(() => undefined);
+    return () => window.removeEventListener("hashchange", follow);
+  }, []);
+
+  function chooseTab(key: typeof tab) {
+    setTab(key);
+    if (key === "affiliates") {
+      if (!window.location.hash.startsWith("#affiliates")) window.location.hash = "affiliates/overview";
+    } else if (window.location.hash) {
+      history.replaceState(null, "", window.location.pathname + window.location.search);
+    }
+  }
 
   async function loadTenants() {
     setLoading(true);
@@ -109,10 +134,11 @@ export default function PlatformDashboard() {
           ["activity", "Activity"],
           ["search", "Search"],
           ["health", "Brand Health"],
+          ["affiliates", "Affiliates"],
         ] as const).map(([key, label]) => (
           <button
             key={key}
-            onClick={() => setTab(key)}
+            onClick={() => chooseTab(key)}
             style={{
               background: "transparent", border: "none", cursor: "pointer",
               padding: "10px 16px", fontSize: "13px",
@@ -123,10 +149,17 @@ export default function PlatformDashboard() {
             }}
           >
             {label}
+            {key === "affiliates" && affiliateCount > 0 ? (
+              <span style={{ marginLeft: 6, display: "inline-block", minWidth: 20, padding: "0 6px", borderRadius: 99,
+                             background: "#FFF4DB", color: "#7A5200", fontSize: 11, fontWeight: 700, lineHeight: "20px" }}>
+                {affiliateCount}
+              </span>
+            ) : null}
           </button>
         ))}
       </div>
 
+      {tab === "affiliates" && <AffiliatesTab onCount={setAffiliateCount} />}
       {tab === "analytics" && <AnalyticsTab />}
       {tab === "taxes" && <TaxTab />}
       {tab === "activity" && <ActivityTab tenants={tenants} />}
