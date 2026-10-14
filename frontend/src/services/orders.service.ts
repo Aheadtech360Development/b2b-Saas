@@ -45,8 +45,10 @@ export const ordersService = {
     });
   },
 
-  async confirmOrder(payload: ConfirmOrderPayload): Promise<OrderDetail> {
-    return apiClient.post<OrderDetail>("/api/v1/checkout/confirm", payload);
+  /** The order, with `view_key`: what opens its thank-you page in a tab the
+   *  sign-in does not reach (lib/orderThanks.ts). */
+  async confirmOrder(payload: ConfirmOrderPayload): Promise<OrderDetail & { view_key?: string | null }> {
+    return apiClient.post<OrderDetail & { view_key?: string | null }>("/api/v1/checkout/confirm", payload);
   },
 
   async getOrders(page = 1): Promise<PaginatedResponse<OrderListItem>> {

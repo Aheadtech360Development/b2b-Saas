@@ -121,6 +121,9 @@ class GuestOrderOut(BaseModel):
     order_number: str
     total: float
     status: str
+    # Opens this order's thank-you page in the browser that placed it
+    # (services/order_view.py). A guest has no sign-in to do that with.
+    view_key: str | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -711,12 +714,14 @@ async def guest_checkout(
 
     await db.commit()
 
+    from app.services import order_view
 
     return GuestOrderOut(
         order_id=str(order.id),
         order_number=order.order_number,
         total=float(order.total),
         status=order.status,
+        view_key=order_view.view_key(order.id, order.tenant_id),
     )
 
 
@@ -758,6 +763,51 @@ async def guest_shipping_estimate(
         pass
 
     return {"estimated_shipping": float(GUEST_SHIPPING_STANDARD)}
+
+
+# ---------------------------------------------------------------------------
+# GET /api/v1/guest/orders/{order_number}/thank-you?key={view_key}
+# ---------------------------------------------------------------------------
+
+@router.get("/orders/{order_number}/thank-you")
+async def order_thank_you(
+    order_number: str,
+    request: Request,
+    key: str | None = Query(None, max_length=80),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """What an order's thank-you page shows (services/order_view.py).
+
+    Open to the browser that placed the order, by the view key its checkout
+    answered with, and to the signed-in buyer the order belongs to. Anyone else
+    gets the answer a wrong number gets, so an order number on its own says
+    nothing about whether that order exists.
+    """
+    from sqlalchemy.orm import selectinload
+
+    from app.core.tenant_context import get_current_tenant_id
+    from app.services import order_view
+
+    tenant_id = get_current_tenant_id()
+    order = None
+    if tenant_id:
+        order = (await db.execute(
+            select(Order)
+            .options(selectinload(Order.items), selectinload(Order.placed_by), selectinload(Order.company))
+            .where(Order.order_number == order_number.strip(), Order.tenant_id == tenant_id)
+        )).scalar_one_or_none()
+    allowed = order is not None and (
+        order_view.key_opens(order, key)
+        or order_view.owned_by(
+            order,
+            user_id=getattr(request.state, "user_id", None),
+            company_id=getattr(request.state, "company_id", None),
+            account_type=getattr(request.state, "account_type", None),
+        )
+    )
+    if not allowed:
+        raise NotFoundError("Order not found.")
+    return await order_view.summary(db, order)
 
 
 # ---------------------------------------------------------------------------

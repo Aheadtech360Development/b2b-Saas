@@ -31,8 +31,9 @@ export default function CheckoutLayout({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const active = getActiveStep(pathname);
   // The invoice page is reached from an email, not from the checkout, so it
-  // has no steps behind it to show.
-  const bare = pathname.includes("/checkout/invoice");
+  // has no steps behind it to show. The thank-you page is past the checkout:
+  // a page of its own, the way a shop's order confirmation reads.
+  const bare = pathname.includes("/checkout/invoice") || pathname.includes("/checkout/thank-you");
 
   return (
     <div className="ui-page">

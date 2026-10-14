@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.exceptions import ForbiddenError, NotFoundError, ValidationError
-from app.schemas.order import CheckoutConfirmRequest, CreatePaymentIntentRequest, OrderOut
+from app.schemas.order import CheckoutConfirmRequest, ConfirmedOrderOut, CreatePaymentIntentRequest
 from app.services.cart_service import CartService
 from app.services.order_service import OrderService
 from app.services.payment_service import PaymentService
@@ -315,7 +315,7 @@ async def create_payment_intent(
 
 # ── Confirm order ─────────────────────────────────────
 
-@router.post("/confirm", response_model=OrderOut, status_code=status.HTTP_201_CREATED)
+@router.post("/confirm", response_model=ConfirmedOrderOut, status_code=status.HTTP_201_CREATED)
 async def confirm_checkout(
     payload: CheckoutConfirmRequest,
     request: Request,
@@ -327,7 +327,7 @@ async def confirm_checkout(
     ACH and Net 30 take no card at all.
     """
     try:
-        return await _confirm_checkout_inner(payload, request, db)
+        order = await _confirm_checkout_inner(payload, request, db)
     except (ForbiddenError, ValidationError, HTTPException):
         raise  # let framework handle these as-is
     except Exception as exc:
@@ -336,6 +336,11 @@ async def confirm_checkout(
             status_code=500,
             detail=f"Order creation failed: {type(exc).__name__}: {exc}",
         ) from exc
+
+    from app.services import order_view
+
+    out = ConfirmedOrderOut.model_validate(order)
+    return out.model_copy(update={"view_key": order_view.view_key(order.id, order.tenant_id)})
 
 
 async def _confirm_checkout_inner(
@@ -413,7 +418,14 @@ async def _confirm_checkout_inner(
             _sel_pi(_OrderPI).where(_OrderPI.stripe_payment_intent_id == payload.payment_intent_id)
         )).scalar_one_or_none()
         if _existing:
-            return _existing
+            # Asked again for the same payment: the page retries an answer
+            # that was lost. The order it already made, with the lines the
+            # answer lists (not loaded by the lookup above).
+            from sqlalchemy.orm import selectinload as _sil_pi
+
+            return (await db.execute(
+                _sel_pi(_OrderPI).options(_sil_pi(_OrderPI.items)).where(_OrderPI.id == _existing.id)
+            )).scalar_one()
 
         _tenant_id = getattr(request.state, "tenant_id", None)
         _connect = await ConnectService(db).get_status(str(_tenant_id)) if _tenant_id else {}
