@@ -12,6 +12,7 @@ import { useAuthStore } from "@/stores/auth.store";
 import { adoptGuestCart } from "@/lib/guestCart";
 import { authService } from "@/services/auth.service";
 import { ApiClientError, setAccessToken } from "@/lib/api-client";
+import { nextFromLocation } from "@/lib/safeNext";
 import { PasswordField } from "@/components/ui/PasswordField";
 
 const ReCAPTCHA = dynamic(() => import("react-google-recaptcha"), {
@@ -39,9 +40,15 @@ export default function LoginPage() {
   const { setAuth, isAuthenticated, isLoading: authIsLoading } = useAuthStore();
   const recaptchaRef = useRef<any>(null);
 
+  // Where the buyer was before being asked to sign in (?next=, or ?redirect=
+  // from older links): a builder with their design, an invoice, the checkout.
+  // It used to be ignored, and everybody landed on their account page.
+  const [next, setNext] = useState<string | null>(null);
+  useEffect(() => setNext(nextFromLocation()), []);
+
   useEffect(() => {
     if (!authIsLoading && isAuthenticated()) {
-      router.replace("/account");
+      router.replace(nextFromLocation() ?? "/account");
     }
   }, [authIsLoading, isAuthenticated, router]);
 
@@ -93,7 +100,7 @@ export default function LoginPage() {
     // sign in all over again.
     if (fullProfile.is_platform_admin) router.push("/platform");
     else if (fullProfile.is_admin) router.push("/admin/dashboard");
-    else router.push("/account");
+    else router.push(nextFromLocation() ?? "/account");
   }
 
   async function handleVerify2fa(e: React.FormEvent) {
@@ -329,18 +336,26 @@ export default function LoginPage() {
                 <span style={{ fontSize: "12.5px", color: "var(--ui-muted)", background: "#fff", padding: "0 12px", position: "relative", zIndex: 1 }}>or</span>
                 <div style={{ position: "absolute", top: "50%", left: 0, right: 0, height: "1px", background: "var(--ui-line)", zIndex: 0 }} />
               </div>
+              {/* A shopper sent here mid-order (a builder, the checkout) gets
+                  the account made in a moment and the way back, on a
+                  wholesale shop too: an application to approve is no way to
+                  finish an order. */}
               <Link
-                href={onPlatform ? "/signup" : wholesale_signup ? "/wholesale/register" : "/create-account?next=/account"}
+                href={onPlatform ? "/signup"
+                  : next ? `/create-account?next=${encodeURIComponent(next)}`
+                  : wholesale_signup ? "/wholesale/register" : "/create-account?next=/account"}
                 className="ui-btn-ghost ui-btn-block"
               >
-                {onPlatform ? "Start your own shop" : wholesale_signup ? "Apply for a wholesale account" : "Create an account"}
+                {onPlatform ? "Start your own shop" : wholesale_signup && !next ? "Apply for a wholesale account" : "Create an account"}
               </Link>
               <p className="ui-hint" style={{ textAlign: "center", marginTop: "16px" }}>
                 {onPlatform
                   ? "A plan, your details, and your shop is open in a minute."
-                  : wholesale_signup
-                    ? "Wholesale pricing needs an approved account. You can still order as a guest at standard prices."
-                    : "An account keeps your orders, invoices and saved designs in one place. You can also order as a guest."}
+                  : next
+                    ? "Make one in a moment, and carry on where you left off."
+                    : wholesale_signup
+                      ? "Wholesale pricing needs an approved account. You can still order as a guest at standard prices."
+                      : "An account keeps your orders, invoices and saved designs in one place. You can also order as a guest."}
               </p>
             </div>
           </div>

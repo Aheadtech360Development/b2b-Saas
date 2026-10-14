@@ -20,6 +20,7 @@ import {
 } from "@/services/gangSheets.service";
 import { cartService } from "@/services/cart.service";
 import { trackSheetAdd, type SheetJobLike } from "@/lib/tracking";
+import { dropDraft, keepDraft, readDraft, signInAndComeBack } from "@/lib/builderDraft";
 import { useAuthStore } from "@/stores/auth.store";
 import { Crop, Eraser, Grip, ImageUpscale, Palette } from "lucide-react";
 import { ImageEditorModal } from "@/components/storefront/ImageEditorModal";
@@ -170,6 +171,20 @@ export function UploadBySizeModal({ product, onClose, revise = null, onRevised }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [revise?.id]);
 
+  // The designs a guest had here before making an account (lib/builderDraft):
+  // back in the builder as they were, files, sizes and quantities.
+  const draftKey = `upload-by-size:${product.id}`;
+  useEffect(() => {
+    if (revise) return;
+    const kept = readDraft<{ items?: Item[]; bgKey?: string }>(draftKey);
+    if (!kept?.items?.length) return;
+    const restored = kept.items.map((it) => ({ ...it, id: nextId.current++ }));
+    setItems(restored);
+    setActiveId(restored[restored.length - 1]!.id);
+    if (kept.bgKey) setBgKey(kept.bgKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   function readDims(src: string): Promise<{ w: number; h: number }> {
     return new Promise((res, rej) => {
       const img = new Image();
@@ -319,7 +334,10 @@ export function UploadBySizeModal({ product, onClose, revise = null, onRevised }
   async function addToCart() {
     if (!items.length) { setError("Upload a design first."); return; }
     if (!isAuthenticated()) {
-      window.location.href = `/login?next=${encodeURIComponent(window.location.pathname + window.location.search)}`;
+      // The files are already uploaded; the sizes and quantities are kept here,
+      // and the buyer comes back to this builder once the account is made.
+      keepDraft(draftKey, { items, bgKey });
+      signInAndComeBack("upload-by-size");
       return;
     }
     if (!priced.every((p) => p.price)) {
@@ -346,6 +364,7 @@ export function UploadBySizeModal({ product, onClose, revise = null, onRevised }
         jobs.push(order);
       }
       trackSheetAdd(jobs, { navigating: true });
+      dropDraft(draftKey);
       window.location.href = "/cart";
     } catch (e) {
       setError((e as { message?: string })?.message || "Could not add this to your cart. Please try again.");

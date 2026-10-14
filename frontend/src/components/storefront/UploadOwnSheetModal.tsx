@@ -21,6 +21,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Check, Contrast, Loader2, RotateCw, Sparkles, Undo2, UploadCloud, Wand2, X } from "lucide-react";
 import { cartService } from "@/services/cart.service";
 import { trackSheetAdd } from "@/lib/tracking";
+import { dropDraft, keepDraft, readDraft, signInAndComeBack } from "@/lib/builderDraft";
 import { gangSheetsService, type GangSheetSize } from "@/services/gangSheets.service";
 import { useAuthStore } from "@/stores/auth.store";
 import { applyTool, type Pixels, type Tool } from "@/lib/imageTools";
@@ -57,9 +58,15 @@ export function UploadOwnSheetModal({
   const [error, setError] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
   const [dropActive, setDropActive] = useState(false);
+  /** The file as already uploaded, while it is unchanged: no second upload. */
+  const [uploaded, setUploaded] = useState<{ url: string; file_name: string; type: string } | null>(null);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  // The sheet a guest had here before making an account (lib/builderDraft).
+  const draftKey = `own-sheet:${product.id}`;
+  type Kept = { file?: { url: string; file_name: string; type: string }; sizeId?: string; customLength?: number; qty?: number };
+  const kept = useRef<Kept | null>(null);
 
   const size = useMemo(() => sizes.find((s) => s.id === sizeId), [sizes, sizeId]);
   const isCustom = size?.pricing_mode === "custom_length";
@@ -69,17 +76,23 @@ export function UploadOwnSheetModal({
     : 0;
 
   useEffect(() => {
+    kept.current = readDraft<Kept>(draftKey);
     gangSheetsService.listSizes(product.id)
       .then((list) => {
         const usable = list.filter((s) => s.is_active);
         setSizes(usable);
-        const first = usable[0];
+        // The size a guest chose before making an account, when it is still sold.
+        const wanted = usable.find((s) => s.id === kept.current?.sizeId);
+        const first = wanted ?? usable[0];
         if (first) {
           setSizeId(first.id);
-          setCustomLength(first.pricing_mode === "custom_length" ? Number(first.min_length_in) : 0);
+          setCustomLength(first.pricing_mode === "custom_length"
+            ? (wanted && kept.current?.customLength) || Number(first.min_length_in)
+            : 0);
         }
       })
       .catch(() => setError("Could not load this product's sheet sizes."));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [product.id]);
 
   useEffect(() => {
@@ -104,6 +117,7 @@ export function UploadOwnSheetModal({
   /** Read a chosen file into pixels we can work on. */
   const load = useCallback(async (chosen: File) => {
     setError(null);
+    setUploaded(null);
     setBusy("Opening your sheet");
     try {
       // A PDF or TIFF cannot be decoded here. It still uploads and still
@@ -130,6 +144,26 @@ export function UploadOwnSheetModal({
       setBusy(null);
     }
   }, []);
+
+  // Back from making an account: the sheet the guest had chosen opens again,
+  // from the copy uploaded before they left, and is not uploaded a second time.
+  useEffect(() => {
+    const file = kept.current?.file;
+    if (!file?.url) return;
+    if (kept.current?.qty) setQty(kept.current.qty);
+    let cancelled = false;
+    (async () => {
+      try {
+        const blob = await (await fetch(file.url)).blob();
+        if (cancelled) return;
+        await load(new File([blob], file.file_name, { type: blob.type || "image/png" }));
+        if (!cancelled) setUploaded(file);
+      } catch {
+        if (!cancelled) setError("Your sheet from before could not be opened again. Please choose it once more.");
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [load]);
 
   function run(tool: Tool) {
     if (!shown) return;
@@ -172,15 +206,26 @@ export function UploadOwnSheetModal({
   async function addToCart() {
     if (!file) { setError("Choose your gang sheet file first."); return; }
     if (!size) { setError("Pick a sheet size first."); return; }
-    if (!isAuthenticated) {
-      window.location.href = "/login?next=" + encodeURIComponent(location.pathname + location.search);
-      return;
-    }
     setAdding(true);
     setError(null);
+    if (!isAuthenticated) {
+      // The sheet goes up now, so it can come back once the account is made:
+      // the file itself is too big to keep in the browser.
+      try {
+        const up = uploaded && !edited ? uploaded : await gangSheetsService.uploadArtwork(await fileToSend());
+        keepDraft(draftKey, {
+          file: { url: up.url, file_name: up.file_name, type: up.type },
+          sizeId: size.id, customLength, qty,
+        });
+        signInAndComeBack("own-sheet");
+      } catch (e) {
+        setError((e as { message?: string })?.message || "Your sheet could not be uploaded. Please try again.");
+        setAdding(false);
+      }
+      return;
+    }
     try {
-      const toSend = await fileToSend();
-      const up = await gangSheetsService.uploadArtwork(toSend);
+      const up = uploaded && !edited ? uploaded : await gangSheetsService.uploadArtwork(await fileToSend());
       // One artwork, filling the sheet inside its bleed. The sheet is already
       // laid out — there is nothing here to arrange.
       const bleed = Number(size.bleed_in) || 0;
@@ -200,6 +245,7 @@ export function UploadOwnSheetModal({
       });
       await cartService.addGangSheet(order.id);
       trackSheetAdd(order, { navigating: true });
+      dropDraft(draftKey);
       window.location.href = "/cart";
     } catch (e) {
       setError((e as { message?: string })?.message || "Could not add this to your cart. Please try again.");
