@@ -15,7 +15,7 @@ import type { Cart } from "@/types/order.types";
 import { ConfigurationDetail } from "@/components/shared/ConfigurationDetail";
 import { clearAttribution, getAttribution } from "@/lib/attribution";
 import { rememberOrderKey, thankYouPath } from "@/lib/orderThanks";
-import { cartLines, trackPaymentChosen, trackPurchase } from "@/lib/tracking";
+import { cartLines, holdPurchase, trackPaymentChosen } from "@/lib/tracking";
 
 import { guestCheckoutItem, type GuestLine as GuestCartEntry } from "@/lib/guestCart";
 
@@ -328,8 +328,9 @@ export default function CheckoutReviewPage() {
           isGuest: true,
         };
         // A guest cart line carries no SKU, so the variant id is the product
-        // identifier every tool gets.
-        trackPurchase(order.order_number, order.total, cartLines(guestEntries), {
+        // identifier every tool gets. Sent by the thank-you page as it opens,
+        // once (lib/tracking holdPurchase).
+        holdPurchase(order.order_number, order.total, cartLines(guestEntries), {
           tax: taxAmount, shipping: shippingCost,
         });
         // The campaign has done its job; a later order is a new question.
@@ -432,7 +433,7 @@ export default function CheckoutReviewPage() {
       };
       // A sheet's line has no variant and no SKU, and went out with an empty
       // product id; cartLines names it the way the add to cart did.
-      trackPurchase(order.order_number, orderTotal, cartLines(cart?.items), {
+      holdPurchase(order.order_number, orderTotal, cartLines(cart?.items), {
         tax: taxAmount, shipping: shippingCost, coupon: appliedCoupon?.code,
       });
       clearAttribution();

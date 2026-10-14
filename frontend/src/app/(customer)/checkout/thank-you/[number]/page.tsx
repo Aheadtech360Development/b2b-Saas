@@ -5,9 +5,10 @@
  *
  * Each order has its own address and is read back from the server, so a
  * reload, a new tab or the back and forward buttons still show it (see
- * lib/orderThanks.ts). The Purchase event is not sent here: the review page
- * sends it once, as the order is placed, and a reload of this page must not
- * count the sale twice.
+ * lib/orderThanks.ts). The Purchase event is sent here, as the page opens,
+ * the way tag managers expect it: the review page holds it for the tab that
+ * placed the order, and it goes once (lib/tracking sendHeldPurchase), so a
+ * reload of this page or a second tab does not count the sale twice.
  */
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
@@ -16,6 +17,7 @@ import { useParams } from "next/navigation";
 import { ConfigurationDetail } from "@/components/shared/ConfigurationDetail";
 import { apiClient } from "@/lib/api-client";
 import { orderKey, type ThankYouAddress, type ThankYouOrder } from "@/lib/orderThanks";
+import { sendHeldPurchase } from "@/lib/tracking";
 import { formatCurrency } from "@/lib/utils";
 import { useAuthStore } from "@/stores/auth.store";
 
@@ -114,8 +116,16 @@ export default function ThankYouPage() {
     apiClient
       .get<ThankYouOrder>(`/api/v1/guest/orders/${encodeURIComponent(number)}/thank-you`,
         key ? { headers: { "X-Order-Key": key } } : undefined)
-      .then(setOrder)
-      .catch(() => setMissing(true));
+      .then((o) => {
+        setOrder(o);
+        // The Purchase, as this page opens, with the order's real figures:
+        // once, and only in the tab that placed the order (lib/tracking).
+        sendHeldPurchase(number, { total: o.total, tax: o.tax_amount, shipping: o.shipping_cost });
+      })
+      .catch(() => {
+        setMissing(true);
+        sendHeldPurchase(number);
+      });
   }, [number, authLoading]);
 
   const signedIn = !authLoading && isAuthenticated();
