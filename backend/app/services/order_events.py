@@ -60,7 +60,12 @@ EVENTS: dict[str, dict[str, Any]] = {
     "payment_received":    {"label": "Payment received",          "customer": True},
     "payment_failed":      {"label": "Payment failed",            "customer": True},
     "invoice_sent":        {"label": "Invoice sent",              "customer": True},
+    "invoice_reminder":    {"label": "Payment reminder sent",     "customer": True},
     "discount_applied":    {"label": "Discount applied",          "customer": True},
+    # A draft priced as a quote (services/quotes): sent, and accepted by the
+    # customer from the quote's own page.
+    "quote_sent":          {"label": "Quote sent",                "customer": True},
+    "quote_accepted":      {"label": "Quote accepted",            "customer": True},
     # Working on it
     "processing_started":  {"label": "Processing started",        "customer": True},
     "items_edited":        {"label": "Items changed",             "customer": True},
@@ -83,6 +88,9 @@ EVENTS: dict[str, dict[str, Any]] = {
     "return_rejected":     {"label": "Return rejected",           "customer": True},
     "return_completed":    {"label": "Return completed",          "customer": True},
     "refund_issued":       {"label": "Refund issued",             "customer": True},
+    # A no-charge order made to print it again (services/returns), on both
+    # orders: this one points at the reprint, the reprint back at this one.
+    "reprint_created":     {"label": "Reprint made",              "customer": True},
     "restocked":           {"label": "Items restocked",           "customer": False},
     # Chargebacks. Internal: the customer started it at their bank and does
     # not need the brand's side of it on their order page.

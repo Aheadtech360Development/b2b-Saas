@@ -1085,6 +1085,14 @@ app.include_router(admin_catalog.router, prefix=_V1)
 from app.api.v1.admin import customer_directory as admin_customer_directory  # noqa: E402
 app.include_router(admin_customer_directory.router, prefix=_V1)
 
+from app.api.v1.admin import quotes as admin_quotes  # noqa: E402
+app.include_router(admin_quotes.router, prefix=_V1)
+from app.api.v1 import quotes_public  # noqa: E402
+app.include_router(quotes_public.router, prefix=_V1)
+from app.api.v1.admin import returns as admin_returns  # noqa: E402
+app.include_router(admin_returns.router, prefix=_V1)
+from app.api.v1.admin import invoices as admin_invoices  # noqa: E402
+app.include_router(admin_invoices.router, prefix=_V1)
 from app.api.v1.admin import entitlements as admin_entitlements  # noqa: E402
 app.include_router(admin_entitlements.router, prefix=_V1)
 

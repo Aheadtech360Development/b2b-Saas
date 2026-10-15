@@ -377,6 +377,10 @@ class AuthMiddleware(BaseHTTPMiddleware):
         # And AI upscaling of it, from the same editor, limited the same way.
         if path == "/api/v1/upload/upscale":
             return True
+        # A quote's own page (quotes_public): it checks the quote's view key or
+        # the signed-in buyer itself, as the invoice summary does.
+        if path.startswith("/api/v1/quotes/"):
+            return True
         # Invoice summary — public for pay-now email link access
         if path.endswith('/invoice-summary'):
             return True

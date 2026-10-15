@@ -685,8 +685,14 @@ class EmailService:
         to_email: str,
         payment_terms: str | None = None,
         customer_name: str | None = None,
+        due_on: "date | None" = None,
+        reminder: bool = False,
     ) -> bool:
-        """Send invoice PDF email to customer with payment terms and bank details."""
+        """Send invoice PDF email to customer with payment terms and bank details.
+
+        A reminder (the Invoices screen's) carries the invoice's own due date,
+        not one worked out from today, and says it is a reminder.
+        """
         from datetime import timedelta as _td
         from app.services.pdf_service import PDFService
 
@@ -701,7 +707,7 @@ class EmailService:
         terms_label, days = _terms_display.get(terms, _terms_display['net_30'])
         from datetime import datetime as _dt
         now = _dt.now()
-        due_str = (now + _td(days=days)).strftime('%B %d, %Y')
+        due_str = (due_on or (now + _td(days=days))).strftime('%B %d, %Y')
         inv_date = now.strftime('%B %d, %Y')
         order_num = getattr(order, 'order_number', 'N/A')
         total_val = float(getattr(order, 'total', 0))
@@ -735,9 +741,11 @@ class EmailService:
 
         content_html = (
             f'<h2 style="color:#1B3A5C;font-size:22px;font-weight:800;margin:0 0 8px">'
-            f'Invoice — {order_num}</h2>'
+            f'{"Payment reminder" if reminder else "Invoice"} — {order_num}</h2>'
             f'<p style="color:#374151;margin:0 0 20px">'
-            f'Hi {name}, please find your invoice attached to this email.</p>'
+            + (f'Hi {name}, a reminder that this invoice is due on {due_str}. It is attached again here.</p>'
+               if reminder else
+               f'Hi {name}, please find your invoice attached to this email.</p>') +
             f'<div style="background:#F9F8F4;border-radius:8px;padding:16px 20px;margin-bottom:20px">'
             f'<table style="width:100%;border-collapse:collapse">'
             f'<tr><td style="font-size:12px;color:#6b7280;padding:5px 0">Order #</td>'
@@ -790,9 +798,95 @@ class EmailService:
 
         return self._send_via_resend(
             to_email=to_email,
-            subject=f"Invoice {order_num} — Due {due_str} | AF Apparels",
+            subject=(f"Reminder: invoice {order_num} — due {due_str} | AF Apparels" if reminder
+                     else f"Invoice {order_num} — Due {due_str} | AF Apparels"),
             body_html=self._base_template(content_html),
             attachments=attachments,
+        )
+
+    def send_quote(
+        self,
+        order: "Order",  # type: ignore[name-defined]
+        items: list,
+        to_email: str,
+        valid_until: "date",
+        customer_name: str | None = None,
+        message: str | None = None,
+    ) -> bool:
+        """A quote (a priced draft, services/quotes) for the customer to accept.
+
+        The link opens the quote's own page with the order's view key in the
+        #fragment, as the invoice's does: no server or log sees it.
+        """
+        import html as _html
+        from app.services import order_view
+
+        number = getattr(order, "order_number", "")
+        until = valid_until.strftime("%B %d, %Y")
+        name = _html.escape(customer_name or "there")
+        view_url = (f"{settings.FRONTEND_URL}/quote/{number}"
+                    f"#k={order_view.view_key(getattr(order, 'id', ''), getattr(order, 'tenant_id', None))}")
+        rows = "".join(
+            f'<tr><td style="font-size:13px;color:#374151;padding:7px 0;border-bottom:1px solid #eee">'
+            f'{_html.escape(str(getattr(i, "product_name", "") or ""))}'
+            + (f'<br><span style="font-size:11px;color:#6b7280">'
+               f'{_html.escape(" · ".join(x for x in (getattr(i, "color", None), getattr(i, "size", None)) if x))}</span>'
+               if (getattr(i, "color", None) or getattr(i, "size", None)) else "")
+            + f'</td><td style="font-size:13px;color:#374151;text-align:center;padding:7px 0;border-bottom:1px solid #eee">'
+            f'{int(getattr(i, "quantity", 0) or 0)}</td>'
+            f'<td style="font-size:13px;color:#1B3A5C;font-weight:700;text-align:right;padding:7px 0;border-bottom:1px solid #eee">'
+            f'${float(getattr(i, "line_total", 0) or 0):.2f}</td></tr>'
+            for i in items
+        )
+        note = (f'<p style="color:#374151;margin:0 0 18px;white-space:pre-line">{_html.escape(message.strip())}</p>'
+                if message and message.strip() else "")
+        total = float(getattr(order, "total", 0) or 0)
+        content_html = (
+            f'<h2 style="color:#1B3A5C;font-size:22px;font-weight:800;margin:0 0 8px">Quote — {number}</h2>'
+            f'<p style="color:#374151;margin:0 0 18px">Hi {name}, here is the price for what you asked for. '
+            f'It holds until {until}.</p>'
+            f'{note}'
+            f'<table style="width:100%;border-collapse:collapse;margin-bottom:12px">'
+            f'<tr><th style="font-size:11px;color:#6b7280;text-align:left;padding:6px 0;border-bottom:2px solid #e5e7eb">Item</th>'
+            f'<th style="font-size:11px;color:#6b7280;text-align:center;padding:6px 0;border-bottom:2px solid #e5e7eb">Qty</th>'
+            f'<th style="font-size:11px;color:#6b7280;text-align:right;padding:6px 0;border-bottom:2px solid #e5e7eb">Price</th></tr>'
+            f'{rows}'
+            f'<tr><td colspan="2" style="font-size:13px;color:#6b7280;font-weight:700;padding:12px 0 0">Total</td>'
+            f'<td style="font-size:18px;color:#1B3A5C;font-weight:800;text-align:right;padding:12px 0 0">${total:.2f}</td></tr>'
+            f'</table>'
+            f'<div style="text-align:center;margin:28px 0;">'
+            f'<a href="{view_url}" style="display:inline-block;background:#1B3A5C;color:#fff;padding:14px 36px;'
+            f'border-radius:6px;font-size:16px;font-weight:700;text-decoration:none">View and accept the quote</a>'
+            f'<p style="color:#888;font-size:12px;margin:12px 0 0;">Valid until {until} · Quote {number}</p>'
+            f'</div>'
+            f'<p style="color:#6b7280;font-size:13px;margin:0">Questions about this quote? Just reply to this email.</p>'
+        )
+        return self._send_via_resend(
+            to_email=to_email,
+            subject=f"Quote {number} — valid until {until} | AF Apparels",
+            body_html=self._base_template(content_html),
+        )
+
+    def send_quote_accepted_alert(self, order: "Order", customer: str) -> bool:  # type: ignore[name-defined]
+        """Tell the shop a customer accepted its quote, to convert it."""
+        _to = notify_address()
+        if not _to:
+            return False
+        import html as _html
+
+        number = getattr(order, "order_number", "")
+        url = f"{settings.FRONTEND_URL}/admin/orders/quotes?quote={getattr(order, 'id', '')}"
+        content_html = (
+            f'<h2 style="color:#1B3A5C;font-size:20px;font-weight:800;margin:0 0 8px">Quote {number} accepted</h2>'
+            f'<p style="color:#374151;margin:0 0 18px">{_html.escape(customer)} accepted quote {number} '
+            f'(${float(getattr(order, "total", 0) or 0):.2f}). Convert it to an order to start on it.</p>'
+            f'<p style="margin:0"><a href="{url}" style="background:#1B3A5C;color:#fff;padding:12px 24px;'
+            f'border-radius:6px;font-weight:700;text-decoration:none;font-size:14px;display:inline-block">Open the quote</a></p>'
+        )
+        return self._send_via_resend(
+            to_email=_to,
+            subject=f"Quote {number} accepted | AF Apparels",
+            body_html=self._base_template(content_html),
         )
 
     def send_admin_new_order_alert(self, order: "Order") -> bool:  # type: ignore[name-defined]

@@ -1285,6 +1285,73 @@ async def resubmit_order(
     return _order_row(order, arts)
 
 
+async def copy_job(
+    db: AsyncSession,
+    src: "GangSheetOrder",
+    *,
+    status: str,
+    price: Decimal,
+    order_id: uuid.UUID | None = None,
+    paid_at: datetime | None = None,
+    internal_notes: str | None = None,
+) -> "GangSheetOrder":
+    """A new job with the same sheet, artwork and arrangement as `src`.
+
+    A reorder (a new sale, re-priced, back to submitted) and a reprint (no
+    charge, approved and on the order that replaces the faulty one) are both
+    this. Each artwork is copied as a new row on the copy, and the layout is
+    pointed at the copies; left alone it referenced artwork that belonged to
+    the old job and the cart rejected the copy as having no layout.
+    """
+    clone = GangSheetOrder(
+        reference=await _next_reference(db, src.contact_name or ""),
+        company_id=src.company_id,
+        user_id=src.user_id,
+        contact_email=src.contact_email,
+        contact_name=src.contact_name,
+        product_id=src.product_id,
+        sheet_size_id=src.sheet_size_id,
+        sheet_name=src.sheet_name,
+        sheet_width_in=src.sheet_width_in,
+        sheet_height_in=src.sheet_height_in,
+        price_per_sheet=price,
+        sheet_quantity=src.sheet_quantity,
+        subtotal=price * src.sheet_quantity,
+        status=status,
+        customer_notes=src.customer_notes,
+        internal_notes=internal_notes,
+        order_id=order_id,
+        paid_at=paid_at,
+    )
+    db.add(clone)
+    await db.flush()
+
+    src_arts = await _load_artworks(db, src.id)
+    copies = []
+    for art in src_arts:
+        copy = GangSheetArtwork(
+            gang_sheet_order_id=clone.id,
+            file_url=art.file_url,
+            file_name=art.file_name,
+            file_type=art.file_type,
+            width_in=art.width_in,
+            height_in=art.height_in,
+            quantity=art.quantity,
+            sort_order=art.sort_order,
+        )
+        db.add(copy)
+        copies.append(copy)
+    await db.flush()
+
+    id_map = {str(a.id): str(c.id) for a, c in zip(src_arts, copies)}
+    clone.layout = [
+        {**p, "artwork_id": id_map[str(p.get("artwork_id"))]}
+        for p in (src.layout or [])
+        if str(p.get("artwork_id")) in id_map
+    ]
+    return clone
+
+
 @public_router.post("/orders/{order_id}/reorder", status_code=status.HTTP_201_CREATED)
 async def reorder(
     order_id: uuid.UUID, request: Request, db: AsyncSession = Depends(get_db)
@@ -1326,53 +1393,7 @@ async def reorder(
             if rate is not None:
                 price = (src.sheet_width_in * src.sheet_height_in * Decimal(str(rate))).quantize(Decimal("0.01"))
 
-    clone = GangSheetOrder(
-        reference=await _next_reference(db, src.contact_name or ""),
-        company_id=src.company_id,
-        user_id=src.user_id,
-        contact_email=src.contact_email,
-        contact_name=src.contact_name,
-        product_id=src.product_id,
-        sheet_size_id=src.sheet_size_id,
-        sheet_name=src.sheet_name,
-        sheet_width_in=src.sheet_width_in,
-        sheet_height_in=src.sheet_height_in,
-        price_per_sheet=price,
-        sheet_quantity=src.sheet_quantity,
-        subtotal=price * src.sheet_quantity,
-        status=STATUS_SUBMITTED,
-        customer_notes=src.customer_notes,
-    )
-    db.add(clone)
-    await db.flush()
-
-    src_arts = await _load_artworks(db, src.id)
-    copies = []
-    for art in src_arts:
-        copy = GangSheetArtwork(
-            gang_sheet_order_id=clone.id,
-            file_url=art.file_url,
-            file_name=art.file_name,
-            file_type=art.file_type,
-            width_in=art.width_in,
-            height_in=art.height_in,
-            quantity=art.quantity,
-            sort_order=art.sort_order,
-        )
-        db.add(copy)
-        copies.append(copy)
-    await db.flush()
-
-    # Carry the arrangement across. The copies are new rows with new ids, so each
-    # placement has to point at its copy — left alone, the layout referenced
-    # artwork that no longer belonged to this order and the cart rejected the
-    # reorder as having no layout at all.
-    id_map = {str(a.id): str(c.id) for a, c in zip(src_arts, copies)}
-    clone.layout = [
-        {**p, "artwork_id": id_map[str(p.get("artwork_id"))]}
-        for p in (src.layout or [])
-        if str(p.get("artwork_id")) in id_map
-    ]
+    clone = await copy_job(db, src, status=STATUS_SUBMITTED, price=price)
     arts = await _load_artworks(db, clone.id)
     clone.version = 1
     clone.versions = [_snapshot(clone, arts, 1)]

@@ -291,6 +291,9 @@ class DraftOrderCreate(BaseModel):
     company_id: str
     po_number: str | None = None
     notes: str | None = None
+    # The storefront quote request (an Inbox message) this draft prices, if
+    # any: it leaves the Quotes screen's "Needs pricing" and is answered.
+    quote_request_id: str | None = None
 
 
 class SendInvoicePayload(BaseModel):

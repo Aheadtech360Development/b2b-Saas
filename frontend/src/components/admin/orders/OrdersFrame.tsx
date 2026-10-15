@@ -19,7 +19,7 @@ export interface OrdersOverview {
   carriers: string[];
 }
 
-export type OrdersTab = "all" | "new" | "to_ship" | "ready_for_pickup" | "drafts" | "returns" | "shipments";
+export type OrdersTab = "all" | "new" | "to_ship" | "ready_for_pickup" | "drafts" | "quotes" | "returns" | "shipments" | "invoices";
 
 const TABS: { key: OrdersTab; label: string; href: string; count: string | null; always?: boolean }[] = [
   { key: "all", label: "All", href: "/admin/orders", count: "all", always: true },
@@ -27,8 +27,12 @@ const TABS: { key: OrdersTab; label: string; href: string; count: string | null;
   { key: "to_ship", label: "To ship", href: "/admin/orders?queue=to_ship", count: "to_ship", always: true },
   { key: "ready_for_pickup", label: "Ready for pickup", href: "/admin/orders?queue=ready_for_pickup", count: "ready_for_pickup", always: true },
   { key: "drafts", label: "Drafts", href: "/admin/orders/drafts", count: "drafts" },
+  // Counted: requests to price and quotes accepted to convert.
+  { key: "quotes", label: "Quotes", href: "/admin/orders/quotes", count: "quotes" },
   { key: "returns", label: "Returns and reprints", href: "/admin/returns", count: "returns" },
   { key: "shipments", label: "Shipments", href: "/admin/orders/shipping-labels", count: null },
+  // Its own page with its own tabs (Unpaid, Overdue, Paid); reached from here.
+  { key: "invoices", label: "Invoices", href: "/admin/orders/invoices", count: null },
 ];
 
 /** The tab counts and the connected carriers, with a way to ask again after

@@ -93,6 +93,8 @@ _PATH_SCOPES: list[tuple[str, str]] = [
     ("/api/v1/admin/warehouses", "inventory"),
     ("/api/v1/admin/purchase-orders", "inventory"),
     ("/api/v1/admin/orders", "orders"),
+    ("/api/v1/admin/invoices", "orders"),
+    ("/api/v1/admin/quotes", "orders"),
     ("/api/v1/admin/returns", "orders"),
     ("/api/v1/admin/rma", "orders"),
     ("/api/v1/admin/abandoned-carts", "orders"),
@@ -145,6 +147,8 @@ _READ_METHODS = {"GET", "HEAD", "OPTIONS"}
 # allowed to do that.
 _ALSO_REQUIRES: list[tuple[re.Pattern, str]] = [
     (re.compile(r"^/api/v1/admin/orders/[^/]+/refund/?$"), "billing"),
+    # A return put right as a refund (admin/returns), made new or decided.
+    (re.compile(r"^/api/v1/admin/returns(/[^/]+)?/refund/?$"), "billing"),
 ]
 
 

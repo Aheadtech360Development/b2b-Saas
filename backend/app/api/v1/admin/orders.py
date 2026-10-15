@@ -385,10 +385,22 @@ async def create_draft_order(
     )
     db.add(order)
     await db.flush()
+    meta = {"channel": "admin_draft", "company_id": str(company_id)}
+    if payload.quote_request_id:
+        # The quote request it prices: answered now, and no longer waiting
+        # for a price on the Quotes screen (services/quotes).
+        from sqlalchemy import text as _qt
+
+        answered = await db.execute(_qt(
+            "UPDATE contact_submissions SET answered_at = COALESCE(answered_at, now()), is_read = true "
+            "WHERE id = CAST(:id AS uuid) AND tenant_id = CAST(:t AS uuid)"
+        ), {"id": str(_UUID(payload.quote_request_id)), "t": str(getattr(request.state, "tenant_id", ""))})
+        if answered.rowcount:
+            meta["quote_request_id"] = payload.quote_request_id
     await order_events.record_admin(
         db, request, order,
         "order_created", f"Draft order {order.order_number} created",
-        meta={"channel": "admin_draft", "company_id": str(company_id)},
+        meta=meta,
     )
     await db.commit()
     await db.refresh(order)
@@ -687,8 +699,20 @@ async def orders_overview(db: AsyncSession = Depends(get_db)) -> dict:
             await db.rollback()
             return 0
 
-    tabs["drafts"] = await _count(select(func.count(Order.id)).where(Order.order_number.like("DRAFT-%")))
+    # The drafts the Drafts tab lists: still pending (a confirmed one is an order).
+    tabs["drafts"] = await _count(select(func.count(Order.id)).where(Order.order_number.like("DRAFT-%"),
+                                                                      Order.status == "pending"))
     tabs["returns"] = await _count(select(func.count(RMARequest.id)).where(RMARequest.status == "pending"))
+    # Quotes waiting on the shop: requests to price, and quotes accepted to convert.
+    try:
+        from app.services import quotes as _quotes
+
+        _board = await _quotes.board(db, get_current_tenant_id())
+        tabs["quotes"] = sum(1 for q in _board if q["status"] in ("needs_pricing", "accepted"))
+    except Exception as exc:
+        logger.warning("orders overview: quotes could not be counted: %s", exc)
+        tabs["quotes"] = 0
+        await db.rollback()
 
     try:
         carriers = await carrier_names(db, get_current_tenant_id())
@@ -1153,11 +1177,25 @@ async def update_admin_order(
     for field, value in payload.model_dump(exclude_unset=True).items():
         setattr(order, field, value)
 
+    from_draft = None
+    if (payload.status == "confirmed" and old_status == "pending"
+            and (order.order_number or "").startswith("DRAFT-")):
+        # A draft (or a quote) becoming an order takes the next number in the
+        # shop's own run. Left as DRAFT-…, the order queues and Reports went
+        # on treating it as a draft (order_queues, report_view) and its invoice
+        # carried the draft's number. The old number stays on the event, so a
+        # quote link sent with it still finds the order (services/quotes).
+        from app.services.order_service import OrderService as _OrderService
+
+        from_draft = order.order_number
+        order.order_number = await _OrderService(db)._generate_order_number()
+
     if payload.status and payload.status != old_status:
         await order_events.record_admin(
             db, request, order, _EVENT_FOR_STATUS.get(payload.status, "status_changed"),
-            f"Status changed from {old_status.replace('_', ' ')} to {payload.status.replace('_', ' ')}",
-            meta={"from": old_status, "to": payload.status},
+            (f"Draft {from_draft} became order {order.order_number}" if from_draft else
+             f"Status changed from {old_status.replace('_', ' ')} to {payload.status.replace('_', ' ')}"),
+            meta={"from": old_status, "to": payload.status, **({"from_draft": from_draft} if from_draft else {})},
         )
 
     await db.commit()
@@ -1755,22 +1793,21 @@ class RefundOrderRequest(BaseModel):
     request_id: str | None = None
 
 
-@router.post("/orders/{order_id}/refund", response_model=dict)
-async def refund_admin_order(
-    order_id: UUID,
-    payload: RefundOrderRequest,
+async def issue_refund(
+    db: AsyncSession,
     request: Request,
-    db: AsyncSession = Depends(get_db),
-):
-    """Refund a card order, in full or in part, on the brand's own Stripe account.
-
-    Authorisation is layered: the middleware requires the orders permission and
-    the billing permission with write access (money leaves the brand here), and
-    the session only finds this brand's orders, so an id from another brand is
-    simply not found.
-
-    The refund is recorded from Stripe's answer, never from the request: the
-    same row the webhook will later update.
+    order: Order,
+    *,
+    amount: float | None = None,
+    reason: str | None = None,
+    note: str | None = None,
+    request_id: str | None = None,
+) -> dict:
+    """Refund a card order, in full (amount None) or in part, on the brand's
+    own Stripe account, and record it. The order page's Refund and a return
+    resolved as a refund (services/returns) both come here, so both are held
+    to the same checks and recorded the same way. Raises HTTPException with
+    words the admin can act on.
     """
     import hashlib
     from decimal import Decimal
@@ -1781,9 +1818,6 @@ async def refund_admin_order(
     from app.services.connect_service import ConnectService
     from app.services.payment_service import PaymentService
 
-    order = (await db.execute(select(Order).where(Order.id == order_id))).scalar_one_or_none()
-    if not order:
-        raise NotFoundError(f"Order {order_id} not found")
     if not order.stripe_payment_intent_id:
         raise HTTPException(
             status_code=400,
@@ -1804,7 +1838,7 @@ async def refund_admin_order(
     if remaining <= 0:
         raise HTTPException(status_code=400, detail="This order has already been refunded in full.")
 
-    amount = remaining if payload.amount is None else Decimal(str(payload.amount)).quantize(Decimal("0.01"))
+    amount = remaining if amount is None else Decimal(str(amount)).quantize(Decimal("0.01"))
     if amount <= 0:
         raise HTTPException(status_code=400, detail="A refund must be more than $0.00.")
     if amount > remaining:
@@ -1812,13 +1846,13 @@ async def refund_admin_order(
             status_code=400,
             detail=f"Only ${remaining:.2f} is left to refund on this order.",
         )
-    if payload.reason and payload.reason not in ("duplicate", "fraudulent", "requested_by_customer"):
+    if reason and reason not in ("duplicate", "fraudulent", "requested_by_customer"):
         raise HTTPException(status_code=400, detail="Reason is duplicate, fraudulent or requested_by_customer.")
 
     # The key covers the order, the amount and what was left before — so the
     # same press twice is one refund, while a genuine second partial refund of
     # the same amount (with less left) is a new one.
-    raw_key = payload.request_id or f"{order.id}:{amount}:{remaining}"
+    raw_key = request_id or f"{order.id}:{amount}:{remaining}"
     idempotency_key = "refund-" + hashlib.sha256(f"{tenant_id}:{raw_key}".encode()).hexdigest()[:40]
 
     actor_id, actor_name = await order_events.admin_actor(db, request)
@@ -1829,7 +1863,7 @@ async def refund_admin_order(
             # Always the exact amount validated above, never "whatever Stripe
             # thinks is left": what leaves the brand's account is what was checked.
             amount_decimal=amount,
-            reason=payload.reason,
+            reason=reason,
             idempotency_key=idempotency_key,
             metadata={"order_id": str(order.id), "order_number": order.order_number,
                       "requested_by": actor_name},
@@ -1839,12 +1873,12 @@ async def refund_admin_order(
         # are something the admin can act on; a 502 is not.
         raise HTTPException(status_code=400, detail=getattr(exc, "user_message", None) or str(exc))
     except _stripe.error.StripeError as exc:
-        logger.exception("Stripe refund failed for order %s", order_id)
+        logger.exception("Stripe refund failed for order %s", order.id)
         raise HTTPException(status_code=502, detail="The payment provider could not process the refund. Try again shortly.")
 
     result = await refund_service.record_refund(
         db, refund=refund, source="admin",
-        initiated_by=actor_id, initiated_by_name=actor_name, note=payload.note,
+        initiated_by=actor_id, initiated_by_name=actor_name, note=note,
     )
     await db.commit()
     await db.refresh(order)
@@ -1858,6 +1892,30 @@ async def refund_admin_order(
         "remaining": (result or {}).get("remaining"),
         "payment_status": order.payment_status,
     }
+
+
+@router.post("/orders/{order_id}/refund", response_model=dict)
+async def refund_admin_order(
+    order_id: UUID,
+    payload: RefundOrderRequest,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """Refund a card order, in full or in part, on the brand's own Stripe account.
+
+    Authorisation is layered: the middleware requires the orders permission and
+    the billing permission with write access (money leaves the brand here), and
+    the session only finds this brand's orders, so an id from another brand is
+    simply not found.
+
+    The refund is recorded from Stripe's answer, never from the request: the
+    same row the webhook will later update.
+    """
+    order = (await db.execute(select(Order).where(Order.id == order_id))).scalar_one_or_none()
+    if not order:
+        raise NotFoundError(f"Order {order_id} not found")
+    return await issue_refund(db, request, order, amount=payload.amount, reason=payload.reason,
+                              note=payload.note, request_id=payload.request_id)
 
 
 @router.get("/refunds")
