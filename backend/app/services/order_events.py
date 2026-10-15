@@ -95,6 +95,9 @@ EVENTS: dict[str, dict[str, Any]] = {
     "supplier_po_sent":    {"label": "Sent to supplier",          "customer": False},
     "supplier_po_failed":  {"label": "Supplier order failed",     "customer": False},
     "supplier_shipped":    {"label": "Supplier shipped it",       "customer": False},
+    # The sale reported to the brand's own Meta pixel (services/meta_capi)
+    "meta_capi_sent":      {"label": "Sent to Meta",              "customer": False},
+    "meta_capi_failed":    {"label": "Meta did not accept it",    "customer": False},
 }
 
 CUSTOMER_VISIBLE: frozenset[str] = frozenset(k for k, v in EVENTS.items() if v["customer"])

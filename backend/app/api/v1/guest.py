@@ -114,6 +114,8 @@ class GuestCheckoutRequest(BaseModel):
     shipping_service: str | None = None
     # How the buyer got here — see services/attribution.py.
     attribution: dict | None = None
+    # The browser's Meta ids and checkout page — see services/meta_capi.py.
+    tracking: dict | None = None
     # One per checkout attempt: a retry of it gets the order it already made
     # (services/order_attempts.py).
     idempotency_key: str | None = None
@@ -424,6 +426,7 @@ async def _price_guest_cart(db: AsyncSession, payload: "GuestCheckoutRequest") -
 @router.post("/checkout", status_code=201)
 async def guest_checkout(
     payload: GuestCheckoutRequest,
+    request: Request,
     db: AsyncSession = Depends(get_db),
 ) -> GuestOrderOut:
     """Place an order as a guest (retail pricing, no account required)."""
@@ -722,6 +725,12 @@ async def guest_checkout(
         logger.warning("Order confirmation email failed: %s", exc)
 
     await db.commit()
+
+    # The brand's own Meta pixel hears about the sale from the server too
+    # (services/meta_capi). In the background; never fails the order.
+    from app.services import meta_capi as _capi
+
+    await _capi.purchase_placed(db, order, request, payload.tracking)
 
     return GuestOrderOut(
         order_id=str(order.id),

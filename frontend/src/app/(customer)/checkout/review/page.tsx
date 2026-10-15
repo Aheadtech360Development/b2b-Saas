@@ -13,7 +13,7 @@ import { formatCurrency } from "@/lib/utils";
 import { StripePaymentForm } from "@/components/checkout/StripePaymentForm";
 import type { Cart } from "@/types/order.types";
 import { ConfigurationDetail } from "@/components/shared/ConfigurationDetail";
-import { clearAttribution, getAttribution } from "@/lib/attribution";
+import { clearAttribution, getAttribution, getServerTracking } from "@/lib/attribution";
 import { rememberOrderKey, thankYouPath } from "@/lib/orderThanks";
 import { cartLines, holdPurchase, trackPaymentChosen } from "@/lib/tracking";
 
@@ -317,6 +317,8 @@ export default function CheckoutReviewPage() {
           } : {}),
           // Which campaign brought this buyer, collected on their first visit.
           attribution: getAttribution() ?? undefined,
+          // For the brand's server-side Meta Purchase.
+          tracking: getServerTracking(),
         };
         console.log("[Review] Guest order payload:", JSON.stringify(guestPayload, null, 2));
         const order = await apiClient.post<{ order_id: string; order_number: string; total: number; view_key?: string | null }>("/api/v1/guest/checkout", guestPayload);
@@ -376,6 +378,8 @@ export default function CheckoutReviewPage() {
         idempotency_key: attempt.current,
         // Which campaign brought this buyer, collected on their first visit.
         attribution: getAttribution() ?? undefined,
+        // For the brand's server-side Meta Purchase.
+        tracking: getServerTracking(),
         address_id: addressId ?? undefined,
         shipping_address: fullAddress,
         shipping_method: shippingMethod || "standard",

@@ -88,6 +88,9 @@ class CheckoutConfirmRequest(BaseModel):
     # Collected by the browser, sent once, cleaned server-side before it is
     # stored — see services/attribution.py.
     attribution: dict | None = None
+    # The browser's Meta ids (_fbp, _fbc) and the page the order was placed
+    # on, for the brand's server-side Purchase — see services/meta_capi.py.
+    tracking: dict | None = None
 
 
 # ---------------------------------------------------------------------------

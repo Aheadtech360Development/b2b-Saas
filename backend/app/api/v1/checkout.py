@@ -639,6 +639,13 @@ async def _confirm_checkout_inner(
 
     await db.commit()
 
+    # The brand's own Meta pixel hears about the sale from the server too, when
+    # it has connected the Conversions API. Runs in the background; never fails
+    # the order.
+    from app.services import meta_capi as _capi
+
+    await _capi.purchase_placed(db, order, request, payload.tracking)
+
     # ── Send order confirmation email ─────────────────────────────────────────
     try:
         from sqlalchemy import select as _sel

@@ -239,6 +239,8 @@ const EVENT_COLOR: Record<string, string> = {
   supplier_po_sent: "#1D4ED8",
   supplier_po_failed: "#E8242A",
   supplier_shipped: "#047857",
+  meta_capi_sent: "#1877F2",
+  meta_capi_failed: "#E8242A",
 };
 
 // Who did it, in words rather than a role name.

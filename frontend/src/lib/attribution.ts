@@ -162,6 +162,44 @@ export function getAttribution(): Attribution | null {
   return Object.keys(payload).length ? payload : null;
 }
 
+/** What the brand's server needs to report this sale to its own Meta pixel. */
+export interface ServerTracking {
+  fbp?: string;
+  fbc?: string;
+  page_url?: string;
+}
+
+function cookie(name: string): string | undefined {
+  try {
+    const hit = document.cookie.split("; ").find(c => c.startsWith(`${name}=`));
+    return hit ? decodeURIComponent(hit.slice(name.length + 1)) : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * The Meta pixel's own browser ids, sent with the order so the server-side
+ * Purchase (backend services/meta_capi.py) is matched to the same person.
+ *
+ * The API lives on another domain, so these first-party cookies never reach it
+ * on their own. `_fbc` is only written when the pixel saw an ad click; without
+ * it, the click id this file kept from the landing URL stands in, in the format
+ * Meta gives for it.
+ */
+export function getServerTracking(): ServerTracking | undefined {
+  if (typeof window === "undefined") return undefined;
+  const fbp = cookie("_fbp");
+  let fbc = cookie("_fbc");
+  if (!fbc) {
+    const stored = read();
+    if (stored?.fbclid) fbc = `fb.1.${Date.parse(stored.last_seen ?? "") || Date.now()}.${stored.fbclid}`;
+  }
+  // The page without its query string: nothing a buyer typed rides along.
+  const page_url = (window.location.origin + window.location.pathname).slice(0, 1000);
+  return { ...(fbp ? { fbp } : {}), ...(fbc ? { fbc } : {}), page_url };
+}
+
 /** Forget the visitor's attribution — used after an order is placed. */
 export function clearAttribution(): void {
   try {

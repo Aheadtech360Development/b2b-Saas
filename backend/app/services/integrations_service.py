@@ -62,7 +62,8 @@ class Provider(dict):
 
 
 # ── Registry ──────────────────────────────────────────────────────────────────
-# Categories: "supplier" (product catalogues) and "carrier" (shipping).
+# Categories: "supplier" (product catalogues), "carrier" (shipping), "email",
+# and "tracking" (server-side ad tracking).
 PROVIDERS: dict[str, Provider] = {
     "ss_activewear": Provider(
         key="ss_activewear",
@@ -170,6 +171,26 @@ PROVIDERS: dict[str, Provider] = {
                   "Mailer ID — needed to buy labels.", required=False),
             Field("environment", "Environment", "select", options=["production", "test"],
                   required=False),
+        ],
+    ),
+    # The server-side half of the brand's Meta Pixel (services/meta_capi). The
+    # pixel itself is the public ID on the Tracking page; only the token that
+    # lets us post to it is a secret, so only the token lives here.
+    "meta_capi": Provider(
+        key="meta_capi",
+        name="Meta Conversions API",
+        category="tracking",
+        blurb="Send every sale to your Meta Pixel from our server as well, so ad blockers "
+              "and iPhones don't hide them. Uses the Pixel ID set above.",
+        docs_url="https://developers.facebook.com/docs/marketing-api/conversions-api/get-started",
+        logo="Ⓜ️",
+        fields=[
+            Field("access_token", "Access token", "secret",
+                  "Events Manager → your pixel → Settings → Conversions API → Generate access token."),
+            Field("test_event_code", "Test event code", "text",
+                  "Only while testing: the code from Events Manager → Test events. Clear it when "
+                  "you're done, or your real sales keep going to the test view.",
+                  required=False, placeholder="TEST12345"),
         ],
     ),
 }
@@ -355,3 +376,26 @@ async def _verify_fedex(values: dict) -> dict:
 async def _verify_usps(values: dict) -> dict:
     from app.services.carriers import usps
     return await usps.verify(values)
+
+
+@verifier("meta_capi")
+async def _verify_meta_capi(values: dict) -> dict:
+    """The token is tried against the Pixel ID the brand saved on its Tracking
+    page — the one its storefront loads — so the two can never disagree."""
+    from app.core.database import AsyncSessionLocal
+    from app.core.tenant_context import get_current_tenant_id
+    from app.services import analytics_config, meta_capi
+
+    token = (values.get("access_token") or "").strip()
+    if not token:
+        return {"ok": False, "message": "Paste the access token from Events Manager."}
+    async with AsyncSessionLocal() as db:
+        analytics = await analytics_config.load(db, tenant_id=get_current_tenant_id())
+    pixel_id = ((analytics.get("tools") or {}).get("meta_pixel") or {}).get("id") or ""
+    if not pixel_id:
+        return {"ok": False, "message": "Add your Meta Pixel ID above and save tracking first."}
+    target = meta_capi.Target(
+        pixel_id=pixel_id, access_token=token,
+        test_event_code=(values.get("test_event_code") or "").strip() or None,
+    )
+    return await meta_capi.check_target(target)
