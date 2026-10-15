@@ -367,16 +367,18 @@ async def _price_guest_cart(db: AsyncSession, payload: "GuestCheckoutRequest") -
             )
             raise ValidationError(f"SKU {variant.sku} is no longer available")
 
-        # Stock check — 0 means unlimited
-        stock_result = await db.execute(
-            select(func.coalesce(func.sum(InventoryRecord.quantity), 0))
-            .where(InventoryRecord.variant_id == variant.id)
+        # Stock check. Sold out means sold out; only a variant with no
+        # inventory records at all (stock not tracked) sells without limit.
+        # Runs before the card is asked for anything (the payment intent
+        # prices through here too).
+        from app.services.inventory_service import stock_on_hand, stock_problem
+
+        problem = stock_problem(
+            await stock_on_hand(db, variant.id), cart_item.quantity,
+            f"{product.name} ({variant.sku})",
         )
-        available = stock_result.scalar_one()
-        if available > 0 and available < cart_item.quantity:
-            raise InsufficientStockError(
-                f"Only {available} units available for {variant.sku}"
-            )
+        if problem:
+            raise InsufficientStockError(problem)
 
         # Guest price = MSRP if set, else retail_price
         unit_price = Decimal(str(variant.msrp or variant.retail_price or 0))

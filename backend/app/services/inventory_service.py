@@ -15,6 +15,34 @@ from app.models.product import ProductVariant
 logger = logging.getLogger(__name__)
 
 
+# ------------------------------------------------------------------
+# Can this be sold?
+# ------------------------------------------------------------------
+#
+# A variant with no inventory records does not track stock (made to order, or
+# never set up) and sells without limit. A variant with records tracks stock,
+# and when they add up to 0 it is sold out. Checkout used to read both as a sum
+# of 0 and treat that as "unlimited", which let sold-out items be ordered.
+
+async def stock_on_hand(db: AsyncSession, variant_id: UUID) -> int | None:
+    """Units on hand across every location, or None when stock is not tracked."""
+    rows = (await db.execute(
+        select(InventoryRecord.quantity).where(InventoryRecord.variant_id == variant_id)
+    )).scalars().all()
+    if not rows:
+        return None
+    return sum(int(q or 0) for q in rows)
+
+
+def stock_problem(available: int | None, wanted: int, label: str) -> str | None:
+    """Why `wanted` units cannot be sold, or None when they can."""
+    if available is None or available >= wanted:
+        return None
+    if available <= 0:
+        return f"{label} is out of stock."
+    return f"Only {available} of {label} left in stock."
+
+
 class InventoryService:
     def __init__(self, db: AsyncSession):
         self.db = db

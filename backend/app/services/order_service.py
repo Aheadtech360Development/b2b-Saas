@@ -189,19 +189,18 @@ class OrderService:
             if product.slug:
                 ordered_product_slugs.add(product.slug)
 
-            # Stock check — only enforce when inventory records exist.
-            # COALESCE returns 0 when no records found; treat 0 as unlimited.
-            stock_result = await self.db.execute(
-                select(func.coalesce(func.sum(InventoryRecord.quantity), 0)).where(
-                    InventoryRecord.variant_id == variant.id
-                )
+            # Stock check. A variant that tracks stock and has run out cannot be
+            # ordered; one with no inventory records does not track stock.
+            # The variant row is locked above, so two checkouts for the last
+            # unit cannot both pass.
+            from app.services.inventory_service import stock_on_hand, stock_problem
+
+            problem = stock_problem(
+                await stock_on_hand(self.db, variant.id), cart_item.quantity,
+                f"{product.name} ({variant.sku})",
             )
-            available = stock_result.scalar_one()
-            if available > 0 and available < cart_item.quantity:
-                raise InsufficientStockError(
-                    f"Insufficient stock for {variant.sku}: {available} available"
-                )
-            # available == 0 means no inventory records → unlimited stock, skip check
+            if problem:
+                raise InsufficientStockError(problem)
 
             # Price snapshot — check VariantLevelPricingOverride first
             unit_price = await self._snapshot_price(variant, discount_percent, group_id)
