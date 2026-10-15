@@ -97,6 +97,9 @@ class ProductOptionValue(TenantMixin, BaseModel):
     position: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     is_default: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    # Units on hand for this choice (a yard sign size, say). NULL is no limit;
+    # 0 is sold out. Taken down by each order (services/inventory_service).
+    stock: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     option: Mapped["ProductOption"] = relationship("ProductOption", back_populates="values")
 

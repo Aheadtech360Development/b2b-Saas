@@ -111,6 +111,16 @@ class Product(TenantMixin, BaseModel):
     # Starting unit price for a configurable product, before option deltas.
     base_price: Mapped[float | None] = mapped_column(Numeric(12, 4), nullable=True)
 
+    # ── Stock (migration 0063, services/inventory_service) ───────────────────
+    # Whether variant stock is enforced. On: a variant with no stock entered is
+    # sold out. Off: variants sell without limit.
+    track_inventory: Mapped[bool] = mapped_column(
+        Boolean, default=True, server_default="true", nullable=False
+    )
+    # Units on hand for a product sold without variants (an upload-by-size gang
+    # sheet, a configurable product). NULL is no limit.
+    stock: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
     # ── Product page template (migration 0047) ───────────────────────────────
     # NULL → the brand's default template, or the plain product page if it has
     # none. The template only adds content around the standard product info.

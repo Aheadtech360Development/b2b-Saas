@@ -102,6 +102,8 @@ class ProductListItem(BaseModel):
     pricing_mode: str = "variant"
     gang_sheet_enabled: bool = False
     gang_sheet_type: str | None = None
+    track_inventory: bool = True
+    stock: int | None = None
 
     model_config = {"from_attributes": True}
 
@@ -167,6 +169,10 @@ class ProductDetail(BaseModel):
     metafields: dict[str, Any] = {}
     theme_page: str | None = None
     allow_design_upload: bool = False
+    # Stock (services/inventory_service): whether variant stock is enforced,
+    # and the plain count for a product sold without variants (None = no limit).
+    track_inventory: bool = True
+    stock: int | None = None
     # Where this product came from. A catalogue imported from a supplier is
     # bought by the case, in a size-by-colour grid — that is what wholesale
     # ordering looks like, and the storefront cannot offer it without knowing
@@ -254,6 +260,10 @@ class ProductUpdate(BaseModel):
     theme_page: str | None = None
     # Printed from a file the buyer supplies, so the page offers an upload.
     allow_design_upload: bool | None = None
+    # Stock: enforce variant stock or not; and a product-level count (send
+    # null to remove the limit, leave out to keep it).
+    track_inventory: bool | None = None
+    stock: int | None = Field(default=None, ge=0)
 
 
 class ImageUploadResponse(BaseModel):

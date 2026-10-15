@@ -109,6 +109,9 @@ class OrderService:
         total_units = 0
         ordered_product_slugs: set[str] = set()
         gang_sheet_ids: list = []  # gang sheet orders paid for in this checkout
+        # Lines whose stock is a plain count (gang sheet sizes, configured
+        # choices) — taken off once the order exists, below.
+        counted_lines: list[tuple] = []
 
         for cart_item in cart_items:
             # Configured line: priced from its chosen options, not a variant. It
@@ -122,9 +125,19 @@ class OrderService:
                     price_configuration as _price_cfg,
                 )
 
+                from app.services.configurator_service import OutOfStockError as _OutOfStockError
+
                 cfg = dict(cart_item.configuration or {})
                 cfg_unit = Decimal(str(cart_item.unit_price or 0))
                 cfg_fees = Decimal(str(cfg.get("setup_fees") or 0))
+                if cart_item.product_id:
+                    _cfg_product = (await self.db.execute(
+                        select(Product.status).where(Product.id == cart_item.product_id)
+                    )).scalar_one_or_none()
+                    if _cfg_product != "active":
+                        raise ValidationError(
+                            f"{getattr(cart_item, 'label', None) or 'A configured item'} is no longer available"
+                        )
                 if cart_item.product_id and cfg.get("selections"):
                     try:
                         repriced = await _price_cfg(
@@ -133,8 +146,15 @@ class OrderService:
                         cfg_unit = Decimal(str(repriced["unit_price"]))
                         cfg_fees = Decimal(str(repriced["setup_fees"]))
                         cfg = {**cfg, **{k: repriced[k] for k in ("breakdown", "unit_price", "setup_fees")}}
+                    except _OutOfStockError as exc:
+                        # Run out since it went in the cart: that is not a
+                        # price the buyer agreed to, it is a sale we cannot fill.
+                        raise InsufficientStockError(str(exc)) from exc
                     except _CfgErr as exc:
                         logger.warning("Configured line kept its cart price: %s", exc)
+                counted_lines.append(("configured", cart_item.product_id, cfg.get("breakdown"),
+                                      cart_item.quantity,
+                                      (getattr(cart_item, "label", None) or "Configured item")[:120]))
 
                 cfg_line = cfg_unit * cart_item.quantity + cfg_fees
                 subtotal += cfg_line
@@ -189,15 +209,20 @@ class OrderService:
             if product.slug:
                 ordered_product_slugs.add(product.slug)
 
-            # Stock check. A variant that tracks stock and has run out cannot be
-            # ordered; one with no inventory records does not track stock.
-            # The variant row is locked above, so two checkouts for the last
-            # unit cannot both pass.
+            # A size the brand marked out of stock or discontinued is not for
+            # sale, whatever its count says. (Guest checkout already refused.)
+            if variant.status != "active" or product.status != "active":
+                raise ValidationError(f"{product.name} ({variant.sku}) is no longer available")
+
+            # Stock check. With the product's "Track stock" on, a variant with
+            # no stock entered is sold out; off, it sells without limit. The
+            # variant row is locked above, so two checkouts for the last unit
+            # cannot both pass.
             from app.services.inventory_service import stock_on_hand, stock_problem
 
             problem = stock_problem(
-                await stock_on_hand(self.db, variant.id), cart_item.quantity,
-                f"{product.name} ({variant.sku})",
+                await stock_on_hand(self.db, variant.id, tracked=bool(product.track_inventory)),
+                cart_item.quantity, f"{product.name} ({variant.sku})",
             )
             if problem:
                 raise InsufficientStockError(problem)
@@ -447,6 +472,21 @@ class OrderService:
                 **item_data,
             )
             self.db.add(order_item)
+
+        # 9.4. Take counted stock: the gang sheet sizes and configured choices
+        # this order uses. Each take refuses if another order got there first,
+        # which rolls this one back before anything is committed.
+        from app.services import inventory_service as _inv
+
+        if gang_sheet_ids:
+            from app.api.v1.gang_sheets import GangSheetOrder as _GangSheetOrder
+
+            for _job in (await self.db.execute(
+                select(_GangSheetOrder).where(_GangSheetOrder.id.in_(gang_sheet_ids))
+            )).scalars().all():
+                await _inv.gang_sheet_stock(self.db, _job, take=True)
+        for _kind, _pid, _breakdown, _qty, _label in counted_lines:
+            await _inv.configured_stock(self.db, _pid, _breakdown, int(_qty), _label, take=True)
 
         # 9.5. Deduct inventory for each ordered variant using explicit SQL UPDATE
         from sqlalchemy import update as _update

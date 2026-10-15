@@ -58,6 +58,10 @@ class ConfigurationError(ValueError):
     """A selection was missing, unknown, or disabled."""
 
 
+class OutOfStockError(ConfigurationError):
+    """A chosen value, or the product itself, has run out (services/inventory_service)."""
+
+
 async def _load(db, product_id, selected_value_ids: list | None = None):
     product = (await db.execute(
         select(Product)
@@ -167,6 +171,12 @@ async def price_configuration(db, product_id, selections: dict, quantity: int) -
 
     product, tiers, override_rows = await _load(db, product_id, chosen_ids)
 
+    from app.services.inventory_service import stock_problem
+
+    sold_out = stock_problem(getattr(product, "stock", None), quantity, product.name)
+    if sold_out:
+        raise OutOfStockError(sold_out)
+
     # Conditional rules are resolved from the selection itself, so a field the
     # buyer can't see is never charged for and never counts as "required".
     active = evaluate_rules(product.option_rules, wanted)
@@ -230,6 +240,11 @@ async def price_configuration(db, product_id, selections: dict, quantity: int) -
                 raise ConfigurationError(f'"{option.name}" has no such choice.')
             if not value.enabled:
                 raise ConfigurationError(f'"{value.label}" is not available for {option.name}.')
+            sold_out = stock_problem(
+                getattr(value, "stock", None), quantity, f"{product.name} ({option.name}: {value.label})"
+            )
+            if sold_out:
+                raise OutOfStockError(sold_out)
             if value_id in active["disabled_values"]:
                 raise ConfigurationError(
                     f'"{value.label}" is not available - {active["disabled_values"][value_id]}.'

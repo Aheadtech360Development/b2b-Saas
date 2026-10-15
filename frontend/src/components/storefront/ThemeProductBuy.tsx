@@ -48,6 +48,8 @@ export interface ThemeSheet {
   price_per_inch: number;
   min_length_in: number;
   max_length_in: number;
+  /** This size has run out (gang_sheet_sizes.stock at 0). */
+  sold_out?: boolean;
 }
 
 export interface ThemeProductData {
@@ -60,7 +62,7 @@ export interface ThemeProductData {
   variants: ThemeVariant[];
   colours: { label: string; hex: string }[];
   sizes: { label: string }[];
-  options: { id: string; name: string; required: boolean; values: { id: string; label: string }[] }[];
+  options: { id: string; name: string; required: boolean; values: { id: string; label: string; sold_out?: boolean }[] }[];
   qty_tiers: { min_qty: number; unit_price: number }[];
   gang_sheet: boolean;
   /** Printed from a file the buyer supplies, so the page offers an upload. */
@@ -69,6 +71,8 @@ export interface ThemeProductData {
   gang_sheet_config?: ProductDetail["gang_sheet_config"];
   sheets?: ThemeSheet[];
   builder_href?: string;
+  /** The product as a whole has run out (products.stock at 0). */
+  sold_out?: boolean;
 }
 
 const money = (value: number) => `$${value.toFixed(2)}`;
@@ -224,6 +228,14 @@ export default function ThemeProductBuy({ product }: { product: ThemeProductData
     // ── Choosing ──
     const cleanups: (() => void)[] = [];
 
+    // Sizes and choices that have run out: still shown, so the range reads
+    // as the brand's, but greyed and refused. Checkout refuses them anyway.
+    const soldSheets = new Set((product.sheets ?? []).filter((s) => s.sold_out).map((s) => s.sheet_id));
+    const soldValues = new Set(product.options.flatMap((o) => o.values.filter((v) => v.sold_out).map((v) => v.id)));
+    const isSoldOut = (item: HTMLElement) =>
+      (!!item.dataset.sheetId && soldSheets.has(item.dataset.sheetId))
+      || (!!item.dataset.valueId && soldValues.has(item.dataset.valueId));
+
     if (byUpload || byOwnSheet) {
       // The size grid is the builder's. Hidden rather than left inert, because
       // a row of sizes nobody can choose reads as a broken page.
@@ -256,6 +268,12 @@ export default function ThemeProductBuy({ product }: { product: ThemeProductData
       };
 
       items.forEach((item) => {
+        const soldOut = isSoldOut(item);
+        if (soldOut) {
+          item.style.opacity = "0.45";
+          item.title = "Sold out";
+          item.setAttribute("aria-disabled", "true");
+        }
         if (item.classList.contains("selected")) {
           if (item.dataset.sheetId) sheetId = item.dataset.sheetId;
           else if (optionId) chosen[optionId] = item.dataset.valueId ?? "";
@@ -265,6 +283,7 @@ export default function ThemeProductBuy({ product }: { product: ThemeProductData
         }
         const onClick = (e: Event) => {
           e.preventDefault();
+          if (soldOut) { say(`${item.dataset.label ?? "That one"} is sold out.`, false); return; }
           items.forEach((other) => other.classList.remove("selected"));
           item.classList.add("selected");
           if (item.dataset.sheetId) sheetId = item.dataset.sheetId;
@@ -312,6 +331,7 @@ export default function ThemeProductBuy({ product }: { product: ThemeProductData
       const onClick = async (e: Event) => {
         e.preventDefault();
         if (busy.current) return;
+        if (product.sold_out) { say("Sorry, this is sold out.", false); return; }
         then = button.dataset.then && button.dataset.then.startsWith("/") ? button.dataset.then : null;
 
         // Printed from a file the buyer supplies: take the file first, then

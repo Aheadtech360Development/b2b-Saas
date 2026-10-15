@@ -93,6 +93,8 @@ async def load(db: AsyncSession, product_id: Any) -> dict[str, Any] | None:
                 "price_per_inch": per_inch,
                 "min_length_in": min_len,
                 "max_length_in": float(getattr(s, "max_length_in", 240) or 240),
+                "stock": getattr(s, "stock", None),
+                "sold_out": getattr(s, "stock", None) is not None and s.stock <= 0,
             })
         if not prices:
             prices = [s["price"] for s in sheets if s["price"]]
@@ -105,7 +107,9 @@ async def load(db: AsyncSession, product_id: Any) -> dict[str, Any] | None:
             "colour": v.color or "",
             "size": v.size or "",
             "price": float(v.retail_price) if v.retail_price is not None else None,
-            "stock": on_hand.get(v.id, 9999),
+            # No stock entered: sold out when the product tracks stock, no
+            # limit (9999) when it does not.
+            "stock": on_hand.get(v.id, 0 if getattr(product, "track_inventory", True) else 9999),
             "sku": v.sku,
         }
         for v in variants
@@ -125,7 +129,8 @@ async def load(db: AsyncSession, product_id: Any) -> dict[str, Any] | None:
             continue
         values = [
             {"id": str(v.id), "label": v.label, "hex": v.swatch_hex or "", "image": v.image_url or "",
-             "default": bool(v.is_default)}
+             "default": bool(v.is_default),
+             "sold_out": getattr(v, "stock", None) is not None and v.stock <= 0}
             for v in sorted(o.values, key=lambda x: x.position) if v.enabled
         ]
         if values:
@@ -157,6 +162,8 @@ async def load(db: AsyncSession, product_id: Any) -> dict[str, Any] | None:
         "gang_sheet_type": product.gang_sheet_type or "gang_sheet",
         "gang_sheet_config": product.gang_sheet_config or None,
         "sheets": sheets,
+        # A product sold without variants that has run out as a whole.
+        "sold_out": getattr(product, "stock", None) is not None and product.stock <= 0,
         # Where its button goes. An upload-by-size product is ordered from its
         # own page, where that upload opens; anything else opens the builder.
         "builder_href": (

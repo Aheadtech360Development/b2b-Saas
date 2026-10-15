@@ -33,6 +33,8 @@ interface OptValue {
   sku_suffix?: string | null;
   is_default: boolean;
   enabled: boolean;
+  /** Units on hand for this choice (a sign size, say); null is no limit. */
+  stock?: number | null;
 }
 interface Opt {
   id?: string;
@@ -535,7 +537,7 @@ export function ProductOptionsBuilder({ productId }: { productId: string }) {
                           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px", minWidth: "640px" }}>
                             <thead>
                               <tr style={{ background: "#FAFAF9" }}>
-                                {["Choice", "Extra cost", "Charged", "What that means", "Image", ...(o.input_type === "swatch" ? ["Colour"] : []), "Pre-picked", ""].map(h => (
+                                {["Choice", "Extra cost", "Charged", "What that means", "Image", ...(o.input_type === "swatch" ? ["Colour"] : []), "Stock", "Pre-picked", ""].map(h => (
                                   <th key={h} style={TH}>{h}</th>
                                 ))}
                               </tr>
@@ -584,12 +586,20 @@ export function ProductOptionsBuilder({ productId }: { productId: string }) {
                                       </div>
                                     </td>
                                   )}
+                                  <td style={TD}>
+                                    {/* Blank is no limit; a number goes down with every order, and at 0 the choice shows as sold out. */}
+                                    <input type="number" min="0" step="1" placeholder="No limit" aria-label={`Stock for ${v.label || "this choice"}`}
+                                      value={v.stock ?? ""}
+                                      onChange={e => patchVal(oi, vi, { stock: e.target.value === "" ? null : Math.max(0, Math.floor(num(e.target.value))) })}
+                                      title="Units on hand. Leave blank for no limit."
+                                      style={{ ...INPUT, width: "84px", ...(v.stock === 0 ? { borderColor: "#FCA5A5", color: "#B91C1C" } : {}) }} />
+                                  </td>
                                   <td style={{ ...TD, textAlign: "center" }}><input type="radio" name={`def-${oi}`} checked={v.is_default} onChange={() => patchVal(oi, vi, { is_default: true })} style={{ accentColor: "#1A1A1A" }} title="Selected for the customer before they choose" /></td>
                                   <td style={{ ...TD, textAlign: "center" }}><button onClick={() => removeVal(oi, vi)} style={{ ...ICON_BTN, color: "#B91C1C" }} title="Remove this choice">✕</button></td>
                                 </tr>
                               ))}
                               {o.values.length === 0 && (
-                                <tr><td colSpan={o.input_type === "swatch" ? 8 : 7} style={{ ...TD, color: "#9CA3AF", textAlign: "center" }}>No choices yet — add the first one below.</td></tr>
+                                <tr><td colSpan={o.input_type === "swatch" ? 9 : 8} style={{ ...TD, color: "#9CA3AF", textAlign: "center" }}>No choices yet — add the first one below.</td></tr>
                               )}
                             </tbody>
                           </table>

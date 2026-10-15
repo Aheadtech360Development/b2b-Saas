@@ -16,6 +16,10 @@ export interface GangSheetSize {
   max_length_in: number;
   max_upload_mb: number | null;
   product_id?: string | null; // which product these sizes belong to (null = global default)
+  /** Sheets on hand; null is no limit. */
+  stock?: number | null;
+  /** A counted size that has run out — shown, but cannot be picked. */
+  sold_out?: boolean;
 }
 
 /** What the print check found on one file, at the size it will be printed. */
@@ -210,6 +214,8 @@ export interface GangSheetProduct {
   gang_sheet_enabled: boolean;
   gang_sheet_type: "gang_sheet" | "upload_by_size" | "upload_own" | null;
   gang_sheet_config: GangSheetConfig | null;
+  /** Sheets on hand for the whole product; null is no limit. */
+  stock?: number | null;
   size_count: number;
 }
 
@@ -358,7 +364,7 @@ export const gangSheetsService = {
     apiClient.get<GangSheetProduct[]>(`/api/v1/admin/gang-sheets/products${showAll ? "?show_all=true" : ""}`),
 
   /** Enable/disable the builder on a product, set its type, and/or save its config. */
-  adminUpdateProduct: (id: string, data: { gang_sheet_enabled?: boolean; gang_sheet_type?: string; gang_sheet_config?: GangSheetConfig }) =>
+  adminUpdateProduct: (id: string, data: { gang_sheet_enabled?: boolean; gang_sheet_type?: string; gang_sheet_config?: GangSheetConfig; stock?: number | null }) =>
     apiClient.patch<GangSheetProduct>(`/api/v1/admin/gang-sheets/products/${id}`, data),
 
   /** Onboarding checklist state for the Set up tab. */

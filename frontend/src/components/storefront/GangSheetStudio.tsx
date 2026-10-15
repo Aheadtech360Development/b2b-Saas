@@ -247,7 +247,8 @@ function dpiInfo(u: Upload | undefined, w: number, h: number) {
 export function GangSheetStudio({ sizes, productId, contactName, contactEmail, autoStart, initialSizeId, initialQty, resumeOrder, onClose, onSaved, assistant = true }: Props) {
   const [sizeId, setSizeId] = useState(
     resumeOrder?.sheet_size_id ||
-    (initialSizeId && sizes.some((s) => s.id === initialSizeId) ? initialSizeId : "") ||
+    (initialSizeId && sizes.some((s) => s.id === initialSizeId && !s.sold_out) ? initialSizeId : "") ||
+    sizes.find((s) => !s.sold_out)?.id ||
     sizes[0]?.id ||
     ""
   );
@@ -3622,8 +3623,11 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
           <div data-gs-toolbar style={S.toolbar}>
             <select value={sizeId} onChange={(e) => setSizeId(e.target.value)} style={S.sizeSelect}>
               {sizes.map((s) => (
-                <option key={s.id} value={s.id}>
+                // A size that has run out stays in the list, greyed, so the range
+                // is still the brand's — it just cannot be picked.
+                <option key={s.id} value={s.id} disabled={!!s.sold_out && s.id !== sizeId}>
                   {s.pricing_mode === "custom_length" ? `${s.name} — ${s.width_in}″ × custom` : `${s.name} — ${s.width_in}×${s.height_in}″`}
+                  {s.sold_out ? " — sold out" : ""}
                 </option>
               ))}
             </select>

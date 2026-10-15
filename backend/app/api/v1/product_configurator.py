@@ -70,6 +70,8 @@ async def get_public_options(product_id: uuid.UUID, db: AsyncSession = Depends(g
                 "image_url": v.image_url,
                 "swatch_hex": v.swatch_hex,
                 "is_default": bool(v.is_default),
+                # Shown greyed out; pricing refuses it (configurator_service).
+                "sold_out": getattr(v, "stock", None) is not None and v.stock <= 0,
             }
             for v in sorted(o.values, key=lambda x: x.position) if v.enabled
         ]
@@ -102,6 +104,7 @@ async def get_public_options(product_id: uuid.UUID, db: AsyncSession = Depends(g
         "product_id": str(product.id),
         "pricing_mode": getattr(product, "pricing_mode", "variant") or "variant",
         "base_price": float(product.base_price) if product.base_price is not None else None,
+        "sold_out": getattr(product, "stock", None) is not None and product.stock <= 0,
         "options": options,
         "qty_tiers": [{"min_qty": int(t.min_qty), "unit_price": float(t.unit_price)} for t in tiers],
         "rules": rules,

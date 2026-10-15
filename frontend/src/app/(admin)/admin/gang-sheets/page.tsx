@@ -107,7 +107,7 @@ const STANDARD_FEET_SIZES = [
   { name: "20 feet", height_in: 240, price_per_sheet: 105 },
 ];
 
-interface SizeRow { id?: string; name: string; width_in: number; height_in: number; price_per_sheet: number; }
+interface SizeRow { id?: string; name: string; width_in: number; height_in: number; price_per_sheet: number; stock: number | null; }
 
 export default function AdminGangSheetsPage() {
   const [tab, setTab] = useState<"dashboard" | "setup" | "products" | "orders" | "sizes" | "library" | "settings">("dashboard");
@@ -396,24 +396,27 @@ function ProductEditor({ product, onBack, onGoToSizes }: { product: GangSheetPro
   const [cfg, setCfg] = useState<GangSheetConfig>(product.gang_sheet_config ?? { printer_width: 22, max_height: 312, tiers: [] });
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null);
+  // Sheets on hand for the product as a whole — what an upload-by-size product,
+  // which has no preset sizes, counts. Blank is no limit.
+  const [productStock, setProductStock] = useState<number | null>(product.stock ?? null);
 
   // This product's OWN fixed sizes (Gang Sheet type). Loaded once; saved as a diff.
   const [rows, setRows] = useState<SizeRow[]>([]);
   const [origIds, setOrigIds] = useState<string[]>([]);
   useEffect(() => {
     gangSheetsService.adminListSizes(product.id).then((list) => {
-      setRows(list.map((s) => ({ id: s.id, name: s.name, width_in: s.width_in, height_in: s.height_in, price_per_sheet: s.price_per_sheet })));
+      setRows(list.map((s) => ({ id: s.id, name: s.name, width_in: s.width_in, height_in: s.height_in, price_per_sheet: s.price_per_sheet, stock: s.stock ?? null })));
       setOrigIds(list.map((s) => s.id));
     }).catch(() => {});
   }, [product.id]);
 
-  function setRow(i: number, field: keyof SizeRow, val: string | number) {
+  function setRow(i: number, field: keyof SizeRow, val: string | number | null) {
     setRows((r) => r.map((row, idx) => (idx === i ? { ...row, [field]: val } : row)));
   }
-  function addRow() { setRows((r) => [...r, { name: "", width_in: 22, height_in: 24, price_per_sheet: 0 }]); }
+  function addRow() { setRows((r) => [...r, { name: "", width_in: 22, height_in: 24, price_per_sheet: 0, stock: null }]); }
   function removeRow(i: number) { setRows((r) => r.filter((_, idx) => idx !== i)); }
   function addStandardFeet() {
-    setRows((r) => [...r, ...STANDARD_FEET_SIZES.map((s) => ({ name: s.name, width_in: 22, height_in: s.height_in, price_per_sheet: s.price_per_sheet }))]);
+    setRows((r) => [...r, ...STANDARD_FEET_SIZES.map((s) => ({ name: s.name, width_in: 22, height_in: s.height_in, price_per_sheet: s.price_per_sheet, stock: null }))]);
   }
 
   const tiers: GangSheetTier[] = cfg.tiers ?? [];
@@ -430,7 +433,7 @@ function ProductEditor({ product, onBack, onGoToSizes }: { product: GangSheetPro
   async function save() {
     setSaving(true); setMsg(null);
     try {
-      const data: { gang_sheet_type: string; gang_sheet_config?: GangSheetConfig } = { gang_sheet_type: type };
+      const data: { gang_sheet_type: string; gang_sheet_config?: GangSheetConfig; stock?: number | null } = { gang_sheet_type: type, stock: productStock };
       if (type === "upload_by_size") data.gang_sheet_config = cfg;
       await gangSheetsService.adminUpdateProduct(product.id, data);
 
@@ -441,12 +444,12 @@ function ProductEditor({ product, onBack, onGoToSizes }: { product: GangSheetPro
         for (const id of origIds) if (!keptIds.has(id)) await gangSheetsService.adminDeleteSize(id);
         for (let i = 0; i < rows.length; i++) {
           const r = rows[i]!;
-          const payload = { name: r.name || `Sheet ${i + 1}`, width_in: Number(r.width_in) || 22, height_in: Number(r.height_in) || 24, price_per_sheet: Number(r.price_per_sheet) || 0, sort_order: i, pricing_mode: "fixed" as const };
+          const payload = { name: r.name || `Sheet ${i + 1}`, width_in: Number(r.width_in) || 22, height_in: Number(r.height_in) || 24, price_per_sheet: Number(r.price_per_sheet) || 0, sort_order: i, pricing_mode: "fixed" as const, stock: r.stock };
           if (r.id) await gangSheetsService.adminUpdateSize(r.id, payload);
           else await gangSheetsService.adminCreateSize({ ...EMPTY_SIZE, ...payload, product_id: product.id });
         }
         const list = await gangSheetsService.adminListSizes(product.id);
-        setRows(list.map((s) => ({ id: s.id, name: s.name, width_in: s.width_in, height_in: s.height_in, price_per_sheet: s.price_per_sheet })));
+        setRows(list.map((s) => ({ id: s.id, name: s.name, width_in: s.width_in, height_in: s.height_in, price_per_sheet: s.price_per_sheet, stock: s.stock ?? null })));
         setOrigIds(list.map((s) => s.id));
       }
       setMsg({ text: "Saved", ok: true });
@@ -494,7 +497,7 @@ function ProductEditor({ product, onBack, onGoToSizes }: { product: GangSheetPro
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px", minWidth: "520px" }}>
               <thead>
                 <tr style={{ background: "#F6F6F7" }}>
-                  {["Size name", "Width (in)", "Height (in)", "Price ($)", ""].map((h) => (
+                  {["Size name", "Width (in)", "Height (in)", "Price ($)", "Stock", ""].map((h) => (
                     <th key={h} style={{ padding: "7px 10px", textAlign: "left", fontSize: "10px", fontWeight: 700, color: "#6B6B6B", textTransform: "uppercase" }}>{h}</th>
                   ))}
                 </tr>
@@ -506,11 +509,15 @@ function ProductEditor({ product, onBack, onGoToSizes }: { product: GangSheetPro
                     <td style={{ padding: "5px 8px" }}><input type="number" step="0.25" value={r.width_in} onChange={(e) => setRow(i, "width_in", Number(e.target.value))} style={cellInput} /></td>
                     <td style={{ padding: "5px 8px" }}><input type="number" step="1" value={r.height_in} onChange={(e) => setRow(i, "height_in", Number(e.target.value))} style={cellInput} /></td>
                     <td style={{ padding: "5px 8px" }}><input type="number" step="0.01" value={r.price_per_sheet} onChange={(e) => setRow(i, "price_per_sheet", Number(e.target.value))} style={cellInput} /></td>
+                    <td style={{ padding: "5px 8px", minWidth: "90px" }}>
+                      {/* Blank is no limit; 0 is sold out. Each order takes its sheets off. */}
+                      <input type="number" min="0" step="1" placeholder="No limit" aria-label="Sheets in stock" value={r.stock ?? ""} onChange={(e) => setRow(i, "stock", e.target.value === "" ? null : Math.max(0, Math.floor(Number(e.target.value))))} style={cellInput} />
+                    </td>
                     <td style={{ padding: "5px 8px", textAlign: "center" }}><button onClick={() => removeRow(i)} style={{ background: "none", border: "none", color: "#B91C1C", cursor: "pointer", fontSize: "16px" }}>×</button></td>
                   </tr>
                 ))}
                 {rows.length === 0 && (
-                  <tr><td colSpan={5} style={{ padding: "14px", textAlign: "center", color: "#9CA3AF", fontSize: "12px" }}>No sizes yet — add a row, or click “Add standard sizes (2–20 ft)”.</td></tr>
+                  <tr><td colSpan={6} style={{ padding: "14px", textAlign: "center", color: "#9CA3AF", fontSize: "12px" }}>No sizes yet — add a row, or click “Add standard sizes (2–20 ft)”.</td></tr>
                 )}
               </tbody>
             </table>
@@ -519,7 +526,7 @@ function ProductEditor({ product, onBack, onGoToSizes }: { product: GangSheetPro
             <button onClick={addRow} style={{ ...BTN, background: "#F6F6F7", color: "#2A2830" }}>+ Add size</button>
             <button onClick={onGoToSizes} style={{ background: "none", border: "none", color: "#9CA3AF", fontSize: "12px", cursor: "pointer", textDecoration: "underline" }}>Open full Sheet Sizes manager →</button>
           </div>
-          <p style={{ fontSize: "11px", color: "#9CA3AF", marginTop: "8px" }}>Save (top-right) to apply. Buyers see the size name + an auto “Save %” based on these prices.</p>
+          <p style={{ fontSize: "11px", color: "#9CA3AF", marginTop: "8px" }}>Save (top-right) to apply. Buyers see the size name + an auto “Save %” based on these prices. Stock: leave blank for no limit; a number is sheets on hand, and a size at 0 shows as sold out.</p>
         </div>
       ) : (
         <div style={{ ...CARD }}>
@@ -560,6 +567,19 @@ function ProductEditor({ product, onBack, onGoToSizes }: { product: GangSheetPro
             </table>
           </div>
           <button onClick={addTier} style={{ marginTop: "10px", ...BTN, background: "#F6F6F7", color: "#2A2830" }}>+ Add tier</button>
+
+          <div style={{ marginTop: "18px", maxWidth: "260px" }}>
+            <label style={LABEL}>Stock (sheets)</label>
+            <input
+              type="number" min="0" step="1" placeholder="No limit" aria-label="Sheets in stock"
+              value={productStock ?? ""}
+              onChange={(e) => setProductStock(e.target.value === "" ? null : Math.max(0, Math.floor(Number(e.target.value))))}
+              style={numInput}
+            />
+            <p style={{ fontSize: "11px", color: "#9CA3AF", marginTop: "6px" }}>
+              Blank is no limit. A number goes down with each order; at 0 this product cannot be ordered.
+            </p>
+          </div>
         </div>
       )}
     </div>
@@ -977,7 +997,7 @@ function SizesTab() {
 
   function startEdit(s: GangSheetSize) {
     setEditId(s.id);
-    setEditDraft({ name: s.name, width_in: s.width_in, height_in: s.height_in, price_per_sheet: s.price_per_sheet, bleed_in: s.bleed_in, spacing_in: s.spacing_in });
+    setEditDraft({ name: s.name, width_in: s.width_in, height_in: s.height_in, price_per_sheet: s.price_per_sheet, bleed_in: s.bleed_in, spacing_in: s.spacing_in, stock: s.stock ?? null });
   }
 
   async function saveEdit(id: string) {
@@ -1110,7 +1130,7 @@ function SizesTab() {
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
             <thead>
               <tr style={{ background: "#F6F6F7", borderBottom: "1px solid #E8E6E1" }}>
-                {["Name", "Size", "Price", "Bleed / Spacing", "Active", ""].map((h) => (
+                {["Name", "Size", "Price", "Bleed / Spacing", "Stock", "Active", ""].map((h) => (
                   <th key={h} style={{ padding: "10px 14px", textAlign: "left", fontSize: "11px", fontWeight: 700, color: "#6B6B6B", textTransform: "uppercase" }}>{h}</th>
                 ))}
               </tr>
@@ -1137,6 +1157,15 @@ function SizesTab() {
                           <input style={{ ...numIn, width: "56px" }} type="number" step="0.025" value={editDraft.spacing_in ?? 0} onChange={(e) => setEditDraft({ ...editDraft, spacing_in: Number(e.target.value) })} />
                         </span>
                       </td>
+                      <td style={cell}>
+                        {/* Blank is no limit; a number is sheets on hand, taken down by each order. */}
+                        <input
+                          style={numIn} type="number" min="0" step="1" placeholder="No limit"
+                          aria-label="Sheets in stock"
+                          value={editDraft.stock ?? ""}
+                          onChange={(e) => setEditDraft({ ...editDraft, stock: e.target.value === "" ? null : Math.max(0, Math.floor(Number(e.target.value))) })}
+                        />
+                      </td>
                       <td style={cell} />
                       <td style={{ ...cell, textAlign: "right", whiteSpace: "nowrap" }}>
                         <button disabled={busy} onClick={() => saveEdit(s.id)} style={{ background: "#1A1A1A", color: "#fff", border: "none", padding: "5px 12px", borderRadius: "6px", fontSize: "12px", fontWeight: 700, cursor: "pointer", marginRight: "6px" }}>Save</button>
@@ -1157,6 +1186,13 @@ function SizesTab() {
                       {s.pricing_mode === "custom_length" ? `$${s.price_per_inch.toFixed(2)}/in` : `$${s.price_per_sheet.toFixed(2)}`}
                     </td>
                     <td style={{ padding: "11px 14px", color: "#888" }}>{s.bleed_in}″ / {s.spacing_in}″</td>
+                    <td style={{ padding: "11px 14px" }}>
+                      {s.stock == null
+                        ? <span style={{ color: "#888" }}>No limit</span>
+                        : s.stock <= 0
+                          ? <span style={{ color: "#B91C1C", fontWeight: 700 }}>Sold out</span>
+                          : <span style={{ fontWeight: 700 }}>{s.stock}</span>}
+                    </td>
                     <td style={{ padding: "11px 14px" }}>
                       <button onClick={() => toggle(s)} style={{ background: s.is_active ? "#DCFCE7" : "#F3F4F6", color: s.is_active ? "#166534" : "#6B7280", border: "none", padding: "3px 10px", borderRadius: "20px", fontSize: "11px", fontWeight: 700, cursor: "pointer" }}>
                         {s.is_active ? "Active" : "Hidden"}

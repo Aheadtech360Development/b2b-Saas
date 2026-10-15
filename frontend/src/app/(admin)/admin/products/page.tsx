@@ -149,6 +149,20 @@ export default function AdminProductsPage() {
   const totalInventory = (p: ProductDetail) =>
     p.variants.reduce((s, v) => s + (v.stock_quantity ?? 0), 0);
 
+  /** The stock line, saying what it really means. "0 in stock" used to show
+   *  for products that sell without limit (stock not tracked, gang sheets,
+   *  configurable products), and read as sold out to anyone looking. */
+  const stockLabel = (p: ProductDetail): { text: string; tone: "ok" | "out" | "muted" } => {
+    const x = p as ProductDetail & { track_inventory?: boolean; stock?: number | null; gang_sheet_enabled?: boolean; pricing_mode?: string };
+    if (x.gang_sheet_enabled || x.pricing_mode === "configurable" || !(p.variants?.length)) {
+      if (x.stock != null) return x.stock > 0 ? { text: `${x.stock.toLocaleString()} in stock`, tone: "ok" } : { text: "Sold out", tone: "out" };
+      return { text: x.gang_sheet_enabled ? "Stock by sheet size" : "Stock by option", tone: "muted" };
+    }
+    if (x.track_inventory === false) return { text: "Not tracked", tone: "muted" };
+    const n = totalInventory(p);
+    return n > 0 ? { text: `${n.toLocaleString()} in stock`, tone: "ok" } : { text: "Sold out", tone: "out" };
+  };
+
   const openProduct = (slug: string) => router.push(`/admin/products/${slug}/edit`);
   const STATUS_TABS: { id: string; label: string }[] = [
     { id: "", label: "All" }, { id: "active", label: "Active" },
@@ -279,7 +293,7 @@ export default function AdminProductsPage() {
           </div>
         ) : products.map(product => {
           const tone = statusTone(product.status);
-          const stock = totalInventory(product);
+          const stockLine = stockLabel(product);
           const checked = selectedIds.includes(product.id);
           const meta = [product.product_type, product.vendor].filter(Boolean).join(" · ");
           const category = [product.fabric, product.product_code, product.weight].filter(Boolean).join(" · ") || product.categories?.[0]?.name || "Apparel";
@@ -316,7 +330,7 @@ export default function AdminProductsPage() {
                 </div>
               </div>
               <div style={{ flex: "0 0 150px", textAlign: "right" }}>
-                <div style={{ fontSize: "13px", fontWeight: 700, color: stock > 0 ? "#1A1A1A" : "#9A98A0" }}>{stock.toLocaleString()} in stock</div>
+                <div style={{ fontSize: "13px", fontWeight: 700, color: stockLine.tone === "ok" ? "#1A1A1A" : stockLine.tone === "out" ? "#B91C1C" : "#9A98A0" }}>{stockLine.text}</div>
                 <div style={{ fontSize: "11px", color: "#9A98A0", marginTop: "2px" }}>{product.variants?.length || 0} variants</div>
               </div>
               <span style={{ flex: "0 0 auto", padding: "5px 11px", borderRadius: "20px", fontSize: "11px", fontWeight: 700, background: tone.bg, color: tone.fg, minWidth: "72px", textAlign: "center" }}>

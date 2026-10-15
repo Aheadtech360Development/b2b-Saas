@@ -47,6 +47,9 @@ class ValueIn(BaseModel):
     sku_suffix: Optional[str] = None
     is_default: bool = False
     enabled: bool = True
+    # Units on hand for this choice; null is no limit. Left out of a save, the
+    # stored count is kept, so an older screen cannot wipe it.
+    stock: Optional[int] = Field(default=None, ge=0)
 
 
 class OptionIn(BaseModel):
@@ -106,6 +109,7 @@ def _value_row(v: ProductOptionValue) -> dict:
         "position": v.position,
         "is_default": bool(v.is_default),
         "enabled": bool(v.enabled),
+        "stock": getattr(v, "stock", None),
     }
 
 
@@ -272,6 +276,8 @@ async def save_product_config(
             val.sku_suffix = v_in.sku_suffix
             val.is_default = v_in.is_default
             val.enabled = v_in.enabled
+            if "stock" in v_in.model_fields_set:
+                val.stock = v_in.stock
             val.position = vpos
             await db.flush()
             keep_vals.add(str(val.id))

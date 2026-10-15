@@ -270,6 +270,11 @@ async def _price_guest_cart(db: AsyncSession, payload: "GuestCheckoutRequest") -
                     f"Gang sheet {job.reference} has no saved layout yet. "
                     "Open it in the builder, arrange your designs, and save before ordering."
                 )
+            # Its sheet size (or its product, for a sheet with no preset size)
+            # must still have the sheets — before the card is asked.
+            from app.services.inventory_service import gang_sheet_stock
+
+            await gang_sheet_stock(db, job)
             gs_unit = Decimal(str(job.price_per_sheet or 0))
             gs_qty = int(job.sheet_quantity or 1)
             gs_line = gs_unit * gs_qty
@@ -367,15 +372,15 @@ async def _price_guest_cart(db: AsyncSession, payload: "GuestCheckoutRequest") -
             )
             raise ValidationError(f"SKU {variant.sku} is no longer available")
 
-        # Stock check. Sold out means sold out; only a variant with no
-        # inventory records at all (stock not tracked) sells without limit.
-        # Runs before the card is asked for anything (the payment intent
-        # prices through here too).
+        # Stock check. Sold out means sold out. With the product's "Track
+        # stock" on, a variant with no stock entered is sold out too; off, it
+        # sells without limit. Runs before the card is asked for anything (the
+        # payment intent prices through here too).
         from app.services.inventory_service import stock_on_hand, stock_problem
 
         problem = stock_problem(
-            await stock_on_hand(db, variant.id), cart_item.quantity,
-            f"{product.name} ({variant.sku})",
+            await stock_on_hand(db, variant.id, tracked=bool(product.track_inventory)),
+            cart_item.quantity, f"{product.name} ({variant.sku})",
         )
         if problem:
             raise InsufficientStockError(problem)
@@ -620,6 +625,8 @@ async def guest_checkout(
             meta={"amount": float(total), "method": "ach"},
         )
 
+    from app.services import inventory_service as _inv
+
     # The sheets this checkout paid for now belong to the order, and go into
     # the print team's review queue — the same place a signed-in order puts
     # them.
@@ -641,6 +648,19 @@ async def guest_checkout(
                 _gs.paid_at = _dt.now(_tz.utc)
             if _gs.status == _GS_SUBMITTED:
                 _gs.status = _GS_IN_REVIEW
+            # Its sheets come off the size's (or product's) stock. Refused if
+            # another order took the last of them a moment ago.
+            await _inv.gang_sheet_stock(db, _gs, take=True)
+
+    # Configured lines take their chosen values' stock (a yard sign size, say).
+    for item_data in order_items_data:
+        cfg = item_data.get("configuration")
+        if item_data.get("variant_id") is None and cfg:
+            await _inv.configured_stock(
+                db, item_data.get("product_id"), cfg.get("breakdown"),
+                int(item_data["quantity"]), str(item_data.get("product_name") or "This item")[:120],
+                take=True,
+            )
 
     # 6. Create OrderItem records + deduct inventory
     from sqlalchemy import update as _update
@@ -648,8 +668,8 @@ async def guest_checkout(
     for item_data in order_items_data:
         db.add(OrderItem(order_id=order.id, **item_data))
 
-        # A configured line has no variant and no stock behind it — it is made
-        # to the order — so there is nothing to take off the shelf.
+        # A configured line or a gang sheet has no variant: its stock, if it
+        # keeps one, was taken off above.
         if item_data.get("variant_id") is None:
             continue
 

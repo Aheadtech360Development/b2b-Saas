@@ -24,6 +24,8 @@ import type { Cart } from "@/types/order.types";
 interface OptValue {
   id: string; label: string; price_delta: number; price_mode: string;
   image_url?: string | null; swatch_hex?: string | null; is_default: boolean;
+  /** Has run out (backend: product_option_values.stock at 0). */
+  sold_out?: boolean;
 }
 interface Opt {
   id: string; name: string; input_type: string; required: boolean;
@@ -41,8 +43,22 @@ interface Config {
   options: Opt[]; qty_tiers: { min_qty: number; unit_price: number }[];
   rules?: Rule[];
   default_selections: Record<string, string>;
+  /** The product as a whole has run out. */
+  sold_out?: boolean;
 }
 interface Priced { unit_price: number; total: number; setup_fees: number; quantity: number; }
+
+/** The rules, plus stock: a choice that has run out is off like one a rule
+ *  switched off, and says so. The server refuses it either way. */
+function availability(cfg: Config, sel: Record<string, string | string[]>) {
+  const found = evaluateRules(cfg.rules ?? [], sel);
+  for (const o of cfg.options) {
+    for (const v of o.values) {
+      if (v.sold_out && !found.disabledValues.has(v.id)) found.disabledValues.set(v.id, "Sold out");
+    }
+  }
+  return found;
+}
 
 /**
  * Mirror of `configurator_service.evaluate_rules`. Running it here keeps the form
@@ -113,8 +129,8 @@ export function ProductConfigurator({ productId, productName }: { productId: str
   // the chosen Laminating becomes invalid). Move to the next allowed choice
   // before pricing, so the buyer never sees an error they didn't cause.
   useEffect(() => {
-    if (!cfg?.rules?.length) return;
-    const { disabledValues } = evaluateRules(cfg.rules, sel);
+    if (!cfg) return;
+    const { disabledValues } = availability(cfg, sel);
     if (!disabledValues.size) return;
     let changed = false;
     const next: Record<string, string | string[]> = { ...sel };
@@ -172,7 +188,7 @@ export function ProductConfigurator({ productId, productName }: { productId: str
     ))}</div>;
   }
 
-  const { hidden, disabledOptions, disabledValues } = evaluateRules(cfg.rules ?? [], sel);
+  const { hidden, disabledOptions, disabledValues } = availability(cfg, sel);
 
   return (
     <div style={{ marginTop: "20px", fontFamily: "'DM Sans', sans-serif" }}>
@@ -332,8 +348,8 @@ export function ProductConfigurator({ productId, productName }: { productId: str
             {price ? <>unit ${price.unit_price.toFixed(2)} × {price.quantity.toLocaleString()}{price.setup_fees ? ` + $${price.setup_fees.toFixed(2)} one-off` : ""}</> : "Choose your options"}
           </div>
         </div>
-        <button onClick={addToCart} disabled={adding || pricing || !!error} style={{ ...CTA, opacity: adding || pricing || error ? 0.6 : 1 }}>
-          {adding ? "Adding…" : isAuthenticated() ? "ADD TO CART" : "SIGN IN TO ORDER"}
+        <button onClick={addToCart} disabled={adding || pricing || !!error || !!cfg.sold_out} style={{ ...CTA, opacity: adding || pricing || error || cfg.sold_out ? 0.6 : 1 }}>
+          {cfg.sold_out ? "SOLD OUT" : adding ? "Adding…" : isAuthenticated() ? "ADD TO CART" : "SIGN IN TO ORDER"}
         </button>
       </div>
       <p style={{ fontSize: "11px", color: "#9CA3AF", marginTop: "8px" }}>

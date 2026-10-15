@@ -442,6 +442,10 @@ export default function AdminProductEditPage() {
         highlight_text: (product as any).highlight_text ?? null,
         template_id: product.template_id ?? null,
         allow_design_upload: Boolean((product as any).allow_design_upload),
+        // Stock: enforce variant stock or not, and the whole-product count
+        // for a configurable product (null is no limit).
+        track_inventory: (product as any).track_inventory !== false,
+        stock: (product as any).stock ?? null,
         metafields,
       });
       await Promise.all([...variantSaves, productSave]);
@@ -764,6 +768,26 @@ export default function AdminProductEditPage() {
               </div>
             </div>
 
+            {/* Whether the Stock column below is enforced. On, a size at 0 or
+                with no stock entered cannot be ordered; off, every size sells
+                without limit. Saved with the product. */}
+            <label style={{ display: "flex", gap: "10px", alignItems: "flex-start", cursor: "pointer", margin: "0 0 14px", padding: "12px 14px", background: (product as any).track_inventory !== false ? "#F0FDF4" : "#F6F6F7", border: "1px solid " + ((product as any).track_inventory !== false ? "#BBF7D0" : "#E3E3E3"), borderRadius: "8px" }}>
+              <input
+                type="checkbox"
+                checked={(product as any).track_inventory !== false}
+                onChange={e => setProduct(p => p ? { ...p, track_inventory: e.target.checked } as any : p)}
+                style={{ width: "17px", height: "17px", marginTop: "2px", cursor: "pointer", flexShrink: 0 }}
+              />
+              <span>
+                <span style={{ fontSize: "14px", fontWeight: 700, color: "#2A2830", display: "block" }}>Track stock</span>
+                <span style={{ fontSize: "12.5px", color: "#7A7880", lineHeight: 1.6 }}>
+                  {(product as any).track_inventory !== false
+                    ? <>On: a size with <strong>0</strong> stock, or no stock entered, cannot be ordered. Each order takes its units off.</>
+                    : <>Off: every size sells without limit, whatever the Stock column says.</>}
+                </span>
+              </span>
+            </label>
+
             {variantMsg && (
               <div style={{ margin: "0 0 10px", fontSize: "12.5px", fontWeight: 600, color: variantMsg.ok ? "#0F7B3F" : "#B91C1C" }}>
                 {variantMsg.text}
@@ -981,6 +1005,24 @@ export default function AdminProductEditPage() {
           <div id="options" style={{ scrollMarginTop: "80px" }}>
             <ProductOptionsBuilder productId={product.id} />
           </div>
+
+          {/* A whole-product count for a product sold from its options (a yard
+              sign, a banner). Per-choice stock lives in the options above. */}
+          {(product as any).pricing_mode === "configurable" && (
+            <div style={{ ...sectionCard, marginTop: "16px" }}>
+              <span style={{ fontSize: "14px", fontWeight: 700, color: "#2A2830", display: "block", marginBottom: "6px" }}>Stock for this product</span>
+              <input
+                type="number" min="0" step="1" placeholder="No limit" aria-label="Stock for this product"
+                value={(product as any).stock ?? ""}
+                onChange={e => setProduct(p => p ? { ...p, stock: e.target.value === "" ? null : Math.max(0, Math.floor(Number(e.target.value))) } as any : p)}
+                style={{ width: "140px", padding: "8px 10px", border: "1px solid #E3E3E3", borderRadius: "6px", fontSize: "13px" }}
+              />
+              <span style={{ fontSize: "12.5px", color: "#7A7880", lineHeight: 1.6, display: "block", marginTop: "6px" }}>
+                Blank is no limit. A number goes down with each order, whatever was chosen; at 0 the product cannot be ordered.
+                To limit one choice (one sign size, say), give that choice a stock in the options above.
+              </span>
+            </div>
+          )}
 
           {/* Printed from a file the buyer supplies. The design already draws
               an "Upload Artwork & Order" button on these pages; this is what

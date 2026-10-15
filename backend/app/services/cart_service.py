@@ -83,8 +83,11 @@ class CartService:
             # hears it while they can still pick something else.
             from app.services.inventory_service import stock_on_hand, stock_problem
 
+            tracked = (await self.db.execute(
+                select(Product.track_inventory).where(Product.id == variant.product_id)
+            )).scalar_one_or_none()
             problem = stock_problem(
-                await stock_on_hand(self.db, variant.id),
+                await stock_on_hand(self.db, variant.id, tracked=bool(tracked)),
                 add_item.quantity + (existing.quantity if existing else 0),
                 variant.sku,
             )
@@ -166,6 +169,12 @@ class CartService:
             else f"Gang Sheet {order.reference} — {order.sheet_name}"
         )
         unit_price = Decimal(str(order.price_per_sheet or 0))
+
+        # Its sheet size (or, with no preset size, its product) must still have
+        # the sheets — said now, not at the card.
+        from app.services.inventory_service import gang_sheet_stock
+
+        await gang_sheet_stock(self.db, order)
 
         if existing:
             existing.quantity = order.sheet_quantity
@@ -328,7 +337,27 @@ class CartService:
                         "setup_fees": repriced["setup_fees"],
                     }
                 except _CfgErr as exc:
+                    from app.services.configurator_service import OutOfStockError
+
+                    if isinstance(exc, OutOfStockError):
+                        raise InsufficientStockError(str(exc)) from exc
                     logger.warning("Could not re-price configured cart item %s: %s", item_id, exc)
+        elif item.variant_id:
+            # More of a size than is left is refused here, as adding it is.
+            from app.services.inventory_service import stock_on_hand, stock_problem
+
+            row = (await self.db.execute(
+                select(ProductVariant.sku, Product.track_inventory)
+                .join(Product, ProductVariant.product_id == Product.id)
+                .where(ProductVariant.id == item.variant_id)
+            )).first()
+            if row is not None:
+                problem = stock_problem(
+                    await stock_on_hand(self.db, item.variant_id, tracked=bool(row.track_inventory)),
+                    quantity, row.sku,
+                )
+                if problem:
+                    raise InsufficientStockError(problem)
 
         await self.db.flush()
         return await self.get_cart_with_pricing(company_id, discount_percent, group_id)
@@ -365,6 +394,48 @@ class CartService:
     # ------------------------------------------------------------------
     # Validate cart (MOQ + MOV) (T081 — Phase 8)
     # ------------------------------------------------------------------
+
+    async def check_stock(self, company_id: UUID) -> None:
+        """Refuse a cart holding anything that has run out since it went in.
+
+        Run before the card is asked for money, so a buyer is never charged for
+        an order checkout will then refuse. Raises InsufficientStockError.
+        """
+        from app.api.v1.gang_sheets import GangSheetOrder
+        from app.services import inventory_service as inv
+
+        rows = (await self.db.execute(
+            select(CartItem).where(CartItem.company_id == company_id)
+        )).scalars().all()
+        for item in rows:
+            kind = getattr(item, "item_type", "variant")
+            if kind == "configured":
+                cfg = item.configuration or {}
+                await inv.configured_stock(
+                    self.db, item.product_id, cfg.get("breakdown"), int(item.quantity),
+                    (getattr(item, "label", None) or "Configured item")[:120],
+                )
+            elif getattr(item, "gang_sheet_order_id", None):
+                job = (await self.db.execute(
+                    select(GangSheetOrder).where(GangSheetOrder.id == item.gang_sheet_order_id)
+                )).scalar_one_or_none()
+                if job is not None:
+                    await inv.gang_sheet_stock(self.db, job)
+            elif item.variant_id:
+                row = (await self.db.execute(
+                    select(ProductVariant, Product)
+                    .join(Product, ProductVariant.product_id == Product.id)
+                    .where(ProductVariant.id == item.variant_id)
+                )).first()
+                if row is None:
+                    continue
+                variant, product = row
+                problem = inv.stock_problem(
+                    await inv.stock_on_hand(self.db, variant.id, tracked=bool(product.track_inventory)),
+                    int(item.quantity), f"{product.name} ({variant.sku})",
+                )
+                if problem:
+                    raise InsufficientStockError(problem)
 
     async def validate_cart(self, company_id: UUID) -> CartValidation:
         items = await self._load_cart_items(company_id)
@@ -634,13 +705,13 @@ class CartService:
                 continue
             variant, product = row
 
-            # Stock
-            stock_result = await self.db.execute(
-                select(func.coalesce(func.sum(InventoryRecord.quantity), 0)).where(
-                    InventoryRecord.variant_id == variant.id
-                )
+            # Stock, as the product page shows it: the count when tracked, a
+            # large number when the product sells without limit.
+            from app.services.inventory_service import shown_stock, stock_on_hand
+
+            stock = shown_stock(
+                await stock_on_hand(self.db, variant.id, tracked=bool(product.track_inventory))
             )
-            stock = stock_result.scalar_one()
 
             # Re-apply pricing so cart always reflects current tier/override.
             effective_price = await self._effective_price(variant, discount_percent, group_id)

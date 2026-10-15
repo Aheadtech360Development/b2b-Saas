@@ -76,6 +76,9 @@ class GangSheetSize(TenantMixin, DBBaseModel):
     max_length_in: Mapped[Decimal] = mapped_column(Numeric(8, 2), default=240, nullable=False)
     max_upload_mb: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     sort_order: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    # Sheets of this size on hand. NULL is no limit; 0 is sold out. Taken down
+    # by each order (services/inventory_service, migration 0063).
+    stock: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
 
 
 class GangSheetOrder(TenantMixin, DBBaseModel):
@@ -157,6 +160,8 @@ class SizeIn(BaseModel):
     min_length_in: Decimal = Field(gt=0, default=Decimal("12"))
     max_length_in: Decimal = Field(gt=0, default=Decimal("240"))
     max_upload_mb: Optional[int] = Field(default=None, ge=1)
+    # Sheets on hand; None is no limit.
+    stock: Optional[int] = Field(default=None, ge=0)
 
 
 class SizeUpdate(BaseModel):
@@ -173,6 +178,8 @@ class SizeUpdate(BaseModel):
     min_length_in: Optional[Decimal] = Field(default=None, gt=0)
     max_length_in: Optional[Decimal] = Field(default=None, gt=0)
     max_upload_mb: Optional[int] = Field(default=None, ge=1)
+    # Sent as null to remove the limit; left out to keep it as it is.
+    stock: Optional[int] = Field(default=None, ge=0)
 
 
 class ArtworkIn(BaseModel):
@@ -281,6 +288,9 @@ def _size_row(s: GangSheetSize) -> dict:
         "min_length_in": float(getattr(s, "min_length_in", 12) or 12),
         "max_length_in": float(getattr(s, "max_length_in", 240) or 240),
         "max_upload_mb": getattr(s, "max_upload_mb", None),
+        # NULL is no limit; the builder greys out a size that has run out.
+        "stock": getattr(s, "stock", None),
+        "sold_out": getattr(s, "stock", None) is not None and s.stock <= 0,
     }
 
 
@@ -756,6 +766,11 @@ async def submit_order(
     ).scalar_one_or_none()
     if not size or not size.is_active:
         raise HTTPException(status_code=400, detail="Selected sheet size is not available")
+    from app.services.inventory_service import stock_problem
+
+    sold_out = stock_problem(getattr(size, "stock", None), payload.sheet_quantity, f"{size.name} sheet")
+    if sold_out:
+        raise HTTPException(status_code=400, detail=sold_out)
 
     # Resolve the effective sheet: a custom-length size fixes the width and lets
     # the buyer choose the length (priced per inch); a fixed size uses its stored
@@ -928,6 +943,11 @@ async def submit_upload_by_size(
     product's area-tiered table — the client's estimate is never trusted."""
     w, h = payload.width_in, payload.height_in
     product, unit_price = await _upload_by_size_quote(db, payload.product_id, w, h)
+    from app.services.inventory_service import stock_problem
+
+    sold_out = stock_problem(getattr(product, "stock", None), payload.quantity, product.name)
+    if sold_out:
+        raise HTTPException(status_code=400, detail=sold_out)
     subtotal = (unit_price * payload.quantity).quantize(Decimal("0.01"))
 
     who_name, who_email = await _submitter(request, db, payload)
@@ -1492,6 +1512,9 @@ GANG_SHEET_TYPES = {"gang_sheet", "upload_by_size", "upload_own", ""}
 
 
 class GSProductUpdate(BaseModel):
+    # Sheets on hand for the whole product; null removes the limit, left out
+    # keeps it.
+    stock: Optional[int] = Field(default=None, ge=0)
     gang_sheet_enabled: Optional[bool] = None
     # 'gang_sheet' | 'upload_by_size' | 'upload_own' | '' (clear)
     gang_sheet_type: Optional[str] = None
@@ -1530,6 +1553,9 @@ async def admin_list_gs_products(
         "gang_sheet_type": getattr(p, "gang_sheet_type", None),
         "gang_sheet_config": getattr(p, "gang_sheet_config", None),
         "size_count": counts.get(str(p.id), 0),
+        # Sheets on hand for the product as a whole (upload-by-size has no
+        # preset sizes to count); None is no limit.
+        "stock": getattr(p, "stock", None),
     } for p in prods]
 
 
@@ -1560,6 +1586,8 @@ async def admin_update_gs_product(
         p.gang_sheet_type = payload.gang_sheet_type or None
     if payload.gang_sheet_config is not None:
         p.gang_sheet_config = payload.gang_sheet_config or None
+    if "stock" in payload.model_fields_set:
+        p.stock = payload.stock
     await db.flush()
     counts = await _gs_size_counts(db)
     return {
@@ -1570,6 +1598,9 @@ async def admin_update_gs_product(
         "gang_sheet_type": getattr(p, "gang_sheet_type", None),
         "gang_sheet_config": getattr(p, "gang_sheet_config", None),
         "size_count": counts.get(str(p.id), 0),
+        # Sheets on hand for the product as a whole (upload-by-size has no
+        # preset sizes to count); None is no limit.
+        "stock": getattr(p, "stock", None),
     }
 
 

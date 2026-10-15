@@ -82,8 +82,8 @@ export function UploadOwnSheetModal({
         const usable = list.filter((s) => s.is_active);
         setSizes(usable);
         // The size a guest chose before making an account, when it is still sold.
-        const wanted = usable.find((s) => s.id === kept.current?.sizeId);
-        const first = wanted ?? usable[0];
+        const wanted = usable.find((s) => s.id === kept.current?.sizeId && !s.sold_out);
+        const first = wanted ?? usable.find((s) => !s.sold_out) ?? usable[0];
         if (first) {
           setSizeId(first.id);
           setCustomLength(first.pricing_mode === "custom_length"
@@ -336,10 +336,13 @@ export function UploadOwnSheetModal({
               <div style={S.sizes}>
                 {sizes.map((s) => {
                   const on = s.id === sizeId;
+                  // Run out: shown, greyed, not pickable. Checkout refuses it anyway.
+                  const out = !!s.sold_out;
                   return (
-                    <button key={s.id} onClick={() => setSizeId(s.id)} style={{ ...S.size, ...(on ? S.sizeOn : {}) }}>
+                    <button key={s.id} onClick={() => !out && setSizeId(s.id)} disabled={out} title={out ? "Sold out" : s.name}
+                      style={{ ...S.size, ...(on ? S.sizeOn : {}), ...(out ? { opacity: 0.45, cursor: "not-allowed" } : {}) }}>
                       {on && <Check size={13} strokeWidth={2.6} />}
-                      {s.name}
+                      {s.name}{out ? " · sold out" : ""}
                     </button>
                   );
                 })}

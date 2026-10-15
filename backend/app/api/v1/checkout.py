@@ -179,6 +179,9 @@ async def create_payment_intent(
         raise _blame("pricing your cart", exc) from exc
     if not cart.items:
         raise ValidationError("Cart is empty")
+    # Nothing sold out goes to the card: checkout would refuse the order after
+    # the money had been taken.
+    await cart_svc.check_stock(company_id)
 
     # Compute the EXACT total the order will have (mirror OrderService.create_order),
     # so the charged amount == the final order total. The client sends the same

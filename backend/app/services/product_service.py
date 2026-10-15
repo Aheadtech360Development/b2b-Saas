@@ -447,9 +447,12 @@ class ProductService:
                     variant.effective_price = pricing_svc.calculate_effective_price(
                         variant.retail_price, discount_percent
                     )
-                # Use real inventory; 0 in stock_map means no records → treat as unlimited (9999)
+                # Real inventory. A variant with no records is sold out when its
+                # product tracks stock, and unlimited (9999) when it does not.
                 qty = stock_map.get(variant.id)
-                variant.stock_quantity = qty if qty is not None else 9999
+                if qty is None:
+                    qty = 0 if getattr(product, "track_inventory", True) else 9999
+                variant.stock_quantity = qty
 
         return products
 
@@ -499,6 +502,8 @@ class ProductService:
 
         update_data = data.model_dump(exclude_unset=True, exclude={"category_ids"})
         for field, value in update_data.items():
+            if field == "track_inventory" and value is None:
+                continue  # a switch has no "unset"; null leaves it as it is
             setattr(product, field, value)
 
         if data.category_ids is not None:

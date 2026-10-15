@@ -19,18 +19,35 @@ logger = logging.getLogger(__name__)
 # Can this be sold?
 # ------------------------------------------------------------------
 #
-# A variant with no inventory records does not track stock (made to order, or
-# never set up) and sells without limit. A variant with records tracks stock,
-# and when they add up to 0 it is sold out. Checkout used to read both as a sum
-# of 0 and treat that as "unlimited", which let sold-out items be ordered.
+# Every kind of product keeps its stock in one of two ways:
+#
+# * Blanks (colour x size variants): per variant, per location, in
+#   `inventory`. Whether it is enforced is the product's `track_inventory`
+#   switch. On, a variant with no stock entered is sold out, which is what
+#   the admin has always shown it as ("0 in stock"). Off, it sells without
+#   limit. Checkout used to treat any sum of 0 as "unlimited", which let
+#   sold-out blanks be ordered.
+# * Everything sold without variants keeps a plain count, where NULL means
+#   no limit and 0 means sold out: a gang sheet size
+#   (gang_sheet_sizes.stock), a configurable product's choice such as a yard
+#   sign size (product_option_values.stock), and the product itself
+#   (products.stock, for an upload-by-size gang sheet, which has no preset
+#   sizes).
 
-async def stock_on_hand(db: AsyncSession, variant_id: UUID) -> int | None:
-    """Units on hand across every location, or None when stock is not tracked."""
+UNTRACKED = 9999   # what a storefront shows for "no limit"
+
+
+async def stock_on_hand(db: AsyncSession, variant_id: UUID, *, tracked: bool = False) -> int | None:
+    """A variant's units on hand across every location.
+
+    None means no limit: the variant has no stock records and its product does
+    not track stock. With `tracked`, no records means 0.
+    """
     rows = (await db.execute(
         select(InventoryRecord.quantity).where(InventoryRecord.variant_id == variant_id)
     )).scalars().all()
     if not rows:
-        return None
+        return 0 if tracked else None
     return sum(int(q or 0) for q in rows)
 
 
@@ -41,6 +58,77 @@ def stock_problem(available: int | None, wanted: int, label: str) -> str | None:
     if available <= 0:
         return f"{label} is out of stock."
     return f"Only {available} of {label} left in stock."
+
+
+def shown_stock(available: int | None) -> int:
+    """The number a storefront shows: the count, or UNTRACKED for no limit."""
+    return UNTRACKED if available is None else max(0, int(available))
+
+
+async def counted_stock(db: AsyncSession, model, row_id, wanted: int, label: str,
+                        *, take: bool = False) -> None:
+    """Check, or with `take` also take off, `wanted` units of a plain count.
+
+    `model` is anything with an `id` and a nullable `stock` column. NULL is no
+    limit and passes untouched. Taking is a single conditional UPDATE, so two
+    orders for the last unit cannot both get it: the second one's UPDATE
+    matches no row and is refused. Raises InsufficientStockError.
+    """
+    from sqlalchemy import update
+
+    from app.core.exceptions import InsufficientStockError
+
+    if row_id is None or wanted <= 0:
+        return
+    if take:
+        taken = (await db.execute(
+            update(model)
+            .where(model.id == row_id, model.stock.is_not(None), model.stock >= wanted)
+            .values(stock=model.stock - wanted)
+            .returning(model.id)
+            .execution_options(synchronize_session=False)
+        )).first()
+        if taken is not None:
+            return
+    current = (await db.execute(select(model.stock).where(model.id == row_id))).scalar_one_or_none()
+    problem = stock_problem(current, wanted, label)
+    if problem:
+        raise InsufficientStockError(problem)
+
+
+async def gang_sheet_stock(db: AsyncSession, job, wanted: int | None = None, *, take: bool = False) -> None:
+    """A gang sheet's size, and its product, must have the sheets it needs."""
+    from app.api.v1.gang_sheets import GangSheetSize
+    from app.models.product import Product
+
+    qty = int(wanted if wanted is not None else (getattr(job, "sheet_quantity", None) or 1))
+    name = getattr(job, "sheet_name", None) or "this sheet"
+    if getattr(job, "sheet_size_id", None):
+        await counted_stock(db, GangSheetSize, job.sheet_size_id, qty, f"{name} sheet", take=take)
+    if getattr(job, "product_id", None):
+        await counted_stock(db, Product, job.product_id, qty, name, take=take)
+
+
+async def configured_stock(db: AsyncSession, product_id, breakdown: list[dict] | None, wanted: int,
+                           label: str, *, take: bool = False) -> None:
+    """A configured line's chosen values, and its product, must have stock.
+
+    `breakdown` is what services/configurator_service.price_configuration
+    returns: one entry per chosen value, with its option and value names.
+    """
+    from app.models.product import Product
+    from app.models.product_option import ProductOptionValue
+
+    for entry in breakdown or []:
+        value_id = entry.get("value_id")
+        if not value_id:
+            continue
+        await counted_stock(
+            db, ProductOptionValue, UUID(str(value_id)), wanted,
+            f'{label} ({entry.get("option")}: {entry.get("value")})', take=take,
+        )
+    if product_id:
+        await counted_stock(db, Product, product_id, wanted, label, take=take)
 
 
 class InventoryService:
