@@ -160,6 +160,9 @@ class ProductDetail(BaseModel):
     # variant matrix and the options configurator — a response_model drops any
     # field it doesn't declare, so leaving it out hid configurable products.
     pricing_mode: str = "variant"
+    # Whether stock is counted: on, what the variants have is all that sells;
+    # off, it sells without a limit (migration 0063).
+    track_inventory: bool = False
     base_price: float | None = None
     # Which product template this product uses (None → the brand's default),
     # and the data its templates can print.
@@ -254,6 +257,9 @@ class ProductUpdate(BaseModel):
     theme_page: str | None = None
     # Printed from a file the buyer supplies, so the page offers an upload.
     allow_design_upload: bool | None = None
+    # Count this product's stock (sold out at none left), or sell it without
+    # a limit.
+    track_inventory: bool | None = None
 
 
 class ImageUploadResponse(BaseModel):

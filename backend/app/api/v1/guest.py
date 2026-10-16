@@ -367,14 +367,14 @@ async def _price_guest_cart(db: AsyncSession, payload: "GuestCheckoutRequest") -
             )
             raise ValidationError(f"SKU {variant.sku} is no longer available")
 
-        # Stock check. Sold out means sold out; only a variant with no
-        # inventory records at all (stock not tracked) sells without limit.
+        # Stock check. A product that counts its stock sells only what it has
+        # (none left is sold out); one that does not sells without a limit.
         # Runs before the card is asked for anything (the payment intent
         # prices through here too).
-        from app.services.inventory_service import stock_on_hand, stock_problem
+        from app.services.inventory_service import sellable_stock, stock_problem
 
         problem = stock_problem(
-            await stock_on_hand(db, variant.id), cart_item.quantity,
+            await sellable_stock(db, variant, tracked=product.track_inventory), cart_item.quantity,
             f"{product.name} ({variant.sku})",
         )
         if problem:

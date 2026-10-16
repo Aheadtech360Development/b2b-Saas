@@ -47,6 +47,7 @@ async def load(db: AsyncSession, product_id: Any) -> dict[str, Any] | None:
     from app.models.inventory import InventoryRecord
 
     variant_ids = [v.id for v in (product.variants or [])]
+    tracked = bool(getattr(product, "track_inventory", False))
     on_hand: dict[Any, int] = {}
     if variant_ids:
         on_hand = {
@@ -105,7 +106,9 @@ async def load(db: AsyncSession, product_id: Any) -> dict[str, Any] | None:
             "colour": v.color or "",
             "size": v.size or "",
             "price": float(v.retail_price) if v.retail_price is not None else None,
-            "stock": on_hand.get(v.id, 9999),
+            # What the checkout will sell of it: all it has when the product
+            # counts its stock (0 with no record), no limit when it does not.
+            "stock": on_hand.get(v.id, 0) if tracked else 9999,
             "sku": v.sku,
         }
         for v in variants
@@ -139,6 +142,7 @@ async def load(db: AsyncSession, product_id: Any) -> dict[str, Any] | None:
         "summary": (product.short_description or "").strip(),
         "description": (product.description or "").strip(),
         "pricing_mode": product.pricing_mode or "variant",
+        "track_inventory": tracked,
         "images": [
             {"url": getattr(i, "url_large", None) or getattr(i, "url_medium", ""), "alt": getattr(i, "alt_text", "") or product.name}
             for i in images

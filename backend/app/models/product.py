@@ -108,6 +108,12 @@ class Product(TenantMixin, BaseModel):
     #                  selected choices' deltas (combinations are never stored).
     # See app/models/product_option.py and migration 0032.
     pricing_mode: Mapped[str] = mapped_column(String(20), default="variant", nullable=False)
+    # Whether stock is counted for this product (migration 0063). On: what its
+    # variants have on hand is all that can be sold, and none left is sold out.
+    # Off: it sells without a limit, as anything made to order does. Kept on
+    # the product, not inferred from stock records: the admin showed "0" for a
+    # variant with no record while checkout sold it without a limit.
+    track_inventory: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, server_default="false")
     # Starting unit price for a configurable product, before option deltas.
     base_price: Mapped[float | None] = mapped_column(Numeric(12, 4), nullable=True)
 

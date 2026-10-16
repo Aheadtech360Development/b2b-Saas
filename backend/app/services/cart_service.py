@@ -81,10 +81,10 @@ class CartService:
 
             # Refuse a sold-out item here, not only at checkout, so the buyer
             # hears it while they can still pick something else.
-            from app.services.inventory_service import stock_on_hand, stock_problem
+            from app.services.inventory_service import sellable_stock, stock_problem
 
             problem = stock_problem(
-                await stock_on_hand(self.db, variant.id),
+                await sellable_stock(self.db, variant),
                 add_item.quantity + (existing.quantity if existing else 0),
                 variant.sku,
             )

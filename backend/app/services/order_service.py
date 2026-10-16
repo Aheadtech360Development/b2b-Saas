@@ -189,14 +189,14 @@ class OrderService:
             if product.slug:
                 ordered_product_slugs.add(product.slug)
 
-            # Stock check. A variant that tracks stock and has run out cannot be
-            # ordered; one with no inventory records does not track stock.
-            # The variant row is locked above, so two checkouts for the last
-            # unit cannot both pass.
-            from app.services.inventory_service import stock_on_hand, stock_problem
+            # Stock check. A product that counts its stock and has run out
+            # cannot be ordered; one that does not count it sells without a
+            # limit. The variant row is locked above, so two checkouts for the
+            # last unit cannot both pass.
+            from app.services.inventory_service import sellable_stock, stock_problem
 
             problem = stock_problem(
-                await stock_on_hand(self.db, variant.id), cart_item.quantity,
+                await sellable_stock(self.db, variant, tracked=product.track_inventory), cart_item.quantity,
                 f"{product.name} ({variant.sku})",
             )
             if problem:
