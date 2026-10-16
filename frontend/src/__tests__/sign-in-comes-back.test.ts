@@ -115,6 +115,16 @@ describe("the builders and sign-in", () => {
     expect(read("components/storefront/ThemeProductBuy.tsx")).toMatch(/takeResume\(\)/);
   });
 
+  it("a product page sends an ended session back to the product, and a refusal is not called a sign-in", () => {
+    // A 403 (a refusal) was read as "sign in again" and sent to /login, which
+    // took a signed-in shopper to their account page and back round again.
+    const src = read("components/storefront/ThemeProductBuy.tsx");
+    expect(src).toMatch(/if \(status === 401\) \{/);
+    expect(src).toContain("router.push(`/login?next=${encodeURIComponent(back)}`)");
+    expect(src).not.toMatch(/status === 401 \|\| status === 403/);
+    expect(src).not.toMatch(/router\.push\("\/login"\)/);
+  });
+
   it("sign-in follows the way back for a shopper, not the account page", () => {
     const login = read("app/(auth)/login/page.tsx");
     expect(login).toContain('router.push(nextFromLocation() ?? "/account")');

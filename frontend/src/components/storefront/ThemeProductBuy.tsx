@@ -405,10 +405,16 @@ export default function ThemeProductBuy({ product }: { product: ThemeProductData
           say("Added to your cart.");
         } catch (err) {
           const status = err instanceof ApiClientError ? err.status : 0;
-          if (status === 401 || status === 403) {
+          if (status === 401) {
+            // The session really has ended. Back to this product afterwards:
+            // without ?next= the sign-in page sent them to their account page.
             say("Please sign in again to finish that.", false);
-            window.setTimeout(() => router.push("/login"), 1400);
+            const back = `${window.location.pathname}${window.location.search}`;
+            window.setTimeout(() => router.push(`/login?next=${encodeURIComponent(back)}`), 1400);
           } else {
+            // A 403 is a refusal, not a lost session. It was read as "sign in
+            // again" too, and signing in again changed nothing: say what the
+            // shop said instead.
             say(err instanceof ApiClientError && err.message ? err.message : "Could not add that to your cart.", false);
           }
         } finally {
