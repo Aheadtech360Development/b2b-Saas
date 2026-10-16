@@ -143,7 +143,13 @@ class Product(TenantMixin, BaseModel):
     )
 
     variants: Mapped[list["ProductVariant"]] = relationship(
-        "ProductVariant", back_populates="product", cascade="all, delete-orphan"
+        "ProductVariant", back_populates="product", cascade="all, delete-orphan",
+        # A fixed order: the brand's sort order, then the order they were made.
+        # Without one the database returned them as their rows sat, which
+        # changes every time a variant is edited, and colours and sizes moved
+        # about on the shop. Sizes are then put on the chart where they are
+        # shown (services/size_order).
+        order_by=lambda: (ProductVariant.sort_order, ProductVariant.created_at),
     )
     images: Mapped[list["ProductImage"]] = relationship(
         "ProductImage",

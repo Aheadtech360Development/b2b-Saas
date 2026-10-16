@@ -12,6 +12,7 @@ from app.core.exceptions import NotFoundError, ValidationError
 from app.core.redis import redis_delete, redis_delete_pattern, redis_get, redis_set, tenant_cache_key
 from app.models.product import Category, Product, ProductAsset, ProductCategory, ProductVariant, ProductImage
 from app.schemas.product import FilterParams
+from app.services.size_order import sort_sizes
 
 logger = logging.getLogger(__name__)
 
@@ -168,7 +169,8 @@ class ProductService:
 
         return {
             "colors": [{"name": r["name"], "hex": r["hex"], "products": r["products"]} for r in colours],
-            "sizes": list(sizes),
+            # On the size chart (XS, S, M, L, XL), not as the rows came back.
+            "sizes": sort_sizes(sizes),
             "category_counts": {r["slug"]: r["products"] for r in cats},
             "price": {
                 "min": float(price["low"]) if price and price["low"] is not None else None,

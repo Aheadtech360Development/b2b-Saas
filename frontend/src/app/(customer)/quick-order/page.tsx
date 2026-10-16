@@ -5,23 +5,16 @@ import { colorHex, isLightColor } from "@/lib/colors";
 import { ProductConfigurator } from "@/components/storefront/ProductConfigurator";
 import Link from "next/link";
 import Image from "next/image";
-import { formatCurrency } from "@/lib/utils";
+import { compareSizes, formatCurrency } from "@/lib/utils";
 import { productsService } from "@/services/products.service";
 import { cartService } from "@/services/cart.service";
 import { trackCartAdd } from "@/lib/tracking";
 import type { ProductListItem, ProductDetail, ProductVariant } from "@/types/product.types";
 
 // ─── Size ordering ────────────────────────────────────────────────────────────
-const SIZE_ORDER = ["XXS", "XS", "S", "S/M", "M", "M/L", "L", "XL", "2XL", "3XL", "4XL", "5XL", "6XL", "ONE SIZE"];
+// The shop's one size chart (lib/utils compareSizes), as every other page uses.
 function sortSizes(sizes: string[]): string[] {
-  return [...sizes].sort((a, b) => {
-    const ia = SIZE_ORDER.indexOf(a.toUpperCase());
-    const ib = SIZE_ORDER.indexOf(b.toUpperCase());
-    if (ia === -1 && ib === -1) return a.localeCompare(b);
-    if (ia === -1) return 1;
-    if (ib === -1) return -1;
-    return ia - ib;
-  });
+  return [...sizes].sort(compareSizes);
 }
 
 // ─── Color map ────────────────────────────────────────────────────────────────

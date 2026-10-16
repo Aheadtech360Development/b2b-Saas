@@ -2,7 +2,7 @@
 
 import { useCallback, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { formatCurrency } from "@/lib/utils";
+import { compareSizes, formatCurrency } from "@/lib/utils";
 import { cartService } from "@/services/cart.service";
 import { trackCartAdd } from "@/lib/tracking";
 import type { ProductVariant } from "@/types/product.types";
@@ -21,13 +21,14 @@ export function VariantMatrix({ productId, variants }: VariantMatrixProps) {
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
-  // Derive unique colors and sizes from variants
+  // Derive unique colors and sizes from variants. Sizes on the size chart
+  // (XS, S, M, L, XL): sorted alphabetically they read L, M, S, XL, XS.
   const colors = useMemo(
     () => Array.from(new Set(variants.map((v) => v.color).filter(Boolean))).sort() as string[],
     [variants]
   );
   const sizes = useMemo(
-    () => Array.from(new Set(variants.map((v) => v.size).filter(Boolean))).sort() as string[],
+    () => Array.from(new Set(variants.map((v) => v.size).filter(Boolean))).sort(compareSizes) as string[],
     [variants]
   );
 
