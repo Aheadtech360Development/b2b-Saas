@@ -1,140 +1,76 @@
 "use client";
 
-import { useEffect, useState } from "react";
+/**
+ * Purchase orders — one of the Products tabs: stock bought from suppliers.
+ * Each opens on its own page (design 37, components/admin/purchase-orders/
+ * PurchaseOrderEditor): a draft is changed and sent there, and stock is
+ * received there into Inventory.
+ */
 import Link from "next/link";
-import { apiClient } from "@/lib/api-client";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { apiClient, ApiClientError } from "@/lib/api-client";
 import { ProductsFrame } from "@/components/admin/products/ProductsFrame";
+import { PO_STATUS } from "@/components/admin/purchase-orders/PurchaseOrderEditor";
 
-const STATUS_COLORS: Record<string, { bg: string; color: string }> = {
-  draft:      { bg: "#F3F4F6", color: "#6B7280" },
-  sent:       { bg: "#DBEAFE", color: "#1A1A1A" },
-  partial:    { bg: "#FEF3C7", color: "#D97706" },
-  received:   { bg: "#D1FAE5", color: "#065F46" },
-  closed:     { bg: "#1A1A1A", color: "#fff" },
-  cancelled:  { bg: "#FEE2E2", color: "#991B1B" },
-};
-
-interface PO {
-  id: string;
-  po_number: string;
-  manufacturer_name: string | null;
-  order_date: string | null;
-  expected_delivery: string | null;
-  item_count: number;
-  total_expected: number;
-  status: string;
+interface Row {
+  id: string; po_number: string; manufacturer_name: string | null; status: string;
+  order_date: string | null; expected_delivery: string | null;
+  total_expected: number; total_received: number; item_count: number;
 }
 
-function fmt(n: number) {
-  return "$" + n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
-}
+const money = (n: number) => `$${(Number(n) || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const day = (iso: string | null) => (iso ? new Date(`${iso.slice(0, 10)}T00:00:00`).toLocaleDateString() : "–");
 
-function PurchaseOrdersPageBody() {
-  const [pos, setPos] = useState<PO[]>([]);
-  const [loading, setLoading] = useState(true);
+export default function PurchaseOrdersPage() {
+  const router = useRouter();
+  const [rows, setRows] = useState<Row[] | null>(null);
+  const [error, setError] = useState("");
 
   useEffect(() => {
-    apiClient.get<PO[]>("/api/v1/admin/purchase-orders/")
-      .then(data => { setPos(Array.isArray(data) ? data : []); setLoading(false); })
-      .catch(() => setLoading(false));
+    apiClient.get<Row[]>("/api/v1/admin/purchase-orders/")
+      .then((r) => setRows(Array.isArray(r) ? r : []))
+      .catch((e) => setError(e instanceof ApiClientError && e.message ? e.message : "The purchase orders could not be loaded."));
   }, []);
 
-  const totalValue = pos.reduce((s, p) => s + (p.total_expected || 0), 0);
-  const pending = pos.filter(p => ["draft", "sent", "partial"].includes(p.status)).length;
-
+  const open = (rows ?? []).filter((p) => ["draft", "sent", "partial"].includes(p.status)).length;
   return (
-    <div style={{ padding: "32px", maxWidth: "1200px", margin: "0 auto" }}>
-      {/* Header */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "28px", flexWrap: "wrap", gap: "12px" }}>
-        <h1 style={{ fontSize: "22px", fontWeight: 700, color: "#1A1A1A", letterSpacing: ".04em" }}>
-          PURCHASE ORDERS
-        </h1>
-        <div style={{ display: "flex", gap: "10px" }}>
-          <Link href="/admin/purchase-orders/manufacturers" style={{
-            padding: "9px 18px", borderRadius: "8px", border: "1px solid #D1D5DB",
-            fontSize: "13px", fontWeight: 600, color: "#374151", textDecoration: "none",
-            background: "#fff",
-          }}>
-            Manufacturers
-          </Link>
-          <Link href="/admin/purchase-orders/create" style={{
-            padding: "9px 18px", borderRadius: "8px", background: "#1A1A1A",
-            color: "#fff", fontSize: "13px", fontWeight: 600, textDecoration: "none",
-          }}>
-            + Create PO
-          </Link>
-        </div>
+    <ProductsFrame active="purchase-orders" title="Purchase orders"
+      sub={rows ? `Stock bought from your suppliers. ${open} open.` : "Stock bought from your suppliers."}
+      actions={<>
+        <Link href="/admin/purchase-orders/manufacturers" className="pc-btn">Suppliers list</Link>
+        <Link href="/admin/purchase-orders/new" className="pc-btn" data-kind="primary">New purchase order</Link>
+      </>}>
+      <div className="pc-card" data-purchase-orders aria-busy={!rows && !error}>
+        {error ? <div className="pc-empty">{error}</div>
+          : !rows ? <div className="pc-empty">Loading purchase orders…</div>
+          : rows.length === 0 ? (
+            <div className="pc-empty">No purchase orders yet. <Link href="/admin/purchase-orders/new" className="pc-link">Make the first one</Link></div>
+          ) : (
+            <div className="pc-scroll-x">
+              <table className="pc-table" style={{ minWidth: "720px" }}>
+                <thead><tr><th>Order</th><th>Supplier</th><th>Status</th><th>Ordered</th><th>Expected</th><th className="pc-num">Lines</th><th className="pc-num">Total</th><th className="pc-num">Received</th></tr></thead>
+                <tbody>
+                  {rows.map((p) => {
+                    const [word, tone] = PO_STATUS[p.status] ?? [p.status, ""];
+                    return (
+                      <tr key={p.id} data-po-row={p.po_number} style={{ cursor: "pointer" }} onClick={() => router.push(`/admin/purchase-orders/${p.id}`)}>
+                        <td><Link href={`/admin/purchase-orders/${p.id}`} className="pc-row-title" onClick={(e) => e.stopPropagation()}>{p.po_number || "Draft"}</Link></td>
+                        <td>{p.manufacturer_name ?? "–"}</td>
+                        <td><span className="pc-pill" data-tone={tone || undefined} style={{ textTransform: "none" }}>{word}</span></td>
+                        <td>{day(p.order_date)}</td>
+                        <td>{day(p.expected_delivery)}</td>
+                        <td className="pc-num">{p.item_count}</td>
+                        <td className="pc-num" style={{ fontWeight: 600 }}>{money(p.total_expected)}</td>
+                        <td className="pc-num">{money(p.total_received)}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
       </div>
-
-      {/* Stats */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "16px", marginBottom: "28px" }}>
-        {[
-          { label: "Total POs", value: pos.length.toString() },
-          { label: "Pending / In Progress", value: pending.toString() },
-          { label: "Total Value", value: fmt(totalValue) },
-        ].map(card => (
-          <div key={card.label} style={{ background: "#fff", border: "1px solid #E3E3E3", borderRadius: "10px", padding: "20px" }}>
-            <div style={{ fontSize: "12px", color: "#6B7280", marginBottom: "6px", textTransform: "uppercase", letterSpacing: ".07em" }}>{card.label}</div>
-            <div style={{ fontSize: "24px", fontWeight: 700, color: "#1A1A1A" }}>{card.value}</div>
-          </div>
-        ))}
-      </div>
-
-      {/* Table */}
-      <div style={{ background: "#fff", border: "1px solid #E3E3E3", borderRadius: "10px", overflow: "hidden" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse" }}>
-          <thead>
-            <tr style={{ background: "#F6F6F7", borderBottom: "1px solid #E3E3E3" }}>
-              {["PO NUMBER", "MANUFACTURER", "DATE", "EXP. DELIVERY", "ITEMS", "TOTAL", "STATUS", ""].map(h => (
-                <th key={h} style={{ padding: "12px 16px", textAlign: "left", fontSize: "11px", fontWeight: 700, color: "#6B7280", letterSpacing: ".07em" }}>{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
-              <tr><td colSpan={8} style={{ padding: "40px", textAlign: "center", color: "#9CA3AF" }}><div className="at-skel" style={{ height: "14px", width: "60%", margin: "0 auto" }} /></td></tr>
-            ) : pos.length === 0 ? (
-              <tr><td colSpan={8} style={{ padding: "40px", textAlign: "center", color: "#9CA3AF" }}>No purchase orders yet. <Link href="/admin/purchase-orders/create" style={{ color: "#1A1A1A" }}>Create one →</Link></td></tr>
-            ) : pos.map(po => {
-              const sc = STATUS_COLORS[po.status] ?? STATUS_COLORS.draft!;
-              return (
-                <tr key={po.id} style={{ borderBottom: "1px solid #F3F4F6", cursor: "pointer" }}
-                  onClick={() => window.location.href = `/admin/purchase-orders/${po.id}`}
-                  onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = "#F9FAFB"}
-                  onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = "transparent"}
-                >
-                  <td style={{ padding: "14px 16px", fontWeight: 700, color: "#1A1A1A", fontSize: "13px" }}>{po.po_number}</td>
-                  <td style={{ padding: "14px 16px", fontSize: "13px", color: "#374151" }}>{po.manufacturer_name || "—"}</td>
-                  <td style={{ padding: "14px 16px", fontSize: "13px", color: "#6B7280" }}>{po.order_date ? new Date(po.order_date).toLocaleDateString() : "—"}</td>
-                  <td style={{ padding: "14px 16px", fontSize: "13px", color: "#6B7280" }}>{po.expected_delivery ? new Date(po.expected_delivery).toLocaleDateString() : "—"}</td>
-                  <td style={{ padding: "14px 16px", fontSize: "13px", color: "#374151" }}>{po.item_count}</td>
-                  <td style={{ padding: "14px 16px", fontSize: "13px", fontWeight: 600, color: "#374151" }}>{fmt(po.total_expected)}</td>
-                  <td style={{ padding: "14px 16px" }}>
-                    <span style={{ padding: "3px 10px", borderRadius: "20px", fontSize: "11px", fontWeight: 700, background: sc.bg, color: sc.color, textTransform: "uppercase", letterSpacing: ".06em" }}>
-                      {po.status}
-                    </span>
-                  </td>
-                  <td style={{ padding: "14px 16px" }}>
-                    <Link href={`/admin/purchase-orders/${po.id}`} style={{ fontSize: "12px", color: "#1A1A1A", textDecoration: "none", fontWeight: 600 }} onClick={e => e.stopPropagation()}>
-                      View →
-                    </Link>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
-
-
-/** This screen as one of the Products tabs (components/admin/products/ProductsFrame). */
-export default function PurchaseOrdersPage() {
-  return (
-    <ProductsFrame active="purchase-orders">
-      <PurchaseOrdersPageBody />
     </ProductsFrame>
   );
 }

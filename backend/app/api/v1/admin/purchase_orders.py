@@ -159,6 +159,37 @@ async def delete_manufacturer(mfr_id: UUID, db: AsyncSession = Depends(get_db)):
 
 # ─── purchase orders ───────────────────────────────────────────────────────────
 
+@router.get("/variants")
+async def search_variants(q: str = "", db: AsyncSession = Depends(get_db)) -> list[dict]:
+    """SKUs to put on a purchase order, found by SKU, product, colour or size,
+    with the cost last paid. Stocked products only: a gang sheet or a product
+    made from its options has no stock to buy."""
+    from sqlalchemy import or_
+
+    term = (q or "").strip()
+    stmt = (
+        select(ProductVariant, Product.name)
+        .join(Product, Product.id == ProductVariant.product_id)
+        .where(
+            ProductVariant.status != "discontinued",
+            Product.status != "archived",
+            or_(Product.pricing_mode.is_(None), Product.pricing_mode == "variant"),
+            Product.gang_sheet_enabled.is_not(True),
+        )
+        .order_by(Product.name, ProductVariant.sku)
+        .limit(20)
+    )
+    if term:
+        like = f"%{term}%"
+        stmt = stmt.where(or_(ProductVariant.sku.ilike(like), Product.name.ilike(like),
+                              ProductVariant.color.ilike(like), ProductVariant.size.ilike(like)))
+    rows = (await db.execute(stmt)).all()
+    return [{
+        "variant_id": str(v.id), "sku": v.sku, "product_name": name, "color": v.color, "size": v.size,
+        "cost": float(v.cost_per_item) if v.cost_per_item is not None else None,
+    } for v, name in rows]
+
+
 @router.get("/")
 async def list_pos(db: AsyncSession = Depends(get_db)):
     result = await db.execute(
@@ -269,6 +300,46 @@ async def create_po(data: POCreate, db: AsyncSession = Depends(get_db)):
     po.total_expected = total_expected
     await db.commit()
     await db.refresh(po)
+    return {"id": str(po.id), "po_number": po.po_number, "status": po.status,
+            "total_expected": float(po.total_expected or 0)}
+
+
+@router.put("/{po_id}")
+async def update_draft_po(po_id: UUID, data: POCreate, db: AsyncSession = Depends(get_db)):
+    """Change a draft: its supplier, delivery date, notes and lines. Once it is
+    sent it is what the supplier was told, and stays as it is."""
+    po = (await db.execute(
+        select(PurchaseOrder).where(PurchaseOrder.id == po_id)
+        .options(selectinload(PurchaseOrder.line_items), selectinload(PurchaseOrder.receivings))
+    )).scalar_one_or_none()
+    if not po:
+        raise HTTPException(status_code=404, detail="PO not found")
+    if po.status != "draft" or po.receivings:
+        raise HTTPException(status_code=409, detail=f"Only a draft can be changed. {po.po_number} is {po.status}.")
+    if not data.line_items or any(li.qty_ordered < 1 or li.unit_cost_expected < 0 for li in data.line_items):
+        raise HTTPException(status_code=422, detail="Each line needs a quantity of 1 or more and a cost of 0 or more.")
+
+    po.manufacturer_id = UUID(data.manufacturer_id)
+    po.expected_delivery = data.expected_delivery
+    po.notes = data.notes
+    for old in list(po.line_items):
+        await db.delete(old)
+    await db.flush()
+    total_expected = 0.0
+    for item_data in data.line_items:
+        db.add(POLineItem(
+            po_id=po.id,
+            product_variant_id=UUID(item_data.product_variant_id) if item_data.product_variant_id else None,
+            new_product_name=item_data.new_product_name,
+            new_product_sku=item_data.new_product_sku,
+            new_product_size=item_data.new_product_size,
+            new_product_color=item_data.new_product_color,
+            qty_ordered=item_data.qty_ordered,
+            unit_cost_expected=item_data.unit_cost_expected,
+        ))
+        total_expected += item_data.qty_ordered * item_data.unit_cost_expected
+    po.total_expected = total_expected
+    await db.commit()
     return {"id": str(po.id), "po_number": po.po_number, "status": po.status,
             "total_expected": float(po.total_expected or 0)}
 
