@@ -674,8 +674,17 @@ async def _confirm_checkout_inner(
                 _sel(_User).where(_User.id == user_id)
             )).scalar_one_or_none()
             if _user:
+                from app.services import notifications as _notes
+
                 _email_svc = _EmailSvc(db)
-                _email_svc.send_order_confirmation(_order_full, _user.email)
+                # The shop's own switch and wording for this email (Settings,
+                # Notifications); untouched, it goes out as it always has.
+                _w = await _notes.wording(db, "order_confirmed", {
+                    "order": _order_full.order_number, "customer": _user.first_name or "there",
+                    "total": f"${float(_order_full.total or 0):.2f}",
+                })
+                if _w.send:
+                    _email_svc.send_order_confirmation(_order_full, _user.email, subject=_w.subject, intro_html=_w.intro_html)
                 _email_svc.send_admin_new_order_alert(_order_full)
     except Exception as _exc:
         _log.warning("Order confirmation email failed: %s", _exc)

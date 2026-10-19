@@ -20,7 +20,7 @@ const ITEMS: { key: SettingsKey; label: string; href: string; scopes?: Scope[] }
   { key: "shipping", label: "Shipping and pickup", href: "/admin/standard-shipping", scopes: ["settings"] },
   { key: "taxes", label: "Taxes", href: "/admin/settings/taxes", scopes: ["settings"] },
   { key: "billing", label: "Payments and billing", href: "/admin/billing", scopes: ["billing", "payouts"] },
-  { key: "notifications", label: "Notifications", href: "/admin/settings/email-templates", scopes: ["settings"] },
+  { key: "notifications", label: "Notifications", href: "/admin/settings/notifications", scopes: ["settings"] },
   { key: "domain", label: "Domain and email", href: "/admin/settings/domain", scopes: ["settings"] },
   { key: "team", label: "Team and roles", href: "/admin/users", scopes: ["staff"] },
   { key: "audit", label: "Audit log", href: "/admin/settings/audit-log", scopes: ["audit"] },

@@ -2,7 +2,7 @@
 from typing import Optional
 from uuid import UUID
 
-from fastapi import APIRouter, BackgroundTasks, Depends, Query, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -31,8 +31,17 @@ async def get_email_template(template_id: UUID, db: AsyncSession = Depends(get_d
 async def update_email_template(
     template_id: UUID,
     payload: EmailTemplateUpdate,
+    request: Request,
     db: AsyncSession = Depends(get_db),
 ):
+    # One row per email for the whole platform: a shop's edit changed every
+    # shop's mail. A shop words its own emails in Settings → Notifications
+    # (services/notifications); these stay the platform's.
+    if not getattr(request.state, "is_platform_admin", False):
+        raise HTTPException(
+            status_code=403,
+            detail="These templates are shared by every shop. Change your shop's emails in Settings, Notifications.",
+        )
     svc = EmailService(db)
     tpl = await svc.get_template_by_id(template_id)
     update_fields = payload.model_dump(exclude_unset=True)

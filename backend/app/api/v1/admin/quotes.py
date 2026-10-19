@@ -88,7 +88,18 @@ async def send_quote(order_id: UUID, payload: SendIn, request: Request, db: Asyn
             to_email, name = user.email, (f"{user.first_name} {user.last_name}".strip() or None)
     if not to_email:
         raise HTTPException(status_code=422, detail="This customer has no email to send the quote to.")
-    if not EmailService(db).send_quote(order, items, to_email, payload.valid_until, name, payload.message):
+    # "Quote ready" is one of the shop's Notifications (Settings): off, no
+    # quote email goes; its own wording, in place of the email's own.
+    from app.services import notifications as _notes
+
+    w = await _notes.wording(db, "quote_ready", {
+        "order": order.order_number, "customer": ((name or "").split() or ["there"])[0],
+        "total": f"${float(order.total or 0):.2f}",
+    })
+    if not w.send:
+        raise HTTPException(status_code=409, detail="Quote emails are switched off in Settings, Notifications.")
+    if not EmailService(db).send_quote(order, items, to_email, payload.valid_until, name, payload.message,
+                                       subject=w.subject, intro_html=w.intro_html):
         raise HTTPException(status_code=502, detail="The quote email could not be sent. Try again shortly.")
     await order_events.record_admin(
         db, request, order, "quote_sent",

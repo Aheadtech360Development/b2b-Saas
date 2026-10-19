@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useAuthStore } from "@/stores/auth.store";
 import { adminService } from "@/services/admin.service";
 import { SettingsFrame } from "@/components/admin/settings/SettingsFrame";
 import { EmailTemplateEditor } from "@/components/admin/EmailTemplateEditor";
@@ -108,10 +110,18 @@ function AdminEmailTemplatesPageBody() {
 }
 
 
-/** This screen as one of the Settings screens (components/admin/settings/SettingsFrame). */
+/** The platform's shared templates, one row per email for every shop, so only
+ * the platform admin edits them here (the server refuses anyone else). A shop
+ * words its own emails in Settings → Notifications, where everyone else goes. */
 export default function AdminEmailTemplatesPage() {
+  const router = useRouter();
+  const platform = useAuthStore((s) => s.user?.is_platform_admin === true);
+  useEffect(() => {
+    if (!platform) router.replace("/admin/settings/notifications");
+  }, [platform, router]);
+  if (!platform) return null;
   return (
-    <SettingsFrame active="notifications" title="Notifications" sub="The emails your shop sends to customers, and what each one says.">
+    <SettingsFrame active="notifications" title="Shared email templates" sub="The platform's templates, shared by every shop. A shop's own wording is in Settings, Notifications.">
       <AdminEmailTemplatesPageBody />
     </SettingsFrame>
   );

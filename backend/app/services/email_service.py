@@ -572,8 +572,13 @@ class EmailService:
             body_html=self._base_template(content),
         )
 
-    def send_order_confirmation(self, order: "Order", to_email: str) -> bool:  # type: ignore[name-defined]
-        """Branded order confirmation with order-confirmation PDF attached."""
+    def send_order_confirmation(self, order: "Order", to_email: str, *,  # type: ignore[name-defined]
+                                subject: str | None = None, intro_html: str | None = None) -> bool:
+        """Branded order confirmation with order-confirmation PDF attached.
+
+        `subject` and `intro_html` are the shop's own wording (services/
+        notifications), in place of the subject and the opening line.
+        """
         from app.core.config import settings as _s
         from app.services.pdf_service import PDFService
 
@@ -626,11 +631,14 @@ class EmailService:
             f'display:inline-block">{"View your order" if is_guest else "View Order"} →</a></p>'
         )
 
+        intro = intro_html or (
+            f'<p style="color:#374151;margin:0 0 24px">Hi {name}, your order has been received '
+            f'and is now being processed.</p>'
+        )
         content_html = (
             f'<h2 style="color:#1B3A5C;font-size:22px;font-weight:800;margin:0 0 8px">'
             f'Order Received!</h2>'
-            f'<p style="color:#374151;margin:0 0 24px">Hi {name}, your order has been received '
-            f'and is now being processed.</p>'
+            f'{intro}'
             f'<div style="background:#F9F8F4;border-radius:8px;padding:16px 20px;margin-bottom:20px">'
             f'<table style="width:100%"><tr>'
             f'<td><div style="font-size:11px;text-transform:uppercase;letter-spacing:.08em;'
@@ -674,7 +682,7 @@ class EmailService:
 
         return self._send_via_resend(
             to_email=to_email,
-            subject=f"Order Received — {order.order_number} | AF Apparels",
+            subject=subject or f"Order Received — {order.order_number} | AF Apparels",
             body_html=self._base_template(content_html),
             attachments=attachments,
         )
@@ -687,11 +695,15 @@ class EmailService:
         customer_name: str | None = None,
         due_on: "date | None" = None,
         reminder: bool = False,
+        subject: str | None = None,
+        intro_html: str | None = None,
     ) -> bool:
         """Send invoice PDF email to customer with payment terms and bank details.
 
         A reminder (the Invoices screen's) carries the invoice's own due date,
-        not one worked out from today, and says it is a reminder.
+        not one worked out from today, and says it is a reminder. `subject` and
+        `intro_html` are the shop's own wording (services/notifications), in
+        place of the subject and the opening line.
         """
         from datetime import timedelta as _td
         from app.services.pdf_service import PDFService
@@ -742,10 +754,11 @@ class EmailService:
         content_html = (
             f'<h2 style="color:#1B3A5C;font-size:22px;font-weight:800;margin:0 0 8px">'
             f'{"Payment reminder" if reminder else "Invoice"} — {order_num}</h2>'
-            f'<p style="color:#374151;margin:0 0 20px">'
-            + (f'Hi {name}, a reminder that this invoice is due on {due_str}. It is attached again here.</p>'
-               if reminder else
-               f'Hi {name}, please find your invoice attached to this email.</p>') +
+            + (intro_html or (
+                f'<p style="color:#374151;margin:0 0 20px">'
+                + (f'Hi {name}, a reminder that this invoice is due on {due_str}. It is attached again here.</p>'
+                   if reminder else
+                   f'Hi {name}, please find your invoice attached to this email.</p>'))) +
             f'<div style="background:#F9F8F4;border-radius:8px;padding:16px 20px;margin-bottom:20px">'
             f'<table style="width:100%;border-collapse:collapse">'
             f'<tr><td style="font-size:12px;color:#6b7280;padding:5px 0">Order #</td>'
@@ -798,8 +811,8 @@ class EmailService:
 
         return self._send_via_resend(
             to_email=to_email,
-            subject=(f"Reminder: invoice {order_num} — due {due_str} | AF Apparels" if reminder
-                     else f"Invoice {order_num} — Due {due_str} | AF Apparels"),
+            subject=subject or (f"Reminder: invoice {order_num} — due {due_str} | AF Apparels" if reminder
+                                else f"Invoice {order_num} — Due {due_str} | AF Apparels"),
             body_html=self._base_template(content_html),
             attachments=attachments,
         )
@@ -812,8 +825,14 @@ class EmailService:
         valid_until: "date",
         customer_name: str | None = None,
         message: str | None = None,
+        subject: str | None = None,
+        intro_html: str | None = None,
     ) -> bool:
         """A quote (a priced draft, services/quotes) for the customer to accept.
+
+        `subject` and `intro_html` are the shop's own wording (services/
+        notifications), in place of the subject and the opening line; the
+        note typed when sending still follows it.
 
         The link opens the quote's own page with the order's view key in the
         #fragment, as the invoice's does: no server or log sees it.
@@ -843,8 +862,10 @@ class EmailService:
         total = float(getattr(order, "total", 0) or 0)
         content_html = (
             f'<h2 style="color:#1B3A5C;font-size:22px;font-weight:800;margin:0 0 8px">Quote — {number}</h2>'
-            f'<p style="color:#374151;margin:0 0 18px">Hi {name}, here is the price for what you asked for. '
-            f'It holds until {until}.</p>'
+            + (intro_html or (
+                f'<p style="color:#374151;margin:0 0 18px">Hi {name}, here is the price for what you asked for. '
+                f'It holds until {until}.</p>'
+            )) +
             f'{note}'
             f'<table style="width:100%;border-collapse:collapse;margin-bottom:12px">'
             f'<tr><th style="font-size:11px;color:#6b7280;text-align:left;padding:6px 0;border-bottom:2px solid #e5e7eb">Item</th>'
@@ -863,7 +884,7 @@ class EmailService:
         )
         return self._send_via_resend(
             to_email=to_email,
-            subject=f"Quote {number} — valid until {until} | AF Apparels",
+            subject=subject or f"Quote {number} — valid until {until} | AF Apparels",
             body_html=self._base_template(content_html),
         )
 

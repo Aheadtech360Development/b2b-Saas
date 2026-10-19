@@ -96,6 +96,22 @@ async def _send_order_status_email(order: Order, new_status: str, db: AsyncSessi
         color = _COLOR.get(new_status, "#7A7880")
         email_svc = EmailService(db)
 
+        # Shipped, ready for pickup and refunded are three of the shop's
+        # Notifications (Settings): its own switch, subject and opening lines.
+        # Untouched, each goes out as it always has.
+        note_key = {"shipped": "order_shipped", "ready_for_pickup": "ready_for_pickup",
+                    "refunded": "refund_issued"}.get(new_status)
+
+        async def _wording(customer: str):
+            from app.services import notifications as _notes
+
+            if not note_key:
+                return _notes.Wording(True, None, None)
+            return await _notes.wording(db, note_key, {
+                "order": order.order_number, "customer": customer,
+                "total": f"${float(order.total or 0):.2f}", "tracking": order.tracking_number or "",
+            })
+
         # "Ready for pickup" is only news with the place and the hours in it:
         # the brand's own pickup location (Admin → Shipping), never another shop's.
         pickup_block = ""
@@ -106,6 +122,9 @@ async def _send_order_status_email(order: Order, new_status: str, db: AsyncSessi
         # ── Guest orders ─────────────────────────────────────────────────────
         if order.is_guest_order and order.guest_email:
             name = order.guest_name or "there"
+            w = await _wording((name.split() or ["there"])[0])
+            if not w.send:
+                return
             if new_status == "shipped":
                 tracking_url = getattr(order, "tracking_url", None)
                 tracking_block = ""
@@ -139,11 +158,13 @@ async def _send_order_status_email(order: Order, new_status: str, db: AsyncSessi
                     )
                 email_svc.send_raw(
                     to_email=order.guest_email,
-                    subject=f"Your Order {order.order_number} Has Shipped!",
+                    subject=w.subject or f"Your Order {order.order_number} Has Shipped!",
                     body_html=_af_email(
                         f'<h2 style="color:#059669;margin:0 0 12px">Your Order Has Shipped!</h2>'
-                        f'<p>Hi {name},</p>'
-                        f'<p>Great news &#8212; your AF Apparels order is on its way!</p>'
+                        + (w.intro_html or (
+                            f'<p>Hi {name},</p>'
+                            f'<p>Great news &#8212; your AF Apparels order is on its way!</p>'
+                        )) +
                         f'<div style="background:#f9fafb;border-radius:8px;padding:16px;margin:16px 0">'
                         f'<p style="margin:0;color:#6b7280;font-size:12px;text-transform:uppercase;letter-spacing:.06em">Order Number</p>'
                         f'<p style="margin:4px 0 0;font-weight:800;font-size:18px;color:#2A2830">{order.order_number}</p>'
@@ -164,11 +185,13 @@ async def _send_order_status_email(order: Order, new_status: str, db: AsyncSessi
                 )
                 email_svc.send_raw(
                     to_email=order.guest_email,
-                    subject=f"Order {order.order_number} Update &#8212; {label}",
+                    subject=w.subject or f"Order {order.order_number} Update &#8212; {label}",
                     body_html=_af_email(
                         f'<h2 style="color:{color};margin:0 0 12px">Order Update: {label}</h2>'
-                        f'<p>Hi {name},</p>'
-                        f'<p>Your order status has been updated.</p>'
+                        + (w.intro_html or (
+                            f'<p>Hi {name},</p>'
+                            f'<p>Your order status has been updated.</p>'
+                        )) +
                         f'<div style="background:#f9fafb;border-radius:8px;padding:16px;margin:16px 0">'
                         f'<p style="margin:0;color:#6b7280;font-size:12px;text-transform:uppercase;letter-spacing:.06em">Order Number</p>'
                         f'<p style="margin:4px 0 0;font-weight:800;font-size:18px;color:#2A2830">{order.order_number}</p>'
@@ -198,9 +221,16 @@ async def _send_order_status_email(order: Order, new_status: str, db: AsyncSessi
 
         first = user.first_name or "there"
         order_url = f"{_settings.FRONTEND_URL}/account/orders/{order.id}"
+        w = await _wording(first)
+        if not w.send:
+            return
 
         if new_status == "shipped":
             try:
+                if w.subject or w.intro_html:
+                    # The shop's own words: the platform-wide template has
+                    # none of them, so the email below is the one that goes.
+                    raise LookupError("the shop's own wording")
                 await email_svc.send(
                     trigger_event="order_shipped",
                     to_email=user.email,
@@ -245,11 +275,13 @@ async def _send_order_status_email(order: Order, new_status: str, db: AsyncSessi
                     )
                 email_svc.send_raw(
                     to_email=user.email,
-                    subject=f"Your Order {order.order_number} Has Shipped!",
+                    subject=w.subject or f"Your Order {order.order_number} Has Shipped!",
                     body_html=_af_email(
                         f'<h2 style="color:#059669;margin:0 0 12px">Your Order Has Shipped!</h2>'
-                        f'<p>Hi {first},</p>'
-                        f'<p>Great news &#8212; your AF Apparels order <b>{order.order_number}</b> is on its way!</p>'
+                        + (w.intro_html or (
+                            f'<p>Hi {first},</p>'
+                            f'<p>Great news &#8212; your AF Apparels order <b>{order.order_number}</b> is on its way!</p>'
+                        )) +
                         f'<div style="background:#f9fafb;border-radius:8px;padding:16px;margin:16px 0">'
                         f'<p style="margin:0;color:#6b7280;font-size:12px;text-transform:uppercase;letter-spacing:.06em">Order Number</p>'
                         f'<p style="margin:4px 0 0;font-weight:800;font-size:18px;color:#2A2830">{order.order_number}</p>'
@@ -268,12 +300,14 @@ async def _send_order_status_email(order: Order, new_status: str, db: AsyncSessi
             )
             email_svc.send_raw(
                 to_email=user.email,
-                subject=f"Order {order.order_number} &#8212; {label}",
+                subject=w.subject or f"Order {order.order_number} &#8212; {label}",
                 body_html=_af_email(
                     f'<h2 style="color:{color};margin:0 0 12px">Order Update: {label}</h2>'
-                    f'<p>Hi {first},</p>'
-                    f'<p>Your order <b>{order.order_number}</b> has been updated to '
-                    f'<b style="color:{color}">{label}</b>.</p>'
+                    + (w.intro_html or (
+                        f'<p>Hi {first},</p>'
+                        f'<p>Your order <b>{order.order_number}</b> has been updated to '
+                        f'<b style="color:{color}">{label}</b>.</p>'
+                    )) +
                     f'{pickup_block}'
                     f'<p style="margin:20px 0">'
                     f'<a href="{order_url}" style="background:#1A5CFF;color:#fff;padding:12px 24px;'

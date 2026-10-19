@@ -105,8 +105,21 @@ async def send_reminders(payload: RemindIn, request: Request, db: AsyncSession =
             continue
         due = inv.due_on(terms=order.payment_terms, invoiced_at=order.invoice_sent_at,
                          placed_at=order.created_at, offset=offset)
+        # "Invoice due" is one of the shop's Notifications (Settings): off,
+        # no reminder goes; its own wording, in place of the email's own.
+        from app.services import notifications as _notes
+
+        w = await _notes.wording(db, "invoice_due", {
+            "order": order.order_number, "customer": ((name or "").split() or ["there"])[0],
+            "total": f"${float(balance):.2f}",
+        })
+        if not w.send:
+            skipped.append({"order_id": str(order.id),
+                            "why": "Payment reminders are switched off in Settings, Notifications."})
+            continue
         ok = EmailService(db).send_invoice(order, to_email, payment_terms=order.payment_terms,
-                                           customer_name=name, due_on=due, reminder=True)
+                                           customer_name=name, due_on=due, reminder=True,
+                                           subject=w.subject, intro_html=w.intro_html)
         if not ok:
             skipped.append({"order_id": str(order.id), "why": f"The reminder for {order.order_number} could not be sent."})
             continue

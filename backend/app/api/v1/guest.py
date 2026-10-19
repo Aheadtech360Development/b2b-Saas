@@ -724,8 +724,17 @@ async def guest_checkout(
     try:
         from app.services.email_service import EmailService
         from app.core.config import get_settings as _get_settings
+        from app.services import notifications as _notes
+
         _email_svc = EmailService(db)
-        _email_svc.send_order_confirmation(order, order.guest_email)
+        # The shop's own switch and wording for this email (Settings,
+        # Notifications); untouched, it goes out as it always has.
+        _w = await _notes.wording(db, "order_confirmed", {
+            "order": order.order_number, "customer": ((order.guest_name or "").split() or ["there"])[0],
+            "total": f"${float(order.total or 0):.2f}",
+        })
+        if _w.send:
+            _email_svc.send_order_confirmation(order, order.guest_email, subject=_w.subject, intro_html=_w.intro_html)
         _email_svc.send_admin_new_order_alert(order)
         if _activation_token:
             _cfg = _get_settings()

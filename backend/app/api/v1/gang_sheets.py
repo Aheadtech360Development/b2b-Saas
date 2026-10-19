@@ -493,9 +493,23 @@ async def _notify(db: AsyncSession, order: GangSheetOrder, event: str, extra_htm
         from app.services.email_service import EmailService
 
         subj = copy[0].format(ref=order.reference)
+        intro = f"<p style='font-size:14px;color:#444'>{copy[1].format(ref=order.reference)}</p>"
+        # Approved and changes requested are two of the shop's Notifications
+        # (Settings): its own switch and wording, kept per shop.
+        key = {STATUS_APPROVED: "artwork_approved", STATUS_REVISION: "revision_requested"}.get(event)
+        if key:
+            from app.services import notifications
+
+            w = await notifications.wording(db, key, {
+                "order": order.reference, "customer": ((order.contact_name or "").split() or ["there"])[0],
+            })
+            if not w.send:
+                return
+            subj = w.subject or subj
+            intro = w.intro_html or intro
         body = EmailService._base_template(
             f"<h2 style='color:#1B3A5C;margin:0 0 12px'>Gang Sheet Update</h2>"
-            f"<p style='font-size:14px;color:#444'>{copy[1].format(ref=order.reference)}</p>"
+            f"{intro}"
             f"{extra_html}"
             f"<p style='font-size:13px;color:#666;margin-top:16px'>Reference: <b>{order.reference}</b> · "
             f"{order.sheet_name} · {order.sheet_quantity} sheet(s)</p>"

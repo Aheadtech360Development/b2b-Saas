@@ -1093,6 +1093,8 @@ from app.api.v1.admin import returns as admin_returns  # noqa: E402
 app.include_router(admin_returns.router, prefix=_V1)
 from app.api.v1.admin import invoices as admin_invoices  # noqa: E402
 app.include_router(admin_invoices.router, prefix=_V1)
+from app.api.v1.admin import notifications as admin_notifications  # noqa: E402
+app.include_router(admin_notifications.router, prefix=_V1)
 from app.api.v1.admin import entitlements as admin_entitlements  # noqa: E402
 app.include_router(admin_entitlements.router, prefix=_V1)
 
