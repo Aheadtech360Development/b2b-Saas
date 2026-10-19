@@ -44,7 +44,8 @@ describe("buying labels for a batch", () => {
     await waitFor(() => expect((screen.getByLabelText("Service") as HTMLSelectElement).value).toBe("Ground"));
     expect(within(row("1003")).getByText("Austin, TX")).toBeInTheDocument();
     expect(within(row("1003")).getByText("2.5 lb")).toBeInTheDocument();
-    expect(within(row("1003")).getByText("$9.10")).toBeInTheDocument();
+    // A select shows its first option before the dialog has chosen it: wait for the rate itself.
+    expect(await within(row("1003")).findByText("$9.10")).toBeInTheDocument();
     expect(within(row("1002")).getByText("$11.25")).toBeInTheDocument();
     expect(within(row("1001")).getByText("Address not found")).toBeInTheDocument();
     expect(screen.getByText("Total $20.35")).toBeInTheDocument();
@@ -56,8 +57,8 @@ describe("buying labels for a batch", () => {
     await waitFor(() => expect((screen.getByLabelText("Service") as HTMLSelectElement).value).toBe("Ground"));
     fireEvent.change(screen.getByLabelText("Carrier"), { target: { value: "USPS" } });
     await waitFor(() => expect((screen.getByLabelText("Service") as HTMLSelectElement).value).toBe("Priority"));
-    expect(within(row("1002")).getByText("Not offered")).toBeInTheDocument();
-    expect(screen.getByText("Total $8.40")).toBeInTheDocument();
+    expect(await within(row("1002")).findByText("Not offered")).toBeInTheDocument();
+    expect(await screen.findByText("Total $8.40")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Buy 1 label" })).toBeEnabled();
   });
 

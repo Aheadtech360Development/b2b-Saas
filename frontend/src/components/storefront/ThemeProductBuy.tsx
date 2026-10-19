@@ -22,7 +22,8 @@ import { DesignUploadModal, type UploadedArtwork } from "@/components/storefront
 import type { ProductDetail } from "@/types/product.types";
 import { cartService } from "@/services/cart.service";
 import { useAuthStore } from "@/stores/auth.store";
-import { trackAddToCart } from "@/lib/tracking";
+import { trackAddToCart, trackCartAdd, trackConfiguredAdd, trackLineAdd, trackViewItem } from "@/lib/tracking";
+import type { Cart } from "@/types/order.types";
 import { addToGuestCart, configuredKey } from "@/lib/guestCart";
 import { takeResume } from "@/lib/builderDraft";
 import { announceColour } from "@/lib/colourPictures";
@@ -95,6 +96,21 @@ export default function ThemeProductBuy({ product }: { product: ThemeProductData
     if ((resume === "upload-by-size" && byUpload) || (resume === "own-sheet" && byOwnSheet)) setUploadOpen(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // The product view, once per product, for the shop's tracking tools. The
+  // older product page sends its own. A product the website builder draws
+  // comes through here instead and sent none, so on a shop built with it no
+  // tool was ever told a product had been looked at.
+  useEffect(() => {
+    const first = product.variants?.[0];
+    trackViewItem({
+      id: product.id,
+      sku: first?.sku || undefined,
+      name: product.name,
+      price: Number(product.from_price ?? first?.price ?? product.sheets?.[0]?.price ?? 0),
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [product.id]);
 
   useEffect(() => {
     const root = document.querySelector<HTMLElement>(`[data-product-id="${CSS.escape(product.id)}"]`);
@@ -326,7 +342,9 @@ export default function ThemeProductBuy({ product }: { product: ThemeProductData
             if (!variant) { say("Choose a colour and size first.", false); return; }
             if (variant.stock <= 0) { say("That one is out of stock.", false); return; }
             if (isAuthenticated) {
-              await cartService.addMatrix(product.id, [{ variant_id: variant.id, quantity }]);
+              const added = [{ variant_id: variant.id, quantity }];
+              // A signed-in shopper's add was never reported: only the guest's below was.
+              trackCartAdd(await cartService.addMatrix(product.id, added), added);
             } else {
               // No account needed to shop: the same guest cart the rest of the
               // storefront keeps, and the same guest checkout at the end of it.
@@ -351,9 +369,10 @@ export default function ThemeProductBuy({ product }: { product: ThemeProductData
             const missing = product.options.find((o) => o.required && !chosen[o.id]);
             if (missing) { say(`Choose ${missing.name.toLowerCase()} first.`, false); return; }
             if (isAuthenticated) {
-              await apiClient.post("/api/v1/cart/add-configured", {
+              const cart = await apiClient.post<Cart>("/api/v1/cart/add-configured", {
                 product_id: product.id, selections: chosen, quantity,
               });
+              trackConfiguredAdd(cart, { product_id: product.id, selections: chosen, quantity });
             } else {
               // No account needed for a made-to-order product either: the
               // choices travel with the line and the server prices them again
@@ -377,6 +396,7 @@ export default function ThemeProductBuy({ product }: { product: ThemeProductData
                 image_url: product.images?.[0]?.url ?? null,
                 selections: { ...chosen },
               });
+              trackLineAdd({ product_id: product.id, product_name: product.name, unit_price: priced.unit_price, quantity });
               say("Added to your cart.");
               return;
             }
@@ -385,10 +405,16 @@ export default function ThemeProductBuy({ product }: { product: ThemeProductData
           say("Added to your cart.");
         } catch (err) {
           const status = err instanceof ApiClientError ? err.status : 0;
-          if (status === 401 || status === 403) {
+          if (status === 401) {
+            // The session really has ended. Back to this product afterwards:
+            // without ?next= the sign-in page sent them to their account page.
             say("Please sign in again to finish that.", false);
-            window.setTimeout(() => router.push("/login"), 1400);
+            const back = `${window.location.pathname}${window.location.search}`;
+            window.setTimeout(() => router.push(`/login?next=${encodeURIComponent(back)}`), 1400);
           } else {
+            // A 403 is a refusal, not a lost session. It was read as "sign in
+            // again" too, and signing in again changed nothing: say what the
+            // shop said instead.
             say(err instanceof ApiClientError && err.message ? err.message : "Could not add that to your cart.", false);
           }
         } finally {
@@ -413,9 +439,10 @@ export default function ThemeProductBuy({ product }: { product: ThemeProductData
           onReady={async (artwork: UploadedArtwork) => {
             const { selections, quantity } = chosenRef.current;
             if (isAuthenticated) {
-              await apiClient.post("/api/v1/cart/add-configured", {
+              const cart = await apiClient.post<Cart>("/api/v1/cart/add-configured", {
                 product_id: product.id, selections, quantity, artwork,
               });
+              trackConfiguredAdd(cart, { product_id: product.id, selections, quantity, artwork_url: artwork.url }, { navigating: true });
               window.dispatchEvent(new Event("cart_updated"));
             } else {
               const priced = await apiClient.post<{ unit_price: number }>(
@@ -438,6 +465,7 @@ export default function ThemeProductBuy({ product }: { product: ThemeProductData
                 selections: { ...selections },
                 artwork,
               });
+              trackLineAdd({ product_id: product.id, product_name: product.name, unit_price: priced.unit_price, quantity }, { navigating: true });
             }
             setArtworkOpen(false);
             window.location.href = "/cart";

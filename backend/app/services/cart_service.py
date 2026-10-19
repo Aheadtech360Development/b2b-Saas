@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 logger = logging.getLogger(__name__)
 
 from app.core.config import get_settings
-from app.core.exceptions import NotFoundError, ValidationError
+from app.core.exceptions import InsufficientStockError, NotFoundError, ValidationError
 from app.models.order import CartItem, OrderTemplate
 from app.models.product import Product, ProductImage, ProductVariant
 from app.models.inventory import InventoryRecord
@@ -78,6 +78,18 @@ class CartService:
                 )
             )
             existing = existing_result.scalar_one_or_none()
+
+            # Refuse a sold-out item here, not only at checkout, so the buyer
+            # hears it while they can still pick something else.
+            from app.services.inventory_service import sellable_stock, stock_problem
+
+            problem = stock_problem(
+                await sellable_stock(self.db, variant),
+                add_item.quantity + (existing.quantity if existing else 0),
+                variant.sku,
+            )
+            if problem:
+                raise InsufficientStockError(problem)
 
             if existing:
                 existing.quantity += add_item.quantity

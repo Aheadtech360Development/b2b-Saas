@@ -17,7 +17,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { ArrowLeft, Check, X } from "lucide-react";
 import { ask, askText, tell } from "@/lib/dialog";
-import { downloadFile } from "@/lib/download";
+import { downloadFile, withOwner } from "@/lib/download";
 import { openSheetPdf } from "@/lib/gangSheetPdf";
 import { API_BASE_URL } from "@/lib/constants";
 import { GangSheetCanvas } from "@/components/storefront/GangSheetCanvas";
@@ -208,7 +208,7 @@ export default function PrintJobPage() {
   async function downloadPdf() {
     if (!layout.length) { await tell("Nothing is placed on the sheet yet. Arrange it first, or press Auto-nest.", { title: "Download PDF" }); return; }
     openSheetPdf({
-      reference: j.reference, customerName: j.contact_name,
+      reference: j.reference, orderNumber: j.order_number, customerName: j.contact_name,
       sheet: { width_in: j.sheet_width_in, height_in: j.sheet_height_in, bleed_in: margins?.bleed_in ?? 0 },
       artworks, layout,
     });
@@ -412,7 +412,7 @@ export default function PrintJobPage() {
                       <div className="pc-file-size">{inch(a.width_in)} × {inch(a.height_in)} in, qty {a.quantity}</div>
                     </div>
                     <span className="pc-pill" data-tone={pill.tone || undefined}>{pill.label}</span>
-                    <button type="button" className="pc-link" style={{ fontSize: "13px" }} onClick={() => { void downloadFile(a.file_url, a.file_name); }}>Download</button>
+                    <button type="button" className="pc-link" style={{ fontSize: "13px" }} onClick={() => { void downloadFile(a.file_url, withOwner(a.file_name, j.order_number, j.contact_name)); }}>Download</button>
                   </div>
                 );
               })}

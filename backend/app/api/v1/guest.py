@@ -114,6 +114,8 @@ class GuestCheckoutRequest(BaseModel):
     shipping_service: str | None = None
     # How the buyer got here — see services/attribution.py.
     attribution: dict | None = None
+    # The browser's Meta ids and checkout page — see services/meta_capi.py.
+    tracking: dict | None = None
     # One per checkout attempt: a retry of it gets the order it already made
     # (services/order_attempts.py).
     idempotency_key: str | None = None
@@ -372,16 +374,18 @@ async def _price_guest_cart(db: AsyncSession, payload: "GuestCheckoutRequest") -
             )
             raise ValidationError(f"SKU {variant.sku} is no longer available")
 
-        # Stock check — 0 means unlimited
-        stock_result = await db.execute(
-            select(func.coalesce(func.sum(InventoryRecord.quantity), 0))
-            .where(InventoryRecord.variant_id == variant.id)
+        # Stock check. A product that counts its stock sells only what it has
+        # (none left is sold out); one that does not sells without a limit.
+        # Runs before the card is asked for anything (the payment intent
+        # prices through here too).
+        from app.services.inventory_service import sellable_stock, stock_problem
+
+        problem = stock_problem(
+            await sellable_stock(db, variant, tracked=product.track_inventory), cart_item.quantity,
+            f"{product.name} ({variant.sku})",
         )
-        available = stock_result.scalar_one()
-        if available > 0 and available < cart_item.quantity:
-            raise InsufficientStockError(
-                f"Only {available} units available for {variant.sku}"
-            )
+        if problem:
+            raise InsufficientStockError(problem)
 
         # Guest price = MSRP if set, else retail_price
         unit_price = Decimal(str(variant.msrp or variant.retail_price or 0))
@@ -431,6 +435,7 @@ async def _price_guest_cart(db: AsyncSession, payload: "GuestCheckoutRequest") -
 @router.post("/checkout", status_code=201)
 async def guest_checkout(
     payload: GuestCheckoutRequest,
+    request: Request,
     db: AsyncSession = Depends(get_db),
 ) -> GuestOrderOut:
     """Place an order as a guest (retail pricing, no account required)."""
@@ -748,6 +753,12 @@ async def guest_checkout(
         logger.warning("Order confirmation email failed: %s", exc)
 
     await db.commit()
+
+    # The brand's own Meta pixel hears about the sale from the server too
+    # (services/meta_capi). In the background; never fails the order.
+    from app.services import meta_capi as _capi
+
+    await _capi.purchase_placed(db, order, request, payload.tracking)
 
     return GuestOrderOut(
         order_id=str(order.id),

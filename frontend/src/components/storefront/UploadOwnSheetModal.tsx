@@ -20,6 +20,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Check, Contrast, Loader2, RotateCw, Sparkles, Undo2, UploadCloud, Wand2, X } from "lucide-react";
 import { cartService } from "@/services/cart.service";
+import { trackSheetAdd } from "@/lib/tracking";
 import { dropDraft, keepDraft, readDraft, signInAndComeBack } from "@/lib/builderDraft";
 import { gangSheetsService, type GangSheetSize } from "@/services/gangSheets.service";
 import { useAuthStore } from "@/stores/auth.store";
@@ -243,6 +244,7 @@ export function UploadOwnSheetModal({
         }],
       });
       await cartService.addGangSheet(order.id);
+      trackSheetAdd(order, { navigating: true });
       dropDraft(draftKey);
       window.location.href = "/cart";
     } catch (e) {

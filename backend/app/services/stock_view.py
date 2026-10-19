@@ -13,9 +13,11 @@ For each SKU, from what the data says:
   not orders yet). Those units were taken off Available when ordered.
 - On hand is the two together: what should be on the shelf.
 
-At 0 checkout does not hold anybody back: it treats a SKU with no stock as one
-that is not counted, and sells it without a limit. A SKU above 0 cannot sell
-past its stock. The screen says so rather than calling a 0 "out of stock".
+Whether a SKU is limited by its stock is its product's Count stock switch
+(products.track_inventory, services/inventory_service.sellable_stock):
+- counted: it sells only what it has, and at 0 (or with no stock record) it
+  is sold out;
+- not counted: it sells without a limit, whatever its records say ("free").
 
 Incoming is what purchase orders sent to a supplier have still to bring: each
 line's quantity ordered, less what was received against it.
@@ -28,13 +30,14 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 OPEN_ORDER = "('pending', 'confirmed', 'processing', 'ready_for_pickup')"
-STOCKS = ("all", "zero", "low", "in")
+STOCKS = ("all", "zero", "low", "in", "free")
 
 # Every SKU of a stocked product, with its stock, what open orders hold and the
 # lowest low-stock line its records set. :t is the shop; :wh one warehouse or ''.
 _SKUS = f"""
 WITH sku AS (
-    SELECT pv.id, pv.product_id, pv.sku, pv.color, pv.size, p.name AS product_name, p.slug
+    SELECT pv.id, pv.product_id, pv.sku, pv.color, pv.size, p.name AS product_name, p.slug,
+           COALESCE(p.track_inventory, false) AS counted
     FROM product_variants pv JOIN products p ON p.id = pv.product_id
     WHERE pv.tenant_id = CAST(:t AS uuid) AND p.tenant_id = CAST(:t AS uuid)
       AND CAST(pv.status AS text) <> 'discontinued'
@@ -67,17 +70,31 @@ _WHERE = """
 WHERE (:q = '' OR product_name ILIKE :like OR sku ILIKE :like OR color ILIKE :like OR size ILIKE :like)
   AND (:product = '' OR CAST(product_id AS text) = :product)
   AND (:stock = 'all'
-       OR (:stock = 'zero' AND available <= 0)
-       OR (:stock = 'low' AND available > 0 AND available <= threshold)
-       OR (:stock = 'in' AND available > threshold))
+       OR (:stock = 'zero' AND counted AND available <= 0)
+       OR (:stock = 'low' AND counted AND available > 0 AND available <= threshold)
+       OR (:stock = 'in' AND counted AND available > threshold)
+       OR (:stock = 'free' AND NOT counted))
 """
 
 
-def state(available: int, threshold: int) -> str:
-    """zero (not counted: sells without a limit), low (at or under its line), or in."""
+def state(available: int, threshold: int, counted: bool = True) -> str:
+    """free (not counted: sells without a limit), zero (sold out), low (at or
+    under its line), or in."""
+    if not counted:
+        return "free"
     if available <= 0:
         return "zero"
     return "low" if available <= threshold else "in"
+
+
+def _in_order(rows) -> list:
+    """Products and colours by name, sizes on the size chart (XS, S, M, L, XL)
+    as the shop lists them (services/size_order), then the SKU."""
+    from app.services.size_order import sort_sizes
+
+    chart = {size: i for i, size in enumerate(sort_sizes(r["size"] for r in rows))}
+    return sorted(rows, key=lambda r: ((r["product_name"] or "").lower(), (r["color"] or "").lower(),
+                                       chart.get(r["size"], len(chart)), r["sku"] or ""))
 
 
 def _params(tenant_id, q, product_id, warehouse_id, stock) -> dict[str, Any]:
@@ -105,7 +122,8 @@ def _row(m, by_warehouse: bool) -> dict[str, Any]:
         "reserved": None if by_warehouse else reserved,
         "on_hand": available if by_warehouse else available + reserved,
         "threshold": threshold,
-        "state": state(available, threshold),
+        "counted": bool(m["counted"]),
+        "state": state(available, threshold, bool(m["counted"])),
     }
 
 
@@ -127,15 +145,16 @@ async def board(db: AsyncSession, tenant_id, *, q=None, product_id=None, warehou
     """One page of SKUs, with the numbers over the list (from the same rows)."""
     params = _params(tenant_id, q, product_id, warehouse_id, stock)
     page, page_size = max(1, int(page)), max(1, min(int(page_size), 200))
-    rows = (await db.execute(text(
-        _SKUS + "SELECT *, count(*) OVER () AS matched FROM rows" + _WHERE
-        + " ORDER BY lower(product_name), lower(COALESCE(color, '')), size, sku LIMIT :limit OFFSET :offset"),
-        {**params, "limit": page_size, "offset": (page - 1) * page_size})).mappings().all()
-    matched = int(rows[0]["matched"]) if rows else 0
+    # Sizes go in chart order, which SQL cannot sort by: every match is read
+    # and the page is cut here.
+    every = _in_order((await db.execute(text(_SKUS + "SELECT * FROM rows" + _WHERE), params)).mappings().all())
+    matched = len(every)
+    rows = every[(page - 1) * page_size:page * page_size]
     totals = (await db.execute(text(_SKUS + """
         SELECT count(*) AS skus,
-               count(*) FILTER (WHERE available <= 0) AS zero,
-               count(*) FILTER (WHERE available > 0 AND available <= threshold) AS low,
+               count(*) FILTER (WHERE counted) AS counted,
+               count(*) FILTER (WHERE counted AND available <= 0) AS zero,
+               count(*) FILTER (WHERE counted AND available > 0 AND available <= threshold) AS low,
                COALESCE(sum(available), 0) AS available, COALESCE(sum(reserved), 0) AS reserved
         FROM rows"""), {**params, "q": "", "like": "%%", "product": "", "stock": "all"})).mappings().first()
     products = [{"id": str(i), "name": n} for i, n in (await db.execute(text(
@@ -152,6 +171,7 @@ async def board(db: AsyncSession, tenant_id, *, q=None, product_id=None, warehou
         "page_size": page_size,
         "stats": {
             "skus": int(totals["skus"] or 0),
+            "counted": int(totals["counted"] or 0),
             "zero": int(totals["zero"] or 0),
             "low": int(totals["low"] or 0),
             "available": int(totals["available"] or 0),
@@ -165,9 +185,7 @@ async def board(db: AsyncSession, tenant_id, *, q=None, product_id=None, warehou
 
 async def everything(db: AsyncSession, tenant_id, *, q=None, product_id=None, warehouse_id=None, stock="all") -> list[dict]:
     params = _params(tenant_id, q, product_id, warehouse_id, stock)
-    rows = (await db.execute(text(
-        _SKUS + "SELECT * FROM rows" + _WHERE + " ORDER BY lower(product_name), lower(COALESCE(color, '')), size, sku"),
-        params)).mappings().all()
+    rows = _in_order((await db.execute(text(_SKUS + "SELECT * FROM rows" + _WHERE), params)).mappings().all())
     return [_row(r, bool(params["wh"])) for r in rows]
 
 

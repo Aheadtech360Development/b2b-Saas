@@ -33,6 +33,7 @@ import { VariantBulkEditor } from "@/components/admin/VariantBulkEditor";
 import { ProductOptionsBuilder } from "@/components/admin/ProductOptionsBuilder";
 import { productTemplatesService, type ProductTemplateRow } from "@/services/productTemplates.service";
 import { WebsiteTemplateField } from "@/components/admin/WebsiteTemplateField";
+import { TrackStockSwitch } from "@/components/admin/TrackStockSwitch";
 import { displayUrl } from "@/lib/brand";
 
 const METAFIELD_KEY = /^[a-z][a-z0-9_]{0,39}$/;
@@ -568,6 +569,10 @@ function ProductEditor() {
   const sheetKind = kind === "gang_sheet" || kind === "upload_by_size" || kind === "upload_own";
   const [statusLabel, statusTone] = STATUS_PILL[product.status] ?? [product.status, ""];
   const allowUpload = Boolean((product as any).allow_design_upload);
+  // Whether this product's stock is counted (its own switch). A gang sheet or
+  // a product built from its options is printed when ordered: nothing to count.
+  const madeToOrder = Boolean(product.gang_sheet_enabled) || product.pricing_mode === "configurable";
+  const counted = !madeToOrder && Boolean(product.track_inventory);
 
   return (
     <div className="pc-page" style={{ maxWidth: "1240px" }} data-product-editor={product.slug} data-tab={tab}>
@@ -959,6 +964,14 @@ function ProductEditor() {
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
               <span style={{ ...sectionTitle, marginBottom: 0, paddingBottom: 0, borderBottom: "none" }}>Variants</span>
               <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                {!madeToOrder && (
+                  <TrackStockSwitch
+                    productId={product.id}
+                    productName={product.name}
+                    tracked={counted}
+                    onChange={(next) => setProduct(p => p ? { ...p, track_inventory: next } : p)}
+                  />
+                )}
                 {selectedVariantIds.size > 0 && (
                   <button
                     onClick={() => setShowBulkEditor(true)}
@@ -990,6 +1003,15 @@ function ProductEditor() {
               </div>
             </div>
 
+            {/* What the switch means for this product, in one line. */}
+            <div data-stock-note style={{ margin: "0 0 12px", fontSize: "12.5px", color: "#7A7880" }}>
+              {madeToOrder
+                ? "Made to order: printed when it is ordered, so there is no stock to count."
+                : counted
+                  ? "Stock is counted: each size sells only what you have, and at 0 it is sold out."
+                  : "Stock is not counted: this product sells without a limit, even at 0. Switch on Count stock to limit it to what you have."}
+            </div>
+
             {variantMsg && (
               <div style={{ margin: "0 0 10px", fontSize: "12.5px", fontWeight: 600, color: variantMsg.ok ? "#0F7B3F" : "#B91C1C" }}>
                 {variantMsg.text}
@@ -1016,10 +1038,12 @@ function ProductEditor() {
                   <span style={{ fontSize: "12px", color: "#aaa" }}>Country</span>
                   <input type="text" placeholder="e.g. Bangladesh" value={bulkApply.origin} onChange={e => setBulkApply(p => ({ ...p, origin: e.target.value }))} style={{ width: "120px", padding: "5px 7px", border: "1px solid #E3E3E3", borderRadius: "6px", fontSize: "12px" }} />
                 </div>
-                <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-                  <span style={{ fontSize: "12px", color: "#aaa" }}>Stock</span>
-                  <input type="number" placeholder="—" value={bulkApply.stock} onChange={e => setBulkApply(p => ({ ...p, stock: e.target.value }))} style={{ width: "60px", padding: "5px 7px", border: "1px solid #E3E3E3", borderRadius: "6px", fontSize: "12px" }} />
-                </div>
+                {counted && (
+                  <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                    <span style={{ fontSize: "12px", color: "#aaa" }}>Stock</span>
+                    <input type="number" min={0} placeholder="—" value={bulkApply.stock} onChange={e => setBulkApply(p => ({ ...p, stock: e.target.value }))} style={{ width: "60px", padding: "5px 7px", border: "1px solid #E3E3E3", borderRadius: "6px", fontSize: "12px" }} />
+                  </div>
+                )}
                 <button
                   onClick={applyToAllVariants}
                   disabled={!bulkApply.price && !bulkApply.compare && !bulkApply.cost && !bulkApply.origin && !bulkApply.stock}
@@ -1055,7 +1079,9 @@ function ProductEditor() {
                   <span style={{ fontWeight: 700, fontSize: "14px", color: "#2A2830" }}>{group.color}</span>
                   <span style={{ fontSize: "12px", color: "#7A7880" }}>({group.variants.length} sizes)</span>
                   <span style={{ marginLeft: "auto", fontSize: "12px", color: "#7A7880" }}>
-                    Stock: {group.variants.reduce((s, v) => s + (v.stock_quantity ?? 0), 0)} units
+                    {counted
+                      ? `Stock: ${group.variants.reduce((s, v) => s + (v.stock_quantity ?? 0), 0)} units`
+                      : "Stock not counted"}
                   </span>
                   <span style={{ fontSize: "12px", color: "#aaa", transform: (expandAll || expandedGroups.includes(group.color)) ? "rotate(180deg)" : "rotate(0)", transition: "transform .2s", display: "inline-block" }}>▼</span>
                 </div>
@@ -1178,13 +1204,21 @@ function ProductEditor() {
                             />
                           </td>
                           <td style={{ padding: "10px 16px" }}>
-                            <input
-                              type="number"
-                              value={getVariantValue(variant, "stock_quantity")}
-                              onChange={e => updateVariantEdit(variant.id, "stock_quantity", e.target.value)}
-                              onBlur={() => saveVariant(variant.id)}
-                              style={{ padding: "6px 8px", border: "1px solid #E3E3E3", borderRadius: "6px", fontSize: "12px", width: "70px", textAlign: "center" }}
-                            />
+                            {counted ? (
+                              <input
+                                type="number"
+                                min={0}
+                                aria-label={`Stock for ${[variant.color, variant.size].filter(Boolean).join(" ") || variant.sku}`}
+                                value={getVariantValue(variant, "stock_quantity")}
+                                onChange={e => updateVariantEdit(variant.id, "stock_quantity", e.target.value)}
+                                onBlur={() => saveVariant(variant.id)}
+                                style={{ padding: "6px 8px", border: "1px solid #E3E3E3", borderRadius: "6px", fontSize: "12px", width: "70px", textAlign: "center" }}
+                              />
+                            ) : (
+                              // Not counted: a number here would read as a limit
+                              // the checkout does not apply.
+                              <span style={{ fontSize: "12px", color: "#9A98A0" }}>Not counted</span>
+                            )}
                           </td>
                           <td style={{ padding: "10px 16px" }}>
                             <button

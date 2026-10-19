@@ -1,34 +1,38 @@
 "use client";
 
 /**
- * Inventory — one of the Products tabs: every SKU of the stocked products
- * (services/stock_view.py on the server), with what it has, what open orders
- * hold and what is coming on purchase orders. The old inventory report is this
- * screen now.
+ * Inventory — one of the Products tabs, in two views:
+ * - Products (the default, components/admin/InventoryProducts): every product
+ *   with its Count stock switch and each size's count, saved in place.
+ * - SKUs: every SKU of the stocked products (services/stock_view.py on the
+ *   server), with what it has, what open orders hold and what is coming on
+ *   purchase orders. The old inventory report is this view now.
  *
  * Available is what is left to sell, Reserved what open orders still hold
- * (taken off Available when they were placed), On hand the two together. At 0
- * checkout sells without a limit: the screen says so instead of "out of stock".
+ * (taken off Available when they were placed), On hand the two together. A
+ * product that counts its stock (products.track_inventory) is sold out at 0;
+ * one that does not sells without a limit, whatever its number says.
  *
  * Adjust opens the SKU's drawer: its count in each warehouse, a change with a
  * reason, and every change made to it, by whom and why.
  */
 import Link from "next/link";
-import { Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Search, X } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { downloadCsv } from "@/services/admin.service";
 import { ProductsFrame } from "@/components/admin/products/ProductsFrame";
+import { InventoryProducts } from "@/components/admin/InventoryProducts";
 
 interface Row {
   variant_id: string; product_id: string; product_name: string; product_slug: string | null;
-  sku: string; color: string | null; size: string | null;
-  available: number; reserved: number | null; on_hand: number; threshold: number; state: "zero" | "low" | "in";
+  sku: string; color: string | null; size: string | null; counted: boolean;
+  available: number; reserved: number | null; on_hand: number; threshold: number; state: "zero" | "low" | "in" | "free";
 }
 interface Board {
   items: Row[]; total: number; page: number; page_size: number;
-  stats: { skus: number; zero: number; low: number; available: number; reserved: number; incoming: { units: number; orders: number } };
+  stats: { skus: number; counted: number; zero: number; low: number; available: number; reserved: number; incoming: { units: number; orders: number } };
   products: { id: string; name: string }[];
   warehouses: { id: string; name: string }[];
 }
@@ -45,12 +49,39 @@ const REASON_WORD: Record<string, string> = { received: "Received", correction: 
 export default function InventoryPage() {
   return (
     <Suspense fallback={<div className="pc-page"><div className="pc-card pc-empty">Loading inventory…</div></div>}>
-      <Inventory />
+      <InventoryViews />
     </Suspense>
   );
 }
 
-function Inventory() {
+const VIEWS: [string, string][] = [["products", "Products"], ["skus", "SKUs"]];
+
+/** Products (each product's Count stock switch and counts) or SKUs (the list
+ *  with what open orders hold and each SKU's history), kept in the address. */
+function InventoryViews() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const params = useSearchParams();
+  const view = params.get("view") === "skus" ? "skus" : "products";
+  const views = (
+    <div className="pc-seg" role="group" aria-label="View" style={{ marginBottom: "16px" }}>
+      {VIEWS.map(([key, label]) => (
+        <button key={key} type="button" aria-pressed={view === key} data-view={key}
+          onClick={() => router.replace(key === "products" ? pathname : `${pathname}?view=${key}`, { scroll: false })}>{label}</button>
+      ))}
+    </div>
+  );
+  if (view === "skus") return <Inventory views={views} />;
+  return (
+    <ProductsFrame active="inventory" title="Inventory"
+      sub="A product that counts its stock sells only what you have, and is sold out at 0. One that does not count it sells without a limit. Gang sheets and made to order products are printed when ordered, so they have nothing to count.">
+      {views}
+      <InventoryProducts />
+    </ProductsFrame>
+  );
+}
+
+function Inventory({ views }: { views: ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const params = useSearchParams();
@@ -123,8 +154,9 @@ function Inventory() {
   const warehouseName = data?.warehouses.find((w) => w.id === warehouse)?.name;
 
   return (
-    <ProductsFrame active="inventory" title="Inventory" sub="Stock for products you track. Made to order products never appear here."
+    <ProductsFrame active="inventory" title="Inventory" sub="Every SKU of the products sold by colour and size. Made to order products never appear here."
       actions={<button type="button" className="pc-btn" onClick={() => { downloadCsv(`/api/v1/admin/inventory/board/export?${query()}`, "inventory.csv").catch(() => setFlash({ text: "The export did not download.", bad: true })); }}>Export</button>}>
+      {views}
       {flash && (
         <div className="pc-flash" data-bad={flash.bad ? "" : undefined} role="status" style={{ display: "flex", justifyContent: "space-between", gap: "12px" }}>
           <span>{flash.text}</span>
@@ -135,17 +167,17 @@ function Inventory() {
       {s && s.zero > 0 && (
         <div className="pc-note" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "14px", marginBottom: "16px", flexWrap: "wrap" }} data-zero-note>
           <span>
-            {s.zero === s.skus ? `All ${s.skus} SKUs are at 0.` : `${s.zero} of ${s.skus} SKUs are at 0.`}
-            {" "}At 0, checkout does not limit how many can be ordered, so they sell as if made to order. Count them in with Adjust, or leave them at 0 if they are made to order.
+            {s.zero === s.counted ? `All ${s.counted} counted SKUs are sold out.` : `${s.zero} of ${s.counted} counted SKUs are sold out.`}
+            {" "}Customers cannot order them until you add stock with Adjust. A product you do not want limited by stock can have Count stock switched off in the Products view.
           </span>
           {stock !== "zero" && <button type="button" className="pc-btn" onClick={() => setParams({ stock: "zero" })}>Show them</button>}
         </div>
       )}
 
       <div className="pc-stats4" style={{ gridTemplateColumns: "repeat(3, minmax(0, 1fr))" }} data-inventory-stats>
-        <div className="pc-card pc-stat4"><div className="pc-stat4-v">{s ? s.skus.toLocaleString() : "…"}</div><div className="pc-stat4-l">Tracked SKUs</div>
-          {s && <div className="pc-stat4-s">{s.available.toLocaleString()} units to sell · {s.reserved.toLocaleString()} on open orders</div>}</div>
-        <div className="pc-card pc-stat4"><div className="pc-stat4-v">{s ? s.zero.toLocaleString() : "…"}</div><div className="pc-stat4-l">At zero</div>
+        <div className="pc-card pc-stat4"><div className="pc-stat4-v">{s ? s.counted.toLocaleString() : "…"}</div><div className="pc-stat4-l">Counted SKUs</div>
+          {s && <div className="pc-stat4-s">{s.skus - s.counted ? `${(s.skus - s.counted).toLocaleString()} more sell without a limit` : `${s.reserved.toLocaleString()} units on open orders`}</div>}</div>
+        <div className="pc-card pc-stat4"><div className="pc-stat4-v">{s ? s.zero.toLocaleString() : "…"}</div><div className="pc-stat4-l">Sold out</div>
           {s && <div className="pc-stat4-s">{s.low} low, at or under their line</div>}</div>
         <div className="pc-card pc-stat4"><div className="pc-stat4-v">{s ? s.incoming.units.toLocaleString() : "…"}</div><div className="pc-stat4-l">Incoming</div>
           {s && <div className="pc-stat4-s">{s.incoming.orders ? <Link href="/admin/purchase-orders" className="pc-link">on {s.incoming.orders} purchase {s.incoming.orders === 1 ? "order" : "orders"}</Link> : "No purchase orders on the way"}</div>}</div>
@@ -184,8 +216,8 @@ function Inventory() {
         <button type="button" className="pc-btn" aria-pressed={stock === "low"} data-on={stock === "low" ? "" : undefined}
           onClick={() => setParams({ stock: stock === "low" ? null : "low" })}>Low stock only</button>
       </div>
-      {stock === "zero" && (
-        <div className="pc-chips"><span className="pc-chip" style={{ paddingLeft: "12px" }}>At zero <button type="button" className="pc-x" aria-label="Show every SKU" onClick={() => setParams({ stock: null })}><X size={14} /></button></span></div>
+      {(stock === "zero" || stock === "free") && (
+        <div className="pc-chips"><span className="pc-chip" style={{ paddingLeft: "12px" }}>{stock === "zero" ? "Sold out" : "Not counted"} <button type="button" className="pc-x" aria-label="Show every SKU" onClick={() => setParams({ stock: null })}><X size={14} /></button></span></div>
       )}
 
       <div className="pc-card" data-shown={shownFor ?? undefined} aria-busy={!loaded} data-inventory>
@@ -211,7 +243,9 @@ function Inventory() {
                       <td className="pc-num">{r.reserved ?? "—"}</td>
                       <td className="pc-num">
                         {r.state === "in" ? r.available
-                          : <span className="pc-pill" data-tone={r.state === "zero" ? "red" : "amber"} title={r.state === "zero" ? "At 0 checkout sells it without a limit" : `At or under its low stock line (${r.threshold})`}>{r.available}</span>}
+                          : r.state === "free" ? <span className="pc-pill" style={{ textTransform: "none" }} title="Count stock is off for this product: it sells without a limit">No limit</span>
+                          : r.state === "zero" ? <span className="pc-pill" data-tone="red" style={{ textTransform: "none" }} title="Customers cannot order it until you add stock">Sold out</span>
+                          : <span className="pc-pill" data-tone="amber" title={`At or under its low stock line (${r.threshold})`}>{r.available}</span>}
                       </td>
                       <td style={{ textAlign: "right" }}><button type="button" className="pc-btn" onClick={() => setOpen(r)} data-adjust={r.sku}>Adjust</button></td>
                     </tr>

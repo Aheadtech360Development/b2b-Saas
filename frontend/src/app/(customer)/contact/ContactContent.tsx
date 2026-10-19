@@ -5,6 +5,7 @@ import { useBranding } from "@/components/providers/BrandingProvider";
 import { useState } from "react";
 import Link from "next/link";
 import { apiClient } from "@/lib/api-client";
+import { trackLead } from "@/lib/tracking";
 
 const inp: React.CSSProperties = {
   width: "100%",
@@ -39,6 +40,7 @@ export default function ContactPage() {
         department: form.subject,
         message: form.message,
       });
+      trackLead("Contact form");
       setStatus("sent");
     } catch {
       setStatus("error");

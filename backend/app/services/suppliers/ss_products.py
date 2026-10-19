@@ -266,6 +266,11 @@ async def create_product(db: AsyncSession, style: dict, skus: list[dict], cfg: d
 
     locs = await locations(db, cfg, create_default=True)
     safety = int((cfg.get("inventory") or {}).get("safety_stock") or 0)
+    # S&S's own stock is written for every variant below, so this product
+    # counts it (sold out when S&S has none) — when there is somewhere to
+    # write it. Without a location nothing is recorded, and a counted product
+    # with no record would be sold out from the start.
+    product.track_inventory = bool(locs)
     for i, row in enumerate(skus):
         v = ProductVariant(product_id=product.id, status="active", sort_order=i,
                            **_variant_values(fields, style, row, price_fn))

@@ -11,6 +11,7 @@ import { apiClient } from "@/lib/api-client";
 import { useCheckoutStore, type ShippingMethod } from "@/stores/checkout.store";
 import { useAuthStore } from "@/stores/auth.store";
 import { cartService } from "@/services/cart.service";
+import { trackCheckoutStarted, trackShippingChosen } from "@/lib/tracking";
 import { formatCurrency } from "@/lib/utils";
 
 interface LiveRate {
@@ -222,6 +223,9 @@ export default function CheckoutAddressPage() {
       } catch { /* ignore */ }
     } else {
       cartService.getCart().then(c => {
+        // The checkout has been opened for this cart. Nothing called this
+        // before, so no tool was ever told a checkout had begun.
+        trackCheckoutStarted(c.items);
         setSubtotal(Number(c.subtotal));
         setCartItemsForShipping(c.items.filter(i => i.variant_id).map(i => ({ variant_id: i.variant_id as string, quantity: i.quantity })));
         setCartDisplayItems(c.items.map(i => ({
@@ -412,6 +416,10 @@ export default function CheckoutAddressPage() {
       return;
     }
     setShippingGateError(false);
+    // What the tracking tools are told was chosen: the carrier's own service
+    // when live rates are on, else the shop's method.
+    const tier = shippingTypeForUser === "live_shippo" && selectedLiveRate
+      ? `${selectedLiveRate.carrier} ${selectedLiveRate.service}` : shippingMethod;
     setShippingCost(methodCost(shippingMethod));
     console.log("[Address] shippingTypeForUser:", shippingTypeForUser, "selectedLiveRate:", selectedLiveRate);
     setShippingType(shippingTypeForUser);
@@ -445,6 +453,7 @@ export default function CheckoutAddressPage() {
       setShippingPhone(form.phone);
       setShippingAddress({ line1: form.street, city: form.city, state: form.state, postal_code: form.zip, country: "US" });
       setAddressId(null);
+      trackShippingChosen(tier);
       router.push("/checkout/review");
       return;
     }
@@ -469,6 +478,7 @@ export default function CheckoutAddressPage() {
         country: addr.country || "US",
       });
       setAddressId(selectedAddressId);
+      trackShippingChosen(tier);
       router.push("/checkout/review");
     } else {
       if (!validate()) return;
@@ -483,6 +493,7 @@ export default function CheckoutAddressPage() {
         country: "US",
       });
       setAddressId(null);
+      trackShippingChosen(tier);
       router.push("/checkout/review");
     }
   }

@@ -12,6 +12,7 @@ from app.core.exceptions import NotFoundError, ValidationError
 from app.core.redis import redis_delete, redis_delete_pattern, redis_get, redis_set, tenant_cache_key
 from app.models.product import Category, Product, ProductAsset, ProductCategory, ProductVariant, ProductImage
 from app.schemas.product import FilterParams
+from app.services.size_order import sort_sizes
 
 logger = logging.getLogger(__name__)
 
@@ -102,15 +103,15 @@ class ProductService:
         if params.price_max is not None:
             conds.append(ProductVariant.retail_price <= params.price_max)
         if wants_stock:
-            # A variant nobody tracks stock for counts as available — that is
-            # what the product page shows for it. One that IS tracked has to
-            # have some left.
+            # A product that does not count its stock is always available —
+            # that is what the product page and the checkout do with it. One
+            # that counts it has to have some left.
             conds.append(or_(
+                Product.track_inventory.is_(False),
                 exists().where(
                     InventoryRecord.variant_id == ProductVariant.id,
                     InventoryRecord.quantity > 0,
                 ),
-                ~exists().where(InventoryRecord.variant_id == ProductVariant.id),
             ))
         return conds
 
@@ -168,7 +169,8 @@ class ProductService:
 
         return {
             "colors": [{"name": r["name"], "hex": r["hex"], "products": r["products"]} for r in colours],
-            "sizes": list(sizes),
+            # On the size chart (XS, S, M, L, XL), not as the rows came back.
+            "sizes": sort_sizes(sizes),
             "category_counts": {r["slug"]: r["products"] for r in cats},
             "price": {
                 "min": float(price["low"]) if price and price["low"] is not None else None,
@@ -447,9 +449,14 @@ class ProductService:
                     variant.effective_price = pricing_svc.calculate_effective_price(
                         variant.retail_price, discount_percent
                     )
-                # Use real inventory; 0 in stock_map means no records → treat as unlimited (9999)
-                qty = stock_map.get(variant.id)
-                variant.stock_quantity = qty if qty is not None else 9999
+                # Stock counts only for a product that tracks it (its own switch,
+                # migration 0063): what its records hold, 0 when it has none.
+                # One that does not track it sells without a limit (9999), as
+                # the checkout sells it.
+                if getattr(product, "track_inventory", False):
+                    variant.stock_quantity = stock_map.get(variant.id, 0)
+                else:
+                    variant.stock_quantity = 9999
 
         return products
 
@@ -729,6 +736,7 @@ def _product_to_dict(product: Product) -> dict:
         # Which buying UI the storefront should render: stocked variants or
         # the dynamic option configurator (options fetched separately).
         "pricing_mode": getattr(product, "pricing_mode", "variant") or "variant",
+        "track_inventory": bool(getattr(product, "track_inventory", False)),
         "base_price": float(product.base_price) if getattr(product, "base_price", None) is not None else None,
         "template_id": str(product.template_id) if getattr(product, "template_id", None) else None,
         "metafields": getattr(product, "metafields", None) or {},

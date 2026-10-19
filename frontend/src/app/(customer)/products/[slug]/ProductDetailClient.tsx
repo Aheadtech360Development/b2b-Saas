@@ -5,7 +5,7 @@ import { Fragment, useEffect, useMemo, useState } from "react";
 import { colorHex } from "@/lib/colors";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { SIZE_ORDER } from "@/lib/utils";
+import { compareSizes } from "@/lib/utils";
 import type { ProductDetail, ProductVariant } from "@/types/product.types";
 import { useAuthStore } from "@/stores/auth.store";
 import { VariantMatrix } from "@/components/products/VariantMatrix";
@@ -329,14 +329,7 @@ function groupVariantsByColor(variants: ProductVariant[]) {
       seen.add(color);
       const colorVariants = variants
         .filter(x => (x.color ?? "Default") === color)
-        .sort((a, b) => {
-          const ai = SIZE_ORDER.indexOf((a.size || "").toUpperCase());
-          const bi = SIZE_ORDER.indexOf((b.size || "").toUpperCase());
-          if (ai === -1 && bi === -1) return (a.size || "").localeCompare(b.size || "");
-          if (ai === -1) return 1;
-          if (bi === -1) return -1;
-          return ai - bi;
-        });
+        .sort((a, b) => compareSizes(a.size, b.size));
       // Real supplier hex if any variant of this colour carries one.
       const hex = colorVariants.find(x => x.color_hex)?.color_hex ?? null;
       groups.push({ color, hex, variants: colorVariants });
@@ -468,14 +461,7 @@ export function ProductDetailClient({ slug }: ProductDetailClientProps) {
   const colorGroups = useMemo(() => groupVariantsByColor(product?.variants ?? []), [product?.variants]);
   const uniqueColors = colorGroups.map(g => g.color);
   const uniqueSizes = useMemo(
-    () => Array.from(new Set(product?.variants?.map(v => v.size).filter(Boolean) ?? [])).sort((a, b) => {
-      const ai = SIZE_ORDER.indexOf((a || '').toUpperCase());
-      const bi = SIZE_ORDER.indexOf((b || '').toUpperCase());
-      if (ai === -1 && bi === -1) return (a || '').localeCompare(b || '');
-      if (ai === -1) return 1;
-      if (bi === -1) return -1;
-      return ai - bi;
-    }) as string[],
+    () => Array.from(new Set(product?.variants?.map(v => v.size).filter(Boolean) ?? [])).sort(compareSizes) as string[],
     [product?.variants]
   );
   const totalUnits = useMemo(
@@ -796,6 +782,7 @@ export function ProductDetailClient({ slug }: ProductDetailClientProps) {
       }
       localStorage.setItem("af_guest_cart", JSON.stringify(guestCart));
       window.dispatchEvent(new Event("af_guest_cart_updated"));
+      trackAddToCart(trackedItems(rowItems));
       const added = rowItems.reduce((s, i) => s + i.quantity, 0);
       setQuantities(prev => { const next = { ...prev }; rowItems.forEach(i => delete next[i.variant_id]); return next; });
       setCartMsg({ type: "success", text: `${added} unit${added !== 1 ? "s" : ""} added to cart!` });
@@ -807,6 +794,7 @@ export function ProductDetailClient({ slug }: ProductDetailClientProps) {
     try {
       await cartService.addMatrix(product!.id, rowItems);
       window.dispatchEvent(new Event("cart_updated"));
+      trackAddToCart(trackedItems(rowItems));
       const added = rowItems.reduce((s, i) => s + i.quantity, 0);
       setQuantities(prev => { const next = { ...prev }; rowItems.forEach(i => delete next[i.variant_id]); return next; });
       setCartMsg({ type: "success", text: `${added} unit${added !== 1 ? "s" : ""} added to cart!` });

@@ -1,6 +1,7 @@
 """ZipTax integration for real-time sales tax calculation."""
 import logging
 import os
+import re
 import httpx
 
 from app.core.redis import redis_get, redis_set
@@ -20,6 +21,26 @@ def get_ziptax_client() -> str | None:
     return os.getenv("ZIPTAX_API_KEY") or None
 
 
+# 75243-1234, 75243 1234 or 752431234.
+_ZIP_PLUS_FOUR = re.compile(r"^(\d{5})[-\s]?\d{4}$")
+
+
+def zip5(value) -> str:
+    """The five-digit postcode a rate is looked up by.
+
+    An address a browser fills in, or one picked from the address suggestions,
+    often carries the long form, 75243-1234. The provider reads the five-digit
+    one only and refuses the rest, and a refusal comes out as no tax: the
+    buyer saw none at checkout and none was charged. Nothing else is rewritten,
+    so a postcode that is not a US one is still refused as it was.
+    """
+    text = str(value or "").strip()
+    long_form = _ZIP_PLUS_FOUR.match(text)
+    if long_form:
+        return long_form.group(1)
+    return text.zfill(5) if text else ""
+
+
 async def calculate_tax(
     to_state: str,
     to_zip: str,
@@ -37,7 +58,7 @@ async def calculate_tax(
         logger.warning("ZIPTAX_API_KEY is not set — skipping ZipTax, returning 0 tax")
         return {"rate": 0.0, "tax_amount": 0.0, "region": to_state.upper(), "source": "manual"}
 
-    clean_zip = str(to_zip).strip().zfill(5) if to_zip else ""
+    clean_zip = zip5(to_zip)
 
     # A postcode's rate is the same for everyone and changes a few times a year,
     # while the same postcode is looked up on every keystroke of a ZIP field, on

@@ -47,6 +47,7 @@ async def load(db: AsyncSession, product_id: Any) -> dict[str, Any] | None:
     from app.models.inventory import InventoryRecord
 
     variant_ids = [v.id for v in (product.variants or [])]
+    tracked = bool(getattr(product, "track_inventory", False))
     on_hand: dict[Any, int] = {}
     if variant_ids:
         on_hand = {
@@ -59,7 +60,13 @@ async def load(db: AsyncSession, product_id: Any) -> dict[str, Any] | None:
         }
 
     images = sorted(product.images or [], key=lambda i: (not getattr(i, "is_primary", False), getattr(i, "sort_order", 0)))
-    variants = [v for v in (product.variants or []) if v.status == "active"]
+    # In the order a shopper reads them: colours as the brand added them, and
+    # sizes on the size chart (services/size_order). Straight from the
+    # database they came in whatever order the rows sat, which changes each
+    # time a variant is edited, so the page showed XS, M, L, XL, S.
+    from app.services.size_order import sort_sizes, sort_variants
+
+    variants = sort_variants([v for v in (product.variants or []) if v.status == "active"])
     prices = [float(v.retail_price) for v in variants if v.retail_price is not None]
     if not prices and product.base_price is not None:
         prices = [float(product.base_price)]
@@ -105,19 +112,28 @@ async def load(db: AsyncSession, product_id: Any) -> dict[str, Any] | None:
             "colour": v.color or "",
             "size": v.size or "",
             "price": float(v.retail_price) if v.retail_price is not None else None,
-            "stock": on_hand.get(v.id, 9999),
+            # What the checkout will sell of it: all it has when the product
+            # counts its stock (0 with no record), no limit when it does not.
+            "stock": on_hand.get(v.id, 0) if tracked else 9999,
             "sku": v.sku,
         }
         for v in variants
     ]
 
     colours: list[dict[str, Any]] = []
-    sizes: list[dict[str, Any]] = []
     for v in variants:
         if v.color and not any(c["label"] == v.color for c in colours):
             colours.append({"label": v.color, "hex": v.color_hex or "", "variant_id": str(v.id)})
-        if v.size and not any(s["label"] == v.size for s in sizes):
-            sizes.append({"label": v.size, "variant_id": str(v.id)})
+    # Every size across every colour, on the chart: a size only one colour has
+    # (a 4XL in black) takes its own place, not the end of the row.
+    first_with = {}
+    for v in variants:
+        if v.size:
+            first_with.setdefault(v.size, v)
+    sizes: list[dict[str, Any]] = [
+        {"label": size, "variant_id": str(first_with[size].id)}
+        for size in sort_sizes(v.size for v in variants)
+    ]
 
     options = []
     for o in sorted(product.options or [], key=lambda x: x.position):
@@ -139,6 +155,7 @@ async def load(db: AsyncSession, product_id: Any) -> dict[str, Any] | None:
         "summary": (product.short_description or "").strip(),
         "description": (product.description or "").strip(),
         "pricing_mode": product.pricing_mode or "variant",
+        "track_inventory": tracked,
         "images": [
             {"url": getattr(i, "url_large", None) or getattr(i, "url_medium", ""), "alt": getattr(i, "alt_text", "") or product.name}
             for i in images

@@ -15,11 +15,12 @@
  *   ?edit=<id>      reopen a saved job that is still the buyer's to change
  *   ?auto=1         open on Auto Build
  */
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { gangSheetsService, type GangSheetOrder, type GangSheetSize } from "@/services/gangSheets.service";
 import { GangSheetStudio } from "@/components/storefront/GangSheetStudio";
 import { useAuthStore } from "@/stores/auth.store";
+import { trackSheetBuilderViewed } from "@/lib/tracking";
 
 interface Launch {
   sizes: GangSheetSize[];
@@ -38,6 +39,9 @@ export default function GangSheetBuilderPage() {
   const { isAuthenticated, isLoading, user } = useAuthStore();
   const [launch, setLaunch] = useState<Launch | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
+  // The builder's own product view is sent once a visit to this page: the
+  // effect below runs again when somebody signs in from inside the builder.
+  const viewed = useRef(false);
 
   useEffect(() => {
     if (isLoading) return;
@@ -69,6 +73,11 @@ export default function GangSheetBuilderPage() {
         if (resume && resume.status !== "submitted" && resume.status !== "revision_requested") {
           setProblem("That gang sheet is already with the print team, so it can't be edited any more.");
           return;
+        }
+        // Reopening a saved sheet to change it is not a new look at the product.
+        if (!resume && !viewed.current) {
+          viewed.current = true;
+          trackSheetBuilderViewed(sizes);
         }
         setLaunch({
           sizes,

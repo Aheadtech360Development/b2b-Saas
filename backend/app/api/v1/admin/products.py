@@ -115,6 +115,15 @@ async def update_product(
     product_id: UUID, payload: ProductUpdate, db: AsyncSession = Depends(get_db)
 ):
     fields = payload.model_fields_set
+    if "track_inventory" in fields:
+        if payload.track_inventory is None:
+            raise HTTPException(status_code=422, detail="track_inventory is true or false.")
+        if payload.track_inventory:
+            # Counting stock needs somewhere to keep it: a brand with no
+            # warehouse gets its first one now, so the numbers it types save.
+            from app.services.inventory_service import default_warehouse
+
+            await default_warehouse(db)
     if "theme_page" in fields and payload.theme_page:
         payload.theme_page = str(payload.theme_page)[:60]
     if "metafields" in fields:
@@ -700,7 +709,7 @@ async def _set_variant_stock(db: AsyncSession, variant_id: UUID, quantity: int) 
     warehouse; without that, typing a number into the grid would appear to work
     and change nothing.
     """
-    from app.models.inventory import InventoryRecord, Warehouse
+    from app.models.inventory import InventoryRecord
 
     records = list((await db.execute(
         select(InventoryRecord).where(InventoryRecord.variant_id == variant_id)
@@ -714,11 +723,11 @@ async def _set_variant_stock(db: AsyncSession, variant_id: UUID, quantity: int) 
             record.quantity = quantity if index == 0 else 0
         return
 
-    warehouse = (await db.execute(
-        select(Warehouse).order_by(Warehouse.created_at).limit(1)
-    )).scalar_one_or_none()
-    if warehouse is None:
-        raise VariantEditError("Add a warehouse before setting stock.")
+    # The brand's first warehouse, made when it has none: "Add a warehouse
+    # before setting stock" left a brand with no way to count stock at all.
+    from app.services.inventory_service import default_warehouse
+
+    warehouse = await default_warehouse(db)
     db.add(InventoryRecord(
         variant_id=variant_id, warehouse_id=warehouse.id,
         quantity=quantity, low_stock_threshold=10,
@@ -847,11 +856,26 @@ async def bulk_update_variants(
             detail="Two variants would end up with the same SKU. SKUs have to stay unique.",
         )
 
+    await _forget_product_pages(db, product_id)
     return {
         "success": True,
         "updated": len(variants),
         "message": f"{len(variants)} variant{'s' if len(variants) != 1 else ''} updated.",
     }
+
+
+async def _forget_product_pages(db: AsyncSession, product_id: UUID) -> None:
+    """Drop the shop's cached copy of this product's page and the lists.
+
+    The storefront keeps a product for up to ten minutes; without this a stock
+    or price change went on showing the old number there (the checkout itself
+    always reads the database).
+    """
+    slug = (await db.execute(select(Product.slug).where(Product.id == product_id))).scalar()
+    try:
+        await ProductService(db).invalidate_product_cache(slug)
+    except Exception:  # a cache that will not clear must not fail a saved edit
+        pass
 
 
 @router.patch("/{product_id}/variants/{variant_id}", response_model=dict)
@@ -886,6 +910,7 @@ async def update_variant(
         )
 
     await db.refresh(variant)
+    await _forget_product_pages(db, product_id)
     return {"success": True, "id": str(variant.id)}
 
 

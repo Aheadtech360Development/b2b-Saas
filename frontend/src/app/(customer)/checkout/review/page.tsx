@@ -13,9 +13,9 @@ import { formatCurrency } from "@/lib/utils";
 import { StripePaymentForm } from "@/components/checkout/StripePaymentForm";
 import type { Cart } from "@/types/order.types";
 import { ConfigurationDetail } from "@/components/shared/ConfigurationDetail";
-import { clearAttribution, getAttribution } from "@/lib/attribution";
+import { clearAttribution, getAttribution, getServerTracking } from "@/lib/attribution";
 import { rememberOrderKey, thankYouPath } from "@/lib/orderThanks";
-import { holdPurchase } from "@/lib/tracking";
+import { cartLines, holdPurchase, trackPaymentChosen } from "@/lib/tracking";
 
 import { guestCheckoutItem, type GuestLine as GuestCartEntry } from "@/lib/guestCart";
 
@@ -262,6 +262,7 @@ export default function CheckoutReviewPage() {
     if (stripePaymentIntentId) setPaidIntentId(stripePaymentIntentId);
     setIsPlacing(true);
     setError(null);
+    trackPaymentChosen(paymentMethod);
     if (!attempt.current) {
       attempt.current = typeof crypto !== "undefined" && "randomUUID" in crypto
         ? crypto.randomUUID()
@@ -316,6 +317,8 @@ export default function CheckoutReviewPage() {
           } : {}),
           // Which campaign brought this buyer, collected on their first visit.
           attribution: getAttribution() ?? undefined,
+          // For the brand's server-side Meta Purchase.
+          tracking: getServerTracking(),
         };
         console.log("[Review] Guest order payload:", JSON.stringify(guestPayload, null, 2));
         const order = await apiClient.post<{ order_id: string; order_number: string; total: number; view_key?: string | null }>("/api/v1/guest/checkout", guestPayload);
@@ -337,13 +340,11 @@ export default function CheckoutReviewPage() {
           isGuest: true,
         };
         // A guest cart line carries no SKU, so the variant id is the product
-        // identifier every tool gets.
-        // Sent by the thank-you page as it opens, once (lib/tracking holdPurchase).
-        holdPurchase(order.order_number, order.total, guestEntries.map(e => ({
-          id: e.variant_id ?? e.product_name,
-          name: e.product_name, price: e.unit_price,
-          quantity: e.quantity, variant: [e.color, e.size].filter(Boolean).join(" / "),
-        })));
+        // identifier every tool gets. Sent by the thank-you page as it opens,
+        // once (lib/tracking holdPurchase).
+        holdPurchase(order.order_number, order.total, cartLines(guestEntries), {
+          tax: taxAmount, shipping: shippingCost,
+        });
         // The campaign has done its job; a later order is a new question.
         clearAttribution();
 
@@ -377,6 +378,8 @@ export default function CheckoutReviewPage() {
         idempotency_key: attempt.current,
         // Which campaign brought this buyer, collected on their first visit.
         attribution: getAttribution() ?? undefined,
+        // For the brand's server-side Meta Purchase.
+        tracking: getServerTracking(),
         address_id: addressId ?? undefined,
         shipping_address: fullAddress,
         shipping_method: shippingMethod || "standard",
@@ -443,11 +446,11 @@ export default function CheckoutReviewPage() {
         shippingCost,
         paymentMethod,
       };
-      holdPurchase(order.order_number, orderTotal, (cart?.items ?? []).map(i => ({
-        id: i.variant_id ?? i.sku ?? i.product_name,
-        sku: i.sku, name: i.product_name, price: Number(i.unit_price),
-        quantity: i.quantity, variant: [i.color, i.size].filter(Boolean).join(" / "),
-      })));
+      // A sheet's line has no variant and no SKU, and went out with an empty
+      // product id; cartLines names it the way the add to cart did.
+      holdPurchase(order.order_number, orderTotal, cartLines(cart?.items), {
+        tax: taxAmount, shipping: shippingCost, coupon: appliedCoupon?.code,
+      });
       clearAttribution();
 
       setConfirmedOrder(confirmedData);

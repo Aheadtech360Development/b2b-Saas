@@ -89,6 +89,9 @@ export interface ProductDetail {
   avg_rating?: number;
   gang_sheet_enabled?: boolean;
   pricing_mode?: "variant" | "configurable";
+  /** Whether stock is counted: on, each size sells only what it has and is
+   *  sold out at 0; off, it sells without a limit. */
+  track_inventory?: boolean;
   base_price?: number | null;
   /** Product page template (null → the brand's default) and the data it can print. */
   template_id?: string | null;

@@ -76,6 +76,38 @@ def _ts(unix: int | None) -> datetime | None:
     return datetime.fromtimestamp(unix, tz=timezone.utc) if unix else None
 
 
+def start_params(*, customer_id: str, price_id: str, payment_method: str, tenant_id, plan_key: str,
+                 trial_ends_at: datetime | None, now: datetime | None = None) -> tuple[dict, str]:
+    """The subscription a card on file starts, and the key it is started under.
+
+    Charged to that card, off session: nobody is at the screen when the sweep
+    starts it. While the brand's free trial still runs (more than an hour of
+    it), Stripe holds the first charge until the trial's last moment; after
+    that it is charged now. The first payment happens in the request and a
+    declined card creates nothing (error_if_incomplete), so a failed card never
+    leaves a half-made subscription behind that later closes the shop.
+
+    The key names the brand, the plan, the card and the day, so two workers
+    starting the same brand at once make one subscription, and a new card is a
+    new attempt rather than yesterday's decline replayed.
+    """
+    now = now or datetime.now(timezone.utc)
+    params: dict = {
+        "customer": customer_id,
+        "items": [{"price": price_id}],
+        "default_payment_method": payment_method,
+        "payment_behavior": "error_if_incomplete",
+        "off_session": True,
+        "metadata": {"tenant_id": str(tenant_id), "plan_key": plan_key, "started_by": "card_on_file"},
+    }
+    if trial_ends_at is not None:
+        if trial_ends_at.tzinfo is None:
+            trial_ends_at = trial_ends_at.replace(tzinfo=timezone.utc)
+        if (trial_ends_at - now).total_seconds() > 3600:
+            params["trial_end"] = int(trial_ends_at.timestamp())
+    return params, f"at360-start-{tenant_id}-{plan_key}-{payment_method}-{now:%Y%m%d}"
+
+
 class BillingService:
     def __init__(self, db: AsyncSession):
         self.db = db
@@ -288,7 +320,9 @@ class BillingService:
         s = await _stripe_for(self.db)
         session = s.billing_portal.Session.create(
             customer=customer_id,
-            return_url=brand_urls.build(tenant["slug"], tenant.get("custom_domain"), "/admin/billing"),
+            # Back with ?status=portal: the billing page asks to be synced, which
+            # starts the plan when a card was just put on file.
+            return_url=brand_urls.build(tenant["slug"], tenant.get("custom_domain"), "/admin/billing?status=portal"),
         )
         return {"portal_url": session.url}
 
@@ -334,7 +368,83 @@ class BillingService:
                 if not _is_missing(exc):
                     raise
                 logger.warning("Customer %s is not in this account or mode.", customer_id)
-        return await self.get_status(slug)
+        # A card entered in the billing portal with no plan behind it: start it.
+        started = None
+        try:
+            started = await self.start_from_card_on_file(slug)
+        except Exception:
+            logger.warning("Could not start %s's plan from the card on file", slug, exc_info=True)
+        return {**await self.get_status(slug), "card_on_file": started}
+
+    # ── A card on file starts the plan ────────────────────────────────────────
+    async def start_from_card_on_file(self, slug: str) -> dict:
+        """A brand that has put a card on file and never had a subscription is
+        put on its plan, charged to that card, and Stripe bills it every month
+        from then on.
+
+        The card is entered in Stripe's billing portal ("Manage billing"), which
+        saves it to the brand's Stripe customer and nothing more. No
+        subscription was made, so nothing was ever charged: a brand could have
+        a card on file for months and pay nothing.
+
+        Only for a customer Stripe has never had a subscription for. A brand
+        that cancelled keeps its card on file and is not signed up again; it
+        chooses a plan itself. One Stripe already has is only synced.
+        """
+        tenant = await self._get_tenant(slug)
+        if not tenant:
+            raise ValueError("Tenant not found")
+        if tenant.get("status") != "active":
+            return {"started": False, "reason": "shop_not_active"}
+        row = (await self.db.execute(text(
+            "SELECT stripe_customer_id, trial_ends_at FROM tenant_subscriptions WHERE tenant_id = :t"
+        ), {"t": str(tenant["id"])})).mappings().first()
+        customer_id = row["stripe_customer_id"] if row else None
+        if not customer_id:
+            return {"started": False, "reason": "no_customer"}
+
+        s = await _stripe_for(self.db)
+        try:
+            subs = s.Subscription.list(customer=customer_id, status="all", limit=10)
+            customer = s.Customer.retrieve(customer_id)
+        except Exception as exc:
+            if _is_missing(exc):
+                return {"started": False, "reason": "no_customer"}
+            raise
+        if subs.data:
+            live = [x for x in subs.data if x.get("status") in ("active", "trialing", "past_due", "unpaid", "incomplete")]
+            if live:
+                await self.sync_subscription(live[0])
+            return {"started": False, "reason": "has_subscription", "status": subs.data[0].get("status")}
+        if getattr(customer, "deleted", False):
+            return {"started": False, "reason": "no_customer"}
+
+        payment_method = (customer.get("invoice_settings") or {}).get("default_payment_method")
+        if isinstance(payment_method, dict):
+            payment_method = payment_method.get("id")
+        if not payment_method:
+            cards = s.PaymentMethod.list(customer=customer_id, type="card", limit=1)
+            payment_method = cards.data[0].id if cards.data else None
+        if not payment_method:
+            return {"started": False, "reason": "no_card"}
+
+        plan_key = tenant.get("plan") if get_plan(tenant.get("plan") or "") else "starter"
+        price_id = await self.price_id_for_plan(plan_key)
+        if not price_id:
+            raise ValueError(f"No Stripe price for the {plan_key} plan.")
+        params, key = start_params(
+            customer_id=customer_id, price_id=price_id, payment_method=payment_method,
+            tenant_id=tenant["id"], plan_key=plan_key, trial_ends_at=row["trial_ends_at"],
+        )
+        try:
+            sub = s.Subscription.create(**params, idempotency_key=key)
+        except stripe.CardError as exc:
+            logger.warning("The card on file for %s was declined: %s", slug, getattr(exc, "user_message", None) or exc)
+            return {"started": False, "reason": "card_declined",
+                    "message": getattr(exc, "user_message", None) or "The card was declined."}
+        await self.sync_subscription(sub)
+        logger.info("Started %s on %s from the card on file (%s)", slug, plan_key, sub.get("status"))
+        return {"started": True, "status": sub.get("status"), "plan": plan_key, "trial_end": params.get("trial_end")}
 
     # ── Reconciliation (called from webhooks) ─────────────────────────────────
     async def _bypass_rls(self) -> None:

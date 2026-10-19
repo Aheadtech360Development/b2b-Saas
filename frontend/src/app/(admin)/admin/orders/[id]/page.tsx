@@ -152,7 +152,7 @@ const SUPPLIER_WORDS: Record<string, [string, string]> = {
   not_sent: ["Not sent", "amber"], sending: ["Sending", "blue"], test: ["Test only", "amber"],
   placed: ["Ordered", "blue"], shipped: ["Shipped", "green"], failed: ["Failed", "red"],
 };
-const BAD_EVENTS = new Set(["cancelled", "payment_failed", "refund_issued", "return_rejected", "supplier_po_failed", "dispute_opened", "dispute_lost"]);
+const BAD_EVENTS = new Set(["cancelled", "payment_failed", "refund_issued", "return_rejected", "supplier_po_failed", "dispute_opened", "dispute_lost", "meta_capi_failed"]);
 
 const money = (n: unknown) => `$${Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const day = (iso: string | null | undefined) => (iso ? new Date(iso).toLocaleDateString() : "");

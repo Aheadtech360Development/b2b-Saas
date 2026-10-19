@@ -20,7 +20,7 @@ import { useEffect, useRef, useState } from "react";
 import Script from "next/script";
 import { usePathname } from "next/navigation";
 import { apiClient } from "@/lib/api-client";
-import { setTrackingConfig, trackPageView } from "@/lib/tracking";
+import { setTrackingConfig, trackPageView, trackSearch } from "@/lib/tracking";
 
 export interface AnalyticsConfig {
   enabled: boolean;
@@ -43,7 +43,6 @@ export function TrackingScripts() {
       .then(data => {
         if (cancelled) return;
         setConfig(data);
-        setTrackingConfig(data);
       })
       .catch(() => {
         // A brand's storefront must not break because its analytics config
@@ -51,6 +50,17 @@ export function TrackingScripts() {
       });
     return () => { cancelled = true; };
   }, []);
+
+  // The settings are handed to the event senders here, not as they arrive.
+  // This effect runs after the effects of the <Script>s drawn below, and those
+  // are what put each tool's queue on the page (fbq, gtag, ttq and the rest).
+  // Handed over a moment sooner, the events that had been waiting for the
+  // settings were sent to tools that did not exist yet and went nowhere: the
+  // product view on the page an advert lands on was lost for every tool but a
+  // Tag Manager container.
+  useEffect(() => {
+    if (config) setTrackingConfig(config);
+  }, [config]);
 
   // One page view per navigation. The scripts themselves count the first one
   // as they load, so skip that to avoid sending it twice.
@@ -60,8 +70,24 @@ export function TrackingScripts() {
     trackPageView(pathname);
   }, [pathname, config?.enabled]);
 
+  // A search of the shop. Both search pages keep the words in the address
+  // (/search?q= on a shop built in the website builder, /products?q= on the
+  // older storefront), and both are reached by loading the page.
+  useEffect(() => {
+    if (!config?.enabled) return;
+    if (pathname !== "/search" && pathname !== "/products") return;
+    const q = new URLSearchParams(window.location.search).get("q");
+    if (q) trackSearch(q);
+  }, [pathname, config?.enabled]);
+
   if (!config?.enabled) return null;
-  const id = (key: string) => config.tools[key];
+  // Every real ID is letters, digits and dashes. Anything else (an ID saved past
+  // its format check) is skipped, because it goes straight into the scripts
+  // below and would break them.
+  const id = (key: string) => {
+    const value = config.tools[key];
+    return value && /^[A-Za-z0-9_-]+$/.test(value) ? value : undefined;
+  };
 
   return (
     <>

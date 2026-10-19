@@ -2,7 +2,7 @@
 they earn for it.
 
 Revision ID: 0061_partner_program
-Revises: 0060_contact_message_state
+Revises: 0059_audit_user_unlink
 
 A partner is not a user of any shop. Users belong to one brand each; a
 partner belongs to the platform, signs in somewhere else, and is paid by it.
@@ -26,7 +26,7 @@ Nothing existing changes.
 from alembic import op
 
 revision = "0061_partner_program"
-down_revision = "0060_contact_message_state"
+down_revision = "0059_audit_user_unlink"
 branch_labels = None
 depends_on = None
 

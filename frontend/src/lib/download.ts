@@ -35,6 +35,19 @@ function sanitise(name: string): string {
 }
 
 /**
+ * A design's own file name with whose it is in front: the order's number and
+ * the customer, so a folder of downloads says which job each file came from.
+ * "Guest" is not a name, and is left out.
+ */
+export function withOwner(fileName: string, orderNumber?: string | null, customer?: string | null): string {
+  const lead = [orderNumber, customer]
+    .map((part) => (part ?? "").replace(/^#/, "").trim().replace(/\s+/g, "-"))
+    .filter((part) => part && part.toLowerCase() !== "guest")
+    .join("-");
+  return lead ? `${lead}-${fileName}` : fileName;
+}
+
+/**
  * Save this URL to the person's downloads.
  *
  * Resolves true when the file was saved, false when the browser was handed

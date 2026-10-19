@@ -17,6 +17,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Eye, EyeOff } from "lucide-react";
 import { authService } from "@/services/auth.service";
+import { trackSignUp } from "@/lib/tracking";
 import { establishSession } from "@/lib/session";
 import { safeNext } from "@/lib/safeNext";
 import { useBranding } from "@/components/providers/BrandingProvider";
@@ -62,6 +63,7 @@ function CreateAccountForm() {
         return;
       }
       await establishSession(tokens.access_token);
+      if (joining) trackSignUp();
       router.replace(next);
     } catch (err) {
       const e2 = err as { message?: string; status?: number };

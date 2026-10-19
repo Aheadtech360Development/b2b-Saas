@@ -203,6 +203,8 @@ export function BuyLabelsDialog({
                               : q.state === "bought" ? <span className="pc-pill" data-tone="green" style={{ textTransform: "none" }}>Bought{q.tracking ? ` · ${q.tracking}` : ""}</span>
                               : q.state === "failed" ? <span style={{ color: "var(--pc-red, #B42318)" }} title={q.error}>{q.error && q.error.length < 60 ? q.error : "No rate"}</span>
                               : rate ? money(rate.cost)
+                              // Until a service is chosen nothing is "not offered" yet.
+                              : !carrier || !service ? <span className="pc-sub-line">—</span>
                               : <span className="pc-sub-line">Not offered</span>}
                           </td>
                         </tr>

@@ -103,6 +103,8 @@ export interface GangSheetOrder {
   artworks?: GangSheetArtwork[];
   // Checkout link: set once the buyer pays for this sheet through the cart.
   order_id?: string | null;
+  /** That order's number (admin responses only). */
+  order_number?: string | null;
   paid?: boolean;
   /** Built on a sheet in the studio, or one design printed at an exact size. */
   kind?: "gang_sheet" | "upload_by_size" | "upload_own";
@@ -135,6 +137,7 @@ export interface GangSheetDashboard {
   recent_designs: {
     id?: string;
     reference: string;
+    order_number: string | null;
     contact: string | null;
     status: GangSheetStatus;
     sheet_name: string;
@@ -144,11 +147,12 @@ export interface GangSheetDashboard {
   recent_orders: {
     id?: string;
     reference: string;
+    order_number: string | null;
+    contact: string | null;
     subtotal: number;
     /** Whether the job's order is paid (a cash on delivery order is paid on handover). */
     paid: boolean;
     order_id?: string | null;
-    order_number?: string | null;
     created_at: string | null;
   }[];
 }

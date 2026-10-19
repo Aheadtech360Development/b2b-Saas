@@ -159,8 +159,14 @@ PATH_FEATURES: list[tuple[str, str]] = [
 # The buyer's side. These are what a brand is actually selling, so a plan that
 # does not include them must not leave them working on the storefront.
 # Paths a signed-in buyer reaches that belong to the wholesale toolset.
+#
+# Not /api/v1/cart/add-matrix. Despite its name it is the storefront's ordinary
+# "Add to cart" for every product with sizes or colours, for one item as much
+# as for a grid, and the hand-over of a guest's cart at sign-in. Gated here, a
+# signed-in shopper at a Starter shop could not buy a blank tee at all: the
+# 403 read as "sign in again", and signing in again changed nothing, while a
+# guest bought it fine.
 BUYER_PATH_FEATURES: list[tuple[str, str]] = [
-    ("/api/v1/cart/add-matrix", "matrix_ordering"),
     ("/api/v1/account/net30-status", "net_terms"),
     ("/api/v1/account/invoices", "invoices"),
 ]
@@ -183,14 +189,14 @@ PUBLIC_PATH_FEATURES: list[tuple[str, str]] = [
 def feature_for_path(path: str, *, public: bool = False) -> str | None:
     """The feature a request needs, or None when it needs none.
 
-    A signed-in buyer's paths are checked alongside the admin's: net terms,
-    invoices and the matrix grid are things a *buyer* uses, and gating only the
-    console would have left the shop's plan enforced everywhere except where
-    the feature is actually used.
+    A signed-in buyer's paths are checked alongside the admin's: net terms and
+    invoices are things a *buyer* uses, and gating only the console would have
+    left the shop's plan enforced everywhere except where the feature is
+    actually used.
     """
     # A buyer's wholesale paths are checked on both sides. Whether the caller
-    # is the shop's own admin or a buyer signed into it, net terms, invoices
-    # and the matrix grid belong to the tier that sells them.
+    # is the shop's own admin or a buyer signed into it, net terms and invoices
+    # belong to the tier that sells them.
     table = (PUBLIC_PATH_FEATURES if public else PATH_FEATURES) + BUYER_PATH_FEATURES
     for prefix, feature in table:
         if path.startswith(prefix):

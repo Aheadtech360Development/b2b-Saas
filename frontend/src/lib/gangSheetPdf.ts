@@ -14,10 +14,13 @@
  * No PDF library and no server render — the sheet is inline SVG laid out in
  * inches, which is why it stays sharp at any size.
  */
+import { withOwner } from "@/lib/download";
 import type { GangSheetArtwork, GangSheetPlacement } from "@/services/gangSheets.service";
 
 interface Opts {
   reference: string;
+  /** The order it was checked out on, once it has been. */
+  orderNumber?: string | null;
   customerName?: string | null;
   sheet: { width_in: number; height_in: number; bleed_in: number };
   artworks: GangSheetArtwork[];
@@ -33,7 +36,7 @@ const esc = (s: string) =>
 /** SVG user units per inch. 100 keeps sub-millimetre placement exact. */
 const U = 100;
 
-export function openSheetPdf({ reference, customerName, sheet, artworks, layout, brand }: Opts): void {
+export function openSheetPdf({ reference, orderNumber, customerName, sheet, artworks, layout, brand }: Opts): void {
   const W = sheet.width_in * U;
   const H = sheet.height_in * U;
   const bleed = sheet.bleed_in * U;
@@ -86,8 +89,11 @@ export function openSheetPdf({ reference, customerName, sheet, artworks, layout,
     })
     .join("");
 
-  const files = artworks.map((a) => ({ url: a.file_url, name: a.file_name }));
-  const title = `${reference} - ${sheet.width_in}x${sheet.height_in}in`;
+  // Named for whose they are, as the order page names its downloads.
+  const files = artworks.map((a) => ({ url: a.file_url, name: withOwner(a.file_name, orderNumber, customerName) }));
+  // The title is the PDF's name when it is saved.
+  const customer = customerName && customerName.toLowerCase() !== "guest" ? customerName : null;
+  const title = [orderNumber, customer, reference, `${sheet.width_in}x${sheet.height_in}in`].filter(Boolean).join(" - ");
 
   const html = `<!doctype html><html><head><meta charset="utf-8"><title>${esc(title)}</title>
 <style>
@@ -121,6 +127,7 @@ export function openSheetPdf({ reference, customerName, sheet, artworks, layout,
   <div class="job">
     <h1>${esc(brand ?? "Gang Sheet")} &mdash; ${esc(reference)}</h1>
     <div class="meta">
+      ${orderNumber ? "Order #" + esc(orderNumber) + " &middot; " : ""}
       ${customerName ? "Customer: " + esc(customerName) + " &middot; " : ""}
       Sheet ${sheet.width_in}&quot; &times; ${sheet.height_in}&quot; &middot; bleed ${sheet.bleed_in}&quot;
       &middot; ${layout.length} placement${layout.length === 1 ? "" : "s"}

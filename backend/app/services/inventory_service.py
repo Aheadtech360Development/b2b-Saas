@@ -15,6 +15,71 @@ from app.models.product import ProductVariant
 logger = logging.getLogger(__name__)
 
 
+# ------------------------------------------------------------------
+# Can this be sold?
+# ------------------------------------------------------------------
+#
+# Whether a product counts its stock is its own switch, products.track_inventory
+# (migration 0063). Counted: what its variants have on hand is all that can be
+# sold, and a variant with no stock record has none. Not counted: it sells
+# without a limit, as anything made to order does. Checkout, the cart and the
+# product page all read it through sellable_stock.
+
+async def stock_on_hand(db: AsyncSession, variant_id: UUID) -> int | None:
+    """Units on hand across every location, or None when the variant has no
+    stock record at all."""
+    rows = (await db.execute(
+        select(InventoryRecord.quantity).where(InventoryRecord.variant_id == variant_id)
+    )).scalars().all()
+    if not rows:
+        return None
+    return sum(int(q or 0) for q in rows)
+
+
+async def sellable_stock(db: AsyncSession, variant: ProductVariant, *, tracked: bool | None = None) -> int | None:
+    """What may be sold of `variant`: None when its product does not count stock
+    (no limit), otherwise the units on hand, 0 when it has no stock record.
+
+    `tracked` is the product's track_inventory when the caller has the product
+    already; otherwise it is read.
+    """
+    if tracked is None:
+        from app.models.product import Product
+
+        tracked = bool((await db.execute(
+            select(Product.track_inventory).where(Product.id == variant.product_id)
+        )).scalar())
+    if not tracked:
+        return None
+    return await stock_on_hand(db, variant.id) or 0
+
+
+async def default_warehouse(db: AsyncSession) -> Warehouse:
+    """The brand's first warehouse, made ("Main") when it has none.
+
+    A brand that never set one up could not save a stock number at all ("Add a
+    warehouse before setting stock"), so switching on stock counting led
+    nowhere. The session is the brand's, so the warehouse is stamped with it.
+    """
+    warehouse = (await db.execute(
+        select(Warehouse).order_by(Warehouse.created_at).limit(1)
+    )).scalar_one_or_none()
+    if warehouse is None:
+        warehouse = Warehouse(name="Main", code="MAIN", country="US", is_active=True)
+        db.add(warehouse)
+        await db.flush()
+    return warehouse
+
+
+def stock_problem(available: int | None, wanted: int, label: str) -> str | None:
+    """Why `wanted` units cannot be sold, or None when they can."""
+    if available is None or available >= wanted:
+        return None
+    if available <= 0:
+        return f"{label} is out of stock."
+    return f"Only {available} of {label} left in stock."
+
+
 class InventoryService:
     def __init__(self, db: AsyncSession):
         self.db = db
