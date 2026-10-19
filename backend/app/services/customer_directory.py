@@ -275,6 +275,49 @@ async def orders_of(db: AsyncSession, tenant_id, key: str, *, page: int = 1, pag
             "page_size": page_size, "pages": max(1, -(-total // page_size))}
 
 
+TIMELINE_LIMIT = 50
+
+
+async def timeline(db: AsyncSession, tenant_id, key: str, *, limit: int = TIMELINE_LIMIT) -> dict:
+    """What has happened with one customer, newest first: the account opened,
+    each order placed, and each order's own history (order_events, as the
+    order page lists it). Drafts are left out. `more` says older entries were
+    left off."""
+    kind, who = parse_key(key)
+    params = {"t": str(tenant_id), "who": str(who), "limit": int(limit) + 1}
+    mine = f"SELECT id FROM orders WHERE {_whose(kind)} AND order_number NOT LIKE 'DRAFT-%'"
+    rows = (await db.execute(text(f"""
+        SELECT at, type, message, order_id, order_number, total FROM (
+            SELECT o.created_at AS at, 'order_placed' AS type, NULL AS message,
+                   CAST(o.id AS text) AS order_id, o.order_number, o.total
+            FROM orders o WHERE o.id IN ({mine})
+            UNION ALL
+            SELECT e.occurred_at, e.type, e.message, CAST(o.id AS text), o.order_number, NULL
+            FROM order_events e JOIN orders o ON o.id = e.order_id
+            WHERE e.order_id IN ({mine}) AND e.type <> 'order_created'
+        ) x ORDER BY at DESC LIMIT :limit"""), params)).mappings().all()
+    entries = [{
+        "at": r["at"],
+        "type": r["type"],
+        "message": r["message"] or f"Order {r['order_number']} placed",
+        "order_id": r["order_id"],
+        "order_number": r["order_number"],
+        "total": _money(r["total"]) if r["total"] is not None else None,
+    } for r in rows]
+    if kind == "account":
+        # By its date, not always last: an account made from a guest's orders
+        # opens after them.
+        opened = (await db.execute(text(
+            "SELECT created_at FROM companies WHERE id = CAST(:who AS uuid) AND tenant_id = CAST(:t AS uuid)"),
+            params)).scalar()
+        if opened is not None:
+            entries.append({"at": opened, "type": "account_created", "message": "Account opened",
+                            "order_id": None, "order_number": None, "total": None})
+    entries.sort(key=lambda e: e["at"], reverse=True)
+    more = len(entries) > limit
+    return {"items": [{**e, "at": _iso(e["at"])} for e in entries[:limit]], "more": more}
+
+
 async def _recent_and_stats(db, tenant_id, kind, who) -> tuple[list[dict], dict]:
     params = {"t": str(tenant_id), "who": str(who)}
     stats = (await db.execute(

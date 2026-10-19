@@ -70,6 +70,49 @@ export function GangSheetNumbers({ statusHref }: { statusHref: (status: string) 
           </div>
         </section>
       )}
+      {/* The old gang sheet dashboard's two lists: the latest jobs, and the latest that became orders. */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: "16px" }} data-gs-recent>
+        <section className="pc-card" data-recent="designs">
+          <div className="pc-card-head"><h2 className="pc-h2">Recent designs</h2></div>
+          {data.recent_designs.length === 0 ? <div className="pc-empty">None yet.</div> : (
+            <table className="pc-table"><tbody>
+              {data.recent_designs.map((d, i) => {
+                const [label, tone] = jobPill(d.status);
+                return (
+                  <tr key={d.id ?? i}>
+                    <td>
+                      {d.id ? <Link href={`/admin/production/${d.id}`} className="pc-row-title">{d.order_number ? `Order ${d.order_number} · ` : ""}{d.reference}</Link>
+                        : <span className="pc-row-title">{d.reference}</span>}
+                      <div className="pc-sub-line" style={{ fontSize: "12.5px" }}>{d.contact || "Guest"} · {d.sheet_name}</div>
+                    </td>
+                    <td style={{ textAlign: "right" }}><span className="pc-pill" data-tone={tone || undefined} style={{ textTransform: "none" }}>{label}</span></td>
+                  </tr>
+                );
+              })}
+            </tbody></table>
+          )}
+        </section>
+        <section className="pc-card" data-recent="orders">
+          <div className="pc-card-head"><h2 className="pc-h2">Recent orders</h2></div>
+          {data.recent_orders.length === 0 ? <div className="pc-empty">No orders yet.</div> : (
+            <table className="pc-table"><tbody>
+              {data.recent_orders.map((o, i) => (
+                <tr key={o.id ?? i}>
+                  <td>
+                    {o.order_id ? <Link href={`/admin/orders/${o.order_id}`} className="pc-row-title">{o.order_number ? `Order ${o.order_number} · ` : ""}{o.reference}</Link>
+                      : <span className="pc-row-title">{o.reference}</span>}
+                    <div className="pc-sub-line" style={{ fontSize: "12.5px" }}>{o.contact || "Guest"}{o.created_at ? ` · ${shortDay(o.created_at)}` : ""}</div>
+                  </td>
+                  <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
+                    <div style={{ fontWeight: 600 }}>{usd(o.subtotal)}</div>
+                    <span className="pc-pill" data-tone={o.paid ? "green" : "amber"} style={{ textTransform: "none" }}>{o.paid ? "Paid" : "Ordered"}</span>
+                  </td>
+                </tr>
+              ))}
+            </tbody></table>
+          )}
+        </section>
+      </div>
     </div>
   );
 }

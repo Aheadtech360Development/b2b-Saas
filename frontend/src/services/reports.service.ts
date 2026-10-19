@@ -27,6 +27,10 @@ export interface ReportOverview {
     /** Percent against the days just before; null when there is nothing fair to compare with. */
     change: { revenue: number | null; orders: number | null; average: number | null };
   };
+  /** Each day of the stretch on the viewer's clock, days with nothing included. */
+  by_day: { date: string; revenue: number; orders: number }[];
+  /** Paid orders out of every order placed (the old Analytics "conversion rate"); percent null with no orders. */
+  paid_share: { orders: number; paid: number; percent: number | null };
   by_status: { status: string; orders: number; amount: number }[];
   /** id is a company's id, or "guest:<email>". */
   top_customers: { id: string; name: string; kind: "retail" | "wholesale" | "guest"; orders: number; spent: number }[];

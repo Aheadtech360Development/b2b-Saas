@@ -52,3 +52,52 @@ def test_every_part_of_the_list_is_held_to_one_shop():
         assert table in cd._PEOPLE
     assert cd._PEOPLE.count("tenant_id = CAST(:t AS uuid)") >= 5
     assert "tenant_id = CAST(:t AS uuid)" in cd._whose("guest") and "tenant_id = CAST(:t AS uuid)" in cd._whose("account")
+
+
+def test_a_customers_timeline_is_newest_first_and_ends_with_the_account_opening():
+    import asyncio
+    from datetime import datetime, timezone
+
+    class R:
+        def __init__(self, rows=None, scalar=None):
+            self.rows, self.value = rows or [], scalar
+
+        def mappings(self):
+            return self
+
+        def all(self):
+            return self.rows
+
+        def scalar(self):
+            return self.value
+
+    class DB:
+        def __init__(self, *results):
+            self.results, self.sql = list(results), []
+
+        async def execute(self, stmt, params=None):
+            self.sql.append(str(stmt))
+            return self.results.pop(0)
+
+    at = lambda d: datetime(2026, 10, d, 12, tzinfo=timezone.utc)
+    rows = [
+        {"at": at(9), "type": "shipped", "message": "Shipped by UPS", "order_id": "o1", "order_number": "1001", "total": None},
+        {"at": at(8), "type": "order_placed", "message": None, "order_id": "o1", "order_number": "1001", "total": 64.5},
+    ]
+    company = "6f1c0d2e-8a8b-4b55-9a51-1d6a3b0b7c11"
+    db = DB(R(rows), R(scalar=at(1)))
+    out = asyncio.run(cd.timeline(db, "t", company))
+    assert [i["message"] for i in out["items"]] == ["Shipped by UPS", "Order 1001 placed", "Account opened"]
+    assert out["items"][1]["total"] == 64.5 and out["more"] is False
+    assert "order_number NOT LIKE 'DRAFT-%'" in db.sql[0] and "e.type <> 'order_created'" in db.sql[0]
+    assert db.sql[0].count("tenant_id = CAST(:t AS uuid)") >= 2
+
+    # An account made later from a guest's orders: the opening sits by its date.
+    out = asyncio.run(cd.timeline(DB(R(rows), R(scalar=at(8) + (at(9) - at(8)) / 2)), "t", company))
+    assert [i["type"] for i in out["items"]] == ["shipped", "account_created", "order_placed"]
+
+    # More than the limit: the oldest are left off, the opening with them.
+    many = [dict(rows[0], at=at(9)) for _ in range(3)]
+    out = asyncio.run(cd.timeline(DB(R(many), R(scalar=at(1))), "t", company, limit=2))
+    assert len(out["items"]) == 2 and out["more"] is True
+    assert all(i["type"] != "account_created" for i in out["items"])

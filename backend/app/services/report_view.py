@@ -145,6 +145,34 @@ async def _totals(db: AsyncSession, tenant_id: Any, s: Span) -> dict:
     return {"orders": orders, "revenue": revenue, "average": round(revenue / orders, 2) if orders else 0.0}
 
 
+async def _by_day(db: AsyncSession, tenant_id: Any, s: Span) -> list[dict]:
+    """Revenue and orders on each day of the stretch, on the viewer's clock,
+    days with nothing included: the chart the old Analytics page drew."""
+    rows = (await db.execute(text(_ORDERS + f"""
+        SELECT CAST((created_at AT TIME ZONE 'UTC') + make_interval(mins => :mins) AS date) AS day,
+               count(*) FILTER (WHERE status NOT IN {NOT_SPENT}) AS orders,
+               COALESCE(sum(total) FILTER (WHERE status NOT IN {NOT_SPENT}), 0) AS revenue
+        FROM o GROUP BY 1"""), {**_p(tenant_id, s), "mins": int(s.offset.total_seconds() // 60)})).mappings().all()
+    got = {r["day"]: r for r in rows}
+    out, day = [], s.first
+    while day <= s.last:
+        r = got.get(day)
+        out.append({"date": day.isoformat(), "revenue": _money(r["revenue"]) if r else 0.0,
+                    "orders": int(r["orders"]) if r else 0})
+        day += timedelta(days=1)
+    return out
+
+
+async def _paid_share(db: AsyncSession, tenant_id: Any, s: Span) -> dict:
+    """Paid orders out of every order placed in the stretch: what the old
+    Analytics page called the conversion rate."""
+    row = (await db.execute(text(_ORDERS + """
+        SELECT count(*) AS orders, count(*) FILTER (WHERE CAST(payment_status AS text) = 'paid') AS paid
+        FROM o"""), _p(tenant_id, s))).mappings().one()
+    orders, paid = int(row["orders"] or 0), int(row["paid"] or 0)
+    return {"orders": orders, "paid": paid, "percent": round(paid / orders * 100, 1) if orders else None}
+
+
 async def _has_history(db: AsyncSession, tenant_id: Any, since: datetime) -> bool:
     return bool((await db.execute(text(
         "SELECT EXISTS (SELECT 1 FROM orders WHERE tenant_id = CAST(:t AS uuid) "
@@ -338,6 +366,8 @@ async def overview(db: AsyncSession, tenant_id: Any, s: Span, range_key: str) ->
                 "average": change(cur["average"], old["average"], history),
             },
         },
+        "by_day": await _by_day(db, tenant_id, s),
+        "paid_share": await _paid_share(db, tenant_id, s),
         "by_status": await _by_status(db, tenant_id, s),
         "top_customers": await _top_customers(db, tenant_id, s, 10),
         "top_products": await _top_products(db, tenant_id, s, 10),

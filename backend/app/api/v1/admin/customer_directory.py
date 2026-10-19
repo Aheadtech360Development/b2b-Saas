@@ -118,6 +118,11 @@ async def guest_orders(email: str, page: int = Query(1, ge=1), db: AsyncSession 
     return await cd.orders_of(db, _tenant(), cd.guest_key(email), page=page)
 
 
+@router.get("/guest/timeline")
+async def guest_timeline(email: str, db: AsyncSession = Depends(get_db)) -> dict:
+    return await cd.timeline(db, _tenant(), cd.guest_key(email))
+
+
 # ── Adding an account ─────────────────────────────────────────────────────────
 
 class AddCustomerIn(BaseModel):
@@ -240,6 +245,12 @@ async def account(company_id: UUID, db: AsyncSession = Depends(get_db)) -> dict:
 @router.get("/{company_id}/orders")
 async def account_orders(company_id: UUID, page: int = Query(1, ge=1), db: AsyncSession = Depends(get_db)) -> dict:
     return await cd.orders_of(db, _tenant(), str(company_id), page=page)
+
+
+@router.get("/{company_id}/timeline")
+async def account_timeline(company_id: UUID, db: AsyncSession = Depends(get_db)) -> dict:
+    """The account opened, its orders and each order's history, newest first."""
+    return await cd.timeline(db, _tenant(), str(company_id))
 
 
 class EditIn(BaseModel):

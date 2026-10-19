@@ -64,3 +64,47 @@ def test_state_of_a_snapshot():
     assert rv.state_of("not json") == ""
     assert rv.state_of(None) == ""
     assert rv.state_of('["TX"]') == ""
+
+
+class _Result:
+    def __init__(self, rows):
+        self._rows = rows
+
+    def mappings(self):
+        return self
+
+    def all(self):
+        return self._rows
+
+    def one(self):
+        return self._rows[0]
+
+
+class _DB:
+    def __init__(self, *results):
+        self.results, self.sql = list(results), []
+
+    async def execute(self, stmt, params=None):
+        self.sql.append((str(stmt), params))
+        return _Result(self.results.pop(0))
+
+
+def test_revenue_by_day_has_every_day_on_the_viewers_clock():
+    import asyncio
+
+    s = rv.span("7d", offset_minutes=300, now=NOW)
+    db = _DB([{"day": date(2026, 10, 9), "orders": 2, "revenue": 120.25}])
+    days = asyncio.run(rv._by_day(db, "t", s))
+    assert [d["date"] for d in days][0] == "2026-10-08" and len(days) == 7
+    assert next(d for d in days if d["date"] == "2026-10-09") == {"date": "2026-10-09", "revenue": 120.25, "orders": 2}
+    assert sum(d["orders"] for d in days) == 2
+    sql, params = db.sql[0]
+    assert params["mins"] == 300 and "tenant_id = CAST(:t AS uuid)" in sql
+
+
+def test_paid_share_is_paid_orders_out_of_all_placed():
+    import asyncio
+
+    s = rv.span("30d", now=NOW)
+    assert asyncio.run(rv._paid_share(_DB([{"orders": 3, "paid": 2}]), "t", s)) == {"orders": 3, "paid": 2, "percent": 66.7}
+    assert asyncio.run(rv._paid_share(_DB([{"orders": 0, "paid": 0}]), "t", s))["percent"] is None

@@ -93,6 +93,13 @@ export interface CustomerProfile {
 
 export interface CustomerOrdersPage { items: CustomerOrder[]; total: number; page: number; pages: number }
 
+/** One thing that happened: the account opened, an order placed, or a line of an order's history. */
+export interface CustomerTimelineItem {
+  at: string | null; type: string; message: string;
+  order_id: string | null; order_number: string | null; total: number | null;
+}
+export interface CustomerTimeline { items: CustomerTimelineItem[]; more: boolean }
+
 export interface ListParams { q?: string; type?: string; status?: string; sort?: string; page?: number; page_size?: number }
 
 function qs(p: Record<string, string | number | undefined | null>): string {
@@ -118,6 +125,10 @@ export const customersService = {
     "email" in key
       ? apiClient.get<CustomerOrdersPage>(`/api/v1/admin/customers/guest/orders${qs({ email: key.email, page })}`)
       : apiClient.get<CustomerOrdersPage>(`/api/v1/admin/customers/${key.id}/orders${qs({ page })}`),
+  timeline: (key: { id: string } | { email: string }) =>
+    "email" in key
+      ? apiClient.get<CustomerTimeline>(`/api/v1/admin/customers/guest/timeline${qs({ email: key.email })}`)
+      : apiClient.get<CustomerTimeline>(`/api/v1/admin/customers/${key.id}/timeline`),
   add: (body: Record<string, unknown>) => apiClient.post<{ id: string; invited: boolean }>("/api/v1/admin/customers", body),
   edit: (id: string, body: Record<string, unknown>) => apiClient.patch<CustomerProfile>(`/api/v1/admin/customers/${id}`, body),
   suspend: (id: string, reason: string) => apiClient.post<CustomerProfile>(`/api/v1/admin/customers/${id}/suspend`, { reason }),

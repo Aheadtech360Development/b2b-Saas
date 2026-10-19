@@ -23,7 +23,7 @@ import { useCustomersOverview, PlanLock } from "@/components/admin/customers/Cus
 import { AddCustomerModal } from "@/components/admin/customers/AddCustomerModal";
 import { adminService } from "@/services/admin.service";
 import {
-  customersService, type CustomerLogin, type CustomerOrder, type CustomerOrdersPage, type CustomerProfile,
+  customersService, type CustomerLogin, type CustomerOrder, type CustomerOrdersPage, type CustomerProfile, type CustomerTimeline,
 } from "@/services/customers.service";
 import { KIND_LABEL, ORDER_PILL, ROLE_LABEL, STATUS_PILL, day, money, words } from "@/lib/customerWords";
 
@@ -230,6 +230,7 @@ function Overview({ c, features, busy, setTab, onInvite, onCreate, change }: {
           <OrdersTable rows={c.recent_orders} empty={account ? "No orders yet." : "No orders."} />
         </div>
         <Details c={c} />
+        <Timeline c={c} />
       </div>
 
       <div style={{ display: "grid", gap: "16px", minWidth: 0 }}>
@@ -318,6 +319,58 @@ const DETAIL_LABELS: [string, string][] = [
   ["estimated_annual_volume", "Annual volume"], ["num_employees", "Employees"], ["num_sales_reps", "Sales reps"],
   ["how_heard", "Heard about you"], ["ppac_number", "PPAC"], ["ppai_number", "PPAI"], ["asi_number", "ASI"], ["fax", "Fax"],
 ];
+
+// A line that is trouble shows red, as on the order page.
+const BAD_EVENTS = new Set(["cancelled", "payment_failed", "refund_issued", "return_rejected", "supplier_po_failed", "dispute_opened", "dispute_lost", "meta_capi_failed"]);
+
+/** What has happened with this customer, newest first: the account opened,
+ *  each order placed and each order's history (the old customer page's
+ *  timeline, now from the order history the order page shows). */
+function Timeline({ c }: { c: CustomerProfile }) {
+  const [data, setData] = useState<CustomerTimeline | null>(null);
+  const [error, setError] = useState("");
+  useEffect(() => {
+    let live = true;
+    const key = c.kind === "guest" ? { email: c.email ?? "" } : { id: c.id };
+    customersService.timeline(key).then((d) => { if (live) { setData(d); setError(""); } })
+      .catch((e) => { if (live) setError(errText(e, "The timeline could not be loaded.")); });
+    return () => { live = false; };
+  }, [c.id, c.kind, c.email]);
+  return (
+    <section className="pc-card" style={{ marginTop: "16px" }} data-timeline aria-busy={!data && !error}>
+      <div className="pc-card-head"><h2 className="pc-h2">Timeline</h2></div>
+      {error ? <div className="pc-empty">{error}</div>
+        : !data ? <div className="pc-empty">Loading…</div>
+        : data.items.length === 0 ? <div className="pc-empty">Nothing yet.</div>
+        : (
+          <div className="pc-pad">
+            <div className="pc-timeline">
+              {data.items.map((e, i) => (
+                <div key={`${e.type}-${e.at}-${i}`} className="pc-event" data-event={e.type}
+                  data-kind={e.type === "note" ? "note" : BAD_EVENTS.has(e.type) ? "bad" : undefined}>
+                  <span className="pc-event-dot" aria-hidden />
+                  <div>
+                    <div className="pc-event-title">
+                      {e.type === "order_placed" && e.order_id
+                        ? <Link href={`/admin/orders/${e.order_id}`} className="pc-inline">{e.message}</Link>
+                        : e.message}
+                    </div>
+                    <div className="pc-event-when">
+                      {e.at ? new Date(e.at).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }) : ""}
+                      {e.type === "order_placed" && e.total != null ? ` · ${money(e.total)}` : ""}
+                      {e.type !== "order_placed" && e.order_id && e.order_number
+                        ? <> · <Link href={`/admin/orders/${e.order_id}`} className="pc-inline">Order {e.order_number}</Link></> : null}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            {data.more && <p className="pc-sub-line" style={{ fontSize: "13px", margin: "14px 0 0" }}>The latest {data.items.length} are shown. Each order&apos;s page has its whole history.</p>}
+          </div>
+        )}
+    </section>
+  );
+}
 
 function Details({ c }: { c: CustomerProfile }) {
   if (c.kind === "guest" || !c.details) return null;

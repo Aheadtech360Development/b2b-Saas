@@ -12,6 +12,7 @@
 import Link from "next/link";
 import { Suspense, useEffect, useRef, useState, type ReactNode } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { Bar, CartesianGrid, ComposedChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { KIND_LABEL, KIND_TONE, money } from "@/lib/customerWords";
 import { ApiClientError } from "@/lib/api-client";
 import { PlanLock } from "@/components/admin/customers/CustomersFrame";
@@ -253,15 +254,49 @@ function ProductionCard({ p }: { p: ReportOverview["production"] }) {
 
 // ── Tabs ─────────────────────────────────────────────────────────────────────
 
+/** Revenue (bars) and orders (line) on each day: the old Analytics page's chart. */
+function RevenueChart({ d }: { d: ReportOverview }) {
+  const days = d.by_day ?? [];
+  const label = (iso: string) => new Date(`${iso}T00:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  return (
+    <section className="pc-card" data-revenue-chart style={{ marginBottom: "18px" }}>
+      <div className="pc-card-head">
+        <h2 className="pc-h2" style={{ margin: 0 }}>Revenue by day</h2>
+        <span className="pc-sub-line" style={{ margin: 0, fontSize: "13px" }}>Bars are revenue, the line is orders</span>
+      </div>
+      {days.some((x) => x.revenue > 0 || x.orders > 0) ? (
+        <div className="pc-pad" style={{ height: "280px" }}>
+          <ResponsiveContainer width="100%" height="100%">
+            <ComposedChart data={days} margin={{ top: 8, right: 4, bottom: 0, left: 0 }}>
+              <CartesianGrid stroke="#EEF1F5" vertical={false} />
+              <XAxis dataKey="date" tickFormatter={label} minTickGap={24} tickLine={false} axisLine={{ stroke: "#E3E8EF" }} tick={{ fontSize: 12, fill: "#667085" }} />
+              <YAxis yAxisId="money" width={72} tickLine={false} axisLine={false} tick={{ fontSize: 12, fill: "#667085" }}
+                tickFormatter={(v) => `$${Number(v).toLocaleString()}`} />
+              <YAxis yAxisId="orders" orientation="right" width={34} allowDecimals={false} tickLine={false} axisLine={false} tick={{ fontSize: 12, fill: "#667085" }} />
+              <Tooltip labelFormatter={(v) => label(String(v))} formatter={(value, name) => (name === "Revenue" ? money(Number(value)) : String(value))} />
+              <Bar yAxisId="money" dataKey="revenue" name="Revenue" fill="#1D5FD6" radius={[3, 3, 0, 0]} maxBarSize={28} />
+              <Line yAxisId="orders" dataKey="orders" name="Orders" type="monotone" stroke="#0C1F3F" strokeWidth={2} dot={false} />
+            </ComposedChart>
+          </ResponsiveContainer>
+        </div>
+      ) : <div className="pc-empty">No sales in these days.</div>}
+    </section>
+  );
+}
+
 function SalesTab({ d }: { d: ReportOverview }) {
   const s = d.sales;
+  const paid = d.paid_share;
   return (
     <>
-      <div className="pc-stats3">
+      <div className="pc-stats4">
         <Stat value={money(s.revenue)} label="Revenue" sub={d.label} change={s.change.revenue} />
         <Stat value={s.orders} label="Orders" change={s.change.orders} />
         <Stat value={money(s.average)} label="Average order" change={s.change.average} />
+        <Stat value={paid?.percent != null ? `${paid.percent}%` : "–"} label="Conversion rate"
+          sub={paid?.orders ? `${paid.paid} of ${paid.orders} orders paid` : "Paid orders out of all placed"} />
       </div>
+      <RevenueChart d={d} />
       <div className="pc-cols" style={{ marginTop: 0 }}>
         <div style={{ display: "grid", gap: "18px", minWidth: 0 }}>
           <Table title="Orders by status" head={[["Status"], ["Orders", true], ["Amount", true]]} rows={d.by_status.length} empty="No orders in these days.">
