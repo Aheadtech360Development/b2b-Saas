@@ -64,7 +64,7 @@ export function TrackStockSwitch({
           aria-hidden
           style={{
             width: "34px", height: "20px", borderRadius: "999px", position: "relative", flexShrink: 0,
-            background: tracked ? "#2563EB" : "#D1D5DB", transition: "background .15s",
+            background: tracked ? "var(--pc-blue, #1D5FD6)" : "#D1D5DB", transition: "background .15s",
           }}
         >
           <span

@@ -54,8 +54,8 @@ describe("Inventory by product", () => {
     render(<InventoryProducts />);
     await screen.findByText("Premium Blank Tee");
     expect(get).toHaveBeenCalledWith("/api/v1/admin/inventory/products?show=all&page=1&page_size=20");
-    expect(screen.getByRole("tab", { name: "Sold out (0)" })).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: "Made to order (1)" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Sold out 0" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Made to order 1" })).toBeInTheDocument();
 
     expect(within(card("p-tee")).getByText("3 in stock")).toBeInTheDocument();
     expect(within(card("p-tee")).getByLabelText("Stock for Black M")).toHaveValue(0);

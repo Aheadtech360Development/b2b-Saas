@@ -1,5 +1,7 @@
 "use client";
 
+/** Warehouses: where stock is kept. Reached from Inventory ("Manage warehouses"). */
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { adminService } from "@/services/admin.service";
 
@@ -11,7 +13,7 @@ interface Warehouse {
 }
 
 export default function AdminWarehousesPage() {
-  const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
+  const [warehouses, setWarehouses] = useState<Warehouse[] | null>(null);
   const [name, setName] = useState("");
   const [code, setCode] = useState("");
   const [location, setLocation] = useState("");
@@ -20,7 +22,7 @@ export default function AdminWarehousesPage() {
   const [msg, setMsg] = useState<string | null>(null);
 
   useEffect(() => {
-    adminService.listWarehouses().then((d) => setWarehouses(d as Warehouse[]));
+    adminService.listWarehouses().then((d) => setWarehouses(d as Warehouse[])).catch(() => setWarehouses([]));
   }, []);
 
   async function handleCreate(e: React.FormEvent) {
@@ -28,59 +30,56 @@ export default function AdminWarehousesPage() {
     setIsSaving(true); setMsg(null);
     try {
       const w = await adminService.createWarehouse({ name, code, address: location || undefined }) as Warehouse;
-      setWarehouses((prev) => [...prev, w]);
+      setWarehouses((prev) => [...(prev ?? []), w]);
       setName(""); setCode(""); setLocation(""); setShowForm(false);
-    } catch { setMsg("Failed to create warehouse"); } finally { setIsSaving(false); }
+    } catch { setMsg("The warehouse could not be added."); } finally { setIsSaving(false); }
   }
 
   return (
-    <div className="p-6">
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-xl font-bold text-gray-900">Warehouses</h1>
-        <button onClick={() => setShowForm(true)} className="bg-brand-600 text-white rounded-md px-3 py-1.5 text-sm hover:bg-brand-700">Add Warehouse</button>
+    <div className="pc-page" data-warehouses>
+      <Link href="/admin/inventory" className="pc-back">← Inventory</Link>
+      <div className="pc-head" style={{ marginTop: "10px" }}>
+        <div>
+          <div className="pc-eyebrow">Inventory</div>
+          <h1 className="pc-h1">Warehouses</h1>
+          <p className="pc-sub-line">Where your stock is kept. Each SKU&apos;s count is kept per warehouse.</p>
+        </div>
+        {!showForm && <button type="button" className="pc-btn" data-kind="primary" onClick={() => setShowForm(true)}>Add warehouse</button>}
       </div>
 
-      {msg && <p className="mb-3 text-sm text-red-600">{msg}</p>}
+      {msg && <div className="pc-flash" data-bad="" role="alert">{msg}</div>}
 
       {showForm && (
-        <div className="bg-white rounded-lg border border-gray-200 p-4 mb-4">
-          <form onSubmit={handleCreate} className="space-y-3">
-            <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="Warehouse name" required className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm" />
-            <input type="text" value={code} onChange={(e) => setCode(e.target.value)} placeholder="Code (e.g. WH-01)" required className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm uppercase" />
-            <input type="text" value={location} onChange={(e) => setLocation(e.target.value)} placeholder="Address (optional)" className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm" />
-            <div className="flex gap-2">
-              <button type="button" onClick={() => setShowForm(false)} className="border border-gray-300 rounded-md px-3 py-1.5 text-sm hover:bg-gray-50">Cancel</button>
-              <button type="submit" disabled={isSaving} className="bg-brand-600 text-white rounded-md px-4 py-1.5 text-sm font-medium hover:bg-brand-700 disabled:opacity-50">
-                {isSaving ? "Creating…" : "Create"}
-              </button>
-            </div>
-          </form>
-        </div>
+        <form onSubmit={handleCreate} className="pc-card pc-pad" style={{ display: "grid", gap: "12px", marginBottom: "16px" }}>
+          <h2 className="pc-h2">New warehouse</h2>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "12px" }}>
+            <label style={{ display: "grid", gap: "6px" }}><span className="pc-label">Name</span>
+              <input className="pc-input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Main warehouse" required /></label>
+            <label style={{ display: "grid", gap: "6px" }}><span className="pc-label">Code</span>
+              <input className="pc-input" value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} placeholder="WH-01" required /></label>
+            <label style={{ display: "grid", gap: "6px" }}><span className="pc-label">Address (optional)</span>
+              <input className="pc-input" value={location} onChange={(e) => setLocation(e.target.value)} /></label>
+          </div>
+          <div className="pc-row-actions">
+            <button type="button" className="pc-btn" onClick={() => setShowForm(false)}>Cancel</button>
+            <button type="submit" className="pc-btn" data-kind="primary" disabled={isSaving}>{isSaving ? "Adding…" : "Add warehouse"}</button>
+          </div>
+        </form>
       )}
 
-      <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="bg-gray-50 border-b border-gray-200">
-            <tr>
-              <th className="text-left px-4 py-3 text-gray-600 font-medium">Name</th>
-              <th className="text-left px-4 py-3 text-gray-600 font-medium">Location</th>
-              <th className="text-left px-4 py-3 text-gray-600 font-medium">Status</th>
-            </tr>
-          </thead>
+      <div className="pc-card">
+        <table className="pc-table">
+          <thead><tr><th>Name</th><th>Location</th><th>Status</th></tr></thead>
           <tbody>
-            {warehouses.length === 0 ? (
-              <tr><td colSpan={3} className="py-8 text-center text-gray-400">No warehouses</td></tr>
-            ) : warehouses.map((w) => (
-              <tr key={w.id} className="border-b border-gray-100 last:border-0">
-                <td className="px-4 py-3 font-medium text-gray-900">{w.name}</td>
-                <td className="px-4 py-3 text-gray-500">{w.location ?? "—"}</td>
-                <td className="px-4 py-3">
-                  <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${w.is_active ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"}`}>
-                    {w.is_active ? "Active" : "Inactive"}
-                  </span>
-                </td>
-              </tr>
-            ))}
+            {!warehouses ? <tr><td colSpan={3} className="pc-empty">Loading…</td></tr>
+              : warehouses.length === 0 ? <tr><td colSpan={3} className="pc-empty">No warehouses yet.</td></tr>
+              : warehouses.map((w) => (
+                <tr key={w.id}>
+                  <td style={{ fontWeight: 600 }}>{w.name}</td>
+                  <td style={{ color: "var(--pc-muted)" }}>{w.location ?? "—"}</td>
+                  <td><span className="pc-pill" data-tone={w.is_active ? "green" : undefined} style={{ textTransform: "none" }}>{w.is_active ? "Active" : "Inactive"}</span></td>
+                </tr>
+              ))}
           </tbody>
         </table>
       </div>

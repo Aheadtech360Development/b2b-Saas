@@ -89,29 +89,22 @@ export function TrackingPanel() {
     }
   }
 
-  if (loading) return <p className="text-sm text-gray-500">Loading…</p>;
-  if (!config) return <p className="text-sm text-red-600">Tracking settings are unavailable.</p>;
+  if (loading) return <p className="pc-sub-line" style={{ margin: 0 }}>Loading…</p>;
+  if (!config) return <div className="pc-note" data-tone="red">Tracking settings are unavailable.</div>;
 
   const connected = tools.filter(t => config.tools[t.key]?.enabled && config.tools[t.key]?.id).length;
 
   return (
-    <div className="space-y-5">
+    <div style={{ display: "grid", gap: "18px" }} data-tracking-panel>
       {/* The master switch */}
-      <label className="flex items-start gap-3 p-4 rounded-lg border border-gray-200 bg-gray-50 cursor-pointer">
-        <input
-          type="checkbox"
-          checked={config.enabled}
-          onChange={e => setConfig({ ...config, enabled: e.target.checked })}
-          className="mt-0.5 h-4 w-4"
-        />
+      <label style={{ display: "flex", alignItems: "flex-start", gap: "12px", padding: "14px 16px", border: "1px solid var(--pc-line)", borderRadius: "10px", background: "#F8FAFC", cursor: "pointer" }}>
+        <input type="checkbox" className="pc-check" checked={config.enabled} onChange={e => setConfig({ ...config, enabled: e.target.checked })} style={{ marginTop: "2px" }} />
         <span>
-          <span className="block text-sm font-semibold text-gray-900">
-            Track visitors on my storefront
-          </span>
-          <span className="block text-sm text-gray-500 mt-0.5">
+          <span style={{ display: "block", fontSize: "14.5px", fontWeight: 600 }}>Track visitors on my storefront</span>
+          <span className="pc-sub-line" style={{ display: "block", margin: "2px 0 0", fontSize: "13.5px" }}>
             {config.enabled
               ? `${connected} tool${connected === 1 ? "" : "s"} connected. Only the ones you switch on below are loaded.`
-              : "Off — your storefront loads no tracking scripts at all."}
+              : "Off: your storefront loads no tracking scripts at all."}
           </span>
         </span>
       </label>
@@ -119,69 +112,45 @@ export function TrackingPanel() {
       {config.enabled && (
         <>
           {/* What to send */}
-          <div className="flex flex-wrap gap-4 px-1">
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "18px", padding: "0 2px" }}>
             {([
               ["track_products", "Product views and add-to-cart"],
               ["track_checkout", "Checkout and purchases"],
             ] as const).map(([key, label]) => (
-              <label key={key} className="flex items-center gap-2 text-sm text-gray-700">
-                <input
-                  type="checkbox"
-                  checked={config[key]}
-                  onChange={e => setConfig({ ...config, [key]: e.target.checked })}
-                  className="h-4 w-4"
-                />
+              <label key={key} style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "14px", cursor: "pointer" }}>
+                <input type="checkbox" className="pc-check" checked={config[key]} onChange={e => setConfig({ ...config, [key]: e.target.checked })} />
                 {label}
               </label>
             ))}
           </div>
 
           {/* One card per tool */}
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div style={{ display: "grid", gap: "12px", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))" }}>
             {tools.map(tool => {
               const value = config.tools[tool.key] ?? { id: "", enabled: false };
               const live = value.enabled && !!value.id;
               return (
-                <div
-                  key={tool.key}
-                  className={`rounded-lg border p-4 transition-colors ${live ? "border-gray-900 bg-white" : "border-gray-200 bg-white"}`}
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="text-sm font-semibold text-gray-900">{tool.name}</p>
-                      <p className="text-xs text-gray-500 mt-0.5">{tool.blurb}</p>
+                <div key={tool.key} data-tool={tool.key} data-live={live ? "" : undefined}
+                  style={{ border: live ? "1.5px solid var(--pc-blue)" : "1px solid var(--pc-line)", borderRadius: "10px", padding: "14px 16px", background: "#fff" }}>
+                  <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "12px" }}>
+                    <div style={{ minWidth: 0 }}>
+                      <p style={{ margin: 0, fontSize: "14.5px", fontWeight: 600 }}>{tool.name}</p>
+                      <p className="pc-sub-line" style={{ margin: "2px 0 0", fontSize: "12.5px" }}>{tool.blurb}</p>
                     </div>
-                    <label className="flex items-center gap-1.5 shrink-0 text-xs text-gray-600">
-                      <input
-                        type="checkbox"
-                        checked={value.enabled}
-                        onChange={e => setTool(tool.key, { enabled: e.target.checked })}
-                        className="h-4 w-4"
-                      />
+                    <label style={{ display: "flex", alignItems: "center", gap: "6px", flexShrink: 0, fontSize: "13px", cursor: "pointer" }}>
+                      <input type="checkbox" className="pc-check" checked={value.enabled} onChange={e => setTool(tool.key, { enabled: e.target.checked })} />
                       On
                     </label>
                   </div>
-
-                  <label className="block mt-3">
-                    <span className="block text-xs font-medium text-gray-600 mb-1">{tool.field_label}</span>
-                    <input
-                      type="text"
-                      value={value.id}
-                      placeholder={tool.placeholder}
-                      onChange={e => setTool(tool.key, { id: e.target.value })}
-                      spellCheck={false}
-                      className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm font-mono focus:border-gray-900 focus:outline-none"
-                    />
+                  <label style={{ display: "grid", gap: "6px", marginTop: "12px" }}>
+                    <span className="pc-label">{tool.field_label}</span>
+                    <input type="text" className="pc-input" value={value.id} placeholder={tool.placeholder} spellCheck={false}
+                      onChange={e => setTool(tool.key, { id: e.target.value })} style={{ fontVariantNumeric: "tabular-nums" }} />
                   </label>
-
                   {tool.where && (
-                    <p className="text-[11px] text-gray-400 mt-1.5 leading-snug">
+                    <p className="pc-sub-line" style={{ margin: "6px 0 0", fontSize: "12px", lineHeight: 1.45 }}>
                       {tool.where}{" "}
-                      {tool.docs_url && (
-                        <a href={tool.docs_url} target="_blank" rel="noopener noreferrer" className="underline">
-                          Guide
-                        </a>
-                      )}
+                      {tool.docs_url && <a href={tool.docs_url} target="_blank" rel="noopener noreferrer" className="pc-link" style={{ fontSize: "12px" }}>Guide</a>}
                     </p>
                   )}
                 </div>
@@ -190,86 +159,45 @@ export function TrackingPanel() {
           </div>
 
           {/* The escape hatch */}
-          <div className="rounded-lg border border-gray-200 bg-white">
-            <button
-              type="button"
-              onClick={() => setShowSnippets(v => !v)}
-              className="w-full flex items-center justify-between px-4 py-3 text-sm font-semibold text-gray-900"
-            >
-              Something else
-              <span className="text-gray-400">{showSnippets ? "−" : "+"}</span>
-            </button>
-            {showSnippets && (
-              <div className="px-4 pb-4 space-y-3">
-                <p className="text-xs text-gray-500">
-                  For a tool that is not on the list. Paste the code it gave you — it runs on your
-                  storefront only, never on another store.
-                </p>
-                {([
-                  ["head_snippet", "Runs on every page"],
-                  ["body_snippet", "Added to the page body (for a no-script fallback)"],
-                ] as const).map(([key, label]) => (
-                  <label key={key} className="block">
-                    <span className="block text-xs font-medium text-gray-600 mb-1">{label}</span>
-                    <textarea
-                      value={config[key]}
-                      onChange={e => setConfig({ ...config, [key]: e.target.value })}
-                      rows={4}
-                      spellCheck={false}
-                      className="w-full rounded-md border border-gray-300 px-3 py-2 text-xs font-mono focus:border-gray-900 focus:outline-none"
-                    />
-                  </label>
-                ))}
-              </div>
-            )}
-          </div>
+          <details className="pc-card pc-details" open={showSnippets} onToggle={e => setShowSnippets((e.target as HTMLDetailsElement).open)}>
+            <summary><span style={{ fontWeight: 600 }}>Something else</span><span className="pc-link pc-details-more" aria-hidden /></summary>
+            <div style={{ padding: "0 20px 18px", display: "grid", gap: "12px" }}>
+              <p className="pc-sub-line" style={{ margin: 0, fontSize: "13px" }}>
+                For a tool that is not on the list. Paste the code it gave you: it runs on your storefront only, never on another store.
+              </p>
+              {([
+                ["head_snippet", "Runs on every page"],
+                ["body_snippet", "Added to the page body (for a no-script fallback)"],
+              ] as const).map(([key, label]) => (
+                <label key={key} style={{ display: "grid", gap: "6px" }}>
+                  <span className="pc-label">{label}</span>
+                  <textarea className="pc-input" rows={4} spellCheck={false} value={config[key]} onChange={e => setConfig({ ...config, [key]: e.target.value })}
+                    style={{ height: "auto", padding: "10px 14px", fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", fontSize: "12.5px", resize: "vertical" }} />
+                </label>
+              ))}
+            </div>
+          </details>
         </>
       )}
 
       {confirmProblem && (
-        <div className="rounded-lg border border-amber-300 bg-amber-50 p-4">
-          <p className="text-sm text-amber-900">{confirmProblem}</p>
-          <p className="text-xs text-amber-800 mt-1">
-            If you copied it straight from the tool, save it anyway — we may simply not recognise a
-            newer format.
-          </p>
-          <div className="flex gap-2 mt-3">
-            <button
-              type="button"
-              onClick={() => save(true)}
-              className="rounded-md bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white"
-            >
-              Save it anyway
-            </button>
-            <button
-              type="button"
-              onClick={() => setConfirmProblem(null)}
-              className="rounded-md border border-amber-300 px-3 py-1.5 text-xs font-semibold text-amber-900"
-            >
-              Let me fix it
-            </button>
+        <div className="pc-note" style={{ display: "grid", gap: "8px" }}>
+          <span>{confirmProblem}</span>
+          <span style={{ fontSize: "12.5px" }}>If you copied it straight from the tool, save it anyway: we may simply not recognise a newer format.</span>
+          <div className="pc-row-actions">
+            <button type="button" className="pc-btn" data-kind="primary" onClick={() => save(true)}>Save it anyway</button>
+            <button type="button" className="pc-btn" onClick={() => setConfirmProblem(null)}>Let me fix it</button>
           </div>
         </div>
       )}
 
       {note && (
-        <p className={`text-sm ${note.kind === "ok" ? "text-green-700" : note.kind === "warn" ? "text-amber-700" : "text-red-600"}`}>
-          {note.text}
-        </p>
+        <div className="pc-note" data-tone={note.kind === "ok" ? "green" : note.kind === "warn" ? undefined : "red"} role="status">{note.text}</div>
       )}
 
-      <div className="flex items-center gap-3">
-        <button
-          type="button"
-          onClick={() => save(false)}
-          disabled={saving}
-          className="rounded-md bg-gray-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
-        >
-          {saving ? "Saving…" : "Save tracking"}
-        </button>
-        <span className="text-xs text-gray-400">
-          Changes take effect the next time a shopper loads your storefront.
-        </span>
+      <div className="pc-row-actions">
+        <button type="button" className="pc-btn" data-kind="primary" onClick={() => save(false)} disabled={saving}>{saving ? "Saving…" : "Save tracking"}</button>
+        <span className="pc-sub-line" style={{ margin: 0, fontSize: "12.5px" }}>Changes take effect the next time a shopper loads your storefront.</span>
       </div>
     </div>
   );

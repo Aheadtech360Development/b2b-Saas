@@ -413,6 +413,44 @@
 .pc-admin :is(button, a)[style*="background: rgb(26, 26, 26)"]:hover:not(:disabled),
 .pc-admin :is(button, a)[style*="background:#1A1A1A" i]:hover:not(:disabled) { background: var(--pc-blue-dark) !important; }
 
+/* Old screens and panels inside the new admin, in its look (owner, 2026-10-19:
+   "buttons, fonts, boxes, cards… same as the new UI"). Only what is not drawn
+   with the .pc-* parts is touched, and never the Website builder's canvas
+   (.bsite). Fonts and colours are forced over inline styles, sizes are not, so
+   no old layout moves. */
+.pc-admin :where(:not(.bsite *))[style*="font-jakarta"] { font-family: var(--pc-sans) !important; }
+.pc-admin :where(:not(.bsite *))[style*="font-bebas"] { font-family: var(--pc-display) !important; }
+.pc-admin :where(:not(.bsite *)):is(h1, h2, h3):not([class*="pc-"]) { font-family: var(--pc-display) !important; color: var(--pc-ink); letter-spacing: -0.01em; }
+.pc-admin :where(:not(.bsite *)):is(button, a, label, span, p, td, th, li, div):not([class*="pc-"])[style*="color: rgb(26, 26, 26)"],
+.pc-admin :where(:not(.bsite *)):is(button, a, label, span, p, td, th, li, div):not([class*="pc-"])[style*="color: rgb(42, 40, 48)"] { color: var(--pc-ink) !important; }
+.pc-admin :where(:not(.bsite *)):is(input:is([type=text], [type=email], [type=number], [type=search], [type=tel], [type=url], [type=password], [type=date], :not([type])), select, textarea):not([class*="pc-"]):not(.pc-field *) {
+  border-color: var(--pc-line) !important;
+  border-radius: var(--pc-radius-sm) !important;
+  font-family: var(--pc-sans) !important;
+  color: var(--pc-ink);
+  background-color: #fff;
+}
+.pc-admin :where(:not(.bsite *)):is(input, select, textarea):not([class*="pc-"]):focus {
+  outline: none; border-color: var(--pc-blue) !important; box-shadow: 0 0 0 3px rgba(29, 95, 214, .15);
+}
+.pc-admin :where(:not(.bsite *)) button:not([class*="pc-"]) { font-family: var(--pc-sans); }
+/* Boxes: the old white cards take the card's radius and line. */
+.pc-admin :where(:not(.bsite *)):is(div, section).bg-white:is(.border, .rounded-lg, .rounded-xl):not([class*="pc-"]) { border-radius: var(--pc-radius); border-color: var(--pc-line); }
+.pc-admin :where(:not(.bsite *)):is(div, section):not([class*="pc-"])[style*="solid rgb(227, 227, 227)"],
+.pc-admin :where(:not(.bsite *)):is(div, section):not([class*="pc-"])[style*="solid rgb(236, 236, 236)"],
+.pc-admin :where(:not(.bsite *)):is(div, section):not([class*="pc-"])[style*="solid rgb(232, 230, 225)"],
+.pc-admin :where(:not(.bsite *)):is(div, section):not([class*="pc-"])[style*="solid #E3E3E3" i] { border-color: var(--pc-line) !important; }
+/* Tables: the list's header row and lines. */
+.pc-admin :where(:not(.bsite *)) table:not(.pc-table) th {
+  background: #F8FAFC !important; color: var(--pc-muted) !important; font-family: var(--pc-sans) !important;
+  font-size: 11.5px !important; font-weight: 600 !important; letter-spacing: .07em; text-transform: uppercase;
+}
+.pc-admin :where(:not(.bsite *)) table:not(.pc-table) thead tr { background: #F8FAFC !important; border-color: var(--pc-line) !important; }
+.pc-admin :where(:not(.bsite *)) table:not(.pc-table) :is(td, tr) { border-color: var(--pc-line-soft); }
+/* Tailwind's primary buttons and active chips take the admin's blue. */
+.pc-admin :where(:not(.bsite *)) :is(button, a):is(.bg-blue-600, .bg-blue-500, .bg-indigo-600) { background-color: var(--pc-blue) !important; border-color: var(--pc-blue) !important; }
+.pc-admin :where(:not(.bsite *)) :is(button, a):is(.bg-blue-600, .bg-blue-500, .bg-indigo-600):hover:not(:disabled) { background-color: var(--pc-blue-dark) !important; }
+
 /* The list's button, smaller than a card's. */
 .pc-admin .pc-list-action .pc-btn { height: 34px; padding: 0 12px; font-size: 13px; }
 

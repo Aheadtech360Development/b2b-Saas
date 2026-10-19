@@ -1,7 +1,9 @@
 "use client";
 
+/** Media library: pictures uploaded once, used anywhere (products, the website, banners). */
 import { ask, tell } from "@/lib/dialog";
 import { useEffect, useRef, useState } from "react";
+import { X } from "lucide-react";
 import { mediaService, type MediaItem } from "@/services/media.service";
 
 export default function MediaLibraryPage() {
@@ -20,7 +22,7 @@ export default function MediaLibraryPage() {
       setConfigured(res.configured);
       setItems(res.items || []);
     } catch {
-      setError("Failed to load media");
+      setError("The media library could not be loaded.");
     } finally {
       setLoading(false);
     }
@@ -37,7 +39,7 @@ export default function MediaLibraryPage() {
       for (const f of files) await mediaService.upload(f);
       await load();
     } catch {
-      setError("Upload failed. Check that media storage (ImageKit) is configured.");
+      setError("The upload did not go through. Check that media storage is set up.");
     } finally {
       setUploading(false);
       if (fileRef.current) fileRef.current.value = "";
@@ -49,54 +51,54 @@ export default function MediaLibraryPage() {
   }
 
   async function remove(id: string) {
-    if (!await ask("Delete this file?")) return;
-    try { await mediaService.remove(id); setItems((p) => p.filter((x) => x.file_id !== id)); } catch { tell("Delete failed"); }
+    if (!await ask("Delete this picture? Anywhere it is used, it stops showing.", { ok: "Delete", danger: true })) return;
+    try { await mediaService.remove(id); setItems((p) => p.filter((x) => x.file_id !== id)); } catch { tell("It could not be deleted."); }
   }
 
   return (
-    <div style={{ fontFamily: "var(--font-jakarta), sans-serif", maxWidth: "1100px" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: "24px", flexWrap: "wrap", gap: "12px" }}>
+    <div className="pc-page" data-media>
+      <div className="pc-head">
         <div>
-          <h1 style={{ fontFamily: "var(--font-bebas), sans-serif", fontSize: "32px", color: "#2A2830", letterSpacing: "-0.01em", lineHeight: 1 }}>Media Library</h1>
-          <p style={{ fontSize: "13px", color: "#7A7880", marginTop: "4px" }}>Upload images here, then copy the URL to use anywhere — products, storefront, banners.</p>
+          <div className="pc-eyebrow">Storefront</div>
+          <h1 className="pc-h1">Media library</h1>
+          <p className="pc-sub-line">Upload pictures here, then copy the link to use anywhere: products, the website, banners.</p>
         </div>
         <div>
-          <input ref={fileRef} type="file" accept="image/*" multiple onChange={handleUpload} style={{ display: "none" }} />
-          <button onClick={() => fileRef.current?.click()} disabled={uploading || !configured}
-            style={{ background: uploading || !configured ? "#9ca3af" : "#1A1A1A", color: "#fff", border: "none", padding: "11px 22px", borderRadius: "8px", fontSize: "14px", fontWeight: 700, cursor: uploading || !configured ? "not-allowed" : "pointer" }}>
-            {uploading ? "Uploading…" : "+ Upload Images"}
+          <input ref={fileRef} type="file" accept="image/*" multiple onChange={handleUpload} hidden />
+          <button type="button" className="pc-btn" data-kind="primary" onClick={() => fileRef.current?.click()} disabled={uploading || !configured}>
+            {uploading ? "Uploading…" : "Upload pictures"}
           </button>
         </div>
       </div>
 
       {!configured && (
-        <div style={{ background: "#FFFBEB", border: "1px solid #FDE68A", color: "#92400E", padding: "14px 18px", borderRadius: "10px", fontSize: "13px", marginBottom: "16px" }}>
-          <strong>Media storage not configured yet.</strong> Add your ImageKit keys to <code>backend/.env</code> and restart the backend, then upload will work.
+        <div className="pc-note" style={{ marginBottom: "16px" }}>
+          <b>Media storage is not set up yet.</b> Uploads start working once its keys are added to the server.
         </div>
       )}
-      {error && <div style={{ background: "#FEF2F2", border: "1px solid #FECACA", color: "#B91C1C", padding: "12px 16px", borderRadius: "8px", fontSize: "13px", marginBottom: "16px" }}>{error}</div>}
+      {error && <div className="pc-flash" data-bad="" role="alert">{error}</div>}
 
       {loading ? (
-        <div style={{ padding: "40px", color: "#888", fontSize: "13px" }}>Loading…</div>
+        <div className="pc-card pc-empty">Loading…</div>
       ) : items.length === 0 ? (
-        <div style={{ padding: "48px", textAlign: "center", color: "#999", fontSize: "14px", background: "#F6F6F7", border: "1px dashed #D8D6CE", borderRadius: "12px" }}>
-          No files yet. Click <strong>Upload Images</strong> to add your first one.
-        </div>
+        <div className="pc-card pc-empty">No pictures yet. Press <b>Upload pictures</b> to add the first one.</div>
       ) : (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: "16px" }}>
           {items.map((m) => (
-            <div key={m.file_id} style={{ background: "#fff", border: "1px solid #E3E3E3", borderRadius: "10px", overflow: "hidden" }}>
-              <div style={{ aspectRatio: "1 / 1", background: "#F6F6F7", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
+            <div key={m.file_id} className="pc-card" data-media-item>
+              <div style={{ aspectRatio: "1 / 1", background: "#F8FAFC", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", borderBottom: "1px solid var(--pc-line)" }}>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={m.thumbnail_url || m.url} alt={m.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
               </div>
               <div style={{ padding: "10px 12px" }}>
-                <div style={{ fontSize: "12px", fontWeight: 600, color: "#2A2830", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{m.name}</div>
+                <div title={m.name} style={{ fontSize: "13px", fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{m.name}</div>
                 <div style={{ display: "flex", gap: "6px", marginTop: "8px" }}>
-                  <button onClick={() => copyUrl(m.url, m.file_id)} style={{ flex: 1, background: "#F6F6F7", border: "1px solid #C9D6E8", color: "#1A1A1A", padding: "5px", borderRadius: "6px", fontSize: "11px", fontWeight: 700, cursor: "pointer" }}>
-                    {copied === m.file_id ? "Copied!" : "Copy URL"}
+                  <button type="button" className="pc-btn" style={{ flex: 1, height: "34px", fontSize: "13px" }} onClick={() => copyUrl(m.url, m.file_id)}>
+                    {copied === m.file_id ? "Copied" : "Copy link"}
                   </button>
-                  <button onClick={() => remove(m.file_id)} style={{ background: "rgba(239,68,68,.08)", border: "none", color: "#B91C1C", padding: "5px 10px", borderRadius: "6px", fontSize: "11px", fontWeight: 700, cursor: "pointer" }}>✕</button>
+                  <button type="button" className="pc-btn" aria-label={`Delete ${m.name}`} style={{ height: "34px", padding: "0 10px", color: "var(--pc-red)" }} onClick={() => remove(m.file_id)}>
+                    <X size={15} strokeWidth={2.4} />
+                  </button>
                 </div>
               </div>
             </div>

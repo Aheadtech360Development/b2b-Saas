@@ -11,6 +11,7 @@
  */
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
+import { Search } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { TrackStockSwitch } from "@/components/admin/TrackStockSwitch";
 
@@ -57,12 +58,13 @@ const TABS: { key: Tab; label: string }[] = [
   { key: "made", label: "Made to order" },
 ];
 
-const PILL: Record<State, { text: string; bg: string; fg: string }> = {
-  in_stock: { text: "In stock", bg: "#ECFDF5", fg: "#047857" },
-  low: { text: "Low stock", bg: "#FFFBEB", fg: "#B45309" },
-  out: { text: "Sold out", bg: "#FEF2F2", fg: "#B91C1C" },
-  not_counted: { text: "Not counted", bg: "#F3F4F6", fg: "#4B5563" },
-  made: { text: "Made to order", bg: "#EFF6FF", fg: "#1D4ED8" },
+// The admin's own pills (.pc-pill with a tone).
+const PILL: Record<State, { text: string; tone: string }> = {
+  in_stock: { text: "In stock", tone: "green" },
+  low: { text: "Low stock", tone: "amber" },
+  out: { text: "Sold out", tone: "red" },
+  not_counted: { text: "Not counted", tone: "" },
+  made: { text: "Made to order", tone: "blue" },
 };
 
 function variantState(quantity: number, threshold: number): State {
@@ -78,11 +80,7 @@ function productState(variants: InventoryVariant[]): State {
 
 function Pill({ state }: { state: State }) {
   const p = PILL[state];
-  return (
-    <span data-pill={state} style={{ display: "inline-block", padding: "2px 9px", borderRadius: "999px", fontSize: "12px", fontWeight: 600, background: p.bg, color: p.fg, whiteSpace: "nowrap" }}>
-      {p.text}
-    </span>
-  );
+  return <span data-pill={state} className="pc-pill" data-tone={p.tone || undefined} style={{ textTransform: "none", whiteSpace: "nowrap" }}>{p.text}</span>;
 }
 
 export function InventoryProducts() {
@@ -121,50 +119,41 @@ export function InventoryProducts() {
 
   return (
     <div data-inventory-products aria-busy={loading}>
-      <div role="tablist" aria-label="Which products" style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginBottom: "12px" }}>
+      <div className="pc-tabs" role="tablist" aria-label="Which products">
         {TABS.map((t) => (
-          <button
-            key={t.key}
-            type="button"
-            role="tab"
-            aria-selected={tab === t.key}
-            onClick={() => { setTab(t.key); setPage(1); }}
-            className={`px-3 py-1.5 rounded-full text-sm border ${tab === t.key ? "bg-blue-600 text-white border-blue-600" : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"}`}
-          >
-            {t.label}{data ? ` (${data.counts[t.key] ?? 0})` : ""}
+          <button key={t.key} type="button" role="tab" className="pc-tab" aria-selected={tab === t.key}
+            data-on={tab === t.key ? "" : undefined} onClick={() => { setTab(t.key); setPage(1); }}>
+            {t.label}{data ? <>{" "}<span className="pc-tab-count">{data.counts[t.key] ?? 0}</span></> : null}
           </button>
         ))}
       </div>
 
-      <input
-        type="search"
-        value={typed}
-        onChange={(e) => setTyped(e.target.value)}
-        placeholder="Search products by name or code…"
-        aria-label="Search products"
-        className="rounded-md border border-gray-300 px-3 py-2 text-sm w-full max-w-sm mb-4"
-      />
+      <div className="pc-filters">
+        <label className="pc-field">
+          <Search size={17} strokeWidth={2} />
+          <input type="search" value={typed} onChange={(e) => setTyped(e.target.value)}
+            placeholder="Search products by name or code" aria-label="Search products" />
+        </label>
+      </div>
 
-      {error && <p role="alert" className="text-sm text-red-700 mb-3">{error}</p>}
+      {error && <div className="pc-flash" data-bad="" role="alert">{error}</div>}
 
       {!data && loading ? (
-        <div className="bg-white rounded-lg border border-gray-200 p-10 text-center text-sm text-gray-400">Loading…</div>
+        <div className="pc-card pc-empty">Loading…</div>
       ) : data && data.items.length === 0 ? (
-        <div className="bg-white rounded-lg border border-gray-200 p-10 text-center text-sm text-gray-500">
-          {query ? `No products match “${query}”.` : "No products here."}
-        </div>
+        <div className="pc-card pc-empty">{query ? `No products match “${query}”.` : "No products here."}</div>
       ) : (
-        <div style={{ display: "grid", gap: "12px" }}>
+        <div style={{ display: "grid", gap: "14px" }}>
           {data?.items.map((item) => <ProductStock key={item.id} item={item} onChange={replace} />)}
         </div>
       )}
 
       {data && data.pages > 1 && (
-        <div className="flex items-center justify-between mt-4 text-sm text-gray-600">
+        <div className="pc-table-foot" style={{ borderTop: 0, padding: "14px 2px 0" }}>
           <span>Page {data.page} of {data.pages} · {data.total} products</span>
-          <span className="flex gap-2">
-            <button type="button" disabled={page <= 1} onClick={() => setPage((p) => p - 1)} className="border border-gray-300 rounded-md px-3 py-1.5 disabled:opacity-40">Previous</button>
-            <button type="button" disabled={page >= data.pages} onClick={() => setPage((p) => p + 1)} className="border border-gray-300 rounded-md px-3 py-1.5 disabled:opacity-40">Next</button>
+          <span style={{ display: "flex", gap: "8px" }}>
+            <button type="button" className="pc-btn" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>Previous</button>
+            <button type="button" className="pc-btn" disabled={page >= data.pages} onClick={() => setPage((p) => p + 1)}>Next</button>
           </span>
         </div>
       )}
@@ -198,58 +187,47 @@ export function ProductStock({ item, onChange }: { item: InventoryItem; onChange
   };
 
   return (
-    <section data-product={item.id} data-state={item.state} className="bg-white rounded-lg border border-gray-200">
-      <div className="flex items-center gap-3 px-4 py-3 flex-wrap">
+    <section data-product={item.id} data-state={item.state} className="pc-card">
+      <div style={{ display: "flex", alignItems: "center", gap: "12px", padding: "14px 18px", flexWrap: "wrap" }}>
         {item.image
-          ? <img src={item.image} alt="" width={40} height={40} className="w-10 h-10 rounded object-cover border border-gray-200" />
-          : <span aria-hidden className="w-10 h-10 rounded bg-gray-100 border border-gray-200 inline-block" />}
-        <div className="min-w-0" style={{ flex: "1 1 220px" }}>
-          <Link href={`/admin/products/${item.slug}/edit`} className="font-semibold text-gray-900 hover:text-blue-700">
-            {item.name}
-          </Link>
-          <div className="text-xs text-gray-500">
+          // eslint-disable-next-line @next/next/no-img-element
+          ? <img src={item.image} alt="" width={40} height={40} className="pc-thumb" style={{ width: "40px", height: "40px" }} />
+          : <span aria-hidden className="pc-thumb" style={{ width: "40px", height: "40px" }} />}
+        <div style={{ flex: "1 1 220px", minWidth: 0 }}>
+          <Link href={`/admin/products/${item.slug}/edit`} className="pc-row-title">{item.name}</Link>
+          <div className="pc-sub-line" style={{ fontSize: "12.5px", margin: 0 }}>
             {item.made_to_order
               ? item.made_to_order
               : `${item.variants.length} ${item.variants.length === 1 ? "size" : "sizes"}${item.status === "draft" ? " · Draft" : ""}`}
           </div>
         </div>
         <Pill state={item.state} />
-        {counted && <span className="text-sm text-gray-700 whitespace-nowrap">{item.total} in stock</span>}
+        {counted && <span style={{ fontSize: "14px", fontWeight: 600, whiteSpace: "nowrap" }}>{item.total} in stock</span>}
         {!item.made_to_order && (
           <TrackStockSwitch productId={item.id} productName={item.name} tracked={item.track_inventory} onChange={switched} />
         )}
       </div>
 
       {item.made_to_order ? (
-        <p className="px-4 pb-3 text-xs text-gray-500">Printed when it is ordered, so there is no stock to count.</p>
+        <p className="pc-sub-line" style={{ margin: 0, padding: "0 18px 14px", fontSize: "13px" }}>Printed when it is ordered, so there is no stock to count.</p>
       ) : !counted ? (
-        <p className="px-4 pb-3 text-xs text-gray-500">
+        <p className="pc-sub-line" style={{ margin: 0, padding: "0 18px 14px", fontSize: "13px" }}>
           Not counted: sells without a limit, even at 0. Switch on Count stock to limit each size to what you have.
         </p>
       ) : item.variants.length === 0 ? (
-        <p className="px-4 pb-3 text-xs text-gray-500">No sizes yet. Add them on the product page.</p>
+        <p className="pc-sub-line" style={{ margin: 0, padding: "0 18px 14px", fontSize: "13px" }}>No sizes yet. Add them on the product page.</p>
       ) : (
-        <div className="border-t border-gray-100 overflow-x-auto">
-          <table className="w-full text-sm" style={{ minWidth: "520px" }}>
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="text-left px-4 py-2 text-gray-600 font-medium">Colour</th>
-                <th className="text-left px-4 py-2 text-gray-600 font-medium">Size</th>
-                <th className="text-left px-4 py-2 text-gray-600 font-medium">SKU</th>
-                <th className="text-left px-4 py-2 text-gray-600 font-medium">In stock</th>
-                <th className="px-4 py-2" />
-              </tr>
-            </thead>
+        <div className="pc-scroll-x" style={{ borderTop: "1px solid var(--pc-line)" }}>
+          <table className="pc-table" style={{ minWidth: "520px" }}>
+            <thead><tr><th>Colour</th><th>Size</th><th>SKU</th><th>In stock</th><th aria-label="State" /></tr></thead>
             <tbody>
               {item.variants.map((v) => (
-                <tr key={v.id} className="border-t border-gray-100">
-                  <td className="px-4 py-2 text-gray-700">{v.color || "—"}</td>
-                  <td className="px-4 py-2 text-gray-700">{v.size || "—"}</td>
-                  <td className="px-4 py-2 font-mono text-xs text-gray-500">{v.sku}</td>
-                  <td className="px-4 py-2">
-                    <CountBox productId={item.id} variant={v} onSaved={(n) => setCount(v.id, n)} />
-                  </td>
-                  <td className="px-4 py-2"><Pill state={variantState(v.quantity, v.low_stock_threshold)} /></td>
+                <tr key={v.id}>
+                  <td>{v.color || "—"}</td>
+                  <td>{v.size || "—"}</td>
+                  <td style={{ fontVariantNumeric: "tabular-nums", color: "var(--pc-muted)", fontSize: "13px" }}>{v.sku}</td>
+                  <td><CountBox productId={item.id} variant={v} onSaved={(n) => setCount(v.id, n)} /></td>
+                  <td><Pill state={variantState(v.quantity, v.low_stock_threshold)} /></td>
                 </tr>
               ))}
             </tbody>
@@ -297,7 +275,7 @@ function CountBox({ productId, variant, onSaved }: {
   }
 
   return (
-    <span className="inline-flex items-center gap-2">
+    <span style={{ display: "inline-flex", alignItems: "center", gap: "8px" }}>
       <input
         type="number"
         min={0}
@@ -308,9 +286,10 @@ function CountBox({ productId, variant, onSaved }: {
         onChange={(e) => { setValue(e.target.value); setNote(null); }}
         onBlur={() => void save()}
         onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
-        className="w-20 rounded-md border border-gray-300 px-2 py-1 text-sm text-center"
+        className="pc-input"
+        style={{ width: "84px", height: "36px", textAlign: "center", padding: "0 8px" }}
       />
-      {note && <span className={`text-xs ${note.ok ? "text-green-700" : "text-red-700"}`}>{note.text}</span>}
+      {note && <span style={{ fontSize: "12.5px", color: note.ok ? "var(--pc-green)" : "var(--pc-red)" }}>{note.text}</span>}
     </span>
   );
 }

@@ -12,11 +12,6 @@ import { MenuLinkField, type LinkPickerProduct } from "@/components/admin/MenuLi
 import type { MenuItem } from "@/components/providers/BrandingProvider";
 import type { Category } from "@/types/product.types";
 
-const label: React.CSSProperties = { display: "block", fontSize: "12px", fontWeight: 600, color: "#555", marginBottom: "6px", textTransform: "uppercase", letterSpacing: ".04em" };
-const input: React.CSSProperties = { border: "1px solid #E3E3E3", borderRadius: "8px", padding: "10px 12px", fontSize: "14px", outline: "none", boxSizing: "border-box", background: "#fff" };
-const card: React.CSSProperties = { background: "#fff", border: "1px solid #E3E3E3", borderRadius: "12px", padding: "20px", marginBottom: "18px" };
-const btnPrimary: React.CSSProperties = { background: "#1A1A1A", color: "#fff", border: "none", padding: "10px 20px", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: "pointer" };
-const btnGhost: React.CSSProperties = { background: "#F6F6F7", border: "1px solid #C9D6E8", color: "#1A1A1A", padding: "8px 14px", borderRadius: "8px", fontSize: "12px", fontWeight: 700, cursor: "pointer" };
 
 export default function MenusManager() {
   const { user } = useAuthStore();
@@ -83,92 +78,86 @@ export default function MenusManager() {
     } catch { setError("Could not delete menu."); }
   }
 
-  if (loading) return <div style={{ padding: "40px", color: "#888", fontSize: "14px" }}>Loading menus…</div>;
+  if (loading) return <div className="pc-page"><div className="pc-card pc-empty">Loading menus…</div></div>;
 
   return (
-    <div style={{ fontFamily: "var(--font-jakarta), sans-serif", maxWidth: "920px" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: "22px", flexWrap: "wrap", gap: "12px" }}>
+    <div className="pc-page" data-menus>
+      <div className="pc-head">
         <div>
-          <h1 style={{ fontFamily: "var(--font-bebas), sans-serif", fontSize: "32px", color: "#2A2830", letterSpacing: "-0.01em", lineHeight: 1 }}>Menus</h1>
-          <p style={{ fontSize: "13px", color: "#7A7880", marginTop: "4px" }}>Build navigation menus, then choose which one shows in your header &amp; footer (Storefront → Header/Footer menu).</p>
+          <div className="pc-eyebrow">Storefront</div>
+          <h1 className="pc-h1">Menus</h1>
+          <p className="pc-sub-line">Build navigation menus, then choose which one shows in your header and footer (Website builder, Header and Footer).</p>
         </div>
-        {!readOnly && <button onClick={() => setShowNew(true)} style={btnPrimary}>+ New Menu</button>}
+        {!readOnly && !showNew && <button type="button" className="pc-btn" data-kind="primary" onClick={() => setShowNew(true)}>New menu</button>}
       </div>
 
-      {error && <div style={{ background: "#FEF2F2", border: "1px solid #FECACA", color: "#B91C1C", padding: "12px 16px", borderRadius: "8px", fontSize: "13px", marginBottom: "16px" }}>{error}</div>}
+      {error && <div className="pc-flash" data-bad="" role="alert">{error}</div>}
 
       {showNew && !readOnly && (
-        <div style={{ ...card, display: "flex", gap: "10px", flexWrap: "wrap", alignItems: "center" }}>
-          <input autoFocus value={newName} onChange={(e) => setNewName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleCreate()} placeholder="Menu name (e.g. Main menu, Footer menu)" style={{ ...input, flex: 1, minWidth: "220px" }} />
-          <button onClick={handleCreate} disabled={!newName.trim()} style={{ ...btnPrimary, opacity: newName.trim() ? 1 : 0.6 }}>Create</button>
-          <button onClick={() => { setShowNew(false); setNewName(""); }} style={{ background: "#fff", border: "1px solid #E3E3E3", color: "#555", padding: "10px 16px", borderRadius: "8px", fontSize: "13px", fontWeight: 600, cursor: "pointer" }}>Cancel</button>
+        <div className="pc-card pc-pad" style={{ display: "flex", gap: "10px", flexWrap: "wrap", alignItems: "center", marginBottom: "16px" }}>
+          <input className="pc-input" autoFocus value={newName} onChange={(e) => setNewName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleCreate()}
+            placeholder="Menu name (Main menu, Footer menu)" aria-label="Menu name" style={{ flex: 1, minWidth: "220px" }} />
+          <button type="button" className="pc-btn" data-kind="primary" onClick={handleCreate} disabled={!newName.trim()}>Create</button>
+          <button type="button" className="pc-btn" onClick={() => { setShowNew(false); setNewName(""); }}>Cancel</button>
         </div>
       )}
 
-      {/* Menu tabs */}
       {menus.length > 0 && (
-        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginBottom: "16px" }}>
+        <div className="pc-seg" role="group" aria-label="Menus" style={{ marginBottom: "16px", flexWrap: "wrap" }}>
           {menus.map((m) => (
-            <button key={m.id} onClick={() => selectMenu(m)} style={{ padding: "8px 16px", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: "pointer", border: draft?.id === m.id ? "2px solid #1A1A1A" : "1px solid #E3E3E3", background: draft?.id === m.id ? "#F0F4FA" : "#fff", color: "#2A2830" }}>
-              {m.name} <span style={{ color: "#aaa", fontWeight: 500 }}>({m.items.length})</span>
+            <button key={m.id} type="button" aria-pressed={draft?.id === m.id} onClick={() => selectMenu(m)}>
+              {m.name} <span style={{ opacity: 0.7, fontWeight: 500 }}>({m.items.length})</span>
             </button>
           ))}
         </div>
       )}
 
       {menus.length === 0 ? (
-        <div style={{ ...card, padding: "48px 24px", textAlign: "center" }}>
-          <div style={{ fontSize: "32px", marginBottom: "8px" }}>🧭</div>
-          <p style={{ fontSize: "15px", color: "#7A7880" }}>No menus yet.</p>
-          <p style={{ fontSize: "13px", color: "#aaa", marginTop: "4px" }}>Create a menu (e.g. &quot;Main menu&quot;) to control your storefront navigation.</p>
-        </div>
+        <div className="pc-card pc-empty">No menus yet. Make one (for example &quot;Main menu&quot;) to set your shop&apos;s navigation.</div>
       ) : draft && (
         <fieldset disabled={readOnly} style={{ border: "none", margin: 0, padding: 0, minWidth: 0 }}>
-          <div style={card}>
-            {/* Name + delete */}
-            <div style={{ display: "flex", gap: "12px", alignItems: "flex-end", marginBottom: "18px", flexWrap: "wrap" }}>
-              <div style={{ flex: 1, minWidth: "200px" }}>
-                <label style={label}>Menu Name</label>
-                <input style={{ ...input, width: "100%" }} value={draft.name} onChange={(e) => { setDraft({ ...draft, name: e.target.value }); setDirty(true); }} />
-              </div>
-              {!readOnly && <button onClick={() => handleDelete(draft)} style={{ background: "#fff", border: "1px solid #F1C4C4", color: "#B91C1C", padding: "10px 16px", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: "pointer" }}>Delete Menu</button>}
+          <section className="pc-card pc-pad" style={{ display: "grid", gap: "14px", marginBottom: "16px" }}>
+            <div style={{ display: "flex", gap: "12px", alignItems: "flex-end", flexWrap: "wrap" }}>
+              <label style={{ flex: 1, minWidth: "200px", display: "grid", gap: "6px" }}>
+                <span className="pc-label">Menu name</span>
+                <input className="pc-input" value={draft.name} onChange={(e) => { setDraft({ ...draft, name: e.target.value }); setDirty(true); }} />
+              </label>
+              {!readOnly && <button type="button" className="pc-btn" style={{ color: "var(--pc-red)" }} onClick={() => handleDelete(draft)}>Delete menu</button>}
             </div>
 
-            {/* Items */}
-            <label style={label}>Menu Items</label>
-            {draft.items.length === 0 && <p style={{ fontSize: "13px", color: "#aaa", marginBottom: "10px" }}>No items yet — add your first link.</p>}
+            <span className="pc-label">Menu items</span>
+            {draft.items.length === 0 && <p className="pc-sub-line" style={{ margin: 0 }}>No items yet. Add the first link.</p>}
             {draft.items.map((m, i) => (
-              <div key={i} style={{ border: "1px solid #EEE", borderRadius: "8px", padding: "12px", marginBottom: "12px", background: "#F6F6F7" }}>
+              <div key={i} data-menu-item={i} style={{ border: "1px solid var(--pc-line)", borderRadius: "10px", padding: "12px", background: "#F8FAFC" }}>
                 <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
                   <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
-                    <button onClick={() => moveItem(i, -1)} disabled={i === 0} style={{ background: "#fff", border: "1px solid #E3E3E3", borderRadius: "6px", cursor: i === 0 ? "not-allowed" : "pointer", opacity: i === 0 ? 0.4 : 1, fontSize: "11px", padding: "1px 6px" }}>↑</button>
-                    <button onClick={() => moveItem(i, 1)} disabled={i === draft.items.length - 1} style={{ background: "#fff", border: "1px solid #E3E3E3", borderRadius: "6px", cursor: i === draft.items.length - 1 ? "not-allowed" : "pointer", opacity: i === draft.items.length - 1 ? 0.4 : 1, fontSize: "11px", padding: "1px 6px" }}>↓</button>
+                    <button type="button" className="pc-x" aria-label="Move up" onClick={() => moveItem(i, -1)} disabled={i === 0}>↑</button>
+                    <button type="button" className="pc-x" aria-label="Move down" onClick={() => moveItem(i, 1)} disabled={i === draft.items.length - 1}>↓</button>
                   </div>
-                  <input style={{ ...input, flex: "0 0 170px", padding: "8px 10px" }} value={m.label} onChange={(e) => setItem(i, { label: e.target.value })} placeholder="Label (e.g. Shop)" />
+                  <input className="pc-input" aria-label="Label" style={{ flex: "0 0 170px" }} value={m.label} onChange={(e) => setItem(i, { label: e.target.value })} placeholder="Label (Shop)" />
                   <MenuLinkField href={m.href} onChange={(v) => setItem(i, { href: v })} products={products} categories={categories} pages={pages} />
-                  <button onClick={() => removeItem(i)} title="Remove" style={{ background: "transparent", border: "none", color: "#B91C1C", fontSize: "18px", cursor: "pointer" }}>×</button>
+                  <button type="button" className="pc-x" style={{ color: "var(--pc-red)" }} aria-label="Remove" onClick={() => removeItem(i)}>×</button>
                 </div>
-                {/* Sub-items */}
-                <div style={{ marginTop: "8px", paddingLeft: "20px", borderLeft: "2px solid #EEE" }}>
+                <div style={{ marginTop: "8px", paddingLeft: "20px", borderLeft: "2px solid var(--pc-line)" }}>
                   {(m.children ?? []).map((c, j) => (
                     <div key={j} style={{ display: "flex", gap: "8px", alignItems: "center", marginBottom: "6px", flexWrap: "wrap" }}>
-                      <span style={{ color: "#bbb", fontSize: "12px" }}>↳</span>
-                      <input style={{ ...input, flex: "0 0 150px", padding: "7px 10px" }} value={c.label} onChange={(e) => setChild(i, j, { label: e.target.value })} placeholder="Sub label" />
+                      <span style={{ color: "var(--pc-faint)", fontSize: "12px" }}>↳</span>
+                      <input className="pc-input" aria-label="Sub label" style={{ flex: "0 0 150px", height: "38px" }} value={c.label} onChange={(e) => setChild(i, j, { label: e.target.value })} placeholder="Sub label" />
                       <MenuLinkField href={c.href} onChange={(v) => setChild(i, j, { href: v })} products={products} categories={categories} pages={pages} compact />
-                      <button onClick={() => removeChild(i, j)} style={{ background: "transparent", border: "none", color: "#B91C1C", fontSize: "16px", cursor: "pointer" }}>×</button>
+                      <button type="button" className="pc-x" style={{ color: "var(--pc-red)" }} aria-label="Remove the sub item" onClick={() => removeChild(i, j)}>×</button>
                     </div>
                   ))}
-                  <button onClick={() => addChild(i)} style={{ background: "transparent", border: "none", color: "#1A1A1A", fontSize: "12px", fontWeight: 700, cursor: "pointer", padding: "4px 0" }}>+ Add sub-menu item</button>
+                  <button type="button" className="pc-link" style={{ background: "none", border: 0, padding: "4px 0", fontSize: "13px" }} onClick={() => addChild(i)}>+ Add sub-menu item</button>
                 </div>
               </div>
             ))}
-            <button onClick={addItem} style={{ ...btnGhost, marginTop: "4px" }}>+ Add Menu Item</button>
-          </div>
+            <div><button type="button" className="pc-btn" onClick={addItem}>+ Add menu item</button></div>
+          </section>
 
           {!readOnly && (
-            <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: "12px", marginBottom: "40px" }}>
-              {dirty && <span style={{ fontSize: "13px", color: "#B45309" }}>Unsaved changes</span>}
-              <button onClick={handleSave} disabled={saving || !dirty} style={{ ...btnPrimary, padding: "12px 28px", fontSize: "14px", opacity: saving || !dirty ? 0.55 : 1, cursor: saving || !dirty ? "not-allowed" : "pointer" }}>{saving ? "Saving…" : "Save Menu"}</button>
+            <div className="pc-row-actions" style={{ justifyContent: "flex-end", marginBottom: "40px" }}>
+              {dirty && <span style={{ fontSize: "13px", color: "var(--pc-amber)" }}>Unsaved changes</span>}
+              <button type="button" className="pc-btn" data-kind="primary" onClick={handleSave} disabled={saving || !dirty}>{saving ? "Saving…" : "Save menu"}</button>
             </div>
           )}
         </fieldset>

@@ -63,13 +63,13 @@ export function DomainPanel() {
     }
   }
 
-  if (!state) return <p className="ui-hint">Loading…</p>;
+  if (!state) return <p className="pc-sub-line">Loading…</p>;
 
   return (
     <div>
       {!state.domain ? (
         <>
-          <p className="ui-hint" style={{ marginBottom: "14px", lineHeight: 1.65 }}>
+          <p className="pc-sub-line" style={{ marginBottom: "14px", lineHeight: 1.65 }}>
             Your shop is live at{" "}
             <strong className="ui-num">{state.platform_address}</strong>. If you have bought a
             domain of your own — from Namecheap, GoDaddy, anywhere — put it here and your whole
@@ -77,7 +77,7 @@ export function DomainPanel() {
           </p>
           <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
             <input
-              className="ui-field"
+              className="pc-input"
               style={{ flex: "1 1 260px", minWidth: 0 }}
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
@@ -86,14 +86,14 @@ export function DomainPanel() {
               aria-label="Your domain"
             />
             <button
-              className="ui-btn"
+              className="pc-btn" data-kind="primary"
               disabled={!draft.trim() || busy === "save"}
               onClick={() => save(draft)}
             >
               {busy === "save" ? "Saving…" : "Use this domain"}
             </button>
           </div>
-          {error && <p className="ui-hint ui-hint-bad">{error}</p>}
+          {error && <p className="pc-sub-line" style={{ color: "var(--pc-red)" }}>{error}</p>}
         </>
       ) : (
         <>
@@ -111,11 +111,11 @@ export function DomainPanel() {
             </span>
           </div>
 
-          {state.message && <p className="ui-hint" style={{ marginBottom: "14px" }}>{state.message}</p>}
+          {state.message && <p className="pc-sub-line" style={{ marginBottom: "14px" }}>{state.message}</p>}
 
           {state.status !== "live" && (
             <>
-              <p className="ui-hint" style={{ marginBottom: "12px", lineHeight: 1.65 }}>
+              <p className="pc-sub-line" style={{ marginBottom: "12px", lineHeight: 1.65 }}>
                 Add these where you bought the domain. It usually takes a few minutes, and can
                 take up to an hour. Your shop keeps working at{" "}
                 <strong className="ui-num">{state.platform_address}</strong> the whole time.
@@ -141,7 +141,7 @@ export function DomainPanel() {
                 </table>
               </div>
               {state.records.some((r) => r.note) && (
-                <ul className="ui-hint" style={{ margin: "0 0 14px", paddingLeft: "18px", lineHeight: 1.7 }}>
+                <ul className="pc-sub-line" style={{ margin: "0 0 14px", paddingLeft: "18px", lineHeight: 1.7 }}>
                   {state.records.filter((r) => r.note).map((r) => <li key={r.type + r.host}>{r.note}</li>)}
                 </ul>
               )}
@@ -149,11 +149,11 @@ export function DomainPanel() {
           )}
 
           <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
-            <button className="ui-btn-ghost" disabled={busy === "check"} onClick={check}>
+            <button className="pc-btn" disabled={busy === "check"} onClick={check}>
               {busy === "check" ? "Checking…" : "Check it now"}
             </button>
             <button
-              className="ui-btn-quiet"
+              className="pc-btn" style={{ color: "var(--pc-red)" }}
               disabled={busy === "save"}
               onClick={async () => {
                 if (await ask(
@@ -165,7 +165,7 @@ export function DomainPanel() {
               Stop using this domain
             </button>
           </div>
-          {error && <p className="ui-hint ui-hint-bad">{error}</p>}
+          {error && <p className="pc-sub-line" style={{ color: "var(--pc-red)" }}>{error}</p>}
         </>
       )}
     </div>

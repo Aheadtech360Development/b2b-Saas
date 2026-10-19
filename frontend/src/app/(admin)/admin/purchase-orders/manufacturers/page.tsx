@@ -1,7 +1,10 @@
 "use client";
 
+/** Suppliers: the manufacturers stock is bought from, for purchase orders. */
+import Link from "next/link";
 import { ask, tell } from "@/lib/dialog";
 import { useEffect, useState } from "react";
+import { X } from "lucide-react";
 import { apiClient, ApiClientError } from "@/lib/api-client";
 
 interface Manufacturer {
@@ -15,6 +18,7 @@ interface Manufacturer {
 }
 
 const EMPTY: Omit<Manufacturer, "id"> = { name: "", contact_name: "", email: "", phone: "", address: "", notes: "" };
+const LABELS: Record<"name" | "contact_name" | "email" | "phone", string> = { name: "Name", contact_name: "Contact name", email: "Email", phone: "Phone" };
 
 export default function ManufacturersPage() {
   const [manufacturers, setManufacturers] = useState<Manufacturer[]>([]);
@@ -25,7 +29,7 @@ export default function ManufacturersPage() {
   const [saving, setSaving] = useState(false);
 
   async function load() {
-    const data = await apiClient.get<Manufacturer[]>("/api/v1/admin/purchase-orders/manufacturers");
+    const data = await apiClient.get<Manufacturer[]>("/api/v1/admin/purchase-orders/manufacturers").catch(() => []);
     setManufacturers(Array.isArray(data) ? data : []);
     setLoading(false);
   }
@@ -37,7 +41,7 @@ export default function ManufacturersPage() {
 
   async function save() {
     if (!form.name.trim() || !form.contact_name?.trim() || !form.email?.trim() || !form.phone?.trim() || !form.address?.trim()) {
-      tell("Please fill all required fields: Name, Contact Name, Email, Phone, and Address");
+      tell("Fill in the name, contact name, email, phone and address.");
       return;
     }
     setSaving(true);
@@ -50,89 +54,79 @@ export default function ManufacturersPage() {
       setShowModal(false);
       await load();
     } catch (err) {
-      tell(err instanceof ApiClientError ? err.message : "Failed to save");
+      tell(err instanceof ApiClientError ? err.message : "It could not be saved.");
     }
     setSaving(false);
   }
 
   async function del(id: string, name: string) {
-    if (!await ask(`Delete "${name}"?`)) return;
+    if (!await ask(`Delete "${name}"? Its purchase orders keep their history.`, { ok: "Delete", danger: true })) return;
     await apiClient.delete(`/api/v1/admin/purchase-orders/manufacturers/${id}`);
     await load();
   }
 
   return (
-    <div style={{ padding: "32px", maxWidth: "900px", margin: "0 auto" }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "28px" }}>
+    <div className="pc-page" data-suppliers-list>
+      <Link href="/admin/purchase-orders" className="pc-back">← Purchase orders</Link>
+      <div className="pc-head" style={{ marginTop: "10px" }}>
         <div>
-          <a href="/admin/purchase-orders" style={{ fontSize: "13px", color: "#6B7280", textDecoration: "none" }}>← Purchase Orders</a>
-          <h1 style={{ fontSize: "22px", fontWeight: 700, color: "#1A1A1A", letterSpacing: ".04em", marginTop: "4px" }}>Manufacturers</h1>
+          <div className="pc-eyebrow">Purchase orders</div>
+          <h1 className="pc-h1">Suppliers</h1>
+          <p className="pc-sub-line">The manufacturers and suppliers you buy stock from. A purchase order is emailed to the address here.</p>
         </div>
-        <button onClick={openNew} style={{ padding: "9px 18px", background: "#1A1A1A", color: "#fff", border: "none", borderRadius: "8px", fontSize: "13px", fontWeight: 600, cursor: "pointer" }}>
-          + Add Manufacturer
-        </button>
+        <button type="button" className="pc-btn" data-kind="primary" onClick={openNew}>Add supplier</button>
       </div>
 
-      <div style={{ background: "#fff", border: "1px solid #E3E3E3", borderRadius: "10px", overflow: "hidden" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse" }}>
-          <thead>
-            <tr style={{ background: "#F6F6F7", borderBottom: "1px solid #E3E3E3" }}>
-              {["NAME", "CONTACT", "EMAIL", "PHONE", "ACTIONS"].map(h => (
-                <th key={h} style={{ padding: "12px 16px", textAlign: "left", fontSize: "11px", fontWeight: 700, color: "#6B7280", letterSpacing: ".07em" }}>{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
-              <tr><td colSpan={5} style={{ padding: "40px", textAlign: "center", color: "#9CA3AF" }}><div className="at-skel" style={{ height: "14px", width: "60%", margin: "0 auto" }} /></td></tr>
-            ) : manufacturers.length === 0 ? (
-              <tr><td colSpan={5} style={{ padding: "40px", textAlign: "center", color: "#9CA3AF" }}>No manufacturers yet.</td></tr>
-            ) : manufacturers.map(m => (
-              <tr key={m.id} style={{ borderBottom: "1px solid #F3F4F6" }}>
-                <td style={{ padding: "14px 16px", fontWeight: 600, fontSize: "13px" }}>{m.name}</td>
-                <td style={{ padding: "14px 16px", fontSize: "13px", color: "#6B7280" }}>{m.contact_name || "—"}</td>
-                <td style={{ padding: "14px 16px", fontSize: "13px", color: "#6B7280" }}>{m.email || "—"}</td>
-                <td style={{ padding: "14px 16px", fontSize: "13px", color: "#6B7280" }}>{m.phone || "—"}</td>
-                <td style={{ padding: "14px 16px" }}>
-                  <div style={{ display: "flex", gap: "8px" }}>
-                    <button onClick={() => openEdit(m)} style={{ padding: "5px 12px", background: "#F6F6F7", color: "#374151", border: "none", borderRadius: "6px", fontSize: "12px", fontWeight: 600, cursor: "pointer" }}>Edit</button>
-                    <button onClick={() => del(m.id, m.name)} style={{ padding: "5px 12px", background: "#FEE2E2", color: "#991B1B", border: "none", borderRadius: "6px", fontSize: "12px", fontWeight: 600, cursor: "pointer" }}>Delete</button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <div className="pc-card">
+        <div className="pc-scroll-x">
+          <table className="pc-table" style={{ minWidth: "640px" }}>
+            <thead><tr><th>Name</th><th>Contact</th><th>Email</th><th>Phone</th><th aria-label="Actions" /></tr></thead>
+            <tbody>
+              {loading ? <tr><td colSpan={5} className="pc-empty">Loading…</td></tr>
+                : manufacturers.length === 0 ? <tr><td colSpan={5} className="pc-empty">No suppliers yet.</td></tr>
+                : manufacturers.map((m) => (
+                  <tr key={m.id}>
+                    <td style={{ fontWeight: 600 }}>{m.name}</td>
+                    <td style={{ color: "var(--pc-muted)" }}>{m.contact_name || "—"}</td>
+                    <td style={{ color: "var(--pc-muted)" }}>{m.email || "—"}</td>
+                    <td style={{ color: "var(--pc-muted)" }}>{m.phone || "—"}</td>
+                    <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
+                      <button type="button" className="pc-btn" style={{ height: "34px", fontSize: "13px" }} onClick={() => openEdit(m)}>Edit</button>{" "}
+                      <button type="button" className="pc-btn" style={{ height: "34px", fontSize: "13px", color: "var(--pc-red)" }} onClick={() => del(m.id, m.name)}>Delete</button>
+                    </td>
+                  </tr>
+                ))}
+            </tbody>
+          </table>
+        </div>
       </div>
 
-      {/* Modal */}
       {showModal && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 200 }}>
-          <div style={{ background: "#fff", borderRadius: "12px", padding: "32px", width: "480px", maxWidth: "95vw" }}>
-            <h2 style={{ fontSize: "17px", fontWeight: 700, color: "#1A1A1A", marginBottom: "20px" }}>
-              {editing ? "Edit Manufacturer" : "Add Manufacturer"}
-            </h2>
-            <div style={{ display: "grid", gap: "14px" }}>
-              {(["name", "contact_name", "email", "phone"] as const).map(field => (
-                <div key={field}>
-                  <label style={LBL}>{field === "contact_name" ? "Contact Name" : field.charAt(0).toUpperCase() + field.slice(1)} *</label>
-                  <input value={form[field] || ""} onChange={e => setForm(f => ({ ...f, [field]: e.target.value }))} style={INPUT} />
-                </div>
-              ))}
-              <div>
-                <label style={LBL}>Address *</label>
-                <textarea value={form.address || ""} onChange={e => setForm(f => ({ ...f, address: e.target.value }))} rows={2} style={{ ...INPUT, resize: "vertical" }} />
-              </div>
-              <div>
-                <label style={LBL}>Notes</label>
-                <textarea value={form.notes || ""} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2} style={{ ...INPUT, resize: "vertical" }} />
-              </div>
+        <div className="pc-modal-back" onMouseDown={(e) => { if (e.target === e.currentTarget && !saving) setShowModal(false); }}>
+          <div className="pc-modal" role="dialog" aria-label={editing ? "Edit supplier" : "Add supplier"} style={{ maxWidth: "480px" }}>
+            <div className="pc-panel-head">
+              <h2 className="pc-h2">{editing ? "Edit supplier" : "Add supplier"}</h2>
+              <button type="button" className="pc-x" aria-label="Close" onClick={() => setShowModal(false)}><X size={18} /></button>
             </div>
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px", marginTop: "24px" }}>
-              <button onClick={() => setShowModal(false)} style={{ padding: "9px 20px", background: "#F6F6F7", color: "#374151", border: "none", borderRadius: "8px", fontSize: "13px", fontWeight: 600, cursor: "pointer" }}>Cancel</button>
-              <button onClick={save} disabled={saving} style={{ padding: "9px 20px", background: "#1A1A1A", color: "#fff", border: "none", borderRadius: "8px", fontSize: "13px", fontWeight: 600, cursor: "pointer" }}>
-                {saving ? "Saving…" : "Save"}
-              </button>
+            <div className="pc-panel-body">
+              {(["name", "contact_name", "email", "phone"] as const).map((field) => (
+                <label key={field} style={{ display: "grid", gap: "6px" }}>
+                  <span className="pc-label">{LABELS[field]}</span>
+                  <input className="pc-input" type={field === "email" ? "email" : "text"} value={form[field] || ""} onChange={(e) => setForm((f) => ({ ...f, [field]: e.target.value }))} />
+                </label>
+              ))}
+              <label style={{ display: "grid", gap: "6px" }}>
+                <span className="pc-label">Address</span>
+                <textarea className="pc-input" rows={2} value={form.address || ""} onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))} style={{ height: "auto", padding: "10px 14px", resize: "vertical" }} />
+              </label>
+              <label style={{ display: "grid", gap: "6px" }}>
+                <span className="pc-label">Notes (optional)</span>
+                <textarea className="pc-input" rows={2} value={form.notes || ""} onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))} style={{ height: "auto", padding: "10px 14px", resize: "vertical" }} />
+              </label>
+              <div className="pc-row-actions" style={{ justifyContent: "flex-end" }}>
+                <button type="button" className="pc-btn" onClick={() => setShowModal(false)}>Cancel</button>
+                <button type="button" className="pc-btn" data-kind="primary" onClick={save} disabled={saving}>{saving ? "Saving…" : "Save"}</button>
+              </div>
             </div>
           </div>
         </div>
@@ -140,6 +134,3 @@ export default function ManufacturersPage() {
     </div>
   );
 }
-
-const LBL: React.CSSProperties = { fontSize: "12px", fontWeight: 600, color: "#374151", display: "block", marginBottom: "6px" };
-const INPUT: React.CSSProperties = { width: "100%", padding: "9px 12px", border: "1px solid #D1D5DB", borderRadius: "8px", fontSize: "13px", boxSizing: "border-box", outline: "none" };

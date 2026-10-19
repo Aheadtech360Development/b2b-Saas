@@ -223,12 +223,8 @@ function AdminReviewsPageBody() {
 
                 {/* Status */}
                 <td style={{ padding: "14px 16px" }}>
-                  <span style={{
-                    padding: "4px 10px", borderRadius: "20px", fontSize: "11px", fontWeight: 700,
-                    background: review.is_approved ? "rgba(5,150,105,.1)" : "rgba(245,158,11,.1)",
-                    color: review.is_approved ? "#059669" : "#D97706",
-                  }}>
-                    {review.is_approved ? "● Approved" : "○ Pending"}
+                  <span className="pc-pill" data-tone={review.is_approved ? "green" : "amber"} style={{ textTransform: "none", whiteSpace: "nowrap" }}>
+                    {review.is_approved ? "Approved" : "Pending"}
                   </span>
                 </td>
 
