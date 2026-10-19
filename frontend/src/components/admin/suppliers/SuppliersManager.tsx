@@ -155,33 +155,30 @@ function SupplierView({ id, initialTab, onBack }: { id: string; initialTab: Tab;
 
   return (
     <div style={{ maxWidth: 1180 }}>
-      <button onClick={async () => { if (await leaveOk()) onBack(); }} style={{ background: "none", border: "none", padding: 0, color: "#6B6B6B", fontSize: 13, cursor: "pointer", marginBottom: 10 }}>
+      <button type="button" className="pc-back" onClick={async () => { if (await leaveOk()) onBack(); }} style={{ background: "none", border: 0, padding: 0, cursor: "pointer", marginBottom: 10 }}>
         ← All suppliers
       </button>
 
       <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 14 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, color: "#1A1A1A" }}>{detail?.config.name || detail?.label || "Supplier"}</h1>
+        <h2 className="pc-h2" style={{ fontSize: 22, margin: 0 }}>{detail?.config.name || detail?.label || "Supplier"}</h2>
         {detail && (!connected
           ? <Badge text="Not connected" color="#D97706" />
           : detail.config.active
-            ? <Badge text={`Active${detail.connection.account ? ` · ${detail.connection.account}` : ""}`} color="#16A34A" />
+            ? <Badge text={`Active${detail.connection.account ? ` · ${detail.connection.account}` : ""}`} color="#0F7B4B" />
             : <Badge text="Off" color="#6B6B6B" />)}
         {detail?.config.last_sync_at && <span style={MUTED}>Last sync {fmtDate(detail.config.last_sync_at)}</span>}
       </div>
 
-      {error && <div style={{ ...CARD, borderColor: "#F5C2C0", background: "#FFF5F5", color: "#B42318", marginBottom: 12 }}>{error}</div>}
+      {error && <div className="pc-flash" data-bad="" role="alert">{error}</div>}
 
       {job && <JobBanner job={job} onDismiss={job.status === "running" ? undefined : () => setJob(null)} />}
 
-      <div style={{ display: "flex", gap: 2, borderBottom: "1px solid #E3E3E3", marginBottom: 16, overflowX: "auto" }}>
+      <nav className="pc-tabs" aria-label="Supplier settings">
         {TABS.map((t) => (
-          <button key={t.id} onClick={() => goTab(t.id)} style={{
-            padding: "10px 16px", background: "none", border: "none", cursor: "pointer", whiteSpace: "nowrap",
-            fontSize: 13, fontWeight: tab === t.id ? 700 : 500, color: tab === t.id ? "#1A1A1A" : "#6B6B6B",
-            borderBottom: tab === t.id ? "2px solid #1A1A1A" : "2px solid transparent", marginBottom: -1,
-          }}>{t.label}</button>
+          <button key={t.id} type="button" className="pc-tab" data-on={tab === t.id ? "" : undefined}
+            aria-current={tab === t.id ? "page" : undefined} onClick={() => goTab(t.id)}>{t.label}</button>
         ))}
-      </div>
+      </nav>
 
       {detail ? body : !error && <div style={{ padding: 30, textAlign: "center" }}><Spinner /></div>}
     </div>
