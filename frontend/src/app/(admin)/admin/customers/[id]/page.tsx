@@ -135,7 +135,7 @@ function CustomerView() {
         <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
           {account ? (<>
             <Link className="pc-btn" data-kind="primary"
-              href={`/admin/orders/drafts?new=1&company=${c.id}&company_name=${encodeURIComponent(c.name)}`}>New order</Link>
+              href={`/admin/orders/new?company=${c.id}&company_name=${encodeURIComponent(c.name)}`}>New order</Link>
             <button type="button" className="pc-btn" onClick={() => setEditing(true)}>Edit</button>
           </>) : (
             <button type="button" className="pc-btn" data-kind="primary" onClick={() => setCreating(true)}>Create account</button>

@@ -26,6 +26,7 @@ from app.schemas.order import (
     AdminOrderListItem,
     CancelOrderRequest,
     DraftOrderCreate,
+    DraftUpdate,
     OrderItemOut,
     OrderStatusUpdate,
     OrderUpdateRequest,
@@ -349,22 +350,36 @@ async def create_draft_order(
     """
     from uuid import UUID as _UUID
     from app.models.company import Company as _Company, CompanyUser as _CompanyUser
+    import json as _json
     import string, random
 
-    company_id = _UUID(str(payload.company_id))
+    # An account, or a guest by name and email (the New order wizard's
+    # "Choose guest"; a guest order has no company and no user, as at guest
+    # checkout).
+    company_id = _UUID(str(payload.company_id)) if payload.company_id else None
+    member = None
+    if company_id is not None:
+        company = (await db.execute(select(_Company).where(_Company.id == company_id))).scalar_one_or_none()
+        if not company:
+            raise HTTPException(status_code=404, detail="Company not found")
+        # Who it is placed for. An account the shop added without an email has
+        # nobody signing in for it yet: the order is still its own, and its
+        # invoice goes to the company's email.
+        member = (await db.execute(
+            select(_CompanyUser).where(_CompanyUser.company_id == company_id, _CompanyUser.is_active == True)
+            .limit(1)
+        )).scalar_one_or_none()
+    else:
+        guest_email = (payload.guest_email or "").strip().lower()
+        if not guest_email or "@" not in guest_email or not (payload.guest_name or "").strip():
+            raise HTTPException(status_code=422, detail="Choose a customer, or give the guest a name and an email address.")
 
-    # Verify company exists
-    company = (await db.execute(select(_Company).where(_Company.id == company_id))).scalar_one_or_none()
-    if not company:
-        raise HTTPException(status_code=404, detail="Company not found")
+    method = "will_call" if (payload.shipping_method or "") == "will_call" else "standard"
+    if method == "will_call":
+        from app.services.pickup import PICKUP_OFF, pickup_offered
 
-    # Find an owner/user for placed_by_id (required FK)
-    member = (await db.execute(
-        select(_CompanyUser).where(_CompanyUser.company_id == company_id, _CompanyUser.is_active == True)
-        .limit(1)
-    )).scalar_one_or_none()
-    if not member:
-        raise HTTPException(status_code=422, detail="Company has no active users — add a user first")
+        if not await pickup_offered(db, getattr(request.state, "tenant_id", None)):
+            raise HTTPException(status_code=422, detail=PICKUP_OFF)
 
     # Generate order number
     suffix = "".join(random.choices(string.digits, k=6))
@@ -372,12 +387,20 @@ async def create_draft_order(
 
     order = Order(
         company_id=company_id,
-        placed_by_id=member.user_id,
+        placed_by_id=member.user_id if member else None,
+        is_guest_order=company_id is None,
+        guest_name=None if company_id else (payload.guest_name or "").strip(),
+        guest_email=None if company_id else (payload.guest_email or "").strip().lower(),
+        guest_phone=None if company_id else (payload.guest_phone or "").strip() or None,
         order_number=order_number,
         status="pending",
         payment_status="unpaid",
         po_number=payload.po_number,
         notes=payload.notes,
+        shipping_method=method,
+        shipping_address_snapshot=(
+            _json.dumps(payload.shipping_address.model_dump()) if payload.shipping_address and method != "will_call" else None
+        ),
         subtotal=0,
         shipping_cost=0,
         tax_amount=0,
@@ -385,7 +408,8 @@ async def create_draft_order(
     )
     db.add(order)
     await db.flush()
-    meta = {"channel": "admin_draft", "company_id": str(company_id)}
+    meta = {"channel": "admin_draft", "company_id": str(company_id) if company_id else None,
+            "guest": company_id is None}
     if payload.quote_request_id:
         # The quote request it prices: answered now, and no longer waiting
         # for a price on the Quotes screen (services/quotes).
@@ -1059,9 +1083,17 @@ async def add_order_item(
     request: Request,
     db: AsyncSession = Depends(get_db),
 ) -> dict:
-    """Add a line item to a pending/draft order."""
+    """Add a line item to a pending/draft order.
+
+    A product sold by colour and size takes `variant_id`. One built from its
+    options (a sign, a banner) takes `product_id` and `selections`, priced by
+    the option engine as the storefront prices it. Without a `unit_price` the
+    line is charged what this customer pays online: their tier and discount
+    group, or the guest price (services/draft_orders.variant_price).
+    """
     from uuid import UUID as _UUID
-    from app.models.product import ProductVariant
+    from app.models.product import Product, ProductVariant
+    from app.services import draft_orders
 
     order = (await db.execute(select(Order).where(Order.id == order_id))).scalar_one_or_none()
     if not order:
@@ -1069,44 +1101,86 @@ async def add_order_item(
     if order.status in ("delivered", "cancelled", "refunded"):
         raise HTTPException(status_code=422, detail="Cannot add items to a completed or cancelled order")
 
+    quantity = int(payload.get("quantity", 1) or 0)
+    if quantity < 1:
+        raise HTTPException(status_code=422, detail="Quantity has to be 1 or more.")
+
     variant_id_str = payload.get("variant_id")
-    quantity = int(payload.get("quantity", 1))
-    if not variant_id_str or quantity < 1:
-        raise HTTPException(status_code=422, detail="variant_id and quantity required")
+    if variant_id_str:
+        variant_id = _UUID(str(variant_id_str))
+        variant = (await db.execute(
+            select(ProductVariant).where(ProductVariant.id == variant_id)
+        )).scalar_one_or_none()
+        if not variant:
+            raise HTTPException(status_code=404, detail="Product variant not found")
+        product = (await db.execute(
+            select(Product).where(Product.id == variant.product_id)
+        )).scalar_one_or_none()
+        given = payload.get("unit_price")
+        unit_price = (float(draft_orders.money(given)) if given not in (None, "")
+                      else float(await draft_orders.variant_price(db, order, variant)))
+        line_total = round(unit_price * quantity, 2)
+        item = OrderItem(
+            order_id=order_id,
+            variant_id=variant_id,
+            product_id=variant.product_id,
+            quantity=quantity,
+            unit_price=unit_price,
+            line_total=line_total,
+            product_name=product.name if product else "Unknown",
+            sku=variant.sku or "",
+            color=variant.color,
+            size=variant.size,
+        )
+    elif payload.get("product_id"):
+        # Built from its options, as the cart builds a configured line
+        # (cart_service.add_configured, order_service): unit price from the
+        # option engine, plus its setup fees once.
+        from app.services.configurator_service import ConfigurationError, price_configuration
 
-    variant_id = _UUID(str(variant_id_str))
-    variant = (await db.execute(
-        select(ProductVariant).where(ProductVariant.id == variant_id)
-    )).scalar_one_or_none()
-    if not variant:
-        raise HTTPException(status_code=404, detail="Product variant not found")
-
-    # Use provided unit_price or fall back to variant retail price
-    unit_price = float(payload.get("unit_price") or variant.retail_price or 0)
-    line_total = unit_price * quantity
-
-    # Fetch product info for denormalized fields
-    from app.models.product import Product
-    product = (await db.execute(
-        select(Product).where(Product.id == variant.product_id)
-    )).scalar_one_or_none()
-
-    item = OrderItem(
-        order_id=order_id,
-        variant_id=variant_id,
-        quantity=quantity,
-        unit_price=unit_price,
-        line_total=line_total,
-        product_name=product.name if product else "Unknown",
-        sku=variant.sku or "",
-        color=variant.color,
-        size=variant.size,
-    )
+        product = (await db.execute(
+            select(Product).where(Product.id == _UUID(str(payload["product_id"])))
+        )).scalar_one_or_none()
+        if not product:
+            raise HTTPException(status_code=404, detail="Product not found")
+        if (product.pricing_mode or "variant") != "configurable":
+            raise HTTPException(status_code=422, detail="Choose a colour and size for this product.")
+        selections = payload.get("selections") or {}
+        try:
+            priced = await price_configuration(db, product.id, selections, quantity)
+        except ConfigurationError as exc:
+            raise HTTPException(status_code=422, detail=str(exc))
+        unit_price = float(priced["unit_price"])
+        fees = float(priced.get("setup_fees") or 0)
+        line_total = round(unit_price * quantity + fees, 2)
+        chosen = " · ".join(f'{b["option"]}: {b["value"]}' for b in priced["breakdown"][:4])
+        item = OrderItem(
+            order_id=order_id,
+            variant_id=None,
+            product_id=product.id,
+            quantity=quantity,
+            unit_price=unit_price,
+            line_total=line_total,
+            product_name=f"{product.name}{' — ' + chosen if chosen else ''}"[:255],
+            sku=(priced.get("sku_suffix") or "CONFIGURED")[:50],
+            color=None,
+            size=None,
+            configuration={"selections": {str(k): v for k, v in selections.items()}, "breakdown": priced["breakdown"],
+                           "unit_price": priced["unit_price"], "setup_fees": priced.get("setup_fees"),
+                           "sku_suffix": priced.get("sku_suffix")},
+        )
+    else:
+        raise HTTPException(status_code=422, detail="variant_id, or product_id with its choices, is required.")
     db.add(item)
+    await db.flush()
 
-    # Recalculate order totals
-    order.subtotal = float(order.subtotal or 0) + line_total
-    order.total = float(order.subtotal) + float(order.shipping_cost or 0) + float(order.tax_amount or 0)
+    # Recalculate order totals: a draft afresh, tax included; a placed order
+    # by adding the line, as before.
+    if order.status == "pending":
+        await draft_orders.reprice(db, order)
+    else:
+        order.subtotal = float(order.subtotal or 0) + line_total
+        order.total = float(order.subtotal) + float(order.shipping_cost or 0) + float(order.tax_amount or 0)
     try:
         order.items_edited = True
     except Exception:
@@ -1139,6 +1213,23 @@ async def remove_order_item(
         raise HTTPException(status_code=404, detail="Item not found")
 
     order = (await db.execute(select(Order).where(Order.id == order_id))).scalar_one_or_none()
+    if order is not None and order.status == "pending":
+        # A draft is worked out afresh, tax included (services/draft_orders).
+        from app.services import draft_orders
+
+        await db.delete(item)
+        await db.flush()
+        await draft_orders.reprice(db, order)
+        await order_events.record_admin(
+            db, request, order, "items_edited",
+            f"Removed {item.quantity} x {item.product_name}"
+            + (f" ({item.sku})" if item.sku else "")
+            + f" — order total now ${float(order.total or 0):.2f}",
+            meta={"action": "remove", "sku": item.sku, "quantity": item.quantity,
+                  "line_total": float(item.line_total or 0), "order_total": float(order.total or 0)},
+        )
+        await db.commit()
+        return {"message": "Item removed", "subtotal": float(order.subtotal or 0), "total": float(order.total or 0)}
     if order and order.status not in ("delivered", "cancelled", "refunded"):
         order.subtotal = max(0, float(order.subtotal or 0) - float(item.line_total or 0))
         order.total = float(order.subtotal) + float(order.shipping_cost or 0) + float(order.tax_amount or 0)
@@ -1159,6 +1250,139 @@ async def remove_order_item(
     await db.delete(item)
     await db.commit()
     return {"message": "Item removed"}
+
+
+# ── The New order wizard (design 32) ─────────────────────────────────────────
+# A phone or counter order: the draft is made at the first step, and these
+# read and change it until it is placed (services/draft_orders).
+
+async def _draft(db: AsyncSession, order_id: UUID) -> Order:
+    order = (await db.execute(select(Order).where(Order.id == order_id))).scalar_one_or_none()
+    if order is None:
+        raise HTTPException(status_code=404, detail="Order not found")
+    return order
+
+
+@router.get("/orders/{order_id}/wizard", response_model=dict)
+async def draft_wizard_state(order_id: UUID, db: AsyncSession = Depends(get_db)) -> dict:
+    """Everything the New order wizard shows for one draft."""
+    from app.services import draft_orders
+
+    return await draft_orders.wizard_state(db, await _draft(db, order_id))
+
+
+@router.patch("/orders/{order_id}/draft", response_model=dict)
+async def update_draft(
+    order_id: UUID, payload: DraftUpdate, request: Request, db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Delivery, shipping charge, PO number and note on a draft; totals and tax
+    worked out again."""
+    import json as _json
+    from app.services import draft_orders
+
+    order = await _draft(db, order_id)
+    if order.status != "pending":
+        raise HTTPException(status_code=409, detail="This order is already placed. Change it on its order page.")
+    fields = payload.model_fields_set
+    if "shipping_method" in fields and payload.shipping_method is not None:
+        method = "will_call" if payload.shipping_method == "will_call" else "standard"
+        if method == "will_call":
+            from app.services.pickup import PICKUP_OFF, pickup_offered
+
+            if not await pickup_offered(db, getattr(request.state, "tenant_id", None)):
+                raise HTTPException(status_code=422, detail=PICKUP_OFF)
+        order.shipping_method = method
+    if "shipping_address" in fields:
+        order.shipping_address_snapshot = (
+            _json.dumps(payload.shipping_address.model_dump()) if payload.shipping_address else None
+        )
+    if "shipping_cost" in fields and payload.shipping_cost is not None:
+        order.shipping_cost = draft_orders.money(payload.shipping_cost)
+    if "po_number" in fields:
+        order.po_number = (payload.po_number or "").strip() or None
+    if "notes" in fields:
+        order.notes = (payload.notes or "").strip() or None
+    await draft_orders.reprice(db, order)
+    await db.commit()
+    return await draft_orders.wizard_state(db, order)
+
+
+class PasteSkus(BaseModel):
+    text: str = Field(..., max_length=20000)
+
+
+@router.post("/orders/{order_id}/items/paste", response_model=dict)
+async def paste_draft_skus(
+    order_id: UUID, payload: PasteSkus, request: Request, db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Lines of "SKU quantity" added at once, each at this customer's price.
+    SKUs this shop does not have, and lines it cannot read, come back by name."""
+    from sqlalchemy import func as _func
+    from app.models.product import Product, ProductVariant
+    from app.services import draft_orders
+
+    order = await _draft(db, order_id)
+    if order.status != "pending":
+        raise HTTPException(status_code=409, detail="This order is already placed. Change it on its order page.")
+    wanted = draft_orders.parse_skus(payload.text)
+    if not wanted:
+        raise HTTPException(status_code=422, detail="Paste one SKU per line, with its quantity after it.")
+    if len(wanted) > 200:
+        raise HTTPException(status_code=422, detail="Paste up to 200 SKUs at a time.")
+
+    found = {
+        v.sku.upper(): (v, p)
+        for v, p in (await db.execute(
+            select(ProductVariant, Product).join(Product, Product.id == ProductVariant.product_id)
+            .where(_func.upper(ProductVariant.sku).in_([sku for sku, _ in wanted]),
+                   ProductVariant.status == "active")
+        )).all()
+    }
+    added, missing = [], []
+    for sku, qty in wanted:
+        hit = found.get(sku)
+        if hit is None or qty < 1:
+            missing.append(sku if qty >= 1 else f"{sku} (no quantity)")
+            continue
+        variant, product = hit
+        unit = await draft_orders.variant_price(db, order, variant)
+        line = draft_orders.money(unit * qty)
+        db.add(OrderItem(
+            order_id=order.id, variant_id=variant.id, product_id=product.id, quantity=qty,
+            unit_price=unit, line_total=line, product_name=product.name, sku=variant.sku or "",
+            color=variant.color, size=variant.size,
+        ))
+        added.append({"sku": variant.sku, "quantity": qty})
+    if added:
+        await db.flush()
+        await draft_orders.reprice(db, order)
+        await order_events.record_admin(
+            db, request, order, "items_edited",
+            f"Added {len(added)} pasted SKU{'s' if len(added) != 1 else ''} — order total now ${float(order.total or 0):.2f}",
+            meta={"action": "paste", "added": added, "not_found": missing},
+        )
+    await db.commit()
+    state = await draft_orders.wizard_state(db, order)
+    return {**state, "added": added, "not_found": missing}
+
+
+@router.get("/orders/{order_id}/payment-link", response_model=dict)
+async def order_payment_link(order_id: UUID, db: AsyncSession = Depends(get_db)) -> dict:
+    """The order's own pay page, with its key, as the invoice email links it:
+    for the shop to text or paste to a customer."""
+    from app.core.config import get_settings as _settings
+    from app.core.tenant_context import get_current_brand_site
+    from app.services import order_view
+
+    order = await _draft(db, order_id)
+    if (order.payment_status or "") == "paid":
+        raise HTTPException(status_code=409, detail="This order is already paid.")
+    # The brand's own shop, as the emails point their links (email_service
+    # _point_at_brand), not the platform's address.
+    site = (get_current_brand_site() or _settings().FRONTEND_URL or "").rstrip("/")
+    url = (f"{site}/checkout/invoice/{order.order_number}"
+           f"#k={order_view.view_key(order.id, order.tenant_id)}")
+    return {"url": url, "order_number": order.order_number}
 
 
 @router.patch("/orders/{order_id}", response_model=dict)
@@ -2014,6 +2238,13 @@ async def send_invoice_email(
         if user_row:
             to_email = user_row.email
             customer_name = f"{user_row.first_name} {user_row.last_name}".strip() or None
+    if not to_email and order.company_id:
+        # An account the shop added with no one signing in for it yet (a
+        # phone order): its own email.
+        company_row = (await db.execute(select(Company).where(Company.id == order.company_id))).scalar_one_or_none()
+        if company_row and company_row.company_email:
+            to_email = company_row.company_email
+            customer_name = company_row.name
 
     if not to_email:
         raise HTTPException(status_code=422, detail="No customer email found for this order")

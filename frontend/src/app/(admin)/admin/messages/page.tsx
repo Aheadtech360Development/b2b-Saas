@@ -221,7 +221,7 @@ function Inbox() {
           onDone={(id) => {
             const name = making.from.company || making.from.name || "";
             setMaking(null);
-            router.push(`/admin/orders/drafts?new=1&company=${id}&company_name=${encodeURIComponent(name)}`);
+            router.push(`/admin/orders/new?company=${id}&company_name=${encodeURIComponent(name)}`);
           }}
         />
       )}
@@ -235,7 +235,7 @@ function Message({ s, busy, readOnly, onClose, onReply, onAnswered, onArchive, o
 }) {
   const f = s.from;
   const c = s.customer;
-  const draftHref = c?.kind === "account" ? `/admin/orders/drafts?new=1&company=${c.id}&company_name=${encodeURIComponent(c.name)}` : null;
+  const draftHref = c?.kind === "account" ? `/admin/orders/new?company=${c.id}&company_name=${encodeURIComponent(c.name)}` : null;
   return (
     <div className="pc-card pc-pad" data-open-message={s.id}>
       <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", alignItems: "flex-start" }}>

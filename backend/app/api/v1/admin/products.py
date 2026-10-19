@@ -65,6 +65,9 @@ async def list_admin_products(
             or_(
                 Product.name.ilike(f"%{q}%"),
                 Product.product_code.ilike(f"%{q}%"),
+                # A variant's SKU finds its product: "Search products or SKUs"
+                # in the New order wizard, and a SKU typed in the product list.
+                Product.id.in_(select(ProductVariant.product_id).where(ProductVariant.sku.ilike(f"%{q}%"))),
             )
         )
     if status:

@@ -71,7 +71,7 @@ export function OrdersFrame({
         <div className="pc-row-actions no-print">
           {actions}
           {primary ?? (
-            <Link href="/admin/orders/drafts?new=1" className="pc-btn" data-kind="primary">
+            <Link href="/admin/orders/new" className="pc-btn" data-kind="primary">
               <Plus size={17} strokeWidth={2.4} /> New order
             </Link>
           )}

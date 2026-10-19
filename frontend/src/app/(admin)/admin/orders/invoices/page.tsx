@@ -172,7 +172,7 @@ function Invoices() {
           <button type="button" className="pc-btn" disabled={busy === "remind" || !data} onClick={headerRemind}>
             {busy === "remind" ? "Sending…" : "Send reminders"}
           </button>
-          <Link href="/admin/orders/drafts?new=1" className="pc-btn" data-kind="primary"><Plus size={17} strokeWidth={2.4} /> New invoice</Link>
+          <Link href="/admin/orders/new" className="pc-btn" data-kind="primary"><Plus size={17} strokeWidth={2.4} /> New invoice</Link>
         </div>
       </div>
 

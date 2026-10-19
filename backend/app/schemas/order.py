@@ -287,13 +287,41 @@ class OrderUpdateRequest(BaseModel):
     payment_terms: str | None = None
 
 
+class DraftAddress(BaseModel):
+    """Where a phone order ships, in the keys every order's address uses."""
+    full_name: str | None = Field(None, max_length=200)
+    line1: str = Field(..., min_length=1, max_length=255)
+    line2: str | None = Field(None, max_length=255)
+    city: str = Field(..., min_length=1, max_length=100)
+    state: str = Field(..., min_length=1, max_length=100)
+    postal_code: str = Field(..., min_length=1, max_length=20)
+    country: str = Field("US", max_length=2)
+    phone: str | None = Field(None, max_length=50)
+
+
 class DraftOrderCreate(BaseModel):
-    company_id: str
+    # An account, or a guest by name and email (the New order wizard).
+    company_id: str | None = None
+    guest_name: str | None = Field(None, max_length=255)
+    guest_email: str | None = Field(None, max_length=255)
+    guest_phone: str | None = Field(None, max_length=50)
     po_number: str | None = None
     notes: str | None = None
+    # Shipped ("standard", to `shipping_address`) or collected ("will_call").
+    shipping_method: str | None = None
+    shipping_address: DraftAddress | None = None
     # The storefront quote request (an Inbox message) this draft prices, if
     # any: it leaves the Quotes screen's "Needs pricing" and is answered.
     quote_request_id: str | None = None
+
+
+class DraftUpdate(BaseModel):
+    """What the New order wizard changes on a draft after it is made."""
+    shipping_method: str | None = None
+    shipping_address: DraftAddress | None = None
+    shipping_cost: float | None = Field(None, ge=0)
+    po_number: str | None = Field(None, max_length=100)
+    notes: str | None = None
 
 
 class SendInvoicePayload(BaseModel):
