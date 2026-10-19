@@ -1683,6 +1683,8 @@ async def fetch_order_rates(
         raise HTTPException(status_code=422, detail="Incomplete shipping address on order (missing state or ZIP)")
 
     weight_lbs = max(payload.weight_lbs or await _order_weight_lbs(db, order.id), 0.5)
+    # What was quoted, for the batch label window's To and Weight columns.
+    quoted = {"to": {"city": to_address["city"], "state": to_address["state"]}, "weight_lbs": round(weight_lbs, 2)}
     # Quote from THIS brand's warehouse, not the platform default — the origin
     # changes the price, so a brand in NY must not be rated from Dallas.
     from app.core.tenant_context import get_current_tenant_id as _gtid_wh
@@ -1703,6 +1705,7 @@ async def fetch_order_rates(
                 "cost": r["amount"], "currency": r["currency"], "days": r["estimated_days"],
             } for r in direct["rates"]],
             "source": "carrier",
+            **quoted,
             **({"error": "; ".join(e["message"] for e in direct["errors"])} if direct["errors"] and not direct["rates"] else {}),
             **({"warnings": direct["errors"]} if direct["errors"] and direct["rates"] else {}),
         }
@@ -1764,10 +1767,10 @@ async def fetch_order_rates(
             except Exception:
                 continue
         rates.sort(key=lambda r: r["cost"])
-        return {"rates": rates}
+        return {"rates": rates, **quoted}
     except Exception as exc:
         logger.warning("Admin fetch-rates error: %s", exc)
-        return {"rates": [], "error": str(exc)}
+        return {"rates": [], "error": str(exc), **quoted}
 
 
 class _ManualLabelRequest(BaseModel):

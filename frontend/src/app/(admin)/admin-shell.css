@@ -299,6 +299,8 @@
 .pc-pad { padding: 20px; }
 .pc-label { display: block; font-size: 13px; font-weight: 600; color: var(--pc-ink); margin-bottom: 7px; }
 .pc-admin input.pc-input, .pc-admin select.pc-input, .pc-admin textarea.pc-input { width: 100%; height: 44px; padding: 0 14px; border: 1px solid var(--pc-line); border-radius: var(--pc-radius-sm); background: #fff; font: 400 14.5px var(--pc-sans); color: var(--pc-ink); box-sizing: border-box; }
+/* A dropdown shows its arrow, as every design draws it (it was not showing). */
+.pc-admin select.pc-input { appearance: none; -webkit-appearance: none; padding-right: 38px; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%235B6B80' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 14px center; background-size: 12px; }
 .pc-admin textarea.pc-input { height: auto; min-height: 88px; padding: 11px 14px; resize: vertical; line-height: 1.45; }
 .pc-admin .pc-input:focus { border-color: var(--pc-blue); outline: 0; }
 .pc-grid-2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.7fr); gap: 16px; }
