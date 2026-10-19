@@ -18,6 +18,7 @@ import { adminService } from "@/services/admin.service";
 import { ask, askText, tell } from "@/lib/dialog";
 import { OrdersFrame, useOrdersOverview, type OrdersTab } from "@/components/admin/orders/OrdersFrame";
 import { BuyLabelsDialog, type LabelTarget } from "@/components/admin/orders/BuyLabelsDialog";
+import { ConnectCarrierDialog } from "@/components/admin/shipping/ConnectCarrierDialog";
 import { useBranding } from "@/components/providers/BrandingProvider";
 import { methodWords, packingSlipHtml, pickListHtml, printHtml, toPrintOrder } from "@/lib/orderPrint";
 
@@ -142,6 +143,7 @@ function OrdersList() {
   const [views, setViews] = useState<SavedView[]>([]);
   const [working, setWorking] = useState("");
   const [flash, setFlash] = useState<{ text: string; bad?: boolean } | null>(null);
+  const [connecting, setConnecting] = useState(false);
   const [labelsFor, setLabelsFor] = useState<LabelTarget[] | null>(null);
   const [exporting, setExporting] = useState(false);
   // Which address the rows on screen answer, once they have arrived.
@@ -398,7 +400,7 @@ function OrdersList() {
       {shipQ && overview && carriers.length === 0 && (
         <div className="pc-note" data-carrier-banner style={{ marginBottom: "14px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
           <span>No carrier is connected. Connect UPS, FedEx or USPS to buy labels here. You can still mark orders shipped by hand.</span>
-          <Link href="/admin/standard-shipping" className="pc-btn" style={{ height: "36px" }}>Connect a carrier</Link>
+          <button type="button" className="pc-btn" style={{ height: "36px" }} onClick={() => setConnecting(true)}>Connect a carrier</button>
         </div>
       )}
 
@@ -618,7 +620,7 @@ function OrdersList() {
 
               {open.progress?.next.key === "ship" && overview && carriers.length === 0 && (
                 <div className="pc-note">
-                  No carrier is connected yet, so rates can&apos;t load. <Link href="/admin/standard-shipping">Connect a carrier</Link>
+                  No carrier is connected yet, so rates can&apos;t load. <button type="button" className="pc-inline" onClick={() => setConnecting(true)}>Connect a carrier</button>
                 </div>
               )}
               {open.progress?.next.key === "artwork" && (
@@ -655,6 +657,14 @@ function OrdersList() {
           onClose={() => setLabelsFor(null)}
           onBought={() => { setPicked(new Set()); load(); refreshOverview(); }}
         />
+      )}
+      {connecting && (
+        <ConnectCarrierDialog onClose={() => setConnecting(false)}
+          onConnected={(_key, now) => {
+            setConnecting(false);
+            refreshOverview();
+            setFlash({ text: `${now.filter((c) => c.connection.connected).map((c) => c.name).join(", ")} connected. Rates and labels now come from your own account.` });
+          }} />
       )}
     </OrdersFrame>
   );

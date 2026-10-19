@@ -5,7 +5,7 @@
  *
  * Everything here is the shop's own saved setting, and each is read by the
  * checkout the moment it is saved:
- * - carriers: the shop's own UPS, FedEx and USPS accounts (IntegrationsPanel);
+ * - carriers: the shop's own UPS, FedEx and USPS accounts (ConnectCarrierDialog, design 35);
  * - the ship-from address live rates and labels are worked out from;
  * - the standard rate, for customers without a shipping tier or discount
  *   group: one price, live carrier rates, or steps by order size. "Free
@@ -19,7 +19,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { X } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
-import { IntegrationsPanel } from "@/components/admin/IntegrationsPanel";
+import { CarrierList } from "@/components/admin/shipping/ConnectCarrierDialog";
 import { SettingsFrame } from "@/components/admin/settings/SettingsFrame";
 import { cutoffWords, productionService } from "@/services/production.service";
 import { US_ZONES, allZones, forgetShopZone, offsetWords } from "@/lib/shopClock";
@@ -152,7 +152,7 @@ export default function ShippingAndPickupPage() {
           <p className="pc-sub-line" style={{ margin: "6px 0 14px" }}>
             Connect your own account. Rates at checkout and every label you buy go through it, at your negotiated prices.
           </p>
-          <IntegrationsPanel category="carrier" />
+          <CarrierList />
         </section>
 
         {/* Where parcels leave from: live rates and labels are worked out from here. */}
