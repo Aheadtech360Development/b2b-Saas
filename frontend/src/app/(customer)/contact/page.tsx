@@ -7,8 +7,13 @@ import { loadWrittenPage } from "@/lib/writtenPages";
 import { titleWithBrand } from "@/lib/brand";
 import { BuilderPage } from "@/components/builder/SiteParts";
 import { builderPageMetadata, loadBuilderChrome, loadBuilderSitePage } from "@/lib/builder/load";
+import { loadStore } from "@/lib/store";
+import MarketingShell from "@/components/marketing/MarketingShell";
+import MarketingContact from "@/components/marketing/pages/Contact";
+import { MARKETING_META } from "@/components/marketing/meta";
 
 export async function generateMetadata(): Promise<Metadata> {
+  if (!(await loadStore()).brand) return MARKETING_META.contact;
   const built = await builderPageMetadata("contact");
   if (built) return built;
   const page = await loadWrittenPage("contact");
@@ -16,6 +21,14 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function ContactPage() {
+  // The platform's own address: the marketing site's page. Every shop gets what it always did, below.
+  if (!(await loadStore()).brand) {
+    return (
+      <MarketingShell>
+        <MarketingContact />
+      </MarketingShell>
+    );
+  }
   // A Contact page made in the website builder.
   const site = await loadBuilderSitePage("contact");
   if (site) return <BuilderPage payload={site} />;

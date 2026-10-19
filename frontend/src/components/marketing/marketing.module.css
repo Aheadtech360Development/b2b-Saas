@@ -1,0 +1,163 @@
+/*
+ * The platform's own marketing pages (printcopilot.co), from the design in
+ * "PrintCoPilot Website.html". Scoped to `.root` so none of it reaches a shop
+ * or the console.
+ *
+ * The design was drawn against the browser's defaults. The app's base styles
+ * (Tailwind preflight, the forms plugin, the Fraunces headings in globals.css)
+ * are put back to those defaults inside `.root` — with zero specificity, so
+ * the design's own inline styles and classes still win.
+ */
+
+.root {
+  margin: 0;
+  width: 100%;
+  background: #ffffff;
+  color: #3a4a5e;
+  font-family: "Inter", system-ui, sans-serif;
+  font-size: 16px;
+  line-height: normal;
+  -webkit-font-smoothing: antialiased;
+}
+
+:where(.root) :where(h1, h2, h3, h4, h5, h6) {
+  font-family: inherit;
+  font-size: revert;
+  font-weight: revert;
+}
+:where(.root) :where(h1, h2, h3, h4, p) {
+  margin: 0;
+}
+:where(.root) :where(ul, ol) {
+  list-style: revert;
+  margin: revert;
+  padding: revert;
+}
+:where(.root) :where(svg, img) {
+  display: revert;
+  vertical-align: revert;
+}
+:where(.root) :where(button, input, select, textarea) {
+  font: revert;
+  color: revert;
+  background-color: revert;
+  border-radius: revert;
+  box-shadow: none;
+}
+:where(.root) :where(select) {
+  appearance: revert;
+  background-image: none;
+}
+:where(.root) a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.d {
+  font-family: "Outfit", "Inter", system-ui, sans-serif;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.btn-primary:hover { background: #0a5cd0 !important; }
+.btn-ghost:hover { background: rgba(255, 255, 255, 0.1) !important; }
+.btn-line:hover { background: #f6f8fb !important; }
+.navlink:hover { color: #fff !important; }
+.side-nav a:hover { color: #0b66e4 !important; }
+
+.root :is(a, button, input, select, textarea):focus-visible {
+  outline: 2px solid #0e72fb;
+  outline-offset: 2px;
+}
+.root input[type="range"] { accent-color: #0b66e4; }
+
+.grid-bg {
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+  background-size: 56px 56px;
+  -webkit-mask-image: radial-gradient(ellipse at 50% 25%, #000 20%, transparent 72%);
+  mask-image: radial-gradient(ellipse at 50% 25%, #000 20%, transparent 72%);
+}
+
+@keyframes pulse {
+  0% { box-shadow: 0 0 0 0 rgba(14, 114, 251, 0.7); }
+  100% { box-shadow: 0 0 0 10px rgba(14, 114, 251, 0); }
+}
+.live { animation: pulse 2s infinite; }
+
+.chips-sm { display: none; }
+
+/* The header's row. Its links never break over two lines. */
+.bar a { white-space: nowrap; }
+
+/* The wordmark (1200 × 160), scaled by height. */
+.logo { display: inline-flex; align-items: center; flex: none; }
+.logo img { display: block; height: 24px; width: auto; }
+.footer-logo { display: block; height: 28px; width: auto; }
+
+/* The phone menu (MobileNav): a button that only shows once the nav links hide. */
+.menu-btn {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  flex: none;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: 8px;
+  background: transparent;
+  color: #ffffff;
+  cursor: pointer;
+}
+.menu-btn:hover { background: rgba(255, 255, 255, 0.1); }
+.menu-panel {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 8px 16px 16px;
+  background: #0c1e35;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 24px 60px rgba(12, 30, 53, 0.35);
+}
+.menu-link {
+  display: flex;
+  align-items: center;
+  min-height: 48px;
+  padding: 0 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.86);
+  font-size: 16px;
+  font-weight: 500;
+}
+.menu-link:last-child { border-bottom: 0; }
+.menu-link:hover { color: #ffffff; }
+
+@media (max-width: 960px) {
+  .side-nav { display: none !important; }
+  .chips-sm { display: flex !important; }
+}
+@media (max-width: 860px) {
+  .nav-links { display: none !important; }
+  .menu-btn { display: inline-flex; }
+}
+@media (max-width: 560px) {
+  /* The design's 32px gutter leaves the logo and two buttons no room on a phone. */
+  .bar { padding: 0 16px !important; gap: 12px !important; }
+  /* Room for the logo, "Start free trial" and the menu button on one row. */
+  .logo img { height: 18px; }
+}
+@media (max-width: 760px) {
+  .float-chip { display: none !important; }
+  .root .hero-h1 { font-size: 40px !important; line-height: 44px !important; }
+  .sec { padding-top: 64px !important; padding-bottom: 64px !important; }
+}
+@media (max-width: 560px) {
+  .hide-sm { display: none !important; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .live { animation: none; }
+}

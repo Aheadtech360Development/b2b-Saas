@@ -4,11 +4,16 @@ import StorefrontPage from "@/components/storefront/StorefrontPage";
 import { BuilderPage } from "@/components/builder/SiteParts";
 import { builderPageMetadata, loadBuilderChrome, loadBuilderSitePage } from "@/lib/builder/load";
 import { apiClient, ApiClientError } from "@/lib/api-client";
+import { loadStore } from "@/lib/store";
+import MarketingShell from "@/components/marketing/MarketingShell";
+import MarketingPrivacy from "@/components/marketing/pages/Privacy";
+import { MARKETING_META } from "@/components/marketing/meta";
 
 export const dynamic = "force-dynamic";
 
 /** The builder's privacy policy title, on a shop that has switched. Nothing otherwise, as before. */
 export async function generateMetadata(): Promise<Metadata> {
+  if (!(await loadStore()).brand) return MARKETING_META.privacy;
   return (await builderPageMetadata("privacy-policy")) ?? {};
 }
 
@@ -20,6 +25,14 @@ export async function generateMetadata(): Promise<Metadata> {
  * Contact; a shop that has not switched gets exactly what it always did.
  */
 export default async function PrivacyPolicyPage() {
+  // The platform's own address: the marketing site's page. Every shop gets what it always did, below.
+  if (!(await loadStore()).brand) {
+    return (
+      <MarketingShell>
+        <MarketingPrivacy />
+      </MarketingShell>
+    );
+  }
   const site = await loadBuilderSitePage("privacy-policy");
   if (site) return <BuilderPage payload={site} />;
   // On a builder shop with no privacy policy from either editor, there is no page.

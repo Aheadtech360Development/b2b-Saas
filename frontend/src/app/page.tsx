@@ -6,6 +6,7 @@ import Link from "next/link";
 const _API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 export async function generateMetadata(): Promise<Metadata> {
+  if (!(await loadStore()).brand) return MARKETING_META.home;
   try {
     const seo = await fetch(`${_API}/api/v1/pages-seo/home`, { next: { revalidate: 300 } }).then(r => r.json());
     return {
@@ -23,7 +24,10 @@ import NewShopHome from "@/components/home/NewShopHome";
 import StorefrontHome from "@/components/home/StorefrontHome";
 import { loadStore } from "@/lib/store";
 import StorefrontShell from "@/components/storefront/StorefrontShell";
-import PlatformLanding from "@/components/platform/PlatformLanding";
+import MarketingShell from "@/components/marketing/MarketingShell";
+import MarketingHome from "@/components/marketing/pages/Home";
+import { MARKETING_META } from "@/components/marketing/meta";
+import { ReferralCapture } from "@/components/partners/ReferralCapture";
 import { apiClient } from "@/lib/api-client";
 import { BuilderPage } from "@/components/builder/SiteParts";
 import { loadBuilderPage } from "@/lib/builder/load";
@@ -45,9 +49,18 @@ async function hasProducts(): Promise<boolean> {
 export default async function HomePage() {
   const store = await loadStore();
   // No brand was asked for: this is the platform's own address, not a shop.
-  // PlatformLanding draws its own header, and deliberately gets no shop
-  // chrome around it.
-  if (!store.brand) return <PlatformLanding />;
+  // The marketing site draws its own header and footer, and deliberately gets
+  // no shop chrome around it. (The one-page PlatformLanding it replaced is
+  // still in components/platform.)
+  if (!store.brand) {
+    return (
+      <MarketingShell>
+        {/* A partner's link lands here (`?ref=CODE`), as it did on PlatformLanding. */}
+        <ReferralCapture />
+        <MarketingHome />
+      </MarketingShell>
+    );
+  }
 
   // A shop live on the website builder: its home page.
   const site = await loadBuilderPage("home");

@@ -14,8 +14,8 @@ export function PlatformHeader() {
     <header style={S.top}>
       <Link href="/" style={S.logo}><span style={S.mark} aria-hidden />PrintCopilot</Link>
       <nav style={S.nav}>
-        <Link href="/#pricing" style={S.link}>Pricing</Link>
-        <Link href="/#contact" style={S.link}>Contact</Link>
+        <Link href="/pricing" style={S.link}>Pricing</Link>
+        <Link href="/contact" style={S.link}>Contact</Link>
         <Link href="/signup" style={S.cta}>Start your shop</Link>
       </nav>
     </header>
@@ -27,8 +27,8 @@ export function PlatformFooter() {
     <footer style={S.foot}>
       <span>© {new Date().getFullYear()} PrintCopilot</span>
       <span style={S.footLinks}>
-        <Link href="/#pricing" style={S.footLink}>Pricing</Link>
-        <Link href="/#contact" style={S.footLink}>Contact</Link>
+        <Link href="/pricing" style={S.footLink}>Pricing</Link>
+        <Link href="/contact" style={S.footLink}>Contact</Link>
         <a href="mailto:support@printcopilot.co" style={S.footLink}>support@printcopilot.co</a>
       </span>
     </footer>

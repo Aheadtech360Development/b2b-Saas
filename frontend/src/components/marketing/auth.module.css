@@ -1,0 +1,152 @@
+/*
+ * Signing in at printcopilot.co, in the marketing site's look.
+ *
+ * The sign-in, reset-password and similar pages are shared with every shop and
+ * are drawn with the app's own `ui-*` classes (globals.css). Their code is not
+ * touched: on the platform's address the auth layout puts them inside
+ * `.platformAuth`, which re-themes those classes to the design — the tokens
+ * first, then the few shapes the tokens do not reach. A shop's sign-in is never
+ * inside this wrapper, so it is exactly as it was.
+ */
+
+.platformAuth {
+  --brand-primary: #0b66e4;
+  --ui-ink: #0c1e35;
+  --ui-muted: #5a6a7e;
+  --ui-paper: #f6f8fb;
+  --ui-line: #d5dce6;
+  --ui-bad: #b42318;
+  --ui-radius: 8px;
+  background: #f6f8fb;
+  color: #3a4a5e;
+  font-family: "Inter", system-ui, sans-serif;
+}
+
+/* The page sits in the light band between the header and footer, not a full screen of its own. */
+.platformAuth :global(.ui-page) {
+  min-height: auto;
+  background: transparent;
+  font-family: inherit;
+  color: inherit;
+  line-height: normal;
+  padding: 72px 32px 96px !important;
+}
+.platformAuth :global(.ui-narrow) {
+  max-width: 480px;
+}
+
+.platformAuth :global(.ui-h1) {
+  font-family: "Outfit", "Inter", system-ui, sans-serif;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  font-size: 44px;
+  line-height: 48px;
+  color: #0c1e35;
+  margin: 0;
+}
+.platformAuth :global(.ui-lede) {
+  margin: 16px 0 32px;
+  font-size: 18px;
+  line-height: 28px;
+  color: #3a4a5e;
+}
+
+.platformAuth :global(.ui-card) {
+  background: #ffffff;
+  border: 1px solid #e3e8ef;
+  border-radius: 16px;
+  padding: 32px;
+  box-shadow: 0 24px 60px rgba(12, 30, 53, 0.08);
+}
+
+.platformAuth :global(.ui-label) {
+  font-size: 14px;
+  font-weight: 600;
+  color: #0c1e35;
+  margin-bottom: 6px;
+}
+.platformAuth :global(.ui-field) {
+  min-height: 48px;
+  padding: 0 14px;
+  font-size: 16px;
+  color: #0c1e35;
+  border: 1px solid #d5dce6;
+  border-radius: 8px;
+  font-family: inherit;
+}
+.platformAuth :global(.ui-field:focus) {
+  border-color: #0b66e4;
+  box-shadow: 0 0 0 3px rgba(11, 102, 228, 0.15);
+}
+.platformAuth :global(.ui-hint) {
+  font-size: 14px;
+  line-height: 20px;
+  color: #5a6a7e;
+}
+
+.platformAuth :global(.ui-btn) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 48px;
+  border-radius: 8px;
+  background: #0b66e4;
+  font-size: 15px;
+  font-weight: 600;
+  opacity: 1;
+}
+.platformAuth :global(.ui-btn:hover:not(:disabled)) {
+  background: #0a5cd0;
+  opacity: 1;
+}
+.platformAuth :global(.ui-btn:disabled) {
+  background: #a9c6f2;
+}
+.platformAuth :global(.ui-btn-ghost) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 48px;
+  border: 1px solid #d5dce6;
+  border-radius: 8px;
+  color: #0c1e35;
+  font-size: 15px;
+  font-weight: 600;
+}
+.platformAuth :global(.ui-btn-ghost:hover) {
+  background: #f6f8fb;
+  border-color: #d5dce6;
+}
+/* After .ui-btn and .ui-btn-ghost, so a full-width button stays full width. */
+.platformAuth :global(.ui-btn-block) {
+  display: flex;
+  width: 100%;
+}
+.platformAuth :global(form .ui-btn-block[type="submit"]) {
+  min-height: 56px;
+  font-size: 17px;
+}
+.platformAuth :global(.ui-btn-quiet) {
+  color: #5a6a7e;
+}
+.platformAuth :global(.ui-btn-quiet:hover) {
+  color: #0b66e4;
+}
+
+.platformAuth :global(.ui-alert) {
+  border-radius: 8px;
+  font-size: 14px;
+}
+
+@media (max-width: 760px) {
+  .platformAuth :global(.ui-page) {
+    padding: 48px 16px 64px !important;
+  }
+  .platformAuth :global(.ui-h1) {
+    font-size: 36px !important;
+    line-height: 40px !important;
+  }
+  .platformAuth :global(.ui-card) {
+    padding: 24px 20px;
+  }
+}

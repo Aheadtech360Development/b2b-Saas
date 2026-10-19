@@ -33,6 +33,8 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
     title: "PrintCopilot",
     description: "Commerce software for print shops.",
+    // The platform's own icon; a brand's site sets its own above.
+    icons: { icon: "/android-chrome-512.png", shortcut: "/android-chrome-512.png", apple: "/android-chrome-512.png" },
   };
 }
 
