@@ -152,8 +152,11 @@ def test_an_email_that_already_has_an_account_is_sent_to_sign_in(monkeypatch):
     monkeypatch.setattr(signup, "enforce_rate_limit", no_limit)
     req = SimpleNamespace(client=SimpleNamespace(host="1.2.3.4"), headers={})
 
-    monkeypatch.setattr(database, "AsyncSessionLocal", lambda: _Session(row=None))
+    free = _Session(row=None)
+    monkeypatch.setattr(database, "AsyncSessionLocal", lambda: free)
     assert run(signup.check_email(signup.CheckIn(email="new@shop.com"), req)) == {"ok": True}
+    # Owners and staff only: a shop's buyers are not looked up here.
+    assert "is_admin" in free.sql[0]
 
     monkeypatch.setattr(database, "AsyncSessionLocal", lambda: _Session(row=(1,)))
     with pytest.raises(HTTPException) as e:

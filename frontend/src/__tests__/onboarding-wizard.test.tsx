@@ -68,7 +68,8 @@ vi.mock("@/lib/api-client", () => {
 });
 
 import OnboardingPage from "@/app/onboarding/page";
-import { dropSignup, holdSignup } from "@/lib/pendingSignup";
+import { dropSignup, holdSignup, readSignup } from "@/lib/pendingSignup";
+import { useAuthStore } from "@/stores/auth.store";
 
 function shop(over: Record<string, unknown> = {}) {
   return {
@@ -88,6 +89,8 @@ function shop(over: Record<string, unknown> = {}) {
 const realLocation = window.location;
 beforeEach(() => {
   calls.length = 0; taken = []; push.mockReset(); replace.mockReset(); dropSignup();
+  // Nobody signed in, and the session has been looked for (AuthInitializer's part).
+  useAuthStore.setState({ accessToken: null, user: null, isLoading: false });
 });
 afterEach(() => {
   Object.defineProperty(window, "location", { value: realLocation, configurable: true, writable: true });
@@ -115,6 +118,18 @@ describe("step 1 before the shop exists", () => {
       business_type: "dtf_operator", country: "CA", referral_cookie: "MARIA.7", referral_code: null,
     });
     await waitFor(() => expect(fake.href).toBe("http://localhost:3000/onboarding?tenant=torres-tees#session=tok.en"));
+  }, 15000);
+});
+
+describe("a sign-up left over in the tab", () => {
+  it("does not take over a signed-in owner's own steps", async () => {
+    holdSignup({ email: "old@torrestees.com", password: "Partner2026!", plan: null, referralCookie: null, referralCode: null });
+    useAuthStore.setState({ accessToken: "tok", user: { is_admin: true } as never, isLoading: false });
+    state = shop({ step: 3, reached: 3 });
+    render(<OnboardingPage />);
+    expect(await screen.findByRole("heading", { name: "Add what you sell" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "What do you run?" })).toBeNull();
+    expect(readSignup()).toBeNull();
   });
 });
 

@@ -107,6 +107,9 @@ export function CreateShop({ held }: { held: PendingSignup }) {
       const status = err instanceof ApiClientError ? err.status : 0;
       const message = err instanceof ApiClientError ? err.message : "";
       if (status === 409 && /email/i.test(message)) {
+        // This sign-up cannot go on: let go of what it held, so signing in
+        // instead does not bring this screen back on /onboarding.
+        dropSignup();
         setError(<>That email already has an account here. <Link href="/login">Sign in instead</Link>.</>);
       } else if (status === 409) {
         setError(message || "That address was just taken. Pick another one.");

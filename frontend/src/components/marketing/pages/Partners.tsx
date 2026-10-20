@@ -57,7 +57,7 @@ export default function PartnersPage() {
           // will share it (the program's), as one answer for the review.
           promote_how: [f.how, f.promote].filter(Boolean).join(". "),
           audience_size: null,
-          company: f.company_hp || null,
+          company: f.hp_note || null,
           terms_version: program.terms.version,
           accept_terms: agree,
         },
@@ -980,8 +980,8 @@ export default function PartnersPage() {
                       </div>
                       {/* Left empty by people; a form-filling bot fills it. */}
                       <div aria-hidden="true" style={{ position: "absolute", left: "-9999px", width: "1px", height: "1px", overflow: "hidden" }}>
-                        <label htmlFor="a-company-hp">Company</label>
-                        <input id="a-company-hp" name="company_hp" tabIndex={-1} autoComplete="off" />
+                        <label htmlFor="a-hp-note">Leave this field empty</label>
+                        <input id="a-hp-note" name="hp_note" tabIndex={-1} autoComplete="off" />
                       </div>
                       {program?.terms && (
                         <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>

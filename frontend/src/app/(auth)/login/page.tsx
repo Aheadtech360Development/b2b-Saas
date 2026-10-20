@@ -23,6 +23,7 @@ import { ApiClientError, setAccessToken } from "@/lib/api-client";
 import { nextFromLocation } from "@/lib/safeNext";
 import { PasswordField } from "@/components/ui/PasswordField";
 import { AuthPage, ui, useAuthWhere } from "@/components/auth/AuthPage";
+import { dropSignup } from "@/lib/pendingSignup";
 
 const ReCAPTCHA = dynamic(() => import("react-google-recaptcha"), {
   ssr: false,
@@ -91,6 +92,8 @@ export default function LoginPage() {
       company_id: (payload.company_id as string | null) ?? null,
     };
     setAuth(accessToken, fullProfile);
+    // Signed in: a store sign-up started in this tab is not going on.
+    dropSignup();
     // A shopper's guest cart comes with them into their account.
     if (!fullProfile.is_admin && !fullProfile.is_platform_admin) {
       try { await adoptGuestCart(); } catch { /* the cart page tries again */ }

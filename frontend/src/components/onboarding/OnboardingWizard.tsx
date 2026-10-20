@@ -215,7 +215,8 @@ function BrandStep({ state, go, frame }: StepProps) {
 
   const next = () => run(async () => {
     const changes: Record<string, string> = {};
-    if (logo && logo !== saved.logo_url) changes.logo_url = logo;
+    // "" clears it: the save leaves out a missing value, it does not empty it.
+    if ((logo ?? null) !== (saved.logo_url ?? null)) changes.logo_url = logo ?? "";
     if (valid && colour.toLowerCase() !== (saved.primary_color ?? "").toLowerCase()) changes.primary_color = colour;
     if (fonts && (fonts.heading !== saved.font_heading || fonts.body !== saved.font_body)) {
       changes.font_heading = fonts.heading;

@@ -94,7 +94,7 @@ def _send_contact_email(data: ContactRequest) -> None:
     # The visitor's own copy says it arrived and nothing more: what they wrote is
     # not repeated to an address nobody has confirmed.
     confirm_html = EmailService._base_template(
-        f'<h2 style="color:#1B3A5C;margin:0 0 12px;font-family:sans-serif">Thanks, {escape(data.name[:60])}!</h2>'
+        '<h2 style="color:#1B3A5C;margin:0 0 12px;font-family:sans-serif">Thanks for your message!</h2>'
         f'<p style="color:#444;font-size:14px;font-family:sans-serif">We\'ve received your message and will respond within 4 business hours (Mon–Fri, 8AM–6PM CT).</p>',
     )
     try:
@@ -114,6 +114,8 @@ async def submit_contact(payload: ContactRequest, request: Request, background_t
     from app.core.rate_limit import enforce_rate_limit
 
     await enforce_rate_limit(request, "contact_form", limit=5, window=3600)
+    # And per address written to: whoever sends it, one inbox is not mailed over and over.
+    await enforce_rate_limit(request, "contact_form_to", limit=2, window=3600, extra=str(payload.email))
     if (payload.company_hp or "").strip():
         # Answered as if it went through, so a bot learns nothing.
         return {"message": "Message received. We will get back to you within 1 business day."}

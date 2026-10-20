@@ -1,3 +1,4 @@
+import { headers } from "next/headers";
 import { loadStore } from "@/lib/store";
 import MarketingShell from "@/components/marketing/MarketingShell";
 import { AuthWhereProvider } from "@/components/auth/AuthPage";
@@ -9,6 +10,7 @@ import a from "@/components/marketing/auth.module.css";
 export const dynamic = "force-dynamic";
 
 const HEX = /^#[0-9a-f]{3}(?:[0-9a-f]{3})?$/i;
+const PLATFORM_DOMAIN = (process.env.NEXT_PUBLIC_PLATFORM_DOMAIN ?? "localhost").toLowerCase();
 
 /** The shop's logo and colour, for its buyers' sign-in screens to open in from
  *  the first paint (the browser asks for the same branding again afterwards). */
@@ -39,8 +41,17 @@ export default async function AuthLayout({ children }: { children: React.ReactNo
   //
   // The same answer is handed to the pages (AuthWhereProvider), so each card
   // shows whose page it is without working it out again from the host name.
+  //
+  // printcopilot.co is known by its address. A failed brand lookup on a shop's
+  // address must not turn the shop's buyer pages into the platform's (they
+  // would send the buyer to start a store); only on a local copy, which has no
+  // platform address, does "no brand" mean the platform.
   const { brand } = await loadStore();
-  if (brand !== null) {
+  const host = (((await headers()).get("host") ?? "").split(":")[0] ?? "").toLowerCase();
+  const onPlatform = PLATFORM_DOMAIN !== "localhost"
+    ? host === PLATFORM_DOMAIN || host === `www.${PLATFORM_DOMAIN}`
+    : brand === null;
+  if (!onPlatform) {
     const look = await shopLook();
     return (
       <AuthWhereProvider platform={false} shopName={brand} logo={look.logo} primary={look.primary}>

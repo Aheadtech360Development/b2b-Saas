@@ -64,7 +64,7 @@ export async function sendContact(f: Fields): Promise<void> {
       department: CONTACT_TOPICS[f.topic ?? ""] ?? "other",
       message: f.msg,
       // The form's hidden field for bots; people leave it empty.
-      company_hp: f.company_hp ?? "",
+      company_hp: f.hp_note ?? "",
     },
     { skipAuth: true },
   );
@@ -85,7 +85,7 @@ export async function sendDemo(f: Fields): Promise<void> {
         message: f.sell ?? "",
       },
       // The form's hidden field for bots; people leave it empty.
-      company: f.company_hp ?? "",
+      company: f.hp_note ?? "",
     },
     { skipAuth: true },
   );

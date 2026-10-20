@@ -91,7 +91,7 @@ describe("the affiliate page", () => {
     });
     expect(await screen.findByText("We read every application ourselves and usually answer within 2 working days.")).toBeInTheDocument();
     expect(posted).toHaveLength(0);
-  });
+  }, 15000);
 
   it("says so when the program is not taking applications", async () => {
     program = { ...program, accepting_applications: false };

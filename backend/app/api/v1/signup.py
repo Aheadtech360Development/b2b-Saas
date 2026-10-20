@@ -130,8 +130,11 @@ async def check_email(payload: CheckIn, request: Request) -> dict[str, Any]:
         from app.core.database import AsyncSessionLocal
 
         async with AsyncSessionLocal() as new_db:
+            # Owners and staff only: a shop's buyer is told at the next step,
+            # by the sign-up itself, so this answers nothing about buyers.
             taken = (await new_db.execute(
-                text("SELECT 1 FROM users WHERE lower(email) = :e"), {"e": email}
+                text("SELECT 1 FROM users WHERE lower(email) = :e AND (is_admin OR is_platform_admin)"),
+                {"e": email},
             )).first()
     finally:
         set_bypass_scoping(previous)
@@ -271,9 +274,10 @@ async def sign_up(payload: SignupIn, request: Request, background: BackgroundTas
     await enforce_rate_limit(request, "signup", limit=10, window=3600)
     await enforce_rate_limit(request, "signup_email", limit=3, window=3600, extra=payload.email)
 
-    plan = payload.plan or DEFAULT_PLAN
-    if not is_valid_plan(plan):
-        raise HTTPException(status_code=400, detail="Choose one of the available plans")
+    # A plan from an old or outside link that is not sold any more starts the
+    # trial on the default one rather than stopping the sign-up: there is no
+    # plan picker to send the owner back to, and Billing changes it later.
+    plan = payload.plan if payload.plan and is_valid_plan(payload.plan) else DEFAULT_PLAN
 
     slug = slugify(payload.slug or payload.shop_name)
     if not _SLUG_OK.match(slug or "") or slug in RESERVED:
