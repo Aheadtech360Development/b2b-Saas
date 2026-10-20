@@ -14,6 +14,7 @@ import {
   PartnerApiError, hasPartnerToken, initials, isViewingAs, papi, renewPartnerSession, setPartnerToken,
 } from "@/lib/partnerApi";
 import { Banner, Icon, ROOT, Skeleton, type IconName } from "./ui";
+import { PlatformLogo } from "@/components/shared/PlatformLogo";
 
 export type Partner = {
   id: string; name: string; email: string; business_name: string | null; website: string | null;
@@ -102,7 +103,7 @@ export function PartnerShell({ children }: { children: ReactNode }) {
     return (
       <div className={ROOT}>
         <div className="app">
-          <nav className="rail" aria-hidden="true"><div className="brand">PrintCoPilot</div></nav>
+          <nav className="rail" aria-hidden="true"><div className="brand"><PlatformLogo onDark /></div></nav>
           <div className="main">
             <header className="top" />
             <div className="content">
@@ -122,7 +123,7 @@ export function PartnerShell({ children }: { children: ReactNode }) {
       <div className={ROOT}>
         <div className="app">
           <nav className="rail" aria-label="Partner portal">
-            <div className="brand">PrintCoPilot <span style={{ fontWeight: 500, color: "#8FA3BD" }}>Partners</span></div>
+            <div className="brand"><PlatformLogo onDark /><span style={{ fontWeight: 500, color: "#8FA3BD" }}>Partners</span></div>
             {NAV.map((n) => (
               <Link key={n.href} href={n.href} className={isOn(n.href) ? "on" : ""} aria-current={isOn(n.href) ? "page" : undefined}>
                 <Icon name={n.icon} />{n.label}
@@ -137,7 +138,7 @@ export function PartnerShell({ children }: { children: ReactNode }) {
           </nav>
           <div className="main">
             <header className="top">
-              <span className="brand-m">PrintCoPilot Partners</span>
+              <span className="brand-m"><PlatformLogo /><span>Partners</span></span>
               <div className="sp" />
               <span className="av" aria-hidden="true">{initials(partner.name)}</span>
               <span className="b ink hide-m">{partner.name}</span>

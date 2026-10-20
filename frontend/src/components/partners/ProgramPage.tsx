@@ -11,6 +11,7 @@ import { useState } from "react";
 
 import { useProgram, type ProgramInfo } from "./AuthFrame";
 import { Banner, Field, Icon, ROOT, Skeleton, errorText } from "./ui";
+import { PlatformLogo } from "@/components/shared/PlatformLogo";
 import { money, moneyShort, papi } from "@/lib/partnerApi";
 
 const NUMBER_WORDS = ["", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"];
@@ -60,8 +61,8 @@ export function ProgramPage() {
   return (
     <div className={ROOT} style={{ minHeight: "100vh" }}>
       <header className="top" style={{ justifyContent: "space-between" }}>
-        <span style={{ font: "600 18px var(--pcp-display), Inter, sans-serif", color: "var(--ink)" }}>
-          PrintCoPilot <span className="muted" style={{ fontWeight: 500 }}>Partners</span>
+        <span style={{ display: "flex", alignItems: "center", gap: 10, font: "600 18px var(--pcp-display), Inter, sans-serif", color: "var(--ink)" }}>
+          <PlatformLogo /><span className="muted" style={{ fontWeight: 500 }}>Partners</span>
         </span>
         <Link className="btn sm" href="/partners/login">Partner sign in</Link>
       </header>

@@ -9,6 +9,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { Count, Icon, ROOT } from "@/components/partners/ui";
+import { PlatformLogo } from "@/components/shared/PlatformLogo";
 import { useAuthStore } from "@/stores/auth.store";
 
 export type ConsoleTab = "brands" | "analytics" | "taxes" | "activity" | "search" | "health" | "affiliates" | "leads";
@@ -38,7 +39,7 @@ export function ConsoleBar({ tab, onTab, affiliates }: {
     <div className={ROOT}>
       <header className="contop">
         <div className="brand">
-          <button type="button" onClick={() => onTab("brands")}>PrintCoPilot</button>
+          <button type="button" onClick={() => onTab("brands")}><PlatformLogo onDark /></button>
           <span className="chip navy">Platform Console</span>
         </div>
         <nav className="ctabs" aria-label="Console sections" ref={nav}>

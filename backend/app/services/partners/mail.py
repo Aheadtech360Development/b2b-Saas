@@ -37,14 +37,26 @@ def _e(value: object) -> str:
     return html.escape(str(value or ""))
 
 
+def _masthead() -> str:
+    """The top of every partner email: the platform's logo, as printcopilot.co's
+    header has it (the mark alone, never the name in text), then "Partners".
+    The name in text only when there is no address to load the logo from."""
+    kicker = ('font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:#5A5F68;'
+              'margin:0 0 14px')
+    origin = (get_settings().FRONTEND_URL or "").rstrip("/")
+    if not origin:
+        return f'<p style="{kicker}">{_e(platform_name())} Partners</p>'
+    return (f'<p style="{kicker}"><img src="{_e(origin)}/icon_navy_128.png" width="36" height="36" '
+            f'alt="{_e(platform_name())}" style="display:block;border:0;margin:0 0 8px">Partners</p>')
+
+
 def _page(title: str, paragraphs: list[str], button: tuple[str, str] | None = None,
           rows: list[tuple[str, str]] | None = None, support: str | None = None) -> str:
     """One plain, readable email. Text given here is escaped by the caller."""
     parts = [
         '<div style="font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;'
         'max-width:560px;color:#111318">',
-        f'<p style="font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:#5A5F68;'
-        f'margin:0 0 14px">{_e(platform_name())} Partners</p>',
+        _masthead(),
         f'<h1 style="font-size:22px;margin:0 0 14px">{title}</h1>',
     ]
     parts += [f'<p style="color:#33373F;margin:0 0 14px;line-height:1.6">{p}</p>' for p in paragraphs]

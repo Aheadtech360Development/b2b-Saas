@@ -8,6 +8,7 @@ import { useEffect, useState, type ReactNode } from "react";
 
 import { papi } from "@/lib/partnerApi";
 import { Icon, ROOT } from "./ui";
+import { PlatformLogo } from "@/components/shared/PlatformLogo";
 
 export type ProgramInfo = {
   accepting_applications: boolean; accepting_referrals: boolean;
@@ -31,8 +32,8 @@ export function AuthFrame({ children, support }: { children: ReactNode; support?
       <div className="lg">
         <div className="lg-l">
           <div className="col" style={{ gap: 28 }}>
-            <div style={{ font: "600 22px/28px var(--pcp-display), Inter, sans-serif", color: "#fff" }}>
-              PrintCoPilot <span style={{ fontWeight: 500, color: "#8FA3BD" }}>Partners</span>
+            <div style={{ display: "flex", alignItems: "center", gap: 12, font: "600 22px/28px var(--pcp-display), Inter, sans-serif", color: "#fff" }}>
+              <PlatformLogo onDark /><span style={{ fontWeight: 500, color: "#8FA3BD" }}>Partners</span>
             </div>
             <h1 style={{ color: "#fff", fontSize: 36, lineHeight: "44px", maxWidth: 460 }}>
               Your link, your shops, your earnings. One place.

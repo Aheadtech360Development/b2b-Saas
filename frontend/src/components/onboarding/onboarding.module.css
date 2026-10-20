@@ -36,18 +36,6 @@
   padding: 14px 24px;
   background: #0c1e35;
 }
-.topLogo {
-  width: 32px;
-  height: 32px;
-  border-radius: 8px;
-  flex: none;
-}
-.topName {
-  font-family: var(--pc-font-display), "Outfit", sans-serif;
-  font-size: 19px;
-  font-weight: 600;
-  color: #fff;
-}
 .topTrial {
   margin-left: auto;
   font-size: 13px;

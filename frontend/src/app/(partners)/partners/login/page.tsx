@@ -6,6 +6,7 @@ import { Suspense, useState } from "react";
 
 import { AuthFrame, safeNext, useProgram } from "@/components/partners/AuthFrame";
 import { Banner, Field, Icon } from "@/components/partners/ui";
+import { PlatformLogo } from "@/components/shared/PlatformLogo";
 import { PartnerApiError, apiUrl, papi, setPartnerToken } from "@/lib/partnerApi";
 
 type Stage = "signin" | "code" | "forgot" | "sent" | "blocked";
@@ -83,8 +84,8 @@ function LoginForm() {
   const support = program?.support_email ?? null;
   return (
     <AuthFrame support={support}>
-      <div style={{ font: "600 18px var(--pcp-display), Inter, sans-serif", color: "var(--ink)" }}>
-        PrintCoPilot <span className="muted" style={{ fontWeight: 500 }}>Partners</span>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, font: "600 18px var(--pcp-display), Inter, sans-serif", color: "var(--ink)" }}>
+        <PlatformLogo /><span className="muted" style={{ fontWeight: 500 }}>Partners</span>
       </div>
 
       {params.get("ended") ? <Banner icon="clock">You were signed out. For your security the session ended after a period without activity.</Banner> : null}

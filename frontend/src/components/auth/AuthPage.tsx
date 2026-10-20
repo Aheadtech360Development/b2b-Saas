@@ -16,6 +16,7 @@ import { createContext, useContext, useEffect, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { Inter, Outfit } from "next/font/google";
 import { useBranding } from "@/components/providers/BrandingProvider";
+import { PlatformLogo } from "@/components/shared/PlatformLogo";
 import ui from "./auth-page.module.css";
 
 // The design's two faces, loaded with exactly the options the admin console
@@ -86,11 +87,10 @@ export function ShopMark() {
 }
 
 export function PlatformMark() {
+  // The logo printcopilot.co's header has: the mark alone, no name in text.
   return (
     <div className={ui.head}>
-      {/* eslint-disable-next-line @next/next/no-img-element -- the platform's fixed-size mark */}
-      <img src="/android-chrome-512.png" alt="" width={36} height={36} className={ui.logo} />
-      <span className={ui.name}>PrintCoPilot</span>
+      <PlatformLogo size={36} />
     </div>
   );
 }

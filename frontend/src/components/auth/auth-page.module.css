@@ -96,11 +96,6 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.platform .name {
-  font-family: var(--pc-font-display), "Outfit", var(--pc-font-sans), sans-serif;
-  font-size: 20px;
-}
-
 .h1 {
   margin: 20px 0 0;
   /* Set here, not inherited: a shop's storefront styles headings in its own

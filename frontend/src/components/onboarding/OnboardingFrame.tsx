@@ -8,6 +8,7 @@
  */
 import type { ReactNode } from "react";
 import { authFonts } from "@/components/auth/AuthPage";
+import { PlatformLogo } from "@/components/shared/PlatformLogo";
 import o from "./onboarding.module.css";
 
 export const STEP_NAMES = [
@@ -46,9 +47,8 @@ export function OnboardingFrame({
   return (
     <div className={`${o.page} ${authFonts}`}>
       <header className={o.top}>
-        {/* eslint-disable-next-line @next/next/no-img-element -- the platform's fixed-size mark */}
-        <img src="/android-chrome-512.png" alt="" width={32} height={32} className={o.topLogo} />
-        <span className={o.topName}>PrintCoPilot</span>
+        {/* The logo printcopilot.co's header has: the mark on a white tile, no name in text. */}
+        <PlatformLogo onDark />
         <span className={o.topTrial}>
           {trialDays === null
             ? null
