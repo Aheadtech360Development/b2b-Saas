@@ -19,10 +19,11 @@
  */
 import { useEffect, useRef, useState } from "react";
 import {
-  Check, CircleCheck, Eraser, FileStack, Frame, Image as ImageIcon, Layers, LayoutGrid, MoveHorizontal, Paperclip, Plus,
+  Check, CircleCheck, Clock, Eraser, FileStack, Frame, Image as ImageIcon, Layers, LayoutGrid, MoveHorizontal, Paperclip, Plus,
   Printer, Save, Scissors, ShoppingCart, Sparkles, SquareDashed, Trash2, TriangleAlert, Type, X, type LucideIcon,
 } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
+import { aiBusy, aiBusyMessage } from "@/lib/aiBusy";
 import { ChatMarkdown } from "@/components/ui/ChatMarkdown";
 import type { StudioContext } from "@/lib/studioContext";
 import type { AssistantPlan, PlanChoice, PlanPreview, PlanRun } from "@/lib/studioBuild";
@@ -88,7 +89,8 @@ export function StudioAssistant({ open, onClose, getContext, preview, run, uploa
   const [turns, setTurns] = useState<Turn[]>([]);
   const [draft, setDraft] = useState("");
   const [asking, setAsking] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  // `busy`: the AI is busy or down for now, said calmly rather than as an error.
+  const [error, setError] = useState<{ text: string; busy?: boolean } | null>(null);
   const [off, setOff] = useState(false);
   const scroller = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -146,9 +148,10 @@ export function StudioAssistant({ open, onClose, getContext, preview, run, uploa
       // 503: no AI key on the platform. 403: this shop's plan does not include it.
       if (err?.status === 503 || err?.status === 403) setOff(true);
       setError(
-        err?.status === 429
-          ? "You've asked a lot today. Please try again tomorrow, or use the builder's own tools."
-          : err?.message || "Couldn't get an answer. Please try again.",
+        aiBusy(e) ? { text: aiBusyMessage(e), busy: true }
+        : err?.status === 429
+          ? { text: "You've asked a lot today. Please try again tomorrow, or use the builder's own tools." }
+          : { text: err?.message || "Couldn't get an answer. Please try again." },
       );
     } finally {
       setAsking(false);
@@ -335,7 +338,12 @@ export function StudioAssistant({ open, onClose, getContext, preview, run, uploa
         {uploading && !asking && <div style={{ ...S.bot, color: "#6B6B6B" }}>Uploading your designs…</div>}
       </div>
 
-      {error && <div style={S.error}>{error}</div>}
+      {error && (error.busy ? (
+        <div role="status" style={S.busy}>
+          <Clock size={16} strokeWidth={2.2} aria-hidden style={S.lead} />
+          <span style={{ minWidth: 0 }}>{error.text}</span>
+        </div>
+      ) : <div style={S.error}>{error.text}</div>)}
 
       <form onSubmit={(e) => { e.preventDefault(); void ask(draft); }} style={S.form}>
         <input ref={fileRef} type="file" multiple accept={accept} onChange={(e) => void onFiles(e.target.files)} style={{ display: "none" }} />
@@ -544,6 +552,8 @@ const S: Record<string, React.CSSProperties> = {
   cartBtn: { padding: "12px 14px", background: "#1A1A1A", color: "#fff", border: "none", borderRadius: "10px", fontSize: "15.5px", fontWeight: 700, cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: "9px", fontFamily: "inherit" },
   chip: { padding: "8px 13px", border: "1px solid #E3E3E3", background: "#fff", borderRadius: "18px", fontSize: "13.5px", fontWeight: 600, cursor: "pointer", textAlign: "left", display: "inline-flex", alignItems: "center", gap: "6px", fontFamily: "inherit" },
   error: { margin: "0 16px 8px", background: "#FEF2F2", border: "1px solid #FECACA", color: "#991B1B", borderRadius: "10px", padding: "9px 12px", fontSize: "14px", lineHeight: 1.45 },
+  // A busy AI, in the plan card's own lilac: a pause, not a fault.
+  busy: { margin: "0 16px 8px", display: "flex", gap: "9px", alignItems: "flex-start", background: "#F7F6FF", border: "1px solid #C7C4F5", color: "#3B3486", borderRadius: "10px", padding: "9px 12px", fontSize: "14px", lineHeight: 1.45 },
   form: { display: "flex", gap: "8px", padding: "12px 14px", borderTop: "1px solid #EDEDEA", alignItems: "center" },
   clip: { width: "44px", height: "44px", flexShrink: 0, border: "1px solid #E3E3E3", background: "#fff", borderRadius: "10px", cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", color: "#3B33C4" },
   input: { flex: 1, minWidth: 0, height: "44px", padding: "0 13px", border: "1px solid #E3E3E3", borderRadius: "10px", fontSize: "15px", outline: "none", fontFamily: "inherit" },

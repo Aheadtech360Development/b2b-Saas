@@ -20,6 +20,7 @@ Guards:
 """
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 from dataclasses import dataclass
@@ -70,6 +71,22 @@ FALLBACK_MODELS = {"claude-sonnet-5-5", "claude-opus-5-5", "claude-opus-5", "cla
 FALLBACK_BETA = "server-side-fallback-2026-07-01"
 REFUSED = "Sorry, I can't help with that one. Ask me about your sheet and I'll help you build it."
 
+# What every chat says when the model is busy or down for now: overloaded ("high
+# demand" on Gemini's free tier), rate limited or out of quota, a server error
+# on the provider's side, or no answer in time. The provider's own words go to
+# the log; on screen they read like a breakdown, and nobody asking can act on them.
+BUSY = "Sorry, our AI is helping a lot of people right now. Please try again in a few minutes."
+# 429: rate limits and quotas. 5xx: the provider's own trouble (529 is
+# Anthropic's "overloaded").
+BUSY_STATUSES = {429, 500, 502, 503, 504, 529}
+# The same, said in the body under another status.
+BUSY_WORDS = ("overloaded", "high demand", "resource_exhausted", "resource has been exhausted", "rate limit")
+# A provider that is briefly overloaded is asked once more, a moment later: those
+# spikes often pass within seconds. Not a 429, whose wait is longer than a
+# question should hang on, and not a timeout, which has already waited.
+RETRY_STATUSES = {500, 502, 503, 504, 529}
+RETRY_AFTER_S = 1.5
+
 
 class CopilotUnavailable(Exception):
     """No API key configured — say so plainly rather than failing oddly."""
@@ -91,6 +108,11 @@ class CopilotError(Exception):
     def __init__(self, message: str, detail: str = ""):
         super().__init__(message)
         self.detail = detail
+
+
+class CopilotBusy(CopilotError):
+    """The model is busy or down for now, and asking again later will work.
+    Its message is always BUSY, in every chat, the owner's included."""
 
 
 @dataclass
@@ -164,6 +186,9 @@ def _provider_message(res: httpx.Response) -> str:
         body = res.json()
     except ValueError:
         return res.text[:200].strip()
+    # Gemini's OpenAI-compatible endpoint wraps its error in a list.
+    if isinstance(body, list) and body and isinstance(body[0], dict):
+        body = body[0]
     err = body.get("error") if isinstance(body, dict) else None
     if isinstance(err, dict):
         return str(err.get("message") or err.get("status") or err)[:300]
@@ -178,13 +203,25 @@ def _raise_for_status(res: httpx.Response, p: Provider) -> None:
     said = _provider_message(res)
     logger.warning("copilot %s (%s) API %s: %s", p.name, p.model, res.status_code, res.text[:500])
     detail = f"{p.name} ({p.model}) returned {res.status_code}: {said}"
-    if res.status_code == 429:
-        raise CopilotError("The AI service is busy or over its quota right now. Please try again shortly.", detail)
+    if res.status_code in BUSY_STATUSES or any(w in said.lower() for w in BUSY_WORDS):
+        raise CopilotBusy(BUSY, detail)
     if res.status_code in (401, 403):
         raise CopilotError("The AI service rejected the platform's API key.", detail)
     if res.status_code == 404:
         raise CopilotError(f"The model \"{p.model}\" wasn't found on {p.name}. Set COPILOT_MODEL to one this key can use.", detail)
     raise CopilotError("The AI service returned an error. Please try again.", detail)
+
+
+async def _post(client, url: str, headers: dict, body: dict) -> httpx.Response:
+    """One request to the model, asked once more a moment later when the
+    provider answers that it is overloaded. Nothing is lost by asking again:
+    tools run here, between requests, never inside one."""
+    res = await client.post(url, headers=headers, json=body)
+    if res.status_code in RETRY_STATUSES:
+        logger.info("copilot provider answered %s, asking once more", res.status_code)
+        await asyncio.sleep(RETRY_AFTER_S)
+        res = await client.post(url, headers=headers, json=body)
+    return res
 
 
 async def _run_tool(name: str, args, handlers: dict, used: list[str], db, scope: str = "-") -> tuple[str, bool]:
@@ -261,8 +298,10 @@ async def run_copilot(
                     history[-1] = {**history[-1], "content": f"{history[-1]['content']}\n\n{context_note}"}
                 reply = await _openai_style(client, provider, system, tools, handlers, history, used, db, scope, stop_when)
         except httpx.HTTPError as exc:
-            logger.warning("copilot request failed: %s", exc)
-            raise CopilotError("Couldn't reach the AI service. Please try again.") from exc
+            # No answer in time, or none at all: busy or down, as far as
+            # anybody asking can tell.
+            logger.warning("copilot request failed: %r", exc)
+            raise CopilotBusy(BUSY, f"{provider.name} ({provider.model}): {exc!r}") from exc
 
     if reply is None:
         reply = "That needed more lookups than I can do in one go. Try asking something narrower."
@@ -336,7 +375,7 @@ async def _anthropic(client, p: Provider, system, tools, handlers, convo, used, 
                      stop_when=None) -> str | None:
     for _ in range(MAX_TOOL_ROUNDS + 1):
         headers, body_in = anthropic_request(p, system, tools, convo, effort)
-        res = await client.post(ANTHROPIC_URL, headers=headers, json=body_in)
+        res = await _post(client, ANTHROPIC_URL, headers, body_in)
         _raise_for_status(res, p)
         body = res.json()
         stop = body.get("stop_reason")
@@ -389,7 +428,7 @@ async def _openai_style(client, p: Provider, system, tools, handlers, history, u
         }
         if fn_tools:
             body_in["tools"] = fn_tools
-        res = await client.post(p.base_url + "chat/completions", headers=headers, json=body_in)
+        res = await _post(client, p.base_url + "chat/completions", headers, body_in)
         _raise_for_status(res, p)
         choice = (res.json().get("choices") or [{}])[0]
         message = choice.get("message") or {}

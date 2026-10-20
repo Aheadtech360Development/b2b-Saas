@@ -9,6 +9,7 @@
  */
 import { useEffect, useRef, useState } from "react";
 import { apiClient } from "@/lib/api-client";
+import { aiBusy, aiBusyMessage } from "@/lib/aiBusy";
 import { ChatMarkdown } from "@/components/ui/ChatMarkdown";
 
 interface Turn { role: "user" | "assistant"; content: string }
@@ -20,7 +21,8 @@ export function SupportChat() {
   const [turns, setTurns] = useState<Turn[]>([]);
   const [draft, setDraft] = useState("");
   const [asking, setAsking] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  // `busy`: the AI is busy or down for now, said calmly rather than as an error.
+  const [error, setError] = useState<{ text: string; busy?: boolean } | null>(null);
   const [off, setOff] = useState(false);
   const scroller = useRef<HTMLDivElement>(null);
 
@@ -44,7 +46,9 @@ export function SupportChat() {
       setTurns(turns);
       setDraft(q);
       if (err?.status === 503) setOff(true);
-      setError(err?.message || "Couldn't get an answer. Please try again.");
+      setError(aiBusy(e)
+        ? { text: aiBusyMessage(e), busy: true }
+        : { text: err?.message || "Couldn't get an answer. Please try again." });
     } finally {
       setAsking(false);
     }
@@ -87,7 +91,9 @@ export function SupportChat() {
         {asking && <div style={{ ...S.bot, color: "#6B6B6B" }}>Checking your orders…</div>}
       </div>
 
-      {error && <div style={S.error}>{error}</div>}
+      {error && (error.busy
+        ? <div role="status" style={S.busy}>{error.text}</div>
+        : <div style={S.error}>{error.text}</div>)}
 
       <form onSubmit={(e) => { e.preventDefault(); ask(draft); }} style={S.form}>
         <input value={draft} onChange={(e) => setDraft(e.target.value)} disabled={asking || off}
@@ -110,6 +116,8 @@ const S: Record<string, React.CSSProperties> = {
   bot: { alignSelf: "flex-start", maxWidth: "90%", background: "#F4F4F2", color: "#1A1A1A", padding: "8px 11px", borderRadius: "12px 12px 12px 2px", fontSize: "13px", lineHeight: 1.55 },
   chip: { padding: "6px 10px", border: "1px solid #E3E3E3", background: "#fff", borderRadius: "16px", fontSize: "12px", fontWeight: 600, cursor: "pointer" },
   error: { margin: "0 14px 6px", background: "#FEF2F2", border: "1px solid #FECACA", color: "#991B1B", borderRadius: "8px", padding: "7px 10px", fontSize: "12px" },
+  // A busy AI, in the assistant's own grey: a pause, not a fault.
+  busy: { margin: "0 14px 6px", background: "#F4F4F2", border: "1px solid #E3E3E3", color: "#3A3A3A", borderRadius: "8px", padding: "7px 10px", fontSize: "12px", lineHeight: 1.5 },
   form: { display: "flex", gap: "6px", padding: "10px 12px", borderTop: "1px solid #EDEDEA" },
   input: { flex: 1, minWidth: 0, padding: "9px 11px", border: "1px solid #E3E3E3", borderRadius: "8px", fontSize: "13px", outline: "none" },
   send: { padding: "9px 14px", background: "#1A1A1A", color: "#fff", border: "none", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: "pointer" },

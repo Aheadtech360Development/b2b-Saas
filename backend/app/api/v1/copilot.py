@@ -20,13 +20,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.config import settings
+from app.core.exceptions import AppException
 from app.core.rate_limit import client_ip
 from app.core.tenant_context import (
     NO_TENANT, get_current_brand_name, get_current_tenant_id, is_scoping_bypassed,
 )
 from app.middleware.auth_middleware import require_admin
 from app.services.copilot.agent import (
-    CopilotError, CopilotLimitReached, CopilotUnavailable, copilot_configured, run_copilot,
+    BUSY, CopilotBusy, CopilotError, CopilotLimitReached, CopilotUnavailable, copilot_configured, run_copilot,
 )
 from app.services.copilot.actions import (
     ACTIONS, INDEX as ACTION_INDEX, ActionError, preview_action, run_action,
@@ -165,13 +166,27 @@ How you work:
 - Be warm and short. Reply in the language the customer writes in, including Roman Urdu."""
 
 
+class AIBusy(AppException):
+    """The model is busy or down for now. Sent in the app's own error shape,
+    {"error": {"code": "AI_BUSY", "message": BUSY}}: the web chats know it by
+    its code and show it calmly, and the phone app shows the message as it is.
+    Not a 503, which the chats read as the assistant being switched off."""
+
+    status_code = 502
+    error_code = "AI_BUSY"
+    message = BUSY
+
+
 def _raise_for(exc: Exception, *, verbose: bool = False):
     """`verbose` adds what the provider said — for the owner's admin chat, where
-    the fix (a model name, a quota, a key) is theirs to make. Never for buyers."""
+    the fix (a model name, a key) is theirs to make. Never for buyers, and never
+    for a busy model: that passes by itself, and the provider's words are in the log."""
     if isinstance(exc, CopilotUnavailable):
         raise HTTPException(status_code=503, detail=str(exc))
     if isinstance(exc, CopilotLimitReached):
         raise HTTPException(status_code=429, detail=str(exc))
+    if isinstance(exc, CopilotBusy):
+        raise AIBusy()
     said = getattr(exc, "detail", "") if verbose else ""
     raise HTTPException(status_code=502, detail=f"{exc} ({said})" if said else str(exc))
 

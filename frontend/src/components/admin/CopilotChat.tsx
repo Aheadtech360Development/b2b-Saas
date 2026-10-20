@@ -15,6 +15,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { apiClient } from "@/lib/api-client";
+import { aiBusy, aiBusyMessage } from "@/lib/aiBusy";
 import { ChatMarkdown } from "@/components/ui/ChatMarkdown";
 import { useCopilotStore, type CopilotTurn as Turn, type PreparedAction } from "@/stores/copilot.store";
 
@@ -51,7 +52,8 @@ export function CopilotChat({ page, chips = COPILOT_SUGGESTIONS.slice(0, 2) }: {
   const clearThread = useCopilotStore((s) => s.clear);
   const [draft, setDraft] = useState("");
   const [asking, setAsking] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  // `busy`: the AI is busy or down for now, said calmly rather than as an error.
+  const [error, setError] = useState<{ text: string; busy?: boolean } | null>(null);
   const [running, setRunning] = useState(false);
   const scroller = useRef<HTMLDivElement>(null);
 
@@ -78,7 +80,9 @@ export function CopilotChat({ page, chips = COPILOT_SUGGESTIONS.slice(0, 2) }: {
       // Take the unanswered question back off so a retry doesn't send it twice.
       setTurns(turns);
       setDraft(q);
-      setError((e as { message?: string })?.message || "The copilot couldn't answer. Please try again.");
+      setError(aiBusy(e)
+        ? { text: aiBusyMessage(e), busy: true }
+        : { text: (e as { message?: string })?.message || "The copilot couldn't answer. Please try again." });
     } finally {
       setAsking(false);
     }
@@ -95,7 +99,7 @@ export function CopilotChat({ page, chips = COPILOT_SUGGESTIONS.slice(0, 2) }: {
       setAction(null);
       setTurns([...turns, { role: "assistant", content: `✓ ${res.done}` }]);
     } catch (e) {
-      setError((e as { message?: string })?.message || "That didn't go through.");
+      setError({ text: (e as { message?: string })?.message || "That didn't go through." });
     } finally {
       setRunning(false);
     }
@@ -150,7 +154,10 @@ export function CopilotChat({ page, chips = COPILOT_SUGGESTIONS.slice(0, 2) }: {
       </div>
 
       <div className="pc-cp-foot">
-        {error && <div className="pc-note" data-tone="red" role="alert" style={{ marginBottom: "10px" }}>{error}</div>}
+        {error && (
+          <div className="pc-note" data-tone={error.busy ? "blue" : "red"} role={error.busy ? "status" : "alert"}
+            style={{ marginBottom: "10px" }}>{error.text}</div>
+        )}
         <div className="pc-cp-chips">
           {offered.map((s) => (
             <button key={s} type="button" className="pc-cp-chip" onClick={() => ask(s)} disabled={asking}>{s}</button>
