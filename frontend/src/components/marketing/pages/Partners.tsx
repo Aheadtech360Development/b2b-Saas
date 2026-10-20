@@ -1,14 +1,75 @@
 "use client";
 
-/** printcopilot.co/affiliate — the design's Partners page. */
-import { Fragment } from "react";
+/**
+ * printcopilot.co/affiliate — the design's Partners page, connected to the
+ * partner program itself: the form is the program's application (the same one
+ * /partners takes, reviewed in the platform console's Affiliates tab), with the
+ * program's current terms to accept; a partner already in signs in at
+ * /partners/login.
+ */
+import { Fragment, useEffect, useState, type FormEvent } from "react";
+import Link from "next/link";
 import s from "../marketing.module.css";
 import { useEarningsCalculator } from "../interactive";
-import { sendLead, useLeadForm } from "../leads";
+import { papi } from "@/lib/partnerApi";
+import type { ProgramInfo } from "@/components/partners/AuthFrame";
+
+type Applied = "waiting" | "info_requested" | "approved";
+type Program = ProgramInfo & { application_response_days?: number };
+
+/** The program as it stands: whether it takes applications, and its terms. */
+function useProgramInfo(): Program | null {
+  const [info, setInfo] = useState<Program | null>(null);
+  useEffect(() => {
+    papi<Program>("/partners/program", { auth: false }).then(setInfo).catch(() => setInfo(null));
+  }, []);
+  return info;
+}
 
 export default function PartnersPage() {
   const { shopsLabel, shopsValue, onShops, planBtns, perShop, planName, monthly, yearly } = useEarningsCalculator();
-  const { done, notDone, submit, sending, error } = useLeadForm((f) => sendLead("partner", f));
+  const program = useProgramInfo();
+  const open = Boolean(program?.accepting_applications && program.terms);
+  const [agree, setAgree] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [applied, setApplied] = useState<Applied | null>(null);
+  const done = applied !== null;
+  const notDone = !done;
+  const days = program?.application_response_days;
+
+  async function submit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (sending || !program?.terms) return;
+    const f: Record<string, string> = {};
+    new FormData(e.currentTarget).forEach((v, k) => { f[k] = String(v).trim(); });
+    setSending(true);
+    setError(null);
+    try {
+      const r = await papi<{ status: Applied }>("/partners/apply", {
+        auth: false,
+        body: {
+          name: f.name,
+          email: f.email,
+          website: f.site || null,
+          business_name: null,
+          // How they would refer shops (the design's question) and how they
+          // will share it (the program's), as one answer for the review.
+          promote_how: [f.how, f.promote].filter(Boolean).join(". "),
+          audience_size: null,
+          company: f.company_hp || null,
+          terms_version: program.terms.version,
+          accept_terms: agree,
+        },
+      });
+      setApplied(r.status);
+    } catch (err) {
+      setError(err instanceof Error && err.message ? err.message
+        : "We could not send that. Please try again, or email support@printcopilot.co.");
+    } finally {
+      setSending(false);
+    }
+  }
 
   return (
     <>
@@ -82,25 +143,46 @@ export default function PartnersPage() {
             Share your link. When a shop you referred subscribes to PrintCoPilot, you earn every month they stay.
           </p>
           <div style={{ marginTop: "32px", display: "flex", flexWrap: "wrap", justifyContent: "center", gap: "16px" }}>
-            {/* The programme is not open yet. Was "Apply to join", a link to #apply. */}
-            <span
-              aria-disabled="true"
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                justifyContent: "center",
-                minHeight: "56px",
-                padding: "0 32px",
-                borderRadius: "8px",
-                background: "#0B66E4",
-                color: "#FFFFFF",
-                fontSize: "17px",
-                fontWeight: "600",
-                cursor: "default",
-              }}
-            >
-              Coming Soon
-            </span>
+            {/* Open when the program takes applications (Platform console, Affiliates, settings). */}
+            {open ? (
+              <a
+                href="#apply"
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  minHeight: "56px",
+                  padding: "0 32px",
+                  borderRadius: "8px",
+                  background: "#0B66E4",
+                  color: "#FFFFFF",
+                  fontSize: "17px",
+                  fontWeight: "600",
+                  textDecoration: "none",
+                }}
+              >
+                Apply to join
+              </a>
+            ) : (
+              <span
+                aria-disabled="true"
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  minHeight: "56px",
+                  padding: "0 32px",
+                  borderRadius: "8px",
+                  background: "#0B66E4",
+                  color: "#FFFFFF",
+                  fontSize: "17px",
+                  fontWeight: "600",
+                  cursor: "default",
+                }}
+              >
+                Coming Soon
+              </span>
+            )}
             <a
               className={s["btn-ghost"]}
               href="#earn"
@@ -120,6 +202,12 @@ export default function PartnersPage() {
               Try the earnings calculator
             </a>
           </div>
+          <p style={{ marginTop: "18px", fontSize: "15px", color: "rgba(255,255,255,.78)" }}>
+            Already a partner?{" "}
+            <Link href="/partners/login" style={{ color: "#FFFFFF", fontWeight: 600 }}>
+              Sign in
+            </Link>
+          </p>
           <div
             aria-hidden="true"
             style={{
@@ -741,7 +829,17 @@ export default function PartnersPage() {
                 color: "#3A4A5E",
               }}
             >
-              {notDone && (
+              {notDone && !open && (
+                <div style={{ textAlign: "center", padding: "24px 0" }}>
+                  <h2 className={s["d"]} style={{ fontSize: "24px", lineHeight: "30px", color: "#0C1E35" }}>
+                    {program ? "Applications are closed right now" : "Apply to join"}
+                  </h2>
+                  <p style={{ marginTop: "12px", fontSize: "16px", lineHeight: "24px", color: "#3A4A5E" }}>
+                    {program ? "We are not taking applications right now. Please check back soon." : "Loading the program…"}
+                  </p>
+                </div>
+              )}
+              {notDone && open && (
                 <form onSubmit={submit}>
                   <h2 className={s["d"]} style={{ fontSize: "24px", lineHeight: "30px", color: "#0C1E35" }}>
                     Apply to join
@@ -854,11 +952,69 @@ export default function PartnersPage() {
                           <option>Other</option>
                         </select>
                       </div>
-                      {/* Not open yet: the button cannot send, so the form cannot either.
-                          When it opens, put back disabled={sending} and "Apply to join". */}
+                      <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                        <label htmlFor="a-promote" style={{ fontSize: "14px", fontWeight: "600", color: "#0C1E35" }}>
+                          How will you share PrintCoPilot?
+                        </label>
+                        <textarea
+                          id="a-promote"
+                          name="promote"
+                          required
+                          minLength={10}
+                          maxLength={1800}
+                          rows={3}
+                          placeholder="Your newsletter, channel, clients, events"
+                          style={{ ...{
+                            width: "100%",
+                            boxSizing: "border-box",
+                            minHeight: "48px",
+                            padding: "0 12px",
+                            borderRadius: "8px",
+                            border: "1px solid #D5DCE6",
+                            background: "#FFFFFF",
+                            color: "#0C1E35",
+                            fontSize: "16px",
+                            fontFamily: "'Inter',system-ui,sans-serif",
+                          }, minHeight: "96px", padding: "12px", resize: "vertical" }}
+                        />
+                      </div>
+                      {/* Left empty by people; a form-filling bot fills it. */}
+                      <div aria-hidden="true" style={{ position: "absolute", left: "-9999px", width: "1px", height: "1px", overflow: "hidden" }}>
+                        <label htmlFor="a-company-hp">Company</label>
+                        <input id="a-company-hp" name="company_hp" tabIndex={-1} autoComplete="off" />
+                      </div>
+                      {program?.terms && (
+                        <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                          <span style={{ fontSize: "14px", fontWeight: "600", color: "#0C1E35" }}>
+                            Partner terms, version {program.terms.version}
+                          </span>
+                          <div
+                            style={{
+                              maxHeight: "160px",
+                              overflowY: "auto",
+                              border: "1px solid #E3E8EF",
+                              borderRadius: "8px",
+                              padding: "12px 14px",
+                              fontSize: "13px",
+                              lineHeight: "19px",
+                              color: "#3A4A5E",
+                            }}
+                          >
+                            {program.terms.clauses.map((c, i) => (
+                              <p key={i} style={{ margin: "0 0 8px" }}>
+                                <b style={{ color: "#0C1E35" }}>{i + 1}. {c.title}.</b> {c.text}
+                              </p>
+                            ))}
+                          </div>
+                          <label style={{ display: "flex", gap: "10px", alignItems: "flex-start", fontSize: "14px", lineHeight: "20px", color: "#0C1E35", cursor: "pointer" }}>
+                            <input type="checkbox" checked={agree} onChange={(e) => setAgree(e.target.checked)} style={{ marginTop: "3px" }} />
+                            I have read and accept the partner terms, version {program.terms.version}.
+                          </label>
+                        </div>
+                      )}
                       <button
                         type="submit"
-                        disabled
+                        disabled={sending || !agree}
                         style={{
                           width: "100%",
                           minHeight: "56px",
@@ -868,11 +1024,12 @@ export default function PartnersPage() {
                           color: "#FFFFFF",
                           fontSize: "17px",
                           fontWeight: "600",
-                          cursor: "not-allowed",
+                          cursor: sending || !agree ? "not-allowed" : "pointer",
+                          opacity: sending || !agree ? 0.6 : 1,
                           fontFamily: "'Inter',system-ui,sans-serif",
                         }}
                       >
-                        Coming Soon
+                        {sending ? "Sending…" : "Apply to join"}
                       </button>
                       {error && (
                         <p
@@ -882,6 +1039,12 @@ export default function PartnersPage() {
                           {error}
                         </p>
                       )}
+                      <p style={{ fontSize: "14px", lineHeight: "20px", color: "#5A6A7E", textAlign: "center", margin: "0" }}>
+                        Already a partner?{" "}
+                        <Link href="/partners/login" style={{ color: "#0B66E4", fontWeight: 600 }}>
+                          Sign in
+                        </Link>
+                      </p>
                     </div>
                   </div>
                 </form>
@@ -918,10 +1081,12 @@ export default function PartnersPage() {
                       className={s["d"]}
                       style={{ marginTop: "20px", fontSize: "28px", lineHeight: "34px", color: "#0C1E35" }}
                     >
-                      Application received.
+                      {applied === "approved" ? "You are in." : "Application received."}
                     </h2>
                     <p style={{ marginTop: "12px", fontSize: "16px", lineHeight: "24px", color: "#3A4A5E" }}>
-                      Thanks. We will review it and email you.
+                      {applied === "approved"
+                        ? "Check your email for the link that sets your password."
+                        : `We read every application ourselves${days ? ` and usually answer within ${days} working ${days === 1 ? "day" : "days"}` : ""}.`}
                     </p>
                   </div>
                 </>

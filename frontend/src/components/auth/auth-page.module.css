@@ -1,0 +1,414 @@
+/*
+ * The way in, as designed (PrintCoPilot Sign Up and Onboarding, 2026-10-19).
+ *
+ * One white card on a light band. On a shop the card carries the shop's logo
+ * and name and its buttons and links take the shop's colour (--brand-primary,
+ * set by its theme); on printcopilot.co the same card carries the PrintCoPilot
+ * mark and the platform blue. Shapes, type and spacing are the design's and
+ * are the same for every shop: only the colour bends.
+ */
+
+.page {
+  --a-ink: #1b2430;
+  --a-text: #3a4a5e;
+  --a-muted: #5a6a7e;
+  --a-line: #d5dce6;
+  --a-soft: #e3e8ef;
+  --a-band: #f6f8fb;
+  --a-bad: #b42318;
+  --a-primary: var(--brand-primary, #0f766e);
+  --a-primary-hover: color-mix(in srgb, var(--a-primary) 86%, #000);
+  min-height: 100vh;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 24px;
+  background: var(--a-band);
+  color: var(--a-text);
+  font-family: var(--pc-font-sans), "Inter", system-ui, sans-serif;
+  font-size: 15px;
+  line-height: 1.4;
+}
+.page *,
+.page *::before,
+.page *::after {
+  box-sizing: border-box;
+}
+
+/* printcopilot.co: the platform's blue and navy, Outfit for the headings. The
+   marketing site's header and footer are around it, so it is not a full screen
+   of its own. */
+.platform {
+  --a-ink: #0c1e35;
+  --a-primary: #0b66e4;
+  --a-primary-hover: #0a5cd0;
+  min-height: auto;
+  padding: 64px 24px 88px;
+}
+
+.card {
+  width: 100%;
+  max-width: 440px;
+  background: #fff;
+  border: 1px solid var(--a-soft);
+  border-radius: 12px;
+  padding: 32px;
+}
+.owner {
+  max-width: 480px;
+}
+.wide {
+  max-width: 760px;
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 36px;
+}
+.logo {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  object-fit: contain;
+  flex: none;
+}
+.logoTile {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--a-primary);
+  color: #fff;
+  font-size: 16px;
+  font-weight: 700;
+}
+.name {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--a-ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.platform .name {
+  font-family: var(--pc-font-display), "Outfit", var(--pc-font-sans), sans-serif;
+  font-size: 20px;
+}
+
+.h1 {
+  margin: 20px 0 0;
+  /* Set here, not inherited: a shop's storefront styles headings in its own
+     heading font, and the sign-in card is the design's, in Inter. */
+  font-family: var(--pc-font-sans), "Inter", system-ui, sans-serif;
+  font-size: 26px;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  color: var(--a-ink);
+}
+.platform .h1 {
+  font-family: var(--pc-font-display), "Outfit", var(--pc-font-sans), sans-serif;
+  font-size: 28px;
+  letter-spacing: -0.015em;
+}
+.sub {
+  margin: 6px 0 0;
+  font-size: 14px;
+  line-height: 21px;
+  color: var(--a-muted);
+}
+
+.body {
+  margin-top: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.body form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin: 0;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.label {
+  display: block;
+  margin: 0 0 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--a-ink);
+}
+.optional {
+  font-weight: 400;
+  color: var(--a-muted);
+}
+.input {
+  width: 100%;
+  height: 44px;
+  padding: 0 14px;
+  border: 1px solid var(--a-line);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--a-ink);
+  font: 400 14px/1.2 var(--pc-font-sans), "Inter", system-ui, sans-serif;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.input::placeholder {
+  color: #9aa8ba;
+}
+.input:focus {
+  outline: none;
+  border-color: var(--a-primary);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--a-primary) 18%, transparent);
+}
+select.input {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: 36px;
+  background: #fff
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M0 0h10L5 6z' fill='%235A6A7E'/%3E%3C/svg%3E")
+    no-repeat right 14px center;
+  cursor: pointer;
+}
+.code {
+  font-size: 18px;
+  letter-spacing: 0.2em;
+  font-variant-numeric: tabular-nums;
+}
+
+.hint {
+  margin: 6px 0 0;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--a-muted);
+}
+.hintBad {
+  color: var(--a-bad);
+}
+.hintOk {
+  color: #0e6b38;
+  font-weight: 600;
+}
+
+.row2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+.row3 {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 16px;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 44px;
+  padding: 0 18px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  font: 600 14px/1 var(--pc-font-sans), "Inter", system-ui, sans-serif;
+  text-decoration: none;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s, border-color 0.15s, opacity 0.15s;
+}
+.primary {
+  background: var(--a-primary);
+  color: #fff;
+}
+.primary:hover:not(:disabled) {
+  background: var(--a-primary-hover);
+}
+.secondary {
+  background: #fff;
+  color: var(--a-ink);
+  border-color: var(--a-line);
+}
+.secondary:hover:not(:disabled) {
+  background: var(--a-band);
+}
+.btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.block {
+  width: 100%;
+}
+.tall {
+  height: 48px;
+}
+
+.link {
+  color: var(--a-primary);
+  font-weight: 600;
+  text-decoration: none;
+  background: none;
+  border: none;
+  padding: 0;
+  font-family: inherit;
+  font-size: inherit;
+  cursor: pointer;
+}
+.link:hover {
+  text-decoration: underline;
+}
+.small {
+  font-size: 13px;
+}
+.foot {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--a-muted);
+}
+
+.notice {
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--a-primary) 9%, #fff);
+  color: color-mix(in srgb, var(--a-primary) 72%, #000);
+  font-size: 14px;
+  line-height: 1.5;
+}
+.error {
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: 8px;
+  background: #fdecea;
+  color: var(--a-bad);
+  font-size: 13.5px;
+  line-height: 1.5;
+}
+.error a,
+.notice a {
+  color: inherit;
+  font-weight: 600;
+}
+
+/* The wholesale application's four boxes. */
+.section {
+  border: 1px solid var(--a-soft);
+  border-radius: 12px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.sectionTitle {
+  margin: 0 0 2px;
+  font-family: var(--pc-font-sans), "Inter", system-ui, sans-serif;
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--a-ink);
+}
+
+/* "We got your application": the three steps. */
+.steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.step {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  color: var(--a-ink);
+}
+.dot {
+  width: 20px;
+  height: 20px;
+  flex: none;
+  border-radius: 50%;
+  border: 2px solid var(--a-line);
+}
+.dotOn {
+  background: var(--a-primary);
+  border-color: var(--a-primary);
+}
+
+/* Two-step sign-in: the code to scan beside the key to type. */
+.qrRow {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.qr {
+  width: 122px;
+  height: 122px;
+  flex: none;
+  border: 1px solid var(--a-soft);
+  border-radius: 8px;
+  padding: 6px;
+  background: #fff;
+}
+.qr svg,
+.qr img {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.key {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--a-muted);
+  word-break: break-all;
+}
+.key code {
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  color: var(--a-ink);
+  font-size: 13px;
+}
+.codes {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 6px 16px;
+  margin: 8px 0 0;
+  padding: 12px 14px;
+  border: 1px solid var(--a-soft);
+  border-radius: 8px;
+  background: var(--a-band);
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 13px;
+  color: var(--a-ink);
+}
+
+@media (max-width: 640px) {
+  .page {
+    padding: 24px 16px;
+    align-items: flex-start;
+  }
+  .platform {
+    padding: 40px 16px 64px;
+  }
+  .card {
+    padding: 24px 20px;
+  }
+  .row2,
+  .row3 {
+    grid-template-columns: 1fr;
+  }
+  .qrRow {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}

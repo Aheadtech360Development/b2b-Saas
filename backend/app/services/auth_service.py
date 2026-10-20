@@ -272,6 +272,7 @@ class AuthService:
             name=(data.company_name or "").strip() or who,
             phone=data.phone,
             company_email=email,
+            country=(getattr(data, "country", None) or "").strip() or None,
             # Active, not pending: nothing here needs approving, and a pending
             # company cannot order — which would defeat the whole point.
             status="active",
@@ -425,6 +426,7 @@ class AuthService:
 
         application = WholesaleApplication(
             company_name=data.company_name,
+            trading_name=(getattr(data, "trading_name", None) or "").strip() or None,
             tax_id=data.tax_id,
             business_type=data.business_type,
             website=data.website,

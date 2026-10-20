@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Ask for a reset link.
+ * Ask for a reset link (design screen 3: Forgot and reset password).
  *
  * The answer is deliberately the same whether or not the address has an
  * account — saying "no such account" would let anyone test which addresses
@@ -13,7 +13,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { authService } from "@/services/auth.service";
 import { ApiClientError } from "@/lib/api-client";
-import { AuthCard, authStyles as S } from "@/components/auth/AuthCard";
+import { AuthPage, ui } from "@/components/auth/AuthPage";
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
@@ -42,38 +42,11 @@ export default function ForgotPasswordPage() {
     }
   }
 
-  if (sent) {
-    return (
-      <AuthCard title="Check your email">
-        <p style={S.note}>
-          If an account exists for <strong>{email}</strong>, a reset link is on its way. It works
-          once and expires in an hour.
-        </p>
-        <p style={{ ...S.note, fontSize: "13px" }}>
-          Nothing after a few minutes? Look in spam, then{" "}
-          <button
-            type="button"
-            onClick={() => { setSent(false); setError(null); }}
-            style={{ background: "none", border: "none", padding: 0, color: "var(--brand-primary, var(--ui-ink))", cursor: "pointer", font: "inherit", textDecoration: "underline" }}
-          >
-            try again
-          </button>.
-        </p>
-        <Link href="/login" style={S.primaryLink}>Back to sign in →</Link>
-      </AuthCard>
-    );
-  }
-
   return (
-    <AuthCard title="Reset your password">
-      <p style={S.note}>
-        Give us the email you sign in with and we&apos;ll send you a link to set a new password.
-      </p>
+    <AuthPage title="Reset your password" sub="Enter your email and we will send a link.">
       <form onSubmit={handleSubmit}>
-        {error && <div style={S.error}>{error}</div>}
-
-        <div style={{ marginBottom: "20px" }}>
-          <label htmlFor="email" style={S.label}>Email *</label>
+        <div className={ui.field}>
+          <label htmlFor="email" className={ui.label}>Email</label>
           <input
             id="email"
             type="email"
@@ -81,24 +54,29 @@ export default function ForgotPasswordPage() {
             autoFocus
             required
             value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            onChange={(e) => { setEmail(e.target.value); setSent(false); }}
             placeholder="you@company.com"
-            style={S.input}
+            className={ui.input}
           />
         </div>
 
-        <button
-          type="submit"
-          disabled={busy || !email.trim()}
-          style={{ ...S.button, background: busy || !email.trim() ? "#C9C6C0" : "var(--brand-primary, var(--ui-ink))", cursor: busy || !email.trim() ? "not-allowed" : "pointer" }}
-        >
-          {busy ? "Sending…" : "Send reset link →"}
-        </button>
-      </form>
+        {error && <div className={ui.error} role="alert">{error}</div>}
 
-      <p style={{ ...S.note, marginTop: "18px", marginBottom: 0, fontSize: "13px" }}>
-        Remembered it? <Link href="/login" style={{ color: "var(--brand-primary, var(--ui-ink))" }}>Back to sign in</Link>
-      </p>
-    </AuthCard>
+        <button type="submit" disabled={busy || !email.trim()} className={`${ui.btn} ${ui.primary} ${ui.block}`}>
+          {busy ? "Sending…" : sent ? "Send it again" : "Send reset link"}
+        </button>
+
+        {sent && (
+          <p className={ui.notice} role="status">
+            If that email has an account, a link is on its way. It works once and lasts an hour.
+            Nothing after a few minutes? Look in spam, or send it again.
+          </p>
+        )}
+
+        <p className={ui.foot}>
+          <Link href="/login" className={ui.link}>← Back to sign in</Link>
+        </p>
+      </form>
+    </AuthPage>
   );
 }

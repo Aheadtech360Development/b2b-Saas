@@ -199,7 +199,7 @@ export default function AdminHome() {
                       </div>
                       {s.done
                         ? <span className="pc-step-done">Done</span>
-                        : <Link href={s.href} className="pc-link" style={{ marginLeft: "auto", whiteSpace: "nowrap" }}>Set up</Link>}
+                        : <Link href={s.href} className="pc-link" style={{ marginLeft: "auto", whiteSpace: "nowrap" }}>{s.key === "setup" ? "Continue" : "Set up"}</Link>}
                     </div>
                   ))}
                 </div>

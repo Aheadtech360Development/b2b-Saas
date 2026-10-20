@@ -43,6 +43,8 @@ _IGNORE_TABLES = {
     "tenant_subscriptions", "tenant_staff_roles", "tenant_api_keys", "audit_logs",
     "style_sheets", "product_specs", "page_seo", "blog_posts", "app_settings",
     "tenant_pages", "contact_submissions", "tenant_menus",
+    # printcopilot.co's own demo and contact requests (0064, raw SQL in api/v1/leads).
+    "platform_leads",
     # S&S supplier catalog — schema managed by the sync, not app migrations.
     "ss_categories", "ss_products", "ss_variants", "ss_markup_rules", "ss_sync_logs",
 }

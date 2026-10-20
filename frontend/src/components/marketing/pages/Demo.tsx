@@ -3,10 +3,10 @@
 /** printcopilot.co/demo — the design's Demo page. */
 import Link from "next/link";
 import s from "../marketing.module.css";
-import { sendLead, useLeadForm } from "../leads";
+import { sendDemo, useLeadForm } from "../leads";
 
 export default function DemoPage() {
-  const { done, notDone, submit, sending, error } = useLeadForm((f) => sendLead("demo", f));
+  const { done, notDone, submit, sending, error } = useLeadForm(sendDemo);
 
   return (
     <>
@@ -355,6 +355,11 @@ export default function DemoPage() {
             >
               {notDone && (
                 <form onSubmit={submit}>
+                  {/* Left empty by people; a form-filling bot fills it, and is answered as if it went through. */}
+                  <div aria-hidden="true" style={{ position: "absolute", left: "-9999px", width: "1px", height: "1px", overflow: "hidden" }}>
+                    <label htmlFor="d-company-hp">Company</label>
+                    <input id="d-company-hp" name="company_hp" tabIndex={-1} autoComplete="off" />
+                  </div>
                   <h2 className={s["d"]} style={{ fontSize: "24px", lineHeight: "30px", color: "#0C1E35" }}>
                     Tell us about your business
                   </h2>

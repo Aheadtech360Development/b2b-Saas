@@ -13,6 +13,7 @@ export interface RegisterWholesalePayload {
   email: string;
   password: string;
   // Optional company info
+  trading_name?: string;
   tax_id?: string;
   website?: string;
   phone?: string;
@@ -52,6 +53,8 @@ export interface RegisterCustomerPayload {
   password: string;
   phone?: string;
   company_name?: string;
+  /** By name, as a wholesale application's country is kept. */
+  country?: string;
 }
 
 export const authService = {
@@ -74,7 +77,8 @@ export const authService = {
   async twoFaStatus(): Promise<{ enabled: boolean }> {
     return apiClient.get("/api/v1/2fa/status");
   },
-  async twoFaSetup(): Promise<{ secret: string; otpauth_uri: string }> {
+  /** A new secret to enrol, with the code to scan as an image (`qr_svg`, a data URI). */
+  async twoFaSetup(): Promise<{ secret: string; otpauth_uri: string; qr_svg?: string | null }> {
     return apiClient.post("/api/v1/2fa/setup");
   },
   async twoFaEnable(code: string): Promise<{ enabled: boolean; backup_codes: string[] }> {

@@ -1,0 +1,501 @@
+/*
+ * The owner's first five steps, as designed (PrintCoPilot Sign Up and
+ * Onboarding, 2026-10-19, screens 7 to 11): a navy bar, the steps down the
+ * left, and one card for the step in hand. Fields and buttons are the sign-in
+ * screens' own parts (components/auth/auth-page.module.css), coloured here with
+ * the platform's blue and navy.
+ */
+
+.page {
+  --a-ink: #0c1e35;
+  --a-text: #3a4a5e;
+  --a-muted: #5a6a7e;
+  --a-line: #d5dce6;
+  --a-soft: #e3e8ef;
+  --a-band: #f6f8fb;
+  --a-bad: #b42318;
+  --a-primary: #0b66e4;
+  --a-primary-hover: #0a5cd0;
+  min-height: 100vh;
+  background: var(--a-band);
+  color: var(--a-text);
+  font-family: var(--pc-font-sans), "Inter", system-ui, sans-serif;
+  font-size: 15px;
+  line-height: 1.4;
+}
+.page *,
+.page *::before,
+.page *::after {
+  box-sizing: border-box;
+}
+
+.top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 24px;
+  background: #0c1e35;
+}
+.topLogo {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  flex: none;
+}
+.topName {
+  font-family: var(--pc-font-display), "Outfit", sans-serif;
+  font-size: 19px;
+  font-weight: 600;
+  color: #fff;
+}
+.topTrial {
+  margin-left: auto;
+  font-size: 13px;
+  color: #c5d1e2;
+  white-space: nowrap;
+}
+.topTrial a {
+  color: #fff;
+  font-weight: 600;
+  text-decoration: none;
+  margin-left: 14px;
+}
+.topTrial a:hover {
+  text-decoration: underline;
+}
+
+.wrap {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 32px 24px 64px;
+  display: flex;
+  gap: 32px;
+  align-items: flex-start;
+}
+
+.aside {
+  width: 240px;
+  flex: none;
+}
+.steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.stepBtn {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 8px 0;
+  border: none;
+  background: none;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.stepBtn:disabled {
+  cursor: default;
+}
+.num {
+  width: 28px;
+  height: 28px;
+  flex: none;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #c9d2de;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+}
+.numDone {
+  background: #0b66e4;
+}
+.numOn {
+  background: #0c1e35;
+}
+.stepLabel {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--a-muted);
+}
+.stepLabelDone {
+  color: #0c1e35;
+}
+.stepLabelOn {
+  color: #0c1e35;
+  font-weight: 600;
+}
+.asideNote {
+  margin: 12px 0 0;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--a-muted);
+}
+
+.main {
+  flex: 1;
+  min-width: 0;
+}
+.card {
+  background: #fff;
+  border: 1px solid var(--a-soft);
+  border-radius: 12px;
+  padding: 28px;
+}
+.eyebrow {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--a-muted);
+}
+.h1 {
+  margin: 6px 0 0;
+  font-family: var(--pc-font-display), "Outfit", sans-serif;
+  font-size: 28px;
+  font-weight: 600;
+  line-height: 1.25;
+  letter-spacing: -0.015em;
+  color: #0c1e35;
+}
+.sub {
+  margin: 6px 0 0;
+  font-size: 15px;
+  line-height: 22.5px;
+  color: var(--a-muted);
+}
+.content {
+  margin-top: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.actions {
+  margin-top: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.actionsRight {
+  display: flex;
+  gap: 10px;
+  margin-left: auto;
+}
+.actionsLeft {
+  display: flex;
+  gap: 10px;
+}
+
+/* Step 1: what do you run. */
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+.tile {
+  padding: 14px 16px;
+  border: 1px solid var(--a-line);
+  border-radius: 12px;
+  background: #fff;
+  color: #0c1e35;
+  font: 600 15px/1.25 var(--pc-font-sans), "Inter", system-ui, sans-serif;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+.tile:hover {
+  border-color: #9aa8ba;
+}
+.tileOn,
+.tileOn:hover {
+  /* The second pixel of border comes out of the padding, so nothing moves. */
+  padding: 13px 15px;
+  border: 2px solid #0e72fb;
+  background: #eaf3ff;
+}
+.tileWide {
+  grid-column: 1 / -1;
+}
+
+/* Steps 3 and 4: one row per thing to connect. */
+.rows {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1px solid var(--a-line);
+  border-radius: 12px;
+}
+.rowText {
+  min-width: 0;
+}
+.rowTitle {
+  font-size: 15px;
+  font-weight: 600;
+  color: #0c1e35;
+}
+.rowSub {
+  margin-top: 2px;
+  font-size: 13px;
+  color: var(--a-muted);
+}
+.rowRight {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: none;
+}
+.done {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #0e6b38;
+}
+.done::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #0e6b38;
+}
+
+/* Step 2: the controls beside a preview of the shop. */
+.split {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  align-items: start;
+}
+.controls {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.colorRow {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+.swatch {
+  width: 44px;
+  height: 44px;
+  flex: none;
+  padding: 0;
+  border: 1px solid var(--a-line);
+  border-radius: 8px;
+  background: none;
+  cursor: pointer;
+}
+.swatch::-webkit-color-swatch-wrapper {
+  padding: 4px;
+}
+.swatch::-webkit-color-swatch {
+  border: none;
+  border-radius: 5px;
+}
+.logoPicked {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.logoPicked img {
+  width: 44px;
+  height: 44px;
+  border-radius: 8px;
+  object-fit: contain;
+  border: 1px solid var(--a-soft);
+  background: #fff;
+}
+.preview {
+  border: 1px solid var(--a-soft);
+  border-radius: 12px;
+  overflow: hidden;
+  background: #fff;
+}
+.previewHead {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--a-soft);
+}
+.previewLogo {
+  width: 30px;
+  height: 30px;
+  border-radius: 7px;
+  object-fit: contain;
+  flex: none;
+}
+.previewTile {
+  width: 30px;
+  height: 30px;
+  border-radius: 7px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+}
+.previewName {
+  font-size: 15px;
+  font-weight: 600;
+  color: #0c1e35;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.previewBody {
+  min-height: 200px;
+  padding: 26px 20px;
+  background: var(--a-band);
+}
+.previewTitle {
+  margin: 0 0 14px;
+  font-size: 20px;
+  font-weight: 600;
+  color: #0c1e35;
+}
+.previewBtn {
+  display: inline-flex;
+  align-items: center;
+  height: 40px;
+  padding: 0 18px;
+  border-radius: 8px;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+/* Step 5: what is left. */
+.checklist {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.check {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid #eef1f5;
+  font-size: 15px;
+  color: #0c1e35;
+}
+.checkDot {
+  width: 22px;
+  height: 22px;
+  flex: none;
+  border-radius: 50%;
+  border: 2px solid var(--a-line);
+}
+.checkDotOn {
+  border: none;
+  background: #0e6b38
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23fff' stroke-width='3.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E")
+    center / 12px no-repeat;
+}
+.checkFix {
+  margin-left: auto;
+  font-size: 13px;
+}
+.goLive {
+  margin-top: 20px;
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+/* A step's own small form, opened from a row (pickup, S&S). */
+.panel {
+  border: 1px solid var(--a-soft);
+  border-radius: 12px;
+  padding: 18px;
+  background: var(--a-band);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.panelTitle {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: #0c1e35;
+}
+
+@media (max-width: 900px) {
+  .wrap {
+    flex-direction: column;
+    gap: 16px;
+    padding: 20px 16px 48px;
+  }
+  .aside {
+    width: 100%;
+  }
+  .steps {
+    display: flex;
+    gap: 8px;
+  }
+  .steps li {
+    flex: 1;
+  }
+  .stepBtn {
+    flex-direction: column;
+    gap: 6px;
+    text-align: center;
+  }
+  .stepLabel {
+    font-size: 11.5px;
+    line-height: 1.25;
+  }
+  .asideNote {
+    display: none;
+  }
+  .card {
+    padding: 20px;
+  }
+  .split {
+    grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 640px) {
+  .top {
+    padding: 12px 16px;
+  }
+  .topTrial a {
+    display: none;
+  }
+  .tiles {
+    grid-template-columns: 1fr 1fr;
+  }
+  .stepLabel {
+    display: none;
+  }
+  .stepLabelOn {
+    display: block;
+  }
+  .row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .rowRight {
+    width: 100%;
+  }
+  .actions {
+    flex-wrap: wrap;
+  }
+}

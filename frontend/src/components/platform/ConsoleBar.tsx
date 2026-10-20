@@ -11,7 +11,7 @@ import { useRouter } from "next/navigation";
 import { Count, Icon, ROOT } from "@/components/partners/ui";
 import { useAuthStore } from "@/stores/auth.store";
 
-export type ConsoleTab = "brands" | "analytics" | "taxes" | "activity" | "search" | "health" | "affiliates";
+export type ConsoleTab = "brands" | "analytics" | "taxes" | "activity" | "search" | "health" | "affiliates" | "leads";
 
 const TABS: [ConsoleTab, string][] = [
   ["brands", "Brands"],
@@ -21,6 +21,8 @@ const TABS: [ConsoleTab, string][] = [
   ["search", "Search"],
   ["health", "Brand Health"],
   ["affiliates", "Affiliates"],
+  // printcopilot.co's demo requests and contact messages (components/platform/LeadsTab).
+  ["leads", "Leads"],
 ];
 
 export function ConsoleBar({ tab, onTab, affiliates }: {

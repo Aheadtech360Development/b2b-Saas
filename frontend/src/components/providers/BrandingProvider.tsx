@@ -8,7 +8,7 @@
  * the real branding loads client-side right after mount.
  */
 import { createContext, useContext, useEffect, useState } from "react";
-import { apiClient } from "@/lib/api-client";
+import { apiClient, isPlatformHost } from "@/lib/api-client";
 import type { PageSection } from "@/components/storefront/SectionRenderer";
 
 export interface MenuItem {
@@ -32,11 +32,15 @@ export type SectionKey = "hero" | "featured_categories" | "featured_products";
 function applyFavicon(b: { favicon_url: string | null; store_name: string; primary_color: string }) {
   const href = b.favicon_url || letterFavicon(b.store_name, b.primary_color);
 
-  // Replace every icon link, not just the first: the browser is free to pick any
-  // of them, so leaving an old one behind means an old icon can still win.
-  document.head
-    .querySelectorAll<HTMLLinkElement>("link[rel~='icon'], link[rel='shortcut icon']")
-    .forEach((el) => el.remove());
+  // Every icon link points at it, not just the first: the browser is free to
+  // pick any of them, so leaving an old one behind means an old icon can still
+  // win. They are repointed rather than taken out: the ones the page's metadata
+  // drew belong to React, which removes them itself when the page changes, and
+  // one already removed under it crashed that navigation ("removeChild" of
+  // null), leaving the old page on screen at the new address.
+  const links = document.head.querySelectorAll<HTMLLinkElement>("link[rel~='icon'], link[rel='shortcut icon']");
+  links.forEach((el) => { el.href = href; });
+  if (links.length) return;
 
   const link = document.createElement("link");
   link.rel = "icon";
@@ -241,8 +245,11 @@ export function BrandingProvider({ children }: { children: React.ReactNode }) {
               sp === "compact" ? "40px" : sp === "spacious" ? "96px" : "64px",
             );
           }
-          // Apply brand identity to the browser tab (title + favicon).
-          if (typeof document !== "undefined") {
+          // Apply brand identity to the browser tab (title + favicon). Not on
+          // printcopilot.co itself: there is no brand there, and its own title
+          // and icon (app/layout.tsx) were being replaced by "Wholesale Store"
+          // and a drawn letter.
+          if (typeof document !== "undefined" && !isPlatformHost(window.location.hostname)) {
             document.title = merged.store_name && merged.store_name !== "Store"
               ? merged.store_name
               : "Wholesale Store";

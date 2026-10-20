@@ -1,5 +1,15 @@
 "use client";
 
+/**
+ * Apply for a wholesale account (design screens 4 and 5: Wholesale application,
+ * Application received).
+ *
+ * Four boxes — the company, who to talk to, where it is, and a little about
+ * the business — and then the shop reviews it (Customers, Applications). The
+ * account is made with the application, so the buyer also sets a password
+ * here: it is how they sign in, and the server will not make an account
+ * without one. Once sent, the same card says what happens next.
+ */
 import { useBranding } from "@/components/providers/BrandingProvider";
 
 import { useEffect, useRef, useState } from "react";
@@ -11,23 +21,23 @@ import { authService } from "@/services/auth.service";
 import { trackSignUp } from "@/lib/tracking";
 import { ApiClientError } from "@/lib/api-client";
 import { useAuthStore } from "@/stores/auth.store";
-import { AuthCard, authStyles as S } from "@/components/auth/AuthCard";
+import { COUNTRIES, countryName } from "@/lib/countries";
+import { PASSWORD_HINT, PASSWORD_MIN, passwordTooShort } from "@/lib/passwordRule";
+import { PasswordField } from "@/components/ui/PasswordField";
+import { AuthPage, ui, useOnlyOn } from "@/components/auth/AuthPage";
 
 const ReCAPTCHA = dynamic(() => import("react-google-recaptcha"), {
   ssr: false,
 }) as typeof ReCAPTCHAType;
 
-const PRIMARY_BUSINESS_OPTIONS = [
-  "Screen Printer",
-  "Embroiderer",
-  "Promotional Products Distributor",
-  "Retailer",
-  "Online Retailer",
-  "Corporate Buyer",
-  "Athletic Team Dealer",
-  "Boutique",
-  "Decorator",
-  "Other",
+const BUSINESS_TYPES = ["Print shop", "Brand", "Retailer", "Distributor", "Other"];
+
+const MONTHLY_VOLUME = [
+  "Under $1,000",
+  "$1,000 to $5,000",
+  "$5,000 to $25,000",
+  "$25,000 to $100,000",
+  "Over $100,000",
 ];
 
 const HEAR_ABOUT_OPTIONS = [
@@ -40,67 +50,6 @@ const HEAR_ABOUT_OPTIONS = [
   "Other",
 ];
 
-const EMPLOYEE_OPTIONS = [
-  "1 – 5",
-  "6 – 10",
-  "11 – 25",
-  "26 – 50",
-  "51 – 100",
-  "100+",
-];
-
-const SALES_REP_OPTIONS = [
-  "0",
-  "1 – 2",
-  "3 – 5",
-  "6 – 10",
-  "10+",
-];
-
-const inputStyle: React.CSSProperties = {
-  width: "100%",
-  border: "1px solid var(--ui-line)",
-  padding: "11px 14px",
-  fontSize: "14px",
-  color: "var(--ui-ink)",
-  background: "#fff",
-  outline: "none",
-  transition: "border-color .2s",
-  boxSizing: "border-box",
-  fontFamily: "'DM Sans', sans-serif",
-};
-
-const labelStyle: React.CSSProperties = {
-  display: "block",
-  fontSize: "12px",
-  fontWeight: 500,
-  textTransform: "uppercase",
-  letterSpacing: ".05em",
-  color: "var(--ui-ink)",
-  marginBottom: "6px",
-  fontFamily: "'DM Sans', sans-serif",
-};
-
-const sectionHeadStyle: React.CSSProperties = {
-  fontFamily: "'DM Sans', sans-serif",
-  fontSize: "11px",
-  fontWeight: 600,
-  letterSpacing: ".1em",
-  textTransform: "uppercase",
-  color: "var(--brand-primary, var(--ui-ink))",
-  marginBottom: "16px",
-  paddingBottom: "10px",
-  borderBottom: "1px solid var(--brand-primary, var(--ui-ink))",
-};
-
-const gridStyle: React.CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "1fr 1fr",
-  gap: "16px",
-};
-
-const req = <span style={{ color: "var(--ui-bad)" }}>*</span>;
-
 // reCAPTCHA renders only when a site key is configured. With no key the widget
 // throws "Missing required parameters: sitekey" and takes the whole page down, so
 // when it is absent we skip the widget and don't gate submission on a token.
@@ -112,94 +61,85 @@ export default function WholesaleRegisterPage() {
   // on, so the form is not offered at all — an application nobody can read is
   // worse than no application.
   const { wholesale_signup } = useBranding();
+  // An application is made to one shop, on its address; printcopilot.co has
+  // none to apply to.
+  const elsewhere = useOnlyOn("shop", "/signup");
+  if (elsewhere) return null;
   if (wholesale_signup === false) return <NoWholesaleHere />;
   return <WholesaleRegisterForm />;
 }
 
 function NoWholesaleHere() {
   return (
-    <AuthCard title="No account needed">
-      <p style={S.note}>
-        This shop sells to everyone at the same prices — there is no wholesale
-        application to make. Add what you need to the cart and check out; you
-        will get an order confirmation and a way to track it.
-      </p>
-      <Link href="/products" style={S.primaryLink}>Browse the catalogue →</Link>
-    </AuthCard>
+    <AuthPage
+      title="No account needed"
+      sub="This shop sells to everyone at the same prices, so there is no wholesale application to make. Add what you need to the cart and check out; you get an order confirmation and a way to track it."
+    >
+      <Link href="/products" className={`${ui.btn} ${ui.primary} ${ui.block}`}>Browse the catalogue</Link>
+    </AuthPage>
+  );
+}
+
+function Received({ company, email }: { company: string; email: string }) {
+  return (
+    <AuthPage
+      title="We got your application"
+      sub={<><strong>{company}</strong> is in review. We email you at <strong>{email}</strong> when it is approved.</>}
+    >
+      <ol className={ui.steps}>
+        <li className={ui.step}><span className={`${ui.dot} ${ui.dotOn}`} aria-hidden />Application sent</li>
+        <li className={ui.step}><span className={ui.dot} aria-hidden />In review</li>
+        <li className={ui.step}><span className={ui.dot} aria-hidden />Approved, tier and terms set</li>
+      </ol>
+      <Link href="/" className={`${ui.btn} ${ui.secondary} ${ui.block}`}>Back to the store</Link>
+    </AuthPage>
   );
 }
 
 function WholesaleRegisterForm() {
-  const { store_name: brandName } = useBranding();
   const router = useRouter();
   const { isAuthenticated, isLoading: authIsLoading } = useAuthStore();
   const recaptchaRef = useRef<any>(null);
   const captchaEnabled = RECAPTCHA_SITE_KEY.length > 0;
+  const [sent, setSent] = useState<{ company: string; email: string } | null>(null);
 
   useEffect(() => {
-    if (!authIsLoading && isAuthenticated()) {
+    if (!authIsLoading && isAuthenticated() && !sent) {
       router.replace("/account");
     }
-  }, [authIsLoading, isAuthenticated, router]);
+  }, [authIsLoading, isAuthenticated, router, sent]);
   const [recaptchaToken, setRecaptchaToken] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [form, setForm] = useState({
-    // Company Information
     company_name: "",
+    trading_name: "",
+    business_type: "",
+    tax_id: "",
     website: "",
-    company_email: "",
-    address1: "",
-    address2: "",
-    postal_code: "",
-    country: "",
-    city: "",
-    state: "",
-    resale_number: "",
-    ppai_number: "",
-    asi_number: "",
-    phone: "",
-    fax: "",
-    // Contact Information
     first_name: "",
     last_name: "",
-    title: "",
     email: "",
-    // Business Information
-    primary_business: "",
-    secondary_business: "",
-    how_heard: "",
-    num_employees: "",
-    num_sales_reps: "",
-    // Web Account Information
+    phone: "",
     password: "",
-    confirm_password: "",
-    password_hint: "",
-    // Communication
-    promo_emails: false,
-    // Terms
-    terms_accepted: false,
+    country: "US",
+    address1: "",
+    city: "",
+    state: "",
+    postal_code: "",
+    expected_monthly_volume: "",
+    how_heard: "",
   });
 
-  function handleChange(e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) {
-    const { name, value, type } = e.target;
-    const checked = (e.target as HTMLInputElement).checked;
-    setForm((prev) => ({ ...prev, [name]: type === "checkbox" ? checked : value }));
-  }
+  const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
+    setForm((f) => ({ ...f, [k]: e.target.value }));
+  const short = passwordTooShort(form.password);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
 
-    if (form.password !== form.confirm_password) {
-      setError("Passwords do not match.");
-      return;
-    }
-    if (!form.terms_accepted) {
-      setError("You must accept the terms and conditions.");
-      return;
-    }
     if (captchaEnabled && !recaptchaToken) {
       setError("Please complete the reCAPTCHA verification.");
       return;
@@ -208,326 +148,206 @@ function WholesaleRegisterForm() {
     setIsSubmitting(true);
     try {
       await authService.registerWholesale({
-        company_name: form.company_name,
-        business_type: form.primary_business,
-        tax_id: form.resale_number || undefined,
-        website: form.website || undefined,
-        first_name: form.first_name,
-        last_name: form.last_name,
-        email: form.email,
-        phone: form.phone || undefined,
+        company_name: form.company_name.trim(),
+        trading_name: form.trading_name.trim() || undefined,
+        business_type: form.business_type,
+        tax_id: form.tax_id.trim() || undefined,
+        website: form.website.trim() || undefined,
+        first_name: form.first_name.trim(),
+        last_name: form.last_name.trim(),
+        email: form.email.trim(),
+        phone: form.phone.trim() || undefined,
         password: form.password,
-        fax: form.fax || undefined,
-        company_email: form.company_email || undefined,
-        address_line1: form.address1 || undefined,
-        address_line2: form.address2 || undefined,
-        city: form.city || undefined,
-        state_province: form.state || undefined,
-        postal_code: form.postal_code || undefined,
-        country: form.country || undefined,
-        ppai_number: form.ppai_number || undefined,
-        asi_number: form.asi_number || undefined,
-        secondary_business: form.secondary_business || undefined,
+        address_line1: form.address1.trim() || undefined,
+        city: form.city.trim() || undefined,
+        state_province: form.state.trim() || undefined,
+        postal_code: form.postal_code.trim() || undefined,
+        country: form.country ? countryName(form.country) : undefined,
+        expected_monthly_volume: form.expected_monthly_volume || undefined,
         how_heard: form.how_heard || undefined,
-        num_employees: form.num_employees || undefined,
-        num_sales_reps: form.num_sales_reps || undefined,
       });
       trackSignUp("wholesale");
       recaptchaRef.current?.reset();
       setRecaptchaToken(null);
-      router.push("/wholesale/pending");
+      setSent({ company: form.company_name.trim(), email: form.email.trim() });
+      window.scrollTo({ top: 0 });
     } catch (err) {
       if (err instanceof ApiClientError) {
-        if (err.code === "CONFLICT") {
-          setError("An account with this email already exists. Please log in.");
+        if (err.code === "CONFLICT" || err.status === 409) {
+          setError("An account with this email already exists. Please sign in.");
         } else {
-          setError(err.message);
+          setError(err.message || "Could not send the application. Please try again.");
         }
       } else {
-        setError("An unexpected error occurred. Please try again.");
+        setError("Could not reach the server. Check your connection and try again.");
       }
     } finally {
       setIsSubmitting(false);
     }
   }
 
+  if (sent) return <Received company={sent.company} email={sent.email} />;
+
   return (
-    <div style={{ minHeight: "100vh", background: "var(--ui-paper)", fontFamily: "'DM Sans', sans-serif" }}>
-      {/* Page header */}
-      <div className="register-header" style={{ maxWidth: "760px", margin: "0 auto", padding: "56px 24px 0", textAlign: "center" }}>
-        <h1 className="ui-h1" style={{ marginBottom: "12px" }}>
-          Apply for a Wholesale Account
-        </h1>
-        <p className="register-sub" style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "15px", color: "var(--ui-muted)", maxWidth: "460px", margin: "0 auto 40px" }}>
-          Apply once. Get lower prices, better terms, and faster fulfillment.
-        </p>
-      </div>
-
-      {/* Content */}
-      <div className="register-content-wrap" style={{ maxWidth: "760px", margin: "0 auto", padding: "32px 24px 64px" }}>
-
-        {/* Form card */}
-        <div className="register-form-card" style={{ background: "#fff", border: "1px solid var(--ui-line)", padding: "40px" }}>
-          <form onSubmit={handleSubmit}>
-            {error && (
-              <div style={{ background: "#FFF0F0", border: "1px solid #fcc", borderRadius: "6px", padding: "12px 16px", fontSize: "13px", color: "#c0392b", marginBottom: "24px" }}>
-                {error}
-              </div>
-            )}
-
-            {/* ── Company Information ── */}
-            <div style={{ marginBottom: "32px" }}>
-              <h3 style={sectionHeadStyle}>Company Information</h3>
-              <div className="register-form-row" style={gridStyle}>
-                <div style={{ gridColumn: "1 / -1" }}>
-                  <label htmlFor="company_name" style={labelStyle}>Company Name {req}</label>
-                  <input id="company_name" name="company_name" type="text" required value={form.company_name} onChange={handleChange} style={inputStyle} placeholder="Your Company LLC" />
-                </div>
-
-                <div>
-                  <label htmlFor="website" style={labelStyle}>Website <span style={{ color: "#aaa", fontWeight: 400, textTransform: "none" }}>(optional)</span></label>
-                  <input id="website" name="website" type="text" value={form.website} onChange={handleChange} placeholder="https://yourcompany.com" style={inputStyle} />
-                </div>
-
-                <div>
-                  <label htmlFor="company_email" style={labelStyle}>Company Email {req}</label>
-                  <input id="company_email" name="company_email" type="email" required value={form.company_email} onChange={handleChange} placeholder="info@yourcompany.com" style={inputStyle} />
-                </div>
-
-                <div style={{ gridColumn: "1 / -1" }}>
-                  <label htmlFor="address1" style={labelStyle}>Address 1 {req}</label>
-                  <input id="address1" name="address1" type="text" required value={form.address1} onChange={handleChange} placeholder="Street address" style={inputStyle} />
-                </div>
-
-                <div style={{ gridColumn: "1 / -1" }}>
-                  <label htmlFor="address2" style={labelStyle}>Address 2 <span style={{ color: "#aaa", fontWeight: 400, textTransform: "none" }}>(optional)</span></label>
-                  <input id="address2" name="address2" type="text" value={form.address2} onChange={handleChange} placeholder="Suite, unit, building…" style={inputStyle} />
-                </div>
-
-                <div>
-                  <label htmlFor="postal_code" style={labelStyle}>Postal / Zip Code {req}</label>
-                  <input id="postal_code" name="postal_code" type="text" required value={form.postal_code} onChange={handleChange} placeholder="75001" style={inputStyle} />
-                </div>
-
-                <div>
-                  <label htmlFor="country" style={labelStyle}>Country {req}</label>
-                  <input id="country" name="country" type="text" required value={form.country} onChange={handleChange} placeholder="United States" style={inputStyle} />
-                </div>
-
-                <div>
-                  <label htmlFor="city" style={labelStyle}>City {req}</label>
-                  <input id="city" name="city" type="text" required value={form.city} onChange={handleChange} style={inputStyle} />
-                </div>
-
-                <div>
-                  <label htmlFor="state" style={labelStyle}>Province / State {req}</label>
-                  <input id="state" name="state" type="text" required value={form.state} onChange={handleChange} placeholder="TX" style={inputStyle} />
-                </div>
-
-                <div>
-                  <label htmlFor="resale_number" style={labelStyle}>RESALE # {req}</label>
-                  <input id="resale_number" name="resale_number" type="text" required value={form.resale_number} onChange={handleChange} style={inputStyle} />
-                </div>
-
-                <div>
-                  <label htmlFor="ppai_number" style={labelStyle}>PPAI # <span style={{ color: "#aaa", fontWeight: 400, textTransform: "none" }}>(optional)</span></label>
-                  <input id="ppai_number" name="ppai_number" type="text" value={form.ppai_number} onChange={handleChange} style={inputStyle} />
-                </div>
-
-                <div>
-                  <label htmlFor="asi_number" style={labelStyle}>ASI # <span style={{ color: "#aaa", fontWeight: 400, textTransform: "none" }}>(optional)</span></label>
-                  <input id="asi_number" name="asi_number" type="text" value={form.asi_number} onChange={handleChange} style={inputStyle} />
-                </div>
-
-                <div>
-                  <label htmlFor="phone" style={labelStyle}>Phone {req}</label>
-                  <input id="phone" name="phone" type="tel" required value={form.phone} onChange={handleChange} placeholder="(214) 000-0000" style={inputStyle} />
-                </div>
-
-                <div>
-                  <label htmlFor="fax" style={labelStyle}>Fax <span style={{ color: "#aaa", fontWeight: 400, textTransform: "none" }}>(optional)</span></label>
-                  <input id="fax" name="fax" type="tel" value={form.fax} onChange={handleChange} placeholder="(214) 000-0000" style={inputStyle} />
-                </div>
-              </div>
+    <AuthPage
+      size="wide"
+      title="Apply for a wholesale account"
+      sub="Tier pricing, net terms and quick ordering. We review applications within 1 to 2 business days."
+    >
+      <form onSubmit={handleSubmit}>
+        <section className={ui.section} aria-labelledby="ws-company">
+          <h2 className={ui.sectionTitle} id="ws-company">Company</h2>
+          <div className={ui.row3}>
+            <div className={ui.field}>
+              <label htmlFor="company_name" className={ui.label}>Company name</label>
+              <input id="company_name" required autoComplete="organization" value={form.company_name}
+                onChange={set("company_name")} className={ui.input} />
             </div>
-
-            {/* ── Contact Information ── */}
-            <div style={{ marginBottom: "32px" }}>
-              <h3 style={sectionHeadStyle}>Contact Information</h3>
-              <div className="register-form-row" style={gridStyle}>
-                <div>
-                  <label htmlFor="first_name" style={labelStyle}>First Name {req}</label>
-                  <input id="first_name" name="first_name" type="text" required value={form.first_name} onChange={handleChange} style={inputStyle} />
-                </div>
-
-                <div>
-                  <label htmlFor="last_name" style={labelStyle}>Last Name {req}</label>
-                  <input id="last_name" name="last_name" type="text" required value={form.last_name} onChange={handleChange} style={inputStyle} />
-                </div>
-
-                <div>
-                  <label htmlFor="title" style={labelStyle}>Title <span style={{ color: "#aaa", fontWeight: 400, textTransform: "none" }}>(optional)</span></label>
-                  <input id="title" name="title" type="text" value={form.title} onChange={handleChange} placeholder="e.g. Owner, Manager" style={inputStyle} />
-                </div>
-
-                <div>
-                  <label htmlFor="email" style={labelStyle}>Direct Email Address {req}</label>
-                  <input id="email" name="email" type="email" required value={form.email} onChange={handleChange} placeholder="you@company.com" style={inputStyle} />
-                </div>
-              </div>
+            <div className={ui.field}>
+              <label htmlFor="trading_name" className={ui.label}>Trading name</label>
+              <input id="trading_name" placeholder="Optional" value={form.trading_name}
+                onChange={set("trading_name")} className={ui.input} />
             </div>
-
-            {/* ── Business Information ── */}
-            <div style={{ marginBottom: "32px" }}>
-              <h3 style={sectionHeadStyle}>Business Information</h3>
-              <div className="register-form-row" style={gridStyle}>
-                <div style={{ gridColumn: "1 / -1" }}>
-                  <label htmlFor="primary_business" style={labelStyle}>What is your primary business activity? {req}</label>
-                  <select id="primary_business" name="primary_business" required value={form.primary_business} onChange={handleChange} style={inputStyle}>
-                    <option value="">Select…</option>
-                    {PRIMARY_BUSINESS_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
-                  </select>
-                </div>
-
-                <div style={{ gridColumn: "1 / -1" }}>
-                  <label htmlFor="secondary_business" style={labelStyle}>What is your secondary business activity?</label>
-                  <select id="secondary_business" name="secondary_business" value={form.secondary_business} onChange={handleChange} style={inputStyle}>
-                    <option value="">Select…</option>
-                    {PRIMARY_BUSINESS_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
-                  </select>
-                </div>
-
-                <div style={{ gridColumn: "1 / -1" }}>
-                  <label htmlFor="how_heard" style={labelStyle}>How did you hear about us?</label>
-                  <select id="how_heard" name="how_heard" value={form.how_heard} onChange={handleChange} style={inputStyle}>
-                    <option value="">Select…</option>
-                    {HEAR_ABOUT_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
-                  </select>
-                </div>
-
-                <div>
-                  <label htmlFor="num_employees" style={labelStyle}>Number of employees in your location:</label>
-                  <select id="num_employees" name="num_employees" value={form.num_employees} onChange={handleChange} style={inputStyle}>
-                    <option value="">Select…</option>
-                    {EMPLOYEE_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
-                  </select>
-                </div>
-
-                <div>
-                  <label htmlFor="num_sales_reps" style={labelStyle}>Number of outside sales reps:</label>
-                  <select id="num_sales_reps" name="num_sales_reps" value={form.num_sales_reps} onChange={handleChange} style={inputStyle}>
-                    <option value="">Select…</option>
-                    {SALES_REP_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
-                  </select>
-                </div>
-              </div>
+            <div className={ui.field}>
+              <label htmlFor="business_type" className={ui.label}>Business type</label>
+              <select id="business_type" required value={form.business_type} onChange={set("business_type")} className={ui.input}>
+                <option value="">Choose one</option>
+                {BUSINESS_TYPES.map((o) => <option key={o} value={o}>{o}</option>)}
+              </select>
             </div>
-
-            {/* ── Web Account Information ── */}
-            <div style={{ marginBottom: "32px" }}>
-              <h3 style={sectionHeadStyle}>Web Account Information</h3>
-              <div className="register-form-row" style={gridStyle}>
-                <div>
-                  <label htmlFor="password" style={labelStyle}>Password {req}</label>
-                  <input id="password" name="password" type="password" required minLength={8} value={form.password} onChange={handleChange} placeholder="Min. 8 characters" style={inputStyle} />
-                </div>
-
-                <div>
-                  <label htmlFor="confirm_password" style={labelStyle}>Confirm Password {req}</label>
-                  <input id="confirm_password" name="confirm_password" type="password" required minLength={8} value={form.confirm_password} onChange={handleChange} placeholder="Re-enter password" style={inputStyle} />
-                </div>
-
-                <div style={{ gridColumn: "1 / -1" }}>
-                  <label htmlFor="password_hint" style={labelStyle}>Password Hint <span style={{ color: "#aaa", fontWeight: 400, textTransform: "none" }}>(optional)</span></label>
-                  <input id="password_hint" name="password_hint" type="text" value={form.password_hint} onChange={handleChange} placeholder="A hint to help you remember your password" style={inputStyle} />
-                </div>
-              </div>
+          </div>
+          <div className={ui.row2}>
+            <div className={ui.field}>
+              <label htmlFor="tax_id" className={ui.label}>Tax ID or VAT number</label>
+              <input id="tax_id" value={form.tax_id} onChange={set("tax_id")} className={ui.input} />
             </div>
-
-            {/* ── Communication Preferences ── */}
-            <div style={{ marginBottom: "32px" }}>
-              <h3 style={sectionHeadStyle}>Communication Preferences</h3>
-              <label style={{ display: "flex", alignItems: "flex-start", gap: "10px", cursor: "pointer" }}>
-                <input
-                  type="checkbox"
-                  name="promo_emails"
-                  checked={form.promo_emails}
-                  onChange={handleChange}
-                  style={{ marginTop: "2px", accentColor: "#1A5CFF", width: "16px", height: "16px", flexShrink: 0 }}
-                />
-                <span style={{ fontSize: "14px", color: "#2A2830", lineHeight: 1.5 }}>
-                  I would like to receive promotional emails, product updates, and exclusive offers{brandName ? ` from ${brandName}` : ""}.
-                </span>
-              </label>
+            <div className={ui.field}>
+              <label htmlFor="website" className={ui.label}>Website</label>
+              <input id="website" inputMode="url" placeholder="https://" autoComplete="url" value={form.website}
+                onChange={set("website")} className={ui.input} />
             </div>
+          </div>
+        </section>
 
-            {/* ── Terms and Conditions ── */}
-            <div style={{ marginBottom: "32px" }}>
-              <h3 style={sectionHeadStyle}>Terms and Conditions</h3>
-              <p style={{ fontSize: "13px", color: "#4A4850", lineHeight: 1.65, marginBottom: "14px" }}>
-                By proceeding I acknowledge that I have read and agree to the following terms and conditions:
-              </p>
-              <div style={{ background: "var(--ui-paper)", border: "1px solid var(--ui-line)", padding: "14px 16px", fontSize: "12px", color: "var(--ui-muted)", lineHeight: 1.7, marginBottom: "18px", maxHeight: "100px", overflowY: "auto", fontFamily: "'DM Sans', sans-serif" }}>
-                {brandName ? `${brandName} wholesale accounts` : "Wholesale accounts"} are strictly for business-to-business transactions. By submitting this application you confirm that your business holds a valid resale certificate or equivalent tax exemption document. All pricing, product availability, and terms are subject to change. Accounts may be suspended for misuse. We reserve the right to approve or deny any application at our sole discretion.
-              </div>
-
-              {/* reCAPTCHA — only when a site key is configured */}
-              {captchaEnabled && (
-                <div className="recaptcha-wrap" style={{ marginBottom: "16px" }}>
-                  <ReCAPTCHA
-                    ref={recaptchaRef}
-                    sitekey={RECAPTCHA_SITE_KEY}
-                    onChange={(token) => setRecaptchaToken(token)}
-                    onExpired={() => setRecaptchaToken(null)}
-                  />
-                  {!recaptchaToken && (
-                    <p style={{ fontSize: "11px", color: "#aaa", marginTop: "6px" }}>Please complete the verification above to submit.</p>
-                  )}
-                </div>
-              )}
-
-              <label style={{ display: "flex", alignItems: "flex-start", gap: "10px", cursor: "pointer" }}>
-                <input
-                  type="checkbox"
-                  name="terms_accepted"
-                  checked={form.terms_accepted}
-                  onChange={handleChange}
-                  style={{ marginTop: "2px", accentColor: "#1A5CFF", width: "16px", height: "16px", flexShrink: 0 }}
-                />
-                <span style={{ fontSize: "13px", color: "#2A2830", lineHeight: 1.5 }}>
-                  I have read and agree to the terms and conditions above. {req}
-                </span>
-              </label>
+        <section className={ui.section} aria-labelledby="ws-contact">
+          <h2 className={ui.sectionTitle} id="ws-contact">Contact</h2>
+          <div className={ui.row3}>
+            <div className={ui.field}>
+              <label htmlFor="first_name" className={ui.label}>First name</label>
+              <input id="first_name" required autoComplete="given-name" value={form.first_name}
+                onChange={set("first_name")} className={ui.input} />
             </div>
+            <div className={ui.field}>
+              <label htmlFor="last_name" className={ui.label}>Last name</label>
+              <input id="last_name" required autoComplete="family-name" value={form.last_name}
+                onChange={set("last_name")} className={ui.input} />
+            </div>
+            <div className={ui.field}>
+              <label htmlFor="email" className={ui.label}>Email</label>
+              <input id="email" type="email" required autoComplete="email" value={form.email}
+                onChange={set("email")} className={ui.input} />
+            </div>
+          </div>
+          <div className={ui.row2}>
+            <div className={ui.field}>
+              <label htmlFor="phone" className={ui.label}>Phone</label>
+              <input id="phone" type="tel" autoComplete="tel" placeholder="With country code" value={form.phone}
+                onChange={set("phone")} className={ui.input} />
+            </div>
+            <div className={ui.field}>
+              <label htmlFor="password" className={ui.label}>Password</label>
+              <PasswordField id="password" required minLength={PASSWORD_MIN} autoComplete="new-password"
+                value={form.password} onChange={set("password")} className={ui.input} />
+              <p className={`${ui.hint} ${short ? ui.hintBad : ""}`}>For signing in. {PASSWORD_HINT}</p>
+            </div>
+          </div>
+        </section>
 
-            <button
-              type="submit"
-              disabled={isSubmitting || (captchaEnabled && !recaptchaToken)}
-              style={{
-                width: "100%",
-                background: (isSubmitting || (captchaEnabled && !recaptchaToken)) ? "#C9C6C0" : "var(--brand-primary, var(--ui-ink))",
-                color: "#fff",
-                padding: "16px",
-                fontSize: "15px",
-                fontWeight: 500,
-                border: "none",
-                cursor: (isSubmitting || (captchaEnabled && !recaptchaToken)) ? "not-allowed" : "pointer",
-                transition: "all .2s",
-                fontFamily: "'DM Sans', sans-serif",
-              }}
-            >
-              {isSubmitting ? "Submitting Application…" : "Submit Application →"}
-            </button>
+        <section className={ui.section} aria-labelledby="ws-address">
+          <h2 className={ui.sectionTitle} id="ws-address">Business address</h2>
+          <div className={ui.row3}>
+            <div className={ui.field}>
+              <label htmlFor="country" className={ui.label}>Country</label>
+              <select id="country" value={form.country} onChange={set("country")} className={ui.input} autoComplete="country">
+                {COUNTRIES.map((c) => <option key={c.code} value={c.code}>{c.name}</option>)}
+              </select>
+            </div>
+            <div className={ui.field}>
+              <label htmlFor="address1" className={ui.label}>Address line 1</label>
+              <input id="address1" autoComplete="address-line1" value={form.address1}
+                onChange={set("address1")} className={ui.input} />
+            </div>
+            <div className={ui.field}>
+              <label htmlFor="city" className={ui.label}>City</label>
+              <input id="city" autoComplete="address-level2" value={form.city}
+                onChange={set("city")} className={ui.input} />
+            </div>
+          </div>
+          <div className={ui.row2}>
+            <div className={ui.field}>
+              <label htmlFor="state" className={ui.label}>Region</label>
+              <input id="state" autoComplete="address-level1" placeholder="State or province" value={form.state}
+                onChange={set("state")} className={ui.input} />
+            </div>
+            <div className={ui.field}>
+              <label htmlFor="postal_code" className={ui.label}>Postal code</label>
+              <input id="postal_code" autoComplete="postal-code" value={form.postal_code}
+                onChange={set("postal_code")} className={ui.input} />
+            </div>
+          </div>
+        </section>
 
-            <p style={{ textAlign: "center", fontFamily: "'DM Sans', sans-serif", fontSize: "13px", color: "var(--ui-muted)", marginTop: "16px" }}>
-              Already have an account?{" "}
-              <Link href="/login" style={{ color: "var(--brand-primary, var(--ui-ink))", fontWeight: 500, textDecoration: "none" }}>
-                Sign in →
-              </Link>
-            </p>
-          </form>
+        <section className={ui.section} aria-labelledby="ws-about">
+          <h2 className={ui.sectionTitle} id="ws-about">About your business</h2>
+          <div className={ui.row2}>
+            <div className={ui.field}>
+              <label htmlFor="expected_monthly_volume" className={ui.label}>Expected monthly volume</label>
+              <select id="expected_monthly_volume" value={form.expected_monthly_volume}
+                onChange={set("expected_monthly_volume")} className={ui.input}>
+                <option value="">Choose a range</option>
+                {MONTHLY_VOLUME.map((o) => <option key={o} value={o}>{o}</option>)}
+              </select>
+            </div>
+            <div className={ui.field}>
+              <label htmlFor="how_heard" className={ui.label}>How did you hear about us</label>
+              <select id="how_heard" value={form.how_heard} onChange={set("how_heard")} className={ui.input}>
+                <option value="">Choose one</option>
+                {HEAR_ABOUT_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
+              </select>
+            </div>
+          </div>
+        </section>
+
+        {/* reCAPTCHA — only when a site key is configured */}
+        {captchaEnabled && (
+          <div className="recaptcha-wrap">
+            <ReCAPTCHA
+              ref={recaptchaRef}
+              sitekey={RECAPTCHA_SITE_KEY}
+              onChange={(token) => setRecaptchaToken(token)}
+              onExpired={() => setRecaptchaToken(null)}
+            />
+          </div>
+        )}
+
+        {error && <div className={ui.error} role="alert">{error}</div>}
+
+        <div>
+          <button
+            type="submit"
+            disabled={isSubmitting || short || (captchaEnabled && !recaptchaToken)}
+            className={`${ui.btn} ${ui.primary} ${ui.tall}`}
+          >
+            {isSubmitting ? "Sending your application…" : "Submit application"}
+          </button>
         </div>
-      </div>
-    </div>
+
+        <p className={ui.foot}>
+          Wholesale accounts are for business-to-business orders. By applying you confirm your business
+          holds a valid resale certificate or its equivalent. Already have an account?{" "}
+          <Link href="/login" className={ui.link}>Sign in</Link>
+        </p>
+      </form>
+    </AuthPage>
   );
 }

@@ -20,6 +20,8 @@ class WholesaleApplication(TenantMixin, BaseModel):
 
     # Applicant info
     company_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    # The name it trades under, when not its legal one (0064; the design's form asks).
+    trading_name: Mapped[str | None] = mapped_column(String(255))
     tax_id: Mapped[str | None] = mapped_column(String(100))
     business_type: Mapped[str] = mapped_column(String(100), nullable=False)
     website: Mapped[str | None] = mapped_column(String(500))

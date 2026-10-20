@@ -68,8 +68,21 @@ async def setup_2fa(request: Request, db: AsyncSession = Depends(get_db)) -> dic
     secret = tfa.new_secret()
     user.two_factor_secret = secret
     await db.flush()
-    issuer = getattr(request.state, "tenant_slug", None) or "AT360"
-    return {"secret": secret, "otpauth_uri": tfa.provisioning_uri(secret, user.email, issuer)}
+    # What the authenticator app files the code under: the shop, from its
+    # address or from the token when it is set up on printcopilot.co, else
+    # the platform's own name.
+    issuer = (getattr(request.state, "tenant_slug", None)
+              or getattr(request.state, "tenant_slug_claim", None) or "PrintCoPilot")
+    uri = tfa.provisioning_uri(secret, user.email, issuer)
+    # The code to scan, drawn here (segno is already a dependency) so the page
+    # needs no QR library of its own. A data URI, shown as an image.
+    try:
+        import segno
+
+        qr_svg = segno.make(uri, error="m").svg_data_uri(scale=4, border=2, dark="#0C1E35")
+    except Exception:  # noqa: BLE001  (the key below still works without the picture)
+        qr_svg = None
+    return {"secret": secret, "otpauth_uri": uri, "qr_svg": qr_svg}
 
 
 @router.post("/enable")

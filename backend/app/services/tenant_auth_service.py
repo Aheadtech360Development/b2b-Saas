@@ -302,12 +302,32 @@ class TenantAuthService:
         return await self._issue_login(dict(row))
 
     async def get_profile(self, user_id: str) -> dict:
+        """The signed-in person, by the id in their access token.
+
+        Read unscoped, as the sign-in and the two-factor step are: on the
+        platform's own address no shop is resolved, and row-level security hid
+        a brand owner's own row, so somebody who had just signed in at
+        printcopilot.co with the right password was told "User not found". The
+        id is the access token's own subject (the auth middleware sets it only
+        from a valid, unrevoked token), so this reads nobody else's row.
+        """
         from sqlalchemy import text
-        result = await self.db.execute(
-            text("SELECT id, tenant_id, email, first_name, last_name, role, is_platform_admin, is_active FROM users WHERE id=:id"),
-            {"id": user_id},
-        )
-        row = result.mappings().first()
+
+        from app.core.database import AsyncSessionLocal
+        from app.core.tenant_context import is_scoping_bypassed, set_bypass_scoping
+
+        previous = is_scoping_bypassed()
+        set_bypass_scoping(True)
+        try:
+            async with AsyncSessionLocal() as unscoped:
+                result = await unscoped.execute(
+                    text("SELECT id, tenant_id, email, first_name, last_name, role, is_platform_admin, is_active"
+                         " FROM users WHERE id = CAST(:id AS uuid)"),
+                    {"id": user_id},
+                )
+                row = result.mappings().first()
+        finally:
+            set_bypass_scoping(previous)
         if not row:
             raise UnauthorizedError("User not found")
         return dict(row)

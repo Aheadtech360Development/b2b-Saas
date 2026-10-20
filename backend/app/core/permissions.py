@@ -127,6 +127,8 @@ _PATH_SCOPES: list[tuple[str, str]] = [
     ("/api/v1/admin/disputes", "billing"),
     ("/api/v1/admin/refunds", "billing"),
     ("/api/v1/admin/settings", "settings"),
+    # The owner's setup steps: where they are, and what the business is.
+    ("/api/v1/admin/onboarding", "settings"),
     ("/api/v1/admin/notifications", "settings"),
     ("/api/v1/admin/email-templates", "settings"),
     ("/api/v1/admin/taxes", "settings"),

@@ -69,12 +69,16 @@ async def connect_status(request: Request, db: AsyncSession = Depends(get_db)) -
 
 
 @router.post("/onboard")
-async def start_onboarding(request: Request, db: AsyncSession = Depends(get_db)) -> dict:
+async def start_onboarding(request: Request, back: str | None = None, db: AsyncSession = Depends(get_db)) -> dict:
     """Create the Express account (if needed) and return a fresh hosted
-    onboarding URL. The link expires quickly, so call this each time."""
+    onboarding URL. The link expires quickly, so call this each time.
+    `?back=onboarding` returns the owner to the setup steps instead of Billing."""
     try:
         svc = ConnectService(db)
-        result = await svc.create_onboarding_link(_tenant_id(request))
+        result = await svc.create_onboarding_link(
+            _tenant_id(request), back="onboarding" if back == "onboarding" else None,
+            origin=request.headers.get("origin"),
+        )
         await db.commit()
         return result
     except ValueError as e:

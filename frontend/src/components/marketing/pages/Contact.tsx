@@ -298,6 +298,11 @@ export default function ContactPage() {
             >
               {notDone && (
                 <form onSubmit={submit}>
+                  {/* Left empty by people; a form-filling bot fills it, and is answered as if it went through. */}
+                  <div aria-hidden="true" style={{ position: "absolute", left: "-9999px", width: "1px", height: "1px", overflow: "hidden" }}>
+                    <label htmlFor="c-company-hp">Company</label>
+                    <input id="c-company-hp" name="company_hp" tabIndex={-1} autoComplete="off" />
+                  </div>
                   <h2 className={s["d"]} style={{ fontSize: "24px", lineHeight: "30px", color: "#0C1E35" }}>
                     Send us a message
                   </h2>

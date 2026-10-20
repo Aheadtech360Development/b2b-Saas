@@ -1,6 +1,14 @@
 // frontend/src/app/(auth)/login/page.tsx
 "use client";
 
+/**
+ * Sign in (design screen 1: Buyer sign in).
+ *
+ * One form for everybody, and the token says who signed in — the platform's,
+ * a brand's owner or staff, or a brand's buyer — so nobody is asked to find the
+ * right page first. On a shop the card wears the shop's logo and colour; on
+ * printcopilot.co, PrintCoPilot's (AuthPage decides from the address).
+ */
 import { useBranding } from "@/components/providers/BrandingProvider";
 
 import { useEffect, useRef, useState } from "react";
@@ -14,6 +22,7 @@ import { authService } from "@/services/auth.service";
 import { ApiClientError, setAccessToken } from "@/lib/api-client";
 import { nextFromLocation } from "@/lib/safeNext";
 import { PasswordField } from "@/components/ui/PasswordField";
+import { AuthPage, ui, useAuthWhere } from "@/components/auth/AuthPage";
 
 const ReCAPTCHA = dynamic(() => import("react-google-recaptcha"), {
   ssr: false,
@@ -31,7 +40,6 @@ function decodeJwtPayload(token: string): Record<string, unknown> {
 }
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
-const PLATFORM_DOMAIN = process.env.NEXT_PUBLIC_PLATFORM_DOMAIN ?? "localhost";
 
 export default function LoginPage() {
   const { support_phone, wholesale_signup } = useBranding();
@@ -55,13 +63,7 @@ export default function LoginPage() {
   // On the platform's own address this page is a shop owner signing in, not a
   // customer of a shop — so what it offers somebody without an account is a
   // shop of their own, not a wholesale application to a store that isn't here.
-  // Read after mount: the server does not know the host the browser used.
-  const [onPlatform, setOnPlatform] = useState(false);
-  useEffect(() => {
-    const host = window.location.hostname;
-    setOnPlatform(PLATFORM_DOMAIN !== "localhost"
-      && (host === PLATFORM_DOMAIN || host === `www.${PLATFORM_DOMAIN}`));
-  }, []);
+  const { platform: onPlatform } = useAuthWhere();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -182,184 +184,136 @@ export default function LoginPage() {
     }
   }
 
-  return (
-    <div className="ui-page" style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: "56px 24px" }}>
-      <div className="ui-narrow" style={{ width: "100%" }}>
-          <h1 className="ui-h1">Sign in</h1>
-          <p className="ui-lede">
-            {onPlatform
-              ? "Your shop's console, or the platform's."
-              : "Your account, your orders and your pricing."}
-          </p>
-
-          <div className="ui-card">
-            {twoFaChallenge ? (
-              <form onSubmit={handleVerify2fa}>
-                <h2 style={{ fontSize: "18px", fontWeight: 700, margin: "0 0 6px" }}>Two-factor verification</h2>
-                <p className="ui-lede" style={{ fontSize: "14px", marginBottom: "18px" }}>Enter the 6-digit code from your authenticator app. You can also use a backup code.</p>
-                {error && (
-                  <div className="ui-alert ui-alert-bad">{error}</div>
-                )}
-                <input
-                  autoFocus inputMode="text" autoComplete="one-time-code" value={twoFaCode}
-                  onChange={(e) => setTwoFaCode(e.target.value)} placeholder="123456"
-                  className="ui-field ui-num" style={{ fontSize: "20px", letterSpacing: ".2em", textAlign: "center", marginBottom: "16px" }}
-                />
-                <button type="submit" disabled={isSubmitting || twoFaCode.trim().length < 6}
-                  className="ui-btn ui-btn-block">
-                  {isSubmitting ? "Verifying…" : "Verify"}
-                </button>
-                <button type="button" onClick={() => { setTwoFaChallenge(null); setTwoFaCode(""); setError(null); }}
-                  className="ui-btn-quiet" style={{ width: "100%", marginTop: "12px" }}>
-                  ← Back to sign in
-                </button>
-              </form>
-            ) : (
-            <form onSubmit={handleSubmit}>
-              {error && (
-                <div className="ui-alert ui-alert-bad">{error}</div>
-              )}
-
-              {showResendActivation && (
-                <div className="ui-alert ui-alert-note" style={{ marginBottom: "20px" }}>
-                  {resendSent ? (
-                    <p style={{ margin: 0 }}>Activation email sent — check your inbox.</p>
-                  ) : (
-                    <>
-                      <p style={{ margin: "0 0 10px" }}>{"Didn't receive the activation email?"}</p>
-                      <button
-                        type="button"
-                        onClick={handleResendActivation}
-                        className="ui-btn" style={{ padding: "9px 18px", fontSize: "13.5px" }}
-                      >
-                        Resend activation email
-                      </button>
-                    </>
-                  )}
-                </div>
-              )}
-
-              {showPendingApproval && (
-                <div className="ui-alert ui-alert-note" style={{ marginBottom: "20px" }}>
-                  <p style={{ fontWeight: 700, margin: "0 0 6px" }}>Application under review</p>
-                  <p style={{ margin: 0 }}>
-                    Your wholesale application is currently being reviewed by our team. You will receive an email within 1–2 business days once a decision has been made.
-                  </p>
-                  {supportPhone && (
-                    <p style={{ margin: "8px 0 0" }}>
-                      Questions? Call <a href={`tel:${supportPhone.replace(/[^+\d]/g, "")}`} style={{ color: "inherit", fontWeight: 600 }}>{supportPhone}</a>
-                    </p>
-                  )}
-                </div>
-              )}
-
-              <div style={{ marginBottom: "16px" }}>
-                <label
-                  htmlFor="email"
-                  className="ui-label"
-                >
-                  Email
-                </label>
-                <input
-                  id="email"
-                  type="email"
-                  autoComplete="email"
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="you@company.com"
-                  className="ui-field"
-                />
-              </div>
-
-              <div style={{ marginBottom: "8px" }}>
-                <label
-                  htmlFor="password"
-                  className="ui-label"
-                >
-                  Password
-                </label>
-                <PasswordField
-                  id="password"
-                  autoComplete="current-password"
-                  required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Your password"
-                  className="ui-field"
-                />
-                <Link
-                  href="/forgot-password"
-                  className="ui-hint" style={{ color: "var(--brand-primary, var(--ui-ink))", fontWeight: 600, textDecoration: "none", display: "inline-block" }}
-                >
-                  Forgot your password?
-                </Link>
-              </div>
-
-              <div style={{ marginBottom: "16px" }}></div>
-
-              {/* reCAPTCHA — only shown when site key is configured */}
-              {process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY && (
-                <div className="recaptcha-wrap" style={{ marginBottom: "20px" }}>
-                  <ReCAPTCHA
-                    ref={recaptchaRef}
-                    sitekey={process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY}
-                    onChange={(token) => setRecaptchaToken(token)}
-                    onExpired={() => setRecaptchaToken(null)}
-                    theme="dark"
-                  />
-                  {!recaptchaToken && (
-                    <p style={{ fontSize: "11px", color: "#666", marginTop: "6px" }}>Please complete the verification above to sign in.</p>
-                  )}
-                </div>
-              )}
-
-              <button
-                type="submit"
-                disabled={isSubmitting || (!!process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY && !recaptchaToken)}
-                className="ui-btn ui-btn-block"
-                style={{ marginTop: "12px" }}
-              >
-                {isSubmitting ? "Signing in…" : "Sign in"}
-              </button>
-            </form>
-            )}
-
-            {/* What is worth offering here depends on whose page this is. On
-                the platform's own address: a shop of your own. On a wholesale
-                shop: the application its buyers have to make before they can
-                sign in. On a retail shop: an account of their own, made in a
-                moment — the shop's header now says "Sign up", and somebody who
-                landed on Log in without one needs the same door from here. */}
-            <div style={{ marginTop: "22px", paddingTop: "18px", borderTop: "1px solid var(--ui-line)" }}>
-              <div style={{ position: "relative", textAlign: "center", marginBottom: "16px" }}>
-                <span style={{ fontSize: "12.5px", color: "var(--ui-muted)", background: "#fff", padding: "0 12px", position: "relative", zIndex: 1 }}>or</span>
-                <div style={{ position: "absolute", top: "50%", left: 0, right: 0, height: "1px", background: "var(--ui-line)", zIndex: 0 }} />
-              </div>
-              {/* A shopper sent here mid-order (a builder, the checkout) gets
-                  the account made in a moment and the way back, on a
-                  wholesale shop too: an application to approve is no way to
-                  finish an order. */}
-              <Link
-                href={onPlatform ? "/signup"
-                  : next ? `/create-account?next=${encodeURIComponent(next)}`
-                  : wholesale_signup ? "/wholesale/register" : "/create-account?next=/account"}
-                className="ui-btn-ghost ui-btn-block"
-              >
-                {onPlatform ? "Start your own shop" : wholesale_signup && !next ? "Apply for a wholesale account" : "Create an account"}
-              </Link>
-              <p className="ui-hint" style={{ textAlign: "center", marginTop: "16px" }}>
-                {onPlatform
-                  ? "A plan, your details, and your shop is open in a minute."
-                  : next
-                    ? "Make one in a moment, and carry on where you left off."
-                    : wholesale_signup
-                      ? "Wholesale pricing needs an approved account. You can still order as a guest at standard prices."
-                      : "An account keeps your orders, invoices and saved designs in one place. You can also order as a guest."}
-              </p>
-            </div>
+  if (twoFaChallenge) {
+    return (
+      <AuthPage title="Two-step sign-in" sub="Enter the six digits from your authenticator app, or one of your backup codes.">
+        <form onSubmit={handleVerify2fa}>
+          {error && <div className={ui.error} role="alert">{error}</div>}
+          <div className={ui.field}>
+            <label htmlFor="code" className={ui.label}>Six digit code</label>
+            <input
+              id="code" autoFocus inputMode="text" autoComplete="one-time-code" value={twoFaCode}
+              onChange={(e) => setTwoFaCode(e.target.value)} placeholder="000000"
+              className={`${ui.input} ${ui.code}`}
+            />
           </div>
+          <button type="submit" disabled={isSubmitting || twoFaCode.trim().length < 6}
+            className={`${ui.btn} ${ui.primary} ${ui.block}`}>
+            {isSubmitting ? "Checking…" : "Verify"}
+          </button>
+          <p className={ui.foot}>
+            <button type="button" className={ui.link}
+              onClick={() => { setTwoFaChallenge(null); setTwoFaCode(""); setError(null); }}>
+              ← Back to sign in
+            </button>
+          </p>
+        </form>
+      </AuthPage>
+    );
+  }
+
+  // What is worth offering somebody without an account depends on whose page
+  // this is. On the platform's own address: a shop of their own. On a shop: an
+  // account made in a moment (and the way back, for a buyer sent here mid-order:
+  // an application to approve is no way to finish an order), and on a shop that
+  // sells wholesale accounts, the application too.
+  const createHref = next ? `/create-account?next=${encodeURIComponent(next)}` : "/create-account?next=/account";
+
+  return (
+    <AuthPage title="Sign in" sub="Welcome back.">
+      <form onSubmit={handleSubmit}>
+        {error && <div className={ui.error} role="alert">{error}</div>}
+
+        {showResendActivation && (
+          <div className={ui.notice}>
+            {resendSent ? (
+              "Activation email sent. Check your inbox."
+            ) : (
+              <>
+                {"Didn't receive the activation email? "}
+                <button type="button" onClick={handleResendActivation} className={ui.link}>
+                  Send it again
+                </button>
+              </>
+            )}
+          </div>
+        )}
+
+        {showPendingApproval && (
+          <div className={ui.notice}>
+            <strong>Your application is in review.</strong> We email you when it is approved, usually within 1 to 2 business days.
+            {supportPhone && (
+              <> Questions? Call <a href={`tel:${supportPhone.replace(/[^+\d]/g, "")}`}>{supportPhone}</a>.</>
+            )}
+          </div>
+        )}
+
+        <div className={ui.field}>
+          <label htmlFor="email" className={ui.label}>Email</label>
+          <input
+            id="email"
+            type="email"
+            autoComplete="email"
+            required
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="you@company.com"
+            className={ui.input}
+          />
         </div>
-    </div>
+
+        <div className={ui.field}>
+          <label htmlFor="password" className={ui.label}>Password</label>
+          <PasswordField
+            id="password"
+            autoComplete="current-password"
+            required
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className={ui.input}
+          />
+        </div>
+
+        <div>
+          <Link href="/forgot-password" className={`${ui.link} ${ui.small}`}>Forgot your password?</Link>
+        </div>
+
+        {/* reCAPTCHA — only shown when site key is configured */}
+        {process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY && (
+          <div className="recaptcha-wrap">
+            <ReCAPTCHA
+              ref={recaptchaRef}
+              sitekey={process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY}
+              onChange={(token) => setRecaptchaToken(token)}
+              onExpired={() => setRecaptchaToken(null)}
+            />
+            {!recaptchaToken && (
+              <p className={ui.hint}>Please complete the check above to sign in.</p>
+            )}
+          </div>
+        )}
+
+        <button
+          type="submit"
+          disabled={isSubmitting || (!!process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY && !recaptchaToken)}
+          className={`${ui.btn} ${ui.primary} ${ui.block}`}
+        >
+          {isSubmitting ? "Signing in…" : "Sign in"}
+        </button>
+
+        {onPlatform ? (
+          <p className={ui.foot}>
+            New to PrintCoPilot? <Link href="/signup" className={ui.link}>Start your 14 day free trial</Link>.
+          </p>
+        ) : (
+          <p className={ui.foot}>
+            New here? <Link href={createHref} className={ui.link}>Create an account</Link>.
+            {wholesale_signup && !next && (
+              <> Or <Link href="/wholesale/register" className={ui.link}>apply for a wholesale account</Link>.</>
+            )}
+          </p>
+        )}
+      </form>
+    </AuthPage>
   );
 }

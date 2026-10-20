@@ -1,6 +1,12 @@
 "use client";
 
-import { useBranding } from "@/components/providers/BrandingProvider";
+/**
+ * Complete an account after a guest order (the link in the order email).
+ *
+ * Drawn in the sign-in screens' card (components/auth/AuthPage), so it wears
+ * the shop's own logo, name and colour. It used to carry another company's
+ * name in its header ("AF APPARELS") on every shop's page.
+ */
 import { PasswordField } from "@/components/ui/PasswordField";
 
 import { Suspense, useEffect, useState } from "react";
@@ -9,6 +15,8 @@ import Link from "next/link";
 import { useAuthStore } from "@/stores/auth.store";
 import { authService } from "@/services/auth.service";
 import { setAccessToken } from "@/lib/api-client";
+import { PASSWORD_HINT, PASSWORD_MIN, passwordTooShort } from "@/lib/passwordRule";
+import { AuthPage, ui } from "@/components/auth/AuthPage";
 
 function decodeJwtPayload(token: string): Record<string, unknown> {
   try {
@@ -22,48 +30,6 @@ function decodeJwtPayload(token: string): Record<string, unknown> {
 }
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
-
-// ── Shared styles ─────────────────────────────────────────────────────────────
-
-const inputStyle: React.CSSProperties = {
-  width: "100%",
-  border: "1px solid #E2E0DA",
-  borderRadius: "6px",
-  padding: "10px 14px",
-  fontSize: "14px",
-  color: "#2A2830",
-  background: "#fff",
-  outline: "none",
-  boxSizing: "border-box",
-};
-
-const labelStyle: React.CSSProperties = {
-  display: "block",
-  fontSize: "11px",
-  fontWeight: 700,
-  textTransform: "uppercase",
-  letterSpacing: ".07em",
-  color: "#7A7880",
-  marginBottom: "6px",
-};
-
-const sectionHeadStyle: React.CSSProperties = {
-  fontFamily: "var(--font-bebas)",
-  fontSize: "16px",
-  letterSpacing: ".06em",
-  color: "#2A2830",
-  marginBottom: "20px",
-  paddingBottom: "10px",
-  borderBottom: "1px solid #E2E0DA",
-};
-
-const gridStyle: React.CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "1fr 1fr",
-  gap: "16px",
-};
-
-const req = <span style={{ color: "var(--ui-bad)" }}>*</span>;
 
 const PRIMARY_BUSINESS_OPTIONS = [
   "Screen Printer",
@@ -98,7 +64,8 @@ function TokenExpiredView({ prefillEmail }: { prefillEmail?: string }) {
   const [sent, setSent] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  async function handleResend() {
+  async function handleResend(e: React.FormEvent) {
+    e.preventDefault();
     if (!email) return;
     setLoading(true);
     try {
@@ -114,90 +81,23 @@ function TokenExpiredView({ prefillEmail }: { prefillEmail?: string }) {
   }
 
   return (
-    <div style={{ minHeight: "100vh", background: "var(--ui-paper)", fontFamily: "var(--font-jakarta)", display: "flex", alignItems: "center", justifyContent: "center", padding: "40px 16px" }}>
-      <div style={{ maxWidth: "440px", width: "100%", textAlign: "center" }}>
-        <div style={{ background: "#1B3A5C", padding: "24px 32px", borderRadius: "12px 12px 0 0", borderBottom: "3px solid var(--ui-bad)", marginBottom: "0" }}>
-          <span style={{ fontSize: "26px", fontWeight: 900, color: "#fff", letterSpacing: "-.5px" }}>AF</span>
-          <span style={{ color: "rgba(255,255,255,.55)", fontSize: "13px", marginLeft: "8px", letterSpacing: ".18em", textTransform: "uppercase", fontWeight: 600 }}>APPARELS</span>
-        </div>
-        <div style={{ background: "#fff", border: "1px solid #E2E0DA", borderTop: "none", borderRadius: "0 0 12px 12px", padding: "40px 36px" }}>
-          <div style={{ width: "56px", height: "56px", borderRadius: "50%", background: "#FFF3CD", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 20px" }}>
-            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#D97706" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>
+    <AuthPage title="This link has expired" sub="Enter your email and we will send you a new one.">
+      {sent ? (
+        <p className={ui.notice} role="status">A new link is on its way. Check your inbox and spam folder.</p>
+      ) : (
+        <form onSubmit={handleResend}>
+          <div className={ui.field}>
+            <label htmlFor="resend-email" className={ui.label}>Email</label>
+            <input id="resend-email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)}
+              placeholder="you@company.com" className={ui.input} />
           </div>
-          <h2 style={{ fontSize: "22px", fontWeight: 800, color: "#1B3A5C", marginBottom: "12px" }}>Activation Link Expired</h2>
-          <p style={{ fontSize: "14px", color: "#6b7280", marginBottom: "28px", lineHeight: 1.6 }}>
-            Your activation link has expired. Enter your email below and we'll send you a new one.
-          </p>
-          {sent ? (
-            <div style={{ background: "#f0fdf4", border: "1px solid #86efac", borderRadius: "8px", padding: "16px", marginBottom: "20px" }}>
-              <p style={{ color: "#166534", fontWeight: 700, margin: "0 0 4px" }}>Activation link sent!</p>
-              <p style={{ color: "#16a34a", fontSize: "13px", margin: 0 }}>Check your inbox and spam folder.</p>
-            </div>
-          ) : (
-            <>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="your@email.com"
-                style={{ ...inputStyle, marginBottom: "12px" }}
-              />
-              <button
-                onClick={handleResend}
-                disabled={loading || !email}
-                style={{ width: "100%", background: loading || !email ? "#ccc" : "#1B3A5C", color: "#fff", padding: "12px", fontSize: "14px", fontWeight: 700, borderRadius: "6px", border: "none", cursor: loading || !email ? "not-allowed" : "pointer" }}
-              >
-                {loading ? "Sending…" : "Resend Activation Link"}
-              </button>
-            </>
-          )}
-          <p style={{ marginTop: "20px", fontSize: "13px", color: "#aaa" }}>
-            <Link href="/login" style={{ color: "#1A5CFF", fontWeight: 600, textDecoration: "none" }}>Back to Login</Link>
-          </p>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ── Success view ──────────────────────────────────────────────────────────────
-
-function SuccessView({ firstName }: { firstName: string }) {
-  const { support_email, support_phone } = useBranding();
-  const supportEmail = (support_email ?? "").trim();
-  const supportPhone = (support_phone ?? "").trim();
-  return (
-    <div style={{ minHeight: "100vh", background: "var(--ui-paper)", fontFamily: "var(--font-jakarta)", display: "flex", alignItems: "center", justifyContent: "center", padding: "40px 16px" }}>
-      <div style={{ maxWidth: "480px", width: "100%", textAlign: "center" }}>
-        <div style={{ background: "#1B3A5C", padding: "24px 32px", borderRadius: "12px 12px 0 0", borderBottom: "3px solid var(--ui-bad)" }}>
-          <span style={{ fontSize: "26px", fontWeight: 900, color: "#fff", letterSpacing: "-.5px" }}>AF</span>
-          <span style={{ color: "rgba(255,255,255,.55)", fontSize: "13px", marginLeft: "8px", letterSpacing: ".18em", textTransform: "uppercase", fontWeight: 600 }}>APPARELS</span>
-        </div>
-        <div style={{ background: "#fff", border: "1px solid #E2E0DA", borderTop: "none", borderRadius: "0 0 12px 12px", padding: "40px 36px" }}>
-          <div style={{ width: "64px", height: "64px", borderRadius: "50%", background: "#DCFCE7", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 20px" }}>
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="2.5"><path d="M20 6L9 17l-5-5"/></svg>
-          </div>
-          <h2 style={{ fontSize: "24px", fontWeight: 800, color: "#1B3A5C", marginBottom: "12px" }}>Application Submitted!</h2>
-          <p style={{ fontSize: "15px", color: "#374151", marginBottom: "12px", lineHeight: 1.6 }}>
-            Thank you, <strong>{firstName}</strong>! Your account application has been received.
-          </p>
-          <p style={{ fontSize: "14px", color: "#6b7280", marginBottom: "28px", lineHeight: 1.6 }}>
-            We review applications within 1–2 business days. You'll receive an email once your account is approved.
-          </p>
-          <div style={{ background: "#F9F8F4", borderRadius: "8px", padding: "16px", marginBottom: "28px", fontSize: "13px", color: "#6b7280" }}>
-            {(supportPhone || supportEmail) && <>Questions?{" "}</>}
-            {supportPhone && <>Call <a href={`tel:${supportPhone.replace(/[^+\d]/g, "")}`} style={{ color: "#1B3A5C", fontWeight: 700, textDecoration: "none" }}>{supportPhone}</a>{supportEmail ? " or " : ""}</>}
-            {supportEmail && <>email <a href={`mailto:${supportEmail}`} style={{ color: "#1B3A5C", textDecoration: "none" }}>{supportEmail}</a></>}
-          </div>
-          <Link
-            href="/"
-            style={{ display: "inline-block", background: "var(--ui-bad)", color: "#fff", padding: "12px 28px", borderRadius: "6px", fontWeight: 700, textDecoration: "none", fontSize: "14px" }}
-          >
-            Back to Home
-          </Link>
-        </div>
-      </div>
-    </div>
+          <button type="submit" disabled={loading || !email} className={`${ui.btn} ${ui.primary} ${ui.block}`}>
+            {loading ? "Sending…" : "Send a new link"}
+          </button>
+        </form>
+      )}
+      <p className={ui.foot}><Link href="/login" className={ui.link}>← Back to sign in</Link></p>
+    </AuthPage>
   );
 }
 
@@ -213,8 +113,6 @@ function ActivateAccountContent() {
 
   const [tokenState, setTokenState] = useState<"loading" | "valid" | "invalid" | "expired">("loading");
   const [prefill, setPrefill] = useState<TokenInfo | null>(null);
-  const [submitted, setSubmitted] = useState(false);
-  const [submittedName, setSubmittedName] = useState("");
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -268,7 +166,7 @@ function ActivateAccountContent() {
     setError("");
 
     if (form.password !== form.confirm_password) { setError("Passwords do not match."); return; }
-    if (form.password.length < 8) { setError("Password must be at least 8 characters."); return; }
+    if (form.password.length < PASSWORD_MIN) { setError(`Password must be at least ${PASSWORD_MIN} characters.`); return; }
 
     setIsSubmitting(true);
     try {
@@ -301,226 +199,182 @@ function ActivateAccountContent() {
   }
 
   if (tokenState === "loading") {
-    return (
-      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "var(--ui-paper)" }}>
-        <p style={{ color: "#6b7280", fontSize: "15px" }}>Validating link…</p>
-      </div>
-    );
+    return <AuthPage title="Complete your account"><p className={ui.foot}>Checking your link…</p></AuthPage>;
   }
 
   if (tokenState === "expired") return <TokenExpiredView prefillEmail={prefill?.email} />;
   if (tokenState === "invalid") {
     return (
-      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "var(--ui-paper)", fontFamily: "var(--font-jakarta)" }}>
-        <div style={{ textAlign: "center", maxWidth: "400px" }}>
-          <p style={{ color: "var(--ui-bad)", fontWeight: 700, fontSize: "16px", marginBottom: "12px" }}>Invalid activation link.</p>
-          <p style={{ color: "#6b7280", marginBottom: "20px", fontSize: "14px" }}>This link may have already been used or is not valid.</p>
-          <Link href="/login" style={{ color: "#1A5CFF", fontWeight: 700, textDecoration: "none" }}>Back to Login</Link>
-        </div>
-      </div>
+      <AuthPage title="This link does not work" sub="It may have been used already, or it is not complete.">
+        <Link href="/login" className={`${ui.btn} ${ui.primary} ${ui.block}`}>Go to sign in</Link>
+      </AuthPage>
     );
   }
 
-  if (submitted) return <SuccessView firstName={submittedName} />;
+  const short = passwordTooShort(form.password);
+  const mismatch = form.confirm_password.length > 0 && form.confirm_password !== form.password;
 
   return (
-    <div style={{ minHeight: "100vh", background: "var(--ui-paper)", fontFamily: "var(--font-jakarta)" }}>
-      {/* Header */}
-      <div style={{ background: "#1B3A5C", padding: "28px 32px", textAlign: "center", borderBottom: "3px solid var(--ui-bad)" }}>
-        <Link href="/" style={{ textDecoration: "none" }}>
-          <span style={{ fontSize: "28px", fontWeight: 900, color: "#fff", letterSpacing: "-.5px" }}>AF</span>
-          <span style={{ color: "rgba(255,255,255,.55)", fontSize: "13px", marginLeft: "8px", letterSpacing: ".18em", textTransform: "uppercase", fontWeight: 600 }}>APPARELS</span>
-        </Link>
-        <h1 style={{ fontFamily: "var(--font-bebas)", fontSize: "clamp(26px,3vw,40px)", color: "#fff", letterSpacing: ".02em", lineHeight: 1, marginTop: "16px", marginBottom: "8px" }}>
-          Complete Your Account
-        </h1>
-        <p style={{ fontSize: "14px", color: "#d3d0d0", maxWidth: "460px", margin: "0 auto" }}>
-          You placed an order with us — complete your business profile to unlock wholesale pricing.
-        </p>
-      </div>
+    <AuthPage
+      size="wide"
+      title="Complete your account"
+      sub="You ordered with us as a guest. Add your business details and a password to track orders and reorder."
+    >
+      <form onSubmit={handleSubmit}>
+        {prefill && <p className={ui.notice}>Completing the account for <strong>{prefill.email}</strong>.</p>}
 
-      {/* Form area */}
-      <div style={{ maxWidth: "840px", margin: "0 auto", padding: "40px 24px" }}>
-        <div style={{ background: "#fff", border: "1px solid #E2E0DA", borderRadius: "12px", padding: "40px" }}>
-          {/* Pre-filled email notice */}
-          {prefill && (
-            <div style={{ background: "#EFF6FF", border: "1px solid #BFDBFE", borderRadius: "8px", padding: "12px 16px", marginBottom: "28px", fontSize: "13px", color: "#1e40af" }}>
-              Completing account for <strong>{prefill.email}</strong>
+        <section className={ui.section} aria-labelledby="act-you">
+          <h2 className={ui.sectionTitle} id="act-you">You</h2>
+          <div className={ui.row2}>
+            <div className={ui.field}>
+              <label htmlFor="first_name" className={ui.label}>First name</label>
+              <input id="first_name" name="first_name" required autoComplete="given-name" value={form.first_name} onChange={handleChange} className={ui.input} />
             </div>
-          )}
-
-          <form onSubmit={handleSubmit}>
-            {error && (
-              <div style={{ background: "#FFF0F0", border: "1px solid #fcc", borderRadius: "6px", padding: "12px 16px", fontSize: "13px", color: "#c0392b", marginBottom: "24px" }}>
-                {error}
-              </div>
-            )}
-
-            {/* ── Personal Information ── */}
-            <div style={{ marginBottom: "32px" }}>
-              <h3 style={sectionHeadStyle}>Personal Information</h3>
-              <div style={gridStyle}>
-                <div>
-                  <label htmlFor="first_name" style={labelStyle}>First Name {req}</label>
-                  <input id="first_name" name="first_name" type="text" required value={form.first_name} onChange={handleChange} style={inputStyle} />
-                </div>
-                <div>
-                  <label htmlFor="last_name" style={labelStyle}>Last Name {req}</label>
-                  <input id="last_name" name="last_name" type="text" required value={form.last_name} onChange={handleChange} style={inputStyle} />
-                </div>
-                <div>
-                  <label style={labelStyle}>Email Address</label>
-                  <input type="email" value={prefill?.email ?? ""} disabled style={{ ...inputStyle, background: "#F9F8F4", color: "#C9C6C0" }} />
-                </div>
-                <div>
-                  <label htmlFor="phone" style={labelStyle}>Phone Number {req}</label>
-                  <input id="phone" name="phone" type="tel" required value={form.phone} onChange={handleChange} placeholder="(214) 000-0000" style={inputStyle} />
-                </div>
-              </div>
+            <div className={ui.field}>
+              <label htmlFor="last_name" className={ui.label}>Last name</label>
+              <input id="last_name" name="last_name" required autoComplete="family-name" value={form.last_name} onChange={handleChange} className={ui.input} />
             </div>
-
-            {/* ── Business Information ── */}
-            <div style={{ marginBottom: "32px" }}>
-              <h3 style={sectionHeadStyle}>Business Information</h3>
-              <div style={gridStyle}>
-                <div style={{ gridColumn: "1 / -1" }}>
-                  <label htmlFor="company_name" style={labelStyle}>Company Name {req}</label>
-                  <input id="company_name" name="company_name" type="text" required value={form.company_name} onChange={handleChange} placeholder="Your Company LLC" style={inputStyle} />
-                </div>
-                <div>
-                  <label htmlFor="business_type" style={labelStyle}>Primary Business {req}</label>
-                  <select id="business_type" name="business_type" required value={form.business_type} onChange={handleChange} style={inputStyle}>
-                    <option value="">Select…</option>
-                    {PRIMARY_BUSINESS_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label htmlFor="secondary_business" style={labelStyle}>Secondary Business <span style={{ color: "#aaa", fontWeight: 400, textTransform: "none" }}>(optional)</span></label>
-                  <select id="secondary_business" name="secondary_business" value={form.secondary_business} onChange={handleChange} style={inputStyle}>
-                    <option value="">Select…</option>
-                    {PRIMARY_BUSINESS_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label htmlFor="website" style={labelStyle}>Website <span style={{ color: "#aaa", fontWeight: 400, textTransform: "none" }}>(optional)</span></label>
-                  <input id="website" name="website" type="text" value={form.website} onChange={handleChange} placeholder="https://yourcompany.com" style={inputStyle} />
-                </div>
-                <div>
-                  <label htmlFor="tax_id" style={labelStyle}>Tax ID / Resale # <span style={{ color: "#aaa", fontWeight: 400, textTransform: "none" }}>(optional)</span></label>
-                  <input id="tax_id" name="tax_id" type="text" value={form.tax_id} onChange={handleChange} style={inputStyle} />
-                </div>
-                <div>
-                  <label htmlFor="company_email" style={labelStyle}>Company Email <span style={{ color: "#aaa", fontWeight: 400, textTransform: "none" }}>(optional)</span></label>
-                  <input id="company_email" name="company_email" type="email" value={form.company_email} onChange={handleChange} placeholder="info@yourcompany.com" style={inputStyle} />
-                </div>
-                <div>
-                  <label htmlFor="num_employees" style={labelStyle}>Employees</label>
-                  <select id="num_employees" name="num_employees" value={form.num_employees} onChange={handleChange} style={inputStyle}>
-                    <option value="">Select…</option>
-                    {EMPLOYEE_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label htmlFor="num_sales_reps" style={labelStyle}>Outside Sales Reps</label>
-                  <select id="num_sales_reps" name="num_sales_reps" value={form.num_sales_reps} onChange={handleChange} style={inputStyle}>
-                    <option value="">Select…</option>
-                    {SALES_REP_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
-                  </select>
-                </div>
-              </div>
+          </div>
+          <div className={ui.row2}>
+            <div className={ui.field}>
+              <label htmlFor="act-email" className={ui.label}>Email</label>
+              <input id="act-email" type="email" value={prefill?.email ?? ""} disabled className={ui.input} />
             </div>
-
-            {/* ── Business Address ── */}
-            <div style={{ marginBottom: "32px" }}>
-              <h3 style={sectionHeadStyle}>Business Address</h3>
-              <div style={gridStyle}>
-                <div style={{ gridColumn: "1 / -1" }}>
-                  <label htmlFor="address_line1" style={labelStyle}>Street Address {req}</label>
-                  <input id="address_line1" name="address_line1" type="text" required value={form.address_line1} onChange={handleChange} placeholder="123 Main St" style={inputStyle} />
-                </div>
-                <div style={{ gridColumn: "1 / -1" }}>
-                  <label htmlFor="address_line2" style={labelStyle}>Suite / Unit <span style={{ color: "#aaa", fontWeight: 400, textTransform: "none" }}>(optional)</span></label>
-                  <input id="address_line2" name="address_line2" type="text" value={form.address_line2} onChange={handleChange} style={inputStyle} />
-                </div>
-                <div>
-                  <label htmlFor="city" style={labelStyle}>City {req}</label>
-                  <input id="city" name="city" type="text" required value={form.city} onChange={handleChange} style={inputStyle} />
-                </div>
-                <div>
-                  <label htmlFor="state_province" style={labelStyle}>State {req}</label>
-                  <input id="state_province" name="state_province" type="text" required value={form.state_province} onChange={handleChange} placeholder="TX" style={inputStyle} />
-                </div>
-                <div>
-                  <label htmlFor="postal_code" style={labelStyle}>ZIP Code {req}</label>
-                  <input id="postal_code" name="postal_code" type="text" required value={form.postal_code} onChange={handleChange} placeholder="75001" style={inputStyle} />
-                </div>
-                <div>
-                  <label htmlFor="country" style={labelStyle}>Country</label>
-                  <input id="country" name="country" type="text" value={form.country} onChange={handleChange} style={inputStyle} />
-                </div>
-              </div>
+            <div className={ui.field}>
+              <label htmlFor="phone" className={ui.label}>Phone</label>
+              <input id="phone" name="phone" type="tel" required autoComplete="tel" value={form.phone} onChange={handleChange} className={ui.input} />
             </div>
+          </div>
+        </section>
 
-            {/* ── Account Setup ── */}
-            <div style={{ marginBottom: "32px" }}>
-              <h3 style={sectionHeadStyle}>Account Setup</h3>
-              <div style={gridStyle}>
-                <div>
-                  <label htmlFor="password" style={labelStyle}>Password {req}</label>
-                  <PasswordField id="password" name="password" required minLength={8} autoComplete="new-password" value={form.password} onChange={handleChange} placeholder="Min. 8 characters" style={inputStyle} />
-                </div>
-                <div>
-                  <label htmlFor="confirm_password" style={labelStyle}>Confirm Password {req}</label>
-                  <PasswordField id="confirm_password" name="confirm_password" required minLength={8} autoComplete="new-password" value={form.confirm_password} onChange={handleChange} placeholder="Re-enter password" style={inputStyle} />
-                </div>
-                <div style={{ gridColumn: "1 / -1" }}>
-                  <label htmlFor="how_heard" style={labelStyle}>How did you hear about us?</label>
-                  <select id="how_heard" name="how_heard" value={form.how_heard} onChange={handleChange} style={inputStyle}>
-                    <option value="">Select…</option>
-                    {HEAR_ABOUT_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
-                  </select>
-                </div>
-              </div>
+        <section className={ui.section} aria-labelledby="act-business">
+          <h2 className={ui.sectionTitle} id="act-business">Business</h2>
+          <div className={ui.field}>
+            <label htmlFor="company_name" className={ui.label}>Company name</label>
+            <input id="company_name" name="company_name" required autoComplete="organization" value={form.company_name} onChange={handleChange} className={ui.input} />
+          </div>
+          <div className={ui.row2}>
+            <div className={ui.field}>
+              <label htmlFor="business_type" className={ui.label}>Primary business</label>
+              <select id="business_type" name="business_type" required value={form.business_type} onChange={handleChange} className={ui.input}>
+                <option value="">Choose one</option>
+                {PRIMARY_BUSINESS_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
+              </select>
             </div>
+            <div className={ui.field}>
+              <label htmlFor="secondary_business" className={ui.label}>Secondary business <span className={ui.optional}>(optional)</span></label>
+              <select id="secondary_business" name="secondary_business" value={form.secondary_business} onChange={handleChange} className={ui.input}>
+                <option value="">Choose one</option>
+                {PRIMARY_BUSINESS_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
+              </select>
+            </div>
+          </div>
+          <div className={ui.row3}>
+            <div className={ui.field}>
+              <label htmlFor="website" className={ui.label}>Website <span className={ui.optional}>(optional)</span></label>
+              <input id="website" name="website" inputMode="url" placeholder="https://" value={form.website} onChange={handleChange} className={ui.input} />
+            </div>
+            <div className={ui.field}>
+              <label htmlFor="tax_id" className={ui.label}>Tax ID or resale # <span className={ui.optional}>(optional)</span></label>
+              <input id="tax_id" name="tax_id" value={form.tax_id} onChange={handleChange} className={ui.input} />
+            </div>
+            <div className={ui.field}>
+              <label htmlFor="company_email" className={ui.label}>Company email <span className={ui.optional}>(optional)</span></label>
+              <input id="company_email" name="company_email" type="email" value={form.company_email} onChange={handleChange} className={ui.input} />
+            </div>
+          </div>
+          <div className={ui.row2}>
+            <div className={ui.field}>
+              <label htmlFor="num_employees" className={ui.label}>Employees</label>
+              <select id="num_employees" name="num_employees" value={form.num_employees} onChange={handleChange} className={ui.input}>
+                <option value="">Choose one</option>
+                {EMPLOYEE_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
+              </select>
+            </div>
+            <div className={ui.field}>
+              <label htmlFor="num_sales_reps" className={ui.label}>Outside sales reps</label>
+              <select id="num_sales_reps" name="num_sales_reps" value={form.num_sales_reps} onChange={handleChange} className={ui.input}>
+                <option value="">Choose one</option>
+                {SALES_REP_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
+              </select>
+            </div>
+          </div>
+        </section>
 
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              style={{
-                width: "100%",
-                background: isSubmitting ? "#ccc" : "var(--ui-bad)",
-                color: "#fff",
-                padding: "14px",
-                fontSize: "14px",
-                fontWeight: 700,
-                borderRadius: "6px",
-                border: "none",
-                cursor: isSubmitting ? "not-allowed" : "pointer",
-                letterSpacing: ".04em",
-                textTransform: "uppercase",
-              }}
-            >
-              {isSubmitting ? "Submitting Application…" : "Submit Application →"}
-            </button>
+        <section className={ui.section} aria-labelledby="act-address">
+          <h2 className={ui.sectionTitle} id="act-address">Business address</h2>
+          <div className={ui.row2}>
+            <div className={ui.field}>
+              <label htmlFor="address_line1" className={ui.label}>Street address</label>
+              <input id="address_line1" name="address_line1" required autoComplete="address-line1" value={form.address_line1} onChange={handleChange} className={ui.input} />
+            </div>
+            <div className={ui.field}>
+              <label htmlFor="address_line2" className={ui.label}>Suite or unit <span className={ui.optional}>(optional)</span></label>
+              <input id="address_line2" name="address_line2" autoComplete="address-line2" value={form.address_line2} onChange={handleChange} className={ui.input} />
+            </div>
+          </div>
+          <div className={ui.row3}>
+            <div className={ui.field}>
+              <label htmlFor="city" className={ui.label}>City</label>
+              <input id="city" name="city" required autoComplete="address-level2" value={form.city} onChange={handleChange} className={ui.input} />
+            </div>
+            <div className={ui.field}>
+              <label htmlFor="state_province" className={ui.label}>State</label>
+              <input id="state_province" name="state_province" required autoComplete="address-level1" value={form.state_province} onChange={handleChange} className={ui.input} />
+            </div>
+            <div className={ui.field}>
+              <label htmlFor="postal_code" className={ui.label}>ZIP code</label>
+              <input id="postal_code" name="postal_code" required autoComplete="postal-code" value={form.postal_code} onChange={handleChange} className={ui.input} />
+            </div>
+          </div>
+          <div className={ui.field}>
+            <label htmlFor="country" className={ui.label}>Country</label>
+            <input id="country" name="country" autoComplete="country-name" value={form.country} onChange={handleChange} className={ui.input} />
+          </div>
+        </section>
 
-            <p style={{ textAlign: "center", fontSize: "13px", color: "#7A7880", marginTop: "16px" }}>
-              Already approved?{" "}
-              <Link href="/login" style={{ color: "#1A5CFF", fontWeight: 600, textDecoration: "none" }}>Sign in</Link>
-            </p>
-          </form>
+        <section className={ui.section} aria-labelledby="act-account">
+          <h2 className={ui.sectionTitle} id="act-account">Sign-in</h2>
+          <div className={ui.row2}>
+            <div className={ui.field}>
+              <label htmlFor="password" className={ui.label}>Password</label>
+              <PasswordField id="password" name="password" required minLength={PASSWORD_MIN} autoComplete="new-password" value={form.password} onChange={handleChange} className={ui.input} />
+              <p className={`${ui.hint} ${short ? ui.hintBad : ""}`}>{PASSWORD_HINT}</p>
+            </div>
+            <div className={ui.field}>
+              <label htmlFor="confirm_password" className={ui.label}>Confirm password</label>
+              <PasswordField id="confirm_password" name="confirm_password" required minLength={PASSWORD_MIN} autoComplete="new-password" value={form.confirm_password} onChange={handleChange} className={ui.input} />
+              {mismatch && <p className={`${ui.hint} ${ui.hintBad}`}>These two do not match yet.</p>}
+            </div>
+          </div>
+          <div className={ui.field}>
+            <label htmlFor="how_heard" className={ui.label}>How did you hear about us?</label>
+            <select id="how_heard" name="how_heard" value={form.how_heard} onChange={handleChange} className={ui.input}>
+              <option value="">Choose one</option>
+              {HEAR_ABOUT_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
+            </select>
+          </div>
+        </section>
+
+        {error && <div className={ui.error} role="alert">{error}</div>}
+
+        <div>
+          <button type="submit" disabled={isSubmitting} className={`${ui.btn} ${ui.primary} ${ui.tall}`}>
+            {isSubmitting ? "Saving…" : "Complete my account"}
+          </button>
         </div>
-      </div>
-    </div>
+
+        <p className={ui.foot}>
+          Already have an account? <Link href="/login" className={ui.link}>Sign in</Link>
+        </p>
+      </form>
+    </AuthPage>
   );
 }
 
 export default function ActivateAccountPage() {
   return (
-    <Suspense fallback={
-      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "var(--ui-paper)" }}>
-        <p style={{ color: "#6b7280" }}>Loading…</p>
-      </div>
-    }>
+    <Suspense fallback={<AuthPage title="Complete your account"><p className={ui.foot}>Loading…</p></AuthPage>}>
       <ActivateAccountContent />
     </Suspense>
   );

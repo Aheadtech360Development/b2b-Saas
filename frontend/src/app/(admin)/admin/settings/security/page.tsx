@@ -1,24 +1,33 @@
 "use client";
 
+/**
+ * Two-step sign-in (design screen 12: Turn on two-step sign-in).
+ *
+ * Scan the code with an authenticator app, type the six digits it shows, and
+ * the second step is on; the backup codes are shown once, right after. The
+ * code to scan is drawn by the server (api/v1/two_factor.setup, `qr_svg`), and
+ * the key beside it is the same secret for anyone who cannot scan.
+ */
 import { useEffect, useState } from "react";
 import { PasswordField } from "@/components/ui/PasswordField";
 import { SettingsFrame } from "@/components/admin/settings/SettingsFrame";
 import { authService } from "@/services/auth.service";
 
-const CARD: React.CSSProperties = { background: "#fff", border: "1px solid #E8E6E1", borderRadius: "10px", padding: "22px", maxWidth: "560px" };
-const BTN: React.CSSProperties = { border: "none", color: "#fff", padding: "10px 18px", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: "pointer" };
-const INPUT: React.CSSProperties = { width: "100%", boxSizing: "border-box", padding: "10px 12px", border: "1px solid #E3E3E3", borderRadius: "6px", fontSize: "14px" };
-
 type Stage = "idle" | "setup" | "backup" | "disabling";
+
+/** The key in groups of four, as authenticator apps print it. */
+const grouped = (secret: string) => secret.replace(/(.{4})/g, "$1 ").trim();
 
 function SecurityPageBody() {
   const [enabled, setEnabled] = useState<boolean | null>(null);
   const [stage, setStage] = useState<Stage>("idle");
   const [secret, setSecret] = useState("");
   const [otpauth, setOtpauth] = useState("");
+  const [qr, setQr] = useState<string | null>(null);
   const [code, setCode] = useState("");
   const [password, setPassword] = useState("");
   const [backupCodes, setBackupCodes] = useState<string[]>([]);
+  const [copied, setCopied] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -28,90 +37,123 @@ function SecurityPageBody() {
     setError(null); setBusy(true);
     try {
       const r = await authService.twoFaSetup();
-      setSecret(r.secret); setOtpauth(r.otpauth_uri); setCode(""); setStage("setup");
+      setSecret(r.secret); setOtpauth(r.otpauth_uri); setQr(r.qr_svg ?? null); setCode(""); setStage("setup");
     } catch (e) { setError((e as { message?: string })?.message || "Could not start setup."); }
     finally { setBusy(false); }
   }
 
-  async function confirmEnable() {
+  async function confirmEnable(e?: React.FormEvent) {
+    e?.preventDefault();
+    if (code.trim().length < 6 || busy) return;
     setError(null); setBusy(true);
     try {
       const r = await authService.twoFaEnable(code.trim());
-      setBackupCodes(r.backup_codes); setStage("backup"); setEnabled(true);
-    } catch (e) { setError((e as { message?: string })?.message || "Incorrect code."); }
+      setBackupCodes(r.backup_codes); setStage("backup"); setEnabled(true); setCopied(false);
+    } catch (e2) { setError((e2 as { message?: string })?.message || "Incorrect code."); }
     finally { setBusy(false); }
   }
 
-  async function disable() {
+  async function disable(e?: React.FormEvent) {
+    e?.preventDefault();
+    if (!password || !code || busy) return;
     setError(null); setBusy(true);
     try {
       await authService.twoFaDisable(password, code.trim());
       setEnabled(false); setStage("idle"); setPassword(""); setCode("");
-    } catch (e) { setError((e as { message?: string })?.message || "Could not disable."); }
+    } catch (e2) { setError((e2 as { message?: string })?.message || "Could not turn it off."); }
     finally { setBusy(false); }
   }
 
-  return (
-    <div>
+  function copyCodes() {
+    navigator.clipboard?.writeText(backupCodes.join("\n")).then(() => setCopied(true)).catch(() => {});
+  }
 
-      <div style={CARD}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: stage === "idle" ? 0 : "18px" }}>
+  return (
+    <section className="pc-card pc-pad" style={{ maxWidth: "640px" }} aria-labelledby="tfa-title">
+      {stage === "idle" && (
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "16px", flexWrap: "wrap" }}>
           <div>
-            <div style={{ fontSize: "15px", fontWeight: 700 }}>Two-factor authentication</div>
-            <div style={{ fontSize: "13px", color: enabled ? "#166534" : "#9A3412", fontWeight: 600, marginTop: "3px" }}>
-              {enabled == null ? "…" : enabled ? "● Enabled" : "○ Not enabled"}
-            </div>
+            <h2 className="pc-h2" id="tfa-title">Two-step sign-in</h2>
+            <p className="pc-sub-line" style={{ margin: "4px 0 0" }}>
+              {enabled == null ? "Checking…"
+                : enabled ? "On. Signing in asks for a code from your authenticator app."
+                  : "Off. Add a second step to your sign-in with an authenticator app."}
+            </p>
           </div>
-          {stage === "idle" && enabled != null && (
+          {enabled != null && (
             enabled
-              ? <button onClick={() => { setStage("disabling"); setError(null); }} style={{ ...BTN, background: "#fff", color: "#B91C1C", border: "1px solid #F0C9C9" }}>Disable</button>
-              : <button onClick={startSetup} disabled={busy} style={{ ...BTN, background: "#1A1A1A" }}>{busy ? "…" : "Enable 2FA"}</button>
+              ? <button type="button" className="pc-btn" data-kind="danger" onClick={() => { setStage("disabling"); setError(null); setCode(""); }}>Turn off</button>
+              : <button type="button" className="pc-btn" data-kind="primary" onClick={startSetup} disabled={busy}>{busy ? "Starting…" : "Turn on"}</button>
           )}
         </div>
+      )}
 
-        {error && <div style={{ background: "#FEF2F2", border: "1px solid #FCA5A5", color: "#B91C1C", padding: "9px 12px", borderRadius: "8px", fontSize: "13px", marginBottom: "14px" }}>{error}</div>}
+      {error && <div className="pc-flash" data-bad="" role="alert" style={{ marginTop: stage === "idle" ? "16px" : 0 }}>{error}</div>}
 
-        {stage === "setup" && (
-          <div>
-            <div style={{ fontSize: "13px", color: "#444", marginBottom: "10px" }}>
-              1. In your authenticator app (Google Authenticator, Authy, etc.) add an account and <strong>enter this setup key</strong>:
-            </div>
-            <div style={{ fontFamily: "monospace", fontSize: "16px", letterSpacing: "0.12em", background: "#F6F6F7", border: "1px solid #E8E6E1", borderRadius: "8px", padding: "12px", textAlign: "center", wordBreak: "break-all", marginBottom: "8px" }}>{secret}</div>
-            <a href={otpauth} style={{ fontSize: "12px", color: "#1A1A1A", fontWeight: 600, textDecoration: "none" }}>Open in authenticator app →</a>
-            <div style={{ fontSize: "13px", color: "#444", margin: "16px 0 6px" }}>2. Enter the 6-digit code it shows:</div>
-            <input value={code} onChange={(e) => setCode(e.target.value)} placeholder="123456" inputMode="numeric" style={{ ...INPUT, textAlign: "center", letterSpacing: "0.15em", fontSize: "18px" }} />
-            <div style={{ display: "flex", gap: "10px", marginTop: "14px" }}>
-              <button onClick={confirmEnable} disabled={busy || code.trim().length < 6} style={{ ...BTN, background: busy || code.trim().length < 6 ? "#9ca3af" : "#1A1A1A" }}>{busy ? "Verifying…" : "Confirm & enable"}</button>
-              <button onClick={() => { setStage("idle"); setError(null); }} style={{ ...BTN, background: "#fff", color: "#555", border: "1px solid #E3E3E3" }}>Cancel</button>
-            </div>
-          </div>
-        )}
-
-        {stage === "backup" && (
-          <div>
-            <div style={{ fontSize: "14px", fontWeight: 700, color: "#166534", marginBottom: "8px" }}>✓ Two-factor is on. Save your backup codes.</div>
-            <p style={{ fontSize: "13px", color: "#666", marginBottom: "12px" }}>Each code works once if you lose your device. Store them somewhere safe — you won&apos;t see them again.</p>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", background: "#F6F6F7", border: "1px solid #E8E6E1", borderRadius: "8px", padding: "14px", fontFamily: "monospace", fontSize: "14px" }}>
-              {backupCodes.map((c) => <div key={c} style={{ textAlign: "center" }}>{c}</div>)}
-            </div>
-            <button onClick={() => { navigator.clipboard?.writeText(backupCodes.join("\n")).catch(() => {}); }} style={{ ...BTN, background: "#fff", color: "#555", border: "1px solid #E3E3E3", marginTop: "12px" }}>Copy codes</button>
-            <button onClick={() => setStage("idle")} style={{ ...BTN, background: "#1A1A1A", marginTop: "12px", marginLeft: "10px" }}>Done</button>
-          </div>
-        )}
-
-        {stage === "disabling" && (
-          <div>
-            <p style={{ fontSize: "13px", color: "#444", marginBottom: "12px" }}>Confirm your password and a current code to turn off two-factor.</p>
-            <PasswordField value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" placeholder="Your password" style={{ ...INPUT, marginBottom: "10px" }} />
-            <input value={code} onChange={(e) => setCode(e.target.value)} placeholder="6-digit or backup code" style={INPUT} />
-            <div style={{ display: "flex", gap: "10px", marginTop: "14px" }}>
-              <button onClick={disable} disabled={busy || !password || !code} style={{ ...BTN, background: busy || !password || !code ? "#9ca3af" : "#B91C1C" }}>{busy ? "…" : "Disable 2FA"}</button>
-              <button onClick={() => { setStage("idle"); setError(null); setPassword(""); setCode(""); }} style={{ ...BTN, background: "#fff", color: "#555", border: "1px solid #E3E3E3" }}>Cancel</button>
+      {stage === "setup" && (
+        <form onSubmit={confirmEnable}>
+          <h2 className="pc-h2" id="tfa-title">Turn on two-step sign-in</h2>
+          <p className="pc-sub-line" style={{ margin: "4px 0 18px" }}>
+            Scan the code with an authenticator app, then enter the six digits.
+          </p>
+          <div style={{ display: "flex", alignItems: "center", gap: "18px", flexWrap: "wrap", marginBottom: "18px" }}>
+            {qr ? (
+              // eslint-disable-next-line @next/next/no-img-element -- a QR code drawn by the server as a data URI
+              <img src={qr} alt="QR code for your authenticator app" width={132} height={132}
+                style={{ border: "1px solid var(--pc-line)", borderRadius: "8px", padding: "4px", background: "#fff" }} />
+            ) : null}
+            <div style={{ fontSize: "13.5px", color: "var(--pc-muted)", lineHeight: 1.6, minWidth: 0, flex: "1 1 220px" }}>
+              Can&apos;t scan? Enter this key:
+              <div style={{ fontFamily: "'IBM Plex Mono', ui-monospace, monospace", fontSize: "15px", color: "var(--pc-ink)", letterSpacing: ".06em", wordBreak: "break-all", marginTop: "4px" }}>
+                {grouped(secret)}
+              </div>
+              <a href={otpauth} className="pc-link" style={{ display: "inline-block", marginTop: "6px", fontSize: "13px" }}>Open in my authenticator app</a>
             </div>
           </div>
-        )}
-      </div>
-    </div>
+          <label className="pc-label" htmlFor="tfa-code">Six digit code</label>
+          <input id="tfa-code" className="pc-input" value={code} onChange={(e) => setCode(e.target.value)}
+            placeholder="000000" inputMode="numeric" autoComplete="one-time-code" autoFocus
+            style={{ letterSpacing: ".2em", fontSize: "18px" }} />
+          <div className="pc-row-actions" style={{ marginTop: "16px" }}>
+            <button type="submit" className="pc-btn" data-kind="primary" disabled={busy || code.trim().length < 6}>
+              {busy ? "Checking…" : "Turn on"}
+            </button>
+            <button type="button" className="pc-btn" onClick={() => { setStage("idle"); setError(null); }}>Cancel</button>
+          </div>
+        </form>
+      )}
+
+      {stage === "backup" && (
+        <div>
+          <h2 className="pc-h2" id="tfa-title">Two-step sign-in is on</h2>
+          <p className="pc-sub-line" style={{ margin: "4px 0 14px" }}>
+            Save these backup codes. Each one works once if you lose your phone, and you will not see them again.
+          </p>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "8px 16px", background: "#F6F8FB", border: "1px solid var(--pc-line)", borderRadius: "8px", padding: "14px 16px", fontFamily: "'IBM Plex Mono', ui-monospace, monospace", fontSize: "14px", color: "var(--pc-ink)" }}>
+            {backupCodes.map((c) => <div key={c}>{c}</div>)}
+          </div>
+          <div className="pc-row-actions" style={{ marginTop: "16px" }}>
+            <button type="button" className="pc-btn" onClick={copyCodes}>{copied ? "Copied" : "Copy codes"}</button>
+            <button type="button" className="pc-btn" data-kind="primary" onClick={() => setStage("idle")}>Done</button>
+          </div>
+        </div>
+      )}
+
+      {stage === "disabling" && (
+        <form onSubmit={disable}>
+          <h2 className="pc-h2" id="tfa-title">Turn off two-step sign-in</h2>
+          <p className="pc-sub-line" style={{ margin: "4px 0 16px" }}>Confirm your password and a current code (or a backup code).</p>
+          <label className="pc-label" htmlFor="tfa-password">Password</label>
+          <PasswordField id="tfa-password" className="pc-input" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" />
+          <label className="pc-label" htmlFor="tfa-off-code" style={{ marginTop: "14px" }}>Six digit or backup code</label>
+          <input id="tfa-off-code" className="pc-input" value={code} onChange={(e) => setCode(e.target.value)} autoComplete="one-time-code" />
+          <div className="pc-row-actions" style={{ marginTop: "16px" }}>
+            <button type="submit" className="pc-btn" data-kind="danger" disabled={busy || !password || !code}>{busy ? "Turning off…" : "Turn off"}</button>
+            <button type="button" className="pc-btn" onClick={() => { setStage("idle"); setError(null); setPassword(""); setCode(""); }}>Cancel</button>
+          </div>
+        </form>
+      )}
+    </section>
   );
 }
 

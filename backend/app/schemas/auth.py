@@ -45,11 +45,15 @@ class RegisterCustomerRequest(BaseModel):
     # own name stands in, because the shop's customer list is a list of
     # accounts and an empty one is worse than a person's name.
     company_name: str | None = Field(default=None, max_length=255)
+    # The country the sign-up form asks for (design screen 2), kept on the
+    # buyer's company the way a wholesale application's country is: by name.
+    country: str | None = Field(default=None, max_length=100)
 
 
 class RegisterWholesaleRequest(BaseModel):
     # Company info
     company_name: str = Field(..., min_length=2, max_length=255)
+    trading_name: str | None = Field(None, max_length=255)
     tax_id: str | None = Field(None, max_length=100)
     business_type: str = Field(..., min_length=2, max_length=100)
     website: str | None = Field(None, max_length=500)

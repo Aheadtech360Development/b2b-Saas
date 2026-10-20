@@ -1,11 +1,13 @@
 """A shop signs itself up.
 
 Until now a brand only existed because the platform typed it in. This is the
-front door: pick a plan, give your details, and the shop exists with you signed
-into its admin — the same three steps Shopify walks somebody through.
+front door: an email and a password (design screen 6), then the first setup
+step — what the business is, its name and its country — and the shop exists
+with you signed into it, on the second setup step (/onboarding).
 
-No card at this step: a plan is chosen, the details are given, and the shop is
-made. The card is added from the shop's own Billing screen, where Stripe's page
+No card at this step, and the free period starts here: 14 days (services/trial),
+which is what the sign-up page promises and what the setup steps count down.
+The card is added from the shop's own Billing screen, where Stripe's page
 collects it — the number never reaches this application, only the customer we
 charge each month and the last four digits to show back.
 """
@@ -54,20 +56,35 @@ class AvailabilityOut(BaseModel):
 
 
 class SignupIn(BaseModel):
-    plan: str
+    # The plan picked on the pricing page (?plan=); without one, DEFAULT_PLAN.
+    plan: str | None = None
     shop_name: str = Field(min_length=2, max_length=120)
     # Where the shop lives until it brings a domain. Derived from the name when
     # it isn't given, because most people never think about it.
     slug: str | None = None
-    first_name: str = Field(min_length=1, max_length=80)
+    # Asked for later, if at all: the sign-up is an email and a password.
+    first_name: str = Field(default="", max_length=80)
     last_name: str = Field(default="", max_length=80)
     email: EmailStr
     password: str = Field(min_length=8, max_length=200)
     phone: str = Field(default="", max_length=40)
+    # The first setup step's answers (services/onboarding): kept as the shop's
+    # progress, so the steps carry on from the second one.
+    business_type: str | None = Field(default=None, max_length=40)
+    country: str | None = Field(default=None, max_length=2)
     # A partner's code, typed by the owner, and the cookie a partner's link
     # left (`CODE.<click id>`). Both optional; see services/partners/referrals.py.
     referral_code: str | None = Field(default=None, max_length=40)
     referral_cookie: str | None = Field(default=None, max_length=80)
+
+
+class CheckIn(BaseModel):
+    email: EmailStr
+
+
+# The plan a free trial runs on when the owner did not pick one on the pricing
+# page: the one the pricing page calls most popular. Changed from Billing.
+DEFAULT_PLAN = "wholesale"
 
 
 @router.get("/plans")
@@ -92,16 +109,63 @@ async def availability(slug: str, db: AsyncSession = Depends(get_db)) -> Availab
                            reason="Already taken." if taken else "")
 
 
+@router.post("/check")
+async def check_email(payload: CheckIn, request: Request) -> dict[str, Any]:
+    """Whether this email can start a shop, asked before the shop is made.
+
+    The first sign-up screen asks only for an email and a password; somebody
+    who already has a shop here is told so there, and signs in instead of
+    filling in a setup step for a shop that cannot be made. It says no more
+    than the sign-up itself already says to the same email, and is limited the
+    same way.
+    """
+    await enforce_rate_limit(request, "signup_check", limit=10, window=3600)
+    email = payload.email.lower()
+    from app.core.tenant_context import is_scoping_bypassed, set_bypass_scoping
+
+    # Every account on the platform, not the ones this request may see.
+    previous = is_scoping_bypassed()
+    set_bypass_scoping(True)
+    try:
+        from app.core.database import AsyncSessionLocal
+
+        async with AsyncSessionLocal() as new_db:
+            taken = (await new_db.execute(
+                text("SELECT 1 FROM users WHERE lower(email) = :e"), {"e": email}
+            )).first()
+    finally:
+        set_bypass_scoping(previous)
+    if taken:
+        raise HTTPException(
+            status_code=409,
+            detail="That email already has an account here. Sign in with it instead.",
+        )
+    return {"ok": True}
+
+
 def _welcome(shop: str, who: str, email: str, plan: str, shop_url: str) -> None:
     """Tell the new owner where their shop is and how to get into it.
 
     The two links are the whole point: the shop's own address, and the door to
     its admin. Everything else they can find once they are inside.
     """
+    from html import escape
+
     from app.services.email_service import platform_inbox, send_as_platform
 
-    admin_url = f"{shop_url.rstrip('/')}/admin/dashboard"
+    subject_shop, to_email = shop, email
+    shop, who, email = escape(shop), escape(who or ""), escape(email)
+
+    # The way in is the platform's own sign-in: it always answers, while a new
+    # shop's own address answers only once the platform has added it.
+    from app.core.config import get_settings
+
+    platform = (get_settings().FRONTEND_URL or "").rstrip("/")
+    admin_url = f"{platform}/login" if platform else f"{shop_url.rstrip('/')}/admin/dashboard"
     support = platform_inbox() or ""
+    # The sign-up no longer asks for a name, so there may be none to greet.
+    first = (who or "").strip().split(" ")[0]
+    greeting = f"Your shop is open, {first}." if first else "Your shop is open."
     steps = [
         ("Add your first product", "Products → Add product. Or import a whole "
          "catalogue from S&amp;S Activewear in one go."),
@@ -115,7 +179,7 @@ def _welcome(shop: str, who: str, email: str, plan: str, shop_url: str) -> None:
     body = (
         '<div style="font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;'
         'max-width:560px;color:#111318">'
-        f'<h1 style="font-size:24px;margin:0 0 6px">Your shop is open, {who.split(" ")[0]}.</h1>'
+        f'<h1 style="font-size:24px;margin:0 0 6px">{greeting}</h1>'
         f'<p style="color:#5A5F68;margin:0 0 24px;line-height:1.6">'
         f'<strong>{shop}</strong> is live on the {plan.title()} plan. '
         'Here is where it lives and how to get in.</p>'
@@ -143,7 +207,7 @@ def _welcome(shop: str, who: str, email: str, plan: str, shop_url: str) -> None:
         + "</div>"
     )
     try:
-        send_as_platform(email, f"{shop} is live — here's how to get in", body)
+        send_as_platform(to_email, f"{subject_shop} is live — here's how to get in", body)
     except Exception:
         import logging
 
@@ -157,11 +221,16 @@ def _announce(shop: str, slug: str, plan: str, who: str, email: str,
     Runs after the response: a sign-up must not fail, or wait, because an inbox
     was unreachable.
     """
+    from html import escape
+
     from app.services.email_service import notify_platform
 
+    subject = f"New shop signed up — {shop} ({slug})"
+    shop, who, email, phone = escape(shop), escape(who or ""), escape(email), escape(phone or "")
+    host = shop_url.split("://", 1)[-1].split("/", 1)[0].split("?", 1)[0]
     rows = [
         ("Shop", shop), ("Address", f'<a href="{shop_url}">{shop_url}</a>'),
-        ("Plan", plan.title()), ("Owner", who),
+        ("Plan", plan.title()), ("Owner", who or "—"),
         ("Email", f'<a href="mailto:{email}">{email}</a>'),
         ("Phone", phone or "—"),
     ]
@@ -170,6 +239,11 @@ def _announce(shop: str, slug: str, plan: str, who: str, email: str,
         f'<h2 style="margin:0 0 4px">New shop: {shop}</h2>'
         '<p style="color:#6B7280;margin:0 0 20px">Signed up just now. '
         'No card yet — billing starts when they add one.</p>'
+        # Shop addresses are added to the deployment by hand (no wildcard
+        # certificate), so until this is done the shop's own address does not
+        # answer; the owner works from the platform's address meanwhile.
+        f'<p style="margin:0 0 20px"><strong>To do:</strong> add <code>{host}</code> '
+        'in Vercel → the project → Domains, so the shop\'s address answers.</p>'
         '<table cellpadding="0" cellspacing="0" style="font-size:14px">'
         + "".join(
             f'<tr><td style="padding:6px 24px 6px 0;color:#6B7280">{k}</td>'
@@ -179,7 +253,7 @@ def _announce(shop: str, slug: str, plan: str, who: str, email: str,
         + "</table></div>"
     )
     try:
-        notify_platform(f"New shop signed up — {shop} ({slug})", body)
+        notify_platform(subject, body)
     except Exception:  # never let a notification surface as a failed sign-up
         import logging
 
@@ -197,7 +271,8 @@ async def sign_up(payload: SignupIn, request: Request, background: BackgroundTas
     await enforce_rate_limit(request, "signup", limit=10, window=3600)
     await enforce_rate_limit(request, "signup_email", limit=3, window=3600, extra=payload.email)
 
-    if not is_valid_plan(payload.plan):
+    plan = payload.plan or DEFAULT_PLAN
+    if not is_valid_plan(plan):
         raise HTTPException(status_code=400, detail="Choose one of the available plans")
 
     slug = slugify(payload.slug or payload.shop_name)
@@ -242,7 +317,7 @@ async def sign_up(payload: SignupIn, request: Request, background: BackgroundTas
                 INSERT INTO tenants (id, slug, name, email, status, plan)
                 VALUES (:tid, :slug, :name, :email, 'active', :plan)
             """), {"tid": str(tenant_id), "slug": slug, "name": payload.shop_name.strip(),
-                   "email": email, "plan": payload.plan})
+                   "email": email, "plan": plan})
 
             await new_db.execute(text("""
                 INSERT INTO tenant_branding (tenant_id, company_name)
@@ -251,11 +326,29 @@ async def sign_up(payload: SignupIn, request: Request, background: BackgroundTas
 
             # Nothing is billed until a card is on file, so the subscription
             # starts pending rather than active — a shop that looks paid-up
-            # and never paid is how revenue quietly goes missing.
+            # and never paid is how revenue quietly goes missing. The free
+            # period starts now: the date the console's banner counts down, and
+            # the date a card added later is first charged on (billing_service
+            # passes it to Stripe as the trial end).
+            from app.services import trial
+
             await new_db.execute(text("""
-                INSERT INTO tenant_subscriptions (tenant_id, plan, status)
-                VALUES (:tid, :plan, 'inactive')
-            """), {"tid": str(tenant_id), "plan": payload.plan})
+                INSERT INTO tenant_subscriptions (tenant_id, plan, status, trial_ends_at, trial_notices_sent)
+                VALUES (:tid, :plan, 'inactive', now() + make_interval(days => :days), '[]'::jsonb)
+            """), {"tid": str(tenant_id), "plan": plan, "days": trial.DEFAULT_DAYS})
+
+            # Where the owner is in the setup steps: the first one was this
+            # sign-up, so they carry on from the second (services/onboarding).
+            import json as _json
+
+            from app.core.tenant_settings import set_setting
+            from app.services import onboarding
+
+            await set_setting(
+                new_db, onboarding.KEY,
+                _json.dumps(onboarding.initial(payload.business_type, payload.country)),
+                tenant_id=tenant_id,
+            )
 
             # No feature rows: the plan decides, and the platform overrides
             # what it wants to (app/core/features.py). Seeding rows here
@@ -313,11 +406,11 @@ async def sign_up(payload: SignupIn, request: Request, background: BackgroundTas
     shop_url = brand_url(slug, None, "/")
     who = f"{payload.first_name} {payload.last_name}".strip()
     background.add_task(
-        _announce, payload.shop_name.strip(), slug, payload.plan,
+        _announce, payload.shop_name.strip(), slug, plan,
         who, email, payload.phone.strip(), shop_url,
     )
     background.add_task(
-        _welcome, payload.shop_name.strip(), who, email, payload.plan, shop_url,
+        _welcome, payload.shop_name.strip(), who, email, plan, shop_url,
     )
     if referral:
         from app.services.partners.referrals import tell_partner
@@ -331,14 +424,14 @@ async def sign_up(payload: SignupIn, request: Request, background: BackgroundTas
     })
 
     # No card here. Signing up is details and nothing else, and the owner goes
-    # straight into their shop; the card is added from Billing when they are
-    # ready for it, on Stripe's own page.
+    # straight into their shop, on the second setup step; the card is added
+    # from Billing when they are ready for it, on Stripe's own page.
     return {
         "slug": slug,
         "tenant_id": str(tenant_id),
-        "plan": payload.plan,
+        "plan": plan,
         "access_token": token,
-        "next": "/admin/dashboard",
+        "next": "/onboarding",
         "billing": "pending",
         "referred": bool(referral),
     }

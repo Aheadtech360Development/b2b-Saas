@@ -32,6 +32,11 @@ PUBLIC_PATHS = {
     "/api/v1/auth/logout",
     "/api/v1/auth/refresh",
     # ── Public content ─────────────────────────────────────────────────────
+    # printcopilot.co's demo request form (api/v1/leads), and its contact form
+    # (api/v1/contact): sent by visitors, who have no account. The contact form
+    # was missing here, so it answered every visitor "authentication required".
+    "/api/v1/leads",
+    "/api/v1/contact",
     "/api/v1/products",
     "/api/v1/products/categories",
     "/api/v1/shipping/live-rates",

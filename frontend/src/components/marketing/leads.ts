@@ -1,12 +1,14 @@
 "use client";
 
 /**
- * Where the marketing forms go.
+ * Where the marketing forms go: all of it to our own backend and database.
  *
- *   Contact  → the app's own contact endpoint (POST /api/v1/contact), which
- *              emails the platform inbox — nothing new on the server.
- *   Demo,    → GoHighLevel, through this app's /api/marketing/lead, which
- *   Partners   holds the webhook addresses so they never reach the browser.
+ *   Contact   → POST /api/v1/contact, which emails the platform inbox and, sent
+ *               from printcopilot.co, keeps the message for the console's Leads.
+ *   Demo      → POST /api/v1/leads: kept in platform_leads (the console's Leads)
+ *               and emailed to the platform team.
+ *   Affiliate → the partner program itself (POST /api/v1/partners/apply), from
+ *               pages/Partners.tsx: the same application /partners takes.
  */
 import { useState, type FormEvent } from "react";
 import { apiClient, ApiClientError } from "@/lib/api-client";
@@ -61,20 +63,30 @@ export async function sendContact(f: Fields): Promise<void> {
       email: f.email,
       department: CONTACT_TOPICS[f.topic ?? ""] ?? "other",
       message: f.msg,
+      // The form's hidden field for bots; people leave it empty.
+      company_hp: f.company_hp ?? "",
     },
     { skipAuth: true },
   );
 }
 
-/** A demo request or a partner application, on to GoHighLevel. */
-export async function sendLead(form: "demo" | "partner", f: Fields): Promise<void> {
-  const res = await fetch("/api/marketing/lead", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ form, ...f }),
-  });
-  if (!res.ok) {
-    const body = await res.json().catch(() => null);
-    throw new ApiClientError(res.status, "LEAD_FAILED", body?.error ?? "");
-  }
+/** A demo request, kept in our database for the platform console's Leads. */
+export async function sendDemo(f: Fields): Promise<void> {
+  await apiClient.post(
+    "/api/v1/leads",
+    {
+      kind: "demo",
+      name: f.name,
+      email: f.email,
+      data: {
+        business_name: f.biz ?? "",
+        business_type: f.type ?? "",
+        country: f.country ?? "",
+        message: f.sell ?? "",
+      },
+      // The form's hidden field for bots; people leave it empty.
+      company: f.company_hp ?? "",
+    },
+    { skipAuth: true },
+  );
 }

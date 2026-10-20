@@ -9,6 +9,7 @@ class WholesaleApplicationOut(BaseModel):
     id: uuid.UUID
     # Core company info
     company_name: str
+    trading_name: str | None = None
     tax_id: str | None
     business_type: str
     website: str | None

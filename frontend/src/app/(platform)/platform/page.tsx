@@ -18,6 +18,7 @@ import { ConsoleBar, type ConsoleTab } from "@/components/platform/ConsoleBar";
 import { StripeModePanel } from "@/components/platform/StripeModePanel";
 import { TaxTab } from "@/components/platform/TaxTab";
 import { AffiliatesTab } from "@/components/platform/affiliates/AffiliatesTab";
+import { LeadsTab } from "@/components/platform/LeadsTab";
 import type { Tenant } from "@/types/user.types";
 
 // The service is sold as a single flat offering — there are no tiers to choose
@@ -135,6 +136,7 @@ export default function PlatformDashboard() {
 
       {tab === "analytics" && <AnalyticsTab />}
       {tab === "taxes" && <TaxTab />}
+      {tab === "leads" && <LeadsTab />}
       {tab === "activity" && <ActivityTab tenants={tenants} />}
       {tab === "search" && <SearchTab />}
       {tab === "health" && <HealthTab onEnter={(slug) => enterBrandDashboard(slug).catch(() => alert("Could not open dashboard"))} />}

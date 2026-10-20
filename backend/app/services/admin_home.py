@@ -326,6 +326,22 @@ async def _checklist(db: AsyncSession, tenant_id: Any, user_id: Any) -> list[dic
         on = (await db.execute(text("SELECT two_factor_enabled FROM users WHERE id = :u"), {"u": str(user_id)})).scalar()
         return bool(on), ("On for your sign-in" if on else "")
 
+    # A shop that signed up through the setup steps and left them part way:
+    # the way back to them ("You can finish later from Home"). A shop set up
+    # before the steps existed has no progress saved and is never asked.
+    try:
+        from app.services import onboarding
+
+        if await onboarding.unfinished(db, tenant_id):
+            steps.append({
+                "key": "setup", "title": "Finish setting up your store",
+                "detail": "Your business, logo, products, payments and shipping, in five short steps.",
+                "done": False, "href": "/onboarding",
+            })
+    except Exception as exc:  # noqa: BLE001  (Home still opens without it)
+        logger.warning("home: setup step failed: %s", exc)
+        await db.rollback()
+
     await step("payouts", "Connect payouts", "/admin/billing", payouts)
     await step("carrier", "Connect a shipping carrier", "/admin/standard-shipping", carrier)
     await step("email", "Connect email notifications", "/admin/settings", email)

@@ -193,14 +193,54 @@ class ConnectService:
         return account.id
 
     # ── Hosted links (always fresh — Stripe links expire in minutes) ──────────
-    async def create_onboarding_link(self, tenant_id: str) -> dict:
+    async def _known_origin(self, tenant_id: str, origin: str | None) -> str | None:
+        """The page's own origin when it is one of this brand's addresses or the
+        platform's (so a link back never leads anywhere else); else None."""
+        from urllib.parse import urlsplit
+
+        from app.services.tenant_hosts import normalise
+
+        if not origin:
+            return None
+        parts = urlsplit(origin)
+        host = (parts.hostname or "").lower()
+        if parts.scheme not in ("http", "https") or not host:
+            return None
+        row = (await self.db.execute(
+            text("SELECT slug, custom_domain FROM tenants WHERE id = CAST(:t AS uuid)"), {"t": str(tenant_id)},
+        )).first()
+        slug, custom = (row[0], row[1]) if row else (None, None)
+        platform = (get_settings().PLATFORM_DOMAIN or "").strip().lower()
+        allowed = {"localhost", "127.0.0.1"}
+        if platform and platform != "localhost":
+            allowed.add(platform)
+            if slug:
+                allowed.add(f"{slug}.{platform}")
+        if custom and normalise(custom):
+            allowed.add(normalise(custom))
+        ok = normalise(host) in allowed or host in allowed or host.endswith(".localhost")
+        return f"{parts.scheme}://{parts.netloc}" if ok else None
+
+    async def create_onboarding_link(self, tenant_id: str, back: str | None = None,
+                                     origin: str | None = None) -> dict:
+        """Stripe's onboarding page for this brand. `back="onboarding"` brings the
+        owner back to the setup steps on the address they started from (a new
+        shop's owner works on printcopilot.co until the shop's own address is
+        added); otherwise to Billing, as it always has."""
         account_id = await self.create_or_get_account(tenant_id)
         frontend = get_settings().FRONTEND_URL.rstrip("/")
+        if back == "onboarding":
+            base = await self._known_origin(tenant_id, origin) or frontend
+            refresh_url = f"{base}/onboarding?stripe=refresh"
+            return_url = f"{base}/onboarding?stripe=return"
+        else:
+            refresh_url = f"{frontend}/admin/billing?status=refresh"
+            return_url = f"{frontend}/admin/billing?status=return"
         s = await _stripe_for(self.db)
         link = s.AccountLink.create(
             account=account_id,
-            refresh_url=f"{frontend}/admin/billing?status=refresh",
-            return_url=f"{frontend}/admin/billing?status=return",
+            refresh_url=refresh_url,
+            return_url=return_url,
             type="account_onboarding",
         )
         return {"onboarding_url": link.url, "expires_at": link.expires_at}

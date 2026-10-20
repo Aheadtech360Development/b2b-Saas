@@ -61,6 +61,7 @@ class WholesaleService:
         # Create company
         company = Company(
             name=application.company_name,
+            trading_name=getattr(application, "trading_name", None),
             tax_id=application.tax_id,
             business_type=application.business_type,
             website=application.website,

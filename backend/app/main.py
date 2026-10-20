@@ -1082,6 +1082,8 @@ app.include_router(admin_nav_counts.router, prefix=_V1)
 
 from app.api.v1.admin import home as admin_home  # noqa: E402
 app.include_router(admin_home.router, prefix=_V1)
+from app.api.v1.admin import onboarding as admin_onboarding  # noqa: E402
+app.include_router(admin_onboarding.router, prefix=_V1)
 from app.api.v1.admin import production as admin_production  # noqa: E402
 app.include_router(admin_production.router, prefix=_V1)
 from app.api.v1.admin import catalog as admin_catalog  # noqa: E402
@@ -1112,6 +1114,11 @@ from app.api.v1 import partners_portal  # noqa: E402
 app.include_router(partners_portal.router, prefix=_V1)
 from app.api.v1.platform import affiliates as platform_affiliates  # noqa: E402
 app.include_router(platform_affiliates.router, prefix=_V1)
+# printcopilot.co's own demo and contact requests, and the console's list of them.
+from app.api.v1 import leads as leads_api  # noqa: E402
+app.include_router(leads_api.router, prefix=_V1)
+from app.api.v1.platform import leads as platform_leads  # noqa: E402
+app.include_router(platform_leads.router, prefix=_V1)
 
 from app.api.v1.admin import integrations as admin_integrations  # noqa: E402
 app.include_router(admin_integrations.router, prefix=_V1)
