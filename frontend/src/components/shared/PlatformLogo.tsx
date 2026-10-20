@@ -1,28 +1,29 @@
 /**
- * PlatformLogo — PrintCoPilot's logo, as printcopilot.co's header has it.
+ * PlatformLogo — PrintCoPilot's wordmark, the owner's own files.
  *
- * The navy mark alone, never the name written out (the owner's rule). On a
- * dark ground it sits on a white tile so it reads, the same tile as the site's
- * header and the admin sidebar. Its alt text names it, for a link or button
- * that has nothing else to say.
+ * On a navy ground the off-white one (wordmark-horizontal_color-on-dark), on
+ * any light ground the navy one (wordmark-horizontal_color), the same in every
+ * place the platform names itself: the site's header and footer, the admin,
+ * the Platform Console, the partner portal, sign-in and onboarding. Never the
+ * name typed out beside it. Its alt text names it, for a link or button that
+ * has nothing else to say.
+ *
+ * `width` sets the size (the wordmark is 7.5 times as wide as it is tall); a
+ * `className` with its own width wins over it, for a smaller one on a phone.
  */
-export function PlatformLogo({ onDark = false, size = 32 }: {
-  /** The ground is navy: draw the white tile behind the mark. */
+const ON_DARK = "/wordmark-horizontal_color-on-dark_1200w.png";
+const ON_LIGHT = "/wordmark-horizontal_color_600w.png";
+const RATIO = 7.5;
+
+export function PlatformLogo({ onDark = false, width = 180, className }: {
+  /** The ground is navy: the off-white wordmark. */
   onDark?: boolean;
-  size?: number;
+  width?: number;
+  className?: string;
 }) {
-  const mark = (
-    // eslint-disable-next-line @next/next/no-img-element -- a fixed-size mark
-    <img src="/icon_navy_128.png" alt="PrintCoPilot" width={size} height={size}
-      style={{ display: "block", width: size, height: size, flex: "none" }} />
-  );
-  if (!onDark) return mark;
   return (
-    <span style={{
-      width: size + 12, height: size + 12, borderRadius: 10, background: "#FFFFFF", flex: "none",
-      display: "inline-flex", alignItems: "center", justifyContent: "center",
-    }}>
-      {mark}
-    </span>
+    // eslint-disable-next-line @next/next/no-img-element -- a fixed-size logo
+    <img src={onDark ? ON_DARK : ON_LIGHT} alt="PrintCoPilot" width={width} height={Math.round(width / RATIO)}
+      className={className} style={{ display: "block", flex: "none", height: "auto" }} />
   );
 }

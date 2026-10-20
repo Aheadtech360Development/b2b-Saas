@@ -38,16 +38,16 @@ def _e(value: object) -> str:
 
 
 def _masthead() -> str:
-    """The top of every partner email: the platform's logo, as printcopilot.co's
-    header has it (the mark alone, never the name in text), then "Partners".
-    The name in text only when there is no address to load the logo from."""
+    """The top of every partner email: the platform's navy wordmark (the mail is
+    white), as every platform header has it, then "Partners". The name in text
+    only when there is no address to load the logo from."""
     kicker = ('font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:#5A5F68;'
               'margin:0 0 14px')
     origin = (get_settings().FRONTEND_URL or "").rstrip("/")
     if not origin:
         return f'<p style="{kicker}">{_e(platform_name())} Partners</p>'
-    return (f'<p style="{kicker}"><img src="{_e(origin)}/icon_navy_128.png" width="36" height="36" '
-            f'alt="{_e(platform_name())}" style="display:block;border:0;margin:0 0 8px">Partners</p>')
+    return (f'<p style="{kicker}"><img src="{_e(origin)}/wordmark-horizontal_color_600w.png" width="180" '
+            f'height="24" alt="{_e(platform_name())}" style="display:block;border:0;margin:0 0 8px">Partners</p>')
 
 
 def _page(title: str, paragraphs: list[str], button: tuple[str, str] | None = None,

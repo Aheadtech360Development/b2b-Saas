@@ -48,9 +48,6 @@
 }
 .pc-side-scroll { flex: 1; min-height: 0; overflow-y: auto; padding: 4px 12px 12px; display: flex; flex-direction: column; scrollbar-width: thin; scrollbar-color: rgba(255,255,255,.18) transparent; }
 .pc-brand { display: flex; align-items: center; gap: 11px; padding: 22px 20px 18px; text-decoration: none; color: #fff; }
-/* Our logo, the same tile as printcopilot.co's header (marketing.module.css .logo-tile). */
-.pc-brand-mark { width: 44px; height: 44px; border-radius: 10px; background: #fff; display: grid; place-items: center; flex-shrink: 0; }
-.pc-brand-mark img { display: block; width: 32px; height: 32px; object-fit: contain; }
 
 .pc-nav { display: flex; align-items: center; gap: 12px; width: 100%; padding: 10px 12px; margin-bottom: 2px; border: 0; border-radius: 9px; background: transparent; color: rgba(255,255,255,.86); font: 500 14.5px/1.2 var(--pc-sans); text-decoration: none; cursor: pointer; text-align: left; }
 .pc-admin .pc-nav:hover { background: rgba(255,255,255,.07); color: #fff; filter: none; box-shadow: none; }

@@ -47,8 +47,8 @@ export function OnboardingFrame({
   return (
     <div className={`${o.page} ${authFonts}`}>
       <header className={o.top}>
-        {/* The logo printcopilot.co's header has: the mark on a white tile, no name in text. */}
-        <PlatformLogo onDark />
+        {/* The navy bar: the off-white wordmark. */}
+        <PlatformLogo onDark width={180} />
         <span className={o.topTrial}>
           {trialDays === null
             ? null

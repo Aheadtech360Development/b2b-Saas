@@ -103,7 +103,7 @@ export function PartnerShell({ children }: { children: ReactNode }) {
     return (
       <div className={ROOT}>
         <div className="app">
-          <nav className="rail" aria-hidden="true"><div className="brand"><PlatformLogo onDark /></div></nav>
+          <nav className="rail" aria-hidden="true"><div className="brand"><PlatformLogo onDark width={176} /></div></nav>
           <div className="main">
             <header className="top" />
             <div className="content">
@@ -123,7 +123,11 @@ export function PartnerShell({ children }: { children: ReactNode }) {
       <div className={ROOT}>
         <div className="app">
           <nav className="rail" aria-label="Partner portal">
-            <div className="brand"><PlatformLogo onDark /><span style={{ fontWeight: 500, color: "#8FA3BD" }}>Partners</span></div>
+            {/* The navy rail is too narrow for the wordmark and the word side by side. */}
+            <div className="brand" style={{ flexDirection: "column", alignItems: "flex-start", gap: 6 }}>
+              <PlatformLogo onDark width={176} />
+              <span style={{ font: "600 12px/16px Inter, sans-serif", letterSpacing: ".08em", textTransform: "uppercase", color: "#8FA3BD" }}>Partners</span>
+            </div>
             {NAV.map((n) => (
               <Link key={n.href} href={n.href} className={isOn(n.href) ? "on" : ""} aria-current={isOn(n.href) ? "page" : undefined}>
                 <Icon name={n.icon} />{n.label}
@@ -138,7 +142,7 @@ export function PartnerShell({ children }: { children: ReactNode }) {
           </nav>
           <div className="main">
             <header className="top">
-              <span className="brand-m"><PlatformLogo /><span>Partners</span></span>
+              <span className="brand-m"><PlatformLogo width={150} /><span style={{ fontWeight: 500, color: "var(--muted)" }}>Partners</span></span>
               <div className="sp" />
               <span className="av" aria-hidden="true">{initials(partner.name)}</span>
               <span className="b ink hide-m">{partner.name}</span>

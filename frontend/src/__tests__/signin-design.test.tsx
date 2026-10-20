@@ -78,7 +78,7 @@ describe("sign in", () => {
   it("on printcopilot.co wears PrintCoPilot and offers the free trial", () => {
     onPlatform(<LoginPage />);
     // The logo, not the name in text.
-    expect(screen.getByRole("img", { name: "PrintCoPilot" })).toHaveAttribute("src", "/icon_navy_128.png");
+    expect(screen.getByRole("img", { name: "PrintCoPilot" })).toHaveAttribute("src", "/wordmark-horizontal_color_600w.png");
     expect(screen.queryByText("PrintCoPilot")).toBeNull();
     expect(screen.getByRole("link", { name: "Start your 14 day free trial" })).toHaveAttribute("href", "/signup");
     expect(screen.queryByRole("link", { name: "apply for a wholesale account" })).toBeNull();

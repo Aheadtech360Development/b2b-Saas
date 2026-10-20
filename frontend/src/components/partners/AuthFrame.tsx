@@ -33,7 +33,7 @@ export function AuthFrame({ children, support }: { children: ReactNode; support?
         <div className="lg-l">
           <div className="col" style={{ gap: 28 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 12, font: "600 22px/28px var(--pcp-display), Inter, sans-serif", color: "#fff" }}>
-              <PlatformLogo onDark /><span style={{ fontWeight: 500, color: "#8FA3BD" }}>Partners</span>
+              <PlatformLogo onDark width={200} /><span style={{ fontWeight: 500, color: "#8FA3BD" }}>Partners</span>
             </div>
             <h1 style={{ color: "#fff", fontSize: 36, lineHeight: "44px", maxWidth: 460 }}>
               Your link, your shops, your earnings. One place.

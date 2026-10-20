@@ -39,7 +39,7 @@ export function ConsoleBar({ tab, onTab, affiliates }: {
     <div className={ROOT}>
       <header className="contop">
         <div className="brand">
-          <button type="button" onClick={() => onTab("brands")}><PlatformLogo onDark /></button>
+          <button type="button" onClick={() => onTab("brands")}><PlatformLogo onDark width={170} /></button>
           <span className="chip navy">Platform Console</span>
         </div>
         <nav className="ctabs" aria-label="Console sections" ref={nav}>

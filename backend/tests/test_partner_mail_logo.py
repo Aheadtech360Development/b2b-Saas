@@ -10,7 +10,7 @@ def test_partner_mail_opens_with_the_logo(monkeypatch):
     monkeypatch.setattr(get_settings(), "PLATFORM_NAME", "")
     monkeypatch.setattr(get_settings(), "FRONTEND_URL", "https://www.printcopilot.co/")
     html = mail._page("Welcome", ["Hi"])
-    assert '<img src="https://www.printcopilot.co/icon_navy_128.png"' in html
+    assert '<img src="https://www.printcopilot.co/wordmark-horizontal_color_600w.png"' in html
     assert 'alt="PrintCoPilot"' in html and ">Partners</p>" in html
     assert "PrintCoPilot Partners" not in html
 

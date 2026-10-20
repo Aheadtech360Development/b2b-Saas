@@ -87,10 +87,10 @@ export function ShopMark() {
 }
 
 export function PlatformMark() {
-  // The logo printcopilot.co's header has: the mark alone, no name in text.
+  // The light card: the navy wordmark.
   return (
     <div className={ui.head}>
-      <PlatformLogo size={36} />
+      <PlatformLogo width={200} />
     </div>
   );
 }

@@ -85,7 +85,7 @@ function LoginForm() {
   return (
     <AuthFrame support={support}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, font: "600 18px var(--pcp-display), Inter, sans-serif", color: "var(--ink)" }}>
-        <PlatformLogo /><span className="muted" style={{ fontWeight: 500 }}>Partners</span>
+        <PlatformLogo width={160} /><span className="muted" style={{ fontWeight: 500 }}>Partners</span>
       </div>
 
       {params.get("ended") ? <Banner icon="clock">You were signed out. For your security the session ended after a period without activity.</Banner> : null}

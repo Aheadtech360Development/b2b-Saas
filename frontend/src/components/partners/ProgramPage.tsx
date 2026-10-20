@@ -62,7 +62,7 @@ export function ProgramPage() {
     <div className={ROOT} style={{ minHeight: "100vh" }}>
       <header className="top" style={{ justifyContent: "space-between" }}>
         <span style={{ display: "flex", alignItems: "center", gap: 10, font: "600 18px var(--pcp-display), Inter, sans-serif", color: "var(--ink)" }}>
-          <PlatformLogo /><span className="muted" style={{ fontWeight: 500 }}>Partners</span>
+          <PlatformLogo width={160} /><span className="muted" style={{ fontWeight: 500 }}>Partners</span>
         </span>
         <Link className="btn sm" href="/partners/login">Partner sign in</Link>
       </header>

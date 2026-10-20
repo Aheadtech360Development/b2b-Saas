@@ -25,6 +25,7 @@ import { contactService } from "@/services/contact.service";
 import { apiClient } from "@/lib/api-client";
 import { HIDDEN_ADMIN_SECTIONS } from "@/lib/constants";
 import { useEntitlements } from "@/lib/entitlements";
+import { PlatformLogo } from "@/components/shared/PlatformLogo";
 
 interface Child {
   href: string;
@@ -226,13 +227,9 @@ export function AdminSidebar() {
     <>
       {mobileOpen && <div className="pc-side-back" onClick={() => setMobileOpen(false)} aria-hidden />}
       <aside className="pc-side" data-open={mobileOpen ? "" : undefined} aria-label="Admin">
-        {/* Our logo as printcopilot.co's header has it: the mark alone, navy
-            on a white tile so it reads on the navy sidebar. */}
+        {/* The navy sidebar: the off-white wordmark, as on printcopilot.co. */}
         <Link href="/admin/dashboard" className="pc-brand">
-          <span className="pc-brand-mark">
-            {/* eslint-disable-next-line @next/next/no-img-element -- a fixed-size mark */}
-            <img src="/icon_navy_128.png" alt="PrintCoPilot" width={32} height={32} />
-          </span>
+          <PlatformLogo onDark width={190} />
         </Link>
         <nav className="pc-side-scroll">
           {places.map(render)}
