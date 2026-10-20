@@ -164,6 +164,62 @@ def test_an_email_that_already_has_an_account_is_sent_to_sign_in(monkeypatch):
     assert e.value.status_code == 409 and "Sign in" in e.value.detail
 
 
+class _Platform(_Session):
+    """Every account on the platform, as the sign-up's own lookups read them."""
+
+    def __init__(self, accounts):
+        super().__init__(row=None)
+        self.accounts = accounts
+        self.committed = False
+
+    async def execute(self, statement, params=None):
+        sql = str(statement)
+        self.sql.append(sql)
+        if "FROM users" in sql:
+            owners_only = "is_admin OR is_platform_admin" in sql
+            hit = any(a["email"] == params["e"] and (a["owner"] or not owners_only)
+                      for a in self.accounts)
+            return _Result((1,) if hit else None)
+        return _Result(None)
+
+    async def commit(self):
+        self.committed = True
+
+
+def test_a_shops_buyer_can_open_a_shop_with_the_same_email(monkeypatch):
+    """A manager's test address was a buyer at one shop, and step 1 said it
+    already had an account: the sign-up refused every account, while /check
+    (the screen before) asked only about owners and staff."""
+    from fastapi import BackgroundTasks, HTTPException
+
+    from app.api.v1 import signup
+    from app.core import database
+
+    async def no_limit(*a, **k):
+        return None
+
+    async def set_setting(db, key, value, *, tenant_id=None):
+        return None
+
+    monkeypatch.setattr(signup, "enforce_rate_limit", no_limit)
+    monkeypatch.setattr(tenant_settings, "set_setting", set_setting)
+    req = SimpleNamespace(client=SimpleNamespace(host="1.2.3.4"), headers={})
+
+    def sign_up(email, accounts):
+        shop = _Platform(accounts)
+        monkeypatch.setattr(database, "AsyncSessionLocal", lambda: shop)
+        payload = signup.SignupIn(email=email, password="Partner2026!", shop_name="Torres Print")
+        return shop, run(signup.sign_up(payload, req, BackgroundTasks(), None))
+
+    shop, out = sign_up("Buyer@Shop.com", [{"email": "buyer@shop.com", "owner": False}])
+    assert out["slug"] == "torres-print" and out["next"] == "/onboarding"
+    assert shop.committed and any("INSERT INTO users" in s for s in shop.sql)
+
+    with pytest.raises(HTTPException) as e:
+        sign_up("owner@shop.com", [{"email": "owner@shop.com", "owner": True}])
+    assert e.value.status_code == 409 and "Sign in" in e.value.detail
+
+
 def test_the_welcome_mail_has_a_greeting_without_a_name(monkeypatch):
     from app.api.v1 import signup
     from app.services import email_service

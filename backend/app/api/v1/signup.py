@@ -130,8 +130,8 @@ async def check_email(payload: CheckIn, request: Request) -> dict[str, Any]:
         from app.core.database import AsyncSessionLocal
 
         async with AsyncSessionLocal() as new_db:
-            # Owners and staff only: a shop's buyer is told at the next step,
-            # by the sign-up itself, so this answers nothing about buyers.
+            # Owners and staff only: a shop's buyer may open a shop of their
+            # own (see sign_up), so this answers nothing about buyers.
             taken = (await new_db.execute(
                 text("SELECT 1 FROM users WHERE lower(email) = :e AND (is_admin OR is_platform_admin)"),
                 {"e": email},
@@ -309,8 +309,13 @@ async def sign_up(payload: SignupIn, request: Request, background: BackgroundTas
                 text("SELECT 1 FROM tenants WHERE slug = :s"), {"s": slug}
             )).first():
                 raise HTTPException(status_code=409, detail=f"'{slug}' is already taken")
+            # Owners and staff only, as /check asks it. A shop's buyer may open
+            # a shop of their own with the same address: accounts are per shop
+            # (migration 0058), and the platform's sign-in and reset pick the
+            # owner's account first.
             if (await new_db.execute(
-                text("SELECT 1 FROM users WHERE lower(email) = :e"), {"e": email}
+                text("SELECT 1 FROM users WHERE lower(email) = :e AND (is_admin OR is_platform_admin)"),
+                {"e": email},
             )).first():
                 raise HTTPException(
                     status_code=409,
