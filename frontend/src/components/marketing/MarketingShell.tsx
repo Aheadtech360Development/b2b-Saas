@@ -11,8 +11,10 @@ import Link from "next/link";
 import s from "./marketing.module.css";
 import MobileNav from "./MobileNav";
 
-/** The logo, light on dark: both the header and the footer are navy. */
-const WORDMARK = "/wordmark-horizontal_color-on-dark_1200w.png";
+/** The logo, the mark alone (no wordmark): the navy mark on a white tile in the
+ *  navy header, so it stands out there, and the blue app icon in the footer. */
+const HEADER_LOGO = "/icon_navy_128.png";
+const FOOTER_LOGO = "/app-icon_blue_180.png";
 
 export type MarketingNav = "features" | "pricing" | "partners" | "about" | null;
 
@@ -64,8 +66,10 @@ function MarketingHeader({ active }: { active: MarketingNav }) {
         }}
       >
         <Link href="/" className={s.logo} aria-label="PrintCoPilot home">
-          {/* eslint-disable-next-line @next/next/no-img-element -- a fixed-size wordmark, already sized for the screen */}
-          <img src={WORDMARK} alt="PrintCoPilot" width={180} height={24} />
+          <span className={s["logo-tile"]}>
+            {/* eslint-disable-next-line @next/next/no-img-element -- a fixed-size mark */}
+            <img src={HEADER_LOGO} alt="PrintCoPilot" width={32} height={32} />
+          </span>
         </Link>
         <nav
           className={s["nav-links"]}
@@ -181,8 +185,8 @@ function MarketingFooter() {
       <div style={{ maxWidth: "1200px", margin: "0 auto", padding: "64px 32px 32px" }}>
         <div style={{ display: "flex", flexWrap: "wrap", gap: "48px", justifyContent: "space-between" }}>
           <div style={{ flex: "1 1 280px", maxWidth: "360px" }}>
-            {/* eslint-disable-next-line @next/next/no-img-element -- a fixed-size wordmark */}
-            <img src={WORDMARK} alt="PrintCoPilot" width={210} height={28} className={s["footer-logo"]} />
+            {/* eslint-disable-next-line @next/next/no-img-element -- a fixed-size mark */}
+            <img src={FOOTER_LOGO} alt="PrintCoPilot" width={56} height={56} className={s["footer-logo"]} />
             <p style={{ marginTop: "12px", fontSize: "15px", lineHeight: "22px" }}>
               Commerce and production for print and apparel businesses.
             </p>

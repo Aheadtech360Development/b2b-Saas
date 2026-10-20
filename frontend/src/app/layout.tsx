@@ -33,8 +33,13 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
     title: "PrintCopilot",
     description: "Commerce software for print shops.",
-    // The platform's own icon; a brand's site sets its own above.
-    icons: { icon: "/android-chrome-512.png", shortcut: "/android-chrome-512.png", apple: "/android-chrome-512.png" },
+    // The platform's own icon; a brand's site sets its own above. The tab
+    // shows the 16px favicon; a phone's home screen the 180px app icon.
+    icons: {
+      icon: [{ url: "/favicon-16.png", sizes: "16x16", type: "image/png" }],
+      shortcut: "/favicon-16.png",
+      apple: [{ url: "/app-icon_blue_180.png", sizes: "180x180" }],
+    },
   };
 }
 
