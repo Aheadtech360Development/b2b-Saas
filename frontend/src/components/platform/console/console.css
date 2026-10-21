@@ -1,0 +1,39 @@
+/*
+  The Platform Console: the admin's own look (app/(admin)/admin-shell.css,
+  .pc-*), plus the few parts only the console has. Scoped to .pc-console.
+*/
+.pc-console .pc-side-group { padding: 18px 12px 6px; font-size: 11.5px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: rgba(255, 255, 255, .5); }
+.pc-console .pc-console-brand { display: grid; gap: 10px; padding: 22px 20px 10px; }
+.pc-console .pc-console-chip { justify-self: start; font-size: 10.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #fff; background: rgba(255, 255, 255, .12); border-radius: 5px; padding: 3px 8px; }
+.pc-console .pc-role-chip { font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: #fff; background: var(--pc-navy); border-radius: 5px; padding: 4px 8px; white-space: nowrap; }
+.pc-console .pc-content { padding: 28px 32px 48px; }
+.pc-console .pc-plan-cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.pc-console button.pc-plan-card { display: grid; gap: 4px; text-align: left; padding: 16px; border: 1px solid var(--pc-line); border-radius: 10px; background: #fff; cursor: pointer; font-family: var(--pc-sans); }
+.pc-console button.pc-plan-card[data-on] { border-color: var(--pc-blue); background: #F3F7FF; box-shadow: 0 0 0 1px var(--pc-blue); }
+.pc-console button.pc-plan-card[data-current]::after { content: "Current"; justify-self: start; margin-top: 4px; font-size: 11px; font-weight: 700; color: var(--pc-green); background: var(--pc-green-tint); border-radius: 10px; padding: 1px 8px; }
+.pc-console .pc-plan-name { font: 600 16px var(--pc-display); color: var(--pc-ink); }
+.pc-console .pc-plan-price { font: 600 20px var(--pc-display); color: var(--pc-ink); }
+.pc-console .pc-plan-meta { font-size: 12.5px; color: var(--pc-muted); line-height: 1.45; }
+.pc-console .pc-feature-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 20px; border-top: 1px solid var(--pc-line-soft); }
+.pc-console .pc-feature-row:first-child { border-top: 0; }
+.pc-console .pc-feature-name { font-size: 14px; font-weight: 600; color: var(--pc-ink); display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.pc-console .pc-tri { display: inline-flex; padding: 3px; border: 1px solid var(--pc-line); border-radius: 18px; background: #fff; flex: none; }
+.pc-console .pc-tri button { border: 0; background: none; height: 28px; padding: 0 12px; border-radius: 14px; font: 500 13px var(--pc-sans); color: var(--pc-ink-2); cursor: pointer; }
+.pc-console .pc-tri button[aria-pressed="true"] { background: var(--pc-navy); color: #fff; font-weight: 600; }
+.pc-console .pc-tri button:disabled { opacity: .5; cursor: progress; }
+.pc-console .pc-danger { border-color: #F0C4BD; }
+.pc-console .pc-danger-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 18px 20px; border-top: 1px solid var(--pc-line-soft); flex-wrap: wrap; }
+.pc-console .pc-danger-row:first-child { border-top: 0; }
+.pc-console .pc-mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 13px; }
+.pc-console .pc-hint { font-size: 12.5px; color: var(--pc-muted); margin-top: 6px; line-height: 1.45; }
+.pc-console .pc-two { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 20px; align-items: start; }
+.pc-console .pc-pager { display: flex; align-items: center; gap: 10px; }
+.pc-console .pc-pager .pc-btn { height: 34px; padding: 0 12px; font-size: 13px; }
+@media (max-width: 1080px) {
+  .pc-console .pc-two { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 768px) {
+  .pc-console .pc-content { padding: 18px 14px 40px; }
+  .pc-console .pc-plan-cards { grid-template-columns: minmax(0, 1fr); }
+  .pc-console .pc-feature-row { flex-wrap: wrap; padding: 12px 16px; }
+}

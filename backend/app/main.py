@@ -1123,6 +1123,9 @@ from app.api.v1 import leads as leads_api  # noqa: E402
 app.include_router(leads_api.router, prefix=_V1)
 from app.api.v1.platform import leads as platform_leads  # noqa: E402
 app.include_router(platform_leads.router, prefix=_V1)
+# The redesigned console's own reads (brands, people, activity, search).
+from app.api.v1.platform import console as platform_console  # noqa: E402
+app.include_router(platform_console.router, prefix=_V1)
 
 from app.api.v1.admin import integrations as admin_integrations  # noqa: E402
 app.include_router(admin_integrations.router, prefix=_V1)

@@ -2,13 +2,21 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { Inter, Outfit } from "next/font/google";
 import { useAuthStore } from "@/stores/auth.store";
+import { ConsoleShell } from "@/components/platform/console/ConsoleShell";
+import "../(admin)/admin-shell.css";
+import "@/components/platform/console/console.css";
+
+// The admin's two faces, so the two consoles read alike.
+const sans = Inter({ subsets: ["latin"], variable: "--pc-font-sans", display: "swap" });
+const display = Outfit({ subsets: ["latin"], weight: ["500", "600", "700"], variable: "--pc-font-display", display: "swap" });
 
 /**
  * Platform (Super Admin) layout — only accessible to is_platform_admin users.
  * Regular brand admins are redirected to their own /admin panel. The console's
- * bar and content area are the page's (components/platform/ConsoleBar), since
- * the bar holds the page's tabs.
+ * frame (components/platform/console/ConsoleShell) is drawn here, around every
+ * console page.
  */
 export default function PlatformLayout({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isPlatformAdmin, isAdmin, isLoading } = useAuthStore();
@@ -42,7 +50,7 @@ export default function PlatformLayout({ children }: { children: React.ReactNode
 
   if (!mounted || isLoading) {
     return (
-      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#F7F7F8" }}>
+      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#F5F7FA" }}>
         <div style={{ color: "#888", fontSize: "14px" }}>Loading…</div>
       </div>
     );
@@ -53,8 +61,8 @@ export default function PlatformLayout({ children }: { children: React.ReactNode
   }
 
   return (
-    <div style={{ minHeight: "100vh", background: "#F7F7F8", fontFamily: "var(--font-jakarta), system-ui, sans-serif" }}>
-      {children}
+    <div className={`pc-admin pc-console ${sans.variable} ${display.variable}`}>
+      <ConsoleShell>{children}</ConsoleShell>
     </div>
   );
 }

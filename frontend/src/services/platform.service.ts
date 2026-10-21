@@ -14,13 +14,22 @@ export interface CreateTenantPayload {
   admin_password: string;
   admin_first_name: string;
   admin_last_name: string;
+  /** The free period in days; absent is 14, 0 starts none. */
+  trial_days?: number;
+  /** A Gang Sheet Builder rate of its own, in basis points; absent is the plan's. */
+  commission_bps?: number | null;
+  /** The shop's own time zone, an IANA name. */
+  timezone?: string;
 }
 
 export interface CreateTenantResponse {
   id: string;
   slug: string;
   name: string;
+  plan?: string;
+  trial_days?: number;
   admin_email: string;
+  store_url?: string;
   url_local: string;
   message: string;
 }
@@ -34,6 +43,8 @@ export interface UpdateTenantPayload {
   plan?: string;
   /** Host only — "shop.example.com", no https:// and no path. */
   custom_domain?: string;
+  /** Why the platform closed the shop: kept with it and in the activity log. */
+  reason?: string;
 }
 
 export interface FeatureFlag {
@@ -124,9 +135,9 @@ export const platformService = {
     return apiClient.get<TrialStatus>(`/api/v1/platform/tenants/${slug}/trial`);
   },
 
-  /** Start the free period now, or (days: 0) end it. */
-  async setTrial(slug: string, days: number): Promise<TrialStatus> {
-    return apiClient.put<TrialStatus>(`/api/v1/platform/tenants/${slug}/trial`, { days });
+  /** Start the free period now, extend it from its end, or (days: 0) end it. */
+  async setTrial(slug: string, days: number, extend = false): Promise<TrialStatus> {
+    return apiClient.put<TrialStatus>(`/api/v1/platform/tenants/${slug}/trial`, { days, extend });
   },
 
   /** What the platform takes on this brand's Gang Sheet Builder orders. */
@@ -154,14 +165,17 @@ export const platformService = {
     return apiClient.get<Tenant>(`/api/v1/platform/tenants/${slug}`);
   },
 
-  /** Update a tenant (name / status / plan). */
-  async updateTenant(slug: string, payload: UpdateTenantPayload): Promise<{ message: string }> {
-    return apiClient.put<{ message: string }>(`/api/v1/platform/tenants/${slug}`, payload);
+  /** Update a tenant (name / status / plan). A plan change of a paying brand
+   *  is made in Stripe: plan_billing says what happened there. */
+  async updateTenant(slug: string, payload: UpdateTenantPayload): Promise<{
+    message: string; slug: string; plan_billing?: "switched" | "not_subscribed" | "unchanged" | null;
+  }> {
+    return apiClient.put(`/api/v1/platform/tenants/${slug}`, payload);
   },
 
-  /** Soft-delete (cancel) a tenant. */
-  async deleteTenant(slug: string): Promise<void> {
-    return apiClient.delete<void>(`/api/v1/platform/tenants/${slug}`);
+  /** Soft-delete (cancel) a tenant, held so Stripe cannot reopen it. */
+  async deleteTenant(slug: string, reason?: string): Promise<void> {
+    return apiClient.delete<void>(`/api/v1/platform/tenants/${slug}`, reason ? { body: JSON.stringify({ reason }) } : undefined);
   },
 
   /** Every feature the platform offers, and where this brand stands on each. */
@@ -191,9 +205,12 @@ export const platformService = {
     return apiClient.delete<void>(`/api/v1/platform/tenants/${slug}/purge`);
   },
 
-  /** Enter a brand's admin dashboard (impersonate its admin). Returns an access token. */
-  async impersonate(slug: string): Promise<{ access_token: string; slug: string; admin_email: string }> {
-    return apiClient.post(`/api/v1/platform/tenants/${slug}/impersonate`);
+  /** Enter a brand's admin as platform support: a short session, with the
+   *  reason kept in the brand's activity log. Returns an access token. */
+  async impersonate(slug: string, body?: { reason?: string; minutes?: number }): Promise<{
+    access_token: string; slug: string; admin_email: string; minutes: number;
+  }> {
+    return apiClient.post(`/api/v1/platform/tenants/${slug}/impersonate`, body ?? {});
   },
 
   // ── Cross-tenant insights (super admin) ─────────────────────────────────────
@@ -254,9 +271,9 @@ export interface BrandHealth {
   state: "empty" | "no_sales" | "selling";
 }
 
-/** Open a brand's admin dashboard as the super admin (impersonation). */
-export async function enterBrandDashboard(slug: string): Promise<void> {
-  const { access_token } = await platformService.impersonate(slug);
+/** Open a brand's admin dashboard as platform support (impersonation). */
+export async function enterBrandDashboard(slug: string, body?: { reason?: string; minutes?: number }): Promise<void> {
+  const { access_token } = await platformService.impersonate(slug, body);
   const url = tenantUrl(slug, "/admin/dashboard", `session=${encodeURIComponent(access_token)}`);
   window.open(url, "_blank");
 }
