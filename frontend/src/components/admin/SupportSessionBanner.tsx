@@ -9,7 +9,20 @@
  * and what is done in it is logged against the support person.
  */
 import { useEffect, useState } from "react";
+import { apiClient, isSupportSession } from "@/lib/api-client";
 import { useAuthStore } from "@/stores/auth.store";
+
+/** End a support visit on the server too: its token is revoked there, so a
+ *  copy of it (another tab opened from this one) stops working as well.
+ *  Not /logout, which would also sign the platform admin and the owner out. */
+export async function endSupportVisit(): Promise<void> {
+  if (!isSupportSession()) return;
+  try {
+    await apiClient.post("/api/v1/auth/support/end");
+  } catch {
+    // Ended here regardless; the token runs out by itself soon after.
+  }
+}
 
 interface SupportClaims {
   impersonated?: boolean;
@@ -45,7 +58,8 @@ export function SupportSessionBanner() {
 
   const endsAt = claims.exp ? new Date(claims.exp * 1000) : null;
   const minutesLeft = endsAt ? Math.max(0, Math.ceil((endsAt.getTime() - now) / 60_000)) : null;
-  const end = () => {
+  const end = async () => {
+    await endSupportVisit();
     clearAuth();
     // Opened in its own tab from the console: closing it goes back there.
     window.close();
@@ -65,7 +79,7 @@ export function SupportSessionBanner() {
           ? ` Ends at ${endsAt.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })} (${minutesLeft} min).`
           : ""}
       </span>
-      <button type="button" onClick={end} style={{
+      <button type="button" onClick={() => void end()} style={{
         marginLeft: "auto", padding: "6px 12px", borderRadius: "7px", border: "1px solid rgba(255,255,255,.35)",
         background: "transparent", color: "#FFFFFF", fontWeight: 600, fontSize: "13px", cursor: "pointer",
       }}>

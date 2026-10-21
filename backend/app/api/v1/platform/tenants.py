@@ -475,11 +475,14 @@ async def update_tenant(
         ), {"n": updates["name"], "t": str(tenant_id)})
 
     # Closing or opening the shop by hand is a decision a Stripe event must not
-    # undo (services/brand_status).
+    # undo (services/brand_status), and a closed shop is not billed: Stripe
+    # pauses collection while it is closed and resumes it when it reopens.
     from app.services import brand_status
 
     new_status = updates.get("status")
+    billing_change = None
     if new_status and new_status != current["status"]:
+        billing_change = await _billing_for_status(db, updates.get("slug", slug), new_status, current["status"])
         if new_status == "active":
             await brand_status.release(db, tenant_id)
         else:
@@ -495,6 +498,7 @@ async def update_tenant(
             tenant_id=tenant_id,
             old_values={k: current.get(k) for k in changed},
             new_values={**changed, **({"billing": plan_billing} if plan_billing else {}),
+                        **({"stripe_collection": billing_change} if billing_change else {}),
                         **({"reason": reason} if reason else {})},
             summary=_update_summary(current, changed, plan_billing, reason),
         )
@@ -519,7 +523,29 @@ async def update_tenant(
         # "switched": Stripe now bills the new plan; "not_subscribed": nothing is
         # billed yet, and the card on file will start this plan; "unchanged".
         "plan_billing": plan_billing,
+        # "paused" or "resumed" when closing or reopening changed Stripe's collection.
+        "stripe_collection": billing_change,
     }
+
+
+async def _billing_for_status(db: AsyncSession, slug: str, new: str, old: str) -> str | None:
+    """Stripe's collection follows the shop: paused while the platform keeps it
+    closed, resumed when it reopens. Raises a 502 when Stripe refuses, before
+    anything here changes, so a shop is never closed while still being billed."""
+    from app.services.billing_service import BillingService
+
+    try:
+        if new in ("suspended", "cancelled") and old == "active":
+            return await BillingService(db).hold_billing(slug)
+        if new == "active" and old in ("suspended", "cancelled"):
+            return await BillingService(db).release_billing(slug)
+    except Exception as exc:
+        logger.exception("Stripe refused the billing change for %s", slug)
+        raise HTTPException(
+            status_code=502,
+            detail=f"Stripe did not accept the change to this brand's billing, so nothing was changed: {exc}",
+        )
+    return None
 
 
 def _update_summary(current: dict, changed: dict, plan_billing: str | None, reason: str) -> str:
@@ -561,6 +587,7 @@ async def delete_tenant(
     if not row:
         raise HTTPException(status_code=404, detail="Tenant not found")
     reason = ((data.reason if data else None) or "").strip()
+    billing_change = await _billing_for_status(db, slug, "cancelled", row["status"])
     await db.execute(
         text("UPDATE tenants SET status='cancelled', updated_at=now() WHERE id=:t"),
         {"t": str(row["id"])},
@@ -569,7 +596,8 @@ async def delete_tenant(
                             by=getattr(request.state, "user_id", None), reason=reason)
     await _audit(db, request, action="UPDATE", entity_type="tenant", slug=slug, tenant_id=row["id"],
                  old_values={"status": row["status"]},
-                 new_values={"status": "cancelled", **({"reason": reason} if reason else {})},
+                 new_values={"status": "cancelled", **({"reason": reason} if reason else {}),
+                             **({"stripe_collection": billing_change} if billing_change else {})},
                  summary=f"Suspended and cancelled the brand{'. Reason: ' + reason if reason else ''}")
     await db.commit()
     brand_status.forget(row["id"])
@@ -744,6 +772,29 @@ async def set_trial(
         raise HTTPException(status_code=404, detail="Tenant not found")
 
     days = trial.DEFAULT_DAYS if data.days is None else int(data.days)
+
+    # A card already on file during the trial is a Stripe subscription with its
+    # own trial end: it moves first, or Stripe charges on the old date. Nothing
+    # here changes when Stripe refuses.
+    from datetime import datetime, timedelta, timezone
+
+    from app.services.billing_service import BillingService
+
+    now = datetime.now(timezone.utc)
+    current_end = (await db.execute(text(
+        "SELECT trial_ends_at FROM tenant_subscriptions WHERE tenant_id = :t"
+    ), {"t": str(row[0])})).scalar()
+    span = timedelta(days=max(1, min(days, 365)))
+    new_end = None if days <= 0 else (max(current_end or now, now) + span if data.extend else now + span)
+    try:
+        await BillingService(db).move_trial_end(row[0], new_end)
+    except Exception as exc:
+        logger.exception("Stripe refused the trial change for %s", slug)
+        raise HTTPException(
+            status_code=502,
+            detail=f"Stripe did not accept the new trial end, so nothing was changed: {exc}",
+        )
+
     if days <= 0:
         result = await trial.clear(db, row[0])
         line = "Ended the free trial"
@@ -1036,11 +1087,26 @@ async def purge_tenant(
     row = (await db.execute(text("SELECT id, name FROM tenants WHERE slug=:s"), {"s": slug})).first()
     if not row:
         raise HTTPException(status_code=404, detail="Tenant not found")
+    # Its Stripe subscription ends first. Deleted here, it would go on charging
+    # a brand nothing in the platform can see or stop any more.
+    from app.services.billing_service import BillingService
+
+    try:
+        ended = await BillingService(db).end_billing(slug)
+    except Exception as exc:
+        logger.exception("Stripe refused to cancel %s's subscription", slug)
+        raise HTTPException(
+            status_code=502,
+            detail=f"Stripe did not cancel this brand's subscription, so nothing was deleted: {exc}",
+        )
     # Written against no brand: the brand's own rows go with it.
     await _audit(db, request, action="DELETE", entity_type="tenant", slug=slug, tenant_id=None,
-                 new_values={"brand": row[1], "tenant_id": str(row[0])},
+                 new_values={"brand": row[1], "tenant_id": str(row[0]), "stripe_subscription": ended},
                  summary=f"Permanently deleted the brand {row[1]} ({slug})")
     await db.execute(text("DELETE FROM tenants WHERE id=:t"), {"t": str(row[0])})
+    # Its own settings (shipping, hold, onboarding…) are keyed name@id, not
+    # tied to the brand's row, so they go by hand.
+    await db.execute(text("DELETE FROM settings WHERE key LIKE :k"), {"k": f"%@{row[0]}"})
     await db.commit()
     from app.services import brand_status, tenant_hosts
 

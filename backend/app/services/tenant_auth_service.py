@@ -155,9 +155,19 @@ class TenantAuthService:
                         "SELECT * FROM users WHERE lower(email) = :e "
                         "ORDER BY is_platform_admin DESC, is_admin DESC, created_at ASC LIMIT 5"
                     ), {"e": email.lower()})).mappings().all()]
-                    row = next((c for c in candidates
-                                if verify_password(password, c["hashed_password"] or "")),
-                               candidates[0] if candidates else None)
+                    # The first account this password opens whose shop is not
+                    # closed: somebody with a closed shop and an open one signs
+                    # in to the open one, not into "this shop is closed".
+                    row, closed_match = None, None
+                    for c in candidates:
+                        if not verify_password(password, c["hashed_password"] or ""):
+                            continue
+                        if await _shop_closed(c):
+                            closed_match = closed_match or c
+                            continue
+                        row = c
+                        break
+                    row = row or closed_match or (candidates[0] if candidates else None)
                 else:
                     # An address that names a shop: that shop's user, or the
                     # platform's own admin signing in through it.

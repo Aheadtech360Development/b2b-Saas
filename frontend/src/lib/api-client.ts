@@ -130,9 +130,14 @@ async function serverStorefrontHost(): Promise<string | null> {
 
 // In-memory token store (never persisted to localStorage for XSS safety)
 let accessToken: string | null = null;
+// This page is (or was) platform support's visit to a brand. Kept when the
+// token is cleared: several requests fail together when the visit ends, and
+// the second must not find a null token and renew it as the platform admin.
+let supportVisit = false;
 
 export function setAccessToken(token: string | null) {
   accessToken = token;
+  if (token) supportVisit = isSupportSession(token);
 }
 
 export function getAccessToken() {
@@ -175,7 +180,7 @@ async function refreshAccessToken(): Promise<string | null> {
   // A support session is never renewed. The refresh cookie in this browser is
   // the platform admin's own: renewing would swap the brand's session for the
   // platform's, inside the brand's admin. When it ends, it ends.
-  if (isSupportSession()) {
+  if (supportVisit || isSupportSession()) {
     setAccessToken(null);
     if (onAuthExpired) onAuthExpired();
     return null;

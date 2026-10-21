@@ -27,6 +27,8 @@ logger = logging.getLogger(__name__)
 _ACTIVE_STATES = {"active", "trialing"}
 # Terminal / dead states — access should be revoked.
 _DEAD_STATES = {"canceled", "incomplete_expired", "unpaid"}
+# A subscription that can still bill or come back, and so is the one to change.
+_RESUMABLE = ("active", "trialing", "past_due", "unpaid", "incomplete")
 
 
 
@@ -260,6 +262,12 @@ class BillingService:
         sub_row = (await self.db.execute(text(
             "SELECT stripe_subscription_id, status FROM tenant_subscriptions WHERE tenant_id = :t"
         ), {"t": str(tenant["id"])})).first()
+        if sub_row and sub_row[0] and sub_row[1] in ("unpaid", "incomplete"):
+            # A new checkout here would start a second subscription beside the
+            # one still owed, and paying that later would bill both.
+            raise ValueError(
+                "Your last invoice is still unpaid. Pay it in Manage billing; the plan can be changed after."
+            )
         if sub_row and sub_row[0] and sub_row[1] in ("active", "trialing", "past_due"):
             s = await _stripe_for(self.db)
             try:
@@ -335,7 +343,10 @@ class BillingService:
         sub_row = (await self.db.execute(text(
             "SELECT stripe_subscription_id, status FROM tenant_subscriptions WHERE tenant_id = :t"
         ), {"t": str(tenant["id"])})).first()
-        if sub_row and sub_row[0] and sub_row[1] in ("active", "trialing", "past_due"):
+        # Every subscription that can still bill or resume, not only the paid-up
+        # ones: an unpaid or incomplete one keeps its old price, and paying its
+        # open invoice would bring the old plan back.
+        if sub_row and sub_row[0] and sub_row[1] in _RESUMABLE:
             price_id = await self.price_id_for_plan(plan_key)
             if not price_id:
                 raise ValueError(
@@ -345,16 +356,24 @@ class BillingService:
             s = await _stripe_for(self.db)
             try:
                 sub = s.Subscription.retrieve(sub_row[0])
-                item = sub["items"]["data"][0]
+                item = await self._plan_item(sub)
+                metadata = {"tenant_id": str(tenant["id"]), "plan_key": plan_key}
                 outcome = "unchanged"
                 if item["price"]["id"] != price_id:
                     s.Subscription.modify(
                         sub.id,
                         items=[{"id": item["id"], "price": price_id}],
-                        proration_behavior="create_prorations",
-                        metadata={"tenant_id": str(tenant["id"]), "plan_key": plan_key},
+                        # Prorated only when the current period was paid for:
+                        # a past-due or unpaid period credited on a downgrade
+                        # would be credit for time nobody paid.
+                        proration_behavior="create_prorations" if sub.get("status") == "active" else "none",
+                        metadata=metadata,
                     )
                     outcome = "switched"
+                else:
+                    # Already on that price: the plan written on it still has
+                    # to say so, or the sync below reads the old one back.
+                    s.Subscription.modify(sub.id, metadata=metadata)
                 await self.sync_subscription(s.Subscription.retrieve(sub.id))
                 return {"plan": plan_key, "billing": outcome}
             except Exception as exc:
@@ -379,6 +398,105 @@ class BillingService:
 
         entitlements.forget(tenant["id"])
         return {"plan": plan_key, "billing": "not_subscribed"}
+
+    async def _plan_item(self, sub) -> dict:
+        """The subscription's plan line, not an add-on beside it."""
+        from app.core.billing_plans import BILLING_PLANS
+
+        items = (sub.get("items") or {}).get("data") or []
+        if len(items) == 1:
+            return items[0]
+        lookup = {p["lookup_key"] for p in BILLING_PLANS.values()}
+        found = []
+        for it in items:
+            price = it.get("price") or {}
+            if price.get("lookup_key") in lookup or await self.plan_for_price_id(price.get("id") or ""):
+                found.append(it)
+        if len(found) != 1:
+            raise ValueError("This brand's Stripe subscription has no single plan line to change. Change it in Stripe.")
+        return found[0]
+
+    async def _live_subscription(self, tenant_id) -> tuple[str | None, str | None]:
+        row = (await self.db.execute(text(
+            "SELECT stripe_subscription_id, status FROM tenant_subscriptions WHERE tenant_id = :t"
+        ), {"t": str(tenant_id)})).first()
+        if row and row[0] and row[1] in _RESUMABLE:
+            return row[0], row[1]
+        return None, None
+
+    async def hold_billing(self, slug: str) -> str:
+        """The platform closed the shop: Stripe stops collecting while it is closed.
+
+        Collection is paused, not the subscription ended, so restoring the shop
+        restores its billing exactly as it was; invoices due meanwhile are
+        voided, so a closed shop is never charged. "paused" or "none" (nothing
+        in Stripe to pause). Raises when Stripe refuses, so the caller can
+        leave the shop as it was rather than close it while it is still billed.
+        """
+        tenant = await self._get_tenant(slug)
+        sub_id, _ = await self._live_subscription(tenant["id"]) if tenant else (None, None)
+        if not sub_id:
+            return "none"
+        s = await _stripe_for(self.db)
+        try:
+            s.Subscription.modify(sub_id, pause_collection={"behavior": "void"})
+        except Exception as exc:
+            if _is_missing(exc):
+                return "none"
+            raise
+        return "paused"
+
+    async def release_billing(self, slug: str) -> str:
+        """The platform reopened the shop: Stripe collects again. "resumed" or "none"."""
+        tenant = await self._get_tenant(slug)
+        sub_id, _ = await self._live_subscription(tenant["id"]) if tenant else (None, None)
+        if not sub_id:
+            return "none"
+        s = await _stripe_for(self.db)
+        try:
+            s.Subscription.modify(sub_id, pause_collection="")
+        except Exception as exc:
+            if _is_missing(exc):
+                return "none"
+            raise
+        return "resumed"
+
+    async def end_billing(self, slug: str) -> str:
+        """The brand is being deleted for good: its subscription is cancelled now,
+        or Stripe would go on charging a brand nothing here can see any more.
+        "cancelled" or "none". Raises when Stripe refuses."""
+        tenant = await self._get_tenant(slug)
+        sub_id, _ = await self._live_subscription(tenant["id"]) if tenant else (None, None)
+        if not sub_id:
+            return "none"
+        s = await _stripe_for(self.db)
+        try:
+            s.Subscription.cancel(sub_id)
+        except Exception as exc:
+            if _is_missing(exc):
+                return "none"
+            raise
+        return "cancelled"
+
+    async def move_trial_end(self, tenant_id, ends_at: datetime | None) -> bool:
+        """A card already on file during the free period: Stripe's own trial end
+        moves with ours, or Stripe would charge on the old date (or, ended,
+        keep the trial running). True when Stripe was changed."""
+        row = (await self.db.execute(text(
+            "SELECT stripe_subscription_id, status FROM tenant_subscriptions WHERE tenant_id = :t"
+        ), {"t": str(tenant_id)})).first()
+        if not (row and row[0] and row[1] == "trialing"):
+            return False
+        s = await _stripe_for(self.db)
+        trial_end = "now" if ends_at is None else int(ends_at.timestamp())
+        try:
+            s.Subscription.modify(row[0], trial_end=trial_end, proration_behavior="none")
+            await self.sync_subscription(s.Subscription.retrieve(row[0]))
+        except Exception as exc:
+            if _is_missing(exc):
+                return False
+            raise
+        return True
 
     async def create_portal_session(self, slug: str) -> dict:
         tenant = await self._get_tenant(slug)
@@ -498,7 +616,11 @@ class BillingService:
         if not payment_method:
             return {"started": False, "reason": "no_card"}
 
-        plan_key = tenant.get("plan") if get_plan(tenant.get("plan") or "") else "starter"
+        # The plan the brand's features already follow: an old name's successor
+        # ("growth" is Wholesale), Starter for anything that is not a plan.
+        from app.core.billing_plans import effective_plan
+
+        plan_key = effective_plan(tenant.get("plan"))
         price_id = await self.price_id_for_plan(plan_key)
         if not price_id:
             raise ValueError(f"No Stripe price for the {plan_key} plan.")
@@ -616,9 +738,16 @@ class BillingService:
         brand_status.forget(tenant_id)
 
     async def mark_past_due(self, subscription_id: str) -> None:
-        """invoice.payment_failed — record past_due without yanking access yet."""
+        """invoice.payment_failed — record past_due without yanking access yet.
+
+        Only a live subscription becomes past_due. A failed attempt to pay a
+        subscription that has already lapsed (a brand trying a card that
+        declines), or a failure event delivered late, must not rewrite a dead
+        state as a live one: Stripe sends no later event to put it back.
+        """
         await self._bypass_rls()
         await self.db.execute(text("""
             UPDATE tenant_subscriptions SET status = 'past_due', updated_at = now()
             WHERE stripe_subscription_id = :s
+              AND status NOT IN ('canceled', 'unpaid', 'incomplete_expired')
         """), {"s": subscription_id})

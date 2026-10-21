@@ -109,9 +109,9 @@ def test_the_console_refuses_what_is_not_a_plan_or_an_address():
 class _Stripe:
     """Stands in for Stripe's Subscription calls and remembers them."""
 
-    def __init__(self, price="price_starter"):
+    def __init__(self, price="price_starter", status="active"):
         self.modified = []
-        current = {"id": "sub_1", "items": {"data": [{"id": "si_1", "price": {"id": price}}]}}
+        current = {"id": "sub_1", "status": status, "items": {"data": [{"id": "si_1", "price": {"id": price}}]}}
 
         class Subscription:
             @staticmethod
@@ -121,7 +121,8 @@ class _Stripe:
             @staticmethod
             def modify(sub_id, **kw):
                 self.modified.append((sub_id, kw))
-                current["items"]["data"][0]["price"]["id"] = kw["items"][0]["price"]
+                if "items" in kw:
+                    current["items"]["data"][0]["price"]["id"] = kw["items"][0]["price"]
 
         self.Subscription = Subscription
 
@@ -140,7 +141,7 @@ TENANT = {"id": "t1", "slug": "shop", "name": "Shop", "email": "o@shop.co", "sta
 def test_a_paying_brand_is_switched_in_stripe_not_just_in_our_table(monkeypatch, sub_status):
     from app.services import billing_service
 
-    fake = _Stripe()
+    fake = _Stripe(status=sub_status)
     synced = []
 
     async def stripe_for(db):
@@ -163,9 +164,126 @@ def test_a_paying_brand_is_switched_in_stripe_not_just_in_our_table(monkeypatch,
     assert out == {"plan": "wholesale", "billing": "switched"}
     (sub_id, kw), = fake.modified
     assert sub_id == "sub_1" and kw["items"] == [{"id": "si_1", "price": "price_wholesale"}]
-    assert kw["proration_behavior"] == "create_prorations" and kw["metadata"]["plan_key"] == "wholesale"
+    assert kw["metadata"]["plan_key"] == "wholesale"
     # The plan follows from what Stripe then says, not from a write of our own.
     assert synced and not db.ran("UPDATE tenants SET plan")
+
+
+@pytest.mark.parametrize("sub_status, proration", [("active", "create_prorations"), ("past_due", "none"),
+                                                   ("unpaid", "none"), ("incomplete", "none")])
+def test_only_a_paid_up_period_is_prorated_and_unpaid_ones_are_switched_too(monkeypatch, sub_status, proration):
+    from app.services import billing_service
+
+    fake = _Stripe(status=sub_status)
+
+    async def stripe_for(db):
+        return fake
+
+    async def price_for(self, plan_key):
+        return f"price_{plan_key}"
+
+    async def sync(self, subscription):
+        pass
+
+    monkeypatch.setattr(billing_service, "_stripe_for", stripe_for)
+    monkeypatch.setattr(billing_service.BillingService, "price_id_for_plan", price_for)
+    monkeypatch.setattr(billing_service.BillingService, "sync_subscription", sync)
+    db = _Db({"FROM tenants WHERE slug": _Result(mapping=TENANT),
+              "SELECT stripe_subscription_id, status FROM tenant_subscriptions": _Result(row=("sub_1", sub_status))})
+
+    out = run(billing_service.BillingService(db).switch_plan("shop", "wholesale"))
+    assert out["billing"] == "switched"
+    assert fake.modified[0][1]["proration_behavior"] == proration
+
+
+def test_the_plan_is_written_on_stripe_even_when_the_price_already_matches(monkeypatch):
+    from app.services import billing_service
+
+    fake = _Stripe(price="price_wholesale")
+
+    async def stripe_for(db):
+        return fake
+
+    async def price_for(self, plan_key):
+        return f"price_{plan_key}"
+
+    async def sync(self, subscription):
+        pass
+
+    monkeypatch.setattr(billing_service, "_stripe_for", stripe_for)
+    monkeypatch.setattr(billing_service.BillingService, "price_id_for_plan", price_for)
+    monkeypatch.setattr(billing_service.BillingService, "sync_subscription", sync)
+    db = _Db({"FROM tenants WHERE slug": _Result(mapping=TENANT),
+              "SELECT stripe_subscription_id, status FROM tenant_subscriptions": _Result(row=("sub_1", "active"))})
+
+    out = run(billing_service.BillingService(db).switch_plan("shop", "wholesale"))
+    assert out["billing"] == "unchanged"
+    (sub_id, kw), = fake.modified
+    assert "items" not in kw and kw["metadata"]["plan_key"] == "wholesale"
+
+
+def test_the_plan_line_is_found_beside_an_add_on(monkeypatch):
+    from app.services.billing_service import BillingService
+
+    svc = BillingService(_Db())
+
+    async def plan_for(price_id):
+        return None
+
+    svc.plan_for_price_id = plan_for
+    plan_line = {"id": "si_plan", "price": {"id": "p1", "lookup_key": "printcopilot_starter_monthly"}}
+    add_on = {"id": "si_app", "price": {"id": "p2", "lookup_key": "printcopilot_mobile_app"}}
+    assert run(svc._plan_item({"items": {"data": [add_on, plan_line]}})) == plan_line
+    with pytest.raises(ValueError):
+        run(svc._plan_item({"items": {"data": [add_on, dict(add_on, id="si_x")]}}))
+
+
+def test_an_unpaid_brand_is_not_sold_a_second_subscription(monkeypatch):
+    from app.services import billing_service
+
+    async def price_for(self, plan_key):
+        return f"price_{plan_key}"
+
+    monkeypatch.setattr(billing_service.BillingService, "price_id_for_plan", price_for)
+    db = _Db({"FROM tenants WHERE slug": _Result(mapping=TENANT),
+              "SELECT stripe_subscription_id, status FROM tenant_subscriptions": _Result(row=("sub_1", "unpaid"))})
+    with pytest.raises(ValueError) as e:
+        run(billing_service.BillingService(db).create_checkout_session("shop", "starter"))
+    assert "unpaid" in str(e.value)
+
+
+def test_a_card_on_file_starts_the_plan_the_brands_features_follow():
+    from app.services import billing_service
+
+    source = inspect.getsource(billing_service.BillingService.start_from_card_on_file)
+    assert "effective_plan(tenant.get(\"plan\"))" in source
+
+
+END = datetime(2026, 11, 30, tzinfo=UTC)
+
+
+@pytest.mark.parametrize("ends, sent", [(None, "now"), (END, int(END.timestamp()))])
+def test_a_trial_with_a_card_on_file_moves_in_stripe_too(monkeypatch, ends, sent):
+    from app.services import billing_service
+
+    fake = _PausableStripe(status="trialing")
+    synced = []
+
+    async def stripe_for(db):
+        return fake
+
+    async def sync(self, subscription):
+        synced.append(subscription)
+
+    monkeypatch.setattr(billing_service, "_stripe_for", stripe_for)
+    monkeypatch.setattr(billing_service.BillingService, "sync_subscription", sync)
+    db = _Db({"SELECT stripe_subscription_id, status FROM tenant_subscriptions": _Result(row=("sub_1", "trialing"))})
+    assert run(billing_service.BillingService(db).move_trial_end("t1", ends)) is True
+    assert fake.calls == [("modify", "sub_1", {"trial_end": sent, "proration_behavior": "none"})] and synced
+
+    # Paying already, or no card: Stripe has no trial to move.
+    db = _Db({"SELECT stripe_subscription_id, status FROM tenant_subscriptions": _Result(row=("sub_1", "active"))})
+    assert run(billing_service.BillingService(db).move_trial_end("t1", ends)) is False
 
 
 def test_a_brand_paying_nothing_is_moved_without_stripe(monkeypatch):
@@ -252,13 +370,34 @@ def test_the_stripe_mode_switch_is_not_taken_for_a_brand_address(monkeypatch):
 def test_who_gets_into_a_closed_shop():
     d = brand_status.decide
     assert d("active", None, False, False) == brand_status.OPEN
-    # Closed by hand (its plan has not lapsed), or held by the platform: nobody.
-    assert d("suspended", "active", False, True) == brand_status.CLOSED
-    assert d("suspended", "canceled", True, True) == brand_status.CLOSED
+    # Held by the platform, or cancelled (only the console cancels): nobody.
+    assert d("suspended", "active", True, True) == brand_status.CLOSED
     assert d("cancelled", None, False, True) == brand_status.CLOSED
-    # Its plan lapsed: staff in, to pay; its buyers not.
+    # Closed for its plan: staff in, to pay; its buyers not.
     assert d("suspended", "canceled", False, True) == brand_status.BILLING_ONLY
     assert d("suspended", "unpaid", False, False) == brand_status.CLOSED
+    # The subscription row never decides it: a late failed-payment event that
+    # marks a lapsed one past_due must not lock its staff out of paying.
+    assert d("suspended", "past_due", False, True) == brand_status.BILLING_ONLY
+
+
+def test_a_late_failed_payment_does_not_revive_a_lapsed_subscription():
+    from app.services.billing_service import BillingService
+
+    db = _Db()
+    run(BillingService(db).mark_past_due("sub_1"))
+    sql, _ = db.sql[-1]
+    assert "SET status = 'past_due'" in sql and "NOT IN ('canceled', 'unpaid', 'incomplete_expired')" in sql
+
+
+def test_the_backfill_holds_every_shop_closed_by_hand_before_the_hold_existed():
+    import importlib
+
+    m = importlib.import_module("migrations.versions.0065_platform_hold_backfill")
+    source = inspect.getsource(m.upgrade)
+    assert m.down_revision == "0064_signup_onboarding" and len(m.revision) <= 32
+    assert "t.status = 'cancelled'" in source and "NOT IN ('canceled', 'unpaid', 'incomplete_expired')" in source
+    assert "ON CONFLICT (key) DO NOTHING" in source
 
 
 @pytest.mark.parametrize("held, reopened", [(True, False), (False, True)])
@@ -274,7 +413,9 @@ def test_a_stripe_event_does_not_reopen_a_shop_the_platform_closed(monkeypatch, 
     assert db.ran("SET status") is reopened
 
 
-def test_suspending_holds_the_shop_and_activating_releases_it(monkeypatch):
+def test_suspending_holds_the_shop_and_stops_stripe_and_activating_undoes_both(monkeypatch):
+    from app.services.billing_service import BillingService
+
     calls = []
 
     async def hold(db, tenant_id, **kw):
@@ -283,6 +424,14 @@ def test_suspending_holds_the_shop_and_activating_releases_it(monkeypatch):
     async def release(db, tenant_id):
         calls.append(("release", tenant_id))
 
+    async def pause(self, slug):
+        calls.append(("pause", slug))
+        return "paused"
+
+    async def resume(self, slug):
+        calls.append(("resume", slug))
+        return "resumed"
+
     audited = []
 
     async def audit(db, request, **kw):
@@ -290,16 +439,120 @@ def test_suspending_holds_the_shop_and_activating_releases_it(monkeypatch):
 
     monkeypatch.setattr(brand_status, "hold", hold)
     monkeypatch.setattr(brand_status, "release", release)
+    monkeypatch.setattr(BillingService, "hold_billing", pause)
+    monkeypatch.setattr(BillingService, "release_billing", resume)
     monkeypatch.setattr(tenants, "_audit", audit)
 
     def db(status):
         return _Db({"SELECT id, name, slug, status, plan, custom_domain FROM tenants": _Result(mapping={
             "id": "t1", "name": "Shop", "slug": "shop", "status": status, "plan": "starter", "custom_domain": None})})
 
-    run(tenants.update_tenant("shop", tenants.TenantUpdate(status="suspended", reason="Chargebacks"), _request(), db("active")))
+    out = run(tenants.update_tenant("shop", tenants.TenantUpdate(status="suspended", reason="Chargebacks"), _request(), db("active")))
     run(tenants.update_tenant("shop", tenants.TenantUpdate(status="active"), _request(), db("suspended")))
-    assert calls == [("hold", "t1", "suspended", "Chargebacks"), ("release", "t1")]
+    assert calls == [("pause", "shop"), ("hold", "t1", "suspended", "Chargebacks"),
+                     ("resume", "shop"), ("release", "t1")]
+    assert out["stripe_collection"] == "paused"
     assert audited[0]["tenant_id"] == "t1" and "Chargebacks" in audited[0]["summary"]
+
+
+def test_a_shop_is_not_closed_while_stripe_would_go_on_billing_it(monkeypatch):
+    from fastapi import HTTPException
+
+    from app.services.billing_service import BillingService
+
+    async def refused(self, slug):
+        raise RuntimeError("Stripe is down")
+
+    monkeypatch.setattr(BillingService, "hold_billing", refused)
+    db = _Db({"SELECT id, name, slug, status, plan, custom_domain FROM tenants": _Result(mapping={
+        "id": "t1", "name": "Shop", "slug": "shop", "status": "active", "plan": "starter", "custom_domain": None})})
+    with pytest.raises(HTTPException) as e:
+        run(tenants.update_tenant("shop", tenants.TenantUpdate(status="suspended"), _request(), db))
+    assert e.value.status_code == 502 and not db.committed
+
+
+class _PausableStripe:
+    def __init__(self, status="active", error=None):
+        self.calls, self.error = [], error
+
+        class Subscription:
+            @staticmethod
+            def modify(sub_id, **kw):
+                if self.error:
+                    raise self.error
+                self.calls.append(("modify", sub_id, kw))
+
+            @staticmethod
+            def cancel(sub_id):
+                if self.error:
+                    raise self.error
+                self.calls.append(("cancel", sub_id))
+
+            @staticmethod
+            def retrieve(sub_id):
+                return _Sub({"id": sub_id, "status": status, "items": {"data": []}})
+
+        self.Subscription = Subscription
+
+
+@pytest.mark.parametrize("sub_status, live", [("active", True), ("past_due", True), ("unpaid", True),
+                                              ("canceled", False), (None, False)])
+def test_billing_pauses_resumes_and_ends_only_a_live_subscription(monkeypatch, sub_status, live):
+    from app.services import billing_service
+
+    fake = _PausableStripe()
+
+    async def stripe_for(db):
+        return fake
+
+    monkeypatch.setattr(billing_service, "_stripe_for", stripe_for)
+    db = _Db({"FROM tenants WHERE slug": _Result(mapping=TENANT),
+              "SELECT stripe_subscription_id, status FROM tenant_subscriptions": _Result(
+                  row=("sub_1", sub_status) if sub_status else None)})
+    svc = billing_service.BillingService(db)
+    outcomes = (run(svc.hold_billing("shop")), run(svc.release_billing("shop")), run(svc.end_billing("shop")))
+    if live:
+        assert outcomes == ("paused", "resumed", "cancelled")
+        assert fake.calls == [("modify", "sub_1", {"pause_collection": {"behavior": "void"}}),
+                              ("modify", "sub_1", {"pause_collection": ""}), ("cancel", "sub_1")]
+    else:
+        assert outcomes == ("none", "none", "none") and fake.calls == []
+
+
+def test_a_brand_is_not_deleted_while_its_subscription_would_go_on_charging(monkeypatch):
+    from fastapi import HTTPException
+
+    from app.services.billing_service import BillingService
+
+    async def refused(self, slug):
+        raise RuntimeError("Stripe is down")
+
+    async def audit(db, request, **kw):
+        pass
+
+    monkeypatch.setattr(BillingService, "end_billing", refused)
+    monkeypatch.setattr(tenants, "_audit", audit)
+    db = _Db({"SELECT id, name FROM tenants": _Result(row=("t1", "Shop"))})
+    with pytest.raises(HTTPException) as e:
+        run(tenants.purge_tenant("shop", _request(), db))
+    assert e.value.status_code == 502 and not db.ran("DELETE FROM tenants")
+
+
+def test_a_purge_ends_the_subscription_and_the_brands_own_settings(monkeypatch):
+    from app.services.billing_service import BillingService
+
+    async def ended(self, slug):
+        return "cancelled"
+
+    async def audit(db, request, **kw):
+        pass
+
+    monkeypatch.setattr(BillingService, "end_billing", ended)
+    monkeypatch.setattr(tenants, "_audit", audit)
+    db = _Db({"SELECT id, name FROM tenants": _Result(row=("t1", "Shop"))})
+    run(tenants.purge_tenant("shop", _request(), db))
+    assert db.ran("DELETE FROM tenants WHERE id") and db.ran("DELETE FROM settings WHERE key LIKE")
+    assert any(p.get("k") == "%@t1" for sql, p in db.sql if "DELETE FROM settings" in sql)
 
 
 def test_sign_in_refuses_a_shop_the_platform_closed(monkeypatch):
@@ -316,6 +569,41 @@ def test_sign_in_refuses_a_shop_the_platform_closed(monkeypatch):
     assert run(tenant_auth_service._shop_closed({"tenant_id": None, "is_platform_admin": True})) is False
     monkeypatch.setattr(brand_status, "gate", broken)
     assert run(tenant_auth_service._shop_closed({"tenant_id": "t1"})) is False  # fails open
+
+
+def test_sign_in_on_the_platform_picks_the_open_shop_over_a_closed_one(monkeypatch):
+    from app.services import tenant_auth_service
+
+    source = inspect.getsource(tenant_auth_service.TenantAuthService.login)
+    assert "closed_match" in source and "await _shop_closed(c)" in source
+
+
+def test_ending_a_support_visit_revokes_only_its_own_token(monkeypatch):
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+
+    from app.api.v1 import tenant_auth
+    from app.core import redis as redis_mod
+    from app.core.security import create_access_token
+
+    revoked = []
+
+    async def remember(key, value, expire=None):
+        revoked.append((key, expire))
+
+    monkeypatch.setattr(redis_mod, "redis_set", remember)
+    mini = FastAPI()
+    mini.include_router(tenant_auth.router, prefix="/api/v1")
+    client = TestClient(mini)
+
+    visit = create_access_token("owner", {"impersonated": True, "tenant_id": "t1"}, expires_minutes=30)
+    assert client.post("/api/v1/auth/support/end", headers={"Authorization": f"Bearer {visit}"}).status_code == 204
+    (key, ttl), = revoked
+    assert key.startswith("blacklist:") and 0 < ttl <= 30 * 60
+    # An ordinary sign-in is not ended this way.
+    own = create_access_token("owner", {"tenant_id": "t1"})
+    client.post("/api/v1/auth/support/end", headers={"Authorization": f"Bearer {own}"})
+    assert len(revoked) == 1
 
 
 def test_a_closed_shops_sessions_are_refused_but_support_gets_in(monkeypatch):

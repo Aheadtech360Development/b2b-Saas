@@ -117,6 +117,35 @@ async def get_profile(
     return await service.get_profile(str(user_id))
 
 
+@router.post("/support/end", status_code=204)
+async def end_support_session(request: Request) -> None:
+    """End a platform support visit now (End session, in the brand's admin).
+
+    Only the visit's own token is revoked, for as long as it had left. /logout
+    is not for this: it also drops the refresh cookie, which in this browser is
+    the platform admin's own, and the owner's refresh token, which is theirs.
+    A token that is not a support visit's is left alone.
+    """
+    import time
+
+    from app.core.redis import redis_set
+    from app.core.security import decode_token
+
+    auth = request.headers.get("Authorization", "")
+    if not auth.startswith("Bearer "):
+        return
+    try:
+        payload = decode_token(auth.split(" ", 1)[1])
+    except Exception:  # an expired or unreadable token is already no use
+        return
+    if not payload.get("impersonated"):
+        return
+    jti = payload.get("jti")
+    ttl = int(payload.get("exp", 0)) - int(time.time())
+    if jti and ttl > 0:
+        await redis_set(f"blacklist:{jti}", "1", expire=ttl)
+
+
 @router.post("/logout", status_code=204)
 async def logout(request: Request, response: Response) -> None:
     """Sign out — and mean it.

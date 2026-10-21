@@ -20,6 +20,7 @@ import { useAuthStore } from "@/stores/auth.store";
 import { useCopilotStore } from "@/stores/copilot.store";
 import { useBranding } from "@/components/providers/BrandingProvider";
 import { OPEN_NAV } from "@/components/layout/AdminSidebar";
+import { endSupportVisit } from "@/components/admin/SupportSessionBanner";
 
 interface Hit { group: "Orders" | "Customers" | "Products"; id: string; title: string; note: string; href: string }
 
@@ -58,7 +59,9 @@ export function AdminTopbar() {
     return () => { window.removeEventListener("keydown", onKey); window.removeEventListener("mousedown", onDown); };
   }, []);
 
-  function signOut() {
+  async function signOut() {
+    // A support visit ends on the server too (components/admin/SupportSessionBanner).
+    await endSupportVisit();
     clearAuth();
     router.replace("/login");
   }
@@ -103,7 +106,7 @@ export function AdminTopbar() {
               </div>
               <a href="/" target="_blank" rel="noreferrer" role="menuitem"><Store size={16} strokeWidth={1.9} /> View your store</a>
               <Link href="/admin/settings/security" role="menuitem"><UserRound size={16} strokeWidth={1.9} /> Sign-in and security</Link>
-              <button type="button" role="menuitem" onClick={signOut} style={{ color: "var(--pc-red)" }}><LogOut size={16} strokeWidth={1.9} /> Sign out</button>
+              <button type="button" role="menuitem" onClick={() => void signOut()} style={{ color: "var(--pc-red)" }}><LogOut size={16} strokeWidth={1.9} /> Sign out</button>
             </div>
           )}
         </div>

@@ -12,8 +12,12 @@ A shop is closed in one of two ways, and they are not the same:
 
 The platform's own decision is kept as the brand setting HOLD_KEY, so a Stripe
 event can neither reopen a shop the platform closed nor be overridden by one.
-A brand closed before the hold existed has none; if its plan has not lapsed,
-it was closed by hand, and is treated as held.
+Only that record (or the status "cancelled", which only the console writes)
+says a shop was closed by hand: the subscription's status is not read for it,
+because a late or retried Stripe event can rewrite it (a failed retry marks a
+lapsed subscription past_due) and must never lock a lapsed shop's staff out of
+paying. Shops closed by hand before the hold existed were given one when it
+shipped (migration 0065).
 
 Platform support entering a brand from the console is let in either way:
 helping a closed shop is part of the job.
@@ -42,10 +46,15 @@ _cache: dict[str, tuple[float, dict]] = {}
 
 
 def decide(status: str | None, sub_status: str | None, held: bool, is_staff: bool) -> str:
-    """OPEN, BILLING_ONLY (staff of a shop whose plan lapsed: in, to pay) or CLOSED."""
+    """OPEN, BILLING_ONLY (staff of a shop closed for its plan: in, to pay) or CLOSED.
+
+    `sub_status` is accepted for the callers' convenience and deliberately not
+    used: see the module's note on why the subscription row cannot say who
+    closed a shop.
+    """
     if (status or "active") == "active":
         return OPEN
-    if held or (sub_status or "") not in LAPSED:
+    if held or status == "cancelled":
         return CLOSED
     return BILLING_ONLY if is_staff else CLOSED
 
@@ -135,6 +144,13 @@ async def release(db, tenant_id) -> None:
 
 
 async def is_held(db, tenant_id) -> bool:
+    """Whether the platform closed this shop by hand: a hold on record, or the
+    status "cancelled", which only the console ever writes."""
     from app.core.tenant_settings import get_setting
 
-    return _parse_hold(await get_setting(db, HOLD_KEY, tenant_id=tenant_id)) is not None
+    if _parse_hold(await get_setting(db, HOLD_KEY, tenant_id=tenant_id)) is not None:
+        return True
+    status = (await db.execute(
+        text("SELECT status FROM tenants WHERE id = CAST(:t AS uuid)"), {"t": str(tenant_id)}
+    )).scalar()
+    return status == "cancelled"
