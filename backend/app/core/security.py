@@ -24,10 +24,12 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 def create_access_token(
     subject: str,
     extra_claims: dict[str, Any] | None = None,
+    expires_minutes: int | None = None,
 ) -> str:
-    """Create a short-lived JWT access token (15 min)."""
+    """Create a JWT access token, for the configured time unless told otherwise
+    (platform support's session in a brand is kept short on purpose)."""
     expire = datetime.now(UTC) + timedelta(
-        minutes=settings.JWT_ACCESS_TOKEN_EXPIRE_MINUTES
+        minutes=expires_minutes or settings.JWT_ACCESS_TOKEN_EXPIRE_MINUTES
     )
     payload: dict[str, Any] = {
         "sub": subject,

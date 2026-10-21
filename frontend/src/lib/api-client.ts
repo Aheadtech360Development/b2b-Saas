@@ -157,8 +157,29 @@ export function setAuthExpiredCallback(cb: () => void) {
 
 let refreshPromise: Promise<string | null> | null = null;
 
+/** Whether a token is platform support's short session inside a brand (Open
+ *  console). Read from the token itself: it carries the claim. */
+export function isSupportSession(token: string | null = accessToken): boolean {
+  if (!token) return false;
+  try {
+    const part = token.split(".")[1] ?? "";
+    const claims = JSON.parse(atob(part.replace(/-/g, "+").replace(/_/g, "/"))) as { impersonated?: boolean };
+    return claims.impersonated === true;
+  } catch {
+    return false;
+  }
+}
+
 async function refreshAccessToken(): Promise<string | null> {
   if (refreshPromise) return refreshPromise;
+  // A support session is never renewed. The refresh cookie in this browser is
+  // the platform admin's own: renewing would swap the brand's session for the
+  // platform's, inside the brand's admin. When it ends, it ends.
+  if (isSupportSession()) {
+    setAccessToken(null);
+    if (onAuthExpired) onAuthExpired();
+    return null;
+  }
 
   const refreshSlug = currentTenantSlug();
   refreshPromise = fetch(`${API_BASE}/api/v1/auth/refresh`, {

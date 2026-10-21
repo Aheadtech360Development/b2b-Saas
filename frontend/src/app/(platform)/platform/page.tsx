@@ -21,10 +21,10 @@ import { AffiliatesTab } from "@/components/platform/affiliates/AffiliatesTab";
 import { LeadsTab } from "@/components/platform/LeadsTab";
 import type { Tenant } from "@/types/user.types";
 
-// The service is sold as a single flat offering — there are no tiers to choose
-// between. New brands are created on one fixed plan value purely to satisfy the
-// API contract; it is never surfaced as a choice in the UI.
-const DEFAULT_PLAN = "standard";
+// A new brand starts on a real plan, changed later in Manage. "standard" is
+// not one, and a brand made on it paid 0% Gang Sheet commission; the server
+// now refuses anything that is not a plan.
+const DEFAULT_PLAN = "starter";
 
 const STATUS_STYLE: Record<string, { bg: string; color: string }> = {
   active:    { bg: "#ECFDF5", color: "#047857" },

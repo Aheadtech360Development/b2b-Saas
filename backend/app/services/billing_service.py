@@ -310,6 +310,76 @@ class BillingService:
         )
         return {"checkout_url": session.url, "session_id": session.id}
 
+    async def switch_plan(self, slug: str, plan_key: str) -> dict:
+        """Move a brand to another plan from the platform console.
+
+        The console used to write the plan straight onto the brand. Stripe went
+        on charging the old price, and for a paying brand the next subscription
+        event wrote the old plan back, so the change quietly undid itself. Now a
+        paying brand's subscription is switched in Stripe, in place and
+        prorated (the same switch the brand's own billing page makes), and the
+        plan follows from what Stripe then says. A brand with nothing being
+        paid is simply put on the plan, which is what its card on file will
+        start when it has one.
+
+        Returns {"plan", "billing"}: "switched" (Stripe changed), "unchanged"
+        (already on that price) or "not_subscribed" (nothing in Stripe to change).
+        The caller commits.
+        """
+        tenant = await self._get_tenant(slug)
+        if not tenant:
+            raise ValueError("Tenant not found")
+        if not get_plan(plan_key):
+            raise ValueError(f"Unknown plan '{plan_key}'")
+
+        sub_row = (await self.db.execute(text(
+            "SELECT stripe_subscription_id, status FROM tenant_subscriptions WHERE tenant_id = :t"
+        ), {"t": str(tenant["id"])})).first()
+        if sub_row and sub_row[0] and sub_row[1] in ("active", "trialing", "past_due"):
+            price_id = await self.price_id_for_plan(plan_key)
+            if not price_id:
+                raise ValueError(
+                    f"Could not set up billing for the {plan_key} plan in Stripe. "
+                    "Check that STRIPE_SECRET_KEY is set and is for the right mode."
+                )
+            s = await _stripe_for(self.db)
+            try:
+                sub = s.Subscription.retrieve(sub_row[0])
+                item = sub["items"]["data"][0]
+                outcome = "unchanged"
+                if item["price"]["id"] != price_id:
+                    s.Subscription.modify(
+                        sub.id,
+                        items=[{"id": item["id"], "price": price_id}],
+                        proration_behavior="create_prorations",
+                        metadata={"tenant_id": str(tenant["id"]), "plan_key": plan_key},
+                    )
+                    outcome = "switched"
+                await self.sync_subscription(s.Subscription.retrieve(sub.id))
+                return {"plan": plan_key, "billing": outcome}
+            except Exception as exc:
+                if not _is_missing(exc):
+                    raise
+                # From another Stripe account or mode: nothing there to change.
+                logger.warning("Subscription %s does not exist here; plan set without Stripe.", sub_row[0])
+                await self.db.execute(text("""
+                    UPDATE tenant_subscriptions SET stripe_subscription_id = NULL, updated_at = now()
+                     WHERE tenant_id = :t
+                """), {"t": str(tenant["id"])})
+
+        await self.db.execute(
+            text("UPDATE tenants SET plan = :p, updated_at = now() WHERE id = :t"),
+            {"p": plan_key, "t": str(tenant["id"])},
+        )
+        await self.db.execute(
+            text("UPDATE tenant_subscriptions SET plan = :p, updated_at = now() WHERE tenant_id = :t"),
+            {"p": plan_key, "t": str(tenant["id"])},
+        )
+        from app.services import entitlements
+
+        entitlements.forget(tenant["id"])
+        return {"plan": plan_key, "billing": "not_subscribed"}
+
     async def create_portal_session(self, slug: str) -> dict:
         tenant = await self._get_tenant(slug)
         if not tenant:
@@ -528,15 +598,22 @@ class BillingService:
                 text("UPDATE tenants SET plan = :p, updated_at = now() WHERE id = :t"),
                 {"p": plan_key, "t": tenant_id},
             )
-        if tenant_status:
-            await self.db.execute(
-                text("UPDATE tenants SET status = :s, updated_at = now() WHERE id = :t"),
-                {"s": tenant_status, "t": tenant_id},
-            )
+        from app.services import brand_status, entitlements
 
-        from app.services import entitlements
+        if tenant_status:
+            if await brand_status.is_held(self.db, tenant_id):
+                # The platform closed this shop by hand: a payment does not
+                # reopen it, and a lapse does not change why it is closed.
+                logger.info("Brand %s is held by the platform; Stripe %s leaves its status alone.",
+                            tenant_id, sub_status)
+            else:
+                await self.db.execute(
+                    text("UPDATE tenants SET status = :s, updated_at = now() WHERE id = :t"),
+                    {"s": tenant_status, "t": tenant_id},
+                )
 
         entitlements.forget(tenant_id)
+        brand_status.forget(tenant_id)
 
     async def mark_past_due(self, subscription_id: str) -> None:
         """invoice.payment_failed — record past_due without yanking access yet."""

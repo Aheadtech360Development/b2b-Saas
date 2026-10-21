@@ -219,6 +219,34 @@ class AuthMiddleware(BaseHTTPMiddleware):
         request.state.pricing_tier_id = payload.get("pricing_tier_id")
         request.state.company_role = payload.get("company_role")
         request.state.account_type = payload.get("account_type", "wholesale")
+        # Platform support inside a brand (Open console): who it really is.
+        request.state.impersonated = bool(payload.get("impersonated"))
+        request.state.impersonated_by = payload.get("impersonated_by")
+
+        # ── A shop the platform closed ────────────────────────────────────────
+        # Suspending a brand closed its storefront and its own sign-in page,
+        # but a session already open, or one started on the platform's
+        # address, went on working in the admin. Now nothing of a closed
+        # shop's answers, except to platform support. A shop closed because
+        # its plan lapsed stays open to its staff, who have to be able to pay
+        # (services/brand_status).
+        if (request.state.tenant_id and not request.state.is_platform_admin
+                and not request.state.impersonated):
+            closed = False
+            try:
+                from app.services import brand_status
+
+                closed = await brand_status.gate(
+                    request.state.tenant_id, is_staff=bool(request.state.is_admin),
+                ) == brand_status.CLOSED
+            except Exception:
+                closed = False  # a lookup that fails must not lock a shop out
+            if closed:
+                return JSONResponse(
+                    status_code=403,
+                    content={"error": {"code": "SHOP_CLOSED",
+                                       "message": "This shop is closed. Contact support."}},
+                )
 
         # ── Company suspension check ──────────────────────────────────────────
         company_id = request.state.company_id

@@ -131,6 +131,12 @@ class AuditMiddleware(BaseHTTPMiddleware):
 
         if worth_recording:
             user_id = getattr(request.state, "user_id", None)
+            # Platform support inside a brand (Open console) works in the
+            # owner's session. The row names who it really was, so the brand's
+            # history does not show the owner doing what support did.
+            support_id = getattr(request.state, "impersonated_by", None)
+            if support_id:
+                user_id = support_id
             client_ip = _client_ip(request)
             user_agent = request.headers.get("user-agent", "")[:500]
 
@@ -168,7 +174,8 @@ class AuditMiddleware(BaseHTTPMiddleware):
                         new_values=_as_json(new_values_raw),
                         ip_address=client_ip,
                         user_agent=user_agent,
-                        summary=summarise(method, path, response.status_code)[:300],
+                        summary=(("Platform support: " if support_id else "")
+                                 + summarise(method, path, response.status_code))[:300],
                         method=method,
                         path=path[:300],
                         status_code=response.status_code,

@@ -86,6 +86,22 @@ def get_plan(key: str) -> dict | None:
     return BILLING_PLANS.get(key)
 
 
+def effective_plan(key: str | None) -> str:
+    """The plan a stored key is treated as: itself, an old name's successor
+    ("growth" is Wholesale), or Starter for anything else.
+
+    Features already fell back this way (core/features.plan_defaults), but the
+    commission did not: a brand on a key that is not a plan, like the
+    console's old "standard", got Starter's tools and paid 0% on its Gang
+    Sheet Builder orders. One answer for both.
+    """
+    from app.core.features import PLAN_ALIASES
+
+    cleaned = (key or "").strip().lower()
+    cleaned = PLAN_ALIASES.get(cleaned, cleaned)
+    return cleaned if cleaned in BILLING_PLANS else "starter"
+
+
 def is_valid_plan(key: str) -> bool:
     return key in BILLING_PLANS
 
@@ -113,10 +129,14 @@ def plan_summary(key: str | None) -> dict:
     """
     p = BILLING_PLANS.get((key or "").strip().lower())
     if not p:
-        return {"key": key or "", "name": (key or "No plan").title(),
+        # Not a plan: said so, and what it is treated as, so a screen can offer
+        # the fix instead of showing a price that is not being charged.
+        return {"key": key or "", "name": (key or "No plan").title(), "known": False,
+                "treated_as": effective_plan(key),
                 "price_display": "—", "commission_display": "—", "amount_cents": 0}
     return {
         "key": key,
+        "known": True,
         "name": p["name"],
         "amount_cents": p["amount_cents"],
         "price_display": f"${p['amount_cents'] // 100}/mo",

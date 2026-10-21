@@ -99,6 +99,24 @@ async def start(db: AsyncSession, tenant_id: object, days: int = DEFAULT_DAYS) -
     return await status(db, tenant_id)
 
 
+async def extend(db: AsyncSession, tenant_id: object, days: int) -> dict[str, Any]:
+    """Add days to the trial's current end (or to today, if it has ended or
+    never started). Reminders start over, for the new end."""
+    days = max(1, min(int(days), 365))
+    await db.execute(text("""
+        INSERT INTO tenant_subscriptions (tenant_id, trial_ends_at, trial_notices_sent)
+        VALUES (CAST(:t AS uuid), now() + make_interval(days => :d), '[]'::jsonb)
+        ON CONFLICT (tenant_id) DO UPDATE
+          SET trial_ends_at = GREATEST(COALESCE(tenant_subscriptions.trial_ends_at, now()), now())
+                              + make_interval(days => :d),
+              trial_notices_sent = '[]'::jsonb,
+              updated_at = now()
+    """), {"t": str(tenant_id), "d": days})
+    await db.commit()
+    logger.info("Trial extended for tenant %s by %s days", tenant_id, days)
+    return await status(db, tenant_id)
+
+
 async def clear(db: AsyncSession, tenant_id: object) -> dict[str, Any]:
     """End a trial without ending anything else, so the banner goes away."""
     await db.execute(text("""

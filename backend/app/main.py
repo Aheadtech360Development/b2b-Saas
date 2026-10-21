@@ -838,6 +838,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # A card on file with no plan behind it: the plan is started (hourly).
     from app.services.billing_autostart import scheduler_loop as _billing_autostart_loop
     _billing_autostart = _asyncio.create_task(_billing_autostart_loop())
+    # Free trial reminders (last three days and the end), hourly; each goes once.
+    from app.services.trial_notices import scheduler_loop as _trial_notices_loop
+    _trial_notices = _asyncio.create_task(_trial_notices_loop())
     # The partner program's failed Stripe events, retried on their own.
     from app.services.partners.commissions import retry_loop as _partner_retry_loop
     _partner_retry = _asyncio.create_task(_partner_retry_loop())
@@ -847,6 +850,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     _supplier_scheduler.cancel()
     _google_reviews_scheduler.cancel()
     _billing_autostart.cancel()
+    _trial_notices.cancel()
     _partner_retry.cancel()
 
 

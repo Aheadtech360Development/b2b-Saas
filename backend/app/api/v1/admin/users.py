@@ -430,4 +430,7 @@ async def reset_user_password(
 
     from app.services.auth_service import AuthService
     svc = AuthService(db)
-    await svc.send_password_reset(user.email)
+    # This brand's account, by its brand: an address can have an account at
+    # several shops (migration 0058), and asked without one the lookup picks
+    # the platform's admin first, then the oldest, which may be somebody else's.
+    await svc.send_password_reset(user.email, user.tenant_id)

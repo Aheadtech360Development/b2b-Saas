@@ -50,6 +50,7 @@ TENANT_SCOPED_KEYS: frozenset[str] = frozenset({
     "markets",  # the countries this brand sells to (JSON) — see services/markets
     "notifications",  # each customer email on or off, and its own wording (JSON) — see services/notifications
     "onboarding",  # where a new shop's owner is in the five setup steps (JSON) — see services/onboarding
+    "platform_hold",  # the platform closed this shop by hand: who, when, why (JSON) — see services/brand_status
 })
 
 _SEP = "@"

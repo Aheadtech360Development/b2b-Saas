@@ -3,6 +3,7 @@ Multi-tenant Auth Service.
 Handles login/register scoped to a specific tenant (by tenant_id).
 Platform admins (tenant_id=None) can log in from the root domain.
 """
+import logging
 import uuid
 from datetime import UTC, datetime
 
@@ -21,6 +22,8 @@ from app.core.security import (
 from app.schemas.auth import LoginResponse, TokenRefreshResponse
 
 REFRESH_TOKEN_EXPIRE_DAYS = 7
+
+logger = logging.getLogger(__name__)
 
 
 # Roles that can access the admin panel (staff roles). 'buyer' is a customer.
@@ -48,6 +51,30 @@ def _build_claims(user_row: dict, scopes: list | None = None, read_only: bool = 
         claims["scopes"] = dict(scopes) if isinstance(scopes, dict) else list(scopes)
         claims["read_only"] = bool(read_only)
     return claims
+
+
+async def _shop_closed(user_row: dict) -> bool:
+    """Whether this person's shop is closed to them (services/brand_status).
+
+    Signing in on the shop's own address was refused for a suspended shop, but
+    the platform's own sign-in checks the person, not the shop, so an owner
+    whose shop the platform had closed signed in there and carried on. Staff of
+    a shop whose plan lapsed still get in, to pay. Platform admins have no shop.
+    A lookup that fails lets the sign-in through: this closes shops, it does
+    not decide who exists.
+    """
+    tenant_id = user_row.get("tenant_id")
+    if not tenant_id or user_row.get("is_platform_admin"):
+        return False
+    try:
+        from app.services import brand_status
+
+        return await brand_status.gate(
+            tenant_id, is_staff=bool(user_row.get("is_admin")),
+        ) == brand_status.CLOSED
+    except Exception:
+        logger.warning("Could not check whether %s's shop is open", user_row.get("email"), exc_info=True)
+        return False
 
 
 async def _resolve_custom_scopes(db, user_row: dict) -> tuple[list | None, bool]:
@@ -160,6 +187,13 @@ class TenantAuthService:
                 f"Sign-in refused — account is not active ({email})",
             )
             raise AccountSuspendedError()
+
+        if await _shop_closed(row):
+            await _record_auth(
+                "DENIED", row["tenant_id"], row["id"], email,
+                f"Sign-in refused — the shop is closed ({email})",
+            )
+            raise AccountSuspendedError("This shop is closed. Contact support.")
 
         user_id = str(row["id"])
 
@@ -369,6 +403,8 @@ class TenantAuthService:
             set_bypass_scoping(previous)
         if not row:
             raise UnauthorizedError("User not found or inactive")
+        if await _shop_closed(dict(row)):
+            raise UnauthorizedError("This shop is closed. Contact support.")
 
         _scopes, _read_only = await _resolve_custom_scopes(self.db, dict(row))
         claims = _build_claims(dict(row), _scopes, _read_only)

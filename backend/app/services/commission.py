@@ -30,8 +30,11 @@ MAX_BPS = 1000
 
 
 def plan_bps(plan: str | None) -> int:
-    p = BILLING_PLANS.get((plan or "").strip().lower())
-    return int(p["commission_bps"]) if p else 0
+    """The plan's rate. A key that is not a plan pays the rate of the plan it
+    is treated as (billing_plans.effective_plan), never nothing."""
+    from app.core.billing_plans import effective_plan
+
+    return int(BILLING_PLANS[effective_plan(plan)]["commission_bps"])
 
 
 async def for_tenant(db: AsyncSession, tenant_id: object) -> dict:

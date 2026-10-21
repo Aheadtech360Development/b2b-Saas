@@ -10,6 +10,7 @@ import { isReadOnly } from "@/lib/permissions";
 import { CopilotDock } from "@/components/admin/CopilotDock";
 import { EntitlementsProvider } from "@/lib/entitlements";
 import { TrialBanner } from "@/components/admin/TrialBanner";
+import { SupportSessionBanner } from "@/components/admin/SupportSessionBanner";
 import "./admin-shell.css";
 
 // The admin's two faces: one for reading, one for headings and figures.
@@ -66,6 +67,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         <div className="pc-main">
           {/* How long the free period has left, above the work rather than
               on a billing page nobody passes. */}
+          {/* Platform support inside this shop, in the owner's session. */}
+          <SupportSessionBanner />
           <TrialBanner />
           <AdminTopbar />
           <main className="pc-content admin-content">
