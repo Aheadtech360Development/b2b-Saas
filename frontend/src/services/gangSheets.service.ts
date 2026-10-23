@@ -233,6 +233,9 @@ export interface GangSheetSettings {
   file_type?: "PNG" | "PDF";
   auto_trim?: boolean;
   print_qr_logo?: boolean;
+  /** The order's number and customer in a strip above each print file. On
+   *  unless turned off (false). */
+  print_order_label?: boolean;
   // Builder
   auto_resize_300?: boolean;
   warn_background?: boolean;

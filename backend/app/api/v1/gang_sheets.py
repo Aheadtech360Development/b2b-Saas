@@ -2006,6 +2006,36 @@ async def _print_name_format(db: AsyncSession, tenant_id=None) -> str | None:
         return None
 
 
+async def _order_label_on(db: AsyncSession, tenant_id=None) -> bool:
+    """Whether the brand prints whose sheet it is in a strip above it (gang
+    sheet Settings → Print output). On unless the brand has turned it off."""
+    import json as _json
+
+    from app.core.tenant_settings import get_setting
+
+    try:
+        raw = await get_setting(db, "gs_settings", tenant_id=tenant_id)
+        return ((_json.loads(raw) if raw else {}) or {}).get("print_order_label") is not False
+    except (ValueError, TypeError, AttributeError):
+        return True
+
+
+def _sheet_label(o: GangSheetOrder, number: str | None = None, buyer: str | None = None) -> str:
+    """What the strip above a sheet says: the order's number and the customer
+    first, as a shop cutting a roll of sheets apart looks for them, then the
+    job's reference, its size and, when more than one, how many to print."""
+    parts: list[str] = []
+    if number:
+        parts.append(f"Order #{number}" if str(number).isdigit() else f"Order {number}")
+    if buyer:
+        parts.append(str(buyer).strip())
+    parts.append(o.reference)
+    parts.append(f'{float(o.sheet_width_in):g}" x {float(o.sheet_height_in):g}"')
+    if (o.sheet_quantity or 1) > 1:
+        parts.append(f"Qty {o.sheet_quantity}")
+    return "  ·  ".join(p for p in parts if p)
+
+
 async def production_details(db: AsyncSession, sales_order_id) -> list[dict]:
     """What production needs for every gang sheet on a sales order, as the order
     page lists it under the sheet's line: its size, a preview, the print-ready
@@ -2140,13 +2170,14 @@ async def sheet_file(sheet_id: uuid.UUID, kind: str, exp: int, sig: str):
             if o.product_id:
                 ptype = (await db.execute(_text("SELECT gang_sheet_type FROM products WHERE id = :p"),
                                           {"p": str(o.product_id)})).scalar()
-            # Whose order it is, for the print file's name, in the brand the
-            # link was signed for.
+            # Whose order it is, for the print file's name and the strip above
+            # the sheet, in the brand the link was signed for.
             linked, name_format = {}, None
+            if o.order_id:
+                linked = (await _linked_orders(db, [o.order_id])).get(str(o.order_id)) or {}
             if kind == "print":
-                if o.order_id:
-                    linked = (await _linked_orders(db, [o.order_id])).get(str(o.order_id)) or {}
                 name_format = await _print_name_format(db, o.tenant_id)
+            labelled = await _order_label_on(db, o.tenant_id)
     finally:
         set_bypass_scoping(previous)
 
@@ -2164,6 +2195,10 @@ async def sheet_file(sheet_id: uuid.UUID, kind: str, exp: int, sig: str):
     art_rows = [_art_row(a) for a in arts]
     sources, missing = await render.load_sources(art_rows, wanted)
     sheet = render.plan(w_in, h_in, layout, {r["id"]: r for r in art_rows}, sources, dpi, missing)
+    if labelled:
+        # Above the sheet, so sheets printed on one roll are cut apart and
+        # known by their order; nothing on the sheet moves.
+        sheet.label = _sheet_label(o, linked.get("number"), o.contact_name or linked.get("name"))
 
     if kind == "preview":
         data = await asyncio.to_thread(lambda: b"".join(render.png_stream(sheet, checker=True)))
@@ -2175,7 +2210,7 @@ async def sheet_file(sheet_id: uuid.UUID, kind: str, exp: int, sig: str):
         "Content-Disposition": _download_header(_print_name(
             o, linked.get("number"), o.contact_name or linked.get("name"), name_format)),
         "Cache-Control": "private, max-age=600",
-        "X-Sheet-Pixels": f"{sheet.width}x{sheet.height}",
+        "X-Sheet-Pixels": f"{sheet.width}x{sheet.total_height}",
     }
     if sheet.left_out:
         # Said where a download can carry it: the file itself has no room. The

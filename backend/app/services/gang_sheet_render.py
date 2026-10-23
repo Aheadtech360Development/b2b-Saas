@@ -48,6 +48,10 @@ MAX_SHEET_PIXELS = 800_000_000
 # bigger file is left out and named, to print from the original.
 MAX_SOURCE_PIXELS = 160_000_000
 BAND_ROWS = 256
+# The strip drawn above the sheet that says whose it is: the order's number and
+# the customer, so sheets printed together on one roll can be cut apart and told
+# apart. It sits above the sheet, never on it, so no design moves.
+LABEL_INCHES = 0.5
 MAX_FETCH_BYTES = 60 * 1024 * 1024
 FETCH_TIMEOUT = 30.0
 FETCH_AT_ONCE = 4
@@ -126,6 +130,17 @@ class Plan:
     sources: dict[str, Source] = field(default_factory=dict)
     # Artwork that could not be drawn into the picture: (file name, why).
     left_out: list[tuple[str, str]] = field(default_factory=list)
+    # Printed in a strip above the sheet when set ("Order #1009 · Jane Doe · …").
+    label: str | None = None
+
+    @property
+    def label_rows(self) -> int:
+        return max(1, round(LABEL_INCHES * self.dpi)) if self.label else 0
+
+    @property
+    def total_height(self) -> int:
+        """The file's height: the sheet, and its label strip above it."""
+        return self.height + self.label_rows
 
     def close(self) -> None:
         for s in self.sources.values():
@@ -256,6 +271,32 @@ def _checker(width: int, rows: int, top: int, size: int = 12) -> Image.Image:
     return band
 
 
+def _label_band(sheet: "Plan", checker: bool) -> Image.Image:
+    """The strip above the sheet, its label written along it in black, a
+    quarter inch in from the left. A label longer than the sheet is wide is
+    set smaller until it fits; past the smallest size its end gives way to an
+    ellipsis. It never runs off the sheet."""
+    from PIL import ImageDraw, ImageFont
+
+    rows = sheet.label_rows
+    band = _checker(sheet.width, rows, 0) if checker else Image.new("RGBA", (sheet.width, rows), (0, 0, 0, 0))
+    margin = max(4, round(0.25 * sheet.dpi))
+    room = max(1, sheet.width - 2 * margin)
+    size = max(8, round(0.24 * sheet.dpi))
+    draw = ImageDraw.Draw(band)
+    text = sheet.label or ""
+    font = ImageFont.load_default(size=size)
+    while size > 8 and draw.textlength(text, font=font) > room:
+        size = max(8, int(size * 0.9))
+        font = ImageFont.load_default(size=size)
+    if draw.textlength(text, font=font) > room:
+        while text and draw.textlength(text + "…", font=font) > room:
+            text = text[:-1]
+        text = text.rstrip(" ·") + "…"
+    draw.text((margin, rows / 2), text, font=font, fill=(0, 0, 0, 255), anchor="lm")
+    return band
+
+
 def _draw(band: Image.Image, top: int, piece: Piece, src: Image.Image, sheet_width: int) -> None:
     """The rows of one piece that fall in this band, drawn onto it."""
     bottom = top + band.height
@@ -290,7 +331,7 @@ def png_stream(sheet: Plan, *, checker: bool = False, level: int = 6) -> Iterato
 
     Each artwork is decoded when the first band reaches one of its pieces and
     let go when its last piece is drawn."""
-    if sheet.width * sheet.height > MAX_SHEET_PIXELS:
+    if sheet.width * sheet.total_height > MAX_SHEET_PIXELS:
         raise ValueError("sheet too large to draw")
     pieces = sorted(sheet.pieces, key=lambda p: p.y)
     # Pieces still to finish, per picture: a logo placed thirty times is
@@ -316,10 +357,18 @@ def png_stream(sheet: Plan, *, checker: bool = False, level: int = 6) -> Iterato
     try:
         ppm = round(sheet.dpi / 0.0254)  # pixels per metre
         yield b"\x89PNG\r\n\x1a\n"
-        yield _chunk(b"IHDR", struct.pack(">IIBBBBB", sheet.width, sheet.height, 8, 6, 0, 0, 0))
+        yield _chunk(b"IHDR", struct.pack(">IIBBBBB", sheet.width, sheet.total_height, 8, 6, 0, 0, 0))
         yield _chunk(b"pHYs", struct.pack(">IIB", ppm, ppm, 1))
         pack = zlib.compressobj(level)
         stride = sheet.width * 4
+        if sheet.label:
+            strip = _label_band(sheet, checker)
+            raw = strip.tobytes()
+            data = b"".join(b"\x00" + raw[i * stride:(i + 1) * stride] for i in range(strip.height))
+            del strip, raw
+            out = pack.compress(data)
+            if out:
+                yield _chunk(b"IDAT", out)
         active: list[Piece] = []
         nxt = 0
         for top in range(0, sheet.height, BAND_ROWS):

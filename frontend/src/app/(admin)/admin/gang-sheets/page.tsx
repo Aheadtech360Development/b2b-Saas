@@ -595,9 +595,10 @@ function SettingsTab() {
   if (loading) return <div style={{ padding: "26px" }}>{[70, 92, 58, 84].map((w, i) => (<div key={i} className="at-skel" style={{ height: "14px", width: `${w}%`, marginBottom: "12px" }} />))}</div>;
 
   // Plain render helpers (NOT components) so text inputs don't lose focus on re-render.
-  const toggle = (k: keyof GangSheetSettings, label: string, desc?: string) => (
+  // `onByDefault`: a setting that is on until the brand turns it off.
+  const toggle = (k: keyof GangSheetSettings, label: string, desc?: string, onByDefault = false) => (
     <label style={{ display: "flex", alignItems: "flex-start", gap: "10px", cursor: "pointer", padding: "6px 0" }}>
-      <input type="checkbox" checked={!!s[k]} onChange={(e) => set(k, e.target.checked)} style={{ marginTop: "2px" }} />
+      <input type="checkbox" checked={onByDefault ? s[k] !== false : !!s[k]} onChange={(e) => set(k, e.target.checked)} style={{ marginTop: "2px" }} />
       <span>
         <span style={{ fontSize: "13px", fontWeight: 600, color: "#2A2830" }}>{label}</span>
         {desc ? <span style={{ display: "block", fontSize: "12px", color: "#9CA3AF" }}>{desc}</span> : null}
@@ -633,6 +634,8 @@ function SettingsTab() {
           <option value="PNG">PNG (keeps transparency)</option>
           <option value="PDF">PDF (keeps vectors)</option>
         </select>
+        {toggle("print_order_label", "Print the order number and customer above each sheet",
+          "A half-inch strip at the top of the print file, so sheets printed together can be cut apart and matched to their order. Nothing on the sheet moves.", true)}
         {toggle("auto_trim", "Auto-trim whitespace", "Trim empty space around artwork — saves film.")}
         {toggle("print_qr_logo", "Print QR / logo on the sheet")}
       </>)}
