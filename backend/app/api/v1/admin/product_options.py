@@ -12,7 +12,7 @@ import uuid
 from decimal import Decimal
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from pydantic import BaseModel, Field
 from sqlalchemy import select, text as _sa_text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -32,6 +32,8 @@ from app.models.product_option import (
     ProductQtyTier,
 )
 from app.services import combinations as combos
+from app.services import price_grid
+from app.services.configurator_service import QUANTITY_INPUT, quantity_of
 
 router = APIRouter(prefix="/admin/products", tags=["admin", "product-options"])
 
@@ -219,6 +221,20 @@ async def save_product_config(
     if payload.pricing_mode not in ("variant", "configurable"):
         raise HTTPException(status_code=400, detail="pricing_mode must be 'variant' or 'configurable'")
 
+    # A question that asks how many sets the line's quantity from its answer
+    # (configurator_service), so there can be one, and its choices are numbers.
+    asks_how_many = [o for o in payload.options if o.input_type == QUANTITY_INPUT and o.is_active]
+    if len(asks_how_many) > 1:
+        raise HTTPException(status_code=400, detail="Only one question can ask how many.")
+    for o in asks_how_many:
+        for v in o.values:
+            if quantity_of(v.label) is None:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f'"{v.label}" in {o.name} is not a number of items. '
+                           "A quantity question needs choices like 1, 5, 10.",
+                )
+
     product = await _load_product(db, product_id)
     product.pricing_mode = payload.pricing_mode
     product.base_price = payload.base_price
@@ -392,6 +408,8 @@ class CombinationIn(BaseModel):
     # option_id -> value_id
     selections: dict[uuid.UUID, uuid.UUID] = Field(default_factory=dict)
     unit_price: Optional[Decimal] = Field(None, ge=0)
+    # The whole line's price, for a combination naming the quantity question.
+    line_price: Optional[Decimal] = Field(None, ge=0)
     setup_fee: Optional[Decimal] = Field(None, ge=0)
     sku: Optional[str] = Field(None, max_length=80)
     enabled: bool = True
@@ -407,11 +425,21 @@ def _combo_row(row: ProductOptionCombination) -> dict:
         "combo_key": row.combo_key,
         "selections": {o: v for o, v in combos.parse_key(row.combo_key)},
         "unit_price": float(row.unit_price) if row.unit_price is not None else None,
+        "line_price": float(row.line_price) if row.line_price is not None else None,
         "setup_fee": float(row.setup_fee) if row.setup_fee is not None else None,
         "sku": row.sku,
         "enabled": bool(row.enabled),
         "note": row.note,
     }
+
+
+def _quantity_option_id(options) -> str | None:
+    asked = next(
+        (o for o in sorted(options or [], key=lambda x: x.position)
+         if o.is_active and o.input_type == QUANTITY_INPUT),
+        None,
+    )
+    return str(asked.id) if asked is not None else None
 
 
 @router.get("/{product_id}/combinations")
@@ -461,6 +489,7 @@ async def get_combinations(
                 "selections": {str(o.id): str(v.id) for o, v in pairs},
                 "values": [{"option": o.name, "value": v.label} for o, v in pairs],
                 "unit_price": float(own.unit_price) if own is not None and own.unit_price is not None else None,
+                "line_price": float(own.line_price) if own is not None and own.line_price is not None else None,
                 "setup_fee": float(own.setup_fee) if own is not None and own.setup_fee is not None else None,
                 "sku": own.sku if own is not None else None,
                 "enabled": bool(own.enabled) if own is not None else True,
@@ -476,6 +505,12 @@ async def get_combinations(
                 "inherited_unit_price": (
                     float(effective.unit_price)
                     if effective is not None and effective.unit_price is not None
+                    and (own is None or effective.key != key)
+                    else None
+                ),
+                "inherited_line_price": (
+                    float(effective.line_price)
+                    if effective is not None and effective.line_price is not None
                     and (own is None or effective.key != key)
                     else None
                 ),
@@ -495,6 +530,9 @@ async def get_combinations(
              "value_count": len([v for v in (o.values or []) if v.enabled])}
             for o in sorted(options, key=lambda x: x.position) if o.is_active
         ],
+        # Set when the product asks how many as a question: its cells are then
+        # priced as whole lines ("30 signs: $1,106.84"), not per item.
+        "quantity_option_id": _quantity_option_id(options),
         "total": total,
         "offset": offset,
         "limit": limit,
@@ -535,6 +573,7 @@ async def save_combinations(
         )).scalars().all()
     }
 
+    asked = _quantity_option_id(options)
     saved, cleared = 0, 0
     for item in payload.combinations:
         try:
@@ -543,11 +582,18 @@ async def save_combinations(
             )
         except combos.CombinationError as exc:
             raise HTTPException(status_code=400, detail=str(exc))
+        # A whole line's price only means something when the combination says
+        # how many the line is for.
+        if item.line_price is not None and asked not in {o for o, _ in pairs}:
+            raise HTTPException(
+                status_code=400,
+                detail="A price for the whole quantity needs the quantity question in the combination.",
+            )
 
         key = combos.combo_key(pairs)
         row = existing.get(key)
         empty = (
-            item.unit_price is None and item.setup_fee is None
+            item.unit_price is None and item.line_price is None and item.setup_fee is None
             and not item.sku and item.enabled and not item.note
         )
 
@@ -562,6 +608,7 @@ async def save_combinations(
             db.add(row)
         row.value_ids = combos.value_ids_of(key)
         row.unit_price = item.unit_price
+        row.line_price = item.line_price
         row.setup_fee = item.setup_fee
         row.sku = item.sku
         row.enabled = item.enabled
@@ -570,4 +617,107 @@ async def save_combinations(
 
     await db.commit()
     return {"saved": saved, "cleared": cleared, "message": "Combination prices saved."}
+
+
+# ── The price table as a spreadsheet ─────────────────────────────────────────
+
+class PriceGridIn(BaseModel):
+    """A supplier's grid, one row per combination (services/price_grid.py)."""
+
+    csv: str = Field(..., min_length=1, max_length=price_grid.MAX_BYTES)
+    price_column: Optional[str] = Field(None, max_length=200)
+    # Left out: worked out from the file. "": the file has no quantity column.
+    quantity_column: Optional[str] = Field(None, max_length=200)
+    ignore: list[str] = Field(default_factory=list, max_length=price_grid.MAX_COLUMNS)
+    # Clear the stored prices the file does not mention.
+    replace: bool = False
+    # Grey out the pairs of choices the file never sells together.
+    rules: bool = True
+
+
+def _questions_of(product: Product) -> list[dict]:
+    return [
+        {
+            "id": str(o.id), "name": o.name, "input_type": o.input_type,
+            "is_active": bool(o.is_active),
+            "values": [{"id": str(v.id), "label": v.label, "enabled": bool(v.enabled)} for v in o.values],
+        }
+        for o in sorted(product.options or [], key=lambda x: x.position)
+    ]
+
+
+async def _grid_plan(db: AsyncSession, product_id: uuid.UUID, payload: PriceGridIn) -> tuple[Product, dict]:
+    product = await _load_product(db, product_id)
+    if (getattr(product, "pricing_mode", "variant") or "variant") != "configurable":
+        raise HTTPException(
+            status_code=400,
+            detail="This product is not priced by options yet. Choose options pricing, save, then import.",
+        )
+    try:
+        sheet = price_grid.read_csv(payload.csv)
+        the_plan = price_grid.plan(
+            sheet, _questions_of(product),
+            price_column=payload.price_column,
+            quantity_column=price_grid.AUTO if payload.quantity_column is None else payload.quantity_column,
+            ignore=payload.ignore,
+        )
+    except price_grid.GridError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return product, the_plan
+
+
+@router.post("/{product_id}/price-grid/preview")
+async def preview_price_grid(
+    product_id: uuid.UUID,
+    payload: PriceGridIn,
+    _: None = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """What importing this file would do. Nothing is saved."""
+    _, the_plan = await _grid_plan(db, product_id, payload)
+    return price_grid.public(the_plan)
+
+
+@router.post("/{product_id}/price-grid/import")
+async def import_price_grid(
+    product_id: uuid.UUID,
+    payload: PriceGridIn,
+    _: None = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Fill the price table from the file, in one go and all or nothing."""
+    product, the_plan = await _grid_plan(db, product_id, payload)
+    if the_plan["error_count"]:
+        n = the_plan["error_count"]
+        raise HTTPException(
+            status_code=400,
+            detail=f"{n} row{'s' if n != 1 else ''} in the file {'need' if n != 1 else 'needs'} fixing first. "
+                   "Nothing was imported.",
+        )
+    result = await price_grid.apply(db, product, the_plan, replace=payload.replace, add_rules=payload.rules)
+    await db.commit()
+    return {**result, "message": f"{result['prices_saved']:,} prices imported."}
+
+
+@router.get("/{product_id}/price-grid.csv")
+async def export_price_grid(
+    product_id: uuid.UUID,
+    _: None = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> Response:
+    """Every combination and its own price, ready to edit and import again."""
+    product = await _load_product(db, product_id)
+    stored = (await db.execute(
+        select(ProductOptionCombination).where(ProductOptionCombination.product_id == product_id)
+    )).scalars().all()
+    try:
+        text = price_grid.export_csv(list(product.options or []), list(stored))
+    except price_grid.GridError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    name = "".join(ch if ch.isalnum() or ch in "-_" else "-" for ch in (product.slug or "product"))[:80]
+    return Response(
+        content=text,
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{name}-prices.csv"'},
+    )
 

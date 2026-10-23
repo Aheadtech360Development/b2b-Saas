@@ -24,8 +24,9 @@ from sqlalchemy.orm import selectinload
 from app.models.company import Company, CompanyUser
 from app.models.order import Order, OrderItem
 from app.models.product import Product, ProductVariant
+from app.models.product_option import ProductOption
 from app.services.configurator_service import (
-    ConfigurationError, default_selections, price_configuration,
+    ConfigurationError, default_selections, price_configuration, quantity_of, quantity_option,
 )
 
 
@@ -50,7 +51,12 @@ async def find_product(db: AsyncSession, name: str) -> Product:
     skus = select(ProductVariant.product_id).where(ProductVariant.sku.ilike(like))
     rows = (await db.execute(
         select(Product)
-        .options(selectinload(Product.options), selectinload(Product.option_rules))
+        # The choices too: quoting reads them (defaults, matching, how many),
+        # and a lazy load there cannot run in an async session.
+        .options(
+            selectinload(Product.options).selectinload(ProductOption.values),
+            selectinload(Product.option_rules),
+        )
         .where(
             Product.status != "archived",
             or_(Product.name.ilike(like), Product.slug.ilike(like), Product.id.in_(skus)),
@@ -66,6 +72,16 @@ async def find_product(db: AsyncSession, name: str) -> Product:
         raise QuoteError("More than one product matches “" + q + "”: "
                          + ", ".join(p.name for p in rows) + ". Which one?")
     return rows[0]
+
+
+def _names_option(choices: dict, option) -> bool:
+    """Whether the asked-for choices name this option, matched as `_match_choices` does."""
+    name = (option.name or "").lower()
+    for asked in (choices or {}):
+        want = str(asked or "").strip().lower()
+        if want and (want == name or want in name):
+            return True
+    return False
 
 
 def _match_choices(product: Product, choices: dict) -> tuple[dict, list[str]]:
@@ -166,6 +182,18 @@ async def quote_for(db: AsyncSession, product: Product, quantity: int, choices: 
 
     if _is_configurable(product):
         selections, unmatched = _match_choices(product, choices or {})
+        # A product that asks how many as one of its questions is priced for
+        # that answer. Unless the choices named it, the quantity asked for is
+        # the answer, and it has to be one the product offers.
+        asked = quantity_option(product)
+        if asked is not None and not _names_option(choices or {}, asked):
+            offered = [v for v in sorted(asked.values or [], key=lambda v: v.position) if v.enabled]
+            match = next((v for v in offered if quantity_of(v.label) == quantity), None)
+            if match is None:
+                raise QuoteError(
+                    f"{product.name} is sold in quantities of {', '.join(v.label for v in offered)}."
+                )
+            selections[str(asked.id)] = str(match.id)
         try:
             priced = await price_configuration(db, product.id, selections, quantity)
         except ConfigurationError as exc:
@@ -174,7 +202,7 @@ async def quote_for(db: AsyncSession, product: Product, quantity: int, choices: 
             "product": product.name,
             "quoted_for": company.name if company is not None else None,
             "type": "configurable",
-            "quantity": quantity,
+            "quantity": priced["quantity"],
             "unit_price": priced["unit_price"],
             "setup_fees": priced["setup_fees"],
             "total": priced["total"],
@@ -288,7 +316,9 @@ async def create_draft(db: AsyncSession, company: Company, product: Product,
 
     item = OrderItem(
         order_id=order.id,
-        quantity=quantity,
+        # What the quote was priced for: a product asking how many as a
+        # question may have been asked it in the choices.
+        quantity=int(quote.get("quantity") or quantity),
         unit_price=unit,
         line_total=total,
         product_name=product.name,

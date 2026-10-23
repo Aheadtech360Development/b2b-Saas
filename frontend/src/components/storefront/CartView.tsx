@@ -453,20 +453,37 @@ export default function CartView({ embedded = false }: { embedded?: boolean }) {
                       </div>
                       <ConfigurationDetail configuration={item.configuration} compact />
                       <div style={{ fontSize: "13px", color: "var(--ui-muted)", marginTop: "6px" }}>
-                        <span className="ui-num">{formatCurrency(Number(item.unit_price))}</span> each
+                        {/* Sold in set quantities ("Qty: 30"): its price is for
+                            the whole set, which is how the buyer chose it. */}
+                        {item.configuration?.quantity_from_option ? (
+                          <><span className="ui-num">{Number(item.quantity).toLocaleString()}</span> for <span className="ui-num">{formatCurrency(Number(item.line_total))}</span></>
+                        ) : (
+                          <><span className="ui-num">{formatCurrency(Number(item.unit_price))}</span> each</>
+                        )}
                       </div>
                     </div>
 
                     <div className="cart-line-end">
-                      <input
-                        type="number"
-                        min={1}
-                        value={item.quantity}
-                        onChange={e => handleUpdateItemQty(item, parseInt(e.target.value, 10) || 1)}
-                        aria-label={`Quantity for ${item.product_name}`}
-                        className="cart-qty-input ui-field ui-num"
-                        style={{ width: "68px", padding: "7px 8px", textAlign: "center", fontSize: "14px" }}
-                      />
+                      {item.configuration?.quantity_from_option ? (
+                        <span
+                          title="Change how many on the product page"
+                          aria-label={`Quantity for ${item.product_name}`}
+                          className="cart-qty-input ui-num"
+                          style={{ width: "68px", padding: "7px 8px", textAlign: "center", fontSize: "14px", display: "inline-block" }}
+                        >
+                          {item.quantity}
+                        </span>
+                      ) : (
+                        <input
+                          type="number"
+                          min={1}
+                          value={item.quantity}
+                          onChange={e => handleUpdateItemQty(item, parseInt(e.target.value, 10) || 1)}
+                          aria-label={`Quantity for ${item.product_name}`}
+                          className="cart-qty-input ui-field ui-num"
+                          style={{ width: "68px", padding: "7px 8px", textAlign: "center", fontSize: "14px" }}
+                        />
+                      )}
                       <div className="ui-num" style={{ fontSize: "15px", fontWeight: 700, minWidth: "88px", textAlign: "right" }}>
                         {formatCurrency(Number(item.line_total))}
                       </div>

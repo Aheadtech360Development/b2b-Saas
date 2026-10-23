@@ -36,8 +36,10 @@ if TYPE_CHECKING:
 #   percent   → % applied to the running unit price(e.g. +10% for rush stock)
 PRICE_MODES = ("flat", "per_unit", "percent")
 
-# How the choice is presented on the storefront.
-INPUT_TYPES = ("select", "radio", "swatch", "checkbox", "number", "text")
+# How the choice is presented on the storefront. `quantity` is a dropdown whose
+# choices are numbers ("1", "5", "10") and whose answer is how many the line is
+# for, so a price table can price each quantity of its own (configurator_service).
+INPUT_TYPES = ("select", "radio", "swatch", "checkbox", "number", "text", "quantity")
 
 # What a conditional rule does when its trigger choice is selected.
 #   hide_option    → the target option disappears entirely
@@ -178,6 +180,11 @@ class ProductOptionCombination(TenantMixin, BaseModel):
     # Null means "no override" — that part of the price falls back to the
     # ordinary formula, so an untouched combination behaves exactly as before.
     unit_price: Mapped[float | None] = mapped_column(Numeric(12, 4), nullable=True)
+    # The price of the whole line, for a combination that names the product's
+    # quantity question ("30 signs: $1,106.84"). A supplier's grid prices each
+    # quantity as a total, and a total turned into a unit price to the cent
+    # would not add back up, so the total is kept. Wins over unit_price.
+    line_price: Mapped[float | None] = mapped_column(Numeric(12, 2), nullable=True)
     setup_fee: Mapped[float | None] = mapped_column(Numeric(12, 4), nullable=True)
     sku: Mapped[str | None] = mapped_column(String(80), nullable=True)
     # A combination that cannot be produced: refused at pricing time rather

@@ -35,6 +35,8 @@ interface Cell {
   selections: Record<string, string>;
   values: { option: string; value: string }[];
   unit_price: number | null;
+  /** The whole line's price, for a product that asks how many as a question. */
+  line_price: number | null;
   setup_fee: number | null;
   sku: string | null;
   enabled: boolean;
@@ -42,6 +44,7 @@ interface Cell {
   has_own_price: boolean;
   inherited_from: string | null;
   inherited_unit_price: number | null;
+  inherited_line_price: number | null;
 }
 
 interface Payload {
@@ -54,6 +57,9 @@ interface Payload {
   too_large: boolean;
   combinations: Cell[];
   priced_count: number;
+  /** Set when the product asks how many as a question: each cell is then the
+   *  price of the whole line for that many ("30 signs: $1,106.84"). */
+  quantity_option_id: string | null;
 }
 
 const PAGE = 50;
@@ -94,7 +100,7 @@ export function CombinationPricing({
     setEdits(e => ({ ...e, [key]: { ...e[key], ...patch } }));
   }
 
-  function valueOf(cell: Cell, field: "unit_price" | "setup_fee" | "sku" | "enabled") {
+  function valueOf(cell: Cell, field: "unit_price" | "line_price" | "setup_fee" | "sku" | "enabled") {
     const e = edits[cell.combo_key];
     return e && field in e ? e[field] : cell[field];
   }
@@ -109,6 +115,7 @@ export function CombinationPricing({
       const combinations = data.combinations.map(cell => ({
         selections: cell.selections,
         unit_price: normalise(valueOf(cell, "unit_price")),
+        line_price: normalise(valueOf(cell, "line_price")),
         setup_fee: normalise(valueOf(cell, "setup_fee")),
         sku: (valueOf(cell, "sku") as string | null) || null,
         enabled: valueOf(cell, "enabled") !== false,
@@ -139,6 +146,8 @@ export function CombinationPricing({
 
   const dirty = Object.keys(edits).length > 0;
   const pages = Math.ceil(data.total / PAGE);
+  // A product sold in set quantities prices each cell as the whole line.
+  const field: "unit_price" | "line_price" = data.quantity_option_id ? "line_price" : "unit_price";
 
   // No options with choices yet, so there is nothing to combine.
   if (!data.matrix_options.length) {
@@ -176,7 +185,7 @@ export function CombinationPricing({
           <thead>
             <tr style={{ background: "#FAFAFA" }}>
               {data.matrix_options.map(o => <th key={o.id} style={TH}>{o.name}</th>)}
-              <th style={{ ...TH, width: 160 }}>Price</th>
+              <th style={{ ...TH, width: 160 }}>{field === "line_price" ? "Price for the quantity" : "Price"}</th>
             </tr>
           </thead>
           <tbody>
@@ -190,14 +199,14 @@ export function CombinationPricing({
                     <span style={{ padding: "0 4px 0 10px", color: "#9CA3AF" }}>$</span>
                     <input
                       type="number" step="0.01" min="0"
-                      value={(valueOf(cell, "unit_price") as number | null) ?? ""}
+                      value={(valueOf(cell, field) as number | null) ?? ""}
                       onChange={e => edit(cell.combo_key, {
-                        unit_price: e.target.value === "" ? null : Number(e.target.value),
+                        [field]: e.target.value === "" ? null : Number(e.target.value),
                       })}
                       placeholder={
-                        cell.inherited_unit_price != null
-                          ? cell.inherited_unit_price.toFixed(2)
-                          : "0.00"
+                        (field === "line_price" ? cell.inherited_line_price : cell.inherited_unit_price) != null
+                          ? (field === "line_price" ? cell.inherited_line_price! : cell.inherited_unit_price!).toFixed(2)
+                          : valueOf(cell, "enabled") === false ? "N/A" : "0.00"
                       }
                       style={{ border: "none", outline: "none", padding: "8px 10px 8px 0", width: "100%", fontSize: 13.5, background: "transparent" }}
                     />

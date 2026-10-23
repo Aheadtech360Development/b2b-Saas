@@ -18,9 +18,10 @@ import { knownColor } from "@/lib/colors";
 import { apiClient } from "@/lib/api-client";
 import { MediaPicker } from "@/components/admin/MediaPicker";
 import { CombinationPricing } from "@/components/admin/CombinationPricing";
+import { PriceGridImport, type Imported } from "@/components/admin/PriceGridImport";
 
 type PriceMode = "flat" | "per_unit" | "percent";
-type InputType = "select" | "radio" | "swatch" | "checkbox" | "number" | "text";
+type InputType = "select" | "radio" | "swatch" | "checkbox" | "number" | "text" | "quantity";
 type RuleAction = "hide_option" | "disable_option" | "disable_value";
 
 interface OptValue {
@@ -184,11 +185,12 @@ const PRICE_MODE_HINT: Record<PriceMode, string> = {
  * How the customer picks. Named for what they will see, because the raw values
  * ("select", "swatch") gave no hint that only one of them uses the swatch colour.
  */
-const INPUT_TYPE_LABEL: Record<"select" | "radio" | "swatch" | "checkbox", string> = {
+const INPUT_TYPE_LABEL: Record<"select" | "radio" | "swatch" | "checkbox" | "quantity", string> = {
   select: "Dropdown",
   radio: "Buttons — pick one",
   swatch: "Colour circles",
   checkbox: "Checkboxes — pick any",
+  quantity: "Quantity — how many",
 };
 
 const RULE_ACTION_LABEL: Record<RuleAction, string> = {
@@ -219,6 +221,9 @@ export function ProductOptionsBuilder({ productId }: { productId: string }) {
   // What was loaded, to tell when anything in the builder changed (the Save bar).
   const [snapshot, setSnapshot] = useState<string | null>(null);
   const [showGrid, setShowGrid] = useState(false);
+  // A supplier's spreadsheet, in and out of the price table.
+  const [importing, setImporting] = useState(false);
+  const [downloading, setDownloading] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -249,6 +254,40 @@ export function ProductOptionsBuilder({ productId }: { productId: string }) {
   useEffect(() => { load(); }, [load]);
 
   function flash(text: string, ok = true) { setMsg({ text, ok }); setTimeout(() => setMsg(null), 2500); }
+
+  /** The price table as a CSV, to edit in a spreadsheet and import again. */
+  async function downloadGrid() {
+    setDownloading(true);
+    try {
+      const blob = await apiClient.blob(`/api/v1/admin/products/${productId}/price-grid.csv`);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "prices.csv";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      flash((e as { message?: string })?.message || "Could not download the price table.", false);
+    }
+    setDownloading(false);
+  }
+
+  /** After an import the questions, choices and rules may all be new. */
+  async function afterImport(result: Imported) {
+    setImporting(false);
+    await load();
+    setSavedStamp(n => n + 1);
+    setShowGrid(true);
+    const added = [
+      result.questions_created ? `${result.questions_created} question${result.questions_created === 1 ? "" : "s"}` : "",
+      result.choices_created ? `${result.choices_created} choice${result.choices_created === 1 ? "" : "s"}` : "",
+      result.rules_added ? `${result.rules_added} rule${result.rules_added === 1 ? "" : "s"}` : "",
+    ].filter(Boolean).join(", ");
+    setMsg({ ok: true, text: `${result.message}${added ? ` Added ${added}.` : ""}` });
+    setTimeout(() => setMsg(null), 6000);
+  }
 
   // ── Option mutations ───────────────────────────────────────────────────────
   const patchOpt = (i: number, p: Partial<Opt>) => {
@@ -479,7 +518,7 @@ export function ProductOptionsBuilder({ productId }: { productId: string }) {
                     <span className="pc-q-n">Question {oi + 1}:</span>
                     <input className="pc-input pc-q-name" value={o.name} onChange={e => patchOpt(oi, { name: e.target.value })} placeholder="e.g. Paper stock" aria-label={`Question ${oi + 1}`} />
                     <select className="pc-input" style={{ width: "auto" }} value={o.input_type} onChange={e => patchOpt(oi, { input_type: e.target.value as InputType })} aria-label="How it is asked">
-                      {(["select", "radio", "swatch", "checkbox"] as const).map(t => <option key={t} value={t}>{INPUT_TYPE_LABEL[t]}</option>)}
+                      {(["select", "radio", "swatch", "checkbox", "quantity"] as const).map(t => <option key={t} value={t}>{INPUT_TYPE_LABEL[t]}</option>)}
                     </select>
                     <span className="pc-q-move">
                       <button type="button" className="pc-btn" disabled={oi === 0} onClick={() => moveOption(oi, -1)} title="Move up">↑</button>
@@ -563,6 +602,7 @@ export function ProductOptionsBuilder({ productId }: { productId: string }) {
                       <span className="pc-sub-line" style={{ fontSize: "12px" }}>
                         {o.input_type === "swatch" ? "Colour circles: give each choice a colour, or an image to fill the circle."
                           : o.input_type === "checkbox" ? "Checkboxes: the customer can tick any number of these."
+                          : o.input_type === "quantity" ? "Quantity: each choice is a number (1, 5, 10). The customer picks how many here, and the price table can price each quantity as a whole."
                           : "Give a choice an image and the choices become picture tiles."}
                       </span>
                     </div>
@@ -650,11 +690,21 @@ export function ProductOptionsBuilder({ productId }: { productId: string }) {
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "12px", flexWrap: "wrap" }}>
             <div>
               <h2 className="pc-h2" id="ob-combos" style={{ marginBottom: "4px" }}>Price for every combination</h2>
-              <p className="pc-sub-line" style={{ fontSize: "13px", margin: 0 }}>A combination left empty is priced by rule, from the base price and its choices&apos; extra costs. Type a price to set that one combination.</p>
+              <p className="pc-sub-line" style={{ fontSize: "13px", margin: 0 }}>A combination left empty is priced by rule, from the base price and its choices&apos; extra costs. Type a price to set that one combination, or import a supplier&apos;s spreadsheet to set them all.</p>
             </div>
-            <button type="button" className="pc-btn" data-kind={showGrid ? undefined : "primary"} onClick={() => setShowGrid(!showGrid)} aria-expanded={showGrid}>
-              {showGrid ? "Close the price grid" : "Open price grid"}
-            </button>
+            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+              <button type="button" className="pc-btn" onClick={() => void downloadGrid()} disabled={downloading || dirtySinceLoad || dirty}
+                title={dirtySinceLoad || dirty ? "Save your changes first" : "Every combination and its price, as a spreadsheet"}>
+                {downloading ? "Preparing…" : "Download CSV"}
+              </button>
+              <button type="button" className="pc-btn" onClick={() => setImporting(true)} disabled={dirtySinceLoad || dirty}
+                title={dirtySinceLoad || dirty ? "Save your changes first" : "Fill the price table from a spreadsheet"}>
+                Import CSV
+              </button>
+              <button type="button" className="pc-btn" data-kind={showGrid ? undefined : "primary"} onClick={() => setShowGrid(!showGrid)} aria-expanded={showGrid}>
+                {showGrid ? "Close the price grid" : "Open price grid"}
+              </button>
+            </div>
           </div>
           {showGrid && (
             <div style={{ marginTop: "14px" }}>
@@ -663,6 +713,10 @@ export function ProductOptionsBuilder({ productId }: { productId: string }) {
           )}
         </section>
       </>)}
+
+      {importing && (
+        <PriceGridImport productId={productId} onClose={() => setImporting(false)} onImported={(r) => void afterImport(r)} />
+      )}
 
       {picker && (
         <MediaPicker

@@ -125,6 +125,7 @@ class OrderService:
                 cfg = dict(cart_item.configuration or {})
                 cfg_unit = Decimal(str(cart_item.unit_price or 0))
                 cfg_fees = Decimal(str(cfg.get("setup_fees") or 0))
+                line_qty = cart_item.quantity
                 if cart_item.product_id and cfg.get("selections"):
                     try:
                         repriced = await _price_cfg(
@@ -132,13 +133,19 @@ class OrderService:
                         )
                         cfg_unit = Decimal(str(repriced["unit_price"]))
                         cfg_fees = Decimal(str(repriced["setup_fees"]))
-                        cfg = {**cfg, **{k: repriced[k] for k in ("breakdown", "unit_price", "setup_fees")}}
+                        cfg = {**cfg, **{k: repriced[k] for k in (
+                            "breakdown", "unit_price", "setup_fees", "quantity_from_option", "rounding",
+                        )}}
+                        # Sold by its own quantity question: the answer is how
+                        # many, and what the price was worked out for.
+                        if repriced.get("quantity_from_option"):
+                            line_qty = int(repriced["quantity"])
                     except _CfgErr as exc:
                         logger.warning("Configured line kept its cart price: %s", exc)
 
-                cfg_line = cfg_unit * cart_item.quantity + cfg_fees
+                cfg_line = cfg_unit * line_qty + cfg_fees
                 subtotal += cfg_line
-                total_units += cart_item.quantity
+                total_units += line_qty
                 order_items_data.append({
                     "variant_id": None,
                     "product_id": cart_item.product_id,
@@ -146,7 +153,7 @@ class OrderService:
                     "sku": (cfg.get("sku_suffix") or "CONFIGURED")[:50],
                     "color": None,
                     "size": None,
-                    "quantity": cart_item.quantity,
+                    "quantity": line_qty,
                     "unit_price": cfg_unit,
                     "line_total": cfg_line,
                     "configuration": cfg,

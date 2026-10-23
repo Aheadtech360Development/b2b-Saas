@@ -231,6 +231,10 @@ class CartService:
             "unit_price": priced["unit_price"],
             "setup_fees": priced["setup_fees"],
             "sku_suffix": priced.get("sku_suffix"),
+            # Sold by its own quantity question: the line is for exactly that
+            # many, and its rounding cents are not a fee to show.
+            "quantity_from_option": bool(priced.get("quantity_from_option")),
+            "rounding": priced.get("rounding") or 0,
         }
         if artwork:
             # The buyer's own file. It is what gets printed, so it stays with
@@ -245,8 +249,10 @@ class CartService:
         label = f"{product.name}{' — ' + chosen if chosen else ''}"
 
         # An identical configuration should top up the existing line, not stack.
+        # Except one whose quantity is one of its own answers ("30 signs"): the
+        # price table prices 30, not 60, so a second one is a second line.
         existing = None
-        for row in (await self.db.execute(
+        for row in [] if snapshot["quantity_from_option"] else (await self.db.execute(
             select(CartItem).where(
                 CartItem.company_id == company_id,
                 CartItem.item_type == "configured",
@@ -304,6 +310,13 @@ class CartService:
         item = result.scalar_one_or_none()
         if not item:
             raise NotFoundError(f"Cart item {item_id} not found")
+
+        # How many this line is for is one of its own answers, priced as such:
+        # it changes on the product page, not here.
+        if (getattr(item, "item_type", "variant") == "configured"
+                and (item.configuration or {}).get("quantity_from_option")
+                and quantity != item.quantity):
+            raise ValidationError("This product is sold in set quantities. Change how many on its page.")
 
         item.quantity = quantity
 

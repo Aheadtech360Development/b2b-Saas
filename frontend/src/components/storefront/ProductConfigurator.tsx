@@ -42,7 +42,26 @@ interface Config {
   rules?: Rule[];
   default_selections: Record<string, string>;
 }
-interface Priced { unit_price: number; total: number; setup_fees: number; quantity: number; }
+interface Priced {
+  unit_price: number; total: number; setup_fees: number; quantity: number;
+  /** How many came from the product's own quantity question. */
+  quantity_from_option?: boolean;
+  /** Cents inside setup_fees that make a price-table total add up; not a fee. */
+  rounding?: number;
+}
+
+/**
+ * How many the product's quantity question is answered with ("30", "1,000
+ * cards"), when the product asks how many as one of its own questions. The
+ * server reads the same answer the same way and is the one that counts.
+ */
+function chosenQuantity(cfg: Config | null, sel: Record<string, string | string[]>): number | null {
+  const asked = cfg?.options.find((o) => o.input_type === "quantity");
+  if (!asked) return null;
+  const value = asked.values.find((v) => v.id === sel[asked.id]);
+  const m = value?.label.match(/^\s*(\d{1,3}(?:,\d{3})+|\d+)/);
+  return m ? Number(m[1]!.replace(/,/g, "")) : null;
+}
 
 /**
  * Mirror of `configurator_service.evaluate_rules`. Running it here keeps the form
@@ -134,7 +153,7 @@ export function ProductConfigurator({ productId, productName }: { productId: str
 
   useEffect(() => {
     if (!cfg) return;
-    const t = setTimeout(() => repriceNow(sel, qty), 180); // debounce rapid changes
+    const t = setTimeout(() => repriceNow(sel, chosenQuantity(cfg, sel) ?? qty), 180); // debounce rapid changes
     return () => clearTimeout(t);
   }, [cfg, sel, qty, repriceNow]);
 
@@ -156,8 +175,9 @@ export function ProductConfigurator({ productId, productName }: { productId: str
     }
     setAdding(true); setError(null);
     try {
-      const cart = await apiClient.post<Cart>("/api/v1/cart/add-configured", { product_id: productId, selections: sel, quantity: qty });
-      trackConfiguredAdd(cart, { product_id: productId, selections: sel, quantity: qty }, { navigating: true });
+      const lineQty = chosenQuantity(cfg, sel) ?? qty;
+      const cart = await apiClient.post<Cart>("/api/v1/cart/add-configured", { product_id: productId, selections: sel, quantity: lineQty });
+      trackConfiguredAdd(cart, { product_id: productId, selections: sel, quantity: lineQty }, { navigating: true });
       dropDraft(draftKey);
       window.location.href = "/cart";
     } catch (e) {
@@ -173,6 +193,9 @@ export function ProductConfigurator({ productId, productName }: { productId: str
   }
 
   const { hidden, disabledOptions, disabledValues } = evaluateRules(cfg.rules ?? [], sel);
+  // A product that asks how many as one of its questions needs no box for it.
+  const asksHowMany = cfg.options.some((o) => o.input_type === "quantity");
+  const oneOff = price ? Math.max(0, price.setup_fees - (price.rounding ?? 0)) : 0;
 
   return (
     <div style={{ marginTop: "20px", fontFamily: "'DM Sans', sans-serif" }}>
@@ -305,18 +328,20 @@ export function ProductConfigurator({ productId, productName }: { productId: str
         })}
 
         {/* Quantity — breaks are surfaced so the buyer can see the next saving. */}
-        <div>
-          <label style={LABEL}>Quantity</label>
-          {cfg.qty_tiers.length > 0 ? (
-            <select value={qty} onChange={(e) => setQty(Number(e.target.value))} style={SELECT}>
-              {cfg.qty_tiers.map((t) => (
-                <option key={t.min_qty} value={t.min_qty}>{t.min_qty.toLocaleString()} — ${t.unit_price.toFixed(2)} ea</option>
-              ))}
-            </select>
-          ) : (
-            <input type="number" min={1} value={qty} onChange={(e) => setQty(Math.max(1, Number(e.target.value) || 1))} style={SELECT} />
-          )}
-        </div>
+        {!asksHowMany && (
+          <div>
+            <label style={LABEL}>Quantity</label>
+            {cfg.qty_tiers.length > 0 ? (
+              <select value={qty} onChange={(e) => setQty(Number(e.target.value))} style={SELECT}>
+                {cfg.qty_tiers.map((t) => (
+                  <option key={t.min_qty} value={t.min_qty}>{t.min_qty.toLocaleString()} — ${t.unit_price.toFixed(2)} ea</option>
+                ))}
+              </select>
+            ) : (
+              <input type="number" min={1} value={qty} onChange={(e) => setQty(Math.max(1, Number(e.target.value) || 1))} style={SELECT} />
+            )}
+          </div>
+        )}
       </div>
 
       {error && <div style={ERR}>{error}</div>}
@@ -329,7 +354,10 @@ export function ProductConfigurator({ productId, productName }: { productId: str
             ${(price?.total ?? 0).toFixed(2)}
           </div>
           <div style={{ fontSize: "12px", color: "#6B6B6B" }}>
-            {price ? <>unit ${price.unit_price.toFixed(2)} × {price.quantity.toLocaleString()}{price.setup_fees ? ` + $${price.setup_fees.toFixed(2)} one-off` : ""}</> : "Choose your options"}
+            {!price ? "Choose your options"
+              : price.quantity_from_option
+                ? <>{price.quantity.toLocaleString()} for ${price.total.toFixed(2)}{oneOff ? `, incl. $${oneOff.toFixed(2)} one-off` : ""}</>
+                : <>unit ${price.unit_price.toFixed(2)} × {price.quantity.toLocaleString()}{oneOff ? ` + $${oneOff.toFixed(2)} one-off` : ""}</>}
           </div>
         </div>
         <button onClick={addToCart} disabled={adding || pricing || !!error} style={{ ...CTA, opacity: adding || pricing || error ? 0.6 : 1 }}>

@@ -6,7 +6,7 @@
  * the line, which is why the cart, checkout and invoice all show the same thing:
  * they're reading the same record, not re-deriving it.
  */
-import type { ConfigLine, LineConfiguration } from "@/types/order.types";
+import { oneOffFees, type ConfigLine, type LineConfiguration } from "@/types/order.types";
 
 function delta(l: ConfigLine) {
   if (!l.price_delta) return null;
@@ -25,6 +25,8 @@ export function ConfigurationDetail({
 }) {
   const lines = configuration?.breakdown ?? [];
   const artwork = configuration?.artwork ?? null;
+  // Rounding cents ride with the fees so the line adds up; they are not a fee.
+  const fees = oneOffFees(configuration);
   if (!lines.length && !artwork) return null;
 
   // The file this line is printed from. On a line that has one it is the most
@@ -49,8 +51,8 @@ export function ConfigurationDetail({
             <span style={{ color: "#8A8A8A" }}>{l.option}:</span> <strong style={{ fontWeight: 600 }}>{l.value}</strong>
           </span>
         ))}
-        {!!configuration?.setup_fees && (
-          <span> · <strong style={{ fontWeight: 600 }}>${configuration.setup_fees.toFixed(2)} one-off</strong></span>
+        {fees > 0 && (
+          <span> · <strong style={{ fontWeight: 600 }}>${fees.toFixed(2)} one-off</strong></span>
         )}
         {artworkRow && <div>{artworkRow}</div>}
       </div>
@@ -69,10 +71,10 @@ export function ConfigurationDetail({
           </div>
         );
       })}
-      {!!configuration?.setup_fees && (
+      {fees > 0 && (
         <div style={{ display: "flex", gap: "10px", color: "#4B4B4B", borderTop: "1px dashed #E2E2DE", marginTop: "5px", paddingTop: "5px" }}>
           <span style={{ color: "#8A8A8A", minWidth: "120px" }}>One-off fees</span>
-          <span style={{ flex: 1, fontWeight: 600 }}>${configuration.setup_fees.toFixed(2)}</span>
+          <span style={{ flex: 1, fontWeight: 600 }}>${fees.toFixed(2)}</span>
         </div>
       )}
       {artworkRow && (

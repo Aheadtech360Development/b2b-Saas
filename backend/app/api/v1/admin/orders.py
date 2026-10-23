@@ -1184,6 +1184,9 @@ async def add_order_item(
             priced = await price_configuration(db, product.id, selections, quantity)
         except ConfigurationError as exc:
             raise HTTPException(status_code=422, detail=str(exc))
+        # Sold by its own quantity question: the answer is how many.
+        if priced.get("quantity_from_option"):
+            quantity = int(priced["quantity"])
         unit_price = float(priced["unit_price"])
         fees = float(priced.get("setup_fees") or 0)
         line_total = round(unit_price * quantity + fees, 2)
@@ -1201,7 +1204,9 @@ async def add_order_item(
             size=None,
             configuration={"selections": {str(k): v for k, v in selections.items()}, "breakdown": priced["breakdown"],
                            "unit_price": priced["unit_price"], "setup_fees": priced.get("setup_fees"),
-                           "sku_suffix": priced.get("sku_suffix")},
+                           "sku_suffix": priced.get("sku_suffix"),
+                           "quantity_from_option": bool(priced.get("quantity_from_option")),
+                           "rounding": priced.get("rounding") or 0},
         )
     else:
         raise HTTPException(status_code=422, detail="variant_id, or product_id with its choices, is required.")

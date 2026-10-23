@@ -177,12 +177,14 @@ def page_combinations(
 class Override:
     """One stored price, reduced to what matching needs."""
 
-    __slots__ = ("key", "pairs", "unit_price", "setup_fee", "sku", "enabled", "note")
+    __slots__ = ("key", "pairs", "unit_price", "line_price", "setup_fee", "sku", "enabled", "note")
 
     def __init__(self, row: Any):
         self.key: str = row.combo_key or ""
         self.pairs: frozenset[tuple[str, str]] = frozenset(parse_key(self.key))
         self.unit_price = None if row.unit_price is None else Decimal(str(row.unit_price))
+        line_price = getattr(row, "line_price", None)
+        self.line_price = None if line_price is None else Decimal(str(line_price))
         self.setup_fee = None if row.setup_fee is None else Decimal(str(row.setup_fee))
         self.sku = row.sku
         self.enabled = bool(row.enabled)

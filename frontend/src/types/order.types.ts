@@ -36,6 +36,18 @@ export interface LineConfiguration {
   sku_suffix?: string | null;
   /** The file this line is printed from, when the buyer supplied one. */
   artwork?: { url: string; file_name: string; file_type: string } | null;
+  /** How many is one of the product's own questions ("Qty: 30"): the line is
+   *  for exactly that many and is changed on the product page, not the cart. */
+  quantity_from_option?: boolean;
+  /** Cents inside `setup_fees` that make the line add up to a price-table
+   *  total ($1,106.84 for 30). Not a fee, so not shown as one. */
+  rounding?: number;
+}
+
+/** A configured line's real one-off fees: its setup fees less any rounding. */
+export function oneOffFees(configuration?: LineConfiguration | null): number {
+  const fees = Number(configuration?.setup_fees ?? 0) - Number(configuration?.rounding ?? 0);
+  return fees > 0.004 ? fees : 0;
 }
 
 export interface ConfigLine {

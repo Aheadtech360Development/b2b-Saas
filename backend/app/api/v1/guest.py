@@ -323,7 +323,10 @@ async def _price_guest_cart(db: AsyncSession, payload: "GuestCheckoutRequest") -
 
             cfg_unit = Decimal(str(priced["unit_price"]))
             cfg_fees = Decimal(str(priced["setup_fees"] or 0))
-            cfg_line = cfg_unit * cart_item.quantity + cfg_fees
+            # Sold by its own quantity question: the answer is how many, whatever
+            # number the browser sent with it.
+            line_qty = int(priced["quantity"]) if priced.get("quantity_from_option") else cart_item.quantity
+            cfg_line = cfg_unit * line_qty + cfg_fees
             subtotal += cfg_line
             if product.slug:
                 ordered_product_slugs.add(product.slug)
@@ -335,7 +338,7 @@ async def _price_guest_cart(db: AsyncSession, payload: "GuestCheckoutRequest") -
                 "sku": (priced.get("sku_suffix") or "CONFIGURED")[:50],
                 "color": None,
                 "size": None,
-                "quantity": cart_item.quantity,
+                "quantity": line_qty,
                 "unit_price": cfg_unit,
                 "line_total": cfg_line,
                 "configuration": {
@@ -344,6 +347,8 @@ async def _price_guest_cart(db: AsyncSession, payload: "GuestCheckoutRequest") -
                     "unit_price": priced["unit_price"],
                     "setup_fees": priced["setup_fees"],
                     "sku_suffix": priced.get("sku_suffix"),
+                    "quantity_from_option": bool(priced.get("quantity_from_option")),
+                    "rounding": priced.get("rounding") or 0,
                     **({"artwork": {
                         "url": str((cart_item.artwork or {}).get("url") or "")[:1000],
                         "file_name": str((cart_item.artwork or {}).get("file_name") or "")[:300],

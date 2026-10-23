@@ -14,6 +14,12 @@ Price model
 `flat` is a once-per-order charge (setup/plate fees); `per_unit` rides on every
 unit (stock upgrades); `percent` scales the running unit price (rush handling).
 
+A product may also ask how many as one of its own questions (input_type
+`quantity`, choices like 1, 5, 10). Its answer is then the line's quantity,
+whatever the request said, and a stored combination naming it may price the
+whole line (`line_price`, "30 signs: $1,106.84"), the way suppliers send their
+grids.
+
 That formula is separable: it forces price(Small, Rounded) to equal
 price(Small) + price(Rounded). Real pricing often is not — rounded corners cost
 more on a bigger card — so a brand may also store a price for a particular
@@ -31,8 +37,9 @@ figure the client sends.
 from __future__ import annotations
 
 import logging
+import re
 import uuid
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import Decimal, ROUND_DOWN, ROUND_HALF_UP
 
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
@@ -56,6 +63,40 @@ def _money(d: Decimal) -> float:
 
 class ConfigurationError(ValueError):
     """A selection was missing, unknown, or disabled."""
+
+
+QUANTITY_INPUT = "quantity"
+
+# A quantity choice names a whole number of items: "30", "1,000", "250 cards".
+# Not "24x24" or "2.5": those are sizes and measures.
+_QUANTITY_LABEL = re.compile(r"^\s*(\d{1,3}(?:,\d{3})+|\d+)(?![\d.,]|\s*[x×X/])")
+
+
+def quantity_of(label: str | None) -> int | None:
+    """How many items a quantity choice stands for, or None if it names none."""
+    match = _QUANTITY_LABEL.match(label or "")
+    if not match:
+        return None
+    number = int(match.group(1).replace(",", ""))
+    return number if number >= 1 else None
+
+
+def quantity_option(product):
+    """The question that asks how many, when the product asks it as an option."""
+    for option in sorted(product.options or [], key=lambda o: o.position):
+        if option.is_active and (option.input_type or "") == QUANTITY_INPUT:
+            return option
+    return None
+
+
+def _normalise(selections: dict | None) -> dict[str, list[str]]:
+    """Everything becomes option_id -> [value_id, ...]."""
+    wanted: dict[str, list[str]] = {}
+    for k, v in (selections or {}).items():
+        if v is None or v == "":
+            continue
+        wanted[str(k)] = [str(x) for x in v] if isinstance(v, (list, tuple)) else [str(v)]
+    return wanted
 
 
 async def _load(db, product_id, selected_value_ids: list | None = None):
@@ -144,14 +185,7 @@ async def price_configuration(db, product_id, selections: dict, quantity: int) -
     multi-select options). Returns the unit price, total, and a per-choice
     breakdown so the UI can show exactly how the price was built.
     """
-    quantity = max(1, int(quantity or 1))
-
-    # Normalise: everything becomes option_id -> [value_id, ...]
-    wanted: dict[str, list[str]] = {}
-    for k, v in (selections or {}).items():
-        if v is None or v == "":
-            continue
-        wanted[str(k)] = [str(x) for x in v] if isinstance(v, (list, tuple)) else [str(v)]
+    wanted = _normalise(selections)
 
     # The chosen value ids narrow which stored combinations are even worth
     # loading. Anything unparseable is simply left out of the filter; it cannot
@@ -166,11 +200,38 @@ async def price_configuration(db, product_id, selections: dict, quantity: int) -
                 continue
 
     product, tiers, override_rows = await _load(db, product_id, chosen_ids)
+    return compute_price(product, tiers, override_rows, wanted, quantity)
+
+
+def compute_price(product, tiers, override_rows, selections: dict, quantity: int) -> dict:
+    """The price of one configured line from what `_load` read: the product
+    with its options and rules, its quantity breaks and the stored combinations
+    that could apply. Pure, so it can be checked without a database."""
+    wanted = _normalise(selections)
+    quantity = max(1, int(quantity or 1))
 
     # Conditional rules are resolved from the selection itself, so a field the
     # buyer can't see is never charged for and never counts as "required".
     active = evaluate_rules(product.option_rules, wanted)
     off_options = active["hidden_options"] | set(active["disabled_options"])
+
+    # How many the line is for. A product that asks it as one of its questions
+    # is priced for the number the buyer picked there, whatever number came
+    # with the request: that answer is what the price table prices, and a line
+    # claiming 1 while its question says 30 would be charged for one sign and
+    # printed as thirty.
+    from_option = False
+    asked = quantity_option(product)
+    if asked is not None and str(asked.id) not in off_options:
+        picked = wanted.get(str(asked.id)) or []
+        if picked:
+            value = next((v for v in (asked.values or []) if str(v.id) == picked[0]), None)
+            if value is not None:
+                number = quantity_of(value.label)
+                if number is None:
+                    raise ConfigurationError(f'"{value.label}" is not a number of items for {asked.name}.')
+                quantity = number
+                from_option = True
 
     # A price stored for this particular combination of choices, if the brand
     # set one. Resolved before anything is charged, because it decides which
@@ -199,10 +260,18 @@ async def price_configuration(db, product_id, selections: dict, quantity: int) -
     priced_by_combo: set[str] = (
         {option_id for option_id, _ in matched.pairs} if matched is not None else set()
     )
-    combo_sets_unit = matched is not None and matched.unit_price is not None
+    line_from_combo = matched is not None and matched.line_price is not None
+    combo_sets_unit = matched is not None and (matched.unit_price is not None or line_from_combo)
     combo_sets_fee = matched is not None and matched.setup_fee is not None
 
-    unit = matched.unit_price if combo_sets_unit else _unit_for_qty(product, tiers, quantity)
+    if line_from_combo:
+        # The table's price for this many, spread over them exactly. The cents
+        # are settled at the end so the line adds back up to it.
+        unit = matched.line_price / Decimal(quantity)
+    elif combo_sets_unit:
+        unit = matched.unit_price
+    else:
+        unit = _unit_for_qty(product, tiers, quantity)
     flat_total = Decimal("0")
     percent_factors: list[Decimal] = []
     breakdown: list[dict] = []
@@ -273,19 +342,42 @@ async def price_configuration(db, product_id, selections: dict, quantity: int) -
     if total < 0:
         total = Decimal("0")
 
+    unit_shown = _money(unit)
+    fees_shown = _money(flat_total)
+    rounding = Decimal("0")
+    if line_from_combo:
+        # Every till this line reaches (cart, checkout, invoice) bills it as its
+        # unit price to the cent times the quantity, plus its one-off fees. A
+        # total like $1,106.84 for 30 is not a whole number of cents each, so
+        # the unit price is taken down to the cent and the cents left over ride
+        # with the one-off fees as `rounding`: the line still comes to the
+        # table's total exactly.
+        unit_cents = unit.quantize(CENTS, rounding=ROUND_DOWN)
+        fee_cents = flat_total.quantize(CENTS, rounding=ROUND_HALF_UP)
+        total_cents = total.quantize(CENTS, rounding=ROUND_HALF_UP)
+        rounding = max(Decimal("0"), total_cents - unit_cents * quantity - fee_cents)
+        unit_shown = float(unit_cents)
+        fees_shown = float(fee_cents + rounding)
+
     if matched is not None and matched.sku:
         sku_parts = [matched.sku]
 
     return {
-        "unit_price": _money(unit),
+        "unit_price": unit_shown,
         "quantity": quantity,
-        "setup_fees": _money(flat_total),
+        "setup_fees": fees_shown,
         "total": _money(total),
         "breakdown": breakdown,
         "sku_suffix": "-".join(sku_parts) if sku_parts else None,
         # Which stored combination decided this price, if any, so a surprising
         # figure can be traced back to the cell that set it.
         "combination_key": matched.key if matched is not None else None,
+        # The product's own quantity question set how many: the line is for
+        # exactly this many, so the cart neither tops it up nor edits it.
+        "quantity_from_option": from_option,
+        # Cents carried in setup_fees so the line adds up to the table's total;
+        # not a fee, and not shown as one.
+        "rounding": float(rounding),
     }
 
 
