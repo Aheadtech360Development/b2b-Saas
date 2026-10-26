@@ -224,6 +224,17 @@ async def _resolve_brand_mark(session: AsyncSession, tenant_id: object) -> tuple
             mark = (row[0], row[1])
     except Exception:
         mark = (None, None)
+    # The logo the shop's buyers see: a shop live on the website builder shows
+    # its header's logo, which can differ from the one in its settings
+    # (services/shop_logo). Mail and PDFs carry that one too.
+    try:
+        from app.services.shop_logo import header_logo_unscoped
+
+        shown = await header_logo_unscoped(session, tenant_id)
+        if shown:
+            mark = (shown, mark[1])
+    except Exception:
+        pass
     _MARK_CACHE[key] = (mark, now + _BRAND_TTL_SECONDS)
     return mark
 

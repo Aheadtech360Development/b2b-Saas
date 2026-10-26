@@ -440,7 +440,16 @@ async def get_storefront_branding(
     row = res.first()
     if not row:
         return dict(_DEFAULT_BRANDING)
-    return await _fetch_branding(db, row[0])
+    branding = await _fetch_branding(db, row[0])
+    # The logo buyers see on the shop (services/shop_logo): a shop live on the
+    # website builder shows its header's logo, which can differ from the one
+    # left in its settings. The admin's own settings read stays as saved.
+    from app.services.shop_logo import header_logo
+
+    logo = await header_logo(db, row[0])
+    if logo:
+        branding = {**branding, "logo_url": logo}
+    return branding
 
 
 # ── Public: which shop a code belongs to ─────────────────────────────────────
