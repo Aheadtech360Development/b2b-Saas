@@ -433,14 +433,13 @@ class CartService:
                 invalid.append({"sku": sku, "quantity": qty, "status": "not_found"})
                 continue
 
-            stock_result = await self.db.execute(
-                select(func.coalesce(func.sum(InventoryRecord.quantity), 0)).where(
-                    InventoryRecord.variant_id == variant.id
-                )
-            )
-            stock = stock_result.scalar_one()
+            # The shop's one stock rule (inventory_service.sellable_stock): a
+            # product that does not count its stock sells without a limit.
+            from app.services.inventory_service import sellable_stock
 
-            if stock < qty:
+            stock = await sellable_stock(self.db, variant)
+
+            if stock is not None and stock < qty:
                 insufficient.append({
                     "sku": sku,
                     "quantity": qty,

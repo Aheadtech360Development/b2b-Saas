@@ -350,6 +350,12 @@ def _order_row(
         "order_number": linked.get("number"),
         # The order's own payment: a cash on delivery job is paid on handover.
         "order_payment_status": linked.get("payment"),
+        # Where that order stands and how it travels: a printed job is shipped
+        # when its order is, so the buyer's progress reads it from there.
+        "order_status": linked.get("status"),
+        "tracking_number": linked.get("tracking_number"),
+        "tracking_url": linked.get("tracking_url"),
+        "carrier": linked.get("carrier"),
         "paid": bool(getattr(o, "paid_at", None)),
         # Upload-by-size has no builder to reopen — a revision happens back on the
         # product page, and the buyer's list needs the slug to link there.
@@ -406,19 +412,25 @@ async def _linked_orders(db: AsyncSession, order_ids) -> dict[str, dict]:
 
     rows = (await db.execute(
         select(Order.id, Order.order_number, Order.guest_name, Order.guest_email,
-               Company.name, User.first_name, User.last_name, User.email, Order.payment_status)
+               Company.name, User.first_name, User.last_name, User.email, Order.payment_status,
+               Order.status, Order.tracking_number, Order.tracking_url, Order.carrier)
         .outerjoin(Company, Company.id == Order.company_id)
         .outerjoin(User, User.id == Order.placed_by_id)
         .where(Order.id.in_(ids))
     )).all()
     out: dict[str, dict] = {}
-    for oid, number, guest, guest_email, company, first, last, email, payment in rows:
+    for (oid, number, guest, guest_email, company, first, last, email, payment,
+         order_status, tracking, tracking_url, carrier) in rows:
         person = " ".join(x for x in (first, last) if x).strip()
         out[str(oid)] = {
             "number": number,
             "name": (company or "").strip() or (guest or "").strip() or person or None,
             "email": guest_email or email or None,
             "payment": payment,
+            "status": order_status,
+            "tracking_number": tracking,
+            "tracking_url": tracking_url,
+            "carrier": carrier,
         }
     return out
 
@@ -1075,7 +1087,9 @@ async def my_orders(request: Request, db: AsyncSession = Depends(get_db)) -> lis
     )
     orders = (await db.execute(stmt.order_by(GangSheetOrder.created_at.desc()))).scalars().all()
     slugs = await _product_slugs(db, [o.product_id for o in orders])
-    return [_order_row(o, product_slug=slugs.get(str(o.product_id))) for o in orders]
+    linked = await _linked_orders(db, [o.order_id for o in orders])
+    return [_order_row(o, product_slug=slugs.get(str(o.product_id)), linked=linked.get(str(o.order_id)))
+            for o in orders]
 
 
 @public_router.get("/orders/{order_id}")
@@ -1092,7 +1106,10 @@ async def my_order_detail(
     if not owns and not getattr(request.state, "is_admin", False):
         raise HTTPException(status_code=404, detail="Gang sheet order not found")
 
-    return _order_row(order, await _load_artworks(db, order.id))
+    slugs = await _product_slugs(db, [order.product_id])
+    return _order_row(order, await _load_artworks(db, order.id),
+                      product_slug=slugs.get(str(order.product_id)),
+                      linked=await _linked_order_of(db, order))
 
 
 @public_router.patch("/orders/{order_id}/layout")

@@ -17,8 +17,9 @@
 import type { ReactNode } from "react";
 import { usePathname } from "next/navigation";
 
-/** Full-screen applications, not pages in a shop. */
-const BARE = ["/gang-sheets"];
+/** Full-screen applications, not pages in a shop: the gang sheet builder, and
+ *  the customer portal, which draws its own top bar and footer. */
+const BARE = ["/gang-sheets", "/account"];
 
 export function ShellGate({
   before, after, children,

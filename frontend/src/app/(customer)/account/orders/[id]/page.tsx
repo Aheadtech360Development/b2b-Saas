@@ -1,18 +1,28 @@
 // frontend/src/app/(customer)/account/orders/[id]/page.tsx
 "use client";
-import { tell } from "@/lib/dialog";
 
-import { useBranding } from "@/components/providers/BrandingProvider";
-
+/**
+ * One order: its lines, where it is, what it came to, what happened to it and
+ * when, and a note to the shop about it. Reorder, the order's PDFs, paying a
+ * shop invoice and asking for a reprint or return all start here.
+ */
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { tell } from "@/lib/dialog";
+import { useBranding } from "@/components/providers/BrandingProvider";
 import { accountService } from "@/services/account.service";
-import { trackReorder } from "@/lib/tracking";
+import { gangSheetsService } from "@/services/gangSheets.service";
 import { apiClient } from "@/lib/api-client";
 import { useAuthStore } from "@/stores/auth.store";
 import { ConfigurationDetail } from "@/components/shared/ConfigurationDetail";
 import type { LineConfiguration, OrderDiscountLine } from "@/types/order.types";
 import { discountAmount, discountLabel } from "@/lib/orderMoney";
+import { day, money } from "@/lib/customerWords";
+import {
+  Banner, Loading, OrderChip, PageHead, PaymentChip, Steps, num, saveOrderPdf,
+} from "@/components/portal/ui";
+import { jobState, reorderToCart, type Job } from "@/components/portal/data";
 
 interface OrderItem {
   id: string;
@@ -38,7 +48,7 @@ interface Order {
   tax_amount?: string | null;
   /** "Tax (WY · 6%)": where the tax was charged and at what rate. */
   tax_label?: string | null;
-  /** What took money off the total — the discount code, and what it saved. */
+  /** What took money off the total: the discount code, and what it saved. */
   discounts?: OrderDiscountLine[];
   amount_paid?: string | null;
   convenience_fee?: string | null;
@@ -61,26 +71,6 @@ interface Comment {
   created_at: string;
 }
 
-const STATUS_STEPS = ["pending", "confirmed", "processing", "shipped", "delivered"];
-
-const STATUS_COLORS: Record<string, string> = {
-  pending: "bg-yellow-100 text-yellow-700",
-  confirmed: "bg-blue-100 text-blue-700",
-  processing: "bg-indigo-100 text-indigo-700",
-  shipped: "bg-purple-100 text-purple-700",
-  delivered: "bg-green-100 text-green-700",
-  cancelled: "bg-red-100 text-red-700",
-  refunded: "bg-gray-100 text-gray-600",
-};
-
-const PAYMENT_COLORS: Record<string, string> = {
-  paid: "bg-green-100 text-green-700",
-  unpaid: "bg-yellow-100 text-yellow-700",
-  pending: "bg-yellow-100 text-yellow-700",
-  refunded: "bg-gray-100 text-gray-600",
-  failed: "bg-red-100 text-red-700",
-};
-
 interface OrderHistoryEvent {
   id: string;
   type: string;
@@ -91,146 +81,43 @@ interface OrderHistoryEvent {
   occurred_at: string;
 }
 
-const HISTORY_DOT: Record<string, string> = {
-  order_created: "bg-gray-800",
-  order_confirmed: "bg-brand-600",
-  payment_received: "bg-green-600",
-  payment_authorized: "bg-cyan-600",
-  payment_failed: "bg-red-600",
-  invoice_sent: "bg-cyan-600",
-  discount_applied: "bg-violet-600",
-  processing_started: "bg-indigo-500",
-  shipped: "bg-purple-600",
-  tracking_added: "bg-purple-500",
-  delivered: "bg-green-600",
-  cancelled: "bg-red-600",
-  refund_issued: "bg-red-500",
-  return_requested: "bg-amber-500",
-  return_approved: "bg-amber-600",
-  return_rejected: "bg-red-600",
-  return_completed: "bg-green-600",
-};
-
-/** What has happened to this order, with the time each thing happened.
- *
- * Every row is a stored event written by the code that performed the action,
- * so the times are records rather than a progress bar's guess. */
-function OrderHistory({ events }: { events: OrderHistoryEvent[] }) {
-  if (!events.length) return null;
-  return (
-    <div className="bg-white border border-gray-200 rounded-lg p-4 sm:p-5">
-      <h2 className="text-sm font-semibold text-gray-900 mb-4">Order history</h2>
-      <ol className="relative border-l border-gray-200 ml-2">
-        {events.map(e => {
-          const when = new Date(e.occurred_at);
-          return (
-            <li key={e.id} className="ml-5 pb-5 last:pb-0">
-              <span
-                className={`absolute -left-[5px] mt-1.5 w-2.5 h-2.5 rounded-full ring-2 ring-white ${HISTORY_DOT[e.type] ?? "bg-gray-300"}`}
-              />
-              <div className="flex flex-wrap items-baseline gap-x-2">
-                <p className="text-sm font-semibold text-gray-900">{e.label}</p>
-                <time
-                  dateTime={e.occurred_at}
-                  title={when.toLocaleString(undefined, { dateStyle: "full", timeStyle: "long" })}
-                  className="text-xs text-gray-400 tabular-nums"
-                >
-                  {when.toLocaleString(undefined, {
-                    day: "numeric", month: "short", year: "numeric",
-                    hour: "numeric", minute: "2-digit",
-                  })}
-                </time>
-              </div>
-              <p className="text-sm text-gray-600 mt-0.5 break-words">{e.message}</p>
-            </li>
-          );
-        })}
-      </ol>
-    </div>
-  );
+interface CompanyAddress {
+  name: string | null;
+  company_email: string | null;
+  address_line1: string | null;
+  address_line2: string | null;
+  city: string | null;
+  state_province: string | null;
+  postal_code: string | null;
+  country: string | null;
+  phone: string | null;
 }
 
-function StatusTimeline({ status }: { status: string }) {
-  const isCancelled = status === "cancelled" || status === "refunded";
-  const currentIdx = STATUS_STEPS.indexOf(status);
+const ORDER_STEPS = ["Placed", "Confirmed", "Processing", "Shipped", "Delivered"];
+const ORDER_AT: Record<string, number> = { pending: 0, confirmed: 1, processing: 2, ready_for_pickup: 2, shipped: 3, delivered: 4 };
 
-  if (isCancelled) {
-    return (
-      <div className="flex items-center gap-2 py-3">
-        <span className="w-6 h-6 rounded-full bg-red-100 flex items-center justify-center">
-          <svg className="w-3.5 h-3.5 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-          </svg>
-        </span>
-        <span className="text-sm font-medium text-red-600 capitalize">{status}</span>
-      </div>
-    );
-  }
-
-  return (
-    <div className="flex items-center gap-1 overflow-x-auto py-2">
-      {STATUS_STEPS.map((step, idx) => {
-        const done = idx <= currentIdx;
-        const active = idx === currentIdx;
-        return (
-          <div key={step} className="flex items-center gap-1 shrink-0">
-            <div className="flex flex-col items-center gap-1">
-              <div
-                className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-colors ${done
-                  ? active
-                    ? "bg-brand-600 text-white ring-2 ring-brand-300"
-                    : "bg-brand-100 text-brand-700"
-                  : "bg-gray-100 text-gray-400"
-                  }`}
-              >
-                {done && !active ? (
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
-                  </svg>
-                ) : (
-                  idx + 1
-                )}
-              </div>
-              <span className={`text-xs capitalize whitespace-nowrap ${done ? "text-brand-700 font-medium" : "text-gray-400"}`}>
-                {step}
-              </span>
-            </div>
-            {idx < STATUS_STEPS.length - 1 && (
-              <div className={`h-0.5 w-8 mt-[-12px] ${idx < currentIdx ? "bg-brand-400" : "bg-gray-200"}`} />
-            )}
-          </div>
-        );
-      })}
-    </div>
-  );
-}
+type Pdf = "confirmation" | "invoice" | "ship-confirmation" | "pack-slip";
 
 export default function OrderDetailPage() {
   const { store_name: brandName } = useBranding();
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
-  const { isAuthenticated, isLoading: authLoading } = useAuthStore();
+  const { isAuthenticated, isLoading: authLoading, user } = useAuthStore();
+  const company = !!user?.company_id;
 
   const [order, setOrder] = useState<Order | null>(null);
   const [comments, setComments] = useState<Comment[]>([]);
   const [commentBody, setCommentBody] = useState("");
   const [sendingComment, setSendingComment] = useState(false);
+  const [sent, setSent] = useState(false);
   const [isReordering, setIsReordering] = useState(false);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
-  const [companyAddress, setCompanyAddress] = useState<{
-    name: string | null;
-    company_email: string | null;
-    address_line1: string | null;
-    address_line2: string | null;
-    city: string | null;
-    state_province: string | null;
-    postal_code: string | null;
-    country: string | null;
-    phone: string | null;
-  } | null>(null);
+  const [companyAddress, setCompanyAddress] = useState<CompanyAddress | null>(null);
   const [history, setHistory] = useState<OrderHistoryEvent[]>([]);
+  const [jobs, setJobs] = useState<Job[]>([]);
+  const [saving, setSaving] = useState<Pdf | null>(null);
   const commentEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -241,42 +128,35 @@ export default function OrderDetailPage() {
       try {
         const orderData = await accountService.getOrder(id) as Order;
         setOrder(orderData);
-        // Load comments using the real UUID (not the order_number from URL)
-        try {
-          const commentsData = await accountService.getOrderComments(orderData.id) as Comment[];
-          setComments(commentsData);
-        } catch {
-          setComments([]);
-        }
-        // What has actually happened to this order, with the real times.
-        try {
-          const h = await apiClient.get<{ events: OrderHistoryEvent[] }>(
-            `/api/v1/orders/${orderData.id}/events`
-          );
-          setHistory(h.events ?? []);
-        } catch {
-          setHistory([]);
-        }
+        // Comments, history and print jobs use the real id (the address may carry the number).
+        const [c, h, j] = await Promise.all([
+          (accountService.getOrderComments(orderData.id) as Promise<Comment[]>).catch(() => [] as Comment[]),
+          apiClient.get<{ events: OrderHistoryEvent[] }>(`/api/v1/orders/${orderData.id}/events`).catch(() => ({ events: [] })),
+          (gangSheetsService.myOrders() as Promise<Job[]>).catch(() => [] as Job[]),
+        ]);
+        setComments(c);
+        setHistory(h.events ?? []);
+        setJobs(j.filter((x) => x.order_id === orderData.id));
       } catch (err) {
-        setLoadError(err instanceof Error ? err.message : "Failed to load order.");
+        setLoadError(err instanceof Error ? err.message : "This order could not be loaded.");
       } finally {
         setLoading(false);
       }
     }
     load();
-    // Fetch company address info (best-effort)
-    apiClient.get<{ company: { name: string | null; company_email: string | null; address_line1: string | null; address_line2: string | null; city: string | null; state_province: string | null; postal_code: string | null; country: string | null; phone: string | null } | null }>("/api/v1/account/profile/full")
+    // The company's billing address (best effort).
+    apiClient.get<{ company: CompanyAddress | null }>("/api/v1/account/profile/full")
       .then((d) => { if (d.company) setCompanyAddress(d.company); })
       .catch(() => {});
-  }, [id, authLoading, retryCount]);
+  }, [id, authLoading, retryCount, isAuthenticated]);
 
   async function handleReorder() {
     setIsReordering(true);
     try {
-      const again = await accountService.reorder(order?.id ?? id) as { added?: unknown } | null;
-      trackReorder(order?.items, again?.added);
+      await reorderToCart(order?.id ?? id);
       router.push("/cart");
-    } finally {
+    } catch {
+      tell("This order could not be added to your cart. Please try again.");
       setIsReordering(false);
     }
   }
@@ -289,376 +169,274 @@ export default function OrderDetailPage() {
       const newComment = await accountService.addOrderComment(order?.id ?? id, commentBody.trim()) as Comment;
       setComments((prev) => [...prev, newComment]);
       setCommentBody("");
-      setTimeout(() => commentEndRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
+      setSent(true);
+      setTimeout(() => commentEndRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" }), 100);
+    } catch {
+      tell("Your message could not be sent. Please try again.");
     } finally {
       setSendingComment(false);
     }
   }
 
-  async function downloadPdf(type: "confirmation" | "invoice" | "ship-confirmation" | "pack-slip") {
-    try {
-      const session = sessionStorage.getItem("af_session");
-      const token = session ? JSON.parse(session).token : null;
-      if (!token) return;
-
-      const oid = order?.id ?? id;
-      const resp = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/v1/orders/${oid}/pdf/${type}`,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      if (!resp.ok) throw new Error("Failed");
-
-      const blob = await resp.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `${type}-${order?.order_number}.pdf`;
-      a.style.display = "none";
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    } catch {
+  async function downloadPdf(type: Pdf) {
+    setSaving(type);
+    if (!await saveOrderPdf(order?.id ?? id, type, order?.order_number)) {
       tell("Failed to download PDF. Please try again.");
     }
+    setSaving(null);
   }
 
-  if (loading) {
-    return <div className="py-12 text-center text-gray-400">Loading order…</div>;
-  }
+  if (loading) return <Loading what="Loading order" />;
 
   if (loadError) {
     return (
-      <div className="py-12 text-center">
-        <p className="text-red-500 text-sm mb-3">{loadError}</p>
-        <button
-          onClick={() => setRetryCount(c => c + 1)}
-          className="text-sm text-brand-600 underline"
-        >
-          Try again
-        </button>
-      </div>
+      <>
+        <PageHead back={{ href: "/account/orders", label: "Orders" }} eyebrow="Order" title="Order" />
+        <Banner tone="bad" onRetry={() => setRetryCount((c) => c + 1)}>{loadError}</Banner>
+      </>
     );
   }
 
   if (!order) {
-    return <div className="py-12 text-center text-gray-400">Order not found.</div>;
+    return (
+      <>
+        <PageHead back={{ href: "/account/orders", label: "Orders" }} eyebrow="Order" title="Order not found" />
+      </>
+    );
   }
 
   const isShipped = ["shipped", "delivered"].includes(order.status);
+  const closed = order.status === "cancelled" || order.status === "refunded";
+  const paid = num(order.amount_paid);
+  const balance = Math.max(0, num(order.total) - paid);
+  const payable = order.order_number?.startsWith("DRAFT-") && order.payment_status !== "paid" && !closed;
+  const returnHref = company
+    ? `/account/returns/new?order=${order.id}`
+    : `/account/messages?order=${encodeURIComponent(order.order_number)}&topic=return`;
 
   return (
-    <div className="space-y-4">
-      {/* Back + header */}
-      <div className="flex items-center justify-between">
-        <button
-          onClick={() => router.push("/account/orders")}
-          className="text-sm text-brand-600 hover:text-brand-800 flex items-center gap-1"
-        >
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-          </svg>
-          Orders
-        </button>
-        <button
-          onClick={handleReorder}
-          disabled={isReordering}
-          className="bg-brand-600 text-white rounded-md px-4 py-2 text-sm font-medium hover:bg-brand-700 disabled:opacity-50"
-        >
-          {isReordering ? "Adding…" : "Reorder"}
-        </button>
-      </div>
+    <>
+      <PageHead
+        back={{ href: "/account/orders", label: "Orders" }}
+        eyebrow="Order"
+        title={<>Order {order.order_number}</>}
+        sub={<>Placed {day(order.created_at)}{order.po_number ? ` · PO ${order.po_number}` : ""}</>}
+        actions={
+          <>
+            <button type="button" className="cp-btn" onClick={handleReorder} disabled={isReordering}>
+              {isReordering ? "Adding…" : "Reorder"}
+            </button>
+            <button type="button" className="cp-btn" onClick={() => downloadPdf("invoice")} disabled={saving === "invoice"}>
+              {saving === "invoice" ? "Preparing…" : "Download invoice"}
+            </button>
+            {!closed && <Link href={returnHref} className="cp-btn">Request a reprint or return</Link>}
+            <span className="cp-actions"><OrderChip status={order.status} /><PaymentChip status={order.payment_status} /></span>
+          </>
+        }
+      />
 
-      {/* Order number + meta */}
-      <div className="bg-white rounded-lg border border-gray-200 p-5">
-        <div className="flex items-start justify-between mb-3">
-          <div>
-            <h1 className="text-lg font-bold text-gray-900 font-mono">{order.order_number}</h1>
-            <p className="text-sm text-gray-500 mt-0.5">
-              Placed {new Date(order.created_at).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}
-            </p>
-          </div>
-          <div className="flex flex-col items-end gap-1">
-            <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${STATUS_COLORS[order.status] ?? "bg-gray-100 text-gray-600"}`}>
-              {order.status}
-            </span>
-            <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${PAYMENT_COLORS[order.payment_status] ?? "bg-gray-100 text-gray-600"}`}>
-              {order.payment_status}
-            </span>
-          </div>
-        </div>
-
-        <StatusTimeline status={order.status} />
-
-        {/* PO / tracking */}
-        {(order.po_number || order.tracking_number) && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3 pt-3 border-t border-gray-100">
-            {order.po_number && (
-              <div>
-                <p className="text-xs text-gray-400 mb-0.5">PO Number</p>
-                <p className="text-sm font-medium text-gray-800">{order.po_number}</p>
-              </div>
-            )}
-            {order.tracking_number && (
-              <div>
-                <p className="text-xs text-gray-400 mb-0.5">Tracking</p>
-                <p className="text-sm font-mono font-medium text-gray-800">{order.tracking_number}</p>
-                {order.carrier && <p className="text-xs text-gray-400">{order.carrier}</p>}
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* Shipping tracking banner */}
-      {order.status === "shipped" && order.tracking_number && (
-        <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-          <div className="flex items-center gap-2 mb-3">
-            <svg className="w-5 h-5 text-green-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-            </svg>
-            <span className="text-sm font-semibold text-green-800">Your order has shipped!</span>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm mb-3">
-            {order.carrier && (
-              <div>
-                <p className="text-xs text-green-600 mb-0.5">Carrier</p>
-                <p className="font-medium text-green-900">{order.carrier.toUpperCase()}{order.courier_service ? ` — ${order.courier_service}` : ""}</p>
-              </div>
-            )}
-            <div>
-              <p className="text-xs text-green-600 mb-0.5">Tracking Number</p>
-              <p className="font-mono font-medium text-green-900">{order.tracking_number}</p>
-            </div>
-          </div>
-          {order.tracking_url && (
-            <a
-              href={order.tracking_url}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex items-center gap-1.5 bg-green-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-green-700 transition-colors"
-            >
-              Track Package
-              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
-              </svg>
+      {payable && (
+        <div style={{ marginBottom: 24 }}>
+          <Banner tone="warn">
+            Invoice payment pending: {money(paid > 0 ? balance : num(order.total))} {paid > 0 ? "left to pay" : "to pay"}.
+            <a href={`/checkout/invoice/${order.order_number}`} className="cp-btn cp-btn-p cp-btn-sm" style={{ marginLeft: 12 }}>
+              {paid > 0 ? "Pay balance" : "Pay now"}
             </a>
-          )}
+          </Banner>
         </div>
       )}
 
-      {/* PDF downloads */}
-      <div className="bg-white rounded-lg border border-gray-200 p-5">
-        <h2 className="text-sm font-semibold text-gray-700 mb-3">Documents</h2>
-        <div className="flex flex-wrap gap-2">
-          <button
-            onClick={() => downloadPdf("confirmation")}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-md border border-gray-200 text-sm text-gray-700 hover:bg-gray-50 hover:border-gray-300 transition-colors"
-          >
-            <svg className="w-4 h-4 text-brand-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-            </svg>
-            Order Confirmation
-          </button>
-          <button
-            onClick={() => downloadPdf("invoice")}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-md border border-gray-200 text-sm text-gray-700 hover:bg-gray-50 hover:border-gray-300 transition-colors"
-          >
-            <svg className="w-4 h-4 text-brand-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-            </svg>
-            Invoice
-          </button>
-          {isShipped && (
-            <button
-              onClick={() => downloadPdf("ship-confirmation")}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-md border border-gray-200 text-sm text-gray-700 hover:bg-gray-50 hover:border-gray-300 transition-colors"
-            >
-              <svg className="w-4 h-4 text-brand-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
-              </svg>
-              Ship Confirmation
-            </button>
+      <div className="cp-cols">
+        <div className="cp-col-main">
+          {!closed && (
+            <section className="cp-card cp-pad" aria-label="Progress">
+              <Steps steps={ORDER_STEPS} at={ORDER_AT[order.status] ?? 0} finished={order.status === "delivered"} />
+            </section>
           )}
-          {['processing', 'shipped', 'delivered'].includes(order.status) && (
-            <button
-              onClick={() => downloadPdf("pack-slip")}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-md border border-gray-200 text-sm text-gray-700 hover:bg-gray-50 hover:border-gray-300 transition-colors"
-            >
-              <svg className="w-4 h-4 text-brand-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-              </svg>
-              Packing Slip
-            </button>
-          )}
-        </div>
-      </div>
 
-      {/* Company Address */}
-      {companyAddress && (companyAddress.address_line1 || companyAddress.company_email) && (
-        <div className="bg-white rounded-lg border border-gray-200 p-5">
-          <h2 className="text-sm font-semibold text-gray-700 mb-3">Billing / Company Address</h2>
-          <div className="text-sm text-gray-600 space-y-0.5">
-            {companyAddress.name && <p className="font-medium text-gray-800">{companyAddress.name}</p>}
-            {companyAddress.address_line1 && <p>{companyAddress.address_line1}</p>}
-            {companyAddress.address_line2 && <p>{companyAddress.address_line2}</p>}
-            {(companyAddress.city || companyAddress.state_province || companyAddress.postal_code) && (
-              <p>{[companyAddress.city, companyAddress.state_province, companyAddress.postal_code].filter(Boolean).join(", ")}</p>
-            )}
-            {companyAddress.country && <p>{companyAddress.country}</p>}
-            {companyAddress.company_email && <p className="text-gray-500 mt-1">{companyAddress.company_email}</p>}
-            {companyAddress.phone && <p className="text-gray-500">{companyAddress.phone}</p>}
-          </div>
-        </div>
-      )}
+          <section className="cp-card" style={{ overflow: "hidden" }} aria-labelledby="items">
+            <div style={{ padding: "16px 20px" }}><h2 id="items" className="cp-h2">Items</h2></div>
+            <div className="cp-tbl-wrap">
+              <table className="cp-tbl">
+                <thead><tr><th>SKU</th><th>Product</th><th className="cp-num">Qty</th><th className="cp-num">Unit</th><th className="cp-num">Total</th></tr></thead>
+                <tbody>
+                  {order.items.map((item) => (
+                    <tr key={item.id}>
+                      <td className="cp-mono cp-muted">{item.sku}</td>
+                      <td>
+                        {item.product_name}
+                        {(item.color || item.size) && (
+                          <span className="cp-muted" style={{ marginLeft: 6, fontSize: 13 }}>{[item.color, item.size].filter(Boolean).join(" / ")}</span>
+                        )}
+                        <ConfigurationDetail configuration={item.configuration} />
+                      </td>
+                      <td className="cp-num">{item.quantity}</td>
+                      <td className="cp-num">{money(num(item.unit_price))}</td>
+                      <td className="cp-num">{money(num(item.line_total))}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
 
-      {/* Pay Now banner for unpaid draft invoice orders */}
-      {order.order_number?.startsWith('DRAFT-') && order.payment_status !== 'paid' && (
-        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 text-center">
-          <p className="text-sm font-semibold text-gray-800 mb-3">Invoice payment pending</p>
-          <a
-            href={`/checkout/invoice/${order.order_number}`}
-            className="inline-block bg-brand-700 text-white px-8 py-2.5 rounded-md font-bold text-sm hover:bg-brand-800"
-          >
-            {Number(order.amount_paid) > 0
-              ? `Pay Balance — $${Math.max(0, Number(order.total) - Number(order.amount_paid)).toFixed(2)}`
-              : `Pay Now — $${Number(order.total).toFixed(2)}`}
-          </a>
-        </div>
-      )}
-
-      {/* Line items */}
-      <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-        <div className="px-5 py-3 border-b border-gray-100">
-          <h2 className="text-sm font-semibold text-gray-700">Items ({order.items.length})</h2>
-        </div>
-        <table className="w-full text-sm">
-          <thead className="bg-gray-50 border-b border-gray-200">
-            <tr>
-              <th className="text-left px-4 py-3 text-gray-500 font-medium text-xs">SKU</th>
-              <th className="text-left px-4 py-3 text-gray-500 font-medium text-xs">Product</th>
-              <th className="text-right px-4 py-3 text-gray-500 font-medium text-xs">Qty</th>
-              <th className="text-right px-4 py-3 text-gray-500 font-medium text-xs">Unit</th>
-              <th className="text-right px-4 py-3 text-gray-500 font-medium text-xs">Total</th>
-            </tr>
-          </thead>
-          <tbody>
-            {order.items.map((item) => (
-              <tr key={item.id} className="border-b border-gray-100 last:border-0 hover:bg-gray-50">
-                <td className="px-4 py-3 font-mono text-xs text-gray-500">{item.sku}</td>
-                <td className="px-4 py-3 text-gray-800">
-                  {item.product_name}
-                  {(item.color || item.size) && (
-                    <span className="text-gray-400 text-xs ml-1.5">
-                      {[item.color, item.size].filter(Boolean).join(" / ")}
-                    </span>
-                  )}
-                  <ConfigurationDetail configuration={item.configuration} />
-                </td>
-                <td className="px-4 py-3 text-right text-gray-600">{item.quantity}</td>
-                <td className="px-4 py-3 text-right text-gray-600">${Number(item.unit_price).toFixed(2)}</td>
-                <td className="px-4 py-3 text-right font-medium text-gray-900">${Number(item.line_total).toFixed(2)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        {/* Totals */}
-        <div className="px-4 py-4 border-t border-gray-100 text-sm text-right space-y-1.5">
-          <p className="text-gray-500">
-            Subtotal: <span className="text-gray-800 font-medium">${Number(order.subtotal).toFixed(2)}</span>
-          </p>
-          {(order.discounts ?? []).map((d, i) => (
-            <p key={i} className="text-gray-500">
-              {discountLabel(d)}: <span className="text-emerald-700 font-medium">{discountAmount(d)}</span>
-            </p>
-          ))}
-          <p className="text-gray-500">
-            Shipping: <span className="text-gray-800 font-medium">${Number(order.shipping_cost).toFixed(2)}</span>
-          </p>
-          <p className="text-gray-500">
-            {order.tax_label || "Tax"}: <span className="text-gray-800 font-medium">${Number(order.tax_amount ?? 0).toFixed(2)}</span>
-          </p>
-          {order.convenience_fee && Number(order.convenience_fee) > 0 && (
-            <p style={{ color: "#92400e" }}>
-              Convenience Fee (3%): <span style={{ fontWeight: 600 }}>${Number(order.convenience_fee).toFixed(2)}</span>
-            </p>
-          )}
-          <p className="text-base font-bold text-gray-900">
-            Total: ${Number(order.total).toFixed(2)}
-          </p>
-        </div>
-      </div>
-
-      {/* Notes */}
-      {order.order_notes && (
-        <div className="bg-white rounded-lg border border-gray-200 p-5">
-          <h2 className="text-sm font-semibold text-gray-700 mb-2">Order Notes</h2>
-          <p className="text-sm text-gray-600">{order.order_notes}</p>
-        </div>
-      )}
-
-      {/* What has happened to this order, and when */}
-      <OrderHistory events={history} />
-
-      {/* Comments */}
-      <div className="bg-white rounded-lg border border-gray-200 p-5">
-        <h2 className="text-sm font-semibold text-gray-700 mb-3">
-          Messages {comments.length > 0 && <span className="text-gray-400 font-normal">({comments.length})</span>}
-        </h2>
-
-        {comments.length === 0 ? (
-          <p className="text-sm text-gray-400 mb-4">No messages yet. Add a note or question about this order.</p>
-        ) : (
-          <div className="space-y-3 mb-4">
-            {comments.map((c) => (
-              <div
-                key={c.id}
-                className={`rounded-lg p-3 text-sm ${c.is_admin
-                  ? "bg-blue-50 border border-blue-100"
-                  : "bg-gray-50 border border-gray-100"
-                  }`}
-              >
-                <div className="flex items-center gap-2 mb-1">
-                  {c.is_admin && (
-                    <span className="text-xs bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-medium">
-                      {brandName}
-                    </span>
-                  )}
-                  <span className="text-xs text-gray-400">
-                    {c.author_name ?? (c.is_admin ? "Support" : "You")} ·{" "}
-                    {new Date(c.created_at).toLocaleDateString("en-US", {
-                      month: "short",
-                      day: "numeric",
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
-                  </span>
-                </div>
-                <p className="text-gray-700 whitespace-pre-wrap">{c.body}</p>
+          <section className="cp-card cp-pad" aria-labelledby="shipment">
+            <div className="cp-card-head">
+              <h2 id="shipment" className="cp-h2">Shipment</h2>
+              {isShipped ? <OrderChip status={order.status} /> : <span className="cp-chip">Not shipped</span>}
+            </div>
+            {order.tracking_number ? (
+              <div className="cp-stack-sm">
+                <dl className="cp-kv" style={{ margin: 0 }}>
+                  {order.carrier && <div><dt>Carrier</dt><dd>{order.carrier.toUpperCase()}{order.courier_service ? `, ${order.courier_service}` : ""}</dd></div>}
+                  <div><dt>Tracking number</dt><dd className="cp-mono">{order.tracking_number}</dd></div>
+                </dl>
+                {order.tracking_url && (
+                  <div><a href={order.tracking_url} target="_blank" rel="noreferrer" className="cp-btn cp-btn-p">Track package</a></div>
+                )}
               </div>
-            ))}
-            <div ref={commentEndRef} />
-          </div>
-        )}
+            ) : (
+              <p className="cp-note" style={{ margin: 0 }}>
+                {order.status === "ready_for_pickup" ? "Ready for pickup." : "Carrier and tracking appear here when it ships."}
+              </p>
+            )}
+          </section>
 
-        <form onSubmit={handleSendComment} className="flex gap-2">
-          <input
-            type="text"
-            value={commentBody}
-            onChange={(e) => setCommentBody(e.target.value)}
-            placeholder="Add a note or question…"
-            maxLength={2000}
-            className="flex-1 rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
-          />
-          <button
-            type="submit"
-            disabled={!commentBody.trim() || sendingComment}
-            className="rounded-md bg-brand-600 text-white px-4 py-2 text-sm font-medium hover:bg-brand-700 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {sendingComment ? "Sending…" : "Send"}
-          </button>
-        </form>
+          <section className="cp-card cp-pad" aria-labelledby="order-messages">
+            <h2 id="order-messages" className="cp-h2" style={{ marginBottom: 14 }}>Messages about this order</h2>
+            {comments.length > 0 && (
+              <div className="cp-thread" style={{ marginBottom: 14 }}>
+                {comments.map((c) => (
+                  <div key={c.id} className="cp-bubble" data-from={c.is_admin ? "shop" : "me"}>
+                    <small>
+                      {c.is_admin ? (brandName || c.author_name || "The shop") : (c.author_name || "You")} · {new Date(c.created_at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+                    </small>
+                    {c.body}
+                  </div>
+                ))}
+                <div ref={commentEndRef} />
+              </div>
+            )}
+            {sent && <div style={{ marginBottom: 12 }}><Banner tone="ok">Sent. The shop sees it on your order and answers by email.</Banner></div>}
+            <form onSubmit={handleSendComment} className="cp-stack-sm">
+              <label className="cp-sr" htmlFor="order-note">Write to the shop</label>
+              <textarea id="order-note" className="cp-textarea" placeholder="Write to the shop" maxLength={2000}
+                value={commentBody} onChange={(e) => { setCommentBody(e.target.value); setSent(false); }} />
+              <div className="cp-actions" style={{ justifyContent: "space-between" }}>
+                <span className="cp-note">The shop answers by email.</span>
+                <button type="submit" className="cp-btn cp-btn-p" disabled={!commentBody.trim() || sendingComment}>
+                  {sendingComment ? "Sending…" : "Send"}
+                </button>
+              </div>
+            </form>
+          </section>
+
+          {order.order_notes && (
+            <section className="cp-card cp-pad" aria-labelledby="notes">
+              <h2 id="notes" className="cp-h3" style={{ marginBottom: 8 }}>Order notes</h2>
+              <p style={{ margin: 0, fontSize: 14, whiteSpace: "pre-wrap" }}>{order.order_notes}</p>
+            </section>
+          )}
+        </div>
+
+        <div className="cp-col-side">
+          <section className="cp-card cp-pad" aria-labelledby="totals">
+            <h2 id="totals" className="cp-h2" style={{ marginBottom: 14 }}>Totals</h2>
+            <dl className="cp-kv" style={{ margin: 0 }}>
+              <div><dt>Subtotal</dt><dd>{money(num(order.subtotal))}</dd></div>
+              {(order.discounts ?? []).map((d, i) => (
+                <div key={i}><dt>{discountLabel(d)}</dt><dd style={{ color: "var(--cp-ok)" }}>{discountAmount(d)}</dd></div>
+              ))}
+              <div><dt>Shipping</dt><dd>{money(num(order.shipping_cost))}</dd></div>
+              <div><dt>{order.tax_label || "Tax"}</dt><dd>{money(num(order.tax_amount))}</dd></div>
+              {num(order.convenience_fee) > 0 && <div><dt>Convenience fee (3%)</dt><dd>{money(num(order.convenience_fee))}</dd></div>}
+              <div className="cp-kv-total"><dt className="k">Total</dt><dd className="v">{money(num(order.total))}</dd></div>
+              {paid > 0 && <div><dt>Paid</dt><dd>{money(paid)}</dd></div>}
+              {paid > 0 && balance > 0 && !closed && <div><dt>Balance due</dt><dd>{money(balance)}</dd></div>}
+              {order.payment_status === "refunded" && <div><dt>Refunded</dt><dd>{money(paid || num(order.total))}</dd></div>}
+            </dl>
+          </section>
+
+          {history.length > 0 && (
+            <section className="cp-card cp-pad" aria-labelledby="history">
+              <h2 id="history" className="cp-h2" style={{ marginBottom: 14 }}>History</h2>
+              <ol className="cp-history">
+                {history.map((e) => {
+                  const when = new Date(e.occurred_at);
+                  return (
+                    <li key={e.id}>
+                      <span className="dot" aria-hidden />
+                      <div>
+                        <div className="t">{e.label}</div>
+                        {e.message && e.message !== e.label && <div className="s">{e.message}</div>}
+                        <time className="s" dateTime={e.occurred_at} title={when.toLocaleString(undefined, { dateStyle: "full", timeStyle: "long" })} style={{ display: "block" }}>
+                          {when.toLocaleString(undefined, { day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit" })}
+                        </time>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ol>
+            </section>
+          )}
+
+          {jobs.length > 0 && (
+            <section className="cp-card cp-pad" aria-labelledby="linked-jobs">
+              <h2 id="linked-jobs" className="cp-h2" style={{ marginBottom: 14 }}>{jobs.length === 1 ? "Linked print job" : "Linked print jobs"}</h2>
+              <div className="cp-rows">
+                {jobs.map((j) => (
+                  <div key={j.id} className="cp-row">
+                    <div className="cp-row-body">
+                      <div className="cp-row-t">{j.kind === "upload_by_size" ? "Print" : "Gang sheet"} {j.reference}</div>
+                      <div className="cp-row-s">{jobState(j)[0]}</div>
+                    </div>
+                    <Link href={`/account/gang-sheets/${j.id}`} className="cp-btn cp-btn-sm">View job</Link>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
+          <section className="cp-card cp-pad" aria-labelledby="documents">
+            <h2 id="documents" className="cp-h2" style={{ marginBottom: 14 }}>Documents</h2>
+            <div className="cp-stack-sm">
+              <button type="button" className="cp-btn cp-btn-block" disabled={saving === "confirmation"} onClick={() => downloadPdf("confirmation")}>
+                {saving === "confirmation" ? "Preparing…" : "Order confirmation"}
+              </button>
+              <button type="button" className="cp-btn cp-btn-block" disabled={saving === "invoice"} onClick={() => downloadPdf("invoice")}>
+                {saving === "invoice" ? "Preparing…" : "Invoice"}
+              </button>
+              {isShipped && (
+                <button type="button" className="cp-btn cp-btn-block" disabled={saving === "ship-confirmation"} onClick={() => downloadPdf("ship-confirmation")}>
+                  {saving === "ship-confirmation" ? "Preparing…" : "Ship confirmation"}
+                </button>
+              )}
+              {["processing", "shipped", "delivered"].includes(order.status) && (
+                <button type="button" className="cp-btn cp-btn-block" disabled={saving === "pack-slip"} onClick={() => downloadPdf("pack-slip")}>
+                  {saving === "pack-slip" ? "Preparing…" : "Packing slip"}
+                </button>
+              )}
+            </div>
+          </section>
+
+          {companyAddress && (companyAddress.address_line1 || companyAddress.company_email) && (
+            <section className="cp-card cp-pad" aria-labelledby="billing">
+              <h2 id="billing" className="cp-h3" style={{ marginBottom: 8 }}>Billing address</h2>
+              <div style={{ fontSize: 14, lineHeight: 1.55 }}>
+                {companyAddress.name && <div className="cp-strong">{companyAddress.name}</div>}
+                {companyAddress.address_line1 && <div>{companyAddress.address_line1}</div>}
+                {companyAddress.address_line2 && <div>{companyAddress.address_line2}</div>}
+                {(companyAddress.city || companyAddress.state_province || companyAddress.postal_code) && (
+                  <div>{[companyAddress.city, companyAddress.state_province, companyAddress.postal_code].filter(Boolean).join(", ")}</div>
+                )}
+                {companyAddress.country && <div>{companyAddress.country}</div>}
+                {companyAddress.company_email && <div className="cp-muted">{companyAddress.company_email}</div>}
+                {companyAddress.phone && <div className="cp-muted">{companyAddress.phone}</div>}
+              </div>
+            </section>
+          )}
+        </div>
       </div>
-    </div>
+    </>
   );
 }

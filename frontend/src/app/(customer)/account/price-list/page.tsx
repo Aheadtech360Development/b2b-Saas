@@ -1,14 +1,21 @@
 "use client";
 
-import { useBranding } from "@/components/providers/BrandingProvider";
-import { brandFileName } from "@/lib/brand";
-
-import React from "react";
-import { useEffect, useRef, useState } from "react";
+/**
+ * Price list: what this company pays for everything it can order, at its
+ * tier, beside the retail price. Loads on its own; search and the product and
+ * size filters work on the whole list, a few hundred rows are drawn at a time,
+ * and Export takes everything that matches.
+ */
+import { useEffect, useMemo, useState } from "react";
 import { apiClient } from "@/lib/api-client";
-import { useAuthStore } from "@/stores/auth.store";
+import { accountService } from "@/services/account.service";
+import { brandFileName } from "@/lib/brand";
+import { useBranding } from "@/components/providers/BrandingProvider";
+import { money } from "@/lib/customerWords";
+import { Banner, Empty, Loading, PageHead, saveCsv } from "@/components/portal/ui";
+import type { FullProfile } from "@/components/portal/data";
 
-interface PriceItem {
+interface PriceRow {
   product_id: string;
   product_name: string;
   sku: string;
@@ -18,207 +25,105 @@ interface PriceItem {
   unit_price: number;
 }
 
-interface PriceListResponse {
-  items: PriceItem[];
-  discount_percent: number;
-}
+const STEP = 300;
 
-export default function AccountPriceListPage() {
+export default function PriceListPage() {
   const branding = useBranding();
-  const { isAuthenticated, isLoading } = useAuthStore();
-  const hasLoaded = useRef(false);
+  const [rows, setRows] = useState<PriceRow[] | null>(null);
+  const [discount, setDiscount] = useState(0);
+  const [tier, setTier] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [q, setQ] = useState("");
+  const [product, setProduct] = useState("");
+  const [size, setSize] = useState("");
+  const [shown, setShown] = useState(STEP);
 
-  const [items, setItems] = useState<PriceItem[]>([]);
-  const [discountPercent, setDiscountPercent] = useState(0);
-  const [loading, setLoading] = useState(false);
-  const [generated, setGenerated] = useState(false);
-
-  useEffect(() => {
-    if (isLoading) return;
-    if (!isAuthenticated()) return;
-    hasLoaded.current = true;
-  }, [isLoading]);
-
-  async function handleGenerateReport() {
-    setLoading(true);
-    setGenerated(false);
-    try {
-      const data = await apiClient.get<PriceListResponse>("/api/v1/account/price-list-report");
-      setItems(data.items);
-      setDiscountPercent(data.discount_percent);
-      setGenerated(true);
-    } finally {
-      setLoading(false);
-    }
+  function load() {
+    setError(null);
+    apiClient.get<{ items: PriceRow[]; discount_percent: number }>("/api/v1/account/price-list-report")
+      .then((d) => { setRows(d.items); setDiscount(d.discount_percent || 0); })
+      .catch(() => { setRows([]); setError("Your price list could not be loaded."); });
+    (accountService.getFullProfile() as Promise<FullProfile>)
+      .then((p) => setTier(p.company?.pricing_tier_name ?? null)).catch(() => {});
   }
+  useEffect(load, []);
+  useEffect(() => setShown(STEP), [q, product, size]);
 
-  function handleExportCSV() {
-    if (!items.length) return;
-    const headers = ["Style (SKU)", "Color", "Size", "Retail Price", "Your Price"];
-    const rows = items.map((item) => [
-      item.sku,
-      item.color,
-      item.size,
-      `$${item.retail_price.toFixed(2)}`,
-      `$${item.unit_price.toFixed(2)}`,
-    ]);
-    const csv = [headers, ...rows]
-      .map((row) => row.map((cell) => `"${cell}"`).join(","))
-      .join("\n");
-    const blob = new Blob([csv], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = brandFileName(branding.store_name, "price-list.csv");
-    a.style.display = "none";
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  }
+  const products = useMemo(() => {
+    const seen = new Map<string, string>();
+    for (const r of rows ?? []) if (!seen.has(r.product_id)) seen.set(r.product_id, r.product_name);
+    return [...seen.entries()];
+  }, [rows]);
+  const sizes = useMemo(() => [...new Set((rows ?? []).filter((r) => !product || r.product_id === product).map((r) => r.size))].filter((s) => s && s !== "—"), [rows, product]);
+  const matching = useMemo(() => {
+    const term = q.trim().toLowerCase();
+    return (rows ?? []).filter((r) =>
+      (!product || r.product_id === product) && (!size || r.size === size)
+      && (!term || r.sku.toLowerCase().includes(term) || r.product_name.toLowerCase().includes(term) || r.color.toLowerCase().includes(term)));
+  }, [rows, q, product, size]);
 
-  // Group by product
-  const grouped = items.reduce(
-    (acc, item) => {
-      if (!acc[item.product_id]) {
-        acc[item.product_id] = { product_name: item.product_name, variants: [] };
-      }
-      acc[item.product_id]!.variants.push(item);
-      return acc;
-    },
-    {} as Record<string, { product_name: string; variants: PriceItem[] }>
-  );
+  const save = (r: PriceRow) => (r.retail_price > 0 ? Math.round((1 - r.unit_price / r.retail_price) * 100) : 0);
 
   return (
-    <div className="space-y-6 max-w-5xl">
-      <h1 className="text-2xl font-bold text-gray-900">Price List</h1>
+    <>
+      <PageHead eyebrow="Price list" title="Price list" sub="Prices for the products you can order, at your tier."
+        actions={<button type="button" className="cp-btn" disabled={!matching.length}
+          onClick={() => saveCsv(brandFileName(branding.store_name, "price-list.csv"), ["SKU", "Product", "Color", "Size", "Retail", "Your price", "You save %"],
+            matching.map((r) => [r.sku, r.product_name, r.color, r.size, r.retail_price.toFixed(2), r.unit_price.toFixed(2), save(r)]))}>Export CSV</button>} />
 
-      {/* Controls card */}
-      <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
-        <div className="grid grid-cols-2 divide-x divide-gray-200 price-list-ctrl-grid">
-          {/* Step 1 */}
-          <div className="p-5">
-            <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">
-              1. Select Display Options
-            </p>
-            <p className="text-sm text-gray-500">
-              Your personalized price list with your account pricing applied.
-              {discountPercent > 0 && (
-                <span className="ml-1 font-medium text-green-600">
-                  ({discountPercent}% discount)
-                </span>
-              )}
-            </p>
-          </div>
-
-          {/* Step 2 */}
-          <div className="p-5">
-            <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">
-              2. Generate Report
-            </p>
-            <div className="flex gap-2">
-              <button
-                onClick={handleGenerateReport}
-                disabled={loading}
-                className="px-4 py-2 bg-gray-900 text-white rounded-md text-sm font-medium hover:bg-gray-800 disabled:opacity-50"
-              >
-                {loading ? "Generating…" : "Generate Report"}
-              </button>
-              {generated && items.length > 0 && (
-                <button
-                  onClick={handleExportCSV}
-                  className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50"
-                >
-                  Export CSV
-                </button>
-              )}
-            </div>
-          </div>
+      {rows !== null && !error && (
+        <div style={{ marginBottom: 16 }}>
+          <Banner tone="info">
+            {discount > 0
+              ? `Your tier${tier ? `, ${tier},` : ""} takes ${discount}% off retail. The Your price column is what you pay.`
+              : "You pay the shop's own prices. Ask the shop about a pricing tier if you order in volume."}
+          </Banner>
         </div>
+      )}
+      {error && <div style={{ marginBottom: 16 }}><Banner tone="bad" onRetry={load}>{error}</Banner></div>}
+
+      <div className="cp-filters">
+        <label className="cp-sr" htmlFor="pl-q">Search by SKU or product</label>
+        <input id="pl-q" className="cp-input cp-grow" type="search" placeholder="Search by SKU or product" value={q} onChange={(e) => setQ(e.target.value)} />
+        <label className="cp-sr" htmlFor="pl-product">Product</label>
+        <select id="pl-product" className="cp-select" value={product} onChange={(e) => { setProduct(e.target.value); setSize(""); }} style={{ maxWidth: 280 }}>
+          <option value="">Product: All</option>
+          {products.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
+        </select>
+        <label className="cp-sr" htmlFor="pl-size">Size</label>
+        <select id="pl-size" className="cp-select" value={size} onChange={(e) => setSize(e.target.value)}>
+          <option value="">Size: All</option>
+          {sizes.map((s) => <option key={s} value={s}>{s}</option>)}
+        </select>
       </div>
 
-      {/* Empty state before generate */}
-      {!generated && (
-        <div className="text-center py-12 bg-white border border-gray-200 rounded-lg text-gray-400">
-          <svg className="mx-auto mb-2 w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25zM6.75 12h.008v.008H6.75V12zm0 3h.008v.008H6.75V15zm0 3h.008v.008H6.75V18z" />
-          </svg>
-          <p className="text-sm">Click Generate Report to view your price list</p>
-        </div>
-      )}
-
-      {generated && items.length === 0 && (
-        <div className="text-center py-12 bg-white border border-gray-200 rounded-lg">
-          <p className="text-gray-400">No active products found.</p>
-        </div>
-      )}
-
-      {/* Results table */}
-      {generated && items.length > 0 && (
-        <div className="bg-white border border-gray-200 rounded-lg overflow-hidden" id="print-area">
-          <div className="hidden print:block px-5 py-4 border-b">
-            <h2 className="text-lg font-bold">{branding.store_name} — Price List</h2>
-            <p className="text-sm text-gray-500">Generated: {new Date().toLocaleDateString()}</p>
-          </div>
-
-          <div className="overflow-x-auto">
-          <table className="w-full text-sm" style={{ minWidth: "480px" }}>
-            <thead className="bg-gray-50 border-b border-gray-200">
-              <tr>
-                <th className="text-left px-4 py-3 text-gray-600 font-medium text-xs uppercase">Style (SKU)</th>
-                <th className="text-left px-4 py-3 text-gray-600 font-medium text-xs uppercase">Color</th>
-                <th className="text-left px-4 py-3 text-gray-600 font-medium text-xs uppercase">Size</th>
-                <th className="text-right px-4 py-3 text-gray-600 font-medium text-xs uppercase">Retail Price</th>
-                <th className="text-right px-4 py-3 text-gray-600 font-medium text-xs uppercase">Your Price</th>
-              </tr>
-            </thead>
-            <tbody>
-              {Object.entries(grouped).map(([productId, group]) => (
-                <React.Fragment key={productId}>
-                  <tr className="bg-blue-50 border-b border-blue-100">
-                    <td colSpan={5} className="px-4 py-2">
-                      <span className="font-semibold text-blue-800 text-sm">{group.product_name}</span>
-                    </td>
+      <div className="cp-card" style={{ overflow: "hidden" }}>
+        {rows === null ? <Loading what="Loading your prices" /> : matching.length === 0 ? (
+          <Empty title={rows.length ? "Nothing matches" : "No products to show"}>{rows.length ? "Try another search or filter." : "Products you can order appear here."}</Empty>
+        ) : (
+          <div className="cp-tbl-wrap">
+            <table className="cp-tbl">
+              <thead><tr><th>SKU</th><th>Product</th><th>Size</th><th className="cp-num">Retail</th><th className="cp-num">Your price</th><th className="cp-num">You save</th></tr></thead>
+              <tbody>
+                {matching.slice(0, shown).map((r, i) => (
+                  <tr key={`${r.sku}-${i}`}>
+                    <td className="cp-mono cp-muted">{r.sku}</td>
+                    <td>{r.product_name}{r.color && r.color !== "—" ? <span className="cp-muted"> · {r.color}</span> : null}</td>
+                    <td>{r.size}</td>
+                    <td className="cp-num cp-muted">{money(r.retail_price)}</td>
+                    <td className="cp-num cp-strong">{money(r.unit_price)}</td>
+                    <td className="cp-num">{save(r) > 0 ? `${save(r)}%` : "—"}</td>
                   </tr>
-                  {group.variants.map((item, idx) => (
-                    <tr
-                      key={`${item.sku}-${idx}`}
-                      className={`border-b border-gray-100 hover:bg-blue-50 ${idx % 2 === 0 ? "bg-white" : "bg-gray-50"}`}
-                    >
-                      <td className="px-4 py-2.5 font-mono text-xs text-gray-500">{item.sku}</td>
-                      <td className="px-4 py-2.5 text-gray-700">{item.color}</td>
-                      <td className="px-4 py-2.5 text-gray-700">{item.size}</td>
-                      <td className="px-4 py-2.5 text-right text-xs">
-                        {item.unit_price < item.retail_price ? (
-                          <span className="text-gray-400 line-through">${item.retail_price.toFixed(2)}</span>
-                        ) : (
-                          <span className="text-gray-400">${item.retail_price.toFixed(2)}</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-2.5 text-right font-semibold">
-                        {item.unit_price < item.retail_price ? (
-                          <span style={{ color: "#D01F2D", fontWeight: 700 }}>${item.unit_price.toFixed(2)}</span>
-                        ) : (
-                          <span className="text-gray-900">${item.unit_price.toFixed(2)}</span>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </React.Fragment>
-              ))}
-            </tbody>
-          </table>
+                ))}
+              </tbody>
+            </table>
           </div>
-        </div>
-      )}
-
-      <style jsx global>{`
-        @media print {
-          body * { visibility: hidden; }
-          #print-area, #print-area * { visibility: visible; }
-          #print-area { position: absolute; left: 0; top: 0; width: 100%; }
-        }
-      `}</style>
-    </div>
+        )}
+      </div>
+      <div className="cp-actions" style={{ justifyContent: "space-between", marginTop: 12 }}>
+        <span className="cp-note">{rows ? `${Math.min(shown, matching.length)} of ${matching.length} price${matching.length === 1 ? "" : "s"}` : ""}</span>
+        {matching.length > shown && <button type="button" className="cp-btn" onClick={() => setShown((n) => n + STEP)}>Show more</button>}
+      </div>
+    </>
   );
 }

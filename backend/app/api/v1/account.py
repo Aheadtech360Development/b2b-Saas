@@ -7,6 +7,8 @@ Each phase adds endpoints to this router:
 """
 from uuid import UUID
 
+from html import escape
+
 from fastapi import APIRouter, Depends, Query, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -23,6 +25,24 @@ def _brand_name() -> str:
         return (get_current_brand_name() or "").strip()
     except Exception:
         return ""
+
+
+def _mail_subject(what: str) -> str:
+    """A buyer's account email subject, in the shop's own name."""
+    shop = _brand_name()
+    return f"{what} | {shop}" if shop else what
+
+
+def _signoff() -> str:
+    """How a buyer's account email signs off: the shop, never another brand."""
+    shop = _brand_name()
+    return f"The {shop} team" if shop else "The team"
+
+
+def _account_words() -> str:
+    """"your Acme account", or "your account" when the shop has no name."""
+    shop = _brand_name()
+    return f"your {shop} account" if shop else "your account"
 
 
 router = APIRouter(prefix="/account", tags=["account"])
@@ -155,13 +175,13 @@ async def create_address(
                 from app.services.email_service import EmailService
                 EmailService(db).send_raw(
                     to_email=user.email,
-                    subject="New address added — AF Apparels",
+                    subject=_mail_subject("New address added"),
                     body_html=(
                         f"<h2>Address Added</h2>"
                         f"<p>Hi {user.first_name or 'there'},</p>"
                         f"<p>A new shipping address has been added to your account: <strong>{payload.label or payload.full_name}</strong>.</p>"
                         f"<p>If you did not make this change, please contact us immediately.</p>"
-                        f"<br><p>AF Apparels Team</p>"
+                        f"<br><p>{escape(_signoff())}</p>"
                     ),
                 )
     except Exception:
@@ -268,13 +288,13 @@ async def delete_address(
                 from app.services.email_service import EmailService
                 EmailService(db).send_raw(
                     to_email=user.email,
-                    subject="Address removed — AF Apparels",
+                    subject=_mail_subject("Address removed"),
                     body_html=(
                         f"<h2>Address Removed</h2>"
                         f"<p>Hi {user.first_name or 'there'},</p>"
                         f"<p>A shipping address has been removed from your account: <strong>{addr.label or addr.full_name}</strong>.</p>"
                         f"<p>If you did not make this change, please contact us immediately.</p>"
-                        f"<br><p>AF Apparels Team</p>"
+                        f"<br><p>{escape(_signoff())}</p>"
                     ),
                 )
     except Exception:
@@ -415,6 +435,14 @@ async def get_full_profile(request: Request, db: AsyncSession = Depends(get_db))
         company = (await db.execute(
             select(Company).where(Company.id == company_id)
         )).scalar_one_or_none()
+    # The account's price tier, for the portal's home and price list.
+    tier = None
+    if company is not None and company.pricing_tier_id:
+        from app.models.pricing import PricingTier
+
+        tier = (await db.execute(
+            select(PricingTier.name, PricingTier.discount_percent).where(PricingTier.id == company.pricing_tier_id)
+        )).first()
 
     return {
         "web_user": {
@@ -448,6 +476,10 @@ async def get_full_profile(request: Request, db: AsyncSession = Depends(get_db))
             "how_heard": getattr(company, "how_heard", None),
             "num_employees": getattr(company, "num_employees", None),
             "num_sales_reps": getattr(company, "num_sales_reps", None),
+            # Its terms and price tier, read-only here: the shop sets them.
+            "net30_enabled": bool(getattr(company, "net30_enabled", False)),
+            "pricing_tier_name": tier[0] if tier else None,
+            "pricing_tier_discount": float(tier[1]) if tier and tier[1] is not None else None,
         } if company else None,
     }
 
@@ -472,13 +504,13 @@ async def update_user_profile(
         from app.services.email_service import EmailService
         EmailService(db).send_raw(
             to_email=user.email,
-            subject="Your profile has been updated — AF Apparels",
+            subject=_mail_subject("Your profile has been updated"),
             body_html=(
                 f"<h2>Profile Updated</h2>"
                 f"<p>Hi {user.first_name or 'there'},</p>"
-                f"<p>Your AF Apparels account profile was successfully updated.</p>"
+                f"<p>The profile on {_account_words()} was successfully updated.</p>"
                 f"<p>If you did not make this change, please contact us immediately.</p>"
-                f"<br><p>AF Apparels Team</p>"
+                f"<br><p>{escape(_signoff())}</p>"
             ),
         )
     except Exception:
@@ -516,13 +548,13 @@ async def update_company_profile(
                 from app.services.email_service import EmailService
                 EmailService(db).send_raw(
                     to_email=user.email,
-                    subject="Company profile updated — AF Apparels",
+                    subject=_mail_subject("Company profile updated"),
                     body_html=(
                         f"<h2>Company Profile Updated</h2>"
                         f"<p>Hi {user.first_name or 'there'},</p>"
                         f"<p>The company profile for <strong>{company.name}</strong> was successfully updated.</p>"
                         f"<p>If you did not make this change, please contact us immediately.</p>"
-                        f"<br><p>AF Apparels Team</p>"
+                        f"<br><p>{escape(_signoff())}</p>"
                     ),
                 )
     except Exception:
@@ -552,13 +584,13 @@ async def change_password(
         from app.services.email_service import EmailService
         EmailService(db).send_raw(
             to_email=user.email,
-            subject="Your AF Apparels password has been changed",
+            subject=_mail_subject("Your password has been changed"),
             body_html=(
                 f"<h2>Password Changed Successfully</h2>"
                 f"<p>Hi {user.first_name},</p>"
-                f"<p>Your AF Apparels account password was successfully changed.</p>"
+                f"<p>The password on {_account_words()} was successfully changed.</p>"
                 f"<p>If you did not make this change, please contact us immediately.</p>"
-                f"<br><p>AF Apparels Team</p>"
+                f"<br><p>{escape(_signoff())}</p>"
             ),
         )
     except Exception:
@@ -1085,13 +1117,16 @@ async def list_my_rma(request: Request, db: AsyncSession = Depends(get_db)):
     company_id = getattr(request.state, "company_id", None)
     if not company_id:
         raise ForbiddenError("Company account required")
-    # Get order IDs for this company
+    # This company's returns, each with its lines read in the same go: the
+    # response lists them, and a lazy read of them here failed the request.
+    from sqlalchemy.orm import selectinload
+
     from app.models.order import Order
-    order_ids = (await db.execute(
-        select(Order.id).where(Order.company_id == company_id)
-    )).scalars().all()
     result = await db.execute(
-        select(RMARequest).where(RMARequest.order_id.in_(order_ids))
+        select(RMARequest)
+        .join(Order, Order.id == RMARequest.order_id)
+        .where(Order.company_id == company_id)
+        .options(selectinload(RMARequest.items))
         .order_by(RMARequest.created_at.desc())
     )
     return result.scalars().all()
@@ -1107,6 +1142,20 @@ async def create_rma(
     user_id = getattr(request.state, "user_id", None)
     if not company_id or not user_id:
         raise ForbiddenError("Company account required")
+
+    # Only for this company's own order, and only lines that are on it.
+    from app.models.order import Order as _OwnOrder, OrderItem as _OwnItem
+
+    owned = (await db.execute(
+        select(_OwnOrder.id).where(_OwnOrder.id == payload.order_id, _OwnOrder.company_id == company_id)
+    )).scalar_one_or_none()
+    if not owned:
+        raise NotFoundError("Order not found")
+    on_order = set((await db.execute(
+        select(_OwnItem.id).where(_OwnItem.order_id == payload.order_id)
+    )).scalars().all())
+    if any(item.order_item_id not in on_order for item in payload.items):
+        raise ValidationError("Some of those items are not on this order.")
 
     import random
     rma_number = f"RMA-{random.randint(100000, 999999)}"
@@ -1160,10 +1209,8 @@ async def create_rma(
                 subject=f"RMA Request Received &#8212; {rma_number}",
                 body_html=(
                     '<div style="font-family:sans-serif;max-width:600px;margin:0 auto">'
-                    '<div style="background:#080808;padding:24px;text-align:center">'
-                    '<span style="font-size:36px;font-weight:900;color:#1A5CFF">A</span>'
-                    '<span style="font-size:36px;font-weight:900;color:#E8242A">F</span>'
-                    '<span style="color:#fff;font-size:14px;margin-left:8px;letter-spacing:.1em">APPARELS</span>'
+                    '<div style="background:#111318;padding:24px;text-align:center">'
+                    f'<span style="color:#fff;font-size:20px;font-weight:700">{escape(_brand_name())}</span>'
                     '</div>'
                     '<div style="padding:32px;background:#fff">'
                     f'<h2 style="color:#2A2830;margin:0 0 12px">Return Request Received</h2>'
@@ -1176,17 +1223,25 @@ async def create_rma(
                     f'<p style="margin:4px 0 0;font-size:13px;color:#2A2830">{payload.reason}</p>'
                     '</div>'
                     f'<p style="margin:20px 0"><a href="{_rma_settings.FRONTEND_URL}/account/rma"'
-                    ' style="background:#1A5CFF;color:#fff;padding:12px 24px;border-radius:6px;'
+                    ' style="background:#111318;color:#fff;padding:12px 24px;border-radius:6px;'
                     'text-decoration:none;font-weight:700;display:inline-block">View My Returns &rarr;</a></p>'
-                    '<p style="color:#9ca3af;font-size:12px;margin-top:24px">Questions? Call (214)&nbsp;272-7213</p>'
-                    '<p style="color:#9ca3af;font-size:12px">&#8212; AF Apparels Team</p>'
+                    '<p style="color:#9ca3af;font-size:12px;margin-top:24px">Questions? Reply to this email.</p>'
+                    f'<p style="color:#9ca3af;font-size:12px">{escape(_signoff())}</p>'
                     '</div></div>'
                 ),
             )
     except Exception:
         pass
 
-    return rma
+    # Read back with its lines: the response lists them, and reading them
+    # lazily after the commit answered 500 although the return was saved, so
+    # the buyer saw an error and sent it again.
+    from sqlalchemy.orm import selectinload
+
+    return (await db.execute(
+        select(RMARequest).options(selectinload(RMARequest.items))
+        .where(RMARequest.id == rma.id).execution_options(populate_existing=True)
+    )).scalar_one()
 
 
 @router.get("/rma/{rma_id}", response_model=RMAOut)
@@ -1194,7 +1249,15 @@ async def get_rma(rma_id: UUID, request: Request, db: AsyncSession = Depends(get
     company_id = getattr(request.state, "company_id", None)
     if not company_id:
         raise ForbiddenError("Company account required")
-    rma = (await db.execute(select(RMARequest).where(RMARequest.id == rma_id))).scalar_one_or_none()
+    from sqlalchemy.orm import selectinload
+
+    from app.models.order import Order
+    # Only this company's own return: an id alone opened any return in the shop.
+    rma = (await db.execute(
+        select(RMARequest).join(Order, Order.id == RMARequest.order_id)
+        .where(RMARequest.id == rma_id, Order.company_id == company_id)
+        .options(selectinload(RMARequest.items))
+    )).scalar_one_or_none()
     if not rma:
         raise NotFoundError("RMA not found")
     return rma
@@ -1273,13 +1336,13 @@ async def resend_registration_emails(
         try:
             email_svc.send_raw(
                 to_email=email,
-                subject="Welcome to AF Apparels B2B Platform",
+                subject=_mail_subject("Your account is ready"),
                 body_html=(
-                    "<h2>Welcome to AF Apparels!</h2>"
-                    "<p>This is a reminder of your registration to the AF Apparels wholesale platform.</p>"
+                    f"<h2>Welcome to {escape(_brand_name() or 'your account')}</h2>"
+                    f"<p>This is a reminder that {escape(_account_words())} is ready for you.</p>"
                     f"<p>Please visit <a href='{_settings.FRONTEND_URL}/login'>our platform</a> to login.</p>"
                     "<p>If you need help, please contact us.</p>"
-                    "<p>AF Apparels Team</p>"
+                    f"<p>{escape(_signoff())}</p>"
                 ),
                 cc=cc_emails or None,
                 bcc=bcc_emails or None,
@@ -1584,7 +1647,7 @@ async def email_statement(
                 f"<p><a href='{statement_url}' style='background:#1d4ed8;color:#fff;"
                 f"padding:10px 20px;border-radius:6px;text-decoration:none;display:inline-block'>"
                 f"View Statement Online</a></p>"
-                f"<p style='color:#6b7280;font-size:13px'>AF Apparels Wholesale</p>"
+                f"<p style='color:#6b7280;font-size:13px'>{escape(_signoff())}</p>"
             ),
         )
         if ok:
@@ -1728,33 +1791,29 @@ async def get_price_list_report(
     discount = Decimal(str(getattr(request.state, "tier_discount_percent", "0")))
     pricing_svc = PricingService(db)
 
-    products_result = await db.execute(
-        select(Product)
-        .where(Product.status == "active")
-        .order_by(Product.name)
-    )
-    products = products_result.scalars().all()
+    # One query for the whole list, in the order it always had (products by
+    # name, then each one's variants by colour, position and size): a query
+    # per product took seconds on a shop with a supplier-sized catalogue.
+    rows = (await db.execute(
+        select(Product.id, Product.name, ProductVariant.sku, ProductVariant.color,
+               ProductVariant.size, ProductVariant.retail_price)
+        .join(ProductVariant, ProductVariant.product_id == Product.id)
+        .where(Product.status == "active", ProductVariant.status == "active")
+        .order_by(Product.name, Product.id, ProductVariant.color, ProductVariant.sort_order, ProductVariant.size)
+    )).all()
 
     items = []
-    for product in products:
-        variants_result = await db.execute(
-            select(ProductVariant)
-            .where(ProductVariant.product_id == product.id)
-            .where(ProductVariant.status == "active")
-            .order_by(ProductVariant.color, ProductVariant.sort_order, ProductVariant.size)
-        )
-        variants = variants_result.scalars().all()
-        for v in variants:
-            unit_price = pricing_svc.calculate_effective_price(v.retail_price, discount)
-            items.append({
-                "product_id": str(product.id),
-                "product_name": product.name,
-                "sku": v.sku,
-                "color": v.color or "—",
-                "size": v.size or "—",
-                "retail_price": float(v.retail_price),
-                "unit_price": float(unit_price),
-            })
+    for product_id, product_name, sku, color, size, retail_price in rows:
+        unit_price = pricing_svc.calculate_effective_price(retail_price, discount)
+        items.append({
+            "product_id": str(product_id),
+            "product_name": product_name,
+            "sku": sku,
+            "color": color or "—",
+            "size": size or "—",
+            "retail_price": float(retail_price),
+            "unit_price": float(unit_price),
+        })
 
     return {"items": items, "discount_percent": float(discount)}
 

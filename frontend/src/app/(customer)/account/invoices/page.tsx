@@ -1,172 +1,125 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { useAuthStore } from "@/stores/auth.store";
+/**
+ * Billing, Invoices: what the company owes and paying it. Every order is its
+ * own invoice (the API builds them from the orders); a cancelled or refunded
+ * order owes nothing. Net 30 invoices fall due 30 days after the order, which
+ * is what "due soon" and "overdue" are measured against.
+ */
+import Link from "next/link";
+import { useCallback, useEffect, useState } from "react";
 import { accountService } from "@/services/account.service";
-
-interface QBInvoice {
-  id: string;
-  doc_number: string | null;
-  txn_date: string | null;
-  due_date: string | null;
-  total_amt: number;
-  balance: number;
-  status: "open" | "partial" | "paid";
-  email_status: string | null;
-  customer_memo: string | null;
-}
-
-const STATUS_STYLE: Record<QBInvoice["status"], { bg: string; color: string; label: string }> = {
-  paid:    { bg: "#DCFCE7", color: "#15803D", label: "Paid" },
-  partial: { bg: "#FEF9C3", color: "#A16207", label: "Partial" },
-  open:    { bg: "#FEE2E2", color: "#B91C1C", label: "Unpaid" },
-};
-
-function fmt(date: string | null) {
-  if (!date) return "—";
-  return new Date(date + "T00:00:00").toLocaleDateString("en-US", {
-    month: "short", day: "numeric", year: "numeric",
-  });
-}
-
-function money(n: number) {
-  return "$" + n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
-}
+import { apiClient } from "@/lib/api-client";
+import { tell } from "@/lib/dialog";
+import { day, money } from "@/lib/customerWords";
+import { BillingTabs } from "@/components/portal/BillingTabs";
+import { Banner, Chip, Empty, Loading, PageHead, saveOrderPdf } from "@/components/portal/ui";
+import { dueDate, invoiceState, owed, type Invoice } from "@/components/portal/data";
 
 export default function InvoicesPage() {
-  const { isAuthenticated, isLoading } = useAuthStore();
-  const hasLoaded = useRef(false);
-  const [invoices, setInvoices] = useState<QBInvoice[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [invoices, setInvoices] = useState<Invoice[] | null>(null);
+  const [net30, setNet30] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [offered, setOffered] = useState(true);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [show, setShow] = useState<"open" | "all">("open");
 
-  useEffect(() => {
-    if (isLoading) return;
-    if (!isAuthenticated()) return;
-    if (hasLoaded.current) return;
-    hasLoaded.current = true;
+  const load = useCallback(() => {
+    setError(null);
+    (accountService.getInvoices() as Promise<Invoice[]>)
+      .then((d) => setInvoices(d ?? []))
+      .catch((e: { status?: number }) => {
+        setInvoices([]);
+        if (e?.status === 403) setOffered(false);
+        else setError("Your invoices could not be loaded.");
+      });
+    apiClient.get<{ net30_enabled: boolean }>("/api/v1/account/net30-status")
+      .then((d) => setNet30(!!d.net30_enabled)).catch(() => setNet30(false));
+  }, []);
+  useEffect(load, [load]);
 
-    accountService.getInvoices()
-      .then((data) => setInvoices((data as QBInvoice[]) ?? []))
-      .catch(() => setError("Failed to load invoices."))
-      .finally(() => setLoading(false));
-  }, [isLoading]);
+  async function download(inv: Invoice) {
+    setBusy(inv.id);
+    if (!await saveOrderPdf(inv.id, "invoice", inv.doc_number)) tell("That invoice could not be downloaded. Please try again.");
+    setBusy(null);
+  }
 
-  const totalOutstanding = invoices
-    .filter((inv) => inv.status !== "paid")
-    .reduce((sum, inv) => sum + inv.balance, 0);
+  const list = invoices ?? [];
+  const open = list.filter((i) => owed(i) > 0);
+  const totalOwed = open.reduce((s, i) => s + owed(i), 0);
+  const now = Date.now();
+  const dueNow = open.filter((i) => { const d = dueDate(i, net30); return !d || d.getTime() <= now; }).reduce((s, i) => s + owed(i), 0);
+  const overdue = open.filter((i) => invoiceState(i, net30)[0] === "Overdue").reduce((s, i) => s + owed(i), 0);
+  const rows = show === "open" ? open : list;
 
   return (
-    <div>
-      <div style={{ marginBottom: "24px" }}>
-        <h1 style={{ fontSize: "20px", fontWeight: 700, color: "#111827", margin: 0 }}>
-          Invoices
-        </h1>
-        <p style={{ fontSize: "13px", color: "#6B7280", marginTop: "4px" }}>
-          Every order you've placed, with what's still owed
-        </p>
-      </div>
-
-      {/* Summary strip */}
-      {!loading && invoices.length > 0 && (
-        <div style={{
-          display: "flex", gap: "16px", marginBottom: "20px", flexWrap: "wrap",
-        }}>
-          <div style={{
-            background: "#F9FAFB", border: "1px solid #E5E7EB", borderRadius: "8px",
-            padding: "14px 20px", minWidth: "160px",
-          }}>
-            <div style={{ fontSize: "11px", color: "#6B7280", fontWeight: 600, textTransform: "uppercase", letterSpacing: ".05em" }}>
-              Total Invoices
-            </div>
-            <div style={{ fontSize: "22px", fontWeight: 700, color: "#111827", marginTop: "4px" }}>
-              {invoices.length}
-            </div>
-          </div>
-          <div style={{
-            background: "#F9FAFB", border: "1px solid #E5E7EB", borderRadius: "8px",
-            padding: "14px 20px", minWidth: "160px",
-          }}>
-            <div style={{ fontSize: "11px", color: "#6B7280", fontWeight: 600, textTransform: "uppercase", letterSpacing: ".05em" }}>
-              Outstanding Balance
-            </div>
-            <div style={{ fontSize: "22px", fontWeight: 700, color: totalOutstanding > 0 ? "#B91C1C" : "#15803D", marginTop: "4px" }}>
-              {money(totalOutstanding)}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {loading ? (
-        <div style={{ padding: "60px 0", textAlign: "center", color: "#9CA3AF", fontSize: "14px" }}>
-          Loading invoices…
-        </div>
-      ) : error ? (
-        <div style={{ padding: "40px 0", textAlign: "center", color: "#DC2626", fontSize: "14px" }}>
-          {error}
-        </div>
-      ) : invoices.length === 0 ? (
-        <div style={{
-          padding: "60px 0", textAlign: "center", color: "#9CA3AF", fontSize: "14px",
-          border: "1px solid #E5E7EB", borderRadius: "8px", background: "#F9FAFB",
-        }}>
-          No invoices found.
+    <>
+      <PageHead eyebrow="Billing" title="Invoices" sub="See what you owe and pay it." />
+      <BillingTabs />
+      {!offered ? (
+        <div className="cp-card">
+          <Empty title="Invoices are not offered here">
+            Orders at this shop are paid at checkout. Receipts for them are under <Link href="/account/orders?tab=receipts" className="cp-link">Orders, Receipts</Link>.
+          </Empty>
         </div>
       ) : (
-        <div style={{ background: "#fff", border: "1px solid #E5E7EB", borderRadius: "8px", overflow: "hidden" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
-            <thead>
-              <tr style={{ background: "#F9FAFB", borderBottom: "1px solid #E5E7EB" }}>
-                <th style={{ textAlign: "left", padding: "10px 16px", fontWeight: 600, color: "#374151" }}>Invoice #</th>
-                <th style={{ textAlign: "left", padding: "10px 16px", fontWeight: 600, color: "#374151" }}>Date</th>
-                <th style={{ textAlign: "left", padding: "10px 16px", fontWeight: 600, color: "#374151" }}>Due Date</th>
-                <th style={{ textAlign: "right", padding: "10px 16px", fontWeight: 600, color: "#374151" }}>Amount</th>
-                <th style={{ textAlign: "right", padding: "10px 16px", fontWeight: 600, color: "#374151" }}>Balance</th>
-                <th style={{ textAlign: "center", padding: "10px 16px", fontWeight: 600, color: "#374151" }}>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {invoices.map((inv, i) => {
-                const st = STATUS_STYLE[inv.status] ?? STATUS_STYLE.open;
-                return (
-                  <tr
-                    key={inv.id}
-                    style={{
-                      borderBottom: i < invoices.length - 1 ? "1px solid #F3F4F6" : "none",
-                      background: i % 2 === 0 ? "#fff" : "#FAFAFA",
-                    }}
-                  >
-                    <td style={{ padding: "12px 16px", fontWeight: 600, color: "#111827", fontFamily: "monospace" }}>
-                      {inv.doc_number ?? inv.id}
-                    </td>
-                    <td style={{ padding: "12px 16px", color: "#374151" }}>{fmt(inv.txn_date)}</td>
-                    <td style={{ padding: "12px 16px", color: "#374151" }}>{fmt(inv.due_date)}</td>
-                    <td style={{ padding: "12px 16px", textAlign: "right", color: "#111827", fontWeight: 500 }}>
-                      {money(inv.total_amt)}
-                    </td>
-                    <td style={{ padding: "12px 16px", textAlign: "right", fontWeight: 600, color: inv.balance > 0 ? "#B91C1C" : "#15803D" }}>
-                      {money(inv.balance)}
-                    </td>
-                    <td style={{ padding: "12px 16px", textAlign: "center" }}>
-                      <span style={{
-                        display: "inline-block",
-                        padding: "3px 10px",
-                        borderRadius: "20px",
-                        fontSize: "11px",
-                        fontWeight: 700,
-                        background: st.bg,
-                        color: st.color,
-                      }}>
-                        {st.label}
-                      </span>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+        <div className="cp-stack">
+          {error && <Banner tone="bad" onRetry={load}>{error}</Banner>}
+          <div className="cp-stats">
+            <div className="cp-card cp-stat"><div className="cp-stat-n">{money(totalOwed)}</div><div className="cp-stat-l">Total owed</div><div className="cp-stat-s">{open.length} open invoice{open.length === 1 ? "" : "s"}</div></div>
+            <div className="cp-card cp-stat"><div className="cp-stat-n">{money(dueNow)}</div><div className="cp-stat-l">Due now</div><div className="cp-stat-s">{net30 ? "Past or at its due date" : "Pay any time online"}</div></div>
+            {net30 && <div className="cp-card cp-stat"><div className="cp-stat-n" style={overdue > 0 ? { color: "var(--cp-bad)" } : undefined}>{money(overdue)}</div><div className="cp-stat-l">Overdue</div><div className="cp-stat-s">More than 30 days old</div></div>}
+          </div>
+
+          <div className="cp-card" style={{ overflow: "hidden" }}>
+            <div className="cp-card-head" style={{ padding: "14px 20px 0", flexWrap: "wrap" }}>
+              <h2 className="cp-h3">{show === "open" ? "Open invoices" : "All invoices"}</h2>
+              <div className="cp-actions">
+                <button type="button" className="cp-btn cp-btn-sm" aria-pressed={show === "open"} onClick={() => setShow("open")}
+                  style={show === "open" ? { borderColor: "var(--cp-accent)", color: "var(--cp-accent-text)" } : undefined}>Open</button>
+                <button type="button" className="cp-btn cp-btn-sm" aria-pressed={show === "all"} onClick={() => setShow("all")}
+                  style={show === "all" ? { borderColor: "var(--cp-accent)", color: "var(--cp-accent-text)" } : undefined}>All</button>
+              </div>
+            </div>
+            {invoices === null ? <Loading what="Loading invoices" /> : rows.length === 0 ? (
+              <Empty title={show === "open" ? "Nothing owed" : "No invoices yet"}>{show === "open" ? "Every invoice is paid." : "Each order you place becomes an invoice here."}</Empty>
+            ) : (
+              <div className="cp-tbl-wrap">
+                <table className="cp-tbl">
+                  <thead>
+                    <tr><th>Invoice</th><th>Date</th><th>Due</th><th className="cp-num">Amount</th><th className="cp-num">Owed</th><th>Status</th><th><span className="cp-sr">Actions</span></th></tr>
+                  </thead>
+                  <tbody>
+                    {rows.map((i) => {
+                      const [w, tone] = invoiceState(i, net30);
+                      const d = owed(i) > 0 ? dueDate(i, net30) : null;
+                      return (
+                        <tr key={i.id}>
+                          <td><Link href={`/account/orders/${i.id}`} className="cp-row-link">{i.doc_number ?? "Invoice"}</Link></td>
+                          <td>{day(i.txn_date)}</td>
+                          <td>{owed(i) > 0 ? (d ? day(d.toISOString()) : "Now") : "—"}</td>
+                          <td className="cp-num">{money(i.total_amt)}</td>
+                          <td className="cp-num">{money(owed(i))}</td>
+                          <td><Chip tone={tone}>{w}</Chip></td>
+                          <td className="cp-end">
+                            <span className="cp-actions" style={{ justifyContent: "flex-end" }}>
+                              {owed(i) > 0 && <a href={`/checkout/invoice/${i.doc_number}`} className="cp-btn cp-btn-sm cp-btn-p">Pay</a>}
+                              <button type="button" className="cp-btn cp-btn-sm" disabled={busy === i.id} onClick={() => download(i)}>
+                                {busy === i.id ? "Preparing…" : "Download"}
+                              </button>
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+          <p className="cp-note">Pay opens a secure page for that invoice. A payment shows here as soon as it goes through.</p>
         </div>
       )}
-    </div>
+    </>
   );
 }

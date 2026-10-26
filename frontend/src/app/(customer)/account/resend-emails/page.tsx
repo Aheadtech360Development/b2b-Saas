@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import type ReCAPTCHAType from "react-google-recaptcha";
 import { apiClient } from "@/lib/api-client";
 import { useAuthStore } from "@/stores/auth.store";
+import { Banner, Loading, PageHead } from "@/components/portal/ui";
 
 const ReCAPTCHA = dynamic(() => import("react-google-recaptcha"), {
   ssr: false,
@@ -82,84 +83,40 @@ export default function ResendRegistrationEmailsPage() {
     }
   }
 
-  if (isLoading) return <div className="py-12 text-center text-gray-400">Loading...</div>;
+  if (isLoading) return <Loading />;
 
   return (
-    <div className="max-w-2xl">
-      <h1 className="text-2xl font-bold text-gray-900 mb-6">Resend Registration Emails</h1>
-
-      {message && (
-        <div className={`px-4 py-3 rounded-md text-sm font-medium mb-6 ${
-          message.type === "success"
-            ? "bg-green-50 text-green-700 border border-green-200"
-            : "bg-red-50 text-red-700 border border-red-200"
-        }`}>
-          {message.text}
+    <>
+      <PageHead back={{ href: "/account/users", label: "Team" }} eyebrow="Team" title="Resend invites"
+        sub="Send the sign-in reminder again to a group, or to the addresses you list." />
+      <form onSubmit={handleSubmit} className="cp-card cp-pad cp-stack-sm" style={{ gap: 16, maxWidth: 640 }}>
+        {message && <Banner tone={message.type === "success" ? "ok" : "bad"}>{message.text}</Banner>}
+        <fieldset style={{ border: 0, padding: 0, margin: 0, display: "grid", gap: 8 }}>
+          <legend className="cp-label" style={{ marginBottom: 6 }}>Everyone in these groups</legend>
+          {USER_GROUPS.map((group) => (
+            <label key={group} className="cp-check">
+              <input type="checkbox" checked={selectedGroups.includes(group)} onChange={() => toggleGroup(group)} />
+              {group}
+            </label>
+          ))}
+        </fieldset>
+        <hr className="cp-hr" style={{ margin: 0 }} />
+        <div className="cp-field">
+          <label className="cp-label" htmlFor="re-to">To</label>
+          <input id="re-to" className="cp-input" value={to} onChange={(e) => setTo(e.target.value)} placeholder="email@example.com, email2@example.com" />
+          <span className="cp-hint">Separate several addresses with commas.</span>
         </div>
-      )}
-
-      <form onSubmit={handleSubmit} className="bg-white border border-gray-200 rounded-lg p-6 space-y-6">
-
-        {/* User Groups */}
-        <div>
-          <p className="text-sm font-medium text-gray-700 mb-3">
-            Select User Group(s) to Resend Registration Emails for:
-          </p>
-          <div className="space-y-2">
-            {USER_GROUPS.map((group) => (
-              <label key={group} className="flex items-center gap-3 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={selectedGroups.includes(group)}
-                  onChange={() => toggleGroup(group)}
-                  className="h-4 w-4 rounded border-gray-300 text-blue-600"
-                />
-                <span className="text-sm text-gray-700">{group}</span>
-              </label>
-            ))}
+        <div className="cp-grid2">
+          <div className="cp-field">
+            <label className="cp-label" htmlFor="re-cc">Cc</label>
+            <input id="re-cc" className="cp-input" value={cc} onChange={(e) => setCc(e.target.value)} />
+          </div>
+          <div className="cp-field">
+            <label className="cp-label" htmlFor="re-bcc">Bcc</label>
+            <input id="re-bcc" className="cp-input" value={bcc} onChange={(e) => setBcc(e.target.value)} />
           </div>
         </div>
-
-        <hr className="border-gray-200" />
-
-        {/* TO */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">TO:</label>
-          <input
-            type="text"
-            value={to}
-            onChange={(e) => setTo(e.target.value)}
-            placeholder="email@example.com, email2@example.com"
-            className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-          <p className="text-xs text-gray-400 mt-1">Separate multiple emails with commas</p>
-        </div>
-
-        {/* CC */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">CC:</label>
-          <input
-            type="text"
-            value={cc}
-            onChange={(e) => setCc(e.target.value)}
-            placeholder="email@example.com"
-            className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-        </div>
-
-        {/* BCC */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">BCC:</label>
-          <input
-            type="text"
-            value={bcc}
-            onChange={(e) => setBcc(e.target.value)}
-            placeholder="email@example.com"
-            className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-        </div>
-
-        {/* reCAPTCHA — only when a site key is configured */}
+        {/* reCAPTCHA: only when a site key is configured */}
         {CAPTCHA_ENABLED && (
           <div>
             <ReCAPTCHA
@@ -168,23 +125,15 @@ export default function ResendRegistrationEmailsPage() {
               onChange={(token) => setRecaptchaToken(token)}
               onExpired={() => setRecaptchaToken(null)}
             />
-            {!recaptchaToken && (
-              <p className="text-xs text-gray-400 mt-1">Please complete the verification above to send.</p>
-            )}
+            {!recaptchaToken && <span className="cp-hint">Complete the check above to send.</span>}
           </div>
         )}
-
-        {/* Submit */}
-        <div className="flex justify-end">
-          <button
-            type="submit"
-            disabled={sending || (CAPTCHA_ENABLED && !recaptchaToken)}
-            className="px-6 py-2 bg-blue-600 text-white rounded-md text-sm font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors"
-          >
-            {sending ? "Sending..." : "Send Email(s)"}
+        <div className="cp-actions" style={{ justifyContent: "flex-end" }}>
+          <button type="submit" className="cp-btn cp-btn-p" disabled={sending || (CAPTCHA_ENABLED && !recaptchaToken)}>
+            {sending ? "Sending…" : "Send"}
           </button>
         </div>
       </form>
-    </div>
+    </>
   );
 }

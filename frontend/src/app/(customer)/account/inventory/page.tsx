@@ -1,13 +1,16 @@
-// frontend/src/app/(customer)/account/inventory/page.tsx
 "use client";
 
-import { useBranding } from "@/components/providers/BrandingProvider";
-import { brandFileName } from "@/lib/brand";
-import React from "react";
-import { useEffect, useRef, useState } from "react";
+/**
+ * Reports, Stock levels: what the shop has on hand of what this company can
+ * order, by warehouse, product and colour. Pick the filters and show it;
+ * exports the rows shown.
+ */
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { apiClient } from "@/lib/api-client";
-import { useAuthStore } from "@/stores/auth.store";
-import { PackageIcon } from "@/components/ui/icons";
+import { brandFileName } from "@/lib/brand";
+import { useBranding } from "@/components/providers/BrandingProvider";
+import { Banner, Empty, Loading, PageHead, saveCsv } from "@/components/portal/ui";
+import { ReportTabs } from "@/components/portal/ReportTabs";
 
 interface InventoryItem {
   variant_id: string;
@@ -28,316 +31,109 @@ interface InventoryResponse {
   colors: string[];
 }
 
-export default function InventoryListingPage() {
+export default function StockLevelsPage() {
   const branding = useBranding();
-  const { isAuthenticated, isLoading } = useAuthStore();
-  const hasLoaded = useRef(false);
-
-  const [warehouses, setWarehouses] = useState<{ id: string; name: string }[]>([]);
-  const [products, setProducts] = useState<{ id: string; name: string }[]>([]);
+  const [options, setOptions] = useState<Omit<InventoryResponse, "items"> | null>(null);
+  const [warehouse, setWarehouse] = useState("all");
+  const [product, setProduct] = useState("all");
+  const [color, setColor] = useState("all");
   const [colors, setColors] = useState<string[]>([]);
-  const [selectedWarehouse, setSelectedWarehouse] = useState("all");
-  const [selectedProduct, setSelectedProduct] = useState("all");
-  const [selectedColor, setSelectedColor] = useState("all");
-
-  const [items, setItems] = useState<InventoryItem[]>([]);
+  const [items, setItems] = useState<InventoryItem[] | null>(null);
   const [loading, setLoading] = useState(false);
-  const [generated, setGenerated] = useState(false);
-  const [initLoading, setInitLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  // Load filter options on mount — do NOT load items
   useEffect(() => {
-    if (isLoading) return;
-    if (!isAuthenticated()) return;
-    if (hasLoaded.current) return;
-    hasLoaded.current = true;
+    apiClient.get<InventoryResponse>("/api/v1/account/inventory-report")
+      .then((d) => { setOptions({ warehouses: d.warehouses, products: d.products, colors: d.colors }); setColors(d.colors); })
+      .catch(() => setError("Stock levels could not be loaded."));
+  }, []);
 
-    apiClient
-      .get<InventoryResponse>("/api/v1/account/inventory-report")
-      .then((data) => {
-        setWarehouses(data.warehouses);
-        setProducts(data.products);
-        setColors(data.colors);
-        // Do NOT setItems here — wait for Generate Report
-      })
-      .finally(() => setInitLoading(false));
-  }, [isLoading]);
+  useEffect(() => setColor("all"), [product]);
 
-  // Reset color when product changes
-  useEffect(() => {
-    setSelectedColor("all");
-  }, [selectedProduct]);
-
-  async function handleGenerateReport() {
+  async function show() {
     setLoading(true);
-    setGenerated(false);
+    setError(null);
     try {
       const params = new URLSearchParams();
-      if (selectedWarehouse !== "all") params.set("warehouse_id", selectedWarehouse);
-      if (selectedProduct !== "all") params.set("product_id", selectedProduct);
-      if (selectedColor !== "all") params.set("color", selectedColor);
+      if (warehouse !== "all") params.set("warehouse_id", warehouse);
+      if (product !== "all") params.set("product_id", product);
+      if (color !== "all") params.set("color", color);
       const qs = params.toString();
-
-      const data = await apiClient.get<InventoryResponse>(
-        `/api/v1/account/inventory-report${qs ? `?${qs}` : ""}`
-      );
-      setItems(data.items);
-      setColors(data.colors);
-      setGenerated(true);
+      const d = await apiClient.get<InventoryResponse>(`/api/v1/account/inventory-report${qs ? `?${qs}` : ""}`);
+      setItems(d.items);
+      setColors(d.colors);
+    } catch {
+      setError("Stock levels could not be loaded.");
     } finally {
       setLoading(false);
     }
   }
 
-  function handleExportCSV() {
-    if (!items.length) return;
-    const headers = ["Style (SKU)", "Color", "Size", "Available", "Warehouse"];
-    const rows = items.map((item) => [
-      item.sku,
-      item.color,
-      item.size,
-      item.available.toString(),
-      item.warehouse_name,
-    ]);
-    const csv = [headers, ...rows]
-      .map((row) => row.map((cell) => `"${cell}"`).join(","))
-      .join("\n");
-    const blob = new Blob([csv], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    // importProductsModal - downloadTemplate  
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = brandFileName(branding.store_name, "import-template.csv");
-    a.style.display = "none";
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  }
-
-  // Group items by product_id
-  const grouped = items.reduce(
-    (acc, item) => {
-      if (!acc[item.product_id]) {
-        acc[item.product_id] = { product_name: item.product_name, variants: [] };
-      }
-      acc[item.product_id]!.variants.push(item);
-      return acc;
-    },
-    {} as Record<string, { product_name: string; variants: InventoryItem[] }>
-  );
-
-  if (initLoading) return <div className="py-12 text-center text-gray-400">Loading…</div>;
+  const grouped = useMemo(() => {
+    const by = new Map<string, { name: string; rows: InventoryItem[] }>();
+    for (const it of items ?? []) {
+      const g = by.get(it.product_id) ?? { name: it.product_name, rows: [] };
+      g.rows.push(it);
+      by.set(it.product_id, g);
+    }
+    return [...by.values()];
+  }, [items]);
 
   return (
-    <div className="space-y-6 max-w-5xl">
-      <h1 className="text-2xl font-bold text-gray-900">Inventory Listing</h1>
-
-      {/* 3-step filter card */}
-      <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
-        <div className="grid grid-cols-3 divide-x divide-gray-200 inventory-filter-grid">
-          {/* Step 1 */}
-          <div className="p-5">
-            <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">
-              1. Select A Warehouse
-            </p>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Warehouse</label>
-              <select
-                value={selectedWarehouse}
-                onChange={(e) => setSelectedWarehouse(e.target.value)}
-                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="all">All Warehouses</option>
-                {warehouses.map((w) => (
-                  <option key={w.id} value={w.id}>
-                    {w.name}
-                  </option>
-                ))}
-              </select>
+    <>
+      <PageHead eyebrow="Reports" title="Stock levels" sub="What is on hand of what you can order."
+        actions={<button type="button" className="cp-btn" disabled={!items?.length}
+          onClick={() => saveCsv(brandFileName(branding.store_name, "stock-levels.csv"), ["SKU", "Product", "Color", "Size", "Available", "Warehouse"],
+            (items ?? []).map((i) => [i.sku, i.product_name, i.color, i.size, i.available, i.warehouse_name]))}>Export CSV</button>} />
+      <ReportTabs on="stock" />
+      {error && <div style={{ marginBottom: 16 }}><Banner tone="bad">{error}</Banner></div>}
+      {!options && !error ? <Loading /> : options && (
+        <form className="cp-filters" onSubmit={(e) => { e.preventDefault(); show(); }}>
+          <label className="cp-sr" htmlFor="i-wh">Warehouse</label>
+          <select id="i-wh" className="cp-select" value={warehouse} onChange={(e) => setWarehouse(e.target.value)}>
+            <option value="all">Warehouse: All</option>
+            {options.warehouses.map((w) => <option key={w.id} value={w.id}>{w.name}</option>)}
+          </select>
+          <label className="cp-sr" htmlFor="i-product">Product</label>
+          <select id="i-product" className="cp-select" value={product} onChange={(e) => setProduct(e.target.value)} style={{ maxWidth: 280 }}>
+            <option value="all">Product: All</option>
+            {options.products.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+          </select>
+          <label className="cp-sr" htmlFor="i-color">Color</label>
+          <select id="i-color" className="cp-select" value={color} onChange={(e) => setColor(e.target.value)}>
+            <option value="all">Color: All</option>
+            {colors.map((c) => <option key={c} value={c}>{c}</option>)}
+          </select>
+          <button type="submit" className="cp-btn cp-btn-p" disabled={loading}>{loading ? "Loading…" : "Show stock"}</button>
+        </form>
+      )}
+      {items !== null && (
+        <div className="cp-card" style={{ overflow: "hidden" }}>
+          {grouped.length === 0 ? <Empty title="Nothing found">Try other filters.</Empty> : (
+            <div className="cp-tbl-wrap">
+              <table className="cp-tbl">
+                <thead><tr><th>SKU</th><th>Color</th><th>Size</th><th className="cp-num">Available</th><th>Warehouse</th></tr></thead>
+                <tbody>
+                  {grouped.map((g) => (
+                    <Fragment key={g.name}>
+                      <tr><td colSpan={5} className="cp-strong" style={{ background: "var(--cp-panel)" }}>{g.name}</td></tr>
+                      {g.rows.map((r, i) => (
+                        <tr key={`${r.variant_id}-${r.warehouse_id}-${i}`}>
+                          <td className="cp-mono cp-muted">{r.sku}</td>
+                          <td>{r.color}</td>
+                          <td>{r.size}</td>
+                          <td className="cp-num" style={r.available <= 0 ? { color: "var(--cp-bad)" } : undefined}>{r.available}</td>
+                          <td className="cp-muted">{r.warehouse_name}</td>
+                        </tr>
+                      ))}
+                    </Fragment>
+                  ))}
+                </tbody>
+              </table>
             </div>
-          </div>
-
-          {/* Step 2 */}
-          <div className="p-5">
-            <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">
-              2. Select Product(s)
-            </p>
-            <div className="space-y-3">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Style</label>
-                <select
-                  value={selectedProduct}
-                  onChange={(e) => setSelectedProduct(e.target.value)}
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="all">All Styles</option>
-                  {products.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Color</label>
-                <select
-                  value={selectedColor}
-                  onChange={(e) => setSelectedColor(e.target.value)}
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="all">All Colors</option>
-                  {colors.map((c) => (
-                    <option key={c} value={c}>
-                      {c}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-          </div>
-
-          {/* Step 3 */}
-          <div className="p-5">
-            <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">
-              3. Get Report
-            </p>
-            <button
-              onClick={handleGenerateReport}
-              disabled={loading}
-              className="w-full px-4 py-2 bg-gray-900 text-white rounded-md text-sm font-medium hover:bg-gray-800 disabled:opacity-50 mb-3"
-            >
-              {loading ? "Generating…" : "Generate Report"}
-            </button>
-
-            {generated && items.length > 0 && (
-              <div className="flex gap-2">
-                <button
-                  onClick={handleExportCSV}
-                  className="flex-1 px-3 py-1.5 border border-gray-300 rounded-md text-xs font-medium text-gray-700 hover:bg-gray-50"
-                >
-                  Export CSV
-                </button>
-                <button
-                  onClick={() => window.print()}
-                  className="flex-1 px-3 py-1.5 border border-gray-300 rounded-md text-xs font-medium text-gray-700 hover:bg-gray-50"
-                >
-                  Print
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Empty state — before generate */}
-      {!generated && (
-        <div className="text-center py-12 bg-white border border-gray-200 rounded-lg text-gray-400">
-          <div className="mb-2 flex justify-center"><PackageIcon size={32} color="#9CA3AF" /></div>
-          <p className="text-sm">Select filters and click Generate Report</p>
+          )}
         </div>
       )}
-
-      {/* Empty state — after generate, no results */}
-      {generated && items.length === 0 && (
-        <div className="text-center py-12 bg-white border border-gray-200 rounded-lg">
-          <p className="text-gray-400">No inventory found for selected filters.</p>
-        </div>
-      )}
-
-      {/* Results table */}
-      {generated && items.length > 0 && (
-        <div
-          className="bg-white border border-gray-200 rounded-lg overflow-hidden"
-          id="print-area"
-        >
-          {/* Print-only header */}
-          <div className="hidden print:block px-5 py-4 border-b">
-            <h2 className="text-lg font-bold">{branding.store_name} — Inventory Listing Report</h2>
-            <p className="text-sm text-gray-500">
-              Generated: {new Date().toLocaleDateString()}
-            </p>
-          </div>
-
-          <div className="overflow-x-auto">
-          <table className="w-full text-sm" style={{ minWidth: "480px" }}>
-            <thead className="bg-gray-50 border-b border-gray-200">
-              <tr>
-                <th className="text-left px-4 py-3 text-gray-600 font-medium text-xs uppercase">Style</th>
-                <th className="text-left px-4 py-3 text-gray-600 font-medium text-xs uppercase">Color</th>
-                <th className="text-left px-4 py-3 text-gray-600 font-medium text-xs uppercase">Size</th>
-                <th className="text-right px-4 py-3 text-gray-600 font-medium text-xs uppercase">Available</th>
-                <th className="text-left px-4 py-3 text-gray-600 font-medium text-xs uppercase">Warehouse</th>
-              </tr>
-            </thead>
-            <tbody>
-              {Object.entries(grouped).map(([productId, group]) => (
-                <React.Fragment key={productId}>
-                  {/* Product header row */}
-                  <tr className="bg-blue-50 border-b border-blue-100">
-                    <td colSpan={5} className="px-4 py-2">
-                      <span className="font-semibold text-blue-800 text-sm">
-                        {group.product_name}
-                      </span>
-                    </td>
-                  </tr>
-
-                  {/* Variant rows */}
-                  {group.variants.map((item, idx) => (
-                    <tr
-                      key={`${item.variant_id}-${item.warehouse_id}-${idx}`}
-                      className={`border-b border-gray-100 hover:bg-blue-50 ${idx % 2 === 0 ? "bg-white" : "bg-gray-50"
-                        }`}
-                    >
-                      <td className="px-4 py-2.5 font-mono text-xs text-gray-500">{item.sku}</td>
-                      <td className="px-4 py-2.5 text-gray-700">{item.color}</td>
-                      <td className="px-4 py-2.5 text-gray-700">{item.size}</td>
-                      <td className={`px-4 py-2.5 text-right font-semibold ${item.available === 0
-                        ? "text-red-500"
-                        : item.available < 10
-                          ? "text-orange-500"
-                          : "text-gray-900"
-                        }`}>
-                        {item.available.toLocaleString()}
-                      </td>
-                      <td className="px-4 py-2.5 text-gray-500 text-xs">{item.warehouse_name}</td>
-                    </tr>
-                  ))}
-
-                  {/* Product subtotal */}
-                  <tr className="bg-gray-100 border-b border-gray-200">
-                    <td colSpan={3} className="px-4 py-2 text-xs text-gray-500 font-medium">
-                      Subtotal — {group.product_name}
-                    </td>
-                    <td className="px-4 py-2 text-right text-xs font-bold text-gray-700">
-                      {group.variants.reduce((sum, v) => sum + v.available, 0).toLocaleString()}
-                    </td>
-                    <td />
-                  </tr>
-                </React.Fragment>
-              ))}
-
-              {/* Grand total */}
-              <tr className="bg-gray-800">
-                <td colSpan={3} className="px-4 py-3 text-white font-bold text-sm">TOTAL</td>
-                <td className="px-4 py-3 text-right text-white font-bold text-sm">
-                  {items.reduce((sum, i) => sum + i.available, 0).toLocaleString()}
-                </td>
-                <td />
-              </tr>
-            </tbody>
-          </table>
-          </div>
-        </div>
-      )}
-
-      <style jsx global>{`
-        @media print {
-          body * { visibility: hidden; }
-          #print-area, #print-area * { visibility: visible; }
-          #print-area { position: absolute; left: 0; top: 0; width: 100%; }
-        }
-      `}</style>
-    </div>
+    </>
   );
 }

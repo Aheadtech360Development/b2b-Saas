@@ -1,110 +1,146 @@
 // frontend/src/app/(customer)/account/layout.tsx
 "use client";
 
+/**
+ * The customer portal's shell: the shop's own top bar (logo, search, Shop,
+ * Cart, Help, who is signed in), the side menu and a footer with how to reach
+ * the shop. Its look is portal.css; its menu is components/portal/nav.
+ *
+ * The storefront's header and footer stay off these pages (ShellGate lists
+ * /account as bare), so the portal is the only chrome on screen. Who may be
+ * here is unchanged: an admin is sent to the admin, somebody signed out to the
+ * sign-in page.
+ */
+import "./portal.css";
+
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuthStore } from "@/stores/auth.store";
 import { authService } from "@/services/auth.service";
 import { forgetOrderKeys } from "@/lib/orderThanks";
+import { apiClient } from "@/lib/api-client";
 import { useBranding } from "@/components/providers/BrandingProvider";
 import { SupportChat } from "@/components/storefront/SupportChat";
+import { COMPANY_NAV, RETAIL_NAV, activeItem, withoutPrinting, type NavGroup } from "@/components/portal/nav";
+import { ICONS, Icon } from "@/components/portal/ui";
+import { PortalContext } from "@/components/portal/context";
+import { isTradeAccount } from "@/components/portal/data";
 
-const NAV_ITEMS = [
-  { href: "/account", label: "Overview" },
-  { href: "/account/profile", label: "Profile" },
-  { href: "/account/change-password", label: "Password" },
-  { href: "/account/addresses", label: "Addresses" },
-  { href: "/account/contacts", label: "Contacts" },
-  { href: "/account/users", label: "Team members" },
-  { href: "/account/resend-emails", label: "Resend invites" },
-  { href: "/account/orders", label: "Orders" },
-  { href: "/account/gang-sheets", label: "My Print Jobs" },
-  { href: "/account/statements", label: "Statements" },
-  { href: "/account/invoices", label: "Invoices" },
-  { href: "/account/sales-history", label: "Purchase history" },
-  { href: "/account/inventory", label: "Inventory report" },
-  { href: "/account/price-list", label: "Price list" },
-  { href: "/account/abandoned-carts", label: "Saved carts" },
-];
+/** Dark text on a light shop colour, white on a dark one. */
+function inkOn(hex: string | null | undefined): string {
+  const m = /^#?([0-9a-f]{6})$/i.exec((hex ?? "").trim());
+  if (!m) return "#fff";
+  const n = parseInt(m[1]!, 16);
+  const [r, g, b] = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((c) => {
+    const s = c / 255;
+    return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+  });
+  const lum = 0.2126 * r! + 0.7152 * g! + 0.0722 * b!;
+  return lum > 0.45 ? "#1B2430" : "#fff";
+}
 
-// The same links, grouped the way a buyer looks for them.
-const NAV_GROUPS: { title: string; hrefs: string[] }[] = [
-  { title: "", hrefs: ["/account"] },
-  { title: "Orders & billing", hrefs: ["/account/orders", "/account/gang-sheets", "/account/invoices", "/account/statements", "/account/sales-history", "/account/abandoned-carts"] },
-  { title: "Catalogue", hrefs: ["/account/price-list", "/account/inventory"] },
-  { title: "Account", hrefs: ["/account/profile", "/account/addresses", "/account/contacts", "/account/users", "/account/change-password", "/account/resend-emails"] },
-];
-
-function NavLinks({ items, pathname, onClose }: { items: typeof NAV_ITEMS; pathname: string; onClose?: () => void }) {
-  const byHref = new Map(items.map((i) => [i.href, i]));
+function Menu({ groups, pathname, onPick, onSignOut }: {
+  groups: NavGroup[];
+  pathname: string;
+  onPick?: () => void;
+  onSignOut: () => void;
+}) {
+  const current = activeItem(groups, pathname);
   return (
-    <div>
-      {NAV_GROUPS.map((g) => (
-        <div key={g.title || "top"} style={{ marginBottom: "10px" }}>
-          {g.title && (
-            <div style={{ fontSize: "11px", fontWeight: 700, color: "#9A98A0", letterSpacing: ".06em", textTransform: "uppercase", padding: "10px 12px 6px" }}>
-              {g.title}
-            </div>
-          )}
-          <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
-            {g.hrefs.map((href) => {
-              const item = byHref.get(href);
-              if (!item) return null;
-              const active = pathname === item.href || (item.href !== "/account" && pathname.startsWith(item.href));
-              return (
-                <li key={item.href}>
-                  <Link
-                    href={item.href}
-                    onClick={onClose}
-                    style={{
-                      display: "flex", alignItems: "center", gap: "8px",
-                      padding: "8px 12px", borderRadius: "9px", fontSize: "13px",
-                      fontWeight: active ? 700 : 500,
-                      color: active ? "#1A5CFF" : "#2A2830",
-                      background: active ? "rgba(26,92,255,.08)" : "transparent",
-                      boxShadow: active ? "inset 3px 0 0 #1A5CFF" : "none",
-                      textDecoration: "none", transition: "background .15s", marginBottom: "1px",
-                    }}
-                  >
-                    {item.label}
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
+    <>
+      <nav aria-label="Account">
+        {groups.map((g) => (
+          <div key={g.title || "main"} style={{ display: "contents" }}>
+            {g.title && <div className="cp-side-head">{g.title}</div>}
+            {g.items.map((item) => (
+              <Link key={item.href} href={item.href} onClick={onPick} className="cp-side-item"
+                aria-current={current?.href === item.href ? "page" : undefined}>
+                <Icon d={item.icon} />
+                {item.label}
+              </Link>
+            ))}
+          </div>
+        ))}
+      </nav>
+      <button type="button" className="cp-side-item cp-side-out" onClick={onSignOut}>Sign out</button>
+    </>
+  );
+}
+
+function Search() {
+  const router = useRouter();
+  const [q, setQ] = useState("");
+  const [open, setOpen] = useState(false);
+  const box = useRef<HTMLDivElement>(null);
+  const term = q.trim();
+
+  useEffect(() => {
+    if (!open) return;
+    const close = (e: MouseEvent) => { if (!box.current?.contains(e.target as Node)) setOpen(false); };
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, [open]);
+
+  const where = (path: string) => `${path}?q=${encodeURIComponent(term)}`;
+  const go = (href: string) => { setOpen(false); setQ(""); router.push(href); };
+
+  return (
+    <div className="cp-search" ref={box}>
+      <label htmlFor="cp-search" className="cp-sr">Search</label>
+      <Icon d={ICONS.search} size={16} stroke={2} />
+      <form onSubmit={(e) => { e.preventDefault(); if (term) go(where("/account/orders")); }}>
+        <input id="cp-search" className="cp-input" type="search" autoComplete="off"
+          placeholder="Search orders, print jobs, products" value={q}
+          onChange={(e) => { setQ(e.target.value); setOpen(true); }}
+          onFocus={() => setOpen(true)}
+          onKeyDown={(e) => { if (e.key === "Escape") setOpen(false); }} />
+      </form>
+      {open && term && (
+        <div className="cp-search-menu" role="menu">
+          <a role="menuitem" href={where("/account/orders")} onClick={(e) => { e.preventDefault(); go(where("/account/orders")); }}>
+            <Icon d={ICONS.orders} size={16} />Orders matching &ldquo;{term}&rdquo;<small>Order or PO number</small>
+          </a>
+          <a role="menuitem" href={where("/account/gang-sheets")} onClick={(e) => { e.preventDefault(); go(where("/account/gang-sheets")); }}>
+            <Icon d={ICONS.jobs} size={16} />Print jobs matching &ldquo;{term}&rdquo;<small>Job number</small>
+          </a>
+          <a role="menuitem" href={where("/search")} onClick={(e) => { e.preventDefault(); go(where("/search")); }}>
+            <Icon d={ICONS.price} size={16} />Products matching &ldquo;{term}&rdquo;<small>In the shop</small>
+          </a>
         </div>
-      ))}
+      )}
     </div>
   );
 }
 
 export default function AccountLayout({ children }: { children: React.ReactNode }) {
-  const pathname = usePathname();
+  const pathname = usePathname() ?? "/account";
   const router = useRouter();
   const { isAuthenticated, isLoading, user } = useAuthStore();
   const redirectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const navItems = NAV_ITEMS;
-
-  // Clean account portal — no store chrome. A store link + sign out live in
-  // the sidebar so the buyer can jump back to shopping. The store home ("/")
-  // resolves to their own brand via the active tenant.
+  const [cartCount, setCartCount] = useState(0);
+  const [printing, setPrinting] = useState<boolean | null>(null);
+  // The sign-in is read from this tab's session storage, which the server does
+  // not have: drawing the portal before mount made the first client render
+  // differ from the server's ("Hydration failed"). Both draw Loading first.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
   const branding = useBranding();
+
+  const groups = useMemo(() => {
+    const all = isTradeAccount(user) ? COMPANY_NAV : RETAIL_NAV;
+    return printing === false ? withoutPrinting(all) : all;
+  }, [user, printing]);
+  const current = useMemo(() => activeItem(groups, pathname), [groups, pathname]);
+  const portal = useMemo(() => ({ printing }), [printing]);
+
   async function handleSignOut() {
     try { await authService.logout(); } catch { /* ignore */ }
     useAuthStore.getState().clearAuth();
     forgetOrderKeys();
     router.push("/login" + (typeof window !== "undefined" ? window.location.search : ""));
   }
-
-  // Get current page label for mobile breadcrumb
-  const currentLabel =
-    navItems.find(
-      (i) =>
-        pathname === i.href ||
-        (i.href !== "/account" && pathname.startsWith(i.href))
-    )?.label ?? "Account";
 
   useEffect(() => {
     if (isLoading) return;
@@ -124,12 +160,31 @@ export default function AccountLayout({ children }: { children: React.ReactNode 
     };
   }, [isLoading, user, isAuthenticated, router]);
 
-  // Close drawer on route change
+  // Close the drawer when the page changes.
   useEffect(() => {
     setDrawerOpen(false);
   }, [pathname]);
 
-  if (isLoading) {
+  // What is in the cart, for the top bar: read again on each page, since a
+  // reorder or a print job adds to it from inside the portal.
+  useEffect(() => {
+    // The account cart belongs to the account's company (the API refuses it otherwise).
+    if (isLoading || !user || user.is_admin || !user.company_id) return;
+    apiClient.get<{ items: { quantity: number }[] }>("/api/v1/cart")
+      .then((r) => setCartCount((r?.items ?? []).reduce((sum, i) => sum + i.quantity, 0)))
+      .catch(() => {});
+  }, [isLoading, user, pathname]);
+
+  // Whether the shop sells print jobs: its plan refuses the gang sheet API
+  // otherwise. Asked once; the shell stays mounted across the portal's pages.
+  useEffect(() => {
+    if (isLoading || !user || user.is_admin || printing !== null) return;
+    apiClient.get<unknown[]>("/api/v1/gang-sheets/sizes")
+      .then(() => setPrinting(true))
+      .catch((e: { status?: number }) => setPrinting(e?.status === 403 || e?.status === 402 ? false : true));
+  }, [isLoading, user, printing]);
+
+  if (!mounted || isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-gray-500 text-sm">Loading…</div>
@@ -139,217 +194,87 @@ export default function AccountLayout({ children }: { children: React.ReactNode 
 
   if (!isAuthenticated()) return null;
 
-  return (
-    <>
-      <SupportChat />
-      {/* ── Mobile nav bar ── */}
-      <div
-        className="account-sidebar-mobile"
-        style={{
-          background: "#fff",
-          borderBottom: "1px solid #E2E0DA",
-          padding: "10px 16px",
-          display: "flex",
-          alignItems: "center",
-          gap: "10px",
-          position: "sticky",
-          top: 0,
-          zIndex: 30,
-        }}
-      >
-        <button
-          onClick={() => setDrawerOpen(true)}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "7px",
-            padding: "7px 12px",
-            background: "#F4F3EF",
-            border: "1px solid #E2E0DA",
-            borderRadius: "6px",
-            fontSize: "13px",
-            fontWeight: 600,
-            color: "#2A2830",
-            cursor: "pointer",
-            flexShrink: 0,
-          }}
-        >
-          <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} strokeLinecap="round">
-            <line x1="3" y1="6" x2="21" y2="6" />
-            <line x1="3" y1="12" x2="21" y2="12" />
-            <line x1="3" y1="18" x2="21" y2="18" />
-          </svg>
-          Menu
-        </button>
-        <span
-          style={{
-            fontSize: "13px",
-            fontWeight: 700,
-            color: "#2A2830",
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            whiteSpace: "nowrap",
-          }}
-        >
-          {currentLabel}
-        </span>
-      </div>
+  const shop = branding?.store_name || "Shop";
+  const buyer = [user?.first_name, user?.last_name].filter(Boolean).join(" ") || user?.email || "";
+  const initial = (user?.first_name || user?.email || "?").trim().charAt(0).toUpperCase();
+  const pickupOn = branding?.pickup_enabled !== false && !!branding?.pickup_address;
+  const pickup = pickupOn
+    ? `Pickup: ${[branding?.pickup_address, branding?.pickup_hours].filter(Boolean).join(", ")}`
+    : null;
 
-      {/* ── Mobile drawer overlay ── */}
-      {drawerOpen && (
-        <div
-          style={{ position: "fixed", inset: 0, zIndex: 60 }}
-          className="account-sidebar-mobile"
-        >
-          {/* Backdrop */}
-          <div
-            style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.5)" }}
-            onClick={() => setDrawerOpen(false)}
-          />
-          {/* Drawer */}
-          <div
-            style={{
-              position: "fixed",
-              left: 0,
-              top: 0,
-              bottom: 0,
-              width: "280px",
-              background: "#fff",
-              padding: "20px 16px",
-              overflowY: "auto",
-              zIndex: 61,
-              boxShadow: "4px 0 24px rgba(0,0,0,.12)",
-            }}
-          >
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                marginBottom: "20px",
-              }}
-            >
-              <span
-                style={{
-                  fontSize: "11px",
-                  fontWeight: 700,
-                  textTransform: "uppercase",
-                  letterSpacing: ".1em",
-                  color: "#7A7880",
-                }}
-              >
-                My Account
-              </span>
-              <button
-                onClick={() => setDrawerOpen(false)}
-                style={{
-                  background: "none",
-                  border: "none",
-                  cursor: "pointer",
-                  fontSize: "20px",
-                  color: "#7A7880",
-                  padding: "4px",
-                  lineHeight: 1,
-                }}
-              >
-                ✕
-              </button>
-            </div>
-            <Link
-              href="/"
-              onClick={() => setDrawerOpen(false)}
-              style={{
-                display: "flex", alignItems: "center", gap: "8px",
-                padding: "11px 12px", marginBottom: "14px", borderRadius: "8px",
-                background: "var(--brand-primary, #1C3557)", color: "#fff",
-                textDecoration: "none", fontSize: "14px", fontWeight: 700,
-              }}
-            >
-              🛍 {branding?.store_name ? `Visit ${branding.store_name}` : "Visit Store"} →
-            </Link>
-            <NavLinks items={navItems} pathname={pathname} onClose={() => setDrawerOpen(false)} />
-            <button
-              onClick={() => { setDrawerOpen(false); handleSignOut(); }}
-              style={{
-                display: "block", width: "100%", textAlign: "left",
-                marginTop: "10px", padding: "10px 12px", borderRadius: "6px",
-                fontSize: "14px", fontWeight: 600, color: "#B91C1C",
-                background: "transparent", border: "1px solid #F3D0D0", cursor: "pointer",
-              }}
-            >
-              Sign out
-            </button>
-          </div>
+  return (
+    <div className="cp" style={{ ["--cp-on-accent" as string]: inkOn(branding?.primary_color) }}>
+      <SupportChat />
+      <header className="cp-top">
+        <button type="button" className="cp-btn cp-btn-ghost cp-menu-btn" aria-label="Open menu"
+          onClick={() => setDrawerOpen(true)} style={{ padding: "0 10px" }}>
+          <Icon d={ICONS.menu} size={20} />
+        </button>
+        <Link href="/" className="cp-brand" aria-label={`${shop} home`}>
+          {branding?.logo_url ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={branding.logo_url} alt="" className="cp-logo" />
+          ) : (
+            <span className="cp-logo-letter" aria-hidden>{shop.charAt(0).toUpperCase()}</span>
+          )}
+          <span className="cp-brand-name">{shop}</span>
+        </Link>
+        <Search />
+        <div className="cp-top-actions">
+          <Link href="/products" className="cp-btn cp-hide-sm">Shop</Link>
+          <Link href="/cart" className="cp-btn" aria-label={cartCount ? `Cart, ${cartCount} items` : "Cart"}>
+            <Icon d={ICONS.cart} />
+            <span className="cp-hide-sm">Cart</span>
+            {cartCount > 0 && <span className="cp-count">{cartCount}</span>}
+          </Link>
+          <Link href="/account/messages" className="cp-btn cp-hide-sm">Help</Link>
+          <Link href="/account/profile" className="cp-who" title={buyer}>
+            <span className="cp-avatar" aria-hidden>{initial}</span>
+            <span className="cp-who-name">{buyer}</span>
+          </Link>
         </div>
+      </header>
+
+      {drawerOpen && (
+        <>
+          <div className="cp-scrim" onClick={() => setDrawerOpen(false)} />
+          <div className="cp-drawer" role="dialog" aria-modal="true" aria-label="Menu">
+            <div className="cp-drawer-head">
+              <span className="cp-eyebrow">{current?.label ?? "My account"}</span>
+              <button type="button" className="cp-x" aria-label="Close menu" onClick={() => setDrawerOpen(false)}>×</button>
+            </div>
+            <Link href="/products" className="cp-side-item" onClick={() => setDrawerOpen(false)}>
+              <Icon d={ICONS.price} />Shop {shop}
+            </Link>
+            <Link href="/account/messages" className="cp-side-item" onClick={() => setDrawerOpen(false)}>
+              <Icon d={ICONS.messages} />Help
+            </Link>
+            <hr className="cp-hr" style={{ margin: "8px 0" }} />
+            <Menu groups={groups} pathname={pathname} onPick={() => setDrawerOpen(false)}
+              onSignOut={() => { setDrawerOpen(false); handleSignOut(); }} />
+          </div>
+        </>
       )}
 
-      {/* ── Desktop + main layout ── */}
-      <div
-        className="account-layout-wrapper"
-        style={{
-          maxWidth: "1500px",
-          margin: "0 auto",
-          padding: "32px 16px",
-          display: "flex",
-          gap: "24px",
-          alignItems: "flex-start",
-        }}
-      >
-        {/* Desktop sidebar */}
-        <nav
-          className="account-sidebar-desktop"
-          style={{
-            width: "236px",
-            flexShrink: 0,
-            position: "sticky",
-            top: "20px",
-            background: "#fff",
-            border: "1px solid #ECEAE4",
-            borderRadius: "16px",
-            padding: "14px 10px",
-            boxShadow: "0 1px 2px rgba(0,0,0,.03)",
-          }}
-        >
-          <div style={{ padding: "4px 12px 12px", borderBottom: "1px solid #F2F0EA", marginBottom: "8px" }}>
-            <div style={{ fontSize: "11px", fontWeight: 700, color: "#9A98A0", letterSpacing: ".06em", textTransform: "uppercase" }}>My account</div>
-            <div style={{ fontSize: "14px", fontWeight: 700, color: "#1A1A1A", marginTop: "4px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-              {user?.first_name ? `${user.first_name}${user.last_name ? ` ${user.last_name}` : ""}` : user?.email ?? ""}
-            </div>
+      <div className="cp-body">
+        <aside className="cp-side">
+          <div className="cp-side-inner">
+            <Menu groups={groups} pathname={pathname} onSignOut={handleSignOut} />
           </div>
-          <NavLinks items={navItems} pathname={pathname} />
-          <div style={{ borderTop: "1px solid #F2F0EA", marginTop: "6px", paddingTop: "10px", display: "grid", gap: "6px" }}>
-            <Link
-              href="/"
-              style={{
-                display: "flex", alignItems: "center", justifyContent: "center", gap: "8px",
-                padding: "10px 12px", borderRadius: "10px",
-                background: "var(--brand-primary, #1C3557)", color: "#fff",
-                textDecoration: "none", fontSize: "13px", fontWeight: 700,
-              }}
-            >
-              {branding?.store_name ? `Shop ${branding.store_name}` : "Back to store"} →
-            </Link>
-            <button
-              onClick={handleSignOut}
-              style={{
-                display: "block", width: "100%", textAlign: "center",
-                padding: "9px 12px", borderRadius: "10px",
-                fontSize: "13px", fontWeight: 600, color: "#B91C1C",
-                background: "transparent", border: "1px solid #F3D0D0", cursor: "pointer",
-              }}
-              onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "#FEF2F2"; }}
-              onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "transparent"; }}
-            >
-              Sign out
-            </button>
-          </div>
-        </nav>
-
-        {/* Main content */}
-        <main className="account-main" style={{ flex: 1, minWidth: 0 }}>
-          {children}
+        </aside>
+        <main className="cp-main">
+          <PortalContext.Provider value={portal}>
+            <div className="cp-wrap">{children}</div>
+          </PortalContext.Provider>
         </main>
       </div>
-    </>
+
+      <footer className="cp-foot">
+        <span>{shop}</span>
+        {branding?.support_email && <a href={`mailto:${branding.support_email}`}>{branding.support_email}</a>}
+        {branding?.support_phone && <a href={`tel:${branding.support_phone.replace(/[^\d+]/g, "")}`}>{branding.support_phone}</a>}
+        {pickup && <span>{pickup}</span>}
+      </footer>
+    </div>
   );
 }

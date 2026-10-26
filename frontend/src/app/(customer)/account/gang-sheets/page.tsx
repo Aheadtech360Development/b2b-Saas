@@ -1,55 +1,119 @@
 "use client";
 
 /**
- * Customer's gang sheet orders inside My Account — the discoverable place a buyer
- * looks for status, separate from the builder page. Reuses the same myOrders
- * endpoint and the shared timeline so status reads identically everywhere.
+ * Print jobs: every gang sheet the buyer built and every design they uploaded
+ * by size, from the moment it arrives to the day it ships. A job that can
+ * still be changed opens in the builder from here; one the print team sent
+ * back is fixed and resubmitted from here; any job can be ordered again.
  */
-import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import {
-  GANG_SHEET_STATUS_COLOR,
-  GANG_SHEET_STATUS_LABEL,
-  gangSheetsService,
-  type GangSheetOrder,
-} from "@/services/gangSheets.service";
-import { GangSheetTimeline } from "@/components/storefront/GangSheetTimeline";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { gangSheetsService } from "@/services/gangSheets.service";
 import { cartService } from "@/services/cart.service";
 import { trackSheetAdd } from "@/lib/tracking";
+import { day } from "@/lib/customerWords";
+import { Banner, Chip, Empty, ICONS, Icon, Loading, PageHead, Steps, Tabs } from "@/components/portal/ui";
+import {
+  JOB_STEPS, jobKind, jobLine, jobState, jobStep, jobTab, type Job, type JobTab,
+} from "@/components/portal/data";
 
-/** Older rows predate `kind`; a job with no sheet size is an upload by size. */
-const kindOf = (o: GangSheetOrder) => o.kind ?? (o.sheet_size_id ? "gang_sheet" : "upload_by_size");
+const TAB_WORDS: Record<JobTab, string> = {
+  all: "All", action: "Needs your action", production: "In production", shipped: "Shipped", delivered: "Delivered",
+};
 
-export default function AccountGangSheetsPage() {
-  const [orders, setOrders] = useState<GangSheetOrder[]>([]);
+function JobCard({ job, busy, onReorder, onResubmit }: {
+  job: Job;
+  busy: boolean;
+  onReorder: () => void;
+  onResubmit: () => void;
+}) {
+  const [words, tone] = jobState(job);
+  const kind = jobKind(job);
+  const editable = (job.status === "submitted" || job.status === "revision_requested") && kind === "gang_sheet";
+  return (
+    <article className="cp-job">
+      <div className="cp-job-top">
+        <div className="cp-thumb" aria-hidden><Icon d={ICONS.jobs} size={26} /></div>
+        <div style={{ flex: "1 1 220px", minWidth: 0 }}>
+          <div className="cp-job-title">
+            {job.reference}
+            {(job.version ?? 1) > 1 && <span className="cp-muted" style={{ fontWeight: 500, fontSize: 14 }}>v{job.version}</span>}
+            <Chip tone={tone}>{words}</Chip>
+          </div>
+          <div className="cp-job-meta">
+            {kind === "upload_by_size" ? "Upload by size" : "Gang sheet"} · {jobLine(job)}{job.created_at ? ` · ${day(job.created_at)}` : ""}
+          </div>
+          {job.supplier_notes && (
+            <div className="cp-banner" data-tone="warn" style={{ marginTop: 10 }}>
+              <span><strong>From the print team:</strong> {job.supplier_notes}</span>
+            </div>
+          )}
+        </div>
+        <div className="cp-actions">
+          <Link href={`/account/gang-sheets/${job.id}`} className="cp-btn">View job</Link>
+          {job.status === "revision_requested" && kind === "upload_by_size" && job.product_slug && (
+            <Link href={`/products/${job.product_slug}?revise=${job.id}`} className="cp-btn cp-btn-p">Update and resubmit</Link>
+          )}
+          {editable && (
+            <Link href={`/gang-sheets?edit=${job.id}${job.product_id ? `&product=${job.product_id}` : ""}`} className="cp-btn cp-btn-p">
+              Edit in builder
+            </Link>
+          )}
+          {job.status === "revision_requested" && (
+            <button type="button" className="cp-btn" disabled={busy} onClick={onResubmit}>{busy ? "…" : "Resubmit"}</button>
+          )}
+          {!editable && job.status !== "revision_requested" && (
+            <Link href={`/account/messages?job=${encodeURIComponent(job.reference)}`} className="cp-btn">Request a change</Link>
+          )}
+          <button type="button" className="cp-btn" disabled={busy} onClick={onReorder}>{busy ? "Adding…" : "Reorder"}</button>
+        </div>
+      </div>
+      {job.status === "rejected"
+        ? <p className="cp-note" style={{ margin: 0 }}>The print team could not accept this job. Ask them in Messages what to change.</p>
+        : <Steps steps={JOB_STEPS} {...jobStep(job)} />}
+    </article>
+  );
+}
+
+function PrintJobs() {
+  const router = useRouter();
+  const params = useSearchParams();
+  const tab = (params.get("tab") ?? "all") as JobTab;
+  const q = (params.get("q") ?? "").trim();
+
+  const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
-  const [revised, setRevised] = useState(false);
-  const [saved, setSaved] = useState(false);
-  useEffect(() => {
-    const q = new URLSearchParams(window.location.search);
-    setRevised(q.get("revised") === "1");
-    setSaved(q.get("saved") === "1");
-  }, []);
+  const [search, setSearch] = useState(q);
+  const [state, setState] = useState("");
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+  const saved = params.get("saved") === "1";
+  const revised = params.get("revised") === "1";
+
+  useEffect(() => setSearch(q), [q]);
 
   const load = useCallback(() => {
     setLoading(true);
-    gangSheetsService.myOrders().then(setOrders).catch(() => setOrders([])).finally(() => setLoading(false));
+    gangSheetsService.myOrders()
+      .then((j) => { setJobs(j as Job[]); setErr(null); })
+      .catch(() => { setJobs([]); setErr("Your print jobs could not be loaded."); })
+      .finally(() => setLoading(false));
   }, []);
   useEffect(load, [load]);
 
-  async function act(id: string, fn: (id: string) => Promise<unknown>) {
+  async function resubmit(id: string) {
     setBusy(id);
     setErr(null);
-    try { await fn(id); load(); }
+    try { await gangSheetsService.resubmit(id); load(); }
     catch { setErr("That didn't go through. Please try again."); }
     finally { setBusy(null); }
   }
 
-  // "Reorder" has to end somewhere the buyer can pay. Cloning the job and
-  // refreshing the list left a new row sitting at Submitted with no way to
-  // check out — the button looked like it had done nothing.
+  // "Reorder" has to end somewhere the buyer can pay: the copy goes straight
+  // into the cart and the buyer with it.
   async function reorder(id: string) {
     setBusy(id);
     setErr(null);
@@ -65,99 +129,90 @@ export default function AccountGangSheetsPage() {
     }
   }
 
+  const counts = useMemo(() => {
+    const c: Record<JobTab, number> = { all: jobs.length, action: 0, production: 0, shipped: 0, delivered: 0 };
+    for (const j of jobs) { const t = jobTab(j); if (t) c[t] += 1; }
+    return c;
+  }, [jobs]);
+
+  const shown = jobs.filter((j) => {
+    if (tab !== "all" && jobTab(j) !== tab) return false;
+    if (q && !j.reference.toLowerCase().includes(q.toLowerCase()) && !(j.order_number ?? "").toLowerCase().includes(q.toLowerCase())) return false;
+    if (state && jobState(j)[0] !== state) return false;
+    const d = (j.created_at ?? "").slice(0, 10);
+    return (!from || d >= from) && (!to || d <= to);
+  });
+  const stateWords = [...new Set(jobs.map((j) => jobState(j)[0]))];
+
+  const go = (next: { tab?: string; q?: string }) => {
+    const sp = new URLSearchParams();
+    const t = next.tab ?? tab;
+    const s = next.q ?? q;
+    if (t && t !== "all") sp.set("tab", t);
+    if (s) sp.set("q", s);
+    const qs = sp.toString();
+    router.replace(`/account/gang-sheets${qs ? `?${qs}` : ""}`);
+  };
+
   return (
-    <div>
-      <h1 style={{ fontSize: "24px", fontWeight: 800, marginBottom: "4px", fontFamily: "'Playfair Display', serif" }}>My Print Jobs</h1>
-      <p style={{ fontSize: "14px", color: "#666", marginBottom: "22px" }}>
-        Gang sheets you built and designs you uploaded by size — track each one from review to production.
-      </p>
+    <>
+      <PageHead eyebrow="Print jobs" title="Print jobs" sub="Follow every sheet from artwork check to your door."
+        actions={<Link href="/gang-sheets" className="cp-btn cp-btn-p">Build a gang sheet</Link>} />
 
-      {saved && (
-        <div style={{ background: "#F0FDF4", border: "1px solid #BBF7D0", color: "#166534", borderRadius: "8px", padding: "10px 12px", fontSize: "13px", marginBottom: "14px" }}>
-          Your gang sheet is saved. Open it with &ldquo;Edit in builder&rdquo; to keep working on it, and use Save &amp; Add to Cart there when it&apos;s ready.
-        </div>
-      )}
+      <div className="cp-stack-sm" style={{ marginBottom: saved || revised || err ? 16 : 0 }}>
+        {saved && <Banner tone="ok">Your gang sheet is saved. Open it with Edit in builder to keep working on it, and use Save and add to cart there when it is ready.</Banner>}
+        {revised && <Banner tone="ok">Your changes were saved and sent back to the print team for review.</Banner>}
+        {err && <Banner tone="bad" onRetry={load}>{err}</Banner>}
+      </div>
 
-      {revised && (
-        <div style={{ background: "#F0FDF4", border: "1px solid #BBF7D0", color: "#166534", borderRadius: "8px", padding: "10px 12px", fontSize: "13px", marginBottom: "14px" }}>
-          Your changes were saved and sent back to the print team for review.
-        </div>
-      )}
+      <Tabs label="Print jobs" tabs={(Object.keys(TAB_WORDS) as JobTab[]).map((t) => ({
+        key: t, label: TAB_WORDS[t], count: counts[t], on: tab === t, onClick: () => go({ tab: t }),
+      }))} />
 
-      {err && (
-        <div style={{ background: "#FEF2F2", border: "1px solid #FECACA", color: "#991B1B", borderRadius: "8px", padding: "10px 12px", fontSize: "13px", marginBottom: "14px" }}>
-          {err}
-        </div>
-      )}
+      <form className="cp-filters" onSubmit={(e) => { e.preventDefault(); go({ q: search.trim() }); }}>
+        <label className="cp-sr" htmlFor="j-q">Search by job number</label>
+        <input id="j-q" className="cp-input cp-grow" type="search" placeholder="Search by job number"
+          value={search} onChange={(e) => setSearch(e.target.value)} />
+        <label className="cp-sr" htmlFor="j-state">Status</label>
+        <select id="j-state" className="cp-select" value={state} onChange={(e) => setState(e.target.value)}>
+          <option value="">Status: All</option>
+          {stateWords.map((w) => <option key={w} value={w}>{w}</option>)}
+        </select>
+        <label className="cp-sr" htmlFor="j-from">From</label>
+        <input id="j-from" className="cp-input" type="date" value={from} onChange={(e) => setFrom(e.target.value)} title="From" />
+        <label className="cp-sr" htmlFor="j-to">To</label>
+        <input id="j-to" className="cp-input" type="date" value={to} onChange={(e) => setTo(e.target.value)} title="To" />
+      </form>
 
       {loading ? (
-        <div style={{ color: "#888", fontSize: "14px" }}>Loading…</div>
-      ) : orders.length === 0 ? (
-        <div style={{ background: "#fff", border: "1px solid #E8E6E1", borderRadius: "10px", padding: "28px", textAlign: "center", color: "#666", fontSize: "14px" }}>
-          You haven&apos;t placed any print jobs yet.
-          <div style={{ marginTop: "12px" }}>
-            <Link href="/products" style={{ color: "var(--brand-primary, #1C3557)", fontWeight: 700, textDecoration: "none" }}>Browse products →</Link>
-          </div>
+        <Loading what="Loading your print jobs" />
+      ) : jobs.length === 0 ? (
+        <div className="cp-card">
+          <Empty title="No print jobs yet">
+            Build a gang sheet or upload a design to start one.
+            <div style={{ marginTop: 12 }}><Link href="/gang-sheets" className="cp-btn cp-btn-p">Build a gang sheet</Link></div>
+          </Empty>
         </div>
+      ) : shown.length === 0 ? (
+        <div className="cp-card"><Empty title="No jobs here">Nothing matches this tab or search.</Empty></div>
       ) : (
-        <div style={{ display: "grid", gap: "14px" }}>
-          {orders.map((o) => {
-            const c = GANG_SHEET_STATUS_COLOR[o.status] ?? { bg: "#eee", fg: "#555" };
-            return (
-              <div key={o.id} style={{ background: "#fff", border: "1px solid #E8E6E1", borderRadius: "10px", padding: "18px" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px", flexWrap: "wrap", marginBottom: "14px" }}>
-                  <div>
-                    <div style={{ fontWeight: 700, fontSize: "15px", display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
-                      <span style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: ".04em", background: "#F1F1F0", color: "#4A4A4A", padding: "2px 8px", borderRadius: "20px" }}>
-                        {kindOf(o) === "upload_by_size" ? "Upload by size" : "Gang sheet"}
-                      </span>
-                      {o.reference}{(o.version ?? 1) > 1 ? <span style={{ color: "#888", fontWeight: 500 }}> · v{o.version}</span> : null}
-                    </div>
-                    <div style={{ fontSize: "13px", color: "#888" }}>
-                      {o.sheet_name} · {o.sheet_quantity} {kindOf(o) === "upload_by_size" ? `print${o.sheet_quantity === 1 ? "" : "s"}` : `sheet${o.sheet_quantity === 1 ? "" : "s"}`} · ${o.subtotal.toFixed(2)}
-                    </div>
-                    {o.supplier_notes && (
-                      <div style={{ fontSize: "13px", color: "#9A3412", marginTop: "6px", background: "#FFF7ED", borderRadius: "6px", padding: "8px 10px" }}>
-                        <strong>From the print team:</strong> {o.supplier_notes}
-                      </div>
-                    )}
-                  </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                    <span style={{ background: c.bg, color: c.fg, padding: "4px 12px", borderRadius: "20px", fontSize: "12px", fontWeight: 700 }}>
-                      {GANG_SHEET_STATUS_LABEL[o.status] ?? o.status}
-                    </span>
-                    {o.status === "revision_requested" && kindOf(o) === "upload_by_size" && o.product_slug && (
-                      <Link href={`/products/${o.product_slug}?revise=${o.id}`}
-                        style={{ background: "var(--brand-primary, #1C3557)", color: "#fff", padding: "7px 14px", borderRadius: "6px", fontSize: "13px", fontWeight: 700, textDecoration: "none" }}>
-                        Update &amp; resubmit
-                      </Link>
-                    )}
-                    {/* The builder page no longer lists past sheets, so reopening
-                        one happens from here, straight into that sheet. */}
-                    {(o.status === "submitted" || o.status === "revision_requested") && kindOf(o) === "gang_sheet" && (
-                      <Link href={`/gang-sheets?edit=${o.id}${o.product_id ? `&product=${o.product_id}` : ""}`}
-                        style={{ background: "var(--brand-primary, #1C3557)", color: "#fff", padding: "7px 14px", borderRadius: "6px", fontSize: "13px", fontWeight: 700, textDecoration: "none" }}>
-                        Edit in builder
-                      </Link>
-                    )}
-                    {o.status === "revision_requested" && (
-                      <button disabled={busy === o.id} onClick={() => act(o.id, gangSheetsService.resubmit)}
-                        style={{ background: "var(--brand-primary, #1C3557)", color: "#fff", border: "none", padding: "7px 14px", borderRadius: "6px", fontSize: "13px", fontWeight: 700, cursor: "pointer" }}>
-                        {busy === o.id ? "…" : "Resubmit"}
-                      </button>
-                    )}
-                    <button disabled={busy === o.id} onClick={() => reorder(o.id)}
-                      style={{ background: "none", border: "1px solid #DDD9D2", padding: "6px 14px", borderRadius: "6px", fontSize: "13px", fontWeight: 600, cursor: "pointer" }}>
-                      {busy === o.id ? "Adding…" : "Reorder"}
-                    </button>
-                  </div>
-                </div>
-                <GangSheetTimeline status={o.status} timeline={o.status_timeline} />
-              </div>
-            );
-          })}
+        <div className="cp-stack-sm" style={{ gap: 16 }}>
+          {shown.map((j) => (
+            <JobCard key={j.id} job={j} busy={busy === j.id} onReorder={() => reorder(j.id)} onResubmit={() => resubmit(j.id)} />
+          ))}
         </div>
       )}
-    </div>
+      <p className="cp-note" style={{ marginTop: 16 }}>
+        Edit in builder shows while a job can still be changed. After that, request a change and the print team will help.
+      </p>
+    </>
+  );
+}
+
+export default function AccountGangSheetsPage() {
+  return (
+    <Suspense fallback={<Loading />}>
+      <PrintJobs />
+    </Suspense>
   );
 }

@@ -51,6 +51,51 @@ async def list_orders(
     )
 
 
+@router.get("/conversations")
+async def my_order_conversations(request: Request, db: AsyncSession = Depends(get_db)) -> dict:
+    """The signed-in buyer's orders that have messages on them, latest first,
+    each with its last message: the portal's Messages list. Whose orders these
+    are follows the same rule as the order list."""
+    import uuid as _uuid
+
+    from sqlalchemy import func
+
+    company_id = getattr(request.state, "company_id", None)
+    user_id = getattr(request.state, "user_id", None)
+    account_type = getattr(request.state, "account_type", "wholesale")
+    if account_type == "retail" and user_id:
+        owner = Order.placed_by_id == _uuid.UUID(str(user_id))
+    elif company_id:
+        owner = Order.company_id == _uuid.UUID(str(company_id))
+    else:
+        raise ForbiddenError("Company account required")
+
+    threads = (
+        select(OrderComment.order_id, func.max(OrderComment.created_at).label("last_at"),
+               func.count().label("count"))
+        .group_by(OrderComment.order_id).subquery()
+    )
+    rows = (await db.execute(
+        select(Order.id, Order.order_number, threads.c.last_at, threads.c.count)
+        .join(threads, threads.c.order_id == Order.id)
+        .where(owner).order_by(threads.c.last_at.desc()).limit(50)
+    )).all()
+    last: dict = {}
+    if rows:
+        for c in (await db.execute(
+            select(OrderComment.order_id, OrderComment.body, OrderComment.is_admin)
+            .where(OrderComment.order_id.in_([r[0] for r in rows]))
+            .order_by(OrderComment.created_at.desc())
+        )).all():
+            last.setdefault(c[0], c)
+    return {"items": [{
+        "order_id": str(oid), "order_number": number,
+        "last_at": at.isoformat() if at else None, "count": count,
+        "last_body": (last[oid][1] if oid in last else "")[:200],
+        "last_from_shop": bool(last[oid][2]) if oid in last else False,
+    } for oid, number, at, count in rows]}
+
+
 @router.get("/{order_id}", response_model=OrderOut)
 async def get_order(
     order_id: str,

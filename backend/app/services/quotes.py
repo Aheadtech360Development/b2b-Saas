@@ -210,3 +210,52 @@ async def find_by_number(db: AsyncSession, tenant_id: Any, number: str) -> Order
     return (await db.execute(
         select(Order).where(Order.id == moved[0], Order.tenant_id == tenant_id)
     )).scalar_one_or_none()
+
+
+async def for_buyer(db: AsyncSession, tenant_id: Any, *, owner: Any, email: str | None,
+                    utc_offset_minutes: int = 0) -> list[dict[str, Any]]:
+    """The signed-in buyer's own quotes, newest first: every draft sent to them
+    (also once accepted or made an order), then what they asked a price for
+    that the shop has not priced yet, found by the address they asked from.
+
+    `owner` is the condition on Order that makes it theirs (order_view.owned_by's
+    rule). A draft never sent is not a quote yet, so it is not listed: the
+    quote's own page would not open it either.
+    """
+    today = (datetime.now(timezone.utc) + timedelta(minutes=utc_offset_minutes)).date()
+    sent_ids = select(OrderEvent.order_id).where(OrderEvent.type == "quote_sent")
+    orders = (await db.execute(
+        select(Order).where(owner, Order.id.in_(sent_ids)).order_by(Order.created_at.desc()).limit(200)
+    )).scalars().all()
+    ev = await _events(db, [o.id for o in orders], ("order_created", "quote_sent", "quote_accepted", "order_confirmed"))
+    rows: list[dict[str, Any]] = []
+    for o in orders:
+        oid = str(o.id)
+        sent = ev.get((oid, "quote_sent"))
+        status = status_of(order_status=o.status, sent=sent, accepted=(oid, "quote_accepted") in ev, today=today)
+        rows.append({
+            "kind": "quote",
+            "number": (ev.get((oid, "order_confirmed")) or {}).get("from_draft") or o.order_number,
+            "order_id": oid if status == "ordered" else None,
+            "order_number": o.order_number if status == "ordered" else None,
+            "requested_at": o.created_at.isoformat() if o.created_at else None,
+            "valid_until": (sent or {}).get("valid_until"),
+            "total": float(o.total or 0),
+            "status": status, "status_words": STATUS_WORDS[status],
+        })
+    if email and tenant_id:
+        linked = {str(e["quote_request_id"]) for (_, kind), e in ev.items()
+                  if kind == "order_created" and e.get("quote_request_id")}
+        mine = (email or "").strip().lower()
+        for r in await _requests(db, tenant_id, linked):
+            if (r["from"].get("email") or "").strip().lower() != mine:
+                continue
+            rows.append({
+                "kind": "request", "number": f"REQ-{r['id'][:6].upper()}",
+                "order_id": None, "order_number": None,
+                "requested_at": r["created_at"], "valid_until": None, "total": None,
+                "status": "needs_pricing", "status_words": "Waiting for a price",
+                "asked": r["from"].get("message"),
+            })
+    rows.sort(key=lambda x: x["requested_at"] or "", reverse=True)
+    return rows

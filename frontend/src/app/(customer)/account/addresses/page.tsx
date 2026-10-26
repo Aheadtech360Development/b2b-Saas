@@ -1,13 +1,21 @@
 "use client";
 
+/**
+ * Account, Addresses: where the buyer's orders go. The form follows the
+ * country (a US address asks for a state and a ZIP code and fills the city in
+ * from it; a Canadian one a province and a postal code), offers only the
+ * countries this shop sells to, and keeps an address already in another one.
+ */
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ask } from "@/lib/dialog";
-import { useCallback, useEffect, useRef, useState } from "react";
 import { apiClient } from "@/lib/api-client";
 import { useAuthStore } from "@/stores/auth.store";
 import { useBranding } from "@/components/providers/BrandingProvider";
-
-const COUNTRY_CHOICES: [string, string][] = [["US", "United States"], ["CA", "Canada"]];
 import { useAddressAutocomplete } from "@/hooks/useAddressAutocomplete";
+import { COUNTRIES, countryName } from "@/lib/countries";
+import { AccountTabs } from "@/components/portal/AccountTabs";
+import { Banner, Chip, Empty, Loading, Modal, PageHead } from "@/components/portal/ui";
+import { regionRules } from "@/components/portal/regions";
 
 interface Address {
   id: string;
@@ -36,440 +44,247 @@ const EMPTY_FORM = {
   is_default: false,
 };
 
-const US_STATES = [
-  "AL","AK","AZ","AR","CA","CO","CT","DE","FL","GA",
-  "HI","ID","IL","IN","IA","KS","KY","LA","ME","MD",
-  "MA","MI","MN","MS","MO","MT","NE","NV","NH","NJ",
-  "NM","NY","NC","ND","OH","OK","OR","PA","RI","SC",
-  "SD","TN","TX","UT","VT","VA","WA","WV","WI","WY",
-];
-
-const inputCls =
-  "w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500";
-
-export default function AddressBookPage() {
-  const { isAuthenticated, isLoading } = useAuthStore();
-  const { ship_countries } = useBranding();
-  const shipCountries = ship_countries?.length ? ship_countries : ["US", "CA"];
-  const [addresses, setAddresses] = useState<Address[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [showForm, setShowForm] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [form, setForm] = useState(EMPTY_FORM);
+function AddressForm({ initial, editing, countries, onClose, onSaved }: {
+  initial: typeof EMPTY_FORM;
+  editing: string | null;
+  countries: { code: string; name: string }[];
+  onClose: () => void;
+  onSaved: (text: string) => void;
+}) {
+  const [form, setForm] = useState(initial);
   const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
-  const hasLoaded = useRef(false);
+  const [error, setError] = useState<string | null>(null);
+  const rules = regionRules(form.country);
 
-  useEffect(() => {
-    if (isLoading) return;
-    if (!isAuthenticated()) return;
-    if (hasLoaded.current) return;
-    hasLoaded.current = true;
-    loadAddresses();
-  }, [isLoading]);
+  const autofill = useCallback((a: { street: string; city: string; state: string; zipCode: string }) => {
+    setForm((p) => ({ ...p, line1: a.street || p.line1, city: a.city || p.city, state: a.state || p.state, postal_code: a.zipCode || p.postal_code }));
+  }, []);
+  const streetRef = useAddressAutocomplete(autofill);
 
-  async function loadAddresses() {
-    setLoading(true);
+  // A US ZIP (or the first part of a Canadian postal code) fills in the city and region.
+  async function lookUp(code: string, country: string) {
+    const key = country === "CA" ? code.replace(/\s+/g, "").slice(0, 3) : code.trim();
+    if (!["US", "CA"].includes(country) || (country === "US" ? key.length !== 5 : key.length !== 3)) return;
     try {
-      const data = await apiClient.get<Address[]>("/api/v1/account/addresses");
-      setAddresses(data);
+      const resp = await fetch(`https://api.zippopotam.us/${country.toLowerCase()}/${encodeURIComponent(key)}`);
+      if (!resp.ok) return;
+      const place = (await resp.json()).places?.[0];
+      if (place) setForm((p) => ({ ...p, city: place["place name"] || p.city, state: place["state abbreviation"] || p.state }));
     } catch {
-      setMessage({ type: "error", text: "Failed to load addresses." });
-    } finally {
-      setLoading(false);
+      // The buyer can still type them.
     }
   }
 
-  function handleAddNew() {
-    setForm(EMPTY_FORM);
-    setEditingId(null);
-    setShowForm(true);
-    setMessage(null);
-    setTimeout(() => document.getElementById("addr-label")?.focus(), 50);
-  }
-
-  function handleEdit(addr: Address) {
-    setForm({
-      label: addr.label || "",
-      full_name: addr.full_name || "",
-      line1: addr.line1,
-      line2: addr.line2 || "",
-      city: addr.city,
-      state: addr.state,
-      postal_code: addr.postal_code,
-      country: addr.country,
-      phone: addr.phone || "",
-      is_default: addr.is_default,
-    });
-    setEditingId(addr.id);
-    setShowForm(true);
-    setMessage(null);
-  }
-
-  function handleCancel() {
-    setShowForm(false);
-    setEditingId(null);
-    setForm(EMPTY_FORM);
-  }
-
-  async function handleSubmit(e: React.FormEvent) {
+  async function submit(e: React.FormEvent) {
     e.preventDefault();
     setSaving(true);
-    setMessage(null);
+    setError(null);
     try {
-      if (editingId) {
-        await apiClient.patch(`/api/v1/account/addresses/${editingId}`, form);
-        setMessage({ type: "success", text: "Address updated successfully!" });
-      } else {
-        await apiClient.post("/api/v1/account/addresses", form);
-        setMessage({ type: "success", text: "Address added successfully!" });
-      }
-      await loadAddresses();
-      setShowForm(false);
-      setEditingId(null);
-      setForm(EMPTY_FORM);
-    } catch {
-      setMessage({ type: "error", text: "Failed to save address." });
+      if (editing) await apiClient.patch(`/api/v1/account/addresses/${editing}`, form);
+      else await apiClient.post("/api/v1/account/addresses", form);
+      onSaved(editing ? "Address updated." : "Address added.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "The address could not be saved.");
     } finally {
       setSaving(false);
     }
   }
 
-  async function handleDelete(id: string) {
-    if (!await ask("Are you sure you want to delete this address?")) return;
-    try {
-      await apiClient.delete(`/api/v1/account/addresses/${id}`);
-      setMessage({ type: "success", text: "Address deleted." });
-      await loadAddresses();
-    } catch {
-      setMessage({ type: "error", text: "Failed to delete address." });
-    }
-  }
-
-  async function handleZipLookup(zip: string) {
-    if (zip.length < 5) return;
-    try {
-      const country = form.country || "US";
-      const countryCode = country === "CA" ? "ca" : "us";
-      const resp = await fetch(
-        `https://api.zippopotam.us/${countryCode}/${zip}`
-      );
-      if (!resp.ok) return;
-      const data = await resp.json();
-      const place = data.places?.[0];
-      if (place) {
-        setForm(p => ({
-          ...p,
-          city: place["place name"] || p.city,
-          state: place["state abbreviation"] || p.state,
-          country: country,
-        }));
-      }
-    } catch {
-      // silently fail — user can still type manually
-    }
-  }
-
-  async function handleSetDefault(id: string) {
-    try {
-      await apiClient.patch(`/api/v1/account/addresses/${id}/set-default`, {});
-      setMessage({ type: "success", text: "Default address updated!" });
-      await loadAddresses();
-    } catch {
-      setMessage({ type: "error", text: "Failed to set default address." });
-    }
-  }
-
-  const handleAddressAutofill = useCallback((addr: { street: string; city: string; state: string; zipCode: string }) => {
-    setForm(prev => ({
-      ...prev,
-      line1: addr.street || prev.line1,
-      city: addr.city || prev.city,
-      state: addr.state || prev.state,
-      postal_code: addr.zipCode || prev.postal_code,
-    }));
-  }, []);
-  const streetInputRef = useAddressAutocomplete(handleAddressAutofill);
-
-  if (loading && !message) return <div className="py-12 text-center text-gray-400">Loading...</div>;
+  const set = (k: keyof typeof EMPTY_FORM) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
+    setForm((p) => ({ ...p, [k]: e.target.value }));
 
   return (
-    <div className="space-y-6 max-w-3xl">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900">Address Book</h1>
-        {!showForm && (
-          <button
-            onClick={handleAddNew}
-            className="px-4 py-2 bg-blue-600 text-white rounded-md text-sm font-medium hover:bg-blue-700"
-          >
-            + Add Address
+    <Modal title={editing ? "Edit address" : "Add address"} onClose={onClose}
+      foot={
+        <>
+          <button type="button" className="cp-btn" onClick={onClose}>Cancel</button>
+          <button type="submit" form="address-form" className="cp-btn cp-btn-p" disabled={saving}>
+            {saving ? "Saving…" : editing ? "Save address" : "Add address"}
           </button>
-        )}
-      </div>
-
-      {/* Message banner */}
-      {message && (
-        <div
-          className={`px-4 py-3 rounded-md text-sm font-medium ${
-            message.type === "success"
-              ? "bg-green-50 text-green-700 border border-green-200"
-              : "bg-red-50 text-red-700 border border-red-200"
-          }`}
-        >
-          {message.text}
+        </>
+      }>
+      <form id="address-form" onSubmit={submit} className="cp-stack-sm" style={{ gap: 14 }}>
+        {error && <Banner tone="bad">{error}</Banner>}
+        <div className="cp-field">
+          <label className="cp-label" htmlFor="a-country">Country</label>
+          <select id="a-country" className="cp-select" value={form.country}
+            onChange={(e) => setForm((p) => ({ ...p, country: e.target.value, state: "" }))} required>
+            {countries.map((c) => <option key={c.code} value={c.code}>{c.name}</option>)}
+          </select>
+          <span className="cp-hint">The form changes to match the country.</span>
         </div>
-      )}
-
-      {/* Add / Edit form */}
-      {showForm && (
-        <form
-          onSubmit={handleSubmit}
-          className="bg-white border border-gray-200 rounded-lg p-6 space-y-4"
-        >
-          <h2 className="text-lg font-semibold text-gray-800">
-            {editingId ? "Edit Address" : "Add New Address"}
-          </h2>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Label <span className="text-red-500">*</span>
-            </label>
-            <input
-              id="addr-label"
-              type="text"
-              value={form.label}
-              onChange={(e) => setForm((p) => ({ ...p, label: e.target.value }))}
-              placeholder="e.g. Home, Office, Warehouse"
-              required
-              className={inputCls}
-            />
+        <div className="cp-grid2">
+          <div className="cp-field">
+            <label className="cp-label" htmlFor="a-label">Label</label>
+            <input id="a-label" className="cp-input" placeholder="Warehouse, Office…" value={form.label} onChange={set("label")} />
           </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
-            <input
-              type="text"
-              value={form.full_name}
-              onChange={(e) => setForm((p) => ({ ...p, full_name: e.target.value }))}
-              placeholder="Recipient full name"
-              className={inputCls}
-            />
+          <div className="cp-field">
+            <label className="cp-label" htmlFor="a-name">Full name</label>
+            <input id="a-name" className="cp-input" value={form.full_name} onChange={set("full_name")} autoComplete="name" />
           </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Address Line 1 <span className="text-red-500">*</span>
-            </label>
-            <input
-              ref={streetInputRef}
-              type="text"
-              value={form.line1}
-              onChange={(e) => setForm((p) => ({ ...p, line1: e.target.value }))}
-              placeholder="Street address"
-              required
-              className={inputCls}
-            />
+        </div>
+        <div className="cp-field">
+          <label className="cp-label" htmlFor="a-1">Address line 1</label>
+          <input id="a-1" ref={streetRef} className="cp-input" placeholder="Street address" required value={form.line1} onChange={set("line1")} autoComplete="address-line1" />
+        </div>
+        <div className="cp-field">
+          <label className="cp-label" htmlFor="a-2">Address line 2</label>
+          <input id="a-2" className="cp-input" placeholder="Apartment, suite, unit (optional)" value={form.line2} onChange={set("line2")} autoComplete="address-line2" />
+        </div>
+        <div className="cp-grid3">
+          <div className="cp-field">
+            <label className="cp-label" htmlFor="a-postal">{rules.postal}</label>
+            <input id="a-postal" className="cp-input" required maxLength={10} value={form.postal_code} autoComplete="postal-code"
+              onChange={(e) => { const v = e.target.value; setForm((p) => ({ ...p, postal_code: v })); lookUp(v, form.country); }} />
           </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Address Line 2</label>
-            <input
-              type="text"
-              value={form.line2}
-              onChange={(e) => setForm((p) => ({ ...p, line2: e.target.value }))}
-              placeholder="Apt, Suite, Unit (optional)"
-              className={inputCls}
-            />
+          <div className="cp-field">
+            <label className="cp-label" htmlFor="a-city">City</label>
+            <input id="a-city" className="cp-input" required value={form.city} onChange={set("city")} autoComplete="address-level2" />
           </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              ZIP / Postal Code <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="text"
-              value={form.postal_code}
-              onChange={(e) => {
-                const zip = e.target.value;
-                setForm(p => ({ ...p, postal_code: zip }));
-                if (zip.length === 5) {
-                  handleZipLookup(zip);
-                }
-              }}
-              maxLength={10}
-              required
-              placeholder="Enter ZIP to auto-fill city & state"
-              className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-            <p className="text-xs text-gray-400 mt-1">
-              City &amp; State will auto-fill when you enter a valid ZIP code
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                City <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="text"
-                value={form.city}
-                onChange={(e) => setForm((p) => ({ ...p, city: e.target.value }))}
-                required
-                className={inputCls}
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                State <span className="text-red-500">*</span>
-              </label>
-              <select
-                value={form.state}
-                onChange={(e) => setForm((p) => ({ ...p, state: e.target.value }))}
-                required
-                className={inputCls}
-              >
-                <option value="">Select State</option>
-                {US_STATES.map((s) => (
-                  <option key={s} value={s}>{s}</option>
-                ))}
+          <div className="cp-field">
+            <label className="cp-label" htmlFor="a-region">{rules.region}</label>
+            {rules.choices.length ? (
+              <select id="a-region" className="cp-select" required value={form.state} onChange={set("state")}>
+                <option value="">Choose</option>
+                {form.state && !rules.choices.some(([c]) => c === form.state) && <option value={form.state}>{form.state}</option>}
+                {rules.choices.map(([c, n]) => <option key={c} value={c}>{n}</option>)}
               </select>
-            </div>
+            ) : (
+              <input id="a-region" className="cp-input" required value={form.state} onChange={set("state")} />
+            )}
           </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Country <span className="text-red-500">*</span>
-            </label>
-            <select
-              value={form.country}
-              onChange={(e) => setForm((p) => ({ ...p, country: e.target.value }))}
-              required
-              className={inputCls}
-            >
-              {/* The countries this shop sells to (its admin's Settings, Markets);
-                  an address already in another keeps its own. */}
-              {COUNTRY_CHOICES.filter(([code]) => shipCountries.includes(code) || code === form.country).map(([code, name]) => (
-                <option key={code} value={code}>{name}</option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Phone Number</label>
-            <input
-              type="tel"
-              value={form.phone}
-              onChange={(e) => setForm((p) => ({ ...p, phone: e.target.value }))}
-              placeholder="(555) 000-0000"
-              className={inputCls}
-            />
-          </div>
-
-          <div className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              id="is_default"
-              checked={form.is_default}
-              onChange={(e) => setForm((p) => ({ ...p, is_default: e.target.checked }))}
-              className="h-4 w-4 rounded border-gray-300 text-blue-600"
-            />
-            <label htmlFor="is_default" className="text-sm text-gray-700">
-              Set as Default Ship-to Address
-            </label>
-          </div>
-
-          <div className="flex justify-end gap-3 pt-2">
-            <button
-              type="button"
-              onClick={handleCancel}
-              className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={saving}
-              className="px-6 py-2 bg-blue-600 text-white rounded-md text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
-            >
-              {saving ? "Saving..." : editingId ? "Update Address" : "Add Address"}
-            </button>
-          </div>
-        </form>
-      )}
-
-      {/* Address list */}
-      {addresses.length === 0 && !showForm ? (
-        <div className="text-center py-12 bg-white border border-gray-200 rounded-lg">
-          <p className="text-gray-400 text-sm">No addresses yet.</p>
-          <button
-            onClick={handleAddNew}
-            className="mt-3 text-blue-600 text-sm font-medium hover:underline"
-          >
-            Add your first address
-          </button>
         </div>
+        {rules.postalHint && <span className="cp-hint">{rules.postalHint}</span>}
+        <div className="cp-field">
+          <label className="cp-label" htmlFor="a-phone">Phone</label>
+          <input id="a-phone" className="cp-input" type="tel" value={form.phone} onChange={set("phone")} autoComplete="tel" />
+        </div>
+        <label className="cp-check">
+          <input type="checkbox" checked={form.is_default} onChange={(e) => setForm((p) => ({ ...p, is_default: e.target.checked }))} />
+          Use as my default ship-to address
+        </label>
+      </form>
+    </Modal>
+  );
+}
+
+export default function AddressBookPage() {
+  const company = !!useAuthStore((s) => s.user?.company_id);
+  return company ? <AddressBook /> : (
+    <>
+      <PageHead eyebrow="Account" title="Addresses" sub="Where we send your orders." />
+      <AccountTabs />
+      <div className="cp-card cp-pad cp-stack-sm" style={{ maxWidth: 640 }}>
+        <h2 className="cp-h3">Your address is asked at checkout</h2>
+        <p style={{ margin: 0, fontSize: 14, lineHeight: 1.55 }}>
+          A saved address book comes with a company account. For now, enter where each order goes when you check out.
+        </p>
+      </div>
+    </>
+  );
+}
+
+function AddressBook() {
+  const { isAuthenticated, isLoading } = useAuthStore();
+  const { ship_countries } = useBranding();
+  const [addresses, setAddresses] = useState<Address[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [editing, setEditing] = useState<{ id: string | null; form: typeof EMPTY_FORM } | null>(null);
+  const [message, setMessage] = useState<{ tone: "ok" | "bad"; text: string } | null>(null);
+  const hasLoaded = useRef(false);
+
+  const loadAddresses = useCallback(async () => {
+    setLoading(true);
+    try {
+      setAddresses(await apiClient.get<Address[]>("/api/v1/account/addresses"));
+    } catch {
+      setMessage({ tone: "bad", text: "Your addresses could not be loaded." });
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (isLoading || !isAuthenticated() || hasLoaded.current) return;
+    hasLoaded.current = true;
+    loadAddresses();
+  }, [isLoading, isAuthenticated, loadAddresses]);
+
+  const sells = ship_countries?.length ? ship_countries : ["US", "CA"];
+  const countriesFor = useMemo(() => (current: string) =>
+    COUNTRIES.filter((c) => sells.includes(c.code) || c.code === current), [sells]);
+
+  async function remove(a: Address) {
+    if (!await ask(`Delete the address ${a.label || a.line1}?`, { ok: "Delete", danger: true })) return;
+    try {
+      await apiClient.delete(`/api/v1/account/addresses/${a.id}`);
+      setMessage({ tone: "ok", text: "Address deleted." });
+      await loadAddresses();
+    } catch {
+      setMessage({ tone: "bad", text: "That address could not be deleted." });
+    }
+  }
+
+  async function makeDefault(a: Address) {
+    try {
+      await apiClient.patch(`/api/v1/account/addresses/${a.id}/set-default`, {});
+      setMessage({ tone: "ok", text: "Default address updated." });
+      await loadAddresses();
+    } catch {
+      setMessage({ tone: "bad", text: "The default address could not be changed." });
+    }
+  }
+
+  return (
+    <>
+      <PageHead eyebrow="Account" title="Addresses" sub="Where we send your orders."
+        actions={<button type="button" className="cp-btn cp-btn-p" onClick={() => { setMessage(null); setEditing({ id: null, form: { ...EMPTY_FORM, country: sells[0] ?? "US" } }); }}>+ Add address</button>} />
+      <AccountTabs />
+      {message && <div style={{ marginBottom: 16 }}><Banner tone={message.tone}>{message.text}</Banner></div>}
+      {loading && addresses.length === 0 ? <Loading /> : addresses.length === 0 ? (
+        <div className="cp-card"><Empty title="No addresses yet">Add one to check out faster.</Empty></div>
       ) : (
-        <div className="grid grid-cols-1 gap-4">
-          {addresses.map((addr) => (
-            <div
-              key={addr.id}
-              className={`bg-white border rounded-lg p-5 relative ${
-                addr.is_default ? "border-blue-300 ring-1 ring-blue-200" : "border-gray-200"
-              }`}
-            >
-              {addr.is_default && (
-                <span className="absolute top-3 right-3 bg-blue-100 text-blue-700 text-xs font-medium px-2 py-0.5 rounded-full">
-                  Default
-                </span>
-              )}
-
-              <p className="font-semibold text-gray-900 mb-1">{addr.label || "Address"}</p>
-
-              <div className="text-sm text-gray-600 space-y-0.5">
-                {addr.full_name && <p>{addr.full_name}</p>}
-                <p>{addr.line1}</p>
-                {addr.line2 && <p>{addr.line2}</p>}
-                <p>
-                  {addr.city}, {addr.state} {addr.postal_code}
-                </p>
-                <p>
-                  {addr.country === "US"
-                    ? "United States"
-                    : addr.country === "CA"
-                    ? "Canada"
-                    : addr.country}
-                </p>
-                {addr.phone && <p className="text-gray-500">{addr.phone}</p>}
+        <div className="cp-tiles" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))" }}>
+          {addresses.map((a) => (
+            <article key={a.id} className="cp-card cp-pad cp-stack-sm" style={a.is_default ? { borderColor: "var(--cp-accent-line)", boxShadow: "inset 0 0 0 1px var(--cp-accent-line)" } : undefined}>
+              <div className="cp-actions" style={{ justifyContent: "space-between" }}>
+                <span className="cp-strong">{a.label || "Address"}</span>
+                {a.is_default && <Chip tone="info">Default</Chip>}
               </div>
-
-              <div className="flex gap-3 mt-4 pt-3 border-t border-gray-100 items-center">
-                <button
-                  onClick={() => handleEdit(addr)}
-                  className="text-sm text-blue-600 hover:text-blue-700 font-medium"
-                >
-                  Edit
-                </button>
-                {!addr.is_default && (
-                  <button
-                    onClick={() => handleSetDefault(addr.id)}
-                    className="text-sm text-gray-600 hover:text-gray-800 font-medium"
-                  >
-                    Set as Default
-                  </button>
-                )}
-                <button
-                  onClick={() => handleDelete(addr.id)}
-                  className="text-sm text-red-500 hover:text-red-600 font-medium ml-auto"
-                >
-                  Delete
-                </button>
+              <div style={{ fontSize: 14, lineHeight: 1.55 }}>
+                {a.full_name && <div>{a.full_name}</div>}
+                <div>{a.line1}{a.line2 ? `, ${a.line2}` : ""}</div>
+                <div>{[a.city, a.state, a.postal_code].filter(Boolean).join(", ")}</div>
+                <div>{countryName(a.country)}</div>
+                {a.phone && <div className="cp-muted">{a.phone}</div>}
               </div>
-            </div>
+              <div className="cp-actions">
+                {!a.is_default && <button type="button" className="cp-btn cp-btn-sm" onClick={() => makeDefault(a)}>Make default</button>}
+                <button type="button" className="cp-btn cp-btn-sm" onClick={() => {
+                  setMessage(null);
+                  setEditing({
+                    id: a.id,
+                    form: {
+                      label: a.label || "", full_name: a.full_name || "", line1: a.line1, line2: a.line2 || "", city: a.city,
+                      state: a.state, postal_code: a.postal_code, country: a.country, phone: a.phone || "", is_default: a.is_default,
+                    },
+                  });
+                }}>Edit</button>
+                <button type="button" className="cp-btn cp-btn-sm cp-btn-danger" onClick={() => remove(a)}>Delete</button>
+              </div>
+            </article>
           ))}
         </div>
       )}
-    </div>
+      {editing && (
+        <AddressForm
+          initial={editing.form}
+          editing={editing.id}
+          countries={countriesFor(editing.form.country)}
+          onClose={() => setEditing(null)}
+          onSaved={async (text) => { setEditing(null); await loadAddresses(); setMessage({ tone: "ok", text }); }}
+        />
+      )}
+    </>
   );
 }

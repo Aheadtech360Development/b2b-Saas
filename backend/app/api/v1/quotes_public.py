@@ -57,6 +57,32 @@ async def _state(db: AsyncSession, order: Order, offset: int) -> dict[str, Any]:
             "number": (last.get("order_confirmed") or {}).get("from_draft") or order.order_number}
 
 
+@router.get("")
+async def my_quotes(request: Request, utc_offset: int = Query(0, ge=-14 * 60, le=14 * 60),
+                    db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
+    """The signed-in buyer's quotes and price requests, for their account."""
+    import uuid as _uuid
+
+    from app.core.tenant_context import get_current_tenant_id
+    from app.models.user import User
+
+    user_id = getattr(request.state, "user_id", None)
+    company_id = getattr(request.state, "company_id", None)
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Sign in to see your quotes")
+    # The same rule as a quote's own page (order_view.owned_by): a retail buyer's
+    # own orders, or their company's.
+    if getattr(request.state, "account_type", None) == "retail":
+        owner = Order.placed_by_id == _uuid.UUID(str(user_id))
+    elif company_id:
+        owner = Order.company_id == _uuid.UUID(str(company_id))
+    else:
+        return {"items": []}
+    email = (await db.execute(select(User.email).where(User.id == _uuid.UUID(str(user_id))))).scalar()
+    return {"items": await svc.for_buyer(db, get_current_tenant_id(), owner=owner, email=email,
+                                         utc_offset_minutes=utc_offset)}
+
+
 @router.get("/{number}")
 async def view_quote(number: str, request: Request, utc_offset: int = Query(0, ge=-14 * 60, le=14 * 60),
                      db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
