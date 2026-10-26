@@ -161,21 +161,13 @@ async def _send_staff_invite(db: AsyncSession, user: User) -> bool:
         except Exception:
             link = f"{settings.FRONTEND_URL.rstrip('/')}{path}"
         store = get_current_brand_name() or "our store"
-        who = (user.first_name or "").strip() or "there"
         role = "a custom role" if getattr(user, "custom_role_id", None) else ROLE_LABELS.get(user.role or "", "a team member")
-        return bool(EmailService(db).send_raw(
-            to_email=user.email,
-            subject=f"You have been added to the {store} team",
-            body_html=(
-                f"<h2>Welcome to the {store} team</h2>"
-                f"<p>Hi {who},</p>"
-                f"<p>You have been given access to the {store} admin as <b>{role}</b>. "
-                "Choose a password to sign in:</p>"
-                f"<p><a href=\"{link}\">Set your password</a></p>"
-                f"<p style='color:#666;font-size:13px'>The link works for {INVITE_DAYS} days. "
-                "After that, use “Forgot password” on the sign-in page.</p>"
-            ),
-        ))
+        # The design's team invite (services/mails.team_invite), in
+        # PrintCoPilot's card: an account on the platform, opened by a link.
+        from app.services import mails
+
+        subject, html = mails.team_invite(shop=store, role=role, accept_url=link, valid_days=INVITE_DAYS)
+        return bool(EmailService(db).send_raw(to_email=user.email, subject=subject, body_html=html))
     except Exception:
         logger.warning("Staff invite for %s did not go out", getattr(user, "email", "?"), exc_info=True)
         return False

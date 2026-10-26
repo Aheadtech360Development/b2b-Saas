@@ -167,50 +167,20 @@ def _welcome(shop: str, who: str, email: str, plan: str, shop_url: str) -> None:
     admin_url = f"{platform}/login" if platform else f"{shop_url.rstrip('/')}/admin/dashboard"
     support = platform_inbox() or ""
     # The sign-up no longer asks for a name, so there may be none to greet.
-    first = (who or "").strip().split(" ")[0]
-    greeting = f"Your shop is open, {first}." if first else "Your shop is open."
-    steps = [
-        ("Add your first product", "Products → Add product. Or import a whole "
-         "catalogue from S&amp;S Activewear in one go."),
-        ("Make your shop yours", "Design → upload your logo and colours, and set "
-         "the pages your customers will read."),
-        ("Turn payments on", "Billing → add a card. Nothing is charged until you do, "
-         "and nothing is taken from your orders before it."),
-        ("Bring your own domain", "Settings → Domain. Point it at us and your shop "
-         "answers there instead — everything else stays exactly as it is."),
-    ]
-    body = (
-        '<div style="font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;'
-        'max-width:560px;color:#111318">'
-        f'<h1 style="font-size:24px;margin:0 0 6px">{greeting}</h1>'
-        f'<p style="color:#5A5F68;margin:0 0 24px;line-height:1.6">'
-        f'<strong>{shop}</strong> is live on the {plan.title()} plan. '
-        'Here is where it lives and how to get in.</p>'
-        f'<table cellpadding="0" cellspacing="0" style="width:100%;font-size:14px;'
-        'border:1px solid #E7E5E2;border-radius:10px;padding:4px 16px">'
-        f'<tr><td style="padding:12px 0;color:#5A5F68">Your shop</td>'
-        f'<td style="padding:12px 0;text-align:right"><a href="{shop_url}" '
-        f'style="color:#111318;font-weight:600">{shop_url.replace("https://", "")}</a></td></tr>'
-        f'<tr><td style="padding:12px 0;color:#5A5F68;border-top:1px solid #E7E5E2">Sign in with</td>'
-        f'<td style="padding:12px 0;text-align:right;border-top:1px solid #E7E5E2;'
-        f'font-weight:600">{email}</td></tr></table>'
-        f'<p style="margin:24px 0"><a href="{admin_url}" style="background:#111318;color:#fff;'
-        'padding:13px 26px;border-radius:9px;text-decoration:none;font-weight:700;'
-        'display:inline-block">Open your admin →</a></p>'
-        '<h2 style="font-size:15px;margin:30px 0 10px">First four things</h2>'
-        + "".join(
-            f'<p style="margin:0 0 14px;font-size:14px;line-height:1.6">'
-            f'<strong>{n}. {title}</strong><br>'
-            f'<span style="color:#5A5F68">{text}</span></p>'
-            for n, (title, text) in enumerate(steps, 1)
-        )
-        + (f'<p style="color:#5A5F68;font-size:13px;margin:26px 0 0;border-top:1px solid #E7E5E2;'
-           f'padding-top:16px">Stuck on anything, reply to this email or write to '
-           f'<a href="mailto:{support}" style="color:#111318">{support}</a>.</p>' if support else "")
-        + "</div>"
-    )
+    from html import unescape
+
+    first = unescape((who or "").strip().split(" ")[0])  # the card escapes it itself
+    # The design's welcome (services/mails.welcome), in PrintCoPilot's card,
+    # with the two things the owner needs: where the shop is, and the way in.
+    from app.services import mails
+
+    welcome_subject, body = mails.welcome(first_name=first or None, shop=subject_shop, shop_url=shop_url,
+                                          sign_in_url=admin_url, email=to_email)
+    if support:
+        body = body.replace("You are getting this because of your account.",
+                            f"You are getting this because of your account. Stuck? Write to {support}.")
     try:
-        send_as_platform(to_email, f"{subject_shop} is live — here's how to get in", body)
+        send_as_platform(to_email, welcome_subject, body)
     except Exception:
         import logging
 

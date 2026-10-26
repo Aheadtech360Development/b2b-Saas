@@ -692,7 +692,8 @@ async def _confirm_checkout_inner(
                 })
                 if _w.send:
                     _email_svc.send_order_confirmation(_order_full, _user.email, subject=_w.subject, intro_html=_w.intro_html)
-                _email_svc.send_admin_new_order_alert(_order_full)
+                _who = " ".join(x for x in (_user.first_name, _user.last_name) if x).strip() or _user.email
+                _email_svc.send_admin_new_order_alert(_order_full, customer=_who)
     except Exception as _exc:
         _log.warning("Order confirmation email failed: %s", _exc)
 

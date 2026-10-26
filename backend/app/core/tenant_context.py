@@ -16,6 +16,7 @@ scoping layer does not filter (they legitimately operate across all tenants).
 """
 from __future__ import annotations
 
+import re
 import uuid
 from contextvars import ContextVar
 
@@ -50,6 +51,9 @@ _current_tenant_email: ContextVar[dict | None] = ContextVar("current_tenant_emai
 # to the platform's no-reply address.
 _current_brand_logo: ContextVar[str | None] = ContextVar("current_brand_logo", default=None)
 _current_brand_contact: ContextVar[str | None] = ContextVar("current_brand_contact", default=None)
+# The brand's own colour, for the buttons in its mail (services/mail_layout).
+_current_brand_color: ContextVar[str | None] = ContextVar("current_brand_color", default=None)
+_current_brand_card: ContextVar[dict | None] = ContextVar("current_brand_card", default=None)
 
 # Sentinel used when a request names a tenant that cannot be resolved (unknown or
 # suspended subdomain, malformed JWT tenant claim). Scoping filters on it and it
@@ -96,6 +100,26 @@ def set_current_brand_logo(url: str | None) -> None:
 def get_current_brand_logo() -> str | None:
     """This brand's own logo, or None when it has not uploaded one."""
     return _current_brand_logo.get()
+
+
+def set_current_brand_color(color: str | None) -> None:
+    value = (color or "").strip()
+    _current_brand_color.set(value if re.fullmatch(r"#[0-9a-fA-F]{6}", value) else None)
+
+
+def get_current_brand_color() -> str | None:
+    """This brand's own colour (#RRGGBB), or None when it has not set one."""
+    return _current_brand_color.get()
+
+
+def set_current_brand_card(card: dict | None) -> None:
+    _current_brand_card.set(card or None)
+
+
+def get_current_brand_card() -> dict | None:
+    """This brand's postal address lines and phone, for the head of its
+    documents: {"lines": [...], "phone": "..."}, or None."""
+    return _current_brand_card.get()
 
 
 def set_current_brand_contact(email: str | None) -> None:

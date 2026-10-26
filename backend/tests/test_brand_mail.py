@@ -36,7 +36,7 @@ def outbox(monkeypatch):
         monkeypatch.setattr(settings, key, value)
     yield sent
     for clear in (ctx.set_current_brand_name, ctx.set_current_brand_site, ctx.set_current_tenant_email,
-                  ctx.set_current_brand_logo, ctx.set_current_brand_contact):
+                  ctx.set_current_brand_logo, ctx.set_current_brand_contact, ctx.set_current_brand_color):
         clear(None)
 
 
@@ -62,8 +62,10 @@ def test_an_order_mail_is_the_shops_from_top_to_bottom(outbox):
     EmailService(None).send_order_confirmation(an_order(), "customer@example.com")
     mail = outbox[-1]
     assert mail["from"] == "innterflow <noreply@printcopilot.co>"
-    assert mail["subject"].endswith("| innterflow")
-    assert ">innterflow<" in mail["html"] and "innterflow Team" in mail["html"]
+    assert mail["subject"] == "We got your order, 1006"
+    # The shop's name across the top of the card and in the footer under it.
+    assert ">innterflow<" in mail["html"]
+    assert "innterflow. You are getting this because of your order." in mail["html"]
     # The button goes to the shop, and a reply goes to the shop.
     assert 'href="https://innterflow.printcopilot.co/account/orders/' in mail["html"]
     assert mail["reply_to"] == ["hello@innterflow.com"]
@@ -72,6 +74,15 @@ def test_an_order_mail_is_the_shops_from_top_to_bottom(outbox):
     seen = " ".join([mail["from"], mail["subject"], mail["html"]])
     assert PLATFORM not in seen
     assert set(re.findall(r"[\w.-]*printcopilot\.co", seen)) == {"printcopilot.co", "innterflow.printcopilot.co"}
+
+
+def test_a_shop_name_ending_in_a_full_stop_gets_one(outbox):
+    from app.services import mails
+
+    as_brand(name="Northwind Print Co.")
+    html = mails.notice("Password changed", ["Hi, the password on your account was changed."])
+    assert "Northwind Print Co. You are getting this because of your account." in html
+    assert "Co.." not in html
 
 
 def test_a_reply_goes_where_the_shop_said_before_where_it_signed_up(outbox):

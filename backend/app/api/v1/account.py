@@ -7,14 +7,13 @@ Each phase adds endpoints to this router:
 """
 from uuid import UUID
 
-from html import escape
-
 from fastapi import APIRouter, Depends, Query, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.exceptions import ForbiddenError
+from app.services.mail_layout import Button, Fact
 
 def _brand_name() -> str:
     """The brand this request belongs to — statements carry its name, not one
@@ -33,10 +32,13 @@ def _mail_subject(what: str) -> str:
     return f"{what} | {shop}" if shop else what
 
 
-def _signoff() -> str:
-    """How a buyer's account email signs off: the shop, never another brand."""
-    shop = _brand_name()
-    return f"The {shop} team" if shop else "The team"
+def _notice(heading: str, lines: list[str], *, facts: list | None = None, button=None,
+            preview: str = "", reason: str = "your account") -> str:
+    """A buyer's account notice in the design's card (services/mails.notice),
+    in the shop's own name."""
+    from app.services import mails
+
+    return mails.notice(heading, lines, facts=facts, button=button, preview=preview, reason=reason)
 
 
 def _account_words() -> str:
@@ -176,12 +178,11 @@ async def create_address(
                 EmailService(db).send_raw(
                     to_email=user.email,
                     subject=_mail_subject("New address added"),
-                    body_html=(
-                        f"<h2>Address Added</h2>"
-                        f"<p>Hi {user.first_name or 'there'},</p>"
-                        f"<p>A new shipping address has been added to your account: <strong>{payload.label or payload.full_name}</strong>.</p>"
-                        f"<p>If you did not make this change, please contact us immediately.</p>"
-                        f"<br><p>{escape(_signoff())}</p>"
+                    body_html=_notice(
+                        "Address added",
+                        [f"Hi {user.first_name or 'there'}, a new shipping address was added to your account: "
+                         f"{payload.label or payload.full_name}.",
+                         "If you did not make this change, reply to this email."],
                     ),
                 )
     except Exception:
@@ -289,12 +290,11 @@ async def delete_address(
                 EmailService(db).send_raw(
                     to_email=user.email,
                     subject=_mail_subject("Address removed"),
-                    body_html=(
-                        f"<h2>Address Removed</h2>"
-                        f"<p>Hi {user.first_name or 'there'},</p>"
-                        f"<p>A shipping address has been removed from your account: <strong>{addr.label or addr.full_name}</strong>.</p>"
-                        f"<p>If you did not make this change, please contact us immediately.</p>"
-                        f"<br><p>{escape(_signoff())}</p>"
+                    body_html=_notice(
+                        "Address removed",
+                        [f"Hi {user.first_name or 'there'}, a shipping address was removed from your account: "
+                         f"{addr.label or addr.full_name}.",
+                         "If you did not make this change, reply to this email."],
                     ),
                 )
     except Exception:
@@ -505,12 +505,10 @@ async def update_user_profile(
         EmailService(db).send_raw(
             to_email=user.email,
             subject=_mail_subject("Your profile has been updated"),
-            body_html=(
-                f"<h2>Profile Updated</h2>"
-                f"<p>Hi {user.first_name or 'there'},</p>"
-                f"<p>The profile on {_account_words()} was successfully updated.</p>"
-                f"<p>If you did not make this change, please contact us immediately.</p>"
-                f"<br><p>{escape(_signoff())}</p>"
+            body_html=_notice(
+                "Profile updated",
+                [f"Hi {user.first_name or 'there'}, the profile on {_account_words()} was updated.",
+                 "If you did not make this change, reply to this email."],
             ),
         )
     except Exception:
@@ -549,12 +547,10 @@ async def update_company_profile(
                 EmailService(db).send_raw(
                     to_email=user.email,
                     subject=_mail_subject("Company profile updated"),
-                    body_html=(
-                        f"<h2>Company Profile Updated</h2>"
-                        f"<p>Hi {user.first_name or 'there'},</p>"
-                        f"<p>The company profile for <strong>{company.name}</strong> was successfully updated.</p>"
-                        f"<p>If you did not make this change, please contact us immediately.</p>"
-                        f"<br><p>{escape(_signoff())}</p>"
+                    body_html=_notice(
+                        "Company profile updated",
+                        [f"Hi {user.first_name or 'there'}, the company profile for {company.name} was updated.",
+                         "If you did not make this change, reply to this email."],
                     ),
                 )
     except Exception:
@@ -585,12 +581,10 @@ async def change_password(
         EmailService(db).send_raw(
             to_email=user.email,
             subject=_mail_subject("Your password has been changed"),
-            body_html=(
-                f"<h2>Password Changed Successfully</h2>"
-                f"<p>Hi {user.first_name},</p>"
-                f"<p>The password on {_account_words()} was successfully changed.</p>"
-                f"<p>If you did not make this change, please contact us immediately.</p>"
-                f"<br><p>{escape(_signoff())}</p>"
+            body_html=_notice(
+                "Password changed",
+                [f"Hi {user.first_name or 'there'}, the password on {_account_words()} was changed.",
+                 "If you did not make this change, reply to this email right away."],
             ),
         )
     except Exception:
@@ -1206,28 +1200,16 @@ async def create_rma(
         if _rma_user:
             _RMAES(db).send_raw(
                 to_email=_rma_user.email,
-                subject=f"RMA Request Received &#8212; {rma_number}",
-                body_html=(
-                    '<div style="font-family:sans-serif;max-width:600px;margin:0 auto">'
-                    '<div style="background:#111318;padding:24px;text-align:center">'
-                    f'<span style="color:#fff;font-size:20px;font-weight:700">{escape(_brand_name())}</span>'
-                    '</div>'
-                    '<div style="padding:32px;background:#fff">'
-                    f'<h2 style="color:#2A2830;margin:0 0 12px">Return Request Received</h2>'
-                    f'<p>Hi {_rma_user.first_name or "there"},</p>'
-                    f'<p>We&#39;ve received your return/exchange request and will review it within 2&#8211;3 business days.</p>'
-                    '<div style="background:#f9fafb;border-radius:8px;padding:16px;margin:16px 0">'
-                    '<p style="margin:0;color:#6b7280;font-size:12px;text-transform:uppercase;letter-spacing:.06em">RMA Number</p>'
-                    f'<p style="margin:4px 0 0;font-weight:800;font-size:18px;color:#2A2830">{rma_number}</p>'
-                    '<p style="margin:12px 0 0;color:#6b7280;font-size:12px;text-transform:uppercase;letter-spacing:.06em">Reason</p>'
-                    f'<p style="margin:4px 0 0;font-size:13px;color:#2A2830">{payload.reason}</p>'
-                    '</div>'
-                    f'<p style="margin:20px 0"><a href="{_rma_settings.FRONTEND_URL}/account/rma"'
-                    ' style="background:#111318;color:#fff;padding:12px 24px;border-radius:6px;'
-                    'text-decoration:none;font-weight:700;display:inline-block">View My Returns &rarr;</a></p>'
-                    '<p style="color:#9ca3af;font-size:12px;margin-top:24px">Questions? Reply to this email.</p>'
-                    f'<p style="color:#9ca3af;font-size:12px">{escape(_signoff())}</p>'
-                    '</div></div>'
+                subject=f"We received your return request, {rma_number}",
+                body_html=_notice(
+                    "We received your request",
+                    [f"Hi {_rma_user.first_name or 'there'}, we received your return request and will "
+                     "review it within 2 to 3 business days.",
+                     "Reply to this email if you have photos or anything to add."],
+                    facts=[Fact("Request", rma_number), Fact("Reason", payload.reason)],
+                    button=Button("See your requests", f"{_rma_settings.FRONTEND_URL}/account/orders?tab=returns"),
+                    preview="We will review it within 2 to 3 business days.",
+                    reason="your order",
                 ),
             )
     except Exception:
@@ -1337,12 +1319,11 @@ async def resend_registration_emails(
             email_svc.send_raw(
                 to_email=email,
                 subject=_mail_subject("Your account is ready"),
-                body_html=(
-                    f"<h2>Welcome to {escape(_brand_name() or 'your account')}</h2>"
-                    f"<p>This is a reminder that {escape(_account_words())} is ready for you.</p>"
-                    f"<p>Please visit <a href='{_settings.FRONTEND_URL}/login'>our platform</a> to login.</p>"
-                    "<p>If you need help, please contact us.</p>"
-                    f"<p>{escape(_signoff())}</p>"
+                body_html=_notice(
+                    "Your account is ready",
+                    [f"This is a reminder that {_account_words()} is ready for you.",
+                     "Sign in to order. If you need help, reply to this email."],
+                    button=Button("Sign in", f"{_settings.FRONTEND_URL}/login"),
                 ),
                 cc=cc_emails or None,
                 bcc=bcc_emails or None,
@@ -1361,14 +1342,11 @@ async def resend_registration_emails(
 from app.models.statement import StatementTransaction  # noqa: E402
 
 
-@router.get("/statements")
-async def list_statements(
-    date_from: str | None = None,
-    date_to: str | None = None,
-    request: Request = None,
-    db: AsyncSession = Depends(get_db),
-):
-    """Return statement transactions with running balance."""
+async def _statement_lines(
+    db: AsyncSession, request: Request, date_from: str | None, date_to: str | None,
+) -> tuple[list[dict], dict]:
+    """A company's statement lines with the running balance, and its totals:
+    what the Statements page lists and what its PDF prints, the same lines."""
     import uuid as _uuid
     from sqlalchemy import func as _func, or_
 
@@ -1395,7 +1373,14 @@ async def list_statements(
     items = []
 
     if transactions:
+        # Every order once: until 2026-10-26 a company checkout wrote its
+        # charge twice (the order service and the checkout each added one).
+        charged: set = set()
         for txn in transactions:
+            if txn.transaction_type == "charge" and txn.order_id:
+                if txn.order_id in charged:
+                    continue
+                charged.add(txn.order_id)
             if txn.transaction_type == "charge":
                 running_balance += float(txn.amount)
             else:
@@ -1457,14 +1442,50 @@ async def list_statements(
     total_charges = sum(i["amount"] for i in items if i["type"] == "charge")
     total_payments = sum(i["amount"] for i in items if i["type"] != "charge")
 
-    return {
-        "items": items,
-        "summary": {
-            "total_charges": round(total_charges, 2),
-            "total_payments": round(total_payments, 2),
-            "current_balance": round(total_charges - total_payments, 2),
-        },
+    return items, {
+        "total_charges": round(total_charges, 2),
+        "total_payments": round(total_payments, 2),
+        "current_balance": round(total_charges - total_payments, 2),
     }
+
+
+@router.get("/statements")
+async def list_statements(
+    date_from: str | None = None,
+    date_to: str | None = None,
+    request: Request = None,
+    db: AsyncSession = Depends(get_db),
+):
+    """Return statement transactions with running balance."""
+    items, summary = await _statement_lines(db, request, date_from, date_to)
+    return {"items": items, "summary": summary}
+
+
+def _aging(items: list[dict], terms_by_order: dict[str, str | None], today) -> dict:
+    """What is still owed, by how late it is. Payments and credits settle the
+    oldest charges first; a charge falls due its order's payment terms after
+    its date (Net 30 when it has no order), the Invoices screen's rule."""
+    from datetime import date as _date, timedelta as _td
+
+    from app.services.invoices import terms_days
+
+    buckets = {"current": 0.0, "1_30": 0.0, "31_60": 0.0, "over_60": 0.0}
+    credit = sum(float(i["amount"]) for i in items if i["type"] != "charge")
+    for charge in sorted((i for i in items if i["type"] == "charge"), key=lambda i: str(i["date"])):
+        used = min(float(charge["amount"]), max(credit, 0.0))
+        credit -= used
+        left = round(float(charge["amount"]) - used, 2)
+        if left <= 0:
+            continue
+        try:
+            start = _date.fromisoformat(str(charge["date"])[:10])
+        except ValueError:
+            buckets["current"] += left
+            continue
+        late = (today - (start + _td(days=terms_days(terms_by_order.get(charge.get("order_id") or ""))))).days
+        key = "current" if late <= 0 else "1_30" if late <= 30 else "31_60" if late <= 60 else "over_60"
+        buckets[key] += left
+    return {k: round(v, 2) for k, v in buckets.items()}
 
 
 @router.get("/statements/pdf")
@@ -1474,126 +1495,61 @@ async def download_statement_pdf(
     request: Request = None,
     db: AsyncSession = Depends(get_db),
 ):
-    """Download account statement as PDF."""
+    """Download account statement as PDF: the lines the Statements page
+    lists, in the shop's document look (services/pdf_service), with aging."""
     import io
+    import uuid as _uuid
+    from datetime import date as _date
 
     from fastapi.responses import StreamingResponse
 
-    company_id = getattr(request.state, "company_id", None)
-    if not company_id:
-        raise ForbiddenError("Company account required")
-
-    q = select(StatementTransaction).where(
-        StatementTransaction.company_id == company_id
-    )
-    if date_from:
-        q = q.where(StatementTransaction.transaction_date >= date_from)
-    if date_to:
-        q = q.where(StatementTransaction.transaction_date <= date_to)
-    q = q.order_by(StatementTransaction.transaction_date.asc(), StatementTransaction.created_at.asc())
-
-    result = await db.execute(q)
-    transactions = result.scalars().all()
-
     from app.models.company import Company
+    from app.models.order import Order as _Order
+    from app.services.pdf_service import PDFService
+
+    items, summary = await _statement_lines(db, request, date_from, date_to)
     company = (await db.execute(
-        select(Company).where(Company.id == company_id)
+        select(Company).where(Company.id == _uuid.UUID(str(request.state.company_id)))
     )).scalar_one_or_none()
     company_name = company.name if company else (_brand_name() or "")
 
-    from reportlab.lib import colors
-    from reportlab.lib.enums import TA_RIGHT
-    from reportlab.lib.pagesizes import letter
-    from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
-    from reportlab.lib.units import inch
-    from reportlab.platypus import (
-        Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle,
-    )
+    # Each charge's payment terms, for when it falls due.
+    ids = []
+    for i in items:
+        try:
+            if i["type"] == "charge" and i.get("order_id"):
+                ids.append(_uuid.UUID(str(i["order_id"])))
+        except ValueError:
+            pass
+    terms: dict[str, str | None] = {}
+    if ids:
+        rows = (await db.execute(select(_Order.id, _Order.payment_terms).where(_Order.id.in_(ids)))).all()
+        terms = {str(r[0]): r[1] for r in rows}
 
-    buffer = io.BytesIO()
-    doc = SimpleDocTemplate(
-        buffer, pagesize=letter,
-        rightMargin=0.5 * inch, leftMargin=0.5 * inch,
-        topMargin=0.5 * inch, bottomMargin=0.5 * inch,
-    )
-    styles = getSampleStyleSheet()
-    story = []
+    today = _date.today()
 
-    story.append(Paragraph((_brand_name() or "Account").upper(), ParagraphStyle("title", fontSize=18, fontName="Helvetica-Bold")))
-    story.append(Paragraph("Account Statement", ParagraphStyle("sub", fontSize=12, textColor=colors.grey)))
-    story.append(Paragraph(f"Company: {company_name}", styles["Normal"]))
-    if date_from or date_to:
-        story.append(Paragraph(
-            f"Period: {date_from or 'Beginning'} to {date_to or 'Present'}",
-            styles["Normal"],
-        ))
-    story.append(Spacer(1, 20))
+    def _when(value: str) -> str:
+        try:
+            d = _date.fromisoformat(value[:10])
+        except ValueError:
+            return value
+        return f"{d:%b} {d.day}, {d.year}"
 
-    rows = [["Date", "Description", "Reference", "Charges", "Credits", "Balance"]]
-    running = 0.0
-    for txn in transactions:
-        if txn.transaction_type == "charge":
-            running += float(txn.amount)
-            charge_col = f"${float(txn.amount):,.2f}"
-            credit_col = ""
-        else:
-            running -= float(txn.amount)
-            charge_col = ""
-            credit_col = f"${float(txn.amount):,.2f}"
-        rows.append([
-            txn.transaction_date,
-            txn.description,
-            txn.reference_number or "",
-            charge_col,
-            credit_col,
-            f"${running:,.2f}",
-        ])
+    if date_from:
+        period = f"{_when(date_from)} to {_when(date_to or today.isoformat())}"
+    elif date_to:
+        period = f"Up to {_when(date_to)}"
+    else:
+        period = f"All activity to {_when(today.isoformat())}"
 
-    tbl = Table(
-        rows,
-        colWidths=[1.0 * inch, 2.2 * inch, 1.0 * inch, 0.9 * inch, 0.9 * inch, 0.9 * inch],
-    )
-    tbl.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1e3a5f")),
-        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-        ("FONTSIZE", (0, 0), (-1, -1), 8),
-        ("ALIGN", (3, 0), (-1, -1), "RIGHT"),
-        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#f8f9fa")]),
-        ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#dee2e6")),
-        ("TOPPADDING", (0, 0), (-1, -1), 5),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
-    ]))
-    story.append(tbl)
-
-    story.append(Spacer(1, 20))
-    total_charges = sum(float(t.amount) for t in transactions if t.transaction_type == "charge")
-    total_payments = sum(float(t.amount) for t in transactions if t.transaction_type in ("payment", "credit", "refund"))
-    balance = total_charges - total_payments
-
-    summary = Table(
-        [
-            ["", "Total Charges:", f"${total_charges:,.2f}"],
-            ["", "Total Payments:", f"${total_payments:,.2f}"],
-            ["", "Current Balance:", f"${balance:,.2f}"],
-        ],
-        colWidths=[3.5 * inch, 1.5 * inch, 1.0 * inch],
-    )
-    summary.setStyle(TableStyle([
-        ("FONTNAME", (1, 2), (2, 2), "Helvetica-Bold"),
-        ("LINEABOVE", (1, 2), (2, 2), 1, colors.black),
-        ("ALIGN", (2, 0), (2, -1), "RIGHT"),
-        ("FONTSIZE", (0, 0), (-1, -1), 9),
-    ]))
-    story.append(summary)
-
-    doc.build(story)
+    pdf = PDFService().generate_statement(account=company_name, period=period, rows=items,
+                                          summary=summary, aging=_aging(items, terms, today))
 
     safe_name = company_name.replace(" ", "_")
-    period = date_from or "All"
-    filename = f"Statement_{safe_name}_{period}.pdf"
+    period_name = date_from or "All"
+    filename = f"Statement_{safe_name}_{period_name}.pdf"
     return StreamingResponse(
-        io.BytesIO(buffer.getvalue()),
+        io.BytesIO(pdf),
         media_type="application/pdf",
         headers={"Content-Disposition": f"attachment; filename={filename}"},
     )
@@ -1639,15 +1595,12 @@ async def email_statement(
     for contact in list(contacts)[:3]:
         ok = svc.send_raw(
             to_email=contact.email,
-            subject=f"Account Statement — {company_name}",
-            body_html=(
-                f"<h2>Account Statement</h2>"
-                f"<p>Dear {contact.first_name},</p>"
-                f"<p>Your latest account statement is ready.</p>"
-                f"<p><a href='{statement_url}' style='background:#1d4ed8;color:#fff;"
-                f"padding:10px 20px;border-radius:6px;text-decoration:none;display:inline-block'>"
-                f"View Statement Online</a></p>"
-                f"<p style='color:#6b7280;font-size:13px'>{escape(_signoff())}</p>"
+            subject=f"Your account statement, {company_name}",
+            body_html=_notice(
+                "Your statement is ready",
+                [f"Hi {contact.first_name}, the latest account statement for {company_name} is ready."],
+                button=Button("View statement", statement_url),
+                preview="Charges, payments and your balance.",
             ),
         )
         if ok:

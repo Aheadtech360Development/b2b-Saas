@@ -108,7 +108,9 @@ def test_the_editor_lists_every_email_with_its_default():
 
 
 def test_the_preview_uses_a_sample_order_and_the_shop_frame():
-    made = n.preview("order_shipped", "Shipped [order]", "Hi [customer]", lambda body: f"<frame>{body}</frame>")
+    made = n.preview("order_shipped", "Shipped [order]", "Hi [customer]")
     assert made["subject"] == f"Shipped {n.SAMPLE['order']}"
-    assert made["html"].startswith("<frame>") and "Hi Jordan" in made["html"]
+    # The card the email is sent in (services/mail_layout), with the shop's words in it.
+    assert made["html"].startswith("<!doctype html>") and "Hi Jordan" in made["html"]
+    assert "You are getting this because of your order." in made["html"]
     assert n.SAMPLE["tracking"] in made["html"]

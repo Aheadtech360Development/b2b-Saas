@@ -39,29 +39,29 @@ class Kind:
 # email itself), so the editor and its preview show what customers get.
 CATALOG: tuple[Kind, ...] = (
     Kind("order_confirmed", "Order confirmed", "When an order is placed at checkout.",
-         "Order Received — [order]",
-         "Hi [customer], your order has been received and is now being processed."),
+         "We got your order, [order]",
+         "Order [order] is confirmed. We will email you again when it ships."),
     Kind("artwork_approved", "Artwork approved", "When you approve a customer's gang sheet in Production.",
-         "Gang sheet approved — [order]",
-         "Good news — your gang sheet [order] has been approved and is queued for production."),
+         "Your job is going to print",
+         "[order] passed the artwork check. We are printing it now."),
     Kind("revision_requested", "Revision requested", "When you ask a customer to change their gang sheet.",
-         "Changes requested on your gang sheet — [order]",
-         "Our team has requested changes to gang sheet [order]. Please review the notes, update your artwork, and resubmit."),
+         "We need one change before we print",
+         "Job [order] is on hold. Here is what we found:"),
     Kind("order_shipped", "Order shipped", "When an order is marked shipped, or its label is bought.",
-         "Your Order [order] Has Shipped!",
-         "Hi [customer],\nGreat news — your order [order] is on its way!"),
+         "Your order shipped",
+         "Order [order] is on its way."),
     Kind("ready_for_pickup", "Ready for pickup", "When a pickup order is marked ready.",
-         "Order [order] — Ready for Pickup",
-         "Hi [customer],\nYour order [order] has been updated to Ready for Pickup."),
+         "Your order is ready for pickup",
+         "Order [order] is packed and waiting for you."),
     Kind("refund_issued", "Refund issued", "When an order is marked refunded.",
-         "Order [order] — Refunded",
-         "Hi [customer],\nYour order [order] has been updated to Refunded."),
+         "Your refund is on its way",
+         "We refunded [total] for order [order] to the card or account you paid with."),
     Kind("invoice_due", "Invoice due", "When you send a payment reminder from Invoices.",
-         "Reminder: invoice [order] is due",
-         "Hi [customer], a reminder that this invoice is due. It is attached again here."),
+         "Your invoice for order [order] is due",
+         "Your invoice for order [order] is due soon."),
     Kind("quote_ready", "Quote ready", "When you send a quote from Quotes.",
-         "Quote [order]",
-         "Hi [customer], here is the price for what you asked for."),
+         "Your quote is ready",
+         "Here is the price for what you asked for."),
 )
 BY_KEY = {k.key: k for k in CATALOG}
 
@@ -171,19 +171,45 @@ def editor_rows(saved: dict[str, dict]) -> list[dict]:
     return rows
 
 
-def preview(key: str, subject: str | None, message: str | None, base: Any) -> dict:
-    """The email as a customer would get it, with a sample order. `base` is
-    EmailService._base_template, so the shop's own header and footer frame it."""
+def preview(key: str, subject: str | None, message: str | None, base: Any = None) -> dict:
+    """The email as a customer would get it, with a sample order, drawn by the
+    same builders the emails use (services/mails), in this shop's card. The
+    standard message shows the email's own opening; anything else is the
+    shop's own words, as it would be sent. `base` is no longer used."""
+    from datetime import date, timedelta
+    from types import SimpleNamespace
+
+    from app.services import mails
+
     kind = BY_KEY[key]
-    subj = fill(subject or kind.subject, SAMPLE)
-    body = paragraphs(fill(message or kind.message, SAMPLE))
-    detail = {
-        "order_shipped": f'<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:14px;margin:14px 0">'
-                         f'<b style="color:#166534">Tracking #: {SAMPLE["tracking"]}</b></div>',
-        "invoice_due": f'<p style="margin:14px 0"><b>Amount due: {SAMPLE["total"]}</b></p>',
-        "quote_ready": f'<p style="margin:14px 0"><b>Total: {SAMPLE["total"]}</b> · valid for 30 days</p>',
-    }.get(key, "")
-    card = (f'<div style="background:#f9fafb;border-radius:8px;padding:14px;margin:14px 0">'
-            f'<span style="color:#6b7280;font-size:12px">ORDER NUMBER</span><br>'
-            f'<b style="font-size:17px">{SAMPLE["order"]}</b></div>')
-    return {"subject": subj, "html": base(f"{body}{card}{detail}")}
+    own = message if (message and message.strip() != kind.message.strip()) else None
+    intro = paragraphs(fill(own, SAMPLE)) if own else None
+    subj = fill(subject, SAMPLE) if subject and subject.strip() != kind.subject.strip() else None
+    order = SimpleNamespace(
+        order_number=SAMPLE["order"], total=248.0, amount_paid=248.0, items=[SimpleNamespace(quantity=24, item_type="variant")],
+        shipping_method="ground", courier="UPS", courier_service="Ground", carrier=None,
+        tracking_number=SAMPLE["tracking"], tracking_url="https://www.ups.com/track", created_at=None,
+    )
+    url = "https://example.com/account/orders"
+    if key == "order_confirmed":
+        out = mails.order_confirmed(order, order_url=url, subject=subj, intro_html=intro)
+    elif key == "artwork_approved":
+        out = mails.artwork_approved(f"GS-{SAMPLE['order']}", job_url=url, subject=subj, intro_html=intro)
+    elif key == "revision_requested":
+        out = mails.revision_requested(f"GS-{SAMPLE['order']}", note="The logo is 72 dpi; please send a sharper file.",
+                                       job_url=url, subject=subj, intro_html=intro)
+    elif key == "order_shipped":
+        out = mails.order_shipped(order, order_url=url, subject=subj, intro_html=intro)
+    elif key == "ready_for_pickup":
+        out = mails.ready_for_pickup(order, order_url=url, pickup={"address": "123 Main St", "hours": "Mon to Fri, 9 to 5"},
+                                     subject=subj, intro_html=intro)
+    elif key == "refund_issued":
+        out = mails.refund_issued(order, order_url=url, subject=subj, intro_html=intro)
+    elif key == "invoice_due":
+        out = mails.invoice(order, invoice_number=f"INV-{SAMPLE['order']}", amount_due=248.0,
+                            due_on=date.today() + timedelta(days=7), terms="Net 30", pay_url=url, download_url=url,
+                            reminder=True, subject=subj, intro_html=intro)
+    else:
+        out = mails.quote_ready(f"DRAFT-{SAMPLE['order']}", total=248.0, valid_until=date.today() + timedelta(days=30),
+                                url=url, subject=subj, intro_html=intro)
+    return {"subject": out[0], "html": out[1]}

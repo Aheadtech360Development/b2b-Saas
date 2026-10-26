@@ -42,31 +42,12 @@ router = APIRouter(prefix="/admin", tags=["admin-orders"])
 
 
 def _af_email(content_html: str) -> str:
-    """Wrap content in the active brand's email shell (no store hardcoded)."""
-    from app.core.config import settings as _cfg
-    from app.core.tenant_context import get_current_brand_name
-    brand = get_current_brand_name() or _cfg.EMAIL_FROM_NAME or "Our Store"
-    logo_url = _cfg.LOGO_URL
-    logo_html = (
-        f'<img src="{logo_url}" alt="{brand}" '
-        f'style="height:44px;width:auto;display:block;margin:0 auto" />'
-        if logo_url else
-        f'<span style="font-size:24px;font-weight:800;color:#fff">{brand}</span>'
-    )
-    return (
-        '<div style="font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\','
-        'Helvetica,Arial,sans-serif;max-width:600px;margin:0 auto;background:#ffffff">'
-        '<div style="background:#1B3A5C;padding:24px 32px;text-align:center;'
-        'border-bottom:3px solid #E8242A">'
-        + logo_html +
-        '</div>'
-        '<div style="padding:32px;background:#fff">'
-        + content_html
-        + '<div style="border-top:1px solid #e5e7eb;margin-top:28px;padding-top:20px">'
-        f'<p style="color:#9ca3af;font-size:12px;margin:4px 0 0">— {brand} Team</p>'
-        '</div>'
-        '</div></div>'
-    )
+    """Prepared content in the design's card, in the sending shop's name and
+    logo (services/mail_layout.frame). It used to put the platform's LOGO_URL
+    on every shop's mail."""
+    from app.services.mail_layout import frame
+
+    return frame(content_html)
 
 
 # ---------------------------------------------------------------------------
@@ -74,248 +55,81 @@ def _af_email(content_html: str) -> str:
 # ---------------------------------------------------------------------------
 
 async def _send_order_status_email(order: Order, new_status: str, db: AsyncSession) -> None:
-    """Send order status update to the customer — all statuses, guest + wholesale."""
+    """Tell the customer their order moved on (services/mails): shipped, ready
+    for pickup and refunded as the design draws them, every other status in
+    the same card. Guest and company orders alike.
+
+    Shipped, ready for pickup and refunded are three of the shop's
+    Notifications (Settings): its own switch, subject and opening lines.
+    """
     import logging as _log_mod
     _log = _log_mod.getLogger(__name__)
     try:
-        from app.services.email_service import EmailService
         from app.core.config import settings as _settings
+        from app.services import mails
+        from app.services import notifications as _notes
+        from app.services.email_service import EmailService
 
         _LABEL = {
-            "pending": "Order Received", "confirmed": "Order Confirmed",
-            "processing": "Processing", "ready_for_pickup": "Ready for Pickup",
+            "pending": "Received", "confirmed": "Confirmed",
+            "processing": "Processing", "ready_for_pickup": "Ready for pickup",
             "shipped": "Shipped", "delivered": "Delivered",
             "cancelled": "Cancelled", "refunded": "Refunded",
         }
-        _COLOR = {
-            "pending": "#f59e0b", "confirmed": "#3b82f6", "processing": "#8b5cf6",
-            "ready_for_pickup": "#0891b2", "shipped": "#059669", "delivered": "#059669",
-            "cancelled": "#ef4444", "refunded": "#6b7280",
-        }
-        label = _LABEL.get(new_status, new_status.replace("_", " ").title())
-        color = _COLOR.get(new_status, "#7A7880")
-        email_svc = EmailService(db)
-
-        # Shipped, ready for pickup and refunded are three of the shop's
-        # Notifications (Settings): its own switch, subject and opening lines.
-        # Untouched, each goes out as it always has.
+        label = _LABEL.get(new_status, new_status.replace("_", " ").capitalize())
         note_key = {"shipped": "order_shipped", "ready_for_pickup": "ready_for_pickup",
                     "refunded": "refund_issued"}.get(new_status)
 
-        async def _wording(customer: str):
-            from app.services import notifications as _notes
-
-            if not note_key:
-                return _notes.Wording(True, None, None)
-            return await _notes.wording(db, note_key, {
-                "order": order.order_number, "customer": customer,
-                "total": f"${float(order.total or 0):.2f}", "tracking": order.tracking_number or "",
-            })
-
-        # "Ready for pickup" is only news with the place and the hours in it:
-        # the brand's own pickup location (Admin → Shipping), never another shop's.
-        pickup_block = ""
-        if new_status == "ready_for_pickup":
-            from app.services.pickup import email_block, pickup_location
-            pickup_block = email_block(await pickup_location(db, order.tenant_id))
-
-        # ── Guest orders ─────────────────────────────────────────────────────
+        # Who to tell, and where their order opens: a guest's order page by its
+        # view key (in the #fragment, which no server or log sees), a company's
+        # in its account.
         if order.is_guest_order and order.guest_email:
-            name = order.guest_name or "there"
-            w = await _wording((name.split() or ["there"])[0])
-            if not w.send:
+            from app.services import order_view
+
+            to_email = order.guest_email
+            first = ((order.guest_name or "").split() or ["there"])[0]
+            order_url = (f"{_settings.FRONTEND_URL}/checkout/thank-you/{order.order_number}"
+                         f"#k={order_view.view_key(order.id, order.tenant_id)}")
+        else:
+            from sqlalchemy import select as _select
+
+            from app.models.company import CompanyUser as _CompanyUser
+            from app.models.user import User as _User
+
+            user = (await db.execute(
+                _select(_User)
+                .join(_CompanyUser, _CompanyUser.user_id == _User.id)
+                .where(_CompanyUser.company_id == order.company_id, _CompanyUser.is_active == True)  # noqa: E712
+                .limit(1)
+            )).scalar_one_or_none()
+            if not user:
                 return
-            if new_status == "shipped":
-                tracking_url = getattr(order, "tracking_url", None)
-                tracking_block = ""
-                if order.tracking_number:
-                    tracking_link = (
-                        f'<a href="{tracking_url}" style="color:#166534;font-weight:700">'
-                        f'{order.tracking_number}</a>'
-                        if tracking_url else f'<b>{order.tracking_number}</b>'
-                    )
-                    carrier_line = (
-                        f'<p style="margin:6px 0 0;color:#166534;font-size:13px">'
-                        f'Carrier: <b>{order.courier}</b>'
-                        + (f' &mdash; {order.courier_service}' if order.courier_service else '')
-                        + '</p>'
-                    ) if order.courier else ""
-                    track_btn = (
-                        f'<p style="margin:14px 0 0">'
-                        f'<a href="{tracking_url}" style="background:#059669;color:#fff;'
-                        f'padding:10px 20px;border-radius:6px;text-decoration:none;'
-                        f'font-weight:700;font-size:13px;display:inline-block">Track Your Package &rarr;</a></p>'
-                    ) if tracking_url else ""
-                    tracking_block = (
-                        '<div style="background:#f0fdf4;border:1px solid #bbf7d0;'
-                        'border-radius:8px;padding:16px;margin:16px 0">'
-                        '<p style="margin:0 0 6px;font-weight:700;color:#166534;font-size:13px;'
-                        'text-transform:uppercase;letter-spacing:.06em">Tracking Information</p>'
-                        f'<p style="margin:0;color:#166534;font-size:14px">Tracking #: {tracking_link}</p>'
-                        f'{carrier_line}'
-                        f'{track_btn}'
-                        '</div>'
-                    )
-                email_svc.send_raw(
-                    to_email=order.guest_email,
-                    subject=w.subject or f"Your Order {order.order_number} Has Shipped!",
-                    body_html=_af_email(
-                        f'<h2 style="color:#059669;margin:0 0 12px">Your Order Has Shipped!</h2>'
-                        + (w.intro_html or (
-                            f'<p>Hi {name},</p>'
-                            f'<p>Great news &#8212; your AF Apparels order is on its way!</p>'
-                        )) +
-                        f'<div style="background:#f9fafb;border-radius:8px;padding:16px;margin:16px 0">'
-                        f'<p style="margin:0;color:#6b7280;font-size:12px;text-transform:uppercase;letter-spacing:.06em">Order Number</p>'
-                        f'<p style="margin:4px 0 0;font-weight:800;font-size:18px;color:#2A2830">{order.order_number}</p>'
-                        f'</div>'
-                        f'{tracking_block}'
-                        f'<p style="margin:20px 0">'
-                        f'<a href="{_settings.FRONTEND_URL}/track-order"'
-                        f' style="background:#E8242A;color:#fff;padding:12px 24px;border-radius:6px;'
-                        f'text-decoration:none;font-weight:700;display:inline-block">'
-                        f'Track Your Order &rarr;</a></p>'
-                    ),
-                )
-            else:
-                help_line = (
-                    f'<p>Need help? Visit <a href="{_settings.FRONTEND_URL}/track-order"'
-                    f' style="color:#1A5CFF">our order tracking page</a>.</p>'
-                    if new_status in ("cancelled", "refunded") else ""
-                )
-                email_svc.send_raw(
-                    to_email=order.guest_email,
-                    subject=w.subject or f"Order {order.order_number} Update &#8212; {label}",
-                    body_html=_af_email(
-                        f'<h2 style="color:{color};margin:0 0 12px">Order Update: {label}</h2>'
-                        + (w.intro_html or (
-                            f'<p>Hi {name},</p>'
-                            f'<p>Your order status has been updated.</p>'
-                        )) +
-                        f'<div style="background:#f9fafb;border-radius:8px;padding:16px;margin:16px 0">'
-                        f'<p style="margin:0;color:#6b7280;font-size:12px;text-transform:uppercase;letter-spacing:.06em">Order Number</p>'
-                        f'<p style="margin:4px 0 0;font-weight:800;font-size:18px;color:#2A2830">{order.order_number}</p>'
-                        f'<p style="margin:12px 0 0;color:#6b7280;font-size:12px;text-transform:uppercase;letter-spacing:.06em">New Status</p>'
-                        f'<p style="margin:4px 0 0;font-weight:700;color:{color}">{label}</p>'
-                        f'</div>'
-                        f'{pickup_block}'
-                        f'{help_line}'
-                    ),
-                )
-            return
+            to_email = user.email
+            first = user.first_name or "there"
+            order_url = f"{_settings.FRONTEND_URL}/account/orders/{order.id}"
 
-        # ── Wholesale orders ─────────────────────────────────────────────────
-        from sqlalchemy import select as _select
-        from app.models.user import User as _User
-        from app.models.company import CompanyUser as _CompanyUser
-
-        user_result = await db.execute(
-            _select(_User)
-            .join(_CompanyUser, _CompanyUser.user_id == _User.id)
-            .where(_CompanyUser.company_id == order.company_id, _CompanyUser.is_active == True)
-            .limit(1)
-        )
-        user = user_result.scalar_one_or_none()
-        if not user:
-            return
-
-        first = user.first_name or "there"
-        order_url = f"{_settings.FRONTEND_URL}/account/orders/{order.id}"
-        w = await _wording(first)
+        w = (await _notes.wording(db, note_key, {
+            "order": order.order_number, "customer": first,
+            "total": f"${float(order.total or 0):.2f}", "tracking": order.tracking_number or "",
+        }) if note_key else _notes.Wording(True, None, None))
         if not w.send:
             return
 
         if new_status == "shipped":
-            try:
-                if w.subject or w.intro_html:
-                    # The shop's own words: the platform-wide template has
-                    # none of them, so the email below is the one that goes.
-                    raise LookupError("the shop's own wording")
-                await email_svc.send(
-                    trigger_event="order_shipped",
-                    to_email=user.email,
-                    variables={
-                        "first_name": first,
-                        "order_number": order.order_number,
-                        "courier": order.courier or "Carrier",
-                        "tracking_number": order.tracking_number or "N/A",
-                    },
-                )
-            except Exception:
-                # Template may not exist — fall back to raw
-                tracking_url = getattr(order, "tracking_url", None)
-                tracking_block_w = ""
-                if order.tracking_number:
-                    tracking_link_w = (
-                        f'<a href="{tracking_url}" style="color:#166534;font-weight:700">'
-                        f'{order.tracking_number}</a>'
-                        if tracking_url else f'<b>{order.tracking_number}</b>'
-                    )
-                    carrier_line_w = (
-                        f'<p style="margin:6px 0 0;color:#166534;font-size:13px">'
-                        f'Carrier: <b>{order.courier}</b>'
-                        + (f' &mdash; {order.courier_service}' if order.courier_service else '')
-                        + '</p>'
-                    ) if order.courier else ""
-                    track_btn_w = (
-                        f'<p style="margin:14px 0 0">'
-                        f'<a href="{tracking_url}" style="background:#059669;color:#fff;'
-                        f'padding:10px 20px;border-radius:6px;text-decoration:none;'
-                        f'font-weight:700;font-size:13px;display:inline-block">Track Your Package &rarr;</a></p>'
-                    ) if tracking_url else ""
-                    tracking_block_w = (
-                        '<div style="background:#f0fdf4;border:1px solid #bbf7d0;'
-                        'border-radius:8px;padding:16px;margin:16px 0">'
-                        '<p style="margin:0 0 6px;font-weight:700;color:#166534;font-size:13px;'
-                        'text-transform:uppercase;letter-spacing:.06em">Tracking Information</p>'
-                        f'<p style="margin:0;color:#166534;font-size:14px">Tracking #: {tracking_link_w}</p>'
-                        f'{carrier_line_w}'
-                        f'{track_btn_w}'
-                        '</div>'
-                    )
-                email_svc.send_raw(
-                    to_email=user.email,
-                    subject=w.subject or f"Your Order {order.order_number} Has Shipped!",
-                    body_html=_af_email(
-                        f'<h2 style="color:#059669;margin:0 0 12px">Your Order Has Shipped!</h2>'
-                        + (w.intro_html or (
-                            f'<p>Hi {first},</p>'
-                            f'<p>Great news &#8212; your AF Apparels order <b>{order.order_number}</b> is on its way!</p>'
-                        )) +
-                        f'<div style="background:#f9fafb;border-radius:8px;padding:16px;margin:16px 0">'
-                        f'<p style="margin:0;color:#6b7280;font-size:12px;text-transform:uppercase;letter-spacing:.06em">Order Number</p>'
-                        f'<p style="margin:4px 0 0;font-weight:800;font-size:18px;color:#2A2830">{order.order_number}</p>'
-                        f'</div>'
-                        f'{tracking_block_w}'
-                        f'<p style="margin:20px 0">'
-                        f'<a href="{order_url}" style="background:#E8242A;color:#fff;padding:12px 24px;'
-                        f'border-radius:6px;text-decoration:none;font-weight:700;display:inline-block">'
-                        f'View Order &rarr;</a></p>'
-                    ),
-                )
+            subject, html = mails.order_shipped(order, order_url=order_url, subject=w.subject, intro_html=w.intro_html)
+        elif new_status == "ready_for_pickup":
+            # The place and the hours: the brand's own pickup location (Admin →
+            # Shipping), never another shop's.
+            from app.services.pickup import pickup_location
+
+            subject, html = mails.ready_for_pickup(
+                order, order_url=order_url, pickup=await pickup_location(db, order.tenant_id),
+                subject=w.subject, intro_html=w.intro_html)
+        elif new_status == "refunded":
+            subject, html = mails.refund_issued(order, order_url=order_url, subject=w.subject, intro_html=w.intro_html)
         else:
-            help_line = (
-                '<p style="color:#6b7280;font-size:13px">Questions? Contact your account manager.</p>'
-                if new_status in ("cancelled", "refunded") else ""
-            )
-            email_svc.send_raw(
-                to_email=user.email,
-                subject=w.subject or f"Order {order.order_number} &#8212; {label}",
-                body_html=_af_email(
-                    f'<h2 style="color:{color};margin:0 0 12px">Order Update: {label}</h2>'
-                    + (w.intro_html or (
-                        f'<p>Hi {first},</p>'
-                        f'<p>Your order <b>{order.order_number}</b> has been updated to '
-                        f'<b style="color:{color}">{label}</b>.</p>'
-                    )) +
-                    f'{pickup_block}'
-                    f'<p style="margin:20px 0">'
-                    f'<a href="{order_url}" style="background:#1A5CFF;color:#fff;padding:12px 24px;'
-                    f'border-radius:6px;text-decoration:none;font-weight:700;display:inline-block">'
-                    f'View Order &rarr;</a></p>'
-                    f'{help_line}'
-                ),
-            )
+            subject, html = mails.order_update(order, status=new_status, label=label, order_url=order_url)
+        EmailService(db).send_raw(to_email=to_email, subject=subject, body_html=html)
 
     except Exception as exc:
         import logging

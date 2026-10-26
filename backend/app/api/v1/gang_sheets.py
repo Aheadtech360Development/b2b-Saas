@@ -543,10 +543,12 @@ async def _buyer_email(db: AsyncSession, order: GangSheetOrder) -> str | None:
     return None
 
 
-async def _notify(db: AsyncSession, order: GangSheetOrder, event: str, extra_html: str = "") -> None:
-    """Email the buyer about a lifecycle event. Best-effort: a mail failure must
-    never block the status change or submission that triggered it. The email shell
-    resolves the tenant's brand, so the buyer only ever sees their store."""
+async def _notify(db: AsyncSession, order: GangSheetOrder, event: str, message: str | None = None) -> None:
+    """Email the buyer about a lifecycle event, in the design's card (services/
+    mails). Best-effort: a mail failure must never block the status change or
+    submission that triggered it. The shop's name, logo and colour come from
+    the request, so the buyer only ever sees their store. `message` is the
+    shop's note sent with it (a revision always carries one)."""
     copy = _EVENT_COPY.get(event)
     if not copy:
         return
@@ -554,13 +556,21 @@ async def _notify(db: AsyncSession, order: GangSheetOrder, event: str, extra_htm
         to = await _buyer_email(db, order)
         if not to:
             return
-        from app.services.email_service import EmailService
+        import re as _re
 
-        subj = copy[0].format(ref=order.reference)
-        intro = f"<p style='font-size:14px;color:#444'>{copy[1].format(ref=order.reference)}</p>"
+        from app.core.config import settings as _settings
+        from app.services import mails
+        from app.services.email_service import EmailService
+        from app.services.mail_layout import Button, Fact, render
+
+        # A buyer with an account follows the job in it; a guest has no page to open.
+        job_url = (f"{_settings.FRONTEND_URL}/account/gang-sheets/{order.id}"
+                   if (order.user_id or order.company_id) else "")
+        note = (message or "").strip() or None
         # Approved and changes requested are two of the shop's Notifications
         # (Settings): its own switch and wording, kept per shop.
         key = {STATUS_APPROVED: "artwork_approved", STATUS_REVISION: "revision_requested"}.get(event)
+        w = None
         if key:
             from app.services import notifications
 
@@ -569,15 +579,24 @@ async def _notify(db: AsyncSession, order: GangSheetOrder, event: str, extra_htm
             })
             if not w.send:
                 return
-            subj = w.subject or subj
-            intro = w.intro_html or intro
-        body = EmailService._base_template(
-            f"<h2 style='color:#1B3A5C;margin:0 0 12px'>Gang Sheet Update</h2>"
-            f"{intro}"
-            f"{extra_html}"
-            f"<p style='font-size:13px;color:#666;margin-top:16px'>Reference: <b>{order.reference}</b> · "
-            f"{order.sheet_name} · {order.sheet_quantity} sheet(s)</p>"
-        )
+        if event == STATUS_APPROVED:
+            subj, body = mails.artwork_approved(order.reference, job_url=job_url,
+                                                subject=w.subject if w else None, intro_html=w.intro_html if w else None)
+        elif event == STATUS_REVISION:
+            subj, body = mails.revision_requested(order.reference, note=note, job_url=job_url,
+                                                  subject=w.subject if w else None, intro_html=w.intro_html if w else None)
+        else:
+            subj = copy[0].format(ref=order.reference)
+            line = _re.sub(r"<[^>]+>", "", copy[1].format(ref=order.reference))
+            body = render(
+                heading=subj.split(" — ")[0],
+                lines=[line],
+                note=note,
+                facts=[Fact("Job", order.reference), Fact("Sheet", order.sheet_name or ""),
+                       Fact("Quantity", str(order.sheet_quantity or ""))],
+                buttons=[Button("View your job", job_url)] if job_url else [],
+                preview=line,
+            )
         EmailService(db).send_raw(to_email=to, subject=subj, body_html=body)
     except Exception:
         pass
@@ -2332,12 +2351,9 @@ async def admin_set_status(
     # Tell the buyer what changed, with the shop's message when it wrote one.
     # A revision always carries the note it was sent back with; an approval or
     # a rejection carries the message sent with it, not an older note.
-    import html as _html
     message = order.supplier_notes if payload.status == STATUS_REVISION else (
         payload.supplier_notes if payload.status in (STATUS_APPROVED, STATUS_REJECTED) else None)
-    extra = (f"<p style='background:#FFF7ED;border-radius:6px;padding:10px 12px;font-size:13px;color:#9A3412'>{_html.escape(message)}</p>"
-             if message and message.strip() else "")
-    await _notify(db, order, payload.status, extra_html=extra)
+    await _notify(db, order, payload.status, message=message)
     await db.refresh(order)
     return await _admin_job(db, order, await _load_artworks(db, order.id))
 

@@ -133,30 +133,21 @@ class WholesaleService:
         from app.core.config import settings as _settings
         email_svc = EmailService(self.db)
         try:
+            from app.core.tenant_context import get_current_brand_name
+            from app.services import mails
+            from app.services.mail_layout import Button
+
+            shop = get_current_brand_name() or "our shop"
             email_svc.send_raw(
                 to_email=application.email,
-                subject="Your Wholesale Account Has Been Approved — AF Apparels",
-                body_html=f"""
-                <div style="font-family:sans-serif;max-width:600px;margin:0 auto">
-                  <div style="background:#080808;padding:24px;text-align:center">
-                    <span style="color:#fff;font-size:22px;font-weight:800;letter-spacing:.04em">AF Apparels</span>
-                  </div>
-                  <div style="padding:32px;background:#fff">
-                    <h2 style="color:#059669">Account Approved! ✅</h2>
-                    <p>Hi {application.first_name},</p>
-                    <p>Great news! Your wholesale account for <b>{application.company_name}</b> has been approved.</p>
-                    <p>You can now log in to the AF Apparels wholesale portal and start placing orders.</p>
-                    <p style="margin:24px 0">
-                      <a href="{_settings.FRONTEND_URL}/login"
-                         style="background:#E8242A;color:#fff;padding:12px 28px;border-radius:6px;text-decoration:none;font-weight:700;display:inline-block">
-                        Log In to Your Account →
-                      </a>
-                    </p>
-                    <p style="color:#6b7280;font-size:13px">Questions? Call us at (214) 272-7213</p>
-                    <p>— AF Apparels Team</p>
-                  </div>
-                </div>
-                """,
+                subject=f"Your wholesale account is approved, {shop}",
+                body_html=mails.notice(
+                    "Your account is approved",
+                    [f"Hi {application.first_name}, the wholesale account for {application.company_name} is approved.",
+                     "Sign in to see your prices and place orders."],
+                    button=Button("Sign in", f"{_settings.FRONTEND_URL}/login"),
+                    preview="Sign in to see your prices.",
+                ),
             )
         except Exception:
             pass  # non-fatal — approval still goes through

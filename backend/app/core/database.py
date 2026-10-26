@@ -154,6 +154,8 @@ def forget_brand_name(tenant_id: object) -> None:
     """
     _BRAND_CACHE.pop(str(tenant_id), None)
     _MARK_CACHE.pop(str(tenant_id), None)
+    _COLOR_CACHE.pop(str(tenant_id), None)
+    _CARD_CACHE.pop(str(tenant_id), None)
 
 
 async def _resolve_brand_name(session: AsyncSession, tenant_id: object) -> str | None:
@@ -261,6 +263,83 @@ async def use_brand_identity(session: AsyncSession, tenant_id: object) -> None:
     logo, contact = await _resolve_brand_mark(session, tenant_id)
     set_current_brand_logo(logo)
     set_current_brand_contact(contact)
+    from app.core.tenant_context import set_current_brand_color
+
+    set_current_brand_color(await _resolve_brand_color(session, tenant_id))
+    from app.core.tenant_context import set_current_brand_card
+
+    set_current_brand_card(await _resolve_brand_card(session, tenant_id))
+
+
+# The brand's own colour, for its mail's buttons. Cached like the mark.
+_COLOR_CACHE: dict[str, tuple[str | None, float]] = {}
+
+
+async def _resolve_brand_color(session: AsyncSession, tenant_id: object) -> str | None:
+    from sqlalchemy import text
+
+    if not tenant_id:
+        return None
+    key = str(tenant_id)
+    hit = _COLOR_CACHE.get(key)
+    now = _time.monotonic()
+    if hit and hit[1] > now:
+        return hit[0]
+    color: str | None = None
+    try:
+        color = (await session.execute(
+            text("SELECT NULLIF(btrim(primary_color), '') FROM tenant_branding WHERE tenant_id = CAST(:t AS uuid)"),
+            {"t": key},
+        )).scalar()
+    except Exception:
+        color = None
+    _COLOR_CACHE[key] = (color, now + _BRAND_TTL_SECONDS)
+    return color
+
+
+# The shop's postal address and phone, printed at the head of its invoices,
+# packing slips and statements: its ship-from address (Settings, Shipping and
+# pickup) and the support phone it gave. Nothing is made up when neither is
+# set. Cached like the mark.
+_CARD_CACHE: dict[str, tuple[dict | None, float]] = {}
+
+
+async def _resolve_brand_card(session: AsyncSession, tenant_id: object) -> dict | None:
+    import json as _json
+    from sqlalchemy import text
+
+    if not tenant_id:
+        return None
+    key = str(tenant_id)
+    hit = _CARD_CACHE.get(key)
+    now = _time.monotonic()
+    if hit and hit[1] > now:
+        return hit[0]
+    card: dict | None = None
+    try:
+        raw = (await session.execute(text("SELECT value FROM settings WHERE key = :k"),
+                                     {"k": f"ship_from@{key}"})).scalar()
+        place = _json.loads(raw) if isinstance(raw, str) else (raw or {})
+        place = place if isinstance(place, dict) else {}
+        phone = (await session.execute(
+            text("SELECT NULLIF(btrim(support_phone), '') FROM tenant_branding WHERE tenant_id = CAST(:t AS uuid)"),
+            {"t": key},
+        )).scalar()
+
+        def part(name: str) -> str:
+            return str(place.get(name) or "").strip()
+
+        lines: list[str] = []
+        if part("street1"):
+            region = " ".join(filter(None, [part("state"), part("zip")]))
+            lines = [x for x in (part("street1"), part("street2"),
+                                 ", ".join(filter(None, [part("city"), region]))) if x]
+        phone = (phone or part("phone") or "").strip()
+        card = {"lines": lines, "phone": phone} if (lines or phone) else None
+    except Exception:
+        card = None
+    _CARD_CACHE[key] = (card, now + _BRAND_TTL_SECONDS)
+    return card
 
 
 # Where each brand's shop lives. Same treatment again: every link we mail out
@@ -333,6 +412,10 @@ async def _apply_tenant_context(request: Request | None, session: AsyncSession) 
     set_current_tenant_email(None)
     set_current_brand_logo(None)
     set_current_brand_contact(None)
+    from app.core.tenant_context import set_current_brand_card, set_current_brand_color
+
+    set_current_brand_color(None)
+    set_current_brand_card(None)
 
     # Fresh defaults for this request task.
     set_bypass_scoping(False)

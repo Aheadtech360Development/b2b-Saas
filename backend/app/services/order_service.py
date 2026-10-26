@@ -8,7 +8,6 @@ from app.models.user import User  # ← yeh add karo
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config import get_settings
 from app.core.exceptions import NotFoundError, ValidationError, InsufficientStockError
 from app.models.company import Company, UserAddress
 from app.models.inventory import InventoryRecord
@@ -85,8 +84,6 @@ class OrderService:
         is_wholesale: bool = True,
         free_shipping: bool = False,
     ) -> Order:
-        settings = get_settings()
-
         # 1. Load cart items
         cart_result = await self.db.execute(
             select(CartItem).where(CartItem.company_id == company_id)
@@ -536,44 +533,10 @@ class OrderService:
         )
         order = result.scalar_one()
 
-        # Step 11 — Admin notification only (customer confirmation sent by checkout.py)
-        try:
-            from app.services.email_service import EmailService
-            email_svc = EmailService(self.db)
-
-            from app.services.email_service import notify_address as _notify_to
-            _alert_to = _notify_to()
-            if _alert_to:
-                email_svc.send_raw(
-                    to_email=_alert_to,
-                    subject=f"New Order — {order.order_number} (${float(order.total):.2f})",
-                    body_html=f"""
-                        <h2>New Order Received</h2>
-                        <p><b>Order:</b> {order.order_number}</p>
-                        <p><b>Total:</b> ${float(order.total):.2f}</p>
-                        <p><b>Items:</b> {len(order.items)}</p>
-                        <a href="{settings.FRONTEND_URL}/admin/orders/{order.id}">View Order →</a>
-                    """,
-                )
-        except Exception as e:
-            logger.warning("Admin notification email failed: %s", e)
-
-        # 12. Auto-create statement charge transaction
-        try:
-            from app.models.statement import StatementTransaction
-            txn = StatementTransaction(
-                company_id=company_id,
-                transaction_date=order.created_at.strftime("%Y-%m-%d"),
-                description=f"Order #{order.order_number}",
-                transaction_type="charge",
-                amount=float(order.total),
-                reference_number=order.order_number,
-                order_id=order.id,
-            )
-            self.db.add(txn)
-            await self.db.flush()
-        except Exception:
-            pass
+        # The owner's new-order alert and the order's statement lines are
+        # checkout.py's, its one caller, right after this returns. This sent
+        # a second alert and wrote a second charge, so a company's statement
+        # listed every order twice.
 
         return order
 

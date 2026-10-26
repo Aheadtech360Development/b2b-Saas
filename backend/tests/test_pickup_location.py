@@ -9,6 +9,7 @@ No database or network.
 import inspect
 import json
 from pathlib import Path
+from types import SimpleNamespace
 
 from app.core import tenant_settings
 from app.services import pickup
@@ -44,14 +45,23 @@ def test_nothing_saved_or_something_unreadable_says_nothing():
     empty = {"name": "", "address": "", "hours": "", "note": ""}
     assert pickup.resolve(None, None) == empty
     assert pickup.resolve("not json", "[1, 2]") == empty
-    assert pickup.email_block(empty) == ""
+    # Nothing set: the mail leaves the place, address and hours out.
+    _, html = _pickup_mail(empty)
+    assert ">Address<" not in html and ">Hours<" not in html and ">Place<" not in html
 
 
-def test_the_mail_block_carries_the_shops_words_safely():
-    block = pickup.email_block({"name": "Acme <b>Shop</b>", "address": "5 Main St, Garland, TX 75040",
-                                "hours": "Mon to Fri, 9 AM to 5 PM", "note": ""})
-    assert "5 Main St, Garland, TX 75040" in block and "Mon to Fri, 9 AM to 5 PM" in block
-    assert "<b>Shop</b>" not in block and "&lt;b&gt;Shop&lt;/b&gt;" in block
+def _pickup_mail(place):
+    from app.services import mails
+
+    return mails.ready_for_pickup(SimpleNamespace(order_number="1042"), order_url="https://shop.example/o/1",
+                                  pickup=place)
+
+
+def test_the_mail_carries_the_shops_words_safely():
+    _, html = _pickup_mail({"name": "Acme <b>Shop</b>", "address": "5 Main St, Garland, TX 75040",
+                            "hours": "Mon to Fri, 9 AM to 5 PM", "note": ""})
+    assert "5 Main St, Garland, TX 75040" in html and "Mon to Fri, 9 AM to 5 PM" in html
+    assert "<b>Shop</b>" not in html and "&lt;b&gt;Shop&lt;/b&gt;" in html
 
 
 def test_the_setting_is_each_shops_own_and_the_admin_may_save_it():
@@ -74,4 +84,5 @@ def test_no_shops_address_or_hours_are_printed_in_the_mail_any_more():
 
     src = inspect.getsource(admin_orders._send_order_status_email)
     assert 'new_status == "ready_for_pickup"' in src
-    assert src.count("{pickup_block}") == 2   # a guest's mail and an account's
+    # A guest's mail and an account's alike: the shop's own place, in the mail's facts.
+    assert "pickup=await pickup_location(db, order.tenant_id)" in src and "mails.ready_for_pickup(" in src

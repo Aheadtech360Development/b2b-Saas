@@ -463,49 +463,40 @@ class AuthService:
         # The store the buyer applied to — its own name and contact details,
         # not one hardcoded brand's on every store's emails.
         store, contact = await self._store_identity(application.tenant_id)
+        from app.services import mails
+        from app.services.mail_layout import Fact
+
         try:
             email_svc.send_raw(
                 to_email=application.email,
-                subject=f"We Received Your Wholesale Application — {store}",
-                body_html=f"""
-                    <div style="font-family:sans-serif;max-width:600px;margin:0 auto">
-                    <div style="background:#080808;padding:24px;text-align:center">
-                        <span style="color:#fff;font-size:22px;font-weight:800;letter-spacing:.04em">{store}</span>
-                    </div>
-                    <div style="padding:32px;background:#fff">
-                        <h2>Application Received! ✅</h2>
-                        <p>Hi {data.first_name},</p>
-                        <p>We received your wholesale application for <b>{data.company_name}</b>.</p>
-                        <p>Our team will review within <b>1-2 business days</b> and notify you of our decision.</p>
-                        {f"<p>Questions? Contact us at <b>{contact}</b></p>" if contact else ""}
-                        <p>— {store} Team</p>
-                    </div>
-                    </div>
-                """,
+                subject=f"We received your wholesale application, {store}",
+                body_html=mails.notice(
+                    "We received your application",
+                    [f"Thanks, {data.first_name}. We received the wholesale application for {data.company_name}.",
+                     "We review it within 1 to 2 business days and email you our answer."]
+                    + ([f"Questions? Write to {contact}."] if contact else []),
+                    facts=[Fact("Company", data.company_name), Fact("Email", data.email)],
+                    preview="We will email you our answer.",
+                    reason="your application",
+                ),
             )
         except Exception:
             pass
 
-        # ✅ Notify the store owner of the brand this application was submitted to.
+        # Notify the store owner of the brand this application was submitted to.
         # The application is tenant-scoped, so its stamped tenant_id tells us whose
         # store it is; the recipient is that brand's own notification address, never
         # a single shared inbox.
         owner_email = await self._resolve_owner_notification_email(application.tenant_id)
         if owner_email:
             try:
-                email_svc.send_raw(
-                    to_email=owner_email,
-                    subject=f"New Wholesale Application — {data.company_name}",
-                    body_html=f"""
-                        <h2>New Wholesale Application</h2>
-                        <p><b>Company:</b> {data.company_name}</p>
-                        <p><b>Name:</b> {data.first_name} {data.last_name}</p>
-                        <p><b>Email:</b> {data.email}</p>
-                        <p><b>Phone:</b> {data.phone}</p>
-                        <p><b>Business Type:</b> {data.business_type}</p>
-                        <a href="{settings.FRONTEND_URL}/admin/customers/applications">Review Application →</a>
-                    """,
+                subject, html = mails.wholesale_application_alert(
+                    company=data.company_name, business_type=getattr(data, "business_type", None),
+                    tax_id=getattr(data, "tax_id", None), shop=store,
+                    contact=f"{data.first_name} {data.last_name}, {data.email}",
+                    admin_url=f"{settings.FRONTEND_URL}/admin/customers/applications",
                 )
+                email_svc.send_raw(to_email=owner_email, subject=subject, body_html=html)
             except Exception:
                 pass  # non-fatal
 

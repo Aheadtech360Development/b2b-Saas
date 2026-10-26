@@ -14,7 +14,6 @@ from __future__ import annotations
 
 import json
 import uuid
-from html import escape
 from typing import Any
 
 from sqlalchemy import text
@@ -91,24 +90,3 @@ async def pickup_offered(db: AsyncSession, tenant_id: uuid.UUID | str | None) ->
         return offered(await get_setting(db, "pickup_enabled", tenant_id=tenant_id))
     except Exception:
         return True
-
-
-def email_block(place: dict[str, str]) -> str:
-    """The pickup location as a block for a mail. "" when there is nothing to say."""
-    if not (place.get("address") or place.get("hours") or place.get("note")):
-        return ""
-    lines = []
-    if place.get("name"):
-        lines.append(f'<p style="margin:0;font-weight:700;color:#065f46;font-size:14px">{escape(place["name"])}</p>')
-    if place.get("address"):
-        lines.append(f'<p style="margin:4px 0 0;color:#065f46;font-size:14px">{escape(place["address"])}</p>')
-    if place.get("hours"):
-        lines.append(f'<p style="margin:8px 0 0;color:#047857;font-size:13px">{escape(place["hours"])}</p>')
-    if place.get("note"):
-        lines.append(f'<p style="margin:8px 0 0;color:#047857;font-size:13px">{escape(place["note"])}</p>')
-    return (
-        '<div style="background:#ecfdf5;border:1px solid #6ee7b7;border-radius:8px;padding:16px;margin:16px 0">'
-        '<p style="margin:0 0 8px;font-weight:700;color:#047857;font-size:12px;text-transform:uppercase;'
-        'letter-spacing:.06em">Pickup location</p>'
-        + "".join(lines) + "</div>"
-    )

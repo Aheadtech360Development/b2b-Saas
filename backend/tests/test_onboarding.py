@@ -228,7 +228,9 @@ def test_the_welcome_mail_has_a_greeting_without_a_name(monkeypatch):
     monkeypatch.setattr(email_service, "platform_inbox", lambda: None)
     monkeypatch.setattr(email_service, "send_as_platform", lambda to, subject, body: sent.update(body=body))
     signup._welcome("Torres Print", "", "owner@torresprint.com", "wholesale", "https://torres-print.printcopilot.co/")
-    assert "Your shop is open.</h1>" in sent["body"] and ", .</h1>" not in sent["body"]
+    assert ">Welcome</h1>" in sent["body"] and ", </h1>" not in sent["body"]
+    # Where the shop is, and the address to sign in with.
+    assert "torres-print.printcopilot.co" in sent["body"] and "owner@torresprint.com" in sent["body"]
 
 
 # ── Signing in on printcopilot.co ───────────────────────────────────────────

@@ -489,189 +489,56 @@ class EmailService:
 
     @staticmethod
     def _base_template(content_html: str, footer_note: str = "") -> str:
-        """Brand-neutral HTML email wrapper.
+        """Prepared content in the design's card (services/mail_layout.frame):
+        the sending shop's name and logo across the top, who sent it and why at
+        the foot. For the emails that build their own body; the rest are drawn
+        whole by services/mails."""
+        from app.services.mail_layout import frame
 
-        Header and footer resolve to the active tenant's store name (via the
-        request context), so every brand's mail carries its own identity. No
-        store's phone, address, or logo is hardcoded here — the previous version
-        baked a single store's contact block into every message.
-        """
-        from app.core.config import settings as _cfg
-
-        brand = _current_brand_from_context() or _cfg.EMAIL_FROM_NAME or "Our Store"
-        note_html = (
-            f'<p style="color:#9ca3af;font-size:12px;margin:4px 0 0">{footer_note}</p>'
-            if footer_note else ""
-        )
-        # Per-tenant logo would need a lookup this static helper can't do cheaply;
-        # the brand name as text is a safe, always-correct header for every store.
-        logo_html = (
-            f'<span style="font-size:26px;font-weight:800;color:#1B3A5C;'
-            f'letter-spacing:-.3px">{brand}</span>'
-        )
-        return (
-            '<div style="font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\','
-            'Helvetica,Arial,sans-serif;max-width:600px;margin:0 auto;background:#ffffff">'
-            '<div style="background:#ffffff;padding:24px 32px;text-align:center;'
-            'border-bottom:3px solid #1B3A5C">'
-            + logo_html +
-            '</div>'
-            '<div style="padding:32px">'
-            + content_html
-            + '<div style="border-top:1px solid #e5e7eb;margin-top:28px;padding-top:20px">'
-            f'{note_html}'
-            '<p style="color:#9ca3af;font-size:12px;margin:4px 0 0">'
-            f'— {brand} Team</p>'
-            '</div>'
-            '</div>'
-            '</div>'
-        )
+        note = (f'<p style="color:#5A6A7E;font-size:13px;margin:16px 0 0">{footer_note}</p>'
+                if footer_note else "")
+        return frame(content_html + note)
 
     # ── High-level transactional senders ──────────────────────────────────────
 
     async def send_password_reset_link(
         self, to_email: str, first_name: str, reset_url: str, expiry_hours: int = 1
     ) -> bool:
-        """Send the link that gets somebody back into their account.
+        """Send the link that gets somebody back into their account, in the
+        design's card (services/mails.password_reset): the shop's, when the
+        request came through a shop; the platform's otherwise. The built-in
+        message is the one sent: the shared template it used to try first is
+        the platform's, and this is the one mail nobody can do without."""
+        from app.services import mails
 
-        The editable template is tried first, so a brand that has reworded this
-        keeps its wording. But this is the one message nobody can do without —
-        there is no other way back in — and it used to depend on a row seeded at
-        startup: on a database where that row was missing or switched off, the
-        request succeeded, no mail was sent, and nothing said so. So a built-in
-        message backs it up.
-        """
-        variables = {
-            "first_name": first_name or "there",
-            "name": first_name or to_email,
-            "reset_url": reset_url,
-            "expiry_hours": expiry_hours,
-        }
-        try:
-            if self.db is not None and await self.send("password_reset", to_email, variables):
-                return True
-        except Exception as exc:
-            logger.warning("password_reset template unusable (%s) — using the built-in", exc)
-
-        hours = "an hour" if expiry_hours == 1 else f"{expiry_hours} hours"
-        content = (
-            f'<h2 style="font-size:20px;margin:0 0 10px">Reset your password</h2>'
-            f'<p style="color:#4b5563;margin:0 0 20px;line-height:1.6">Hi {first_name or "there"}, '
-            f'somebody asked to reset the password for this account. If that was you, '
-            f'set a new one here:</p>'
-            f'<p style="margin:0 0 20px"><a href="{reset_url}" style="background:#1B3A5C;color:#fff;'
-            f'padding:12px 26px;border-radius:6px;text-decoration:none;font-weight:700;'
-            f'display:inline-block">Choose a new password</a></p>'
-            f'<p style="color:#6b7280;font-size:13px;margin:0;line-height:1.6">'
-            f'The link works once and expires in {hours}. If you did not ask for this, '
-            f'ignore this email — nothing has changed.</p>'
-        )
-        return self.send_raw(
-            to_email=to_email,
-            subject="Reset your password",
-            body_html=self._base_template(content),
-        )
+        sender = _current_brand_from_context()
+        on_platform = not sender or sender == settings.PLATFORM_NAME
+        subject, html = mails.password_reset(reset_url=reset_url, hours=expiry_hours, platform=on_platform)
+        return self.send_raw(to_email=to_email, subject=subject, body_html=html)
 
     def send_order_confirmation(self, order: "Order", to_email: str, *,  # type: ignore[name-defined]
                                 subject: str | None = None, intro_html: str | None = None) -> bool:
-        """Branded order confirmation with order-confirmation PDF attached.
+        """The order confirmation (services/mails.order_confirmed), with the
+        order's confirmation PDF attached.
 
         `subject` and `intro_html` are the shop's own wording (services/
         notifications), in place of the subject and the opening line.
         """
         from app.core.config import settings as _s
+        from app.services import mails
         from app.services.pdf_service import PDFService
 
-        name = getattr(order, "guest_name", None) or "Valued Customer"
         order_url = f"{_s.FRONTEND_URL}/account/orders/{order.id}"
-
-        rows_html = "".join(
-            f'<div style="margin-bottom:10px;padding:12px 14px;background:#f9fafb;border-radius:6px;'
-            f'border-left:3px solid #1B3A5C;">'
-            f'<div style="font-weight:700;font-size:13px;color:#111827;margin-bottom:4px;">'
-            f'{item.product_name}</div>'
-            f'<div style="font-size:12px;color:#6b7280;">'
-            f'{item.color or "—"} / {item.size or "—"}'
-            f'&nbsp;&nbsp;·&nbsp;&nbsp;Qty: <strong>{item.quantity}</strong>'
-            f'&nbsp;&nbsp;·&nbsp;&nbsp;Unit: ${float(item.unit_price):.2f}'
-            f'&nbsp;&nbsp;·&nbsp;&nbsp;<strong>${float(item.line_total):.2f}</strong>'
-            f'</div>'
-            f'</div>'
-            for item in order.items
-        )
-
-        discount_val = float(getattr(order, "discount_amount", 0) or 0)
-        discount_row = (
-            f'<tr><td style="padding:4px 0;font-size:13px;color:#059669;font-weight:600">Discount</td>'
-            f'<td style="padding:4px 0;font-size:13px;color:#059669;font-weight:600;text-align:right">'
-            f'&#8722;${discount_val:.2f}</td></tr>'
-            if discount_val > 0 else ""
-        )
-        tax_row = (
-            f'<tr><td style="padding:4px 0;font-size:13px;color:#6b7280">Tax</td>'
-            f'<td style="padding:4px 0;font-size:13px;color:#6b7280;text-align:right">'
-            f'${float(order.tax_amount):.2f}</td></tr>'
-            if getattr(order, "tax_amount", None) and float(order.tax_amount) > 0 else ""
-        )
-
         # A guest has no account page: their link is the order's own page, opened
         # by its view key (services/order_view.py). The key rides in the
         # #fragment, which no server and no log ever sees, and the page takes it
         # off the address before the shop's tracking tools read it.
-        is_guest = getattr(order, "is_guest_order", False)
-        if is_guest:
+        if getattr(order, "is_guest_order", False):
             from app.services import order_view
 
             order_url = (f"{_s.FRONTEND_URL}/checkout/thank-you/{order.order_number}"
                          f"#k={order_view.view_key(order.id, order.tenant_id)}")
-        cta = (
-            f'<p style="margin:20px 0 0">'
-            f'<a href="{order_url}" style="background:#E8242A;color:#fff;padding:12px 28px;'
-            f'border-radius:6px;font-weight:700;text-decoration:none;font-size:14px;'
-            f'display:inline-block">{"View your order" if is_guest else "View Order"} →</a></p>'
-        )
-
-        intro = intro_html or (
-            f'<p style="color:#374151;margin:0 0 24px">Hi {name}, your order has been received '
-            f'and is now being processed.</p>'
-        )
-        content_html = (
-            f'<h2 style="color:#1B3A5C;font-size:22px;font-weight:800;margin:0 0 8px">'
-            f'Order Received!</h2>'
-            f'{intro}'
-            f'<div style="background:#F9F8F4;border-radius:8px;padding:16px 20px;margin-bottom:20px">'
-            f'<table style="width:100%"><tr>'
-            f'<td><div style="font-size:11px;text-transform:uppercase;letter-spacing:.08em;'
-            f'color:#6b7280">Order Number</div>'
-            f'<div style="font-size:20px;font-weight:800;color:#1B3A5C;margin-top:2px">'
-            f'{order.order_number}</div></td>'
-            f'<td style="text-align:right">'
-            f'<div style="font-size:11px;text-transform:uppercase;letter-spacing:.08em;'
-            f'color:#6b7280">Order Total</div>'
-            f'<div style="font-size:20px;font-weight:800;color:#059669;margin-top:2px">'
-            f'${float(order.total):.2f}</div></td>'
-            f'</tr></table></div>'
-            f'<div style="margin-bottom:20px;">'
-            f'<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;'
-            f'color:#6b7280;margin-bottom:8px;">ORDER ITEMS</div>'
-            f'{rows_html}'
-            f'</div>'
-            f'<table style="width:100%;margin-bottom:20px">'
-            f'<tr><td style="padding:4px 0;font-size:13px;color:#6b7280">Subtotal</td>'
-            f'<td style="padding:4px 0;font-size:13px;color:#6b7280;text-align:right">'
-            f'${float(order.subtotal):.2f}</td></tr>'
-            f'{discount_row}'
-            f'<tr><td style="padding:4px 0;font-size:13px;color:#6b7280">Shipping</td>'
-            f'<td style="padding:4px 0;font-size:13px;color:#6b7280;text-align:right">'
-            f'${float(order.shipping_cost or 0):.2f}</td></tr>'
-            f'{tax_row}'
-            f'<tr><td style="padding:8px 0 0;font-size:17px;font-weight:800;color:#1B3A5C;'
-            f'border-top:2px solid #e5e7eb">Total</td>'
-            f'<td style="padding:8px 0 0;font-size:17px;font-weight:800;color:#1B3A5C;'
-            f'text-align:right;border-top:2px solid #e5e7eb">${float(order.total):.2f}</td>'
-            f'</tr></table>'
-            f'{cta}'
-        )
+        mail_subject, html = mails.order_confirmed(order, order_url=order_url, subject=subject, intro_html=intro_html)
 
         attachments = None
         try:
@@ -682,8 +549,8 @@ class EmailService:
 
         return self._send_via_resend(
             to_email=to_email,
-            subject=subject or f"Order Received — {order.order_number} | AF Apparels",
-            body_html=self._base_template(content_html),
+            subject=mail_subject,
+            body_html=html,
             attachments=attachments,
         )
 
@@ -698,96 +565,42 @@ class EmailService:
         subject: str | None = None,
         intro_html: str | None = None,
     ) -> bool:
-        """Send invoice PDF email to customer with payment terms and bank details.
+        """An invoice, or a reminder of one (services/mails.invoice), with the
+        invoice PDF attached and a button to pay it online.
 
         A reminder (the Invoices screen's) carries the invoice's own due date,
-        not one worked out from today, and says it is a reminder. `subject` and
-        `intro_html` are the shop's own wording (services/notifications), in
-        place of the subject and the opening line.
+        not one worked out from today. `subject` and `intro_html` are the
+        shop's own wording (services/notifications), in place of the subject
+        and the opening line.
         """
-        from datetime import timedelta as _td
+        from datetime import datetime as _dt, timedelta as _td
+
+        from app.services import mails, order_view
+        from app.services.invoices import invoice_number
         from app.services.pdf_service import PDFService
 
         terms = payment_terms or getattr(order, 'payment_terms', None) or 'net_30'
-        name = customer_name or "Valued Customer"
-
         _terms_display = {
-            'net_30': ('Net 30 — due within 30 days', 30),
-            'net_15': ('Net 15 — due within 15 days', 15),
-            'due_on_receipt': ('Due on Receipt', 0),
+            'net_30': ('Net 30', 30),
+            'net_15': ('Net 15', 15),
+            'due_on_receipt': ('Due on receipt', 0),
         }
         terms_label, days = _terms_display.get(terms, _terms_display['net_30'])
-        from datetime import datetime as _dt
-        now = _dt.now()
-        due_str = (due_on or (now + _td(days=days))).strftime('%B %d, %Y')
-        inv_date = now.strftime('%B %d, %Y')
+        due = due_on or (_dt.now() + _td(days=days)).date()
         order_num = getattr(order, 'order_number', 'N/A')
-        total_val = float(getattr(order, 'total', 0))
-        amount_paid_val = float(getattr(order, 'amount_paid', None) or 0)
-        balance_due_val = max(0.0, total_val - amount_paid_val)
+        total_val = float(getattr(order, 'total', 0) or 0)
+        balance_due_val = max(0.0, total_val - float(getattr(order, 'amount_paid', None) or 0))
         # The invoice page opens to the order's view key, carried in the
         # #fragment (no server or log sees it); without it, the buyer signs in.
-        from app.services import order_view
-
         pay_url = (f"{settings.FRONTEND_URL}/checkout/invoice/{order_num}"
                    f"#k={order_view.view_key(getattr(order, 'id', ''), getattr(order, 'tenant_id', None))}")
-        btn_label = f'Pay Balance — ${balance_due_val:.2f}' if amount_paid_val > 0 else f'Pay Now — ${total_val:.2f}'
-
-        if amount_paid_val > 0:
-            amount_row = (
-                f'<tr><td style="font-size:12px;color:#6b7280;padding:5px 0">Order Total</td>'
-                f'<td style="font-size:13px;color:#374151;text-align:right">${total_val:.2f}</td></tr>'
-                f'<tr><td style="font-size:12px;color:#059669;padding:5px 0">Amount Paid</td>'
-                f'<td style="font-size:13px;color:#059669;font-weight:600;text-align:right">&#8722;${amount_paid_val:.2f}</td></tr>'
-                f'<tr style="border-top:1px solid #e5e7eb">'
-                f'<td style="font-size:12px;color:#6b7280;font-weight:700;padding:10px 0 5px">Balance Due</td>'
-                f'<td style="font-size:17px;font-weight:800;color:#E8242A;text-align:right;padding-top:10px">'
-                f'${balance_due_val:.2f}</td></tr>'
-            )
-        else:
-            amount_row = (
-                f'<tr><td style="font-size:12px;color:#6b7280;padding:5px 0">Amount Due</td>'
-                f'<td style="font-size:17px;font-weight:800;color:#1B3A5C;text-align:right">'
-                f'${total_val:.2f}</td></tr>'
-            )
-
-        content_html = (
-            f'<h2 style="color:#1B3A5C;font-size:22px;font-weight:800;margin:0 0 8px">'
-            f'{"Payment reminder" if reminder else "Invoice"} — {order_num}</h2>'
-            + (intro_html or (
-                f'<p style="color:#374151;margin:0 0 20px">'
-                + (f'Hi {name}, a reminder that this invoice is due on {due_str}. It is attached again here.</p>'
-                   if reminder else
-                   f'Hi {name}, please find your invoice attached to this email.</p>'))) +
-            f'<div style="background:#F9F8F4;border-radius:8px;padding:16px 20px;margin-bottom:20px">'
-            f'<table style="width:100%;border-collapse:collapse">'
-            f'<tr><td style="font-size:12px;color:#6b7280;padding:5px 0">Order #</td>'
-            f'<td style="font-size:14px;font-weight:800;color:#1B3A5C;text-align:right">{order_num}</td></tr>'
-            f'<tr><td style="font-size:12px;color:#6b7280;padding:5px 0">Invoice Date</td>'
-            f'<td style="font-size:13px;color:#374151;text-align:right">{inv_date}</td></tr>'
-            f'<tr><td style="font-size:12px;color:#6b7280;padding:5px 0">Payment Terms</td>'
-            f'<td style="font-size:13px;color:#374151;text-align:right">{terms_label}</td></tr>'
-            f'<tr style="border-top:1px solid #e5e7eb">'
-            f'<td style="font-size:12px;color:#6b7280;font-weight:700;padding:10px 0 5px">Due Date</td>'
-            f'<td style="font-size:17px;font-weight:800;color:#E8242A;text-align:right;padding-top:10px">'
-            f'{due_str}</td></tr>'
-            f'{amount_row}'
-            f'</table></div>'
-            f'<div style="text-align:center;margin:28px 0;">'
-            f'<p style="color:#444;font-size:14px;margin:0 0 16px;">'
-            f'Click below to complete your payment securely online:</p>'
-            f'<a href="{pay_url}" '
-            f'style="display:inline-block;background:#E8242A;color:#fff;'
-            f'padding:14px 40px;border-radius:6px;font-size:16px;'
-            f'font-weight:700;text-decoration:none;letter-spacing:0.5px;">'
-            f'{btn_label}</a>'
-            f'<p style="color:#888;font-size:12px;margin:12px 0 0;">'
-            f'Secure payment · Order {order_num}</p>'
-            f'</div>'
-            f'<p style="color:#6b7280;font-size:13px;margin:0">'
-            f'The invoice PDF is attached. Questions? Call '
-            f'<a href="tel:4693679753" style="color:#1B3A5C">+1\xa0(469)\xa0367-9753</a> or '
-            f'<a href="mailto:info@afblanks.com" style="color:#1B3A5C">info@afblanks.com</a></p>'
+        download_url = (f"{settings.FRONTEND_URL}/account/orders/{getattr(order, 'id', '')}"
+                        if getattr(order, 'company_id', None) else None)
+        number = invoice_number(order_num, getattr(order, 'created_at', None))
+        mail_subject, html = mails.invoice(
+            order, invoice_number=number, amount_due=balance_due_val, due_on=due, terms=terms_label,
+            pay_url=pay_url, download_url=download_url, reminder=reminder,
+            subject=subject, intro_html=intro_html,
         )
 
         # Temporarily set payment_terms on the order object so PDF picks it up
@@ -799,7 +612,10 @@ class EmailService:
 
         attachments = None
         try:
-            pdf_bytes = PDFService().generate_invoice(order)
+            # The PDF says what the email says: issued today (a reminder keeps
+            # the invoice's own date), due on the same day.
+            pdf_bytes = PDFService().generate_invoice(order, due_on=due,
+                                                      issued_on=None if reminder else _dt.now().date())
             attachments = [{"filename": f"invoice-{order_num}.pdf", "content": pdf_bytes}]
         except Exception as _exc:
             logger.warning("PDF generation failed (invoice): %s", _exc)
@@ -811,9 +627,8 @@ class EmailService:
 
         return self._send_via_resend(
             to_email=to_email,
-            subject=subject or (f"Reminder: invoice {order_num} — due {due_str} | AF Apparels" if reminder
-                                else f"Invoice {order_num} — Due {due_str} | AF Apparels"),
-            body_html=self._base_template(content_html),
+            subject=mail_subject,
+            body_html=html,
             attachments=attachments,
         )
 
@@ -828,128 +643,54 @@ class EmailService:
         subject: str | None = None,
         intro_html: str | None = None,
     ) -> bool:
-        """A quote (a priced draft, services/quotes) for the customer to accept.
+        """A quote (a priced draft, services/quotes) for the customer to accept
+        (services/mails.quote_ready).
 
         `subject` and `intro_html` are the shop's own wording (services/
         notifications), in place of the subject and the opening line; the
-        note typed when sending still follows it.
+        note typed when sending follows it.
 
         The link opens the quote's own page with the order's view key in the
         #fragment, as the invoice's does: no server or log sees it.
         """
-        import html as _html
-        from app.services import order_view
+        from app.services import mails, order_view
 
         number = getattr(order, "order_number", "")
-        until = valid_until.strftime("%B %d, %Y")
-        name = _html.escape(customer_name or "there")
         view_url = (f"{settings.FRONTEND_URL}/quote/{number}"
                     f"#k={order_view.view_key(getattr(order, 'id', ''), getattr(order, 'tenant_id', None))}")
-        rows = "".join(
-            f'<tr><td style="font-size:13px;color:#374151;padding:7px 0;border-bottom:1px solid #eee">'
-            f'{_html.escape(str(getattr(i, "product_name", "") or ""))}'
-            + (f'<br><span style="font-size:11px;color:#6b7280">'
-               f'{_html.escape(" · ".join(x for x in (getattr(i, "color", None), getattr(i, "size", None)) if x))}</span>'
-               if (getattr(i, "color", None) or getattr(i, "size", None)) else "")
-            + f'</td><td style="font-size:13px;color:#374151;text-align:center;padding:7px 0;border-bottom:1px solid #eee">'
-            f'{int(getattr(i, "quantity", 0) or 0)}</td>'
-            f'<td style="font-size:13px;color:#1B3A5C;font-weight:700;text-align:right;padding:7px 0;border-bottom:1px solid #eee">'
-            f'${float(getattr(i, "line_total", 0) or 0):.2f}</td></tr>'
-            for i in items
+        mail_subject, html = mails.quote_ready(
+            number, total=getattr(order, "total", 0), valid_until=valid_until, url=view_url,
+            message=message, subject=subject, intro_html=intro_html,
         )
-        note = (f'<p style="color:#374151;margin:0 0 18px;white-space:pre-line">{_html.escape(message.strip())}</p>'
-                if message and message.strip() else "")
-        total = float(getattr(order, "total", 0) or 0)
-        content_html = (
-            f'<h2 style="color:#1B3A5C;font-size:22px;font-weight:800;margin:0 0 8px">Quote — {number}</h2>'
-            + (intro_html or (
-                f'<p style="color:#374151;margin:0 0 18px">Hi {name}, here is the price for what you asked for. '
-                f'It holds until {until}.</p>'
-            )) +
-            f'{note}'
-            f'<table style="width:100%;border-collapse:collapse;margin-bottom:12px">'
-            f'<tr><th style="font-size:11px;color:#6b7280;text-align:left;padding:6px 0;border-bottom:2px solid #e5e7eb">Item</th>'
-            f'<th style="font-size:11px;color:#6b7280;text-align:center;padding:6px 0;border-bottom:2px solid #e5e7eb">Qty</th>'
-            f'<th style="font-size:11px;color:#6b7280;text-align:right;padding:6px 0;border-bottom:2px solid #e5e7eb">Price</th></tr>'
-            f'{rows}'
-            f'<tr><td colspan="2" style="font-size:13px;color:#6b7280;font-weight:700;padding:12px 0 0">Total</td>'
-            f'<td style="font-size:18px;color:#1B3A5C;font-weight:800;text-align:right;padding:12px 0 0">${total:.2f}</td></tr>'
-            f'</table>'
-            f'<div style="text-align:center;margin:28px 0;">'
-            f'<a href="{view_url}" style="display:inline-block;background:#1B3A5C;color:#fff;padding:14px 36px;'
-            f'border-radius:6px;font-size:16px;font-weight:700;text-decoration:none">View and accept the quote</a>'
-            f'<p style="color:#888;font-size:12px;margin:12px 0 0;">Valid until {until} · Quote {number}</p>'
-            f'</div>'
-            f'<p style="color:#6b7280;font-size:13px;margin:0">Questions about this quote? Just reply to this email.</p>'
-        )
-        return self._send_via_resend(
-            to_email=to_email,
-            subject=subject or f"Quote {number} — valid until {until} | AF Apparels",
-            body_html=self._base_template(content_html),
-        )
+        return self._send_via_resend(to_email=to_email, subject=mail_subject, body_html=html)
 
     def send_quote_accepted_alert(self, order: "Order", customer: str) -> bool:  # type: ignore[name-defined]
         """Tell the shop a customer accepted its quote, to convert it."""
         _to = notify_address()
         if not _to:
             return False
-        import html as _html
+        from app.services import mails
 
         number = getattr(order, "order_number", "")
         url = f"{settings.FRONTEND_URL}/admin/orders/quotes?quote={getattr(order, 'id', '')}"
-        content_html = (
-            f'<h2 style="color:#1B3A5C;font-size:20px;font-weight:800;margin:0 0 8px">Quote {number} accepted</h2>'
-            f'<p style="color:#374151;margin:0 0 18px">{_html.escape(customer)} accepted quote {number} '
-            f'(${float(getattr(order, "total", 0) or 0):.2f}). Convert it to an order to start on it.</p>'
-            f'<p style="margin:0"><a href="{url}" style="background:#1B3A5C;color:#fff;padding:12px 24px;'
-            f'border-radius:6px;font-weight:700;text-decoration:none;font-size:14px;display:inline-block">Open the quote</a></p>'
-        )
-        return self._send_via_resend(
-            to_email=_to,
-            subject=f"Quote {number} accepted | AF Apparels",
-            body_html=self._base_template(content_html),
-        )
+        mail_subject, html = mails.quote_accepted_alert(
+            number, customer=customer, total=getattr(order, "total", 0), admin_url=url)
+        return self._send_via_resend(to_email=_to, subject=mail_subject, body_html=html)
 
-    def send_admin_new_order_alert(self, order: "Order") -> bool:  # type: ignore[name-defined]
-        """Notify admin of a new order placement."""
+    def send_admin_new_order_alert(self, order: "Order", customer: str | None = None) -> bool:  # type: ignore[name-defined]
+        """Tell the shop it has a new order (services/mails.new_order_alert).
+        `customer` is who placed it, when the caller knows; a guest's own name
+        otherwise."""
         _to = notify_address()
         if not _to:
             return False
         from app.core.config import settings as _s
-        order_url = f"{_s.FRONTEND_URL}/admin/orders/{order.id}"
-        is_guest = getattr(order, "is_guest_order", False)
-        customer = (
-            f"{order.guest_name} ({order.guest_email})"
-            if is_guest
-            else f"Wholesale order"
-        )
-        content_html = (
-            f'<h2 style="color:#1B3A5C;font-size:20px;font-weight:800;margin:0 0 8px">'
-            f'New Order Received</h2>'
-            f'<div style="background:#F9F8F4;border-radius:8px;padding:16px 20px;margin-bottom:20px">'
-            f'<table style="width:100%">'
-            f'<tr><td style="font-size:12px;color:#6b7280;padding:3px 0">Order</td>'
-            f'<td style="font-size:13px;font-weight:700;color:#1B3A5C;text-align:right">'
-            f'{order.order_number}</td></tr>'
-            f'<tr><td style="font-size:12px;color:#6b7280;padding:3px 0">Customer</td>'
-            f'<td style="font-size:13px;color:#374151;text-align:right">{customer}</td></tr>'
-            f'<tr><td style="font-size:12px;color:#6b7280;padding:3px 0">Total</td>'
-            f'<td style="font-size:16px;font-weight:800;color:#059669;text-align:right">'
-            f'${float(order.total):.2f}</td></tr>'
-            f'<tr><td style="font-size:12px;color:#6b7280;padding:3px 0">Payment</td>'
-            f'<td style="font-size:13px;color:#374151;text-align:right">'
-            f'{getattr(order, "payment_method", "card").upper()}</td></tr>'
-            f'</table></div>'
-            f'<p style="margin:0"><a href="{order_url}" '
-            f'style="background:#1B3A5C;color:#fff;padding:12px 24px;border-radius:6px;'
-            f'font-weight:700;text-decoration:none;font-size:14px;display:inline-block">'
-            f'View Order →</a></p>'
-        )
-        return self._send_via_resend(
-            to_email=_to,
-            subject=f"New Order {order.order_number} — ${float(order.total):.2f} | AF Apparels",
-            body_html=self._base_template(content_html),
-        )
+        from app.services import mails
+
+        who = customer or getattr(order, "guest_name", None) or getattr(order, "guest_email", None) or "A customer"
+        mail_subject, html = mails.new_order_alert(
+            order, customer=who, admin_url=f"{_s.FRONTEND_URL}/admin/orders/{order.id}")
+        return self._send_via_resend(to_email=_to, subject=mail_subject, body_html=html)
 
     def send_admin_low_stock_alert(
         self, product_name: str, sku: str, qty: int
