@@ -34,6 +34,9 @@ STOCKS = ("all", "zero", "low", "in", "free")
 
 # Every SKU of a stocked product, with its stock, what open orders hold and the
 # lowest low-stock line its records set. :t is the shop; :wh one warehouse or ''.
+# The stock and order sums are MATERIALIZED, worked out once: inlined, a filter
+# the planner misjudges (one product of a supplier's 33,000 SKUs) had them
+# summed again for every SKU, and the list took 18 seconds instead of one.
 _SKUS = f"""
 WITH sku AS (
     SELECT pv.id, pv.product_id, pv.sku, pv.color, pv.size, p.name AS product_name, p.slug,
@@ -45,13 +48,13 @@ WITH sku AS (
       AND COALESCE(p.pricing_mode, 'variant') = 'variant'
       AND NOT COALESCE(p.gang_sheet_enabled, false)
 ),
-stock AS (
+stock AS MATERIALIZED (
     SELECT variant_id, sum(quantity) AS qty, min(low_stock_threshold) AS threshold
     FROM inventory
     WHERE tenant_id = CAST(:t AS uuid) AND (:wh = '' OR warehouse_id = CAST(NULLIF(:wh, '') AS uuid))
     GROUP BY variant_id
 ),
-held AS (
+held AS MATERIALIZED (
     SELECT oi.variant_id, sum(oi.quantity) AS qty
     FROM order_items oi JOIN orders o ON o.id = oi.order_id
     WHERE o.tenant_id = CAST(:t AS uuid) AND oi.variant_id IS NOT NULL
@@ -68,7 +71,7 @@ rows AS (
 
 _WHERE = """
 WHERE (:q = '' OR product_name ILIKE :like OR sku ILIKE :like OR color ILIKE :like OR size ILIKE :like)
-  AND (:product = '' OR CAST(product_id AS text) = :product)
+  AND (:product = '' OR product_id = CAST(NULLIF(:product, '') AS uuid))
   AND (:stock = 'all'
        OR (:stock = 'zero' AND counted AND available <= 0)
        OR (:stock = 'low' AND counted AND available > 0 AND available <= threshold)

@@ -228,31 +228,36 @@ async def inventory_by_product(
     from sqlalchemy.orm import selectinload
 
     from app.models.inventory import InventoryRecord
-    from app.models.product import Product
+    from app.models.product import Product, ProductVariant
 
     if show not in _SHOW:
         show = "all"
+    listed_products = Product.status != "archived"
+    if q and q.strip():
+        like = f"%{q.strip()}%"
+        listed_products = listed_products & or_(Product.name.ilike(like), Product.product_code.ilike(like))
     query = (
         select(Product)
-        .where(Product.status != "archived")
+        .where(listed_products)
         .options(selectinload(Product.variants), selectinload(Product.images))
         .order_by(Product.name)
     )
-    if q and q.strip():
-        like = f"%{q.strip()}%"
-        query = query.where(or_(Product.name.ilike(like), Product.product_code.ilike(like)))
     products = (await db.execute(query)).scalars().all()
 
-    variant_ids = [v.id for p in products for v in (p.variants or [])]
+    # Each SKU's stock over all warehouses, for the same products. Joined to
+    # them rather than asked for by a list of SKU ids: a brand that imported a
+    # supplier's catalogue has tens of thousands of SKUs, and one query can
+    # carry at most 32,767 values, so the list broke this page.
     on_hand: dict = {}
-    if variant_ids:
-        for vid, total, threshold in (await db.execute(
-            select(InventoryRecord.variant_id, func.sum(InventoryRecord.quantity),
-                   func.min(InventoryRecord.low_stock_threshold))
-            .where(InventoryRecord.variant_id.in_(variant_ids))
-            .group_by(InventoryRecord.variant_id)
-        )).all():
-            on_hand[vid] = (int(total or 0), int(threshold if threshold is not None else 10))
+    for vid, total, threshold in (await db.execute(
+        select(InventoryRecord.variant_id, func.sum(InventoryRecord.quantity),
+               func.min(InventoryRecord.low_stock_threshold))
+        .join(ProductVariant, ProductVariant.id == InventoryRecord.variant_id)
+        .join(Product, Product.id == ProductVariant.product_id)
+        .where(listed_products)
+        .group_by(InventoryRecord.variant_id)
+    )).all():
+        on_hand[vid] = (int(total or 0), int(threshold if threshold is not None else 10))
 
     rows = []
     for p in products:
