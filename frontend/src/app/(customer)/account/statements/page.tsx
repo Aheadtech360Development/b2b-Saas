@@ -88,8 +88,15 @@ export default function StatementsPage() {
       const result = await apiClient.post<{ message: string }>("/api/v1/account/statements/email",
         { date_from: dateFrom || null, date_to: dateTo || null });
       setMessage({ tone: "ok", text: result.message });
-    } catch {
-      setMessage({ tone: "bad", text: "The statement could not be emailed." });
+    } catch (err) {
+      // It goes to the company's own contacts; with none there is nobody to send it to.
+      const why = err instanceof Error ? err.message : "";
+      setMessage({
+        tone: "bad",
+        text: /contact/i.test(why)
+          ? "There is no contact to send it to yet. Add one under Team, Contacts, and tick Main contact."
+          : "The statement could not be emailed.",
+      });
     } finally {
       setBusy(null);
     }
@@ -109,7 +116,7 @@ export default function StatementsPage() {
       <PageHead eyebrow="Billing" title="Statements" sub="Charges, payments and your balance."
         actions={
           <>
-            <button type="button" className="cp-btn" onClick={emailStatement} disabled={busy !== null}>{busy === "email" ? "Sending…" : "Email it to us"}</button>
+            <button type="button" className="cp-btn" onClick={emailStatement} disabled={busy !== null}>{busy === "email" ? "Sending…" : "Email to our contacts"}</button>
             <button type="button" className="cp-btn cp-btn-p" onClick={downloadPdf} disabled={busy !== null}>{busy === "pdf" ? "Preparing…" : "Download PDF"}</button>
           </>
         } />
