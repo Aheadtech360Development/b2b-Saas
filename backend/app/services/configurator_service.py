@@ -99,7 +99,7 @@ def _normalise(selections: dict | None) -> dict[str, list[str]]:
     return wanted
 
 
-async def _load(db, product_id, selected_value_ids: list | None = None):
+async def _load(db, product_id, selected_value_ids: list | None = None, wanted: dict | None = None):
     product = (await db.execute(
         select(Product)
         .where(Product.id == product_id)
@@ -115,19 +115,27 @@ async def _load(db, product_id, selected_value_ids: list | None = None):
         .where(ProductQtyTier.product_id == product_id)
         .order_by(ProductQtyTier.min_qty)
     )).scalars().all()
-    # Only the combinations somebody priced, and of those only the ones that
-    # could possibly apply here. A row matches by naming choices the buyer
-    # made, so a row sharing no choice with this selection can be skipped: the
-    # overlap test is GIN-indexed, which keeps pricing flat even for a product
-    # carrying thousands of priced combinations. The exact subset test still
-    # happens in Python, since overlap only narrows the field.
-    query = select(ProductOptionCombination).where(
-        ProductOptionCombination.product_id == product_id
-    )
+    # Only the stored combinations that can apply: a row applies when every
+    # choice it names is one the buyer made. They are fetched by name, every
+    # key a subset of the selection could have (combinations.subset_keys), on
+    # the (product, combination) index: 255 probes for eight questions,
+    # whatever the table's size. Asking for rows sharing any choice (&&)
+    # handed back the whole table whenever a question had one answer every row
+    # names (one material), 11,000 rows read and matched in Python for each
+    # price on a product page; even the GIN containment test (<@) walks every
+    # row sharing a choice. It is kept for selections too wide to spell out.
+    C = ProductOptionCombination
+    query = select(C).where(C.product_id == product_id)
     if selected_value_ids is not None:
         if not selected_value_ids:
             return product, tiers, []
-        query = query.where(ProductOptionCombination.value_ids.overlap(selected_value_ids))
+        keys = combos.subset_keys(product.options or [], wanted or {})
+        if keys is None:
+            query = query.where(C.value_ids.contained_by(selected_value_ids))
+        elif not keys:
+            return product, tiers, []
+        else:
+            query = query.where(C.combo_key.in_(keys))
     overrides = (await db.execute(query)).scalars().all()
     return product, tiers, overrides
 
@@ -199,7 +207,7 @@ async def price_configuration(db, product_id, selections: dict, quantity: int) -
             except (ValueError, AttributeError, TypeError):
                 continue
 
-    product, tiers, override_rows = await _load(db, product_id, chosen_ids)
+    product, tiers, override_rows = await _load(db, product_id, chosen_ids, wanted)
     return compute_price(product, tiers, override_rows, wanted, quantity)
 
 

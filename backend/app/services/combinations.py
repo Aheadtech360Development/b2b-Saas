@@ -14,7 +14,7 @@ All of them, automatically — every active option with choices to pick from.
 Add an option and the table grows by itself. A free-typed answer (the name to
 print) is the one exception, because it has no fixed list of values to combine.
 A product whose options multiply past MAX_MATRIX is told its size rather than
-shown a table nobody could fill in.
+shown a table the system will not hold.
 
 Matching is by subset, most specific first
 ------------------------------------------
@@ -41,14 +41,25 @@ import uuid
 from decimal import Decimal
 from typing import Any, Iterable, Iterator, Sequence
 
-# A grid the admin could not work through is not worth generating. Well above
-# any real price table (5 sizes x 8 quantities x 4 finishes is 160) and far
-# below the point where paging it becomes slow.
-MAX_MATRIX = 5000
+# The most combinations one product's price table holds. Set by what the system
+# can carry, not by what a person could type: grids arrive as a supplier's
+# spreadsheet (services/price_grid.py), and a yard sign is already 11,000+
+# rows. Measured 2026-10-26 on a local Postgres in Docker at 40,320 rows:
+# reading and planning the file 1.5 s; writing it 20-35 s, nearly all of it
+# that machine's disk (Postgres idle on CPU; 13,440 rows in one INSERT…SELECT
+# is 3.3 s there); a storefront price 38 ms median, the same as at 13,440
+# (it looks rows up by name, never scans the table); a page of the admin grid
+# 0.2-0.7 s; the download 2.5 s, streamed. Raise it only after measuring again.
+MAX_MATRIX = 50_000
 
 # Guards the price path: a selection cannot be made to cost time by sending
 # hundreds of options. Real configurable products are nowhere near this.
 MAX_SELECTION_PAIRS = 64
+
+# The most combination keys one price looks up by name (subset_keys). A
+# selection of k single answers has 2**k - 1 non-empty subsets: eight questions
+# is 255 keys, twelve is 4,095. Past this the GIN containment test is used.
+MAX_SUBSET_KEYS = 4096
 
 _PAIR_SEP = "|"
 _KV_SEP = ":"
@@ -257,6 +268,38 @@ def best_match(overrides: Sequence[Override], selections: dict) -> Override | No
 
 def rows_to_overrides(rows: Iterable[Any]) -> list[Override]:
     return [Override(row) for row in rows]
+
+
+def subset_keys(options: Sequence[Any], selections: dict) -> list[str] | None:
+    """Every key a stored row could have and still apply to this selection:
+    each non-empty pick of at most one chosen answer per question, spelt as
+    combo_key spells it. With them the price is an exact lookup on the
+    (product, combination) index, one probe per key, however large the table:
+    the row matching most pairs, and any switched-off row inside the selection,
+    are among them by definition.
+
+    Only answers the product has count (a typed name to print is no key).
+    None when there would be more than MAX_SUBSET_KEYS; the caller then asks
+    the GIN index for rows contained in the selection instead.
+    """
+    known = {str(o.id): {str(v.id) for v in (o.values or [])} for o in (options or [])}
+    groups: list[list[tuple[str, str]]] = []
+    for option_id, chosen in (selections or {}).items():
+        values = chosen if isinstance(chosen, (list, tuple)) else [chosen]
+        valid = list(dict.fromkeys(str(v) for v in values if str(v) in known.get(str(option_id), ())))
+        if valid:
+            groups.append([(str(option_id), v) for v in valid])
+    count = 1
+    for group in groups:
+        count *= len(group) + 1
+        if count - 1 > MAX_SUBSET_KEYS:
+            return None
+    keys: list[str] = []
+    for pick in itertools.product(*[[None, *group] for group in groups]):
+        pairs = [p for p in pick if p is not None]
+        if pairs:
+            keys.append(combo_key(pairs))
+    return keys
 
 
 # ── Validation ───────────────────────────────────────────────────────────────

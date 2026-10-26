@@ -305,3 +305,59 @@ def test_the_yard_sign_file():
             continue
         priced = compute_price(product, [], rows, _pick(product, **dict(zip([o.name for o in product.options], e.labels))), 1)
         assert _billed(priced) == e.price, e.labels
+
+
+# ── Finding the rows that apply, at any table size ────────────────────────────
+
+def test_subset_keys_find_exactly_the_rows_inside_a_selection():
+    """The price path looks stored rows up by name (every key a subset of the
+    selection could have) instead of scanning. Whatever rows are stored, short
+    or long, on or off, it must find exactly the ones whose choices are all in
+    the selection: the set best_match and blocked_by choose from."""
+    import random
+
+    rnd = random.Random(26)
+    options = [_option(f"Q{i}", [f"v{j}" for j in range(rnd.randint(2, 5))], i) for i in range(7)]
+    options.append(_option("Extras", ["a", "b", "c"], 7, input_type="checkbox"))
+    options.append(SimpleNamespace(id=uuid.uuid4(), name="Name to print", input_type="text", is_active=True,
+                                   required=False, position=8, values=[]))
+    stored = set()
+    for _ in range(3000):
+        chosen = rnd.sample(options[:8], rnd.randint(1, 8))
+        stored.add(combos.combo_key((o.id, rnd.choice(o.values).id) for o in chosen))
+    for _ in range(300):
+        sel = {str(o.id): str(rnd.choice(o.values).id) for o in options[:7]}
+        extras = options[7]
+        sel[str(extras.id)] = [str(v.id) for v in rnd.sample(extras.values, rnd.randint(0, 3))]
+        sel[str(options[8].id)] = "Jane's Bakery"            # a typed answer is no key
+        picked = combos.selection_pairs(sel)
+        inside = {k for k in stored if set(combos.parse_key(k)) <= picked}
+        keys = combos.subset_keys(options, sel)
+        assert keys is not None and len(keys) == len(set(keys))
+        assert {k for k in stored if k in set(keys)} == inside
+
+
+def test_too_many_answers_fall_back_to_the_index_test():
+    options = [_option(f"Q{i}", ["x", "y"], i) for i in range(13)]       # 2**13 - 1 subsets
+    sel = {str(o.id): str(o.values[0].id) for o in options}
+    assert combos.subset_keys(options, sel) is None
+    assert len(combos.subset_keys(options[:12], sel)) == 2 ** 12 - 1      # 4,095 still looked up by name
+
+
+def test_a_large_grid_is_read_and_planned():
+    """Past the old 5,000-row cap: 13,440 rows, planned whole."""
+    head = "Qty,Size,Material,Price\n"
+    body = "".join(f"{q},S{s},M{m},{q * 1.5 + s + m:.2f}\n" for q in range(1, 113) for s in range(24) for m in range(5))
+    the_plan = grid.plan(grid.read_csv(head + body), [])
+    assert the_plan["rows"] == 13_440 and the_plan["priced"] == 13_440 and the_plan["error_count"] == 0
+    assert the_plan["quantity_column"] == "Qty"
+
+
+def test_the_download_streams_in_pieces():
+    the_plan = grid.plan(grid.read_csv(_grid_text()), [])
+    product = _product_from_plan(the_plan)
+    rows = _rows_from_plan(product, the_plan)
+    many = [_option("Q", [str(i) for i in range(1, 41)], 0, "quantity"), _option("S", [f"s{i}" for i in range(30)], 1)]
+    pieces = list(grid.export_lines(many, []))
+    assert len(pieces) > 1 and "".join(pieces).count("\n") == 1 + 40 * 30
+    assert grid.export_csv(product.options, rows).count("\n") == 1 + len(rows)

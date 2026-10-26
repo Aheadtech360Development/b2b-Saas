@@ -56,7 +56,8 @@ const ROLE_LABEL: Record<Role, string> = {
   ignored: "Left out",
 };
 
-const MAX_FILE = 3_000_000;
+// The server takes up to 10 MB (a 50,000-row grid is about 7 MB).
+const MAX_FILE = 10_000_000;
 
 function messageOf(e: unknown, fallback: string): string {
   const err = e as { message?: string };
@@ -106,7 +107,7 @@ export function PriceGridImport({
   async function pickFile(file: File | undefined) {
     if (!file) return;
     if (file.size > MAX_FILE) {
-      setError("That file is over 3 MB. Leave out the columns that are not needed, or split it.");
+      setError("That file is over 10 MB. Leave out the columns that are not needed, or split it.");
       return;
     }
     const text = await file.text();

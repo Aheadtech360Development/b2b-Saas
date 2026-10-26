@@ -25,15 +25,19 @@ from __future__ import annotations
 import csv
 import io
 import re
+import uuid
+from collections import Counter
 from dataclasses import dataclass
+from functools import lru_cache
 from decimal import Decimal, InvalidOperation
 from itertools import combinations as column_pairs
-from typing import Any
+from typing import Any, Iterator
 
 from app.services import combinations as combos
 from app.services.configurator_service import QUANTITY_INPUT, quantity_of
 
-MAX_BYTES = 3_000_000
+# A 50,000-row grid with a dozen columns is about 7 MB.
+MAX_BYTES = 10_000_000
 MAX_ROWS = combos.MAX_MATRIX
 MAX_COLUMNS = 40
 MAX_ERRORS_SHOWN = 50
@@ -57,8 +61,12 @@ class GridError(ValueError):
     """The file cannot be read as a price grid at all."""
 
 
+@lru_cache(maxsize=65_536)
 def norm(text: str | None) -> str:
-    """How names are compared: case and spacing do not make two names different."""
+    """How names are compared: case and spacing do not make two names different.
+
+    Remembered: a 40,000-row grid asks this of the same few dozen labels
+    hundreds of thousands of times."""
     return _SPACE.sub(" ", (text or "").strip()).casefold()
 
 
@@ -154,6 +162,9 @@ def profile(sheet: Sheet) -> list[Column]:
     columns: list[Column] = []
     for index, name in enumerate(sheet.header):
         distinct: dict[str, str] = {}
+        # What each different cell is, worked out once: a question column has a
+        # handful of values over thousands of rows.
+        seen: dict[str, tuple[bool, bool]] = {}
         whole = True
         decimals = False
         filled = bad = 0
@@ -162,13 +173,16 @@ def profile(sheet: Sheet) -> list[Column]:
             if not cell:
                 continue
             filled += 1
-            distinct.setdefault(norm(cell), cell)
-            kind, _ = read_price(cell)
-            if kind == "bad":
+            known = seen.get(cell)
+            if known is None:
+                distinct.setdefault(norm(cell), cell)
+                known = seen[cell] = (read_price(cell)[0] == "bad", quantity_of(cell) is None)
+                if "." in cell:
+                    decimals = True
+            is_bad, not_whole = known
+            if is_bad:
                 bad += 1
-            if "." in cell:
-                decimals = True
-            if quantity_of(cell) is None:
+            if not_whole:
                 whole = False
         # A typo or two in a column of prices leaves it a column of prices, so
         # the typo is reported on its row instead of the column being read as
@@ -422,38 +436,87 @@ def _unavailable(entries: list[Entry], width: int):
 
     A blank row is not N/A: it is a combination the file does not price, which
     keeps its current price.
+
+    Each choice becomes a small number and rows are counted with Counter, whose
+    counting runs in C: a 40,000-row grid with nine questions is 1.4 million
+    pairs, too many to tally one Python step at a time.
     """
-    single: dict[tuple[int, str], list[int]] = {}
-    double: dict[tuple[tuple[int, str], tuple[int, str]], list[int]] = {}
+    codes: dict[tuple[int, str], int] = {}
+    choice_of: list[tuple[int, str]] = []          # code -> (question, label as first seen)
+    singles: Counter = Counter()
+    singles_na: Counter = Counter()
+    doubles: Counter = Counter()
+    doubles_na: Counter = Counter()
     for e in entries:
-        na = 1 if e.status == "na" else 0
-        keys = [(i, norm(label)) for i, label in enumerate(e.labels)]
-        for k in keys:
-            t = single.setdefault(k, [0, 0])
-            t[0] += 1
-            t[1] += na
-        for a, b in column_pairs(range(width), 2):
-            t = double.setdefault((keys[a], keys[b]), [0, 0])
-            t[0] += 1
-            t[1] += na
-
-    label_of: dict[tuple[int, str], str] = {}
-    for e in entries:
+        row: list[int] = []
         for i, label in enumerate(e.labels):
-            label_of.setdefault((i, norm(label)), label)
+            key = (i, norm(label))
+            code = codes.get(key)
+            if code is None:
+                code = codes[key] = len(choice_of)
+                choice_of.append((i, label))
+            row.append(code)
+        singles.update(row)
+        doubles.update(column_pairs(row, 2))
+        if e.status == "na":
+            singles_na.update(row)
+            doubles_na.update(column_pairs(row, 2))
 
-    never = [(k[0], label_of[k]) for k, (total, na) in single.items() if total and na == total]
-    never_keys = {k for k, (total, na) in single.items() if total and na == total}
+    never_codes = {c for c, n in singles_na.items() if n == singles[c]}
+    never = [choice_of[c] for c in sorted(never_codes)]
     pairs = [
-        ((a[0], label_of[a]), (b[0], label_of[b]))
-        for (a, b), (total, na) in double.items()
-        if total and na == total and a not in never_keys and b not in never_keys
+        (choice_of[a], choice_of[b])
+        for (a, b), n in doubles_na.items()
+        if n == doubles[(a, b)] and a not in never_codes and b not in never_codes
     ]
     pairs.sort(key=lambda p: (p[0][0], p[1][0], norm(p[0][1]), norm(p[1][1])))
     return never, pairs
 
 
 # ── Applying it ───────────────────────────────────────────────────────────────
+
+# Rows per executemany call: one prepared statement run for each row in a
+# pipeline (no giant statement compiled per batch), in slices so a 50,000-row
+# file is never one call.
+UPSERT_BATCH = 5_000
+
+
+async def _upsert_prices(db, rows: list[dict[str, Any]]) -> None:
+    """Write combination prices, new or not, a batch per statement.
+
+    On a combination already priced, the file's price, availability and value
+    ids replace what was there; its note replaces the old one when the file has
+    one, and the import's own "Not available" goes once the row is for sale
+    again; its SKU stays unless the file gives one; a setup fee typed in the
+    admin is kept.
+    """
+    from sqlalchemy import case, func, null
+    from sqlalchemy.dialects.postgresql import insert as pg_insert
+
+    from app.models.product_option import ProductOptionCombination
+
+    table = ProductOptionCombination.__table__
+    stmt = pg_insert(table)
+    new = stmt.excluded
+    stmt = stmt.on_conflict_do_update(
+        index_elements=[table.c.product_id, table.c.combo_key],
+        set_={
+            "value_ids": new.value_ids,
+            "unit_price": new.unit_price,
+            "line_price": new.line_price,
+            "enabled": new.enabled,
+            "note": case(
+                (new.note.isnot(None), new.note),
+                (table.c.note == NOT_AVAILABLE_NOTE, null()),
+                else_=table.c.note,
+            ),
+            "sku": func.coalesce(new.sku, table.c.sku),
+            "updated_at": func.now(),
+        },
+    )
+    for start in range(0, len(rows), UPSERT_BATCH):
+        await db.execute(stmt, rows[start:start + UPSERT_BATCH])
+
 
 async def apply(db, product, the_plan: dict[str, Any], *, replace: bool = False, add_rules: bool = True) -> dict[str, Any]:
     """Write the plan to the product: questions, choices, prices, rules.
@@ -462,12 +525,9 @@ async def apply(db, product, the_plan: dict[str, Any], *, replace: bool = False,
     """
     from sqlalchemy import select
 
-    from app.models.product_option import (
-        ProductOption,
-        ProductOptionCombination,
-        ProductOptionRule,
-        ProductOptionValue,
-    )
+    from app.models.product_option import ProductOption, ProductOptionRule, ProductOptionValue
+
+    from sqlalchemy import text
 
     question_plans = the_plan["_questions"]
     entries: list[Entry] = the_plan["_entries"]
@@ -520,54 +580,45 @@ async def apply(db, product, the_plan: dict[str, Any], *, replace: bool = False,
         value_ids.append(by_label)
     await db.flush()
 
-    rows = {
-        row.combo_key: row for row in (await db.execute(
-            select(ProductOptionCombination).where(ProductOptionCombination.product_id == product.id)
-        )).scalars().all()
-    }
-    keys: set[str] = set()
+    # The prices, set-based: one INSERT … ON CONFLICT (product, combination)
+    # DO UPDATE run for every row, inside the caller's one transaction, so a
+    # file goes in whole or not at all, importing the same file twice leaves
+    # the table as it was, and no row is read or held as an object first.
+    rows: list[dict[str, Any]] = []
     saved = switched_off = 0
     for e in entries:
         if e.status == "blank":
             continue
         pairs = [(option_ids[i], value_ids[i][norm(label)].id) for i, label in enumerate(e.labels)]
         key = combos.combo_key(pairs)
-        keys.add(key)
-        row = rows.get(key)
-        if row is None:
-            row = ProductOptionCombination(product_id=product.id, combo_key=key)
-            db.add(row)
-            rows[key] = row
-        row.value_ids = combos.value_ids_of(key)
-        if e.status == "na":
-            row.enabled = False
-            row.unit_price = None
-            row.line_price = None
-            row.note = (e.note or NOT_AVAILABLE_NOTE)[:200]
+        na = e.status == "na"
+        rows.append({
+            "id": uuid.uuid4(),
+            "tenant_id": product.tenant_id,
+            "product_id": product.id,
+            "combo_key": key,
+            "value_ids": combos.value_ids_of(key),
+            # The row names how many when the product asks it, so its price is
+            # the whole line's.
+            "line_price": None if na or not has_quantity else e.price,
+            "unit_price": None if na or has_quantity else e.price,
+            "enabled": not na,
+            "note": (e.note or NOT_AVAILABLE_NOTE)[:200] if na else (e.note[:200] if e.note is not None else None),
+            "sku": e.sku[:80] if e.sku is not None else None,
+        })
+        if na:
             switched_off += 1
         else:
-            row.enabled = True
-            if has_quantity:
-                # The row names how many, so its price is the whole line's.
-                row.line_price = e.price
-                row.unit_price = None
-            else:
-                row.unit_price = e.price
-                row.line_price = None
-            if e.note is not None:
-                row.note = e.note[:200]
-            elif row.note == NOT_AVAILABLE_NOTE:
-                row.note = None
             saved += 1
-        if e.sku is not None:
-            row.sku = e.sku[:80]
+    await _upsert_prices(db, rows)
 
     removed = 0
-    if replace:
-        for key, row in list(rows.items()):
-            if key not in keys and row in db:
-                await db.delete(row)
-                removed += 1
+    if replace and rows:
+        # One array parameter, however many rows the file has.
+        removed = (await db.execute(
+            text("DELETE FROM product_option_combinations WHERE product_id = :p AND NOT (combo_key = ANY(:keys))"),
+            {"p": product.id, "keys": [r["combo_key"] for r in rows]},
+        )).rowcount or 0
 
     added_rules = 0
     if add_rules and the_plan["_pairs"]:
@@ -615,20 +666,29 @@ def _figure(amount: Any) -> str:
     return str(cents if cents == value else value.quantize(Decimal("0.0001")))
 
 
-def export_csv(options: list[Any], stored_rows: list[Any]) -> str:
-    """Every combination with its own price, in the shape `read_csv` takes back."""
-    taking_part = combos.matrix_options(options)
-    if not taking_part:
+def check_exportable(options: list[Any]) -> None:
+    """Refuse, before anything is streamed, a product with nothing to export or
+    more combinations than a table holds."""
+    if not combos.matrix_options(options):
         raise GridError("This product has no questions with choices yet, so there is nothing to price.")
     total = combos.count_combinations(options)
     if total > combos.MAX_MATRIX:
         raise GridError(f"{total:,} combinations is more than a price table can hold ({combos.MAX_MATRIX:,}).")
 
+
+def export_lines(options: list[Any], stored_rows: list[Any]) -> Iterator[str]:
+    """Every combination with its own price, in the shape `read_csv` takes back,
+    a few hundred lines at a time: the file streams while it is written.
+
+    `stored_rows` need only combo_key, enabled, line_price, unit_price, sku and
+    note (plain tuples from a column select do)."""
+    check_exportable(options)
+    taking_part = combos.matrix_options(options)
     by_key = {row.combo_key: row for row in stored_rows}
     out = io.StringIO()
     writer = csv.writer(out, lineterminator="\n")
     writer.writerow([o.name for o in taking_part] + ["Price", "SKU", "Note"])
-    for pairs in combos.iter_combinations(options):
+    for n, pairs in enumerate(combos.iter_combinations(options), start=1):
         row = by_key.get(combos.combo_key((o.id, v.id) for o, v in pairs))
         price = sku = note = ""
         if row is not None:
@@ -641,4 +701,13 @@ def export_csv(options: list[Any], stored_rows: list[Any]) -> str:
             sku = row.sku or ""
             note = "" if (row.note or "") == NOT_AVAILABLE_NOTE else (row.note or "")
         writer.writerow([v.label for _, v in pairs] + [price, sku, note])
-    return out.getvalue()
+        if n % 500 == 0:
+            yield out.getvalue()
+            out.seek(0)
+            out.truncate(0)
+    yield out.getvalue()
+
+
+def export_csv(options: list[Any], stored_rows: list[Any]) -> str:
+    """The whole export as one string (for tests and small tables)."""
+    return "".join(export_lines(options, stored_rows))

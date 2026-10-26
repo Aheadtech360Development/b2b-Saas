@@ -8,13 +8,14 @@ existing ids stable so saved configurations keep resolving.
 """
 from __future__ import annotations
 
+import asyncio
 import uuid
 from decimal import Decimal
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from pydantic import BaseModel, Field
-from sqlalchemy import select, text as _sa_text
+from sqlalchemy import func, select, text as _sa_text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -465,17 +466,26 @@ async def get_combinations(
     options = list(product.options or [])
     taking_part = combos.matrix_options(options)
     total = combos.count_combinations(options)
+    C = ProductOptionCombination
 
+    page = combos.page_combinations(options, offset=offset, limit=limit) if total and total <= combos.MAX_MATRIX else []
+    # Only the stored rows this page can use, never the whole table (an
+    # imported grid is tens of thousands of rows): every row naming nothing
+    # outside the page's choices. That is each cell's own row and any shorter
+    # row a cell inherits from, by the GIN index on value_ids.
+    page_values = sorted({v.id for pairs in page for _, v in pairs}, key=str)
     stored = (await db.execute(
-        select(ProductOptionCombination)
-        .where(ProductOptionCombination.product_id == product_id)
-    )).scalars().all()
+        select(C).where(C.product_id == product_id, C.value_ids.contained_by(page_values))
+    )).scalars().all() if page_values else []
     by_key = {row.combo_key: row for row in stored}
     overrides = combos.rows_to_overrides(stored)
+    priced_count = (await db.execute(
+        select(func.count()).select_from(C).where(C.product_id == product_id)
+    )).scalar() or 0
 
     cells: list[dict] = []
-    if total and total <= combos.MAX_MATRIX:
-        for pairs in combos.page_combinations(options, offset=offset, limit=limit):
+    if page:
+        for pairs in page:
             key = combos.combo_key((o.id, v.id) for o, v in pairs)
             own = by_key.get(key)
             # What this cell would be charged at today, whether or not it has a
@@ -542,9 +552,10 @@ async def get_combinations(
         # grid that never finishes loading.
         "too_large": bool(total > combos.MAX_MATRIX),
         "combinations": cells,
-        "priced_count": len(stored),
-        # Rows that no longer line up with any generated cell, usually because
-        # they were priced before an option joined the table. They still apply.
+        "priced_count": priced_count,
+        # The stored rows behind this page's cells (their own and any shorter
+        # row they inherit from). The whole table is not sent: an imported grid
+        # is tens of thousands of rows.
         "stored": [_combo_row(r) for r in stored],
     }
 
@@ -653,14 +664,21 @@ async def _grid_plan(db: AsyncSession, product_id: uuid.UUID, payload: PriceGrid
             status_code=400,
             detail="This product is not priced by options yet. Choose options pricing, save, then import.",
         )
-    try:
-        sheet = price_grid.read_csv(payload.csv)
-        the_plan = price_grid.plan(
-            sheet, _questions_of(product),
+    questions = _questions_of(product)
+
+    def read_and_plan() -> dict:
+        return price_grid.plan(
+            price_grid.read_csv(payload.csv), questions,
             price_column=payload.price_column,
             quantity_column=price_grid.AUTO if payload.quantity_column is None else payload.quantity_column,
             ignore=payload.ignore,
         )
+
+    try:
+        # Pure CPU work on plain data (a 40,000-row file is a second or two):
+        # done off the event loop, so this worker keeps answering other
+        # requests meanwhile.
+        the_plan = await asyncio.to_thread(read_and_plan)
     except price_grid.GridError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     return product, the_plan
@@ -705,18 +723,25 @@ async def export_price_grid(
     _: None = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ) -> Response:
-    """Every combination and its own price, ready to edit and import again."""
+    """Every combination and its own price, ready to edit and import again.
+
+    Streamed as it is written, from the six columns it needs (not a row object
+    per combination), so a 50,000-row table costs a few megabytes at most."""
+    from fastapi.responses import StreamingResponse
+
     product = await _load_product(db, product_id)
-    stored = (await db.execute(
-        select(ProductOptionCombination).where(ProductOptionCombination.product_id == product_id)
-    )).scalars().all()
+    options = list(product.options or [])
     try:
-        text = price_grid.export_csv(list(product.options or []), list(stored))
+        price_grid.check_exportable(options)
     except price_grid.GridError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
+    C = ProductOptionCombination
+    stored = (await db.execute(
+        select(C.combo_key, C.enabled, C.line_price, C.unit_price, C.sku, C.note).where(C.product_id == product_id)
+    )).all()
     name = "".join(ch if ch.isalnum() or ch in "-_" else "-" for ch in (product.slug or "product"))[:80]
-    return Response(
-        content=text,
+    return StreamingResponse(
+        price_grid.export_lines(options, list(stored)),
         media_type="text/csv; charset=utf-8",
         headers={"Content-Disposition": f'attachment; filename="{name}-prices.csv"'},
     )
