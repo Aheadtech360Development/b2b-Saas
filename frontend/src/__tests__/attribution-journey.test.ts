@@ -7,6 +7,12 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+// What the storefront tells the shop: one report per visit that began (Home's Sessions).
+const { posts } = vi.hoisted(() => ({ posts: [] as { url: string; body: Record<string, unknown> }[] }));
+vi.mock("@/lib/api-client", () => ({
+  apiClient: { post: (url: string, body: Record<string, unknown>) => { posts.push({ url, body }); return Promise.resolve({ kept: true }); } },
+}));
+
 type Mod = typeof import("@/lib/attribution");
 
 async function pageLoad(path: string, referrer = ""): Promise<Mod> {
@@ -18,6 +24,7 @@ async function pageLoad(path: string, referrer = ""): Promise<Mod> {
 
 describe("the visits kept for the Conversion summary", () => {
   beforeEach(() => {
+    posts.length = 0;
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-10-23T16:02:00Z"));
   });
@@ -59,6 +66,10 @@ describe("the visits kept for the Conversion summary", () => {
     expect(sent?.sessions?.[2]).toMatchObject({ utm_source: "bing", utm_medium: "cpc", utm_campaign: "fall" });
     // The one source for the order's columns is still the last one that named itself.
     expect(sent?.utm_campaign).toBe("fall");
+    // Each visit was reported once, by the id the order will carry.
+    expect(posts.map((p) => p.url)).toEqual(Array(3).fill("/api/v1/storefront/visits"));
+    expect(posts.map((p) => p.body.id)).toEqual(sent?.sessions?.map((s) => s.id));
+    expect(posts[2]?.body).toMatchObject({ utm_source: "bing", utm_medium: "cpc", utm_campaign: "fall", referrer: "https://www.bing.com/" });
   });
 
   it("does not start a new session for moving between pages, a reload, or a second tab", async () => {
@@ -79,6 +90,8 @@ describe("the visits kept for the Conversion summary", () => {
     expect(sent?.sessions).toHaveLength(1);
     expect(sent?.visits).toBe(1);
     expect(sent?.sessions?.[0]?.last).toBe("2026-10-23T16:12:00.000Z");
+    expect(posts).toHaveLength(1);
+    expect(posts[0]?.body).toMatchObject({ click: "gclid", utm_source: "google" });
   });
 
   it("starts a new session when the buyer comes back from somewhere else, even soon", async () => {
@@ -105,6 +118,7 @@ describe("the visits kept for the Conversion summary", () => {
     const m = await pageLoad("/admin/orders", "https://www.google.com/");
     expect(m.captureAttribution()).toBeNull();
     expect(m.getAttribution()).toBeNull();
+    expect(posts).toHaveLength(0);
   });
 
   it("keeps the first visit and the latest ones when there are very many", async () => {
@@ -149,5 +163,21 @@ describe("the visits kept for the Conversion summary", () => {
     expect(sent?.sessions).toHaveLength(2);
     expect(sent?.sessions?.[0]).toMatchObject({ at: "2026-10-22T12:00:00.000Z", utm_source: "facebook" });
     expect(sent?.visits).toBe(2);
+  });
+
+  it("counts a visit under way from before visits had ids, once", async () => {
+    localStorage.setItem("at_attr", JSON.stringify({
+      first_seen: "2026-10-23T15:50:00.000Z", last_seen: "2026-10-23T16:00:00.000Z", visits: 1,
+      sessions: [{ at: "2026-10-23T15:50:00.000Z", last: "2026-10-23T16:00:00.000Z", referrer: "https://www.bing.com/" }],
+    }));
+    let m = await pageLoad("/products/tee");
+    m.captureAttribution();
+    vi.setSystemTime(new Date("2026-10-23T16:05:00Z"));
+    m = await pageLoad("/products/hoodie");
+    m.captureAttribution();
+    const sent = m.getAttribution();
+    expect(sent?.sessions).toHaveLength(1);
+    expect(sent?.sessions?.[0]?.id).toMatch(/^[0-9a-f-]{36}$/);
+    expect(posts.map((p) => p.body.id)).toEqual([sent?.sessions?.[0]?.id]);
   });
 });

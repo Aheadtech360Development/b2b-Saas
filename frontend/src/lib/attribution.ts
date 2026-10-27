@@ -24,6 +24,8 @@
  * Every access is wrapped: private browsing makes these throw.
  */
 
+import { apiClient } from "@/lib/api-client";
+
 const KEY = "at_attr";
 const MAX_AGE_DAYS = 90;
 /** A gap this long counts as a new visit rather than more of the same one. */
@@ -45,6 +47,8 @@ type Source = Partial<Record<SourceKey, string>> & { referrer?: string };
 
 /** One visit: when it started and last moved, its first page, and what it arrived with. */
 export interface Visit extends Source {
+  /** This visit's own id: reported once to the shop (Home's Sessions), and the checkout marks it converted. */
+  id?: string;
   at: string;
   last: string;
   landing_page?: string;
@@ -145,6 +149,45 @@ function hostOf(url?: string): string {
   }
 }
 
+function newId(): string {
+  try {
+    if (typeof crypto.randomUUID === "function") return crypto.randomUUID();
+    const b = crypto.getRandomValues(new Uint8Array(16));
+    b[6] = (b[6]! & 0x0f) | 0x40;
+    b[8] = (b[8]! & 0x3f) | 0x80;
+    const h = Array.from(b, (x) => x.toString(16).padStart(2, "0")).join("");
+    return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
+  } catch {
+    return "";
+  }
+}
+
+/**
+ * Tell the shop a visit began, once: Home counts these as Sessions, and the
+ * checkout marks the one that placed an order (Conversion rate). Never waited
+ * on and never an error a shopper sees; a test browser is not a visitor.
+ */
+function reportVisit(visit: Visit, device: Attribution["device"]): void {
+  try {
+    if (!visit.id || navigator.webdriver) return;
+    const click = CLICK_KEYS.find((key) => visit[key]);
+    void apiClient.post("/api/v1/storefront/visits", {
+      id: visit.id,
+      landing_page: visit.landing_page,
+      referrer: visit.referrer,
+      utm_source: visit.utm_source,
+      utm_medium: visit.utm_medium,
+      utm_campaign: visit.utm_campaign,
+      utm_term: visit.utm_term,
+      utm_content: visit.utm_content,
+      click,
+      device,
+    }).catch(() => {});
+  } catch {
+    /* counting a visit is never worth an error */
+  }
+}
+
 /** Whether what this page arrived with is the visit already under way (a reload, a second tab). */
 function sameSource(visit: Visit, arrived: Source): boolean {
   const tags = [...UTM_KEYS, ...CLICK_KEYS];
@@ -184,6 +227,7 @@ export function captureAttribution(): Attribution | null {
   const arrived: Source = { ...incoming, ...(referrer ? { referrer } : {}) };
 
   if (!stored) {
+    const visit: Visit = { id: newId(), at: now, last: now, landing_page: here(), ...arrived };
     const fresh: Attribution = {
       ...incoming,
       referrer,
@@ -193,9 +237,10 @@ export function captureAttribution(): Attribution | null {
       ...(namesASource ? { source_seen: now } : {}),
       visits: 1,
       device: deviceKind(),
-      sessions: [{ at: now, last: now, landing_page: here(), ...arrived }],
+      sessions: [visit],
     };
     write(fresh);
+    reportVisit(visit, fresh.device);
     return fresh;
   }
 
@@ -207,12 +252,16 @@ export function captureAttribution(): Attribution | null {
   const newVisit = !current || gapMs > VISIT_GAP_MINUTES * 60_000 || (namesASource && !sameSource(current, arrived));
 
   const next: Attribution = { ...stored, last_seen: now };
+  let begun: Visit | null = null;
   if (newVisit) {
     next.visits = (stored.visits ?? sessions.length) + 1;
-    sessions.push({ at: now, last: now, landing_page: here(), ...arrived });
+    begun = { id: newId(), at: now, last: now, landing_page: here(), ...arrived };
+    sessions.push(begun);
     if (sessions.length > MAX_SESSIONS) sessions.splice(1, sessions.length - MAX_SESSIONS);
-  } else {
-    sessions[sessions.length - 1] = { ...current, last: now };
+  } else if (current) {
+    // A visit under way from before visits had ids is counted from now.
+    sessions[sessions.length - 1] = { ...current, last: now, ...(current.id ? {} : { id: newId() }) };
+    if (!current.id) begun = sessions[sessions.length - 1] ?? null;
   }
   next.sessions = sessions;
 
@@ -228,6 +277,7 @@ export function captureAttribution(): Attribution | null {
   }
 
   write(next);
+  if (begun) reportVisit(begun, next.device ?? deviceKind());
   return next;
 }
 

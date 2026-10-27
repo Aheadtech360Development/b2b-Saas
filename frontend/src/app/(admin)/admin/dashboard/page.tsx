@@ -16,24 +16,21 @@ import { Check, Plus, Sparkles } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { hasScope } from "@/lib/permissions";
 import { useAuthStore } from "@/stores/auth.store";
+import { HomeSales } from "@/components/admin/HomeSales";
 
 type Severity = "urgent" | "attention" | "info";
 interface Need { key: string; severity: Severity; count: number; label: string; detail: string; action: string; href: string }
 interface Stage { key: string; label: string; count: number; href: string }
 interface Step { key: string; title: string; detail: string; done: boolean; href: string }
-interface Sales { total: number; orders: number; average: number }
 interface RecentOrder { id: string; order_number: string; customer: string; created_at: string | null; total: number; status: string }
-type Range = "7d" | "30d" | "all";
 
 interface HomeData {
   needs: Need[];
   pipeline: Stage[];
   checklist: Step[];
-  sales: Partial<Record<Range, Sales>>;
   recent_orders: RecentOrder[];
 }
 
-const RANGES: [Range, string][] = [["7d", "7 days"], ["30d", "30 days"], ["all", "All time"]];
 /** How many things to do are shown before "Show more". */
 const FIRST_NEEDS = 5;
 const STATUS_TONE: Record<string, string> = {
@@ -52,7 +49,6 @@ export default function AdminHome() {
 
   const [data, setData] = useState<HomeData | null>(null);
   const [failed, setFailed] = useState(false);
-  const [range, setRange] = useState<Range>("all");
   const [domainLive, setDomainLive] = useState(false);
   const [allNeeds, setAllNeeds] = useState(false);
 
@@ -73,7 +69,6 @@ export default function AdminHome() {
   const steps = (data?.checklist ?? []).map((s) =>
     s.key === "domain" && domainLive ? { ...s, done: true, detail: s.detail.replace(/: waiting for DNS/i, " is live") } : s);
   const doneCount = steps.filter((s) => s.done).length;
-  const sales = data?.sales?.[range];
   // The first few are today's work; the rest is one press away, so a long list
   // does not push the pipeline off the screen.
   const needs = allNeeds ? data?.needs ?? [] : (data?.needs ?? []).slice(0, FIRST_NEEDS);
@@ -93,6 +88,9 @@ export default function AdminHome() {
           </Link>
         )}
       </div>
+
+      {/* ── Sales, sessions and conversion rate, for any days ─────────── */}
+      {canReports && <HomeSales />}
 
       {failed && <div className="pc-card pc-empty">Could not load today&apos;s work. Reload to try again.</div>}
 
@@ -206,28 +204,6 @@ export default function AdminHome() {
               </section>
             )}
 
-            {/* ── Sales ─────────────────────────────────────────────────── */}
-            {canReports && (
-              <section className="pc-card" aria-labelledby="sales-title" style={{ padding: "20px" }}>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "10px", flexWrap: "wrap" }}>
-                  <h2 className="pc-h2" id="sales-title">Sales</h2>
-                  <div className="pc-seg" role="group" aria-label="Period">
-                    {RANGES.map(([key, label]) => (
-                      <button key={key} type="button" aria-pressed={range === key} onClick={() => setRange(key)}>{label}</button>
-                    ))}
-                  </div>
-                </div>
-                <div className="pc-big" style={{ marginTop: "22px" }}>{sales ? money(sales.total) : "–"}</div>
-                <div className="pc-stat-l" style={{ marginTop: "4px" }}>
-                  {sales ? `Total sales from ${sales.orders} ${sales.orders === 1 ? "order" : "orders"}` : " "}
-                </div>
-                <div style={{ display: "flex", gap: "28px", marginTop: "18px", paddingTop: "18px", borderTop: "1px solid var(--pc-line)" }}>
-                  <div><div className="pc-stat-l">Average order</div><div className="pc-stat-v">{sales ? money(sales.average) : "–"}</div></div>
-                  <div><div className="pc-stat-l">Orders</div><div className="pc-stat-v">{sales ? sales.orders : "–"}</div></div>
-                </div>
-                <div style={{ marginTop: "18px" }}><Link href="/admin/reports" className="pc-link">Open Reports</Link></div>
-              </section>
-            )}
           </div>
         </div>
       )}

@@ -228,6 +228,34 @@ async def _sales(db: AsyncSession) -> dict[str, dict]:
     return out
 
 
+async def sales_for(db: AsyncSession, tenant_id: Any, range_key: str, *, date_from: str | None = None,
+                    date_to: str | None = None, utc_offset: int = 0) -> dict:
+    """Home's Sales for any stretch of days on the viewer's clock: the money
+    and orders as Reports counts them, beside the shop's visits (sessions) and
+    how many of those placed an order (conversion rate, services/visits).
+    ValueError for a custom range that is not two dates."""
+    from app.services import visits
+    from app.services.report_view import _totals as report_totals
+    from app.services.report_view import span as report_span
+
+    s = report_span(range_key, date_from=date_from, date_to=date_to, offset_minutes=utc_offset)
+    money = await report_totals(db, tenant_id, s)
+    try:
+        async with db.begin_nested():
+            seen = await visits.stats(db, tenant_id, s.start, s.end)
+    except Exception as exc:  # noqa: BLE001  (the money still shows)
+        logger.warning("home: visits failed: %s", exc)
+        seen = {"sessions": None, "converted": None, "conversion_rate": None, "counted_since": None}
+    return {
+        "range": range_key,
+        "from": None if range_key == "all" else s.first.isoformat(),
+        "to": s.last.isoformat(),
+        "total": money["revenue"], "orders": money["orders"], "average": money["average"],
+        "sessions": seen["sessions"], "converted_sessions": seen["converted"],
+        "conversion_rate": seen["conversion_rate"], "counted_since": seen["counted_since"],
+    }
+
+
 async def _recent_orders(db: AsyncSession, limit: int = 5) -> list[dict]:
     rows = (await db.execute(
         select(Order, Company.name).outerjoin(Company, Order.company_id == Company.id)

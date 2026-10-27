@@ -18,7 +18,7 @@ import uuid
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -502,6 +502,44 @@ async def get_storefront_analytics(
     if not row:
         return analytics_config.public(analytics_config.blank())
     return analytics_config.public(await analytics_config.load(db, tenant_id=row[0]))
+
+
+# ── Public: a visit began (Home's Sessions and Conversion rate) ──────────────
+class VisitIn(BaseModel):
+    id: str = Field(max_length=40)
+    landing_page: str | None = Field(None, max_length=2000)
+    referrer: str | None = Field(None, max_length=2000)
+    utm_source: str | None = Field(None, max_length=500)
+    utm_medium: str | None = Field(None, max_length=500)
+    utm_campaign: str | None = Field(None, max_length=500)
+    utm_term: str | None = Field(None, max_length=500)
+    utm_content: str | None = Field(None, max_length=500)
+    # Which ad click id the landing link carried (gclid, fbclid, …), not its value.
+    click: str | None = Field(None, max_length=20)
+    device: str | None = Field(None, max_length=10)
+
+
+@public_router.post("/visits", status_code=202)
+async def record_storefront_visit(
+    payload: VisitIn, request: Request, db: AsyncSession = Depends(get_db),
+) -> dict[str, bool]:
+    """Public: the storefront saying a new visit began (frontend lib/attribution.ts).
+
+    Kept once per visit id and counted on Home as a session; a crawler's is not
+    kept. Unauthenticated like the page it comes from, so it is held to a pace
+    no person browsing reaches.
+    """
+    from app.core.rate_limit import enforce_rate_limit
+    from app.services import visits
+
+    tid = await _tenant_id_from_slug(db, getattr(request.state, "tenant_slug", None))
+    if not tid:
+        return {"kept": False}
+    await enforce_rate_limit(request, "storefront_visit", limit=120, window=3600, extra=str(tid))
+    kept = await visits.record(db, tid, payload.model_dump(), request.headers.get("user-agent"))
+    if kept:
+        await db.commit()
+    return {"kept": kept}
 
 
 # ── Admin: this shop's own domain ────────────────────────────────────────────

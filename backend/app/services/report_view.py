@@ -40,6 +40,7 @@ RANGE_WORDS = {"today": "Today", "7d": "Last 7 days", "30d": "Last 30 days", "90
 NOT_SPENT = "('cancelled', 'refunded')"
 # A custom stretch is held to this many days, so one request stays one page of work.
 MAX_DAYS = 3 * 366
+ALL_TIME_FROM = date(2000, 1, 1)
 
 
 @dataclass(frozen=True)
@@ -67,6 +68,9 @@ def span(range_key: str, *, date_from: str | None = None, date_to: str | None = 
     """The days a report covers. ValueError for a custom range that is not two dates."""
     offset = timedelta(minutes=max(-840, min(840, int(offset_minutes or 0))))
     today = ((now or datetime.now(timezone.utc)) + offset).date()
+    if range_key == "all":
+        # Everything up to today (Home's "All time"): before any shop opened.
+        return _span(ALL_TIME_FROM, today, offset)
     if range_key == "custom":
         first, last = date.fromisoformat(date_from or ""), date.fromisoformat(date_to or "")
         if last < first:

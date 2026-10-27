@@ -18,6 +18,7 @@ Two rules shape the rest:
 from __future__ import annotations
 
 import re
+import uuid
 from datetime import datetime, timezone
 from typing import Any
 from urllib.parse import urlsplit
@@ -85,6 +86,11 @@ def _sessions(raw: Any) -> list[dict[str, Any]]:
         if start is None:
             continue
         visit: dict[str, Any] = {"at": start.isoformat()}
+        # The browser's id for the visit, which Home counted (services/visits).
+        try:
+            visit["id"] = str(uuid.UUID(_text(item.get("id"), 40) or ""))
+        except ValueError:
+            pass
         last = _time(item.get("last"))
         if last is not None and last >= start:
             visit["last"] = last.isoformat()

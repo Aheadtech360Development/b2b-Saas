@@ -549,6 +549,10 @@ async def _confirm_checkout_inner(
     # Where the buyer came from. Cleaned before it is stored: it reaches us from
     # a URL anybody can edit.
     _attr.apply(order, payload.attribution)
+    # The visit that placed it counts as converted on Home (services/visits).
+    from app.services import visits as _visits
+
+    await _visits.mark_converted(db, order, payload.attribution)
 
     await _events.record(
         db, order, "order_created",

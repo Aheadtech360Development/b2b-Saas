@@ -131,6 +131,23 @@
 
 /* ── Home ─────────────────────────────────────────────────────────────────── */
 .pc-home { display: grid; grid-template-columns: minmax(0, 1.75fr) minmax(300px, 1fr); gap: 24px; align-items: start; }
+/* Home: Sales, sessions and conversion rate, across the top */
+.pc-home-sales { padding: 20px; margin-bottom: 24px; }
+.pc-home-sales-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.pc-home-sales .pc-seg { max-width: 100%; overflow-x: auto; }
+.pc-home-dates { display: flex; align-items: flex-end; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
+.pc-home-dates > div { width: 180px; }
+.pc-kpis { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); margin-top: 18px; border-top: 1px solid var(--pc-line); }
+.pc-kpi { padding: 16px 16px 4px 0; min-width: 0; }
+.pc-kpi + .pc-kpi { padding-left: 16px; border-left: 1px solid var(--pc-line); }
+.pc-admin .pc-kpi-v { font: 600 26px/1.2 var(--pc-display); color: var(--pc-ink); margin-top: 4px; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.pc-kpi-note { font-size: 12.5px; color: var(--pc-muted); margin-top: 4px; }
+@media (max-width: 900px) {
+  .pc-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .pc-kpi, .pc-kpi + .pc-kpi { padding: 14px 12px 10px 0; border-left: 0; border-bottom: 1px solid var(--pc-line); }
+  .pc-kpi[data-kpi="total"] { grid-column: 1 / -1; }
+  .pc-home-dates > div { width: calc(50% - 5px); }
+}
 .pc-stack { display: flex; flex-direction: column; gap: 24px; min-width: 0; }
 
 .pc-need { display: flex; align-items: center; gap: 16px; padding: 16px 20px; border-top: 1px solid var(--pc-line); }

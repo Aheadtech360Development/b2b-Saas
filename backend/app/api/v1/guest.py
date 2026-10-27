@@ -601,8 +601,11 @@ async def guest_checkout(
 
     from app.services import attribution as _attr
     from app.services import order_events as _events
+    from app.services import visits as _visits
 
     _attr.apply(order, payload.attribution)
+    # The visit that placed it counts as converted on Home.
+    await _visits.mark_converted(db, order, payload.attribution)
 
     await _events.record(
         db, order, "order_created",
