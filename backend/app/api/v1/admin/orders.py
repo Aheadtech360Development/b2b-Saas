@@ -780,6 +780,14 @@ async def get_admin_order(order_id: str, db: AsyncSession = Depends(get_db)):
     except Exception:
         _carriers_on = []
 
+    # "This is their 3rd order": the buyer's orders up to this one, drafts aside.
+    try:
+        async with db.begin_nested():
+            _nth = await _buyer_order_count(db, order)
+    except Exception:
+        logger.warning("Could not count the buyer's orders for %s", order.id, exc_info=True)
+        _nth = None
+
     try:
         return AdminOrderDetail(
             supplier=_supplier_detail,
@@ -837,6 +845,7 @@ async def get_admin_order(order_id: str, db: AsyncSession = Depends(get_db)):
             timeline=order.timeline or [],
             events=_events_rows,
             attribution=attribution.summary(order),
+            conversion=attribution.journey(order, order_count=_nth),
             amount_refunded=getattr(order, "amount_refunded", None),
             refundable_remaining=_remaining,
             refunds=_refund_rows,
@@ -848,6 +857,28 @@ async def get_admin_order(order_id: str, db: AsyncSession = Depends(get_db)):
     except Exception as exc:
         logger.exception("get_admin_order serialization error for order %s: %s", order_id, exc)
         raise HTTPException(status_code=500, detail=str(exc))
+
+
+async def _buyer_order_count(db: AsyncSession, order: Order) -> int | None:
+    """Which of the buyer's orders this is: the company's, the person's, or the
+    guest email's orders placed up to and including it. None when the order
+    names no buyer."""
+    if order.company_id:
+        same = Order.company_id == order.company_id
+    elif order.placed_by_id:
+        same = Order.placed_by_id == order.placed_by_id
+    elif order.guest_email:
+        same = func.lower(Order.guest_email) == order.guest_email.strip().lower()
+    else:
+        return None
+    count = await db.scalar(
+        select(func.count(Order.id)).where(
+            same,
+            Order.created_at <= order.created_at,
+            ~Order.order_number.like("DRAFT-%"),
+        )
+    )
+    return int(count or 0) or None
 
 
 def _attach_sheets(items: list[OrderItemOut], sheets: list[dict]) -> list[OrderItemOut]:

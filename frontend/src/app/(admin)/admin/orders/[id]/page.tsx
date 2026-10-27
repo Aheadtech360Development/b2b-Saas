@@ -22,6 +22,7 @@ import { useBranding } from "@/components/providers/BrandingProvider";
 import { OrderGangSheets } from "@/components/admin/OrderGangSheets";
 import { GangSheetLineFiles, type GangSheetProduction } from "@/components/admin/GangSheetLineFiles";
 import { OrderRefunds, type DisputeRow, type RefundRow } from "@/components/admin/OrderRefunds";
+import { ConversionSummary, type Conversion } from "@/components/admin/ConversionSummary";
 import { discountAmount, discountLabel } from "@/lib/orderMoney";
 import { methodWords, packingSlipHtml, pickListHtml, printHtml, toPrintOrder } from "@/lib/orderPrint";
 import type { LineConfiguration, OrderDiscountLine } from "@/types/order.types";
@@ -119,6 +120,7 @@ interface AdminOrder {
   balance_due?: string | null;
   events?: OrderEvent[];
   attribution?: OrderAttribution | null;
+  conversion?: Conversion | null;
   calculated_weight_lbs?: number;
   items_edited?: boolean;
   convenience_fee?: string | null;
@@ -147,7 +149,6 @@ const JOB_WORDS: Record<string, [string, string]> = {
   approved: ["Approved", "green"], production: ["Printing", "blue"], completed: ["Printed", "green"], rejected: ["Rejected", "red"],
 };
 const PAY_METHOD: Record<string, string> = { ach: "ACH / bank transfer", cod: "Cash on delivery", net_30: "Net 30", card: "Card" };
-const PAID_CLICK: Record<string, string> = { gclid: "Google Ads", fbclid: "Meta Ads", msclkid: "Microsoft Ads", ttclid: "TikTok Ads" };
 const SUPPLIER_WORDS: Record<string, [string, string]> = {
   not_sent: ["Not sent", "amber"], sending: ["Sending", "blue"], test: ["Test only", "amber"],
   placed: ["Ordered", "blue"], shipped: ["Shipped", "green"], failed: ["Failed", "red"],
@@ -939,6 +940,19 @@ export default function AdminOrderDetailPage() {
             ) : <div className="pc-sub-line">No address on this order.</div>}
           </section>
 
+          {/* ── Where the order came from: every visit before it ───────── */}
+          {o.conversion && (
+            <ConversionSummary
+              conversion={o.conversion}
+              extra={o.attribution?.utm_source ? (
+                <Link className="pc-link no-print" style={{ display: "block", marginTop: "10px" }}
+                  href={`/admin/orders?utm_source=${encodeURIComponent(o.attribution.utm_source)}${o.attribution.campaign ? `&utm_campaign=${encodeURIComponent(o.attribution.campaign)}` : ""}`}>
+                  All orders from this {o.attribution.campaign ? "campaign" : "source"}
+                </Link>
+              ) : null}
+            />
+          )}
+
           {/* ── Money ───────────────────────────────────────────────────── */}
           <section className="pc-card pc-pad" aria-labelledby="money-title" data-money>
             <h2 className="pc-h2" id="money-title" style={{ marginBottom: "14px" }}>Money</h2>
@@ -1030,30 +1044,6 @@ export default function AdminOrderDetailPage() {
             </section>
           )}
 
-          {/* ── Where the order came from ───────────────────────────────── */}
-          {o.attribution && (
-            <section className="pc-card pc-pad" aria-labelledby="source-title" data-source>
-              <h2 className="pc-h2" id="source-title">Where it came from</h2>
-              <div style={{ marginTop: "10px", fontSize: "15.5px", fontWeight: 600 }}>{o.attribution.label}</div>
-              <div className="pc-money" style={{ fontSize: "13.5px", marginTop: "10px" }}>
-                {o.attribution.campaign && <div><span>Campaign</span><span>{o.attribution.campaign}</span></div>}
-                {o.attribution.utm_term && <div><span>Search term</span><span>{o.attribution.utm_term}</span></div>}
-                {o.attribution.utm_content && <div><span>Ad</span><span>{o.attribution.utm_content}</span></div>}
-                {o.attribution.paid_click && <div><span>Paid click</span><span>{PAID_CLICK[o.attribution.paid_click] ?? o.attribution.paid_click}</span></div>}
-                {!!o.attribution.visits && <div><span>Visits before ordering</span><span>{o.attribution.visits}</span></div>}
-                {o.attribution.device && <div><span>Device</span><span>{o.attribution.device}</span></div>}
-                {o.attribution.first_seen && <div><span>First visit</span><span>{day(o.attribution.first_seen)}</span></div>}
-              </div>
-              {o.attribution.referrer && <div className="pc-sub-line" style={{ marginTop: "8px", overflowWrap: "anywhere" }}>From {o.attribution.referrer}</div>}
-              {o.attribution.landing_page && <div className="pc-sub-line" style={{ overflowWrap: "anywhere" }}>First page: {o.attribution.landing_page}</div>}
-              {o.attribution.utm_source && (
-                <Link className="pc-link no-print" style={{ display: "inline-block", marginTop: "12px" }}
-                  href={`/admin/orders?utm_source=${encodeURIComponent(o.attribution.utm_source)}${o.attribution.campaign ? `&utm_campaign=${encodeURIComponent(o.attribution.campaign)}` : ""}`}>
-                  All orders from this {o.attribution.campaign ? "campaign" : "source"}
-                </Link>
-              )}
-            </section>
-          )}
         </div>
       </div>
     </div>

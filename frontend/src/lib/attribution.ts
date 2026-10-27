@@ -12,9 +12,12 @@
  * second visit — which carries no campaign — must not erase the first. Only a
  * visit that names a source replaces the stored one.
  *
- * **An unknown source stays unknown.** A visitor who arrived with no campaign
- * and no referrer gets no attribution at all. Writing "direct" would turn
- * something we do not know into something the brand would act on.
+ * **Every visit is listed.** Beside that one source, `sessions` keeps each
+ * visit as it happened (when, the first page, and the referrer, UTMs or ad
+ * click it arrived with), so the order page can show the journey the way
+ * Shopify's Conversion summary does. A visit with none of those is listed as
+ * it is, and the order page calls it direct: typed in, a bookmark, or a link
+ * that hid where it came from.
  *
  * Kept in localStorage, which is per-origin — and every brand has its own
  * subdomain, so one brand's campaigns can never be read on another's store.
@@ -25,37 +28,64 @@ const KEY = "at_attr";
 const MAX_AGE_DAYS = 90;
 /** A gap this long counts as a new visit rather than more of the same one. */
 const VISIT_GAP_MINUTES = 30;
+/** The first visit and the latest ones; `visits` keeps the full count. */
+const MAX_SESSIONS = 25;
 
 const UTM_KEYS = ["utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content"] as const;
-const CLICK_KEYS = ["gclid", "fbclid", "msclkid", "ttclid"] as const;
+const CLICK_KEYS = ["gclid", "gbraid", "wbraid", "fbclid", "msclkid", "ttclid"] as const;
+type SourceKey = (typeof UTM_KEYS)[number] | (typeof CLICK_KEYS)[number];
 
-export interface Attribution {
-  utm_source?: string;
-  utm_medium?: string;
-  utm_campaign?: string;
-  utm_term?: string;
-  utm_content?: string;
-  gclid?: string;
-  fbclid?: string;
-  msclkid?: string;
-  ttclid?: string;
-  referrer?: string;
+/** Pages that are not the shop: the brand's team and the platform. */
+const NOT_THE_SHOP = /^\/(admin|platform|partners|site-builder|theme-editor|theme-preview|ui-preview|onboarding)(\/|$)/;
+/** Payment pages a buyer returns from: the same visit, not a new source. */
+const PAYMENT_HOSTS = /(^|\.)(stripe\.com|paypal\.com|klarna\.com|affirm\.com|afterpay\.com|cash\.app|link\.com)$/i;
+
+/** What a visit arrived with: its UTMs, an ad click id, the site that linked here. */
+type Source = Partial<Record<SourceKey, string>> & { referrer?: string };
+
+/** One visit: when it started and last moved, its first page, and what it arrived with. */
+export interface Visit extends Source {
+  at: string;
+  last: string;
+  landing_page?: string;
+}
+
+export interface Attribution extends Source {
   landing_page?: string;
   first_seen?: string;
   last_seen?: string;
+  /** When the source above (the last one that named itself) arrived. */
+  source_seen?: string;
   visits?: number;
   device?: "mobile" | "tablet" | "desktop";
+  sessions?: Visit[];
 }
+
+/** Only the first capture of a page load reads `document.referrer`: moving
+ * between pages inside the shop keeps the referrer of the page that loaded. */
+let loadSeen = false;
 
 function read(): Attribution | null {
   try {
     const raw = window.localStorage.getItem(KEY);
     if (!raw) return null;
     const stored = JSON.parse(raw) as Attribution;
-    // Expire rather than credit an order to a campaign from months ago.
-    if (stored.first_seen) {
-      const age = Date.now() - new Date(stored.first_seen).getTime();
-      if (age > MAX_AGE_DAYS * 86_400_000) return null;
+    const recent = (iso?: string) => !!iso && Date.now() - new Date(iso).getTime() <= MAX_AGE_DAYS * 86_400_000;
+    // Not seen for months: start over.
+    if (!recent(stored.last_seen ?? stored.first_seen)) return null;
+    // Visits from before that drop off the journey...
+    if (Array.isArray(stored.sessions)) {
+      const kept = stored.sessions.filter((v) => recent(v.at));
+      if (kept.length < stored.sessions.length) {
+        stored.visits = Math.max((stored.visits ?? 0) - (stored.sessions.length - kept.length), kept.length);
+        stored.sessions = kept;
+        if (kept[0]) stored.first_seen = kept[0].at;
+      }
+    }
+    // ...and a campaign from months ago is not credited with today's order.
+    if (!recent(stored.source_seen ?? stored.first_seen)) {
+      for (const key of [...UTM_KEYS, ...CLICK_KEYS]) delete stored[key];
+      delete stored.referrer;
     }
     return stored;
   } catch {
@@ -83,11 +113,43 @@ function externalReferrer(): string | undefined {
   const ref = document.referrer;
   if (!ref) return undefined;
   try {
-    if (new URL(ref).host === window.location.host) return undefined;
+    const host = new URL(ref).host;
+    if (host === window.location.host || PAYMENT_HOSTS.test(new URL(ref).hostname)) return undefined;
   } catch {
     return undefined;
   }
   return ref.slice(0, 1000);
+}
+
+/** This page without its query string: nothing a buyer typed rides along. */
+function here(): string {
+  return (window.location.origin + window.location.pathname).slice(0, 1000);
+}
+
+/** The visits kept so far; an older record without them starts from its one source. */
+function visitsOf(stored: Attribution): Visit[] {
+  if (Array.isArray(stored.sessions)) return stored.sessions.slice();
+  if (!stored.first_seen) return [];
+  const first: Visit = { at: stored.first_seen, last: stored.last_seen ?? stored.first_seen };
+  for (const key of [...UTM_KEYS, ...CLICK_KEYS]) if (stored[key]) first[key] = stored[key];
+  if (stored.referrer) first.referrer = stored.referrer;
+  if (stored.landing_page) first.landing_page = stored.landing_page;
+  return [first];
+}
+
+function hostOf(url?: string): string {
+  try {
+    return url ? new URL(url).hostname.replace(/^www\./, "") : "";
+  } catch {
+    return "";
+  }
+}
+
+/** Whether what this page arrived with is the visit already under way (a reload, a second tab). */
+function sameSource(visit: Visit, arrived: Source): boolean {
+  const tags = [...UTM_KEYS, ...CLICK_KEYS];
+  if (tags.some((key) => arrived[key]) && tags.some((key) => (visit[key] ?? "") !== (arrived[key] ?? ""))) return false;
+  return !arrived.referrer || hostOf(arrived.referrer) === hostOf(visit.referrer);
 }
 
 /**
@@ -97,9 +159,10 @@ function externalReferrer(): string | undefined {
  */
 export function captureAttribution(): Attribution | null {
   if (typeof window === "undefined") return null;
+  if (NOT_THE_SHOP.test(window.location.pathname)) return null;
 
   const params = new URLSearchParams(window.location.search);
-  const incoming: Attribution = {};
+  const incoming: Source = {};
   for (const key of UTM_KEYS) {
     const value = params.get(key)?.trim();
     if (value) incoming[key] = value.slice(0, 255);
@@ -109,41 +172,59 @@ export function captureAttribution(): Attribution | null {
     if (value) incoming[key] = value.slice(0, 255);
   }
 
-  const referrer = externalReferrer();
+  const firstOfLoad = !loadSeen;
+  loadSeen = true;
+  const referrer = firstOfLoad ? externalReferrer() : undefined;
   // A campaign, an ad click, or a link from another site: all of them name
   // where this visit came from, and any of them outranks what we had.
   const namesASource = Object.keys(incoming).length > 0 || !!referrer;
 
   const now = new Date().toISOString();
   const stored = read();
+  const arrived: Source = { ...incoming, ...(referrer ? { referrer } : {}) };
 
   if (!stored) {
-    if (!namesASource) return null; // nothing to say, so say nothing
     const fresh: Attribution = {
       ...incoming,
       referrer,
-      landing_page: (window.location.origin + window.location.pathname).slice(0, 1000),
+      landing_page: here(),
       first_seen: now,
       last_seen: now,
+      ...(namesASource ? { source_seen: now } : {}),
       visits: 1,
       device: deviceKind(),
+      sessions: [{ at: now, last: now, landing_page: here(), ...arrived }],
     };
     write(fresh);
     return fresh;
   }
 
-  const gapMs = stored.last_seen ? Date.now() - new Date(stored.last_seen).getTime() : Infinity;
-  const newVisit = gapMs > VISIT_GAP_MINUTES * 60_000;
+  const sessions = visitsOf(stored);
+  const current = sessions[sessions.length - 1];
+  const gapMs = Date.now() - new Date(current?.last ?? stored.last_seen ?? 0).getTime();
+  // A new visit: away for half an hour, or back from somewhere else (another
+  // ad, another site) even sooner.
+  const newVisit = !current || gapMs > VISIT_GAP_MINUTES * 60_000 || (namesASource && !sameSource(current, arrived));
 
   const next: Attribution = { ...stored, last_seen: now };
-  if (newVisit) next.visits = (stored.visits ?? 1) + 1;
+  if (newVisit) {
+    next.visits = (stored.visits ?? sessions.length) + 1;
+    sessions.push({ at: now, last: now, landing_page: here(), ...arrived });
+    if (sessions.length > MAX_SESSIONS) sessions.splice(1, sessions.length - MAX_SESSIONS);
+  } else {
+    sessions[sessions.length - 1] = { ...current, last: now };
+  }
+  next.sessions = sessions;
 
-  if (namesASource) {
+  // Only a new visit changes the source: a reload hands the browser's
+  // referrer over again, and must not wipe the campaign that brought them.
+  if (namesASource && newVisit) {
     // A fresh source replaces the old one outright: keeping half of the
     // previous campaign beside half of this one would describe no real visit.
     for (const key of [...UTM_KEYS, ...CLICK_KEYS]) delete next[key];
     Object.assign(next, incoming);
     next.referrer = referrer ?? undefined;
+    next.source_seen = now;
   }
 
   write(next);

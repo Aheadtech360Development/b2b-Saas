@@ -266,6 +266,9 @@ class AdminOrderDetail(OrderOut):
     # How the buyer arrived: utm_*, referrer, landing page, ad click ids.
     # None when nothing was recorded, which is not the same as "direct".
     attribution: dict | None = None
+    # The Conversion summary: the buyer's visits before this order and which
+    # of their orders it is (services/attribution.journey).
+    conversion: dict | None = None
     # Money that went back: every refund, what is still refundable, and any
     # chargeback the customer opened with their bank.
     amount_refunded: Decimal | None = None

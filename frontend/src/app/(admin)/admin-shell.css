@@ -327,6 +327,21 @@
 .pc-details[open] .pc-details-more::after { content: "Hide"; }
 .pc-modal-back { position: fixed; inset: 0; z-index: 95; background: rgba(12, 31, 63, .42); display: grid; place-items: center; padding: 16px; }
 .pc-modal { width: min(560px, 100%); max-height: 86vh; overflow: auto; background: #fff; border-radius: 14px; box-shadow: 0 24px 64px rgba(12, 31, 63, .3); }
+/* Order page: Conversion summary and its details */
+.pc-conv-lines { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 10px; font-size: 14.5px; color: var(--pc-ink); }
+.pc-conv-lines li { display: flex; align-items: flex-start; gap: 10px; line-height: 1.45; }
+.pc-conv-lines svg { flex: none; margin-top: 2px; color: var(--pc-muted); }
+.pc-conv-box { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 14px 16px; margin-bottom: 8px; border-radius: 10px; background: var(--pc-bg); }
+.pc-conv-box span { display: block; font-size: 13px; color: var(--pc-muted); }
+.pc-conv-box b { display: block; margin-top: 2px; font-size: 24px; font-weight: 600; color: var(--pc-ink); font-variant-numeric: tabular-nums; }
+.pc-conv-row { display: grid; grid-template-columns: 20px minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--pc-line); }
+.pc-conv-row:last-child { border-bottom: 0; }
+.pc-conv-row > svg { color: var(--pc-muted); }
+.pc-conv-row b { display: block; font-size: 14.5px; font-weight: 600; color: var(--pc-ink); }
+.pc-conv-row div > span { display: block; font-size: 13px; color: var(--pc-muted); margin-top: 2px; }
+.pc-conv-row[data-sub] { padding: 8px 0 8px 0; }
+.pc-conv-row[data-sub] b { font-weight: 500; }
+.pc-conv-row .pc-btn { white-space: nowrap; }
 
 @media (max-width: 1180px) {
   .pc-list[data-panel] { grid-template-columns: minmax(0, 1fr); }
