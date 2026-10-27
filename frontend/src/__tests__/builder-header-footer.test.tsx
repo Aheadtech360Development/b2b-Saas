@@ -219,8 +219,8 @@ describe("a header and a footer are styled by name", () => {
   it("opens a header's dropdown over a page's own sticky bar, and under the pop-ups", () => {
     const header = Number(/\.bsite\[data-part=header\]\{z-index:(\d+)\}/.exec(BASE_CSS)![1]);
     // The account pages keep a bar of their own at the top: a tie goes to whichever comes later, which is the bar.
-    const account = readFileSync("src/app/(customer)/account/layout.tsx", "utf8");
-    const bar = Number(/position: "sticky",\s*top: 0,\s*zIndex: (\d+)/.exec(account)![1]);
+    const account = readFileSync("src/app/(customer)/account/portal.css", "utf8");
+    const bar = Number(/\.cp-top \{\s*position: sticky; top: 0; z-index: (\d+);/.exec(account)![1]);
     expect(header).toBeGreaterThan(bar);
     expect(header).toBeLessThan(50);   // the cart's pop-up, and the chat above that
     // A header that follows the page down sits on the same layer.

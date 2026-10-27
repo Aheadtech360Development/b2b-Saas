@@ -49,8 +49,10 @@
 .cp h1, .cp h2, .cp h3, .cp h4 { font-family: inherit; }
 
 /* ── Top bar ─────────────────────────────────────────────────────────────── */
+/* Under the shop's header (z-index 40, lib/builder/baseCss), so its menus open
+   over this bar; over the save bar (30). A tie went to this bar, which comes later. */
 .cp-top {
-  position: sticky; top: 0; z-index: 40;
+  position: sticky; top: 0; z-index: 35;
   display: flex; align-items: center; gap: 16px;
   padding: 10px 24px; background: #fff; border-bottom: 1px solid var(--cp-line);
 }
