@@ -15,7 +15,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from pydantic import BaseModel, Field
-from sqlalchemy import func, select, text as _sa_text
+from sqlalchemy import func, or_, select, text as _sa_text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -483,6 +483,30 @@ async def get_combinations(
         select(func.count()).select_from(C).where(C.product_id == product_id)
     )).scalar() or 0
 
+    # The choices no saved price names, in the questions the saved prices
+    # cover: every combination with one of them has no price of its own. It is
+    # what a product's own choices that a supplier's file did not list look
+    # like, and why its table can be far bigger than the file.
+    unpriced: list[dict] = []
+    line_priced = False
+    if priced_count:
+        named = set((await db.execute(
+            select(func.unnest(C.value_ids)).where(
+                C.product_id == product_id, C.enabled.is_(True),
+                or_(C.line_price.isnot(None), C.unit_price.isnot(None)),
+            ).distinct()
+        )).scalars().all())
+        line_priced = (await db.execute(
+            select(C.id).where(C.product_id == product_id, C.line_price.isnot(None)).limit(1)
+        )).first() is not None
+        for o in taking_part:
+            choices = [v for v in sorted(o.values, key=lambda x: x.position) if v.enabled]
+            if not any(v.id in named for v in choices):
+                continue   # a question the table does not price: every choice keeps its own amount
+            missing = [v.label for v in choices if v.id not in named]
+            if missing:
+                unpriced.append({"option": o.name, "choices": missing[:12], "count": len(missing)})
+
     cells: list[dict] = []
     if page:
         for pairs in page:
@@ -553,6 +577,10 @@ async def get_combinations(
         "too_large": bool(total > combos.MAX_MATRIX),
         "combinations": cells,
         "priced_count": priced_count,
+        "unpriced_choices": unpriced,
+        # The table prices whole lines, so a combination without a price of
+        # its own cannot be ordered (configurator_service.prices_whole_lines).
+        "line_priced": line_priced,
         # The stored rows behind this page's cells (their own and any shorter
         # row they inherit from). The whole table is not sent: an imported grid
         # is tens of thousands of rows.
@@ -640,7 +668,8 @@ class PriceGridIn(BaseModel):
     # Left out: worked out from the file. "": the file has no quantity column.
     quantity_column: Optional[str] = Field(None, max_length=200)
     ignore: list[str] = Field(default_factory=list, max_length=price_grid.MAX_COLUMNS)
-    # Clear the stored prices the file does not mention.
+    # The file is the whole price list: the stored prices it does not mention
+    # are cleared and the product's choices it does not list are switched off.
     replace: bool = False
     # Grey out the pairs of choices the file never sells together.
     rules: bool = True
@@ -692,8 +721,15 @@ async def preview_price_grid(
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """What importing this file would do. Nothing is saved."""
-    _, the_plan = await _grid_plan(db, product_id, payload)
-    return price_grid.public(the_plan)
+    product, the_plan = await _grid_plan(db, product_id, payload)
+    # The stored prices a whole-price-list import would remove: every row but
+    # the file's own, by one array parameter however long the file is.
+    keys = price_grid.listed_keys(the_plan, _questions_of(product))
+    removes = (await db.execute(
+        _sa_text("SELECT count(*) FROM product_option_combinations WHERE product_id = :p AND NOT (combo_key = ANY(:keys))"),
+        {"p": product_id, "keys": keys},
+    )).scalar() or 0
+    return {**price_grid.public(the_plan), "removes": int(removes)}
 
 
 @router.post("/{product_id}/price-grid/import")
@@ -714,7 +750,13 @@ async def import_price_grid(
         )
     result = await price_grid.apply(db, product, the_plan, replace=payload.replace, add_rules=payload.rules)
     await db.commit()
-    return {**result, "message": f"{result['prices_saved']:,} prices imported."}
+    message = f"{result['prices_saved']:,} prices imported."
+    if result["removed"]:
+        message += f" {result['removed']:,} old price{'s' if result['removed'] != 1 else ''} removed."
+    if result["unlisted_switched_off"]:
+        n = result["unlisted_switched_off"]
+        message += f" {n} choice{'s' if n != 1 else ''} not in the file switched off."
+    return {**result, "message": message}
 
 
 @router.get("/{product_id}/price-grid.csv")

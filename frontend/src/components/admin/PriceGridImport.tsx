@@ -35,6 +35,11 @@ interface Preview {
   rules: { when: [string, string]; disable: [string, string] }[];
   switched_off: { question: string; choice: string }[];
   warnings: string[];
+  /** The product's own choices the file does not list, per question. */
+  unlisted?: { question: string; choices: string[]; count: number }[];
+  unlisted_count?: number;
+  /** Saved prices the file does not list: what "whole price list" removes. */
+  removes?: number;
 }
 
 export interface Imported {
@@ -138,6 +143,10 @@ export function PriceGridImport({
   const toImport = preview ? preview.priced + preview.not_available : 0;
   const canImport = !!preview && preview.error_count === 0 && toImport > 0 && busy === null;
   const questionColumns = preview?.columns.filter(c => c.role === "question" || c.role === "quantity") ?? [];
+  // What is on the product but not in the file: left alone, its old prices
+  // (or none) sit beside the file's and the shop shows a mix.
+  const unlisted = preview?.unlisted_count ?? 0;
+  const removes = preview?.removes ?? 0;
 
   return (
     <div className="pc-modal-back" onMouseDown={(e) => { if (e.target === e.currentTarget && busy !== "importing") onClose(); }}>
@@ -246,6 +255,31 @@ export function PriceGridImport({
               </div>
             )}
 
+            {(unlisted > 0 || removes > 0) && (
+              <div className="pc-note" data-unlisted>
+                {unlisted > 0 && (<>
+                  <div style={{ fontWeight: 700, marginBottom: "4px" }}>
+                    This product has {unlisted} choice{unlisted === 1 ? "" : "s"} the file does not list:
+                  </div>
+                  {(preview.unlisted ?? []).map(u => (
+                    <div key={u.question}>
+                      <strong>{u.question}:</strong> {u.choices.join(", ")}
+                      {u.count > u.choices.length ? ` and ${u.count - u.choices.length} more` : ""}
+                    </div>
+                  ))}
+                </>)}
+                {removes > 0 && (
+                  <div style={{ marginTop: unlisted > 0 ? "6px" : 0 }}>
+                    {removes.toLocaleString()} saved price{removes === 1 ? " is" : "s are"} not in the file.
+                  </div>
+                )}
+                <div style={{ marginTop: "6px" }}>
+                  Left as they are, they sit beside the file&apos;s prices and the shop shows a mix. If this file is
+                  the whole price list, tick <strong>This file is the whole price list</strong> below.
+                </div>
+              </div>
+            )}
+
             {preview.error_count > 0 && (
               <div className="pc-note" data-tone="red" role="alert">
                 <div style={{ fontWeight: 700, marginBottom: "4px" }}>
@@ -263,9 +297,17 @@ export function PriceGridImport({
                   Grey out choices that are never sold together
                 </label>
               )}
-              <label style={{ display: "flex", gap: "8px", alignItems: "center", fontSize: "13px" }}>
-                <input type="checkbox" checked={replace} onChange={(e) => setReplace(e.target.checked)} />
-                Remove the prices this file does not list
+              <label style={{ display: "flex", gap: "8px", alignItems: "flex-start", fontSize: "13px" }}>
+                <input type="checkbox" checked={replace} onChange={(e) => setReplace(e.target.checked)}
+                  style={{ marginTop: "3px" }} data-whole-list />
+                <span>
+                  <strong>This file is the whole price list</strong>
+                  <span className="pc-sub-line" style={{ display: "block", fontSize: "12.5px" }}>
+                    {unlisted > 0 || removes > 0
+                      ? `Removes the ${removes.toLocaleString()} saved price${removes === 1 ? "" : "s"} and switches off the ${unlisted} choice${unlisted === 1 ? "" : "s"} it does not list. A choice can be switched on again in step 1.`
+                      : "Prices and choices it does not list are removed. This product has none."}
+                  </span>
+                </span>
               </label>
             </div>
           </>)}

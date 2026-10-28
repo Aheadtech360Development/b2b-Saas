@@ -690,7 +690,11 @@ export function ProductOptionsBuilder({ productId }: { productId: string }) {
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "12px", flexWrap: "wrap" }}>
             <div>
               <h2 className="pc-h2" id="ob-combos" style={{ marginBottom: "4px" }}>Price for every combination</h2>
-              <p className="pc-sub-line" style={{ fontSize: "13px", margin: 0 }}>A combination left empty is priced by rule, from the base price and its choices&apos; extra costs. Type a price to set that one combination, or import a supplier&apos;s spreadsheet to set them all.</p>
+              <p className="pc-sub-line" style={{ fontSize: "13px", margin: 0 }}>
+                {options.some(o => o.input_type === "quantity")
+                  ? "Each price is for the whole quantity, the way a supplier's list gives it. Once the table has such prices, a combination without one cannot be ordered. Type a price to set one combination, or import a supplier's spreadsheet to set them all."
+                  : "A combination left empty is priced by rule, from the base price and its choices' extra costs. Type a price to set that one combination, or import a supplier's spreadsheet to set them all."}
+              </p>
             </div>
             <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
               <button type="button" className="pc-btn" onClick={() => void downloadGrid()} disabled={downloading || dirtySinceLoad || dirty}

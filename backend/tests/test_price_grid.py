@@ -260,6 +260,69 @@ def test_a_quantity_choice_that_is_not_a_number_is_refused():
         compute_price(product, [], [], _pick(product), 1)
 
 
+def test_a_combination_a_whole_line_table_does_not_price_is_not_for_sale():
+    """A product sold in sets by a supplier's list (Business Flyer, Bulk
+    Booklets, yard signs) that kept choices of its own the list never priced.
+    The rule would charge the base price for every item in the set, so the
+    page jumped between the file's prices and figures nobody set."""
+    the_plan = grid.plan(grid.read_csv(_grid_text()), [])
+    product = _product_from_plan(the_plan)
+    product.base_price = Decimal("550.31")
+    rows = _rows_from_plan(product, the_plan)
+    size = next(o for o in product.options if o.name == "Size")
+    size.values.append(_value('36" x 24"', len(size.values)))      # the product's own, not in the file
+    sel = _pick(product, Size='36" x 24"', Qty="30")
+    with pytest.raises(ConfigurationError, match="not available"):
+        compute_price(product, [], rows, sel, 1, listed_only=True)
+    # What the file lists still sells at exactly its price.
+    listed = compute_price(product, [], rows, _pick(product, Size="24x24", Qty="30"), 1, listed_only=True)
+    assert Decimal(str(listed["total"])) == _total("30", "24x24", "5 Business Days")
+    # A question left unanswered is asked for, not called unavailable.
+    del sel[str(size.id)]
+    with pytest.raises(ConfigurationError, match='Please choose a "Size"'):
+        compute_price(product, [], rows, sel, 1, listed_only=True)
+    # A product whose table does not price whole lines keeps its rule.
+    ruled = compute_price(product, [], rows, _pick(product, Size='36" x 24"', Qty="30"), 1)
+    assert Decimal(str(ruled["total"])) == Decimal("550.31") * 30
+
+
+def test_the_plan_names_the_products_own_choices_the_file_does_not_list():
+    existing = [
+        {"id": "s", "name": "Size", "input_type": "select", "is_active": True,
+         "values": [{"id": "a", "label": "12X18", "enabled": True},
+                    {"id": "b", "label": '36" x 24"', "enabled": True},
+                    {"id": "c", "label": "Retired", "enabled": False}]},
+    ]
+    the_plan = grid.plan(grid.read_csv(_grid_text()), existing)
+    assert the_plan["unlisted"] == [{"question": "Size", "choices": ['36" x 24"'], "count": 1}]
+    assert the_plan["unlisted_count"] == 1
+
+
+def test_the_files_combinations_are_spelt_as_the_table_stores_them():
+    the_plan = grid.plan(grid.read_csv(_grid_text()), [])
+    product = _product_from_plan(the_plan)
+    existing = [
+        {"id": str(o.id), "name": o.name, "input_type": o.input_type, "is_active": True,
+         "values": [{"id": str(v.id), "label": v.label, "enabled": True} for v in o.values]}
+        for o in product.options
+    ]
+    assert grid.listed_keys(the_plan, existing) == [r.combo_key for r in _rows_from_plan(product, the_plan)]
+    # A question the product does not have yet: no stored row is one of the file's.
+    assert grid.listed_keys(the_plan, existing[1:]) == []
+
+
+def test_choices_are_ordered_by_number_and_a_whole_list_by_the_file():
+    qty = [_value(x, i) for i, x in enumerate(["1", "5", "30", "2", "10"])]
+    grid._order(qty, ["1", "2", "5", "10", "30"], is_quantity=True, whole_list=False)
+    assert [v.label for v in sorted(qty, key=lambda v: v.position)] == ["1", "2", "5", "10", "30"]
+    sizes = [_value(x, i) for i, x in enumerate(["Old", "24x24", "12x18"])]
+    grid._order(sizes, ["12x18", "24x24"], is_quantity=False, whole_list=True)
+    assert [v.label for v in sorted(sizes, key=lambda v: v.position)] == ["12x18", "24x24", "Old"]
+    kept = [_value(x, i) for i, x in enumerate(["Old", "24x24"])]
+    grid._order(kept, ["24x24"], is_quantity=False, whole_list=False)
+    assert [v.position for v in kept] == [0, 1]
+
+
 def test_products_without_a_quantity_question_price_as_before():
     size = _option("Size", ["A", "B"], 0)
     product = SimpleNamespace(id=uuid.uuid4(), options=[size], option_rules=[], base_price=Decimal("2.50"))

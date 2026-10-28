@@ -314,13 +314,15 @@ def plan(
             warnings.append(f'"{current["name"]}" becomes the question that asks how many.')
         if current is not None and not current.get("is_active", True):
             warnings.append(f'"{current["name"]}" is switched off on this product and is switched back on.')
+        listed = {norm(x) for x in column.distinct}
         switched_off = [v["label"] for v in current_labels.values() if not v.get("enabled", True)
-                        and norm(v["label"]) in {norm(x) for x in column.distinct}]
+                        and norm(v["label"]) in listed]
         if switched_off:
             warnings.append(
                 f'In "{column.name}", {", ".join(switched_off[:5])} '
                 f'{"is" if len(switched_off) == 1 else "are"} switched off on this product: '
-                "the prices are saved but not offered until switched on."
+                "the prices are saved but not offered until switched on, or until this file "
+                "is imported as the whole price list."
             )
         question_plans.append({
             "name": current["name"] if current else column.name,
@@ -329,6 +331,11 @@ def plan(
             "is_quantity": is_quantity,
             "labels": column.distinct,
             "new_labels": [v for v in column.distinct if norm(v) not in current_labels],
+            # The product's own choices for this question that the file does
+            # not list: every combination with one of them has no price from
+            # it. A whole-price-list import switches them off.
+            "unlisted": [v["label"] for v in (current or {}).get("values", [])
+                         if v.get("enabled", True) and norm(v["label"]) not in listed],
         })
 
     # ── Rows ──────────────────────────────────────────────────────────────────
@@ -410,6 +417,11 @@ def plan(
         ],
         "new_questions": [q["name"] for q in question_plans if not q["exists"]],
         "new_choices": sum(len(q["new_labels"]) for q in question_plans),
+        "unlisted": [
+            {"question": q["name"], "choices": q["unlisted"][:20], "count": len(q["unlisted"])}
+            for q in question_plans if q["unlisted"]
+        ],
+        "unlisted_count": sum(len(q["unlisted"]) for q in question_plans),
         "rows": len(sheet.rows),
         "priced": priced,
         "not_available": not_available,
@@ -429,6 +441,54 @@ def plan(
 def public(the_plan: dict[str, Any]) -> dict[str, Any]:
     """The plan without its working parts, for the preview."""
     return {k: v for k, v in the_plan.items() if not k.startswith("_")}
+
+
+def listed_keys(the_plan: dict[str, Any], existing: list[dict]) -> list[str]:
+    """The file's combinations that the product can already name, spelt as the
+    table stores them: the stored prices a whole-price-list import keeps.
+
+    A row naming a question or choice the product does not have yet cannot be
+    a row already stored, so it is left out; a question new to the product
+    means no stored row is kept at all."""
+    by_name = {norm(q["name"]): q for q in existing}
+    columns: list[tuple[str, dict[str, str]]] = []
+    for q in the_plan["_questions"]:
+        current = by_name.get(norm(q["name"]))
+        if current is None:
+            return []
+        columns.append((str(current["id"]), {norm(v["label"]): str(v["id"]) for v in current.get("values", [])}))
+    keys: list[str] = []
+    for e in the_plan["_entries"]:
+        if e.status == "blank":
+            continue
+        pairs: list[tuple[str, str]] = []
+        for (option_id, values), label in zip(columns, e.labels):
+            value_id = values.get(norm(label))
+            if value_id is None:
+                break
+            pairs.append((option_id, value_id))
+        else:
+            keys.append(combos.combo_key(pairs))
+    return keys
+
+
+def _order(values: list[Any], labels: list[str], *, is_quantity: bool, whole_list: bool) -> None:
+    """Positions for one question's choices after an import.
+
+    How many is a number, so those choices go smallest first whatever order
+    they arrived in: a file adding 2, 3 and 4 to a product that sold 1, 5 and
+    10 would otherwise list them after 30. A whole price list also puts the
+    other questions' choices in the file's own order, anything it does not
+    list after it."""
+    if is_quantity:
+        ordered = sorted(values, key=lambda v: (quantity_of(v.label) is None, quantity_of(v.label) or 0, v.position))
+    elif whole_list:
+        rank = {norm(label): n for n, label in enumerate(labels)}
+        ordered = sorted(values, key=lambda v: (rank.get(norm(v.label), len(rank)), v.position))
+    else:
+        return
+    for n, value in enumerate(ordered):
+        value.position = n
 
 
 def _unavailable(entries: list[Entry], width: int):
@@ -521,6 +581,12 @@ async def _upsert_prices(db, rows: list[dict[str, Any]]) -> None:
 async def apply(db, product, the_plan: dict[str, Any], *, replace: bool = False, add_rules: bool = True) -> dict[str, Any]:
     """Write the plan to the product: questions, choices, prices, rules.
 
+    `replace`: the file is the whole price list. Stored prices it does not
+    list are removed, and so are the product's own choices it does not list
+    (switched off, not deleted: past orders name them, and switching one back
+    on is a click), while every choice it does list is on sale again. Without
+    it the file only adds and updates.
+
     The caller commits. `product` must have its options (with values) loaded.
     """
     from sqlalchemy import select
@@ -536,7 +602,7 @@ async def apply(db, product, the_plan: dict[str, Any], *, replace: bool = False,
     next_position = max((o.position for o in options), default=-1) + 1
     never = {(i, norm(label)) for i, label in the_plan["_never"]}
 
-    made_questions = made_choices = 0
+    made_questions = made_choices = unlisted_off = 0
     option_ids: list[Any] = []
     value_ids: list[dict[str, Any]] = []
     has_quantity = False
@@ -562,6 +628,7 @@ async def apply(db, product, the_plan: dict[str, Any], *, replace: bool = False,
         has_quantity = has_quantity or q["is_quantity"]
 
         by_label = {norm(v.label): v for v in values}
+        everything = list(values)
         position = max((v.position for v in values), default=-1) + 1
         for label in q["labels"]:
             value = by_label.get(norm(label))
@@ -573,9 +640,23 @@ async def apply(db, product, the_plan: dict[str, Any], *, replace: bool = False,
                 position += 1
                 db.add(value)
                 by_label[norm(label)] = value
+                everything.append(value)
                 made_choices += 1
             if (i, norm(label)) in never:
                 value.enabled = False
+            elif replace:
+                value.enabled = True
+        if replace:
+            # A choice the list does not name, or a second choice spelt like
+            # one it does (only one of them gets the prices), has no price
+            # left: off sale, so a buyer never lands on it.
+            listed = {norm(label) for label in q["labels"]}
+            for value in everything:
+                label = norm(value.label)
+                if value.enabled and (label not in listed or by_label.get(label) is not value):
+                    value.enabled = False
+                    unlisted_off += 1
+        _order(everything, q["labels"], is_quantity=q["is_quantity"], whole_list=replace)
         option_ids.append(option.id)
         value_ids.append(by_label)
     await db.flush()
@@ -655,6 +736,7 @@ async def apply(db, product, the_plan: dict[str, Any], *, replace: bool = False,
         "removed": removed,
         "rules_added": added_rules,
         "choices_switched_off": len(never),
+        "unlisted_switched_off": unlisted_off,
     }
 
 

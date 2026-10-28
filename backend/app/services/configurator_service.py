@@ -28,7 +28,10 @@ combination replaces the per-unit and percent deltas of the options inside it,
 because that cell *is* the price for those choices and charging their deltas on
 top would bill them twice. Options outside the match contribute exactly as
 before, and a selection matching nothing is priced by the formula above,
-unchanged — which is why existing products keep their current prices.
+unchanged — which is why existing products keep their current prices. The one
+exception is a product whose quantity question is priced by a table of whole
+lines (a supplier's list): a combination the table does not price is not for
+sale, because the formula would charge the base price for every item in the set.
 
 Everything here is server-authoritative: the storefront shows a live estimate,
 but the cart and checkout re-price through `price_configuration` and ignore any
@@ -208,13 +211,37 @@ async def price_configuration(db, product_id, selections: dict, quantity: int) -
                 continue
 
     product, tiers, override_rows = await _load(db, product_id, chosen_ids, wanted)
-    return compute_price(product, tiers, override_rows, wanted, quantity)
+    return compute_price(
+        product, tiers, override_rows, wanted, quantity,
+        listed_only=await prices_whole_lines(db, product),
+    )
 
 
-def compute_price(product, tiers, override_rows, selections: dict, quantity: int) -> dict:
+async def prices_whole_lines(db, product) -> bool:
+    """True when the product asks how many and its price table prices whole
+    lines ("500 flyers: $120"), the way a supplier's list does.
+
+    Such a product sells what the table prices. A combination missing from it
+    has no price anybody set: the rule would charge the base price for every
+    one of the 500 flyers. One indexed probe, and only for a product that asks
+    how many."""
+    if quantity_option(product) is None:
+        return False
+    C = ProductOptionCombination
+    found = (await db.execute(
+        select(C.id).where(C.product_id == product.id, C.line_price.isnot(None)).limit(1)
+    )).first()
+    return found is not None
+
+
+def compute_price(product, tiers, override_rows, selections: dict, quantity: int, *, listed_only: bool = False) -> dict:
     """The price of one configured line from what `_load` read: the product
     with its options and rules, its quantity breaks and the stored combinations
-    that could apply. Pure, so it can be checked without a database."""
+    that could apply. Pure, so it can be checked without a database.
+
+    `listed_only` (prices_whole_lines): the product's quantity question is
+    priced by a table of whole lines, so a combination the table does not
+    price is refused rather than priced by rule."""
     wanted = _normalise(selections)
     quantity = max(1, int(quantity or 1))
 
@@ -337,6 +364,11 @@ def compute_price(product, tiers, override_rows, selections: dict, quantity: int
                 # than shown a delta that was never charged.
                 "from_combination": bool(unit_from_combo or fee_from_combo),
             })
+
+    # Checked once every choice is known to be valid, so a buyer who has not
+    # answered a question is asked to, rather than told it is not for sale.
+    if listed_only and from_option and not combo_sets_unit:
+        raise ConfigurationError("That combination is not available. Please choose differently.")
 
     for f in percent_factors:
         unit *= f

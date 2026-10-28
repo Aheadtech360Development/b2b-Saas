@@ -11,7 +11,9 @@
  * grows it on its own. Cells are generated, never stored, and only the ones
  * somebody types a price into are saved. A blank cell is not missing data — it
  * means the ordinary per-choice price applies, which is what every product
- * does today.
+ * does today. The exception is a product sold in set quantities whose table
+ * prices whole lines (a supplier's list): there a blank cell cannot be
+ * ordered, since the rule would charge the base price for every item in the set.
  */
 import { useCallback, useEffect, useState } from "react";
 import { apiClient } from "@/lib/api-client";
@@ -60,6 +62,12 @@ interface Payload {
   /** Set when the product asks how many as a question: each cell is then the
    *  price of the whole line for that many ("30 signs: $1,106.84"). */
   quantity_option_id: string | null;
+  /** Choices no saved price names, in the questions the saved prices cover:
+   *  no combination with one of them has a price of its own. */
+  unpriced_choices?: { option: string; choices: string[]; count: number }[];
+  /** The saved prices are whole lines: a combination without one cannot be
+   *  ordered, rather than being priced by rule. */
+  line_priced?: boolean;
 }
 
 const PAGE = 50;
@@ -148,6 +156,8 @@ export function CombinationPricing({
   const pages = Math.ceil(data.total / PAGE);
   // A product sold in set quantities prices each cell as the whole line.
   const field: "unit_price" | "line_price" = data.quantity_option_id ? "line_price" : "unit_price";
+  // ...and once it has such prices, a cell without one is not for sale.
+  const listOnly = !!(data.quantity_option_id && data.line_priced);
 
   // No options with choices yet, so there is nothing to combine.
   if (!data.matrix_options.length) {
@@ -161,14 +171,25 @@ export function CombinationPricing({
 
   if (data.too_large) {
     return (
-      <div style={{ ...NOTE, borderColor: "#F0C36D", background: "#FFFBEF" }}>
+      <div style={{ ...NOTE, borderColor: "#F0C36D", background: "#FFFBEF" }} data-too-large>
         <div style={{ fontWeight: 700, color: "#1A1A1A", marginBottom: 6 }}>
-          That is {data.total.toLocaleString()} combinations
+          {data.total.toLocaleString()} combinations: too many to list here
         </div>
+        <p style={{ margin: "0 0 8px" }}>
+          {data.matrix_options.map(o => `${o.name} (${o.values.length})`).join(" × ")}.{" "}
+          {data.priced_count
+            ? <><strong>{data.priced_count.toLocaleString()}</strong> of them have a saved price.</>
+            : "None of them has a saved price yet."}
+        </p>
+        <Unpriced list={data.unpriced_choices} />
         <p style={{ margin: 0 }}>
-          {data.matrix_options.map(o => `${o.name} (${o.values.length})`).join(" × ")} is more
-          than anyone could fill in by hand, so the table is not shown. The amounts on each choice
-          in step 1 still price every one of them correctly.
+          {listOnly
+            ? "A combination without a saved price cannot be ordered."
+            : "A combination without a saved price is priced by rule, from the base price and each choice's extra cost in step 1."}
+          {data.priced_count > 0 && (
+            <> If your supplier&apos;s file is the whole price list, import it again and tick <strong>This file is
+              the whole price list</strong>: the choices it does not list are switched off, and this table becomes the file.</>
+          )}
         </p>
       </div>
     );
@@ -178,7 +199,9 @@ export function CombinationPricing({
     <div>
       <p style={{ ...HINT, marginBottom: 10 }}>
         <strong>{data.total.toLocaleString()}</strong> combination{data.total === 1 ? "" : "s"}
+        {listOnly && " · a combination without a price cannot be ordered"}
       </p>
+      <Unpriced list={data.unpriced_choices} />
 
       <div style={{ overflowX: "auto", border: "1px solid #E3E3E3", borderRadius: 10 }}>
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13.5 }}>
@@ -206,7 +229,7 @@ export function CombinationPricing({
                       placeholder={
                         (field === "line_price" ? cell.inherited_line_price : cell.inherited_unit_price) != null
                           ? (field === "line_price" ? cell.inherited_line_price! : cell.inherited_unit_price!).toFixed(2)
-                          : valueOf(cell, "enabled") === false ? "N/A" : "0.00"
+                          : valueOf(cell, "enabled") === false || listOnly ? "N/A" : "0.00"
                       }
                       style={{ border: "none", outline: "none", padding: "8px 10px 8px 0", width: "100%", fontSize: 13.5, background: "transparent" }}
                     />
@@ -239,6 +262,25 @@ export function CombinationPricing({
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+/** The choices no saved price names: why a table is bigger than the file it
+ *  came from, and which combinations have no price of their own. */
+function Unpriced({ list }: { list?: Payload["unpriced_choices"] }) {
+  if (!list?.length) return null;
+  return (
+    <div style={{ margin: "0 0 10px", fontSize: 13, color: "#6B4A00" }} data-unpriced>
+      No saved price names these choices, so no combination with one of them has a price of its own:
+      <ul style={{ margin: "4px 0 0", paddingLeft: 18 }}>
+        {list.map(u => (
+          <li key={u.option}>
+            <strong>{u.option}:</strong> {u.choices.join(", ")}
+            {u.count > u.choices.length ? ` and ${u.count - u.choices.length} more` : ""}
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
