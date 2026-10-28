@@ -18,7 +18,8 @@ its checks; a package goes live only on the owner's word, and money packages onl
 - [x] T104 Staff limit on adding a user and on switching a user back on (`403 staff_limit`, message names the plan); Retail only.
 - [x] T105 Signup already takes `plan` (`/api/v1/signup`, `is_valid_plan`), so `/signup?plan=retail` makes a Retail shop; the plan name shows on the sign-up page once Retail is public.
 - [x] T106 Admin: Billing shows this month's orders and staff against the plan where limits bind; Home shows the 80% / 100% notice (`GET /api/v1/admin/billing/usage`). The Retail card on Billing appears when the plan turns public.
-- [x] T107 [P] Package 7 part: `commissionable_plans` defaults include `retail` (a saved setting needs Retail ticked in the console); `ledger.invoice_earning` skips proration lines in both Stripe shapes. Plan in referral lists and filters: still to do.
+- [x] T107 [P] Package 7 part: `commissionable_plans` defaults include `retail` (a saved setting needs Retail ticked in the console); `ledger.invoice_earning` skips proration lines in both Stripe shapes. Plan names show on the partner portal's and the console's referral lists (Retail included); console filters by plan on Referrals (Retail added), Ledger (`plan`, the plan stored on each line) and Affiliates (`shop_plan`, partners with a referred shop on it).
+- [ ] T108a Local Stripe TEST mode: `backend/.stripe-test.env` (git-ignored) holds `STRIPE_SECRET_KEY_TEST=sk_test_...`; `run_local.py` reads only test keys from it and refuses a live key. Waiting on the owner's test key.
 - [ ] T108 Checks: pytest for plan gating (every `PATH_FEATURES` path for Retail), limits (160, 200, 201 orders; checkout never blocked), staff limit, signup plan, partner ledger (Retail $79 -> $15.80 at 20%, replay -> 0, proration line -> 0, refund -> clawback); Stripe test mode switch Retail <-> Starter with proration.
 
 ## Phase 2: Package 2, order tracking

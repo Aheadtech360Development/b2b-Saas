@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { LineChip } from "@/components/partners/states";
 import { Banner, Count, Empty, Field, Icon, Modal, Skeleton, errorText, useToast } from "@/components/partners/ui";
 import { day, money } from "@/lib/partnerApi";
-import { aff } from "./api";
+import { aff, SHOP_PLANS } from "./api";
 import type { Go } from "./AffiliatesTab";
 
 type Line = {
@@ -26,6 +26,7 @@ const HOLD_REASONS = ["Under review", "Possible self referral", "Payment dispute
 export function Ledger({ go }: { go: Go }) {
   const [state, setState] = useState("all");
   const [partner, setPartner] = useState("");
+  const [plan, setPlan] = useState("");
   const [months, setMonths] = useState(6);
   const [q, setQ] = useState("");
   const [page, setPage] = useState(1);
@@ -39,6 +40,7 @@ export function Ledger({ go }: { go: Go }) {
   const load = () => {
     const p = new URLSearchParams({ state, months: String(months), page: String(page) });
     if (partner) p.set("partner_id", partner);
+    if (plan) p.set("plan", plan);
     if (q.trim()) p.set("q", q.trim());
     return aff.get<LedgerData>(`/ledger?${p}`).then((d) => { setData(d); setPicked(new Set()); }).catch((e) => setError(errorText(e)));
   };
@@ -46,7 +48,7 @@ export function Ledger({ go }: { go: Go }) {
     const t = setTimeout(() => { void load(); }, q ? 250 : 0);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state, partner, months, q, page]);
+  }, [state, partner, plan, months, q, page]);
   useEffect(() => { aff.get<{ rows: Who[] }>("/affiliates").then((r) => setPeople(r.rows)).catch(() => undefined); }, []);
 
   const rows = data?.rows ?? [];
@@ -100,6 +102,10 @@ export function Ledger({ go }: { go: Go }) {
           <select className="select" style={{ width: 180 }} aria-label="Affiliate" value={partner} onChange={(e) => { setPartner(e.target.value); setPage(1); }}>
             <option value="">Affiliate: all</option>
             {people.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+          </select>
+          <select className="select" style={{ width: 150 }} aria-label="Plan" value={plan} onChange={(e) => { setPlan(e.target.value); setPage(1); }}>
+            <option value="">Plan: all</option>
+            {SHOP_PLANS.map(([key, name]) => <option key={key} value={key}>{name}</option>)}
           </select>
           <select className="select" style={{ width: 160 }} aria-label="Period" value={months} onChange={(e) => { setMonths(Number(e.target.value)); setPage(1); }}>
             <option value={6}>Last 6 months</option><option value={12}>Last 12 months</option><option value={0}>All time</option>

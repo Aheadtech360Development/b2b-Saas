@@ -83,6 +83,35 @@ BLANKED = [
 ]
 
 
+# The one door that may be opened on purpose: Stripe's TEST mode, for checking
+# subscriptions and plan switches without real money. The owner puts the test
+# key in this file (never in chat, never committed: .gitignore names it). Only
+# test keys are read from it; a live key in it stops everything.
+STRIPE_TEST_FILE = ".stripe-test.env"
+STRIPE_TEST_KEYS = {"STRIPE_SECRET_KEY_TEST": "sk_test_", "STRIPE_PUBLISHABLE_KEY_TEST": "pk_test_"}
+
+
+def stripe_test_keys(path: str) -> dict[str, str]:
+    """The Stripe test keys in `path`, or {} when there is no such file."""
+    if not os.path.exists(path):
+        return {}
+    found: dict[str, str] = {}
+    with open(path, encoding="utf-8") as f:
+        for line in f:
+            name, _, value = line.strip().partition("=")
+            name, value = name.strip(), value.strip().strip('"').strip("'")
+            if not name or name.startswith("#") or not value:
+                continue
+            if name not in STRIPE_TEST_KEYS:
+                raise SystemExit(f"refusing to start: {STRIPE_TEST_FILE} may only hold "
+                                 f"{', '.join(STRIPE_TEST_KEYS)}, not {name}.")
+            if not value.startswith(STRIPE_TEST_KEYS[name]):
+                raise SystemExit(f"refusing to start: {name} in {STRIPE_TEST_FILE} is not a test key "
+                                 f"(it must start with {STRIPE_TEST_KEYS[name]}).")
+            found[name] = value
+    return found
+
+
 def local_environment() -> None:
     """Point this process at the local database and nothing else. Must run
     before anything from `app` is imported: the settings are read once."""
@@ -90,6 +119,8 @@ def local_environment() -> None:
     for key in BLANKED:
         os.environ[key] = ""
     here = os.path.dirname(os.path.abspath(__file__))
+    stripe_test = stripe_test_keys(os.path.join(here, STRIPE_TEST_FILE))
+    os.environ.update(stripe_test)
     os.chdir(here)                       # backend/.env and alembic.ini are found from here
     if here not in sys.path:
         sys.path.insert(0, here)
@@ -104,7 +135,7 @@ def local_environment() -> None:
                              f"(expected …{want}).")
     if s.APP_ENV == "production":
         raise SystemExit("refusing to start: APP_ENV says production.")
-    still_set = [k for k in BLANKED if getattr(s, k, "")]
+    still_set = [k for k in BLANKED if getattr(s, k, "") and k not in stripe_test]
     if still_set:
         raise SystemExit(f"refusing to start: still set after blanking: {', '.join(still_set)}")
 
@@ -117,6 +148,8 @@ def check() -> None:
     print(f"cache    : {s.REDIS_URL}")
     print(f"web      : {s.FRONTEND_URL}   brands at http://<slug>.localhost:3000")
     print(f"outside  : nothing ({len(BLANKED)} keys blanked: no mail, payments, labels, supplier, image storage, AI)")
+    if s.STRIPE_SECRET_KEY_TEST:
+        print(f"stripe   : TEST mode only, from {STRIPE_TEST_FILE} (no real money)")
 
 
 def migrate() -> None:

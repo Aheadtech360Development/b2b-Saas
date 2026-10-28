@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ShopChip } from "@/components/partners/states";
 import { Banner, Chip, Count, Drawer, Empty, Field, Icon, Modal, Skeleton, errorText, useToast } from "@/components/partners/ui";
 import { day, money } from "@/lib/partnerApi";
-import { aff } from "./api";
+import { aff, SHOP_PLANS } from "./api";
 import type { Go } from "./AffiliatesTab";
 import { Flags } from "./shared";
 
@@ -95,7 +95,8 @@ export function Referrals({ go, openId, onChanged }: { go: Go; openId?: string; 
             {people.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
           </select>
           <select className="select" style={{ width: 150 }} aria-label="Plan" value={plan} onChange={(e) => setPlan(e.target.value)}>
-            <option value="">Plan: all</option><option value="starter">Starter</option><option value="wholesale">Wholesale</option><option value="scale">Scale</option>
+            <option value="">Plan: all</option>
+            {SHOP_PLANS.map(([key, name]) => <option key={key} value={key}>{name}</option>)}
           </select>
           <select className="select" style={{ width: 150 }} aria-label="Source" value={source} onChange={(e) => setSource(e.target.value)}>
             <option value="">Source: all</option><option value="code">Code</option><option value="cookie">Cookie</option><option value="manual">Manual</option>

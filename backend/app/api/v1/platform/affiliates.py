@@ -168,8 +168,9 @@ async def add_note(subject_kind: Literal["applications", "affiliates", "referral
 
 @router.get("/affiliates")
 async def affiliates(status: str | None = None, rate_plan: str | None = None, w9_missing: bool = False,
-                     q: str | None = None, db: AsyncSession = Depends(get_db, scope="function")) -> dict[str, Any]:
-    return await admin_views.affiliates(db, status, rate_plan, w9_missing, q)
+                     q: str | None = None, shop_plan: str | None = None,
+                     db: AsyncSession = Depends(get_db, scope="function")) -> dict[str, Any]:
+    return await admin_views.affiliates(db, status, rate_plan, w9_missing, q, shop_plan)
 
 
 @router.get("/affiliates.csv")
@@ -433,9 +434,9 @@ async def shops(q: str = Query(min_length=2, max_length=80), db: AsyncSession = 
 
 @router.get("/ledger")
 async def ledger_view(state: str | None = None, partner_id: str | None = None, months: int = Query(6, ge=0, le=120),
-                      q: str | None = None, page: int = Query(1, ge=1),
+                      q: str | None = None, page: int = Query(1, ge=1), plan: str | None = None,
                       db: AsyncSession = Depends(get_db, scope="function")) -> dict[str, Any]:
-    return await admin_views.ledger_view(db, state, partner_id, months, q, page)
+    return await admin_views.ledger_view(db, state, partner_id, months, q, page, plan)
 
 
 @router.get("/ledger.csv")

@@ -272,10 +272,18 @@ async def application(db: AsyncSession, application_id: str) -> dict[str, Any] |
 # ── Affiliates ────────────────────────────────────────────────────────────────
 
 async def affiliates(db: AsyncSession, status: str | None, rate_plan: str | None, w9_missing: bool,
-                     q: str | None) -> dict[str, Any]:
+                     q: str | None, shop_plan: str | None = None) -> dict[str, Any]:
     today = ledger.utc_today()
     settings = await program.load(db)
     partners = await _partners(db)
+    # Partners with at least one referred shop on this plan now (Retail and the
+    # print plans are sold to different businesses).
+    on_plan: set[str] | None = None
+    if shop_plan and shop_plan != "all":
+        on_plan = {str(x) for x in (await db.execute(text(
+            "SELECT DISTINCT r.partner_id FROM partner_referrals r JOIN tenants t ON t.id = r.shop_tenant_id "
+            "WHERE lower(t.plan) = :plan"
+        ), {"plan": shop_plan.lower()})).scalars().all()}
     w9 = await _w9_set(db)
     lines = await _all_lines(db)
     per = defaultdict(list)
@@ -295,6 +303,8 @@ async def affiliates(db: AsyncSession, status: str | None, rate_plan: str | None
         if rate_plan and rate_plan != "all" and p["rate_plan_key"] != rate_plan:
             continue
         if w9_missing and pid in w9:
+            continue
+        if on_plan is not None and pid not in on_plan:
             continue
         if q and q.lower() not in f"{p['name']} {p['email']} {p['code']} {p.get('business_name') or ''}".lower():
             continue
@@ -459,13 +469,17 @@ LEDGER_STATES = ("pending", "payable", "on_hold", "paid", "void", "clawback")
 
 
 async def ledger_view(db: AsyncSession, state: str | None, partner_id: str | None, months: int,
-                      q: str | None, page: int) -> dict[str, Any]:
+                      q: str | None, page: int, plan: str | None = None) -> dict[str, Any]:
     today = ledger.utc_today()
     where, params = "", {}
     if months:
         where = "WHERE l.earned_at >= :since"
         params["since"] = datetime.now(timezone.utc) - timedelta(days=31 * months)
     lines = await _all_lines(db, where, params)
+    if plan and plan != "all":
+        # The plan the line was earned on, as stored with it: a shop that has
+        # since moved plans keeps its old lines under the old plan.
+        lines = [ln for ln in lines if ln.get("plan_key") == plan]
     totals = {"pending": 0, "payable": 0, "on_hold": 0, "clawbacks": 0}
     views, counts = [], defaultdict(int)
     for ln in lines:

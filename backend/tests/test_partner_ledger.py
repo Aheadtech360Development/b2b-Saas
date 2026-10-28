@@ -260,3 +260,29 @@ def test_an_override_rate_holds_through_its_last_day():
     assert program.effective_rate(2000, 2500, None, date(2030, 1, 1)) == (2500, "override")
     assert program.effective_rate(3000, None, None, TODAY) == (3000, "plan")
     assert program.rate_words(2000) == "20%" and program.rate_words(2250) == "22.5%"
+
+
+# ── The console's lists, by plan (Retail plan's affiliate rules) ──────────────
+
+def test_the_ledger_lists_only_the_plan_asked_for(monkeypatch):
+    import asyncio
+    from datetime import datetime, timezone
+
+    from app.services.partners import admin_views
+
+    now = datetime(2026, 10, 28, tzinfo=timezone.utc)
+
+    def line(i, plan_key):
+        return {"id": f"l{i}", "partner_id": "p1", "referral_id": "r1", "kind": "commission", "amount_cents": 1580,
+                "base_cents": 7900, "rate_bps": 2000, "status": "pending", "hold_reason": None, "status_note": None,
+                "payable_on": now.date(), "earned_at": now, "batch_id": None, "plan_key": plan_key, "created_at": now,
+                "stripe_invoice_id": f"in_{i}", "created_by": None, "livemode": True, "shop_name": "Shop",
+                "partner_name": "Maria", "paid_on": None}
+
+    async def lines(db, where="", params=None):
+        return [line(1, "retail"), line(2, "starter"), line(3, "retail")]
+
+    monkeypatch.setattr(admin_views, "_all_lines", lines)
+    got = asyncio.run(admin_views.ledger_view(None, None, None, 0, None, 1, plan="retail"))
+    assert [r["invoice"] for r in got["rows"]] == ["in_1", "in_3"]
+    assert asyncio.run(admin_views.ledger_view(None, None, None, 0, None, 1))["total"] == 3

@@ -106,3 +106,6 @@ backend/app/models/ssactivewearguide.txt
 
 # Cloudflare Wrangler state (workers/*)
 .wrangler/
+
+# Stripe TEST keys for local checks only (backend/run_local.py); never committed
+backend/.stripe-test.env

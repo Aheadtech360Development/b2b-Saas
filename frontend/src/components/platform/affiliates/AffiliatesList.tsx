@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 
 import { Banner, Chip, Count, Empty, Field, Icon, Modal, Skeleton, errorText, useToast } from "@/components/partners/ui";
 import { day, initials, money } from "@/lib/partnerApi";
-import { aff, defaultPlanId, type RatePlan } from "./api";
+import { aff, defaultPlanId, SHOP_PLANS, type RatePlan } from "./api";
 import type { Go } from "./AffiliatesTab";
 import { StatusChip } from "./shared";
 
@@ -20,6 +20,8 @@ const STATUSES: [string, string][] = [["all", "All"], ["active", "Active"], ["pa
 export function AffiliatesList({ go, adding }: { go: Go; adding?: boolean }) {
   const [status, setStatus] = useState("all");
   const [plan, setPlan] = useState("all");
+  // Partners with a referred shop on this plan (Retail is sold to other businesses than print).
+  const [shopPlan, setShopPlan] = useState("all");
   const [noW9, setNoW9] = useState(false);
   const [q, setQ] = useState("");
   const [data, setData] = useState<{ rows: Row[]; counts: Record<string, number>; rate_plans: { key: string; name: string }[] } | null>(null);
@@ -28,7 +30,7 @@ export function AffiliatesList({ go, adding }: { go: Go; adding?: boolean }) {
   const toast = useToast();
 
   const load = () => {
-    const p = new URLSearchParams({ status, rate_plan: plan, w9_missing: String(noW9) });
+    const p = new URLSearchParams({ status, rate_plan: plan, w9_missing: String(noW9), shop_plan: shopPlan });
     if (q.trim()) p.set("q", q.trim());
     return aff.get<typeof data & object>(`/affiliates?${p}`).then(setData).catch((e) => setError(errorText(e)));
   };
@@ -36,7 +38,7 @@ export function AffiliatesList({ go, adding }: { go: Go; adding?: boolean }) {
     const t = setTimeout(() => { void load(); }, q ? 250 : 0);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status, plan, noW9, q]);
+  }, [status, plan, shopPlan, noW9, q]);
   useEffect(() => { setAdd(!!adding); }, [adding]);
 
   const total = data ? Object.values(data.counts).reduce((a, b) => a + b, 0) : 0;
@@ -65,6 +67,10 @@ export function AffiliatesList({ go, adding }: { go: Go; adding?: boolean }) {
           <select className="select" style={{ width: 170 }} aria-label="Rate plan" value={plan} onChange={(e) => setPlan(e.target.value)}>
             <option value="all">Rate plan: all</option>
             {(data?.rate_plans ?? []).map((p) => <option key={p.key} value={p.key}>{p.name}</option>)}
+          </select>
+          <select className="select" style={{ width: 170 }} aria-label="Shops on plan" value={shopPlan} onChange={(e) => setShopPlan(e.target.value)}>
+            <option value="all">Shops on: any plan</option>
+            {SHOP_PLANS.map(([key, name]) => <option key={key} value={key}>{name}</option>)}
           </select>
           <button className={`pill${noW9 ? " on" : ""}`} aria-pressed={noW9} onClick={() => setNoW9(!noW9)}><Icon name="file" size="s" />W-9 missing</button>
           <div className="ig"><Icon name="search" />
