@@ -24,8 +24,8 @@ its checks; a package goes live only on the owner's word, and money packages onl
 
 ## Phase 2: Package 2, order tracking
 
-- [ ] T201 Migration `0068_retail_shipments` (+ RLS, backfill from `orders.tracking_number`).
-- [ ] T202 Shipment service: create on label purchase, manual add, manual status (with event), first shipment mirrored onto `orders.tracking_*`.
+- [x] T201 Migration `0068_retail_shipments` (+ RLS, backfill from `orders.tracking_number`, comma lists split). Local: 33 of 33 orders with numbers backfilled.
+- [x] T202 `services/shipments.py`: `record_safely` (savepoint) from both label purchases, the status route's typed number (Copilot goes through it), and both S&S paths; `set_status` with events; a shipped order turns delivered when every parcel is; marking an order delivered by hand delivers its parcels. Callers keep writing `orders.tracking_*`.
 - [ ] T203 `tracking_poll` loop (brand Shippo key, backoff, rate cap) mapping Shippo statuses.
 - [ ] T204 Public `/storefront/track` (order number + email, rate limited, no enumeration) and signed link; account tracking route.
 - [ ] T205 Mails: shipped, delivered (brand identity) with the signed link.

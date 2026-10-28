@@ -1387,6 +1387,17 @@ async def update_order_status(
             meta={"from": old_status, "to": payload.status},
         )
 
+    # The parcels behind the tracking page: a number typed here is one, and
+    # marking the order delivered by hand delivers its parcels.
+    from app.services import shipments as _shipments
+
+    if payload.tracking_number and payload.tracking_number != _old_tracking:
+        await _shipments.record_safely(
+            db, order, payload.tracking_number, carrier=payload.courier, service=payload.courier_service,
+            status="in_transit" if payload.status in ("shipped", "delivered") else "label_created", source="manual")
+    if payload.status == "delivered" and old_status != "delivered":
+        await _shipments.mark_order(db, order, "delivered", note="Marked delivered by the shop")
+
     await db.commit()
 
     if payload.status != old_status and payload.notify:
@@ -1500,6 +1511,11 @@ async def generate_shipping_label(
         )
 
         await _record_label_events(db, request, order, result)
+        from app.services import shipments as _shipments
+
+        await _shipments.record_safely(
+            db, order, result["tracking_number"], carrier=result.get("carrier"), service=result.get("service"),
+            tracking_url=result.get("tracking_url"), status="label_created")
 
         await db.commit()
         if payload.notify:
@@ -1777,6 +1793,11 @@ async def generate_label_manual(
         )
 
         await _record_label_events(db, request, order, result)
+        from app.services import shipments as _shipments
+
+        await _shipments.record_safely(
+            db, order, result["tracking_number"], carrier=result.get("carrier"), service=result.get("service"),
+            tracking_url=result.get("tracking_url"), status="label_created")
 
         await db.commit()
         if payload.notify:

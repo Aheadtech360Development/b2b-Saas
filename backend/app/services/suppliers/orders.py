@@ -320,6 +320,10 @@ async def send(db: AsyncSession, svc, cfg: dict, order_ids: list[uuid.UUID], *, 
 async def _mark_shipped(db: AsyncSession, order, tracking: str | None, carrier: str | None, *, email: bool) -> None:
     if tracking:
         order.tracking_number = tracking[:255]
+        from app.services import shipments
+
+        # The supplier's parcels, one shipment each, for the tracking page.
+        await shipments.record_safely(db, order, tracking, carrier=carrier, status="in_transit")
     if carrier:
         order.carrier = carrier[:100]
         order.courier = carrier[:100]
@@ -379,6 +383,10 @@ async def refresh_tracking(db: AsyncSession, svc, cfg: dict) -> int:
             if row.tracking_number and not order.tracking_number:
                 order.tracking_number = row.tracking_number
                 order.carrier = order.carrier or row.carrier
+            if row.tracking_number:
+                from app.services import shipments
+
+                await shipments.record_safely(db, order, row.tracking_number, carrier=row.carrier, status="in_transit")
             await _timeline(db, order, f"S&S shipped it{f' — tracking {row.tracking_number}' if row.tracking_number else ''}",
                             event="supplier_shipped",
                             meta={"tracking_number": row.tracking_number, "carrier": row.carrier},
