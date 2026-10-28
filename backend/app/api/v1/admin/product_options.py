@@ -9,6 +9,10 @@ existing ids stable so saved configurations keep resolving.
 from __future__ import annotations
 
 import asyncio
+import hashlib
+import json
+import logging
+import time
 import uuid
 from decimal import Decimal
 from typing import Optional
@@ -19,7 +23,8 @@ from sqlalchemy import func, or_, select, text as _sa_text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.core.database import get_db
+from app.core.database import AsyncSessionLocal, get_db
+from app.core.redis import redis_get, redis_set
 from app.middleware.auth_middleware import require_admin
 from app.models.product import Product
 from app.models.product_option import (
@@ -37,6 +42,7 @@ from app.services import price_grid
 from app.services.configurator_service import QUANTITY_INPUT, quantity_of
 
 router = APIRouter(prefix="/admin/products", tags=["admin", "product-options"])
+logger = logging.getLogger(__name__)
 
 
 # ── Schemas ───────────────────────────────────────────────────────────────────
@@ -723,13 +729,72 @@ async def preview_price_grid(
     """What importing this file would do. Nothing is saved."""
     product, the_plan = await _grid_plan(db, product_id, payload)
     # The stored prices a whole-price-list import would remove: every row but
-    # the file's own, by one array parameter however long the file is.
-    keys = price_grid.listed_keys(the_plan, _questions_of(product))
-    removes = (await db.execute(
-        _sa_text("SELECT count(*) FROM product_option_combinations WHERE product_id = :p AND NOT (combo_key = ANY(:keys))"),
-        {"p": product_id, "keys": keys},
-    )).scalar() or 0
-    return {**price_grid.public(the_plan), "removes": int(removes)}
+    # the file's own. Compared as digests here, not as keys sent to Postgres:
+    # with eight questions a key is ~600 characters, and a file lists up to
+    # 100,000 of them.
+    listed = {hashlib.md5(k.encode()).hexdigest() for k in price_grid.listed_keys(the_plan, _questions_of(product))}
+    C = ProductOptionCombination
+    stored = (await db.execute(select(func.md5(C.combo_key)).where(C.product_id == product_id))).scalars().all()
+    removes = sum(1 for digest in stored if digest not in listed)
+    return {**price_grid.public(the_plan), "removes": removes}
+
+
+# ── Writing an import in the background ───────────────────────────────────────
+# A booklet's table is 64,584 rows, about a minute to write on a slow disk:
+# longer than a request should hang open (Railway's edge may cut one that sends
+# nothing for 60 s, and the admin would be told it failed while it went on).
+# So the request plans the file, which also refuses a bad one, and answers at
+# once; the rows are written in their own session and single transaction, and
+# the page asks how it went every two seconds. The state lives in Redis so any
+# worker can answer; the product id is unique across shops, and the status
+# route loads the product first, so only its own shop can read it.
+_IMPORT_JOB = "price-grid-import:{}"
+_IMPORT_JOB_TTL = 3600
+# No import runs this long: a job still "running" after it died with its
+# worker (a deploy), and its transaction went with it.
+_IMPORT_JOB_STALE = 10 * 60
+_import_tasks: set[asyncio.Task] = set()   # held until done, so none is collected mid-write
+
+
+def _import_message(result: dict) -> str:
+    message = f"{result['prices_saved']:,} prices imported."
+    if result["removed"]:
+        message += f" {result['removed']:,} old price{'s' if result['removed'] != 1 else ''} removed."
+    if result["unlisted_switched_off"]:
+        n = result["unlisted_switched_off"]
+        message += f" {n} choice{'s' if n != 1 else ''} not in the file switched off."
+    return message
+
+
+async def _import_job(product_id: uuid.UUID) -> dict | None:
+    raw = await redis_get(_IMPORT_JOB.format(product_id))
+    if not raw:
+        return None
+    job = json.loads(raw)
+    if job.get("state") == "running" and time.time() - float(job.get("started") or 0) > _IMPORT_JOB_STALE:
+        return {"state": "failed",
+                "error": "The import stopped before it finished, and nothing was saved. Import the file again."}
+    return job
+
+
+async def _set_import_job(product_id: uuid.UUID, job: dict) -> None:
+    await redis_set(_IMPORT_JOB.format(product_id), json.dumps(job, default=str), expire=_IMPORT_JOB_TTL)
+
+
+async def _write_import(product_id: uuid.UUID, the_plan: dict, replace: bool, rules: bool) -> None:
+    """The import's writes, after the request has answered. Runs in a copy of
+    the request's context, so it is scoped to the same shop."""
+    try:
+        async with AsyncSessionLocal() as db:
+            product = await _load_product(db, product_id)
+            result = await price_grid.apply(db, product, the_plan, replace=replace, add_rules=rules)
+            await db.commit()
+        await _set_import_job(product_id, {"state": "done", "result": {**result, "message": _import_message(result)}})
+    except Exception:  # noqa: BLE001 - reported to the page, logged with its cause
+        logger.exception("Price grid import failed for product %s", product_id)
+        await _set_import_job(product_id, {
+            "state": "failed", "error": "The import failed, and nothing was saved. Try again.",
+        })
 
 
 @router.post("/{product_id}/price-grid/import")
@@ -739,7 +804,12 @@ async def import_price_grid(
     _: None = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
-    """Fill the price table from the file, in one go and all or nothing."""
+    """Fill the price table from the file, in one go and all or nothing.
+
+    Answers {"state": "running"} once the file is checked; the rows are then
+    written in the background (see above) and GET on this address says how it
+    went. Without Redis to report through, it writes them here and answers
+    with the result, as it always did."""
     product, the_plan = await _grid_plan(db, product_id, payload)
     if the_plan["error_count"]:
         n = the_plan["error_count"]
@@ -748,15 +818,41 @@ async def import_price_grid(
             detail=f"{n} row{'s' if n != 1 else ''} in the file {'need' if n != 1 else 'needs'} fixing first. "
                    "Nothing was imported.",
         )
-    result = await price_grid.apply(db, product, the_plan, replace=payload.replace, add_rules=payload.rules)
-    await db.commit()
-    message = f"{result['prices_saved']:,} prices imported."
-    if result["removed"]:
-        message += f" {result['removed']:,} old price{'s' if result['removed'] != 1 else ''} removed."
-    if result["unlisted_switched_off"]:
-        n = result["unlisted_switched_off"]
-        message += f" {n} choice{'s' if n != 1 else ''} not in the file switched off."
-    return {**result, "message": message}
+    try:
+        current = await _import_job(product_id)
+        if current and current.get("state") == "running":
+            raise HTTPException(status_code=409, detail="This product's last import is still being written. "
+                                                        "Wait for it to finish, then import again.")
+        rows = the_plan["priced"] + the_plan["not_available"]
+        await _set_import_job(product_id, {"state": "running", "started": time.time(), "rows": rows})
+        reporting = await _import_job(product_id) is not None
+    except HTTPException:
+        raise
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Price grid import cannot report through Redis, writing it in the request: %s", exc)
+        reporting = False
+
+    if not reporting:
+        result = await price_grid.apply(db, product, the_plan, replace=payload.replace, add_rules=payload.rules)
+        await db.commit()
+        return {**result, "message": _import_message(result)}
+
+    task = asyncio.create_task(_write_import(product_id, the_plan, payload.replace, payload.rules))
+    _import_tasks.add(task)
+    task.add_done_callback(_import_tasks.discard)
+    return {"state": "running", "rows": rows}
+
+
+@router.get("/{product_id}/price-grid/import")
+async def price_grid_import_state(
+    product_id: uuid.UUID,
+    _: None = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """How the product's last import went: running, done (with its result),
+    failed (with why) or none."""
+    await _load_product(db, product_id)   # this shop's product, or 404
+    return await _import_job(product_id) or {"state": "none"}
 
 
 @router.get("/{product_id}/price-grid.csv")

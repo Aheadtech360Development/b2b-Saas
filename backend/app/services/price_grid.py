@@ -28,6 +28,7 @@ import re
 import uuid
 from collections import Counter
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from functools import lru_cache
 from decimal import Decimal, InvalidOperation
 from itertools import combinations as column_pairs
@@ -40,10 +41,10 @@ from app.services.configurator_service import QUANTITY_INPUT, quantity_of
 MAX_BYTES = 10_000_000
 # A product's table holds combinations.MAX_MATRIX prices, and that is what a
 # file may write. The file itself may be longer: a downloaded table of a
-# product whose questions multiply past that (64,584 for a booklet) comes back
-# with the combinations nobody sells left without a price, and those rows
-# write nothing. They count only against the file's own size.
-MAX_ROWS = 4 * combos.MAX_MATRIX
+# product whose questions multiply past that comes back with the combinations
+# nobody sells left without a price, and those rows write nothing. They count
+# only against the file's own size.
+MAX_ROWS = 2 * combos.MAX_MATRIX
 MAX_COLUMNS = 40
 MAX_ERRORS_SHOWN = 50
 # Past this many N/A pairs the file's gaps are not a pattern a rule can say
@@ -558,7 +559,8 @@ async def _upsert_prices(db, rows: list[dict[str, Any]]) -> None:
     ids replace what was there; its note replaces the old one when the file has
     one, and the import's own "Not available" goes once the row is for sale
     again; its SKU stays unless the file gives one; a setup fee typed in the
-    admin is kept.
+    admin is kept. Every row written carries the import's own `updated_at`, so
+    a whole-price-list import can then remove the rows it did not write.
     """
     from sqlalchemy import case, func, null
     from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -581,7 +583,7 @@ async def _upsert_prices(db, rows: list[dict[str, Any]]) -> None:
                 else_=table.c.note,
             ),
             "sku": func.coalesce(new.sku, table.c.sku),
-            "updated_at": func.now(),
+            "updated_at": new.updated_at,
         },
     )
     for start in range(0, len(rows), UPSERT_BATCH):
@@ -677,6 +679,9 @@ async def apply(db, product, the_plan: dict[str, Any], *, replace: bool = False,
     # the table as it was, and no row is read or held as an object first.
     rows: list[dict[str, Any]] = []
     saved = switched_off = 0
+    # Every row this import writes is stamped with this one moment, so the
+    # rows it did not write are the ones with any other `updated_at`.
+    stamp = datetime.now(timezone.utc)
     for e in entries:
         if e.status == "blank":
             continue
@@ -689,6 +694,7 @@ async def apply(db, product, the_plan: dict[str, Any], *, replace: bool = False,
             "product_id": product.id,
             "combo_key": key,
             "value_ids": combos.value_ids_of(key),
+            "updated_at": stamp,
             # The row names how many when the product asks it, so its price is
             # the whole line's.
             "line_price": None if na or not has_quantity else e.price,
@@ -705,10 +711,12 @@ async def apply(db, product, the_plan: dict[str, Any], *, replace: bool = False,
 
     removed = 0
     if replace and rows:
-        # One array parameter, however many rows the file has.
+        # The rows this import did not write. Not "keys not in the file": with
+        # eight questions a key is ~600 characters, and 64,584 of them as one
+        # array parameter is 38 MB that Postgres compares row by row.
         removed = (await db.execute(
-            text("DELETE FROM product_option_combinations WHERE product_id = :p AND NOT (combo_key = ANY(:keys))"),
-            {"p": product.id, "keys": [r["combo_key"] for r in rows]},
+            text("DELETE FROM product_option_combinations WHERE product_id = :p AND updated_at <> :stamp"),
+            {"p": product.id, "stamp": stamp},
         )).rowcount or 0
 
     added_rules = 0

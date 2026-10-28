@@ -52,6 +52,17 @@ export interface Imported {
   message: string;
 }
 
+/** A big file is written after the request answers: a 64,584-row table
+ *  takes about a minute, longer than one request should hang open. */
+interface ImportJob {
+  state: "running" | "done" | "failed" | "none";
+  rows?: number;
+  result?: Imported;
+  error?: string;
+}
+
+const POLL_MS = 2000;
+
 const ROLE_LABEL: Record<Role, string> = {
   question: "Question",
   quantity: "Quantity (how many)",
@@ -87,6 +98,7 @@ export function PriceGridImport({
   const [replace, setReplace] = useState(false);
   const [rules, setRules] = useState(true);
   const [busy, setBusy] = useState<"reading" | "importing" | null>(null);
+  const [waited, setWaited] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const picker = useRef<HTMLInputElement>(null);
 
@@ -125,18 +137,42 @@ export function PriceGridImport({
     if (!csv || !preview) return;
     setBusy("importing");
     setError(null);
+    setWaited(0);
     try {
-      const result = await apiClient.post<Imported>(`/api/v1/admin/products/${productId}/price-grid/import`, {
+      const answer = await apiClient.post<Imported | ImportJob>(`/api/v1/admin/products/${productId}/price-grid/import`, {
         csv,
         price_column: priceColumn ?? undefined,
         quantity_column: quantityColumn ?? "",
         replace,
         rules,
       });
-      onImported(result);
+      onImported("state" in answer ? await written() : answer);
     } catch (e) {
       setError(messageOf(e, "Could not import the prices."));
       setBusy(null);
+    }
+  }
+
+  /** Ask how the background write went until it has. A missed answer or two
+   *  (a blip on the network) is not a failure: the write goes on regardless. */
+  async function written(): Promise<Imported> {
+    const began = Date.now();
+    let misses = 0;
+    for (;;) {
+      await new Promise((resolve) => setTimeout(resolve, POLL_MS));
+      setWaited(Math.round((Date.now() - began) / 1000));
+      let job: ImportJob;
+      try {
+        job = await apiClient.get<ImportJob>(`/api/v1/admin/products/${productId}/price-grid/import`);
+        misses = 0;
+      } catch (e) {
+        if (++misses >= 5) throw e;
+        continue;
+      }
+      if (job.state === "done" && job.result) return job.result;
+      if (job.state !== "running") {
+        throw new Error(job.error || "The import stopped before it finished, and nothing was saved. Import the file again.");
+      }
     }
   }
 
@@ -313,10 +349,17 @@ export function PriceGridImport({
           </>)}
         </div>
 
-        <div className="pc-pad" style={{ display: "flex", justifyContent: "flex-end", gap: "10px", borderTop: "1px solid var(--pc-line)" }}>
+        <div className="pc-pad" style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: "10px", borderTop: "1px solid var(--pc-line)" }}>
+          {busy === "importing" && (
+            <span className="pc-sub-line" style={{ fontSize: "12.5px", marginRight: "auto" }} role="status">
+              Writing the prices. A big file takes a minute or two, and carries on if you leave this page.
+            </span>
+          )}
           <button type="button" className="pc-btn" onClick={onClose} disabled={busy === "importing"}>Cancel</button>
           <button type="button" className="pc-btn" data-kind="primary" disabled={!canImport} onClick={() => void runImport()}>
-            {busy === "importing" ? "Importing…" : `Import ${toImport.toLocaleString()} price${toImport === 1 ? "" : "s"}`}
+            {busy === "importing"
+              ? `Importing…${waited ? ` ${waited}s` : ""}`
+              : `Import ${toImport.toLocaleString()} price${toImport === 1 ? "" : "s"}`}
           </button>
         </div>
       </div>

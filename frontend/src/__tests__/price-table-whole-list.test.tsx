@@ -56,7 +56,30 @@ describe("the price table of a product bigger than its file", () => {
 });
 
 describe("importing a file that leaves some of the product out", () => {
-  afterEach(() => vi.mocked(api.post).mockReset());
+  afterEach(() => { vi.mocked(api.post).mockReset(); vi.mocked(api.get).mockReset(); });
+
+  function chooseFile() {
+    const file = new File(["Qty,Size,Price\n1,A,2\n"], "signs.csv", { type: "text/csv" });
+    if (!file.text) Object.defineProperty(file, "text", { value: () => Promise.resolve("Qty,Size,Price\n1,A,2\n") });
+    fireEvent.change(document.querySelector("input[type=file]")!, { target: { files: [file] } });
+  }
+
+  it("waits for a big file that is written after the request answers", async () => {
+    let asks = 0;
+    const result = { prices_saved: 11_904, not_available: 0, questions_created: 0, choices_created: 0, rules_added: 0,
+                     removed: 0, message: "11,904 prices imported." };
+    vi.mocked(api.post).mockImplementation((url) =>
+      Promise.resolve(url.endsWith("/preview") ? PREVIEW : { state: "running", rows: 11_904 }));
+    vi.mocked(api.get).mockImplementation(() => Promise.resolve(++asks < 2 ? { state: "running" } : { state: "done", result }));
+    const onImported = vi.fn();
+    render(<PriceGridImport productId="sign" onClose={() => {}} onImported={onImported} />);
+    chooseFile();
+    await waitFor(() => expect(document.querySelector("[data-unlisted]")).not.toBeNull());
+    fireEvent.click(screen.getByRole("button", { name: "Import 11,904 prices" }));
+    expect(await screen.findByRole("status")).toBeTruthy();         // "Writing the prices…"
+    await waitFor(() => expect(onImported).toHaveBeenCalledWith(result), { timeout: 8000 });
+    expect(asks).toBe(2);
+  }, 15_000);
 
   const PREVIEW = {
     columns: [{ name: "Qty", role: "quantity", values: 31 }, { name: "Size", role: "question", values: 8 },

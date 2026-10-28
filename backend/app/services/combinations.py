@@ -50,7 +50,10 @@ from typing import Any, Iterable, Iterator, Sequence
 # is 3.3 s there); a storefront price 38 ms median, the same as at 13,440
 # (it looks rows up by name, never scans the table); a page of the admin grid
 # 0.2-0.7 s; the download 2.5 s, streamed. Raise it only after measuring again.
-MAX_MATRIX = 50_000
+# 2026-10-28, raised for a booklet whose questions multiply to 64,584, every
+# one sold (the owner fills the downloaded table and imports it back): see the
+# note on the import timing in services/price_grid.py.
+MAX_MATRIX = 100_000
 
 # Guards the price path: a selection cannot be made to cost time by sending
 # hundreds of options. Real configurable products are nowhere near this.
