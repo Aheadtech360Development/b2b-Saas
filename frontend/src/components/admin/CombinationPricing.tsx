@@ -176,10 +176,12 @@ export function CombinationPricing({
           {data.total.toLocaleString()} combinations: too many to list here
         </div>
         <p style={{ margin: "0 0 8px" }}>
-          {data.matrix_options.map(o => `${o.name} (${o.values.length})`).join(" × ")}.{" "}
+          {data.matrix_options.map(o => `${o.name} (${o.values.length})`).join(" × ")}: every way of answering
+          the questions, not a list anyone has to fill in.{" "}
           {data.priced_count
             ? <><strong>{data.priced_count.toLocaleString()}</strong> of them have a saved price.</>
-            : "None of them has a saved price yet."}
+            : <>None of them has a saved price yet. Import your supplier&apos;s price file as it is: it needs only
+              the combinations you sell, up to {data.max_matrix.toLocaleString()} with a price.</>}
         </p>
         <Unpriced list={data.unpriced_choices} />
         <p style={{ margin: 0 }}>

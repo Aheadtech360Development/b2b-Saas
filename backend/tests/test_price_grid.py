@@ -416,6 +416,27 @@ def test_a_large_grid_is_read_and_planned():
     assert the_plan["quantity_column"] == "Qty"
 
 
+def test_a_file_longer_than_a_table_imports_the_rows_it_prices(monkeypatch):
+    """A booklet's questions multiply to 64,584; its downloaded table comes back
+    with only the combinations the shop sells priced. Empty rows write nothing,
+    so only the priced ones count against what one product's table holds."""
+    monkeypatch.setattr(combos, "MAX_MATRIX", 4)
+    text = "Qty,Size,Price\n" + "".join(f"{q},S{s},{q * 2 + s if s < 2 else ''}\n" for q in (1, 5) for s in range(4))
+    the_plan = grid.plan(grid.read_csv(text), [])
+    assert (the_plan["rows"], the_plan["priced"], the_plan["blank"], the_plan["error_count"]) == (8, 4, 4, 0)
+    with pytest.raises(grid.GridError, match="5 rows have a price or N/A"):
+        grid.plan(grid.read_csv(text.replace("1,S2,\n", "1,S2,9\n")), [])
+
+
+def test_a_table_bigger_than_a_product_holds_still_downloads(monkeypatch):
+    monkeypatch.setattr(combos, "MAX_MATRIX", 10)
+    many = [_option("Q", [str(i) for i in range(1, 7)], 0, "quantity"), _option("S", ["a", "b", "c"], 1)]
+    assert "".join(grid.export_lines(many, [])).count("\n") == 1 + 18
+    monkeypatch.setattr(grid, "MAX_ROWS", 12)
+    with pytest.raises(grid.GridError, match="more than one file can hold"):
+        grid.check_exportable(many)
+
+
 def test_the_download_streams_in_pieces():
     the_plan = grid.plan(grid.read_csv(_grid_text()), [])
     product = _product_from_plan(the_plan)

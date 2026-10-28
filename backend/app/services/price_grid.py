@@ -38,7 +38,12 @@ from app.services.configurator_service import QUANTITY_INPUT, quantity_of
 
 # A 50,000-row grid with a dozen columns is about 7 MB.
 MAX_BYTES = 10_000_000
-MAX_ROWS = combos.MAX_MATRIX
+# A product's table holds combinations.MAX_MATRIX prices, and that is what a
+# file may write. The file itself may be longer: a downloaded table of a
+# product whose questions multiply past that (64,584 for a booklet) comes back
+# with the combinations nobody sells left without a price, and those rows
+# write nothing. They count only against the file's own size.
+MAX_ROWS = 4 * combos.MAX_MATRIX
 MAX_COLUMNS = 40
 MAX_ERRORS_SHOWN = 50
 # Past this many N/A pairs the file's gaps are not a pattern a rule can say
@@ -116,7 +121,7 @@ def read_csv(text: str | None) -> Sheet:
             header = cells
             continue
         if len(rows) >= MAX_ROWS:
-            raise GridError(f"The file has more than {MAX_ROWS:,} rows, more than one product's price table can hold.")
+            raise GridError(f"The file has more than {MAX_ROWS:,} rows. Leave out the combinations you do not sell.")
         rows.append((cells + [""] * len(header))[: len(header)])
         lines.append(reader.line_num)
 
@@ -380,6 +385,11 @@ def plan(
     priced = sum(1 for e in entries if e.status == "price")
     not_available = sum(1 for e in entries if e.status == "na")
     blank = sum(1 for e in entries if e.status == "blank")
+    if priced + not_available > combos.MAX_MATRIX:
+        raise GridError(
+            f"{priced + not_available:,} rows have a price or N/A; one product's price table holds "
+            f"{combos.MAX_MATRIX:,}. Leave out the combinations you do not sell, or leave their price empty."
+        )
     if blank:
         warnings.append(
             f"{blank} row{'s have' if blank != 1 else ' has'} no price: "
@@ -750,12 +760,16 @@ def _figure(amount: Any) -> str:
 
 def check_exportable(options: list[Any]) -> None:
     """Refuse, before anything is streamed, a product with nothing to export or
-    more combinations than a table holds."""
+    more combinations than one file holds. More than a table holds is fine:
+    the rows nobody fills in come back empty and write nothing."""
     if not combos.matrix_options(options):
         raise GridError("This product has no questions with choices yet, so there is nothing to price.")
     total = combos.count_combinations(options)
-    if total > combos.MAX_MATRIX:
-        raise GridError(f"{total:,} combinations is more than a price table can hold ({combos.MAX_MATRIX:,}).")
+    if total > MAX_ROWS:
+        raise GridError(
+            f"{total:,} combinations is more than one file can hold ({MAX_ROWS:,}). "
+            "Import your supplier's file instead: it needs only the combinations you sell."
+        )
 
 
 def export_lines(options: list[Any], stored_rows: list[Any]) -> Iterator[str]:
