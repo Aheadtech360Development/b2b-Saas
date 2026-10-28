@@ -89,7 +89,7 @@ interface AppliedCoupon {
   message: string;
 }
 
-import type { GuestLine as GuestCartEntry } from "@/lib/guestCart";
+import { guestLineTotal, type GuestLine as GuestCartEntry } from "@/lib/guestCart";
 
 /** A guest line that was saved without its photo gets one from the product.
  *
@@ -131,7 +131,10 @@ function buildGuestCart(entries: GuestCartEntry[]): Cart {
     quantity: e.quantity,
     retail_price: String(e.unit_price),
     unit_price: String(e.unit_price),
-    line_total: String(e.unit_price * e.quantity),
+    line_total: String(guestLineTotal(e)),
+    // A set quantity ("500 flyers") reads "500 for $120.00" and is changed
+    // on the product page, as on an account's cart.
+    ...(e.quantity_from_option ? { configuration: { quantity_from_option: true } } : {}),
     moq: 1,
     moq_satisfied: true,
     stock_quantity: 999,
@@ -203,7 +206,7 @@ export default function CartView({ embedded = false }: { embedded?: boolean }) {
               const guestCart = buildGuestCart(entries);
               try {
                 const totalUnits = entries.reduce((s, e) => s + e.quantity, 0);
-                const subtotal = entries.reduce((s, e) => s + e.unit_price * e.quantity, 0);
+                const subtotal = entries.reduce((s, e) => s + guestLineTotal(e), 0);
                 const est = await apiClient.get<{ estimated_shipping: number }>(
                   `/api/v1/guest/shipping-estimate?units=${totalUnits}&subtotal=${subtotal.toFixed(2)}`
                 );

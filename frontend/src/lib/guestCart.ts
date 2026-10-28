@@ -35,6 +35,38 @@ export interface GuestLine {
   gang_sheet_order_id?: string;
   /** The file this line is printed from, when the buyer supplied one. */
   artwork?: { url: string; file_name: string; file_type: string };
+  /** Sold in a set quantity by the product's own question ("500"): the line
+   *  is for exactly that many, and `line_total` is the set's price. */
+  quantity_from_option?: boolean;
+  /** The line's whole price when it is not unit price x quantity: a price
+   *  table's total, which a unit price to the cent does not multiply back to. */
+  line_total?: number;
+}
+
+/** What one line comes to: its own total when it carries one. */
+export function guestLineTotal(line: Pick<GuestLine, "unit_price" | "quantity" | "line_total">): number {
+  return typeof line.line_total === "number" ? line.line_total : line.unit_price * line.quantity;
+}
+
+/**
+ * A configured line as the server priced it. A product sold in set quantities
+ * is for the set the buyer picked (500 flyers), at the set's price; it was
+ * kept as one flyer at the set's price spread over 500, so the cart showed
+ * $0.24 for what the checkout then charged $120 for. Like the account cart,
+ * a second one is a second line, never 500 more at the same price.
+ */
+export function configuredGuestLine(
+  priced: { quantity: number; total: number; quantity_from_option?: boolean },
+  line: GuestLine,
+): GuestLine {
+  if (!priced.quantity_from_option) return line;
+  return {
+    ...line,
+    variant_id: `${line.variant_id}|set:${Date.now().toString(36)}`,
+    quantity: priced.quantity,
+    quantity_from_option: true,
+    line_total: priced.total,
+  };
 }
 
 /** The key that tells two configured lines apart: same choices, same line. */
@@ -63,6 +95,7 @@ export function addToGuestCart(line: GuestLine): void {
   // A built sheet is one job, not a stock line: saving it again replaces the
   // line (new price, new count) instead of adding its quantity on top.
   if (existing && line.gang_sheet_order_id) Object.assign(existing, line);
+  else if (existing && (line.quantity_from_option || existing.quantity_from_option)) cart.push(line);
   else if (existing) existing.quantity += line.quantity;
   else cart.push(line);
   writeGuestCart(cart);

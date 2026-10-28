@@ -13,6 +13,7 @@ import { useAuthStore } from "@/stores/auth.store";
 import { cartService } from "@/services/cart.service";
 import { trackCheckoutStarted, trackShippingChosen } from "@/lib/tracking";
 import { formatCurrency } from "@/lib/utils";
+import { guestLineTotal } from "@/lib/guestCart";
 
 interface LiveRate {
   rate_id: string;
@@ -180,8 +181,8 @@ export default function CheckoutAddressPage() {
       let guestSubtotal = 0;
       let guestUnits = 0;
       try {
-        const guestCart = JSON.parse(localStorage.getItem("af_guest_cart") || "[]") as Array<{ variant_id?: string; unit_price: number; quantity: number; product_name?: string; color?: string | null; size?: string | null; image_url?: string | null }>;
-        guestSubtotal = guestCart.reduce((s, i) => s + i.unit_price * i.quantity, 0);
+        const guestCart = JSON.parse(localStorage.getItem("af_guest_cart") || "[]") as Array<{ variant_id?: string; unit_price: number; quantity: number; line_total?: number; product_name?: string; color?: string | null; size?: string | null; image_url?: string | null }>;
+        guestSubtotal = guestCart.reduce((s, i) => s + guestLineTotal(i), 0);
         guestUnits = guestCart.reduce((s, i) => s + i.quantity, 0);
         setSubtotal(guestSubtotal);
         setCartItemsForShipping(
@@ -192,7 +193,7 @@ export default function CheckoutAddressPage() {
           color: i.color ?? null,
           size: i.size ?? null,
           qty: i.quantity,
-          lineTotal: i.unit_price * i.quantity,
+          lineTotal: guestLineTotal(i),
           imageUrl: i.image_url,
         })));
       } catch { /* ignore */ }

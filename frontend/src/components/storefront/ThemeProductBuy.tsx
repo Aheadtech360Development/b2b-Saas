@@ -24,7 +24,7 @@ import { cartService } from "@/services/cart.service";
 import { useAuthStore } from "@/stores/auth.store";
 import { trackAddToCart, trackCartAdd, trackConfiguredAdd, trackLineAdd, trackViewItem } from "@/lib/tracking";
 import type { Cart } from "@/types/order.types";
-import { addToGuestCart, configuredKey } from "@/lib/guestCart";
+import { addToGuestCart, configuredGuestLine, configuredKey } from "@/lib/guestCart";
 import { takeResume } from "@/lib/builderDraft";
 import { announceColour } from "@/lib/colourPictures";
 
@@ -60,7 +60,7 @@ export interface ThemeProductData {
   variants: ThemeVariant[];
   colours: { label: string; hex: string }[];
   sizes: { label: string }[];
-  options: { id: string; name: string; required: boolean; values: { id: string; label: string }[] }[];
+  options: { id: string; name: string; input_type?: string; required: boolean; values: { id: string; label: string }[] }[];
   qty_tiers: { min_qty: number; unit_price: number }[];
   gang_sheet: boolean;
   /** Printed from a file the buyer supplies, so the page offers an upload. */
@@ -72,6 +72,28 @@ export interface ThemeProductData {
 }
 
 const money = (value: number) => `$${value.toFixed(2)}`;
+
+/** What the server prices a configured line at (configurator_service.compute_price). */
+interface Priced {
+  unit_price: number;
+  total: number;
+  quantity: number;
+  /** How many came from the product's own quantity question ("500"): the
+   *  line is for exactly that many and `total` is its price. */
+  quantity_from_option?: boolean;
+}
+
+/**
+ * The price line for a configured product. A product sold in set quantities
+ * (a price table: 500 flyers, $120) shows that set's price: its unit price is
+ * the set's price spread over every piece, cents, and showing it as the price
+ * read as if 500 flyers cost $0.24. Otherwise the line's total, with the price
+ * each when the buyer asked for several.
+ */
+export function configuredPriceText(p: Priced, quantity: number): string {
+  if (p.quantity_from_option) return money(p.total);
+  return quantity > 1 ? `${money(p.unit_price)} each · ${money(p.total)}` : money(p.total);
+}
 
 export default function ThemeProductBuy({ product }: { product: ThemeProductData }) {
   const router = useRouter();
@@ -182,25 +204,37 @@ export default function ThemeProductBuy({ product }: { product: ThemeProductData
     }
 
     /** For a product priced from its options, the server does the arithmetic. */
-    async function repriceFromServer() {
+    let asked = 0;
+    async function repriceFromServer(quiet = false) {
       if (matrix || !priceLine) return;
+      // Only the latest choice's price is shown: a slower answer for an
+      // earlier click must not land on top of it.
+      const mine = ++asked;
+      const line = priceLine;
+      const write = (text: string) => {
+        const keep = line.querySelector(".from");
+        line.textContent = "";
+        if (keep) line.appendChild(keep);
+        line.append(text);
+      };
       try {
-        const r = await apiClient.post<{ unit_price: number; total: number }>(
+        const r = await apiClient.post<Priced>(
           `/api/v1/products/${product.id}/price`, { selections: chosen, quantity },
         );
-        const keep = priceLine.querySelector(".from");
-        priceLine.textContent = "";
-        if (keep) priceLine.appendChild(keep);
-        priceLine.append(quantity > 1 ? `${money(r.unit_price)} each · ${money(r.total)}` : money(r.unit_price));
-      } catch {
-        /* leave the price as it was rendered */
+        if (mine === asked) write(configuredPriceText(r, quantity));
+      } catch (err) {
+        if (mine !== asked) return;
+        // A combination the shop does not sell (N/A in its price table): no
+        // price at all, rather than the last one still standing beside it.
+        write("Not available");
+        if (!quiet) say(err instanceof ApiClientError && err.message ? err.message : "That combination is not available.", false);
       }
     }
 
     /** Whatever kind of product this is, show what it now costs. */
-    function refresh() {
+    function refresh(quiet = false) {
       if (sheets.length || matrix) showPrice();
-      else void repriceFromServer();
+      else void repriceFromServer(quiet);
     }
 
     /** This product's builder, at the size and quantity chosen here. */
@@ -377,14 +411,14 @@ export default function ThemeProductBuy({ product }: { product: ThemeProductData
               // No account needed for a made-to-order product either: the
               // choices travel with the line and the server prices them again
               // at checkout, so a guest pays exactly what anyone else does.
-              const priced = await apiClient.post<{ unit_price: number }>(
+              const priced = await apiClient.post<Priced>(
                 `/api/v1/products/${product.id}/price`, { selections: chosen, quantity },
               );
               const names = product.options
                 .map((o) => o.values.find((v) => v.id === chosen[o.id])?.label)
                 .filter(Boolean)
                 .join(" · ");
-              addToGuestCart({
+              addToGuestCart(configuredGuestLine(priced, {
                 variant_id: configuredKey(product.id, chosen),
                 quantity,
                 product_id: product.id,
@@ -395,8 +429,8 @@ export default function ThemeProductBuy({ product }: { product: ThemeProductData
                 unit_price: priced.unit_price,
                 image_url: product.images?.[0]?.url ?? null,
                 selections: { ...chosen },
-              });
-              trackLineAdd({ product_id: product.id, product_name: product.name, unit_price: priced.unit_price, quantity });
+              }));
+              trackLineAdd({ product_id: product.id, product_name: product.name, unit_price: priced.unit_price, quantity: priced.quantity });
               say("Added to your cart.");
               return;
             }
@@ -426,7 +460,14 @@ export default function ThemeProductBuy({ product }: { product: ThemeProductData
       cleanups.push(() => button.removeEventListener("click", onClick));
     });
 
-    showPrice();
+    // A product that asks how many as one of its own questions ("500") is
+    // priced for that answer: a second quantity box beside it changes nothing.
+    if (!matrix && qtyBox && product.options.some((o) => o.input_type === "quantity")) qtyBox.style.display = "none";
+
+    // The page opens with its first choices already picked: the price shown
+    // is theirs. A configured product's price was the product's base price
+    // until the first click, which is not what those choices cost.
+    refresh(true);
     return () => cleanups.forEach((off) => off());
   }, [product, isAuthenticated, router, byUpload]);
 
@@ -445,14 +486,14 @@ export default function ThemeProductBuy({ product }: { product: ThemeProductData
               trackConfiguredAdd(cart, { product_id: product.id, selections, quantity, artwork_url: artwork.url }, { navigating: true });
               window.dispatchEvent(new Event("cart_updated"));
             } else {
-              const priced = await apiClient.post<{ unit_price: number }>(
+              const priced = await apiClient.post<Priced>(
                 `/api/v1/products/${product.id}/price`, { selections, quantity },
               );
               const names = product.options
                 .map((o) => o.values.find((v) => v.id === selections[o.id])?.label)
                 .filter(Boolean)
                 .join(" · ");
-              addToGuestCart({
+              addToGuestCart(configuredGuestLine(priced, {
                 variant_id: `${configuredKey(product.id, selections)}|${artwork.url}`,
                 quantity,
                 product_id: product.id,
@@ -464,8 +505,8 @@ export default function ThemeProductBuy({ product }: { product: ThemeProductData
                 image_url: product.images?.[0]?.url ?? null,
                 selections: { ...selections },
                 artwork,
-              });
-              trackLineAdd({ product_id: product.id, product_name: product.name, unit_price: priced.unit_price, quantity }, { navigating: true });
+              }));
+              trackLineAdd({ product_id: product.id, product_name: product.name, unit_price: priced.unit_price, quantity: priced.quantity }, { navigating: true });
             }
             setArtworkOpen(false);
             window.location.href = "/cart";

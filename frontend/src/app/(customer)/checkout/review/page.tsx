@@ -17,7 +17,7 @@ import { clearAttribution, getAttribution, getServerTracking } from "@/lib/attri
 import { rememberOrderKey, thankYouPath } from "@/lib/orderThanks";
 import { cartLines, holdPurchase, trackPaymentChosen } from "@/lib/tracking";
 
-import { guestCheckoutItem, type GuestLine as GuestCartEntry } from "@/lib/guestCart";
+import { guestCheckoutItem, guestLineTotal, type GuestLine as GuestCartEntry } from "@/lib/guestCart";
 
 
 
@@ -151,7 +151,7 @@ export default function CheckoutReviewPage() {
   }, [ways, paymentMethod, setPaymentMethod]);
 
   // Derived values needed by useEffects below
-  const guestSubtotalCalc = guestEntries.reduce((s, e) => s + e.unit_price * e.quantity, 0);
+  const guestSubtotalCalc = guestEntries.reduce((s, e) => s + guestLineTotal(e), 0);
   const subtotal = isGuest ? guestSubtotalCalc : Number(cart?.subtotal ?? 0);
   // A free-shipping code makes shipping free (the server applies it the same way).
   const shipping = !isGuest && appliedCoupon?.discount_type === "free_shipping" ? 0 : shippingCost;
@@ -323,7 +323,7 @@ export default function CheckoutReviewPage() {
         console.log("[Review] Guest order payload:", JSON.stringify(guestPayload, null, 2));
         const order = await apiClient.post<{ order_id: string; order_number: string; total: number; view_key?: string | null }>("/api/v1/guest/checkout", guestPayload);
 
-        const guestSubtotal = guestEntries.reduce((s, e) => s + e.unit_price * e.quantity, 0);
+        const guestSubtotal = guestEntries.reduce((s, e) => s + guestLineTotal(e), 0);
         const productName = guestEntries[0]?.product_name ?? "Your Order";
         const colorSummary = guestEntries.map(e => e.color ?? "").filter(Boolean).join(", ");
 
@@ -470,7 +470,7 @@ export default function CheckoutReviewPage() {
   }
 
   const cartDisplayItems = isGuest
-    ? guestEntries.map(e => ({ name: e.product_name, color: e.color, size: e.size, qty: e.quantity, lineTotal: e.unit_price * e.quantity, imageUrl: e.image_url ?? null }))
+    ? guestEntries.map(e => ({ name: e.product_name, color: e.color, size: e.size, qty: e.quantity, lineTotal: guestLineTotal(e), imageUrl: e.image_url ?? null }))
     : (cart?.items ?? []).map(i => ({ name: i.product_name, color: i.color ?? null, size: i.size ?? null, qty: i.quantity, lineTotal: Number(i.line_total), imageUrl: i.product_image_url ?? null }));
 
   const paymentLabel = paymentMethod === "ach"
@@ -718,7 +718,7 @@ export default function CheckoutReviewPage() {
                               {" · "}qty {item.quantity}
                             </div>
                           </div>
-                          <span style={{ fontSize: "13px", fontWeight: 600, color: "var(--ui-ink)", whiteSpace: "nowrap" }}>{formatCurrency(item.unit_price * item.quantity)}</span>
+                          <span style={{ fontSize: "13px", fontWeight: 600, color: "var(--ui-ink)", whiteSpace: "nowrap" }}>{formatCurrency(guestLineTotal(item))}</span>
                         </div>
                       ))
                     : cart!.items.map(item => (
