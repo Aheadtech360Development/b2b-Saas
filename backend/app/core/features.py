@@ -26,6 +26,7 @@ FEATURES: list[tuple[str, str, str]] = [
     ("abandoned_checkouts", "Abandoned checkouts", "Orders and fulfillment"),
     ("returns", "Returns", "Orders and fulfillment"),
     ("purchase_orders", "Purchase orders", "Orders and fulfillment"),
+    ("order_tracking", "Order tracking page", "Orders and fulfillment"),
     # Products and catalog
     ("products", "Products and variants", "Products and catalog"),
     ("collections", "Collections", "Products and catalog"),
@@ -182,6 +183,8 @@ PUBLIC_PATH_FEATURES: list[tuple[str, str]] = [
     # applications is not in the plan, so one submitted there would sit where
     # nobody could ever see it.
     ("/api/v1/register-wholesale", "wholesale_accounts"),
+    # The buyer's order tracking page (Retail launch, package 2).
+    ("/api/v1/storefront/track", "order_tracking"),
     ("/api/v1/gang-sheets", "gang_sheet"),
     ("/api/v1/quick-order", "quick_buy"),
     # The builder's assistant before the rest of the copilot: it is the

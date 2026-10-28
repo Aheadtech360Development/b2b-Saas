@@ -308,6 +308,41 @@ async def create_shippo_label(order, carrier: str, db=None) -> dict:
     )
 
 
+def shippo_carrier(name: str | None) -> str | None:
+    """Shippo's token for a courier as an order or a supplier names it ("USPS",
+    "UPS Ground", "FedEx"), or None for one Shippo cannot track."""
+    n = (name or "").lower()
+    if "usps" in n or "postal" in n:
+        return "usps"
+    if "fedex" in n:
+        return "fedex"
+    if "ups" in n:            # after "usps", which contains it
+        return "ups"
+    if "dhl" in n:
+        return "dhl_express"
+    if "ontrac" in n:
+        return "ontrac"
+    if "canada post" in n:
+        return "canada_post"
+    return None
+
+
+def tracking_status(tracking_number: str, carrier: str, api_key: str | None = None) -> dict:
+    """Where Shippo says a parcel is, with the brand's key (the platform's when
+    the brand has none; tracking is not billed). Blocking: run it in a thread.
+    {"status", "substatus", "detail", "at"} or {"error"}."""
+    try:
+        track = get_client(api_key).tracking_status.get(carrier=carrier, tracking_number=tracking_number)
+        ts = getattr(track, "tracking_status", None)
+        status = getattr(getattr(ts, "status", None), "value", None) or str(getattr(ts, "status", "") or "UNKNOWN")
+        sub = getattr(getattr(ts, "substatus", None), "code", None)
+        sub = getattr(sub, "value", sub)
+        return {"status": status, "substatus": sub, "detail": getattr(ts, "status_details", None) or None,
+                "at": getattr(ts, "status_date", None)}
+    except Exception as e:  # noqa: BLE001
+        return {"error": str(e)[:300]}
+
+
 async def track_package(tracking_number: str, carrier: str) -> dict:
     try:
         client = get_client()

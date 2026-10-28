@@ -16,6 +16,7 @@ import { gangSheetsService } from "@/services/gangSheets.service";
 import { apiClient } from "@/lib/api-client";
 import { useAuthStore } from "@/stores/auth.store";
 import { ConfigurationDetail } from "@/components/shared/ConfigurationDetail";
+import type { TrackingPage, TrackParcel } from "@/components/storefront/OrderTracking";
 import type { LineConfiguration, OrderDiscountLine } from "@/types/order.types";
 import { discountAmount, discountLabel } from "@/lib/orderMoney";
 import { day, money } from "@/lib/customerWords";
@@ -118,6 +119,8 @@ export default function OrderDetailPage() {
   const [history, setHistory] = useState<OrderHistoryEvent[]>([]);
   const [jobs, setJobs] = useState<Job[]>([]);
   const [saving, setSaving] = useState<Pdf | null>(null);
+  // Every parcel and where it is (the shop's tracking page data, when it has one).
+  const [parcels, setParcels] = useState<TrackParcel[]>([]);
   const commentEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -137,6 +140,11 @@ export default function OrderDetailPage() {
         setComments(c);
         setHistory(h.events ?? []);
         setJobs(j.filter((x) => x.order_id === orderData.id));
+        // A shop without the tracking page (or with it off) answers 404: the
+        // carrier and number below stand, as before.
+        apiClient.get<TrackingPage>(`/api/v1/storefront/track/${encodeURIComponent(orderData.order_number)}`)
+          .then((t) => setParcels(t.shipments ?? []))
+          .catch(() => setParcels([]));
       } catch (err) {
         setLoadError(err instanceof Error ? err.message : "This order could not be loaded.");
       } finally {
@@ -285,7 +293,29 @@ export default function OrderDetailPage() {
               <h2 id="shipment" className="cp-h2">Shipment</h2>
               {isShipped ? <OrderChip status={order.status} /> : <span className="cp-chip">Not shipped</span>}
             </div>
-            {order.tracking_number ? (
+            {parcels.length ? (
+              <div className="cp-stack-sm" data-parcels={parcels.length}>
+                {parcels.map((p, i) => (
+                  <div key={p.id} style={i ? { borderTop: "1px solid var(--cp-line, #E5E7EB)", paddingTop: 12 } : undefined}>
+                    <ol aria-label="Where it is" style={{ listStyle: "none", padding: 0, margin: "0 0 10px", display: "flex", gap: 6, flexWrap: "wrap", fontSize: 12.5 }}>
+                      {p.steps.map((s) => (
+                        <li key={s.key} style={{ fontWeight: s.done ? 700 : 400, color: s.done ? "inherit" : "#9CA3AF" }}>
+                          {s.label}{s.key !== "delivered" ? " ›" : ""}
+                        </li>
+                      ))}
+                    </ol>
+                    <dl className="cp-kv" style={{ margin: 0 }}>
+                      <div><dt>Status</dt><dd>{p.status_words}{p.detail ? `: ${p.detail}` : ""}</dd></div>
+                      {p.carrier && <div><dt>Carrier</dt><dd>{p.carrier.toUpperCase()}{p.service ? `, ${p.service}` : ""}</dd></div>}
+                      <div><dt>Tracking number</dt><dd className="cp-mono">{p.tracking_number}</dd></div>
+                    </dl>
+                    {p.tracking_url && (
+                      <div style={{ marginTop: 8 }}><a href={p.tracking_url} target="_blank" rel="noreferrer" className="cp-btn cp-btn-p">Track package</a></div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : order.tracking_number ? (
               <div className="cp-stack-sm">
                 <dl className="cp-kv" style={{ margin: 0 }}>
                   {order.carrier && <div><dt>Carrier</dt><dd>{order.carrier.toUpperCase()}{order.courier_service ? `, ${order.courier_service}` : ""}</dd></div>}

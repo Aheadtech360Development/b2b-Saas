@@ -66,18 +66,24 @@ def order_confirmed(order: Any, *, order_url: str, subject: str | None = None,
 
 
 def order_shipped(order: Any, *, order_url: str, subject: str | None = None,
-                  intro_html: str | None = None) -> tuple[str, str]:
+                  intro_html: str | None = None, track_url: str | None = None) -> tuple[str, str]:
+    """`track_url`: the shop's own tracking page for this order (every parcel,
+    one place); without it the button goes to the courier's page."""
     number = order.order_number
     carrier = " ".join(x for x in (getattr(order, "courier", None) or getattr(order, "carrier", None),
                                    getattr(order, "courier_service", None)) if x).strip()
     tracking = getattr(order, "tracking_number", None) or ""
     tracking_url = getattr(order, "tracking_url", None) or None
+    if track_url:
+        buttons = [Button("Track your order", track_url)]
+    else:
+        buttons = [Button("Track your package", tracking_url)] if tracking_url else [Button("View your order", order_url)]
     html = render(
         heading="Your order is on its way",
         lines=[f"Order {number} shipped{' with ' + carrier if carrier else ''}."],
         intro_html=intro_html,
         facts=[Fact("Order", number), Fact("Carrier", carrier), Fact("Tracking", tracking, tracking_url)],
-        buttons=[Button("Track your package", tracking_url)] if tracking_url else [Button("View your order", order_url)],
+        buttons=buttons,
         preview="Tracking inside." if tracking else "It is on its way.",
     )
     return subject or "Your order shipped", html
@@ -126,8 +132,9 @@ _UPDATE_HEADINGS = {
 
 
 def order_update(order: Any, *, status: str, label: str, order_url: str, subject: str | None = None,
-                 intro_html: str | None = None, extra_html: str = "") -> tuple[str, str]:
-    """An order's other changes (processing, delivered, cancelled…): the same card."""
+                 intro_html: str | None = None, extra_html: str = "", track_url: str | None = None) -> tuple[str, str]:
+    """An order's other changes (processing, delivered, cancelled…): the same card.
+    `track_url` (delivered): the shop's tracking page instead of the order."""
     number = order.order_number
     after = ["Questions? Reply to this email."] if status in ("cancelled", "refunded") else []
     html = render(
@@ -137,7 +144,7 @@ def order_update(order: Any, *, status: str, label: str, order_url: str, subject
         facts=[Fact("Order", number), Fact("Status", label)],
         after=after,
         extra_html=extra_html,
-        buttons=[Button("View your order", order_url)],
+        buttons=[Button("See your order's journey", track_url) if track_url else Button("View your order", order_url)],
         preview=f"Order {number}: {label}.",
     )
     return subject or f"Order {number}: {label}", html

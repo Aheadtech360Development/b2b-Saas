@@ -26,11 +26,11 @@ its checks; a package goes live only on the owner's word, and money packages onl
 
 - [x] T201 Migration `0068_retail_shipments` (+ RLS, backfill from `orders.tracking_number`, comma lists split). Local: 33 of 33 orders with numbers backfilled.
 - [x] T202 `services/shipments.py`: `record_safely` (savepoint) from both label purchases, the status route's typed number (Copilot goes through it), and both S&S paths; `set_status` with events; a shipped order turns delivered when every parcel is; marking an order delivered by hand delivers its parcels. Callers keep writing `orders.tracking_*`.
-- [ ] T203 `tracking_poll` loop (brand Shippo key, backoff, rate cap) mapping Shippo statuses.
-- [ ] T204 Public `/storefront/track` (order number + email, rate limited, no enumeration) and signed link; account tracking route.
-- [ ] T205 Mails: shipped, delivered (brand identity) with the signed link.
-- [ ] T206 Storefront `/track` page, portal order tracking, admin shipments panel; settings (on/off, message).
-- [ ] T207 Checks: guest lookup wrong email = unknown order; rate limit; masked address; multi shipment; manual status shows in order list; delivered sets `delivered_at`.
+- [x] T203 `services/tracking_poll.py`: every 30 min, Redis lock, due shipments shop by shop with the shop's Shippo key (platform's as fallback), 1 call a second, `shippo_service.tracking_status` + `shippo_carrier`; no news keeps the last status; a parcel no courier name maps to is left to the shop; the order's delivered email goes in the shop's name.
+- [x] T204 `api/v1/tracking.py`: `POST /storefront/track` (number + email in the body; 10 per 15 min per visitor, 5 an hour per order; one 404 wording) and `GET /storefront/track/{number}` (view key from the email link, or the signed-in buyer); `order_tracking` feature key in every plan and on the public path; city / state / postcode only.
+- [x] T205 Shipped and delivered mails link to the shop's own tracking page (`tracking_page.link`, view key in the fragment) when the page is on.
+- [x] T206 Storefront `/track-order` rebuilt on the new lookup, `/track/<number>` for email links; buyer's order page shows each parcel's steps; admin order page "Parcels" panel (add a parcel, set where it is by hand, history); Settings → Shipping and pickup: page on/off and message. Staff permissions: `/admin/shipments` = orders, `/admin/tracking` = settings.
+- [x] T207 Checks: tests/test_shipments (13), tests/test_tracking_page (11), frontend order-tracking (3); local DB + Redis (scratchpad tracking_local_check.py): loop delivers and emails, wrong email = made-up number, no street, view key opens, off says so and drops the email button. The old `GET /guest/orders/{number}?email=` now rate limited and no longer logs the email.
 
 ## Phase 3: Package 3, gift cards
 

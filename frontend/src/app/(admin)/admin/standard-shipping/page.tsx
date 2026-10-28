@@ -20,6 +20,7 @@ import { useEffect, useState } from "react";
 import { X } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { CarrierList } from "@/components/admin/shipping/ConnectCarrierDialog";
+import { TrackingPageCard } from "@/components/admin/shipping/TrackingPageCard";
 import { SettingsFrame } from "@/components/admin/settings/SettingsFrame";
 import { cutoffWords, productionService } from "@/services/production.service";
 import { US_ZONES, allZones, forgetShopZone, offsetWords } from "@/lib/shopClock";
@@ -154,6 +155,9 @@ export default function ShippingAndPickupPage() {
           </p>
           <CarrierList />
         </section>
+
+        {/* The buyer's tracking page: on or off, and the shop's message on it. */}
+        <TrackingPageCard />
 
         {/* Where parcels leave from: live rates and labels are worked out from here. */}
         <section className="pc-card" style={{ padding: "18px 20px" }} data-card="ship-from">

@@ -115,8 +115,16 @@ async def _send_order_status_email(order: Order, new_status: str, db: AsyncSessi
         if not w.send:
             return
 
+        # Shipped and delivered point at the shop's tracking page (every parcel, one place).
+        track_url = None
+        if new_status in ("shipped", "delivered"):
+            from app.services import tracking_page as _tracking_page
+
+            track_url = await _tracking_page.link(db, order)
+
         if new_status == "shipped":
-            subject, html = mails.order_shipped(order, order_url=order_url, subject=w.subject, intro_html=w.intro_html)
+            subject, html = mails.order_shipped(order, order_url=order_url, subject=w.subject, intro_html=w.intro_html,
+                                                track_url=track_url)
         elif new_status == "ready_for_pickup":
             # The place and the hours: the brand's own pickup location (Admin →
             # Shipping), never another shop's.
@@ -128,7 +136,8 @@ async def _send_order_status_email(order: Order, new_status: str, db: AsyncSessi
         elif new_status == "refunded":
             subject, html = mails.refund_issued(order, order_url=order_url, subject=w.subject, intro_html=w.intro_html)
         else:
-            subject, html = mails.order_update(order, status=new_status, label=label, order_url=order_url)
+            subject, html = mails.order_update(order, status=new_status, label=label, order_url=order_url,
+                                               track_url=track_url)
         EmailService(db).send_raw(to_email=to_email, subject=subject, body_html=html)
 
     except Exception as exc:

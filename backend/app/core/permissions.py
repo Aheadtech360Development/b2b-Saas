@@ -97,6 +97,8 @@ _PATH_SCOPES: list[tuple[str, str]] = [
     ("/api/v1/admin/quotes", "orders"),
     ("/api/v1/admin/returns", "orders"),
     ("/api/v1/admin/rma", "orders"),
+    # An order's parcels, set by hand when the courier says nothing.
+    ("/api/v1/admin/shipments", "orders"),
     ("/api/v1/admin/abandoned-carts", "orders"),
     ("/api/v1/admin/customers", "customers"),
     ("/api/v1/admin/contact-submissions", "customers"),
@@ -130,6 +132,7 @@ _PATH_SCOPES: list[tuple[str, str]] = [
     # The owner's setup steps: where they are, and what the business is.
     ("/api/v1/admin/onboarding", "settings"),
     ("/api/v1/admin/notifications", "settings"),
+    ("/api/v1/admin/tracking", "settings"),
     ("/api/v1/admin/email-templates", "settings"),
     ("/api/v1/admin/taxes", "settings"),
     ("/api/v1/admin/shipping", "settings"),

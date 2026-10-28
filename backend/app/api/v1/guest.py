@@ -872,17 +872,28 @@ async def order_thank_you(
 @router.get("/orders/{order_number}")
 async def track_guest_order(
     order_number: str,
+    request: Request,
     email: str = Query(..., description="Email address used at checkout or on account"),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
-    """Look up an order by order number + email (guest or registered user)."""
+    """Look up an order by order number + email (guest or registered user).
+
+    The shop's own tracking page now asks POST /storefront/track (the email in
+    the body, not the address). This older lookup stays for any link to it,
+    rate limited the same way, and the email is not written to the log."""
     from sqlalchemy import or_
     from sqlalchemy.orm import selectinload, outerjoin
 
+    from app.core.rate_limit import enforce_rate_limit
+    from app.core.tenant_context import get_current_tenant_id
+
     email_lower = email.lower().strip()
     order_number_clean = order_number.strip()
+    await enforce_rate_limit(request, "track_lookup", limit=10, window=900)
+    await enforce_rate_limit(request, "track_lookup_order", limit=5, window=3600,
+                             extra=f"{get_current_tenant_id()}:{order_number_clean.upper()}")
 
-    logger.info("Track order lookup: order_number=%r email=%r", order_number_clean, email_lower)
+    logger.info("Track order lookup: order_number=%r", order_number_clean)
 
     # Match guest orders on guest_email OR registered-user orders via the placed_by User record
     result = await db.execute(
@@ -900,10 +911,9 @@ async def track_guest_order(
     order = result.scalar_one_or_none()
 
     logger.info(
-        "Track order result: found=%s is_guest=%s guest_email=%r",
+        "Track order result: found=%s is_guest=%s",
         order is not None,
         getattr(order, "is_guest_order", None),
-        getattr(order, "guest_email", None),
     )
 
     if not order:

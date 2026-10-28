@@ -23,6 +23,7 @@ import { OrderGangSheets } from "@/components/admin/OrderGangSheets";
 import { GangSheetLineFiles, type GangSheetProduction } from "@/components/admin/GangSheetLineFiles";
 import { OrderRefunds, type DisputeRow, type RefundRow } from "@/components/admin/OrderRefunds";
 import { ConversionSummary, type Conversion } from "@/components/admin/ConversionSummary";
+import { OrderShipments } from "@/components/admin/OrderShipments";
 import { discountAmount, discountLabel } from "@/lib/orderMoney";
 import { methodWords, packingSlipHtml, pickListHtml, printHtml, toPrintOrder } from "@/lib/orderPrint";
 import type { LineConfiguration, OrderDiscountLine } from "@/types/order.types";
@@ -854,6 +855,9 @@ export default function AdminOrderDetailPage() {
             openSignal={refundSignal}
             onChanged={async () => { await reload(); }}
           />
+
+          {/* ── Parcels: where each is, set by hand when the courier says nothing ── */}
+          <OrderShipments orderId={o.id} onChanged={() => { void reload(); }} />
 
           {/* ── Notes ───────────────────────────────────────────────────── */}
           <section className="pc-card pc-pad" aria-labelledby="notes-title" data-notes>

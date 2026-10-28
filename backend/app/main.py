@@ -848,6 +848,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # whose limits bind: Retail), hourly; each goes once a month.
     from app.services.plan_usage import scheduler_loop as _plan_usage_loop
     _plan_usage = _asyncio.create_task(_plan_usage_loop())
+    # Where parcels are: the couriers asked for shipments that are due (30 min).
+    from app.services.tracking_poll import scheduler_loop as _tracking_loop
+    _tracking = _asyncio.create_task(_tracking_loop())
 
     yield
 
@@ -857,6 +860,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     _trial_notices.cancel()
     _partner_retry.cancel()
     _plan_usage.cancel()
+    _tracking.cancel()
 
 
 app = FastAPI(
@@ -1077,6 +1081,9 @@ app.include_router(platform_taxes.router, prefix=_V1)
 app.include_router(admin_connect.router, prefix=_V1)
 app.include_router(admin_billing.router, prefix=_V1)
 app.include_router(storefront.public_router, prefix=_V1)
+from app.api.v1 import tracking as order_tracking  # noqa: E402
+app.include_router(order_tracking.public_router, prefix=_V1)
+app.include_router(order_tracking.admin_router, prefix=_V1)
 app.include_router(storefront.admin_router, prefix=_V1)
 app.include_router(storefront.admin_pages_router, prefix=_V1)
 app.include_router(storefront.admin_contact_router, prefix=_V1)
