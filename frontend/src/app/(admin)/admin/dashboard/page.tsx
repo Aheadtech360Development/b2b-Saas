@@ -17,6 +17,7 @@ import { apiClient } from "@/lib/api-client";
 import { hasScope } from "@/lib/permissions";
 import { useAuthStore } from "@/stores/auth.store";
 import { HomeSales } from "@/components/admin/HomeSales";
+import { PlanUsageNotice } from "@/components/admin/PlanUsageNotice";
 
 type Severity = "urgent" | "attention" | "info";
 interface Need { key: string; severity: Severity; count: number; label: string; detail: string; action: string; href: string }
@@ -88,6 +89,9 @@ export default function AdminHome() {
           </Link>
         )}
       </div>
+
+      {/* ── Near or past the orders the plan includes (Retail) ───────── */}
+      <PlanUsageNotice />
 
       {/* ── Sales, sessions and conversion rate, for any days ─────────── */}
       {canReports && <HomeSales />}

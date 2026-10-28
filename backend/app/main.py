@@ -844,6 +844,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # The partner program's failed Stripe events, retried on their own.
     from app.services.partners.commissions import retry_loop as _partner_retry_loop
     _partner_retry = _asyncio.create_task(_partner_retry_loop())
+    # The owner's notice at 80% and 100% of a plan's monthly orders (plans
+    # whose limits bind: Retail), hourly; each goes once a month.
+    from app.services.plan_usage import scheduler_loop as _plan_usage_loop
+    _plan_usage = _asyncio.create_task(_plan_usage_loop())
 
     yield
 
@@ -852,6 +856,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     _billing_autostart.cancel()
     _trial_notices.cancel()
     _partner_retry.cancel()
+    _plan_usage.cancel()
 
 
 app = FastAPI(

@@ -114,6 +114,16 @@ def line_inclusive_tax(line: dict) -> int:
     return total
 
 
+def line_is_proration(line: dict) -> bool:
+    """A plan switch's part-period charge or credit. Stripe marks it on the
+    line itself in the old shape, and on the line's parent details in 2025's."""
+    if line.get("proration"):
+        return True
+    parent = line.get("parent") or {}
+    return any((parent.get(details) or {}).get("proration")
+               for details in ("subscription_item_details", "invoice_item_details"))
+
+
 def line_paid_base(line: dict) -> int:
     """The line's plan fee after discounts and without tax. Negative for a
     proration credit (the unused part of a plan the shop moved off)."""
@@ -148,15 +158,17 @@ def invoice_earning(
 
     Only lines for a commissionable plan's price count: an add-on, the Gang
     Sheet Builder commission (an application fee, never on this invoice) and
-    tax never do. A plan switch puts a credit for the old plan and a charge
-    for the new one on the same invoice, so they are added together. And the
-    base never exceeds what was actually paid, less tax added on top, so a
-    $0 invoice, or one paid from a credit balance, earns nothing it did not
-    bring in.
+    tax never do. Nor do a plan switch's proration lines, the credit for the
+    old plan's unused time and the part-period charge for the new one: the
+    commission follows the new plan from its next full invoice (the Retail
+    plan's affiliate rules, 2026-10-25). And the base never exceeds what was
+    actually paid, less tax added on top, so a $0 invoice, or one paid from a
+    credit balance, earns nothing it did not bring in.
     """
     total = 0
     counted = 0
     excluded = 0
+    prorated = 0
     # The plan the invoice is for is the one with the biggest line: after a
     # switch that is the new plan's charge, not the old plan's credit.
     best_base: int | None = None
@@ -169,6 +181,9 @@ def invoice_earning(
         if key not in commissionable:
             excluded += 1
             continue
+        if line_is_proration(line):
+            prorated += 1
+            continue
         base = line_paid_base(line)
         total += base
         counted += 1
@@ -179,6 +194,8 @@ def invoice_earning(
     if paid is not None and int(paid) <= 0:
         return Earning(0, best_key, "$0 invoice, nothing was paid")
     if counted == 0:
+        if prorated:
+            return Earning(0, None, "Plan switch proration only, nothing earned")
         if excluded:
             return Earning(0, None, "This plan does not earn commission")
         return Earning(0, None, "Add-on only, not a plan price")

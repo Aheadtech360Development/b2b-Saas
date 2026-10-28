@@ -204,6 +204,18 @@ def _taken_message(owner: dict, email: str) -> str:
     # so this is somebody here the branches above did not name.
     return f"{email} already has an account here. Add this person with a different address."
 
+async def _room_for_staff(db: AsyncSession) -> None:
+    """403 when the shop's plan has no room for one more user (Retail: 2,
+    the owner included). Plans whose limits do not bind always have room."""
+    from app.services.plan_usage import StaffLimitReached, check_staff_room
+
+    try:
+        await check_staff_room(db, get_current_tenant_id())
+    except StaffLimitReached as exc:
+        raise HTTPException(status_code=403, detail={"code": "staff_limit", "message": str(exc),
+                                                     "limit": exc.limit, "plan": exc.plan_name})
+
+
 @router.post("", status_code=201)
 async def create_user(
     payload: dict,
@@ -216,6 +228,8 @@ async def create_user(
 
     if not email or not first_name:
         raise HTTPException(status_code=422, detail="email and first_name are required")
+
+    await _room_for_staff(db)
 
     from app.core.database import email_owner
 
@@ -321,6 +335,8 @@ async def update_user(
                 user.role = _ROLE_TO_DB.get(payload.get("role", "editor"), "tenant_editor")
                 user.is_admin = True
     if "is_active" in payload:
+        if payload["is_active"] and not user.is_active:
+            await _room_for_staff(db)
         user.is_active = bool(payload["is_active"])
 
     await db.commit()

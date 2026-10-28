@@ -7,8 +7,8 @@ import pytest
 
 from app.services.partners import ledger, program, referrals
 
-PRICES = {"price_starter": "starter", "price_wholesale": "wholesale", "price_scale": "scale"}
-ALL = {"starter", "wholesale", "scale"}
+PRICES = {"price_retail": "retail", "price_starter": "starter", "price_wholesale": "wholesale", "price_scale": "scale"}
+ALL = {"retail", "starter", "wholesale", "scale"}
 
 
 def plan_for(pid, pobj):
@@ -53,11 +53,32 @@ def test_a_discount_given_only_as_a_pretax_credit_is_read_too():
     assert ledger.line_paid_base(line) == 8730
 
 
-def test_a_plan_switch_adds_the_old_plans_credit_and_names_the_new_plan():
-    lines = [new_line("price_starter", -4850), new_line("price_wholesale", 14850),
-             new_line("price_wholesale", 29700)]
-    got = ledger.invoice_earning(invoice(lines, 39700), lines, plan_for, ALL)
-    assert (got.base_cents, got.plan_key) == (39700, "wholesale")
+def test_a_plan_switch_earns_on_the_new_plans_full_fee_not_its_proration():
+    """The manager's rule (Retail plan, 2026-10-25): no commission on proration
+    lines; the new plan earns from its next full invoice. Both shapes of the flag."""
+    old_shape = [old_line("price_starter", -4850, proration=True), old_line("price_wholesale", 14850, proration=True),
+                 old_line("price_wholesale", 29700)]
+    flag = {"type": "subscription_item_details", "subscription_item_details": {"proration": True}}
+    new_shape = [new_line("price_starter", -4850, parent=flag), new_line("price_wholesale", 14850, parent=flag),
+                 new_line("price_wholesale", 29700, parent={"type": "subscription_item_details",
+                                                            "subscription_item_details": {"proration": False}})]
+    for lines in (old_shape, new_shape):
+        got = ledger.invoice_earning(invoice(lines, 39700), lines, plan_for, ALL)
+        assert (got.base_cents, got.plan_key) == (29700, "wholesale")
+
+
+def test_an_invoice_of_proration_lines_only_earns_nothing():
+    lines = [new_line("price_retail", -3950, proration=True), new_line("price_starter", 4850, proration=True)]
+    got = ledger.invoice_earning(invoice(lines, 900), lines, plan_for, ALL)
+    assert (got.base_cents, got.reason) == (0, "Plan switch proration only, nothing earned")
+
+
+def test_a_retail_invoice_earns_the_standard_and_preferred_rates():
+    inv = invoice([new_line("price_retail", 7900)], 7900)
+    got = ledger.invoice_earning(inv, inv["lines"]["data"], plan_for, ALL)
+    assert (got.base_cents, got.plan_key) == (7900, "retail")
+    assert ledger.commission_cents(got.base_cents, 2000) == 1580          # $15.80 at 20%
+    assert ledger.commission_cents(got.base_cents, 3000) == 2370          # $23.70 at 30%
 
 
 def test_an_invoice_with_no_plan_price_earns_nothing():
@@ -219,7 +240,7 @@ def test_a_partner_referring_themselves_is_flagged():
 def test_settings_fall_back_to_the_designs_defaults():
     got = program.clean({})
     assert (got["hold_days"], got["minimum_payout_cents"], got["cookie_days"]) == (30, 5000, 90)
-    assert got["commissionable_plans"] == ["starter", "wholesale", "scale"] and got["earning"] is True
+    assert got["commissionable_plans"] == ["retail", "starter", "wholesale", "scale"] and got["earning"] is True
     broken = program.clean({"hold_days": "thirty", "earning": "yes", "commissionable_plans": ["scale", "x"]})
     assert broken["hold_days"] == 30 and broken["earning"] is True
     assert broken["commissionable_plans"] == ["scale"]

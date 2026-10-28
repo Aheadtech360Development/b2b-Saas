@@ -14,6 +14,7 @@ import { X } from "lucide-react";
 import { ApiClientError, apiClient } from "@/lib/api-client";
 import { SettingsFrame } from "@/components/admin/settings/SettingsFrame";
 import { CashOnDeliveryPanel } from "@/components/admin/CashOnDeliveryPanel";
+import { type PlanUsage, usageWords } from "@/components/admin/PlanUsageNotice";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 type Plan = {
@@ -37,6 +38,8 @@ type BillingData = {
   } | null;
   plans: Plan[];
   trial?: { ends_at: string | null; on_trial: boolean; expired: boolean } | null;
+  /** Orders this month and staff, against a plan whose limits bind (Retail). */
+  usage?: PlanUsage | null;
 };
 type SyncResult = { card_on_file?: { started: boolean; reason?: string; status?: string; message?: string; trial_end?: number | null } | null };
 type ConnectData = {
@@ -300,6 +303,18 @@ export default function BillingPage() {
         <div className="pc-card" style={{ padding: "24px" }} aria-busy>{[70, 92, 58].map((w, i) => (<div key={i} className="at-skel" style={{ height: "16px", width: `${w}%`, marginBottom: "12px", borderRadius: "6px" }} />))}</div>
       ) : (
         <div style={{ display: "grid", gap: "18px" }} data-billing>
+          {/* ── This month against the plan, where its limits bind ─────────── */}
+          {billing?.usage?.enforced && (
+            <section className="pc-card" style={{ padding: "16px 20px" }} data-card="usage">
+              <div style={{ display: "flex", gap: "28px", flexWrap: "wrap", fontSize: "14px" }}>
+                <span><strong>{billing.usage.orders.toLocaleString()}</strong> of {limit(billing.usage.orders_limit)} orders this month</span>
+                <span><strong>{billing.usage.staff}</strong> of {limit(billing.usage.staff_limit)} staff accounts, the owner included</span>
+              </div>
+              {usageWords(billing.usage) && (
+                <div className="pc-note" style={{ marginTop: "10px" }} role="status">{usageWords(billing.usage)}</div>
+              )}
+            </section>
+          )}
           {/* ── The plans, side by side, from the platform's own plan list ───── */}
           <section className="pc-card" data-card="plans">
             <div className="pc-card-head"><h2 className="pc-h2">Plans</h2>

@@ -11,15 +11,39 @@ designs/Platform-Pricing-Page.html.
 Stripe Product/Price objects are created from this by
 scripts/setup_stripe_billing.py; the resulting price ids are stored in
 app_settings under `stripe_price_<key>` and looked up at runtime.
+
+Two flags a plan may carry (both default to False when absent):
+- `enforce_limits`: its limits bind (the order notice, the staff cap). The
+  print plans' figures are shown but not enforced until the manager says so
+  (owner, 2026-10-28); Retail's are.
+- `public`: offered on sign-up, pricing and the Billing page. A plan that is
+  not public can still be set on a shop from the platform console, which is
+  how a test shop tries it before launch.
 """
 from __future__ import annotations
 
 from app.core.features import ALL_FEATURES, PLAN_FEATURES
 
 # Cheapest -> most expensive. Drives the pricing table order in the UI.
-PLAN_ORDER = ["starter", "wholesale", "scale"]
+PLAN_ORDER = ["retail", "starter", "wholesale", "scale"]
 
 BILLING_PLANS: dict[str, dict] = {
+    # For D2C and retail brands selling their own products (specs/003-retail-launch).
+    "retail": {
+        "name": "Retail",
+        "amount_cents": 7900,
+        "interval": "month",
+        "lookup_key": "printcopilot_retail_monthly",
+        # No Gang Sheet Builder on Retail, so there is nothing to take a share of.
+        "commission_bps": 0,
+        "features": sorted(PLAN_FEATURES["retail"]),
+        # The owner counts as one of the two staff accounts (owner, 2026-10-28).
+        "limits": {"orders_per_month": 200, "staff_accounts": 2, "custom_domains": 1},
+        "enforce_limits": True,
+        # Not offered until the Retail pages launch (the plan's publish gate).
+        "public": False,
+        "description": "For D2C and retail brands selling their own products.",
+    },
     "starter": {
         "name": "Starter",
         "amount_cents": 9700,
@@ -29,6 +53,7 @@ BILLING_PLANS: dict[str, dict] = {
         "commission_bps": 280,
         "features": sorted(PLAN_FEATURES["starter"]),
         "limits": {"orders_per_month": 300, "staff_accounts": 3, "custom_domains": 1},
+        "public": True,
         "description": "For shops not yet running wholesale volume.",
     },
     "wholesale": {
@@ -39,6 +64,7 @@ BILLING_PLANS: dict[str, dict] = {
         "commission_bps": 190,
         "features": sorted(PLAN_FEATURES["wholesale"]),
         "limits": {"orders_per_month": 1500, "staff_accounts": 10, "custom_domains": 3},
+        "public": True,
         "description": "For shops running real bulk and wholesale order volume.",
     },
     "scale": {
@@ -50,12 +76,23 @@ BILLING_PLANS: dict[str, dict] = {
         "features": sorted(PLAN_FEATURES["scale"]),
         # None = unlimited.
         "limits": {"orders_per_month": None, "staff_accounts": None, "custom_domains": None},
+        "public": True,
         "description": "For high-volume operations that have outgrown fixed limits.",
     },
 }
 
 # What each plan is sold on, in the words of the pricing sheet.
 PLAN_HIGHLIGHTS: dict[str, list[str]] = {
+    # What it already has. Loyalty, gift cards, returns and the tracking page
+    # join this list as each one ships, never before.
+    "retail": [
+        "Storefront and website builder",
+        "Cart, checkout and Stripe payments",
+        "Live chat and courier connections",
+        "Product reviews and the 24/7 AI Data Analytics Agent",
+        "Discounts, customers and segments",
+        "No platform fee on orders",
+    ],
     "starter": [
         "Orders, drafts, shipping labels, abandoned checkouts, returns, purchase orders",
         "Products, collections, reviews, inventory, multi-location inventory",
@@ -154,6 +191,8 @@ def public_pricing_table() -> list[dict]:
     out = []
     for key in PLAN_ORDER:
         p = BILLING_PLANS[key]
+        if not p.get("public"):
+            continue
         out.append({
             "key": key,
             "name": p["name"],

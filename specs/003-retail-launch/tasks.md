@@ -12,13 +12,13 @@ its checks; a package goes live only on the owner's word, and money packages onl
 
 ## Phase 1: Package 1, Retail plan and billing
 
-- [ ] T101 `core/billing_plans.py`: `retail` plan ($79, `printcopilot_retail_monthly`, commission 0, limits 200 orders / 2 staff incl. owner / 1 domain, `enforce_limits: True`); others `enforce_limits: False`; `PLAN_ORDER` gains `retail` first.
-- [ ] T102 `core/features.py`: `PLAN_FEATURES["retail"]` = base minus `gang_sheet`, `gang_sheet_ai`, `supplier_catalog`; wholesale toolset and `mobile_app` excluded; new keys `order_tracking`, `gift_cards`, `returns_portal`, `loyalty` added to the catalogue (off until their package ships).
-- [ ] T103 Plan usage service: orders this UTC month (every status), staff count; notices at 80% / 100% once per month (tenant settings), owner email; hook on order creation, never raising.
-- [ ] T104 Staff limit in user create and invite routes (`403 staff_limit`), Retail only.
-- [ ] T105 Onboarding takes `plan` from signup (`?plan=retail`) and keeps partner cookie and typed code; tests.
-- [ ] T106 Admin Billing page: Retail card, switch between Retail and print plans, usage; Home notice.
-- [ ] T107 [P] Package 7 part: `commissionable_plans` includes `retail`; `ledger.invoice_earning` skips `proration` lines; plan in referral lists and filters.
+- [x] T101 `core/billing_plans.py`: `retail` plan ($79, `printcopilot_retail_monthly`, commission 0, limits 200 orders / 2 staff incl. owner / 1 domain, `enforce_limits: True`, `public: False` until launch); print plans `public: True`; `PLAN_ORDER` gains `retail` first; `public_pricing_table` lists public plans only.
+- [x] T102 `core/features.py`: `PLAN_FEATURES["retail"]` = base minus `gang_sheet`, `supplier_catalog` (wholesale toolset, `gang_sheet_ai`, `mobile_app` already outside the base). The new feature keys join the catalogue with their own packages, so the console never shows a switch for something not built.
+- [x] T103 `services/plan_usage.py`: orders this UTC month (every status), staff (non-buyer users, owner included); notices at 80% / 100% once per month (`plan_limit_notice` tenant setting), owner email (`mails.order_limit_notice`) from an hourly loop with a Redis lock; never on the checkout path.
+- [x] T104 Staff limit on adding a user and on switching a user back on (`403 staff_limit`, message names the plan); Retail only.
+- [x] T105 Signup already takes `plan` (`/api/v1/signup`, `is_valid_plan`), so `/signup?plan=retail` makes a Retail shop; the plan name shows on the sign-up page once Retail is public.
+- [x] T106 Admin: Billing shows this month's orders and staff against the plan where limits bind; Home shows the 80% / 100% notice (`GET /api/v1/admin/billing/usage`). The Retail card on Billing appears when the plan turns public.
+- [x] T107 [P] Package 7 part: `commissionable_plans` defaults include `retail` (a saved setting needs Retail ticked in the console); `ledger.invoice_earning` skips proration lines in both Stripe shapes. Plan in referral lists and filters: still to do.
 - [ ] T108 Checks: pytest for plan gating (every `PATH_FEATURES` path for Retail), limits (160, 200, 201 orders; checkout never blocked), staff limit, signup plan, partner ledger (Retail $79 -> $15.80 at 20%, replay -> 0, proration line -> 0, refund -> clawback); Stripe test mode switch Retail <-> Starter with proration.
 
 ## Phase 2: Package 2, order tracking

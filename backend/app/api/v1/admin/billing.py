@@ -42,7 +42,22 @@ async def my_billing(request: Request, db: AsyncSession = Depends(get_db)) -> di
 
     tenant_id = getattr(request.state, "tenant_id", None)
     trial_status = await trial.status(db, tenant_id) if tenant_id else {}
-    return {**status, "plans": public_pricing_table(), "trial": trial_status}
+    from app.services import plan_usage
+
+    usage = await plan_usage.usage(db, tenant_id) if tenant_id else None
+    return {**status, "plans": public_pricing_table(), "trial": trial_status, "usage": usage}
+
+
+@router.get("/usage")
+async def my_plan_usage(request: Request, db: AsyncSession = Depends(get_db)) -> dict:
+    """Orders this month and staff against the plan, for the notice on Home.
+    `notice` is 80 or 100 only where the plan's limits bind (Retail)."""
+    from app.services import plan_usage
+
+    tenant_id = getattr(request.state, "tenant_id", None)
+    if not tenant_id:
+        raise HTTPException(status_code=400, detail="No brand context on this request")
+    return await plan_usage.usage(db, tenant_id)
 
 
 @router.post("/checkout")

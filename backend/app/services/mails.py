@@ -290,6 +290,22 @@ def trial_notice(*, days_left: int, ends_on: date | None, plans_url: str, shop_u
     return ("Your trial ends tomorrow" if days_left == 1 else f"Your trial ends in {days_left} days"), html
 
 
+def order_limit_notice(*, level: int, orders: int, limit: int, plan: str, plans_url: str) -> tuple[str, str]:
+    """The owner's notice at 80% and 100% of the plan's monthly orders. A
+    notice only: buyers keep checking out (services/plan_usage)."""
+    if level >= 100:
+        subject = f"You have reached the {limit:,} orders your {plan} plan includes this month"
+        lines = [f"Your shop has taken {orders:,} orders this month. Buyers can still check out, nothing is stopped.",
+                 "A plan with more orders keeps you inside your limits as you grow."]
+    else:
+        subject = f"Your shop has used {orders * 100 // limit}% of this month's orders"
+        lines = [f"{orders:,} of the {limit:,} orders your {plan} plan includes this month.",
+                 "Buyers can always check out. If this is your new normal, a bigger plan has room for it."]
+    html = render(heading=subject, lines=lines, buttons=[Button("See plans", plans_url)],
+                  preview=lines[0], platform=True)
+    return subject, html
+
+
 def team_invite(*, shop: str, role: str, accept_url: str, valid_days: int,
                 inviter: str | None = None) -> tuple[str, str]:
     who = inviter or "The shop's owner"

@@ -84,7 +84,12 @@ _BASE = [
     if k not in _WHOLESALE_ONLY and k not in _SCALE_ONLY and k not in _GRANT_ONLY
 ]
 
+# What only a print business needs. Retail brands sell their own products: no
+# gang sheets and no supplier catalogues (owner, 2026-10-28).
+_PRINT_ONLY = {"gang_sheet", "supplier_catalog"}
+
 PLAN_FEATURES: dict[str, set[str]] = {
+    "retail": set(_BASE) - _PRINT_ONLY,
     "starter": set(_BASE),
     "wholesale": set(_BASE) | _WHOLESALE_ONLY,
     "scale": set(_BASE) | _WHOLESALE_ONLY | _SCALE_ONLY,
