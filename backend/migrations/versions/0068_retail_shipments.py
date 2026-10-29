@@ -12,7 +12,8 @@ parcel is delivered or returned, or too old to chase.
 
 Backfill: one shipment per tracking number already on an order (comma lists
 split), delivered if the order is, otherwise in transit and checked soon if it
-shipped in the last 30 days.
+shipped in the last 7 days. An older one is left to the shop, as before: the
+loop would find most of them delivered weeks ago and email the buyer late.
 
 Revision ID: 0068_retail_shipments
 Revises: 0067_storefront_visits
@@ -93,7 +94,7 @@ def upgrade() -> None:
                'courier', COALESCE(o.shipped_at, o.updated_at),
                CASE WHEN o.status = 'delivered' THEN o.updated_at END,
                CASE WHEN o.status NOT IN ('delivered', 'cancelled', 'refunded')
-                         AND COALESCE(o.shipped_at, o.updated_at) > now() - interval '30 days' THEN now() END
+                         AND COALESCE(o.shipped_at, o.updated_at) > now() - interval '7 days' THEN now() END
           FROM orders o
           CROSS JOIN LATERAL (
               SELECT btrim(x) AS number, row_number() OVER () AS n
