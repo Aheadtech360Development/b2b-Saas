@@ -53,6 +53,8 @@ interface Place {
   not?: string[];
   count?: number;
   children?: Child[];
+  /** Shows its screens wherever somebody is, not only once they are in it. */
+  alwaysOpen?: boolean;
 }
 
 interface Counts { products?: number; orders?: number; customers?: number; returns?: number; production?: number }
@@ -115,8 +117,11 @@ export function AdminSidebar() {
       key: "customers", label: "Customers", icon: Users, href: "/admin/customers", scopes: ["customers"],
       also: ["/admin/messages"], not: ["/admin/customers/segments"], count: unreadMsgs || undefined,
     },
+    // Always open: its first screen, the website builder, is a full page with
+    // no sidebar, so nobody was ever "in" Storefront here and the Media
+    // library under it could not be found.
     {
-      key: "storefront", label: "Storefront", icon: Store, href: "/site-builder", scopes: ["storefront", "media"],
+      key: "storefront", label: "Storefront", icon: Store, href: "/site-builder", scopes: ["storefront", "media"], alwaysOpen: true,
       children: [
         { href: "/site-builder", label: "Website builder", scope: "storefront" },
         { href: "/", label: "View store", scope: "storefront", external: true },
@@ -179,7 +184,7 @@ export function AdminSidebar() {
     const kids = (p.children ?? []).filter(shown);
     const active = placeActive(p);
     // The place somebody is in shows its screens; the others are one line each.
-    const open = active && kids.length > 1;
+    const open = (active || !!p.alwaysOpen) && kids.length > 1;
     const first = kids.find((c) => !c.external)?.href ?? p.href;
     const Icon = p.icon;
     return (
