@@ -39,6 +39,9 @@ export interface ConfirmOrderPayload {
   ach_routing_number?: string;
   ach_account_last4?: string;
   ach_account_type?: string;
+  /** Gift cards entered at checkout, and the attempt their holds belong to. */
+  gift_card_codes?: string[];
+  checkout_ref?: string;
 }
 
 export const ordersService = {

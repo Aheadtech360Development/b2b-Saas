@@ -94,6 +94,32 @@ async def add_configured(
     return result
 
 
+class GiftCardAddRequest(BaseModel):
+    amount: Decimal
+    recipient_email: str
+    recipient_name: str | None = None
+    message: str | None = None
+    sender_name: str | None = None
+
+
+@router.post("/gift-card", response_model=CartResponse, status_code=status.HTTP_200_OK)
+async def add_gift_card(
+    payload: GiftCardAddRequest,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """A gift card for someone (services/gift_card_checkout). The amount must
+    be one the shop offers; the code is made when the order is paid."""
+    company_id = _require_company(request)
+    result = await CartService(db).add_gift_card(
+        company_id, amount=payload.amount, recipient_email=payload.recipient_email,
+        recipient_name=payload.recipient_name, message=payload.message, sender_name=payload.sender_name,
+        discount_percent=_discount(request), group_id=_group_id(request),
+    )
+    await db.commit()
+    return result
+
+
 @router.patch("/items/{item_id}", response_model=CartResponse)
 async def update_item(
     item_id: UUID,

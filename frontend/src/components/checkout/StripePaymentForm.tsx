@@ -18,14 +18,24 @@ export type IntentPayload = {
   /** A guest's cart travels with the request: there is no company cart on the
    *  server to price. The server prices these lines itself. */
   items?: unknown[];
+  /** Gift cards paying first, and the checkout attempt their holds belong to. */
+  gift_card_codes?: string[];
+  checkout_ref?: string;
 };
 
-type IntentResp = {
-  client_secret: string;
-  payment_intent_id: string;
-  connected_account_id: string;
-  publishable_key: string;
-  amount: number;
+export type IntentResp = {
+  /** Absent when gift cards pay it all (`gift_only`): no card is charged. */
+  client_secret?: string;
+  payment_intent_id?: string;
+  connected_account_id?: string;
+  publishable_key?: string;
+  /** What the card is charged. */
+  amount: number | string;
+  order_total?: number | string;
+  gift_only?: boolean;
+  gift_cards?: { last4: string; masked: string; amount: number }[];
+  gift_card_total?: number;
+  card_amount?: number;
 };
 
 function InnerForm({
@@ -89,11 +99,16 @@ function InnerForm({
 
 export function StripePaymentForm({
   intentPayload, onPaid, buttonLabel = "Pay & Place Order",
-  intentUrl = "/api/v1/checkout/intent",
+  intentUrl = "/api/v1/checkout/intent", onIntent, onGiftOnly, giftOnlyLabel = "Place order",
 }: {
   intentPayload: IntentPayload;
   onPaid: (paymentIntentId: string) => void;
   buttonLabel?: string;
+  /** Told what the payment step priced: the total, and what gift cards pay of it. */
+  onIntent?: (r: IntentResp) => void;
+  /** Gift cards cover the whole order: no card form, this places it. */
+  onGiftOnly?: () => void;
+  giftOnlyLabel?: string;
   /** Where to raise the PaymentIntent. Defaults to the cart; an invoice raises
    *  its own for the balance still owed. */
   intentUrl?: string;
@@ -102,6 +117,7 @@ export function StripePaymentForm({
   const [clientSecret, setClientSecret] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [giftOnly, setGiftOnly] = useState(false);
   // Create the intent exactly once — a fresh mount (e.g. after editing the cart)
   // makes a new one, which is fine; the previous uncaptured PI simply expires.
   const started = useRef(false);
@@ -119,8 +135,13 @@ export function StripePaymentForm({
           cart_validated: true,
           ...intentPayload,
         });
-        setStripePromise(loadStripe(r.publishable_key, { stripeAccount: r.connected_account_id }));
-        setClientSecret(r.client_secret);
+        onIntent?.(r);
+        if (r.gift_only) {
+          setGiftOnly(true);
+          return;
+        }
+        setStripePromise(loadStripe(r.publishable_key!, { stripeAccount: r.connected_account_id }));
+        setClientSecret(r.client_secret!);
       } catch (e: unknown) {
         const msg = (e as { status?: number; code?: string; message?: string });
         setLoadError(
@@ -137,6 +158,29 @@ export function StripePaymentForm({
     return (
       <div style={{ padding: "12px 16px", background: "rgba(232,36,42,.07)", border: "1px solid rgba(232,36,42,.25)", color: "#E8242A", fontSize: "13px", fontWeight: 600 }}>
         {loadError}
+      </div>
+    );
+  }
+  if (giftOnly) {
+    return (
+      <div data-gift-only>
+        <div style={{ padding: "12px 14px", background: "rgba(5,150,105,.07)", border: "1px solid rgba(5,150,105,.25)", color: "#065F46", fontSize: "13px", fontWeight: 600 }}>
+          Your gift card covers the whole order. No card needed.
+        </div>
+        <button
+          type="button"
+          onClick={() => { setSubmitting(true); onGiftOnly?.(); }}
+          disabled={submitting}
+          style={{
+            width: "100%", marginTop: "16px", padding: "14px",
+            background: submitting ? "#E2E2DE" : "var(--brand-primary, #1C3557)",
+            color: submitting ? "#aaa" : "#fff", border: "none",
+            fontFamily: "'DM Sans', sans-serif", fontSize: "15px", fontWeight: 500,
+            cursor: submitting ? "not-allowed" : "pointer",
+          }}
+        >
+          {submitting ? "Placing your order…" : giftOnlyLabel}
+        </button>
       </div>
     );
   }

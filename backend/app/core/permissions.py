@@ -113,6 +113,9 @@ _PATH_SCOPES: list[tuple[str, str]] = [
     ("/api/v1/admin/product-specs", "content"),
     ("/api/v1/admin/discount-groups", "discounts"),
     ("/api/v1/admin/discounts", "discounts"),
+    # Gift cards: Marketing. Issuing one or changing a balance makes money
+    # the shop owes, so it also needs Billing (below), as a refund does.
+    ("/api/v1/admin/gift-cards", "discounts"),
     ("/api/v1/admin/variant-pricing", "discounts"),
     ("/api/v1/admin/variant-level-pricing", "discounts"),
     ("/api/v1/admin/users", "staff"),
@@ -155,6 +158,9 @@ _ALSO_REQUIRES: list[tuple[re.Pattern, str]] = [
     (re.compile(r"^/api/v1/admin/orders/[^/]+/refund/?$"), "billing"),
     # A return put right as a refund (admin/returns), made new or decided.
     (re.compile(r"^/api/v1/admin/returns(/[^/]+)?/refund/?$"), "billing"),
+    # A gift card issued, its balance or status changed, or a new code made
+    # (the issuer sees the code, so it is as good as the money).
+    (re.compile(r"^/api/v1/admin/gift-cards(/[^/]+/(adjust|status|resend))?/?$"), "billing"),
 ]
 
 

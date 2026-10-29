@@ -244,13 +244,13 @@ async def resync_order(db: AsyncSession, order_id, order_total: Decimal) -> dict
     follows the money, so it cannot be wrong because two events arrived in an
     unlucky order or one arrived twice.
     """
-    total_refunded = Decimal(str((await db.execute(
+    total_refunded = (Decimal(str((await db.execute(
         text("""
             SELECT COALESCE(SUM(amount), 0) FROM payment_refunds
             WHERE order_id = :oid AND status = ANY(:counted)
         """),
         {"oid": str(order_id), "counted": list(COUNTED)},
-    )).scalar_one() or 0)).quantize(CENTS)
+    )).scalar_one() or 0)) + await gift_card_refunded(db, order_id)).quantize(CENTS)
 
     fully = order_total > 0 and total_refunded >= order_total
 
@@ -299,6 +299,15 @@ async def reconcile_charge(db: AsyncSession, charge: Any, *, account: str | None
         return None
     refunded = _money(_get(charge, "amount_refunded"))
     fully = bool(_get(charge, "refunded"))
+    # The card is only part of an order gift cards helped pay: it is refunded
+    # in full when the gift cards' part has gone back too.
+    gift = Decimal(str((await db.execute(text("""
+        SELECT COALESCE(SUM(amount), 0) FROM gift_card_holds WHERE order_id = :oid AND status = 'captured'
+    """), {"oid": str(order["id"])})).scalar_one() or 0))
+    if gift > 0:
+        gift_back = await gift_card_refunded(db, order["id"])
+        refunded = (refunded + gift_back).quantize(CENTS)
+        fully = fully and gift_back >= gift
     await db.execute(text("""
         UPDATE orders
         SET amount_refunded = GREATEST(amount_refunded, :refunded),
@@ -310,8 +319,18 @@ async def reconcile_charge(db: AsyncSession, charge: Any, *, account: str | None
     return {"order_id": str(order["id"]), "total_refunded": float(refunded), "fully_refunded": fully}
 
 
+async def gift_card_refunded(db: AsyncSession, order_id) -> Decimal:
+    """What went back onto gift cards for an order (services/gift_card_checkout).
+    Money returned to the buyer as much as a card refund is."""
+    return Decimal(str((await db.execute(text("""
+        SELECT COALESCE(SUM(amount), 0) FROM gift_card_ledger
+        WHERE order_id = :oid AND kind = 'refund'
+    """), {"oid": str(order_id)})).scalar_one() or 0)).quantize(CENTS)
+
+
 async def remaining_refundable(db: AsyncSession, order_id) -> Decimal:
-    """What can still be refunded on an order: its total, less what came back."""
+    """What can still be refunded on an order: its total, less what came back
+    (to the card and to gift cards)."""
     row = (await db.execute(text("""
         SELECT o.total, COALESCE((
             SELECT SUM(r.amount) FROM payment_refunds r
@@ -321,7 +340,8 @@ async def remaining_refundable(db: AsyncSession, order_id) -> Decimal:
     """), {"oid": str(order_id), "counted": list(COUNTED)})).mappings().first()
     if not row:
         return Decimal("0.00")
-    return max(Decimal("0"), Decimal(str(row["total"] or 0)) - Decimal(str(row["refunded"] or 0))).quantize(CENTS)
+    back = Decimal(str(row["refunded"] or 0)) + await gift_card_refunded(db, order_id)
+    return max(Decimal("0"), Decimal(str(row["total"] or 0)) - back).quantize(CENTS)
 
 
 async def refunds_for_order(db: AsyncSession, order_id) -> list[dict]:

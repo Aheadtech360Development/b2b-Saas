@@ -42,6 +42,14 @@ export interface LineConfiguration {
   /** Cents inside `setup_fees` that make the line add up to a price-table
    *  total ($1,106.84 for 30). Not a fee, so not shown as one. */
   rounding?: number;
+  /** A gift card being bought: who it is emailed to (api/v1/gift_cards). */
+  gift_card?: {
+    amount: number | string;
+    recipient_email: string;
+    recipient_name?: string | null;
+    message?: string | null;
+    sender_name?: string | null;
+  };
 }
 
 /** A configured line's real one-off fees: its setup fees less any rounding. */

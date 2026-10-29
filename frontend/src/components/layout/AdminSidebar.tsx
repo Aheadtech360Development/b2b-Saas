@@ -127,11 +127,11 @@ export function AdminSidebar() {
         { href: "/admin/media", label: "Media library", scope: "media" },
       ],
     },
-    // One line: Discounts, Abandoned carts, Reviews, Segments and Tracking are
+    // One line: Discounts, Gift cards, Abandoned carts, Reviews, Segments and Tracking are
     // the tabs across Marketing (components/admin/marketing/MarketingFrame).
     {
       key: "marketing", label: "Marketing", icon: Megaphone, href: "/admin/discounts", scopes: ["discounts", "orders", "customers"],
-      also: ["/admin/abandoned-carts", "/admin/products/reviews", "/admin/customers/segments", "/admin/settings/tracking"],
+      also: ["/admin/gift-cards", "/admin/abandoned-carts", "/admin/products/reviews", "/admin/customers/segments", "/admin/settings/tracking"],
     },
     // One line: Sales, Customers and Production are the tabs across Reports.
     { key: "reports", label: "Reports", icon: BarChart3, href: "/admin/reports", scopes: ["analytics"], also: ["/admin/analytics"] },

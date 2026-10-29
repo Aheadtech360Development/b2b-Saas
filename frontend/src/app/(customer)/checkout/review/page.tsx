@@ -10,14 +10,14 @@ import { cartService } from "@/services/cart.service";
 import { ordersService } from "@/services/orders.service";
 import { apiClient } from "@/lib/api-client";
 import { formatCurrency } from "@/lib/utils";
-import { StripePaymentForm } from "@/components/checkout/StripePaymentForm";
+import { StripePaymentForm, type IntentResp } from "@/components/checkout/StripePaymentForm";
 import type { Cart } from "@/types/order.types";
 import { ConfigurationDetail } from "@/components/shared/ConfigurationDetail";
 import { clearAttribution, getAttribution, getServerTracking } from "@/lib/attribution";
 import { rememberOrderKey, thankYouPath } from "@/lib/orderThanks";
 import { cartLines, holdPurchase, trackPaymentChosen } from "@/lib/tracking";
 
-import { guestCheckoutItem, guestLineTotal, type GuestLine as GuestCartEntry } from "@/lib/guestCart";
+import { guestCheckoutItem, guestLineTotal, isGiftCardLine, type GuestLine as GuestCartEntry } from "@/lib/guestCart";
 
 
 
@@ -118,6 +118,20 @@ export default function CheckoutReviewPage() {
    *  server answers a repeat with the order it already made, so a lost answer
    *  on cash on delivery, ACH or Net 30 no longer makes a second order. */
   const attempt = useRef("");
+  /** The same attempt, as the gift card holds know it: set once the page is
+   *  in the browser, sent with every pricing of the card and with the order. */
+  const [checkoutRef, setCheckoutRef] = useState("");
+  // Gift cards (services/gift_card_checkout): codes entered here pay first,
+  // the card pays the rest. Kept in memory only: a code is money.
+  const [giftAccepted, setGiftAccepted] = useState(false);
+  const [giftCodes, setGiftCodes] = useState<string[]>([]);
+  const [giftShown, setGiftShown] = useState<Record<string, { masked: string; balance: number }>>({});
+  const [giftEntry, setGiftEntry] = useState("");
+  const [giftErr, setGiftErr] = useState<string | null>(null);
+  const [giftBusy, setGiftBusy] = useState(false);
+  /** What the payment step priced (the order total and the gift card split),
+   *  and for which pricing: an answer for an older one never shows. */
+  const [pricedFor, setPricedFor] = useState<{ key: string; r: IntentResp } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [appliedCoupon, setAppliedCoupon] = useState<{ code: string; discount_amount: number; discount_type: string } | null>(null);
   // Whether the code from the cart, and a guest's cart, have been read from
@@ -139,6 +153,17 @@ export default function CheckoutReviewPage() {
     apiClient.get<{ card?: boolean; cod?: boolean }>("/api/v1/checkout/payment-options")
       .then((r) => setWays({ card: r.card !== false, cod: !!r.cod }))
       .catch(() => setWays({ card: true, cod: false }));
+    // Does this shop take gift cards at checkout. A shop without the feature
+    // answers no (or not at all): the box is simply not shown.
+    apiClient.get<{ accepted?: boolean }>("/api/v1/storefront/gift-cards")
+      .then((r) => setGiftAccepted(!!r.accepted))
+      .catch(() => setGiftAccepted(false));
+    if (!attempt.current) {
+      attempt.current = typeof crypto !== "undefined" && "randomUUID" in crypto
+        ? crypto.randomUUID()
+        : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
+    }
+    setCheckoutRef(attempt.current);
   }, []);
 
   // Keep the choice to what the shop offers: cash on delivery left over from
@@ -153,8 +178,16 @@ export default function CheckoutReviewPage() {
   // Derived values needed by useEffects below
   const guestSubtotalCalc = guestEntries.reduce((s, e) => s + guestLineTotal(e), 0);
   const subtotal = isGuest ? guestSubtotalCalc : Number(cart?.subtotal ?? 0);
+  // Gift cards being bought: no shipping, no tax, and no paying with a gift card.
+  const giftLines = isGuest ? guestEntries.filter(isGiftCardLine) : (cart?.items ?? []).filter(isGiftCardLine);
+  const buyingGiftCards = giftLines.length > 0;
+  const lineCount = isGuest ? guestEntries.length : (cart?.items.length ?? 0);
+  const onlyGiftCards = buyingGiftCards && giftLines.length === lineCount;
+  const giftLinesTotal = isGuest
+    ? guestEntries.filter(isGiftCardLine).reduce((s, e) => s + guestLineTotal(e), 0)
+    : (cart?.items ?? []).filter(isGiftCardLine).reduce((s, i) => s + Number(i.line_total), 0);
   // A free-shipping code makes shipping free (the server applies it the same way).
-  const shipping = !isGuest && appliedCoupon?.discount_type === "free_shipping" ? 0 : shippingCost;
+  const shipping = onlyGiftCards ? 0 : !isGuest && appliedCoupon?.discount_type === "free_shipping" ? 0 : shippingCost;
   const couponDiscount = appliedCoupon ? Number(appliedCoupon.discount_amount) : 0;
 
   // Guard: must have shipping + payment
@@ -255,14 +288,19 @@ export default function CheckoutReviewPage() {
     throw lastErr;
   }
 
-  async function handlePlaceOrder(stripePaymentIntentId?: string) {
+  async function handlePlaceOrder(stripePaymentIntentId?: string, giftOnly = false) {
     if (!shippingAddress) return;
     // Once the card has been charged the money is already taken, so the pay form
     // must never come back — the only safe action left is finishing this order.
     if (stripePaymentIntentId) setPaidIntentId(stripePaymentIntentId);
     setIsPlacing(true);
     setError(null);
-    trackPaymentChosen(paymentMethod);
+    trackPaymentChosen(giftOnly ? "gift_card" : paymentMethod);
+    const paidWith = giftOnly ? "gift_card" : paymentMethod;
+    const giftFields = {
+      gift_card_codes: giftCodes.length ? giftCodes : undefined,
+      checkout_ref: checkoutRef || attempt.current || undefined,
+    };
     if (!attempt.current) {
       attempt.current = typeof crypto !== "undefined" && "randomUUID" in crypto
         ? crypto.randomUUID()
@@ -298,8 +336,9 @@ export default function CheckoutReviewPage() {
             country: shippingAddress.country || "US",
           },
           shipping_method: shippingMethod || "standard",
-          payment_method: paymentMethod,
-          payment_intent_id: paymentMethod === "card" ? stripePaymentIntentId : undefined,
+          payment_method: paidWith,
+          payment_intent_id: paymentMethod === "card" && !giftOnly ? stripePaymentIntentId : undefined,
+          ...giftFields,
           ach_bank_name: paymentMethod === "ach" ? achBankName : undefined,
           ach_account_holder: paymentMethod === "ach" ? achAccountHolder : undefined,
           ach_routing_number: paymentMethod === "ach" ? achRoutingNumber : undefined,
@@ -336,7 +375,7 @@ export default function CheckoutReviewPage() {
           productName,
           shippingMethod,
           shippingCost,
-          paymentMethod,
+          paymentMethod: paidWith,
           isGuest: true,
         };
         // A guest cart line carries no SKU, so the variant id is the product
@@ -395,6 +434,7 @@ export default function CheckoutReviewPage() {
           shipping_carrier: selectedRate.carrier,
           shipping_service: selectedRate.service,
         } : {}),
+        ...giftFields,
       };
 
       console.log("[Review] Wholesale basePayload:", JSON.stringify(basePayload, null, 2));
@@ -404,7 +444,9 @@ export default function CheckoutReviewPage() {
         shipping_service: (basePayload as Record<string, unknown>).shipping_service,
       });
       const order = await confirmWithRetry(
-        paymentMethod === "ach"
+        giftOnly
+          ? { ...basePayload, payment_method: "gift_card" }
+          : paymentMethod === "ach"
           ? {
               ...basePayload,
               payment_method: "ach",
@@ -433,7 +475,10 @@ export default function CheckoutReviewPage() {
 
       const productName = cart?.items[0]?.product_name ?? "Your Order";
       const colorSummary = cart ? buildColorSummary(cart) : "";
-      const orderTotal = subtotal + shippingCost + taxAmount - couponDiscount + convenienceFee;
+      // The order's own total when the answer carries it (gift cards, tax
+      // worked out on the server); the page's sum otherwise.
+      const orderTotal = Number((order as { total?: number | string }).total ?? NaN) ||
+        subtotal + shipping + taxAmount - couponDiscount + convenienceFee;
 
       const confirmedData = {
         id: order.id,
@@ -444,7 +489,7 @@ export default function CheckoutReviewPage() {
         productName,
         shippingMethod,
         shippingCost,
-        paymentMethod,
+        paymentMethod: paidWith,
       };
       // A sheet's line has no variant and no SKU, and went out with an empty
       // product id; cartLines names it the way the add to cart did.
@@ -482,12 +527,18 @@ export default function CheckoutReviewPage() {
     : "Credit Card";
 
   // Priority: stored tax amount → fresh re-fetch amount → rate × (subtotal-discount)
-  const taxAmount = storedTaxAmount > 0
+  const baseTax = storedTaxAmount > 0
     ? storedTaxAmount
     : freshTaxAmount > 0
       ? freshTaxAmount
       : (taxRate ? Math.round(Math.max(0, subtotal - couponDiscount) * taxRate.rate / 100 * 100) / 100 : 0); // shipping not taxed
+  // A gift card is not taxed: tax is on the rest of the order only.
+  const taxAmount = onlyGiftCards ? 0 : buyingGiftCards
+    ? (taxRate ? Math.round(Math.max(0, subtotal - giftLinesTotal - couponDiscount) * taxRate.rate / 100 * 100) / 100 : baseTax)
+    : baseTax;
   const total = subtotal + shipping + taxAmount - (isGuest ? 0 : couponDiscount) + convenienceFee;
+  // What the payment step priced, once it has: the server's total, and what
+  // the card pays after gift cards. (Read below, once the pricing's key is known.)
   const shippingLabel = SHIPPING_LABELS[shippingMethod] ?? "Standard Ground";
 
   // What the card is asked for — the same fields /checkout/confirm is sent.
@@ -505,7 +556,38 @@ export default function CheckoutReviewPage() {
           tax_amount: taxAmount > 0 ? taxAmount : undefined,
         }
       : {}),
+    ...(giftCodes.length ? { gift_card_codes: giftCodes } : {}),
+    checkout_ref: checkoutRef || undefined,
   };
+  const intentKey = JSON.stringify(cardIntent);
+  const priced = pricedFor?.key === intentKey ? pricedFor.r : null;
+  const shownTotal = priced?.order_total != null ? Number(priced.order_total) : total;
+  const cardToPay = priced ? Number(priced.amount) : total;
+  const giftPaying = priced?.gift_cards ?? [];
+
+  async function applyGiftCard() {
+    const raw = giftEntry.trim();
+    if (!raw) return;
+    const same = (a: string) => a.toUpperCase().replace(/[\s-]/g, "");
+    if (giftCodes.some((c) => same(c) === same(raw))) { setGiftErr("That gift card is already applied."); return; }
+    if (giftCodes.length >= 5) { setGiftErr("Up to 5 gift cards on one order."); return; }
+    setGiftBusy(true);
+    setGiftErr(null);
+    try {
+      const r = await apiClient.post<{ masked: string; balance: number; usable: boolean; problem: string | null }>(
+        "/api/v1/storefront/gift-cards/balance", { code: raw });
+      if (!r.usable) {
+        setGiftErr(r.problem || "This gift card can't be used.");
+      } else {
+        setGiftCodes((list) => [...list, raw]);
+        setGiftShown((shown) => ({ ...shown, [raw]: { masked: r.masked, balance: Number(r.balance) } }));
+        setGiftEntry("");
+      }
+    } catch (e) {
+      setGiftErr(e instanceof Error ? e.message : "That gift card code isn't valid. Check it and try again.");
+    }
+    setGiftBusy(false);
+  }
 
   return (
     <div style={{ padding: "40px 0 64px" }}>
@@ -546,6 +628,35 @@ export default function CheckoutReviewPage() {
                 </div>
               </div>
             )}
+            {giftAccepted && !buyingGiftCards && paymentMethod === "card" && !paidIntentId && !isPlacing && (
+              <div className="ui-card" style={{ marginBottom: "20px" }} data-gift-card-box>
+                <div style={sectionLabelStyle}>Gift card</div>
+                {giftCodes.map((code) => (
+                  <div key={code} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "10px", fontSize: "13.5px", padding: "8px 0", borderBottom: "1px solid var(--ui-line)" }}>
+                    <span style={{ color: "var(--ui-ink)", fontWeight: 600 }}>
+                      Gift card {giftShown[code]?.masked ?? ""}
+                      <span style={{ color: "var(--ui-muted)", fontWeight: 400 }}>
+                        {" · "}{formatCurrency(giftShown[code]?.balance ?? 0)} on the card
+                      </span>
+                    </span>
+                    <button type="button" onClick={() => { setGiftCodes((list) => list.filter((c) => c !== code)); setGiftErr(null); }} style={editLinkStyle}>
+                      Remove
+                    </button>
+                  </div>
+                ))}
+                <form style={{ display: "flex", gap: "8px", marginTop: giftCodes.length ? "12px" : 0 }}
+                  onSubmit={(e) => { e.preventDefault(); applyGiftCard(); }}>
+                  <input value={giftEntry} onChange={(e) => setGiftEntry(e.target.value)} placeholder="Gift card code"
+                    aria-label="Gift card code" autoComplete="off" spellCheck={false} maxLength={40}
+                    style={{ ...inp, flex: 1, letterSpacing: ".04em", textTransform: "uppercase" }} />
+                  <button type="submit" disabled={giftBusy || !giftEntry.trim()}
+                    style={{ padding: "0 18px", border: "1px solid var(--ui-ink)", background: "#fff", color: "var(--ui-ink)", fontWeight: 600, fontSize: "14px", cursor: giftBusy ? "wait" : "pointer", fontFamily: "inherit" }}>
+                    {giftBusy ? "Checking…" : "Apply"}
+                  </button>
+                </form>
+                {giftErr && <div role="alert" style={{ marginTop: "8px", fontSize: "13px", color: "var(--ui-bad)", fontWeight: 600 }}>{giftErr}</div>}
+              </div>
+            )}
             {paymentMethod === "card" ? (
               // Stripe card entry + payment. On success the confirmed PaymentIntent
               // id is handed to order creation. Money settles on the brand's account.
@@ -571,7 +682,7 @@ export default function CheckoutReviewPage() {
                       Finish my order
                     </button>
                   </div>
-                ) : !couponRead || (isGuest && !guestCartRead) ? (
+                ) : !couponRead || (isGuest && !guestCartRead) || !checkoutRef ? (
                   <div style={{ padding: "16px", color: "var(--ui-muted)", fontSize: "13px" }}>Loading secure payment…</div>
                 ) : (
                   <StripePaymentForm
@@ -580,7 +691,7 @@ export default function CheckoutReviewPage() {
                     // guest's items — gives the form a fresh intent, priced
                     // as the order will be. The one it replaces is never
                     // confirmed, so it is never charged.
-                    key={JSON.stringify(cardIntent)}
+                    key={intentKey}
                     // A guest's cart is in their browser, so the amount is
                     // raised from the same items the order will be made from.
                     // The signed-in path prices the company's cart instead and
@@ -589,7 +700,9 @@ export default function CheckoutReviewPage() {
                     intentUrl={isGuest ? "/api/v1/guest/payment-intent" : "/api/v1/checkout/intent"}
                     intentPayload={cardIntent}
                     onPaid={(pi) => handlePlaceOrder(pi)}
-                    buttonLabel={`Pay ${formatCurrency(total)} & Place Order`}
+                    onIntent={(r) => setPricedFor({ key: intentKey, r })}
+                    onGiftOnly={() => handlePlaceOrder(undefined, true)}
+                    buttonLabel={`Pay ${formatCurrency(cardToPay)} & Place Order`}
                   />
                 )}
                 <a
@@ -841,9 +954,9 @@ export default function CheckoutReviewPage() {
                 </div>
               )}
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: "13px", color: "var(--ui-muted)", padding: "8px 0", borderBottom: "1px solid var(--ui-line)" }}>
-                <span>Shipping ({shippingLabel})</span>
+                <span>{onlyGiftCards ? "Delivery" : `Shipping (${shippingLabel})`}</span>
                 <span style={{ color: shipping === 0 ? "var(--ui-ok)" : "var(--ui-ink)", fontWeight: 600 }}>
-                  {shipping === 0 ? "FREE" : formatCurrency(shipping)}
+                  {onlyGiftCards ? "By email" : shipping === 0 ? "FREE" : formatCurrency(shipping)}
                 </span>
               </div>
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: "13px", color: "var(--ui-muted)", padding: "8px 0", borderBottom: "1px solid var(--ui-line)" }}>
@@ -862,8 +975,22 @@ export default function CheckoutReviewPage() {
               )}
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: "15px", fontWeight: 600, color: "var(--ui-ink)", padding: "14px 0 0" }}>
                 <span>Total</span>
-                <span>{formatCurrency(total)}</span>
+                <span>{formatCurrency(shownTotal)}</span>
               </div>
+              {giftPaying.length > 0 && (
+                <div data-gift-split style={{ marginTop: "10px", borderTop: "1px solid var(--ui-line)", paddingTop: "8px" }}>
+                  {giftPaying.map((g) => (
+                    <div key={g.last4} style={{ display: "flex", justifyContent: "space-between", fontSize: "13px", color: "var(--ui-ok)", padding: "4px 0" }}>
+                      <span style={{ fontWeight: 600 }}>Gift card {g.masked}</span>
+                      <span style={{ fontWeight: 700 }}>-{formatCurrency(Number(g.amount))}</span>
+                    </div>
+                  ))}
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: "14px", fontWeight: 700, color: "var(--ui-ink)", padding: "6px 0 0" }}>
+                    <span>{cardToPay > 0 ? "To pay by card" : "To pay"}</span>
+                    <span>{formatCurrency(cardToPay)}</span>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>

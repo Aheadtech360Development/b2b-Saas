@@ -17,6 +17,16 @@ export const GUEST_CART_KEY = "af_guest_cart";
 /** Lines taken out of the guest cart while they are being moved into an account. */
 const ADOPTING_KEY = "af_guest_cart_adopting";
 
+/** A gift card being bought for someone (api/v1/gift_cards). The code is made
+ *  when the order is paid and emailed to the recipient. */
+export interface GiftCardDetails {
+  amount: number;
+  recipient_email: string;
+  recipient_name?: string | null;
+  message?: string | null;
+  sender_name?: string | null;
+}
+
 export interface GuestLine {
   /** Identity of the line, and what dedupes it. A variant's id, or a key
    *  built from the product and what was chosen on it. */
@@ -41,6 +51,29 @@ export interface GuestLine {
   /** The line's whole price when it is not unit price x quantity: a price
    *  table's total, which a unit price to the cent does not multiply back to. */
   line_total?: number;
+  /** Set on a gift card being bought: one card, no shipping, no tax. */
+  gift_card?: GiftCardDetails;
+}
+
+/** A gift card for someone, as a guest cart line. Each one its own line. */
+export function giftCardLine(details: GiftCardDetails): GuestLine {
+  const who = details.recipient_name || details.recipient_email;
+  return {
+    variant_id: `gc:${Date.now().toString(36)}:${Math.random().toString(36).slice(2, 8)}`,
+    quantity: 1,
+    product_id: "",
+    product_name: `Gift card ${details.amount.toFixed(2)} for ${who}`,
+    slug: "",
+    color: null,
+    size: null,
+    unit_price: details.amount,
+    gift_card: details,
+  };
+}
+
+/** Is this cart line a gift card being bought (guest or account cart). */
+export function isGiftCardLine(line: { gift_card?: unknown; item_type?: string | null }): boolean {
+  return !!line.gift_card || line.item_type === "gift_card";
 }
 
 /** What one line comes to: its own total when it carries one. */
@@ -94,7 +127,8 @@ export function addToGuestCart(line: GuestLine): void {
   const existing = cart.find((i) => i.variant_id === line.variant_id);
   // A built sheet is one job, not a stock line: saving it again replaces the
   // line (new price, new count) instead of adding its quantity on top.
-  if (existing && line.gang_sheet_order_id) Object.assign(existing, line);
+  if (line.gift_card) cart.push(line);
+  else if (existing && line.gang_sheet_order_id) Object.assign(existing, line);
   else if (existing && (line.quantity_from_option || existing.quantity_from_option)) cart.push(line);
   else if (existing) existing.quantity += line.quantity;
   else cart.push(line);
@@ -106,7 +140,11 @@ export function guestCheckoutItem(line: GuestLine): {
   quantity: number; variant_id?: string; product_id?: string;
   selections?: Record<string, string>; gang_sheet_order_id?: string;
   artwork?: { url: string; file_name: string; file_type: string };
+  gift_card?: GiftCardDetails;
 } {
+  if (line.gift_card) {
+    return { quantity: 1, gift_card: line.gift_card };
+  }
   if (line.gang_sheet_order_id) {
     return { quantity: line.quantity, gang_sheet_order_id: line.gang_sheet_order_id };
   }
@@ -197,7 +235,9 @@ export function adoptGuestCart(): Promise<AdoptResult> {
 
     const stocked = new Map<string, GuestLine[]>();
     for (const line of lines) {
-      if (line.gang_sheet_order_id) {
+      if (line.gift_card) {
+        await one(line, () => apiClient.post("/api/v1/cart/gift-card", line.gift_card));
+      } else if (line.gang_sheet_order_id) {
         await one(line, () => cartService.addGangSheet(line.gang_sheet_order_id!));
       } else if (line.selections) {
         await one(line, () => apiClient.post("/api/v1/cart/add-configured", {

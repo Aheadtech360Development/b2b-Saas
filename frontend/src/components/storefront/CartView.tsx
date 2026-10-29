@@ -18,7 +18,7 @@ import { cartService } from "@/services/cart.service";
 import { apiClient } from "@/lib/api-client";
 import { useAuthStore } from "@/stores/auth.store";
 import type { Cart, CartItem } from "@/types/order.types";
-import { adoptGuestCart } from "@/lib/guestCart";
+import { adoptGuestCart, isGiftCardLine } from "@/lib/guestCart";
 import { trackCartViewed, trackLineAdd, trackLinesRemoved } from "@/lib/tracking";
 import { ConfigurationDetail } from "@/components/shared/ConfigurationDetail";
 
@@ -135,6 +135,8 @@ function buildGuestCart(entries: GuestCartEntry[]): Cart {
     // A set quantity ("500 flyers") reads "500 for $120.00" and is changed
     // on the product page, as on an account's cart.
     ...(e.quantity_from_option ? { configuration: { quantity_from_option: true } } : {}),
+    // A gift card: one card, emailed; its quantity is not changed here.
+    ...(e.gift_card ? { item_type: "gift_card", configuration: { gift_card: e.gift_card } } : {}),
     moq: 1,
     moq_satisfied: true,
     stock_quantity: 999,
@@ -449,7 +451,9 @@ export default function CartView({ embedded = false }: { embedded?: boolean }) {
                     <div style={{ minWidth: 0, flex: 1 }}>
                       <div style={{ fontSize: "15px", fontWeight: 600, lineHeight: 1.35 }}>{item.product_name}</div>
                       <div style={{ fontSize: "13px", color: "var(--ui-muted)", marginTop: "3px" }}>
-                        {[item.color, item.size].filter(Boolean).join(" · ") || "—"}
+                        {isGiftCardLine(item)
+                          ? `Emailed to ${item.configuration?.gift_card?.recipient_email ?? "the recipient"} when you pay`
+                          : [item.color, item.size].filter(Boolean).join(" · ") || "—"}
                         {item.sku && (
                           <span className="ui-num" style={{ marginLeft: "8px", fontSize: "12px" }}>{item.sku}</span>
                         )}
@@ -467,7 +471,7 @@ export default function CartView({ embedded = false }: { embedded?: boolean }) {
                     </div>
 
                     <div className="cart-line-end">
-                      {item.configuration?.quantity_from_option ? (
+                      {item.configuration?.quantity_from_option || isGiftCardLine(item) ? (
                         <span
                           title="Change how many on the product page"
                           aria-label={`Quantity for ${item.product_name}`}

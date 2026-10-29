@@ -53,6 +53,7 @@ TENANT_SCOPED_KEYS: frozenset[str] = frozenset({
     "platform_hold",  # the platform closed this shop by hand: who, when, why (JSON) — see services/brand_status
     "plan_limit_notice",  # which order limit notices this month already went (JSON) — see services/plan_usage
     "order_tracking",  # the buyer's tracking page on or off, and the shop's message on it (JSON) — see services/tracking_page
+    "gift_cards",  # gift cards on sale or not, amounts, expiry (JSON) — see services/gift_cards
 })
 
 _SEP = "@"

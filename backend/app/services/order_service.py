@@ -106,8 +106,24 @@ class OrderService:
         total_units = 0
         ordered_product_slugs: set[str] = set()
         gang_sheet_ids: list = []  # gang sheet orders paid for in this checkout
+        # Gift cards bought on this order: no shipping, no stock.
+        gift_subtotal = Decimal("0")
+        gift_units = 0
 
         for cart_item in cart_items:
+            if getattr(cart_item, "item_type", "variant") == "gift_card":
+                from app.services.gift_card_checkout import order_line as _gift_line
+
+                _details = dict((cart_item.configuration or {}).get("gift_card") or {})
+                _details["amount"] = str(Decimal(str(cart_item.unit_price or 0)))
+                _line = _gift_line(_details)
+                subtotal += _line["line_total"]
+                gift_subtotal += _line["line_total"]
+                total_units += 1
+                gift_units += 1
+                order_items_data.append(_line)
+                continue
+
             # Configured line: priced from its chosen options, not a variant. It
             # is re-priced here so the charge reflects the product's current
             # pricing; if the brand has since changed the options so the saved
@@ -223,9 +239,11 @@ class OrderService:
                 "line_total": line_total,
             })
 
-        # 5. Calculate shipping
+        # 5. Calculate shipping, on what ships (a gift card goes by email)
         shipping_method = confirm.shipping_method or "standard"
         shipping_cost = Decimal("0")
+        _all_units, _all_subtotal = total_units, subtotal
+        total_units, subtotal = total_units - gift_units, subtotal - gift_subtotal
 
         if shipping_method == "will_call":
             shipping_cost = Decimal("0.00")
@@ -290,6 +308,10 @@ class OrderService:
         # upgrade is still charged.
         if free_shipping:
             shipping_cost = Decimal("45.00") if shipping_method == "expedited" else Decimal("0.00")
+
+        total_units, subtotal = _all_units, _all_subtotal
+        if gift_units and total_units == gift_units:
+            shipping_cost = Decimal("0.00")  # nothing to ship
 
         tax_amount_val = Decimal(str(confirm.tax_amount or 0))
 

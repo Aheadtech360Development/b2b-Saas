@@ -33,7 +33,14 @@ class CartService:
         items = await self._load_cart_items(company_id, discount_percent, group_id)
         subtotal = sum(i.line_total for i in items)
         total_units = sum(i.quantity for i in items)
-        validation = await self._validate(items, total_units, subtotal, company_id)
+        # Shipping is worked out on what ships. A gift card goes by email.
+        ships = [i for i in items if i.item_type != "gift_card"]
+        validation = await self._validate(
+            ships, sum(i.quantity for i in ships), sum((i.line_total for i in ships), Decimal("0")), company_id
+        )
+        if len(ships) != len(items):
+            validation.mov_violation = subtotal < validation.mov_required
+            validation.mov_current = subtotal
         return CartResponse(
             items=items,
             subtotal=subtotal,
@@ -187,6 +194,52 @@ class CartService:
         await self.db.flush()
         return await self.get_cart_with_pricing(company_id, discount_percent, group_id)
 
+    async def add_gift_card(
+        self,
+        company_id: UUID,
+        *,
+        amount,
+        recipient_email: str,
+        recipient_name: str | None = None,
+        message: str | None = None,
+        sender_name: str | None = None,
+        discount_percent: Decimal = Decimal("0"),
+        group_id: str | None = None,
+    ) -> CartResponse:
+        """A gift card for someone, at one of the shop's amounts. Checked here
+        and again at checkout: the shop may stop selling them in between."""
+        from app.core.tenant_context import get_current_tenant_id
+        from app.services import gift_card_checkout as gcc
+        from app.services import gift_cards as gc
+
+        tenant_id = get_current_tenant_id()
+        if not await gc.on_sale(self.db, tenant_id):
+            raise ValidationError("This shop isn't selling gift cards right now.")
+        conf = await gc.settings_for(self.db, tenant_id)
+        try:
+            value = gc.check_amount(conf, amount)
+            details = gcc.line_details(amount=value, recipient_email=recipient_email,
+                                       recipient_name=recipient_name, message=message, sender_name=sender_name)
+        except gc.GiftCardError as exc:
+            raise ValidationError(str(exc))
+        count = (await self.db.execute(
+            select(func.count()).select_from(CartItem).where(
+                CartItem.company_id == company_id, CartItem.item_type == "gift_card")
+        )).scalar_one()
+        if count >= 10:
+            raise ValidationError("Up to 10 gift cards in one order.")
+        self.db.add(CartItem(
+            company_id=company_id,
+            variant_id=None,
+            item_type="gift_card",
+            quantity=1,
+            unit_price=value,
+            label=gcc.label_for(details),
+            configuration={"gift_card": details},
+        ))
+        await self.db.flush()
+        return await self.get_cart_with_pricing(company_id, discount_percent, group_id)
+
     async def add_configured(
         self,
         company_id: UUID,
@@ -310,6 +363,9 @@ class CartService:
         item = result.scalar_one_or_none()
         if not item:
             raise NotFoundError(f"Cart item {item_id} not found")
+
+        if getattr(item, "item_type", "variant") == "gift_card" and quantity != 1:
+            raise ValidationError("A gift card line is one card. Add another to send a second one.")
 
         # How many this line is for is one of its own answers, priced as such:
         # it changes on the product page, not here.
@@ -603,6 +659,33 @@ class CartService:
                         item_type="configured",
                         setup_fees=fees,
                         configuration=cfg,
+                    )
+                )
+                continue
+
+            # A gift card being bought: its amount and who it goes to.
+            if getattr(item, "item_type", "variant") == "gift_card":
+                unit_price = Decimal(str(item.unit_price or 0))
+                items.append(
+                    CartItemOut(
+                        id=item.id,
+                        variant_id=None,
+                        product_id=None,
+                        product_name=getattr(item, "label", None) or "Gift card",
+                        product_slug="",
+                        product_image_url=None,
+                        sku="GIFT-CARD",
+                        color=None,
+                        size=None,
+                        quantity=1,
+                        retail_price=unit_price,
+                        unit_price=unit_price,
+                        line_total=unit_price,
+                        moq=0,
+                        moq_satisfied=True,
+                        stock_quantity=1,
+                        item_type="gift_card",
+                        configuration=item.configuration or {},
                     )
                 )
                 continue

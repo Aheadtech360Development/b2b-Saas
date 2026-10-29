@@ -122,6 +122,56 @@ def refund_issued(order: Any, *, order_url: str, amount: Any = None, subject: st
     return subject or "Your refund is on its way", html
 
 
+def gift_card_received(*, amount: Any, code: str, recipient_name: str | None, sender_name: str | None,
+                       message: str | None, shop_url: str, balance_url: str,
+                       expires_on: date | datetime | None = None) -> tuple[str, str]:
+    """The recipient's gift card: the only place the code is ever written down.
+    Everything the buyer typed is escaped by the layout."""
+    from app.services.mail_layout import esc
+
+    who = (sender_name or "").strip()
+    hello = f"Hi {recipient_name.strip()}," if (recipient_name or "").strip() else "Hi,"
+    gift_line = (f"{who} sent you a {money(amount)} gift card." if who
+                 else f"You have a {money(amount)} gift card.")
+    code_box = (
+        '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:4px 0 18px">'
+        '<tr><td align="center" style="border:1px dashed #9AA6B5;border-radius:8px;padding:16px">'
+        '<div style="font-size:13px;color:#5A6A7E;margin-bottom:6px">Your gift card code</div>'
+        f'<div style="font-family:Menlo,Consolas,monospace;font-size:22px;letter-spacing:2px;'
+        f'font-weight:700;color:#1B2430">{esc(code)}</div></td></tr></table>'
+    )
+    html = render(
+        heading=f"A {money(amount)} gift card for you",
+        lines=[hello, gift_line],
+        note=(message or "").strip() or None,
+        extra_html=code_box,
+        facts=[Fact("Amount", money(amount)),
+               Fact("Expires", _date(expires_on) if expires_on else "Never")],
+        after=["Enter the code at checkout. Whatever you do not spend stays on the card for next time.",
+               "Keep this email: the code is the gift card, and the shop cannot see it."],
+        buttons=[Button("Start shopping", shop_url), Button("Check your balance", balance_url, primary=False)],
+        preview=f"{money(amount)} to spend. Your code is inside.",
+        reason="a gift card sent to you",
+    )
+    return f"{who} sent you a {money(amount)} gift card" if who else f"Your {money(amount)} gift card", html
+
+
+def gift_card_sent(*, amount: Any, recipient_email: str, last4: str, order_number: str,
+                   order_url: str) -> tuple[str, str]:
+    """The buyer's receipt for a gift card bought for someone. No code: only
+    the recipient gets that."""
+    html = render(
+        heading="Your gift card is on its way",
+        lines=[f"We emailed a {money(amount)} gift card to {recipient_email}."],
+        facts=[Fact("Order", order_number), Fact("Amount", money(amount)),
+               Fact("Card ending", last4), Fact("Sent to", recipient_email)],
+        after=["If it does not arrive, ask them to check their spam folder, then contact us and we will send a new code."],
+        buttons=[Button("View your order", order_url)],
+        preview=f"Sent to {recipient_email}.",
+    )
+    return f"Your {money(amount)} gift card was sent", html
+
+
 _UPDATE_HEADINGS = {
     "pending": "We have your order",
     "confirmed": "Your order is confirmed",

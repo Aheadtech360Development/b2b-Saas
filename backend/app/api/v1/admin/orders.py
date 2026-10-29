@@ -749,7 +749,24 @@ async def get_admin_order(order_id: str, db: AsyncSession = Depends(get_db)):
     from app.services.dispute_service import DisputeService as _Disputes
 
     _refund_rows = await _refunds.refunds_for_order(db, order.id)
-    _remaining = await _refunds.remaining_refundable(db, order.id) if order.stripe_payment_intent_id else None
+    # Gift cards: what they paid here, and the cards this order sold. In a
+    # savepoint: the order opens even if this cannot be read.
+    _gift_pay, _gift_sold = None, []
+    try:
+        from app.services import gift_card_checkout as _gcc
+
+        async with db.begin_nested():
+            _gift_pay = await _gcc.order_payments(db, order.id)
+            _gift_sold = [{
+                "id": str(c.id), "last4": c.code_last4, "amount": float(c.initial_amount),
+                "balance": float(c.balance), "status": c.status, "recipient_email": c.recipient_email,
+                "recipient_name": c.recipient_name,
+                "delivered_at": c.delivered_at.isoformat() if c.delivered_at else None,
+            } for c in await _gcc.sold_on_order(db, order.id)]
+    except Exception:
+        logger.warning("Could not read gift cards for order %s", order.id, exc_info=True)
+    _remaining = (await _refunds.remaining_refundable(db, order.id)
+                  if order.stripe_payment_intent_id or (_gift_pay or {}).get("cards") else None)
     _dispute_rows = [
         {k: (v.isoformat() if hasattr(v, "isoformat") else (float(v) if k == "amount" and v is not None else v))
          for k, v in d.items()}
@@ -859,6 +876,8 @@ async def get_admin_order(order_id: str, db: AsyncSession = Depends(get_db)):
             refundable_remaining=_remaining,
             refunds=_refund_rows,
             disputes=_dispute_rows,
+            gift_card_payments=_gift_pay if (_gift_pay or {}).get("cards") else None,
+            gift_cards_sold=_gift_sold,
             calculated_weight_lbs=calculated_weight_lbs,
             items_edited=bool(getattr(order, "items_edited", False)),
             convenience_fee=getattr(order, "convenience_fee", None),
@@ -1955,11 +1974,14 @@ async def issue_refund(
 
     import stripe as _stripe
 
+    from app.services import gift_card_checkout as gcc
+    from app.services import gift_cards as gc
     from app.services import refund_service
     from app.services.connect_service import ConnectService
     from app.services.payment_service import PaymentService
 
-    if not order.stripe_payment_intent_id:
+    gift = await gcc.order_payments(db, order.id)
+    if not order.stripe_payment_intent_id and not gift["cards"]:
         raise HTTPException(
             status_code=400,
             detail="This order was not paid by card; refund it through the way it was paid.",
@@ -1971,9 +1993,6 @@ async def issue_refund(
         )
 
     tenant_id = getattr(request.state, "tenant_id", None)
-    connect = await ConnectService(db).get_status(str(tenant_id))
-    if not connect.get("account_id"):
-        raise HTTPException(status_code=400, detail="This store has no connected payment account.")
 
     remaining = await refund_service.remaining_refundable(db, order.id)
     if remaining <= 0:
@@ -1990,6 +2009,14 @@ async def issue_refund(
     if reason and reason not in ("duplicate", "fraudulent", "requested_by_customer"):
         raise HTTPException(status_code=400, detail="Reason is duplicate, fraudulent or requested_by_customer.")
 
+    # Card first, up to what the card paid; the rest back onto the gift cards
+    # that paid. Gift cards this order sold go back whole, and only unused
+    # (they are locked until this commits). Worked out before any money moves.
+    try:
+        plan = await gcc.split_refund(db, order, amount)
+    except gc.GiftCardError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
     # The key covers the order, the amount and what was left before — so the
     # same press twice is one refund, while a genuine second partial refund of
     # the same amount (with less left) is a new one.
@@ -1997,40 +2024,70 @@ async def issue_refund(
     idempotency_key = "refund-" + hashlib.sha256(f"{tenant_id}:{raw_key}".encode()).hexdigest()[:40]
 
     actor_id, actor_name = await order_events.admin_actor(db, request)
-    try:
-        refund = await PaymentService(db).create_refund(
-            payment_intent_id=order.stripe_payment_intent_id,
-            connected_account_id=connect["account_id"],
-            # Always the exact amount validated above, never "whatever Stripe
-            # thinks is left": what leaves the brand's account is what was checked.
-            amount_decimal=amount,
-            reason=reason,
-            idempotency_key=idempotency_key,
-            metadata={"order_id": str(order.id), "order_number": order.order_number,
-                      "requested_by": actor_name},
-        )
-    except _stripe.error.InvalidRequestError as exc:
-        # Stripe's own words — "charge already refunded", "amount exceeds" —
-        # are something the admin can act on; a 502 is not.
-        raise HTTPException(status_code=400, detail=getattr(exc, "user_message", None) or str(exc))
-    except _stripe.error.StripeError as exc:
-        logger.exception("Stripe refund failed for order %s", order.id)
-        raise HTTPException(status_code=502, detail="The payment provider could not process the refund. Try again shortly.")
+    refund = None
+    result: dict = {}
+    if plan.card > 0:
+        connect = await ConnectService(db).get_status(str(tenant_id))
+        if not connect.get("account_id"):
+            raise HTTPException(status_code=400, detail="This store has no connected payment account.")
+        try:
+            refund = await PaymentService(db).create_refund(
+                payment_intent_id=order.stripe_payment_intent_id,
+                connected_account_id=connect["account_id"],
+                # Always the exact amount validated above, never "whatever Stripe
+                # thinks is left": what leaves the brand's account is what was checked.
+                amount_decimal=plan.card,
+                reason=reason,
+                idempotency_key=idempotency_key,
+                metadata={"order_id": str(order.id), "order_number": order.order_number,
+                          "requested_by": actor_name},
+            )
+        except _stripe.error.InvalidRequestError as exc:
+            # Stripe's own words — "charge already refunded", "amount exceeds" —
+            # are something the admin can act on; a 502 is not.
+            raise HTTPException(status_code=400, detail=getattr(exc, "user_message", None) or str(exc))
+        except _stripe.error.StripeError as exc:
+            logger.exception("Stripe refund failed for order %s", order.id)
+            raise HTTPException(status_code=502, detail="The payment provider could not process the refund. Try again shortly.")
 
-    result = await refund_service.record_refund(
-        db, refund=refund, source="admin",
-        initiated_by=actor_id, initiated_by_name=actor_name, note=note,
-    )
+        result = await refund_service.record_refund(
+            db, refund=refund, source="admin",
+            initiated_by=actor_id, initiated_by_name=actor_name, note=note,
+        ) or {}
+
+    if plan.gift > 0:
+        back = await gcc.refund_to_cards(db, order, plan.gift, key=idempotency_key, actor=(actor_id, actor_name),
+                                         reason=note or f"Refund of order {order.order_number}")
+        result.update(await refund_service.resync_order(db, order.id, Decimal(str(order.total or 0))))
+        for b in back:
+            await order_events.record(
+                db, order, "refund_issued",
+                f"Refund of ${b['amount']:.2f} back to gift card ending {b['last4']}",
+                actor_type="admin", actor_id=actor_id, actor_name=actor_name,
+                meta={"amount": b["amount"], "method": "gift_card", "gift_card_last4": b["last4"],
+                      "total_refunded": result.get("total_refunded"),
+                      "fully_refunded": result.get("fully_refunded")},
+            )
+    if plan.void_cards:
+        await gcc.void_sold(db, plan.void_cards, order=order, actor=(actor_id, actor_name))
+        for c in plan.void_cards:
+            await order_events.record(
+                db, order, "note", f"Gift card ending {c.code_last4} voided: its ${float(c.initial_amount):.2f} was refunded",
+                actor_type="admin", actor_id=actor_id, actor_name=actor_name,
+                meta={"gift_card_last4": c.code_last4, "amount": float(c.initial_amount)},
+            )
     await db.commit()
     await db.refresh(order)
 
     return {
-        "message": "Refund issued" if (result or {}).get("fully_refunded") else "Partial refund issued",
-        "refund_id": getattr(refund, "id", None) or (refund or {}).get("id"),
+        "message": "Refund issued" if result.get("fully_refunded") else "Partial refund issued",
+        "refund_id": (getattr(refund, "id", None) or (refund or {}).get("id")) if refund is not None else None,
         "amount": float(amount),
-        "status": (result or {}).get("status"),
-        "total_refunded": (result or {}).get("total_refunded"),
-        "remaining": (result or {}).get("remaining"),
+        "card_amount": float(plan.card),
+        "gift_card_amount": float(plan.gift),
+        "status": result.get("status") or ("succeeded" if plan.gift > 0 else None),
+        "total_refunded": result.get("total_refunded"),
+        "remaining": result.get("remaining"),
         "payment_status": order.payment_status,
     }
 

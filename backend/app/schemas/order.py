@@ -54,6 +54,10 @@ class CreatePaymentIntentRequest(BaseModel):
     # the client's tax_amount), so tax is always correct + can't be manipulated.
     to_state: str | None = None
     to_zip: str | None = None
+    # Gift cards paying part or all of it (services/gift_card_checkout), and
+    # the page's attempt key the holds on them are kept under.
+    gift_card_codes: list[str] | None = Field(default=None, max_length=5)
+    checkout_ref: str | None = Field(default=None, max_length=100)
 
 
 class CheckoutConfirmRequest(BaseModel):
@@ -91,6 +95,10 @@ class CheckoutConfirmRequest(BaseModel):
     # The browser's Meta ids (_fbp, _fbc) and the page the order was placed
     # on, for the brand's server-side Purchase — see services/meta_capi.py.
     tracking: dict | None = None
+    # The gift cards entered at checkout, again: the holds are spent only for
+    # whoever still has the codes (services/gift_card_checkout.settle).
+    gift_card_codes: list[str] | None = Field(default=None, max_length=5)
+    checkout_ref: str | None = Field(default=None, max_length=100)
 
 
 # ---------------------------------------------------------------------------
@@ -275,6 +283,10 @@ class AdminOrderDetail(OrderOut):
     refundable_remaining: Decimal | None = None
     refunds: list[dict] = []
     disputes: list[dict] = []
+    # Gift cards (services/gift_card_checkout): what they paid on this order
+    # and what went back onto them, and the cards this order sold.
+    gift_card_payments: dict | None = None
+    gift_cards_sold: list[dict] = []
     # Pre-calculated shipment weight from order items (lbs), for Shippo label generation
     calculated_weight_lbs: float = 1.0
     # Admin edits flag + convenience fee

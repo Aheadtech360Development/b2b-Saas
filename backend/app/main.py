@@ -851,6 +851,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # Where parcels are: the couriers asked for shipments that are due (30 min).
     from app.services.tracking_poll import scheduler_loop as _tracking_loop
     _tracking = _asyncio.create_task(_tracking_loop())
+    # Gift cards: holds of checkouts that did not finish go back to their
+    # cards, and cards past their expiry close (5 min).
+    from app.services.gift_cards import scheduler_loop as _gift_card_loop
+    _gift_cards = _asyncio.create_task(_gift_card_loop())
 
     yield
 
@@ -861,6 +865,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     _partner_retry.cancel()
     _plan_usage.cancel()
     _tracking.cancel()
+    _gift_cards.cancel()
 
 
 app = FastAPI(
@@ -1084,6 +1089,10 @@ app.include_router(storefront.public_router, prefix=_V1)
 from app.api.v1 import tracking as order_tracking  # noqa: E402
 app.include_router(order_tracking.public_router, prefix=_V1)
 app.include_router(order_tracking.admin_router, prefix=_V1)
+# Gift cards (Retail launch, package 3).
+from app.api.v1 import gift_cards as gift_cards_api  # noqa: E402
+app.include_router(gift_cards_api.public_router, prefix=_V1)
+app.include_router(gift_cards_api.admin_router, prefix=_V1)
 app.include_router(storefront.admin_router, prefix=_V1)
 app.include_router(storefront.admin_pages_router, prefix=_V1)
 app.include_router(storefront.admin_contact_router, prefix=_V1)

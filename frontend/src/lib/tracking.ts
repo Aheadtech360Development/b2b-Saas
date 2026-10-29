@@ -564,6 +564,10 @@ export function cartLine(line: CartLineLike): TrackedItem {
   if (line.item_type === "gang_sheet" || line.gang_sheet_order_id || own.startsWith("gs:")) {
     return { id: SHEET, sku: SHEET, ...sheetWords(name), price, quantity };
   }
+  // A gift card's line names who it is for: never sent to an analytics tool.
+  if (line.item_type === "gift_card" || line.sku === "GIFT-CARD" || own.startsWith("gc:")) {
+    return { id: "gift-card", sku: "GIFT-CARD", name: "Gift card", price, quantity };
+  }
   const variant = [line.color, line.size].filter(Boolean).join(" / ");
   return {
     // A guest's made-to-order line is keyed by everything chosen on it, which

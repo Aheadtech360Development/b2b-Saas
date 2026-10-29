@@ -33,6 +33,25 @@ export interface RefundRow {
   at: string | null;
 }
 
+/** What gift cards paid on the order, and what went back onto them. */
+export interface GiftCardPayments {
+  cards: { card_id: string; last4: string; amount: number; refunded: number }[];
+  paid: number;
+  refunded: number;
+}
+
+/** Gift cards this order sold. */
+export interface GiftCardSold {
+  id: string;
+  last4: string;
+  amount: number;
+  balance: number;
+  status: string;
+  recipient_email: string | null;
+  recipient_name: string | null;
+  delivered_at: string | null;
+}
+
 export interface DisputeRow {
   stripe_dispute_id: string;
   amount: number | null;
@@ -82,7 +101,12 @@ function disputeWords(d: DisputeRow): { text: string; tone: string } {
 
 export function OrderRefunds({
   orderId, total, amountRefunded, remaining, refundable, refunds, disputes, onChanged, openSignal = 0,
+  giftCards = null, giftCardsSold = [],
 }: {
+  /** Gift cards that paid part or all of it (services/gift_card_checkout). */
+  giftCards?: GiftCardPayments | null;
+  /** Gift cards the order sold: refunded only whole and unused. */
+  giftCardsSold?: GiftCardSold[];
   /** Raised by the order page's own Refund button: each new value opens the form. */
   openSignal?: number;
   orderId: string;
@@ -120,7 +144,8 @@ export function OrderRefunds({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [openSignal]);
 
-  if (!refunds.length && !disputes.length && !canRefund) return null;
+  const giftPaid = giftCards?.cards ?? [];
+  if (!refunds.length && !disputes.length && !canRefund && !giftPaid.length && !giftCardsSold.length) return null;
 
   function start() {
     setFull(true);
@@ -144,12 +169,16 @@ export function OrderRefunds({
     setBusy(true);
     setError(null);
     try {
-      const r = await apiClient.post<{ message: string; amount: number; remaining: number | null }>(
+      const r = await apiClient.post<{ message: string; amount: number; remaining: number | null;
+        card_amount?: number; gift_card_amount?: number }>(
         `/api/v1/admin/orders/${orderId}/refund`,
         { amount: full ? null : Number(asked.toFixed(2)), reason, note: note || null, request_id: requestId },
       );
       setOpen(false);
-      setDone(`${r.message}: ${money(r.amount)}${r.remaining != null ? ` · ${money(r.remaining)} left` : ""}`);
+      const split = r.gift_card_amount
+        ? ` (${r.card_amount ? `${money(r.card_amount)} to the card, ` : ""}${money(r.gift_card_amount)} back onto the gift card)`
+        : "";
+      setDone(`${r.message}: ${money(r.amount)}${split}${r.remaining != null ? ` · ${money(r.remaining)} left` : ""}`);
       await onChanged();
     } catch (e) {
       const err = e as { detail?: string; message?: string };
@@ -188,6 +217,30 @@ export function OrderRefunds({
       ))}
 
       {done && <div style={{ fontSize: "12.5px", fontWeight: 600, color: "#059669", marginBottom: "10px" }}>{done}</div>}
+
+      {giftPaid.length > 0 && (
+        <div data-gift-paid style={{ display: "flex", flexDirection: "column", gap: "4px", marginBottom: "10px", fontSize: "12.5px", color: "#4A4850" }}>
+          {giftPaid.map(g => (
+            <div key={g.card_id}>
+              Paid with gift card <strong>•••• {g.last4}</strong>: {money(g.amount)}
+              {g.refunded > 0 && <> · {money(g.refunded)} refunded back onto it</>}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {giftCardsSold.length > 0 && (
+        <div data-gift-sold style={{ display: "flex", flexDirection: "column", gap: "4px", marginBottom: "10px", fontSize: "12.5px", color: "#4A4850" }}>
+          {giftCardsSold.map(g => (
+            <div key={g.id}>
+              Sold gift card <a href={`/admin/gift-cards`} style={{ color: "inherit", fontWeight: 700 }}>•••• {g.last4}</a>, {money(g.amount)}
+              {g.recipient_email && <> for {g.recipient_name || g.recipient_email}</>}
+              {" · "}{g.status !== "active" ? g.status : g.balance < g.amount ? `${money(g.balance)} left` : "unused"}
+              {g.recipient_email && !g.delivered_at && g.status === "active" && <span style={{ color: "#D97706" }}> · email not sent</span>}
+            </div>
+          ))}
+        </div>
+      )}
 
       {refunds.length > 0 && (
         <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
@@ -241,7 +294,11 @@ export function OrderRefunds({
           <div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: "16px", width: "440px", maxWidth: "100%", padding: "24px", boxShadow: "0 20px 60px rgba(0,0,0,.2)", fontFamily: "var(--font-jakarta)" }}>
             <h3 style={{ ...HEAD, fontSize: "18px", marginBottom: "4px" }}>Refund this order</h3>
             <p style={{ fontSize: "12.5px", color: "#7A7880", margin: "0 0 16px" }}>
-              {money(left)} can still be refunded. The money goes back to the card the customer paid with.
+              {money(left)} can still be refunded.{" "}
+              {giftPaid.length > 0
+                ? "The card is refunded first, up to what it paid; the rest goes back onto the gift card."
+                : "The money goes back to the card the customer paid with."}
+              {giftCardsSold.length > 0 && " Gift cards this order sold are refunded whole, only if unused, and stop working."}
             </p>
 
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", marginBottom: "14px" }}>

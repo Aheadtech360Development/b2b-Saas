@@ -80,7 +80,7 @@ def charged_coupon(recorded: str | None, asked: str | None) -> str | None:
     return charged or None
 
 
-async def _check_charge(db: AsyncSession, order, intent, events) -> Decimal:
+async def _check_charge(db: AsyncSession, order, intent, events, gift_paid: Decimal = Decimal("0")) -> Decimal:
     """What the card paid, set against what the order says it costs.
 
     They are meant to be the same — the intent is priced as the order will be —
@@ -90,7 +90,8 @@ async def _check_charge(db: AsyncSession, order, intent, events) -> Decimal:
     the order refunded); the shop is told on the order itself, in figures.
     """
     charged = (Decimal(int(getattr(intent, "amount", 0) or 0)) / 100).quantize(Decimal("0.01"))
-    owed = Decimal(str(order.total or 0)).quantize(Decimal("0.01"))
+    # Gift cards pay their part first; the card owes the rest.
+    owed = (Decimal(str(order.total or 0)) - gift_paid).quantize(Decimal("0.01"))
     if charged != owed:
         gap = abs(charged - owed)
         what = (f"${gap:.2f} more than the order total — refund the difference to the customer"
@@ -145,20 +146,6 @@ async def create_payment_intent(
                                f"or tell the store if it keeps happening."},
         )
 
-    try:
-        connect = await ConnectService(db).get_status(str(tenant_id))
-    except ValueError:
-        raise ValidationError("Store not found")
-    except Exception as exc:
-        raise _blame_early("checking the store's payment setup") from exc
-    if not connect.get("charges_enabled"):
-        raise HTTPException(
-            status_code=409,
-            detail={"code": "STORE_PAYMENTS_NOT_READY",
-                    "message": "This store hasn't finished payment setup yet."},
-        )
-    connected_account_id = connect["account_id"]
-
     user_id = getattr(request.state, "user_id", None)
     account_type = getattr(request.state, "account_type", "wholesale")
     discount_percent = getattr(request.state, "tier_discount_percent", Decimal("0"))
@@ -188,6 +175,16 @@ async def create_payment_intent(
     if not cart.items:
         raise ValidationError("Cart is empty")
 
+    # Gift cards being bought: no shipping, no tax, no discount code, paid by
+    # card (services/gift_card_checkout).
+    from app.services import gift_card_checkout as gcc
+    from app.services import gift_cards as gc
+
+    gift_lines = [i for i in cart.items if getattr(i, "item_type", "") == "gift_card"]
+    goods_subtotal = cart.subtotal - sum((Decimal(str(i.line_total)) for i in gift_lines), Decimal("0"))
+    if gift_lines and not await gc.on_sale(db, tenant_id):
+        raise ValidationError("This shop isn't selling gift cards right now. Remove the gift card from your cart.")
+
     # Compute the EXACT total the order will have (mirror OrderService.create_order),
     # so the charged amount == the final order total. The client sends the same
     # shipping_cost / tax_amount / discount_code here and to /checkout/confirm.
@@ -197,10 +194,14 @@ async def create_payment_intent(
     else:
         base_shipping = Decimal(str(payload.shipping_cost)) if payload.shipping_cost else cart.validation.estimated_shipping
         expedited_surcharge = Decimal("45.00") if payload.shipping_method == "expedited" else Decimal("0")
+    if gift_lines and len(gift_lines) == len(cart.items):
+        base_shipping = expedited_surcharge = Decimal("0.00")  # nothing to ship
 
     coupon_discount_amount = Decimal("0")
     if payload.discount_code:
-        cart_total_for_coupon = float(cart.subtotal)
+        if goods_subtotal <= 0:
+            raise ValidationError("Discount codes don't apply to gift cards.")
+        cart_total_for_coupon = float(goods_subtotal)
         coupon_dc, coupon_err = await validate_discount_code(
             payload.discount_code, cart_total_for_coupon, user_id, account_type or "wholesale", db
         )
@@ -212,7 +213,7 @@ async def create_payment_intent(
 
     # Compute tax on the BACKEND from the ship-to address (never trust the client's
     # tax_amount). Tax applies to the discounted subtotal; shipping is not taxed.
-    taxable_base = cart.subtotal - coupon_discount_amount
+    taxable_base = goods_subtotal - coupon_discount_amount
     tax_amount_dc = Decimal("0")
     try:
         exempt = await _tax_exempt(db, company_id)
@@ -262,10 +263,47 @@ async def create_payment_intent(
             commission_bps,
         )
 
+    # Gift cards entered at checkout pay first; the card is charged the rest.
+    from app.core.rate_limit import client_ip
+
+    try:
+        tender = await gcc.take(
+            db, tenant_id=tenant_id, codes=payload.gift_card_codes, total=total,
+            checkout_ref=payload.checkout_ref, visitor=client_ip(request), buying_gift_cards=bool(gift_lines),
+        )
+    except gc.TooManyTries as exc:
+        raise HTTPException(status_code=429, detail=str(exc))
+    except gc.GiftCardError as exc:
+        raise ValidationError(str(exc))
+    if tender.taken and tender.remainder == 0:
+        # Nothing left for a card: no payment intent. The holds wait for
+        # /checkout/confirm with payment_method "gift_card".
+        await db.commit()
+        return {"gift_only": True, "checkout_ref": tender.checkout_ref, "amount": Decimal("0.00"),
+                "order_total": total, "tax_amount": tax_amount_dc, **tender.view()}
+    # The platform's share comes out of what the card pays, never more.
+    fee_cents = min(fee_cents, int(tender.remainder * 100))
+
+    # A card is to be charged: the store must be able to take one. Asked here,
+    # after the gift cards, so an order they cover whole needs no card setup.
+    try:
+        connect = await ConnectService(db).get_status(str(tenant_id))
+    except ValueError:
+        raise ValidationError("Store not found")
+    except Exception as exc:
+        raise _blame_early("checking the store's payment setup") from exc
+    if not connect.get("charges_enabled"):
+        raise HTTPException(
+            status_code=409,
+            detail={"code": "STORE_PAYMENTS_NOT_READY",
+                    "message": "This store hasn't finished payment setup yet."},
+        )
+    connected_account_id = connect["account_id"]
+
     payment_svc = PaymentService(db)
     try:
         intent = await payment_svc.create_direct_payment_intent(
-            amount_decimal=total,
+            amount_decimal=tender.remainder,
             connected_account_id=connected_account_id,
             application_fee_cents=fee_cents,
                 metadata={
@@ -283,12 +321,17 @@ async def create_payment_intent(
                 # and an intent from before this was recorded must stay
                 # distinguishable from one with no code.
                 "coupon": coupon_dc.code if payload.discount_code else "none",
+                # Which gift cards pay how much (read back by /checkout/confirm).
+                **gcc.intent_meta(tender),
             },
         )
     except HTTPException:
         raise
     except Exception as exc:
         raise _blame("reaching the payment provider", exc) from exc
+    if tender.taken:
+        await gcc.attach_intent(db, tender, intent.id)
+        await db.commit()
 
     try:
         # Imported here, like the other services this handler reaches for. It
@@ -309,7 +352,10 @@ async def create_payment_intent(
         # as the intent just created, or Stripe.js refuses it. Read from
         # the mode rather than the environment for exactly that reason.
         "publishable_key": publishable,
-        "amount": total,
+        "amount": tender.remainder,
+        "order_total": total,
+        "checkout_ref": tender.checkout_ref or None,
+        **tender.view(),
     }
 
 
@@ -378,11 +424,33 @@ async def _confirm_checkout_inner(
     has_net30  = payload.payment_method == "net_30"  # wholesale invoice/NET 30 — no upfront charge
     # Cash on delivery: the order is placed now and paid for when it arrives.
     has_cod    = payload.payment_method == "cod" and not has_stripe
-    if not has_stripe and not has_ach and not has_net30 and not has_cod:
+    # Gift cards covering the whole order (the intent said gift_only).
+    has_gift_only = payload.payment_method == "gift_card" and not has_stripe
+    if not has_stripe and not has_ach and not has_net30 and not has_cod and not has_gift_only:
         raise ValidationError(
             "Payment required: supply payment_intent_id, payment_method=ach, "
-            "payment_method=net_30 or payment_method=cod"
+            "payment_method=net_30, payment_method=cod or payment_method=gift_card"
         )
+
+    # Gift cards being bought are paid for by card.
+    from sqlalchemy import select as _sel_gc
+
+    from app.models.order import CartItem as _CartItem
+    from app.services import gift_card_checkout as gcc
+    from app.services import gift_cards as gc
+
+    _gc_tenant = getattr(request.state, "tenant_id", None)
+    if not _gc_tenant:
+        from app.core.tenant_context import get_current_tenant_id as _gc_tid
+
+        _gc_tenant = _gc_tid()
+    _buying_gift_cards = bool((await db.execute(
+        _sel_gc(_CartItem.id).where(_CartItem.company_id == company_id, _CartItem.item_type == "gift_card").limit(1)
+    )).scalar_one_or_none())
+    if _buying_gift_cards and not has_stripe:
+        raise ValidationError("Gift cards are paid for by card.")
+    _pi_meta: dict = {}
+    _acct = None
 
     # Pickup, at a shop that has switched it off: refused while nothing has been
     # paid. An order whose card was already charged is let through, because
@@ -458,6 +526,9 @@ async def _confirm_checkout_inner(
             raise ValidationError("Could not verify your payment. Please contact the store.")
         if getattr(_pi, "status", None) != "succeeded":
             raise ValidationError("Payment was not completed. Please try again.")
+        _pi_meta = dict(getattr(_pi, "metadata", None) or {})
+        if _pi_meta.get("company_id") and str(_pi_meta.get("company_id")) != str(company_id):
+            raise ValidationError("This payment belongs to another account.")
 
         # Use the server-computed tax the PaymentIntent was created with, so the
         # order's tax matches the charge exactly (the client's tax_amount is ignored).
@@ -495,7 +566,9 @@ async def _confirm_checkout_inner(
         from app.services.cart_service import CartService as _CartSvc
 
         _cart = await _CartSvc(db).get_cart_with_pricing(company_id, discount_percent, group_id)
-        _base = float(_cart.subtotal)
+        # Gift cards being bought are not discounted.
+        _base = float(_cart.subtotal - sum((Decimal(str(i.line_total)) for i in _cart.items
+                                            if i.item_type == "gift_card"), Decimal("0")))
         coupon_discount_dc, _err = await validate_discount_code(
             payload.discount_code, _base, user_id, _account_type or "wholesale", db
         )
@@ -542,6 +615,44 @@ async def _confirm_checkout_inner(
         free_shipping=free_shipping,
     )
 
+    # The gift cards entered at checkout pay their part, now that the order
+    # exists: the holds the payment step made, captured for it. A card that
+    # no longer has its part refuses the order, and a card charge is refunded.
+    _gift_paid: list[dict] = []
+    if has_stripe and gcc.planned(_pi_meta):
+        try:
+            _gift_paid = await gcc.settle(
+                db, tenant_id=_gc_tenant, checkout_ref=str(_pi_meta.get("checkout_ref") or ""),
+                plan=gcc.planned(_pi_meta), codes=payload.gift_card_codes, order_id=order.id,
+            )
+        except gc.GiftCardError as exc:
+            await db.rollback()
+            await _refund_whole_intent(db, payload.payment_intent_id, _acct, reason="gift card shortfall")
+            raise ValidationError(f"{exc} Your card payment has been refunded.")
+    elif has_gift_only:
+        try:
+            _ref = gcc.clean_ref(payload.checkout_ref)
+            _plan = await gcc.held_for(db, _gc_tenant, _ref)
+            if sum((a for _, a in _plan), Decimal("0")) != Decimal(str(order.total)).quantize(Decimal("0.01")):
+                # The hold ran out, or the order is not what it was priced
+                # as: take again, for exactly this order's total.
+                from app.core.rate_limit import client_ip as _cip
+
+                _tender = await gcc.take(db, tenant_id=_gc_tenant, codes=payload.gift_card_codes,
+                                         total=Decimal(str(order.total)), checkout_ref=_ref, visitor=_cip(request))
+                if not _tender.taken or _tender.remainder != 0:
+                    raise gc.GiftCardError("Your gift cards no longer cover this order. Please choose how to pay the rest.")
+                _plan = [(t.card_id, t.amount) for t in _tender.taken]
+            _gift_paid = await gcc.settle(db, tenant_id=_gc_tenant, checkout_ref=_ref, plan=_plan,
+                                          codes=payload.gift_card_codes, order_id=order.id)
+        except gc.TooManyTries as exc:
+            await db.rollback()
+            raise HTTPException(status_code=429, detail=str(exc))
+        except gc.GiftCardError as exc:
+            await db.rollback()
+            raise ValidationError(str(exc))
+    _gift_total = sum((Decimal(str(p["amount"])) for p in _gift_paid), Decimal("0"))
+
     # The order exists: record that, at the moment the order says it was placed.
     from app.services import attribution as _attr
     from app.services import order_events as _events
@@ -569,8 +680,10 @@ async def _confirm_checkout_inner(
         },
         occurred_at=order.created_at,
     )
+    if _gift_paid:
+        await gcc.record_payment(db, order, _gift_paid, _events)
     if has_stripe:
-        _charged = await _check_charge(db, order, _pi, _events)
+        _charged = await _check_charge(db, order, _pi, _events, gift_paid=_gift_total)
         await _events.record(
             db, order, "payment_received",
             f"Card payment of ${_charged:.2f} received",
@@ -658,8 +771,35 @@ async def _confirm_checkout_inner(
             reference_number=payload.payment_intent_id or order.order_number,
             order_id=order.id,
         ))
+    if _gift_total > 0:
+        db.add(StatementTransaction(
+            company_id=_company_uuid,
+            transaction_date=_today,
+            description=f"Gift card payment for Order {order.order_number}",
+            transaction_type="payment",
+            amount=float(_gift_total),
+            reference_number=order.order_number,
+            order_id=order.id,
+        ))
+
+    # Gift cards bought on this order: made now it is paid, emailed after
+    # the commit (the codes exist only in this request).
+    _cards_made: list = []
+    _gc_buyer = None
+    if _buying_gift_cards and order.payment_status == "paid":
+        from app.models.user import User as _GcUser
+
+        _gc_buyer = (await db.execute(_sel_gc(_GcUser.email).where(_GcUser.id == user_id))).scalar_one_or_none()
+        _cards_made = await gcc.issue_for_order(db, order, buyer_email=_gc_buyer)
 
     await db.commit()
+
+    if _cards_made:
+        try:
+            await gcc.send_cards(db, order, _cards_made, buyer_email=_gc_buyer)
+            await db.commit()
+        except Exception:  # noqa: BLE001
+            _log.exception("Gift card emails failed for order %s", order.id)
 
     # The brand's own Meta pixel hears about the sale from the server too, when
     # it has connected the Conversions API. Runs in the background; never fails
@@ -702,6 +842,26 @@ async def _confirm_checkout_inner(
         _log.warning("Order confirmation email failed: %s", _exc)
 
     return order
+
+
+async def _refund_whole_intent(db: AsyncSession, payment_intent_id: str | None, account: str | None,
+                               *, reason: str) -> None:
+    """Give a card payment back in full when its order cannot be made (the
+    gift cards that were to pay the rest no longer can). Idempotent at Stripe:
+    a retry refunds nothing twice. A failure is logged loudly: the money must
+    then go back by hand."""
+    if not payment_intent_id or not account:
+        return
+    try:
+        await PaymentService(db).create_refund(
+            payment_intent_id=payment_intent_id, connected_account_id=account,
+            amount_decimal=None, reason="requested_by_customer",
+            idempotency_key=f"gift-shortfall-{payment_intent_id}",
+            metadata={"why": reason},
+        )
+    except Exception:  # noqa: BLE001
+        _log.exception("REFUND BY HAND: card payment %s on %s could not be refunded (%s)",
+                       payment_intent_id, account, reason)
 
 
 async def _tax_exempt(db: AsyncSession, company_id) -> bool:

@@ -50,6 +50,7 @@ FEATURES: list[tuple[str, str, str]] = [
     ("blog", "Blog", "Marketing and storefront"),
     ("pages", "Pages and SEO", "Marketing and storefront"),
     ("storefront_theme", "Storefront theme", "Marketing and storefront"),
+    ("gift_cards", "Gift cards", "Marketing and storefront"),
     ("custom_domains", "Custom domains", "Marketing and storefront"),
     # Analytics
     ("analytics", "Sales, product and customer analytics", "Analytics"),
@@ -150,6 +151,7 @@ PATH_FEATURES: list[tuple[str, str]] = [
     ("/api/v1/admin/blog-posts", "blog"),
     ("/api/v1/admin/pages-seo", "pages"),
     ("/api/v1/admin/discounts", "discounts"),
+    ("/api/v1/admin/gift-cards", "gift_cards"),
     ("/api/v1/admin/collections", "collections"),
     ("/api/v1/admin/inventory", "inventory"),
     ("/api/v1/admin/warehouses", "inventory"),
@@ -173,6 +175,7 @@ PATH_FEATURES: list[tuple[str, str]] = [
 # 403 read as "sign in again", and signing in again changed nothing, while a
 # guest bought it fine.
 BUYER_PATH_FEATURES: list[tuple[str, str]] = [
+    ("/api/v1/cart/gift-card", "gift_cards"),
     ("/api/v1/account/net30-status", "net_terms"),
     ("/api/v1/account/invoices", "invoices"),
 ]
@@ -185,6 +188,7 @@ PUBLIC_PATH_FEATURES: list[tuple[str, str]] = [
     ("/api/v1/register-wholesale", "wholesale_accounts"),
     # The buyer's order tracking page (Retail launch, package 2).
     ("/api/v1/storefront/track", "order_tracking"),
+    ("/api/v1/storefront/gift-cards", "gift_cards"),
     ("/api/v1/gang-sheets", "gang_sheet"),
     ("/api/v1/quick-order", "quick_buy"),
     # The builder's assistant before the rest of the copilot: it is the

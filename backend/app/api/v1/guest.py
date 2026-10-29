@@ -7,7 +7,7 @@ from decimal import Decimal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy import func, select, text as _text
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -72,6 +72,15 @@ GUEST_SHIPPING_EXPEDITED = Decimal("54.99")  # standard + expedited surcharge
 # Schemas
 # ---------------------------------------------------------------------------
 
+class GuestGiftCardLine(BaseModel):
+    """A gift card being bought (services/gift_card_checkout)."""
+    amount: Decimal
+    recipient_email: str
+    recipient_name: str | None = None
+    message: str | None = None
+    sender_name: str | None = None
+
+
 class GuestCartItem(BaseModel):
     """One line of a guest's cart.
 
@@ -87,6 +96,8 @@ class GuestCartItem(BaseModel):
     artwork: dict | None = None
     # A gang sheet the buyer already built. It carries its own price.
     gang_sheet_order_id: UUID | None = None
+    # A gift card for someone, at one of the shop's amounts.
+    gift_card: GuestGiftCardLine | None = None
 
 
 class GuestCheckoutRequest(BaseModel):
@@ -119,6 +130,10 @@ class GuestCheckoutRequest(BaseModel):
     # One per checkout attempt: a retry of it gets the order it already made
     # (services/order_attempts.py).
     idempotency_key: str | None = None
+    # Gift cards paying part or all of it, and the page's attempt key their
+    # holds are kept under (services/gift_card_checkout).
+    gift_card_codes: list[str] | None = Field(default=None, max_length=5)
+    checkout_ref: str | None = Field(default=None, max_length=100)
 
 
 class GuestOrderOut(BaseModel):
@@ -168,20 +183,6 @@ async def guest_payment_intent(
     if not tenant_id:
         raise ValidationError("No store context on this request")
 
-    try:
-        connect = await ConnectService(db).get_status(str(tenant_id))
-    except ValueError:
-        raise ValidationError("Store not found")
-    if not connect.get("charges_enabled"):
-        # Said plainly, and early: a shopper should never reach the card step
-        # of a store that cannot take one.
-        raise HTTPException(
-            status_code=409,
-            detail={"code": "STORE_PAYMENTS_NOT_READY",
-                    "message": "This store hasn't finished its card setup yet. "
-                               "Choose another way to pay, or contact the store."},
-        )
-
     priced = await _price_guest_cart(db, payload)
     total = priced.total.quantize(Decimal("0.01"))
     if total <= 0:
@@ -193,15 +194,58 @@ async def guest_payment_intent(
     rate = await commission_svc.for_tenant(db, tenant_id)
     fee_cents = commission_svc.amount_cents(priced.gang_sheet_subtotal, rate["bps"])
 
+    # Gift cards entered at checkout pay first; the card is charged the rest.
+    from app.core.rate_limit import client_ip
+    from app.services import gift_card_checkout as gcc
+    from app.services import gift_cards as gc
+
+    try:
+        tender = await gcc.take(
+            db, tenant_id=tenant_id, codes=payload.gift_card_codes, total=total,
+            checkout_ref=payload.checkout_ref, visitor=client_ip(request),
+            buying_gift_cards=priced.gift_card_subtotal > 0,
+        )
+    except gc.TooManyTries as exc:
+        raise HTTPException(status_code=429, detail=str(exc))
+    except gc.GiftCardError as exc:
+        raise ValidationError(str(exc))
+    if tender.taken and tender.remainder == 0:
+        await db.commit()
+        return {"gift_only": True, "checkout_ref": tender.checkout_ref, "amount": Decimal("0.00"),
+                "order_total": total, **tender.view()}
+
+    # The platform's share comes out of what the card pays, never more.
+    fee_cents = min(fee_cents, int(tender.remainder * 100))
+
+    # A card is to be charged: the store must be able to take one. Asked here,
+    # after the gift cards, so an order they cover whole needs no card setup.
+    try:
+        connect = await ConnectService(db).get_status(str(tenant_id))
+    except ValueError:
+        raise ValidationError("Store not found")
+    if not connect.get("charges_enabled"):
+        # Said plainly: a shopper should never reach the card step of a store
+        # that cannot take one.
+        raise HTTPException(
+            status_code=409,
+            detail={"code": "STORE_PAYMENTS_NOT_READY",
+                    "message": "This store hasn't finished its card setup yet. "
+                               "Choose another way to pay, or contact the store."},
+        )
+
     intent = await PaymentService(db).create_direct_payment_intent(
-        amount_decimal=total,
+        amount_decimal=tender.remainder,
         connected_account_id=connect["account_id"],
         metadata={"tenant_id": str(tenant_id), "guest": "true",
                   "tax_amount": str(priced.tax_amount),
                   "gang_sheet_subtotal": str(priced.gang_sheet_subtotal),
-                  "commission_bps": str(rate["bps"])},
+                  "commission_bps": str(rate["bps"]),
+                  **gcc.intent_meta(tender)},
         application_fee_cents=fee_cents,
     )
+    if tender.taken:
+        await gcc.attach_intent(db, tender, intent.id)
+        await db.commit()
     # Imported where it is used. This module never imported it, so the
     # line below raised NameError on every call — after the charge had
     # been set up at Stripe, which is the worst possible moment.
@@ -215,7 +259,10 @@ async def guest_payment_intent(
         # as the intent just created, or Stripe.js refuses it. Read from
         # the mode rather than the environment for exactly that reason.
         "publishable_key": await stripe_mode.publishable_key(db),
-        "amount": total,
+        "amount": tender.remainder,
+        "order_total": total,
+        "checkout_ref": tender.checkout_ref or None,
+        **tender.view(),
     }
 
 
@@ -233,6 +280,8 @@ class GuestTotals(BaseModel):
     shipping_method: str
     subtotal: Decimal
     gang_sheet_subtotal: Decimal
+    # Gift cards being bought: no shipping, no tax, card only.
+    gift_card_subtotal: Decimal = Decimal("0")
     shipping_cost: Decimal
     tax_amount: Decimal
     convenience_fee: Decimal
@@ -255,10 +304,35 @@ async def _price_guest_cart(db: AsyncSession, payload: "GuestCheckoutRequest") -
     gang_sheet_ids: list[UUID] = []
     subtotal = Decimal("0")
     gang_sheet_subtotal = Decimal("0")
+    gift_card_subtotal = Decimal("0")
 
     for cart_item in payload.items:
         if cart_item.quantity < 1:
             raise ValidationError("Quantity must be at least 1")
+
+        # A gift card for someone, at one of the shop's amounts.
+        if cart_item.gift_card is not None:
+            from app.core.tenant_context import get_current_tenant_id as _gc_tid
+            from app.services import gift_card_checkout as _gcc
+            from app.services import gift_cards as _gc
+
+            if cart_item.quantity != 1:
+                raise ValidationError("A gift card line is one card.")
+            if not await _gc.on_sale(db, _gc_tid()):
+                raise ValidationError("This shop isn't selling gift cards right now. Remove the gift card from your cart.")
+            try:
+                _value = _gc.check_amount(await _gc.settings_for(db, _gc_tid()), cart_item.gift_card.amount)
+                _details = _gcc.line_details(
+                    amount=_value, recipient_email=cart_item.gift_card.recipient_email,
+                    recipient_name=cart_item.gift_card.recipient_name, message=cart_item.gift_card.message,
+                    sender_name=cart_item.gift_card.sender_name,
+                )
+            except _gc.GiftCardError as exc:
+                raise ValidationError(str(exc))
+            subtotal += _value
+            gift_card_subtotal += _value
+            order_items_data.append(_gcc.order_line(_details))
+            continue
 
         # A gang sheet. It was priced when it was built, from the sheet sizes
         # the brand set up, and that snapshot is what it is billed at.
@@ -420,6 +494,10 @@ async def _price_guest_cart(db: AsyncSession, payload: "GuestCheckoutRequest") -
         shipping_cost = payload.shipping_cost
 
     tax_amount_val = payload.tax_amount or Decimal("0")
+    if gift_card_subtotal > 0 and gift_card_subtotal == subtotal:
+        # Only gift cards: nothing ships and nothing is taxed.
+        shipping_cost = Decimal("0.00")
+        tax_amount_val = Decimal("0.00")
     convenience_fee = Decimal("0.00")  # Guest/retail orders never incur a convenience fee
     total = subtotal + shipping_cost + tax_amount_val + convenience_fee
     return GuestTotals(
@@ -429,6 +507,7 @@ async def _price_guest_cart(db: AsyncSession, payload: "GuestCheckoutRequest") -
         shipping_method=method,
         subtotal=subtotal,
         gang_sheet_subtotal=gang_sheet_subtotal,
+        gift_card_subtotal=gift_card_subtotal,
         shipping_cost=shipping_cost,
         tax_amount=tax_amount_val,
         convenience_fee=convenience_fee,
@@ -482,8 +561,23 @@ async def guest_checkout(
     convenience_fee = priced.convenience_fee
     total = priced.total
 
+    # Gift cards being bought are paid by card; gift cards alone pay only what
+    # the payment step said they cover (settled below, once the order exists).
+    from app.core.tenant_context import get_current_tenant_id as _gc_tenant_now
+    from app.services import gift_card_checkout as gcc
+    from app.services import gift_cards as gc
+
+    _gc_tenant = _gc_tenant_now()
+    _gift_only = payload.payment_method == "gift_card" and not payload.payment_intent_id
+    if priced.gift_card_subtotal > 0 and not payload.payment_intent_id:
+        raise ValidationError("Gift cards are paid for by card.")
+    _pi = None
+    _acct = None
+
     # 3. Verify the card payment (ACH is collected manually, so nothing to check)
-    if payload.payment_method == "ach":
+    if _gift_only:
+        _payment_status = "paid"
+    elif payload.payment_method == "ach":
         # Bank details, not money: unpaid until the shop marks it paid when the
         # transfer arrives (it was marked paid here with nothing in).
         _payment_status = "unpaid"
@@ -523,6 +617,13 @@ async def guest_checkout(
             raise ValidationError("Could not verify your payment. Please contact the store.")
         if getattr(_pi, "status", None) != "succeeded":
             raise ValidationError("Payment was not completed. Please try again.")
+        _meta = dict(getattr(_pi, "metadata", None) or {})
+        if _meta.get("tenant_id") and str(_meta.get("tenant_id")) != str(_tid):
+            raise ValidationError("This payment belongs to another store.")
+        # One card payment, one order.
+        if (await db.execute(select(Order.id).where(
+                Order.stripe_payment_intent_id == payload.payment_intent_id))).scalar_one_or_none():
+            raise ValidationError("This payment has already been used for an order.")
 
         _payment_status = "paid"
 
@@ -573,6 +674,41 @@ async def guest_checkout(
     db.add(order)
     await db.flush()
 
+    # The gift cards entered at checkout pay their part (services/gift_card_checkout).
+    _gift_paid: list[dict] = []
+    _plan = gcc.planned(dict(getattr(_pi, "metadata", None) or {})) if _pi is not None else []
+    try:
+        if _plan:
+            _gift_paid = await gcc.settle(
+                db, tenant_id=_gc_tenant, checkout_ref=str(_pi.metadata.get("checkout_ref") or ""),
+                plan=_plan, codes=payload.gift_card_codes, order_id=order.id,
+            )
+        elif _gift_only:
+            from app.core.rate_limit import client_ip as _cip
+
+            _ref = gcc.clean_ref(payload.checkout_ref)
+            _held = await gcc.held_for(db, _gc_tenant, _ref)
+            if sum((a for _, a in _held), Decimal("0")) != Decimal(str(total)).quantize(Decimal("0.01")):
+                _tender = await gcc.take(db, tenant_id=_gc_tenant, codes=payload.gift_card_codes,
+                                         total=Decimal(str(total)), checkout_ref=_ref, visitor=_cip(request))
+                if not _tender.taken or _tender.remainder != 0:
+                    raise gc.GiftCardError("Your gift cards no longer cover this order. Please choose how to pay the rest.")
+                _held = [(t.card_id, t.amount) for t in _tender.taken]
+            _gift_paid = await gcc.settle(db, tenant_id=_gc_tenant, checkout_ref=_ref, plan=_held,
+                                          codes=payload.gift_card_codes, order_id=order.id)
+    except gc.TooManyTries as exc:
+        await db.rollback()
+        raise HTTPException(status_code=429, detail=str(exc))
+    except gc.GiftCardError as exc:
+        await db.rollback()
+        if _plan:
+            from app.api.v1.checkout import _refund_whole_intent
+
+            await _refund_whole_intent(db, payload.payment_intent_id, _acct, reason="gift card shortfall")
+            raise ValidationError(f"{exc} Your card payment has been refunded.")
+        raise ValidationError(str(exc))
+    _gift_total = sum((Decimal(str(p["amount"])) for p in _gift_paid), Decimal("0"))
+
     # Save shipping_rate_id + carrier from customer's selected live Shippo rate
     logger.info(
         "Guest order create - shipping_rate_id: %s, carrier: %s",
@@ -619,12 +755,14 @@ async def guest_checkout(
               **({"idempotency_key": _attempt} if _attempt else {})},
         occurred_at=order.created_at,
     )
-    if _payment_status == "paid":
+    if _gift_paid:
+        await gcc.record_payment(db, order, _gift_paid, _events)
+    if _payment_status == "paid" and not _gift_only:
         # The same check a signed-in card order gets: what the card paid
         # against what the order says, written on the order when they differ.
         from app.api.v1.checkout import _check_charge
 
-        _charged = (await _check_charge(db, order, _pi, _events)
+        _charged = (await _check_charge(db, order, _pi, _events, gift_paid=_gift_total)
                     if payload.payment_method != "ach" else total)
         await _events.record(
             db, order, "payment_received",
@@ -733,6 +871,12 @@ async def guest_checkout(
     )
     order = result.scalar_one()
 
+    # Gift cards bought on this order: made now it is paid, emailed after the
+    # commit (the codes exist only in this request).
+    _cards_made: list = []
+    if priced.gift_card_subtotal > 0 and order.payment_status == "paid":
+        _cards_made = await gcc.issue_for_order(db, order, buyer_email=order.guest_email)
+
     # 9. Send guest confirmation email + admin alert + activation email
     try:
         from app.services.email_service import EmailService
@@ -761,6 +905,13 @@ async def guest_checkout(
         logger.warning("Order confirmation email failed: %s", exc)
 
     await db.commit()
+
+    if _cards_made:
+        try:
+            await gcc.send_cards(db, order, _cards_made, buyer_email=order.guest_email)
+            await db.commit()
+        except Exception:  # noqa: BLE001
+            logger.exception("Gift card emails failed for order %s", order.id)
 
     # The brand's own Meta pixel hears about the sale from the server too
     # (services/meta_capi). In the background; never fails the order.

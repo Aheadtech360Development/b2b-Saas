@@ -207,6 +207,19 @@ settings for tracking, gift cards, returns and loyalty.
 | Limits on Starter / Wholesale / Scale | Not enforced yet; Retail only for now |
 | Mobile app on Retail | Not included (stays on Scale) unless the manager says otherwise |
 
+## Defaults taken while building (2026-10-29; the manager can change each in one place)
+
+| Question | Default | Where to change it |
+|---|---|---|
+| Gift card with a discount code | Combine: the code discounts the goods, the gift card pays (it is a tender) | services/gift_card_checkout |
+| A loyalty reward code and another code | The reward code is the order's one discount code (engine takes one) | package 5 |
+| Who earns points | Account buyers only | package 5 |
+| Refund of an order paid by card and gift card | Card first, up to what it paid; the rest back onto the gift card | gift_card_checkout.split_refund |
+| A refund that reaches gift cards the order sold | Each card whole, only if unused; it is voided | gift_card_checkout.split_refund |
+| Gift cards sold before a shop turns sales off | Still accepted at checkout (money the shop owes) | gift_cards.accepted |
+| Gift card expiry | Never by default; the owner may pick 5, 7 or 10 years (US law: no less than 5) | Settings on the Gift cards page |
+| A gift card bought with cash on delivery, ACH or Net 30 | Not allowed: card only (the code is made when paid) | checkout and guest checkout |
+
 ## Open questions for the manager
 
 1. **The /retail page and the Retail card call these live, and they do not exist today**: automatic

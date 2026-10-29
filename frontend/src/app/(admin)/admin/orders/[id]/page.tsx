@@ -21,7 +21,7 @@ import { useAuthStore } from "@/stores/auth.store";
 import { useBranding } from "@/components/providers/BrandingProvider";
 import { OrderGangSheets } from "@/components/admin/OrderGangSheets";
 import { GangSheetLineFiles, type GangSheetProduction } from "@/components/admin/GangSheetLineFiles";
-import { OrderRefunds, type DisputeRow, type RefundRow } from "@/components/admin/OrderRefunds";
+import { OrderRefunds, type DisputeRow, type GiftCardPayments, type GiftCardSold, type RefundRow } from "@/components/admin/OrderRefunds";
 import { ConversionSummary, type Conversion } from "@/components/admin/ConversionSummary";
 import { OrderShipments } from "@/components/admin/OrderShipments";
 import { discountAmount, discountLabel } from "@/lib/orderMoney";
@@ -127,6 +127,8 @@ interface AdminOrder {
   convenience_fee?: string | null;
   amount_refunded?: string | number | null;
   refundable_remaining?: string | number | null;
+  gift_card_payments?: GiftCardPayments | null;
+  gift_cards_sold?: GiftCardSold[];
   refunds?: RefundRow[];
   disputes?: DisputeRow[];
 }
@@ -149,7 +151,7 @@ const JOB_WORDS: Record<string, [string, string]> = {
   submitted: ["Submitted", "amber"], in_review: ["Awaiting approval", "amber"], revision_requested: ["Revision asked", "red"],
   approved: ["Approved", "green"], production: ["Printing", "blue"], completed: ["Printed", "green"], rejected: ["Rejected", "red"],
 };
-const PAY_METHOD: Record<string, string> = { ach: "ACH / bank transfer", cod: "Cash on delivery", net_30: "Net 30", card: "Card" };
+const PAY_METHOD: Record<string, string> = { ach: "ACH / bank transfer", cod: "Cash on delivery", net_30: "Net 30", card: "Card", gift_card: "Gift card" };
 const SUPPLIER_WORDS: Record<string, [string, string]> = {
   not_sent: ["Not sent", "amber"], sending: ["Sending", "blue"], test: ["Test only", "amber"],
   placed: ["Ordered", "blue"], shipped: ["Shipped", "green"], failed: ["Failed", "red"],
@@ -852,6 +854,8 @@ export default function AdminOrderDetailPage() {
             refundable={left != null && paid}
             refunds={o.refunds ?? []}
             disputes={o.disputes ?? []}
+            giftCards={o.gift_card_payments ?? null}
+            giftCardsSold={o.gift_cards_sold ?? []}
             openSignal={refundSignal}
             onChanged={async () => { await reload(); }}
           />

@@ -34,7 +34,7 @@ export const PART_LABELS: Record<PartKey, string> = {
 export const RESERVED_SLUGS = new Set([
   "products", "product", "collections", "collection", "cart", "checkout", "account",
   "login", "logout", "signup", "create-account", "admin", "api", "platform", "search",
-  "gang-sheets", "wholesale", "quick-order", "orders", "track-order", "blog", "reviews",
+  "gang-sheets", "wholesale", "quick-order", "orders", "track-order", "track", "gift-cards", "blog", "reviews",
   "register", "forgot-password", "reset-password", "activate-account", "site-builder",
   "theme-editor", "theme-preview", "ui-preview", "sitemap.xml", "robots.txt",
 ]);

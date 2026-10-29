@@ -33,6 +33,7 @@ const PAYMENT_LABELS: Record<string, string> = {
   ach: "ACH / Bank transfer",
   net_30: "Net 30, pay by invoice",
   cod: "Cash on delivery",
+  gift_card: "Gift card",
 };
 
 /** Where the order stands on money, said the way the buyer needs to hear it. */
