@@ -219,6 +219,10 @@ settings for tracking, gift cards, returns and loyalty.
 | Gift cards sold before a shop turns sales off | Still accepted at checkout (money the shop owes) | gift_cards.accepted |
 | Gift card expiry | Never by default; the owner may pick 5, 7 or 10 years (US law: no less than 5) | Settings on the Gift cards page |
 | A gift card bought with cash on delivery, ACH or Net 30 | Not allowed: card only (the code is made when paid) | checkout and guest checkout |
+| Returns portal before the shop turns it on | Off; an account's old return form works as before | Returns → Returns portal |
+| What a return refund may come to | The items' price, less their share of the order's discount, plus their share of tax; never shipping | returns_portal.refund_cap |
+| An exchange for a dearer size or colour | The exchange order carries the difference with a pay link; a cheaper one refunds the difference | returns_portal._exchange_order |
+| Which items are final sale | Gift cards always; made-to-order lines unless the shop turns that off; products the shop lists | Returns portal settings |
 
 ## Open questions for the manager
 

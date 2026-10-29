@@ -14,9 +14,10 @@ from app.models.product_template import ProductTemplate  # noqa: F401
 from app.models.builder import BuilderFont, BuilderSite, BuilderVersion  # noqa: F401
 from app.models.order import Order, OrderItem, CartItem, AbandonedCart, OrderTemplate, OrderComment, OrderEvent  # noqa: F401
 from app.models.wholesale import WholesaleApplication  # noqa: F401
-from app.models.rma import RMARequest, RMAItem  # noqa: F401
+from app.models.rma import RMAEvent, RMARequest, RMAItem  # noqa: F401
 from app.models.shipment import Shipment, ShipmentEvent  # noqa: F401
 from app.models.gift_card import GiftCard, GiftCardHold, GiftCardLedger  # noqa: F401
+from app.models.loyalty import BuyerReferral, LoyaltyAccount, LoyaltyLedger  # noqa: F401
 from app.models.system import AuditLog, Settings  # noqa: F401
 from app.models.communication import Message, EmailTemplate  # noqa: F401
 from app.models.statement import StatementTransaction  # noqa: F401

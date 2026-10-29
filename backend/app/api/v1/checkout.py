@@ -801,6 +801,11 @@ async def _confirm_checkout_inner(
         except Exception:  # noqa: BLE001
             _log.exception("Gift card emails failed for order %s", order.id)
 
+    # Loyalty points for a paid order (services/loyalty). Never fails the order.
+    from app.services import loyalty as _loyalty
+
+    await _loyalty.earn_safely(db, order)
+
     # The brand's own Meta pixel hears about the sale from the server too, when
     # it has connected the Conversions API. Runs in the background; never fails
     # the order.

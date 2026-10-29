@@ -27,6 +27,7 @@ FEATURES: list[tuple[str, str, str]] = [
     ("returns", "Returns", "Orders and fulfillment"),
     ("purchase_orders", "Purchase orders", "Orders and fulfillment"),
     ("order_tracking", "Order tracking page", "Orders and fulfillment"),
+    ("returns_portal", "Returns and exchanges portal", "Orders and fulfillment"),
     # Products and catalog
     ("products", "Products and variants", "Products and catalog"),
     ("collections", "Collections", "Products and catalog"),
@@ -51,6 +52,7 @@ FEATURES: list[tuple[str, str, str]] = [
     ("pages", "Pages and SEO", "Marketing and storefront"),
     ("storefront_theme", "Storefront theme", "Marketing and storefront"),
     ("gift_cards", "Gift cards", "Marketing and storefront"),
+    ("loyalty", "Loyalty points and referral rewards", "Marketing and storefront"),
     ("custom_domains", "Custom domains", "Marketing and storefront"),
     # Analytics
     ("analytics", "Sales, product and customer analytics", "Analytics"),
@@ -152,6 +154,7 @@ PATH_FEATURES: list[tuple[str, str]] = [
     ("/api/v1/admin/pages-seo", "pages"),
     ("/api/v1/admin/discounts", "discounts"),
     ("/api/v1/admin/gift-cards", "gift_cards"),
+    ("/api/v1/admin/loyalty", "loyalty"),
     ("/api/v1/admin/collections", "collections"),
     ("/api/v1/admin/inventory", "inventory"),
     ("/api/v1/admin/warehouses", "inventory"),
@@ -176,6 +179,8 @@ PATH_FEATURES: list[tuple[str, str]] = [
 # guest bought it fine.
 BUYER_PATH_FEATURES: list[tuple[str, str]] = [
     ("/api/v1/cart/gift-card", "gift_cards"),
+    ("/api/v1/account/returns", "returns_portal"),
+    ("/api/v1/account/rewards", "loyalty"),
     ("/api/v1/account/net30-status", "net_terms"),
     ("/api/v1/account/invoices", "invoices"),
 ]
@@ -189,6 +194,7 @@ PUBLIC_PATH_FEATURES: list[tuple[str, str]] = [
     # The buyer's order tracking page (Retail launch, package 2).
     ("/api/v1/storefront/track", "order_tracking"),
     ("/api/v1/storefront/gift-cards", "gift_cards"),
+    ("/api/v1/storefront/returns", "returns_portal"),
     ("/api/v1/gang-sheets", "gang_sheet"),
     ("/api/v1/quick-order", "quick_buy"),
     # The builder's assistant before the rest of the copilot: it is the

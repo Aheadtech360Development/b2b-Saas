@@ -45,12 +45,12 @@ its checks; a package goes live only on the owner's word, and money packages onl
 
 ## Phase 4: Package 4, returns and exchanges
 
-- [ ] T401 Migration `0070_returns_portal` (enum values outside the transaction, new columns, `rma_events`).
-- [ ] T402 Settings (window, reasons, final sale, shipping payer, instructions, refund methods).
-- [ ] T403 Buyer and guest start: delivered + window + not final sale; exchange variant with stock check.
-- [ ] T404 Admin decisions: approve, decline, receive (restock or not), refund (capped, billing permission), exchange order (difference charged or refunded), store credit as gift card; events + mails for each status.
-- [ ] T405 Loyalty reversal hook on refunds (no-op until package 5).
-- [ ] T406 Checks: window and delivery rules; never refund more than paid; exchange adjusts stock; guest token scope and expiry.
+- [x] T401 Migration `0070_returns_portal`: rma_status + received / refunded / exchanged / closed (autocommit block); rma_requests kind, refund_method, channel, guest_email, refunded_amount, exchange_order_id, store_credit_card_id, submitted_by_id nullable; rma_items replacement_variant_id, received_quantity, restock; `rma_events` with RLS. Up, down, up on the local DB.
+- [x] T402 Settings (`returns_portal` tenant key, off by default): window 1 to 365 days, reasons, made-to-order final sale, final sale products, who pays return shipping, instructions (in the approval email), ways to put it right (original, store credit, exchange). Admin: Returns → "Returns portal".
+- [x] T403 Buyer (`/account/returns`, own orders only) and guest (`/storefront/returns/lookup` number + email, 10 per 15 min per visitor, 5 an hour per order, one 404 wording; 30 minute signed key for that order): delivered + paid + inside the window; per line returnable = ordered less returns not declined; gift cards and made-to-order final sale; exchange only for an in-stock size or colour of the same product. Storefront `/returns`; account "Request a return" uses the portal when it is on (the old form otherwise).
+- [x] T404 Admin (`/admin/returns/{id}/...`): approve, decline, receive (what came back, back on the shelf as an inventory adjustment "returned"), refund-items (to the payment through issue_refund: card then gift cards; or store credit as a gift card emailed to the buyer; capped at what was paid for the items, their share of discount and tax), exchange (replacement order, stock moved, dearer: difference left on the order with its pay link; cheaper: difference refunded after the exchange is saved), close; one transition each, row lock with populate_existing; `rma_events` + order history + an email in the shop's name for every step. Refund and exchange need Billing. The old reprint / refund / reject decisions now email in-process (they were queued to a Celery worker live does not run).
+- [ ] T405 Loyalty reversal on refunds: with package 5.
+- [x] T406 Checks: tests/test_returns_portal (13); frontend returns-portal (5); local DB through the API (scratchpad returns_local_check.py, 34 checks): portal off, not delivered, wrong email = made-up number, too many, bad reason, forged and old keys, both large tees spoken for, approve twice refused, cap $8, received + restocked (+1 stock), over cap refused, store credit card $8, exchange order at no charge (medium off stock), refund onto the gift card that paid, window closed after 30 days, history, another shop 404, lookups limited.
 
 ## Phase 5: Package 5, loyalty and referrals
 

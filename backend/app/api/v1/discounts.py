@@ -54,6 +54,10 @@ async def validate_discount_code(
     if dc.customer_eligibility != "all" and dc.customer_eligibility != customer_type:
         return None, "This discount code is not applicable to your account type."
 
+    # A loyalty reward code is its buyer's own (services/loyalty).
+    if getattr(dc, "owner_user_id", None) and str(dc.owner_user_id) != str(user_id or ""):
+        return None, "This reward code belongs to another account."
+
     if dc.usage_limit_total is not None:
         total_used = (await db.execute(
             select(func.count(DiscountUsage.id)).where(DiscountUsage.discount_code_id == dc.id)

@@ -54,6 +54,8 @@ TENANT_SCOPED_KEYS: frozenset[str] = frozenset({
     "plan_limit_notice",  # which order limit notices this month already went (JSON) — see services/plan_usage
     "order_tracking",  # the buyer's tracking page on or off, and the shop's message on it (JSON) — see services/tracking_page
     "gift_cards",  # gift cards on sale or not, amounts, expiry (JSON) — see services/gift_cards
+    "returns_portal",  # buyers start returns and exchanges themselves, window, reasons (JSON) — see services/returns_portal
+    "loyalty",  # points, rewards and buyer referrals: on or off and every rule (JSON) — see services/loyalty
 })
 
 _SEP = "@"

@@ -17,7 +17,7 @@ import { Suspense, useCallback, useEffect, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Search } from "lucide-react";
 import { ApiClientError, apiClient } from "@/lib/api-client";
-import { ask, tell } from "@/lib/dialog";
+import { ask, askText, tell } from "@/lib/dialog";
 import { OrdersFrame, useOrdersOverview } from "@/components/admin/orders/OrdersFrame";
 
 interface Return {
@@ -25,12 +25,16 @@ interface Return {
   reason: string; notes: string | null; admin_notes: string | null; status: string; status_words: string;
   outcome: "reprint" | "refund" | null; reprint: { id: string; number: string } | null; refund_amount: number | null;
   can_refund: boolean; created_at: string | null;
+  // From the returns portal (backend services/returns_portal).
+  kind?: "return" | "exchange"; channel?: "account" | "guest" | "admin"; refund_method?: string | null;
+  refunded_amount?: number; portal?: boolean;
 }
 interface Answer { items: Return[]; counts: Record<string, number>; reasons: { key: string; words: string }[] }
 interface OrderHit { id: string; order_number: string; customer: string; total: number; can_refund: boolean }
 
-const FILTERS: [string, string][] = [["pending", "To review"], ["approved", "Approved"], ["rejected", "Rejected"], ["completed", "Completed"], ["all", "All"]];
-const TONE: Record<string, string> = { pending: "amber", approved: "blue", rejected: "red", completed: "green" };
+const FILTERS: [string, string][] = [["pending", "To review"], ["approved", "Approved"], ["received", "Received"], ["rejected", "Rejected"], ["completed", "Completed"], ["all", "All"]];
+const TONE: Record<string, string> = { pending: "amber", approved: "blue", rejected: "red", completed: "green",
+  received: "blue", refunded: "green", exchanged: "green", closed: "" };
 const money = (n: number) => `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const errorText = (e: unknown, fallback: string) => (e instanceof ApiClientError && e.message ? e.message : fallback);
 
@@ -49,6 +53,7 @@ function Returns() {
   const { overview, refresh: refreshTabs } = useOrdersOverview();
   const show = params.get("show") ?? "all";
   const picked = params.get("rma") ?? "";
+  const settingsOpen = params.get("settings") === "1";
   const [data, setData] = useState<Answer | null>(null);
   const [error, setError] = useState("");
 
@@ -76,6 +81,9 @@ function Returns() {
       <div className="pc-cols" style={{ marginTop: 0 }}>
         <div>
           <div className="pc-filters no-print" role="group" aria-label="Show" style={{ marginBottom: 12 }}>
+            <button type="button" className="pc-btn" style={{ marginLeft: "auto" }} onClick={() => go({ rma: null, settings: "1" })}>
+              Returns portal
+            </button>
             <div className="pc-seg">
               {FILTERS.map(([value, label]) => (
                 <button key={value} type="button" aria-pressed={show === value} onClick={() => go({ show: value === "all" ? null : value })}>
@@ -100,7 +108,10 @@ function Returns() {
                       <td><Link className="pc-link" href={`/admin/orders/${r.order_id}`} onClick={(e) => e.stopPropagation()}>{r.order_number ?? "Order"}</Link></td>
                       <td>{r.customer}</td>
                       <td>{r.reason.split(":")[0]}</td>
-                      <td>{r.outcome === "reprint" ? "Reprint" : r.outcome === "refund" ? "Refund" : "—"}</td>
+                      <td>{r.portal
+                        ? (r.kind === "exchange" ? "Exchange" : r.refund_method === "store_credit" ? "Store credit" : "Refund")
+                          + (r.channel === "guest" ? " · guest" : "")
+                        : r.outcome === "reprint" ? "Reprint" : r.outcome === "refund" ? "Refund" : "—"}</td>
                       <td><span className="pc-pill" data-tone={TONE[r.status]} style={{ textTransform: "none" }}>{r.status_words}</span></td>
                     </tr>
                   ))}
@@ -111,7 +122,11 @@ function Returns() {
         </div>
 
         <div>
-          {chosen ? (
+          {settingsOpen ? (
+            <PortalSettings onClose={() => go({ settings: null })} />
+          ) : chosen?.portal ? (
+            <PortalPanel r={chosen} onDone={() => load()} onClose={() => go({ rma: null })} />
+          ) : chosen ? (
             <ReturnPanel r={chosen} onDone={() => load()} onClose={() => go({ rma: null })} />
           ) : (
             <NewPanel reasons={data?.reasons ?? []} onMade={(id) => { load(); go({ rma: id }); }} />
@@ -305,6 +320,233 @@ function ReturnPanel({ r, onDone, onClose }: { r: Return; onDone: () => void; on
             )}
           </>
         )}
+      </div>
+    </div>
+  );
+}
+
+interface PortalItem {
+  id: string; product_name: string; sku: string; color: string | null; size: string | null; quantity: number;
+  reason: string | null; unit_price: number; can_restock: boolean; received_quantity: number | null; restock: boolean | null;
+  replacement: { variant_id: string; label: string; sku: string } | null;
+}
+interface PortalDetail {
+  id: string; rma_number: string; status: string; status_words: string; kind: string; refund_method: string | null;
+  channel: string; notes: string | null; admin_notes: string | null; refunded_amount: number; refund_cap: number;
+  refund_left: number; exchange_order_id: string | null; order_id: string; order_number: string | null;
+  buyer_email: string | null; items: PortalItem[];
+  events: { status: string; status_words: string; actor_kind: string; actor_name: string | null; note: string | null; at: string | null }[];
+}
+
+/** A return or exchange a buyer started themselves (the returns portal):
+ *  approve, decline, note what came back, refund (to the payment or as store
+ *  credit, never more than was paid for the items) or make the exchange. */
+function PortalPanel({ r, onDone, onClose }: { r: Return; onDone: () => void; onClose: () => void }) {
+  const [d, setD] = useState<PortalDetail | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [back, setBack] = useState<Record<string, { qty: number; restock: boolean }>>({});
+  const [amount, setAmount] = useState("");
+  const [method, setMethod] = useState<"original" | "store_credit">("original");
+
+  const load = useCallback(() => {
+    apiClient.get<PortalDetail>(`/api/v1/admin/returns/${r.id}/detail`).then((x) => {
+      setD(x);
+      setBack(Object.fromEntries(x.items.map((i) => [i.id, { qty: i.received_quantity ?? i.quantity, restock: i.restock ?? i.can_restock }])));
+      setAmount(x.refund_left ? x.refund_left.toFixed(2) : "");
+      setMethod(x.refund_method === "store_credit" ? "store_credit" : "original");
+    }).catch((e) => tell(errorText(e, "The return could not be loaded.")));
+  }, [r.id]);
+  useEffect(() => { setD(null); load(); }, [load]);
+
+  async function act(action: string, body: Record<string, unknown>, confirm: string, ok: string) {
+    if (!(await ask(confirm, { title: ok, ok }))) return;
+    setBusy(action);
+    try {
+      await apiClient.post(`/api/v1/admin/returns/${r.id}/${action}`, body);
+      load(); onDone();
+    } catch (e) { tell(errorText(e, "That could not be saved.")); }
+    finally { setBusy(null); }
+  }
+  async function decline() {
+    const note = await askText(`Why can't ${r.rma_number} be accepted? The buyer is emailed your words.`, "",
+      { title: "Decline", ok: "Decline", danger: true, placeholder: "Outside our return window, worn…" });
+    if (note === null) return;
+    setBusy("decline");
+    try { await apiClient.post(`/api/v1/admin/returns/${r.id}/decline`, { note: note.trim() || null }); load(); onDone(); }
+    catch (e) { tell(errorText(e, "That could not be saved.")); }
+    finally { setBusy(null); }
+  }
+
+  if (!d) return <div className="pc-panel"><div className="pc-panel-body"><div className="pc-empty">Loading…</div></div></div>;
+  const can = (a: string) => ({
+    approve: ["pending"], decline: ["pending", "approved"], receive: ["pending", "approved"],
+    refund: ["approved", "received"], exchange: ["approved", "received"], close: ["pending", "approved", "received", "refunded", "exchanged", "completed"],
+  } as Record<string, string[]>)[a]?.includes(d.status) ?? false;
+  const isExchange = d.kind === "exchange";
+
+  return (
+    <div className="pc-panel" data-portal-return={d.rma_number}>
+      <div className="pc-panel-head">
+        <div>
+          <h2 className="pc-h2" style={{ margin: 0 }}>{isExchange ? "Exchange" : "Return"} {d.rma_number}</h2>
+          <div className="pc-sub-line">Order <Link className="pc-link" href={`/admin/orders/${d.order_id}`}>{d.order_number}</Link>
+            {" · "}{d.channel === "guest" ? "guest" : "account"}{d.buyer_email ? ` · ${d.buyer_email}` : ""}</div>
+        </div>
+        <button type="button" className="pc-btn" onClick={onClose}>New</button>
+      </div>
+      <div className="pc-panel-body">
+        <div><span className="pc-pill" data-tone={TONE[d.status]} style={{ textTransform: "none" }}>{d.status_words}</span></div>
+        <div style={{ display: "grid", gap: 10 }}>
+          {d.items.map((i) => (
+            <div key={i.id} data-portal-item={i.sku} style={{ borderBottom: "1px solid var(--pc-line, #E3E8EF)", paddingBottom: 8 }}>
+              <b>{i.quantity} × {i.product_name}</b> <span className="pc-sub-line">{[i.color, i.size].filter(Boolean).join(" / ")}</span>
+              <div className="pc-sub-line">{i.reason}{i.replacement ? ` · instead: ${i.replacement.label}` : ""}</div>
+              {i.received_quantity != null && (
+                <div className="pc-sub-line">Came back: {i.received_quantity}{i.restock ? ", back on the shelf" : ""}</div>
+              )}
+              {can("receive") && (
+                <div className="pc-row-actions" style={{ marginTop: 6 }}>
+                  <label className="pc-sub-line">Came back
+                    <input className="pc-input" type="number" min={0} max={i.quantity} value={back[i.id]?.qty ?? i.quantity}
+                      style={{ width: 70, marginLeft: 6, height: 32 }} aria-label={`How many ${i.product_name} came back`}
+                      onChange={(e) => setBack((b) => ({ ...b, [i.id]: { restock: false, ...b[i.id], qty: Math.max(0, Math.min(i.quantity, Math.floor(Number(e.target.value) || 0))) } }))} />
+                  </label>
+                  {i.can_restock && (
+                    <label className="pc-sub-line"><input type="checkbox" checked={!!back[i.id]?.restock}
+                      onChange={(e) => setBack((b) => ({ ...b, [i.id]: { qty: i.quantity, ...b[i.id], restock: e.target.checked } }))} /> Back on the shelf</label>
+                  )}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+        {d.notes && <p className="pc-sub-line" style={{ margin: 0 }}>Buyer: {d.notes}</p>}
+        {d.refunded_amount > 0 && <div>Refunded {money(d.refunded_amount)}{d.refund_method === "store_credit" ? " as store credit" : ""}.</div>}
+        {d.exchange_order_id && <div>Exchange order <Link className="pc-link" href={`/admin/orders/${d.exchange_order_id}`}>open</Link>.</div>}
+
+        {can("refund") && !isExchange && (
+          <div style={{ display: "grid", gap: 8 }}>
+            <label className="pc-label" htmlFor="pp-amount">Refund <span className="pc-sub-line">(up to {money(d.refund_left)}: what was paid for these items)</span></label>
+            <input id="pp-amount" className="pc-input" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} />
+            <select className="pc-input" value={method} onChange={(e) => setMethod(e.target.value as "original" | "store_credit")} aria-label="Refund to">
+              <option value="original">To the way they paid</option>
+              <option value="store_credit">As store credit (a gift card)</option>
+            </select>
+          </div>
+        )}
+        <div className="pc-row-actions" style={{ flexWrap: "wrap" }}>
+          {can("approve") && <button type="button" className="pc-btn" data-kind="primary" disabled={!!busy}
+            onClick={() => act("approve", {}, `Approve ${d.rma_number}? The buyer is emailed how to send it back.`, "Approve")}>Approve</button>}
+          {can("receive") && <button type="button" className="pc-btn" disabled={!!busy}
+            onClick={() => act("receive", { items: d.items.map((i) => ({ rma_item_id: i.id, quantity: back[i.id]?.qty ?? i.quantity, restock: !!back[i.id]?.restock })) },
+              "Mark what came back? Items ticked go back into stock.", "Mark received")}>Mark received</button>}
+          {can("refund") && !isExchange && <button type="button" className="pc-btn" data-kind="primary" disabled={!!busy || !(Number(amount) > 0)}
+            onClick={() => act("refund-items", { amount: Number(amount), method },
+              `Refund ${money(Number(amount))} ${method === "store_credit" ? "as store credit" : "to the way they paid"}?`, "Refund")}>Refund</button>}
+          {can("exchange") && isExchange && <button type="button" className="pc-btn" data-kind="primary" disabled={!!busy}
+            onClick={() => act("exchange", {}, "Make the exchange order? The new items come off stock; a price difference is charged or refunded.", "Make exchange")}>Make exchange order</button>}
+          {can("decline") && <button type="button" className="pc-btn" disabled={!!busy} onClick={decline}>Decline</button>}
+          {can("close") && <button type="button" className="pc-btn" disabled={!!busy}
+            onClick={() => act("close", {}, `Close ${d.rma_number}? Nothing else happens to it.`, "Close")}>Close</button>}
+        </div>
+        <div>
+          <div className="pc-label">History</div>
+          {d.events.map((e, n) => (
+            <div key={n} className="pc-sub-line" data-portal-event={e.status}>
+              {e.at ? new Date(e.at).toLocaleString() : ""} · {e.status_words} · {e.actor_name ?? (e.actor_kind === "buyer" ? "Buyer" : "Staff")}
+              {e.note ? ` · ${e.note}` : ""}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+interface PortalConf {
+  enabled: boolean; window_days: number; reasons: string[]; made_to_order_final_sale: boolean;
+  shipping_payer: "buyer" | "shop"; instructions: string; methods: string[];
+}
+
+/** The returns portal's settings: on or off, the window, reasons, final sale,
+ *  who pays return shipping, the instructions mailed on approval, and the
+ *  ways a return can be put right. */
+function PortalSettings({ onClose }: { onClose: () => void }) {
+  const [c, setC] = useState<PortalConf | null>(null);
+  const [reasons, setReasons] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  useEffect(() => {
+    apiClient.get<PortalConf>("/api/v1/admin/returns/settings")
+      .then((x) => { setC(x); setReasons(x.reasons.join("\n")); })
+      .catch((e) => setError(errorText(e, "The settings could not be loaded.")));
+  }, []);
+  if (!c) return <div className="pc-panel"><div className="pc-panel-body">{error ? <div className="pc-note" data-tone="red">{error}</div> : <div className="pc-empty">Loading…</div>}</div></div>;
+  const set = (k: keyof PortalConf, v: unknown) => setC({ ...c, [k]: v } as PortalConf);
+  const toggle = (m: string) => set("methods", c.methods.includes(m) ? c.methods.filter((x) => x !== m) : [...c.methods, m]);
+
+  async function save() {
+    setBusy(true); setError("");
+    try {
+      const saved = await apiClient.put<PortalConf>("/api/v1/admin/returns/settings", {
+        ...c, reasons: reasons.split("\n").map((x) => x.trim()).filter(Boolean),
+      });
+      setC(saved); setReasons(saved.reasons.join("\n"));
+      tell(saved.enabled ? "Buyers can now start returns at /returns and from their orders." : "The returns portal is off.");
+    } catch (e) { setError(errorText(e, "The settings could not be saved.")); }
+    finally { setBusy(false); }
+  }
+
+  return (
+    <div className="pc-panel" data-portal-settings>
+      <div className="pc-panel-head">
+        <div><h2 className="pc-h2" style={{ margin: 0 }}>Returns portal</h2>
+          <div className="pc-sub-line">Buyers start returns and exchanges themselves, at /returns or from their orders.</div></div>
+        <button type="button" className="pc-btn" onClick={onClose}>Done</button>
+      </div>
+      <div className="pc-panel-body">
+        {error && <div className="pc-note" data-tone="red" role="alert">{error}</div>}
+        <div className="pc-switch-row">
+          <span>Buyers start returns online</span>
+          <button type="button" className="pc-switch" role="switch" aria-label="Buyers start returns online" aria-checked={c.enabled}
+            data-on={c.enabled ? "" : undefined} onClick={() => set("enabled", !c.enabled)} />
+        </div>
+        <div>
+          <label className="pc-label" htmlFor="ps-days">Days after delivery</label>
+          <input id="ps-days" className="pc-input" type="number" min={1} max={365} value={c.window_days}
+            onChange={(e) => set("window_days", Math.floor(Number(e.target.value) || 0))} />
+        </div>
+        <div>
+          <label className="pc-label" htmlFor="ps-reasons">Reasons (one per line)</label>
+          <textarea id="ps-reasons" className="pc-input" rows={5} value={reasons} onChange={(e) => setReasons(e.target.value)} style={{ height: "auto" }} />
+        </div>
+        <div>
+          <span className="pc-label">Ways to put it right</span>
+          {([["original", "Refund to the way they paid"], ["store_credit", "Store credit (a gift card)"], ["exchange", "Exchange for another size or colour"]] as const).map(([m, l]) => (
+            <label key={m} className="pc-check-row" style={{ display: "flex", gap: 8, alignItems: "center", margin: "4px 0" }}>
+              <input type="checkbox" checked={c.methods.includes(m)} onChange={() => toggle(m)} /> {l}
+            </label>
+          ))}
+        </div>
+        <div className="pc-switch-row">
+          <span>Made-to-order items are final sale</span>
+          <button type="button" className="pc-switch" role="switch" aria-label="Made-to-order items are final sale"
+            aria-checked={c.made_to_order_final_sale} data-on={c.made_to_order_final_sale ? "" : undefined}
+            onClick={() => set("made_to_order_final_sale", !c.made_to_order_final_sale)} />
+        </div>
+        <div>
+          <label className="pc-label" htmlFor="ps-payer">Return shipping</label>
+          <select id="ps-payer" className="pc-input" value={c.shipping_payer} onChange={(e) => set("shipping_payer", e.target.value)}>
+            <option value="buyer">Paid by the buyer</option>
+            <option value="shop">Paid by the shop</option>
+          </select>
+        </div>
+        <div>
+          <label className="pc-label" htmlFor="ps-how">Instructions (emailed when you approve)</label>
+          <textarea id="ps-how" className="pc-input" rows={3} maxLength={1500} value={c.instructions}
+            onChange={(e) => set("instructions", e.target.value)} style={{ height: "auto" }} placeholder="Where to send it, what to put in the box." />
+        </div>
+        <button type="button" className="pc-btn" data-kind="primary" disabled={busy} onClick={save}>{busy ? "Saving…" : "Save"}</button>
       </div>
     </div>
   );

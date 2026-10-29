@@ -67,8 +67,8 @@ describe("gift cards in the admin", () => {
     fireEvent.click(issue);
     expect(await screen.findByText("7K3M-9QX2-4PZ8-T1VB")).toBeInTheDocument();
     expect(screen.getByText(/only time the full code is shown/)).toBeInTheDocument();
-    const body = post.mock.calls[0][1] as { amount: number; request_id: string; source: string };
-    expect(post.mock.calls[0][0]).toBe("/api/v1/admin/gift-cards");
+    const body = post.mock.calls[0]![1] as { amount: number; request_id: string; source: string };
+    expect(post.mock.calls[0]![0]).toBe("/api/v1/admin/gift-cards");
     expect(body.amount).toBe(25);
     expect(body.source).toBe("manual");
     expect(body.request_id.length).toBeGreaterThan(8);
@@ -88,8 +88,8 @@ describe("gift cards in the admin", () => {
     post.mockResolvedValue({ ...card, balance: 38 });
     fireEvent.click(screen.getByRole("button", { name: "Adjust balance" }));
     await waitFor(() => expect(post).toHaveBeenCalled());
-    expect(post.mock.calls[0][0]).toBe("/api/v1/admin/gift-cards/c1/adjust");
-    expect(post.mock.calls[0][1]).toMatchObject({ amount: 10, reason: "Goodwill" });
+    expect(post.mock.calls[0]![0]).toBe("/api/v1/admin/gift-cards/c1/adjust");
+    expect(post.mock.calls[0]![1]).toMatchObject({ amount: 10, reason: "Goodwill" });
   });
 
   it("saves the shop's settings, refusing an amount it cannot sell", async () => {
@@ -104,6 +104,6 @@ describe("gift cards in the admin", () => {
     fireEvent.change(screen.getByLabelText("Amounts ($)"), { target: { value: "25, 50" } });
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
     await waitFor(() => expect(put).toHaveBeenCalled());
-    expect(put.mock.calls[0][1]).toMatchObject({ enabled: true, amounts: [25, 50], expiry_months: 0 });
+    expect(put.mock.calls[0]![1]).toMatchObject({ enabled: true, amounts: [25, 50], expiry_months: 0 });
   });
 });

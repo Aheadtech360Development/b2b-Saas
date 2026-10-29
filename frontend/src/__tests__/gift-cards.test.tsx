@@ -136,7 +136,7 @@ describe("paying with a gift card", () => {
     await waitFor(() => expect(mounts.some((m) => Array.isArray(m.gift_card_codes))).toBe(true));
     fireEvent.click(await screen.findByRole("button", { name: "Place order with gift card" }));
     await waitFor(() => expect(confirmOrder).toHaveBeenCalled());
-    const sent = confirmOrder.mock.calls[0][0];
+    const sent = confirmOrder.mock.calls[0]![0];
     expect(sent.payment_method).toBe("gift_card");
     expect(sent.payment_intent_id).toBeUndefined();
     expect(sent.gift_card_codes).toEqual(["7K3M9QX24PZ8T1VB"]);

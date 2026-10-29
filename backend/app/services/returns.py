@@ -39,7 +39,9 @@ REASONS: dict[str, str] = {
     "other": "Other",
 }
 OUTCOMES = ("reprint", "refund")
-STATUS_WORDS = {"pending": "Review", "approved": "Approved", "rejected": "Rejected", "completed": "Completed"}
+STATUS_WORDS = {"pending": "Review", "approved": "Approved", "rejected": "Rejected", "completed": "Completed",
+                # The returns portal's own steps (services/returns_portal).
+                "received": "Received", "refunded": "Refunded", "exchanged": "Exchanged", "closed": "Closed"}
 
 
 def reason_text(key: str, note: str | None) -> str:
@@ -99,6 +101,13 @@ async def list_returns(db: AsyncSession) -> list[dict[str, Any]]:
             "refund_amount": done.get("refund_amount"),
             "can_refund": bool(order and order.stripe_payment_intent_id and order.payment_status == "paid"),
             "created_at": r.created_at.isoformat() if r.created_at else None,
+            # From the returns portal: return or exchange, who started it, how
+            # it is put right, and what went back.
+            "kind": getattr(r, "kind", "return") or "return",
+            "channel": getattr(r, "channel", "account") or "account",
+            "refund_method": getattr(r, "refund_method", None),
+            "refunded_amount": float(getattr(r, "refunded_amount", 0) or 0),
+            "portal": bool(getattr(r, "refund_method", None)),
         })
     return rows
 
@@ -266,24 +275,27 @@ async def resolve(db: AsyncSession, request: Request, rma_id: Any, *, outcome: s
             meta={"rma_id": str(rma.id), "rma_number": rma.rma_number, "from": "pending", "to": "rejected"},
         )
         await db.commit()
-        _tell_customer(rma.id)
+        await _tell_customer(db, rma, order, "rejected", note)
         return {"id": str(rma.id), "status": "rejected"}
     if outcome not in OUTCOMES:
         raise HTTPException(status_code=400, detail="Choose Reprint, Refund or Reject.")
     done = await _put_right(db, request, order, rma, outcome=outcome, note=note, refund_amount=refund_amount)
-    _tell_customer(rma.id)
+    await _tell_customer(db, rma, order, "approved", note)
     return {"id": str(rma.id), "status": "approved", **done}
 
 
-def _tell_customer(rma_id: Any) -> None:
-    """The customer who asked hears the answer, by the email the old review
-    sent (admin/orders.update_rma). Never the reason a decision fails."""
+async def _tell_customer(db: AsyncSession, rma: RMARequest, order: Order, status: str, note: str | None) -> None:
+    """The customer who asked hears the answer, in the shop's name. Sent here:
+    it was queued for a Celery worker the live server does not run, so it
+    never went. Never the reason a decision fails."""
     try:
-        from app.tasks.email_tasks import send_rma_status_email
+        from app.services.returns_portal import tell_buyer
 
-        send_rma_status_email.delay(str(rma_id))
+        await tell_buyer(db, rma, order, status, note=(note or "").strip() or None)
     except Exception:  # noqa: BLE001
-        pass
+        import logging
+
+        logging.getLogger(__name__).warning("Return %s: email to the customer failed", rma.rma_number, exc_info=True)
 
 
 async def find_orders(db: AsyncSession, q: str | None) -> list[dict[str, Any]]:

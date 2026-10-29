@@ -15,6 +15,7 @@ import { apiClient } from "@/lib/api-client";
 import { day, money } from "@/lib/customerWords";
 import { Banner, Loading, PageHead, Tabs, num } from "@/components/portal/ui";
 import type { OrderPage, OrderRow } from "@/components/portal/data";
+import { PastReturns, RETURN_CSS, ReturnStart, type ReturnInfo } from "@/components/storefront/ReturnPortal";
 
 const REASONS = ["Wrong file printed", "Print quality", "Damaged in transit", "Wrong item or size", "Missing items", "Other"];
 
@@ -41,6 +42,15 @@ function ReturnForm() {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [made, setMade] = useState<string | null>(null);
+  // The shop's returns portal (backend services/returns_portal): when it is
+  // on, a return or exchange is started by its rules, for any buyer.
+  const [portal, setPortal] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    apiClient.get<{ enabled?: boolean }>("/api/v1/account/returns/settings")
+      .then((r) => setPortal(!!r.enabled))
+      .catch(() => setPortal(false));
+  }, []);
 
   useEffect(() => {
     apiClient.get<OrderPage>("/api/v1/orders?page=1&page_size=50")
@@ -81,6 +91,9 @@ function ReturnForm() {
       setSending(false);
     }
   }
+
+  if (portal === null) return <Loading />;
+  if (portal) return <PortalReturn orders={orders} orderId={orderId} setOrderId={setOrderId} />;
 
   if (!user?.company_id) {
     return (
@@ -191,6 +204,62 @@ function ReturnForm() {
           <h2 className="cp-h3">How it works</h2>
           <p className="cp-note" style={{ margin: 0 }}>The shop looks at your request and answers by email. You can follow it under Returns and reprints, and on the order itself.</p>
           <p className="cp-note" style={{ margin: 0 }}>Have photos of the problem? Send them in Messages after you send this, and mention the request number.</p>
+        </section>
+      </aside>
+    </div>
+  );
+}
+
+/** The returns portal's form for one of the buyer's orders. */
+function PortalReturn({ orders, orderId, setOrderId }: {
+  orders: OrderRow[] | null; orderId: string; setOrderId: (id: string) => void;
+}) {
+  const [info, setInfo] = useState<ReturnInfo | null>(null);
+  const [failed, setFailed] = useState<string | null>(null);
+
+  useEffect(() => {
+    setInfo(null);
+    setFailed(null);
+    if (!orderId) return;
+    apiClient.get<ReturnInfo>(`/api/v1/account/returns/eligible/${orderId}`)
+      .then(setInfo)
+      .catch((e) => setFailed(e instanceof Error ? e.message : "This order could not be loaded."));
+  }, [orderId]);
+
+  async function submit(r: Parameters<React.ComponentProps<typeof ReturnStart>["onSubmit"]>[0]): Promise<string> {
+    const made = await apiClient.post<{ rma_number: string }>("/api/v1/account/returns", { ...r, order_id: orderId });
+    return made.rma_number;
+  }
+
+  return (
+    <div className="cp-cols" data-returns-portal>
+      <style>{RETURN_CSS}</style>
+      <div className="cp-col-main">
+        <section className="cp-card cp-pad cp-stack-sm" style={{ marginBottom: 16 }}>
+          <div className="cp-field">
+            <label className="cp-label" htmlFor="rp-order">Order</label>
+            {orders === null ? <Loading /> : (
+              <select id="rp-order" className="cp-select" value={orderId} onChange={(e) => setOrderId(e.target.value)}>
+                <option value="">Choose an order</option>
+                {orders.map((o) => <option key={o.id} value={o.id}>Order {o.order_number}, {day(o.created_at)}, {money(num(o.total))}</option>)}
+              </select>
+            )}
+          </div>
+        </section>
+        {failed && <Banner tone="bad">{failed}</Banner>}
+        {orderId && !info && !failed && <Loading />}
+        {info && (
+          <>
+            <PastReturns items={info.returns} />
+            <ReturnStart key={info.order_id} info={info} onSubmit={submit} />
+          </>
+        )}
+      </div>
+      <aside className="cp-col-side">
+        <section className="cp-card cp-pad cp-stack-sm">
+          <h2 className="cp-h3">How it works</h2>
+          <p className="cp-note" style={{ margin: 0 }}>Choose the items, why, and whether you would like your money back or another size or colour. The shop checks it and emails you what to do next.</p>
+          <p className="cp-note" style={{ margin: 0 }}>Gift cards and made-to-order items are final sale.</p>
         </section>
       </aside>
     </div>

@@ -45,7 +45,7 @@ PART_KEYS = ("header", "footer", "announcement")
 RESERVED_SLUGS = {
     "products", "product", "collections", "collection", "cart", "checkout", "account",
     "login", "logout", "signup", "create-account", "admin", "api", "platform", "search",
-    "gang-sheets", "wholesale", "quick-order", "orders", "track-order", "track", "gift-cards", "blog", "reviews",
+    "gang-sheets", "wholesale", "quick-order", "orders", "track-order", "track", "gift-cards", "returns", "blog", "reviews",
     "register", "forgot-password", "reset-password", "activate-account", "site-builder",
     "theme-editor", "theme-preview", "ui-preview", "sitemap.xml", "robots.txt",
 }

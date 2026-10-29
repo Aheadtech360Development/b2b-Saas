@@ -25,7 +25,8 @@ async def list_returns(db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
     rows = await svc.list_returns(db)
     return {
         "items": rows,
-        "counts": {s: sum(1 for r in rows if r["status"] == s) for s in ("pending", "approved", "rejected", "completed")},
+        "counts": {s: sum(1 for r in rows if r["status"] == s)
+                   for s in ("pending", "approved", "rejected", "completed", "received", "refunded", "exchanged", "closed")},
         "reasons": [{"key": k, "words": w} for k, w in svc.REASONS.items()],
     }
 

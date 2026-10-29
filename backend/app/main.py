@@ -855,6 +855,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # cards, and cards past their expiry close (5 min).
     from app.services.gift_cards import scheduler_loop as _gift_card_loop
     _gift_cards = _asyncio.create_task(_gift_card_loop())
+    # Loyalty: points for paid orders checkout did not post, back on refunds,
+    # expiry and its notices, referrals settled (10 min).
+    from app.services.loyalty import scheduler_loop as _loyalty_loop
+    _loyalty = _asyncio.create_task(_loyalty_loop())
 
     yield
 
@@ -866,6 +870,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     _plan_usage.cancel()
     _tracking.cancel()
     _gift_cards.cancel()
+    _loyalty.cancel()
 
 
 app = FastAPI(
@@ -1093,6 +1098,15 @@ app.include_router(order_tracking.admin_router, prefix=_V1)
 from app.api.v1 import gift_cards as gift_cards_api  # noqa: E402
 app.include_router(gift_cards_api.public_router, prefix=_V1)
 app.include_router(gift_cards_api.admin_router, prefix=_V1)
+# Returns and exchanges portal (Retail launch, package 4).
+from app.api.v1 import returns_portal as returns_portal_api  # noqa: E402
+app.include_router(returns_portal_api.public_router, prefix=_V1)
+app.include_router(returns_portal_api.account_router, prefix=_V1)
+app.include_router(returns_portal_api.admin_router, prefix=_V1)
+# Loyalty points and buyer referrals (Retail launch, package 5).
+from app.api.v1 import loyalty as loyalty_api  # noqa: E402
+app.include_router(loyalty_api.account_router, prefix=_V1)
+app.include_router(loyalty_api.admin_router, prefix=_V1)
 app.include_router(storefront.admin_router, prefix=_V1)
 app.include_router(storefront.admin_pages_router, prefix=_V1)
 app.include_router(storefront.admin_contact_router, prefix=_V1)

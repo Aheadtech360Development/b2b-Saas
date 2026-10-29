@@ -913,6 +913,12 @@ async def guest_checkout(
         except Exception:  # noqa: BLE001
             logger.exception("Gift card emails failed for order %s", order.id)
 
+    # Loyalty points (services/loyalty), for the account this checkout made or
+    # found. Never fails the order.
+    from app.services import loyalty as _loyalty
+
+    await _loyalty.earn_safely(db, order)
+
     # The brand's own Meta pixel hears about the sale from the server too
     # (services/meta_capi). In the background; never fails the order.
     from app.services import meta_capi as _capi

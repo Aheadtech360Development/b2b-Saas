@@ -172,6 +172,88 @@ def gift_card_sent(*, amount: Any, recipient_email: str, last4: str, order_numbe
     return f"Your {money(amount)} gift card was sent", html
 
 
+def return_update(*, rma_number: str, kind: str, status: str, status_words: str, order_number: str,
+                  note: str | None = None, instructions: str | None = None, shipping_payer: str | None = None,
+                  amount: Any = None, store_credit_last4: str | None = None,
+                  exchange_order_number: str | None = None, difference: Any = None,
+                  pay_url: str | None = None, returns_url: str | None = None) -> tuple[str, str]:
+    """Every step of a buyer's return or exchange (services/returns_portal).
+    The shop's note and instructions are escaped by the layout."""
+    what = "exchange" if kind == "exchange" else "return"
+    facts = [Fact("Request", rma_number), Fact("Order", order_number), Fact("Status", status_words)]
+    after: list[str] = []
+    buttons: list[Button] = []
+    if status == "pending":
+        heading = f"We got your {what} request"
+        lines = [f"Request {rma_number} for order {order_number} is with the shop. You will hear back by email."]
+    elif status == "approved":
+        heading = f"Your {what} is approved"
+        lines = ["Send the items back as described below. We will let you know when they arrive."]
+        if shipping_payer == "shop":
+            after.append("Return shipping is on us.")
+        elif shipping_payer == "buyer":
+            after.append("Return shipping is paid by you.")
+    elif status == "rejected":
+        heading = f"About your {what} request"
+        lines = [f"We can't accept request {rma_number}."]
+    elif status == "received":
+        heading = "Your return arrived"
+        lines = ["We have the items you sent back and will finish your request shortly."]
+    elif status == "refunded":
+        heading = "Your refund is on its way"
+        if store_credit_last4:
+            lines = [f"We sent {money(amount)} as store credit: a gift card ending {store_credit_last4}, "
+                     "emailed to you separately."]
+        else:
+            lines = [f"We refunded {money(amount)} to the way you paid. It can take 5 to 10 business days to show up."]
+    elif status == "exchanged":
+        heading = "Your exchange is on its way"
+        lines = [f"We made order {exchange_order_number} for your new items."]
+        if difference and float(difference) > 0:
+            lines.append(f"The new items cost {money(difference)} more. Pay the difference and we will send them.")
+            if pay_url:
+                buttons.append(Button("Pay the difference", pay_url))
+        elif difference and float(difference) < 0:
+            lines.append(f"The new items cost {money(-float(difference))} less; we refunded the difference.")
+    else:
+        heading = f"Your {what} request is closed"
+        lines = [f"Request {rma_number} is closed."]
+    if returns_url and not buttons:
+        buttons.append(Button("See your request", returns_url, primary=False))
+    html = render(
+        heading=heading, lines=lines, note=note,
+        facts=facts, after=after + ([instructions] if instructions and status == "approved" else []),
+        buttons=buttons, preview=lines[0],
+    )
+    return f"{heading} ({rma_number})", html
+
+
+def points_earned(*, points: int, balance: int, points_name: str, program: str, order_number: str,
+                  rewards_url: str) -> tuple[str, str]:
+    """A buyer's points for a paid order (services/loyalty)."""
+    html = render(
+        heading=f"You earned {points:,} {points_name}",
+        lines=[f"Thanks for order {order_number}. You now have {balance:,} {points_name} in {program}."],
+        facts=[Fact("Earned", f"{points:,}"), Fact("Balance", f"{balance:,}")],
+        after=["Turn them into money off your next order from your account."],
+        buttons=[Button("See your rewards", rewards_url)],
+        preview=f"{balance:,} {points_name} to spend.",
+    )
+    return f"You earned {points:,} {points_name}", html
+
+
+def points_expiring(*, points: int, expires_on: Any, points_name: str, program: str,
+                    rewards_url: str) -> tuple[str, str]:
+    """Two weeks before some of a buyer's points expire."""
+    html = render(
+        heading=f"{points:,} {points_name} expire soon",
+        lines=[f"{points:,} of your {program} {points_name} expire on {_date(expires_on)}. Use them before then."],
+        buttons=[Button("Use your points", rewards_url)],
+        preview=f"They expire on {_date(expires_on)}.",
+    )
+    return f"Your {points_name} expire on {_date(expires_on)}", html
+
+
 _UPDATE_HEADINGS = {
     "pending": "We have your order",
     "confirmed": "Your order is confirmed",
