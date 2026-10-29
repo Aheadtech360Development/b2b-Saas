@@ -31,10 +31,19 @@ vi.mock("@/services/admin.service", () => ({ adminService: { getOrder: () => Pro
 vi.mock("@/services/account.service", () => ({
   accountService: { getOrder: () => Promise.resolve(buyerOrder), getOrderComments: () => Promise.resolve([]) },
 }));
-vi.mock("@/stores/auth.store", () => ({ useAuthStore: () => ({ isAuthenticated: () => true, isLoading: false }) }));
+// One object, as the real store gives: a new isAuthenticated on every render
+// made the buyer page's load effect run on every render.
+const auth = vi.hoisted(() => ({ isAuthenticated: () => true, isLoading: false }));
+vi.mock("@/stores/auth.store", () => ({ useAuthStore: () => auth }));
 vi.mock("@/components/providers/BrandingProvider", () => ({ useBranding: () => ({ store_name: "Print Shop" }) }));
 vi.mock("@/components/admin/OrderGangSheets", () => ({ OrderGangSheets: () => null }));
 vi.mock("@/components/admin/OrderRefunds", () => ({ OrderRefunds: () => null }));
+// The buyer page lists its print jobs: the api-client stand-in answers {} to
+// everything, and {} is not a list ("j.filter is not a function").
+vi.mock("@/services/gangSheets.service", async (importOriginal) => {
+  const real = await importOriginal<typeof import("@/services/gangSheets.service")>();
+  return { ...real, gangSheetsService: { ...real.gangSheetsService, myOrders: () => Promise.resolve([]) } };
+});
 
 import { GangSheetLineFiles } from "@/components/admin/GangSheetLineFiles";
 import AdminOrderDetailPage from "@/app/(admin)/admin/orders/[id]/page";
@@ -185,8 +194,9 @@ describe("the order's total, line by line", () => {
 
   it("on the buyer's own order page too", async () => {
     render(<BuyerOrderPage />);
-    const discount = await screen.findByText(/Discount \(SAVE90 · 90% off\):/);
-    expect(discount.textContent).toContain("−$6.62");
-    expect(screen.getByText(/Tax \(WY · 6%\):/).textContent).toContain("$0.44");
+    // The customer portal's Totals list: each name, then its amount.
+    const discount = await screen.findByText("Discount (SAVE90 · 90% off)", { selector: "dt" });
+    expect(discount.nextElementSibling?.textContent).toBe("−$6.62");
+    expect(screen.getByText("Tax (WY · 6%)", { selector: "dt" }).nextElementSibling?.textContent).toBe("$0.44");
   });
 });
