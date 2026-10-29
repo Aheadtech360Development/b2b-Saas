@@ -223,6 +223,9 @@ settings for tracking, gift cards, returns and loyalty.
 | What a return refund may come to | The items' price, less their share of the order's discount, plus their share of tax; never shipping | returns_portal.refund_cap |
 | An exchange for a dearer size or colour | The exchange order carries the difference with a pay link; a cheaper one refunds the difference | returns_portal._exchange_order |
 | Which items are final sale | Gift cards always; made-to-order lines unless the shop turns that off; products the shop lists | Returns portal settings |
+| Points on gift card purchases | None: points come when the gift card is spent on goods | loyalty.points_for |
+| When points post for orders paid later (cash on delivery, ACH, invoices) | Within 10 minutes of being marked paid (the loyalty loop) | loyalty.run |
+| Where the owner manages loyalty | Marketing → Loyalty (the plan said Customers; Marketing sits beside Discounts and Gift cards) | AdminSidebar / MarketingFrame |
 
 ## Open questions for the manager
 

@@ -13,12 +13,15 @@
 import { useEffect } from "react";
 import { usePathname } from "next/navigation";
 import { captureAttribution } from "@/lib/attribution";
+import { captureBuyerReferral } from "@/lib/buyerReferral";
 
 export function AttributionTracker() {
   const pathname = usePathname();
 
   useEffect(() => {
     captureAttribution();
+    // A friend's referral link (?bref=), kept until the buyer signs in.
+    captureBuyerReferral();
   }, [pathname]);
 
   return null;

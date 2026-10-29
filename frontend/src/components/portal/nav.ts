@@ -71,6 +71,18 @@ export const COMPANY_NAV: NavGroup[] = [
   },
 ];
 
+const REWARDS: NavItem = { href: "/account/rewards", label: "Rewards", icon: ICONS.gift };
+
+/** The menu with Rewards after Orders, for a shop running a rewards program
+ *  (backend services/loyalty). */
+export function withRewards(groups: NavGroup[]): NavGroup[] {
+  return groups.map((g) => {
+    const at = g.items.findIndex((i) => i.href === ORDERS.href);
+    if (at < 0 || g.items.some((i) => i.href === REWARDS.href)) return g;
+    return { ...g, items: [...g.items.slice(0, at + 1), REWARDS, ...g.items.slice(at + 1)] };
+  });
+}
+
 /** The menu without print jobs and artwork, for a shop that sells no print jobs. */
 export function withoutPrinting(groups: NavGroup[]): NavGroup[] {
   const drop = new Set([JOBS.href, ARTWORK.href]);

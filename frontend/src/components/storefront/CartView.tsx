@@ -19,6 +19,7 @@ import { apiClient } from "@/lib/api-client";
 import { useAuthStore } from "@/stores/auth.store";
 import type { Cart, CartItem } from "@/types/order.types";
 import { adoptGuestCart, isGiftCardLine } from "@/lib/guestCart";
+import { PointsLine } from "@/components/storefront/PointsLine";
 import { trackCartViewed, trackLineAdd, trackLinesRemoved } from "@/lib/tracking";
 import { ConfigurationDetail } from "@/components/shared/ConfigurationDetail";
 
@@ -527,6 +528,7 @@ export default function CartView({ embedded = false }: { embedded?: boolean }) {
               isValid={isCheckoutEnabled}
               disabledReason={disabledReason}
               isGuest={isGuest}
+              footer={!isGuest ? <PointsLine signedIn={isAuthenticated} /> : null}
               onCheckout={() => {
                 // A first order opens an account. Everything after it is just
                 // shopping — but the shop needs somebody it can reach about a
@@ -539,6 +541,7 @@ export default function CartView({ embedded = false }: { embedded?: boolean }) {
                 router.push("/checkout/address");
               }}
             />
+
           </div>
         )}
       </div>
@@ -583,8 +586,10 @@ export default function CartView({ embedded = false }: { embedded?: boolean }) {
 // ── Order Summary sidebar component ──────────────────────────────────────────
 function OrderSummary({
   subtotal, appliedCoupon, onRemoveCoupon, couponInput, onCouponInput, onApplyCoupon, applyingCoupon, couponError,
-  isValid, disabledReason, isGuest, onCheckout,
+  isValid, disabledReason, isGuest, onCheckout, footer = null,
 }: {
+  /** Under the checkout button: the buyer's points, when the shop has rewards. */
+  footer?: React.ReactNode;
   subtotal: number;
   appliedCoupon: AppliedCoupon | null;
   onRemoveCoupon: () => void;
@@ -675,6 +680,7 @@ function OrderSummary({
       {disabledReason && (
         <p className="ui-hint ui-hint-bad" style={{ textAlign: "center" }}>{disabledReason}</p>
       )}
+      {footer}
     </div>
   );
 }

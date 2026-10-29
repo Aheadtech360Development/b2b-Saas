@@ -22,7 +22,8 @@ import { forgetOrderKeys } from "@/lib/orderThanks";
 import { apiClient } from "@/lib/api-client";
 import { useBranding } from "@/components/providers/BrandingProvider";
 import { SupportChat } from "@/components/storefront/SupportChat";
-import { COMPANY_NAV, RETAIL_NAV, activeItem, withoutPrinting, type NavGroup } from "@/components/portal/nav";
+import { COMPANY_NAV, RETAIL_NAV, activeItem, withRewards, withoutPrinting, type NavGroup } from "@/components/portal/nav";
+import { claimBuyerReferral } from "@/lib/buyerReferral";
 import { ICONS, Icon } from "@/components/portal/ui";
 import { PortalContext } from "@/components/portal/context";
 import { isTradeAccount } from "@/components/portal/data";
@@ -121,6 +122,8 @@ export default function AccountLayout({ children }: { children: React.ReactNode 
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [cartCount, setCartCount] = useState(0);
   const [printing, setPrinting] = useState<boolean | null>(null);
+  // The shop's rewards program (backend services/loyalty): Rewards in the menu.
+  const [rewards, setRewards] = useState(false);
   // The sign-in is read from this tab's session storage, which the server does
   // not have: drawing the portal before mount made the first client render
   // differ from the server's ("Hydration failed"). Both draw Loading first.
@@ -130,8 +133,17 @@ export default function AccountLayout({ children }: { children: React.ReactNode 
 
   const groups = useMemo(() => {
     const all = isTradeAccount(user) ? COMPANY_NAV : RETAIL_NAV;
-    return printing === false ? withoutPrinting(all) : all;
-  }, [user, printing]);
+    const shown = printing === false ? withoutPrinting(all) : all;
+    return rewards ? withRewards(shown) : shown;
+  }, [user, printing, rewards]);
+
+  useEffect(() => {
+    if (isLoading || !isAuthenticated() || user?.is_admin) return;
+    apiClient.get<{ enabled?: boolean }>("/api/v1/account/rewards/summary")
+      .then((r) => setRewards(!!r.enabled)).catch(() => setRewards(false));
+    // A friend's referral link this browser kept: claimed once signed in.
+    claimBuyerReferral();
+  }, [isLoading, isAuthenticated, user]);
   const current = useMemo(() => activeItem(groups, pathname), [groups, pathname]);
   const portal = useMemo(() => ({ printing }), [printing]);
 

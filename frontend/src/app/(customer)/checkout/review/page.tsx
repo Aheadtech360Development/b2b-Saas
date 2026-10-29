@@ -18,6 +18,7 @@ import { rememberOrderKey, thankYouPath } from "@/lib/orderThanks";
 import { cartLines, holdPurchase, trackPaymentChosen } from "@/lib/tracking";
 
 import { guestCheckoutItem, guestLineTotal, isGiftCardLine, type GuestLine as GuestCartEntry } from "@/lib/guestCart";
+import { claimBuyerReferral } from "@/lib/buyerReferral";
 
 
 
@@ -205,6 +206,9 @@ export default function CheckoutReviewPage() {
 
   useEffect(() => {
     if (!isGuest) {
+      // A friend's referral link kept in this browser counts for a first
+      // order only, so it is claimed before this one is placed.
+      claimBuyerReferral();
       cartService.getCart().then(setCart).catch(() => {});
     } else {
       try {

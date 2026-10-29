@@ -10,11 +10,12 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 
-export type MarketingTab = "discounts" | "gift-cards" | "abandoned-carts" | "reviews" | "segments" | "tracking";
+export type MarketingTab = "discounts" | "gift-cards" | "loyalty" | "abandoned-carts" | "reviews" | "segments" | "tracking";
 
 const TABS: { key: MarketingTab; label: string; href: string }[] = [
   { key: "discounts", label: "Discounts", href: "/admin/discounts" },
   { key: "gift-cards", label: "Gift cards", href: "/admin/gift-cards" },
+  { key: "loyalty", label: "Loyalty", href: "/admin/loyalty" },
   { key: "abandoned-carts", label: "Abandoned carts", href: "/admin/abandoned-carts" },
   { key: "reviews", label: "Reviews", href: "/admin/products/reviews" },
   { key: "segments", label: "Segments", href: "/admin/customers/segments" },
