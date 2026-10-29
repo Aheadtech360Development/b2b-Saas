@@ -137,4 +137,28 @@ describe("api-client", () => {
     const result = await apiClient.delete("/api/v1/resource/1");
     expect(result).toBeUndefined();
   });
+
+  it("sends a FormData as a form, not as JSON, whichever method is used", async () => {
+    // The website builder's uploads passed a FormData to post: it went as
+    // "{}" with a JSON content type, and every picture upload failed.
+    fetchSpy.mockResolvedValue(makeResponse(200, { url: "https://ik.example/a.png" }));
+    const form = new FormData();
+    form.append("file", new Blob(["png"], { type: "image/png" }), "icon.png");
+    await apiClient.post("/api/v1/admin/media", form);
+    await apiClient.put("/api/v1/x", form);
+    await apiClient.patch("/api/v1/y", form);
+    for (const call of fetchSpy.mock.calls) {
+      const init = call[1] as RequestInit;
+      expect(init.body).toBe(form);
+      expect(new Headers(init.headers).get("Content-Type")).toBeNull();
+    }
+  });
+
+  it("still sends anything else as JSON", async () => {
+    fetchSpy.mockResolvedValue(makeResponse(200, {}));
+    await apiClient.post("/api/v1/z", { a: 1 });
+    const init = fetchSpy.mock.calls[0]![1] as RequestInit;
+    expect(init.body).toBe('{"a":1}');
+    expect(new Headers(init.headers).get("Content-Type")).toBe("application/json");
+  });
 });

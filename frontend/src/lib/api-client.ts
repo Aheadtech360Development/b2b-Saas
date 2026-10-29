@@ -348,30 +348,30 @@ async function request<T>(url: string, options: RequestOptions = {}): Promise<T>
 
 // ── Convenience methods ───────────────────────────────────────────────────────
 
+/**
+ * A request body as it goes on the wire: JSON, except a file upload. A
+ * FormData passed to post was turned into JSON ("{}"), so the website
+ * builder's picture and font uploads sent no file and always failed ("That
+ * upload did not work"). It now goes as the form it is, like postForm.
+ */
+function encode(body: unknown): BodyInit | undefined {
+  if (body === undefined) return undefined;
+  if (typeof FormData !== "undefined" && body instanceof FormData) return body;
+  return JSON.stringify(body);
+}
+
 export const apiClient = {
   get: <T>(url: string, options?: RequestOptions) =>
     request<T>(url, { ...options, method: "GET" }),
 
   post: <T>(url: string, body?: unknown, options?: RequestOptions) =>
-    request<T>(url, {
-      ...options,
-      method: "POST",
-      body: body !== undefined ? JSON.stringify(body) : undefined,
-    }),
+    request<T>(url, { ...options, method: "POST", body: encode(body) }),
 
   patch: <T>(url: string, body?: unknown, options?: RequestOptions) =>
-    request<T>(url, {
-      ...options,
-      method: "PATCH",
-      body: body !== undefined ? JSON.stringify(body) : undefined,
-    }),
+    request<T>(url, { ...options, method: "PATCH", body: encode(body) }),
 
   put: <T>(url: string, body?: unknown, options?: RequestOptions) =>
-    request<T>(url, {
-      ...options,
-      method: "PUT",
-      body: body !== undefined ? JSON.stringify(body) : undefined,
-    }),
+    request<T>(url, { ...options, method: "PUT", body: encode(body) }),
 
   delete: <T>(url: string, options?: RequestOptions) =>
     request<T>(url, { ...options, method: "DELETE" }),
