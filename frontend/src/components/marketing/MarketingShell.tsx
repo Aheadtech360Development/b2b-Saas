@@ -9,6 +9,8 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { PlatformLogo } from "@/components/shared/PlatformLogo";
+import { RETAIL_LAUNCHED } from "@/lib/retailLaunch";
+import { ReferralCapture } from "@/components/partners/ReferralCapture";
 import s from "./marketing.module.css";
 import MobileNav from "./MobileNav";
 
@@ -30,6 +32,9 @@ export default function MarketingShell({ active = null, children }: { active?: M
         href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@500;600;700&display=swap"
         precedence="default"
       />
+      {/* A partner's link (`?ref=CODE`) counts on any page of the site it
+          lands on: /retail, /pricing and the rest, not only the home page. */}
+      <ReferralCapture />
       <MarketingHeader active={active} />
       <main>{children}</main>
       <MarketingFooter />
@@ -182,7 +187,9 @@ function MarketingFooter() {
             {/* The navy footer: the off-white wordmark. */}
             <PlatformLogo onDark width={240} />
             <p style={{ marginTop: "12px", fontSize: "15px", lineHeight: "22px" }}>
-              Commerce and production for print and apparel businesses.
+              {RETAIL_LAUNCHED
+                ? "Commerce for print, apparel and D2C brands."
+                : "Commerce and production for print and apparel businesses."}
             </p>
           </div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: "48px" }}>

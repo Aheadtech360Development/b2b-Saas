@@ -1,6 +1,7 @@
 /** printcopilot.co/features — the design's Features page. */
 import Link from "next/link";
 import s from "../marketing.module.css";
+import { RETAIL_LAUNCHED } from "@/lib/retailLaunch";
 
 export default function FeaturesPage() {
   return (
@@ -74,6 +75,12 @@ export default function FeaturesPage() {
           >
             One platform for your store, gang sheets, wholesale, production and the AI that watches over them. See each
             part below.
+            {RETAIL_LAUNCHED && (
+              <span data-retail-link style={{ display: "block", marginTop: "10px" }}>
+                Running a D2C brand?{" "}
+                <Link href="/retail" style={{ color: "#FFFFFF", fontWeight: 600, textDecoration: "underline" }}>See what matters for retail.</Link>
+              </span>
+            )}
           </p>
           <div style={{ marginTop: "32px", display: "flex", flexWrap: "wrap", justifyContent: "center", gap: "16px" }}>
             <Link
@@ -842,6 +849,42 @@ export default function FeaturesPage() {
               08
             </span>
             Mobile app
+          </a>
+          <a
+            href="#reviews"
+            style={{ display: "block", padding: "9px 0", fontSize: "14px", lineHeight: "20px", color: "#3A4A5E" }}
+          >
+            <span className={s["d"]} style={{ color: "#0B66E4", marginRight: "8px" }}>
+              09
+            </span>
+            Reviews
+          </a>
+          <a
+            href="#couriers"
+            style={{ display: "block", padding: "9px 0", fontSize: "14px", lineHeight: "20px", color: "#3A4A5E" }}
+          >
+            <span className={s["d"]} style={{ color: "#0B66E4", marginRight: "8px" }}>
+              10
+            </span>
+            Couriers
+          </a>
+          <a
+            href="#loyalty"
+            style={{ display: "block", padding: "9px 0", fontSize: "14px", lineHeight: "20px", color: "#3A4A5E" }}
+          >
+            <span className={s["d"]} style={{ color: "#0B66E4", marginRight: "8px" }}>
+              11
+            </span>
+            Loyalty and gift cards
+          </a>
+          <a
+            href="#returns"
+            style={{ display: "block", padding: "9px 0", fontSize: "14px", lineHeight: "20px", color: "#3A4A5E" }}
+          >
+            <span className={s["d"]} style={{ color: "#0B66E4", marginRight: "8px" }}>
+              12
+            </span>
+            Returns and tracking
           </a>
         </aside>
         <main style={{ flex: "1", minWidth: "0" }}>
@@ -4312,6 +4355,118 @@ export default function FeaturesPage() {
                 </p>
               </li>
             </ul>
+          </section>
+          <section id="reviews" style={{ padding: "72px 0", borderBottom: "1px solid #E3E8EF" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+              <span className={s["d"]} style={{ fontSize: "14px", color: "#0B66E4" }}>
+                09
+              </span>
+              <p
+                style={{
+                  fontSize: "12px",
+                  lineHeight: "16px",
+                  fontWeight: "600",
+                  letterSpacing: ".08em",
+                  textTransform: "uppercase",
+                  color: "#0B66E4",
+                }}
+              >
+                Reviews
+              </p>
+            </div>
+            <h2
+              className={s["d"]}
+              style={{ marginTop: "12px", maxWidth: "640px", fontSize: "36px", lineHeight: "42px", color: "#0C1E35" }}
+            >
+              Reviews that build trust.
+            </h2>
+            <p style={{ marginTop: "12px", maxWidth: "600px", fontSize: "18px", lineHeight: "28px", color: "#3A4A5E" }}>
+              Collect and manage product reviews from one place, so buyers see real feedback while they shop.
+            </p>
+          </section>
+          <section id="couriers" style={{ padding: "72px 0", borderBottom: "1px solid #E3E8EF" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+              <span className={s["d"]} style={{ fontSize: "14px", color: "#0B66E4" }}>
+                10
+              </span>
+              <p
+                style={{
+                  fontSize: "12px",
+                  lineHeight: "16px",
+                  fontWeight: "600",
+                  letterSpacing: ".08em",
+                  textTransform: "uppercase",
+                  color: "#0B66E4",
+                }}
+              >
+                Couriers
+              </p>
+            </div>
+            <h2
+              className={s["d"]}
+              style={{ marginTop: "12px", maxWidth: "640px", fontSize: "36px", lineHeight: "42px", color: "#0C1E35" }}
+            >
+              Couriers, already connected.
+            </h2>
+            <p style={{ marginTop: "12px", maxWidth: "600px", fontSize: "18px", lineHeight: "28px", color: "#3A4A5E" }}>
+              Connect your couriers and ship orders from the order list.
+            </p>
+          </section>
+          <section id="loyalty" style={{ padding: "72px 0", borderBottom: "1px solid #E3E8EF" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+              <span className={s["d"]} style={{ fontSize: "14px", color: "#0B66E4" }}>
+                11
+              </span>
+              <p
+                style={{
+                  fontSize: "12px",
+                  lineHeight: "16px",
+                  fontWeight: "600",
+                  letterSpacing: ".08em",
+                  textTransform: "uppercase",
+                  color: "#0B66E4",
+                }}
+              >
+                Loyalty and gift cards
+              </p>
+            </div>
+            <h2
+              className={s["d"]}
+              style={{ marginTop: "12px", maxWidth: "640px", fontSize: "36px", lineHeight: "42px", color: "#0C1E35" }}
+            >
+              Rewards that bring buyers back.
+            </h2>
+            <p style={{ marginTop: "12px", maxWidth: "600px", fontSize: "18px", lineHeight: "28px", color: "#3A4A5E" }}>
+              Points for orders, referral rewards, and gift cards buyers can send by email.
+            </p>
+          </section>
+          <section id="returns" style={{ padding: "72px 0", borderBottom: "1px solid #E3E8EF" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+              <span className={s["d"]} style={{ fontSize: "14px", color: "#0B66E4" }}>
+                12
+              </span>
+              <p
+                style={{
+                  fontSize: "12px",
+                  lineHeight: "16px",
+                  fontWeight: "600",
+                  letterSpacing: ".08em",
+                  textTransform: "uppercase",
+                  color: "#0B66E4",
+                }}
+              >
+                Returns and tracking
+              </p>
+            </div>
+            <h2
+              className={s["d"]}
+              style={{ marginTop: "12px", maxWidth: "640px", fontSize: "36px", lineHeight: "42px", color: "#0C1E35" }}
+            >
+              Fewer support emails.
+            </h2>
+            <p style={{ marginTop: "12px", maxWidth: "600px", fontSize: "18px", lineHeight: "28px", color: "#3A4A5E" }}>
+              A self-serve returns and exchanges portal, and an order tracking page with the courier link.
+            </p>
           </section>
         </main>
       </div>

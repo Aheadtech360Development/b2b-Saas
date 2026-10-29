@@ -1,6 +1,7 @@
 /** printcopilot.co/about — the design's About page. */
 import Link from "next/link";
 import s from "../marketing.module.css";
+import { RETAIL_LAUNCHED } from "@/lib/retailLaunch";
 
 export default function AboutPage() {
   return (
@@ -61,7 +62,9 @@ export default function AboutPage() {
             className={`${s["d"]} ${s["hero-h1"]}`}
             style={{ margin: "24px auto 0", maxWidth: "860px", fontSize: "56px", lineHeight: "60px", color: "#FFFFFF" }}
           >
-            Software built for how print and apparel businesses really work.
+            {RETAIL_LAUNCHED
+              ? "Software built for how print, apparel and D2C businesses really work."
+              : "Software built for how print and apparel businesses really work."}
           </h1>
           <p
             style={{
@@ -96,7 +99,7 @@ export default function AboutPage() {
                 className={s["d"]}
                 style={{ marginTop: "12px", maxWidth: "560px", fontSize: "40px", lineHeight: "44px", color: "#0C1E35" }}
               >
-                Most print businesses run on a patchwork.
+                Most print and apparel businesses run on a patchwork.
               </h2>
               <p style={{ marginTop: "20px", fontSize: "18px", lineHeight: "28px", color: "#3A4A5E" }}>
                 A store in one tab, a gang sheet app in another, a spreadsheet for production and an inbox for
@@ -831,6 +834,19 @@ export default function AboutPage() {
             >
               Custom apparel brands
             </span>
+            {RETAIL_LAUNCHED && (<span data-retail-card
+              style={{
+                padding: "12px 20px",
+                borderRadius: "999px",
+                background: "#FFFFFF",
+                border: "1px solid #E3E8EF",
+                fontSize: "15px",
+                fontWeight: "600",
+                color: "#0C1E35",
+              }}
+            >
+              D2C and retail brands
+            </span>)}
           </div>
         </div>
       </section>
@@ -911,7 +927,7 @@ export default function AboutPage() {
             className={s["d"]}
             style={{ margin: "0 auto", maxWidth: "760px", fontSize: "48px", lineHeight: "52px", color: "#FFFFFF" }}
           >
-            See what it can do for your shop.
+            See what it can do for your business.
           </h2>
           <p
             style={{

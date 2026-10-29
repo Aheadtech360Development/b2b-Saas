@@ -1,10 +1,15 @@
 "use client";
 
-/** printcopilot.co/pricing — the design's Pricing page. */
-import { Fragment, type CSSProperties } from "react";
+/** printcopilot.co/pricing — the design's Pricing page. With the Retail
+ *  launch switch on (lib/retailLaunch) it has two tabs: Print and wholesale
+ *  (the default, everything below) and Retail brands (RetailPricing, opened
+ *  by ?tab=retail). */
+import { Fragment, useEffect, useState, type CSSProperties } from "react";
 import Link from "next/link";
 import s from "../marketing.module.css";
 import { useFaq, useSavingsCalculator } from "../interactive";
+import { RETAIL_LAUNCHED } from "@/lib/retailLaunch";
+import RetailPricing from "./RetailPricing";
 
 type Cell = string | boolean;
 
@@ -99,7 +104,43 @@ const FAQ = [
   },
 ];
 
+type Audience = "print" | "retail";
+
 export default function PricingPage() {
+  const [tab, setTab] = useState<Audience>("print");
+  // ?tab=retail opens the Retail brands tab (the /retail page and the home
+  // page link to it). Read after the first draw, so it matches the server's.
+  useEffect(() => {
+    if (RETAIL_LAUNCHED && new URLSearchParams(window.location.search).get("tab") === "retail") setTab("retail");
+  }, []);
+  if (!RETAIL_LAUNCHED) return <PrintPricing />;
+
+  function choose(next: Audience) {
+    setTab(next);
+    const url = new URL(window.location.href);
+    if (next === "retail") url.searchParams.set("tab", "retail"); else url.searchParams.delete("tab");
+    window.history.replaceState(null, "", url.toString());
+  }
+  return (
+    <>
+      <div style={{ background: "#0C1E35", display: "flex", justifyContent: "center", padding: "28px 16px 0" }}>
+        <div role="tablist" aria-label="Plans for" style={{ display: "inline-flex", flexWrap: "wrap", justifyContent: "center", background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.2)", borderRadius: "14px", padding: "5px", gap: "4px" }}>
+          {([["print", "Print and wholesale"], ["retail", "Retail brands"]] as const).map(([key, label]) => (
+            <button key={key} type="button" role="tab" aria-selected={tab === key} data-audience={key} onClick={() => choose(key)}
+              style={{ padding: "12px 22px", borderRadius: "10px", fontWeight: 600, fontSize: "15px", border: "none", cursor: "pointer",
+                       fontFamily: "'Inter',system-ui,sans-serif", color: tab === key ? "#0C1E35" : "#C8D6EA",
+                       background: tab === key ? "#FFFFFF" : "transparent" }}>
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+      {tab === "retail" ? <RetailPricing /> : <PrintPricing />}
+    </>
+  );
+}
+
+function PrintPricing() {
   const { salesLabel, salesValue, onSales, rates, currentCost, bestName, bestCost, verdict, plans } =
     useSavingsCalculator();
   const faqs = useFaq(FAQ);

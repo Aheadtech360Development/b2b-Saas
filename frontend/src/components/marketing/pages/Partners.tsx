@@ -10,6 +10,7 @@
 import { Fragment, useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 import s from "../marketing.module.css";
+import { RETAIL_LAUNCHED } from "@/lib/retailLaunch";
 import { useEarningsCalculator } from "../interactive";
 import { papi } from "@/lib/partnerApi";
 import type { ProgramInfo } from "@/components/partners/AuthFrame";
@@ -129,7 +130,7 @@ export default function PartnersPage() {
             className={`${s["d"]} ${s["hero-h1"]}`}
             style={{ margin: "24px auto 0", maxWidth: "860px", fontSize: "56px", lineHeight: "60px", color: "#FFFFFF" }}
           >
-            Earn 20% for every shop you refer.
+            Earn 20% for every business you refer.
           </h1>
           <p
             style={{
@@ -140,7 +141,7 @@ export default function PartnersPage() {
               color: "rgba(255,255,255,.78)",
             }}
           >
-            Share your link. When a shop you referred subscribes to PrintCoPilot, you earn every month they stay.
+            Share your link. When a business you referred subscribes to PrintCoPilot, you earn every month they stay.
           </p>
           <div style={{ marginTop: "32px", display: "flex", flexWrap: "wrap", justifyContent: "center", gap: "16px" }}>
             {/* Open when the program takes applications (Platform console, Affiliates, settings). */}
@@ -343,7 +344,7 @@ export default function PartnersPage() {
                   1. Apply
                 </h3>
                 <p style={{ marginTop: "6px", fontSize: "16px", lineHeight: "24px", color: "#3A4A5E" }}>
-                  Tell us how you would refer shops. We review and approve you.
+                  Tell us how you would refer businesses. We review and approve you.
                 </p>
               </div>
             </div>
@@ -380,7 +381,7 @@ export default function PartnersPage() {
                   2. Share your link
                 </h3>
                 <p style={{ marginTop: "6px", fontSize: "16px", lineHeight: "24px", color: "#3A4A5E" }}>
-                  Your link tracks every shop you send, automatically.
+                  Your link tracks every business you send, automatically.
                 </p>
               </div>
             </div>
@@ -417,7 +418,7 @@ export default function PartnersPage() {
                   3. Get paid monthly
                 </h3>
                 <p style={{ marginTop: "6px", fontSize: "16px", lineHeight: "24px", color: "#3A4A5E" }}>
-                  Commission is paid one month after the shop pays.
+                  Commission is paid one month after the business pays.
                 </p>
               </div>
             </div>
@@ -463,7 +464,7 @@ export default function PartnersPage() {
                 Commission
               </h3>
               <p style={{ marginTop: "8px", fontSize: "16px", lineHeight: "24px", color: "#3A4A5E" }}>
-                You earn 20% of the plan price your referred shop pays.
+                You earn 20% of the plan price your referred business pays.
               </p>
             </div>
             <div style={{ background: "#FFFFFF", border: "1px solid #E3E8EF", borderRadius: "12px", padding: "28px" }}>
@@ -474,10 +475,10 @@ export default function PartnersPage() {
                 className={s["d"]}
                 style={{ marginTop: "12px", fontSize: "20px", lineHeight: "26px", color: "#0C1E35" }}
               >
-                For the life of the shop
+                For the life of the business
               </h3>
               <p style={{ marginTop: "8px", fontSize: "16px", lineHeight: "24px", color: "#3A4A5E" }}>
-                You keep earning for as long as the shop you referred stays subscribed.
+                You keep earning for as long as the business you referred stays subscribed.
               </p>
             </div>
             <div style={{ background: "#FFFFFF", border: "1px solid #E3E8EF", borderRadius: "12px", padding: "28px" }}>
@@ -639,7 +640,7 @@ export default function PartnersPage() {
             className={s["d"]}
             style={{ marginTop: "12px", maxWidth: "760px", fontSize: "40px", lineHeight: "44px", color: "#0C1E35" }}
           >
-            Anyone who knows a print business.
+            Anyone who knows a print or apparel business.
           </h2>
           <div
             style={{
@@ -684,7 +685,7 @@ export default function PartnersPage() {
                 Existing customers
               </h3>
               <p style={{ marginTop: "8px", fontSize: "16px", lineHeight: "24px", color: "#3A4A5E" }}>
-                Already using PrintCoPilot? Refer other shops you know.
+                Already using PrintCoPilot? Refer other businesses you know.
               </p>
             </div>
             <div style={{ background: "#FFFFFF", border: "1px solid #E3E8EF", borderRadius: "12px", padding: "28px" }}>
@@ -723,7 +724,9 @@ export default function PartnersPage() {
                 Agencies and consultants
               </h3>
               <p style={{ marginTop: "8px", fontSize: "16px", lineHeight: "24px", color: "#3A4A5E" }}>
-                Recommend a platform to the print and apparel brands you advise.
+                {RETAIL_LAUNCHED
+                  ? "Recommend a platform to the print, apparel and D2C brands you advise."
+                  : "Recommend a platform to the print and apparel brands you advise."}
               </p>
             </div>
             <div style={{ background: "#FFFFFF", border: "1px solid #E3E8EF", borderRadius: "12px", padding: "28px" }}>
@@ -812,7 +815,7 @@ export default function PartnersPage() {
               className={s["d"]}
               style={{ marginTop: "12px", fontSize: "40px", lineHeight: "44px", color: "#FFFFFF" }}
             >
-              Start earning from shops you already know.
+              Start earning from businesses you already know.
             </h2>
             <p style={{ marginTop: "16px", fontSize: "18px", lineHeight: "28px", color: "rgba(255,255,255,.78)" }}>
               Apply in a minute. We review every application and email you a decision.
@@ -927,7 +930,7 @@ export default function PartnersPage() {
                       </div>
                       <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
                         <label htmlFor="a-how" style={{ fontSize: "14px", fontWeight: "600", color: "#0C1E35" }}>
-                          How would you refer shops?
+                          How would you refer businesses?
                         </label>
                         <select
                           id="a-how"

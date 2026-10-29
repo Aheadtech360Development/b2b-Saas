@@ -21,6 +21,12 @@ export function readReferralCookie(): string | null {
   return /^[A-Z0-9]{3,20}\.\d+$/.test(value) ? value : null;
 }
 
+type Click = { ok: boolean; code?: string; click_id?: number; cookie_days?: number };
+
+// One click per page load, however many of these are mounted (MarketingShell
+// has one on every page of the site, and sign-up its own): they share it.
+let counting: { key: string; click: Promise<Click> } | null = null;
+
 export function ReferralCapture({ onCaptured }: { onCaptured?: (cookie: string) => void } = {}) {
   const router = useRouter();
 
@@ -29,10 +35,17 @@ export function ReferralCapture({ onCaptured }: { onCaptured?: (cookie: string) 
     const code = params.get("ref");
     if (!code) return;
     const src = params.get("src");
-    papi<{ ok: boolean; code?: string; click_id?: number; cookie_days?: number }>("/partners/click", {
-      auth: false,
-      body: { code, src, landing: window.location.pathname, referrer: document.referrer || null },
-    })
+    const key = `${code}|${src ?? ""}|${window.location.pathname}`;
+    if (counting?.key !== key) {
+      counting = {
+        key,
+        click: papi<Click>("/partners/click", {
+          auth: false,
+          body: { code, src, landing: window.location.pathname, referrer: document.referrer || null },
+        }),
+      };
+    }
+    counting.click
       .then((r) => {
         if (r.ok && r.code && r.click_id) {
           const secure = window.location.protocol === "https:" ? "; Secure" : "";

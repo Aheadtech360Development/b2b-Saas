@@ -137,7 +137,7 @@ export default function ContactPage() {
                   Sales
                 </h3>
                 <p style={{ marginTop: "6px", fontSize: "15px", lineHeight: "22px", color: "#3A4A5E" }}>
-                  Questions about plans or whether PrintCoPilot fits your shop.
+                  Questions about plans or whether PrintCoPilot fits your business.
                 </p>
                 <Link
                   href="/demo"

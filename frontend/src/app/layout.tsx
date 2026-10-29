@@ -31,7 +31,7 @@ export async function generateMetadata(): Promise<Metadata> {
     };
   }
   return {
-    title: "PrintCopilot",
+    title: "PrintCoPilot",
     description: "Commerce software for print shops.",
     // The platform's own icon; a brand's site sets its own above. The tab
     // shows the 16px favicon; a phone's home screen the 180px app icon.

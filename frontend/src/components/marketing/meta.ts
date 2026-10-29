@@ -11,6 +11,10 @@ export const MARKETING_META = {
     title: "PrintCoPilot Features",
     description: "Gang sheets, wholesale, storefront, orders, customers, an AI agent, suppliers and a mobile app, in one platform.",
   },
+  retail: {
+    title: "PrintCoPilot for D2C and retail brands",
+    description: "A branded store with reviews, loyalty, gift cards, returns and order tracking built in. One plan, $79 a month. 14 day free trial, no card needed.",
+  },
   pricing: {
     title: "PrintCoPilot Pricing",
     description: "One monthly price. Commission only on gang sheet orders. 14 day free trial, no card needed.",

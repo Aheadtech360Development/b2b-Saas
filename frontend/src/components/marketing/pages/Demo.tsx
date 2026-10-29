@@ -3,6 +3,7 @@
 /** printcopilot.co/demo — the design's Demo page. */
 import Link from "next/link";
 import s from "../marketing.module.css";
+import { RETAIL_LAUNCHED } from "@/lib/retailLaunch";
 import { sendDemo, useLeadForm } from "../leads";
 
 export default function DemoPage() {
@@ -115,7 +116,7 @@ export default function DemoPage() {
                     <path d="M20 6 9 17l-5-5"></path>
                   </svg>
                 </span>
-                A walk through your store, builder and production flow
+                A walk through your store, plus the builder and production flow if you print
               </li>
               <li style={{ display: "flex", gap: "12px", alignItems: "flex-start" }}>
                 <span
@@ -478,6 +479,7 @@ export default function DemoPage() {
                             <option>Embroiderer</option>
                             <option>Blank or wholesale apparel supplier</option>
                             <option>Custom apparel brand</option>
+                            {RETAIL_LAUNCHED && <option>D2C or retail brand</option>}
                             <option>Other</option>
                           </select>
                         </div>

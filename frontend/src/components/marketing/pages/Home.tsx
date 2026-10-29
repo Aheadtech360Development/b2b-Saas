@@ -5,6 +5,7 @@ import { Fragment } from "react";
 import Link from "next/link";
 import s from "../marketing.module.css";
 import { useFaq, useSavingsCalculator } from "../interactive";
+import { RETAIL_LAUNCHED } from "@/lib/retailLaunch";
 
 const FAQ = [
   { q: "Do I need a card to start?", a: "No. The trial lasts 14 days and does not ask for a card." },
@@ -22,7 +23,9 @@ const FAQ = [
   },
   {
     q: "Who is it built for?",
-    a: "Print shops, DTF operators, screen printers, embroiderers, blank suppliers, wholesale apparel sellers and custom apparel brands.",
+    a: RETAIL_LAUNCHED
+      ? "Print shops, DTF operators, screen printers, embroiderers, blank suppliers, wholesale apparel sellers, custom apparel brands, and D2C and retail brands selling their own products."
+      : "Print shops, DTF operators, screen printers, embroiderers, blank suppliers, wholesale apparel sellers and custom apparel brands.",
   },
   { q: "Can I talk to someone before I start?", a: "Yes. Book a demo and we will walk through your setup with you." },
 ];
@@ -219,6 +222,14 @@ export default function HomePage() {
           <p style={{ marginTop: "16px", fontSize: "14px", color: "rgba(255,255,255,.72)" }}>
             14 day trial. No card needed.
           </p>
+          {RETAIL_LAUNCHED && (
+            <p data-retail-link style={{ marginTop: "10px", fontSize: "15px", color: "rgba(255,255,255,.85)" }}>
+              Selling your own products?{" "}
+              <Link href="/retail" style={{ color: "#FFFFFF", fontWeight: "600", textDecoration: "underline" }}>
+                See PrintCoPilot for brands
+              </Link>
+            </p>
+          )}
 
           {/* Product window */}
           <div style={{ position: "relative", maxWidth: "1080px", margin: "64px auto 0" }}>
@@ -3174,6 +3185,19 @@ export default function HomePage() {
                 A store, catalogs from S&amp;S Activewear and SanMar, and a copilot that keeps watch.
               </p>
             </div>
+            {RETAIL_LAUNCHED && (
+              <div data-retail-card style={{ background: "#FFFFFF", border: "1px solid #E3E8EF", borderRadius: "12px", padding: "28px" }}>
+                <h3 className={s["d"]} style={{ fontSize: "20px", lineHeight: "26px", color: "#0C1E35" }}>
+                  D2C and retail brands
+                </h3>
+                <p style={{ marginTop: "8px", fontSize: "16px", lineHeight: "24px", color: "#3A4A5E" }}>
+                  Sell your own collections with a branded store, checkout and a copilot that watches orders and stock.
+                </p>
+                <p style={{ marginTop: "12px", fontSize: "15px" }}>
+                  <Link href="/retail" style={{ fontWeight: "600", color: "#0B66E4" }}>See PrintCoPilot for brands</Link>
+                </p>
+              </div>
+            )}
           </div>
         </div>
       </section>
@@ -3483,6 +3507,12 @@ export default function HomePage() {
               Compare all plans
             </Link>
           </p>
+          {RETAIL_LAUNCHED && (
+            <p data-retail-plans style={{ marginTop: "10px", fontSize: "15px", color: "#3A4A5E" }}>
+              Selling your own brand?{" "}
+              <Link href="/pricing?tab=retail" style={{ fontWeight: "600", color: "#0B66E4" }}>See retail plans</Link>
+            </p>
+          )}
         </div>
       </section>
 
