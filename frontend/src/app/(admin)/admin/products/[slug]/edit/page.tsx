@@ -9,7 +9,7 @@ import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { GangSheetProductEditor, type SheetKind } from "@/components/admin/GangSheetProductEditor";
-import { APPAREL_FIELDS_NOTE, KIND_WORDS, STATUS_PILL, kindOf } from "@/lib/productKinds";
+import { APPAREL_FIELDS_NOTE, BULK_CARDS, BULK_CHOICE, STATUS_PILL, kindOf, kindWords } from "@/lib/productKinds";
 import { adminService } from "@/services/admin.service";
 import { productsService } from "@/services/products.service";
 import { apiClient } from "@/lib/api-client";
@@ -68,7 +68,7 @@ type TabKey = (typeof TABS)[number]["key"];
 const SAVED_FIELDS = [
   "name", "description", "status", "meta_title", "meta_description", "product_type", "vendor", "tags", "categories",
   "fabric", "product_code", "weight", "gender", "care_instructions", "print_guide", "size_chart_data",
-  "highlight_text", "template_id", "allow_design_upload",
+  "highlight_text", "template_id", "allow_design_upload", "bulk_order", "bulk_cards",
 ] as const;
 function savedFields(p: ProductDetail): Record<string, unknown> {
   const all = p as unknown as Record<string, unknown>;
@@ -491,6 +491,8 @@ function ProductEditor() {
         highlight_text: (product as any).highlight_text ?? null,
         template_id: product.template_id ?? null,
         allow_design_upload: Boolean((product as any).allow_design_upload),
+        bulk_order: Boolean(product.bulk_order),
+        bulk_cards: product.bulk_cards === "swatches" ? "swatches" : "pictures",
         metafields,
       });
       await Promise.all([...variantSaves, productSave]);
@@ -576,6 +578,9 @@ function ProductEditor() {
   // a product built from its options is printed when ordered: nothing to count.
   const madeToOrder = Boolean(product.gang_sheet_enabled) || product.pricing_mode === "configurable";
   const counted = !madeToOrder && Boolean(product.track_inventory);
+  // Sold in bulk: its page is the bulk order form, the cards showing pictures or swatches.
+  const bulkOn = stocked && Boolean(product.bulk_order);
+  const cards = product.bulk_cards === "swatches" ? "swatches" : "pictures";
 
   return (
     <div className="pc-page" style={{ maxWidth: "1240px" }} data-product-editor={product.slug} data-tab={tab}>
@@ -585,7 +590,7 @@ function ProductEditor() {
           <div className="pc-eyebrow">Product</div>
           <h1 className="pc-h1">{product.name || "Untitled product"}</h1>
           <p className="pc-sub-line">
-            {KIND_WORDS[kind]} · <a href={`/products/${product.slug}`} target="_blank" rel="noopener noreferrer" className="pc-link" style={{ fontSize: "inherit", fontWeight: 500 }}>/products/{product.slug}</a>
+            {kindWords(product)} · <a href={`/products/${product.slug}`} target="_blank" rel="noopener noreferrer" className="pc-link" style={{ fontSize: "inherit", fontWeight: 500 }}>/products/{product.slug}</a>
           </p>
         </div>
         {/* This product alone as the products file, and back in from one. */}
@@ -1563,8 +1568,32 @@ function ProductEditor() {
             <div style={{ marginTop: "12px", fontWeight: 600, fontSize: "15px" }}>{product.name}</div>
             <div className="pc-pills" style={{ marginTop: "8px" }}>
               <span className="pc-pill" data-tone={statusTone || undefined}>{statusLabel}</span>
-              <span className="pc-pill" data-tone="blue">{KIND_WORDS[kind]}</span>
+              <span className="pc-pill" data-tone="blue">{kindWords(product)}</span>
             </div>
+            {stocked && (
+              <div data-bulk-setting>
+                <div className="pc-switch-row" style={{ marginTop: "16px" }}>
+                  <span>
+                    {BULK_CHOICE.title}
+                    <span className="pc-sub-line" style={{ display: "block", fontSize: "12.5px" }}>The product page becomes the bulk order form: buyers pick up to 10 colours and type a quantity for every size.</span>
+                  </span>
+                  <button type="button" role="switch" aria-checked={bulkOn} aria-label={BULK_CHOICE.title} className="pc-switch"
+                    onClick={() => setProduct(p => p ? { ...p, bulk_order: !bulkOn } : p)} data-on={bulkOn ? "" : undefined} />
+                </div>
+                {bulkOn && (
+                  <div role="radiogroup" aria-label="Colour cards show" style={{ marginTop: "10px", display: "grid", gap: "6px" }}>
+                    <span className="pc-label" style={{ marginBottom: 0 }}>Colour cards show</span>
+                    {BULK_CARDS.map((c) => (
+                      <label key={c.value} style={{ display: "flex", gap: "8px", alignItems: "flex-start", fontSize: "13.5px", cursor: "pointer" }}>
+                        <input type="radio" name="bulk-cards" value={c.value} checked={cards === c.value} style={{ marginTop: "3px" }}
+                          onChange={() => setProduct(p => p ? { ...p, bulk_cards: c.value } : p)} />
+                        <span>{c.title}<span className="pc-sub-line" style={{ display: "block", fontSize: "12px", margin: 0 }}>{c.value === "pictures" ? <>From each picture&apos;s Color on the <button type="button" className="pc-link" style={{ fontSize: "inherit" }} onClick={() => setTab("media")}>Media</button> tab. A colour without one shows its swatch.</> : c.blurb}</span></span>
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
             {!sheetKind && (
               <div className="pc-switch-row" style={{ marginTop: "16px" }}>
                 <span>

@@ -69,6 +69,11 @@ export interface ThemeProductData {
   gang_sheet_config?: ProductDetail["gang_sheet_config"];
   sheets?: ThemeSheet[];
   builder_href?: string;
+  /** Sold in bulk: the buy box is the bulk order form (BulkOrderPicker), which
+   *  adds to the cart itself; nothing here is bound to it. */
+  bulk?: boolean;
+  bulk_cards?: string;
+  moq?: number;
 }
 
 const money = (value: number) => `$${value.toFixed(2)}`;
@@ -135,6 +140,10 @@ export default function ThemeProductBuy({ product }: { product: ThemeProductData
   }, [product.id]);
 
   useEffect(() => {
+    // The bulk order form buys for itself, and the price line keeps the
+    // "from" price it was drawn with: one size's price there would read as
+    // the price of all of them.
+    if (product.bulk) return;
     const root = document.querySelector<HTMLElement>(`[data-product-id="${CSS.escape(product.id)}"]`);
     if (!root) return;
 

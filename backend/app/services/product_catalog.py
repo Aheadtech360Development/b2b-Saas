@@ -94,6 +94,8 @@ def row(p: Any, f: Facts, image: str | None) -> dict:
         "name": p.name,
         "status": p.status,
         "kind": f.kind,
+        # A stocked product sold on the bulk order form ("Wholesale bulk").
+        "bulk": f.kind == "stocked" and bool(getattr(p, "bulk_order", False)),
         "image": image,
         "product_code": getattr(p, "product_code", None),
         "price_from": price_from(f),

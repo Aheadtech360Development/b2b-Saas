@@ -156,8 +156,18 @@ async def load(db: AsyncSession, product_id: Any) -> dict[str, Any] | None:
         "description": (product.description or "").strip(),
         "pricing_mode": product.pricing_mode or "variant",
         "track_inventory": tracked,
+        # Sold on the bulk order form: a stocked product with colours and
+        # sizes to cross. Anything else keeps the usual buy box.
+        "bulk": bool(getattr(product, "bulk_order", False))
+        and (product.pricing_mode or "variant") == "variant"
+        and not product.gang_sheet_enabled
+        and bool(colours) and bool(sizes),
+        "bulk_cards": "swatches" if getattr(product, "bulk_cards", None) == "swatches" else "pictures",
+        "moq": int(product.moq or 1),
         "images": [
-            {"url": getattr(i, "url_large", None) or getattr(i, "url_medium", ""), "alt": getattr(i, "alt_text", "") or product.name}
+            {"url": getattr(i, "url_large", None) or getattr(i, "url_medium", ""), "alt": getattr(i, "alt_text", "") or product.name,
+             # The small one, for the bulk form's colour cards.
+             "thumb": getattr(i, "url_medium", None) or getattr(i, "url_large", None) or ""}
             for i in images
         ],
         "from_price": min(prices) if prices else None,

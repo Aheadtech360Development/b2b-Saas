@@ -114,6 +114,13 @@ class Product(TenantMixin, BaseModel):
     # the product, not inferred from stock records: the admin showed "0" for a
     # variant with no record while checkout sold it without a limit.
     track_inventory: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, server_default="false")
+    # Sold in bulk (migration 0072): a stocked product whose page is the
+    # wholesale order form, up to 10 colours at once with a quantity for every
+    # size, instead of one colour and one size at a time.
+    bulk_order: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, server_default="false")
+    # What that form's colour cards show: "pictures" (the colour's own picture,
+    # its swatch when it has none) or "swatches" (the colour alone).
+    bulk_cards: Mapped[str] = mapped_column(String(10), default="pictures", nullable=False, server_default="pictures")
     # Starting unit price for a configurable product, before option deltas.
     base_price: Mapped[float | None] = mapped_column(Numeric(12, 4), nullable=True)
 

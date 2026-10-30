@@ -4,7 +4,7 @@
  * (services/product_catalog.kind_of).
  */
 import { describe, expect, it } from "vitest";
-import { KIND_WORDS, PRODUCT_KINDS, kindFields, kindOf } from "@/lib/productKinds";
+import { ADD_CHOICES, KIND_WORDS, PRODUCT_KINDS, choiceOf, kindFields, kindOf, kindOfChoice, kindWords } from "@/lib/productKinds";
 
 describe("a product's kind", () => {
   it("comes from pricing_mode and the gang sheet builder's type", () => {
@@ -28,5 +28,23 @@ describe("a product's kind", () => {
   it("has a name for each of the five, in the order the new-product step shows them", () => {
     expect(PRODUCT_KINDS.map((k) => k.title)).toEqual(["Stocked item", "Made to order", "Gang sheet", "Upload by size", "Upload your own sheet"]);
     expect(Object.keys(KIND_WORDS).sort()).toEqual(["gang_sheet", "made", "stocked", "upload_by_size", "upload_own"]);
+  });
+});
+
+describe("wholesale bulk (owner, 2026-10-30)", () => {
+  it("is offered on Add product right after a stocked item, as a stocked item sold in bulk", () => {
+    expect(ADD_CHOICES.map((c) => c.title)).toEqual(["Stocked item", "Wholesale bulk", "Made to order", "Gang sheet", "Upload by size", "Upload your own sheet"]);
+    expect(kindOfChoice("bulk")).toBe("stocked");
+    expect(kindOfChoice("made")).toBe("made");
+  });
+
+  it("is read back from a stocked product's bulk switch, and named so in the admin", () => {
+    expect(choiceOf({ pricing_mode: "variant", bulk_order: true })).toBe("bulk");
+    expect(choiceOf({ pricing_mode: "variant", bulk_order: false })).toBe("stocked");
+    // Only a stocked product is sold on the bulk form.
+    expect(choiceOf({ pricing_mode: "configurable", bulk_order: true })).toBe("made");
+    expect(choiceOf({ gang_sheet_enabled: true, gang_sheet_type: "upload_own", bulk_order: true })).toBe("upload_own");
+    expect(kindWords({ pricing_mode: "variant", bulk_order: true })).toBe("Wholesale bulk");
+    expect(kindWords({ pricing_mode: "variant" })).toBe("Stocked");
   });
 });

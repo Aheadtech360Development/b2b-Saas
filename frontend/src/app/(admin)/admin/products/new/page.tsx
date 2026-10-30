@@ -21,7 +21,7 @@ import { gangSheetsService } from "@/services/gangSheets.service";
 import { ProductOptionsBuilder } from "@/components/admin/ProductOptionsBuilder";
 import { VariantOptionsEditor, type ColorOption } from "@/components/admin/VariantOptionsEditor";
 import { GangSheetProductEditor } from "@/components/admin/GangSheetProductEditor";
-import { KIND_WORDS, PRODUCT_KINDS, kindFields, kindOf, type ProductKind } from "@/lib/productKinds";
+import { ADD_CHOICES, BULK_CARDS, BULK_CHOICE, KIND_WORDS, choiceOf, kindFields, kindOfChoice, type ProductChoice } from "@/lib/productKinds";
 import type { Category, ProductDetail, ProductVariant } from "@/types/product.types";
 
 const RichTextEditor = dynamic(
@@ -54,7 +54,10 @@ function AddProduct() {
   const step = Math.min(5, Math.max(1, Number(params.get("step")) || 1));
 
   const [product, setProduct] = useState<ProductDetail | null>(null);
-  const [kind, setKind] = useState<ProductKind | null>(null);
+  // What was picked on step 1: a kind, or "bulk" (a stocked item sold in bulk).
+  const [choice, setChoice] = useState<ProductChoice | null>(null);
+  const kind = choice ? kindOfChoice(choice) : null;
+  const bulk = choice === "bulk";
   const [basics, setBasics] = useState({ name: "", description: "", category_id: "", product_code: "" });
   const [categories, setCategories] = useState<Category[]>([]);
   const [busy, setBusy] = useState("");
@@ -73,7 +76,7 @@ function AddProduct() {
   const reload = useCallback(async (s: string) => {
     const p = await adminService.getProduct(s);
     setProduct(p);
-    setKind(kindOf(p));
+    setChoice(choiceOf(p));
     return p;
   }, []);
 
@@ -113,7 +116,7 @@ function AddProduct() {
         for (let attempt = 0; attempt < 4 && !made; attempt++) {
           const candidate = attempt === 0 ? base : `${base}-${Math.random().toString(36).slice(2, 6)}`;
           try {
-            made = await adminService.createProduct({ ...fields, slug: candidate, status: "draft", pricing_mode });
+            made = await adminService.createProduct({ ...fields, slug: candidate, status: "draft", pricing_mode, ...(bulk ? { bulk_order: true } : {}) });
           } catch (e) {
             if (!/slug|exists|unique|taken/i.test(errorText(e, ""))) throw e;
           }
@@ -172,6 +175,32 @@ function AddProduct() {
     setBusy("");
     if (fileInput.current) fileInput.current.value = "";
   }
+  // A picture given a colour is that colour's: shown when a shopper picks it,
+  // and on its card on the bulk order form. Its alt text says it, as the
+  // product's Media tab sets it.
+  async function setImageColour(id: string, colour: string) {
+    if (!product) return;
+    setError("");
+    try {
+      await apiClient.patch(`/api/v1/admin/products/${product.id}/images/${id}`, { alt_text: colour || null });
+      await reload(product.slug);
+    } catch (e) {
+      setError(errorText(e, "That picture's colour could not be saved."));
+    }
+  }
+  // ── Bulk: what the colour cards show ───────────────────────────────────────
+  async function setCards(cards: "pictures" | "swatches") {
+    if (!product) return;
+    setBusy("cards");
+    setError("");
+    try {
+      await adminService.updateProduct(product.id, { bulk_cards: cards });
+      await reload(product.slug);
+    } catch (e) {
+      setError(errorText(e, "That could not be saved."));
+    }
+    setBusy("");
+  }
   async function removeImage(id: string) {
     if (!product) return;
     await adminService.deleteImage(product.id, id).catch(() => {});
@@ -208,7 +237,8 @@ function AddProduct() {
   const heading: Record<number, [string, string]> = {
     1: ["What are you selling?", "Pick a type first. It decides which fields you see."],
     2: ["The basics", "A name and a few words. Every other detail can be added on the product later."],
-    3: kind === "stocked" ? ["Colours, sizes and price", "Each colour and size becomes its own item, with its own SKU and stock."]
+    3: bulk ? ["Colours, sizes and price", "Buyers order these in bulk: up to 10 colours at once, and a quantity for every size."]
+      : kind === "stocked" ? ["Colours, sizes and price", "Each colour and size becomes its own item, with its own SKU and stock."]
       : kind === "made" ? ["Price and questions", "A base price, the questions the customer answers, and price breaks."]
       : kind === "upload_by_size" ? ["Price by area", "Buyers pick any size; the price comes from its area."]
       : ["Sheet sizes and prices", "The sheet sizes buyers choose from, and what each costs."],
@@ -217,6 +247,8 @@ function AddProduct() {
   };
   const [title, sub] = heading[step]!;
   const reachable = (n: number) => n === 1 || (n === 2 && !!kind) || !!product;
+  const colours = Array.from(new Set((product?.variants ?? []).map((v) => v.color).filter(Boolean) as string[]));
+  const cards = product?.bulk_cards === "swatches" ? "swatches" : "pictures";
   const nonDraft = (check?.attention ?? []).filter((a) => a !== "Draft");
 
   if (loadingProduct) return <div className="pc-page"><div className="pc-card pc-empty">Opening the product…</div></div>;
@@ -257,11 +289,11 @@ function AddProduct() {
       {step === 1 && (
         <>
           <div className="pc-kinds" role="radiogroup" aria-label="What are you selling?">
-            {PRODUCT_KINDS.map((k) => (
-              <button key={k.kind} type="button" role="radio" aria-checked={kind === k.kind} className="pc-kind" data-on={kind === k.kind ? "" : undefined}
-                disabled={!!product && kind !== k.kind} onClick={() => setKind(k.kind)} data-kind-card={k.kind}>
-                <span className="pc-kind-title">{k.title}</span>
-                <span className="pc-kind-blurb">{k.blurb}</span>
+            {ADD_CHOICES.map((c) => (
+              <button key={c.choice} type="button" role="radio" aria-checked={choice === c.choice} className="pc-kind" data-on={choice === c.choice ? "" : undefined}
+                disabled={!!product && choice !== c.choice} onClick={() => setChoice(c.choice)} data-kind-card={c.choice}>
+                <span className="pc-kind-title">{c.title}</span>
+                <span className="pc-kind-blurb">{c.blurb}</span>
               </button>
             ))}
           </div>
@@ -279,7 +311,7 @@ function AddProduct() {
             <div>
               <label className="pc-label" htmlFor="p-name">Name</label>
               <input id="p-name" className="pc-input" value={basics.name} autoFocus onChange={(e) => setBasics((b) => ({ ...b, name: e.target.value }))}
-                placeholder={kind === "stocked" ? "e.g. Classic Cotton Tee" : kind === "made" ? "e.g. Business Cards" : "e.g. DTF Gang Sheet"} />
+                placeholder={bulk ? "e.g. Gildan 5000 Heavy Cotton Tee" : kind === "stocked" ? "e.g. Classic Cotton Tee" : kind === "made" ? "e.g. Business Cards" : "e.g. DTF Gang Sheet"} />
               {basics.name.trim() && !product && <p className="pc-sub-line" style={{ fontSize: "12.5px" }}>Web address: /products/{slugify(basics.name)}</p>}
             </div>
             <div>
@@ -331,6 +363,21 @@ function AddProduct() {
                   </div>
                 )}
               </section>
+              {bulk && (
+                <section className="pc-card pc-pad" data-bulk-cards>
+                  <h2 className="pc-h2">Colour cards</h2>
+                  <p className="pc-sub-line" style={{ margin: "4px 0 14px" }}>What each colour&apos;s card shows on the bulk order form. Change it any time on the product.</p>
+                  <div className="pc-kinds" role="radiogroup" aria-label="Colour cards">
+                    {BULK_CARDS.map((c) => (
+                      <button key={c.value} type="button" role="radio" aria-checked={cards === c.value} className="pc-kind" data-on={cards === c.value ? "" : undefined}
+                        disabled={busy === "cards"} onClick={() => { if (cards !== c.value) void setCards(c.value); }} data-cards={c.value}>
+                        <span className="pc-kind-title">{c.title}</span>
+                        <span className="pc-kind-blurb">{c.blurb}</span>
+                      </button>
+                    ))}
+                  </div>
+                </section>
+              )}
             </div>
           )}
           {kind === "made" && <ProductOptionsBuilder productId={product.id} />}
@@ -353,6 +400,13 @@ function AddProduct() {
               {busy === "images" ? "Uploading…" : "Choose images to upload"}
               <span className="pc-sub-line" style={{ margin: 0 }}>PNG, JPG or WebP. Several at once is fine.</span>
             </button>
+            {product.images.length > 0 && colours.length > 0 && (
+              <p className="pc-sub-line" style={{ margin: "14px 0 0" }} data-colour-hint>
+                {bulk && cards === "pictures"
+                  ? "Give each picture its colour: that colour's card on the bulk order form shows it."
+                  : "Give each picture its colour: it shows when a shopper picks that colour."}
+              </p>
+            )}
             {product.images.length > 0 && (
               <div className="pc-image-grid" style={{ marginTop: "16px" }}>
                 {product.images.map((img, i) => (
@@ -363,6 +417,15 @@ function AddProduct() {
                       {i === 0 ? <span className="pc-pill" data-tone="blue">First</span> : <button type="button" className="pc-link" style={{ fontSize: "13px" }} onClick={() => void makeFirst(img.id)}>Make first</button>}
                       <button type="button" className="pc-link" style={{ fontSize: "13px", color: "var(--pc-red)" }} onClick={() => void removeImage(img.id)}>Remove</button>
                     </figcaption>
+                    {colours.length > 0 && (
+                      <select className="pc-input" aria-label="Colour of this picture" data-image-colour
+                        value={colours.includes(img.alt_text ?? "") ? img.alt_text ?? "" : ""}
+                        onChange={(e) => void setImageColour(img.id, e.target.value)}
+                        style={{ margin: "0 10px 10px", width: "calc(100% - 20px)", fontSize: "13px", padding: "5px 8px" }}>
+                        <option value="">No colour</option>
+                        {colours.map((c) => <option key={c} value={c}>{c}</option>)}
+                      </select>
+                    )}
                   </figure>
                 ))}
               </div>
@@ -378,7 +441,7 @@ function AddProduct() {
       {step === 5 && product && (
         <>
           <section className="pc-card pc-pad" data-publish-step>
-            <div className="pc-kv"><span>Type</span><b>{kind ? KIND_WORDS[kind] : "–"}</b></div>
+            <div className="pc-kv"><span>Type</span><b>{bulk ? BULK_CHOICE.title : kind ? KIND_WORDS[kind] : "–"}</b></div>
             <div className="pc-kv"><span>Name</span><b>{product.name}</b></div>
             <div className="pc-kv"><span>Web address</span><b>/products/{product.slug}</b></div>
             <div className="pc-kv"><span>Price from</span><b>{check?.price_from ? `$${check.price_from.amount.toFixed(check.price_from.amount < 0.1 ? 4 : 2)}${check.price_from.per === "item" ? "" : ` / ${check.price_from.per}`}` : "Not set"}</b></div>

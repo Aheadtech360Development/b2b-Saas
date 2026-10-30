@@ -36,6 +36,47 @@ export function kindFields(kind: ProductKind): { pricing_mode: "variant" | "conf
   return { pricing_mode: "variant", gang_sheet_type: kind };
 }
 
+/**
+ * What Add product offers first: the five kinds, and a stocked item once more
+ * as "Wholesale bulk", sold on the bulk order form (products.bulk_order).
+ * Bulk is not a kind of its own: it is stocked, with that page.
+ */
+export type ProductChoice = ProductKind | "bulk";
+
+export const BULK_CHOICE = {
+  title: "Wholesale bulk",
+  blurb: "Blanks sold by the case. Buyers pick up to 10 colours and type a quantity for every size.",
+};
+
+export const ADD_CHOICES: { choice: ProductChoice; title: string; blurb: string }[] = [
+  ...PRODUCT_KINDS.slice(0, 1).map((k) => ({ choice: k.kind as ProductChoice, title: k.title, blurb: k.blurb })),
+  { choice: "bulk", ...BULK_CHOICE },
+  ...PRODUCT_KINDS.slice(1).map((k) => ({ choice: k.kind as ProductChoice, title: k.title, blurb: k.blurb })),
+];
+
+/** What the bulk order form's colour cards show (products.bulk_cards). */
+export const BULK_CARDS: { value: "pictures" | "swatches"; title: string; blurb: string }[] = [
+  { value: "pictures", title: "Pictures", blurb: "Each colour's own picture, from the pictures given that colour. A colour without one shows its swatch." },
+  { value: "swatches", title: "Swatches only", blurb: "Just the colour on every card, no pictures." },
+];
+
+/** The choice a product was made with: bulk when a stocked one is sold in bulk. */
+export function choiceOf(p: Parameters<typeof kindOf>[0] & { bulk_order?: boolean | null }): ProductChoice {
+  const kind = kindOf(p);
+  return kind === "stocked" && p.bulk_order ? "bulk" : kind;
+}
+
+/** The kind behind a choice. */
+export function kindOfChoice(choice: ProductChoice): ProductKind {
+  return choice === "bulk" ? "stocked" : choice;
+}
+
+/** What a product is called in the admin: its kind, or "Wholesale bulk". */
+export function kindWords(p: Parameters<typeof choiceOf>[0]): string {
+  const choice = choiceOf(p);
+  return choice === "bulk" ? BULK_CHOICE.title : KIND_WORDS[choice];
+}
+
 /** Only stocked apparel has these fields; the editor leaves them out for the rest. */
 export const APPAREL_FIELDS_NOTE = "Gender, fabric, size chart, care instructions and print methods only show for stocked apparel.";
 

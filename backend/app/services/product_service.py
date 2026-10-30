@@ -485,6 +485,8 @@ class ProductService:
             meta_description=data.meta_description,
             gang_sheet_enabled=getattr(data, "gang_sheet_enabled", False),
             pricing_mode=getattr(data, "pricing_mode", "variant") or "variant",
+            bulk_order=bool(getattr(data, "bulk_order", False)),
+            bulk_cards=getattr(data, "bulk_cards", None) or "pictures",
         )
         self.db.add(product)
         await self.db.flush()
@@ -505,6 +507,10 @@ class ProductService:
             raise NotFoundError(f"Product {product_id} not found")
 
         update_data = data.model_dump(exclude_unset=True, exclude={"category_ids"})
+        # Neither can be empty: a null sent for one leaves it as it is.
+        for field in ("bulk_order", "bulk_cards"):
+            if field in update_data and update_data[field] is None:
+                update_data.pop(field)
         for field, value in update_data.items():
             setattr(product, field, value)
 

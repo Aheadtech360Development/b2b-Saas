@@ -18,10 +18,12 @@ import { apiClient } from "@/lib/api-client";
 import { adminService } from "@/services/admin.service";
 import { ImportProductsModal } from "@/components/admin/ImportProductsModal";
 import { ProductsFrame } from "@/components/admin/products/ProductsFrame";
-import { KIND_WORDS, PRODUCT_KINDS, STATUS_PILL, type ProductKind } from "@/lib/productKinds";
+import { BULK_CHOICE, KIND_WORDS, PRODUCT_KINDS, STATUS_PILL, type ProductKind } from "@/lib/productKinds";
 
 interface Row {
   id: string; slug: string; name: string; status: string; kind: ProductKind; image: string | null;
+  /** A stocked product sold on the bulk order form. */
+  bulk?: boolean;
   product_code: string | null; price_from: { amount: number; per: string } | null;
   stock: { label: string; tone: string }; attention: string[]; variants: number; updated_at: string | null;
 }
@@ -316,7 +318,7 @@ function ProductsList() {
                           </span>
                         </div>
                       </td>
-                      <td style={{ color: "var(--pc-ink-2, var(--pc-ink))" }}>{KIND_WORDS[r.kind]}</td>
+                      <td style={{ color: "var(--pc-ink-2, var(--pc-ink))" }}>{r.bulk ? BULK_CHOICE.title : KIND_WORDS[r.kind]}</td>
                       <td><span className="pc-pill" data-tone={sTone || undefined}>{sLabel}</span></td>
                       <td>{price(r.price_from)}</td>
                       <td>{r.stock.tone ? <span className="pc-pill" data-tone={r.stock.tone}>{r.stock.label}</span> : <span style={{ color: "var(--pc-muted)" }}>{r.stock.label}</span>}</td>

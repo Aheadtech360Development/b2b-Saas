@@ -9,6 +9,8 @@ import { compareSizes } from "@/lib/utils";
 import type { ProductDetail, ProductVariant } from "@/types/product.types";
 import { useAuthStore } from "@/stores/auth.store";
 import { VariantMatrix } from "@/components/products/VariantMatrix";
+import BulkOrderPicker, { bulkProductOf, soldInBulk } from "@/components/storefront/BulkOrderPicker";
+import { COLOUR_CHOSEN, type ColourChosen } from "@/lib/colourPictures";
 import { apiClient } from "@/lib/api-client";
 import { cartService } from "@/services/cart.service";
 import { productsService } from "@/services/products.service";
@@ -382,6 +384,16 @@ export function ProductDetailClient({ slug }: ProductDetailClientProps) {
   // ── Order state ────────────────────────────────────────────────────────────
   const [quantities, setQuantities] = useState<Record<string, number>>({});
   const [selectedColor, setSelectedColor] = useState<string | null>(null);
+  // A colour picked on the bulk order form shows its pictures here too.
+  const productId = product?.id;
+  useEffect(() => {
+    const onColour = (e: Event) => {
+      const { productId: chosenFor, colour } = (e as CustomEvent<ColourChosen>).detail ?? {};
+      if (productId && chosenFor === productId && colour) { setSelectedColor(colour); setActiveImageIdx(0); }
+    };
+    window.addEventListener(COLOUR_CHOSEN, onColour);
+    return () => window.removeEventListener(COLOUR_CHOSEN, onColour);
+  }, [productId]);
   const [expandedColors, setExpandedColors] = useState<string[]>([]);
   const [showAllColors, setShowAllColors] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -574,8 +586,11 @@ export function ProductDetailClient({ slug }: ProductDetailClientProps) {
   const companyId = user?.company_id ?? null;
   const matrixSizes = new Set((product.variants ?? []).map(v => v.size).filter(Boolean));
   const matrixColors = new Set((product.variants ?? []).map(v => v.color).filter(Boolean));
+  // A product the shop sells in bulk is bought on the bulk order form, in
+  // place of the grid and the swatches below (components/storefront/BulkOrderPicker).
+  const bulk = soldInBulk(product);
   const showMatrix =
-    fromSupplier && !isConfigurable && !product.gang_sheet_enabled
+    !bulk && fromSupplier && !isConfigurable && !product.gang_sheet_enabled
     && matrixSizes.size > 1 && matrixColors.size > 0;
 
   // Link to the builder for this product, preserving the ?tenant= fallback used
@@ -878,6 +893,13 @@ export function ProductDetailClient({ slug }: ProductDetailClientProps) {
               <ProductConfigurator productId={product.id} productName={product.name} />
             )}
 
+            {/* Sold in bulk: colour cards, and a quantity for every size. */}
+            {bulk && (
+              <div style={{ marginBottom: "28px" }}>
+                <BulkOrderPicker product={bulkProductOf(product)} />
+              </div>
+            )}
+
             {/* A supplier's catalogue, ordered by the case. */}
             {showMatrix && (
               <div style={{ marginBottom: "28px" }}>
@@ -895,7 +917,7 @@ export function ProductDetailClient({ slug }: ProductDetailClientProps) {
             )}
 
             {/* COLOR label + swatches */}
-            {!isConfigurable && !showMatrix && colorGroups.length > 0 && (
+            {!isConfigurable && !showMatrix && !bulk && colorGroups.length > 0 && (
               <>
                 <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "11px", letterSpacing: "0.1em", textTransform: "uppercase", color: "#6B6B6B", fontWeight: 600, marginBottom: "10px" }}>
                   Color

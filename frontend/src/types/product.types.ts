@@ -92,6 +92,10 @@ export interface ProductDetail {
   /** Whether stock is counted: on, each size sells only what it has and is
    *  sold out at 0; off, it sells without a limit. */
   track_inventory?: boolean;
+  /** Sold in bulk: the page is the bulk order form (colour cards, a quantity
+   *  for every size), its cards showing each colour's picture or swatch. */
+  bulk_order?: boolean;
+  bulk_cards?: "pictures" | "swatches";
   base_price?: number | null;
   /** Product page template (null → the brand's default) and the data it can print. */
   template_id?: string | null;

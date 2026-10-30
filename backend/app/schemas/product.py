@@ -163,6 +163,10 @@ class ProductDetail(BaseModel):
     # Whether stock is counted: on, what the variants have is all that sells;
     # off, it sells without a limit (migration 0063).
     track_inventory: bool = False
+    # Sold in bulk: the page is the wholesale order form (migration 0072), its
+    # colour cards showing "pictures" or "swatches".
+    bulk_order: bool = False
+    bulk_cards: str = "pictures"
     base_price: float | None = None
     # Which product template this product uses (None → the brand's default),
     # and the data its templates can print.
@@ -227,6 +231,9 @@ class ProductCreate(BaseModel):
     #   'variant'      — stocked Colour × Size combinations (apparel)
     #   'configurable' — unlimited option groups priced on demand (print, signage)
     pricing_mode: Literal["variant", "configurable"] = "variant"
+    # "Wholesale bulk" on Add product: a stocked product sold on the bulk order form.
+    bulk_order: bool = False
+    bulk_cards: Literal["pictures", "swatches"] = "pictures"
 
 
 class ProductUpdate(BaseModel):
@@ -260,6 +267,9 @@ class ProductUpdate(BaseModel):
     # Count this product's stock (sold out at none left), or sell it without
     # a limit.
     track_inventory: bool | None = None
+    # Sell it on the bulk order form, and what its colour cards show.
+    bulk_order: bool | None = None
+    bulk_cards: Literal["pictures", "swatches"] | None = None
 
 
 class ImageUploadResponse(BaseModel):

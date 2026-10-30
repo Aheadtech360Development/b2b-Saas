@@ -35,6 +35,7 @@ import { Newsletter, ProductGallery, SortSelect, Tabs } from "./islands/Interact
 import { ContactForm } from "./islands/ContactForm";
 import { SearchBox, SearchIcon } from "./islands/SearchBox";
 import { splitDescription } from "@/lib/builder/descSections";
+import BulkOrderPicker, { type BulkVariant } from "@/components/storefront/BulkOrderPicker";
 
 export interface RenderCtx {
   data: SitePayload["data"];
@@ -204,14 +205,17 @@ function CollectionCards({ id, cards, ctx }: { id: string; cards: CollectionCard
 }
 
 interface BuyProduct {
-  id: string; name: string; from_price: number | null; pricing_mode: string; gang_sheet: boolean;
+  id: string; slug: string; name: string; from_price: number | null; pricing_mode: string; gang_sheet: boolean;
   design_upload?: boolean; gang_sheet_type?: string;
-  images: { url: string; alt: string }[];
+  images: { url: string; alt: string; thumb?: string }[];
   colours: { label: string; hex: string }[];
   sizes: { label: string }[];
   options: { id: string; name: string; values: { id: string; label: string; hex?: string; default?: boolean }[] }[];
   sheets?: { sheet_id: string; label: string; price: number }[];
   description?: string; summary?: string;
+  /** Sold in bulk: the bulk order form instead of one colour and one size. */
+  bulk?: boolean; bulk_cards?: string; moq?: number;
+  variants?: BulkVariant[];
 }
 
 /**
@@ -222,6 +226,15 @@ interface BuyProduct {
  * first written for.)
  */
 function BuyBox({ id, p, product }: { id: string; p: Props; product: BuyProduct }) {
+  // A product sold by the case: colour cards and a quantity for every size,
+  // all added at once (BulkOrderPicker), in place of the controls below.
+  if (product.bulk && product.variants?.length) {
+    return (
+      <div data-b={id} className="b-buy" data-bulk="">
+        <BulkOrderPicker product={{ ...product, variants: product.variants }} />
+      </div>
+    );
+  }
   type Choice = { label: string; valueId?: string; sheetId?: string; hex?: string; selected: boolean };
   const groups: { name: string; optionId?: string; swatch: boolean; items: Choice[] }[] = [];
   if (product.gang_sheet && product.sheets?.length) {
@@ -549,7 +562,8 @@ export function Node({ node, ctx }: { node: BuilderNode; ctx: RenderCtx }): Reac
       return <Heading lvl={level(p.level, 1)} id={id} className="b-heading">{product.name}</Heading>;
     case "product_price":
       if (!product) return note(ctx, id, "The product's price shows here.");
-      return <div data-b={id} className="b-price" data-theme-price="1">{money(product.from_price)}</div>;
+      // On the bulk order form every size has its own price, shown in its grid: the line here is where they start.
+      return <div data-b={id} className="b-price" data-theme-price="1">{product.bulk && product.from_price != null && <span className="from">From </span>}{money(product.from_price)}</div>;
     case "product_description": {
       if (!product) return note(ctx, id, "The product's description shows here.");
       if (!product.description) return note(ctx, id, "This product has no description yet.");

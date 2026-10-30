@@ -50,7 +50,7 @@ SHOPIFY_COLUMNS = [
 ]
 
 OUR_COLUMNS = [
-    "Kind", "Minimum order quantity", "Product code", "Short description", "Fabric", "Gender",
+    "Kind", "Bulk order form", "Minimum order quantity", "Product code", "Short description", "Fabric", "Gender",
     "Care instructions", "Supplier", "Supplier reference",
     "Variant status", "Color hex", "MSRP", "Country of origin",
     "Base price", "Quantity price breaks", "Options", "Options (data)", "Price table", "Sheet details",
@@ -261,6 +261,9 @@ def rows_for(p: Any, *, kind: str, variants: list, stock: dict, sheet_sizes: lis
         "SEO description": p.meta_description or "",
         "Collection": ", ".join(categories),
         "Kind": KIND_WORDS.get(kind, kind),
+        # Sold on the bulk order form, and what its colour cards show. Blank: the usual buy box.
+        "Bulk order form": (("Swatches" if p.bulk_cards == "swatches" else "Pictures")
+                            if kind == "stocked" and getattr(p, "bulk_order", False) else ""),
         "Minimum order quantity": str(p.moq) if p.moq is not None else "",
         "Product code": p.product_code or "",
         "Short description": p.short_description or "",

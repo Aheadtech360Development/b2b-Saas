@@ -270,6 +270,17 @@ def _plan_fields(plan: ProductPlan, first: dict, present: set[str], creating: bo
             plan.errors.append(f'Minimum order quantity "{moq}" is not a whole number of 1 or more.')
         else:
             plan.fields["moq"] = int(moq)
+    # Sold on the bulk order form (stocked products only): what its colour
+    # cards show, or blank for the usual buy box.
+    if "Bulk order form" in present and plan.kind == "stocked":
+        said = cell(first, "Bulk order form").strip().lower()
+        if said in ("", "no", "off", "false"):
+            plan.fields["bulk_order"] = False
+        elif said in ("pictures", "picture", "yes", "on", "true", "swatches", "swatch"):
+            plan.fields["bulk_order"] = True
+            plan.fields["bulk_cards"] = "swatches" if said.startswith("swatch") else "pictures"
+        else:
+            plan.errors.append(f'Bulk order form "{cell(first, "Bulk order form")}" is Pictures, Swatches, or blank.')
 
 
 def _role(name: str) -> str | None:
