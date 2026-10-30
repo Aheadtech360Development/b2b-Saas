@@ -639,31 +639,10 @@ class ProductService:
         return {"imported": imported, "skipped": skipped, "errors": errors}
 
     async def export_to_csv(self) -> str:
-        """Export all products + variants as CSV string."""
-        import csv
-        import io
+        """Every product as Shopify lays out its product CSV (services/product_export)."""
+        from app.services.product_export import export_csv
 
-        result = await self.db.execute(select(Product))
-        products = result.scalars().all()
-
-        buf = io.StringIO()
-        writer = csv.writer(buf)
-        writer.writerow(["name", "slug", "moq", "status", "sku", "color", "size", "retail_price"])
-
-        for product in products:
-            variant_result = await self.db.execute(
-                select(ProductVariant).where(ProductVariant.product_id == product.id)
-            )
-            variants = variant_result.scalars().all()
-            if not variants:
-                writer.writerow([product.name, product.slug, product.moq, product.status, "", "", "", ""])
-            for variant in variants:
-                writer.writerow([
-                    product.name, product.slug, product.moq, product.status,
-                    variant.sku, variant.color, variant.size, variant.retail_price,
-                ])
-
-        return buf.getvalue()
+        return await export_csv(self.db)
 
 
 # def _product_to_dict(product: Product) -> dict:
