@@ -340,6 +340,10 @@ export const BASE_CSS = `
 .bsite :where(.b-badge){position:absolute;top:10px;left:10px;background:var(--b-primary,#14161B);color:#fff;font-size:11px;font-weight:700;padding:4px 9px;border-radius:999px}
 .bsite :where(.b-card-title){font-weight:600;font-size:15px;line-height:1.35;overflow-wrap:anywhere}
 .bsite :where(.b-card-meta){font-size:14px;color:var(--b-muted,#5B6170)}
+.bsite :where(.b-card-foot){display:flex;align-items:center;justify-content:space-between;gap:10px;min-width:0}
+.bsite :where(.b-card-brand){display:inline-flex;align-items:center;flex-shrink:0;max-width:45%;min-width:0}
+.bsite :where(.b-card-brand img){display:block;height:22px;width:auto;max-width:100%;object-fit:contain}
+.bsite :where(.b-card-brand-name){font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--b-muted,#5B6170);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .bsite :where(.b-ccard .b-card-img){aspect-ratio:4/3}
 .bsite :where(.b-cimg){width:100%;aspect-ratio:21/8;object-fit:cover;border-radius:var(--b-radius)}
 .bsite :where(.b-cbar){display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:20px;font-size:14px;color:var(--b-muted,#5B6170)}

@@ -210,5 +210,7 @@ def as_ss(style: dict) -> dict:
         "brandName": style.get("brand"), "styleName": style.get("style_name"),
         "title": style.get("title"), "baseCategory": style.get("category"),
         "description": style.get("description"),
+        # Not an S&S field: the brand's logo, kept for product cards (services/brand_logos).
+        "brand_image": style.get("brand_image"),
     }
 

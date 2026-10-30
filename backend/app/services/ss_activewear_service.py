@@ -220,6 +220,12 @@ class SSActivewearService:
 
     # ── Public API ────────────────────────────────────────────────────────────
 
+    async def fetch_brands(self) -> list[dict]:
+        """Every brand S&S carries: brandID, name and image, its logo
+        ("Images/Brand/31_fm.png"; _fl large, _fm medium, _fs small)."""
+        data = await self._get("/Brands/")
+        return data if isinstance(data, list) else []
+
     async def fetch_categories(self) -> list[dict]:
         """Fetch all product categories."""
         try:

@@ -260,6 +260,11 @@ async def create_product(db: AsyncSession, style: dict, skus: list[dict], cfg: d
         product.vendor = style.get("brandName") or "S&S Activewear"
     db.add(product)
     await db.flush()
+    # The brand's logo, for product cards: kept under S&S's brand name, so a
+    # shop that maps Vendor to something else never shows the wrong logo.
+    from app.services import brand_logos
+
+    await brand_logos.remember_safely(db, product.tenant_id, style.get("brandName"), brand_logos.logo_of_style(style))
 
     for img in _image_rows(product, skus, name, angles=_angles(cfg)):
         db.add(img)
@@ -317,6 +322,10 @@ async def update_product(db: AsyncSession, product, style: dict, skus: list[dict
     fields = _fields(cfg)
     price_fn = pricer(cfg, style)
     safety = int((cfg.get("inventory") or {}).get("safety_stock") or 0)
+    # Products imported before brand logos existed get theirs on their next sync.
+    from app.services import brand_logos
+
+    await brand_logos.remember_safely(db, product.tenant_id, style.get("brandName"), brand_logos.logo_of_style(style))
     variants = (await db.execute(
         select(ProductVariant).where(ProductVariant.product_id == product.id)
     )).scalars().all()

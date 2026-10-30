@@ -495,6 +495,71 @@ async def export_products_csv(
     )
 
 
+# ── Brands on product cards (services/brand_logos). Before /{slug}: "brands"
+# is not a product. ──────────────────────────────────────────────────────────
+
+
+class BrandLogoIn(BaseModel):
+    key: str | None = None
+    name: str = Field("", max_length=100)
+    logo: str = Field("", max_length=1000)
+    hide: bool = False
+
+
+class BrandLogosIn(BaseModel):
+    show: bool | None = None
+    brands: list[BrandLogoIn] = Field(default_factory=list, max_length=500)
+
+
+def _tenant_of(request: Request):
+    from app.core.tenant_context import get_current_tenant_id
+
+    tenant_id = get_current_tenant_id() or getattr(request.state, "tenant_id", None)
+    if not tenant_id:
+        raise HTTPException(status_code=400, detail="No shop on this request.")
+    return tenant_id
+
+
+@router.get("/brands")
+async def list_brand_logos(request: Request, db: AsyncSession = Depends(get_db)):
+    """Every brand of the shop's products, with the logo product cards show for it."""
+    from app.services import brand_logos
+
+    return await brand_logos.overview(db, _tenant_of(request))
+
+
+@router.put("/brands")
+async def save_brand_logos(payload: BrandLogosIn, request: Request, db: AsyncSession = Depends(get_db)):
+    from app.services import brand_logos
+
+    try:
+        out = await brand_logos.save(db, _tenant_of(request), show=payload.show,
+                                     brands=[b.model_dump() for b in payload.brands])
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    await db.commit()
+    return out
+
+
+@router.post("/brands/from-ss")
+async def brand_logos_from_ss(request: Request, db: AsyncSession = Depends(get_db)):
+    """S&S's own logos for the shop's brands that have none (S&S Brands API)."""
+    from app.services import brand_logos
+    from app.services.ss_activewear_service import for_tenant
+
+    tenant_id = _tenant_of(request)
+    svc = await for_tenant(db, tenant_id)
+    if not svc.has_credentials:
+        raise HTTPException(status_code=409, detail="Connect your S&S account (Products → Suppliers) to get its logos.")
+    try:
+        out = await brand_logos.from_ss(db, tenant_id, svc)
+    except Exception as exc:  # noqa: BLE001 - S&S down or refusing: say so, change nothing
+        logger.warning("S&S brand logos: %s", exc)
+        raise HTTPException(status_code=502, detail="S&S did not answer. Try again in a minute.")
+    await db.commit()
+    return out
+
+
 @router.get("/{slug}", response_model=ProductDetail)
 async def get_admin_product(slug: str, db: AsyncSession = Depends(get_db)):
     """Fetch single product by slug (or UUID string). Defined after /export-csv to avoid conflict."""

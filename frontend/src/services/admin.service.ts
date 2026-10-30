@@ -35,6 +35,22 @@ export interface ProductFilePlan {
   errors: string[];
 }
 
+/** A brand of the shop's products (their vendor), and what product cards show for it (backend services/brand_logos). */
+export interface BrandLogoRow {
+  key: string;
+  name: string;
+  /** The logo cards show; empty: the brand's name instead. */
+  logo: string;
+  /** "ss": S&S's logo. "own": the shop chose it, or took it away. "": nothing on file. */
+  source: "ss" | "own" | "";
+  /** Cards leave this brand out. */
+  hide: boolean;
+  /** How many of the shop's products carry it. */
+  products: number;
+}
+
+export interface BrandLogos { show: boolean; brands: BrandLogoRow[] }
+
 export interface ProductFileImportResult {
   dry_run: boolean;
   counts: { create: number; update: number; skip: number; error: number };
@@ -170,6 +186,20 @@ export const adminService = {
   async exportProductsCsv(ids?: string[], filename = "products-export.csv") {
     const only = ids?.length ? `?ids=${ids.map(encodeURIComponent).join(",")}` : "";
     return downloadCsv(`/api/v1/admin/products/export-csv${only}`, filename);
+  },
+
+  /** Brands on product cards: every brand of the shop's products and its logo. */
+  async listBrandLogos() {
+    return apiClient.get<BrandLogos>("/api/v1/admin/products/brands");
+  },
+
+  async saveBrandLogos(body: { show: boolean; brands: Pick<BrandLogoRow, "key" | "name" | "logo" | "hide">[] }) {
+    return apiClient.put<BrandLogos>("/api/v1/admin/products/brands", body);
+  },
+
+  /** S&S's own logos for the brands that have none; says which it found and which S&S does not carry. */
+  async brandLogosFromSS() {
+    return apiClient.post<BrandLogos & { filled: string[]; missing: string[] }>("/api/v1/admin/products/brands/from-ss");
   },
 
   /**

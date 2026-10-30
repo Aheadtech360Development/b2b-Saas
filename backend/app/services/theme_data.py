@@ -85,7 +85,14 @@ async def _cards(db: AsyncSession, items: list[Product]) -> list[dict[str, Any]]
             )
             if price > 0 and price < cheapest.get(pid, float("inf")):
                 cheapest[pid] = price
-    return [_product_card(p, cheapest.get(p.id)) for p in items]
+    # Each card's brand (its vendor): the logo, or the name (services/brand_logos).
+    from app.core.tenant_context import get_current_tenant_id
+    from app.services import brand_logos
+
+    tenant_id = get_current_tenant_id()
+    brands = await brand_logos.settings_for(db, tenant_id) if tenant_id and items else None
+    return [{**_product_card(p, cheapest.get(p.id)), **brand_logos.card_brand(brands, getattr(p, "vendor", None))}
+            for p in items]
 
 
 def _collection_card(collection: Collection, count: int) -> dict[str, Any]:

@@ -108,7 +108,11 @@ export interface SiteDoc {
 }
 
 /** A product card, as the store's own product helpers describe one. */
-export interface ProductCard { title: string; url: string; image: string; price: string; badge: string; text: string }
+export interface ProductCard {
+  title: string; url: string; image: string; price: string; badge: string; text: string;
+  /** The product's brand (its vendor) and the brand's logo, beside the price; blank when the shop shows none. */
+  brand?: string; brand_logo?: string;
+}
 export interface CollectionCard { title: string; url: string; image: string; text?: string; count?: string }
 
 export interface MenuItem { label: string; href: string; children?: MenuItem[] }

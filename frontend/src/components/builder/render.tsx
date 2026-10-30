@@ -140,7 +140,17 @@ function ProductCards({ id, cards, ctx, empty }: { id: string; cards: ProductCar
             {c.badge && <span className="b-badge">{c.badge}</span>}
           </div>
           <div className="b-card-title">{c.title}</div>
-          {c.price && <div className="b-card-meta">{c.price}</div>}
+          {c.brand ? (
+            // The brand beside the price: its logo, or its name (backend services/brand_logos).
+            <div className="b-card-foot">
+              {c.price ? <div className="b-card-meta">{c.price}</div> : <span />}
+              <span className="b-card-brand" title={c.brand} data-brand={c.brand}>
+                {safeSrc(c.brand_logo)
+                  ? <img src={c.brand_logo} alt={c.brand} loading="lazy" />
+                  : <span className="b-card-brand-name">{c.brand}</span>}
+              </span>
+            </div>
+          ) : c.price && <div className="b-card-meta">{c.price}</div>}
         </a>
       ))}
     </div>
