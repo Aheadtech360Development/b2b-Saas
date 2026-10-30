@@ -66,8 +66,13 @@ async def load(db: AsyncSession, product_id: Any) -> dict[str, Any] | None:
     # time a variant is edited, so the page showed XS, M, L, XL, S.
     from app.services.size_order import sort_sizes, sort_variants
 
-    variants = sort_variants([v for v in (product.variants or []) if v.status == "active"])
-    prices = [float(v.retail_price) for v in variants if v.retail_price is not None]
+    # On the bulk order form a size the shop marked out of stock is still its
+    # colour's, shown Sold out; elsewhere it is left off as it always was.
+    bulk_form = (bool(getattr(product, "bulk_order", False))
+                 and (product.pricing_mode or "variant") == "variant" and not product.gang_sheet_enabled)
+    variants = sort_variants([v for v in (product.variants or [])
+                              if v.status == "active" or (bulk_form and v.status == "out_of_stock")])
+    prices = [float(v.retail_price) for v in variants if v.retail_price is not None and v.status == "active"]
     if not prices and product.base_price is not None:
         prices = [float(product.base_price)]
 
@@ -113,8 +118,9 @@ async def load(db: AsyncSession, product_id: Any) -> dict[str, Any] | None:
             "size": v.size or "",
             "price": float(v.retail_price) if v.retail_price is not None else None,
             # What the checkout will sell of it: all it has when the product
-            # counts its stock (0 with no record), no limit when it does not.
-            "stock": on_hand.get(v.id, 0) if tracked else 9999,
+            # counts its stock (0 with no record), no limit when it does not;
+            # none of a size marked out of stock.
+            "stock": 0 if v.status == "out_of_stock" else on_hand.get(v.id, 0) if tracked else 9999,
             "sku": v.sku,
         }
         for v in variants
@@ -158,10 +164,7 @@ async def load(db: AsyncSession, product_id: Any) -> dict[str, Any] | None:
         "track_inventory": tracked,
         # Sold on the bulk order form: a stocked product with colours and
         # sizes to cross. Anything else keeps the usual buy box.
-        "bulk": bool(getattr(product, "bulk_order", False))
-        and (product.pricing_mode or "variant") == "variant"
-        and not product.gang_sheet_enabled
-        and bool(colours) and bool(sizes),
+        "bulk": bulk_form and bool(colours) and bool(sizes),
         "bulk_cards": "swatches" if getattr(product, "bulk_cards", None) == "swatches" else "pictures",
         "moq": int(product.moq or 1),
         "images": [

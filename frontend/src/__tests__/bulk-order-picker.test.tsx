@@ -34,7 +34,9 @@ vi.mock("@/lib/tracking", async (real) => ({
   trackCartAdd: (...a: unknown[]) => h.trackCartAdd(...a),
 }));
 
-import BulkOrderPicker, { MAX_COLOURS, bulkProductOf, cardPicture, soldInBulk, type BulkProduct } from "@/components/storefront/BulkOrderPicker";
+import BulkOrderPicker, {
+  FIRST_COLOURS, MAX_COLOURS, MORE_COLOURS, bulkProductOf, cardPicture, soldInBulk, stockState, type BulkProduct,
+} from "@/components/storefront/BulkOrderPicker";
 import { ApiClientError } from "@/lib/api-client";
 import { readGuestCart } from "@/lib/guestCart";
 import { COLOUR_CHOSEN } from "@/lib/colourPictures";
@@ -74,6 +76,8 @@ function tee(over: Partial<BulkProduct> = {}): BulkProduct {
 const card = (name: string) => document.querySelector(`button.bop-card[data-colour="${name}"]`) as HTMLButtonElement;
 const panel = (name: string) => document.querySelector(`section[data-colour-panel="${name}"]`) as HTMLElement;
 const panels = () => document.querySelectorAll("section[data-colour-panel]");
+const loadMore = () => document.querySelector("button[data-load-more]") as HTMLButtonElement | null;
+const shownCards = () => Array.from(document.querySelectorAll("button.bop-card")).map((b) => b.getAttribute("data-colour"));
 const box = (colour: string, size: string) => document.querySelector(`input[aria-label="${colour}, ${size}: how many"]`) as HTMLInputElement;
 const cells = (p: HTMLElement, row: string) => Array.from(p.querySelectorAll(`tr[data-row="${row}"] td`)).map((td) => td.textContent);
 
@@ -113,7 +117,7 @@ describe("the colour cards", () => {
 });
 
 describe("choosing colours", () => {
-  it("opens a colour's sizes with the price, the stock and a box for each; a size it lacks is a dash, one sold out cannot be ordered", () => {
+  it("opens a colour's sizes with the price, the stock in words and a box for each; one it lacks is N/A, one sold out says so and cannot be ordered", () => {
     render(<BulkOrderPicker product={tee()} />);
     expect(panels()).toHaveLength(0);
     fireEvent.click(card("Black"));
@@ -122,7 +126,10 @@ describe("choosing colours", () => {
     const black = panel("Black");
     expect(Array.from(black.querySelectorAll("thead th")).map((th) => th.textContent)).toEqual(["", ...SIZES]);
     expect(cells(black, "price")).toEqual(["$3.99", "$3.99", "$3.99", "$3.99", "—"]);
-    expect(cells(black, "stock")).toEqual(["5", "513", "Out of stock", "513", "—"]);
+    expect(cells(black, "stock")).toEqual(["Only 5 left", "513", "Sold out", "513", "N/A"]);
+    // Greyed at the head of the column too, and its price shown but not as one to buy at.
+    expect(Array.from(black.querySelectorAll("thead th[data-off]")).map((th) => th.textContent)).toEqual(["L", "2XL"]);
+    expect(black.querySelector('tr[data-row="price"] td:nth-of-type(3)')?.className).toBe("bop-price-off");
     expect(box("Black", "S").disabled).toBe(false);
     expect(box("Black", "L").disabled).toBe(true);
     expect(box("Black", "2XL").disabled).toBe(true);
@@ -171,10 +178,51 @@ describe("choosing colours", () => {
       sizes: [{ label: "M" }],
     });
     render(<BulkOrderPicker product={product} />);
+    fireEvent.click(loadMore()!);
     for (const c of colours) fireEvent.click(card(c.label));
     expect(panels()).toHaveLength(MAX_COLOURS);
     expect(card(`Colour ${MAX_COLOURS + 1}`).getAttribute("aria-pressed")).toBe("false");
     expect(screen.getByRole("status")).toHaveTextContent(`Up to ${MAX_COLOURS} colours at a time. Remove one to add Colour ${MAX_COLOURS + 1}.`);
+  });
+
+  it(`shows the first ${FIRST_COLOURS} colours, and Load more ${MORE_COLOURS} at a time, saying how many are left`, () => {
+    const colours = Array.from({ length: 23 }, (_, i) => ({ label: `Colour ${i + 1}`, hex: "#123456" }));
+    const product = tee({
+      colours, images: [],
+      variants: colours.map((c) => ({ id: c.label, colour: c.label, size: "M", sku: c.label, price: 4, stock: 50 })),
+      sizes: [{ label: "M" }],
+    });
+    render(<BulkOrderPicker product={product} />);
+    expect(shownCards()).toEqual(["Colour 1", "Colour 2", "Colour 3", "Colour 4", "Colour 5"]);
+    expect(loadMore()?.textContent).toBe("Load more colours (18 more)");
+    fireEvent.click(loadMore()!);
+    expect(shownCards()).toHaveLength(15);
+    expect(loadMore()?.textContent).toBe("Load more colours (8 more)");
+    // What was picked stays picked as more come in.
+    fireEvent.click(card("Colour 2"));
+    fireEvent.click(loadMore()!);
+    expect(shownCards()).toHaveLength(23);
+    expect(loadMore()).toBeNull();
+    expect(card("Colour 2").getAttribute("aria-pressed")).toBe("true");
+  });
+
+  it("has no Load more when every colour already shows", () => {
+    render(<BulkOrderPicker product={tee()} />);
+    expect(shownCards()).toEqual(["Black", "Navy", "Red"]);
+    expect(loadMore()).toBeNull();
+  });
+
+  it("says Sold out on a colour sold out in every size, and does not take it", () => {
+    const product = tee();
+    product.variants = product.variants.map((v) => (v.colour === "Red" ? { ...v, stock: 0 } : v));
+    render(<BulkOrderPicker product={product} />);
+    expect(card("Red").hasAttribute("data-soldout")).toBe(true);
+    expect(card("Red").querySelector(".bop-gone")?.textContent).toBe("Sold out");
+    expect(card("Red").getAttribute("aria-disabled")).toBe("true");
+    expect(card("Black").hasAttribute("data-soldout")).toBe(false); // one size sold out is not the colour
+    fireEvent.click(card("Red"));
+    expect(panel("Red")).toBeNull();
+    expect(screen.getByRole("status")).toHaveTextContent("Red is sold out in every size.");
   });
 
   it("cuts a quantity to the stock there is, and says so", () => {
@@ -185,6 +233,20 @@ describe("choosing colours", () => {
     expect(screen.getByRole("status")).toHaveTextContent("Only 5 left in Black, S.");
     fireEvent.change(box("Black", "M"), { target: { value: "12x" } });
     expect(box("Black", "M").value).toBe("12");
+  });
+});
+
+describe("stock, in words", () => {
+  const v = (stock: number) => ({ id: "x", colour: "Black", size: "M", sku: "x", price: 4, stock });
+  it("says what every size has", () => {
+    expect(stockState(undefined)).toEqual({ text: "N/A", tone: "none" });
+    expect(stockState(v(0))).toEqual({ text: "Sold out", tone: "out" });
+    expect(stockState(v(-2))).toEqual({ text: "Sold out", tone: "out" });
+    expect(stockState(v(4))).toEqual({ text: "Only 4 left", tone: "low" });
+    expect(stockState(v(10))).toEqual({ text: "Only 10 left", tone: "low" });
+    expect(stockState(v(11))).toEqual({ text: "11" });
+    expect(stockState(v(1500))).toEqual({ text: "1,500" });
+    expect(stockState(v(9999))).toEqual({ text: "In stock" });
   });
 });
 
@@ -214,7 +276,7 @@ describe("adding to the cart", () => {
       ["Navy-2XL", 6, 6.59, "Navy", "2XL", "https://img.example.com/Gildan-5000-Navy-medium.jpg"],
     ]);
     expect(h.trackAddToCart).toHaveBeenCalledTimes(1);
-    expect((h.trackAddToCart as ReturnType<typeof vi.fn>).mock.calls[0][0]).toEqual([
+    expect((h.trackAddToCart as ReturnType<typeof vi.fn>).mock.calls[0]![0]).toEqual([
       { id: "Black-S", sku: "G5000-Black-S", name: "Gildan 5000", price: 3.99, quantity: 3, variant: "Black / S" },
       { id: "Black-M", sku: "G5000-Black-M", name: "Gildan 5000", price: 3.99, quantity: 12, variant: "Black / M" },
       { id: "Navy-2XL", sku: "G5000-Navy-2XL", name: "Gildan 5000", price: 6.59, quantity: 6, variant: "Navy / 2XL" },
@@ -277,16 +339,17 @@ describe("where the form is drawn", () => {
       { id: "v1", sku: "A", color: "Red", color_hex: "#f00", size: "XL", retail_price: "5.00", effective_price: "4.25", status: "active", stock_quantity: 7 },
       { id: "v2", sku: "B", color: "Red", size: "S", retail_price: "5.00", effective_price: null, status: "active", stock_quantity: 0 },
       { id: "v3", sku: "C", color: "Blue", size: "M", retail_price: "5.00", effective_price: null, status: "discontinued", stock_quantity: 3 },
+      { id: "v4", sku: "D", color: "Red", size: "M", retail_price: "5.00", effective_price: null, status: "out_of_stock", stock_quantity: 9999 },
     ] as unknown as ProductDetail["variants"],
     categories: [], bulk_order: true, bulk_cards: "swatches",
     ...over,
   } as ProductDetail);
 
-  it("on the older product page: the buyer's own price, sizes on the chart, nothing discontinued", () => {
+  it("on the older product page: the buyer's own price, sizes on the chart, a size marked out of stock sold out, nothing discontinued", () => {
     const p = bulkProductOf(detail());
-    expect(p.sizes.map((s) => s.label)).toEqual(["S", "XL"]);
+    expect(p.sizes.map((s) => s.label)).toEqual(["S", "M", "XL"]);
     expect(p.colours).toEqual([{ label: "Red", hex: "#f00" }]);
-    expect(p.variants.map((v) => [v.id, v.price, v.stock])).toEqual([["v1", 4.25, 7], ["v2", 5, 0]]);
+    expect(p.variants.map((v) => [v.id, v.price, v.stock])).toEqual([["v1", 4.25, 7], ["v2", 5, 0], ["v4", 5, 0]]);
     expect(p.images).toEqual([{ url: "l.jpg", alt: "Tee - Red", thumb: "m.jpg" }]);
     expect([p.bulk_cards, p.moq]).toEqual(["swatches", 12]);
     expect(soldInBulk(detail())).toBe(true);

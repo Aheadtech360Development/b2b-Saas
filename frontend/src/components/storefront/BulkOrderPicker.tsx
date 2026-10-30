@@ -3,10 +3,13 @@
 /**
  * The bulk order form: how a blank sold by the case is bought.
  *
- * A row of colour cards the buyer picks up to ten of (a second click puts one
- * back). Each colour picked opens its row of sizes, with the price and the
- * stock of every size and a box for how many. One Add to cart puts every
- * quantity in the cart at once, in the same cart the rest of the shop uses.
+ * Colour cards the buyer picks up to ten of (a second click puts one back):
+ * the first five, and Load more for the rest, ten at a time. Each colour
+ * picked opens its row of sizes, with the price and the stock of every size
+ * in words (Sold out, Only 4 left, In stock, N/A for a size the colour does
+ * not come in) and a box for how many. A colour sold out in every size says
+ * so on its card. One Add to cart puts every quantity in the cart at once, in
+ * the same cart the rest of the shop uses.
  *
  * A card shows the colour's own picture: one whose alt text names the colour,
  * which the S&S import writes and the product's Media tab sets ("Color").
@@ -16,9 +19,9 @@
  * Drawn on the website builder's product page (render.tsx BuyBox) and on the
  * older product page alike, for a product sold in bulk (products.bulk_order).
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Check, ChevronLeft, ChevronRight, X } from "lucide-react";
+import { Check, X } from "lucide-react";
 import { ApiClientError } from "@/lib/api-client";
 import { cartService } from "@/services/cart.service";
 import { useAuthStore } from "@/stores/auth.store";
@@ -32,8 +35,15 @@ import type { ProductDetail } from "@/types/product.types";
 /** How many colours one order form takes at a time. */
 export const MAX_COLOURS = 10;
 
+/** Colour cards shown when the page opens, and how many more each Load more shows. */
+export const FIRST_COLOURS = 5;
+export const MORE_COLOURS = 10;
+
 /** What a stock count of this or more means: not counted, so no limit. */
 const NO_LIMIT = 9999;
+
+/** Counted stock of this or less reads "Only 4 left". */
+const LOW_STOCK = 10;
 
 export interface BulkVariant {
   id: string;
@@ -67,10 +77,17 @@ export function cardPicture(images: BulkProduct["images"], colour: string): stri
   return pic ? pic.thumb || pic.url : null;
 }
 
-function stockWords(v: BulkVariant): string {
-  if (v.stock <= 0) return "Out of stock";
-  if (v.stock >= NO_LIMIT) return "In stock";
-  return v.stock.toLocaleString("en-US");
+/**
+ * What a size's stock cell says. "N/A": the colour does not come in that size.
+ * "Sold out": it does, and none is left. A count the shop does not keep is "In
+ * stock"; a low one is said as what is left.
+ */
+export function stockState(v: BulkVariant | undefined): { text: string; tone?: "out" | "low" | "none" } {
+  if (!v) return { text: "N/A", tone: "none" };
+  if (v.stock <= 0) return { text: "Sold out", tone: "out" };
+  if (v.stock >= NO_LIMIT) return { text: "In stock" };
+  if (v.stock <= LOW_STOCK) return { text: `Only ${v.stock} left`, tone: "low" };
+  return { text: v.stock.toLocaleString("en-US") };
 }
 
 /**
@@ -79,7 +96,8 @@ function stockWords(v: BulkVariant): string {
  * which that page has always shown.
  */
 export function bulkProductOf(p: ProductDetail): BulkProduct {
-  const active = (p.variants ?? []).filter((v) => !v.status || v.status === "active");
+  // A size marked out of stock is still the colour's: it reads Sold out, not N/A.
+  const active = (p.variants ?? []).filter((v) => v.status !== "discontinued");
   const colours: BulkProduct["colours"] = [];
   for (const v of active) {
     if (v.color && !colours.some((c) => c.label === v.color)) colours.push({ label: v.color, hex: v.color_hex ?? "" });
@@ -95,7 +113,7 @@ export function bulkProductOf(p: ProductDetail): BulkProduct {
       colour: v.color ?? "",
       size: v.size ?? "",
       price: Number(v.effective_price ?? v.retail_price ?? 0),
-      stock: v.stock_quantity ?? 0,
+      stock: v.status === "out_of_stock" ? 0 : v.stock_quantity ?? 0,
       sku: v.sku,
     })),
     colours,
@@ -120,8 +138,8 @@ export default function BulkOrderPicker({ product }: { product: BulkProduct }) {
   const [note, setNote] = useState("");
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
-  const [edges, setEdges] = useState({ start: true, end: true });
-  const track = useRef<HTMLDivElement>(null);
+  // The first five cards, and more as the buyer asks for them.
+  const [shown, setShown] = useState(FIRST_COLOURS);
 
   const swatchesOnly = product.bulk_cards === "swatches";
   const sizes = product.sizes.map((s) => s.label);
@@ -132,28 +150,24 @@ export default function BulkOrderPicker({ product }: { product: BulkProduct }) {
   }, [product.variants]);
   const variantOf = (colour: string, size: string) => byKey.get(`${colour}\u0000${size}`);
   const hexOf = (label: string) => colorHex(label, product.colours.find((c) => c.label === label)?.hex);
-
-  // ── The row of cards: arrows where there is more to see ──
-  const measure = useCallback(() => {
-    const el = track.current;
-    if (!el) return;
-    setEdges({ start: el.scrollLeft <= 2, end: el.scrollLeft + el.clientWidth >= el.scrollWidth - 2 });
-  }, []);
-  useEffect(() => {
-    measure();
-    window.addEventListener("resize", measure);
-    return () => window.removeEventListener("resize", measure);
-  }, [measure]);
-  const slide = (dir: 1 | -1) => {
-    const el = track.current;
-    if (el) el.scrollBy({ left: dir * Math.max(120, el.clientWidth * 0.8), behavior: "smooth" });
-  };
+  // A colour none of whose sizes has any left.
+  const soldOut = useMemo(() => {
+    const left = new Map<string, boolean>();
+    for (const v of product.variants) left.set(v.colour, (left.get(v.colour) ?? false) || v.stock > 0);
+    return new Set([...left].filter(([, any]) => !any).map(([colour]) => colour));
+  }, [product.variants]);
+  const visible = product.colours.slice(0, shown);
+  const more = product.colours.length - visible.length;
 
   // ── Choosing colours ──
   function toggle(colour: string) {
     setMessage(null);
     if (chosen.includes(colour)) {
       remove(colour);
+      return;
+    }
+    if (soldOut.has(colour)) {
+      setNote(`${colour} is sold out in every size.`);
       return;
     }
     if (chosen.length >= MAX_COLOURS) {
@@ -252,35 +266,35 @@ export default function BulkOrderPicker({ product }: { product: BulkProduct }) {
       <style dangerouslySetInnerHTML={{ __html: BULK_CSS }} />
       <p className="bop-hint">Click to select multiple colors (max <b>{MAX_COLOURS}</b>). Click again to deselect.</p>
 
-      <div className="bop-rail" data-start={edges.start ? "" : undefined} data-end={edges.end ? "" : undefined}>
-        <button type="button" className="bop-arrow" data-dir="prev" aria-label="Earlier colours" disabled={edges.start} onClick={() => slide(-1)}>
-          <ChevronLeft size={20} aria-hidden />
-        </button>
-        <div className="bop-track" ref={track} role="group" aria-label="Colours" onScroll={measure}>
-          {product.colours.map((c) => {
-            const at = chosen.indexOf(c.label);
-            const picture = swatchesOnly ? null : cardPicture(product.images, c.label);
-            const hex = hexOf(c.label);
-            return (
-              <button key={c.label} type="button" className="bop-card" aria-pressed={at >= 0} title={c.label}
-                      data-colour={c.label} data-on={at >= 0 ? "" : undefined} onClick={() => toggle(c.label)}>
-                {at >= 0 && <span className="bop-n" aria-hidden>{at + 1}</span>}
-                {at >= 0 && <span className="bop-tick" aria-hidden><Check size={12} strokeWidth={3} /></span>}
-                <span className="bop-pic">
-                  {picture
-                    // eslint-disable-next-line @next/next/no-img-element
-                    ? <img src={picture} alt="" loading="lazy" />
-                    : <span className="bop-chip" data-light={isLightColor(hex) ? "" : undefined} style={{ background: hex }} />}
-                </span>
-                <span className="bop-name">{c.label}</span>
-              </button>
-            );
-          })}
-        </div>
-        <button type="button" className="bop-arrow" data-dir="next" aria-label="More colours" disabled={edges.end} onClick={() => slide(1)}>
-          <ChevronRight size={20} aria-hidden />
-        </button>
+      <div className="bop-cards" role="group" aria-label="Colours">
+        {visible.map((c) => {
+          const at = chosen.indexOf(c.label);
+          const gone = soldOut.has(c.label);
+          const picture = swatchesOnly ? null : cardPicture(product.images, c.label);
+          const hex = hexOf(c.label);
+          return (
+            <button key={c.label} type="button" className="bop-card" aria-pressed={at >= 0} title={gone ? `${c.label}: sold out` : c.label}
+                    aria-disabled={gone || undefined} data-colour={c.label} data-on={at >= 0 ? "" : undefined}
+                    data-soldout={gone ? "" : undefined} onClick={() => toggle(c.label)}>
+              {at >= 0 && <span className="bop-n" aria-hidden>{at + 1}</span>}
+              {at >= 0 && <span className="bop-tick" aria-hidden><Check size={12} strokeWidth={3} /></span>}
+              <span className="bop-pic">
+                {picture
+                  // eslint-disable-next-line @next/next/no-img-element
+                  ? <img src={picture} alt="" loading="lazy" />
+                  : <span className="bop-chip" data-light={isLightColor(hex) ? "" : undefined} style={{ background: hex }} />}
+                {gone && <span className="bop-gone">Sold out</span>}
+              </span>
+              <span className="bop-name">{c.label}</span>
+            </button>
+          );
+        })}
       </div>
+      {more > 0 && (
+        <button type="button" className="bop-more" data-load-more onClick={() => setShown((n) => n + MORE_COLOURS)}>
+          Load more colours <span>({more.toLocaleString("en-US")} more)</span>
+        </button>
+      )}
 
       {note && <p className="bop-note" role="status">{note}</p>}
 
@@ -298,21 +312,29 @@ export default function BulkOrderPicker({ product }: { product: BulkProduct }) {
             <div className="bop-scroll">
               <table className="bop-grid">
                 <thead>
-                  <tr><th aria-label="Size" />{sizes.map((s) => <th key={s} scope="col">{s}</th>)}</tr>
+                  <tr>
+                    <th aria-label="Size" />
+                    {sizes.map((s) => {
+                      // A size that cannot be ordered in this colour is greyed at its head too.
+                      const v = variantOf(colour, s);
+                      return <th key={s} scope="col" data-off={!v || v.stock <= 0 ? "" : undefined}>{s}</th>;
+                    })}
+                  </tr>
                 </thead>
                 <tbody>
                   <tr data-row="price">
                     <th scope="row">Price</th>
                     {sizes.map((s) => {
                       const v = variantOf(colour, s);
-                      return <td key={s} className={v && v.price != null ? "bop-price" : "bop-none"}>{v && v.price != null ? money(v.price) : "—"}</td>;
+                      const priced = v && v.price != null;
+                      return <td key={s} className={!priced ? "bop-none" : v.stock <= 0 ? "bop-price-off" : "bop-price"}>{priced ? money(v.price!) : "—"}</td>;
                     })}
                   </tr>
                   <tr data-row="stock">
                     <th scope="row">Stock</th>
                     {sizes.map((s) => {
-                      const v = variantOf(colour, s);
-                      return <td key={s} className={!v ? "bop-none" : v.stock <= 0 ? "bop-out" : undefined}>{v ? stockWords(v) : "—"}</td>;
+                      const state = stockState(variantOf(colour, s));
+                      return <td key={s} className={state.tone ? `bop-${state.tone}` : undefined}>{state.text}</td>;
                     })}
                   </tr>
                   <tr data-row="qty">
@@ -366,18 +388,19 @@ const BULK_CSS = `
 .bop{--bop-ink:var(--b-primary,var(--brand-primary,#14161B));--bop-line:var(--b-border,#E2E2E2);--bop-soft:#F4F4F5;--bop-muted:#6B6B70;--bop-price:#D32F2F;display:flex;flex-direction:column;gap:14px;width:100%;min-width:0;color:var(--b-text,#14161B)}
 .bop .bop-hint{margin:0;font-size:13px;color:var(--bop-muted)}
 .bop .bop-hint b{color:var(--b-text,#14161B)}
-.bop .bop-rail{position:relative;display:flex;align-items:center;min-width:0}
-.bop .bop-track{display:flex;gap:10px;overflow-x:auto;scroll-snap-type:x proximity;padding:6px 2px 10px;scrollbar-width:thin;min-width:0;flex:1}
-.bop .bop-rail:not([data-end]) .bop-track{-webkit-mask-image:linear-gradient(to right,#000 calc(100% - 48px),transparent);mask-image:linear-gradient(to right,#000 calc(100% - 48px),transparent)}
-.bop .bop-arrow{position:absolute;top:calc(50% - 22px);z-index:2;width:38px;height:38px;border-radius:999px;border:1px solid var(--bop-line);background:#fff;color:#14161B;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.12);padding:0}
-.bop .bop-arrow[data-dir=prev]{left:-14px}
-.bop .bop-arrow[data-dir=next]{right:-14px}
-.bop .bop-arrow:disabled{display:none}
-.bop .bop-card{position:relative;flex:0 0 96px;width:96px;display:flex;flex-direction:column;align-items:center;gap:6px;padding:7px 6px 8px;border:1.5px solid var(--bop-line);border-radius:10px;background:#fff;cursor:pointer;scroll-snap-align:start;font:inherit;color:inherit;text-align:center}
+.bop .bop-cards{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;max-width:620px;padding-top:8px}
+.bop .bop-more{align-self:flex-start;display:inline-flex;align-items:center;gap:6px;padding:10px 18px;border:1.5px solid var(--bop-line);border-radius:999px;background:#fff;color:#14161B;font:inherit;font-size:14px;font-weight:600;cursor:pointer}
+.bop .bop-more:hover{border-color:var(--bop-ink)}
+.bop .bop-more span{font-weight:400;color:var(--bop-muted)}
+.bop .bop-card{position:relative;min-width:0;display:flex;flex-direction:column;align-items:center;gap:6px;padding:7px 6px 8px;border:1.5px solid var(--bop-line);border-radius:10px;background:#fff;cursor:pointer;font:inherit;color:inherit;text-align:center}
 .bop .bop-card:hover{border-color:#B9B9BE}
 .bop .bop-card[data-on]{border:2.5px solid var(--bop-ink);padding:6px 5px 7px}
 .bop .bop-card:focus-visible{outline:2px solid var(--bop-ink);outline-offset:2px}
-.bop .bop-pic{width:72px;height:72px;border-radius:6px;background:var(--bop-soft);overflow:hidden;display:flex;align-items:center;justify-content:center}
+.bop .bop-pic{position:relative;width:100%;max-width:84px;aspect-ratio:1;border-radius:6px;background:var(--bop-soft);overflow:hidden;display:flex;align-items:center;justify-content:center}
+.bop .bop-gone{position:absolute;left:0;right:0;bottom:0;padding:3px 0;background:rgba(20,22,27,.78);color:#fff;font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;text-align:center}
+.bop .bop-card[data-soldout]{cursor:not-allowed;background:#FAFAFA}
+.bop .bop-card[data-soldout] img,.bop .bop-card[data-soldout] .bop-chip{opacity:.45}
+.bop .bop-card[data-soldout] .bop-name{color:#9A9AA0}
 .bop .bop-pic img{width:100%;height:100%;object-fit:cover;display:block}
 .bop .bop-chip{width:100%;height:100%;display:block}
 .bop .bop-chip[data-light]{box-shadow:inset 0 0 0 1px rgba(0,0,0,.12);border-radius:6px}
@@ -402,7 +425,10 @@ const BULK_CSS = `
 .bop .bop-grid tbody th{text-align:left;font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--bop-muted);padding-left:14px;min-width:84px}
 .bop .bop-grid .bop-price{color:var(--bop-price);font-weight:700}
 .bop .bop-grid .bop-none{color:#B4B4BA}
-.bop .bop-grid .bop-out{color:var(--bop-price);font-size:12.5px}
+.bop .bop-grid .bop-out{color:var(--bop-price);font-weight:700;font-size:13px}
+.bop .bop-grid .bop-low{color:#B45309;font-weight:600;font-size:13px}
+.bop .bop-grid .bop-price-off{color:#A1A1A8;font-weight:600}
+.bop .bop-grid thead th[data-off]{color:#A1A1A8}
 .bop .bop-qty{width:72px;height:40px;border:1.5px solid #D4D4D8;border-radius:8px;text-align:center;font:inherit;font-size:16px;font-weight:700;background:#fff;color:#14161B;padding:0 6px}
 .bop .bop-qty:focus{outline:none;border-color:var(--bop-ink);box-shadow:0 0 0 2px rgba(0,0,0,.06)}
 .bop .bop-qty:disabled{background:#F1F1F3;border-color:#E4E4E7;color:#B4B4BA;cursor:not-allowed}
@@ -416,5 +442,5 @@ const BULK_CSS = `
 .bop .bop-msg{margin:0;padding:10px 14px;border-radius:8px;font-size:14px;background:#FDECEC;color:#8A1C1C}
 .bop .bop-msg[data-ok]{background:#E8F5EE;color:#0F5132}
 .bop .bop-msg a{margin-left:10px;font-weight:700;color:inherit}
-@media (max-width:600px){.bop .bop-arrow{display:none}.bop .bop-card{flex-basis:84px;width:84px}.bop .bop-pic{width:62px;height:62px}.bop .bop-qty{width:60px}}
+@media (max-width:600px){.bop .bop-cards{grid-template-columns:repeat(3,minmax(0,1fr))}.bop .bop-qty{width:60px}}
 `;

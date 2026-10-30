@@ -111,10 +111,11 @@ describe("Add product, Wholesale bulk", () => {
     nav.qs = "p=gildan-5000&step=4";
     render(<AddProductPage />);
     const selects = await screen.findAllByLabelText("Colour of this picture") as HTMLSelectElement[];
+    const first = selects[0]!;
     expect(selects.map((s) => s.value)).toEqual(["", "Navy"]);
-    expect(Array.from(selects[0].options).map((o) => o.textContent)).toEqual(["No colour", "Black", "Navy"]);
+    expect(Array.from(first.options).map((o) => o.textContent)).toEqual(["No colour", "Black", "Navy"]);
     expect(screen.getByText("Give each picture its colour: that colour's card on the bulk order form shows it.")).toBeTruthy();
-    await act(async () => { fireEvent.change(selects[0], { target: { value: "Black" } }); });
+    await act(async () => { fireEvent.change(first, { target: { value: "Black" } }); });
     expect(h.patch).toHaveBeenCalledWith("/api/v1/admin/products/p1/images/i1", { alt_text: "Black" });
   });
 });
