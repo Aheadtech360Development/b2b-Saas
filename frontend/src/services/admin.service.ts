@@ -22,6 +22,29 @@ export interface AdminUser {
   created_at: string | null;
 }
 
+/** One product of an imported products file: what it becomes (planned, or done). */
+export interface ProductFilePlan {
+  handle: string;
+  name: string;
+  action: "create" | "update" | "skip" | "error";
+  kind: string;
+  variants_new: number;
+  variants_changed: number;
+  images_new: number;
+  notes: string[];
+  errors: string[];
+}
+
+export interface ProductFileImportResult {
+  dry_run: boolean;
+  counts: { create: number; update: number; skip: number; error: number };
+  products: ProductFilePlan[];
+  /** Rows that belong to no product. */
+  problems: string[];
+  /** Import on one product: the other products in the file, left alone. */
+  ignored: number;
+}
+
 const API_BASE =
   typeof window === "undefined"
     ? (process.env.INTERNAL_API_URL ?? "http://localhost:8000")
@@ -143,8 +166,24 @@ export const adminService = {
     return apiClient.postForm("/api/v1/admin/products/import-csv", form);
   },
 
-  async exportProductsCsv() {
-    return downloadCsv("/api/v1/admin/products/export-csv", "products-export.csv");
+  /** The products file (Shopify's product CSV layout): every product, or only `ids`. */
+  async exportProductsCsv(ids?: string[], filename = "products-export.csv") {
+    const only = ids?.length ? `?ids=${ids.map(encodeURIComponent).join(",")}` : "";
+    return downloadCsv(`/api/v1/admin/products/export-csv${only}`, filename);
+  },
+
+  /**
+   * A products file in (the one Export writes, or a Shopify product CSV).
+   * `dryRun` plans and saves nothing: the preview. `onlyHandle` reads that
+   * product's rows only and updates it (Import on one product's page).
+   */
+  async importProductsFile(file: File, opts: { dryRun: boolean; updateExisting: boolean; onlyHandle?: string }) {
+    const form = new FormData();
+    form.append("file", file);
+    form.append("dry_run", String(opts.dryRun));
+    form.append("update_existing", String(opts.updateExisting));
+    if (opts.onlyHandle) form.append("only_handle", opts.onlyHandle);
+    return apiClient.postForm<ProductFileImportResult>("/api/v1/admin/products/import-file", form);
   },
 
   // Inventory

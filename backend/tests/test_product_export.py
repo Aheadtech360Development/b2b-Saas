@@ -3,6 +3,7 @@ product CSV columns and layout, then ours. One test per kind of product; the
 loading from the database is checked against the local database separately."""
 import csv
 import io
+import json
 from datetime import UTC, datetime
 from decimal import Decimal
 from types import SimpleNamespace
@@ -95,21 +96,25 @@ def test_images_past_the_last_variant_get_rows_of_their_own():
                        "Image position": str(n), "Image alt text": ""}
 
 
+def value(label, delta, mode="flat", enabled=True, position=0, **kw):
+    return ns(id=label, label=label, price_delta=delta, price_mode=mode, enabled=enabled, position=position,
+              is_default=False, swatch_hex=None, image_url=None, sku_suffix=None, **kw)
+
+
+def option(name, values, position, required=False, active=True):
+    return ns(id=name, name=name, input_type="select", required=required, is_active=active, help_text=None,
+              in_price_matrix=False, position=position, values=values)
+
+
 def test_a_made_to_order_product_is_one_row_with_every_option_and_its_price():
-    paper = ns(name="Paper", required=True, is_active=True, position=0, values=[
-        ns(label="Gloss", price_delta=0, price_mode="flat", enabled=True, position=0),
-        ns(label="Matte", price_delta=Decimal("2"), price_mode="flat", enabled=True, position=1),
-    ])
-    finish = ns(name="Finish", required=False, is_active=True, position=1, values=[
-        ns(label="Rush", price_delta=Decimal("10"), price_mode="percent", enabled=False, position=0),
-        ns(label="Foil", price_delta=Decimal("0.025"), price_mode="per_unit", enabled=True, position=1),
-    ])
-    old = ns(name="Size", required=False, is_active=False, position=2, values=[
-        ns(label="A4", price_delta=Decimal("-1.5"), price_mode="flat", enabled=True, position=0),
-    ])
+    paper = option("Paper", [value("Gloss", 0), value("Matte", Decimal("2"), position=1)], 0, required=True)
+    finish = option("Finish", [value("Rush", Decimal("10"), "percent", enabled=False),
+                               value("Foil", Decimal("0.025"), "per_unit", position=1)], 1)
+    old = option("Size", [value("A4", Decimal("-1.5"))], 2, active=False)
     p = product(name="Brochures", slug="brochures", base_price=Decimal("99.5"), weight=None, track_inventory=True,
                 options=[finish, old, paper], qty_tiers=[ns(min_qty=24, unit_price=Decimal("4.5")), ns(min_qty=12, unit_price=5)])
-    rows = pe.rows_for(p, kind="made", variants=[], stock={}, sheet_sizes=[], price_table=12)
+    rule = ns(when_value_id="Rush", action="hide_option", target_option_id="Size", target_value_id=None, note=None)
+    rows = pe.rows_for(p, kind="made", variants=[], stock={}, sheet_sizes=[], price_table=12, rules=[rule])
 
     assert len(rows) == 1
     row = rows[0]
@@ -118,6 +123,12 @@ def test_a_made_to_order_product_is_one_row_with_every_option_and_its_price():
                               " | Size (off): A4 (-$1.50 per order)")
     assert row["Quantity price breaks"] == "12+: $5.00; 24+: $4.50"
     assert row["Price table"] == "12 prices" and row["Kind"] == "Made to order"
+    # The same options in full for Import, the rule by names.
+    data = json.loads(row["Options (data)"])
+    assert [o["name"] for o in data["options"]] == ["Paper", "Finish", "Size"]
+    assert data["options"][1]["values"][0] == {"label": "Rush", "price": "10", "mode": "percent", "enabled": False,
+                                               "default": False, "swatch": None, "image": None, "sku": None}
+    assert data["rules"] == [{"when": ["Finish", "Rush"], "action": "hide_option", "option": "Size"}]
     # Made to order is never counted: nothing to track, never out of stock.
     assert (row.get("Inventory tracker", ""), row.get("Inventory quantity", ""),
             row["Continue selling when out of stock"]) == ("", "", "continue")

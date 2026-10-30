@@ -21,11 +21,14 @@ What a variant is here:
 - made to order: one row at the base price, every option and value in the
   Options column. Shopify allows three options and has no price table; the
   table itself downloads from the product's Pricing (Price table says how big).
+  Options (data) holds the same options in full (input type, swatches, SKU
+  parts, rules) as JSON, so Import can make them again (services/product_import).
 """
 from __future__ import annotations
 
 import csv
 import io
+import json
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
@@ -50,7 +53,7 @@ OUR_COLUMNS = [
     "Kind", "Minimum order quantity", "Product code", "Short description", "Fabric", "Gender",
     "Care instructions", "Supplier", "Supplier reference",
     "Variant status", "Color hex", "MSRP", "Country of origin",
-    "Base price", "Quantity price breaks", "Options", "Price table", "Sheet details",
+    "Base price", "Quantity price breaks", "Options", "Options (data)", "Price table", "Sheet details",
 ]
 
 COLUMNS = SHOPIFY_COLUMNS + OUR_COLUMNS
@@ -125,6 +128,46 @@ def _option_words(options: list) -> str:
     return " | ".join(parts)
 
 
+def _options_data(options: list, rules: list) -> str:
+    """The options in full, as JSON, for Import to make them again. Rules name
+    their options and values, since the ids mean nothing in another shop."""
+    if not options:
+        return ""
+    names: dict = {}  # value id → (option name, value label)
+    option_names: dict = {}
+    out = []
+    for opt in sorted(options, key=lambda o: o.position or 0):
+        option_names[opt.id] = opt.name
+        values = []
+        for v in sorted(opt.values or [], key=lambda x: x.position or 0):
+            names[v.id] = (opt.name, v.label)
+            values.append({
+                "label": v.label, "price": _number(v.price_delta) or "0", "mode": v.price_mode,
+                "enabled": bool(v.enabled), "default": bool(v.is_default),
+                "swatch": v.swatch_hex, "image": v.image_url, "sku": v.sku_suffix,
+            })
+        out.append({
+            "name": opt.name, "type": opt.input_type, "required": bool(opt.required), "active": bool(opt.is_active),
+            "help": opt.help_text, "matrix": bool(opt.in_price_matrix), "values": values,
+        })
+    said = []
+    for r in rules or []:
+        when = names.get(r.when_value_id)
+        if not when:
+            continue
+        rule: dict = {"when": list(when), "action": r.action}
+        if r.target_value_id in names:
+            rule["option"], rule["value"] = names[r.target_value_id]
+        elif r.target_option_id in option_names:
+            rule["option"] = option_names[r.target_option_id]
+        else:
+            continue
+        if r.note:
+            rule["note"] = r.note
+        said.append(rule)
+    return json.dumps({"options": out, "rules": said}, separators=(",", ":"), ensure_ascii=False)
+
+
 def _tier_words(tiers: list) -> str:
     """12+: $5.00; 24+: $4.50."""
     return "; ".join(f"{t.min_qty}+: ${_amount(t.unit_price)}" for t in sorted(tiers, key=lambda t: t.min_qty))
@@ -144,7 +187,7 @@ def _sheet(size: Any) -> tuple[str, str]:
 
 
 def rows_for(p: Any, *, kind: str, variants: list, stock: dict, sheet_sizes: list,
-             price_table: int) -> list[dict]:
+             price_table: int, rules: list | None = None) -> list[dict]:
     """Every row of one product, as dicts keyed by COLUMNS."""
     images = _ordered_images(list(p.images or []))
     product_grams = _number(p.weight)
@@ -229,6 +272,7 @@ def rows_for(p: Any, *, kind: str, variants: list, stock: dict, sheet_sizes: lis
         "Base price": _amount(p.base_price) if kind == "made" else "",
         "Quantity price breaks": _tier_words(list(p.qty_tiers or [])),
         "Options": _option_words(list(p.options or [])),
+        "Options (data)": _options_data(list(p.options or []), list(rules or [])),
         "Price table": f"{price_table} prices" if price_table else "",
     }
 
@@ -265,8 +309,9 @@ def write_csv(rows: list[dict]) -> str:
     return "﻿" + buf.getvalue()
 
 
-async def export_csv(db) -> str:
-    """Every product of the shop the session is scoped to, as the products file."""
+async def export_csv(db, ids: list | None = None) -> str:
+    """The shop's products as the products file: all of them, or only `ids`
+    (the ones ticked in the list, or the one product open)."""
     from sqlalchemy import func, select
     from sqlalchemy.orm import selectinload
 
@@ -276,15 +321,17 @@ async def export_csv(db) -> str:
     from app.models.product_option import ProductOption, ProductOptionCombination
     from app.services.product_catalog import kind_of
 
-    products = list((await db.execute(
-        select(Product).options(
-            selectinload(Product.variants),
-            selectinload(Product.images),
-            selectinload(Product.category_links).selectinload(ProductCategory.category),
-            selectinload(Product.options).selectinload(ProductOption.values),
-            selectinload(Product.qty_tiers),
-        ).order_by(Product.name, Product.slug)
-    )).scalars().all())
+    stmt = select(Product).options(
+        selectinload(Product.variants),
+        selectinload(Product.images),
+        selectinload(Product.category_links).selectinload(ProductCategory.category),
+        selectinload(Product.options).selectinload(ProductOption.values),
+        selectinload(Product.qty_tiers),
+        selectinload(Product.option_rules),
+    ).order_by(Product.name, Product.slug)
+    if ids is not None:
+        stmt = stmt.where(Product.id.in_(ids))
+    products = list((await db.execute(stmt)).scalars().all())
 
     variant_ids = [v.id for p in products for v in p.variants]
     stock: dict = {}
@@ -319,6 +366,6 @@ async def export_csv(db) -> str:
             p, kind=kind, variants=variants, stock=stock,
             # A sheet product with no sizes of its own sells from the shop's default set.
             sheet_sizes=(own_sizes.get(p.id) or shop_sizes) if kind in SHEET_KINDS else [],
-            price_table=tables.get(p.id, 0),
+            price_table=tables.get(p.id, 0), rules=list(p.option_rules or []),
         ))
     return write_csv(rows)

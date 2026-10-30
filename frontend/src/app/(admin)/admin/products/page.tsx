@@ -138,6 +138,18 @@ function ProductsList() {
     await load();
   }
 
+  /** Only the products ticked, as the products file (Shopify's layout, as Export). */
+  async function exportChosen() {
+    setWorking("Exporting…");
+    try {
+      await adminService.exportProductsCsv(chosen.map((r) => r.id),
+        chosen.length === 1 ? `${chosen[0]!.slug}.csv` : `products-export-${chosen.length}.csv`);
+    } catch {
+      setFlash({ text: "The export did not download. Try again.", bad: true });
+    }
+    setWorking("");
+  }
+
   async function bulkDelete() {
     if (!await ask(`Delete ${chosen.length === 1 ? `"${chosen[0]!.name}"` : `${chosen.length} products`}? This cannot be undone. A product with orders on it is kept and archived instead.`, { title: "Delete products", ok: "Delete", danger: true })) return;
     setWorking("Deleting…");
@@ -256,6 +268,7 @@ function ProductsList() {
           <button type="button" disabled={!!working} onClick={() => bulk("active")}>Set active</button>
           <button type="button" disabled={!!working} onClick={() => bulk("draft")}>Set draft</button>
           <button type="button" disabled={!!working} onClick={() => bulk("archived")}>Archive</button>
+          <button type="button" disabled={!!working} onClick={() => void exportChosen()}>Export</button>
           <button type="button" disabled={!!working} onClick={openEdit}>Edit details</button>
           <button type="button" disabled={!!working} onClick={bulkDelete}>Delete</button>
           <button type="button" className="pc-bulk-clear" disabled={!!working} onClick={() => setPicked(new Set())}>Clear</button>

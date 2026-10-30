@@ -6,6 +6,7 @@ import { knownColor, parseColorEntry } from "@/lib/colors";
 import { adminService } from "@/services/admin.service";
 import { productsService } from "@/services/products.service";
 import { ApiClientError } from "@/lib/api-client";
+import { ProductFileImport } from "@/components/admin/ProductFileImport";
 
 // ── CSV template ──────────────────────────────────────────────────────────────
 // Colors/sizes are comma-separated inside quoted fields.
@@ -55,6 +56,12 @@ function parseRow(line: string): string[] {
   }
   result.push(current);
   return result;
+}
+
+/** A products file: a URL handle (or Handle) column, as Export and Shopify write. The server reads it. */
+function isProductsFile(text: string): boolean {
+  const header = text.replace(/^﻿/, "").split(/\r?\n/, 1)[0] ?? "";
+  return parseRow(header).some((h) => ["url handle", "handle"].includes(h.trim().toLowerCase()));
 }
 
 // ── Image map parser: "White:https://...,Black:https://..." ──────────────────
@@ -108,11 +115,19 @@ type Step = "upload" | "preview" | "importing" | "done";
 interface Props {
   onClose: () => void;
   onSuccess: () => void;
+  /** Import on one product's page: only a products file, only this product's rows. */
+  onlyHandle?: string;
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
-export function ImportProductsModal({ onClose, onSuccess }: Props) {
+export function ImportProductsModal({ onClose, onSuccess, onlyHandle }: Props) {
   const [step, setStep] = useState<Step>("upload");
+  // A file from Export or Shopify goes to the server (ProductFileImport), not the template steps.
+  const [productsFile, setProductsFile] = useState<File | null>(null);
+  const [fileError, setFileError] = useState("");
+  // Something was saved: closing reloads what is behind.
+  const [changed, setChanged] = useState(false);
+  const leave = changed ? onSuccess : onClose;
   const [dragOver, setDragOver] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [rows, setRows] = useState<PreviewRow[]>([]);
@@ -137,6 +152,17 @@ export function ImportProductsModal({ onClose, onSuccess }: Props) {
     const reader = new FileReader();
     reader.onload = (e) => {
       const text = e.target?.result as string;
+      setFileError("");
+      if (isProductsFile(text)) {
+        setProductsFile(f);
+        setStep("preview");
+        return;
+      }
+      if (onlyHandle) {
+        setFile(null);
+        setFileError("That is not a products file. Use Export on this product to get one, change it, then bring it back here.");
+        return;
+      }
       const parsed = parseCsv(text);
       const preview: PreviewRow[] = parsed.map(row => ({
         name: row["name"] ?? "",
@@ -316,14 +342,16 @@ export function ImportProductsModal({ onClose, onSuccess }: Props) {
         <div style={{ padding: "20px 24px", borderBottom: "1px solid #E3E3E3", display: "flex", justifyContent: "space-between", alignItems: "center", flexShrink: 0 }}>
           <div>
             <h2 className="pc-h2" style={{ fontSize: "22px", lineHeight: 1.2 }}>
-              Import products
+              {onlyHandle ? "Import this product" : "Import products"}
             </h2>
             <p style={{ fontSize: "12px", color: "#7A7880", margin: "4px 0 0" }}>
-              Bulk-create products with variants and images from CSV
+              {onlyHandle
+                ? "Update it from a products file: Export it, change the file, bring it back"
+                : "From our template, a file from Export, or a Shopify product CSV"}
             </p>
           </div>
           {step !== "importing" && (
-            <button onClick={onClose} style={{ background: "none", border: "none", fontSize: "22px", cursor: "pointer", color: "#aaa", lineHeight: 1 }}>✕</button>
+            <button aria-label="Close" onClick={leave} style={{ background: "none", border: "none", fontSize: "22px", cursor: "pointer", color: "#aaa", lineHeight: 1 }}>✕</button>
           )}
         </div>
 
@@ -351,6 +379,17 @@ export function ImportProductsModal({ onClose, onSuccess }: Props) {
           {/* ── STEP 1: Upload ─────────────────────────────────────────────── */}
           {step === "upload" && (
             <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+              {fileError && <div className="pc-flash" data-bad="" role="alert">{fileError}</div>}
+              <div data-products-file-note style={{ border: "1px solid #DCE6F9", background: "#F5F8FE", borderRadius: "10px", padding: "14px 18px", fontSize: "12.5px", color: "#3F3D45", lineHeight: 1.55 }}>
+                {onlyHandle ? (
+                  <><strong>Choose this product&apos;s file.</strong> Export on this product gives you one: change its prices, stock, text or
+                    images, then bring it back. Only this product&apos;s rows are read, and you see every change before it is saved.</>
+                ) : (
+                  <><strong>Have a file from Export, or a Shopify product CSV?</strong> Drop it below. Products are matched by URL handle,
+                    new ones are made, and you see what will change before anything is saved.</>
+                )}
+              </div>
+              {!onlyHandle && (<>
               {/* Template download */}
               <div style={{ background: "#F6F6F7", borderRadius: "10px", padding: "16px 20px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <div>
@@ -394,6 +433,8 @@ export function ImportProductsModal({ onClose, onSuccess }: Props) {
                 </div>
               </div>
 
+              </>)}
+
               {/* Drop zone */}
               <div
                 onDragOver={e => { e.preventDefault(); setDragOver(true); }}
@@ -426,8 +467,20 @@ export function ImportProductsModal({ onClose, onSuccess }: Props) {
             </div>
           )}
 
+          {/* ── A products file (Export's or Shopify's): read by the server ── */}
+          {productsFile && (
+            <ProductFileImport
+              file={productsFile}
+              onlyHandle={onlyHandle}
+              onBack={() => { setProductsFile(null); setFile(null); setStep("upload"); }}
+              onPhase={setStep}
+              onImported={() => setChanged(true)}
+              onFinish={onSuccess}
+            />
+          )}
+
           {/* ── STEP 2: Preview ────────────────────────────────────────────── */}
-          {step === "preview" && (
+          {step === "preview" && !productsFile && (
             <div>
               <div style={{ marginBottom: "14px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <div>
@@ -506,7 +559,7 @@ export function ImportProductsModal({ onClose, onSuccess }: Props) {
           )}
 
           {/* ── STEP 3: Importing ──────────────────────────────────────────── */}
-          {step === "importing" && (
+          {step === "importing" && !productsFile && (
             <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "48px 24px", textAlign: "center" }}>
               <div style={{ width: "56px", height: "56px", border: "4px solid #EEF2FF", borderTop: "4px solid #1A1A1A", borderRadius: "50%", animation: "spin 1s linear infinite", marginBottom: "24px" }} />
               <div style={{ fontWeight: 700, fontSize: "16px", color: "#2A2830", marginBottom: "8px" }}>
@@ -522,7 +575,7 @@ export function ImportProductsModal({ onClose, onSuccess }: Props) {
           )}
 
           {/* ── STEP 4: Done ───────────────────────────────────────────────── */}
-          {step === "done" && (
+          {step === "done" && !productsFile && (
             <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
               {/* Summary cards */}
               <div style={{ display: "flex", gap: "12px" }}>
@@ -575,11 +628,11 @@ export function ImportProductsModal({ onClose, onSuccess }: Props) {
         {/* Footer */}
         <div style={{ padding: "16px 24px", borderTop: "1px solid #E3E3E3", display: "flex", gap: "10px", justifyContent: "flex-end", flexShrink: 0 }}>
           {step === "upload" && (
-            <button onClick={onClose} style={{ padding: "10px 20px", border: "1px solid #E3E3E3", borderRadius: "6px", background: "#fff", cursor: "pointer", fontWeight: 600, fontSize: "13px" }}>
+            <button onClick={leave} style={{ padding: "10px 20px", border: "1px solid #E3E3E3", borderRadius: "6px", background: "#fff", cursor: "pointer", fontWeight: 600, fontSize: "13px" }}>
               Cancel
             </button>
           )}
-          {step === "preview" && (
+          {step === "preview" && !productsFile && (
             <>
               <button onClick={() => setStep("upload")} style={{ padding: "10px 20px", border: "1px solid #E3E3E3", borderRadius: "6px", background: "#fff", cursor: "pointer", fontWeight: 600, fontSize: "13px" }}>
                 Back
@@ -593,7 +646,7 @@ export function ImportProductsModal({ onClose, onSuccess }: Props) {
               </button>
             </>
           )}
-          {step === "done" && (
+          {step === "done" && !productsFile && (
             <button
               onClick={onClose}
               style={{ padding: "10px 24px", background: "#1A1A1A", color: "#fff", border: "none", borderRadius: "6px", cursor: "pointer", fontWeight: 700, fontSize: "13px" }}

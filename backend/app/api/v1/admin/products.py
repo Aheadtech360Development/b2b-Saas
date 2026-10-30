@@ -6,7 +6,7 @@ from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, Body, Depends, File, HTTPException, Query, Request, UploadFile, status
+from fastapi import APIRouter, Body, Depends, File, Form, HTTPException, Query, Request, UploadFile, status
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import or_, select
@@ -446,10 +446,48 @@ async def import_products_csv(
     return ImportResult(**result)
 
 
+@router.post("/import-file")
+async def import_products_file(
+    file: UploadFile = File(...),
+    update_existing: bool = Form(False),
+    dry_run: bool = Form(True),
+    only_handle: str | None = Form(None),
+    db: AsyncSession = Depends(get_db),
+):
+    """Products from the file Export writes, or a Shopify product CSV
+    (services/product_import). `dry_run` plans and writes nothing: the
+    preview. `only_handle` is Import on one product: its rows only."""
+    from app.services import product_import as pi
+
+    raw = await file.read(pi.MAX_BYTES + 1)
+    if len(raw) > pi.MAX_BYTES:
+        raise HTTPException(status_code=413, detail="That file is larger than 10 MB. Split it into smaller files.")
+    try:
+        text = raw.decode("utf-8-sig")
+    except UnicodeDecodeError:
+        # Excel's plain "CSV" is not UTF-8.
+        text = raw.decode("cp1252", errors="replace")
+    try:
+        return await pi.run(db, text, update_existing=update_existing, dry_run=dry_run,
+                            only_handle=(only_handle or "").strip() or None)
+    except pi.ImportFileError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+
+
 @router.get("/export-csv")
-async def export_products_csv(db: AsyncSession = Depends(get_db)):
-    svc = ProductService(db)
-    csv_content = await svc.export_to_csv()
+async def export_products_csv(
+    ids: str | None = Query(None, description="Product ids, comma separated: only these. None: every product."),
+    db: AsyncSession = Depends(get_db),
+):
+    chosen = None
+    if ids is not None:
+        try:
+            chosen = [UUID(x) for x in ids.split(",") if x.strip()]
+        except ValueError:
+            raise HTTPException(status_code=422, detail="ids are product ids, separated by commas.")
+    from app.services.product_export import export_csv
+
+    csv_content = await export_csv(db, chosen)
     return StreamingResponse(
         io.BytesIO(csv_content.encode()),
         media_type="text/csv",

@@ -34,6 +34,7 @@ import { ProductOptionsBuilder } from "@/components/admin/ProductOptionsBuilder"
 import { productTemplatesService, type ProductTemplateRow } from "@/services/productTemplates.service";
 import { WebsiteTemplateField } from "@/components/admin/WebsiteTemplateField";
 import { TrackStockSwitch } from "@/components/admin/TrackStockSwitch";
+import { ImportProductsModal } from "@/components/admin/ImportProductsModal";
 import { displayUrl } from "@/lib/brand";
 
 const METAFIELD_KEY = /^[a-z][a-z0-9_]{0,39}$/;
@@ -127,6 +128,8 @@ function ProductEditor() {
   const [snapshot, setSnapshot] = useState("");
   const dirtyRef = useRef(false);
   const [notice, setNotice] = useState<string | null>(null);
+  // Import on this product: a products file, this product's rows only.
+  const [fileImport, setFileImport] = useState(false);
 
   // Variant expand state
   const [expandedGroups, setExpandedGroups] = useState<string[]>([]);
@@ -585,7 +588,25 @@ function ProductEditor() {
             {KIND_WORDS[kind]} · <a href={`/products/${product.slug}`} target="_blank" rel="noopener noreferrer" className="pc-link" style={{ fontSize: "inherit", fontWeight: 500 }}>/products/{product.slug}</a>
           </p>
         </div>
+        {/* This product alone as the products file, and back in from one. */}
+        <div style={{ display: "flex", gap: "8px", flexShrink: 0 }}>
+          <button type="button" className="pc-btn" data-export-product
+            onClick={() => { adminService.exportProductsCsv([product.id], `${product.slug}.csv`).catch(() => setNotice("The export did not download. Try again.")); }}>
+            Export
+          </button>
+          <button type="button" className="pc-btn" data-import-product disabled={dirty}
+            title={dirty ? "Save or discard your changes first" : undefined} onClick={() => setFileImport(true)}>
+            Import
+          </button>
+        </div>
       </div>
+      {fileImport && (
+        <ImportProductsModal
+          onlyHandle={product.slug}
+          onClose={() => setFileImport(false)}
+          onSuccess={() => { setFileImport(false); void load(false); }}
+        />
+      )}
 
       <nav className="pc-tabs" aria-label="Product">
         {TABS.map((t) => (
