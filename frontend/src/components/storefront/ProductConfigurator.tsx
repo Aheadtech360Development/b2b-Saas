@@ -19,7 +19,7 @@ import { cartService } from "@/services/cart.service";
 import { useAuthStore } from "@/stores/auth.store";
 import { trackConfiguredAdd } from "@/lib/tracking";
 import { dropDraft, keepDraft, readDraft, signInAndComeBack } from "@/lib/builderDraft";
-import { evaluateRules, type OptionRule } from "@/lib/optionRules";
+import { evaluateRules, offered, type OptionRule } from "@/lib/optionRules";
 import type { Cart } from "@/types/order.types";
 
 interface OptValue {
@@ -99,21 +99,24 @@ export function ProductConfigurator({ productId, productName }: { productId: str
   }, [productId]);
 
   // A rule can forbid the choice that's currently selected (pick UV Coating and
-  // the chosen Laminating becomes invalid). Move to the next allowed choice
-  // before pricing, so the buyer never sees an error they didn't cause.
+  // the chosen Laminating becomes invalid), or take it off the page (a "show
+  // only these choices" rule). Move to the next allowed choice before pricing,
+  // so the buyer never sees an error they didn't cause.
   useEffect(() => {
     if (!cfg?.rules?.length) return;
-    const { disabledValues } = evaluateRules(cfg.rules, sel);
-    if (!disabledValues.size) return;
+    const { disabledValues, onlyValues } = evaluateRules(cfg.rules, sel, cfg.options);
+    if (!disabledValues.size && !onlyValues.size) return;
+    const usable = (optionId: string, valueId: string) =>
+      !disabledValues.has(valueId) && offered(onlyValues, optionId, valueId);
     let changed = false;
     const next: Record<string, string | string[]> = { ...sel };
     for (const o of cfg.options) {
       const cur = next[o.id];
       if (Array.isArray(cur)) {
-        const keep = cur.filter((id) => !disabledValues.has(id));
+        const keep = cur.filter((id) => usable(o.id, id));
         if (keep.length !== cur.length) { next[o.id] = keep; changed = true; }
-      } else if (cur && disabledValues.has(cur)) {
-        const allowed = o.values.find((v) => !disabledValues.has(v.id));
+      } else if (cur && !usable(o.id, cur)) {
+        const allowed = o.values.find((v) => usable(o.id, v.id));
         if (allowed) next[o.id] = allowed.id; else delete next[o.id];
         changed = true;
       }
@@ -162,7 +165,7 @@ export function ProductConfigurator({ productId, productName }: { productId: str
     ))}</div>;
   }
 
-  const { hidden, disabledOptions, disabledValues } = evaluateRules(cfg.rules ?? [], sel);
+  const { hidden, disabledOptions, disabledValues, onlyValues, onlyNotes } = evaluateRules(cfg.rules ?? [], sel, cfg.options);
   // A product that asks how many as one of its questions needs no box for it.
   const asksHowMany = cfg.options.some((o) => o.input_type === "quantity");
   const oneOff = price ? Math.max(0, price.setup_fees - (price.rounding ?? 0)) : 0;
@@ -186,9 +189,12 @@ export function ProductConfigurator({ productId, productName }: { productId: str
         {cfg.options.filter((o) => !hidden.has(o.id)).map((o) => {
           const offNote = disabledOptions.get(o.id);
           const chosen = sel[o.id];
+          // The choices on offer: a "show only these choices" rule takes the rest off the page.
+          const values = o.values.filter((v) => offered(onlyValues, o.id, v.id));
+          const onlyNote = onlyNotes.get(o.id);
           // Picture-led choices read better as tiles than as a dropdown.
           const asTiles = !offNote && o.input_type !== "checkbox" && o.input_type !== "swatch"
-            && o.values.some((v) => v.image_url);
+            && values.some((v) => v.image_url);
           return (
             <div key={o.id} style={{ opacity: offNote ? 0.55 : 1, transition: "opacity .18s ease" }}>
               <label style={LABEL}>
@@ -200,7 +206,7 @@ export function ProductConfigurator({ productId, productName }: { productId: str
                 <div style={OFF_NOTE}>{offNote}</div>
               ) : asTiles ? (
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(104px, 1fr))", gap: "8px" }}>
-                  {o.values.map((v) => {
+                  {values.map((v) => {
                     const active = chosen === v.id;
                     const off = disabledValues.get(v.id);
                     return (
@@ -219,7 +225,7 @@ export function ProductConfigurator({ productId, productName }: { productId: str
                 </div>
               ) : o.input_type === "swatch" ? (
                 <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
-                  {o.values.map((v) => {
+                  {values.map((v) => {
                     const active = chosen === v.id;
                     const off = disabledValues.get(v.id);
                     return (
@@ -233,7 +239,7 @@ export function ProductConfigurator({ productId, productName }: { productId: str
                   {/* A circle has no words on it, and a phone has no hover to show
                       the title — so name the chosen one outright. */}
                   {(() => {
-                    const picked = o.values.find((v) => v.id === chosen);
+                    const picked = values.find((v) => v.id === chosen);
                     return picked ? (
                       <div style={{ flexBasis: "100%", fontSize: "13px", color: "#4A4A4A", marginTop: "2px" }}>
                         <strong style={{ color: "#1A1A1A" }}>{picked.label}</strong>
@@ -244,7 +250,7 @@ export function ProductConfigurator({ productId, productName }: { productId: str
                 </div>
               ) : o.input_type === "radio" ? (
                 <div style={{ display: "grid", gap: "8px" }}>
-                  {o.values.map((v) => {
+                  {values.map((v) => {
                     const active = chosen === v.id;
                     const off = disabledValues.get(v.id);
                     return (
@@ -264,7 +270,7 @@ export function ProductConfigurator({ productId, productName }: { productId: str
                 </div>
               ) : o.input_type === "checkbox" ? (
                 <div style={{ display: "grid", gap: "8px" }}>
-                  {o.values.map((v) => {
+                  {values.map((v) => {
                     const on = Array.isArray(chosen) && chosen.includes(v.id);
                     const off = disabledValues.get(v.id);
                     return (
@@ -285,7 +291,7 @@ export function ProductConfigurator({ productId, productName }: { productId: str
               ) : (
                 <select value={typeof chosen === "string" ? chosen : ""} onChange={(e) => pick(o.id, e.target.value)} style={SELECT}>
                   {!o.required && <option value="">None</option>}
-                  {o.values.map((v) => (
+                  {values.map((v) => (
                     <option key={v.id} value={v.id} disabled={disabledValues.has(v.id)}>
                       {v.label}{v.price_delta !== 0 ? `  (${fmtDelta(v)})` : ""}
                       {disabledValues.has(v.id) ? ` — ${disabledValues.get(v.id)}` : ""}
@@ -293,6 +299,7 @@ export function ProductConfigurator({ productId, productName }: { productId: str
                   ))}
                 </select>
               )}
+              {!offNote && onlyNote && <div style={ONLY_NOTE}>{onlyNote}</div>}
             </div>
           );
         })}
@@ -357,6 +364,7 @@ const TILE: React.CSSProperties = { border: "1px solid #E2E2DE", borderRadius: "
 const THUMB: React.CSSProperties = { width: "34px", height: "34px", objectFit: "cover", borderRadius: "5px", border: "1px solid #EFEFEC" };
 const OFF_NOTE: React.CSSProperties = { padding: "11px 12px", border: "1px dashed #D6D3CC", borderRadius: "8px", fontSize: "12px", color: "#8A8A8A", background: "#FAFAF9" };
 const OFF_TAG: React.CSSProperties = { display: "block", fontSize: "11px", color: "#9CA3AF", marginTop: "1px" };
+const ONLY_NOTE: React.CSSProperties = { fontSize: "12px", color: "#8A8A8A", marginTop: "6px" };
 const QUOTE: React.CSSProperties = { marginTop: "22px", padding: "18px 20px", background: "#F7F7F5", border: "1px solid #E2E2DE", borderRadius: "10px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: "16px", flexWrap: "wrap" };
 const CTA: React.CSSProperties = { background: "#DC2626", color: "#fff", border: "none", borderRadius: "6px", padding: "15px 34px", fontSize: "15px", fontWeight: 800, letterSpacing: ".03em", cursor: "pointer" };
 const ERR: React.CSSProperties = { marginTop: "14px", background: "#FEF2F2", border: "1px solid #FCA5A5", color: "#991B1B", borderRadius: "8px", padding: "10px 14px", fontSize: "13px" };

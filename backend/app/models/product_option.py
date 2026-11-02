@@ -45,7 +45,11 @@ INPUT_TYPES = ("select", "radio", "swatch", "checkbox", "number", "text", "quant
 #   hide_option    → the target option disappears entirely
 #   disable_option → shown but greyed with the rule's note ("N/A with UV Coating")
 #   disable_value  → one choice inside the target option becomes unpickable
-RULE_ACTIONS = ("hide_option", "disable_option", "disable_value")
+#   only_values    → the target option offers only the rule's choices; the rest
+#                    leave the page (14 pt card: Coating offers No Coating). One
+#                    row per choice kept; the rows of one trigger and one target
+#                    add up to the choices it keeps.
+RULE_ACTIONS = ("hide_option", "disable_option", "disable_value", "only_values")
 
 
 class ProductOption(TenantMixin, BaseModel):

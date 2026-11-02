@@ -27,7 +27,7 @@ import type { Cart } from "@/types/order.types";
 import { addToGuestCart, configuredGuestLine, configuredKey } from "@/lib/guestCart";
 import { takeResume } from "@/lib/builderDraft";
 import { announceColour } from "@/lib/colourPictures";
-import { evaluateRules, type OptionRule } from "@/lib/optionRules";
+import { evaluateRules, offered, type OptionRule } from "@/lib/optionRules";
 
 export interface ThemeVariant {
   id: string;
@@ -290,15 +290,17 @@ export default function ThemeProductBuy({ product }: { product: ThemeProductData
     // The shop's rules (Coating = UV greys out Laminating), applied the way the
     // older product page and the server apply them: a field a rule hides or
     // greys out loses its answer, a choice a rule switches off cannot be
-    // picked, and an answer a rule now forbids moves to the next one allowed.
-    // This page never read them: it offered choices the server then refused
-    // ("Not available") and kept every field the shop had switched off.
+    // picked, a "show only these choices" rule takes the rest off the page,
+    // and an answer a rule now forbids moves to the next one allowed (the only
+    // one left, when one is left). This page never read them: it offered
+    // choices the server then refused ("Not available") and kept every field
+    // the shop had switched off.
     const rules = product.rules ?? [];
     const showChoiceOf = new Map<HTMLElement, (chosenLabel: string) => void>();
 
     /** Whether a rule hides or greys out this question, for the answers now. */
     function switchedOff() {
-      const { hidden, disabledOptions } = evaluateRules(rules, chosen);
+      const { hidden, disabledOptions } = evaluateRules(rules, chosen, product.options);
       return (optionId: string) => hidden.has(optionId) || disabledOptions.has(optionId);
     }
 
@@ -338,7 +340,8 @@ export default function ThemeProductBuy({ product }: { product: ThemeProductData
       // An answer that moves can switch another rule on or off, so this runs
       // again until nothing moves.
       for (let pass = 0; pass <= groups.length; pass++) {
-        const { hidden, disabledOptions, disabledValues } = evaluateRules(rules, chosen);
+        const { hidden, disabledOptions, disabledValues, onlyValues, onlyNotes } =
+          evaluateRules(rules, chosen, product.options);
         let moved = false;
         for (const group of groups) {
           const optionId = group.dataset.optionId;
@@ -347,10 +350,14 @@ export default function ThemeProductBuy({ product }: { product: ThemeProductData
           const fieldNote = disabledOptions.get(optionId);
           group.style.display = hidden.has(optionId) ? "none" : "";
           group.style.opacity = fieldNote ? "0.55" : "";
-          noteFor(group, fieldNote);
+          noteFor(group, fieldNote ?? onlyNotes.get(optionId));
           items.forEach((item) => {
-            const valueNote = disabledValues.get(item.dataset.valueId ?? "");
-            markOff(item, fieldNote ?? valueNote, !fieldNote);
+            const valueId = item.dataset.valueId ?? "";
+            // Not offered at all with these answers: off the page, not greyed.
+            const gone = !offered(onlyValues, optionId, valueId);
+            item.toggleAttribute("data-rule-gone", gone);
+            item.style.display = gone ? "none" : "";
+            markOff(item, fieldNote ?? disabledValues.get(valueId), !fieldNote);
           });
 
           const before = chosen[optionId];
@@ -358,8 +365,8 @@ export default function ThemeProductBuy({ product }: { product: ThemeProductData
             // Left out of the price and the order. The choice stays marked, so
             // the field comes back with it when the rule lets go.
             delete chosen[optionId];
-          } else if (!before || disabledValues.has(before)) {
-            const allowed = (i: HTMLElement) => !i.hasAttribute("data-rule-off");
+          } else if (!before || disabledValues.has(before) || !offered(onlyValues, optionId, before)) {
+            const allowed = (i: HTMLElement) => !i.hasAttribute("data-rule-off") && !i.hasAttribute("data-rule-gone");
             const next = items.find((i) => i.classList.contains("selected") && allowed(i)) ?? items.find(allowed);
             items.forEach((i) => i.classList.toggle("selected", i === next));
             if (next) chosen[optionId] = next.dataset.valueId ?? "";
@@ -398,7 +405,7 @@ export default function ThemeProductBuy({ product }: { product: ThemeProductData
         }
         const onClick = (e: Event) => {
           e.preventDefault();
-          if (item.hasAttribute("data-rule-off")) return;
+          if (item.hasAttribute("data-rule-off") || item.hasAttribute("data-rule-gone")) return;
           items.forEach((other) => other.classList.remove("selected"));
           item.classList.add("selected");
           if (item.dataset.sheetId) sheetId = item.dataset.sheetId;

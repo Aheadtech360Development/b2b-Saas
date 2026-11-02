@@ -125,6 +125,34 @@ describe("the shop's rules on a builder product page", () => {
     expect(group(root, "coating").querySelector("[data-rule-note]")).toBeNull();
   });
 
+  it("shows only the choices a rule keeps, picks the one left, and brings the rest back", async () => {
+    vi.mocked(api.post).mockResolvedValue({ unit_price: 20, total: 20, quantity: 1 });
+    const root = page();
+    render(<ThemeProductBuy product={card([
+      { when_value_id: "p14", action: "only_values", target_option_id: "coating", target_value_id: "none" },
+    ])} />);
+
+    // 14 pt paper: Coating offers No Coating alone, already picked; the rest have left the page.
+    await waitFor(() => expect(lastSelections()).toEqual({ paper: "p14", coating: "none" }));
+    expect(picked(root, "coating")).toBe("none");
+    expect(choice(root, "uv").style.display).toBe("none");
+    expect(choice(root, "matte").style.display).toBe("none");
+    expect(choice(root, "none").style.display).toBe("");
+    expect(group(root, "coating").querySelector(".vlabel")!.textContent).toBe("Coating: No Coating");
+
+    // 16 pt paper: every coating is back to choose from.
+    fireEvent.click(choice(root, "p16"));
+    await waitFor(() => expect(lastSelections()).toEqual({ paper: "p16", coating: "none" }));
+    expect(choice(root, "uv").style.display).toBe("");
+    expect(choice(root, "matte").style.display).toBe("");
+    fireEvent.click(choice(root, "matte"));
+    await waitFor(() => expect(lastSelections()).toEqual({ paper: "p16", coating: "matte" }));
+
+    // Back to 14 pt: Matte is not offered there, so No Coating is picked again.
+    fireEvent.click(choice(root, "p14"));
+    await waitFor(() => expect(lastSelections()).toEqual({ paper: "p14", coating: "none" }));
+  });
+
   it("adds to the cart without asking for a required field a rule hid", async () => {
     vi.mocked(api.post).mockResolvedValue({ unit_price: 20, total: 20, quantity: 1 });
     const root = page();

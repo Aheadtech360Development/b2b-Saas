@@ -18,7 +18,7 @@ from decimal import Decimal
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, NonNegativeInt
 from sqlalchemy import func, or_, select, text as _sa_text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -91,6 +91,8 @@ class RuleIn(BaseModel):
     action: str = "disable_option"
     target_option: Optional[int] = Field(None, ge=0)
     target_value: Optional[int] = Field(None, ge=0)
+    # "Show only these choices": the target option's choices it keeps.
+    target_values: list[NonNegativeInt] = Field(default_factory=list, max_length=500)
     note: Optional[str] = Field(None, max_length=200)
 
 
@@ -149,22 +151,37 @@ def _rule_rows(product: Product) -> list[dict]:
             val_label[str(v.id)] = v.label
 
     rows: list[dict] = []
+    # A "show only these choices" rule is a row per choice it keeps; the editor
+    # shows it as one rule with those choices ticked.
+    only: dict[tuple[str, str], dict] = {}
     for r in product.option_rules or []:
         when = val_idx.get(str(r.when_value_id))
         if when is None:
             continue                       # trigger choice was deleted — ignore
         target_opt = opt_idx.get(str(r.target_option_id)) if r.target_option_id else None
         target_val = val_idx.get(str(r.target_value_id)) if r.target_value_id else None
-        rows.append({
+        if r.action == "only_values":
+            if target_opt is None or target_val is None or target_val[0] != target_opt:
+                continue                   # its field or choice was deleted
+            group = only.get((str(r.when_value_id), str(r.target_option_id)))
+            if group is not None:
+                group["target_values"] = sorted({*group["target_values"], target_val[1]})
+                group["note"] = group["note"] or r.note
+                continue
+        row = {
             "id": str(r.id),
             "when_option": when[0],
             "when_value": when[1],
             "when_label": f"{opt_name.get(str(options[when[0]].id), '')} · {val_label.get(str(r.when_value_id), '')}",
             "action": r.action,
             "target_option": target_opt if target_opt is not None else (target_val[0] if target_val else None),
-            "target_value": target_val[1] if target_val else None,
+            "target_value": target_val[1] if target_val and r.action != "only_values" else None,
+            "target_values": [target_val[1]] if r.action == "only_values" and target_val else [],
             "note": r.note,
-        })
+        }
+        if r.action == "only_values":
+            only[(str(r.when_value_id), str(r.target_option_id))] = row
+        rows.append(row)
     return rows
 
 
@@ -371,6 +388,24 @@ async def save_product_config(
             raise HTTPException(status_code=400, detail=f"Unknown rule action '{r_in.action}'")
 
         when_id = _value_id(r_in.when_option, r_in.when_value)
+        if r_in.action == "only_values":
+            # One row per choice kept, written afresh each save; the rows it
+            # replaces are not kept, so the loop below deletes them.
+            target_option_id = _option_id(r_in.target_option)
+            if str(target_option_id) == str(opt_ids[r_in.when_option]):
+                raise HTTPException(status_code=400, detail="A rule cannot target its own field")
+            if not r_in.target_values:
+                raise HTTPException(status_code=400, detail="Tick at least one choice for a \"show only these choices\" rule")
+            for vi in dict.fromkeys(r_in.target_values):
+                row = ProductOptionRule(
+                    product_id=product_id, when_value_id=when_id, action="only_values",
+                    target_option_id=target_option_id, target_value_id=_value_id(r_in.target_option, vi),
+                    note=r_in.note,
+                )
+                db.add(row)
+                await db.flush()
+                keep_rules.add(str(row.id))
+            continue
         if r_in.action == "disable_value":
             target_option_id = None
             target_value_id = _value_id(r_in.target_option, r_in.target_value)

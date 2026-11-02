@@ -147,9 +147,15 @@ def evaluate_rules(rules, selections: dict) -> dict:
     """Work out what the current selection switches off.
 
     Returns the option ids to hide, the option ids to disable (with the note to
-    show instead), and the individual choices to disable. Both the storefront and
+    show instead), the individual choices to disable, and for an option a "show
+    only these choices" rule narrows, the choices it still offers (with the
+    shop's note, when it wrote one). Both the storefront (lib/optionRules) and
     this engine call it, so what the buyer sees and what the server accepts can
     never disagree.
+
+    The choices one trigger keeps add up, row by row; two triggers narrowing
+    the same option leave only what both keep, and an option left with none is
+    hidden rather than left asking for an answer nobody can give.
     """
     picked: set[str] = set()
     for v in (selections or {}).values():
@@ -161,6 +167,8 @@ def evaluate_rules(rules, selections: dict) -> dict:
     hidden: set[str] = set()
     disabled_options: dict[str, str] = {}
     disabled_values: dict[str, str] = {}
+    kept: dict[tuple[str, str], set[str]] = {}   # (trigger, option) -> choices it keeps
+    only_notes: dict[str, str] = {}
 
     for r in rules or []:
         if str(r.when_value_id) not in picked:
@@ -172,8 +180,24 @@ def evaluate_rules(rules, selections: dict) -> dict:
             disabled_options[str(r.target_option_id)] = note
         elif r.action == "disable_value" and r.target_value_id:
             disabled_values[str(r.target_value_id)] = note
+        elif r.action == "only_values" and r.target_option_id and r.target_value_id:
+            kept.setdefault((str(r.when_value_id), str(r.target_option_id)), set()).add(str(r.target_value_id))
+            if r.note:
+                only_notes.setdefault(str(r.target_option_id), r.note)
 
-    return {"hidden_options": hidden, "disabled_options": disabled_options, "disabled_values": disabled_values}
+    only_values: dict[str, set[str]] = {}
+    for (_, option_id), choices in kept.items():
+        only_values[option_id] = only_values[option_id] & choices if option_id in only_values else set(choices)
+    hidden.update(option_id for option_id, choices in only_values.items() if not choices)
+
+    return {"hidden_options": hidden, "disabled_options": disabled_options, "disabled_values": disabled_values,
+            "only_values": only_values, "only_notes": only_notes}
+
+
+def _nothing_offered(option, only_values: dict[str, set[str]]) -> bool:
+    """A "show only these choices" rule left this option no choice it sells."""
+    keep = only_values.get(str(option.id))
+    return keep is not None and not any(v.enabled and str(v.id) in keep for v in (option.values or []))
 
 
 def public_rules(rules) -> list[dict]:
@@ -265,6 +289,7 @@ def compute_price(product, tiers, override_rows, selections: dict, quantity: int
     # buyer can't see is never charged for and never counts as "required".
     active = evaluate_rules(product.option_rules, wanted)
     off_options = active["hidden_options"] | set(active["disabled_options"])
+    off_options.update(str(o.id) for o in product.options or [] if _nothing_offered(o, active["only_values"]))
 
     # How many the line is for. A product that asks it as one of its questions
     # is priced for the number the buyer picked there, whatever number came
@@ -354,6 +379,10 @@ def compute_price(product, tiers, override_rows, selections: dict, quantity: int
                 raise ConfigurationError(
                     f'"{value.label}" is not available - {active["disabled_values"][value_id]}.'
                 )
+            keep = active["only_values"].get(str(option.id))
+            if keep is not None and value_id not in keep:
+                note = active["only_notes"].get(str(option.id)) or "Not available with your current selection"
+                raise ConfigurationError(f'"{value.label}" is not available - {note}.')
 
             delta = Decimal(str(value.price_delta or 0))
             mode = (value.price_mode or "flat").lower()
@@ -457,18 +486,21 @@ def default_selections(product: Product) -> dict:
     rules = getattr(product, "option_rules", None)
     active = evaluate_rules(rules, out)
     off = active["hidden_options"] | set(active["disabled_options"])
+    off.update(str(o.id) for o in product.options or [] if _nothing_offered(o, active["only_values"]))
     for option_id in off:
         out.pop(option_id, None)
 
-    # A default choice that a rule forbids falls through to the next allowed one,
-    # so a required field still opens with something valid selected.
+    # A default choice that a rule forbids, or leaves off the page, falls
+    # through to the next allowed one, so a required field still opens with
+    # something valid selected.
     for option in product.options or []:
         current = out.get(str(option.id))
-        if not current or current not in active["disabled_values"]:
+        keep = active["only_values"].get(str(option.id))
+        if not current or (current not in active["disabled_values"] and (keep is None or current in keep)):
             continue
         allowed = [
             v for v in sorted(option.values, key=lambda v: v.position)
-            if v.enabled and str(v.id) not in active["disabled_values"]
+            if v.enabled and str(v.id) not in active["disabled_values"] and (keep is None or str(v.id) in keep)
         ]
         if allowed:
             out[str(option.id)] = str(allowed[0].id)

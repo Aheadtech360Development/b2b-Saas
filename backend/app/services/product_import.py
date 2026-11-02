@@ -656,13 +656,17 @@ async def _apply(db, plan: ProductPlan, existing: Any, categories: dict, made_ca
             when = values_by_name.get(tuple(str(x).lower() for x in (rule.get("when") or [])[:2]))
             target_option = option_ids.get(str(rule.get("option") or "").lower())
             target_value = values_by_name.get((str(rule.get("option") or "").lower(), str(rule.get("value") or "").lower()))
-            if when is None or (target_option is None and target_value is None):
+            # "Show only these choices" names both: the option it narrows and
+            # one choice it keeps (Export writes one entry per choice kept).
+            keeps = rule["action"] == "only_values"
+            if when is None or (target_option is None and target_value is None) \
+                    or (keeps and (target_option is None or target_value is None)):
                 plan.notes.append("A rule naming an option or value the file does not have was left out.")
                 continue
             db.add(ProductOptionRule(
                 product_id=product.id, when_value_id=when, action=rule["action"],
                 target_option_id=None if rule["action"] == "disable_value" else target_option,
-                target_value_id=target_value if rule["action"] == "disable_value" else None,
+                target_value_id=target_value if rule["action"] in ("disable_value", "only_values") else None,
                 note=rule.get("note") or None,
             ))
     await db.flush()

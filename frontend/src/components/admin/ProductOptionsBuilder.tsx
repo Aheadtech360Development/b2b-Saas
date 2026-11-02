@@ -22,7 +22,7 @@ import { PriceGridImport, type Imported } from "@/components/admin/PriceGridImpo
 
 type PriceMode = "flat" | "per_unit" | "percent";
 type InputType = "select" | "radio" | "swatch" | "checkbox" | "number" | "text" | "quantity";
-type RuleAction = "hide_option" | "disable_option" | "disable_value";
+type RuleAction = "hide_option" | "disable_option" | "disable_value" | "only_values";
 
 interface OptValue {
   id?: string;
@@ -62,6 +62,8 @@ interface Rule {
   action: RuleAction;
   target_option: number | null;
   target_value: number | null;
+  /** "Show only these choices": the target question's choices it keeps. */
+  target_values?: number[];
   note?: string | null;
 }
 
@@ -197,6 +199,7 @@ const RULE_ACTION_LABEL: Record<RuleAction, string> = {
   disable_option: "grey out the field",
   hide_option: "hide the field",
   disable_value: "grey out one choice",
+  only_values: "show only these choices",
 };
 
 export function ProductOptionsBuilder({ productId }: { productId: string }) {
@@ -346,6 +349,9 @@ export function ProductOptionsBuilder({ productId }: { productId: string }) {
         when_value: r.when_option === oi && r.when_value > vi ? r.when_value - 1 : r.when_value,
         target_value: r.target_option === oi && r.target_value != null && r.target_value > vi
           ? r.target_value - 1 : r.target_value,
+        target_values: r.target_option === oi && r.target_values
+          ? r.target_values.filter(x => x !== vi).map(x => (x > vi ? x - 1 : x))
+          : r.target_values,
       })));
   };
 
@@ -401,6 +407,14 @@ export function ProductOptionsBuilder({ productId }: { productId: string }) {
           const to = r.target_option != null ? optMap.get(r.target_option) : undefined;
           if (to == null || tv == null) return [];
           return [{ ...r, when_option: whenO, when_value: whenV, target_option: to, target_value: tv }];
+        }
+        if (r.action === "only_values") {
+          const to = r.target_option != null ? optMap.get(r.target_option) : undefined;
+          const kept = (r.target_values ?? [])
+            .map(vi => valMap.get(`${r.target_option}:${vi}`))
+            .filter((x): x is number => x != null);
+          if (to == null || to === whenO || !kept.length) return [];   // nothing ticked yet
+          return [{ ...r, when_option: whenO, when_value: whenV, target_option: to, target_value: null, target_values: kept }];
         }
         const to = r.target_option != null ? optMap.get(r.target_option) : undefined;
         if (to == null || to === whenO) return [];            // no target, or itself
@@ -646,7 +660,7 @@ export function ProductOptionsBuilder({ productId }: { productId: string }) {
         {/* Answers that rule others out */}
         <section className="pc-card pc-pad" aria-labelledby="ob-rules">
           <h2 className="pc-h2" id="ob-rules" style={{ marginBottom: "4px" }}>Answers that rule others out</h2>
-          <p className="pc-sub-line" style={{ fontSize: "13px", margin: "0 0 12px" }}>Switch a question off when another answer makes it impossible: Coating = UV greys out Laminating. The customer sees your note, and a switched-off question is left out of the price.</p>
+          <p className="pc-sub-line" style={{ fontSize: "13px", margin: "0 0 12px" }}>Switch a question off when another answer makes it impossible: Coating = UV greys out Laminating. Or keep only the choices that fit: 14 pt paper shows only No Coating, and the rest leave the page. The customer sees your note, and a switched-off question is left out of the price.</p>
           {rules.map((r, ri) => {
             const whenOpt = options[r.when_option];
             const targetOpt = r.target_option != null ? options[r.target_option] : undefined;
@@ -661,10 +675,10 @@ export function ProductOptionsBuilder({ productId }: { productId: string }) {
                 <select className="pc-input" style={{ width: "auto", maxWidth: "180px" }} value={r.when_value} onChange={e => patchRule({ when_value: Number(e.target.value) })}>
                   {(whenOpt?.values ?? []).map((v, i) => <option key={i} value={i}>{v.label || `Choice ${i + 1}`}</option>)}
                 </select>
-                <select className="pc-input" style={{ width: "auto" }} value={r.action} onChange={e => patchRule({ action: e.target.value as RuleAction, target_value: null })}>
+                <select className="pc-input" style={{ width: "auto" }} value={r.action} onChange={e => patchRule({ action: e.target.value as RuleAction, target_value: null, target_values: [] })}>
                   {(Object.keys(RULE_ACTION_LABEL) as RuleAction[]).map(a => <option key={a} value={a}>{RULE_ACTION_LABEL[a]}</option>)}
                 </select>
-                <select className="pc-input" style={{ width: "auto", maxWidth: "180px" }} value={r.target_option ?? ""} onChange={e => patchRule({ target_option: e.target.value === "" ? null : Number(e.target.value), target_value: null })}>
+                <select className="pc-input" style={{ width: "auto", maxWidth: "180px" }} value={r.target_option ?? ""} onChange={e => patchRule({ target_option: e.target.value === "" ? null : Number(e.target.value), target_value: null, target_values: [] })}>
                   <option value="">Choose a question…</option>
                   {options.map((o, i) => i === r.when_option ? null : <option key={i} value={i}>{o.name || `Question ${i + 1}`}</option>)}
                 </select>
@@ -674,8 +688,34 @@ export function ProductOptionsBuilder({ productId }: { productId: string }) {
                     {(targetOpt?.values ?? []).map((v, i) => <option key={i} value={i}>{v.label || `Choice ${i + 1}`}</option>)}
                   </select>
                 )}
+                {r.action === "only_values" && (
+                  // The choices the customer still gets; every other one leaves the
+                  // page, and when one is left it is picked for them.
+                  <div data-only-values style={{ flexBasis: "100%", display: "flex", flexWrap: "wrap", gap: "6px 14px", alignItems: "center" }}>
+                    {targetOpt ? (<>
+                      <span className="pc-q-n">Keep</span>
+                      {targetOpt.values.map((v, i) => (
+                        <label key={i} style={CHECK}>
+                          <input type="checkbox" checked={(r.target_values ?? []).includes(i)}
+                            onChange={e => patchRule({
+                              target_values: e.target.checked
+                                ? [...(r.target_values ?? []), i].sort((a, b) => a - b)
+                                : (r.target_values ?? []).filter(x => x !== i),
+                            })} />
+                          {v.label || `Choice ${i + 1}`}
+                        </label>
+                      ))}
+                      {!(r.target_values ?? []).length && (
+                        <span style={{ fontSize: "12.5px", color: "var(--pc-red)" }}>Tick the choices that stay. A rule with none ticked is not saved.</span>
+                      )}
+                    </>) : (
+                      <span className="pc-sub-line" style={{ fontSize: "13px" }}>Choose the question to narrow, then tick the choices that stay.</span>
+                    )}
+                  </div>
+                )}
                 <input className="pc-input" value={r.note ?? ""} onChange={e => patchRule({ note: e.target.value })} maxLength={200}
-                  placeholder='Note for the customer, e.g. "N/A with UV Coating"' style={{ flex: 1, minWidth: "200px" }} />
+                  placeholder={r.action === "only_values" ? 'Note under the question (optional), e.g. "Uncoated paper takes no coating"' : 'Note for the customer, e.g. "N/A with UV Coating"'}
+                  style={{ flex: 1, minWidth: "200px" }} />
                 <button type="button" className="pc-link" style={{ color: "var(--pc-red)" }} onClick={() => setRules(x => x.filter((_, k) => k !== ri))}>Remove</button>
               </div>
             );
