@@ -850,52 +850,6 @@ export default function AboutPage() {
           </div>
         </div>
       </section>
-      <section style={{ background: "#F6F8FB" }}>
-        <div className={s["sec"]} style={{ maxWidth: "1200px", margin: "0 auto", padding: "96px 32px" }}>
-          <p
-            style={{
-              fontSize: "12px",
-              lineHeight: "16px",
-              fontWeight: "600",
-              letterSpacing: ".08em",
-              textTransform: "uppercase",
-              color: "#0B66E4",
-            }}
-          >
-            The team
-          </p>
-          <h2
-            className={s["d"]}
-            style={{ marginTop: "12px", maxWidth: "760px", fontSize: "40px", lineHeight: "44px", color: "#0C1E35" }}
-          >
-            The people behind PrintCoPilot.
-          </h2>
-          <div
-            style={{
-              marginTop: "32px",
-              background: "#FFFFFF",
-              border: "1.5px dashed #D5DCE6",
-              borderRadius: "12px",
-              padding: "32px",
-            }}
-          >
-            <p
-              style={{
-                fontSize: "12px",
-                fontWeight: "600",
-                letterSpacing: ".08em",
-                textTransform: "uppercase",
-                color: "#5A6A7E",
-              }}
-            >
-              Placeholder
-            </p>
-            <p style={{ marginTop: "8px", fontSize: "16px", lineHeight: "24px", color: "#5A6A7E" }}>
-              [FOUNDER AND TEAM NAMES, PHOTOS AND ROLES GO HERE. Add only people who agree to be shown.]
-            </p>
-          </div>
-        </div>
-      </section>
       <section id="cta" style={{ position: "relative", overflow: "hidden", background: "#0C1E35", color: "#FFFFFF" }}>
         <div
           className={s["grid-bg"]}

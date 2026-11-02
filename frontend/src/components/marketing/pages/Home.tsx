@@ -1317,35 +1317,6 @@ export default function HomePage() {
               </p>
             </div>
           </div>
-
-          <div
-            style={{
-              marginTop: "32px",
-              background: "#F6F8FB",
-              border: "1.5px dashed #D5DCE6",
-              borderRadius: "12px",
-              padding: "20px 24px",
-              display: "flex",
-              flexWrap: "wrap",
-              alignItems: "center",
-              gap: "12px 24px",
-            }}
-          >
-            <span
-              style={{
-                fontSize: "12px",
-                fontWeight: "600",
-                letterSpacing: ".08em",
-                textTransform: "uppercase",
-                color: "#5A6A7E",
-              }}
-            >
-              Placeholder
-            </span>
-            <p style={{ fontSize: "15px", lineHeight: "22px", color: "#5A6A7E" }}>
-              [REAL CUSTOMER LOGOS GO HERE. Add only logos we have permission to show.]
-            </p>
-          </div>
         </div>
       </section>
 

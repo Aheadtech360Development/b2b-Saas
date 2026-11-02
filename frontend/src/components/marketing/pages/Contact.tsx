@@ -265,26 +265,6 @@ export default function ContactPage() {
                 </Link>
               </div>
             </div>
-            <div
-              style={{ background: "#FFFFFF", border: "1.5px dashed #D5DCE6", borderRadius: "12px", padding: "24px" }}
-            >
-              <p
-                style={{
-                  fontSize: "12px",
-                  fontWeight: "600",
-                  letterSpacing: ".08em",
-                  textTransform: "uppercase",
-                  color: "#5A6A7E",
-                }}
-              >
-                Placeholder
-              </p>
-              <p style={{ marginTop: "8px", fontSize: "15px", lineHeight: "22px", color: "#5A6A7E" }}>
-                [BUSINESS ADDRESS]
-                <br />
-                [SUPPORT HOURS]
-              </p>
-            </div>
           </div>
           <div style={{ flex: "1.1 1 440px", minWidth: "0" }}>
             <div
