@@ -27,6 +27,7 @@ import type { Cart } from "@/types/order.types";
 import { addToGuestCart, configuredGuestLine, configuredKey } from "@/lib/guestCart";
 import { takeResume } from "@/lib/builderDraft";
 import { announceColour } from "@/lib/colourPictures";
+import { evaluateRules, type OptionRule } from "@/lib/optionRules";
 
 export interface ThemeVariant {
   id: string;
@@ -61,6 +62,8 @@ export interface ThemeProductData {
   colours: { label: string; hex: string }[];
   sizes: { label: string }[];
   options: { id: string; name: string; input_type?: string; required: boolean; values: { id: string; label: string }[] }[];
+  /** The shop's "Answers that rule others out" (lib/optionRules). */
+  rules?: OptionRule[];
   qty_tiers: { min_qty: number; unit_price: number }[];
   gang_sheet: boolean;
   /** Printed from a file the buyer supplies, so the page offers an upload. */
@@ -283,6 +286,92 @@ export default function ThemeProductBuy({ product }: { product: ThemeProductData
       });
     }
 
+    // ── Answers that rule others out ──
+    // The shop's rules (Coating = UV greys out Laminating), applied the way the
+    // older product page and the server apply them: a field a rule hides or
+    // greys out loses its answer, a choice a rule switches off cannot be
+    // picked, and an answer a rule now forbids moves to the next one allowed.
+    // This page never read them: it offered choices the server then refused
+    // ("Not available") and kept every field the shop had switched off.
+    const rules = product.rules ?? [];
+    const showChoiceOf = new Map<HTMLElement, (chosenLabel: string) => void>();
+
+    /** Whether a rule hides or greys out this question, for the answers now. */
+    function switchedOff() {
+      const { hidden, disabledOptions } = evaluateRules(rules, chosen);
+      return (optionId: string) => hidden.has(optionId) || disabledOptions.has(optionId);
+    }
+
+    /** The first question still to answer, leaving out those the rules switched off. */
+    function unanswered() {
+      const off = switchedOff();
+      return product.options.find((o) => o.required && !chosen[o.id] && !off(o.id));
+    }
+
+    /** A choice a rule switched off: still there, greyed, saying why, not pickable. */
+    function markOff(item: HTMLElement, why: string | undefined, dim: boolean) {
+      if (item.dataset.ruleTitle === undefined) item.dataset.ruleTitle = item.getAttribute("title") ?? "";
+      item.toggleAttribute("data-rule-off", why !== undefined);
+      if (why !== undefined) item.setAttribute("aria-disabled", "true");
+      else item.removeAttribute("aria-disabled");
+      if (item instanceof HTMLButtonElement) item.disabled = why !== undefined;
+      item.title = why ?? item.dataset.ruleTitle;
+      item.style.opacity = why !== undefined && dim ? "0.35" : "";
+      item.style.cursor = why !== undefined ? "not-allowed" : "pointer";
+    }
+
+    /** The shop's note under a question a rule greyed out. */
+    function noteFor(group: HTMLElement, text: string | undefined) {
+      let note = group.querySelector<HTMLElement>("[data-rule-note]");
+      if (!text) { note?.remove(); return; }
+      if (!note) {
+        note = document.createElement("p");
+        note.setAttribute("data-rule-note", "");
+        note.style.cssText = "margin:6px 0 0;font-size:13px;opacity:.75";
+        group.appendChild(note);
+      }
+      note.textContent = text;
+    }
+
+    function settleRules() {
+      if (!rules.length) return;
+      // An answer that moves can switch another rule on or off, so this runs
+      // again until nothing moves.
+      for (let pass = 0; pass <= groups.length; pass++) {
+        const { hidden, disabledOptions, disabledValues } = evaluateRules(rules, chosen);
+        let moved = false;
+        for (const group of groups) {
+          const optionId = group.dataset.optionId;
+          if (!optionId) continue;
+          const items = Array.from(group.querySelectorAll<HTMLElement>("[data-label]"));
+          const fieldNote = disabledOptions.get(optionId);
+          group.style.display = hidden.has(optionId) ? "none" : "";
+          group.style.opacity = fieldNote ? "0.55" : "";
+          noteFor(group, fieldNote);
+          items.forEach((item) => {
+            const valueNote = disabledValues.get(item.dataset.valueId ?? "");
+            markOff(item, fieldNote ?? valueNote, !fieldNote);
+          });
+
+          const before = chosen[optionId];
+          if (hidden.has(optionId) || fieldNote) {
+            // Left out of the price and the order. The choice stays marked, so
+            // the field comes back with it when the rule lets go.
+            delete chosen[optionId];
+          } else if (!before || disabledValues.has(before)) {
+            const allowed = (i: HTMLElement) => !i.hasAttribute("data-rule-off");
+            const next = items.find((i) => i.classList.contains("selected") && allowed(i)) ?? items.find(allowed);
+            items.forEach((i) => i.classList.toggle("selected", i === next));
+            if (next) chosen[optionId] = next.dataset.valueId ?? "";
+            else delete chosen[optionId];
+            showChoiceOf.get(group)?.(next?.dataset.label ?? "");
+          }
+          if (chosen[optionId] !== before) moved = true;
+        }
+        if (!moved) return;
+      }
+    }
+
     groups.forEach((group) => {
       const optionId = group.dataset.optionId ?? "";
       const items = Array.from(group.querySelectorAll<HTMLElement>("[data-label]"));
@@ -297,6 +386,7 @@ export default function ThemeProductBuy({ product }: { product: ThemeProductData
         if (!labelEl || !baseLabel) return;
         labelEl.textContent = chosenLabel ? `${baseLabel}: ${chosenLabel}` : baseLabel;
       };
+      showChoiceOf.set(group, showChoice);
 
       items.forEach((item) => {
         if (item.classList.contains("selected")) {
@@ -308,6 +398,7 @@ export default function ThemeProductBuy({ product }: { product: ThemeProductData
         }
         const onClick = (e: Event) => {
           e.preventDefault();
+          if (item.hasAttribute("data-rule-off")) return;
           items.forEach((other) => other.classList.remove("selected"));
           item.classList.add("selected");
           if (item.dataset.sheetId) sheetId = item.dataset.sheetId;
@@ -318,6 +409,7 @@ export default function ThemeProductBuy({ product }: { product: ThemeProductData
           // The gallery shows this colour's pictures (lib/colourPictures).
           if (label.startsWith("colo")) announceColour(product.id, item.dataset.label ?? "");
           setMessage(null);
+          settleRules();
           refresh();
         };
         item.addEventListener("click", onClick);
@@ -360,7 +452,7 @@ export default function ThemeProductBuy({ product }: { product: ThemeProductData
         // Printed from a file the buyer supplies: take the file first, then
         // order the line with it attached.
         if (button.dataset.themeBuy === "artwork") {
-          const missing = product.options.find((o) => o.required && !chosen[o.id]);
+          const missing = unanswered();
           if (missing) { say(`Choose ${missing.name.toLowerCase()} first.`, false); return; }
           chosenRef.current = { selections: { ...chosen }, quantity };
           setArtworkOpen(true);
@@ -409,7 +501,7 @@ export default function ThemeProductBuy({ product }: { product: ThemeProductData
               return;
             }
           } else {
-            const missing = product.options.find((o) => o.required && !chosen[o.id]);
+            const missing = unanswered();
             if (missing) { say(`Choose ${missing.name.toLowerCase()} first.`, false); return; }
             if (isAuthenticated) {
               const cart = await apiClient.post<Cart>("/api/v1/cart/add-configured", {
@@ -475,7 +567,9 @@ export default function ThemeProductBuy({ product }: { product: ThemeProductData
 
     // The page opens with its first choices already picked: the price shown
     // is theirs. A configured product's price was the product's base price
-    // until the first click, which is not what those choices cost.
+    // until the first click, which is not what those choices cost. Those
+    // first choices can switch rules on too (14 pt card, no coating).
+    settleRules();
     refresh(true);
     return () => cleanups.forEach((off) => off());
   }, [product, isAuthenticated, router, byUpload]);

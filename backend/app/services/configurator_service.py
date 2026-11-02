@@ -176,6 +176,22 @@ def evaluate_rules(rules, selections: dict) -> dict:
     return {"hidden_options": hidden, "disabled_options": disabled_options, "disabled_values": disabled_values}
 
 
+def public_rules(rules) -> list[dict]:
+    """The rules as both product pages read them (frontend lib/optionRules), as
+    plain data so the form reacts at once. The server applies the same rules
+    again when it prices, so this copy is a convenience, never the authority."""
+    return [
+        {
+            "when_value_id": str(r.when_value_id),
+            "action": r.action,
+            "target_option_id": str(r.target_option_id) if r.target_option_id else None,
+            "target_value_id": str(r.target_value_id) if r.target_value_id else None,
+            "note": r.note,
+        }
+        for r in rules or []
+    ]
+
+
 def _unit_for_qty(product: Product, tiers, quantity: int) -> Decimal:
     """Highest tier the quantity reaches wins; else the product's base price."""
     chosen = None

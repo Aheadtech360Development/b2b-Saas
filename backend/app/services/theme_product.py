@@ -19,6 +19,7 @@ from sqlalchemy.orm import selectinload
 
 from app.models.product import Product
 from app.models.product_option import ProductOption, ProductQtyTier
+from app.services.configurator_service import public_rules
 
 
 async def load(db: AsyncSession, product_id: Any) -> dict[str, Any] | None:
@@ -30,6 +31,7 @@ async def load(db: AsyncSession, product_id: Any) -> dict[str, Any] | None:
             selectinload(Product.images),
             selectinload(Product.variants),
             selectinload(Product.options).selectinload(ProductOption.values),
+            selectinload(Product.option_rules),
         )
     )).scalar_one_or_none()
     if product is None:
@@ -178,6 +180,9 @@ async def load(db: AsyncSession, product_id: Any) -> dict[str, Any] | None:
         "colours": colours,
         "sizes": sizes,
         "options": options,
+        # "Answers that rule others out": the buy box (ThemeProductBuy) hides
+        # and greys out what they switch off, as the server refuses it.
+        "rules": public_rules(product.option_rules),
         "qty_tiers": [{"min_qty": int(t.min_qty), "unit_price": float(t.unit_price)} for t in tiers],
         "review_count": int(getattr(product, "review_count", 0) or 0),
         "avg_rating": float(getattr(product, "avg_rating", 0) or 0),

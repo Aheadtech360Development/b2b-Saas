@@ -19,6 +19,7 @@ import { cartService } from "@/services/cart.service";
 import { useAuthStore } from "@/stores/auth.store";
 import { trackConfiguredAdd } from "@/lib/tracking";
 import { dropDraft, keepDraft, readDraft, signInAndComeBack } from "@/lib/builderDraft";
+import { evaluateRules, type OptionRule } from "@/lib/optionRules";
 import type { Cart } from "@/types/order.types";
 
 interface OptValue {
@@ -29,17 +30,10 @@ interface Opt {
   id: string; name: string; input_type: string; required: boolean;
   help_text?: string | null; values: OptValue[];
 }
-interface Rule {
-  when_value_id: string;
-  action: "hide_option" | "disable_option" | "disable_value";
-  target_option_id?: string | null;
-  target_value_id?: string | null;
-  note?: string | null;
-}
 interface Config {
   pricing_mode: string; base_price: number | null;
   options: Opt[]; qty_tiers: { min_qty: number; unit_price: number }[];
-  rules?: Rule[];
+  rules?: OptionRule[];
   default_selections: Record<string, string>;
 }
 interface Priced {
@@ -61,30 +55,6 @@ function chosenQuantity(cfg: Config | null, sel: Record<string, string | string[
   const value = asked.values.find((v) => v.id === sel[asked.id]);
   const m = value?.label.match(/^\s*(\d{1,3}(?:,\d{3})+|\d+)/);
   return m ? Number(m[1]!.replace(/,/g, "")) : null;
-}
-
-/**
- * Mirror of `configurator_service.evaluate_rules`. Running it here keeps the form
- * reacting instantly; the server runs the same logic when pricing, so a buyer can
- * never push through a combination the rules forbid.
- */
-function evaluateRules(rules: Rule[], sel: Record<string, string | string[]>) {
-  const picked = new Set<string>();
-  for (const v of Object.values(sel)) {
-    if (Array.isArray(v)) v.forEach((x) => picked.add(x));
-    else if (v) picked.add(v);
-  }
-  const hidden = new Set<string>();
-  const disabledOptions = new Map<string, string>();
-  const disabledValues = new Map<string, string>();
-  for (const r of rules) {
-    if (!picked.has(r.when_value_id)) continue;
-    const note = r.note || "Not available with your current selection";
-    if (r.action === "hide_option" && r.target_option_id) hidden.add(r.target_option_id);
-    else if (r.action === "disable_option" && r.target_option_id) disabledOptions.set(r.target_option_id, note);
-    else if (r.action === "disable_value" && r.target_value_id) disabledValues.set(r.target_value_id, note);
-  }
-  return { hidden, disabledOptions, disabledValues };
 }
 
 export function ProductConfigurator({ productId, productName }: { productId: string; productName: string }) {

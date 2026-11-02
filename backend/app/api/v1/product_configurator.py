@@ -26,6 +26,7 @@ from app.services.configurator_service import (
     ConfigurationError,
     default_selections,
     price_configuration,
+    public_rules,
 )
 
 router = APIRouter(prefix="/products", tags=["products", "configurator"])
@@ -87,16 +88,7 @@ async def get_public_options(product_id: uuid.UUID, db: AsyncSession = Depends(g
     # Rules go to the client as plain data so the form can react instantly, with
     # no round trip. The server re-applies the same rules when pricing, so the
     # client copy is a convenience — never the authority.
-    rules = [
-        {
-            "when_value_id": str(r.when_value_id),
-            "action": r.action,
-            "target_option_id": str(r.target_option_id) if r.target_option_id else None,
-            "target_value_id": str(r.target_value_id) if r.target_value_id else None,
-            "note": r.note,
-        }
-        for r in (product.option_rules or [])
-    ]
+    rules = public_rules(product.option_rules)
 
     return {
         "product_id": str(product.id),
