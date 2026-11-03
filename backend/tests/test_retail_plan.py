@@ -19,10 +19,10 @@ def test_only_retail_enforces_its_limits():
     assert [k for k in bp.PLAN_ORDER if bp.BILLING_PLANS[k].get("enforce_limits")] == ["retail"]
 
 
-def test_retail_is_not_offered_until_its_pages_launch():
-    assert [p["key"] for p in bp.public_pricing_table()] == ["starter", "wholesale", "scale"]
-    # ...but the platform console can still put a test shop on it.
-    assert "retail" in bp.BILLING_PLANS and bp.PLAN_ORDER[0] == "retail"
+def test_retail_is_offered_beside_the_print_plans_since_its_pages_launched():
+    assert [p["key"] for p in bp.public_pricing_table()] == ["retail", "starter", "wholesale", "scale"]
+    retail = bp.public_pricing_table()[0]
+    assert retail["amount_cents"] == 7900 and retail["commission_bps"] == 0
 
 
 def test_retail_leaves_out_print_wholesale_and_scale_only_tools():

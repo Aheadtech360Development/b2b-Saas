@@ -40,8 +40,9 @@ BILLING_PLANS: dict[str, dict] = {
         # The owner counts as one of the two staff accounts (owner, 2026-10-28).
         "limits": {"orders_per_month": 200, "staff_accounts": 2, "custom_domains": 1},
         "enforce_limits": True,
-        # Not offered until the Retail pages launch (the plan's publish gate).
-        "public": False,
+        # Offered since the Retail pages launched (NEXT_PUBLIC_RETAIL_LAUNCH on the
+        # website, owner 2026-11-03): sign-up, Billing and the pricing lists.
+        "public": True,
         "description": "For D2C and retail brands selling their own products.",
     },
     "starter": {
