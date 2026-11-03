@@ -27,7 +27,7 @@ export default function RetailPricing() {
       <div style={{ position: "absolute", left: "50%", top: "-200px", width: "1000px", height: "600px", marginLeft: "-500px", background: "radial-gradient(closest-side, rgba(14,114,251,0.45), rgba(14,114,251,0) 70%)", pointerEvents: "none" }} />
       <div style={{ position: "relative", maxWidth: "1200px", margin: "0 auto", padding: "72px 32px 80px", boxSizing: "border-box", display: "flex", flexDirection: "column", alignItems: "center", gap: "24px", textAlign: "center" }}>
         <h1 style={{ margin: "0", fontFamily: "Outfit, sans-serif", fontWeight: "600", fontSize: "60px", lineHeight: "1.05", letterSpacing: "-0.025em", color: "#FFFFFF", maxWidth: "820px" }}>
-          One plan for D2C and retail brands.
+          One plan for D2C and retail brands.{" "}
           <span style={{ color: "#2B84FF" }}>
             Everything included.
           </span>
@@ -47,7 +47,7 @@ export default function RetailPricing() {
             For brands selling their own products.
           </span>
           <span style={{ fontFamily: "Outfit, sans-serif", fontWeight: "700", fontSize: "60px", lineHeight: "1" }}>
-            $79
+            $79{" "}
             <span style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: "400", fontSize: "16px", color: "#4A5B73" }}>
               per month
             </span>
@@ -197,7 +197,7 @@ export default function RetailPricing() {
       <div style={{ position: "absolute", left: "50%", top: "-100px", width: "900px", height: "500px", marginLeft: "-450px", background: "radial-gradient(closest-side, rgba(14,114,251,0.4), rgba(14,114,251,0) 70%)", pointerEvents: "none" }} />
       <div style={{ position: "relative", maxWidth: "1200px", margin: "0 auto", padding: "88px 32px", boxSizing: "border-box", display: "flex", flexDirection: "column", gap: "18px", alignItems: "center", textAlign: "center" }}>
         <h2 style={{ margin: "0", fontFamily: "Outfit, sans-serif", fontWeight: "600", fontSize: "46px", lineHeight: "1.1", color: "#FFFFFF" }}>
-          Start free. Pick a plan when you are
+          Start free. Pick a plan when you are{" "}
           <span style={{ color: "#2B84FF" }}>
             sure.
           </span>

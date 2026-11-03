@@ -39,7 +39,7 @@ export default function RetailPage() {
             For D2C and retail brands
           </span>
           <h1 style={{ margin: "0", fontFamily: "Outfit, sans-serif", fontWeight: "600", fontSize: "68px", lineHeight: "1.04", letterSpacing: "-0.025em", color: "#FFFFFF", maxWidth: "900px" }}>
-            A store for brands that sell
+            A store for brands that sell{" "}
             <span style={{ color: "#2B84FF" }}>
               their own products.
             </span>
@@ -242,7 +242,7 @@ export default function RetailPage() {
               WHY BRANDS COME HERE
             </span>
             <h2 style={{ margin: "0", fontFamily: "Outfit, sans-serif", fontWeight: "600", fontSize: "48px", lineHeight: "1.08", letterSpacing: "-0.02em" }}>
-              Other platforms sell you a store. Then they sell you the
+              Other platforms sell you a store. Then they sell you the{" "}
               <span style={{ color: "#0B66E4" }}>
                 apps.
               </span>
@@ -455,7 +455,7 @@ export default function RetailPage() {
               AI COPILOT
             </span>
             <h2 style={{ margin: "0", fontFamily: "Outfit, sans-serif", fontWeight: "600", fontSize: "44px", lineHeight: "1.1", letterSpacing: "-0.02em", color: "#FFFFFF" }}>
-              A copilot that watches the store while you
+              A copilot that watches the store while you{" "}
               <span style={{ color: "#2B84FF" }}>
                 work.
               </span>
@@ -594,7 +594,7 @@ export default function RetailPage() {
               KEEP BUYERS COMING BACK
             </span>
             <h2 style={{ margin: "0", fontFamily: "Outfit, sans-serif", fontWeight: "600", fontSize: "46px", lineHeight: "1.1", letterSpacing: "-0.02em", color: "#FFFFFF" }}>
-              The retention tools other platforms
+              The retention tools other platforms{" "}
               <span style={{ color: "#2B84FF" }}>
                 sell you as apps.
               </span>
@@ -866,7 +866,7 @@ export default function RetailPage() {
               For brands selling their own products.
             </span>
             <span style={{ fontFamily: "Outfit, sans-serif", fontWeight: "700", fontSize: "60px", lineHeight: "1" }}>
-              $79
+              $79{" "}
               <span style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: "400", fontSize: "16px", color: "#4A5B73" }}>
                 per month
               </span>
@@ -1015,7 +1015,7 @@ export default function RetailPage() {
         <div style={{ position: "absolute", left: "50%", top: "-100px", width: "1000px", height: "600px", marginLeft: "-500px", background: "radial-gradient(closest-side, rgba(14,114,251,0.4), rgba(14,114,251,0) 70%)", pointerEvents: "none" }} />
         <div style={{ position: "relative", maxWidth: "1200px", margin: "0 auto", padding: "104px 32px", boxSizing: "border-box", display: "flex", flexDirection: "column", gap: "22px", alignItems: "center", textAlign: "center" }}>
           <h2 style={{ margin: "0", fontFamily: "Outfit, sans-serif", fontWeight: "600", fontSize: "54px", lineHeight: "1.08", letterSpacing: "-0.02em", color: "#FFFFFF" }}>
-            Start your 14 day
+            Start your 14 day{" "}
             <span style={{ color: "#2B84FF" }}>
               trial.
             </span>

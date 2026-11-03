@@ -72,6 +72,19 @@ describe("the /retail page", () => {
     expect(words).toContain("Returns and exchanges");
   });
 
+  it("keeps the space between a heading's words and its coloured part", () => {
+    // JSX drops a space that holds a line break: "sell" + <span>their own products</span> read "selltheir".
+    const page = render(<RetailPage />).container.textContent ?? "";
+    for (const words of ["brands that sell their own products.", "Then they sell you the apps.",
+      "watches the store while you work.", "other platforms sell you as apps.", "$79 per month", "Start your 14 day trial."]) {
+      expect(page).toContain(words);
+    }
+    const tab = render(<RetailPricing />).container.textContent ?? "";
+    for (const words of ["retail brands. Everything included.", "$79 per month", "Pick a plan when you are sure."]) {
+      expect(tab).toContain(words);
+    }
+  });
+
   it("the Retail pricing tab has no design notes and no held claims", () => {
     const { container } = render(<RetailPricing />);
     const words = container.textContent ?? "";
