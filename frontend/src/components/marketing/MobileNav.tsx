@@ -12,6 +12,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { withRetail } from "@/lib/retailNav";
 import s from "./marketing.module.css";
 
 const LINKS = [
@@ -48,7 +49,7 @@ export default function MobileNav() {
       </button>
       {open && (
         <nav id="mk-mobile-menu" className={s["menu-panel"]} aria-label="Menu">
-          {LINKS.map((l) => (
+          {withRetail(LINKS, { href: "/retail", label: "Retail" }).map((l) => (
             <Link key={l.href} href={l.href} className={s["menu-link"]} onClick={() => setOpen(false)}>
               {l.label}
             </Link>

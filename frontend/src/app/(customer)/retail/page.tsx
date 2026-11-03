@@ -25,7 +25,7 @@ export default async function MarketingRetailRoute() {
   if ((await loadStore()).brand) return <ShopPage params={params()} />;
   if (!RETAIL_LAUNCHED) notFound();
   return (
-    <MarketingShell>
+    <MarketingShell active="retail">
       <RetailPage />
     </MarketingShell>
   );

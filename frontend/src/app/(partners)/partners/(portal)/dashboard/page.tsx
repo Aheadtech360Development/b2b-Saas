@@ -7,6 +7,8 @@ import { usePartner } from "@/components/partners/PartnerShell";
 import { ActivityChip, METHODS } from "@/components/partners/states";
 import { Banner, Icon, Skeleton, copyText, errorText, useToast } from "@/components/partners/ui";
 import { day, money, moneyShort, papi } from "@/lib/partnerApi";
+import { RETAIL_LAUNCHED } from "@/lib/retailLaunch";
+import { retailLinkOf } from "@/lib/retailNav";
 
 type Dashboard = {
   balances: { pending: number; payable: number; clawbacks: number; on_hold: number; in_batch: number };
@@ -167,6 +169,19 @@ export default function DashboardPage() {
                 <button className="btn ico" aria-label="Copy link" onClick={copyLink}><Icon name="copy" /></button>
               </div>
             </div>
+            {RETAIL_LAUNCHED && (
+              // The same link, landing on the Retail page: a brand that signs up from it starts on Retail.
+              <div className="field">
+                <label htmlFor="ref-retail-link">Retail brands link</label>
+                <div className="row nw">
+                  <input id="ref-retail-link" className="input mono" readOnly value={retailLinkOf(partner.link)} />
+                  <button className="btn ico" aria-label="Copy Retail link"
+                          onClick={async () => toast.show((await copyText(retailLinkOf(partner.link))) ? "Retail link copied" : "Could not copy")}>
+                    <Icon name="copy" />
+                  </button>
+                </div>
+              </div>
+            )}
             <div className="field">
               <label htmlFor="ref-code">Code</label>
               <div className="row nw">

@@ -6,6 +6,8 @@ import { useEffect, useMemo, useState } from "react";
 import { usePartner } from "@/components/partners/PartnerShell";
 import { Banner, Field, Icon, Skeleton, copyText, errorText, useToast } from "@/components/partners/ui";
 import { papi, partnerDownload } from "@/lib/partnerApi";
+import { RETAIL_LAUNCHED } from "@/lib/retailLaunch";
+import { retailLinkOf } from "@/lib/retailNav";
 
 type LinkPage = {
   link: string; code: string; link_active: boolean; clicks_30: number; signups_30: number;
@@ -65,6 +67,7 @@ export default function LinkPageView() {
   }, []);
 
   const link = useMemo(() => tagged(data?.link ?? partner.link, src), [data, partner.link, src]);
+  const retailLink = useMemo(() => tagged(retailLinkOf(data?.link ?? partner.link), src), [data, partner.link, src]);
   const qrPath = useMemo(() => `/partners/me/qr.svg${src.trim() ? `?src=${encodeURIComponent(src.trim())}` : ""}`, [src]);
   const qr = useAuthedImage(qrPath);
 
@@ -122,6 +125,15 @@ export default function LinkPageView() {
                 <button className="btn" onClick={() => copy(link, "Link")}><Icon name="copy" size="s" />Copy link</button>
               </div>
             </Field>
+            {RETAIL_LAUNCHED && (
+              <Field label="Retail brands link" htmlFor="l-retail"
+                     hint="Opens the Retail page. A brand that signs up from it starts on the Retail plan, saved to you like any other signup.">
+                <div className="row nw">
+                  <input id="l-retail" className="input mono" readOnly value={retailLink} />
+                  <button className="btn" onClick={() => copy(retailLink, "Retail link")}><Icon name="copy" size="s" />Copy link</button>
+                </div>
+              </Field>
+            )}
             <Field label="Referral code" htmlFor="l-code" hint="A shop can type this code at signup if it did not click your link.">
               <div className="row nw">
                 <input id="l-code" className="input mono" readOnly value={data.code} />

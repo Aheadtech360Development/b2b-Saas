@@ -10,11 +10,12 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import { PlatformLogo } from "@/components/shared/PlatformLogo";
 import { RETAIL_LAUNCHED } from "@/lib/retailLaunch";
+import { withRetail } from "@/lib/retailNav";
 import { ReferralCapture } from "@/components/partners/ReferralCapture";
 import s from "./marketing.module.css";
 import MobileNav from "./MobileNav";
 
-export type MarketingNav = "features" | "pricing" | "partners" | "about" | null;
+export type MarketingNav = "features" | "pricing" | "retail" | "partners" | "about" | null;
 
 const NAV: { key: Exclude<MarketingNav, null>; href: string; label: string }[] = [
   { key: "features", href: "/features", label: "Features" },
@@ -22,7 +23,6 @@ const NAV: { key: Exclude<MarketingNav, null>; href: string; label: string }[] =
   { key: "partners", href: "/affiliate", label: "Affiliate" },
   { key: "about", href: "/about", label: "About" },
 ];
-
 export default function MarketingShell({ active = null, children }: { active?: MarketingNav; children: ReactNode }) {
   return (
     <div id="top" className={s.root}>
@@ -82,7 +82,7 @@ function MarketingHeader({ active }: { active: MarketingNav }) {
             color: "rgba(255,255,255,.78)",
           }}
         >
-          {NAV.map((n) => (
+          {withRetail(NAV, { key: "retail", href: "/retail", label: "Retail" }).map((n) => (
             <Link
               key={n.key}
               className={s["navlink"]}
@@ -206,7 +206,7 @@ function MarketingFooter() {
                 >
                   {col.title}
                 </p>
-                {col.links.map((l) => (
+                {withRetail(col.links, { href: "/retail", label: "Retail" }).map((l) => (
                   <Link key={l.href} className={s["navlink"]} href={l.href}>
                     {l.label}
                   </Link>

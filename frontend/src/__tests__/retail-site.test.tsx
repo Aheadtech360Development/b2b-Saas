@@ -13,8 +13,9 @@ vi.mock("@/lib/retailLaunch", () => ({ get RETAIL_LAUNCHED() { return launch.on;
 vi.mock("next/link", () => ({ default: ({ href, children, ...rest }: { href: string; children: React.ReactNode }) => <a href={href} {...rest}>{children}</a> }));
 const papi = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/partnerApi", () => ({ papi: (...a: unknown[]) => papi(...a) }));
-vi.mock("next/navigation", () => ({ useRouter: () => ({ replace: vi.fn(), push: vi.fn() }) }));
+vi.mock("next/navigation", () => ({ useRouter: () => ({ replace: vi.fn(), push: vi.fn() }), usePathname: () => "/" }));
 
+import MarketingShell from "@/components/marketing/MarketingShell";
 import RetailPage, { RETAIL_HELD } from "@/components/marketing/pages/Retail";
 import RetailPricing from "@/components/marketing/pages/RetailPricing";
 import PricingPage from "@/components/marketing/pages/Pricing";
@@ -24,6 +25,29 @@ beforeEach(() => {
   launch.on = false;
   papi.mockReset();
   window.history.replaceState(null, "", "/pricing");
+});
+
+describe("the site's menu", () => {
+  const menu = (root: HTMLElement) =>
+    Array.from(root.querySelectorAll('nav[aria-label="Main"] a')).map((a) => a.textContent);
+
+  it("has no Retail while the Retail pages are not published", () => {
+    const { container } = render(<MarketingShell><p>page</p></MarketingShell>);
+    expect(menu(container)).toEqual(["Features", "Pricing", "Affiliate", "About"]);
+    expect(container.querySelector('a[href="/retail"]')).toBeNull();
+  });
+
+  it("offers Retail beside Pricing in the header, the phone menu and the footer once they are", () => {
+    launch.on = true;
+    const { container } = render(<MarketingShell active="retail"><p>page</p></MarketingShell>);
+    expect(menu(container)).toEqual(["Features", "Pricing", "Retail", "Affiliate", "About"]);
+    expect(container.querySelector('nav[aria-label="Main"] a[href="/retail"]')!.getAttribute("aria-current")).toBe("page");
+    expect(container.querySelector('footer a[href="/retail"]')).not.toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Open menu" }));
+    const phone = Array.from(container.querySelectorAll("#mk-mobile-menu a")).map((a) => a.textContent);
+    expect(phone.slice(0, 3)).toEqual(["Features", "Pricing", "Retail"]);
+  });
 });
 
 describe("the /retail page", () => {
