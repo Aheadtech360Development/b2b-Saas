@@ -462,7 +462,9 @@ def owner_handlers(db: AsyncSession) -> dict[str, Handler]:
             "connected": bool(conn),
             "account": ("•" * max(0, len(acct) - 3) + acct[-3:]) if acct else None,
             "country": country_code((conn or {}).get("country")) if conn else None,
-            "sanmar": "not available yet",
+            # SanMar connects the same way, with SanMar's FTP login: products, prices and
+            # daily stock come in; store orders are not sent to SanMar yet.
+            "sanmar": {"connected": bool(await get_connection(db, "sanmar")), "orders_sent_to_sanmar": False},
             "import_filters": cfg["filters"],
             "products_from_supplier": int(products or 0), "variants_from_supplier": int(variants or 0),
             "new_products_publish_as": cfg["product"]["status"],

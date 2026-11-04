@@ -6,8 +6,9 @@ import { ask } from "@/lib/dialog";
  * with one "Save Supplier" (or thrown away with "Discard Changes").
  *
  * The draft lives here, so moving between tabs keeps unsaved edits. Credentials
- * go to the brand's connected-accounts record (verified with S&S on save); the
- * rest is the brand's supplier setup.
+ * go to the brand's connected-accounts record (verified with the supplier on
+ * save); the rest is the brand's supplier setup. What the login is called, and
+ * which tabs a supplier has, come from words.ts.
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
@@ -17,9 +18,11 @@ import { ProductSettings } from "./ProductSettings";
 import { SyncSettings } from "./SyncSettings";
 import { OrderSettings } from "./OrderSettings";
 import { Btn, CARD, INPUT, LABEL, MUTED, Spinner, errText } from "./ui";
+import { supplierWords, type SupplierWords } from "./words";
 
 export type Draft = Pick<SupplierConfig, "name" | "inventory" | "product" | "pricing" | "automatic_sync" | "orders">;
-type Conn = { account_number: string; api_key: string; country: string; api_key_hint: string };
+/** The login as typed: `user` and `secret` are the supplier's own fields (words.ts). */
+type Conn = { user: string; secret: string; country: string; hint: string };
 type Tab = "connection" | "inventory" | "product" | "sync" | "orders";
 
 const TABS: { id: Tab; label: string }[] = [
@@ -41,6 +44,8 @@ export function EditSupplier({
   id: string; detail: SupplierDetail; running: boolean; onSaved: (c: SupplierConfig) => void;
   onJobStarted: (j: SupplierJob) => void; onConnectionChanged: () => void; onDirtyChange?: (dirty: boolean) => void;
 }) {
+  const words = supplierWords(id);
+  const tabs = TABS.filter((t) => t.id !== "orders" || words.orders);
   const [tab, setTab] = useState<Tab>(detail.connection.connected ? "inventory" : "connection");
   const [draft, setDraft] = useState<Draft>(() => draftOf(detail.config));
   const [saved, setSaved] = useState<Draft>(() => draftOf(detail.config));
@@ -54,18 +59,18 @@ export function EditSupplier({
       const r = await suppliersService.connection();
       const c = r.providers.find((p) => p.key === id)?.connection ?? {};
       const v: Conn = {
-        account_number: String(c.account_number ?? ""), api_key: "",
+        user: String(c[words.user.key] ?? ""), secret: "",
         country: String(c.country ?? "United States") || "United States",
-        api_key_hint: String(c.api_key_hint ?? ""),
+        hint: String(c[`${words.secret.key}_hint`] ?? ""),
       };
       setConn(v);
       setConnSaved(v);
     } catch {
-      const v = { account_number: "", api_key: "", country: "United States", api_key_hint: "" };
+      const v = { user: "", secret: "", country: "United States", hint: "" };
       setConn(v);
       setConnSaved(v);
     }
-  }, [id]);
+  }, [id, words]);
   useEffect(() => { loadConn(); }, [loadConn]);
 
   const changed = useMemo(() => {
@@ -76,7 +81,7 @@ export function EditSupplier({
     return out;
   }, [draft, saved]);
   const connDirty = !!conn && !!connSaved && (
-    conn.account_number !== connSaved.account_number || conn.country !== connSaved.country || conn.api_key !== ""
+    conn.user !== connSaved.user || conn.country !== connSaved.country || conn.secret !== ""
   );
   const dirty = Object.keys(changed).length > 0 || connDirty;
   useEffect(() => { onDirtyChange?.(dirty); }, [dirty, onDirtyChange]);
@@ -96,11 +101,9 @@ export function EditSupplier({
     setMsg(null);
     try {
       if (connDirty && conn) {
-        if (!conn.account_number.trim()) throw new Error("Enter your S&S account number.");
-        if (!connSaved?.api_key_hint && !conn.api_key.trim()) throw new Error("Enter your S&S API key.");
-        await suppliersService.saveConnection({
-          account_number: conn.account_number.trim(), api_key: conn.api_key.trim(), country: conn.country,
-        });
+        if (!conn.user.trim()) throw new Error(`Enter your ${words.name} ${words.user.label.toLowerCase()}.`);
+        if (!connSaved?.hint && !conn.secret.trim()) throw new Error(`Enter your ${words.name} ${words.secret.label.toLowerCase()}.`);
+        await suppliersService.saveConnection(id, loginValues(words, conn));
         await loadConn();
         onConnectionChanged();
       }
@@ -137,7 +140,7 @@ export function EditSupplier({
 
       <div style={{ ...CARD, padding: 0 }}>
         <div style={{ display: "flex", gap: 2, borderBottom: "1px solid #EEE", overflowX: "auto", padding: "0 8px" }}>
-          {TABS.map((t) => (
+          {tabs.map((t) => (
             <button key={t.id} onClick={() => setTab(t.id)} style={{
               padding: "13px 14px", background: "none", border: "none", cursor: "pointer", whiteSpace: "nowrap",
               fontSize: 13, fontWeight: tab === t.id ? 700 : 500, color: tab === t.id ? "#1A1A1A" : "#6B6B6B",
@@ -147,11 +150,11 @@ export function EditSupplier({
         </div>
         <div style={{ padding: 18 }}>
           {tab === "connection" && (conn
-            ? <ConnectionTab label={detail.label} name={draft.name} onName={(v) => set("name", v)} conn={conn}
+            ? <ConnectionTab id={id} words={words} label={detail.label} name={draft.name} onName={(v) => set("name", v)} conn={conn}
                 onConn={(c) => { setConn(c); setMsg(null); }}
-                onDisconnected={async () => { await loadConn(); onConnectionChanged(); setMsg({ ok: true, text: "Disconnected. Your API key was removed." }); }} />
+                onDisconnected={async () => { await loadConn(); onConnectionChanged(); setMsg({ ok: true, text: `Disconnected. Your ${words.login} were removed.` }); }} />
             : <div style={{ padding: 20, textAlign: "center" }}><Spinner /></div>)}
-          {tab === "inventory" && <InventoryTab id={id} value={draft.inventory} onChange={(v) => set("inventory", v)} connected={detail.connection.connected} />}
+          {tab === "inventory" && <InventoryTab id={id} words={words} value={draft.inventory} onChange={(v) => set("inventory", v)} connected={detail.connection.connected} />}
           {tab === "product" && (
             <ProductSettings id={id} meta={detail.meta} product={draft.product} pricing={draft.pricing}
               onProduct={(v) => set("product", v)} onPricing={(v) => set("pricing", v)} connected={detail.connection.connected} />
@@ -161,7 +164,7 @@ export function EditSupplier({
               history={detail.config.history} lastSync={detail.config.last_sync_at}
               connected={detail.connection.connected} running={running} dirty={dirty} onJobStarted={onJobStarted} />
           )}
-          {tab === "orders" && (
+          {tab === "orders" && words.orders && (
             <OrderSettings id={id} value={draft.orders} saved={saved.orders} onChange={(v) => set("orders", v)}
               meta={detail.meta} connected={detail.connection.connected} dirty={dirty} />
           )}
@@ -173,26 +176,34 @@ export function EditSupplier({
 
 // ── Connection ───────────────────────────────────────────────────────────────
 
-function ConnectionTab({ label, name, onName, conn, onConn, onDisconnected }: {
-  label: string; name: string; onName: (v: string) => void; conn: Conn; onConn: (c: Conn) => void;
-  onDisconnected: () => Promise<void>;
+/** The login as the supplier's connection record stores it. */
+function loginValues(words: SupplierWords, conn: Conn): Record<string, string> {
+  return {
+    [words.user.key]: conn.user.trim(), [words.secret.key]: conn.secret.trim(),
+    ...(words.country ? { country: conn.country } : {}),
+  };
+}
+
+function ConnectionTab({ id, words, label, name, onName, conn, onConn, onDisconnected }: {
+  id: string; words: SupplierWords; label: string; name: string; onName: (v: string) => void; conn: Conn;
+  onConn: (c: Conn) => void; onDisconnected: () => Promise<void>;
 }) {
   const [testing, setTesting] = useState(false);
   const [removing, setRemoving] = useState(false);
-  const saved = !!conn.api_key_hint;
+  const saved = !!conn.hint;
 
   const disconnect = async () => {
     if (!await ask(
       `Disconnect ${label}?
 
-Your account number and API key are removed from this store. Nothing is imported, synced or sent until you connect again. Imported products and your settings stay.
+Your ${words.login} are removed from this store. Nothing is imported, synced or sent until you connect again. Imported products and your settings stay.
 
-To pause it without removing the key, turn it off on the Suppliers screen instead.`,
+To pause it without removing the login, turn it off on the Suppliers screen instead.`,
     )) return;
     setRemoving(true);
     setResult(null);
     try {
-      await suppliersService.disconnect();
+      await suppliersService.disconnect(id);
       await onDisconnected();
     } catch (e) {
       setResult({ ok: false, text: errText(e) });
@@ -205,9 +216,7 @@ To pause it without removing the key, turn it off on the Suppliers screen instea
     setTesting(true);
     setResult(null);
     try {
-      const r = await suppliersService.testConnection({
-        account_number: conn.account_number.trim(), api_key: conn.api_key.trim(), country: conn.country,
-      });
+      const r = await suppliersService.testConnection(id, loginValues(words, conn));
       setResult({ ok: r.ok, text: r.message });
     } catch (e) {
       setResult({ ok: false, text: errText(e) });
@@ -221,36 +230,37 @@ To pause it without removing the key, turn it off on the Suppliers screen instea
       <Field label="Supplier Name" required help="A name to identify this supplier connection in your admin.">
         <input value={name} maxLength={80} onChange={(e) => onName(e.target.value)} style={{ ...INPUT, width: "100%" }} />
       </Field>
-      <Field label="Username" required help="Your S&S account number.">
-        <input value={conn.account_number} onChange={(e) => onConn({ ...conn, account_number: e.target.value })}
-          placeholder="e.g. 123456" autoComplete="off" style={{ ...INPUT, width: "100%" }} />
+      <Field label={words.user.label} required help={words.user.help}>
+        <input value={conn.user} onChange={(e) => onConn({ ...conn, user: e.target.value })}
+          placeholder={words.user.placeholder} autoComplete="off" style={{ ...INPUT, width: "100%" }} />
       </Field>
-      <Field label="API Key" required
-        help={conn.api_key_hint ? `Saved (${conn.api_key_hint}). Leave blank to keep it; type a new key to replace it.`
-          : "Don't have one? Email api@ssactivewear.com or contact your S&S rep."}>
-        <input value={conn.api_key} onChange={(e) => onConn({ ...conn, api_key: e.target.value })} type="password"
-          placeholder={conn.api_key_hint ? "•••••••• saved" : "Paste your API key"} autoComplete="new-password"
+      <Field label={words.secret.label} required
+        help={conn.hint ? `Saved (${conn.hint}). Leave blank to keep it; type a new one to replace it.` : words.secret.help}>
+        <input value={conn.secret} onChange={(e) => onConn({ ...conn, secret: e.target.value })} type="password"
+          placeholder={conn.hint ? "•••••••• saved" : words.secret.placeholder} autoComplete="new-password"
           style={{ ...INPUT, width: "100%" }} />
       </Field>
-      <Field label="Country" required help="S&S Canada accounts use S&S's Canadian API, catalogue and warehouses.">
-        <select value={conn.country} onChange={(e) => onConn({ ...conn, country: e.target.value })} style={{ ...INPUT, width: "100%" }}>
-          <option>United States</option>
-          <option>Canada</option>
-        </select>
-      </Field>
+      {words.country && (
+        <Field label="Country" required help="S&S Canada accounts use S&S's Canadian API, catalogue and warehouses.">
+          <select value={conn.country} onChange={(e) => onConn({ ...conn, country: e.target.value })} style={{ ...INPUT, width: "100%" }}>
+            <option>United States</option>
+            <option>Canada</option>
+          </select>
+        </Field>
+      )}
       <div style={{ borderTop: "1px solid #EEE", paddingTop: 16, display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
         <div style={{ flex: "1 1 260px" }}>
           <div style={{ fontWeight: 700, fontSize: 14 }}>Test Supplier Connection</div>
-          <p style={MUTED}>Check that these credentials can reach S&S. Saving the supplier tests them too.</p>
+          <p style={MUTED}>Check that this login can reach {words.name}. Saving the supplier tests it too.</p>
         </div>
-        <Btn kind="ghost" onClick={test} busy={testing} disabled={!conn.account_number.trim() || (!conn.api_key && !conn.api_key_hint)}>Test</Btn>
+        <Btn kind="ghost" onClick={test} busy={testing} disabled={!conn.user.trim() || (!conn.secret && !conn.hint)}>Test</Btn>
       </div>
       {result && <div style={{ fontSize: 13, color: result.ok ? "#16A34A" : "#B42318" }}>{result.text}</div>}
       {saved && (
         <div style={{ borderTop: "1px solid #EEE", paddingTop: 16, display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
           <div style={{ flex: "1 1 260px" }}>
             <div style={{ fontWeight: 700, fontSize: 14 }}>Disconnect Supplier</div>
-            <p style={MUTED}>Remove your account number and API key from this store. To pause without removing them, use the on/off switch on the Suppliers screen.</p>
+            <p style={MUTED}>Remove your {words.login} from this store. To pause without removing them, use the on/off switch on the Suppliers screen.</p>
           </div>
           <Btn kind="danger" onClick={disconnect} busy={removing}>Disconnect</Btn>
         </div>
@@ -271,10 +281,14 @@ export function Field({ label, required, help, children }: { label: string; requ
 
 // ── Inventory ────────────────────────────────────────────────────────────────
 
-function InventoryTab({ id, value, onChange, connected }: {
-  id: string; value: Draft["inventory"]; onChange: (v: Draft["inventory"]) => void; connected: boolean;
+function InventoryTab({ id, words, value, onChange, connected }: {
+  id: string; words: SupplierWords; value: Draft["inventory"]; onChange: (v: Draft["inventory"]) => void; connected: boolean;
 }) {
-  const [data, setData] = useState<{ locations: { id: string; name: string; code: string; city: string }[]; warehouses: { code: string; label: string }[] } | null>(null);
+  const [data, setData] = useState<{
+    locations: { id: string; name: string; code: string; city: string }[]; warehouses: { code: string; label: string }[]; combined?: boolean;
+  } | null>(null);
+  // SanMar gives one stock figure for all its warehouses: a location takes it, or nothing.
+  const combined = words.combinedStock || !!data?.combined;
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -297,12 +311,16 @@ function InventoryTab({ id, value, onChange, connected }: {
     <div style={{ display: "grid", gap: 22, maxWidth: 900 }}>
       <div>
         <div style={{ fontWeight: 700, fontSize: 15 }}>Import Supplier Inventory to Store Locations</div>
-        <p style={MUTED}>Supplier stock is written to your store locations — choose which S&S warehouses feed each one.</p>
+        <p style={MUTED}>{combined
+          ? `Supplier stock is written to your store locations. ${words.name} gives one figure for all its warehouses together; choose which locations receive it.`
+          : `Supplier stock is written to your store locations — choose which ${words.name} warehouses feed each one.`}</p>
       </div>
       {error && <p style={{ color: "#B42318", fontSize: 13 }}>{error}</p>}
       {!data && !error && <Spinner />}
       {data && data.locations.length === 0 && (
-        <p style={MUTED}>You have no store locations yet — your first import creates a “Default Warehouse” and fills it from every S&S warehouse except drop-ship.</p>
+        <p style={MUTED}>{combined
+          ? `You have no store locations yet — your first import creates a “Default Warehouse” and fills it with ${words.name}'s stock.`
+          : `You have no store locations yet — your first import creates a “Default Warehouse” and fills it from every ${words.name} warehouse except drop-ship.`}</p>
       )}
       {data?.locations.map((l, i) => (
         <div key={l.id} style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap", border: "1px solid #EEE", borderRadius: 10, padding: "10px 14px" }}>
@@ -310,25 +328,35 @@ function InventoryTab({ id, value, onChange, connected }: {
             <b>Store location:</b> {l.name}{l.city ? ` — ${l.city}` : ""} <span style={{ color: "#8A8A8A" }}>({l.code})</span>
           </div>
           <span style={{ color: "#8A8A8A" }}>←</span>
-          <select value={sourceFor(l.id, i)} onChange={(e) => setSource(l.id, e.target.value)} style={{ ...INPUT, flex: "0 1 300px" }}>
-            <option value="none">Don&apos;t import stock here</option>
-            <option value="all_except_ds">Supplier inventory: All except Dropshipping</option>
-            <option value="all">Supplier inventory: All warehouses</option>
-            <option value="DS">Supplier inventory: Dropshipping</option>
-            {data.warehouses.map((w) => <option key={w.code} value={w.code}>Supplier inventory: {w.label}</option>)}
-          </select>
+          {combined ? (
+            // "all" and "all_except_ds" read the same one figure; the first is how a
+            // location gets it when nothing was saved.
+            <select value={sourceFor(l.id, i) === "none" ? "none" : "all_except_ds"} onChange={(e) => setSource(l.id, e.target.value)}
+              style={{ ...INPUT, flex: "0 1 300px" }}>
+              <option value="none">Don&apos;t import stock here</option>
+              <option value="all_except_ds">Supplier inventory: All {words.name} warehouses</option>
+            </select>
+          ) : (
+            <select value={sourceFor(l.id, i)} onChange={(e) => setSource(l.id, e.target.value)} style={{ ...INPUT, flex: "0 1 300px" }}>
+              <option value="none">Don&apos;t import stock here</option>
+              <option value="all_except_ds">Supplier inventory: All except Dropshipping</option>
+              <option value="all">Supplier inventory: All warehouses</option>
+              <option value="DS">Supplier inventory: Dropshipping</option>
+              {data.warehouses.map((w) => <option key={w.code} value={w.code}>Supplier inventory: {w.label}</option>)}
+            </select>
+          )}
         </div>
       ))}
       {data && data.locations.length > 0 && fed === 0 && (
         <p style={{ fontSize: 13, color: "#B45309" }}>No location receives supplier stock — stock syncs will have nowhere to write.</p>
       )}
-      {!connected && <p style={{ ...MUTED, fontSize: 12 }}>Connect the supplier to list its warehouses.</p>}
+      {!connected && !combined && <p style={{ ...MUTED, fontSize: 12 }}>Connect the supplier to list its warehouses.</p>}
 
       <div style={{ display: "flex", gap: 16, alignItems: "center", flexWrap: "wrap", borderTop: "1px solid #EEE", paddingTop: 18 }}>
         <div style={{ flex: "1 1 320px" }}>
           <div style={{ fontWeight: 700, fontSize: 15 }}>Inventory Adjustment Quantity</div>
           <p style={MUTED}>Supplier inventory is reduced by this much per variant, as a buffer against overselling.
-            {value.safety_stock > 0 && ` Example: S&S has 52 → your store shows ${Math.max(0, 52 - value.safety_stock)}.`}</p>
+            {value.safety_stock > 0 && ` Example: ${words.name} has 52 → your store shows ${Math.max(0, 52 - value.safety_stock)}.`}</p>
         </div>
         <input type="number" min={0} value={value.safety_stock} placeholder="Adjustment Quantity"
           onChange={(e) => onChange({ ...value, safety_stock: Math.max(0, Math.floor(Number(e.target.value) || 0)) })}

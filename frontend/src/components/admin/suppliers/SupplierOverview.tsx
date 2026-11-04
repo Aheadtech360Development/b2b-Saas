@@ -12,6 +12,7 @@ import { apiClient } from "@/lib/api-client";
 import { ask } from "@/lib/dialog";
 import { suppliersService, type SupplierRow } from "@/services/suppliers.service";
 import { errText, fmtDate } from "./ui";
+import { supplierWords } from "./words";
 
 export type SupplierTab = "import" | "browse" | "edit";
 
@@ -25,11 +26,15 @@ function steps(r: SupplierRow): { title: string; sub: string; done: boolean }[] 
   const sync = r.automatic_sync;
   const orders = r.orders;
   const sending = !!orders && orders.sync !== "disabled";
+  const words = supplierWords(r.id);
+  const login = words.login.charAt(0).toUpperCase() + words.login.slice(1);
   return [
-    { title: "Connect", sub: r.connected ? `Account ${r.account ?? "connected"}` : "Account number and API key", done: r.connected },
+    { title: "Connect", sub: r.connected ? `Account ${r.account ?? "connected"}` : login, done: r.connected },
     { title: "Import", sub: r.imported ? `${r.imported} ${r.imported === 1 ? "product" : "products"} in your catalog` : "Choose products", done: !!r.imported },
     { title: "Sync", sub: sync?.enabled ? `Stock and prices every ${sync.every_hours} h` : r.last_sync_at ? "Synced by hand" : "Stock and prices", done: !!sync?.enabled },
-    { title: "Auto-order", sub: sending ? (orders!.test_mode ? "Test mode, nothing is placed" : "Orders go to the supplier") : `Send orders to ${r.label.split(" ")[0]}`, done: sending && !orders!.test_mode },
+    { title: "Auto-order",
+      sub: !words.orders ? `Not yet for ${words.name}` : sending ? (orders!.test_mode ? "Test mode, nothing is placed" : "Orders go to the supplier") : `Send orders to ${r.label.split(" ")[0]}`,
+      done: words.orders && sending && !orders!.test_mode },
   ];
 }
 

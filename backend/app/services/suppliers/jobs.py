@@ -99,7 +99,7 @@ async def start(tenant_id, supplier: str, kind: str, *, trigger: str = "manual")
 async def _run(tenant_id: str, supplier: str, kind: str, trigger: str, token: str, state: dict) -> None:
     from app.core.database import AsyncSessionLocal
     from app.services.integrations_service import get_connection
-    from app.services.ss_activewear_service import from_connection
+    from app.services.suppliers import sources
 
     # This task writes one brand's products and stock. Scope everything to it.
     set_bypass_scoping(False)
@@ -116,22 +116,24 @@ async def _run(tenant_id: str, supplier: str, kind: str, trigger: str, token: st
         async with AsyncSessionLocal() as db:
             cfg = await cfgmod.load(db, supplier)
             conn = await get_connection(db, supplier, tenant_id=tenant_id)
+        name = sources.label(supplier)
         if not conn:
-            raise RuntimeError("Connect your S&S Activewear account first (Edit supplier → Connection).")
+            raise RuntimeError(f"Connect your {name} account first (Edit supplier → Connection).")
         if not cfg.get("active", True):
-            raise RuntimeError("S&S Activewear is turned off for this store. Turn it on in Manage Suppliers to use it.")
+            raise RuntimeError(f"{name} is turned off for this store. Turn it on in Manage Suppliers to use it.")
         # The brand's own account only — never the platform fallback, or the
         # brand would be importing someone else's prices.
-        svc = from_connection(conn)
-        styles = await ss_catalog.all_styles(svc)
+        svc = sources.client(supplier, conn, tenant_id=tenant_id)
+        await step(0, 0, f"Reading the {name} catalogue…")
+        styles = await sources.all_styles(supplier, svc)
         auto = cfg["automatic_sync"]
 
         created: list[str] = []
         if kind == "import" or (kind == "sync" and auto["create"] == "always"):
-            summary["import"] = await _import(tenant_id, styles, svc, cfg, step)
+            summary["import"] = await _import(tenant_id, supplier, styles, svc, cfg, step)
             created = summary["import"].pop("created", [])
         if kind == "inventory":
-            summary["inventory"] = await _inventory(tenant_id, styles, svc, cfg, step)
+            summary["inventory"] = await _inventory(tenant_id, supplier, styles, svc, cfg, step)
         elif kind == "sync":
             summary["update"] = await _update(tenant_id, supplier, styles, svc, cfg, step, skip=set(created))
         message = _message(summary)
@@ -211,24 +213,32 @@ def _group_by_style(rows: list[dict]) -> dict[str, list[dict]]:
     return out
 
 
-async def _import(tenant_id: str, styles: list[dict], svc, cfg: dict, step) -> dict:
+async def _import(tenant_id: str, supplier: str, styles: list[dict], svc, cfg: dict, step) -> dict:
     """Create products for every style the filters select that isn't in the
-    store yet — ten styles per S&S call."""
+    store yet — ten styles at a time."""
     from sqlalchemy import or_
     from sqlalchemy.exc import IntegrityError
 
     from app.core.database import AsyncSessionLocal
     from app.models.product import Product
-    from app.services.suppliers import ss_products
+    from app.services.suppliers import sources, ss_products
 
+    name = sources.label(supplier)
     wanted = [s for s in styles if ss_catalog.matches(s, cfg.get("filters") or {})]
     ids = [s["style_id"] for s in wanted] or ["-"]
     async with AsyncSessionLocal() as db:
-        have = set((await db.execute(
-            select(Product.product_code).where(or_(Product.product_code.in_(ids), Product.supplier_ref.in_(ids)))
-        )).scalars().all())
+        q = select(Product.product_code).where(or_(Product.product_code.in_(ids), Product.supplier_ref.in_(ids)))
+        if supplier != sources.SS:
+            # Style numbers can repeat across suppliers (SanMar's 112 is a cap; an
+            # S&S style can be 112 too). S&S keeps its old rule: products imported
+            # before the supplier column carry only the style number.
+            q = q.where(Product.supplier == supplier)
+        have = set((await db.execute(q)).scalars().all())
     todo = [s for s in wanted if s["style_id"] not in have]
     batch_all, remaining = todo[:MAX_IMPORT_PER_RUN], max(0, len(todo) - MAX_IMPORT_PER_RUN)
+    if batch_all:
+        await step(0, len(batch_all), f"Reading {len(batch_all)} styles from {name}…")
+        await sources.prefetch(svc, [s["part_number"] for s in batch_all if s["part_number"]])
 
     imported = failed = skipped = 0
     created: list[str] = []
@@ -244,16 +254,17 @@ async def _import(tenant_id: str, styles: list[dict], svc, cfg: dict, step) -> d
         try:
             rows = await svc.fetch_products_for_parts([s["part_number"] for s in batch if s["part_number"]])
         except Exception as exc:
-            logger.warning("S&S products batch failed: %s", exc)
+            logger.warning("%s products batch failed: %s", name, exc)
             failed += len(batch)
             for s in batch:
-                err(s, "S&S didn't answer; it will be tried again next run")
+                err(s, f"{name} didn't answer; it will be tried again next run")
             continue
         grouped = _group_by_style(rows)
         for s in batch:
             async with AsyncSessionLocal() as db:
                 try:
-                    await ss_products.create_product(db, ss_catalog.as_ss(s), grouped.get(s["style_id"], []), cfg)
+                    await ss_products.create_product(db, ss_catalog.as_ss(s), grouped.get(s["style_id"], []), cfg,
+                                                     supplier=supplier)
                     await db.commit()
                     imported += 1
                     created.append(s["style_id"])
@@ -295,11 +306,12 @@ async def _claim(db, style_ids) -> None:
 
 
 async def _update(tenant_id: str, supplier: str, styles: list[dict], svc, cfg: dict, step, *, skip: set[str]) -> dict:
-    """Bring existing S&S products in line with S&S under the sync settings."""
+    """Bring existing products in line with the supplier under the sync settings."""
     from app.core.database import AsyncSessionLocal
     from app.models.product import Product, ProductVariant
-    from app.services.suppliers import ss_products
+    from app.services.suppliers import sources, ss_products
 
+    name = sources.label(supplier)
     auto = cfg["automatic_sync"]
     mode, on_unav = auto["update"], auto["on_unavailable"]
     create_variants = auto["create"] in ("always", "variants_only")
@@ -308,16 +320,20 @@ async def _update(tenant_id: str, supplier: str, styles: list[dict], svc, cfg: d
     stats = {"products": 0, "prices": 0, "fields": 0, "new_variants": 0, "stock": 0, "unavailable": 0}
 
     async with AsyncSessionLocal() as db:
-        await _claim(db, by_id)
-        await db.commit()
+        if supplier == sources.SS:
+            await _claim(db, by_id)
+            await db.commit()
         products = (await db.execute(
-            select(Product.id, Product.supplier_ref, Product.status).where(Product.supplier == ss_products.SUPPLIER)
+            select(Product.id, Product.supplier_ref, Product.status).where(Product.supplier == supplier)
         )).all()
         locs = await ss_products.locations(db, cfg)
     unavailable_ids = set(cfg.get("unavailable_products") or [])
 
     live = [p for p in products if p.supplier_ref in by_id and p.supplier_ref not in skip]
     gone = [p for p in products if p.supplier_ref not in by_id]
+    if live:
+        await step(0, len(live), f"Reading {len(live)} styles from {name}…")
+        await sources.prefetch(svc, [by_id[p.supplier_ref]["part_number"] for p in live if by_id[p.supplier_ref]["part_number"]])
 
     for i in range(0, len(live), INVENTORY_BATCH):
         batch = live[i:i + INVENTORY_BATCH]
@@ -326,8 +342,8 @@ async def _update(tenant_id: str, supplier: str, styles: list[dict], svc, cfg: d
         try:
             grouped = _group_by_style(await svc.fetch_products_for_parts(parts))
         except Exception as exc:
-            # Never read a failed call as "S&S stopped selling all of these".
-            logger.warning("S&S products batch failed during sync: %s", exc)
+            # Never read a failed call as "the supplier stopped selling all of these".
+            logger.warning("%s products batch failed during sync: %s", name, exc)
             continue
         async with AsyncSessionLocal() as db:
             for p in batch:
@@ -352,8 +368,8 @@ async def _update(tenant_id: str, supplier: str, styles: list[dict], svc, cfg: d
     # the brand's styles is far likelier a bad answer than a real change.
     if gone and on_unav != "none":
         if len(gone) > 20 and len(gone) > len(products) / 2:
-            logger.warning("S&S catalogue is missing %d of %d products for %s; not marking them unavailable",
-                           len(gone), len(products), tenant_id)
+            logger.warning("%s catalogue is missing %d of %d products for %s; not marking them unavailable",
+                           name, len(gone), len(products), tenant_id)
         else:
             async with AsyncSessionLocal() as db:
                 for p in gone:
@@ -377,23 +393,25 @@ async def _update(tenant_id: str, supplier: str, styles: list[dict], svc, cfg: d
     return stats
 
 
-async def _inventory(tenant_id: str, styles: list[dict], svc, cfg: dict, step) -> dict:
-    """Set the store's own stock from S&S — what the storefront actually reads —
-    into each location the Inventory Settings feed."""
+async def _inventory(tenant_id: str, supplier: str, styles: list[dict], svc, cfg: dict, step) -> dict:
+    """Set the store's own stock from the supplier — what the storefront actually
+    reads — into each location the Inventory Settings feed."""
     from app.core.database import AsyncSessionLocal
     from app.models.product import Product, ProductVariant
-    from app.services.suppliers import ss_products
+    from app.services.suppliers import sources, ss_products
 
+    name = sources.label(supplier)
     by_id = {s["style_id"]: s for s in styles}
     safety = max(0, int((cfg.get("inventory") or {}).get("safety_stock") or 0))
 
     async with AsyncSessionLocal() as db:
-        await _claim(db, by_id)
-        await db.commit()
+        if supplier == sources.SS:
+            await _claim(db, by_id)
+            await db.commit()
         rows = (await db.execute(
             select(ProductVariant.id, ProductVariant.sku, Product.supplier_ref)
             .join(Product, Product.id == ProductVariant.product_id)
-            .where(Product.supplier == ss_products.SUPPLIER)
+            .where(Product.supplier == supplier)
         )).all()
         locs = await ss_products.locations(db, cfg)
     if not locs:
@@ -401,6 +419,9 @@ async def _inventory(tenant_id: str, styles: list[dict], svc, cfg: dict, step) -
     variants_by_sku = {sku: vid for vid, sku, _ in rows if sku}
     parts = sorted({by_id[ref]["part_number"] for _, _, ref in rows if ref in by_id and by_id[ref]["part_number"]})
     style_by_part = {s["part_number"]: s for s in styles if s["part_number"]}
+    if parts:
+        await step(0, len(parts), f"Reading stock for {len(parts)} styles from {name}…")
+        await sources.prefetch(svc, parts, stock_only=True)
 
     checked = changed = 0
     for i in range(0, len(parts), INVENTORY_BATCH):
@@ -409,7 +430,7 @@ async def _inventory(tenant_id: str, styles: list[dict], svc, cfg: dict, step) -
         try:
             inv = await svc.fetch_inventory_for_parts(batch)
         except Exception as exc:
-            logger.warning("S&S inventory batch failed: %s", exc)
+            logger.warning("%s inventory batch failed: %s", name, exc)
             continue
         by_style = {str(s["style_id"]): s for p in batch if (s := style_by_part.get(p))}
         pairs = []

@@ -183,6 +183,11 @@ async def connect_integration(
         forget_tenant_email(tid)
 
     saved = await svc.get_connection(db, provider, tenant_id=tid)
+    # SanMar's catalogue is two files to fetch and read (a minute or two):
+    # start on it now, so the supplier screens find it ready.
+    if provider == "sanmar" and result.get("ok") and saved:
+        from app.services.sanmar_service import warm_styles
+        warm_styles(saved, tid)
     return {
         "provider": provider,
         "connection": svc.mask(provider, saved),

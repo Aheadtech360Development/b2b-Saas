@@ -5,6 +5,7 @@ import {
   suppliersService, type FieldMap, type PriceRule, type SupplierConfig, type SupplierMeta,
 } from "@/services/suppliers.service";
 import { Btn, INPUT, LABEL, MUTED, Toggle, errText } from "./ui";
+import { supplierWords } from "./words";
 
 type Product = SupplierConfig["product"];
 type Pricing = SupplierConfig["pricing"];
@@ -67,7 +68,7 @@ export function ProductSettings({ id, meta, product, pricing, onProduct, onPrici
 
       <section>
         <div style={{ fontWeight: 700, fontSize: 15 }}>Product Images</div>
-        <p style={MUTED}>Which of S&S&apos;s photos each colour gets. Not every colour has every angle.</p>
+        <p style={MUTED}>Which of {supplierWords(id).name}&apos;s photos each colour gets. Not every colour has every angle.</p>
         <div style={{ display: "flex", gap: 18, marginTop: 10, flexWrap: "wrap", fontSize: 13 }}>
           <label style={{ display: "flex", gap: 8, alignItems: "center", cursor: "pointer" }}>
             <input type="radio" checked={(product.images ?? "all") === "all"} onChange={() => onProduct({ ...product, images: "all" })} />
@@ -129,7 +130,7 @@ export function ProductSettings({ id, meta, product, pricing, onProduct, onPrici
         <details style={{ marginTop: 10, fontSize: 12, color: "#6B6B6B" }}>
           <summary style={{ cursor: "pointer" }}>How Modify works</summary>
           <div style={{ lineHeight: 1.7, marginTop: 6 }}>
-            Use <code>{"{{ value }}"}</code> for the source field, or any S&S field as <code>{"{{ style.brandName }}"}</code> /{" "}
+            Use <code>{"{{ value }}"}</code> for the source field, or any supplier field as <code>{"{{ style.brandName }}"}</code> /{" "}
             <code>{"{{ variant.customerPrice }}"}</code>. Add filters with <code>|</code>:{" "}
             <code>times</code>, <code>plus</code>, <code>minus</code>, <code>divided_by</code>, <code>round</code>, <code>ceil</code>,{" "}
             <code>floor</code>, <code>at_least</code>, <code>at_most</code>, <code>prepend</code>, <code>append</code>, <code>upcase</code>,{" "}

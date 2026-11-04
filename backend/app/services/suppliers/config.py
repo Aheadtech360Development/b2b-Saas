@@ -27,7 +27,7 @@ KEY = "suppliers"
 # What the platform can connect to. "available: False" is shown, but can't be used yet.
 CATALOG: dict[str, dict] = {
     "ss_activewear": {"label": "S&S Activewear", "available": True},
-    "sanmar": {"label": "SanMar", "available": False},
+    "sanmar": {"label": "SanMar", "available": True},
 }
 
 FILTER_FIELDS = ("brand", "category", "style", "title")

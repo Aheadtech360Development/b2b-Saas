@@ -71,10 +71,12 @@ A job only enters the review queue once it is paid.""",
 Warehouses are managed at Products → Inventory → Warehouses. Low-stock warnings use each variant's own low-stock threshold.""",
     ),
     "suppliers": (
-        "Connect a supplier (S&S Activewear) and import its products",
-        """Products → Suppliers. The list shows each supplier: S&S Activewear (Active once connected) and SanMar (inactive, coming soon). The Auto import switch on the list is the same setting as "Auto Create Products & Variants" in Automatic Sync.
+        "Connect a supplier (S&S Activewear or SanMar) and import its products",
+        """Products → Suppliers. The list shows each supplier: S&S Activewear and SanMar (each Active once connected). The Auto import switch on the list is the same setting as "Auto Create Products & Variants" in Automatic Sync.
 
 Connect: click Edit on S&S → Connection Settings. Enter Supplier Name, Username (your S&S account number), API Key and Country (United States or Canada — Canadian accounts use S&S's Canadian API and catalogue). "Test" checks the credentials; "Save Supplier" (top right) saves every tab at once and checks them again. "Discard Changes" throws away unsaved edits. Each brand uses its own S&S account, so cost prices and stock are that brand's own.
+
+SanMar: click Edit on SanMar → Connection Settings. Enter the FTP Username (usually the SanMar customer number) and the FTP Password SanMar gave for its product data download (not the sanmar.com password; a shop without one emails sanmarintegrations@sanmar.com with its customer number). Products, the shop's own SanMar prices and stock come from the files SanMar shares with that login, refreshed by SanMar once a day; the first read takes a minute or two. SanMar's stock is one figure for all its warehouses. Store orders are not sent to SanMar yet: SanMar has no Order Settings tab.
 
 View opens three tabs:
 - Products for Import: add filter rules (Brand / Category / Style number or name / Product title; is, contains, is not; match any or all rules), "Save filters", then the counts show products selected, already in the store, ready to import, and variants. "Import N products" runs on the server with a progress bar; up to 500 per run, and products already imported are skipped. With no rules nothing is selected.

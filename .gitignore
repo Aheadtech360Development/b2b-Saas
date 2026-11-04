@@ -109,3 +109,5 @@ backend/app/models/ssactivewearguide.txt
 
 # Stripe TEST keys for local checks only (backend/run_local.py); never committed
 backend/.stripe-test.env
+# A brand's SanMar FTP login, for building the SanMar connection locally; never committed
+backend/.sanmar-test.env

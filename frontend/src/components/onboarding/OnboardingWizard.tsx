@@ -309,8 +309,6 @@ function ProductsStep({ state, setState, reload, go, frame }: StepProps) {
     setSs({ account_number: "", api_key: "" });
   }, "S&S Activewear could not be connected. Check the account number and API key.");
 
-  const notify = () => run(async () => { setState(await onboardingService.notifySanmar()); });
-
   return frame({
     title: "Add what you sell",
     sub: "Bring in a supplier catalogue, add your own, or start empty.",
@@ -365,12 +363,11 @@ function ProductsStep({ state, setState, reload, go, frame }: StepProps) {
           <div className={o.row}>
             <div className={o.rowText}>
               <div className={o.rowTitle}>SanMar</div>
-              <div className={o.rowSub}>Coming soon.</div>
+              <div className={o.rowSub}>Sync blanks, your own prices and daily stock.</div>
             </div>
             <div className={o.rowRight}>
-              <button type="button" className={`${ui.btn} ${ui.secondary}`} onClick={notify} disabled={busy || state.sanmar_notify}>
-                {state.sanmar_notify ? "We will tell you" : "Notify me"}
-              </button>
+              {/* Connected with SanMar's FTP login, on the supplier's own settings. */}
+              <Link href="/admin/suppliers?supplier=sanmar" className={`${ui.btn} ${ui.secondary}`}>Connect</Link>
             </div>
           </div>
 

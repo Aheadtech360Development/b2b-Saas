@@ -17,6 +17,7 @@ import { BrowseCatalog } from "./BrowseCatalog";
 import { EditSupplier } from "./EditSupplier";
 import { Badge, Btn, CARD, JobBanner, MUTED, Spinner, errText, fmtDate } from "./ui";
 import { SupplierOverview } from "./SupplierOverview";
+import { supplierWords } from "./words";
 import { ProductsFrame } from "@/components/admin/products/ProductsFrame";
 
 type Tab = "import" | "browse" | "edit";
@@ -24,6 +25,12 @@ type Tab = "import" | "browse" | "edit";
 export function SuppliersManager() {
   const [open, setOpen] = useState<{ id: string; tab: Tab } | null>(null);
   const [adding, setAdding] = useState(false);
+  // A link straight to one supplier's connection settings (onboarding's
+  // "Connect" for SanMar): /admin/suppliers?supplier=sanmar.
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get("supplier");
+    if (id && /^[a-z_]{2,40}$/.test(id)) setOpen({ id, tab: "edit" });
+  }, []);
   if (open) {
     return (
       <ProductsFrame active="suppliers" title="Suppliers" sub="Advanced settings: what is imported, how it is priced and synced, and how orders are sent.">
@@ -124,7 +131,7 @@ function SupplierView({ id, initialTab, onBack }: { id: string; initialTab: Tab;
         <div style={{ ...CARD, textAlign: "center", padding: 36 }}>
           <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 6 }}>{detail.label} is turned off</div>
           <p style={{ ...MUTED, marginBottom: 14 }}>
-            Nothing is imported, synced or sent to S&S while it&apos;s off. Your key and settings are kept.
+            Nothing is imported, synced or sent to {supplierWords(id).name} while it&apos;s off. Your login and settings are kept.
           </p>
           <Btn onClick={turnOn} busy={turningOn}>Turn on</Btn>
         </div>
@@ -135,7 +142,7 @@ function SupplierView({ id, initialTab, onBack }: { id: string; initialTab: Tab;
         <div style={{ ...CARD, textAlign: "center", padding: 36 }}>
           <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 6 }}>Connect {detail.label} first</div>
           <p style={{ ...MUTED, marginBottom: 14 }}>
-            Add your {detail.label} account number and API key. Products, prices and stock all come from your own account.
+            Add your {detail.label} {supplierWords(id).login}. Products, prices and stock all come from your own account.
           </p>
           <Btn onClick={() => goTab("edit")}>Open connection settings</Btn>
         </div>

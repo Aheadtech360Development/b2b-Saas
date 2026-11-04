@@ -231,14 +231,15 @@ def _variant_values(fields, style, row, price_fn) -> dict:
     }
 
 
-async def create_product(db: AsyncSession, style: dict, skus: list[dict], cfg: dict):
-    """A new store product for an S&S style, with every allowed variant, one
-    image per colour and stock in each fed location. Flushes, doesn't commit."""
+async def create_product(db: AsyncSession, style: dict, skus: list[dict], cfg: dict, *, supplier: str = SUPPLIER):
+    """A new store product for a supplier's style (S&S, or SanMar's rows in S&S's
+    shape), with every allowed variant, one image per colour and stock in each
+    fed location. Flushes, doesn't commit."""
     from app.models.inventory import InventoryRecord
     from app.models.product import Product, ProductVariant
 
     if not skus:
-        raise SkipProduct("S&S returned no variants for it")
+        raise SkipProduct("the supplier returned no variants for it")
     skus = limit_skus(skus, cfg)
     fields = _fields(cfg)
     price_fn = pricer(cfg, style)
@@ -252,12 +253,12 @@ async def create_product(db: AsyncSession, style: dict, skus: list[dict], cfg: d
         slug, n = f"{base_slug}-{n}", n + 1
 
     product = Product(
-        name=name, slug=slug, product_code=style_id, supplier=SUPPLIER, supplier_ref=style_id,
+        name=name, slug=slug, product_code=style_id, supplier=supplier, supplier_ref=style_id,
         status=(cfg.get("product") or {}).get("status", "active"),
         **{k: v for k, v in pvals.items() if k != "name" and v not in (None, [])},
     )
     if not product.vendor:
-        product.vendor = style.get("brandName") or "S&S Activewear"
+        product.vendor = style.get("brandName") or ("SanMar" if supplier == "sanmar" else "S&S Activewear")
     db.add(product)
     await db.flush()
     # The brand's logo, for product cards: kept under S&S's brand name, so a

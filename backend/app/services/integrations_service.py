@@ -83,6 +83,22 @@ PROVIDERS: dict[str, Provider] = {
                   options=["United States", "Canada"]),
         ],
     ),
+    # SanMar shares its catalogue as files on its SFTP (services/sanmar_service).
+    "sanmar": Provider(
+        key="sanmar",
+        name="SanMar",
+        category="supplier",
+        blurb="Import SanMar styles, colours, sizes, your own prices and daily stock from the files SanMar shares with your account.",
+        logo="📦",
+        fields=[
+            Field("ftp_username", "FTP username", "text",
+                  "Your SanMar FTP login, usually your SanMar customer number. SanMar sets it up when you ask "
+                  "sanmarintegrations@sanmar.com for the product data download.",
+                  placeholder="123456"),
+            Field("ftp_password", "FTP password", "secret",
+                  "The FTP password SanMar gave you, not your sanmar.com password."),
+        ],
+    ),
     # Mail leaves through the platform's Resend account by default: a brand
     # that has not set anything up still sends, under its own name, with
     # replies coming back to it. But the address then reads @ the platform's
@@ -340,6 +356,27 @@ async def _verify_ss(values: dict) -> dict:
         if status in (401, 403):
             return {"ok": False, "message": "S&S rejected these credentials. Check the account number and API key."}
         return {"ok": False, "message": f"Could not reach S&S: {str(exc)[:200]}"}
+    finally:
+        await svc.close()
+
+
+@verifier("sanmar")
+async def _verify_sanmar(values: dict) -> dict:
+    """Log in over SFTP and find SanMar's product file: proves the login and
+    that the account has the product data download."""
+    from datetime import UTC, datetime
+
+    from app.services.sanmar_service import from_connection
+    from app.services.suppliers.ss_catalog import CatalogUnavailable
+
+    svc = from_connection(values)
+    try:
+        found = await svc.check_credentials()
+        when = datetime.fromtimestamp(found["modified"], UTC) if found.get("modified") else None
+        return {"ok": True, "message": "Connected to SanMar."
+                + (f" Product file updated {when:%b} {when.day}." if when else "")}
+    except CatalogUnavailable as exc:
+        return {"ok": False, "message": str(exc)}
     finally:
         await svc.close()
 

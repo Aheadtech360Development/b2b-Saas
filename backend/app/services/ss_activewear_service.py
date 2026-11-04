@@ -59,9 +59,12 @@ _IMG_SIZE = {"large": "_fl", "medium": "_fm", "small": "_fs"}
 
 
 def ss_image_url(path: str | None, size: str = "large") -> str | None:
-    """Absolute S&S image URL at the requested size, or None for an empty path."""
+    """Absolute S&S image URL at the requested size, or None for an empty path.
+    A link that is already absolute (SanMar's) is kept as it is."""
     if not path:
         return None
+    if path.startswith(("https://", "http://")):
+        return path
     p = path.replace("_fm", _IMG_SIZE.get(size, "_fl"))
     return f"{SS_IMAGE_BASE}{p.lstrip('/')}"
 

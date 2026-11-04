@@ -134,14 +134,15 @@ describe("a sign-up left over in the tab", () => {
 });
 
 describe("the steps, signed in", () => {
-  it("open where the owner left off, and Notify me asks once", async () => {
+  it("open where the owner left off, and SanMar connects from its own settings", async () => {
     state = shop({ step: 3, reached: 3 });
     render(<OnboardingPage />);
     expect(await screen.findByRole("heading", { name: "Add what you sell" })).toBeInTheDocument();
     expect(screen.getByText("Step 3 of 5")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Notify me" }));
-    expect(await screen.findByRole("button", { name: "We will tell you" })).toBeDisabled();
-    expect(calls.some((c) => c.path === "/api/v1/admin/onboarding/notify")).toBe(true);
+    // SanMar was "coming soon" with a Notify me button; it connects now.
+    expect(screen.queryByRole("button", { name: "Notify me" })).toBeNull();
+    const connect = screen.getAllByRole("link", { name: "Connect" });
+    expect(connect.map((a) => a.getAttribute("href"))).toContain("/admin/suppliers?supplier=sanmar");
     expect(screen.getByRole("link", { name: "Add product" })).toHaveAttribute("href", "/admin/products/new");
   });
 

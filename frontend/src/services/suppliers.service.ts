@@ -183,9 +183,12 @@ export const suppliersService = {
   startSync: (id: string, full = false) => apiClient.post<{ job: SupplierJob }>(`${base(id)}/sync${full ? "?full=true" : ""}`),
   job: (id: string) => apiClient.get<{ job: SupplierJob | null }>(`${base(id)}/job`),
   locations: (id: string) =>
-    apiClient.get<{ locations: { id: string; name: string; code: string; city: string }[]; warehouses: { code: string; label: string }[] }>(
-      `${base(id)}/locations`,
-    ),
+    apiClient.get<{
+      locations: { id: string; name: string; code: string; city: string }[];
+      warehouses: { code: string; label: string }[];
+      /** One stock figure for all the supplier's warehouses (SanMar): nothing per warehouse to pick. */
+      combined?: boolean;
+    }>(`${base(id)}/locations`),
   previewFields: (id: string, fields: FieldMap[]) =>
     apiClient.post<{
       style: { style_id: string; name: string; image: string | null };
@@ -201,12 +204,12 @@ export const suppliersService = {
   sendOrders: (id: string, orderIds: string[]) =>
     apiClient.post<{ results: { order_number: string; status: string; message: string }[] }>(`${base(id)}/orders/send`, { order_ids: orderIds }),
   refreshTracking: (id: string) => apiClient.post<{ shipped: number }>(`${base(id)}/orders/tracking`),
-  // Credentials live with the brand's other connected accounts.
+  // Credentials live with the brand's other connected accounts, one record per supplier.
   connection: () =>
     apiClient.get<{ providers: { key: string; connection: Record<string, unknown> }[] }>("/api/v1/admin/integrations?category=supplier"),
-  testConnection: (values: Record<string, string>) =>
-    apiClient.post<{ ok: boolean; message: string }>("/api/v1/admin/integrations/ss_activewear/test", { values }),
-  disconnect: () => apiClient.delete<{ disconnected: boolean }>("/api/v1/admin/integrations/ss_activewear"),
-  saveConnection: (values: Record<string, string>) =>
-    apiClient.post<{ message: string; verified: boolean }>("/api/v1/admin/integrations/ss_activewear", { values }),
+  testConnection: (id: string, values: Record<string, string>) =>
+    apiClient.post<{ ok: boolean; message: string }>(`/api/v1/admin/integrations/${id}/test`, { values }),
+  disconnect: (id: string) => apiClient.delete<{ disconnected: boolean }>(`/api/v1/admin/integrations/${id}`),
+  saveConnection: (id: string, values: Record<string, string>) =>
+    apiClient.post<{ message: string; verified: boolean }>(`/api/v1/admin/integrations/${id}`, { values }),
 };

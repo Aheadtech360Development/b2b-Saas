@@ -36,7 +36,7 @@ from app.core.database import get_db
 from app.core.tenant_context import NO_TENANT, get_current_tenant_id, is_scoping_bypassed
 from app.middleware.auth_middleware import require_admin
 from app.services.suppliers import config as cfgmod
-from app.services.suppliers import jobs, ss_catalog
+from app.services.suppliers import jobs, sources, ss_catalog
 
 router = APIRouter(prefix="/admin/suppliers", tags=["admin", "suppliers"])
 
@@ -62,39 +62,45 @@ async def _connection(db: AsyncSession, supplier: str) -> dict:
     conn = await get_connection(db, supplier)
     if not conn:
         return {"connected": False, "account": None, "country": "US"}
-    acct = str(conn.get("account_number") or "")
+    # S&S: the account number; SanMar: the FTP username (SanMar's customer number).
+    acct = str(conn.get("account_number") or conn.get("ftp_username") or "")
     return {"connected": True, "account": ("•" * max(0, len(acct) - 3)) + acct[-3:] if acct else None,
             "country": country_code(conn.get("country"))}
 
 
 async def _client(db: AsyncSession, supplier: str):
-    """The brand's own S&S client — never the platform fallback."""
+    """The brand's own supplier client — never the platform fallback."""
     from app.services.integrations_service import get_connection
-    from app.services.ss_activewear_service import from_connection
 
     conn = await get_connection(db, supplier)
+    name = sources.label(supplier)
     if not conn:
-        raise HTTPException(status_code=409, detail="Connect your S&S Activewear account first (Edit supplier → Connection).")
+        raise HTTPException(status_code=409, detail=f"Connect your {name} account first (Edit supplier → Connection).")
     if not (await cfgmod.load(db, supplier)).get("active", True):
-        raise HTTPException(status_code=409, detail="S&S Activewear is turned off for this store. Turn it on in Manage Suppliers to use it.")
-    return from_connection(conn)
+        raise HTTPException(status_code=409, detail=f"{name} is turned off for this store. Turn it on in Manage Suppliers to use it.")
+    return sources.client(supplier, conn, tenant_id=get_current_tenant_id())
 
 
 async def _styles(db: AsyncSession, supplier: str):
     svc = await _client(db, supplier)
     try:
-        return svc, await ss_catalog.all_styles(svc)
+        return svc, await sources.all_styles(supplier, svc)
     except ss_catalog.CatalogUnavailable as exc:
         await svc.close()
         raise HTTPException(status_code=502, detail=str(exc))
 
 
-async def _imported(db: AsyncSession, style_ids: list[str]) -> set[str]:
+async def _imported(db: AsyncSession, supplier: str, style_ids: list[str]) -> set[str]:
     from app.models.product import Product
 
     if not style_ids:
         return set()
-    rows = (await db.execute(select(Product.product_code).where(Product.product_code.in_(style_ids)))).scalars().all()
+    q = select(Product.product_code).where(Product.product_code.in_(style_ids))
+    if supplier != sources.SS:
+        # A style number can repeat across suppliers; S&S keeps its products
+        # from before the supplier column.
+        q = q.where(Product.supplier == supplier)
+    rows = (await db.execute(q)).scalars().all()
     return {str(r) for r in rows if r}
 
 
@@ -283,7 +289,7 @@ async def browse_catalog(
     cfg = await cfgmod.load(db, supplier)
     found = ss_catalog.search(styles, q, brand)
     rows = found[(page - 1) * page_size: page * page_size]
-    imported = await _imported(db, [s["style_id"] for s in rows])
+    imported = await _imported(db, supplier, [s["style_id"] for s in rows])
     return {
         "items": [_row(s, imported=imported, filters=cfg["filters"]) for s in rows],
         "total": len(found), "page": page, "pages": max(1, -(-len(found) // page_size)),
@@ -305,10 +311,10 @@ async def import_preview(
     try:
         chosen = [s for s in styles if ss_catalog.matches(s, cfg["filters"])]
         rows = chosen[(page - 1) * page_size: page * page_size]
-        stats = await ss_catalog.style_stats(svc, rows)
+        stats = await sources.style_stats(supplier, svc, rows)
     finally:
         await svc.close()
-    imported_all = await _imported(db, [s["style_id"] for s in chosen])
+    imported_all = await _imported(db, supplier, [s["style_id"] for s in chosen])
     return {
         "filters": cfg["filters"],
         "products": len(chosen),
@@ -328,10 +334,11 @@ async def import_preview_count(
     svc, styles = await _styles(db, supplier)
     try:
         chosen = [s for s in styles if ss_catalog.matches(s, cfg["filters"])]
-        if len(chosen) > ss_catalog.COUNT_LIMIT:
+        # SanMar's counts come with its style list; S&S asks for them per style.
+        if supplier == sources.SS and len(chosen) > ss_catalog.COUNT_LIMIT:
             return {"products": len(chosen), "variants": None,
                     "note": f"Too many products to count variants ({len(chosen)}). Narrow the filters to see it."}
-        stats = await ss_catalog.style_stats(svc, chosen)
+        stats = await sources.style_stats(supplier, svc, chosen)
     finally:
         await svc.close()
     counted = [stats[s["style_id"]]["variants"] for s in chosen if s["style_id"] in stats]
@@ -343,10 +350,11 @@ async def import_preview_count(
 
 async def _start(db: AsyncSession, supplier: str, kind: str) -> dict:
     _known(supplier)
+    name = sources.label(supplier)
     if not (await _connection(db, supplier))["connected"]:
-        raise HTTPException(status_code=409, detail="Connect your S&S Activewear account first (Edit supplier → Connection).")
+        raise HTTPException(status_code=409, detail=f"Connect your {name} account first (Edit supplier → Connection).")
     if not (await cfgmod.load(db, supplier)).get("active", True):
-        raise HTTPException(status_code=409, detail="S&S Activewear is turned off for this store. Turn it on in Manage Suppliers to use it.")
+        raise HTTPException(status_code=409, detail=f"{name} is turned off for this store. Turn it on in Manage Suppliers to use it.")
     try:
         return await jobs.start(get_current_tenant_id(), supplier, kind)
     except jobs.JobBusy as exc:
@@ -406,10 +414,11 @@ async def supplier_locations(
     supplier: str, _: None = Depends(require_admin), db: AsyncSession = Depends(get_db),
     __: None = Depends(require_brand),
 ) -> dict:
-    """The brand's store locations, and the S&S warehouses stock can come from.
+    """The brand's store locations, and the supplier warehouses stock can come from.
 
     S&S has no warehouse list endpoint; the codes are read off live stock for a
-    few styles and cached a day per country."""
+    few styles and cached a day per country. SanMar's stock file gives one
+    figure for all its warehouses together, so there is none to pick."""
     import json as _json
 
     from app.core.redis import redis_get, redis_set
@@ -421,7 +430,8 @@ async def supplier_locations(
     )).scalars().all()
     conn = await _connection(db, supplier)
     codes: list[str] = []
-    if conn["connected"] and (await cfgmod.load(db, supplier)).get("active", True):
+    combined = supplier == sources.SANMAR
+    if not combined and conn["connected"] and (await cfgmod.load(db, supplier)).get("active", True):
         key = _WAREHOUSE_KEY.format(country=conn["country"])
         try:
             cached = await redis_get(key)
@@ -445,6 +455,7 @@ async def supplier_locations(
         "locations": [{"id": str(w.id), "name": w.name, "code": w.code,
                        "city": ", ".join(p for p in (w.city, w.state) if p)} for w in stores],
         "warehouses": [{"code": c, "label": _warehouse_label(c, conn["country"])} for c in codes if c != "DS"],
+        "combined": combined,
     }
 
 
@@ -476,13 +487,13 @@ async def preview_fields(
         style = next((s for s in styles if s["style_id"] == body.style_id), None) if body.style_id else None
         style = style or next((s for s in styles if ss_catalog.matches(s, cfg["filters"])), None) or (styles[0] if styles else None)
         if not style:
-            raise HTTPException(status_code=404, detail="No S&S style to preview.")
+            raise HTTPException(status_code=404, detail=f"No {sources.label(supplier)} style to preview.")
         rows = await svc.fetch_products_for_parts([style["part_number"]])
     finally:
         await svc.close()
     rows = [r for r in rows if str(r.get("styleID")) == style["style_id"]][:3]
     if not rows:
-        raise HTTPException(status_code=502, detail="S&S returned no variants for the preview style.")
+        raise HTTPException(status_code=502, detail=f"{sources.label(supplier)} returned no variants for the preview style.")
     ss = ss_catalog.as_ss(style)
     price_fn = ss_products.pricer(cfg, ss)
     product = mapping.apply(fields, ss, rows[0], level="product", price_fn=price_fn)
@@ -496,12 +507,18 @@ async def preview_fields(
 
 # ── Orders ────────────────────────────────────────────────────────────────────
 
+def _orders_open(supplier: str) -> None:
+    if not sources.sends_orders(supplier):
+        raise HTTPException(status_code=409, detail=f"Sending orders to {sources.label(supplier)} isn't available yet.")
+
+
 @router.get("/{supplier}/payment-profiles")
 async def payment_profiles(
     supplier: str, _: None = Depends(require_admin), db: AsyncSession = Depends(get_db),
     __: None = Depends(require_brand),
 ) -> dict:
     _known(supplier)
+    _orders_open(supplier)
     svc = await _client(db, supplier)
     try:
         rows = await svc.payment_profiles()
@@ -537,6 +554,8 @@ async def supplier_orders_list(
     from app.services.suppliers import orders as so_mod
 
     _known(supplier)
+    if not sources.sends_orders(supplier):
+        return {"mode": "disabled", "since": None, "test_mode": True, "waiting": [], "recent": [], "available": False}
     cfg = await cfgmod.load(db, supplier)
     recent = (await db.execute(
         select(SupplierOrder, Order.order_number).join(Order, Order.id == SupplierOrder.order_id)
@@ -561,6 +580,7 @@ async def send_supplier_orders(
     from app.services.suppliers import orders as so_mod
 
     _known(supplier)
+    _orders_open(supplier)
     cfg = await cfgmod.load(db, supplier)
     if cfg["orders"]["sync"] == "disabled":
         raise HTTPException(status_code=409, detail="Order sending is off. Turn it on in Edit Supplier → Order Settings.")
@@ -584,6 +604,7 @@ async def refresh_supplier_tracking(
     from app.services.suppliers import orders as so_mod
 
     _known(supplier)
+    _orders_open(supplier)
     cfg = await cfgmod.load(db, supplier)
     svc = await _client(db, supplier)
     try:

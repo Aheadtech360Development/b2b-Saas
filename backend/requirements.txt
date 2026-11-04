@@ -35,6 +35,8 @@ Pillow==12.1.1
 
 # ── HTTP client ───────────────────────────────────────────────────────────────
 httpx==0.28.1
+# SanMar's product files come over SFTP (services/sanmar_service).
+asyncssh==2.24.1
 
 # ── Templating ────────────────────────────────────────────────────────────────
 jinja2==3.1.6

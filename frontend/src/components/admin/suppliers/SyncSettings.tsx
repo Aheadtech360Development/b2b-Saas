@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { suppliersService, type AutoSync, type HistoryEntry, type SupplierJob } from "@/services/suppliers.service";
 import { Badge, Btn, INPUT, LABEL, MUTED, errText, fmtDate } from "./ui";
+import { supplierWords } from "./words";
 
 const FREQ: { v: number; label: string }[] = [
   { v: 1, label: "Every hour" }, { v: 3, label: "Every 3 hours" }, { v: 6, label: "Every 6 hours" },
@@ -50,7 +51,7 @@ export function SyncSettings({ id, value, onChange, history, lastSync, connected
             {FREQ.map((f) => <option key={f.v} value={f.v}>{f.label}</option>)}
           </select>
         </Card>
-        <Card title="Action on Unavailable Products" help="What to do with products (or variants) S&S no longer sells.">
+        <Card title="Action on Unavailable Products" help={`What to do with products (or variants) ${supplierWords(id).name} no longer sells.`}>
           <select value={value.on_unavailable} onChange={(e) => set("on_unavailable", e.target.value as AutoSync["on_unavailable"])} style={{ ...INPUT, width: "100%" }}>
             <option value="none">No Action</option>
             <option value="zero_stock">Set stock to 0</option>
