@@ -80,7 +80,7 @@ export function CustomersFrame({
 }
 
 /** What a locked part says: which plan has it, and where to see the plans. */
-export function PlanLock({ title, blurb, cta = "See plans" }: { title: string; blurb: string; cta?: string }) {
+export function PlanLock({ title, blurb, cta = "See plans" }: { title: string; blurb: string; cta?: string | null }) {
   return (
     <div className="pc-lock" data-plan-lock>
       <span className="pc-lock-icon" aria-hidden>
@@ -90,7 +90,7 @@ export function PlanLock({ title, blurb, cta = "See plans" }: { title: string; b
       </span>
       <h3 className="pc-lock-title">{title}</h3>
       <p className="pc-lock-blurb">{blurb}</p>
-      <Link href="/admin/billing" className="pc-btn" data-kind="primary">{cta}</Link>
+      {cta && <Link href="/admin/billing" className="pc-btn" data-kind="primary">{cta}</Link>}
     </div>
   );
 }

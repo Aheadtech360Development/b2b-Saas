@@ -19,12 +19,18 @@ import { Badge, Btn, CARD, JobBanner, MUTED, Spinner, errText, fmtDate } from ".
 import { SupplierOverview } from "./SupplierOverview";
 import { supplierWords } from "./words";
 import { ProductsFrame } from "@/components/admin/products/ProductsFrame";
+import { UpgradeNotice } from "@/components/admin/UpgradeNotice";
+import { useLock } from "@/lib/entitlements";
 
 type Tab = "import" | "browse" | "edit";
+
+// What a shop on a plan without supplier catalogues (Retail) reads instead.
+const LOCKED_BLURB = "Bring in blank apparel from S&S Activewear and SanMar, and keep its stock in sync.";
 
 export function SuppliersManager() {
   const [open, setOpen] = useState<{ id: string; tab: Tab } | null>(null);
   const [adding, setAdding] = useState(false);
+  const locked = useLock("supplier_catalog") != null;
   // A link straight to one supplier's connection settings (onboarding's
   // "Connect" for SanMar): /admin/suppliers?supplier=sanmar.
   useEffect(() => {
@@ -34,14 +40,18 @@ export function SuppliersManager() {
   if (open) {
     return (
       <ProductsFrame active="suppliers" title="Suppliers" sub="Advanced settings: what is imported, how it is priced and synced, and how orders are sent.">
-        <SupplierView id={open.id} initialTab={open.tab} onBack={() => setOpen(null)} />
+        <UpgradeNotice feature="supplier_catalog" blurb={LOCKED_BLURB}>
+          <SupplierView id={open.id} initialTab={open.tab} onBack={() => setOpen(null)} />
+        </UpgradeNotice>
       </ProductsFrame>
     );
   }
   return (
     <ProductsFrame active="suppliers" title="Suppliers" sub="Connect a blank catalogue and keep it in sync."
-      actions={<button type="button" className="pc-btn" onClick={() => setAdding(true)}>+ Add manual supplier</button>}>
-      <SupplierOverview onOpen={(id, tab) => setOpen({ id, tab })} addOpen={adding} onAddClosed={() => setAdding(false)} />
+      actions={locked ? undefined : <button type="button" className="pc-btn" onClick={() => setAdding(true)}>+ Add manual supplier</button>}>
+      <UpgradeNotice feature="supplier_catalog" blurb={LOCKED_BLURB}>
+        <SupplierOverview onOpen={(id, tab) => setOpen({ id, tab })} addOpen={adding} onAddClosed={() => setAdding(false)} />
+      </UpgradeNotice>
     </ProductsFrame>
   );
 }

@@ -7,6 +7,7 @@ import { Search } from "lucide-react";
 import { ask } from "@/lib/dialog";
 import { GangSheetProductEditor } from "@/components/admin/GangSheetProductEditor";
 import { ProductsFrame } from "@/components/admin/products/ProductsFrame";
+import { UpgradeNotice } from "@/components/admin/UpgradeNotice";
 import {
   gangSheetsService,
   type GangSheetSize,
@@ -164,6 +165,7 @@ function GangSheetsAdmin() {
   return (
     <ProductsFrame active="gang-sheets" title="Gang sheet setup" sub="Sizes, prices and builder rules. Print jobs live in Production."
       actions={<Link href="/admin/production" className="pc-btn">Open the print queue</Link>}>
+    <UpgradeNotice feature="gang_sheet" blurb="Buyers build a gang sheet in the builder, and you set the sizes and prices.">
     <div data-gang-sheets data-tab={tab}>
       <nav className="pc-subtabs" aria-label="Gang sheet setup">
         {TABS.map((t) => (
@@ -179,6 +181,7 @@ function GangSheetsAdmin() {
         : tab === "library" ? <LibraryTab />
         : <SettingsTab />}
     </div>
+    </UpgradeNotice>
     </ProductsFrame>
   );
 }
