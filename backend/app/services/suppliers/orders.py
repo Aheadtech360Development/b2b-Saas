@@ -534,18 +534,45 @@ async def order_supplier_summary(db: AsyncSession, order_ids: list[uuid.UUID]) -
 
 # ── A supplier the shop orders from by hand (SanMar) ─────────────────────────
 
+async def manual_lines(db: AsyncSession, order_ids: list[uuid.UUID], supplier: str) -> dict[uuid.UUID, list[dict]]:
+    """Per order, what to order from this supplier by hand: the lines of
+    products imported from it, and the part of each line its stock covered
+    on the shop's own products (suppliers/sourcing.py)."""
+    from app.models.order import OrderItem
+    from app.models.product import Product, ProductVariant
+    from app.services.suppliers import sources, sourcing
+
+    if not order_ids:
+        return {}
+    rows = (await db.execute(
+        select(OrderItem.order_id, OrderItem.id, OrderItem.quantity, OrderItem.product_name, OrderItem.color,
+               OrderItem.size, ProductVariant.id, ProductVariant.sku, Product.supplier_ref)
+        .join(ProductVariant, ProductVariant.id == OrderItem.variant_id)
+        .join(Product, Product.id == ProductVariant.product_id)
+        .where(OrderItem.order_id.in_(order_ids), Product.supplier == supplier)
+    )).all()
+    out: dict[uuid.UUID, list[dict]] = defaultdict(list)
+    for oid, item_id, qty, name, color, size, vid, sku, ref in rows:
+        out[oid].append({"order_item_id": str(item_id), "supplier": supplier, "label": sources.label(supplier),
+                         "variant_id": str(vid), "sku": sku, "style_id": ref, "qty": int(qty or 0),
+                         "name": name, "color": color, "size": size, "linked": False, "unit_cost": None})
+    for oid, shares in (await sourcing.order_shares(db, order_ids, supplier)).items():
+        out[oid].extend(shares)
+    return out
+
+
 async def manual_waiting(db: AsyncSession, supplier: str, *, limit: int = 100) -> list[dict]:
-    """Orders with a part this supplier's stock covered (a product with
-    sources) that the shop has not marked as ordered yet. SanMar takes no
-    orders from here, so this is the list to order from on its website."""
+    """Orders with something to order from this supplier (a product imported
+    from it, or its part of a product with sources) that the shop has not
+    marked as ordered yet. SanMar takes no orders from here, so this is the
+    list to order from on its website."""
     from app.models.order import Order
     from app.models.supplier import SupplierOrder
-    from app.services.suppliers import sourcing
 
     orders = (await db.execute(
         _eligible_filter(select(Order), None).order_by(Order.created_at.desc()).limit(400)
     )).scalars().all()
-    shares = await sourcing.order_shares(db, [x.id for x in orders], supplier)
+    shares = await manual_lines(db, [x.id for x in orders], supplier)
     ids = [x.id for x in orders if shares.get(x.id)]
     done = set((await db.execute(
         select(SupplierOrder.order_id).where(SupplierOrder.order_id.in_(ids or [uuid.uuid4()]),
@@ -572,11 +599,11 @@ async def mark_ordered(db: AsyncSession, supplier: str, order_ids: list[uuid.UUI
     from app.models.order import Order
     from app.models.supplier import SupplierOrder
     from app.services import order_events
-    from app.services.suppliers import sources, sourcing
+    from app.services.suppliers import sources
 
     name = sources.label(supplier)
     orders = (await db.execute(select(Order).where(Order.id.in_(order_ids)))).scalars().all()
-    shares = await sourcing.order_shares(db, [x.id for x in orders], supplier)
+    shares = await manual_lines(db, [x.id for x in orders], supplier)
     results = []
     for x in orders:
         if not shares.get(x.id):

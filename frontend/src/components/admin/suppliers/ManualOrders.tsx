@@ -1,11 +1,12 @@
 "use client";
 
 /**
- * Orders to place: the parts of the shop's orders that a supplier's stock
- * covered (a product with sources, services/suppliers/sourcing.py) when no
- * orders are sent to that supplier from here (SanMar). The shop downloads the
- * list, orders it on the supplier's own website, then marks those orders as
- * ordered with the supplier's order number, which goes on each order's history.
+ * Orders to place: what the shop's orders need from a supplier no orders are
+ * sent to from here (SanMar): lines of products imported from it, and its part
+ * of products with sources (services/suppliers/sourcing.py). The shop
+ * downloads the list, orders it on the supplier's own website, then marks
+ * those orders as ordered with the supplier's order number, which goes on each
+ * order's history.
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { suppliersService, type SupplierOrderRow, type WaitingOrder } from "@/services/suppliers.service";
@@ -87,8 +88,9 @@ export function ManualOrders({ id, name }: { id: string; name: string }) {
   return (
     <div data-manual-orders>
       <p style={MUTED}>
-        Orders are not sent to {name} from here yet. When an order takes stock from {name} (a product with {name} as
-        a source), its part shows below: order it on {name}&apos;s website, then mark it as ordered.
+        Orders are not sent to {name} from here yet. What an order needs from {name} shows below: products imported
+        from {name}, and {name}&apos;s part of products with {name} as a source. Order it on {name}&apos;s website,
+        then mark it as ordered.
       </p>
       {msg && <p style={{ ...MUTED, color: msg.ok ? "var(--pc-green, #1F7A4D)" : "var(--pc-red, #C8321F)", marginTop: 10 }} role={msg.ok ? "status" : "alert"}>{msg.text}</p>}
 
