@@ -476,9 +476,14 @@ async def receive_items(po_id: UUID, data: ReceivingCreate, db: AsyncSession = D
 
         if line_item and line_item.product_variant_id:
             try:
+                # Received goods are on the shop's own shelves, never in a
+                # supplier's location (its stock is rewritten by every sync).
                 inv_result = await db.execute(
-                    select(InventoryRecord).where(
-                        InventoryRecord.variant_id == line_item.product_variant_id
+                    select(InventoryRecord)
+                    .join(Warehouse, Warehouse.id == InventoryRecord.warehouse_id)
+                    .where(
+                        InventoryRecord.variant_id == line_item.product_variant_id,
+                        Warehouse.supplier.is_(None),
                     ).limit(1)
                 )
                 inv_record = inv_result.scalar_one_or_none()
@@ -486,7 +491,7 @@ async def receive_items(po_id: UUID, data: ReceivingCreate, db: AsyncSession = D
                     inv_record.quantity = inv_record.quantity + item_data.qty_received
                 else:
                     wh_result = await db.execute(
-                        select(Warehouse).where(Warehouse.is_active == True).limit(1)
+                        select(Warehouse).where(Warehouse.is_active == True, Warehouse.supplier.is_(None)).limit(1)
                     )
                     warehouse = wh_result.scalar_one_or_none()
                     if warehouse:

@@ -48,9 +48,11 @@ class OrderSendError(Exception):
 # ── Which orders, which lines ────────────────────────────────────────────────
 
 async def supplier_lines(db: AsyncSession, order_ids: list[uuid.UUID]) -> dict[uuid.UUID, list[dict]]:
-    """Per order, the lines that are S&S products."""
+    """Per order, the lines that are S&S products, and the part of each line of
+    the shop's own products that S&S's stock covered (suppliers/sourcing.py)."""
     from app.models.order import OrderItem
     from app.models.product import Product, ProductVariant
+    from app.services.suppliers import sourcing
 
     if not order_ids:
         return {}
@@ -65,6 +67,8 @@ async def supplier_lines(db: AsyncSession, order_ids: list[uuid.UUID]) -> dict[u
     for oid, qty, name, color, size, vid, sku, ref in rows:
         out[oid].append({"variant_id": str(vid), "sku": sku, "style_id": ref, "qty": int(qty or 0),
                          "name": name, "color": color, "size": size})
+    for oid, shares in (await sourcing.order_shares(db, order_ids, SUPPLIER)).items():
+        out[oid].extend(s for s in shares if s["sku"])
     return out
 
 
@@ -168,10 +172,12 @@ async def _identifiers(svc, cfg: dict, lines: list[dict]) -> dict[str, str]:
     from app.services.suppliers import ss_products
 
     out: dict[str, str] = {}
-    for style_id in {line["style_id"] for line in lines}:
+    for style_id in {line["style_id"] for line in lines if not line.get("linked")}:
         rows = await svc.fetch_products_by_style(style_id)
         for r in rows:
             out[ss_products.mapped_sku(cfg, {"styleID": style_id}, r)] = str(r.get("sku") or "")
+    # A linked source already carries S&S's own SKU.
+    out.update({line["sku"]: line["sku"] for line in lines if line.get("linked")})
     missing = [line["sku"] for line in lines if not out.get(line["sku"])]
     if missing:
         raise OrderSendError(f"S&S no longer sells {', '.join(missing[:3])}.")

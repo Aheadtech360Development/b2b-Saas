@@ -742,6 +742,14 @@ async def get_admin_order(order_id: str, db: AsyncSession = Depends(get_db)):
         _supplier_detail = (await order_supplier_summary(db, [order.id])).get(order.id)
     except Exception:
         _supplier_detail = None
+    try:
+        from app.services.suppliers import sourcing as _sourcing
+
+        async with db.begin_nested():
+            _shares = (await _sourcing.order_shares(db, [order.id])).get(order.id, [])
+    except Exception:
+        logger.warning("Could not read supplier shares for order %s", order.id, exc_info=True)
+        _shares = []
 
     _events_rows = await order_events.for_order(db, order.id)
 
@@ -817,6 +825,7 @@ async def get_admin_order(order_id: str, db: AsyncSession = Depends(get_db)):
     try:
         return AdminOrderDetail(
             supplier=_supplier_detail,
+            supplier_shares=_shares,
             progress=_progress_out,
             carriers=_carriers_on,
             id=order.id,

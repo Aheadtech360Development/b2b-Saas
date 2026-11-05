@@ -61,8 +61,9 @@ async def default_warehouse(db: AsyncSession) -> Warehouse:
     warehouse before setting stock"), so switching on stock counting led
     nowhere. The session is the brand's, so the warehouse is stamped with it.
     """
+    # Never a supplier's own location: its stock is rewritten by every sync.
     warehouse = (await db.execute(
-        select(Warehouse).order_by(Warehouse.created_at).limit(1)
+        select(Warehouse).where(Warehouse.supplier.is_(None)).order_by(Warehouse.created_at).limit(1)
     )).scalar_one_or_none()
     if warehouse is None:
         warehouse = Warehouse(name="Main", code="MAIN", country="US", is_active=True)

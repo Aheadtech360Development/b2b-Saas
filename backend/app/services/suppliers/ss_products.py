@@ -75,8 +75,11 @@ async def locations(db: AsyncSession, cfg: dict, *, create_default: bool = False
     location when the brand has none yet (first import)."""
     from app.models.inventory import Warehouse
 
+    # A supplier's own location (linked sources, suppliers/sourcing.py) is
+    # never fed from these settings.
     rows = (await db.execute(
-        select(Warehouse).where(Warehouse.is_active.is_(True)).order_by(Warehouse.created_at)
+        select(Warehouse).where(Warehouse.is_active.is_(True), Warehouse.supplier.is_(None))
+        .order_by(Warehouse.created_at)
     )).scalars().all()
     if not rows and create_default:
         wh = Warehouse(name="Default Warehouse", code=f"WH-{uuid.uuid4().hex[:8].upper()}", country="US")

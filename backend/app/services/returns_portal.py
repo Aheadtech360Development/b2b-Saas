@@ -408,12 +408,15 @@ async def buyer_email(db, rma: RMARequest, order: Order) -> str | None:
 # ── The shop's decisions ───────────────────────────────────────────────────
 
 async def _restock(db, variant_id, qty: int, *, user_id, note: str) -> None:
-    from app.models.inventory import InventoryAdjustment, InventoryRecord
+    from app.models.inventory import InventoryAdjustment, InventoryRecord, Warehouse
     from app.services.inventory_service import default_warehouse
 
+    # A returned item is back on the shop's own shelves, never in a
+    # supplier's location (its stock is rewritten by every sync).
     record = (await db.execute(
-        select(InventoryRecord).where(InventoryRecord.variant_id == variant_id)
-        .order_by(InventoryRecord.quantity.desc()).limit(1).with_for_update()
+        select(InventoryRecord).join(Warehouse, Warehouse.id == InventoryRecord.warehouse_id)
+        .where(InventoryRecord.variant_id == variant_id, Warehouse.supplier.is_(None))
+        .order_by(InventoryRecord.quantity.desc()).limit(1).with_for_update(of=InventoryRecord)
     )).scalar_one_or_none()
     if record is None:
         warehouse = await default_warehouse(db)
@@ -428,12 +431,15 @@ async def _restock(db, variant_id, qty: int, *, user_id, note: str) -> None:
 
 
 async def _take_stock(db, variant_id, qty: int) -> None:
-    from app.models.inventory import InventoryRecord
+    from app.models.inventory import InventoryRecord, Warehouse
 
     left = int(qty)
+    # The exchanged item leaves from the shop's own shelves: a supplier's
+    # location only counts what that supplier holds.
     records = (await db.execute(
-        select(InventoryRecord).where(InventoryRecord.variant_id == variant_id)
-        .order_by(InventoryRecord.quantity.desc()).with_for_update()
+        select(InventoryRecord).join(Warehouse, Warehouse.id == InventoryRecord.warehouse_id)
+        .where(InventoryRecord.variant_id == variant_id, Warehouse.supplier.is_(None))
+        .order_by(InventoryRecord.quantity.desc()).with_for_update(of=InventoryRecord)
     )).scalars().all()
     for rec in records:
         if left <= 0:

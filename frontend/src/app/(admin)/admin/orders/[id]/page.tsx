@@ -72,10 +72,14 @@ interface OrderEvent {
   actor_name: string | null; meta: Record<string, unknown>; occurred_at: string;
 }
 
+/** The part of a line a supplier's stock covered (a product with sources). */
+interface SupplierShare { order_item_id: string; supplier: string; label: string; qty: number }
+
 interface AdminOrder {
   id: string;
   order_number: string;
   supplier?: SupplierSummary | null;
+  supplier_shares?: SupplierShare[];
   progress?: Progress | null;
   carriers?: string[];
   company_name: string | null;
@@ -670,6 +674,9 @@ export default function AdminOrderDetailPage() {
                   {o.items.map((item) => {
                     const sheet = item.gang_sheet ?? null;
                     const file = item.configuration?.artwork ?? null;
+                    // What a supplier's stock covered of this line; the rest came off the shop's shelves.
+                    const shares = (o.supplier_shares ?? []).filter((s) => s.order_item_id === item.id);
+                    const ownPart = item.quantity - shares.reduce((n, s) => n + s.qty, 0);
                     const options = [item.color, item.size].filter(Boolean).join(" / ")
                       || (item.configuration?.breakdown ?? []).map((b) => `${b.option}: ${b.value}`).join(" · ")
                       || (sheet ? `${sheet.width_in} x ${sheet.height_in} in` : "");
@@ -679,6 +686,14 @@ export default function AdminOrderDetailPage() {
                         <td>
                           <div style={{ fontWeight: 600 }}>{item.product_name}</div>
                           <div className="pc-sub-line" style={{ fontSize: "12.5px" }}>{item.sku} · {money(item.unit_price)} each</div>
+                          {shares.length > 0 && (
+                            <div className="pc-sub-line" style={{ fontSize: "12.5px" }} data-shares>
+                              {[
+                                ...(ownPart > 0 ? [`${ownPart} from your stock`] : []),
+                                ...shares.map((s) => `${s.qty} from ${s.label}${s.supplier === "sanmar" ? " (order these from SanMar yourself)" : ""}`),
+                              ].join(" · ")}
+                            </div>
+                          )}
                         </td>
                         <td style={{ color: "var(--pc-ink-2)" }}>{options || <span style={{ color: "var(--pc-faint)" }}>None</span>}</td>
                         <td>

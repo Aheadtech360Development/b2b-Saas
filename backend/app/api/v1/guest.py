@@ -13,7 +13,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.exceptions import NotFoundError, ValidationError, InsufficientStockError
-from app.models.inventory import InventoryRecord
 from app.models.order import Order, OrderItem
 from app.models.user import User
 from app.models.product import Product, ProductVariant
@@ -805,34 +804,22 @@ async def guest_checkout(
             if _gs.status == _GS_SUBMITTED:
                 _gs.status = _GS_IN_REVIEW
 
-    # 6. Create OrderItem records + deduct inventory
-    from sqlalchemy import update as _update
+    # 6. Create OrderItem records + deduct inventory: the shop's own stock
+    # first, then its suppliers' for a product with sources, noting what each
+    # supplier covers (services/suppliers/sourcing.py).
+    from app.services.suppliers import sourcing
 
     for item_data in order_items_data:
-        db.add(OrderItem(order_id=order.id, **item_data))
+        order_item = OrderItem(order_id=order.id, **item_data)
+        db.add(order_item)
 
         # A configured line has no variant and no stock behind it — it is made
         # to the order — so there is nothing to take off the shelf.
         if item_data.get("variant_id") is None:
             continue
 
-        qty_to_deduct = int(item_data["quantity"])
-        inv_result = await db.execute(
-            select(InventoryRecord)
-            .where(InventoryRecord.variant_id == item_data["variant_id"])
-            .order_by(InventoryRecord.quantity.desc())
-        )
-        for record in inv_result.scalars().all():
-            if qty_to_deduct <= 0:
-                break
-            deduct = min(int(record.quantity), qty_to_deduct)
-            if deduct > 0:
-                await db.execute(
-                    _update(InventoryRecord)
-                    .where(InventoryRecord.id == record.id)
-                    .values(quantity=int(record.quantity) - deduct)
-                )
-                qty_to_deduct -= deduct
+        shares = await sourcing.take_stock(db, item_data["variant_id"], int(item_data["quantity"]))
+        await sourcing.record_shares(db, order_item, shares)
 
 
     # Bust product detail Redis cache so stock shows correctly for everyone.

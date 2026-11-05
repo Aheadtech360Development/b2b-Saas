@@ -426,7 +426,8 @@ async def supplier_locations(
 
     _known(supplier)
     stores = (await db.execute(
-        select(Warehouse).where(Warehouse.is_active.is_(True)).order_by(Warehouse.created_at)
+        select(Warehouse).where(Warehouse.is_active.is_(True), Warehouse.supplier.is_(None))
+        .order_by(Warehouse.created_at)
     )).scalars().all()
     conn = await _connection(db, supplier)
     codes: list[str] = []
@@ -617,3 +618,114 @@ async def refresh_supplier_tracking(
         await svc.close()
     return {"shipped": shipped}
 
+
+
+# ── Sources: one product, several suppliers (services/suppliers/sourcing.py) ──
+
+class SourceIn(BaseModel):
+    style_id: str = Field(min_length=1, max_length=100)
+
+
+async def _style_rows(db: AsyncSession, supplier: str, style_id: str) -> tuple[dict, list[dict]]:
+    """One supplier style from the catalogue, and its colour/size rows."""
+    svc, styles = await _styles(db, supplier)
+    try:
+        style = next((s for s in styles if str(s["style_id"]) == str(style_id)), None)
+        if style is None:
+            raise HTTPException(status_code=404, detail=f"That style isn't in the {sources.label(supplier)} catalogue.")
+        if not style.get("part_number"):
+            raise HTTPException(status_code=409, detail=f"{sources.label(supplier)} gives no stock for that style.")
+        try:
+            rows = await svc.fetch_products_for_parts([style["part_number"]])
+        except Exception:
+            raise HTTPException(status_code=502, detail=f"Couldn't read that style from {sources.label(supplier)} "
+                                                        "just now. Please try again.") from None
+    finally:
+        await svc.close()
+    return style, [r for r in rows if str(r.get("styleID") or "") == str(style["style_id"])] or rows
+
+
+@router.get("/product-sources/{product_id}")
+async def product_sources(
+    product_id: uuid.UUID, _: None = Depends(require_admin), db: AsyncSession = Depends(get_db),
+    __: None = Depends(require_brand),
+) -> dict:
+    """A product's sources colour by colour, and the suppliers it can take."""
+    from app.services.suppliers import sourcing
+
+    try:
+        out = await sourcing.product_sources(db, product_id)
+    except sourcing.SourceError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from None
+    can = []
+    for sup in sourcing.SUPPLIERS:
+        if not cfgmod.CATALOG.get(sup, {}).get("available"):
+            continue
+        conn = await _connection(db, sup)
+        on = (await cfgmod.load(db, sup)).get("active", True)
+        can.append({"supplier": sup, "label": sources.label(sup), "connected": conn["connected"] and on})
+    out["can_link"] = can
+    return out
+
+
+@router.post("/{supplier}/product-sources/{product_id}/preview")
+async def preview_product_source(
+    supplier: str, product_id: uuid.UUID, payload: SourceIn,
+    _: None = Depends(require_admin), db: AsyncSession = Depends(get_db), __: None = Depends(require_brand),
+) -> dict:
+    """What linking a supplier style to the product would match, without doing it."""
+    from app.services.suppliers import sourcing
+
+    _known(supplier)
+    if supplier not in sourcing.SUPPLIERS:
+        raise HTTPException(status_code=409, detail=f"{sources.label(supplier)} can't be a product's source yet.")
+    style, rows = await _style_rows(db, supplier, payload.style_id)
+    try:
+        return await sourcing.preview(db, product_id, supplier, style, rows)
+    except sourcing.SourceError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from None
+
+
+@router.post("/{supplier}/product-sources/{product_id}")
+async def link_product_source(
+    supplier: str, product_id: uuid.UUID, payload: SourceIn,
+    _: None = Depends(require_admin), db: AsyncSession = Depends(get_db), __: None = Depends(require_brand),
+) -> dict:
+    """Link a supplier style to the product: its stock joins the product's."""
+    from app.core.redis import redis_delete_pattern, tenant_cache_key
+    from app.services.suppliers import sourcing
+
+    _known(supplier)
+    if supplier not in sourcing.SUPPLIERS:
+        raise HTTPException(status_code=409, detail=f"{sources.label(supplier)} can't be a product's source yet.")
+    style, rows = await _style_rows(db, supplier, payload.style_id)
+    try:
+        done = await sourcing.link(db, product_id, supplier, style, rows, await cfgmod.load(db, supplier))
+    except sourcing.SourceError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from None
+    await db.commit()
+    try:
+        await redis_delete_pattern(tenant_cache_key("products:*"))
+    except Exception:
+        pass
+    return {**done, **(await sourcing.product_sources(db, product_id))}
+
+
+@router.delete("/{supplier}/product-sources/{product_id}")
+async def unlink_product_source(
+    supplier: str, product_id: uuid.UUID,
+    _: None = Depends(require_admin), db: AsyncSession = Depends(get_db), __: None = Depends(require_brand),
+) -> dict:
+    """Take a supplier off the product, and its stock with it."""
+    from app.core.redis import redis_delete_pattern, tenant_cache_key
+    from app.services.suppliers import sourcing
+
+    if supplier not in sourcing.SUPPLIERS:
+        raise HTTPException(status_code=404, detail="Unknown supplier")
+    removed = await sourcing.unlink(db, product_id, supplier)
+    await db.commit()
+    try:
+        await redis_delete_pattern(tenant_cache_key("products:*"))
+    except Exception:
+        pass
+    return {"removed": removed, **(await sourcing.product_sources(db, product_id))}

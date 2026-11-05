@@ -221,7 +221,7 @@ async def _import(tenant_id: str, supplier: str, styles: list[dict], svc, cfg: d
 
     from app.core.database import AsyncSessionLocal
     from app.models.product import Product
-    from app.services.suppliers import sources, ss_products
+    from app.services.suppliers import sourcing, sources, ss_products
 
     name = sources.label(supplier)
     wanted = [s for s in styles if ss_catalog.matches(s, cfg.get("filters") or {})]
@@ -234,6 +234,9 @@ async def _import(tenant_id: str, supplier: str, styles: list[dict], svc, cfg: d
             # before the supplier column carry only the style number.
             q = q.where(Product.supplier == supplier)
         have = set((await db.execute(q)).scalars().all())
+        # A style already linked as a source of one of the shop's own products
+        # is in the store: importing it again would show the shirt twice.
+        have |= await sourcing.linked_styles(db, supplier) & set(ids)
     todo = [s for s in wanted if s["style_id"] not in have]
     batch_all, remaining = todo[:MAX_IMPORT_PER_RUN], max(0, len(todo) - MAX_IMPORT_PER_RUN)
     if batch_all:
@@ -389,6 +392,13 @@ async def _update(tenant_id: str, supplier: str, styles: list[dict], svc, cfg: d
         fresh["unavailable_products"] = sorted(unavailable_ids)[:5000]
         await cfgmod.save(db, supplier, fresh)
         await db.commit()
+
+    # The shop's own products this supplier is a source of: stock and cost.
+    from app.services.suppliers import sourcing
+
+    linked = await sourcing.sync(supplier, styles, svc, cfg, step, with_cost=True)
+    stats["sources"] = linked["sources"]
+    stats["stock"] += linked["sources_changed"]
     await step(len(live), len(live), "Sync finished")
     return stats
 
@@ -414,7 +424,9 @@ async def _inventory(tenant_id: str, supplier: str, styles: list[dict], svc, cfg
             .where(Product.supplier == supplier)
         )).all()
         locs = await ss_products.locations(db, cfg)
-    if not locs:
+    # Only imported products need a location fed by the supplier; linked
+    # sources keep their stock in the supplier's own location.
+    if not locs and rows:
         raise RuntimeError("No store location receives supplier stock. Pick one in Edit Supplier → Inventory Settings.")
     variants_by_sku = {sku: vid for vid, sku, _ in rows if sku}
     parts = sorted({by_id[ref]["part_number"] for _, _, ref in rows if ref in by_id and by_id[ref]["part_number"]})
@@ -443,6 +455,13 @@ async def _inventory(tenant_id: str, supplier: str, styles: list[dict], svc, cfg
         async with AsyncSessionLocal() as db:
             changed += await ss_products.set_stock(db, pairs, locs, safety)
             await db.commit()
+
+    # The shop's own products this supplier is a source of.
+    from app.services.suppliers import sourcing
+
+    linked = await sourcing.sync(supplier, styles, svc, cfg, step, with_cost=False)
+    checked += linked["sources"]
+    changed += linked["sources_changed"]
     await step(len(parts), len(parts), "Stock sync finished")
     return {"styles": len(parts), "variants_checked": checked, "variants_changed": changed, "safety_stock": safety}
 

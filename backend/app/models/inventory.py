@@ -30,6 +30,10 @@ class Warehouse(TenantMixin, BaseModel):
     postal_code: Mapped[str | None] = mapped_column(String(20))
     country: Mapped[str] = mapped_column(String(2), default="US", nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    # Set on the one location per supplier that holds that supplier's stock for
+    # products with sources (services/suppliers/sourcing.py, migration 0073).
+    # Every location the shop counts itself is NULL.
+    supplier: Mapped[str | None] = mapped_column(String(40), nullable=True)
 
     inventory_records: Mapped[list["InventoryRecord"]] = relationship(
         "InventoryRecord", back_populates="warehouse", cascade="all, delete-orphan"

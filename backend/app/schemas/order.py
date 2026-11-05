@@ -226,6 +226,10 @@ class AdminOrderDetail(OrderOut):
     company_id: UUID | None
     company_name: str | None
     supplier: dict | None = None
+    # The part of each line a supplier's stock covered, for a product with
+    # sources (services/suppliers/sourcing.order_shares); the rest came off
+    # the shop's own shelves.
+    supplier_shares: list[dict] = []
     # Where the order stands and its steps (services/order_progress), and
     # the carriers this shop can buy a label from (empty: none connected).
     progress: dict | None = None

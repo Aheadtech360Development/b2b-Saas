@@ -133,3 +133,49 @@ class SupplierOrder(TenantMixin, BaseModel):
     carrier: Mapped[str | None] = mapped_column(String(100))
     shipped_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
+
+
+class VariantSource(TenantMixin, BaseModel):
+    """Where else one colour/size of the shop's own product can come from.
+
+    A product with sources is one product for the buyer, whatever it is
+    fulfilled from: the shop's own shelves first, then each supplier linked
+    here (services/suppliers/sourcing.py). Stock from the supplier lives in that
+    supplier's own location (`warehouses.supplier`), so its sync never touches
+    a number the shop counted. Migration 0073.
+    """
+    __tablename__ = "variant_sources"
+
+    variant_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("product_variants.id", ondelete="CASCADE"), nullable=False, index=True,
+    )
+    supplier: Mapped[str] = mapped_column(String(40), nullable=False)
+    # The SKU in the supplier's own rows: S&S's SKU, or SanMar's
+    # STYLE-MAINFRAMECOLOR-SIZE (services/sanmar_service.sku_of).
+    supplier_sku: Mapped[str] = mapped_column(String(100), nullable=False)
+    style_ref: Mapped[str] = mapped_column(String(100), nullable=False)
+    part_number: Mapped[str | None] = mapped_column(String(100))
+    gtin: Mapped[str | None] = mapped_column(String(40))
+    cost: Mapped[float | None] = mapped_column(Numeric(10, 2))
+
+
+class OrderItemSource(TenantMixin, BaseModel):
+    """How much of one order line was taken from a supplier's stock.
+
+    Written at checkout only for the part a supplier covers; the rest came off
+    the shop's own shelves. This is what the supplier is asked to send (S&S),
+    or what the shop orders from it by hand (SanMar). Migration 0073.
+    """
+    __tablename__ = "order_item_sources"
+
+    order_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("orders.id", ondelete="CASCADE"), nullable=False, index=True,
+    )
+    order_item_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("order_items.id", ondelete="CASCADE"), nullable=False, index=True,
+    )
+    variant_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("product_variants.id", ondelete="SET NULL"), nullable=True,
+    )
+    supplier: Mapped[str] = mapped_column(String(40), nullable=False)
+    quantity: Mapped[int] = mapped_column(Integer, nullable=False)

@@ -23,11 +23,10 @@ from decimal import Decimal
 from typing import Any
 
 from fastapi import HTTPException, Request
-from sqlalchemy import select, update
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.company import Company
-from app.models.inventory import InventoryRecord
 from app.models.order import Order, OrderEvent, OrderItem
 from app.models.rma import RMARequest
 from app.services import order_events
@@ -166,26 +165,19 @@ async def make_reprint(db: AsyncSession, request: Request, order: Order, *, rma:
         name = item.product_name
         for old, new in renamed.items():
             name = name.replace(old, new)
-        db.add(OrderItem(
+        line = OrderItem(
             order_id=reprint.id, variant_id=item.variant_id, product_id=item.product_id,
             quantity=item.quantity, unit_price=0, line_total=0, product_name=name[:255],
             sku=item.sku, color=item.color, size=item.size, configuration=item.configuration,
-        ))
-        # Stocked items come off stock as a checkout's do (order_service, 9.5).
+        )
+        db.add(line)
+        # Stocked items come off stock as a checkout's do (order_service, 9.5):
+        # own stock first, then a source's, noting what the supplier covers.
         if item.variant_id is not None:
-            left = int(item.quantity)
-            records = (await db.execute(
-                select(InventoryRecord).where(InventoryRecord.variant_id == item.variant_id)
-                .order_by(InventoryRecord.quantity.desc())
-            )).scalars().all()
-            for rec in records:
-                if left <= 0:
-                    break
-                take = min(int(rec.quantity), left)
-                if take > 0:
-                    await db.execute(update(InventoryRecord).where(InventoryRecord.id == rec.id)
-                                     .values(quantity=int(rec.quantity) - take))
-                    left -= take
+            from app.services.suppliers import sourcing
+
+            shares = await sourcing.take_stock(db, item.variant_id, int(item.quantity))
+            await sourcing.record_shares(db, line, shares)
     await db.flush()
 
     await order_events.record_admin(

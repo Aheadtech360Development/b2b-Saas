@@ -467,40 +467,25 @@ class OrderService:
                 logger.warning("Could not save shipping_rate_id on order %s: %s", order.id, _rate_exc)
 
         # 9. Create OrderItem records
+        order_items = []
         for item_data in order_items_data:
             order_item = OrderItem(
                 order_id=order.id,
                 **item_data,
             )
             self.db.add(order_item)
+            order_items.append(order_item)
 
-        # 9.5. Deduct inventory for each ordered variant using explicit SQL UPDATE
-        from sqlalchemy import update as _update
-        for item_data in order_items_data:
+        # 9.5. Deduct inventory for each ordered variant: the shop's own stock
+        # first, then its suppliers' for a product with sources, noting what
+        # each supplier covers (services/suppliers/sourcing.py).
+        from app.services.suppliers import sourcing
+        for order_item, item_data in zip(order_items, order_items_data):
             variant_id = item_data["variant_id"]
             if variant_id is None:
                 continue  # gang-sheet line: no inventory to deduct
-            qty_to_deduct = int(item_data["quantity"])
-
-            inv_result = await self.db.execute(
-                select(InventoryRecord)
-                .where(InventoryRecord.variant_id == variant_id)
-                .order_by(InventoryRecord.quantity.desc())
-            )
-            inv_records = inv_result.scalars().all()
-
-            for record in inv_records:
-                if qty_to_deduct <= 0:
-                    break
-                current_qty = int(record.quantity)
-                deduct = min(current_qty, qty_to_deduct)
-                if deduct > 0:
-                    await self.db.execute(
-                        _update(InventoryRecord)
-                        .where(InventoryRecord.id == record.id)
-                        .values(quantity=current_qty - deduct)
-                    )
-                    qty_to_deduct -= deduct
+            shares = await sourcing.take_stock(self.db, variant_id, int(item_data["quantity"]))
+            await sourcing.record_shares(self.db, order_item, shares)
 
         # 9.6. Invalidate product detail cache so stock shows immediately
         try:

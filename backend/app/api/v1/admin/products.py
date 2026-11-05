@@ -588,9 +588,17 @@ async def get_admin_product(slug: str, db: AsyncSession = Depends(get_db)):
     # Exclude discontinued/archived variants from the edit page response
     product.variants[:] = [v for v in product.variants if v.status not in ("archived", "discontinued")]
 
+    # The Stock box is the shop's own stock, the number it can type over; a
+    # supplier's stock for a product with sources shows under Sources.
+    from app.models.inventory import Warehouse as _Warehouse
+
+    supplier_locations = set((await db.execute(
+        select(_Warehouse.id).where(_Warehouse.supplier.isnot(None))
+    )).scalars().all())
     for variant in product.variants:
         variant.stock_quantity = sum(
-            rec.quantity for rec in variant.inventory_records if rec.quantity > 0
+            rec.quantity for rec in variant.inventory_records
+            if rec.quantity > 0 and rec.warehouse_id not in supplier_locations
         )
 
     # Attach review stats
@@ -812,10 +820,13 @@ async def _set_variant_stock(db: AsyncSession, variant_id: UUID, quantity: int) 
     warehouse; without that, typing a number into the grid would appear to work
     and change nothing.
     """
-    from app.models.inventory import InventoryRecord
+    from app.models.inventory import InventoryRecord, Warehouse
 
+    # The number is the shop's own stock: a supplier's location (a product's
+    # source, suppliers/sourcing.py) holds what that supplier has and is left alone.
     records = list((await db.execute(
-        select(InventoryRecord).where(InventoryRecord.variant_id == variant_id)
+        select(InventoryRecord).join(Warehouse, Warehouse.id == InventoryRecord.warehouse_id)
+        .where(InventoryRecord.variant_id == variant_id, Warehouse.supplier.is_(None))
     )).scalars().all())
 
     if records:

@@ -34,6 +34,7 @@ import { ProductOptionsBuilder } from "@/components/admin/ProductOptionsBuilder"
 import { productTemplatesService, type ProductTemplateRow } from "@/services/productTemplates.service";
 import { WebsiteTemplateField } from "@/components/admin/WebsiteTemplateField";
 import { TrackStockSwitch } from "@/components/admin/TrackStockSwitch";
+import { ProductSources } from "@/components/admin/products/ProductSources";
 import { ImportProductsModal } from "@/components/admin/ImportProductsModal";
 import { displayUrl } from "@/lib/brand";
 
@@ -1261,6 +1262,8 @@ function ProductEditor() {
               </div>
             ))}
           </div>
+          {/* Where else this product can come from: S&S, SanMar. */}
+          {!madeToOrder && <ProductSources productId={product.id} />}
               </>
             ) : (
               <div style={sectionCard}>

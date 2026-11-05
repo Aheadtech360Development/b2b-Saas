@@ -49,6 +49,10 @@ def _account_words() -> str:
 
 router = APIRouter(prefix="/account", tags=["account"])
 
+# What a buyer reads for a supplier's location (a product's source,
+# services/suppliers/sourcing.py): stock the shop sells, not who holds it.
+PARTNER_STOCK = "Partner warehouse"
+
 
 # ---------------------------------------------------------------------------
 # Price list (T056 — US-10)
@@ -946,6 +950,7 @@ async def get_inventory_report(
             Product.name.label("product_name"),
             Warehouse.id.label("warehouse_id"),
             Warehouse.name.label("warehouse_name"),
+            Warehouse.supplier.label("warehouse_supplier"),
             InventoryRecord.quantity,
         )
         .join(Product, Product.id == ProductVariant.product_id)
@@ -1003,12 +1008,13 @@ async def get_inventory_report(
                 "color": r["color"] or "—",
                 "size": r["size"] or "—",
                 "warehouse_id": str(r["warehouse_id"]),
-                "warehouse_name": r["warehouse_name"],
+                # Buyers see the shop's name for things, never its supplier's.
+                "warehouse_name": PARTNER_STOCK if r["warehouse_supplier"] else r["warehouse_name"],
                 "available": int(r["quantity"]),
             }
             for r in rows
         ],
-        "warehouses": [{"id": str(w.id), "name": w.name} for w in warehouses],
+        "warehouses": [{"id": str(w.id), "name": PARTNER_STOCK if w.supplier else w.name} for w in warehouses],
         "products": [{"id": str(p[0]), "name": p[1]} for p in products],
         "colors": colors,
     }
