@@ -8,15 +8,18 @@ import { Fragment, useEffect, useState, type CSSProperties } from "react";
 import Link from "next/link";
 import s from "../marketing.module.css";
 import { useFaq, useSavingsCalculator } from "../interactive";
+import type { PlanKey } from "@/lib/planPrices";
+import { usePlanPrices } from "@/lib/planPricesContext";
 import { RETAIL_LAUNCHED } from "@/lib/retailLaunch";
 import RetailPricing from "./RetailPricing";
 
 type Cell = string | boolean;
+type Prices = Record<PlanKey, string>;
 
 /** Every feature, plan by plan: a group heading, or a row of Starter / Wholesale / Scale. */
-const SPEC: ([string] | [string, Cell, Cell, Cell])[] = [
+const specOf = (price: Prices): ([string] | [string, Cell, Cell, Cell])[] => [
   ["Limits and pricing"],
-  ["Monthly price", "$97", "$297", "$497"],
+  ["Monthly price", price.starter, price.wholesale, price.scale],
   ["Orders", "300", "1,500", "Unlimited"],
   ["Staff accounts", "3", "10", "Unlimited"],
   ["Commission on Gang Sheet orders", "2.8%", "1.9%", "1.3%"],
@@ -66,7 +69,7 @@ function cellOf(v: Cell, mid: boolean): { yes: boolean; text: string; style: CSS
   return { yes: false, text: v, style: { ...base, color: "#0C1E35", fontWeight: "600" } };
 }
 
-const compareRows = SPEC.map((r) => {
+const compareRowsOf = (price: Prices) => specOf(price).map((r) => {
   if (r.length === 1) return { isGroup: true, isRow: false, name: r[0] };
   const a = cellOf(r[1], false),
     b = cellOf(r[2], true),
@@ -144,6 +147,8 @@ function PrintPricing() {
   const { salesLabel, salesValue, onSales, rates, currentCost, bestName, bestCost, verdict, plans } =
     useSavingsCalculator();
   const faqs = useFaq(FAQ);
+  const price = usePlanPrices();
+  const compareRows = compareRowsOf(price);
 
   return (
     <>
@@ -253,7 +258,7 @@ function PrintPricing() {
               </p>
               <p style={{ marginTop: "20px" }}>
                 <span className={s["d"]} style={{ fontSize: "52px", lineHeight: "56px", color: "#0C1E35" }}>
-                  $97
+                  {price.starter}
                 </span>
                 <span style={{ fontSize: "16px", color: "#5A6A7E" }}> per month</span>
               </p>
@@ -450,7 +455,7 @@ function PrintPricing() {
               </p>
               <p style={{ marginTop: "20px" }}>
                 <span className={s["d"]} style={{ fontSize: "52px", lineHeight: "56px", color: "#FFFFFF" }}>
-                  $297
+                  {price.wholesale}
                 </span>
                 <span style={{ fontSize: "16px", color: "rgba(255,255,255,.78)" }}> per month</span>
               </p>
@@ -689,7 +694,7 @@ function PrintPricing() {
               </p>
               <p style={{ marginTop: "20px" }}>
                 <span className={s["d"]} style={{ fontSize: "52px", lineHeight: "56px", color: "#0C1E35" }}>
-                  $497
+                  {price.scale}
                 </span>
                 <span style={{ fontSize: "16px", color: "#5A6A7E" }}> per month</span>
               </p>
@@ -1094,7 +1099,7 @@ function PrintPricing() {
                   <p className={s["d"]} style={{ fontSize: "20px", lineHeight: "26px", color: "#0C1E35" }}>
                     Starter
                   </p>
-                  <p style={{ marginTop: "4px", fontSize: "14px", color: "#5A6A7E" }}>$97 per month</p>
+                  <p style={{ marginTop: "4px", fontSize: "14px", color: "#5A6A7E" }}>{price.starter} per month</p>
                   <Link
                     className={s["btn-line"]}
                     href="/signup?plan=starter"
@@ -1120,7 +1125,7 @@ function PrintPricing() {
                   <p className={s["d"]} style={{ fontSize: "20px", lineHeight: "26px", color: "#0A4FB3" }}>
                     Wholesale
                   </p>
-                  <p style={{ marginTop: "4px", fontSize: "14px", color: "#5A6A7E" }}>$297 per month</p>
+                  <p style={{ marginTop: "4px", fontSize: "14px", color: "#5A6A7E" }}>{price.wholesale} per month</p>
                   <Link
                     className={s["btn-primary"]}
                     href="/signup?plan=wholesale"
@@ -1145,7 +1150,7 @@ function PrintPricing() {
                   <p className={s["d"]} style={{ fontSize: "20px", lineHeight: "26px", color: "#0C1E35" }}>
                     Scale
                   </p>
-                  <p style={{ marginTop: "4px", fontSize: "14px", color: "#5A6A7E" }}>$497 per month</p>
+                  <p style={{ marginTop: "4px", fontSize: "14px", color: "#5A6A7E" }}>{price.scale} per month</p>
                   <Link
                     className={s["btn-line"]}
                     href="/signup?plan=scale"

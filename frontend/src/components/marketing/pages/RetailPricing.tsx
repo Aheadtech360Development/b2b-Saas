@@ -11,10 +11,12 @@
  * yet), and the plan card's line of sales tools the platform does not have
  * (shown as "Discount codes", the one it has).
  */
+import { usePlanPrices } from "@/lib/planPricesContext";
 
 const CSS = ".rp-tab a{text-decoration:none}\n.rp-tab .dk{background-color:#0C1E35;background-image:linear-gradient(rgba(255,255,255,0.045) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,0.045) 1px,transparent 1px);background-size:56px 56px}";
 
 export default function RetailPricing() {
+  const price = usePlanPrices();
   return (
     <div className="rp-tab" style={{ fontFamily: "'DM Sans', system-ui, sans-serif", color: "#0C1E35" }}>
       <link
@@ -47,7 +49,7 @@ export default function RetailPricing() {
             For brands selling their own products.
           </span>
           <span style={{ fontFamily: "Outfit, sans-serif", fontWeight: "700", fontSize: "60px", lineHeight: "1" }}>
-            $79{" "}
+            {price.retail}{" "}
             <span style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: "400", fontSize: "16px", color: "#4A5B73" }}>
               per month
             </span>

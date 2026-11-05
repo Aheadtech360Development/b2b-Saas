@@ -5,6 +5,7 @@ import { Fragment } from "react";
 import Link from "next/link";
 import s from "../marketing.module.css";
 import { useFaq, useSavingsCalculator } from "../interactive";
+import { usePlanPrices } from "@/lib/planPricesContext";
 import { RETAIL_LAUNCHED } from "@/lib/retailLaunch";
 
 const FAQ = [
@@ -90,6 +91,7 @@ export default function HomePage() {
   const { salesLabel, salesValue, onSales, rates, currentCost, bestName, bestCost, verdict, plans } =
     useSavingsCalculator();
   const faqs = useFaq(FAQ);
+  const price = usePlanPrices();
 
   return (
     <>
@@ -3297,7 +3299,7 @@ export default function HomePage() {
               </h3>
               <p style={{ marginTop: "16px" }}>
                 <span className={s["d"]} style={{ fontSize: "48px", lineHeight: "52px", color: "#0C1E35" }}>
-                  $97
+                  {price.starter}
                 </span>
                 <span style={{ fontSize: "16px", color: "#5A6A7E" }}> per month</span>
               </p>
@@ -3373,7 +3375,7 @@ export default function HomePage() {
               </h3>
               <p style={{ marginTop: "16px" }}>
                 <span className={s["d"]} style={{ fontSize: "48px", lineHeight: "52px", color: "#0C1E35" }}>
-                  $297
+                  {price.wholesale}
                 </span>
                 <span style={{ fontSize: "16px", color: "#5A6A7E" }}> per month</span>
               </p>
@@ -3430,7 +3432,7 @@ export default function HomePage() {
               </h3>
               <p style={{ marginTop: "16px" }}>
                 <span className={s["d"]} style={{ fontSize: "48px", lineHeight: "52px", color: "#0C1E35" }}>
-                  $497
+                  {price.scale}
                 </span>
                 <span style={{ fontSize: "16px", color: "#5A6A7E" }}> per month</span>
               </p>

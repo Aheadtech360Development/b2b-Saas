@@ -7,16 +7,24 @@
  * wording are the design's.
  */
 import { useState, type ChangeEvent, type CSSProperties } from "react";
+import { usePlanCents } from "@/lib/planPricesContext";
 
 /**
  * The three plans as sold. The source of truth is BILLING_PLANS in
- * backend/app/core/billing_plans.py; keep these in step with it.
+ * backend/app/core/billing_plans.py; keep the commissions in step with it.
+ * The monthly fee is the price in force, which the super admin sets.
  */
 export const PLANS = [
-  { key: "starter", name: "Starter", fee: 97, commission: 2.8 },
-  { key: "wholesale", name: "Wholesale", fee: 297, commission: 1.9 },
-  { key: "scale", name: "Scale", fee: 497, commission: 1.3 },
+  { key: "starter", name: "Starter", commission: 2.8 },
+  { key: "wholesale", name: "Wholesale", commission: 1.9 },
+  { key: "scale", name: "Scale", commission: 1.3 },
 ] as const;
+
+/** The plans with each one's fee in force, in dollars a month. */
+function usePlans() {
+  const cents = usePlanCents();
+  return PLANS.map((p) => ({ ...p, fee: cents[p.key] / 100 }));
+}
 
 const FONT = "'Inter',system-ui,sans-serif";
 
@@ -44,7 +52,7 @@ export function useSavingsCalculator() {
   const [sales, setSales] = useState(10000);
   const [rate, setRate] = useState(4);
 
-  const costs = PLANS.map((p) => ({
+  const costs = usePlans().map((p) => ({
     name: p.name,
     cost: p.fee + (sales * p.commission) / 100,
     be: "Cheaper above " + dollars(p.fee / ((rate - p.commission) / 100)) + " a month",
@@ -106,7 +114,8 @@ const cents = (n: number) => "$" + n.toLocaleString("en-US", { minimumFractionDi
 export function useEarningsCalculator() {
   const [shops, setShops] = useState(5);
   const [plan, setPlan] = useState(1);
-  const picked = PLANS[plan] ?? PLANS[1];
+  const plans = usePlans();
+  const picked = plans[plan] ?? plans[1]!;
   const perShop = picked.fee * 0.2;
   const monthly = shops * perShop;
 
@@ -114,7 +123,7 @@ export function useEarningsCalculator() {
     shopsValue: shops,
     shopsLabel: String(shops),
     onShops: (e: ChangeEvent<HTMLInputElement>) => setShops(Number(e.target.value)),
-    planBtns: PLANS.map((p, i) => ({
+    planBtns: plans.map((p, i) => ({
       label: p.name,
       pressed: plan === i,
       pick: () => setPlan(i),

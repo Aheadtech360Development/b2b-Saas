@@ -158,6 +158,12 @@ def _limit(value: int | None) -> str:
     return "Unlimited" if value is None else f"{value:,}"
 
 
+def price_text(cents: int) -> str:
+    """"$97" or "$97.50": a whole-dollar price reads without cents."""
+    cents = int(cents or 0)
+    return f"${cents // 100:,}" if cents % 100 == 0 else f"${cents / 100:,.2f}"
+
+
 def plan_summary(key: str | None) -> dict:
     """How one brand's plan should read wherever it is shown.
 
@@ -177,7 +183,7 @@ def plan_summary(key: str | None) -> dict:
         "known": True,
         "name": p["name"],
         "amount_cents": p["amount_cents"],
-        "price_display": f"${p['amount_cents'] // 100}/mo",
+        "price_display": f"{price_text(p['amount_cents'])}/mo",
         "commission_display": f"{p['commission_bps'] / 100:.1f}%",
         "limits_display": (
             f"{_limit(p['limits']['orders_per_month'])} orders/month · "
@@ -198,7 +204,7 @@ def public_pricing_table() -> list[dict]:
             "key": key,
             "name": p["name"],
             "amount_cents": p["amount_cents"],
-            "price_display": f"${p['amount_cents'] // 100}/mo",
+            "price_display": f"{price_text(p['amount_cents'])}/mo",
             "commission_display": f"{p['commission_bps'] / 100:.1f}%",
             "commission_bps": p["commission_bps"],
             "interval": p["interval"],

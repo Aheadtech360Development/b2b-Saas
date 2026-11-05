@@ -12,6 +12,7 @@ import Link from "next/link";
 import s from "../marketing.module.css";
 import { RETAIL_LAUNCHED } from "@/lib/retailLaunch";
 import { useEarningsCalculator } from "../interactive";
+import { usePlanCents } from "@/lib/planPricesContext";
 import { papi } from "@/lib/partnerApi";
 import type { ProgramInfo } from "@/components/partners/AuthFrame";
 
@@ -29,6 +30,9 @@ function useProgramInfo(): Program | null {
 
 export default function PartnersPage() {
   const { shopsLabel, shopsValue, onShops, planBtns, perShop, planName, monthly, yearly } = useEarningsCalculator();
+  // The example month: one Wholesale shop at 20% of the price in force.
+  const exampleMonth = "$" + ((usePlanCents().wholesale * 0.2) / 100)
+    .toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const program = useProgramInfo();
   const open = Boolean(program?.accepting_applications && program.terms);
   const [agree, setAgree] = useState(false);
@@ -274,7 +278,7 @@ export default function PartnersPage() {
                 className={s["d"]}
                 style={{ marginTop: "6px", fontSize: "36px", lineHeight: "40px", color: "#FFFFFF" }}
               >
-                $59.40
+                {exampleMonth}
               </p>
               <p style={{ marginTop: "4px", fontSize: "13px", color: "rgba(255,255,255,.72)" }}>
                 1 Wholesale shop at 20%

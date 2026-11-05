@@ -859,6 +859,16 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # expiry and its notices, referrals settled (10 min).
     from app.services.loyalty import scheduler_loop as _loyalty_loop
     _loyalty = _asyncio.create_task(_loyalty_loop())
+    # Plan prices the console set: read before the first request is served,
+    # then every minute, in every worker.
+    from app.services import plan_prices as _plan_prices_svc
+    try:
+        from app.core.database import AsyncSessionLocal as _Session
+        async with _Session() as _db:
+            await _plan_prices_svc.refresh(_db)
+    except Exception as exc:  # noqa: BLE001
+        print(f"Plan prices not read at start (defaults until the next minute): {exc}")
+    _plan_prices = _asyncio.create_task(_plan_prices_svc.refresh_loop())
 
     yield
 
@@ -871,6 +881,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     _tracking.cancel()
     _gift_cards.cancel()
     _loyalty.cancel()
+    _plan_prices.cancel()
 
 
 app = FastAPI(

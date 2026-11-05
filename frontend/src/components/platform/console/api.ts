@@ -137,6 +137,8 @@ export interface PlanRow {
   key: string;
   name: string;
   amount_cents: number;
+  /** The price the plan ships with; amount_cents differs when the console set one. */
+  default_amount_cents?: number | null;
   price_display: string;
   commission_display: string;
   commission_bps: number;
@@ -168,4 +170,8 @@ export const consoleApi = {
     apiClient.get<Paged<ActivityRow>>(`${C}/activity${qs(p)}`),
   search: (q: string) => apiClient.get<SearchResults>(`${C}/search${qs({ q })}`),
   plans: () => apiClient.get<{ plans: PlanRow[] }>("/api/v1/platform/billing/plans"),
+  /** Plan key -> monthly cents; "stripe" says per changed plan whether its Stripe Price is set up yet. */
+  setPlanPrices: (prices: Record<string, number>) =>
+    apiClient.put<{ changed: string[]; stripe: Record<string, "ready" | "pending">; plans: PlanRow[] }>(
+      "/api/v1/platform/billing/plans/prices", { prices }),
 };

@@ -27,6 +27,8 @@ import StorefrontShell from "@/components/storefront/StorefrontShell";
 import MarketingShell from "@/components/marketing/MarketingShell";
 import MarketingHome from "@/components/marketing/pages/Home";
 import { MARKETING_META } from "@/components/marketing/meta";
+import { PlanPricesProvider } from "@/lib/planPricesContext";
+import { loadPlanPrices } from "@/lib/planPricesServer";
 import { apiClient } from "@/lib/api-client";
 import { BuilderPage } from "@/components/builder/SiteParts";
 import { loadBuilderPage } from "@/lib/builder/load";
@@ -55,7 +57,9 @@ export default async function HomePage() {
     return (
       <MarketingShell>
         {/* A partner's link (`?ref=CODE`) is counted by MarketingShell, on every page. */}
-        <MarketingHome />
+        <PlanPricesProvider prices={await loadPlanPrices()}>
+          <MarketingHome />
+        </PlanPricesProvider>
       </MarketingShell>
     );
   }

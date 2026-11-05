@@ -76,7 +76,7 @@ export function PlanTab({ brand, reload }: BrandTabProps) {
                 <table className="pc-table">
                   <thead><tr><th /><th>Now</th><th>After</th></tr></thead>
                   <tbody>
-                    <Row label="Price" now={current?.price_display ?? brand.plan_detail.price_display} after={chosen.price_display} />
+                    <Row label="Price" now={brand.plan_detail.price_display} after={chosen.price_display} />
                     <Row label="Orders per month" now={current ? limit(current.limits.orders_per_month) : "—"} after={limit(chosen.limits.orders_per_month)} />
                     <Row label="Staff accounts" now={current ? limit(current.limits.staff_accounts) : "—"} after={limit(chosen.limits.staff_accounts)} />
                     <Row label="Gang Sheet commission"

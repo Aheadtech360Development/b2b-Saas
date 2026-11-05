@@ -78,6 +78,12 @@ def _ts(unix: int | None) -> datetime | None:
     return datetime.fromtimestamp(unix, tz=timezone.utc) if unix else None
 
 
+def _amount_of(item) -> int | None:
+    """Cents a month a subscription item bills: its Price times its quantity."""
+    unit = (item.get("price") or {}).get("unit_amount")
+    return int(unit) * int(item.get("quantity") or 1) if unit is not None else None
+
+
 def start_params(*, customer_id: str, price_id: str, payment_method: str, tenant_id, plan_key: str,
                  trial_ends_at: datetime | None, now: datetime | None = None) -> tuple[dict, str]:
     """The subscription a card on file starts, and the key it is started under.
@@ -130,9 +136,15 @@ class BillingService:
             s = await _stripe_for(self.db)
             try:
                 found = s.Price.retrieve(stored)
-                if getattr(found, "active", True):
+                from app.core.billing_plans import BILLING_PLANS
+
+                wanted = (BILLING_PLANS.get(plan_key) or {}).get("amount_cents")
+                # The console can change a plan's price (services/plan_prices):
+                # an older Price is still active (running subscriptions use it)
+                # but no longer the one a new subscription starts on.
+                if getattr(found, "active", True) and (wanted is None or getattr(found, "unit_amount", wanted) == wanted):
                     return stored
-                logger.warning("Price %s is archived; finding the current one.", stored)
+                logger.warning("Price %s is archived or not the plan's price now; finding the current one.", stored)
             except Exception as exc:
                 if not _is_missing(exc):
                     raise
@@ -197,7 +209,20 @@ class BillingService:
             text("SELECT key FROM app_settings WHERE value = :v AND key LIKE 'stripe_price_%'"),
             {"v": price_id},
         )).first()
-        return row[0].replace("stripe_price_", "") if row else None
+        if row:
+            return row[0].replace("stripe_price_", "")
+        # An older Price of a plan whose price the console changed: the row
+        # now names the new one, but every Price made here carries its plan.
+        if not price_id:
+            return None
+        try:
+            from app.core.billing_plans import BILLING_PLANS
+
+            s = await _stripe_for(self.db)
+            plan_key = ((s.Price.retrieve(price_id).get("metadata") or {}).get("plan_key") or "").strip()
+            return plan_key if plan_key in BILLING_PLANS else None
+        except Exception:
+            return None
 
     # ── tenant lookup ─────────────────────────────────────────────────────────
     async def _get_tenant(self, slug: str) -> dict | None:
@@ -415,6 +440,44 @@ class BillingService:
         if len(found) != 1:
             raise ValueError("This brand's Stripe subscription has no single plan line to change. Change it in Stripe.")
         return found[0]
+
+    async def _plan_amount(self, sub) -> int | None:
+        """Cents a month the subscription's plan line bills; None without one."""
+        items = (sub.get("items") or {}).get("data") or []
+        if not items:
+            return None
+        try:
+            return _amount_of(await self._plan_item(sub))
+        except ValueError:
+            return _amount_of(items[0])
+
+    async def fill_paid_amounts(self) -> int:
+        """What each running subscription bills, asked of Stripe once for those
+        synced before the amount was kept (0075), so the console's revenue does
+        not count a changed plan price for brands still on the old one."""
+        await self._bypass_rls()
+        rows = (await self.db.execute(text(
+            "SELECT stripe_subscription_id FROM tenant_subscriptions"
+            " WHERE stripe_subscription_id IS NOT NULL AND amount_cents IS NULL"
+        ))).all()
+        if not rows:
+            return 0
+        s = await _stripe_for(self.db)
+        filled = 0
+        for (sub_id,) in rows:
+            try:
+                amount = await self._plan_amount(s.Subscription.retrieve(sub_id))
+            except Exception:
+                logger.warning("Could not read what subscription %s bills", sub_id, exc_info=True)
+                continue
+            if amount is not None:
+                await self.db.execute(text(
+                    "UPDATE tenant_subscriptions SET amount_cents = :a"
+                    " WHERE stripe_subscription_id = :s AND amount_cents IS NULL"
+                ), {"a": amount, "s": sub_id})
+                filled += 1
+        await self.db.commit()
+        return filled
 
     async def _live_subscription(self, tenant_id) -> tuple[str | None, str | None]:
         row = (await self.db.execute(text(
@@ -665,6 +728,9 @@ class BillingService:
         status = subscription.get("status")
         items = (subscription.get("items") or {}).get("data") or []
         price_id = items[0]["price"]["id"] if items else None
+        # What Stripe bills a month for the plan: the plan's price can change
+        # since, and a running subscription keeps the Price it started on (0075).
+        amount = await self._plan_amount(subscription)
         plan_key = (subscription.get("metadata") or {}).get("plan_key")
         if not plan_key and price_id:
             plan_key = await self.plan_for_price_id(price_id)
@@ -675,6 +741,7 @@ class BillingService:
                 plan = COALESCE(:plan, plan),
                 stripe_subscription_id = :sub,
                 stripe_price_id = :price,
+                amount_cents = :amount,
                 current_period_start = :cps,
                 current_period_end = :cpe,
                 cancel_at_period_end = :cape,
@@ -685,6 +752,7 @@ class BillingService:
             "plan": plan_key,
             "sub": subscription.get("id"),
             "price": price_id,
+            "amount": amount,
             # current_period_* moved from the subscription to the item level in
             # newer Stripe API versions — fall back to the item.
             "cps": _ts(subscription.get("current_period_start") or (items[0].get("current_period_start") if items else None)),

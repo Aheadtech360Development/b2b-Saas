@@ -42,7 +42,7 @@ def _iso(value) -> str | None:
 _BRANDS_SQL = """
     SELECT t.id, t.slug, t.name, t.email, t.status, t.plan, t.custom_domain, t.created_at,
            s.status AS billing_status, s.trial_ends_at, s.stripe_subscription_id,
-           s.current_period_end, s.cancel_at_period_end,
+           s.current_period_end, s.cancel_at_period_end, s.amount_cents AS paid_cents,
            (SELECT COUNT(*) FROM users u WHERE u.tenant_id = t.id) AS users,
            (SELECT COUNT(*) FROM users u WHERE u.tenant_id = t.id AND u.is_admin AND u.is_active) AS staff,
            (SELECT COUNT(*) FROM products p WHERE p.tenant_id = t.id) AS products,
@@ -64,7 +64,7 @@ _BRANDS_SQL = """
 
 def _brand(row) -> dict[str, Any]:
     """One brand as every console screen reads it."""
-    from app.core.billing_plans import BILLING_PLANS, effective_plan, plan_summary
+    from app.core.billing_plans import BILLING_PLANS, effective_plan, plan_summary, price_text
     from app.services import brand_status
     from app.services.brand_urls import build as brand_url
     from app.services.trial import days_left
@@ -75,6 +75,12 @@ def _brand(row) -> dict[str, Any]:
     products, orders = row["products"] or 0, row["orders"] or 0
     limits = BILLING_PLANS[effective_plan(row["plan"])]["limits"]
     hold = brand_status._parse_hold(row["hold"])
+    detail = plan_summary(row["plan"])
+    paid = row["paid_cents"] if paying else None
+    if paid is not None and paid != detail["amount_cents"]:
+        # Stripe bills what the plan cost when the brand started; the console
+        # may have changed the plan's price since (services/plan_prices).
+        detail = {**detail, "amount_cents": paid, "price_display": f"{price_text(paid)}/mo"}
     return {
         "id": str(row["id"]),
         "slug": row["slug"],
@@ -82,7 +88,7 @@ def _brand(row) -> dict[str, Any]:
         "email": row["email"],
         "status": row["status"],
         "plan": row["plan"],
-        "plan_detail": plan_summary(row["plan"]),
+        "plan_detail": detail,
         "custom_domain": row["custom_domain"],
         "created_at": _iso(row["created_at"]),
         "billing_status": row["billing_status"] or "none",

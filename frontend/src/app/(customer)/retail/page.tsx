@@ -3,7 +3,9 @@ import { notFound } from "next/navigation";
 import { loadStore } from "@/lib/store";
 import MarketingShell from "@/components/marketing/MarketingShell";
 import RetailPage from "@/components/marketing/pages/Retail";
-import { MARKETING_META } from "@/components/marketing/meta";
+import { MARKETING_META, retailDescription } from "@/components/marketing/meta";
+import { PlanPricesProvider } from "@/lib/planPricesContext";
+import { loadPlanPrices } from "@/lib/planPricesServer";
 import { RETAIL_LAUNCHED } from "@/lib/retailLaunch";
 import ShopPage, { generateMetadata as shopPageMetadata } from "../[slug]/page";
 
@@ -18,7 +20,7 @@ const params = async () => ({ slug: "retail" });
 
 export async function generateMetadata(): Promise<Metadata> {
   if ((await loadStore()).brand) return shopPageMetadata({ params: params() });
-  return MARKETING_META.retail;
+  return { ...MARKETING_META.retail, description: retailDescription((await loadPlanPrices()).retail) };
 }
 
 export default async function MarketingRetailRoute() {
@@ -26,7 +28,9 @@ export default async function MarketingRetailRoute() {
   if (!RETAIL_LAUNCHED) notFound();
   return (
     <MarketingShell active="retail">
-      <RetailPage />
+      <PlanPricesProvider prices={await loadPlanPrices()}>
+        <RetailPage />
+      </PlanPricesProvider>
     </MarketingShell>
   );
 }

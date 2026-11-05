@@ -11,6 +11,7 @@
  * the platform does not have yet, and the price comparison with other
  * platforms (prices to be checked on each vendor's page and dated).
  */
+import { usePlanPrices } from "@/lib/planPricesContext";
 
 export const RETAIL_HELD = {
   unbuiltTools: ["Abandoned cart emails", "Back in stock alerts and pre-orders", "Free shipping bar", "Cart upsells and bundles", "Size guide and wishlist", "Email and SMS signup popup"],
@@ -22,6 +23,7 @@ export const RETAIL_HELD = {
 const CSS = ".rt a{text-decoration:none}\n.rt .dk{background-color:#0C1E35;background-image:linear-gradient(rgba(255,255,255,0.045) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,0.045) 1px,transparent 1px);background-size:56px 56px}\n.rt .pulse{animation:pc-pulse 2.4s ease-in-out infinite}\n@keyframes pc-pulse{0%,100%{opacity:1;box-shadow:0 0 0 0 rgba(14,114,251,0.6)}50%{opacity:0.7;box-shadow:0 0 0 7px rgba(14,114,251,0)}}\n.rt .float{animation:pc-float 6s ease-in-out infinite}\n@keyframes pc-float{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}";
 
 export default function RetailPage() {
+  const price = usePlanPrices();
   return (
     <div className="rt" style={{ fontFamily: "'DM Sans', system-ui, sans-serif", color: "#0C1E35", background: "#FFFFFF", width: "100%", minWidth: "0" }}>
       <link
@@ -866,7 +868,7 @@ export default function RetailPage() {
               For brands selling their own products.
             </span>
             <span style={{ fontFamily: "Outfit, sans-serif", fontWeight: "700", fontSize: "60px", lineHeight: "1" }}>
-              $79{" "}
+              {price.retail}{" "}
               <span style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: "400", fontSize: "16px", color: "#4A5B73" }}>
                 per month
               </span>

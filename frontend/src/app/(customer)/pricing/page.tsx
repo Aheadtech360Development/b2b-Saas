@@ -3,6 +3,8 @@ import { loadStore } from "@/lib/store";
 import MarketingShell from "@/components/marketing/MarketingShell";
 import MarketingPricing from "@/components/marketing/pages/Pricing";
 import { MARKETING_META } from "@/components/marketing/meta";
+import { PlanPricesProvider } from "@/lib/planPricesContext";
+import { loadPlanPrices } from "@/lib/planPricesServer";
 import ShopPage, { generateMetadata as shopPageMetadata } from "../[slug]/page";
 
 export const dynamic = "force-dynamic";
@@ -25,7 +27,9 @@ export default async function MarketingPricingRoute() {
   if ((await loadStore()).brand) return <ShopPage params={params()} />;
   return (
     <MarketingShell active="pricing">
-      <MarketingPricing />
+      <PlanPricesProvider prices={await loadPlanPrices()}>
+        <MarketingPricing />
+      </PlanPricesProvider>
     </MarketingShell>
   );
 }

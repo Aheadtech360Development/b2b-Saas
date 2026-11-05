@@ -1,5 +1,11 @@
 /** What the browser tab and search results say for each page of printcopilot.co. Titles are the design's. */
 import type { Metadata } from "next";
+import { DEFAULT_PLAN_PRICES, priceText } from "@/lib/planPrices";
+
+/** The Retail page's description, at the Retail price in force (cents a month). */
+export function retailDescription(cents: number): string {
+  return `A branded store with reviews, loyalty, gift cards, returns and order tracking built in. One plan, ${priceText(cents)} a month. 14 day free trial, no card needed.`;
+}
 
 export const MARKETING_META = {
   home: {
@@ -13,7 +19,7 @@ export const MARKETING_META = {
   },
   retail: {
     title: "PrintCoPilot for D2C and retail brands",
-    description: "A branded store with reviews, loyalty, gift cards, returns and order tracking built in. One plan, $79 a month. 14 day free trial, no card needed.",
+    description: retailDescription(DEFAULT_PLAN_PRICES.retail),
   },
   pricing: {
     title: "PrintCoPilot Pricing",
