@@ -4,7 +4,8 @@
  * Create brand (design screen 7), on one page: the brand, its plan and free
  * trial, and its owner. The shop it makes is the same as one that signs
  * itself up: a real plan, the free period, the owner's setup steps, and a
- * note to the platform inbox to add its address in Vercel.
+ * note to the platform inbox. Its address answers at once (wildcard
+ * certificate for *.printcopilot.co in Vercel).
  *
  * The owner's password is typed here and passed on, as the console always
  * did; the design's emailed invite is a new feature still waiting for a yes.

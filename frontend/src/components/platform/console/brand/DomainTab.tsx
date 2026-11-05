@@ -20,7 +20,7 @@ export function DomainTab({ brand, reload }: BrandTabProps) {
   const [busy, setBusy] = useState<string | null>(null);
 
   async function move() {
-    const next = await askText("The brand's new address on the platform. Links to the old one stop working, and the new one has to be added in Vercel.",
+    const next = await askText("The brand's new address on the platform. Links to the old one stop working; the new one works at once.",
       brand.slug, { title: "Move the store address", ok: "Move" });
     if (next === null || !next.trim() || next.trim() === brand.slug) return;
     setBusy("move");
@@ -74,7 +74,7 @@ export function DomainTab({ brand, reload }: BrandTabProps) {
           <div className="pc-kv"><span>Store address</span><b className="pc-mono">{brand.slug}</b></div>
           {data?.platform_address && <div className="pc-kv"><span>On the platform</span><b className="pc-mono">{data.platform_address}</b></div>}
           <div className="pc-kv"><span>Store link</span><b><a href={brand.store_url} target="_blank" rel="noreferrer" className="pc-link">{brand.store_url}</a></b></div>
-          <div className="pc-hint">Moving it breaks existing links. A new shop address answers once it is added in Vercel, the project, Domains.</div>
+          <div className="pc-hint">Moving it breaks existing links. A new shop address works at once.</div>
         </div>
       </section>
 

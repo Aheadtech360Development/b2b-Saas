@@ -60,7 +60,7 @@ export function BrandReady({ slug }: { slug: string }) {
                 </div>
               </section>
               <div className="pc-note">
-                To do: add <b className="pc-mono">{data.vercel_host}</b> in Vercel, the project, Domains, so the shop&apos;s own address answers. The platform inbox has the same note.
+                The shop&apos;s own address, <b className="pc-mono">{data.vercel_host}</b>, works already: every address under printcopilot.co has its certificate.
               </div>
             </div>
           </div>

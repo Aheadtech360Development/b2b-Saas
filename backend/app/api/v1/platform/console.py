@@ -293,8 +293,8 @@ async def brand_checklist(slug: str, request: Request, db: AsyncSession = Depend
             {"key": "domain", "label": "Own domain", "done": bool(row["custom_domain"]), "optional": True,
              "detail": row["custom_domain"] or "Optional"},
         ],
-        # The shop's own address answers only once someone adds it to the
-        # deployment by hand; until then the ?tenant= link always works.
+        # The shop's own address, answering at once under the wildcard
+        # certificate (*.printcopilot.co); the ?tenant= link works too.
         "vercel_host": host,
         "store_url": b["store_url"],
         "fallback_url": f"{platform}/?tenant={slug}" if platform else None,

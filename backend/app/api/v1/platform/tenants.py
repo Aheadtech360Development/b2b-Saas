@@ -272,8 +272,8 @@ async def create_tenant(
 
 
 def _announce_created(shop: str, slug: str, plan: str, owner: str, shop_url: str) -> None:
-    """Tell the platform inbox, as a sign-up does: the shop's address only
-    answers once someone adds it to the deployment by hand."""
+    """Tell the platform inbox, as a sign-up does. The shop's address answers
+    at once: *.printcopilot.co has a wildcard certificate in Vercel."""
     from html import escape
 
     from app.services.email_service import notify_platform
@@ -283,8 +283,7 @@ def _announce_created(shop: str, slug: str, plan: str, owner: str, shop_url: str
         '<div style="font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif">'
         f'<h2 style="margin:0 0 4px">New shop: {escape(shop)}</h2>'
         '<p style="color:#6B7280;margin:0 0 20px">Created in the Platform Console just now.</p>'
-        f'<p style="margin:0 0 20px"><strong>To do:</strong> add <code>{escape(host)}</code> '
-        "in Vercel → the project → Domains, so the shop's address answers.</p>"
+        f'<p style="margin:0 0 20px">Its address <code>{escape(host)}</code> works already.</p>'
         f'<p style="margin:0">Plan: {escape(plan.title())}<br>Owner: {escape(owner)}<br>'
         f'Address: <a href="{escape(shop_url)}">{escape(shop_url)}</a></p></div>'
     )

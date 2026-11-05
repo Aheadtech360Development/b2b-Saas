@@ -212,11 +212,9 @@ def _announce(shop: str, slug: str, plan: str, who: str, email: str,
         f'<h2 style="margin:0 0 4px">New shop: {shop}</h2>'
         '<p style="color:#6B7280;margin:0 0 20px">Signed up just now. '
         'No card yet — billing starts when they add one.</p>'
-        # Shop addresses are added to the deployment by hand (no wildcard
-        # certificate), so until this is done the shop's own address does not
-        # answer; the owner works from the platform's address meanwhile.
-        f'<p style="margin:0 0 20px"><strong>To do:</strong> add <code>{host}</code> '
-        'in Vercel → the project → Domains, so the shop\'s address answers.</p>'
+        # Nothing to add by hand: *.printcopilot.co has a wildcard certificate
+        # in Vercel since 2026-11-05, so the shop's address answers at once.
+        f'<p style="margin:0 0 20px">Its address <code>{host}</code> works already.</p>'
         '<table cellpadding="0" cellspacing="0" style="font-size:14px">'
         + "".join(
             f'<tr><td style="padding:6px 24px 6px 0;color:#6B7280">{k}</td>'
