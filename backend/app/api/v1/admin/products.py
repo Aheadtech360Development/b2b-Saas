@@ -87,10 +87,44 @@ async def list_admin_products(
     return products
 
 
+async def _free_slug(db: AsyncSession, wanted: str) -> str:
+    """The web address asked for, or the next free one of the shop's: a product
+    renamed keeps its address, so "Business Cards" renamed "Standard Business
+    Cards" still holds /business-cards and a new "Business Cards" gets
+    /business-cards-2 instead of failing."""
+    base = (wanted or "product").strip()[:240] or "product"
+    taken = set((await db.execute(
+        select(Product.slug).where(or_(Product.slug == base, Product.slug.like(f"{base}-%")))
+    )).scalars().all())
+    if base not in taken:
+        return base
+    n = 2
+    while f"{base}-{n}" in taken:
+        n += 1
+    return f"{base}-{n}"
+
+
 @router.post("", response_model=ProductDetail, status_code=status.HTTP_201_CREATED)
 async def create_product(payload: ProductCreate, db: AsyncSession = Depends(get_db)):
+    from uuid import uuid4
+
     svc = ProductService(db)
-    product = await svc.create_product(payload)
+    payload.slug = await _free_slug(db, payload.slug)
+    for attempt in range(4):
+        try:
+            async with db.begin_nested():
+                product = await svc.create_product(payload)
+            break
+        except IntegrityError as exc:
+            # Taken between the look and the write (or by a rule the look
+            # cannot see): try the next address rather than answer a 500.
+            if "slug" not in str(getattr(exc, "orig", exc)).lower() or attempt == 3:
+                logger.warning("Product create refused: %s", exc)
+                raise HTTPException(
+                    status_code=409,
+                    detail="That web address is taken. Change the product's name a little and save again.",
+                ) from None
+            payload.slug = f"{payload.slug[:235]}-{uuid4().hex[:4]}"
     await db.commit()
 
     # Reload with all relationships eagerly — prevents MissingGreenletError when
