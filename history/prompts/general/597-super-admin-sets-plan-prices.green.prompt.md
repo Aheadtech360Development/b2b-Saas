@@ -9,7 +9,7 @@ feature: none
 branch: feat/bulk-order
 user: Aheadtech360Development
 command: Owner asks for plan prices the super admin can change, and for loyalty widgets in the website builder
-labels: ["billing", "plans", "stripe", "console", "marketing-site"]
+labels: ["billing", "plans", "stripe", "console", "marketing-site", "loyalty", "website-builder"]
 links:
   spec: null
   ticket: null
@@ -42,10 +42,24 @@ files:
  - frontend/src/app/(customer)/retail/page.tsx
  - frontend/src/app/(customer)/affiliate/page.tsx
  - frontend/src/__tests__/plan-prices.test.tsx
+ - backend/app/services/builder/schema.py
+ - backend/app/services/builder/resolve.py
+ - backend/tests/test_builder_loyalty.py
+ - frontend/src/components/builder/islands/Loyalty.tsx
+ - frontend/src/components/builder/render.tsx
+ - frontend/src/components/builder/editor/icons.ts
+ - frontend/src/lib/builder/registry.ts
+ - frontend/src/lib/builder/types.ts
+ - frontend/src/lib/builder/baseCss.ts
+ - frontend/src/__tests__/builder-loyalty.test.tsx
+ - frontend/src/__tests__/fixtures/elements-css.snap.txt
 tests:
  - backend tests/test_plan_prices.py (17) with console, retail plan, billing card, onboarding, commission, plan usage, entitlements and partner tests (144 passed)
  - frontend plan-prices.test.tsx (12) with retail-site, marketing-forms, partner-retail-link (28 passed); tsc clean in src
  - local database walk (printcopilot_local, migrated to 0075): set Starter $99 through the API, public plan list, console list with default, activity log row, a brand on the old price shows $97, a bad price 422, signed out 401, back to default, the webhook sync keeps Stripe's amount; all put back (13/13). Stripe calls went to the TEST account only (local runs have no live key): two test Prices made on the Starter product.
+ - builder loyalty: backend test_builder_loyalty.py (3) + test_builder_schema.py script (79) + loyalty tests; frontend builder-loyalty.test.tsx (17) and every builder test (288 with plan prices); element CSS snapshot gained 6 lines, none changed
+ - builder loyalty local database walk (demo shop): program off says only that, on gives its name, rewards and referral offer, nothing of a buyer's, refer a friend off, a page without the elements asks nothing; demo's settings put back (7/7)
+ - screenshots at 1280 and 390 wide, signed out and signed in: no sideways scroll; fixed "1 points" and a reward card alone on its line on a phone
 ---
 
 ## Prompt
@@ -54,12 +68,14 @@ acha ek aur cheez ha bhai ke super admin mei na hamein ek cheez krni ha bhai mer
 
 ## Response snapshot
 
-Part one built. Console, Plans: a "Monthly prices" card with one box per plan (default shown beside a changed one), a confirm that says who pays the new price, and Save prices (PUT /api/v1/platform/billing/plans/prices, platform admin, 422 on a price outside $1 to $10,000, an activity log row). Prices live in one app_settings row ("plan_prices"); every worker reads it at start and each minute. Stripe: a new amount is a new Price that takes the plan's lookup key; brands already paying keep the Price they started on. Migration 0075 keeps what each subscription bills (written on every Stripe sync, read once from Stripe for older ones), so the console's brand list, plan tab and revenue show what a brand on the old price really pays. Website: home, pricing (cards, comparison table, savings calculator), retail page and tab, affiliate example and the retail search description all read the prices in force on the server (a minute's cache), falling back to the shipped prices. A local run found the activity-log action must be "UPDATE" (enum), fixed. Part two (loyalty widgets in the builder) is next.
+Part one built. Console, Plans: a "Monthly prices" card with one box per plan (default shown beside a changed one), a confirm that says who pays the new price, and Save prices (PUT /api/v1/platform/billing/plans/prices, platform admin, 422 on a price outside $1 to $10,000, an activity log row). Prices live in one app_settings row ("plan_prices"); every worker reads it at start and each minute. Stripe: a new amount is a new Price that takes the plan's lookup key; brands already paying keep the Price they started on. Migration 0075 keeps what each subscription bills (written on every Stripe sync, read once from Stripe for older ones), so the console's brand list, plan tab and revenue show what a brand on the old price really pays. Website: home, pricing (cards, comparison table, savings calculator), retail page and tab, affiliate example and the retail search description all read the prices in force on the server (a minute's cache), falling back to the shipped prices. A local run found the activity-log action must be "UPDATE" (enum), fixed.
+
+Part two built. The website builder gains three elements and a ready-made "Rewards" section: Rewards program (how it works, the rewards, expiry, Join and Log in; a signed-in customer sees their points and the next reward, and "See my rewards"), Refer a friend (what each gets; signed in, their own link with Copy link), and "Points it earns" for a product template ("Earn 24 points with this purchase", following the price line as options change). The numbers come from the program's settings (resolve._loyalty, only for pages that use them); with the program off the shop shows nothing and the editor says to turn it on in Marketing, Loyalty.
 
 ## Outcome
 
-- ✅ Impact: the super admin changes a plan's price from the console and sign-up, Billing, Stripe and the website follow, without touching what current subscribers pay.
+- ✅ Impact: the super admin changes a plan's price from the console and sign-up, Billing, Stripe and the website follow, without touching what current subscribers pay. A shop shows its rewards program on its website from the builder's Add panel.
 - 🧪 Tests: listed above.
 - 📁 Files: listed above.
-- 🔁 Next prompts: push on the owner's yes; then loyalty and rewards widgets for the website builder.
+- 🔁 Next prompts: push both on the owner's yes.
 - 🧠 Reflection: a unit test with the audit helper stubbed could not see the enum; the one local database run did.

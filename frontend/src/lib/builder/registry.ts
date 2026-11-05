@@ -437,6 +437,37 @@ export const REGISTRY: ComponentDef[] = [
     }),
   },
   {
+    type: "loyalty_program", label: "Rewards program", category: "store", icon: "Gift",
+    blurb: "Your rewards program: how customers earn points and what they get for them. Signed in, they see their own points.",
+    fields: [
+      { key: "heading", label: "Heading", kind: "text", help: "Empty: your program's name, as set in Marketing, Loyalty." },
+      { key: "text", label: "Text under it", kind: "textarea",
+        help: "Empty: how many points a dollar earns, in your program's words. The numbers always come from your program." },
+      { key: "showSteps", label: "Show how it works: join, earn, use", kind: "toggle" },
+      { key: "showTiers", label: "Show the rewards", kind: "toggle" },
+      { key: "joinLabel", label: "Join button says", kind: "text",
+        help: "For a visitor: it opens a quick account and then their rewards. Log in sits beside it." },
+      { key: "accountLabel", label: "Signed in, the button says", kind: "text",
+        help: "A signed-in customer sees their points instead, and this button opens their rewards." },
+    ],
+    styles: ["typography", "spacing", "background", "border"],
+    create: () => node("loyalty_program", {
+      heading: "", text: "", showSteps: true, showTiers: true, joinLabel: "Join now", accountLabel: "See my rewards",
+    }, { textAlign: "center" }),
+  },
+  {
+    type: "loyalty_referral", label: "Refer a friend", category: "store", icon: "UserPlus",
+    blurb: "What a friend gets and what the customer gets for sending them. Signed in, customers copy their own link.",
+    fields: [
+      { key: "heading", label: "Heading", kind: "text" },
+      { key: "text", label: "Text under it", kind: "textarea",
+        help: "Empty: what each of them gets, in your program's words. The numbers always come from your program." },
+      { key: "buttonLabel", label: "Copy button says", kind: "text" },
+    ],
+    styles: ["typography", "spacing", "background", "border"],
+    create: () => node("loyalty_referral", { heading: "Give and get", text: "", buttonLabel: "Copy link" }, { textAlign: "center" }),
+  },
+  {
     type: "breadcrumbs", label: "Breadcrumbs", category: "store", icon: "ChevronsRight",
     blurb: "Home › Collection › Product — where the customer is.",
     fields: [],
@@ -528,6 +559,13 @@ export const REGISTRY: ComponentDef[] = [
     ],
     styles: ["typography", "spacing", "background", "border"],
     create: () => node("product_reviews", { heading: "Customer reviews", limit: 6, allowWrite: true }),
+  },
+  {
+    type: "loyalty_points", label: "Points it earns", category: "commerce", icon: "Coins", context: ["product"],
+    blurb: "“Earn 25 points with this purchase”: what this product earns in your rewards program. It follows the price as options are picked.",
+    fields: [],
+    styles: TEXT_STYLES,
+    create: () => node("loyalty_points", {}, { fontSize: "14px" }),
   },
 
   // ── Commerce: lists ───────────────────────────────────────────────────────
@@ -792,6 +830,14 @@ export const PRESETS: Preset[] = [
   {
     key: "cta", label: "Call to action", kind: "section", blurb: "A coloured band with one button.",
     create: () => node("section", { width: "contained" }, { paddingTop: "48px", paddingBottom: "48px" }, [BY_TYPE.banner!.create()]),
+  },
+  {
+    key: "rewards", label: "Rewards", kind: "section",
+    blurb: "Your rewards program and refer a friend, in a band of their own.",
+    create: () => named("Rewards", node("section", { width: "contained" }, { paddingTop: "64px", paddingBottom: "64px" }, [
+      BY_TYPE.loyalty_program!.create(),
+      { ...BY_TYPE.loyalty_referral!.create(), style: { textAlign: "center", marginTop: "48px" } },
+    ])),
   },
   {
     key: "product_main", label: "Product details", kind: "section", context: ["product"],

@@ -512,6 +512,24 @@ async def _store(db: AsyncSession, tenant_id: uuid.UUID) -> dict[str, Any]:
     return {"name": row.store_name or row.name or "", "logo": row.logo_url or ""}
 
 
+async def _loyalty(db: AsyncSession, tenant_id: uuid.UUID) -> dict[str, Any]:
+    """The shop's rewards program as a page shows it: its name, how points are
+    earned, the rewards and the referral offer. Nothing of a buyer's: their
+    points and their link are asked by the browser once it knows who reads."""
+    from app.services import loyalty
+
+    conf = await loyalty.active(db, tenant_id)
+    if not conf:
+        return {"on": False}
+    return {
+        "on": True, "program_name": conf["program_name"], "points_name": conf["points_name"],
+        "points_per_dollar": conf["points_per_dollar"], "expiry_months": conf["expiry_months"],
+        "tiers": conf["tiers"],
+        "referral": ({"you_get": conf["referrer_points"], "friend_gets": conf["friend_points"]}
+                     if conf["referral_enabled"] else None),
+    }
+
+
 async def render_payload(
     db: AsyncSession,
     tenant_id: uuid.UUID,
@@ -539,7 +557,7 @@ async def render_payload(
     parts = {k: (doc.get("parts") or {}).get(k) for k in PART_KEYS}
     data: dict[str, Any] = {"product": None, "collection": None, "collectionPage": None,
                             "menus": {}, "grids": {}, "collectionGrids": {}, "store": {}, "reviews": None,
-                            "search": None}
+                            "search": None, "loyalty": None}
     page_data: dict[str, Any] | None = None
     not_found = False
     ttype = route
@@ -632,6 +650,9 @@ async def render_payload(
 
     if data["product"] and any(n.get("type") in ("product_rating", "product_reviews") for n in nodes):
         data["reviews"] = await _reviews(db, tenant_id, data["product"]["id"], nodes)
+
+    if any(n.get("type") in ("loyalty_program", "loyalty_referral", "loyalty_points") for n in nodes):
+        data["loyalty"] = await _loyalty(db, tenant_id)
 
     # Descriptions are written in the product and collection editors and can
     # carry markup. A builder page puts them in as HTML, so they leave here

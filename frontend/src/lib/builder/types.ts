@@ -123,6 +123,20 @@ export interface ReviewItem {
   verified: boolean; image: string; reply: string; date: string;
 }
 
+/** The shop's rewards program, as its website shows it (backend resolve._loyalty). */
+export interface LoyaltyInfo {
+  /** The program runs: in the shop's plan and turned on in Marketing, Loyalty. */
+  on: boolean;
+  program_name: string;
+  points_name: string;
+  points_per_dollar: number;
+  /** 0: points never expire. */
+  expiry_months: number;
+  tiers: { points: number; reward: number }[];
+  /** Refer a friend, when the shop has it on. */
+  referral: { you_get: number; friend_gets: number } | null;
+}
+
 /** What the storefront (or the editor's preview) is handed for one page. */
 export interface SitePayload {
   mode: "visual_builder";
@@ -153,6 +167,8 @@ export interface SitePayload {
     search?: { query: string; total: number; shown: number } | null;
     /** The product's reviews, on a page that shows its stars or its reviews. */
     reviews?: { total: number; avg: number; items: ReviewItem[] } | null;
+    /** The rewards program, on a page that shows it. Only `on` when it is off. */
+    loyalty?: LoyaltyInfo | { on: false } | null;
   };
 }
 

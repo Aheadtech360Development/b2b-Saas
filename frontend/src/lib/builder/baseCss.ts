@@ -280,6 +280,29 @@ export const BASE_CSS = `
 .bsite :where(.b-auth[data-size=compact] .b-btn){padding:9px 16px;font-size:14px}
 .bsite :where(.b-auth .b-auth-text){border-color:transparent;background:none;color:inherit;padding-inline:6px}
 .bsite :where(.b-auth .b-auth-text:hover){filter:none;text-decoration:underline;text-underline-offset:4px}
+/* The rewards program (islands/Loyalty). Laid out as blocks, so the element's
+   own text alignment places its words and its buttons alike. */
+.bsite :where(.b-loyal > * + *){margin-top:14px}
+.bsite :where(.b-loyal-lede){margin-bottom:0;color:var(--b-muted,#5B6170);font-size:1.05em;line-height:1.55}
+.bsite :where(.b-loyal-steps,.b-loyal-tiers){display:grid;gap:12px;list-style:none;padding:0;margin-bottom:0}
+/* Three steps side by side, or one under another on a phone; the rewards stay
+   small cards side by side, so none is left alone on a line of its own. */
+.bsite :where(.b-loyal-steps){grid-template-columns:repeat(auto-fit,minmax(200px,1fr))}
+.bsite :where(.b-loyal-tiers){grid-template-columns:repeat(auto-fit,minmax(104px,1fr))}
+.bsite :where(.b-loyal-steps li,.b-loyal-tiers li){display:flex;flex-direction:column;gap:4px;padding:16px;border:1px solid var(--b-border,#E6E6E6);border-radius:var(--b-radius,12px);background:var(--b-background,#fff)}
+.bsite :where(.b-loyal-steps span,.b-loyal-tiers span){color:var(--b-muted,#5B6170);font-size:14px}
+.bsite :where(.b-loyal-steps b){font-size:16px}
+.bsite :where(.b-loyal-tiers b){font-size:22px;color:var(--b-primary,#14161B)}
+.bsite :where(.b-loyal-small){margin-bottom:0;font-size:13px;color:var(--b-muted,#5B6170)}
+.bsite :where(.b-loyal-cta .b-btn){margin:4px;font-weight:600}
+.bsite :where(.b-loyal-mine){margin:0 0 8px}
+.bsite :where(.b-loyal-link){display:inline-flex;flex-wrap:wrap;justify-content:center;gap:8px;width:min(560px,100%)}
+.bsite :where(.b-loyal-link .b-input){flex:1 1 240px;text-align:left}
+.bsite :where(.b-loyal-link .b-btn){flex:0 0 auto;font-weight:600}
+.bsite :where(.b-loyal-earn){margin:0;color:var(--b-muted,#5B6170)}
+.bsite :where(.b-loyal-earn[hidden]){display:none}
+.bsite :where(.b-loyal-earn b){color:var(--b-text,#14161B)}
+.bsite :where(.b-loyal-earn svg){vertical-align:-3px;margin-right:6px;color:var(--b-primary,#14161B)}
 .bsite :where(.b-count){position:absolute;top:2px;right:0;min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:var(--b-primary,#14161B);color:#fff;font-size:11px;font-weight:700;line-height:18px;text-align:center}
 .bsite :where(.b-crumbs){display:flex;flex-wrap:wrap;align-items:center;gap:6px;font-size:13px;color:var(--b-muted,#5B6170)}
 .bsite :where(.b-crumbs a){text-decoration:none}

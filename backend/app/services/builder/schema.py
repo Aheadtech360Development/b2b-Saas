@@ -123,6 +123,12 @@ COMPONENTS: dict[str, Component] = {
     "auth_buttons": _c(urls=("loginHref", "signupHref")),
     "breadcrumbs": _c(),
     "announcement_bar": _c(urls=("href",)),
+    # The shop's rewards program (services/loyalty): how points are earned and
+    # what they buy, the refer-a-friend offer, and what a product earns. Read
+    # from the program's settings when a page shows them; nothing new is stored.
+    "loyalty_program": _c(),
+    "loyalty_referral": _c(),
+    "loyalty_points": _c(context=("product",)),
     # ── Commerce: the product being viewed ──
     "product_title": _c(context=("product",)),
     "product_price": _c(context=("product",)),

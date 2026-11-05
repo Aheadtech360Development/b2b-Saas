@@ -22,7 +22,7 @@ import {
   Award, Check, CircleUser, Clock, Heart, Leaf, Mail, MapPin, Phone, ShieldCheck, Sparkles, Star, Truck,
   type LucideIcon,
 } from "lucide-react";
-import type { BuilderNode, CollectionCard, MenuItem, ProductCard, SitePayload } from "@/lib/builder/types";
+import type { BuilderNode, CollectionCard, LoyaltyInfo, MenuItem, ProductCard, SitePayload } from "@/lib/builder/types";
 import { cleanHtml, safeHref, safeSrc, scopeCss } from "@/lib/builder/sanitize";
 import { layoutMark } from "@/lib/builder/layout";
 import MenuNav from "./islands/MenuNav";
@@ -33,6 +33,7 @@ import Reviews, { Stars } from "./islands/Reviews";
 import BlockScript from "./islands/BlockScript";
 import { Newsletter, ProductGallery, SortSelect, Tabs } from "./islands/Interactive";
 import { ContactForm } from "./islands/ContactForm";
+import { ProductPoints, ReferFriend, RewardsProgram } from "./islands/Loyalty";
 import { SearchBox, SearchIcon } from "./islands/SearchBox";
 import { splitDescription } from "@/lib/builder/descSections";
 import BulkOrderPicker, { type BulkVariant } from "@/components/storefront/BulkOrderPicker";
@@ -80,6 +81,17 @@ function Heading({ lvl, id, className, children }: { lvl: 1 | 2 | 3 | 4 | 5 | 6;
 /** A note in the editor, nothing on the storefront. */
 function note(ctx: RenderCtx, id: string, text: string): ReactNode {
   return ctx.edit ? <div data-b={id} className="b-note">{text}</div> : null;
+}
+
+/** The rewards program when it runs; else a note in the editor saying what
+ *  to do, and nothing on the storefront. */
+function loyalty(ctx: RenderCtx, id: string, what: string): { info: LoyaltyInfo | null; out: ReactNode } {
+  const l = ctx.data.loyalty;
+  if (!l) return { info: null, out: note(ctx, id, `${what} shows here.`) };
+  if (!l.on) {
+    return { info: null, out: note(ctx, id, `${what} shows here once your rewards program is on: Marketing, Loyalty.`) };
+  }
+  return { info: l as LoyaltyInfo, out: null };
 }
 
 function html(ctx: RenderCtx, markup: unknown): string {
@@ -514,6 +526,20 @@ export function Node({ node, ctx }: { node: BuilderNode; ctx: RenderCtx }): Reac
                           size={str(p.size)} phone={str(p.phone)} loginHref={str(p.loginHref)} signupHref={str(p.signupHref)} edit={ctx.edit} />;
     case "account_link":
       return <a data-b={id} className="b-iconlink" href="/account" aria-label="Your account"><CircleUser size={21} aria-hidden /></a>;
+    case "loyalty_program": {
+      const { info, out } = loyalty(ctx, id, "Your rewards program");
+      if (!info) return out;
+      return <RewardsProgram id={id} info={info} heading={str(p.heading)} text={str(p.text)}
+                             showSteps={p.showSteps !== false} showTiers={p.showTiers !== false}
+                             joinLabel={str(p.joinLabel)} accountLabel={str(p.accountLabel)} edit={ctx.edit} />;
+    }
+    case "loyalty_referral": {
+      const { info, out } = loyalty(ctx, id, "Refer a friend");
+      if (!info) return out;
+      if (!info.referral) return note(ctx, id, "Refer a friend shows here once it is on in your rewards program: Marketing, Loyalty.");
+      return <ReferFriend id={id} info={{ ...info, referral: info.referral }} heading={str(p.heading)} text={str(p.text)}
+                          buttonLabel={str(p.buttonLabel)} edit={ctx.edit} />;
+    }
     case "breadcrumbs": {
       const trail: { label: string; href?: string }[] = [{ label: "Home", href: "/" }];
       if (data.product) {
@@ -614,6 +640,12 @@ export function Node({ node, ctx }: { node: BuilderNode; ctx: RenderCtx }): Reac
       return <Reviews id={id} productId={String(product.id ?? "")} heading={str(p.heading)} items={r?.items ?? []}
                       total={r?.total ?? 0} avg={r?.avg ?? 0} allowWrite={p.allowWrite !== false} edit={ctx.edit}
                       loading={!!ctx.edit && !r} />;
+    }
+    case "loyalty_points": {
+      if (!product) return note(ctx, id, "What this product earns in your rewards program shows here.");
+      const { info, out } = loyalty(ctx, id, "What this product earns in your rewards program");
+      if (!info) return out;
+      return <ProductPoints id={id} info={info} price={product.from_price} edit={ctx.edit} />;
     }
 
     // ── Lists ──

@@ -11,9 +11,12 @@
 @container bsite (max-width:640px){.bsite [data-b="e_gallery_0"]{grid-template-columns:repeat(2,minmax(0,1fr))}}
 .bsite [data-b="e_banner_0"]{background-color:#14161B;color:#FFFFFF;padding-top:56px;padding-bottom:56px;border-radius:16px}
 .bsite [data-b="e_logo_0"]{height:40px}
+.bsite [data-b="e_loyalty_program_0"]{text-align:center}
+.bsite [data-b="e_loyalty_referral_0"]{text-align:center}
 .bsite [data-b="e_announcement_bar_0"]{background-color:#14161B;color:#FFFFFF;text-align:center;padding-top:10px;padding-bottom:10px}
 .bsite [data-b="e_product_price_0"]{font-size:22px}
 .bsite [data-b="e_product_rating_0"]{font-size:14px}
+.bsite [data-b="e_loyalty_points_0"]{font-size:14px}
 .bsite [data-b="e_product_grid_0"]{grid-template-columns:repeat(4,minmax(0,1fr))}
 @container bsite (max-width:1024px){.bsite [data-b="e_product_grid_0"]{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @container bsite (max-width:640px){.bsite [data-b="e_product_grid_0"]{grid-template-columns:repeat(2,minmax(0,1fr))}}
@@ -45,6 +48,9 @@
 .bsite [data-b="p_faq_2"]{margin-top:24px}
 .bsite [data-b="p_cta_0"]{padding-top:48px;padding-bottom:48px}
 .bsite [data-b="p_cta_1"]{background-color:#14161B;color:#FFFFFF;padding-top:56px;padding-bottom:56px;border-radius:16px}
+.bsite [data-b="p_rewards_0"]{padding-top:64px;padding-bottom:64px}
+.bsite [data-b="p_rewards_1"]{text-align:center}
+.bsite [data-b="p_rewards_2"]{text-align:center;margin-top:48px}
 .bsite [data-b="p_product_main_0"]{padding-top:32px;padding-bottom:48px}
 .bsite [data-b="p_product_main_1"]{grid-template-columns:repeat(2,minmax(0,1fr));gap:48px;align-items:flex-start}
 @container bsite (max-width:640px){.bsite [data-b="p_product_main_1"]{grid-template-columns:repeat(1,minmax(0,1fr))}}
