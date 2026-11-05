@@ -351,6 +351,15 @@ async def convert(db: AsyncSession, product_id: uuid.UUID, style: dict, rows: li
     wh = await supplier_location(db, supplier)
     safety = _safety(cfg)
     taken = await _taken_elsewhere(db, supplier, product_id, [r.get("sku") for r in rows])
+    # A size already a source of another product would lose the supplier's
+    # stock here and be sold out: refuse before anything changes.
+    clash = sorted({taken[str(r["sku"])] for v in variants
+                    if (r := by_store_sku.get(v.sku)) is not None and str(r.get("sku") or "") in taken})
+    if clash:
+        raise SourceError(
+            f"Some sizes are already {sources.label(supplier)} sources of {', '.join(clash)}. "
+            f"Remove {sources.label(supplier)} from that product first (its Sources, Remove), then try again."
+        )
     style_id = str(product.supplier_ref or style.get("style_id") or "")
     part = str(style.get("part_number") or "") or None
     linked = 0
