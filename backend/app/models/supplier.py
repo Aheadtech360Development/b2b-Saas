@@ -179,3 +179,5 @@ class OrderItemSource(TenantMixin, BaseModel):
     )
     supplier: Mapped[str] = mapped_column(String(40), nullable=False)
     quantity: Mapped[int] = mapped_column(Integer, nullable=False)
+    # What one piece cost at the supplier when the order was placed (0074).
+    unit_cost: Mapped[float | None] = mapped_column(Numeric(10, 2), nullable=True)

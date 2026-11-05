@@ -204,6 +204,10 @@ export const suppliersService = {
   sendOrders: (id: string, orderIds: string[]) =>
     apiClient.post<{ results: { order_number: string; status: string; message: string }[] }>(`${base(id)}/orders/send`, { order_ids: orderIds }),
   refreshTracking: (id: string) => apiClient.post<{ shipped: number }>(`${base(id)}/orders/tracking`),
+  /** A supplier ordered from by hand (SanMar): note these orders' parts as placed on its website. */
+  markOrdered: (id: string, orderIds: string[], poNumber: string) =>
+    apiClient.post<{ results: { order_number: string; status: string; message: string }[] }>(
+      `${base(id)}/orders/mark`, { order_ids: orderIds, po_number: poNumber }),
   // Credentials live with the brand's other connected accounts, one record per supplier.
   connection: () =>
     apiClient.get<{ providers: { key: string; connection: Record<string, unknown> }[] }>("/api/v1/admin/integrations?category=supplier"),

@@ -530,3 +530,73 @@ async def order_supplier_summary(db: AsyncSession, order_ids: list[uuid.UUID]) -
         }
     return out
 
+
+
+# ── A supplier the shop orders from by hand (SanMar) ─────────────────────────
+
+async def manual_waiting(db: AsyncSession, supplier: str, *, limit: int = 100) -> list[dict]:
+    """Orders with a part this supplier's stock covered (a product with
+    sources) that the shop has not marked as ordered yet. SanMar takes no
+    orders from here, so this is the list to order from on its website."""
+    from app.models.order import Order
+    from app.models.supplier import SupplierOrder
+    from app.services.suppliers import sourcing
+
+    orders = (await db.execute(
+        _eligible_filter(select(Order), None).order_by(Order.created_at.desc()).limit(400)
+    )).scalars().all()
+    shares = await sourcing.order_shares(db, [x.id for x in orders], supplier)
+    ids = [x.id for x in orders if shares.get(x.id)]
+    done = set((await db.execute(
+        select(SupplierOrder.order_id).where(SupplierOrder.order_id.in_(ids or [uuid.uuid4()]),
+                                             SupplierOrder.supplier == supplier, SupplierOrder.status.in_(LIVE))
+    )).scalars().all())
+    out = []
+    for x in orders:
+        if not shares.get(x.id) or x.id in done:
+            continue
+        out.append({
+            "order_id": str(x.id), "order_number": x.order_number, "created_at": x.created_at.isoformat(),
+            "customer": _customer_name(x), "status": x.status, "payment_status": x.payment_status,
+            "lines": shares[x.id], "pieces": sum(line["qty"] for line in shares[x.id]),
+        })
+        if len(out) >= limit:
+            break
+    return out
+
+
+async def mark_ordered(db: AsyncSession, supplier: str, order_ids: list[uuid.UUID], po_number: str,
+                       *, who: str | None) -> list[dict]:
+    """The shop placed these orders' parts on the supplier's own website: note
+    it on each order, once (the live-row index stops a second mark)."""
+    from app.models.order import Order
+    from app.models.supplier import SupplierOrder
+    from app.services import order_events
+    from app.services.suppliers import sources, sourcing
+
+    name = sources.label(supplier)
+    orders = (await db.execute(select(Order).where(Order.id.in_(order_ids)))).scalars().all()
+    shares = await sourcing.order_shares(db, [x.id for x in orders], supplier)
+    results = []
+    for x in orders:
+        if not shares.get(x.id):
+            results.append({"order_number": x.order_number, "status": "skipped",
+                            "message": f"Nothing on this order comes from {name}."})
+            continue
+        try:
+            async with db.begin_nested():
+                db.add(SupplierOrder(order_id=x.id, supplier=supplier, status="placed", trigger="manual",
+                                     test=False, po_number=po_number or None, lines=shares[x.id]))
+        except IntegrityError:
+            results.append({"order_number": x.order_number, "status": "skipped",
+                            "message": f"Already marked as ordered from {name}."})
+            continue
+        await order_events.record(
+            db, x, "supplier_po_sent",
+            f"Ordered from {name} by hand" + (f" (PO {po_number})" if po_number else "") + ".",
+            actor_type="supplier", actor_name=name,
+            meta={"po_number": po_number or None, "manual": True, "by": who},
+        )
+        results.append({"order_number": x.order_number, "status": "placed", "message": f"Marked as ordered from {name}."})
+    await db.commit()
+    return results

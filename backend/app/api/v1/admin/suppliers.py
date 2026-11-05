@@ -27,7 +27,7 @@ from __future__ import annotations
 import uuid
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -556,7 +556,15 @@ async def supplier_orders_list(
 
     _known(supplier)
     if not sources.sends_orders(supplier):
-        return {"mode": "disabled", "since": None, "test_mode": True, "waiting": [], "recent": [], "available": False}
+        # Nothing is sent to it: what the shop orders on its website by hand,
+        # from products with sources, and what it marked as ordered.
+        marked = (await db.execute(
+            select(SupplierOrder, Order.order_number).join(Order, Order.id == SupplierOrder.order_id)
+            .where(SupplierOrder.supplier == supplier).order_by(SupplierOrder.created_at.desc()).limit(50)
+        )).all()
+        return {"mode": "disabled", "since": None, "test_mode": True, "available": False, "manual": True,
+                "waiting": await so_mod.manual_waiting(db, supplier),
+                "recent": [_so_out(so, num) for so, num in marked]}
     cfg = await cfgmod.load(db, supplier)
     recent = (await db.execute(
         select(SupplierOrder, Order.order_number).join(Order, Order.id == SupplierOrder.order_id)
@@ -571,6 +579,27 @@ async def supplier_orders_list(
 
 class SendOrders(BaseModel):
     order_ids: list[uuid.UUID] = Field(min_length=1, max_length=100)
+
+
+class MarkOrdered(BaseModel):
+    order_ids: list[uuid.UUID] = Field(min_length=1, max_length=100)
+    # The supplier's order or PO number, as the shop wrote it on its website.
+    po_number: str = Field(default="", max_length=100)
+
+
+@router.post("/{supplier}/orders/mark")
+async def mark_supplier_orders(
+    supplier: str, body: MarkOrdered, request: Request, _: None = Depends(require_admin),
+    db: AsyncSession = Depends(get_db), __: None = Depends(require_brand),
+) -> dict:
+    """The shop ordered these parts on a supplier's own website (SanMar): note it."""
+    from app.services.suppliers import orders as so_mod
+
+    _known(supplier)
+    if sources.sends_orders(supplier):
+        raise HTTPException(status_code=409, detail=f"Orders go to {sources.label(supplier)} from here; use Send now.")
+    who = str(getattr(request.state, "user_id", "") or "") or None
+    return {"results": await so_mod.mark_ordered(db, supplier, body.order_ids, body.po_number.strip(), who=who)}
 
 
 @router.post("/{supplier}/orders/send")
@@ -624,6 +653,9 @@ async def refresh_supplier_tracking(
 
 class SourceIn(BaseModel):
     style_id: str = Field(min_length=1, max_length=100)
+    # The shop's own picks over the automatic match: variant id → the
+    # supplier's SKU it is, or null for "not at this supplier".
+    pairs: dict[str, str | None] | None = None
 
 
 async def _style_rows(db: AsyncSession, supplier: str, style_id: str) -> tuple[dict, list[dict]]:
@@ -643,6 +675,36 @@ async def _style_rows(db: AsyncSession, supplier: str, style_id: str) -> tuple[d
     finally:
         await svc.close()
     return style, [r for r in rows if str(r.get("styleID") or "") == str(style["style_id"])] or rows
+
+
+class RuleIn(BaseModel):
+    rule: str = Field(min_length=1, max_length=40)
+
+
+# Before /product-sources/{product_id}, which would take "rule" for a product id.
+@router.get("/product-sources/rule")
+async def sourcing_rule(
+    _: None = Depends(require_admin), db: AsyncSession = Depends(get_db), __: None = Depends(require_brand),
+) -> dict:
+    """Which supplier a product with sources takes from once the shop's own stock runs out."""
+    from app.services.suppliers import sourcing
+
+    return {"rule": await sourcing.rule(db)}
+
+
+@router.put("/product-sources/rule")
+async def save_sourcing_rule(
+    payload: RuleIn, _: None = Depends(require_admin), db: AsyncSession = Depends(get_db),
+    __: None = Depends(require_brand),
+) -> dict:
+    from app.services.suppliers import sourcing
+
+    try:
+        value = await sourcing.set_rule(db, payload.rule)
+    except sourcing.SourceError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from None
+    await db.commit()
+    return {"rule": value}
 
 
 @router.get("/product-sources/{product_id}")
@@ -665,7 +727,38 @@ async def product_sources(
         on = (await cfgmod.load(db, sup)).get("active", True)
         can.append({"supplier": sup, "label": sources.label(sup), "connected": conn["connected"] and on})
     out["can_link"] = can
+    out["rule"] = await sourcing.rule(db)
     return out
+
+
+@router.post("/{supplier}/product-sources/{product_id}/convert")
+async def convert_to_sources(
+    supplier: str, product_id: uuid.UUID,
+    _: None = Depends(require_admin), db: AsyncSession = Depends(get_db), __: None = Depends(require_brand),
+) -> dict:
+    """Make a product imported from this supplier one of the shop's own, with
+    the supplier as its source: same page, its stock still the supplier's."""
+    from app.core.redis import redis_delete_pattern, tenant_cache_key
+    from app.models.product import Product
+    from app.services.suppliers import sourcing
+
+    _known(supplier)
+    product = await db.get(Product, product_id)
+    if product is None:
+        raise HTTPException(status_code=404, detail="Product not found.")
+    if product.supplier != supplier or not product.supplier_ref:
+        raise HTTPException(status_code=409, detail=f"This product wasn't imported from {sources.label(supplier)}.")
+    style, rows = await _style_rows(db, supplier, product.supplier_ref)
+    try:
+        done = await sourcing.convert(db, product_id, style, rows, await cfgmod.load(db, supplier))
+    except sourcing.SourceError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from None
+    await db.commit()
+    try:
+        await redis_delete_pattern(tenant_cache_key("products:*"))
+    except Exception:
+        pass
+    return {**done, **(await sourcing.product_sources(db, product_id))}
 
 
 @router.post("/{supplier}/product-sources/{product_id}/preview")
@@ -700,7 +793,8 @@ async def link_product_source(
         raise HTTPException(status_code=409, detail=f"{sources.label(supplier)} can't be a product's source yet.")
     style, rows = await _style_rows(db, supplier, payload.style_id)
     try:
-        done = await sourcing.link(db, product_id, supplier, style, rows, await cfgmod.load(db, supplier))
+        done = await sourcing.link(db, product_id, supplier, style, rows, await cfgmod.load(db, supplier),
+                                   manual=payload.pairs)
     except sourcing.SourceError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from None
     await db.commit()

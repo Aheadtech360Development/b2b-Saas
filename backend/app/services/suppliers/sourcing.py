@@ -217,7 +217,32 @@ async def preview(db: AsyncSession, product_id: uuid.UUID, supplier: str, style:
         "unmatched": [{"variant_id": str(v["id"]), "color": v["color"], "size": v["size"]} for v in found["unmatched"]],
         "spare": found["spare"],
         "duplicates": await duplicates(db, supplier, str(style.get("style_id") or "")),
+        # Every colour/size the supplier has in this style, to pick one by hand.
+        "rows": [{"sku": str(r.get("sku") or ""), "color": r.get("colorName"), "size": r.get("sizeName"),
+                  "taken_by": taken.get(str(r.get("sku") or ""))}
+                 for r in rows if r.get("sku")],
     }
+
+
+def apply_manual(pairs: list[tuple[dict, dict]], variants: list[dict], rows: list[dict],
+                 manual: dict[str, str | None]) -> list[tuple[dict, dict]]:
+    """The shop's own choices over the automatic match: a variant id maps to
+    the supplier SKU it is, or to None for "not at this supplier"."""
+    if not manual:
+        return pairs
+    by_sku = {str(r.get("sku") or ""): r for r in rows if r.get("sku")}
+    by_id = {str(v["id"]): v for v in variants}
+    for vid, sku in manual.items():
+        if vid not in by_id:
+            raise SourceError("A colour or size you picked is not on this product.")
+        if sku and sku not in by_sku:
+            raise SourceError(f"{sku} is not in that supplier style.")
+    chosen = {sku for sku in manual.values() if sku}
+    kept = [(v, r) for v, r in pairs if str(v["id"]) not in manual and str(r.get("sku") or "") not in chosen]
+    picked = [(by_id[vid], by_sku[sku]) for vid, sku in manual.items() if sku]
+    if len({sku for _, r in picked for sku in [str(r["sku"])]}) < len(picked):
+        raise SourceError("Each supplier colour and size can go with one of yours only.")
+    return kept + picked
 
 
 async def _taken_elsewhere(db: AsyncSession, supplier: str, product_id: uuid.UUID, skus: list) -> dict[str, str]:
@@ -237,10 +262,12 @@ async def _taken_elsewhere(db: AsyncSession, supplier: str, product_id: uuid.UUI
     return {sku: name for sku, name in rows}
 
 
-async def link(db: AsyncSession, product_id: uuid.UUID, supplier: str, style: dict, rows: list[dict], cfg: dict) -> dict:
+async def link(db: AsyncSession, product_id: uuid.UUID, supplier: str, style: dict, rows: list[dict], cfg: dict,
+               *, manual: dict[str, str | None] | None = None) -> dict:
     """Link this supplier style to the product: one source per matched variant,
-    and that supplier's stock for each in its location. Replaces any link the
-    product had to this supplier. Flushes, doesn't commit."""
+    and that supplier's stock for each in its location. `manual` is the shop's
+    own pick where the automatic match missed or was wrong. Replaces any link
+    the product had to this supplier. Flushes, doesn't commit."""
     from app.models.inventory import InventoryRecord
     from app.models.supplier import VariantSource
 
@@ -249,8 +276,9 @@ async def link(db: AsyncSession, product_id: uuid.UUID, supplier: str, style: di
     await linkable(db, product_id)
     variants = await _variants(db, product_id)
     found = match(variants, rows)
-    taken = await _taken_elsewhere(db, supplier, product_id, [r.get("sku") for _, r, _ in found["pairs"]])
-    pairs = [(v, r) for v, r, _ in found["pairs"] if str(r.get("sku") or "") and str(r.get("sku")) not in taken]
+    chosen = apply_manual([(v, r) for v, r, _ in found["pairs"]], variants, rows, manual or {})
+    taken = await _taken_elsewhere(db, supplier, product_id, [r.get("sku") for _, r in chosen])
+    pairs = [(v, r) for v, r in chosen if str(r.get("sku") or "") and str(r.get("sku")) not in taken]
     if not pairs:
         raise SourceError(f"None of this product's colours and sizes were found in that {sources.label(supplier)} style.")
 
@@ -289,6 +317,65 @@ async def unlink(db: AsyncSession, product_id: uuid.UUID, supplier: str) -> int:
         .execution_options(synchronize_session=False)
     )
     return gone
+
+
+async def convert(db: AsyncSession, product_id: uuid.UUID, style: dict, rows: list[dict], cfg: dict) -> dict:
+    """Make a product imported from a supplier one of the shop's own, with that
+    supplier as its source: the same product, page and SKUs, its stock still
+    the supplier's, and room now for the shop's own stock and another supplier.
+
+    The supplier's stock leaves the locations its feed wrote to (a sync
+    overwrote it there anyway) for the supplier's own location; stock in any
+    other location is the shop's and stays. Flushes, doesn't commit."""
+    from app.models.inventory import InventoryRecord
+    from app.models.product import Product, ProductVariant
+    from app.models.supplier import VariantSource
+    from app.services.suppliers import ss_catalog, ss_products
+
+    product = await db.get(Product, product_id)
+    if product is None:
+        raise SourceError("Product not found.")
+    supplier = product.supplier
+    if not supplier:
+        raise SourceError("This is one of your own products already.")
+    if supplier not in SUPPLIERS:
+        raise SourceError(f"{sources.label(supplier)} can't be a product's source yet.")
+    as_ss = ss_catalog.as_ss(style)
+    by_store_sku: dict[str, dict] = {}
+    for r in rows:
+        by_store_sku.setdefault(ss_products.mapped_sku(cfg, as_ss, r), r)
+    variants = (await db.execute(
+        select(ProductVariant).where(ProductVariant.product_id == product_id)
+    )).scalars().all()
+    feed = [wid for wid, _ in await ss_products.locations(db, cfg)]
+    wh = await supplier_location(db, supplier)
+    safety = _safety(cfg)
+    taken = await _taken_elsewhere(db, supplier, product_id, [r.get("sku") for r in rows])
+    style_id = str(product.supplier_ref or style.get("style_id") or "")
+    part = str(style.get("part_number") or "") or None
+    linked = 0
+    for v in variants:
+        for rec in (await db.execute(
+            select(InventoryRecord).where(InventoryRecord.variant_id == v.id,
+                                          InventoryRecord.warehouse_id.in_(feed or [uuid.uuid4()]))
+        )).scalars().all():
+            rec.quantity = 0
+        r = by_store_sku.get(v.sku)
+        if r is None or str(r.get("sku") or "") in taken or not r.get("sku"):
+            continue
+        db.add(VariantSource(
+            variant_id=v.id, supplier=supplier, supplier_sku=str(r["sku"])[:100], style_ref=style_id[:100],
+            part_number=part, gtin=(str(r.get("gtin") or "").strip() or None), cost=cost_of(r),
+        ))
+        db.add(InventoryRecord(variant_id=v.id, warehouse_id=wh.id, quantity=stock_of(r, safety),
+                               low_stock_threshold=10))
+        linked += 1
+    if not linked:
+        raise SourceError(f"None of this product's colours and sizes are in {sources.label(supplier)}'s style any more.")
+    product.supplier = None
+    product.supplier_ref = None
+    await db.flush()
+    return {"converted": supplier, "linked": linked, "unmatched": len(variants) - linked}
 
 
 async def product_sources(db: AsyncSession, product_id: uuid.UUID) -> dict:
@@ -347,13 +434,47 @@ async def product_sources(db: AsyncSession, product_id: uuid.UUID) -> dict:
 
 # ── Checkout: which source a line comes from ─────────────────────────────────
 
-def order_records(records: list[tuple[Any, str | None]], costs: dict[str, float | None]) -> list[tuple[Any, str | None]]:
-    """Own stock first (most stock first, as it always was), then suppliers:
-    cheapest first, then the one with more stock."""
+def order_records(records: list[tuple[Any, str | None]], costs: dict[str, float | None], want: int = 0,
+                  first: str | None = None) -> list[tuple[Any, str | None]]:
+    """Own stock first (most stock first, as it always was), then suppliers.
+
+    By default the cheapest supplier comes first (more stock breaks a tie),
+    except that one able to send all the line still needs after own stock is
+    moved ahead of cheaper ones that cannot: one parcel, not two. A shop can
+    instead put one supplier first, always (`first`, the shop's rule).
+    """
     own = sorted((r for r in records if not r[1]), key=lambda r: -int(r[0].quantity or 0))
     theirs = sorted((r for r in records if r[1]),
                     key=lambda r: (costs.get(r[1]) is None, costs.get(r[1]) or 0, -int(r[0].quantity or 0)))
+    if first in {sup for _, sup in theirs}:
+        return own + [r for r in theirs if r[1] == first] + [r for r in theirs if r[1] != first]
+    rest = want - sum(max(0, int(r[0].quantity or 0)) for r in own)
+    if rest > 0:
+        whole = next((r for r in theirs if int(r[0].quantity or 0) >= rest), None)
+        if whole is not None:
+            theirs = [whole] + [r for r in theirs if r is not whole]
     return own + theirs
+
+
+RULE_KEY = "sourcing_rule"
+RULES = ("cheapest", *SUPPLIERS)
+
+
+async def rule(db: AsyncSession) -> str:
+    """The shop's rule once its own stock runs out: "cheapest", or one supplier first."""
+    from app.core.tenant_settings import get_setting
+
+    value = (await get_setting(db, RULE_KEY) or "").strip()
+    return value if value in RULES else "cheapest"
+
+
+async def set_rule(db: AsyncSession, value: str) -> str:
+    from app.core.tenant_settings import set_setting
+
+    if value not in RULES:
+        raise SourceError("Choose the cheapest supplier, or which supplier comes first.")
+    await set_setting(db, RULE_KEY, value)
+    return value
 
 
 async def take_stock(db: AsyncSession, variant_id, quantity: int) -> list[tuple[str, int]]:
@@ -369,13 +490,16 @@ async def take_stock(db: AsyncSession, variant_id, quantity: int) -> list[tuple[
         .where(InventoryRecord.variant_id == variant_id)
     )).all()
     costs: dict[str, float | None] = {}
+    first = None
     if any(sup for _, sup in records):
         for sup, cost in (await db.execute(
             select(VariantSource.supplier, VariantSource.cost).where(VariantSource.variant_id == variant_id)
         )).all():
             costs[sup] = float(cost) if cost is not None else None
+        shop_rule = await rule(db)
+        first = shop_rule if shop_rule != "cheapest" else None
     shares: dict[str, int] = defaultdict(int)
-    for record, sup in order_records(list(records), costs):
+    for record, sup in order_records(list(records), costs, want, first):
         if want <= 0:
             break
         have = int(record.quantity or 0)
@@ -391,17 +515,21 @@ async def take_stock(db: AsyncSession, variant_id, quantity: int) -> list[tuple[
 
 
 async def record_shares(db: AsyncSession, order_item, shares: list[tuple[str, int]]) -> None:
-    """Note what each supplier covers of this order line."""
-    from app.models.supplier import OrderItemSource
+    """Note what each supplier covers of this order line, and what it cost there."""
+    from app.models.supplier import OrderItemSource, VariantSource
 
     shares = [(sup, int(qty)) for sup, qty in shares if qty > 0]
     if not shares:
         return
+    costs = dict((await db.execute(
+        select(VariantSource.supplier, VariantSource.cost).where(VariantSource.variant_id == order_item.variant_id)
+    )).all())
     # The line goes in first: nothing tells the session these rows point at it.
     await db.flush()
     for sup, qty in shares:
         db.add(OrderItemSource(order_id=order_item.order_id, order_item_id=order_item.id,
-                               variant_id=order_item.variant_id, supplier=sup, quantity=qty))
+                               variant_id=order_item.variant_id, supplier=sup, quantity=qty,
+                               unit_cost=costs.get(sup)))
 
 
 async def order_shares(db: AsyncSession, order_ids: list, supplier: str | None = None) -> dict:
@@ -414,7 +542,7 @@ async def order_shares(db: AsyncSession, order_ids: list, supplier: str | None =
     q = (
         select(OrderItemSource.order_id, OrderItemSource.order_item_id, OrderItemSource.supplier,
                OrderItemSource.quantity, OrderItemSource.variant_id, OrderItem.product_name, OrderItem.color,
-               OrderItem.size, VariantSource.supplier_sku, VariantSource.style_ref)
+               OrderItem.size, VariantSource.supplier_sku, VariantSource.style_ref, OrderItemSource.unit_cost)
         .join(OrderItem, OrderItem.id == OrderItemSource.order_item_id)
         .outerjoin(VariantSource, (VariantSource.variant_id == OrderItemSource.variant_id)
                    & (VariantSource.supplier == OrderItemSource.supplier))
@@ -423,10 +551,11 @@ async def order_shares(db: AsyncSession, order_ids: list, supplier: str | None =
     if supplier:
         q = q.where(OrderItemSource.supplier == supplier)
     out: dict = defaultdict(list)
-    for oid, item_id, sup, qty, vid, name, color, size, sku, ref in (await db.execute(q)).all():
+    for oid, item_id, sup, qty, vid, name, color, size, sku, ref, cost in (await db.execute(q)).all():
         out[oid].append({"order_item_id": str(item_id), "supplier": sup, "label": sources.label(sup),
                          "variant_id": str(vid) if vid else None, "sku": sku, "style_id": ref,
-                         "qty": int(qty or 0), "name": name, "color": color, "size": size, "linked": True})
+                         "qty": int(qty or 0), "name": name, "color": color, "size": size, "linked": True,
+                         "unit_cost": float(cost) if cost is not None else None})
     return out
 
 

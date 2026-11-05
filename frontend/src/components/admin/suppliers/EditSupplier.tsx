@@ -17,13 +17,14 @@ import {
 import { ProductSettings } from "./ProductSettings";
 import { SyncSettings } from "./SyncSettings";
 import { OrderSettings } from "./OrderSettings";
+import { ManualOrders } from "./ManualOrders";
 import { Btn, CARD, INPUT, LABEL, MUTED, Spinner, errText } from "./ui";
 import { supplierWords, type SupplierWords } from "./words";
 
 export type Draft = Pick<SupplierConfig, "name" | "inventory" | "product" | "pricing" | "automatic_sync" | "orders">;
 /** The login as typed: `user` and `secret` are the supplier's own fields (words.ts). */
 type Conn = { user: string; secret: string; country: string; hint: string };
-type Tab = "connection" | "inventory" | "product" | "sync" | "orders";
+type Tab = "connection" | "inventory" | "product" | "sync" | "orders" | "manual";
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "connection", label: "Connection Settings" },
@@ -31,6 +32,8 @@ const TABS: { id: Tab; label: string }[] = [
   { id: "product", label: "Product Settings" },
   { id: "sync", label: "Automatic Sync" },
   { id: "orders", label: "Order Settings" },
+  // A supplier no orders are sent to (SanMar): what to order on its website by hand.
+  { id: "manual", label: "Orders to place" },
 ];
 
 const draftOf = (c: SupplierConfig): Draft => JSON.parse(JSON.stringify({
@@ -45,8 +48,13 @@ export function EditSupplier({
   onJobStarted: (j: SupplierJob) => void; onConnectionChanged: () => void; onDirtyChange?: (dirty: boolean) => void;
 }) {
   const words = supplierWords(id);
-  const tabs = TABS.filter((t) => t.id !== "orders" || words.orders);
-  const [tab, setTab] = useState<Tab>(detail.connection.connected ? "inventory" : "connection");
+  const tabs = TABS.filter((t) => (t.id !== "orders" || words.orders) && (t.id !== "manual" || !words.orders));
+  // ?tab=manual (from a product's Sources) opens the orders to place.
+  const [tab, setTab] = useState<Tab>(() => {
+    const asked = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("tab") : null;
+    if (asked === "manual" && !words.orders) return "manual";
+    return detail.connection.connected ? "inventory" : "connection";
+  });
   const [draft, setDraft] = useState<Draft>(() => draftOf(detail.config));
   const [saved, setSaved] = useState<Draft>(() => draftOf(detail.config));
   const [conn, setConn] = useState<Conn | null>(null);
@@ -168,6 +176,7 @@ export function EditSupplier({
             <OrderSettings id={id} value={draft.orders} saved={saved.orders} onChange={(v) => set("orders", v)}
               meta={detail.meta} connected={detail.connection.connected} dirty={dirty} />
           )}
+          {tab === "manual" && !words.orders && <ManualOrders id={id} name={detail.label} />}
         </div>
       </div>
     </div>

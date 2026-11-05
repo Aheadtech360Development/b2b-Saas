@@ -1263,7 +1263,7 @@ function ProductEditor() {
             ))}
           </div>
           {/* Where else this product can come from: S&S, SanMar. */}
-          {!madeToOrder && <ProductSources productId={product.id} />}
+          {!madeToOrder && <ProductSources productId={product.id} onChanged={() => void load(false)} />}
               </>
             ) : (
               <div style={sectionCard}>

@@ -69,6 +69,51 @@ def test_a_shop_without_suppliers_keeps_most_stock_first():
     assert [r for r, _ in sourcing.order_records([(a, None), (b, None), (c, None)], {})] == [b, c, a]
 
 
+def test_a_supplier_that_has_the_whole_rest_goes_before_a_cheaper_one_that_does_not():
+    own, cheap, whole = _rec(10), _rec(40), _rec(500)
+    records = [(cheap, "sanmar"), (whole, "ss_activewear"), (own, None)]
+    costs = {"sanmar": 1.95, "ss_activewear": 2.10}
+    # 100 wanted: 10 own, 90 more. SanMar has only 40, S&S has all 90: one parcel.
+    assert [r for r, _ in sourcing.order_records(records, costs, 100)] == [own, whole, cheap]
+    # 40 wanted: SanMar covers the 30 left, so the cheapest stays first.
+    assert [r for r, _ in sourcing.order_records(records, costs, 40)] == [own, cheap, whole]
+    # Nobody has it all: cheapest first, then the next.
+    assert [r for r, _ in sourcing.order_records(records, costs, 900)] == [own, cheap, whole]
+
+
+def test_the_shops_rule_can_put_one_supplier_first_always():
+    own, ss, sanmar = _rec(0), _rec(5), _rec(5000)
+    records = [(sanmar, "sanmar"), (ss, "ss_activewear"), (own, None)]
+    costs = {"sanmar": 1.95, "ss_activewear": 2.10}
+    assert [r for r, _ in sourcing.order_records(records, costs, 100, "ss_activewear")] == [own, ss, sanmar]
+    # A rule naming a supplier the variant is not linked to changes nothing.
+    assert [r for r, _ in sourcing.order_records([(sanmar, "sanmar"), (own, None)], costs, 100, "ss_activewear")] == [own, sanmar]
+
+
+def test_the_shops_own_picks_override_the_automatic_match():
+    v1, v2, v3 = {"id": "a", "color": "Black", "size": "M"}, {"id": "b", "color": "Blk", "size": "L"}, {"id": "c", "color": "Red", "size": "S"}
+    r1, r2, r3 = _row("Black", "M", "BM"), _row("Black", "L", "BL"), _row("Red", "S", "RS")
+    auto = [(v1, r1), (v3, r3)]
+    picked = sourcing.apply_manual(auto, [v1, v2, v3], [r1, r2, r3], {"b": "BL", "c": None})
+    assert sorted((v["id"], r["sku"]) for v, r in picked) == [("a", "BM"), ("b", "BL")]
+    # Taking another variant's row moves it.
+    picked = sourcing.apply_manual(auto, [v1, v2, v3], [r1, r2, r3], {"b": "BM"})
+    assert sorted((v["id"], r["sku"]) for v, r in picked) == [("b", "BM"), ("c", "RS")]
+
+
+def test_a_pick_that_is_not_in_the_style_or_twice_is_refused():
+    import pytest
+
+    v1, v2 = {"id": "a", "color": "Black", "size": "M"}, {"id": "b", "color": "Black", "size": "L"}
+    r1 = _row("Black", "M", "BM")
+    with pytest.raises(sourcing.SourceError):
+        sourcing.apply_manual([], [v1, v2], [r1], {"a": "NOPE"})
+    with pytest.raises(sourcing.SourceError):
+        sourcing.apply_manual([], [v1, v2], [r1], {"a": "BM", "b": "BM"})
+    with pytest.raises(sourcing.SourceError):
+        sourcing.apply_manual([], [v1, v2], [r1], {"zzz": "BM"})
+
+
 def test_supplier_stock_leaves_out_drop_ship_and_the_safety_stock():
     row = {"warehouses": [{"warehouseAbbr": "KS", "qty": 120}, {"warehouseAbbr": "DS", "qty": 900},
                           {"warehouseAbbr": "NV", "qty": 30}]}

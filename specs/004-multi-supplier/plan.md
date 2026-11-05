@@ -20,6 +20,15 @@ Why a location per supplier rather than a stock column on the source: every stoc
 - Admin order detail returns `supplier_shares`; the order page shows each line's split.
 - Frontend: `components/admin/products/ProductSources.tsx`, `services/productSources.service.ts`.
 
+## Phase 2
+
+- `sourcing.convert`: an imported product becomes the shop's own (`supplier`, `supplier_ref` cleared), one source per variant whose store SKU maps to a supplier row (Match Fields respected), the supplier's stock rewritten into its own location from fresh rows, its feed-location records set to 0; other locations are the shop's and stay. `jobs._claim` skips products with sources (they keep S&S's style id as product code).
+- Manual picks: preview returns every supplier row; `link(..., manual=)` applies `{variant id: supplier SKU | null}` over the automatic match (`apply_manual`).
+- Rule: `sourcing_rule` (tenant-scoped setting) = `cheapest` (default; a supplier able to send the whole rest of the line goes ahead of cheaper ones that cannot) or a supplier key (that supplier first, always). `order_records(records, costs, want, first)`.
+- Migration 0074 `order_item_sources.unit_cost`, written by `record_shares` from the source's cost.
+- SanMar by hand: `orders.manual_waiting` / `orders.mark_ordered` (a `supplier_orders` row with status placed, trigger manual; the live-row index stops a second mark); admin `GET /{supplier}/orders` answers the list for a supplier that takes no orders, `POST /{supplier}/orders/mark`; rule at `GET/PUT /product-sources/rule` (declared before `/product-sources/{product_id}`); `POST /{supplier}/product-sources/{product}/convert`.
+- Frontend: Sources card (convert, rule, match table with selects, set duplicate to Draft), `ManualOrders.tsx` tab for SanMar (`?supplier=sanmar&tab=manual`).
+
 ## Risks
 
 - Checkout touches every order: shops without sources keep the old order exactly (tested), and the full suite passes.

@@ -221,7 +221,7 @@ async def _import(tenant_id: str, supplier: str, styles: list[dict], svc, cfg: d
 
     from app.core.database import AsyncSessionLocal
     from app.models.product import Product
-    from app.services.suppliers import sourcing, sources, ss_products
+    from app.services.suppliers import sources, sourcing, ss_products
 
     name = sources.label(supplier)
     wanted = [s for s in styles if ss_catalog.matches(s, cfg.get("filters") or {})]
@@ -292,12 +292,17 @@ async def _import(tenant_id: str, supplier: str, styles: list[dict], svc, cfg: d
 async def _claim(db, style_ids) -> None:
     """Products imported before products had a supplier column carry only
     product_code = the S&S style id. Mark those, once, as S&S products."""
-    from app.models.product import Product
+    from app.models.product import Product, ProductVariant
+    from app.models.supplier import VariantSource
     from app.services.suppliers import ss_products
 
     ids = set(style_ids)
+    # Never one of the shop's own products with sources: one turned from an
+    # S&S product into the shop's own still carries S&S's style id.
+    sourced = select(ProductVariant.product_id).join(VariantSource, VariantSource.variant_id == ProductVariant.id)
     rows = (await db.execute(
-        select(Product.id, Product.product_code).where(Product.supplier.is_(None), Product.product_code.isnot(None))
+        select(Product.id, Product.product_code).where(Product.supplier.is_(None), Product.product_code.isnot(None),
+                                                       Product.id.notin_(sourced))
     )).all()
     mine = [(pid, code) for pid, code in rows if code in ids]
     for pid, code in mine:

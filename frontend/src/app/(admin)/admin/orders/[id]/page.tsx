@@ -72,8 +72,8 @@ interface OrderEvent {
   actor_name: string | null; meta: Record<string, unknown>; occurred_at: string;
 }
 
-/** The part of a line a supplier's stock covered (a product with sources). */
-interface SupplierShare { order_item_id: string; supplier: string; label: string; qty: number }
+/** The part of a line a supplier's stock covered (a product with sources), and what a piece cost there. */
+interface SupplierShare { order_item_id: string; supplier: string; label: string; qty: number; unit_cost?: number | null }
 
 interface AdminOrder {
   id: string;
@@ -690,7 +690,7 @@ export default function AdminOrderDetailPage() {
                             <div className="pc-sub-line" style={{ fontSize: "12.5px" }} data-shares>
                               {[
                                 ...(ownPart > 0 ? [`${ownPart} from your stock`] : []),
-                                ...shares.map((s) => `${s.qty} from ${s.label}${s.supplier === "sanmar" ? " (order these from SanMar yourself)" : ""}`),
+                                ...shares.map((s) => `${s.qty} from ${s.label}${s.unit_cost != null ? ` at ${money(s.unit_cost)} each` : ""}${s.supplier === "sanmar" ? " (order these from SanMar yourself)" : ""}`),
                               ].join(" · ")}
                             </div>
                           )}
