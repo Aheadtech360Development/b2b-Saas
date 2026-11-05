@@ -506,10 +506,21 @@ async def get_combinations(
     product = await _load_product(db, product_id)
     options = list(product.options or [])
     taking_part = combos.matrix_options(options)
-    total = combos.count_combinations(options)
+    every = combos.count_combinations(options)
+    # Under the shop's rules, only what a buyer can choose, the shorter
+    # combinations included (a question a rule hides is not asked): a CPU walk,
+    # done off the event loop, then cached.
+    allowed = await asyncio.to_thread(combos.buyable, options, list(product.option_rules or []))
+    total = len(allowed) if allowed is not None else every
     C = ProductOptionCombination
 
-    page = combos.page_combinations(options, offset=offset, limit=limit) if total and total <= combos.MAX_MATRIX else []
+    offset = max(0, int(offset or 0))
+    if not total or total > combos.MAX_MATRIX:
+        page = []
+    elif allowed is not None:
+        page = allowed[offset:offset + max(1, min(int(limit or 100), 500))]
+    else:
+        page = combos.page_combinations(options, offset=offset, limit=limit)
     # Only the stored rows this page can use, never the whole table (an
     # imported grid is tens of thousands of rows): every row naming nothing
     # outside the page's choices. That is each cell's own row and any shorter
@@ -562,7 +573,10 @@ async def get_combinations(
                 "combo_key": key,
                 "label": combos.describe(pairs),
                 "selections": {str(o.id): str(v.id) for o, v in pairs},
-                "values": [{"option": o.name, "value": v.label} for o, v in pairs],
+                # One per column; a question a rule hides for these answers
+                # reads NOT_ASKED.
+                "values": [{"option": o.name, "value": label}
+                           for o, label in zip(taking_part, combos.labels_in_columns(pairs, taking_part))],
                 "unit_price": float(own.unit_price) if own is not None and own.unit_price is not None else None,
                 "line_price": float(own.line_price) if own is not None and own.line_price is not None else None,
                 "setup_fee": float(own.setup_fee) if own is not None and own.setup_fee is not None else None,
@@ -609,6 +623,10 @@ async def get_combinations(
         # priced as whole lines ("30 signs: $1,106.84"), not per item.
         "quantity_option_id": _quantity_option_id(options),
         "total": total,
+        # Every way of answering, before the shop's rules: more than `total`
+        # when rules rule some out or hide a question for some answers.
+        "all_total": every,
+        "rules_applied": allowed is not None,
         "offset": offset,
         "limit": limit,
         "max_matrix": combos.MAX_MATRIX,
@@ -904,8 +922,10 @@ async def export_price_grid(
 
     product = await _load_product(db, product_id)
     options = list(product.options or [])
+    rules = list(product.option_rules or [])
     try:
-        price_grid.check_exportable(options)
+        # Walks the rules once (cached for the streaming that follows).
+        await asyncio.to_thread(price_grid.check_exportable, options, rules)
     except price_grid.GridError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     C = ProductOptionCombination
@@ -914,7 +934,7 @@ async def export_price_grid(
     )).all()
     name = "".join(ch if ch.isalnum() or ch in "-_" else "-" for ch in (product.slug or "product"))[:80]
     return StreamingResponse(
-        price_grid.export_lines(options, list(stored)),
+        price_grid.export_lines(options, list(stored), rules),
         media_type="text/csv; charset=utf-8",
         headers={"Content-Disposition": f'attachment; filename="{name}-prices.csv"'},
     )

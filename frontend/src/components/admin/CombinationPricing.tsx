@@ -68,7 +68,14 @@ interface Payload {
   /** The saved prices are whole lines: a combination without one cannot be
    *  ordered, rather than being priced by rule. */
   line_priced?: boolean;
+  /** Every way of answering, before the shop's rules ("Answers that rule others out"). */
+  all_total?: number;
+  /** The table lists only what a buyer can choose under the rules. */
+  rules_applied?: boolean;
 }
+
+/** A question a rule hides for that row's answers: the combination leaves it out. */
+const NOT_ASKED = "-";
 
 const PAGE = 50;
 
@@ -203,6 +210,15 @@ export function CombinationPricing({
         <strong>{data.total.toLocaleString()}</strong> combination{data.total === 1 ? "" : "s"}
         {listOnly && " · a combination without a price cannot be ordered"}
       </p>
+      {data.rules_applied && (
+        <p style={{ ...HINT, marginTop: -6 }} data-rules-applied>
+          Only what a buyer can choose is listed: your rules rule out
+          {(data.all_total ?? data.total) > data.total
+            ? ` the other ${((data.all_total ?? data.total) - data.total).toLocaleString()}`
+            : " none of them"}
+          . A dash (—) is a question a rule hides for that row, so its price is set without it.
+        </p>
+      )}
       <Unpriced list={data.unpriced_choices} />
 
       <div style={{ overflowX: "auto", border: "1px solid #E3E3E3", borderRadius: 10 }}>
@@ -217,7 +233,9 @@ export function CombinationPricing({
             {data.combinations.map(cell => (
               <tr key={cell.combo_key}>
                 {cell.values.map((v, i) => (
-                  <td key={i} style={{ ...TD, fontWeight: 600, whiteSpace: "nowrap" }}>{v.value}</td>
+                  v.value === NOT_ASKED
+                    ? <td key={i} style={{ ...TD, color: "#9CA3AF" }} title="Not asked: a rule hides this question for these answers" data-not-asked>—</td>
+                    : <td key={i} style={{ ...TD, fontWeight: 600, whiteSpace: "nowrap" }}>{v.value}</td>
                 ))}
                 <td style={TD}>
                   <div style={{ display: "flex", alignItems: "center", border: "1px solid #E3E3E3", borderRadius: 8, background: "#fff", width: 140 }}>

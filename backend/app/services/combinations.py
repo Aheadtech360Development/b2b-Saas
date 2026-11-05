@@ -186,6 +186,160 @@ def page_combinations(
     return list(itertools.islice(iter_combinations(options), offset, offset + limit))
 
 
+# ── What a buyer can actually choose (the shop's rules) ──────────────────────
+#
+# Rules ("Answers that rule others out") change which combinations exist.
+# A choice a rule greys out, or leaves out of a "show only these choices"
+# list, cannot be bought with the answers that triggered it; a question a rule
+# hides is not asked at all, so the buyer's combination does not name it. The
+# table has to list those combinations, the shorter ones included, or the
+# shop has nowhere to type the price of "14 pt" when 14 pt hides Coating.
+# Pricing finds such a row by subset, as it finds any shorter row.
+
+# What the table and its file show for a question a rule hides for these
+# answers. Imported back, it means the row leaves that question out.
+NOT_ASKED = "-"
+NOT_ASKED_MARKS = frozenset({"-", "—", "–"})
+
+# Past this many combinations the rules are not walked: a table that large is
+# imported from a file anyway, and walking it would hold the request (150,000
+# take about five seconds the first time, then come from the cache below).
+RULE_SCAN_LIMIT = 150_000
+
+_BUYABLE_CACHE: dict[tuple, list[tuple[tuple[str, str], ...]]] = {}
+_BUYABLE_CACHE_SIZE = 16
+
+
+def settle(rules: Sequence[Any], options: Sequence[Any], selections: dict[str, list[str]]) -> tuple[dict, set[str]]:
+    """The rules' verdict on a selection, with the answers to questions they
+    switch off left out, as the buyer's form leaves them out: a hidden
+    question's answer triggers nothing. Returns (verdict, questions off)."""
+    from app.services.configurator_service import evaluate_rules
+
+    by_id = {str(o.id): o for o in options or []}
+    off: set[str] = set()
+    active = evaluate_rules(rules, selections)
+    for _ in range(len(selections) + 2):
+        now = set(active["hidden_options"]) | set(active["disabled_options"])
+        now.update(
+            option_id for option_id, keep in active["only_values"].items()
+            if option_id in by_id
+            and not any(getattr(v, "enabled", True) and str(v.id) in keep for v in by_id[option_id].values or [])
+        )
+        if now == off:
+            break
+        off = now
+        active = evaluate_rules(rules, {k: v for k, v in selections.items() if k not in off})
+    return active, off
+
+
+def _touches(taking_part: Sequence[Any], rules: Sequence[Any]) -> bool:
+    """Whether any rule is set off by, or aims at, a question in the table."""
+    option_ids = {str(o.id) for o in taking_part}
+    value_ids = {str(v.id) for o in taking_part for v in (o.values or [])}
+    for r in rules or []:
+        if str(getattr(r, "when_value_id", "")) in value_ids and (
+            str(getattr(r, "target_option_id", "") or "") in option_ids
+            or str(getattr(r, "target_value_id", "") or "") in value_ids
+        ):
+            return True
+    return False
+
+
+def _signature(taking_part: Sequence[Any], rules: Sequence[Any]) -> tuple:
+    return (
+        tuple((str(o.id), o.position, tuple((str(v.id), v.position, bool(getattr(v, "enabled", True)))
+                                             for v in (o.values or []))) for o in taking_part),
+        tuple(sorted((str(r.when_value_id), r.action, str(r.target_option_id or ""), str(r.target_value_id or ""))
+                     for r in rules or [])),
+    )
+
+
+def _walk(options: Sequence[Any], rules: Sequence[Any]) -> list[tuple[tuple[str, str], ...]]:
+    """Every combination through the rules, the same verdict as
+    configurator_service.evaluate_rules + settle, but looking up only the
+    rules the picked choices set off (a table of 200,000 is walked in seconds,
+    not minutes). A combination no rule touches is kept as it is."""
+    by_when: dict[str, list[tuple[str, str, str]]] = {}
+    for r in rules or []:
+        by_when.setdefault(str(r.when_value_id), []).append(
+            (r.action, str(r.target_option_id or ""), str(r.target_value_id or "")))
+    offered = {str(o.id): {str(v.id) for v in (o.values or []) if getattr(v, "enabled", True)} for o in options or []}
+    pools = [[(str(o.id), str(v.id)) for v in _option_values(o)] for o in matrix_options(options)]
+
+    def verdict(picked: list[str]) -> tuple[set[str], set[str], dict[str, set[str]]]:
+        off: set[str] = set()
+        disabled: set[str] = set()
+        kept: dict[tuple[str, str], set[str]] = {}
+        for value_id in picked:
+            for action, option_id, target in by_when.get(value_id, ()):
+                if action in ("hide_option", "disable_option") and option_id:
+                    off.add(option_id)
+                elif action == "disable_value" and target:
+                    disabled.add(target)
+                elif action == "only_values" and option_id and target:
+                    kept.setdefault((value_id, option_id), set()).add(target)
+        only: dict[str, set[str]] = {}
+        for (_, option_id), choices in kept.items():
+            only[option_id] = only[option_id] & choices if option_id in only else set(choices)
+        off.update(option_id for option_id, keep in only.items() if not (keep & offered.get(option_id, set())))
+        return off, disabled, only
+
+    seen: dict[tuple[tuple[str, str], ...], None] = {}
+    for combo in itertools.product(*pools):
+        picked = [v for _, v in combo]
+        if not any(v in by_when for v in picked):
+            seen.setdefault(combo, None)
+            continue
+        off, disabled, only = verdict(picked)
+        for _ in range(len(combo) + 2):
+            again = verdict([v for o, v in combo if o not in off])
+            if again[0] == off:
+                off, disabled, only = again
+                break
+            off, disabled, only = again
+        kept_pairs: list[tuple[str, str]] = []
+        for option_id, value_id in combo:
+            if option_id in off:
+                continue
+            keep = only.get(option_id)
+            if value_id in disabled or (keep is not None and value_id not in keep):
+                break
+            kept_pairs.append((option_id, value_id))
+        else:
+            if kept_pairs:
+                seen.setdefault(tuple(kept_pairs), None)
+    return list(seen)
+
+
+def buyable(options: Sequence[Any], rules: Sequence[Any] | None) -> list[tuple[tuple[Any, Any], ...]] | None:
+    """The combinations a buyer can make under the shop's rules, in table
+    order, each without the questions a rule hides for it. None when no rule
+    touches the table (every combination is one) or it is too large to walk."""
+    taking_part = matrix_options(options)
+    if not taking_part or not rules or not _touches(taking_part, rules):
+        return None
+    if count_combinations(options) > RULE_SCAN_LIMIT:
+        return None
+    key = _signature(taking_part, rules)
+    ids = _BUYABLE_CACHE.get(key)
+    if ids is None:
+        ids = _walk(options, rules)
+        if len(_BUYABLE_CACHE) >= _BUYABLE_CACHE_SIZE:
+            _BUYABLE_CACHE.pop(next(iter(_BUYABLE_CACHE)))
+        _BUYABLE_CACHE[key] = ids
+    option_of = {str(o.id): o for o in taking_part}
+    value_of = {str(v.id): v for o in taking_part for v in (o.values or [])}
+    return [tuple((option_of[o], value_of[v]) for o, v in combo) for combo in ids]
+
+
+def labels_in_columns(pairs: Sequence[tuple[Any, Any]], columns: Sequence[Any]) -> list[str]:
+    """One label per table column: the choice, or NOT_ASKED for a question
+    this combination leaves out."""
+    chosen = {str(o.id): v for o, v in pairs}
+    return [chosen[str(o.id)].label if str(o.id) in chosen else NOT_ASKED for o in columns]
+
+
 # ── Matching a stored row to a selection ─────────────────────────────────────
 
 class Override:

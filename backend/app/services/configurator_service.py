@@ -287,9 +287,11 @@ def compute_price(product, tiers, override_rows, selections: dict, quantity: int
 
     # Conditional rules are resolved from the selection itself, so a field the
     # buyer can't see is never charged for and never counts as "required".
-    active = evaluate_rules(product.option_rules, wanted)
-    off_options = active["hidden_options"] | set(active["disabled_options"])
-    off_options.update(str(o.id) for o in product.options or [] if _nothing_offered(o, active["only_values"]))
+    # Its answer counts for nothing either: the buyer's form drops it, and a
+    # stale one must neither set off rules nor pick a longer stored price than
+    # the combination the buyer made (the price table lists that one).
+    active, off_options = combos.settle(product.option_rules, product.options or [], wanted)
+    wanted = {k: v for k, v in wanted.items() if k not in off_options}
 
     # How many the line is for. A product that asks it as one of its questions
     # is priced for the number the buyer picked there, whatever number came

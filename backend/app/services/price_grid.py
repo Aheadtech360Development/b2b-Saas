@@ -76,6 +76,13 @@ def norm(text: str | None) -> str:
     return _SPACE.sub(" ", (text or "").strip()).casefold()
 
 
+def asked(label: str | None) -> bool:
+    """False for "-": a question the shop's rules hide for this row, which the
+    row's combination leaves out (combinations.NOT_ASKED, as the download
+    writes it). Never a choice."""
+    return (label or "").strip() not in combos.NOT_ASKED_MARKS
+
+
 # ── Reading ───────────────────────────────────────────────────────────────────
 
 @dataclass
@@ -176,7 +183,7 @@ def profile(sheet: Sheet) -> list[Column]:
         filled = bad = 0
         for row in sheet.rows:
             cell = row[index]
-            if not cell:
+            if not cell or not asked(cell):
                 continue
             filled += 1
             known = seen.get(cell)
@@ -354,6 +361,12 @@ def plan(
         if missing:
             errors.append({"row": line, "message": f'"{missing}" is empty.'})
             continue
+        if not any(asked(label) for label in labels):
+            errors.append({"row": line, "message": 'Every question is "-": the row names no choice.'})
+            continue
+        if quantity is not None and not asked(row[quantity.index]):
+            errors.append({"row": line, "message": f'"{quantity.name}" cannot be "-": the price is for that many.'})
+            continue
         kind, amount = read_price(row[price.index])
         if kind == "bad":
             errors.append({"row": line, "message": f'"{row[price.index]}" in "{price.name}" is not a price.'})
@@ -474,6 +487,8 @@ def listed_keys(the_plan: dict[str, Any], existing: list[dict]) -> list[str]:
             continue
         pairs: list[tuple[str, str]] = []
         for (option_id, values), label in zip(columns, e.labels):
+            if not asked(label):
+                continue
             value_id = values.get(norm(label))
             if value_id is None:
                 break
@@ -521,6 +536,8 @@ def _unavailable(entries: list[Entry], width: int):
     for e in entries:
         row: list[int] = []
         for i, label in enumerate(e.labels):
+            if not asked(label):
+                continue
             key = (i, norm(label))
             code = codes.get(key)
             if code is None:
@@ -685,7 +702,7 @@ async def apply(db, product, the_plan: dict[str, Any], *, replace: bool = False,
     for e in entries:
         if e.status == "blank":
             continue
-        pairs = [(option_ids[i], value_ids[i][norm(label)].id) for i, label in enumerate(e.labels)]
+        pairs = [(option_ids[i], value_ids[i][norm(label)].id) for i, label in enumerate(e.labels) if asked(label)]
         key = combos.combo_key(pairs)
         na = e.status == "na"
         rows.append({
@@ -766,13 +783,14 @@ def _figure(amount: Any) -> str:
     return str(cents if cents == value else value.quantize(Decimal("0.0001")))
 
 
-def check_exportable(options: list[Any]) -> None:
+def check_exportable(options: list[Any], rules: list[Any] | None = None) -> None:
     """Refuse, before anything is streamed, a product with nothing to export or
     more combinations than one file holds. More than a table holds is fine:
     the rows nobody fills in come back empty and write nothing."""
     if not combos.matrix_options(options):
         raise GridError("This product has no questions with choices yet, so there is nothing to price.")
-    total = combos.count_combinations(options)
+    allowed = combos.buyable(options, rules)
+    total = len(allowed) if allowed is not None else combos.count_combinations(options)
     if total > MAX_ROWS:
         raise GridError(
             f"{total:,} combinations is more than one file can hold ({MAX_ROWS:,}). "
@@ -780,19 +798,25 @@ def check_exportable(options: list[Any]) -> None:
         )
 
 
-def export_lines(options: list[Any], stored_rows: list[Any]) -> Iterator[str]:
+def export_lines(options: list[Any], stored_rows: list[Any], rules: list[Any] | None = None) -> Iterator[str]:
     """Every combination with its own price, in the shape `read_csv` takes back,
     a few hundred lines at a time: the file streams while it is written.
 
+    Under the shop's `rules`, only the combinations a buyer can make, and a
+    question a rule hides for a row reads "-" (combinations.NOT_ASKED), which
+    the import takes back as "this row leaves the question out".
+
     `stored_rows` need only combo_key, enabled, line_price, unit_price, sku and
     note (plain tuples from a column select do)."""
-    check_exportable(options)
+    check_exportable(options, rules)
     taking_part = combos.matrix_options(options)
+    allowed = combos.buyable(options, rules)
     by_key = {row.combo_key: row for row in stored_rows}
     out = io.StringIO()
     writer = csv.writer(out, lineterminator="\n")
     writer.writerow([o.name for o in taking_part] + ["Price", "SKU", "Note"])
-    for n, pairs in enumerate(combos.iter_combinations(options), start=1):
+    source = allowed if allowed is not None else combos.iter_combinations(options)
+    for n, pairs in enumerate(source, start=1):
         row = by_key.get(combos.combo_key((o.id, v.id) for o, v in pairs))
         price = sku = note = ""
         if row is not None:
@@ -804,7 +828,7 @@ def export_lines(options: list[Any], stored_rows: list[Any]) -> Iterator[str]:
                 price = _figure(row.unit_price)
             sku = row.sku or ""
             note = "" if (row.note or "") == NOT_AVAILABLE_NOTE else (row.note or "")
-        writer.writerow([v.label for _, v in pairs] + [price, sku, note])
+        writer.writerow(combos.labels_in_columns(pairs, taking_part) + [price, sku, note])
         if n % 500 == 0:
             yield out.getvalue()
             out.seek(0)
@@ -812,6 +836,6 @@ def export_lines(options: list[Any], stored_rows: list[Any]) -> Iterator[str]:
     yield out.getvalue()
 
 
-def export_csv(options: list[Any], stored_rows: list[Any]) -> str:
+def export_csv(options: list[Any], stored_rows: list[Any], rules: list[Any] | None = None) -> str:
     """The whole export as one string (for tests and small tables)."""
-    return "".join(export_lines(options, stored_rows))
+    return "".join(export_lines(options, stored_rows, rules))
