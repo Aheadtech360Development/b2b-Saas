@@ -30,6 +30,14 @@ class Settings(BaseSettings):
     # Production: tenant.yourplatform.com → slug = "tenant"
     PLATFORM_DOMAIN: str = "localhost"   # change to "yourplatform.com" in prod
 
+    # A brand's own domain goes on the Vercel project through Vercel's API
+    # (services/vercel_domains): an access token for the team, the project's
+    # name or id, and the team's slug or id. Without a token, someone adds it
+    # in Vercel by hand. <slug>.PLATFORM_DOMAIN needs nothing: wildcard.
+    VERCEL_TOKEN: str = ""
+    VERCEL_PROJECT: str = ""
+    VERCEL_TEAM: str = ""
+
     @property
     def allowed_origins_list(self) -> list[str]:
         return [o.strip() for o in self.ALLOWED_ORIGINS.split(",")]

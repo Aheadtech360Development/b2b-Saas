@@ -16,9 +16,10 @@ Two things happen, in this order, and neither is optional:
      issued for it.
 
 Step 2 is ours, and until it is done the address answers with somebody else's
-certificate or nothing at all. So a domain is saved in a "pending" state and
-only becomes the shop's address once it actually resolves to us — checked,
-not assumed.
+certificate or nothing at all. It happens through Vercel's API the moment the
+domain is saved (vercel_swap, services/vercel_domains), by hand only when no
+VERCEL_TOKEN is set. A domain is saved in a "pending" state and only becomes
+the shop's address once it actually resolves to us — checked, not assumed.
 """
 from __future__ import annotations
 
@@ -129,14 +130,69 @@ async def get(db: AsyncSession, tenant_id: object) -> dict[str, Any]:
     }
 
 
+async def vercel_swap(old: str | None, new: str | None) -> dict[str, Any]:
+    """Step 2 above, done through Vercel's API (services/vercel_domains): the
+    old domain off the project, the new one on. Without a token it is still
+    done by hand, and the log says so."""
+    from app.services import vercel_domains
+
+    if not vercel_domains.configured():
+        if new:
+            logger.info("Domain %s claimed: add it to the deployment in Vercel (no VERCEL_TOKEN)", new)
+        return {"skipped": True}
+    if old and old != new:
+        await vercel_domains.remove(old)
+    if not new:
+        return {"ok": True, "verified": True, "verification": []}
+    result = await vercel_domains.add(new)
+    if result.get("error"):
+        _tell_platform(new, result["error"])
+    return result
+
+
+def _tell_platform(host: str, error: str) -> None:
+    """The platform inbox hears when a domain could not go on the project."""
+    from html import escape
+
+    from app.services.email_service import notify_platform
+
+    try:
+        notify_platform(f"Domain not added to Vercel: {host}",
+                        f"<p>A shop saved <code>{escape(host)}</code> and Vercel answered: {escape(error)}</p>"
+                        "<p>Add it in Vercel → the project → Domains by hand, or fix the cause and save it again.</p>")
+    except Exception:
+        logger.warning("could not tell the platform about %s", host, exc_info=True)
+
+
+def with_vercel(out: dict[str, Any], vercel: dict[str, Any]) -> dict[str, Any]:
+    """What Vercel said, in the shop's terms: a TXT record to add, or why not."""
+    from app.services import vercel_domains
+
+    if vercel.get("skipped"):
+        return out
+    if vercel.get("error"):
+        out["message"] = f"{vercel['error']} We have been told and will sort it out."
+        return out
+    extra = vercel_domains.records_from(vercel.get("verification") or [], vercel.get("apex"))
+    if extra:
+        out["records"] = [*out.get("records", []), *extra]
+        out["message"] = "Add the TXT record below too: it proves the domain is yours."
+    return out
+
+
 async def verify(db: AsyncSession, tenant_id: object) -> dict[str, Any]:
-    """Ask the address itself whether it is working yet."""
+    """Ask the address itself whether it is working yet, and Vercel whether
+    the domain is on the project and proven."""
+    from app.services import vercel_domains
+
     out = await get(db, tenant_id)
     if not out["domain"]:
         return out
+    out = with_vercel(out, await vercel_domains.check(out["domain"]))
+    waiting = out.get("message", "")
     ok, why = await live(out["domain"])
     out["status"] = "live" if ok else "pending"
-    out["message"] = why
+    out["message"] = why if ok or not waiting else waiting
     return out
 
 
@@ -148,6 +204,9 @@ async def save(db: AsyncSession, tenant_id: object, host: str | None) -> dict[st
     address belongs here. Clearing it sends the shop back to its address on
     the platform, which never stopped working.
     """
+    old = (await db.execute(text(
+        "SELECT custom_domain FROM tenants WHERE id = CAST(:t AS uuid)"
+    ), {"t": str(tenant_id)})).scalar()
     if not host or not host.strip():
         await db.execute(text(
             "UPDATE tenants SET custom_domain = NULL, updated_at = now() "
@@ -162,6 +221,7 @@ async def save(db: AsyncSession, tenant_id: object, host: str | None) -> dict[st
         from app.middleware.brand_cors import forget as forget_cors
 
         forget_cors()
+        await vercel_swap(old, None)
         return await get(db, tenant_id)
 
     cleaned = normalise(host)
@@ -185,5 +245,5 @@ async def save(db: AsyncSession, tenant_id: object, host: str | None) -> dict[st
     from app.services import tenant_hosts
 
     tenant_hosts.forget()
-    logger.info("Shop %s claimed the domain %s — add it to the deployment", tenant_id, cleaned)
-    return await get(db, tenant_id)
+    logger.info("Shop %s claimed the domain %s", tenant_id, cleaned)
+    return with_vercel(await get(db, tenant_id), await vercel_swap(old, cleaned))

@@ -114,7 +114,7 @@ export function DomainTab({ brand, reload }: BrandTabProps) {
                 </button>
                 {data.message && <span className="pc-hint" style={{ margin: 0 }}>{data.message}</span>}
               </div>
-              <div className="pc-hint">The owner sees the same records in their Settings, Domain. The secure certificate is issued once the domain is added in Vercel and the records are in place.</div>
+              <div className="pc-hint">The owner sees the same records in their Settings, Domain. The domain goes on the Vercel project by itself when it is saved; the secure certificate follows once these records are in place.</div>
             </>
           )}
         </div>

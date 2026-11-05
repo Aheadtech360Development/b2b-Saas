@@ -515,6 +515,11 @@ async def update_tenant(
         from app.services import tenant_hosts
 
         tenant_hosts.forget()
+    # The brand's own domain on the Vercel project, as when the shop saves it.
+    if "custom_domain" in updates and updates["custom_domain"] != current["custom_domain"]:
+        from app.services import brand_domain
+
+        await brand_domain.vercel_swap(current["custom_domain"], updates["custom_domain"])
     return {
         "message": f"Tenant '{slug}' updated",
         "slug": updates.get("slug", slug),
