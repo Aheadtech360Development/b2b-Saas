@@ -389,6 +389,12 @@ class AuthMiddleware(BaseHTTPMiddleware):
             return True
         if path == "/api/v1/gang-sheets/sizes":
             return True
+        # The t-shirt designer, open to anybody for the same reason as the
+        # gang sheet builder: a design is reached by its random id. The
+        # buyer's list of designs needs an account.
+        if (path == "/api/v1/tshirt-designs" or path.startswith("/api/v1/tshirt-designs/")) \
+                and path != "/api/v1/tshirt-designs/mine":
+            return True
         # The builder's assistant, for the same reason: the builder is open to
         # anybody, so its helper is. It reads only the sheet sent with the
         # question and touches no account data; its limits are per person

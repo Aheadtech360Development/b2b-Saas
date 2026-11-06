@@ -155,6 +155,7 @@
       "Bash(New-Item -ItemType Directory -Force \"C:\\\\Users\\\\RT\\\\Desktop\\\\AF Apparel\\\\frontend\\\\src\\\\app\\\\\\(customer\\)\\\\checkout\\\\invoice\\\\[order_number]\")",
       "Bash(Out-Null)",
       "Bash(git add *)",
+      "mcp__plugin_playwright_playwright__browser_run_code_unsafe",
       "Bash(python -c \"import ast; ast.parse\\(open\\('app/services/email_service.py', encoding='utf-8'\\).read\\(\\)\\); print\\('email_service.py: OK'\\)\")",
       "Bash(python -c \"import ast; ast.parse\\(open\\('app/tasks/email_tasks.py', encoding='utf-8'\\).read\\(\\)\\); print\\('email_tasks.py: OK'\\)\")"
     ]
