@@ -73,7 +73,7 @@ async def upload_media(request: Request, file: UploadFile = File(...), db: Async
         # from the browser instead (POST /video-upload).
         raise HTTPException(status_code=400, detail="Videos upload from the Media library page.")
     content = await file.read()
-    result = await imagekit_service.upload_bytes(content, file.filename or "file", tenant_id=folder)
+    result = await imagekit_service.upload_or_refuse(content, file.filename or "file", tenant_id=folder)
     return result
 
 

@@ -21,6 +21,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { GangSheetArtwork } from "@/services/gangSheets.service";
+import { showOriginal } from "@/lib/download";
 
 export interface Placement {
   artwork_id: string;
@@ -438,7 +439,7 @@ export function GangSheetCanvas({ sheet, artworks, value, onChange, readOnly, va
                 style={{ display: "flex", alignItems: "center", gap: "8px", border: "1px solid #E0DDD6", borderRadius: "8px", padding: "6px 10px", background: remaining > 0 ? "#fff" : "#F3F2EF", cursor: remaining > 0 ? "pointer" : "not-allowed", fontSize: "12px" }}>
                 {IMAGE_TYPES.has((a.file_type ?? "").toLowerCase()) ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={a.file_url} alt="" style={{ width: "26px", height: "26px", objectFit: "contain", borderRadius: "4px" }} />
+                  <img src={a.file_url} onError={showOriginal} alt="" style={{ width: "26px", height: "26px", objectFit: "contain", borderRadius: "4px" }} />
                 ) : (
                   <span style={{ width: "26px", height: "26px", display: "flex", alignItems: "center", justifyContent: "center", background: "#EEF2FF", color: "#4338CA", borderRadius: "4px", fontSize: "9px", fontWeight: 700 }}>{(a.file_type ?? "?").toUpperCase().slice(0, 3)}</span>
                 )}
@@ -490,7 +491,7 @@ export function GangSheetCanvas({ sheet, artworks, value, onChange, readOnly, va
                   // print file do — so a design the buyer turned upside down is
                   // seen upside down here too, not squeezed upright into its box.
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={a!.file_url} alt="" draggable={false} style={{
+                  <img src={a!.file_url} onError={showOriginal} alt="" draggable={false} style={{
                     position: "absolute", left: "50%", top: "50%",
                     width: `${p.w_in * ppi}px`, height: `${p.h_in * ppi}px`,
                     marginLeft: `${-p.w_in * ppi / 2}px`, marginTop: `${-p.h_in * ppi / 2}px`,

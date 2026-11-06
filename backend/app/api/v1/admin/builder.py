@@ -493,7 +493,7 @@ async def upload_font(
     if not imagekit_service.is_configured():
         raise HTTPException(status_code=503, detail="File storage is not set up on this platform.")
 
-    stored = await imagekit_service.upload_bytes(
+    stored = await imagekit_service.upload_or_refuse(
         content, f"font-{re.sub(r'[^a-z0-9]+', '-', family.lower())}-{weight}-{style}.{fmt}", tid,
     )
     font = BuilderFont(tenant_id=tid, family=family, weight=weight, style=style, format=fmt,

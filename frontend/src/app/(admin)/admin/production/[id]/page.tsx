@@ -17,7 +17,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { ArrowLeft, Check, X } from "lucide-react";
 import { ask, askText, tell } from "@/lib/dialog";
-import { downloadFile, originalFile, withOwner } from "@/lib/download";
+import { downloadFile, originalFile, showOriginalOnError, withOwner } from "@/lib/download";
 import { openSheetPdf } from "@/lib/gangSheetPdf";
 import { API_BASE_URL } from "@/lib/constants";
 import { GangSheetCanvas } from "@/components/storefront/GangSheetCanvas";
@@ -405,7 +405,7 @@ export default function PrintJobPage() {
                   <div key={a.id ?? i} className="pc-file" data-file={a.file_name}>
                     {IMAGE.has(ext)
                       // eslint-disable-next-line @next/next/no-img-element
-                      ? <img src={a.file_url} alt="" className="pc-file-thumb" onError={(e) => { e.currentTarget.style.visibility = "hidden"; }} />
+                      ? <img src={a.file_url} alt="" className="pc-file-thumb" onError={(e) => showOriginalOnError(e.currentTarget, (img) => { img.style.visibility = "hidden"; })} />
                       : <span className="pc-file-thumb">{ext.toUpperCase().slice(0, 4) || "FILE"}</span>}
                     <div style={{ minWidth: 0 }}>
                       <div className="pc-file-name">{a.file_name}</div>

@@ -9,7 +9,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { gangSheetsService, type GangSheetArtwork } from "@/services/gangSheets.service";
-import { downloadFile } from "@/lib/download";
+import { downloadFile, showOriginal } from "@/lib/download";
 import { Banner, Chip, Empty, Loading, PageHead, type Tone } from "@/components/portal/ui";
 
 const CHECK: Record<string, [string, Tone]> = {
@@ -89,7 +89,7 @@ export default function ArtworkLibraryPage() {
                 <div className="cp-tile-img">
                   {IMAGE.has(t)
                     // eslint-disable-next-line @next/next/no-img-element
-                    ? <img src={a.file_url} alt="" loading="lazy" />
+                    ? <img src={a.file_url} onError={showOriginal} alt="" loading="lazy" />
                     : <span className="cp-chip">{t.toUpperCase()}</span>}
                 </div>
                 <div className="cp-tile-name" title={a.file_name}>{a.file_name}</div>

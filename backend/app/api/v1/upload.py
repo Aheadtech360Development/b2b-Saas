@@ -79,12 +79,10 @@ async def upload_file(file: UploadFile = File(...), request: Request = None, db:
         # Folder from the authenticated tenant (or a validated storefront slug),
         # never the raw client header — so uploads can't target another brand.
         folder = await resolve_media_folder_key(request, db) if request is not None else None
-        try:
-            result = await imagekit_service.upload_bytes(content, original_name, tenant_id=folder)
-            return {"url": result["url"], "file_name": result.get("name") or original_name, "type": "pdf" if is_pdf else "image"}
-        except Exception as exc:  # noqa: BLE001 — fall back to local/S3 on ImageKit error
-            import logging
-            logging.getLogger(__name__).warning("ImageKit upload failed, falling back: %s", exc)
+        # Tried twice, then "upload it again": never this server's own disk,
+        # which a deploy empties (imagekit_service.upload_or_refuse).
+        result = await imagekit_service.upload_or_refuse(content, original_name, tenant_id=folder)
+        return {"url": result["url"], "file_name": result.get("name") or original_name, "type": "pdf" if is_pdf else "image"}
 
     if is_pdf:
         if use_s3:
@@ -182,19 +180,18 @@ async def upload_artwork(file: UploadFile = File(...), request: Request = None, 
 
     if imagekit_service.is_configured():
         folder = await resolve_media_folder_key(request, db) if request is not None else None
-        try:
-            result = await imagekit_service.upload_bytes(content, name, tenant_id=folder)
-            return {
-                "url": result["url"],
-                "file_name": result.get("name") or name,
-                "type": ext.lstrip("."),
-                "size": len(content),
-            }
-        except Exception as exc:  # noqa: BLE001 — fall back to local storage
-            import logging
+        # Tried twice, then the buyer is asked to upload again. It used to fall
+        # back to this server's own disk, which a deploy empties: the file
+        # looked saved and was gone the next day (imagekit_service.upload_or_refuse).
+        result = await imagekit_service.upload_or_refuse(content, name, tenant_id=folder)
+        return {
+            "url": result["url"],
+            "file_name": result.get("name") or name,
+            "type": ext.lstrip("."),
+            "size": len(content),
+        }
 
-            logging.getLogger(__name__).warning("ImageKit artwork upload failed: %s", exc)
-
+    # No ImageKit at all (a developer's own machine): the local disk.
     asset_id = str(uuid.uuid4())
     local_dir = f"/app/media/artwork/{asset_id}"
     os.makedirs(local_dir, exist_ok=True)

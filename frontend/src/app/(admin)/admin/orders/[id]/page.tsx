@@ -28,7 +28,7 @@ import { discountAmount, discountLabel } from "@/lib/orderMoney";
 import { methodWords, packingSlipHtml, pickListHtml, printHtml, toPrintOrder } from "@/lib/orderPrint";
 import type { LineConfiguration, OrderDiscountLine } from "@/types/order.types";
 import { decorationWords } from "@/components/shared/ConfigurationDetail";
-import { originalFile } from "@/lib/download";
+import { originalFile, showOriginalOnError } from "@/lib/download";
 
 interface Pill { key: string; label: string; tone: string }
 interface Step { key: string; label: string; state: "done" | "current" | "todo" | "stopped" }
@@ -715,7 +715,8 @@ export default function AdminOrderDetailPage() {
                           <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
                             {(sheet?.preview_url || design?.preview_url) && (
                               // eslint-disable-next-line @next/next/no-img-element
-                              <img src={(sheet?.preview_url || design?.preview_url)!} alt="" className="pc-thumb" onError={(e) => { e.currentTarget.style.display = "none"; }} />
+                              <img src={(sheet?.preview_url || design?.preview_url)!} alt="" className="pc-thumb"
+                                onError={(e) => showOriginalOnError(e.currentTarget, (img) => { img.style.display = "none"; })} />
                             )}
                             {design && job ? (
                               <Link href={designHref(design.id)} className="pc-pill" data-tone={job[1] || undefined} style={{ textTransform: "none", textDecoration: "none" }} title={`Open design ${design.reference}`} data-design-pill>

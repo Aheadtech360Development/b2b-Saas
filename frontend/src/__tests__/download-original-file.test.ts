@@ -8,7 +8,7 @@
  * every link to an uploaded file asks for that; nothing else is touched.
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { downloadFile, originalFile } from "@/lib/download";
+import { downloadFile, originalFile, showOriginalOnError } from "@/lib/download";
 
 const SHEET = "https://ik.imagekit.io/9vhlgquzw/tenants/innterflow/Dise%C3%B1o_sin_t%C3%ADtulo_Q_x8PIEJw.png";
 
@@ -26,6 +26,25 @@ describe("the file as it was uploaded", () => {
       `${SHEET}?tr=w-300`, "https://ik.imagekit.io/9vhlgquzw/tr:w-300/tenants/innterflow/a.png",
       `${SHEET}?ik-s=abc&ik-t=1`, "https://cdn.example.com/a.png", "/api/v1/gang-sheets/x/print", "",
     ]) expect(originalFile(url)).toBe(url);
+  });
+
+  it("a picture ImageKit will not deliver shows the file itself, once, and is given up after that", () => {
+    const img = document.createElement("img");
+    img.src = "https://ik.imagekit.io/9vhlgquzw/tr:w-150/tenants/innterflow/sheet.png?tr=w-300";
+    const giveUp = vi.fn();
+    showOriginalOnError(img, giveUp);
+    expect(img.src).toBe("https://ik.imagekit.io/9vhlgquzw/tenants/innterflow/sheet.png?tr=orig-true");
+    expect(giveUp).not.toHaveBeenCalled();
+    showOriginalOnError(img, giveUp);
+    expect(giveUp).toHaveBeenCalledWith(img);
+
+    // A file on the shop's own server has no other copy to show: given up at once.
+    const lost = document.createElement("img");
+    lost.src = "https://b2b-saas-production.up.railway.app/media/artwork/x/Dise%C3%B1o%20sin%20t%C3%ADtulo.png";
+    const hide = vi.fn();
+    showOriginalOnError(lost, hide);
+    expect(hide).toHaveBeenCalledWith(lost);
+    expect(lost.src).toContain("/media/artwork/x/");
   });
 
   it("downloads the original under the name given, and opens the original if the download is refused", async () => {

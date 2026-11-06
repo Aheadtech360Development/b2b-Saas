@@ -11,7 +11,7 @@ import { useParams } from "next/navigation";
 import { gangSheetsService, type GangSheetArtwork } from "@/services/gangSheets.service";
 import { cartService } from "@/services/cart.service";
 import { trackSheetAdd } from "@/lib/tracking";
-import { downloadFile } from "@/lib/download";
+import { downloadFile, showOriginal } from "@/lib/download";
 import { day } from "@/lib/customerWords";
 import { GangSheetCanvas } from "@/components/storefront/GangSheetCanvas";
 import { Banner, Chip, Loading, PageHead, type Tone } from "@/components/portal/ui";
@@ -32,7 +32,7 @@ function ArtworkRow({ a }: { a: GangSheetArtwork }) {
     <div className="cp-row" style={{ alignItems: "flex-start" }}>
       <div className="cp-thumb" aria-hidden style={{ width: 56, height: 56 }}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        {image ? <img src={a.file_url} alt="" /> : <span style={{ fontSize: 11, fontWeight: 700 }}>{(a.file_type ?? "FILE").toUpperCase()}</span>}
+        {image ? <img src={a.file_url} onError={showOriginal} alt="" /> : <span style={{ fontSize: 11, fontWeight: 700 }}>{(a.file_type ?? "FILE").toUpperCase()}</span>}
       </div>
       <div className="cp-row-body">
         <div className="cp-row-t" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={a.file_name}>{a.file_name}</div>
@@ -161,7 +161,7 @@ export default function PrintJobPage() {
                 {artworks.map((a, i) => (
                   <div key={a.id ?? i} className="cp-tile-img">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={a.file_url} alt={a.file_name} />
+                    <img src={a.file_url} onError={showOriginal} alt={a.file_name} />
                   </div>
                 ))}
               </div>

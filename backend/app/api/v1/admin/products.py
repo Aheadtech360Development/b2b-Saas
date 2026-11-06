@@ -1200,7 +1200,7 @@ async def _process_and_upload_image(
     if imagekit_service.is_configured():
         from app.core.tenant_context import get_current_tenant_slug, get_current_tenant_id
         folder_key = get_current_tenant_slug() or (str(get_current_tenant_id()) if get_current_tenant_id() else None)
-        result = await imagekit_service.upload_bytes(content, filename, tenant_id=folder_key)
+        result = await imagekit_service.upload_or_refuse(content, filename, tenant_id=folder_key)
         base = result["url"]
 
         def _tr(w: int, webp: bool = False) -> str:
@@ -1299,7 +1299,16 @@ async def upload_product_flyer(
     file_name = file.filename or "flyer.pdf"
     asset_id = str(_uuid.uuid4())
 
-    if use_s3:
+    from app.services import imagekit_service
+
+    if imagekit_service.is_configured():
+        # On ImageKit like every other file: this server's own disk is emptied
+        # by a deploy, so a flyer kept there was gone the next day.
+        from app.core.tenant_context import get_current_tenant_id, get_current_tenant_slug
+
+        folder_key = get_current_tenant_slug() or (str(get_current_tenant_id()) if get_current_tenant_id() else None)
+        url = (await imagekit_service.upload_or_refuse(content, file_name, tenant_id=folder_key))["url"]
+    elif use_s3:
         import boto3
         s3 = boto3.client(
             "s3",
@@ -1387,7 +1396,7 @@ async def upload_generic_image(
     from app.services import imagekit_service
     if imagekit_service.is_configured():
         slug = getattr(request.state, "tenant_slug", None) if request is not None else None
-        result = await imagekit_service.upload_bytes(content, file.filename or "image", tenant_id=slug)
+        result = await imagekit_service.upload_or_refuse(content, file.filename or "image", tenant_id=slug)
         url = result["url"]
         return {"url": url, "url_thumbnail": f"{url}?tr=w-150", "url_medium": f"{url}?tr=w-400", "url_large": url}
 

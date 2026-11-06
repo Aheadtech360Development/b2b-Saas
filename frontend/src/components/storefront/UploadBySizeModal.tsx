@@ -28,6 +28,7 @@ import { WorkingOverlay } from "@/components/storefront/WorkingOverlay";
 import { PrintCheck } from "@/components/storefront/PrintCheck";
 import { removeImageBackground, BackgroundRemovalError } from "@/lib/backgroundRemoval";
 import type { ProductDetail } from "@/types/product.types";
+import { showOriginal } from "@/lib/download";
 
 interface Props {
   /** Only what pricing and submitting need, so the modal can open from the
@@ -671,7 +672,7 @@ export function UploadBySizeModal({ product, onClose, revise = null, onRevised }
                       style={{ ...S.thumb, borderColor: on ? "#1A1A1A" : "#E2E2DE", borderWidth: on ? "2px" : "1px" }}
                     >
                       {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={it.file_url} alt="" style={{ width: "100%", height: "100%", objectFit: "contain" }} />
+                      <img src={it.file_url} onError={showOriginal} alt="" style={{ width: "100%", height: "100%", objectFit: "contain" }} />
                       <span style={S.qtyBadge}>{it.qty}</span>
                       {p && <span style={S.priceBadge}>${p.total.toFixed(2)}</span>}
                       {!revise && (

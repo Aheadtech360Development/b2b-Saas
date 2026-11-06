@@ -8,6 +8,7 @@ import { ask } from "@/lib/dialog";
 import { GangSheetProductEditor } from "@/components/admin/GangSheetProductEditor";
 import { ProductsFrame } from "@/components/admin/products/ProductsFrame";
 import { UpgradeNotice } from "@/components/admin/UpgradeNotice";
+import { showOriginal } from "@/lib/download";
 import {
   gangSheetsService,
   type GangSheetSize,
@@ -756,7 +757,7 @@ function LibraryTab() {
           {designs.map((d) => (
             <div key={d.id} style={{ position: "relative", border: "1px solid #E8E6E1", borderRadius: "8px", overflow: "hidden", background: "#fff" }}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={d.file_url} alt={d.name} style={{ width: "100%", height: "110px", objectFit: "contain", background: "#F7F7F5" }} />
+              <img src={d.file_url} onError={showOriginal} alt={d.name} style={{ width: "100%", height: "110px", objectFit: "contain", background: "#F7F7F5" }} />
               <div style={{ padding: "6px 8px", fontSize: "11px", color: "#555", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{d.name}</div>
               <button onClick={() => remove(d.id)} title="Remove" style={{ position: "absolute", top: "5px", right: "5px", background: "rgba(255,255,255,.9)", border: "1px solid #F0C9C9", color: "#B91C1C", borderRadius: "6px", width: "24px", height: "24px", fontSize: "12px", fontWeight: 700, cursor: "pointer", lineHeight: 1 }}>✕</button>
             </div>

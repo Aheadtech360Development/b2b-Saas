@@ -67,6 +67,7 @@ import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import type { ArtworkInspection } from "@/services/gangSheets.service";
 import { removeImageBackground, BackgroundRemovalError } from "@/lib/backgroundRemoval";
+import { showOriginal } from "@/lib/download";
 
 const IMAGE_TYPES = new Set(["png", "jpg", "jpeg", "webp", "gif"]);
 const MIN_IN = 0.5;
@@ -3402,7 +3403,7 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
                         <span style={S.uploadThumbBox}>
                           {isImg
                             // eslint-disable-next-line @next/next/no-img-element
-                            ? <img src={u.file_url} alt="" style={{ width: "100%", height: "100%", objectFit: "contain" }} />
+                            ? <img src={u.file_url} onError={showOriginal} alt="" style={{ width: "100%", height: "100%", objectFit: "contain" }} />
                             : <span style={{ fontSize: "10.5px", color: "#4338CA", fontWeight: 800 }}>{u.file_type.toUpperCase().slice(0, 4)}</span>}
                           {count > 0 && <span style={S.thumbBadge}>{count}</span>}
                         </span>
@@ -3439,7 +3440,7 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
                 {library.map((d) => (
                   <button key={d.id} onClick={() => addFromUrl(d.file_url, d.name, d.file_type)} title={d.name} style={S.uploadThumb}>
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={d.file_url} alt="" style={{ width: "100%", height: "72px", objectFit: "contain", background: "#F7F7F5" }} />
+                    <img src={d.file_url} onError={showOriginal} alt="" style={{ width: "100%", height: "72px", objectFit: "contain", background: "#F7F7F5" }} />
                     <div style={{ fontSize: "11.5px", color: "#666", padding: "3px 4px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{d.name}</div>
                   </button>
                 ))}
@@ -3457,7 +3458,7 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
                   <button key={`${a.file_url}-${i}`} onClick={() => addFromUrl(a.file_url, a.file_name, a.file_type)} title={a.file_name} style={S.uploadThumb}>
                     {IMAGE_TYPES.has((a.file_type ?? "").toLowerCase())
                       // eslint-disable-next-line @next/next/no-img-element
-                      ? <img src={a.file_url} alt="" style={{ width: "100%", height: "72px", objectFit: "contain", background: "#F7F7F5" }} />
+                      ? <img src={a.file_url} onError={showOriginal} alt="" style={{ width: "100%", height: "72px", objectFit: "contain", background: "#F7F7F5" }} />
                       : <div style={{ height: "72px", display: "flex", alignItems: "center", justifyContent: "center", color: "#4338CA", fontWeight: 700 }}>{(a.file_type ?? "?").toUpperCase().slice(0, 4)}</div>}
                     <div style={{ fontSize: "11.5px", color: "#666", padding: "3px 4px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.file_name}</div>
                   </button>
@@ -3749,7 +3750,7 @@ export function GangSheetStudio({ sizes, productId, contactName, contactEmail, a
                       // — while the preview and the print file turned it. What
                       // was on screen was not what came off the printer.
                       // eslint-disable-next-line @next/next/no-img-element
-                      ? <img src={u!.file_url} alt="" draggable={false}
+                      ? <img src={u!.file_url} onError={showOriginal} alt="" draggable={false}
                           // Two names for the same turn, so a second press
                           // while the first is still playing starts it again.
                           className={turning ? (turning.n % 2 ? "gs-turn-a" : "gs-turn-b") : undefined}

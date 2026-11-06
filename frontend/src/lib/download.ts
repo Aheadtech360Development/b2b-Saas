@@ -28,6 +28,44 @@ export function originalFile(url: string): string {
   return `${head}${head.includes("?") ? "&" : "?"}tr=orig-true${hash !== undefined ? `#${hash}` : ""}`;
 }
 
+/** An ImageKit address without the transformation it asks for (a thumbnail's
+ *  `tr=w-150`, a `/tr:` path): ImageKit cannot resize a file past its limit
+ *  either, so the fallback is the file itself. */
+function untransformed(url: string): string {
+  if (!/^https:\/\/ik\.imagekit\.io\//i.test(url) || /[?&]ik-s=/.test(url)) return url;
+  try {
+    const u = new URL(url);
+    u.pathname = u.pathname.replace(/\/tr:[^/]+/g, "");
+    u.searchParams.delete("tr");
+    return u.toString();
+  } catch {
+    return url;
+  }
+}
+
+/**
+ * A picture of an uploaded file that ImageKit would not deliver (one past its
+ * limit fails every resize as well): show the file itself instead, once. When
+ * that fails too, `giveUp` decides (hide it, or leave the broken picture where
+ * a missing file has to be seen).
+ */
+export function showOriginalOnError(img: HTMLImageElement, giveUp?: (img: HTMLImageElement) => void): void {
+  if (img.dataset.original !== "tried") {
+    const original = originalFile(untransformed(img.src));
+    if (original !== img.src) {
+      img.dataset.original = "tried";
+      img.src = original;
+      return;
+    }
+  }
+  giveUp?.(img);
+}
+
+/** showOriginalOnError as an <img>'s onError, leaving the picture as it is when the file is gone too. */
+export function showOriginal(e: { currentTarget: HTMLImageElement }): void {
+  showOriginalOnError(e.currentTarget);
+}
+
 /** A file name a browser will accept, from a URL or a stored name. */
 export function fileNameFrom(url: string, fallback?: string): string {
   if (fallback && fallback.trim()) return sanitise(fallback);

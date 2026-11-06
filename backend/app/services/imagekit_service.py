@@ -10,6 +10,7 @@ Docs: https://docs.imagekit.io/api-reference/upload-file-api/server-side-file-up
 from __future__ import annotations
 
 import base64
+import logging
 import re
 import time
 import uuid
@@ -19,6 +20,8 @@ import httpx
 from jose import jwt
 
 from app.core.config import settings
+
+logger = logging.getLogger(__name__)
 
 _UPLOAD_URL = "https://upload.imagekit.io/api/v1/files/upload"
 # Secure client-side upload (V2): the browser sends the file itself, with a
@@ -58,7 +61,9 @@ async def upload_bytes(
         "folder": folder,
         "useUniqueFileName": "true",
     }
-    async with httpx.AsyncClient(timeout=60) as client:
+    # A minute, and five seconds more for every MB: a print file of 20 MB
+    # goes up as 27 MB of base64, which a minute did not always carry.
+    async with httpx.AsyncClient(timeout=60 + 5 * (len(content) >> 20)) as client:
         resp = await client.post(
             _UPLOAD_URL,
             data=data,
@@ -75,6 +80,34 @@ async def upload_bytes(
         "size": j.get("size"),
         "file_type": j.get("fileType"),
     }
+
+
+UPLOAD_AGAIN = "The file couldn't be saved just now. Please upload it again."
+
+
+async def upload_or_refuse(
+    content: bytes,
+    file_name: str,
+    tenant_id: str | uuid.UUID | None = None,
+    subfolder: str | None = None,
+) -> dict[str, Any]:
+    """upload_bytes, tried twice. When ImageKit still will not take the file,
+    the person is told to upload it again (ServiceUnavailableError, 503).
+
+    It is never kept on this server's own disk instead: a deploy empties that
+    disk, so the file looked saved and was gone the next day (a buyer's print
+    file, Innterflow, 2026-11-06). Only a setup with no ImageKit at all (a
+    developer's own machine) keeps files on its disk, and that is the caller's
+    `is_configured()` branch, not this.
+    """
+    from app.core.exceptions import ServiceUnavailableError
+
+    for attempt in (1, 2):
+        try:
+            return await upload_bytes(content, file_name, tenant_id=tenant_id, subfolder=subfolder)
+        except Exception as exc:  # noqa: BLE001 (any failure: try once more, then refuse)
+            logger.warning("ImageKit upload of %s failed (try %s of 2): %s", file_name, attempt, exc)
+    raise ServiceUnavailableError(UPLOAD_AGAIN)
 
 
 def can_take_videos() -> bool:

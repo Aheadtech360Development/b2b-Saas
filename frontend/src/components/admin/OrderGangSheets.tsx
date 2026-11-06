@@ -11,7 +11,7 @@
  * has to go hunting through.
  */
 import { useCallback, useEffect, useState } from "react";
-import { downloadFile, withOwner } from "@/lib/download";
+import { downloadFile, showOriginal, withOwner } from "@/lib/download";
 import { apiClient } from "@/lib/api-client";
 import { GangSheetCanvas } from "@/components/storefront/GangSheetCanvas";
 import { openSheetPdf } from "@/lib/gangSheetPdf";
@@ -188,7 +188,7 @@ export function OrderGangSheets({ orderId }: { orderId: string }) {
                         style={{ border: "1px solid #E3E3E3", borderRadius: "8px", padding: "8px", textAlign: "left", color: "inherit", background: "#fff", cursor: "pointer", font: "inherit" }}>
                         <div style={{ background: "#F6F6F7", borderRadius: "6px", aspectRatio: "1", display: "grid", placeItems: "center", overflow: "hidden", marginBottom: "7px" }}>
                           {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img src={a.file_url} alt={a.file_name} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
+                          <img src={a.file_url} onError={showOriginal} alt={a.file_name} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
                         </div>
                         <div style={{ fontSize: "11px", fontWeight: 600, color: "#1A1A1A", wordBreak: "break-all", lineHeight: 1.35 }}>{a.file_name}</div>
                         <div style={{ fontSize: "11px", color: "#8A8A8A", marginTop: "2px" }}>

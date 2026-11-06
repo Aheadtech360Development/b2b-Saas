@@ -13,6 +13,7 @@ import { useRef, useState } from "react";
 import type { ArtworkInspection } from "@/services/gangSheets.service";
 import { PrintCheck } from "@/components/storefront/PrintCheck";
 import type { Layout } from "@/lib/sheetPacking";
+import { showOriginal } from "@/lib/download";
 
 export interface AutoBuildUpload {
   uid: string;
@@ -212,7 +213,7 @@ export function AutoBuildPanel(p: Props) {
                     <div style={S.preview}>
                       {u?.isImage
                         // eslint-disable-next-line @next/next/no-img-element
-                        ? <img src={u.file_url} alt="" style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }} />
+                        ? <img src={u.file_url} onError={showOriginal} alt="" style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }} />
                         : <span style={{ fontSize: "11px", color: "#666", padding: "6px", textAlign: "center" }}>{u?.file_name ?? "Design"}</span>}
                       {busy && <span style={S.busy}>{p.busyLabel}…</span>}
                     </div>
@@ -310,7 +311,7 @@ export function AutoBuildPanel(p: Props) {
                 {(picker === "mine" ? p.myImages : p.galleryDesigns).map((d, i) => (
                   <button key={`${d.file_url}-${i}`} onClick={() => { p.onPick(d); setPicker(null); }} style={S.pickTile} title={d.name}>
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={d.file_url} alt="" style={{ width: "100%", aspectRatio: "1", objectFit: "contain", background: "#F6F6F7" }} />
+                    <img src={d.file_url} onError={showOriginal} alt="" style={{ width: "100%", aspectRatio: "1", objectFit: "contain", background: "#F6F6F7" }} />
                     <span style={{ display: "block", fontSize: "10px", color: "#555", padding: "3px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{d.name}</span>
                   </button>
                 ))}

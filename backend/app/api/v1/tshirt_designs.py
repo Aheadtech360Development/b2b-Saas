@@ -342,18 +342,17 @@ async def _forget_file(o: TShirtDesignOutput, folder: str | None) -> None:
 async def _store(content: bytes, name: str, reference: str, design_id: uuid.UUID,
                  request: Request, db: AsyncSession) -> tuple[str, str | None]:
     """Keep a finished file: in ImageKit, in the shop's folder; on this
-    server's disk when ImageKit is not set up, as gang sheet artwork does."""
+    server's disk only when ImageKit is not set up at all (a developer's own
+    machine). When ImageKit will not take it, the designer is told and tries
+    again: the server's disk is emptied by a deploy (upload_or_refuse)."""
     from app.services import imagekit_service
 
     if imagekit_service.is_configured():
         folder = await resolve_media_folder_key(request, db)
-        try:
-            result = await imagekit_service.upload_bytes(
-                content, name, tenant_id=folder, subfolder=output_folder(reference),
-            )
-            return result["url"], result.get("file_id")
-        except Exception as exc:  # noqa: BLE001 — fall back to local storage
-            logger.warning("ImageKit t-shirt upload failed: %s", exc)
+        result = await imagekit_service.upload_or_refuse(
+            content, name, tenant_id=folder, subfolder=output_folder(reference),
+        )
+        return result["url"], result.get("file_id")
 
     local_dir = f"/app/media/tshirt-designs/{design_id}"
     os.makedirs(local_dir, exist_ok=True)
