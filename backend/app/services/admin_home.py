@@ -246,7 +246,17 @@ async def sales_for(db: AsyncSession, tenant_id: Any, range_key: str, *, date_fr
     except Exception as exc:  # noqa: BLE001  (the money still shows)
         logger.warning("home: visits failed: %s", exc)
         seen = {"sessions": None, "converted": None, "conversion_rate": None, "counted_since": None}
+    # Each number over time, beside the days just before (the chart).
+    try:
+        from app.services.sales_over_time import over_time
+
+        async with db.begin_nested():
+            chart = await over_time(db, tenant_id, s, range_key)
+    except Exception as exc:  # noqa: BLE001  (the totals still show)
+        logger.warning("home: sales over time failed: %s", exc)
+        chart = {"granularity": None, "series": None, "previous": None, "changes": None}
     return {
+        **chart,
         "range": range_key,
         "from": None if range_key == "all" else s.first.isoformat(),
         "to": s.last.isoformat(),

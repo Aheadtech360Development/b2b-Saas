@@ -137,15 +137,44 @@
 .pc-home-sales .pc-seg { max-width: 100%; overflow-x: auto; }
 .pc-home-dates { display: flex; align-items: flex-end; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
 .pc-home-dates > div { width: 180px; }
+/* Each number is a tab (Shopify's Home): the chosen one in ink with a blue rule
+   under it, the rest quieter. On a phone the tabs slide sideways. */
 .pc-kpis { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); margin-top: 18px; border-top: 1px solid var(--pc-line); }
-.pc-kpi { padding: 16px 16px 4px 0; min-width: 0; }
-.pc-kpi + .pc-kpi { padding-left: 16px; border-left: 1px solid var(--pc-line); }
-.pc-admin .pc-kpi-v { font: 600 26px/1.2 var(--pc-display); color: var(--pc-ink); margin-top: 4px; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
-.pc-kpi-note { font-size: 12.5px; color: var(--pc-muted); margin-top: 4px; }
+.pc-admin .pc-kpi { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-width: 0; margin: 0; padding: 14px 14px 12px; border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: none; text-align: left; font: inherit; color: inherit; cursor: pointer; box-shadow: none; filter: none; }
+.pc-admin .pc-kpi + .pc-kpi { border-left: 1px solid var(--pc-line); }
+.pc-admin .pc-kpi:hover { background: var(--pc-bg); }
+.pc-admin .pc-kpi[aria-selected="true"] { border-bottom-color: var(--pc-blue); }
+.pc-admin .pc-kpi[aria-selected="false"] .pc-kpi-v { color: var(--pc-ink-2); }
+.pc-admin .pc-kpi:focus-visible { outline: 2px solid var(--pc-blue); outline-offset: -2px; }
+/* The small line moves under the number when the tab is too narrow for both; the number never breaks. */
+.pc-kpi-row { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 2px 8px; width: 100%; }
+.pc-admin .pc-kpi-v { font: 600 24px/1.2 var(--pc-display); color: var(--pc-ink); margin-top: 2px; white-space: nowrap; }
+.pc-kpi-note { font-size: 12.5px; color: var(--pc-muted); margin-top: 2px; }
+/* Change against the days before: an arrow and the word for screen readers, never colour alone. */
+.pc-change { display: inline-flex; align-items: center; gap: 2px; font-size: 13px; font-weight: 600; color: var(--pc-muted); }
+.pc-change[data-dir="up"] { color: var(--pc-green); }
+.pc-change[data-dir="down"] { color: var(--pc-red); }
+.pc-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+/* The chosen number over time */
+.pc-sales-chart { padding-top: 18px; border-top: 1px solid var(--pc-line); }
+.pc-sales-chart-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+.pc-sales-hero { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.pc-sales-hero > span:first-child { font: 600 30px/1.15 var(--pc-display); color: var(--pc-ink); }
+.pc-sales-hero .pc-change { font-size: 16px; }
+.pc-sales-title { font: 600 14px var(--pc-sans); color: var(--pc-ink); margin-top: 6px; }
+.pc-chart { min-width: 0; }
+.pc-chart-plot { position: relative; outline: none; border-radius: 8px; }
+.pc-chart-plot:focus-visible { box-shadow: 0 0 0 2px var(--pc-blue); }
+.pc-chart-tip { position: absolute; top: 4px; z-index: 2; min-width: 170px; padding: 8px 10px; border: 1px solid var(--pc-line); border-radius: 8px; background: #fff; box-shadow: 0 6px 18px rgba(15, 27, 45, .12); pointer-events: none; font-size: 12.5px; }
+.pc-chart-tip-row { display: flex; align-items: center; gap: 8px; white-space: nowrap; }
+.pc-chart-tip-row + .pc-chart-tip-row { margin-top: 6px; }
+.pc-chart-tip-row b { color: var(--pc-ink); font-size: 13.5px; }
+.pc-chart-tip-row span { color: var(--pc-muted); }
+.pc-chart-legend { display: flex; justify-content: center; flex-wrap: wrap; gap: 6px 20px; margin-top: 6px; font-size: 12.5px; color: var(--pc-muted); }
+.pc-chart-legend span { display: inline-flex; align-items: center; gap: 6px; }
 @media (max-width: 900px) {
-  .pc-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .pc-kpi, .pc-kpi + .pc-kpi { padding: 14px 12px 10px 0; border-left: 0; border-bottom: 1px solid var(--pc-line); }
-  .pc-kpi[data-kpi="total"] { grid-column: 1 / -1; }
+  .pc-kpis { display: flex; overflow-x: auto; scroll-snap-type: x proximity; }
+  .pc-admin .pc-kpi { flex: 0 0 168px; scroll-snap-align: start; }
   .pc-home-dates > div { width: calc(50% - 5px); }
 }
 .pc-stack { display: flex; flex-direction: column; gap: 24px; min-width: 0; }
