@@ -6,6 +6,7 @@
  * the line, which is why the cart, checkout and invoice all show the same thing:
  * they're reading the same record, not re-deriving it.
  */
+import { originalFile } from "@/lib/download";
 import { oneOffFees, type ConfigLine, type DesignLineInfo, type LineConfiguration } from "@/types/order.types";
 
 const SIDE_WORDS: Record<string, string> = { front: "front", back: "back", left: "left sleeve", right: "right sleeve" };
@@ -76,7 +77,7 @@ export function ConfigurationDetail({
   // important thing on the line: without it there is nothing to print.
   const artworkRow = artwork ? (
     <a
-      href={artwork.url}
+      href={originalFile(artwork.url)}
       target="_blank"
       rel="noopener noreferrer"
       style={{ display: "inline-flex", alignItems: "center", gap: "6px", fontSize: compact ? "11px" : "12px", fontWeight: 700, color: "#1C3557", textDecoration: "none", marginTop: "4px" }}

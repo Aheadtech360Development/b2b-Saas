@@ -12,6 +12,22 @@
  * so the link still does something rather than nothing.
  */
 
+/**
+ * The file itself, as it was uploaded, for an address on ImageKit.
+ *
+ * ImageKit hands out every image through its optimiser, and an image past its
+ * limit (25 megapixels; a 22 x 30 inch sheet at 300 DPI is 59) comes back as
+ * "Bad Request" instead of the file. A print file wants the original bytes in
+ * any case, never a re-encoded copy: `tr=orig-true` asks for exactly that. Any
+ * other address, one that already asks for a transformation, and a signed one
+ * (the signature covers its query) are left as they are.
+ */
+export function originalFile(url: string): string {
+  if (!/^https:\/\/ik\.imagekit\.io\//i.test(url) || /[?&](tr|ik-s)=|\/tr:/.test(url)) return url;
+  const [head, hash] = url.split("#", 2) as [string, string | undefined];
+  return `${head}${head.includes("?") ? "&" : "?"}tr=orig-true${hash !== undefined ? `#${hash}` : ""}`;
+}
+
 /** A file name a browser will accept, from a URL or a stored name. */
 export function fileNameFrom(url: string, fallback?: string): string {
   if (fallback && fallback.trim()) return sanitise(fallback);
@@ -56,8 +72,10 @@ export function withOwner(fileName: string, orderNumber?: string | null, custome
  */
 export async function downloadFile(url: string, name?: string): Promise<boolean> {
   const filename = fileNameFrom(url, name);
+  // The uploaded file itself, never ImageKit's optimised copy (originalFile).
+  const source = originalFile(url);
   try {
-    const response = await fetch(url, { mode: "cors", credentials: "omit" });
+    const response = await fetch(source, { mode: "cors", credentials: "omit" });
     if (!response.ok) throw new Error(String(response.status));
     const blob = await response.blob();
     const href = URL.createObjectURL(blob);
@@ -72,7 +90,7 @@ export async function downloadFile(url: string, name?: string): Promise<boolean>
     window.setTimeout(() => URL.revokeObjectURL(href), 10_000);
     return true;
   } catch {
-    window.open(url, "_blank", "noopener,noreferrer");
+    window.open(source, "_blank", "noopener,noreferrer");
     return false;
   }
 }

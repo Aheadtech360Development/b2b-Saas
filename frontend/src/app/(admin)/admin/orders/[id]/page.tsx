@@ -28,6 +28,7 @@ import { discountAmount, discountLabel } from "@/lib/orderMoney";
 import { methodWords, packingSlipHtml, pickListHtml, printHtml, toPrintOrder } from "@/lib/orderPrint";
 import type { LineConfiguration, OrderDiscountLine } from "@/types/order.types";
 import { decorationWords } from "@/components/shared/ConfigurationDetail";
+import { originalFile } from "@/lib/download";
 
 interface Pill { key: string; label: string; tone: string }
 interface Step { key: string; label: string; state: "done" | "current" | "todo" | "stopped" }
@@ -721,7 +722,7 @@ export default function AdminOrderDetailPage() {
                                 {job[0]}
                               </Link>
                             ) : job ? <span className="pc-pill" data-tone={job[1] || undefined} style={{ textTransform: "none" }}>{job[0]}</span>
-                              : file ? <a href={file.url} target="_blank" rel="noopener noreferrer" className="pc-pill" data-tone="blue" style={{ textTransform: "none", textDecoration: "none" }} title={file.file_name}>File attached</a>
+                              : file ? <a href={originalFile(file.url)} target="_blank" rel="noopener noreferrer" className="pc-pill" data-tone="blue" style={{ textTransform: "none", textDecoration: "none" }} title={file.file_name}>File attached</a>
                               : <span className="pc-pill" style={{ textTransform: "none" }}>No file needed</span>}
                           </div>
                         </td>

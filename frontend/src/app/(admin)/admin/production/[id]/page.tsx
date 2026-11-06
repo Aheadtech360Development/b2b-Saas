@@ -17,7 +17,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { ArrowLeft, Check, X } from "lucide-react";
 import { ask, askText, tell } from "@/lib/dialog";
-import { downloadFile, withOwner } from "@/lib/download";
+import { downloadFile, originalFile, withOwner } from "@/lib/download";
 import { openSheetPdf } from "@/lib/gangSheetPdf";
 import { API_BASE_URL } from "@/lib/constants";
 import { GangSheetCanvas } from "@/components/storefront/GangSheetCanvas";
@@ -345,7 +345,7 @@ export default function PrintJobPage() {
                     </div>
                     {v.artworks.map((a, k) => (
                       <div key={k} style={{ display: "flex", justifyContent: "space-between", gap: "8px", color: "var(--pc-muted)" }}>
-                        <a href={a.file_url} target="_blank" rel="noopener noreferrer" className="pc-link" style={{ fontSize: "13px", overflowWrap: "anywhere" }}>{a.file_name}</a>
+                        <a href={originalFile(a.file_url)} target="_blank" rel="noopener noreferrer" className="pc-link" style={{ fontSize: "13px", overflowWrap: "anywhere" }}>{a.file_name}</a>
                         <span style={{ whiteSpace: "nowrap" }}>{inch(a.width_in)} × {inch(a.height_in)} in, qty {a.quantity}</span>
                       </div>
                     ))}

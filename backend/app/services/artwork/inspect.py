@@ -17,6 +17,7 @@ Levels:
 from __future__ import annotations
 
 import logging
+import re
 from dataclasses import dataclass, field
 from io import BytesIO
 
@@ -96,11 +97,26 @@ def allowed_source(url: str) -> bool:
     return any(url.startswith(prefix.rstrip("/") + "/") for prefix in allowed)
 
 
+def original(url: str) -> str:
+    """The file as it was uploaded, for a URL on our ImageKit.
+
+    ImageKit sends every image through its optimiser, and refuses one past its
+    limit (25 megapixels: a 22 x 30 inch sheet at 300 DPI is 59) with 400 Bad
+    Request. A print check and a print file want the uploaded bytes in any
+    case: `tr=orig-true` asks for them. Any other URL, one that already asks
+    for a transformation, and a signed one are left as they are.
+    """
+    endpoint = (settings.IMAGEKIT_URL_ENDPOINT or "").rstrip("/")
+    if not endpoint or not url.startswith(endpoint + "/") or re.search(r"[?&](tr|ik-s)=|/tr:", url):
+        return url
+    return f"{url}{'&' if '?' in url else '?'}tr=orig-true"
+
+
 async def fetch_bytes(url: str) -> bytes:
     if not allowed_source(url):
         raise NotOurFile("artwork must be a file uploaded to this store")
     async with httpx.AsyncClient(timeout=FETCH_TIMEOUT, follow_redirects=True) as client:
-        async with client.stream("GET", url) as res:
+        async with client.stream("GET", original(url)) as res:
             res.raise_for_status()
             size, chunks = 0, []
             async for chunk in res.aiter_bytes():

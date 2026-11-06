@@ -16,7 +16,7 @@
  */
 import { useState } from "react";
 import { API_BASE_URL } from "@/lib/constants";
-import { downloadFile, withOwner } from "@/lib/download";
+import { downloadFile, originalFile, withOwner } from "@/lib/download";
 import { GANG_SHEET_STATUS_LABEL, type GangSheetStatus } from "@/services/gangSheets.service";
 
 export interface GangSheetProduction {
@@ -84,7 +84,8 @@ export function GangSheetLineFiles({ sheet }: { sheet: GangSheetProduction }) {
     ["Size", <>{inches(sheet.width_in)} × {inches(sheet.height_in)}<Muted> · ×{sheet.quantity}</Muted></>],
     ["Builder", BUILDER[sheet.kind] ?? sheet.kind],
     ["Preview", sheet.preview_url
-      ? <a href={apiHref(sheet.preview_url)} target="_blank" rel="noopener noreferrer" style={LINK}>View preview ↗</a>
+      // An uploaded sheet is its own preview, often past ImageKit's limit: the file itself.
+      ? <a href={originalFile(apiHref(sheet.preview_url))} target="_blank" rel="noopener noreferrer" style={LINK}>View preview ↗</a>
       : <Muted>Not laid out yet</Muted>],
     ["Edit", sheet.edit_url
       // A link for the buyer: it opens in their account, so it is copied to

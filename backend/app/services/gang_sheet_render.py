@@ -430,7 +430,7 @@ async def fetch(url: str) -> Source:
 
     import httpx
 
-    from app.services.artwork.inspect import NotOurFile, allowed_source
+    from app.services.artwork.inspect import NotOurFile, allowed_source, original
 
     url = (url or "").strip()
     if url.startswith("/media/"):
@@ -447,7 +447,8 @@ async def fetch(url: str) -> Source:
     tmp = tempfile.TemporaryFile()
     try:
         async with httpx.AsyncClient(timeout=FETCH_TIMEOUT, follow_redirects=True) as client:
-            async with client.stream("GET", url) as res:
+            # The uploaded file itself: ImageKit refuses a large one through its optimiser.
+            async with client.stream("GET", original(url)) as res:
                 res.raise_for_status()
                 size = 0
                 async for chunk in res.aiter_bytes():

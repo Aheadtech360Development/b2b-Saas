@@ -20,6 +20,7 @@ import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { ExternalLink, Plus, Search, Trash2, X } from "lucide-react";
 import { ask, tell } from "@/lib/dialog";
+import { originalFile } from "@/lib/download";
 import { ProductsFrame } from "@/components/admin/products/ProductsFrame";
 import { UpgradeNotice } from "@/components/admin/UpgradeNotice";
 import {
@@ -587,7 +588,7 @@ function DesignDetail({ id, onBack }: { id: string; onBack: () => void }) {
             </div>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
               {sh.prints.map((o) => (
-                <a key={o.id} className="pc-btn" href={o.file_url} target="_blank" rel="noopener noreferrer" download={o.file_name}>
+                <a key={o.id} className="pc-btn" href={originalFile(o.file_url)} target="_blank" rel="noopener noreferrer" download={o.file_name}>
                   Print file: {o.view} ({o.width_px}×{o.height_px}{o.dpi ? `, ${o.dpi} DPI` : ""})
                 </a>
               ))}
